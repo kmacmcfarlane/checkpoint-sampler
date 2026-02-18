@@ -1,0 +1,20 @@
+FROM golang:1.25-alpine
+
+RUN apk add --no-cache gcc musl-dev
+
+RUN go install github.com/air-verse/air@latest && \
+    go install github.com/onsi/ginkgo/v2/ginkgo@latest && \
+    go install goa.design/goa/v3/cmd/goa@latest
+
+# Make Go module cache and tooling readable by any user
+RUN chmod -R a+rX /go
+
+# Prepare writable cache dir for non-root user
+RUN mkdir -p /home/gouser/.cache/go-build && chmod -R 777 /home/gouser
+
+WORKDIR /build
+COPY go.mod go.sum ./
+RUN go mod download
+
+EXPOSE 8080
+CMD ["sh", "-c", "go generate ./internal/api/... && air -c .air.toml"]
