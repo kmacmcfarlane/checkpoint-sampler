@@ -50,7 +50,14 @@ Frontend never talks to providers. Frontend talks only to backend API.
 ## 5) Data persistence
 Persistence approach and external integrations are defined in /agent/PRD.md.
 
-## 6) Runtime environment (claude-sandbox)
+## 6) Tooling ecosystem
+This project is part of the [kmac-claude-kit](https://github.com/kmacmcfarlane/kmac-claude-kit) ecosystem:
+- **claude-sandbox**: The Docker container this agent runs inside. See https://github.com/kmacmcfarlane/claude-sandbox
+- **claude-templates**: The template this project was scaffolded from. See https://github.com/kmacmcfarlane/claude-templates
+- **claude-skills**: Reusable skills (slash commands). See https://github.com/kmacmcfarlane/claude-skills
+
+## 7) Runtime environment (claude-sandbox)
+
 Claude Code runs inside a Docker container defined by the `claude-sandbox` tool (on PATH).
 It may be running in a ralph loop (fresh-context iterations via `ralph`) or interactively.
 
@@ -68,7 +75,7 @@ Implications for development:
 - **Go codegen**: Run via `docker compose ... run --rm backend sh -c "cd /build && make gen"`
 - **Do not install system packages** or modify the container OS — it is ephemeral
 
-## 7) Quick commands (keep accurate)
+## 8) Quick commands (keep accurate)
 Root (preferred entrypoints):
 - `make up` / `make down` / `make logs`
 - `make up-dev`
@@ -94,14 +101,14 @@ Frontend (from repo root):
 - `cd frontend && npm run lint`
 - `cd frontend && npm run test:watch`  (Vitest)
 
-## 8) Change discipline
+## 9) Change discipline
 - One story at a time (from /agent/backlog.yaml) per /agent/AGENT_FLOW.md.
 - Minimal diffs; no drive-by refactors or formatting churn.
 - Do not edit generated code under /backend/internal/api/gen.
 - Update /CHANGELOG.md per completed story.
 - Commit policy is defined in /agent/AGENT_FLOW.md (follow it exactly).
 
-## 9) When blocked
+## 10) When blocked
 If acceptance criteria cannot be met:
 - Do not mark the story done.
 - Record a concrete blocker note in /agent/backlog.yaml (or the location specified by AGENT_FLOW).
