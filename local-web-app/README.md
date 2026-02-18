@@ -162,4 +162,4 @@ make ralph-auto          # Ralph loop (autonomous)
 
 ## License
 
-All rights reserved.
+This project is licensed under the [GPL-3.0](../LICENSE).
