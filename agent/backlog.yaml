@@ -5,20 +5,266 @@ defaults:
   done_field: "done"
   blocked_field: "blocked"
   blocked_reason_field: "blocked_reason"
+  requires_field: "requires"
+
+# ─── SETUP ───────────────────────────────────────────────────────────────────
 
 stories:
-  - id: S-000
-    title: "Architecture Planning"
+  - id: S-001
+    title: "Architecture and schema documentation"
     priority: 100
     done: false
     blocked: false
     blocked_reason: ""
+    requires: []
     acceptance:
-      - "docs/ contains architecture.md, database.md, and api.md outlining architectural approach for the project"
-      - "CLAUDE.md is updated so future iterations are aware of the new docs if they need to reference them"
-      - "architecture.md should cover general architecture for the frontend and backend"
-      - "database.md should outline a complete DB schema"
-      - "api.md should cover general approach to the API design. NOTE: /internal/api/design is the source-of-truth for the API layout, so don't be overly specific about each endpoint/payload/response in api.md"
+      - "docs/architecture.md reflects checkpoint-sampler system (filesystem scanning, image serving, WebSocket, SQLite)"
+      - "docs/database.md documents the presets table schema and migration strategy"
+      - "docs/api.md documents the REST and WebSocket API surface"
+      - "CLAUDE.md section 5 updated to reference SQLite + TOML config"
     testing:
-      - "command: (n/a) file presence and structure only"
-      - "review the changes thoroughly and iterate as necessary"
+      - "command: (n/a) documentation only"
+
+  - id: S-002
+    title: "TOML configuration loading"
+    priority: 95
+    done: false
+    blocked: false
+    blocked_reason: ""
+    requires: []
+    acceptance:
+      - "Backend reads config.toml at startup (path overridable via CONFIG_PATH env var)"
+      - "Config struct covers: root, port, db_path, training_runs (with name, pattern, dimensions)"
+      - "Validation rejects missing root, invalid regex patterns, and duplicate training run names"
+      - "Unit tests cover valid config, missing fields, invalid regex"
+    testing:
+      - "command: ginkgo -r --race ./internal/..."
+
+  - id: S-003
+    title: "SQLite database setup and migrations"
+    priority: 90
+    done: false
+    blocked: false
+    blocked_reason: ""
+    requires: [S-002]
+    acceptance:
+      - "SQLite database created at configured db_path with WAL mode, busy timeout, foreign keys"
+      - "Forward-only migration system with schema_migrations tracking table"
+      - "Initial migration creates presets table (id, name, training_run_id, mapping JSON, created_at, updated_at)"
+      - "Store layer exposes interface consumed by service layer"
+      - "Unit tests cover migration execution and idempotency"
+    testing:
+      - "command: ginkgo -r --race ./internal/..."
+
+  - id: S-004
+    title: "Goa API scaffold and codegen pipeline"
+    priority: 85
+    done: false
+    blocked: false
+    blocked_reason: ""
+    requires: [S-002]
+    acceptance:
+      - "Goa DSL defines health and docs services"
+      - "make gen produces generated code under internal/api/gen"
+      - "Swagger UI served at /docs with OpenAPI 3.0 spec"
+      - "Server starts and responds to health check"
+      - "CORS configured for frontend origin"
+    testing:
+      - "command: ginkgo -r --race ./internal/..."
+
+  - id: S-005
+    title: "Frontend scaffold and API client"
+    priority: 80
+    done: false
+    blocked: false
+    blocked_reason: ""
+    requires: []
+    acceptance:
+      - "Vue 3 app with TypeScript strict, Composition API, Vite dev server"
+      - "API client module in src/api/ with typed fetch wrapper"
+      - "Error normalization in the API client layer"
+      - "App shell renders with placeholder content"
+      - "Unit test infrastructure working (vitest)"
+    testing:
+      - "command: npx vitest run"
+
+  - id: S-006
+    title: "Docker Compose and Makefile wiring"
+    priority: 75
+    done: false
+    blocked: false
+    blocked_reason: ""
+    requires: [S-004, S-005]
+    acceptance:
+      - "docker-compose.yml mounts dataset root as read-only volume into backend container"
+      - "docker-compose.yml mounts SQLite data directory as read-write volume"
+      - "make up launches production build; both containers start and respond"
+      - "make up-dev launches hot-reload mode (air + Vite HMR)"
+      - "Backend binds 0.0.0.0 for LAN access"
+      - "Frontend proxies API requests to backend"
+    testing:
+      - "command: make up (verify containers start and respond)"
+
+# ─── FEATURES (end-to-end) ───────────────────────────────────────────────────
+
+  - id: S-007
+    title: "Training run listing and selection"
+    priority: 70
+    done: false
+    blocked: false
+    blocked_reason: ""
+    requires: [S-004, S-005, S-006]
+    acceptance:
+      - "BE: GET /api/training-runs returns all training runs from config (name, pattern, dimensions)"
+      - "BE: Goa DSL defines training_runs service and list method"
+      - "BE: Unit tests for the training runs endpoint"
+      - "FE: TrainingRunSelector component renders a dropdown of training runs from the API"
+      - "FE: Selecting a training run stores it in app state"
+      - "FE: Unit tests for TrainingRunSelector and API client method"
+    testing:
+      - "command: ginkgo -r --race ./internal/..."
+      - "command: npx vitest run"
+
+  - id: S-008
+    title: "Filesystem scanning and image serving (backend)"
+    priority: 65
+    done: false
+    blocked: false
+    blocked_reason: ""
+    requires: [S-007]
+    acceptance:
+      - "Service layer: given a training run config, find all directories under root matching the pattern"
+      - "Service layer: scan matching directories for .png files"
+      - "Service layer: parse query-encoded filenames into dimension key-value pairs"
+      - "Service layer: ignore _NNNNN_ batch suffix; use highest batch number when duplicates exist"
+      - "Service layer: apply directory dimension extraction regexes"
+      - "Service layer: return list of images with dimensions, and list of all discovered dimensions with unique values"
+      - "API: GET /api/training-runs/{id}/scan triggers scan and returns results"
+      - "API: GET /api/images/*filepath serves image files with path traversal protection"
+      - "API: image responses include Cache-Control: max-age=31536000, immutable"
+      - "All filesystem access validated to stay within configured root"
+      - "Unit tests: filename parsing, batch dedup, directory regex extraction, path traversal rejection, image serving"
+    testing:
+      - "command: ginkgo -r --race ./internal/..."
+
+  - id: S-009
+    title: "X/Y grid with dimension mapping"
+    priority: 60
+    done: false
+    blocked: false
+    blocked_reason: ""
+    requires: [S-008]
+    acceptance:
+      - "FE: DimensionPanel component lists all discovered dimensions from scan results"
+      - "FE: Each dimension can be assigned to exactly one role: X, Y, slider, or combo"
+      - "FE: XYGrid component renders rows (Y values) and columns (X values)"
+      - "FE: ImageCell displays the matching image at full resolution (1344x1344 source)"
+      - "FE: Missing X/Y combinations show an empty placeholder cell"
+      - "FE: Grid scrolls horizontally and vertically as needed"
+      - "FE: Changing dimension assignments re-renders the grid immediately"
+      - "FE: Unit tests for DimensionPanel, XYGrid, and ImageCell"
+    testing:
+      - "command: npx vitest run"
+
+  - id: S-010
+    title: "Combo filters"
+    priority: 55
+    done: false
+    blocked: false
+    blocked_reason: ""
+    requires: [S-009]
+    acceptance:
+      - "FE: ComboFilter component for each combo-assigned dimension"
+      - "FE: Dropdown populated with all discovered values for that dimension"
+      - "FE: Multi-select via checkboxes"
+      - "FE: Click value label for single-selection shortcut"
+      - "FE: Select-all / select-none control on each combo"
+      - "FE: Filtering is cumulative across all combos and updates the grid"
+      - "FE: Unit tests for ComboFilter"
+    testing:
+      - "command: npx vitest run"
+
+  - id: S-011
+    title: "Slider navigation"
+    priority: 50
+    done: false
+    blocked: false
+    blocked_reason: ""
+    requires: [S-009]
+    acceptance:
+      - "FE: Each ImageCell has an individual SliderBar cycling through slider-dimension values"
+      - "FE: MasterSlider at the top moves all individual sliders in sync"
+      - "FE: Moving a slider swaps the displayed image in that cell"
+      - "FE: Adjacent slider positions are preloaded for instant display"
+      - "FE: Unit tests for SliderBar and MasterSlider"
+    testing:
+      - "command: npx vitest run"
+
+  - id: S-012
+    title: "Preset save and load"
+    priority: 45
+    done: false
+    blocked: false
+    blocked_reason: ""
+    requires: [S-003, S-009]
+    acceptance:
+      - "BE: Goa DSL defines presets service with list, create, update, delete methods"
+      - "BE: Presets CRUD wired through service layer to SQLite store"
+      - "BE: List supports filtering by training_run_id query parameter"
+      - "BE: Unit tests for presets service and store"
+      - "FE: PresetSelector component with dropdown of saved presets"
+      - "FE: Save button prompts for a name and creates a preset via API"
+      - "FE: Selecting a preset loads its mapping and re-renders the grid"
+      - "FE: Delete option on each preset"
+      - "FE: Unit tests for PresetSelector"
+    testing:
+      - "command: ginkgo -r --race ./internal/..."
+      - "command: npx vitest run"
+
+  - id: S-013
+    title: "Image lightbox with zoom and pan"
+    priority: 40
+    done: false
+    blocked: false
+    blocked_reason: ""
+    requires: [S-009]
+    acceptance:
+      - "FE: Clicking an image cell opens ImageLightbox modal overlay"
+      - "FE: Mouse wheel zooms in/out"
+      - "FE: Click-drag pans the zoomed image"
+      - "FE: Escape or clicking outside closes the overlay"
+      - "FE: Unit tests for ImageLightbox"
+    testing:
+      - "command: npx vitest run"
+
+  - id: S-014
+    title: "WebSocket live updates (backend)"
+    priority: 35
+    done: false
+    blocked: false
+    blocked_reason: ""
+    requires: [S-008]
+    acceptance:
+      - "BE: WebSocket hub manages connected clients"
+      - "BE: fsnotify watches directories belonging to the active training run"
+      - "BE: New/changed/removed image files produce JSON events pushed to clients"
+      - "BE: Event types: image_added, image_removed, directory_added"
+      - "BE: Goa DSL defines ws service with WebSocket upgrade endpoint"
+      - "BE: Unit tests for WebSocket hub and filesystem watcher"
+    testing:
+      - "command: ginkgo -r --race ./internal/..."
+
+  - id: S-015
+    title: "WebSocket live updates (frontend)"
+    priority: 30
+    done: false
+    blocked: false
+    blocked_reason: ""
+    requires: [S-009, S-014]
+    acceptance:
+      - "FE: WebSocket client in src/api/ connects to /api/ws"
+      - "FE: Auto-reconnects on disconnect with backoff"
+      - "FE: Incoming events update dimension values and grid cells without full reload"
+      - "FE: Unit tests for WebSocket client and reconnection logic"
+    testing:
+      - "command: npx vitest run"

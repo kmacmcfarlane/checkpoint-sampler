@@ -48,7 +48,10 @@ Separation of concerns is mandatory:
 Frontend never talks to providers. Frontend talks only to backend API.
 
 ## 5) Data persistence
-Persistence approach and external integrations are defined in /agent/PRD.md.
+- **SQLite** via `modernc.org/sqlite` (pure Go, no CGO). WAL mode, 5s busy timeout, foreign keys ON.
+- **TOML configuration** at `config.toml` (override via `CONFIG_PATH` env var). Defines dataset root, training runs, and dimension extraction regexes.
+- **Filesystem** (dataset root) mounted read-only. Images served through the backend API.
+- Schema details in /docs/database.md. Full config schema in /agent/PRD.md section 4.
 
 ## 6) Tooling ecosystem
 This project is part of the [kmac-claude-kit](https://github.com/kmacmcfarlane/kmac-claude-kit) ecosystem:

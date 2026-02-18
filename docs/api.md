@@ -2,8 +2,8 @@
 
 ## 1) Overview
 
-The backend API is built with **Goa v3**, a design-first framework for Go. The API design DSL in 
-`/backend/internal/api/design/` is the source of truth for all endpoints, payloads, and responses. This document covers 
+The backend API is built with **Goa v3**, a design-first framework for Go. The API design DSL in
+`/backend/internal/api/design/` is the source of truth for all endpoints, payloads, and responses. This document covers
 general approach and patterns rather than enumerating specific endpoints.
 
 ## 2) Design-first workflow
@@ -14,7 +14,6 @@ The Goa DSL files under `/backend/internal/api/design/` define:
 - Service groupings and HTTP paths
 - Method signatures (request/response types)
 - Error types and HTTP status mappings
-- Security requirements per endpoint
 - CORS configuration
 
 ### 2.2 Code generation
@@ -47,24 +46,27 @@ backend/internal/api/gen/      ← Generated code (DO NOT EDIT)
 
 The API is organized into Goa services, each mapping to a resource domain:
 
-| Service     | Base Path    | Purpose                             |
-|-------------|--------------|-------------------------------------|
-| health      | /health      | Health check (e.g., for monitoring) |
-| docs        | /docs        | Swagger UI and OpenAPI spec         |
-| ...         | /...         | ETC...                              |
+| Service       | Base Path                  | Purpose                                    |
+|---------------|----------------------------|--------------------------------------------|
+| health        | /health                    | Health check                               |
+| docs          | /docs                      | Swagger UI and OpenAPI spec                |
+| training_runs | /api/training-runs         | List and scan training runs                |
+| images        | /api/images                | Serve image files from the dataset         |
+| presets       | /api/presets               | CRUD for dimension mapping presets         |
+| ws            | /api/ws                    | WebSocket for live filesystem updates      |
 
-Each service corresponds to a file in the design package (e.g., `items.go`, `users.go`).
+Each service corresponds to a file in the design package (e.g., `training_runs.go`, `presets.go`).
 
 ### 3.2 URL conventions
 
-- Base path: `/v1/` (versioned API prefix)
-- Resource collections: plural nouns (e.g., `/v1/foos`)
-- Individual resources: collection + ID (e.g., `/v1/foos/{id}`)
-- Actions: sub-paths where RESTful verbs don't suffice (e.g., `/v1/foos/import`)
+- Resource collections: plural nouns (e.g., `/api/presets`)
+- Individual resources: collection + ID (e.g., `/api/presets/{id}`)
+- Actions: sub-paths where RESTful verbs don't suffice (e.g., `/api/training-runs/{id}/scan`)
 - Standard HTTP methods: GET (read), POST (create), PUT (update), DELETE (remove)
 
 ## 4) Authentication and authorization
-TBD...
+
+None. Checkpoint Sampler is a local-first tool with no authentication. It is intended for use on a trusted LAN.
 
 ## 5) Error handling
 
@@ -90,51 +92,62 @@ Goa maps service errors to HTTP status codes in the design DSL. General conventi
 | Scenario              | HTTP Status | Error Code pattern     |
 |-----------------------|-------------|------------------------|
 | Validation failure    | 400         | `INVALID_*`            |
-| Authentication needed | 401         | `UNAUTHORIZED`         |
 | Resource not found    | 404         | `NOT_FOUND`            |
-| Conflict (e.g., dupe) | 409         | `CONFLICT`             |
+| Path traversal        | 403         | `FORBIDDEN`            |
 | Server error          | 500         | `INTERNAL_ERROR`       |
-| Not implemented       | 501         | `NOT_IMPLEMENTED`      |
 
-## 6) Request/response patterns
+## 6) Key endpoints
 
-### 6.1 List endpoints
+### 6.1 Training runs
 
-- Support filtering via query parameters (e.g., `?name=...` for foobars).
+- `GET /api/training-runs` — List all training runs defined in the config file. Returns name, pattern, and dimension extraction config for each.
+- `GET /api/training-runs/{id}/scan` — Scan the filesystem for the specified training run. Returns a list of images with their parsed dimension values, and a list of all discovered dimensions with their unique values.
+
+### 6.2 Image serving
+
+- `GET /api/images/*filepath` — Serve an image file. The `filepath` is relative to the configured dataset root. The backend validates the resolved path stays within the root (rejects traversal). Responses include `Cache-Control: max-age=31536000, immutable` and `Content-Type: image/png`.
+
+### 6.3 Presets
+
+- `GET /api/presets?training_run_id=...` — List presets, optionally filtered by training run.
+- `POST /api/presets` — Create a new preset (name, training_run_id, mapping JSON).
+- `PUT /api/presets/{id}` — Update an existing preset.
+- `DELETE /api/presets/{id}` — Delete a preset.
+
+### 6.4 WebSocket
+
+- `GET /api/ws` — Upgrade to WebSocket. The backend pushes JSON messages when filesystem changes are detected in the active training run's directories. Message types: `image_added`, `image_removed`, `directory_added`.
+
+## 7) Request/response patterns
+
+### 7.1 List endpoints
+
 - Return arrays of resources.
-- Pagination is optional for MVP but the design should accommodate it (offset/limit or cursor) if needed later.
+- Support filtering via query parameters (e.g., `?training_run_id=...` for presets).
 
-### 6.2 Create/update endpoints
+### 7.2 Create/update endpoints
 
 - Accept JSON request bodies.
 - Return the created/updated resource.
 - Validation errors return 400 with specific error codes.
 
-### 6.3 Bulk operations
+### 7.3 Scan endpoint
 
-- JSON import accepts a JSON array of foobars matching the foobar API schema.
-- Returns per-entry results (created/updated/skipped/error).
+- Returns the full scan result in a single response (dataset is small, ~200 images max).
+- No pagination needed.
 
-### 6.4 Send job lifecycle
-
-- POST to create a send job (includes message version ID, recipient selection, medium overrides, dry-run flag).
-- GET to check job status and retrieve stats.
-- Job logs are retrieved via the history service.
-
-## 7) CORS
+## 8) CORS
 
 - CORS is configured in the API design DSL.
 - Allows requests from the frontend origin.
 - Supported methods: GET, POST, PUT, DELETE, OPTIONS.
-- Credentials are allowed (for cookie-based session tokens if used).
 
-## 8) Content types
+## 9) Content types
 
 - **JSON** is the primary content type for all API requests and responses.
-- **Multipart form data** is used for file uploads (attachments).
-- **Binary** responses are used for attachment retrieval (with appropriate Content-Type headers).
+- **PNG** is the content type for image serving responses.
 
-## 9) Implementation pattern
+## 10) Implementation pattern
 
 The Goa-generated transport layer calls into hand-written service implementations:
 
@@ -151,7 +164,7 @@ API Implementation (internal/api/)
 Service Layer (internal/service/)
     │
     ▼
-Store / Provider (internal/store/)
+Store (internal/store/)
     │
     ▼
 HTTP Response ◀── Goa Generated Encoder

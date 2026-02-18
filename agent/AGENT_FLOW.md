@@ -34,15 +34,24 @@ Each story in backlog.yaml moves through these states:
 
 The agent must work on exactly one story at a time.
 
+### 1.1 Story dependencies (`requires`)
+
+A story may declare a `requires` field listing the IDs of stories that must be completed before it can be started. This is a structural dependency defined at planning time, distinct from the runtime `blocked` state.
+
+- A story with `requires: [S-002, S-004]` is not eligible for selection until both S-002 and S-004 have `done=true`.
+- `requires` dependencies are transitive in effect: if S-009 requires S-008, and S-008 requires S-007, then S-009 cannot start until both S-007 and S-008 are done.
+- A story may be both `requires`-gated and `blocked` — these are independent conditions.
+
 ## 2) Selecting work
 
 Selection algorithm (deterministic):
 1) Filter stories with done=false.
 2) Exclude stories that are blocked (blocked=true or blocked_reason present, per schema).
-3) Choose the highest priority story (higher number = higher priority unless backlog schema states otherwise).
-4) Tie-breaker: lowest id lexicographically.
+3) Exclude stories whose `requires` list contains any story that is not yet done.
+4) Choose the highest priority story (higher number = higher priority unless backlog schema states otherwise).
+5) Tie-breaker: lowest id lexicographically.
 
-If no unblocked stories remain:
+If no eligible stories remain:
 - Stop making changes and exit the cycle without modifying files.
 
 ## 3) Per-cycle workflow
