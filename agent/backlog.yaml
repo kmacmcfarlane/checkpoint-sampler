@@ -34,11 +34,11 @@ stories:
     requires: []
     acceptance:
       - "Backend reads config.toml at startup (path overridable via CONFIG_PATH env var)"
-      - "Config struct covers: root, port, db_path, training_runs (with name, pattern, dimensions)"
-      - "Validation rejects missing root, invalid regex patterns, and duplicate training run names"
+      - "Config struct covers: root (no files below this dir should be accessed, validation error if it does not exist), port (webUI), ip_address (default 127.0.0.1 but can be set to 0.0.0.0 for external access), db_path (default to ./data/), training_runs (regex path patterns that match below the root)"
+      - "Validation rejects missing root, invalid regex patterns, invalid port, invalid ip address, or db_path"
       - "Unit tests cover valid config, missing fields, invalid regex"
     testing:
-      - "command: ginkgo -r --race ./internal/..."
+      - "command: ginkgo -r --cover --race ./internal/..."
 
   - id: S-003
     title: "SQLite database setup and migrations"
@@ -54,7 +54,7 @@ stories:
       - "Store layer exposes interface consumed by service layer"
       - "Unit tests cover migration execution and idempotency"
     testing:
-      - "command: ginkgo -r --race ./internal/..."
+      - "command: ginkgo -r --cover --race ./internal/..."
 
   - id: S-004
     title: "Goa API scaffold and codegen pipeline"
@@ -70,7 +70,7 @@ stories:
       - "Server starts and responds to health check"
       - "CORS configured for frontend origin"
     testing:
-      - "command: ginkgo -r --race ./internal/..."
+      - "command: ginkgo -r --cover --race ./internal/..."
 
   - id: S-005
     title: "Frontend scaffold and API client"
@@ -122,7 +122,7 @@ stories:
       - "FE: Selecting a training run stores it in app state"
       - "FE: Unit tests for TrainingRunSelector and API client method"
     testing:
-      - "command: ginkgo -r --race ./internal/..."
+      - "command: ginkgo -r --cover --race ./internal/..."
       - "command: npx vitest run"
 
   - id: S-008
@@ -145,7 +145,7 @@ stories:
       - "All filesystem access validated to stay within configured root"
       - "Unit tests: filename parsing, batch dedup, directory regex extraction, path traversal rejection, image serving"
     testing:
-      - "command: ginkgo -r --race ./internal/..."
+      - "command: ginkgo -r --cover --race ./internal/..."
 
   - id: S-009
     title: "X/Y grid with dimension mapping"
@@ -201,7 +201,7 @@ stories:
       - "command: npx vitest run"
 
   - id: S-012
-    title: "Preset save and load"
+    title: "Preset save and select"
     priority: 45
     done: false
     blocked: false
@@ -218,7 +218,7 @@ stories:
       - "FE: Delete option on each preset"
       - "FE: Unit tests for PresetSelector"
     testing:
-      - "command: ginkgo -r --race ./internal/..."
+      - "command: ginkgo -r --cover --race ./internal/..."
       - "command: npx vitest run"
 
   - id: S-013
@@ -232,7 +232,7 @@ stories:
       - "FE: Clicking an image cell opens ImageLightbox modal overlay"
       - "FE: Mouse wheel zooms in/out"
       - "FE: Click-drag pans the zoomed image"
-      - "FE: Escape or clicking outside closes the overlay"
+      - "FE: Escape or clicking outside closes the overlay or pressing the esc key"
       - "FE: Unit tests for ImageLightbox"
     testing:
       - "command: npx vitest run"
@@ -252,7 +252,7 @@ stories:
       - "BE: Goa DSL defines ws service with WebSocket upgrade endpoint"
       - "BE: Unit tests for WebSocket hub and filesystem watcher"
     testing:
-      - "command: ginkgo -r --race ./internal/..."
+      - "command: ginkgo -r --cover --race ./internal/..."
 
   - id: S-015
     title: "WebSocket live updates (frontend)"

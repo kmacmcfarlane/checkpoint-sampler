@@ -109,7 +109,7 @@ For the selected story, perform in order:
     - Set done=true only when Definition of Done (DoD) is satisfied.
     - If blocked, record a concrete blocked_reason and stop.
     - If partially complete but not done, keep done=false and add a note field if schema supports it.
-- Update /agent/QUESTIONS.md with any requirement questions
+- Are there questions that could help you decide if you are done or what to do? Update /agent/QUESTIONS.md with any requirement questions and trigger a discord notification via the MCP tool to get my attention. Also indicate that you have important questions in the chat output.
 - Update /agent/IDEAS.md with ideas for features that could enhance the application
 
 ### 3.8 Commit rules
@@ -149,8 +149,8 @@ When blocked:
     - what is blocked
     - why it is blocked
     - what decision/input is needed
-- Stop further implementation work for that story in the same cycle.
-- Add questions to /agent/QUESTIONS.md to get clarification and prompt the user to update /agent/PRD.md
+- Update /agent/IDEAS.md with ideas for features that could enhance the application
+- Update /agent/backlog.yaml if stories now require eachother in a new way
 
 ## 6) Safety gates
 
