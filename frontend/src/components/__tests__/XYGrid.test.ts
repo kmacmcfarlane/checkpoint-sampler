@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import XYGrid from '../XYGrid.vue'
+import SliderBar from '../SliderBar.vue'
 import type { ScanDimension, ScanImage } from '../../api/types'
 
 const xDimension: ScanDimension = {
@@ -38,6 +39,7 @@ function mountGrid(overrides: Record<string, unknown> = {}) {
       comboSelections: {},
       sliderDimension: null,
       sliderValues: {},
+      defaultSliderValue: '',
       ...overrides,
     },
   })
@@ -182,6 +184,7 @@ describe('XYGrid', () => {
       const wrapper = mountGrid({
         sliderDimension,
         sliderValues: {},
+        defaultSliderValue: '3',
       })
 
       // Default slider value is '3' (first value)
@@ -197,12 +200,52 @@ describe('XYGrid', () => {
       const wrapper = mountGrid({
         sliderDimension,
         sliderValues: { '42|500': '7' }, // override for seed=42, step=500
+        defaultSliderValue: '3',
       })
 
       // Cell at seed=42, step=500 should show cfg=7
       const imgs = wrapper.findAll('img')
       const srcs = imgs.map((i) => i.attributes('src'))
       expect(srcs).toContain('/api/images/a/seed=42&step=500&cfg=7.png')
+    })
+
+    it('renders SliderBar per cell when slider dimension is assigned', () => {
+      const wrapper = mountGrid({
+        sliderDimension,
+        sliderValues: {},
+        defaultSliderValue: '3',
+      })
+
+      const sliders = wrapper.findAllComponents(SliderBar)
+      // 2x2 grid = 4 cells, each with a slider
+      expect(sliders).toHaveLength(4)
+    })
+
+    it('emits update:sliderValue when individual slider changes', async () => {
+      const wrapper = mountGrid({
+        sliderDimension,
+        sliderValues: {},
+        defaultSliderValue: '3',
+      })
+
+      const sliders = wrapper.findAllComponents(SliderBar)
+      // Change slider in first cell (seed=42, step=500)
+      sliders[0].vm.$emit('change', '7')
+      await wrapper.vm.$nextTick()
+
+      const emitted = wrapper.emitted('update:sliderValue')
+      expect(emitted).toBeDefined()
+      expect(emitted![0]).toEqual(['42|500', '7'])
+    })
+
+    it('does not render SliderBar when no slider dimension', () => {
+      const wrapper = mountGrid({
+        sliderDimension: null,
+        sliderValues: {},
+      })
+
+      const sliders = wrapper.findAllComponents(SliderBar)
+      expect(sliders).toHaveLength(0)
     })
   })
 

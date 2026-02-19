@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import type { ScanDimension, ScanImage } from '../api/types'
 import ImageCell from './ImageCell.vue'
+import SliderBar from './SliderBar.vue'
 
 const props = defineProps<{
   xDimension: ScanDimension | null
@@ -10,6 +11,12 @@ const props = defineProps<{
   comboSelections: Record<string, Set<string>>
   sliderDimension: ScanDimension | null
   sliderValues: Record<string, string>
+  /** Default slider value when no per-cell override exists (set by master slider). */
+  defaultSliderValue: string
+}>()
+
+const emit = defineEmits<{
+  'update:sliderValue': [cellKey: string, value: string]
 }>()
 
 /** X axis values to render as columns. */
@@ -51,7 +58,7 @@ const imageIndex = computed<Map<string, ScanImage>>(() => {
       const sliderDimName = props.sliderDimension.name
       const sliderVal = img.dimensions[sliderDimName]
       const key = imageKey(xVal, yVal)
-      const expectedSliderVal = props.sliderValues[key] ?? props.sliderDimension.values[0]
+      const expectedSliderVal = props.sliderValues[key] ?? props.defaultSliderValue
       if (sliderVal !== undefined && sliderVal !== expectedSliderVal) {
         continue
       }
@@ -71,6 +78,18 @@ function getImage(xVal: string | undefined, yVal: string | undefined): ScanImage
   return imageIndex.value.get(imageKey(xVal, yVal)) ?? null
 }
 
+/** Get the current slider value for a given cell. */
+function getSliderValue(xVal: string | undefined, yVal: string | undefined): string {
+  const key = imageKey(xVal, yVal)
+  return props.sliderValues[key] ?? props.defaultSliderValue
+}
+
+/** Handle slider change for a cell. */
+function onSliderChange(xVal: string | undefined, yVal: string | undefined, value: string) {
+  const key = imageKey(xVal, yVal)
+  emit('update:sliderValue', key, value)
+}
+
 /** Check whether there are no axis assignments. */
 const hasNoAxes = computed(() => !props.xDimension && !props.yDimension)
 
@@ -80,7 +99,7 @@ const flatImages = computed<ScanImage[]>(() => {
   // Apply slider filter to flat images too
   if (props.sliderDimension) {
     const sliderDimName = props.sliderDimension.name
-    const expectedVal = props.sliderValues['|'] ?? props.sliderDimension.values[0]
+    const expectedVal = props.sliderValues['|'] ?? props.defaultSliderValue
     return filteredImages.value.filter((img) => {
       const val = img.dimensions[sliderDimName]
       return val === undefined || val === expectedVal
@@ -123,11 +142,25 @@ const flatImages = computed<ScanImage[]>(() => {
               role="gridcell"
             >
               <ImageCell :relative-path="getImage(xVal, yVal)?.relative_path ?? null" />
+              <SliderBar
+                v-if="sliderDimension"
+                :values="sliderDimension.values"
+                :current-value="getSliderValue(xVal, yVal)"
+                :label="`${sliderDimension.name} for ${xVal}, ${yVal}`"
+                @change="(v: string) => onSliderChange(xVal, yVal, v)"
+              />
             </div>
           </template>
           <template v-else>
             <div class="xy-grid__cell" role="gridcell">
               <ImageCell :relative-path="getImage(undefined, yVal)?.relative_path ?? null" />
+              <SliderBar
+                v-if="sliderDimension"
+                :values="sliderDimension.values"
+                :current-value="getSliderValue(undefined, yVal)"
+                :label="`${sliderDimension.name} for ${yVal}`"
+                @change="(v: string) => onSliderChange(undefined, yVal, v)"
+              />
             </div>
           </template>
         </div>
@@ -142,6 +175,13 @@ const flatImages = computed<ScanImage[]>(() => {
           role="gridcell"
         >
           <ImageCell :relative-path="getImage(xVal, undefined)?.relative_path ?? null" />
+          <SliderBar
+            v-if="sliderDimension"
+            :values="sliderDimension.values"
+            :current-value="getSliderValue(xVal, undefined)"
+            :label="`${sliderDimension.name} for ${xVal}`"
+            @change="(v: string) => onSliderChange(xVal, undefined, v)"
+          />
         </div>
       </div>
     </div>
@@ -156,6 +196,13 @@ const flatImages = computed<ScanImage[]>(() => {
         class="xy-grid-flat__cell"
       >
         <ImageCell :relative-path="img.relative_path" />
+        <SliderBar
+          v-if="sliderDimension"
+          :values="sliderDimension.values"
+          :current-value="getSliderValue(undefined, undefined)"
+          :label="sliderDimension.name"
+          @change="(v: string) => onSliderChange(undefined, undefined, v)"
+        />
       </div>
     </div>
   </div>

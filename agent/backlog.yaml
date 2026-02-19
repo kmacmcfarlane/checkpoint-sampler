@@ -187,7 +187,7 @@ stories:
   - id: S-011
     title: "Slider navigation"
     priority: 50
-    done: false
+    done: true
     blocked: false
     blocked_reason: ""
     requires: [S-009]
@@ -266,5 +266,36 @@ stories:
       - "FE: Auto-reconnects on disconnect with backoff"
       - "FE: Incoming events update dimension values and grid cells without full reload"
       - "FE: Unit tests for WebSocket client and reconnection logic"
+    testing:
+      - "command: npx vitest run"
+
+# ─── ENHANCEMENTS ─────────────────────────────────────────────────────────────
+
+  - id: S-016
+    title: "Keyboard navigation for sliders"
+    priority: 20
+    done: false
+    blocked: false
+    blocked_reason: ""
+    requires: [S-011]
+    acceptance:
+      - "FE: Arrow keys (left/right) step through slider values when a grid cell or slider is focused"
+      - "FE: Keyboard interaction works for both individual cell sliders and the master slider"
+      - "FE: Unit tests for keyboard navigation behavior"
+    testing:
+      - "command: npx vitest run"
+
+  - id: S-017
+    title: "Slider playback mode"
+    priority: 15
+    done: false
+    blocked: false
+    blocked_reason: ""
+    requires: [S-011]
+    acceptance:
+      - "FE: Play/pause button on the master slider that auto-advances through values at a configurable interval"
+      - "FE: Playback stops when reaching the last value (or optionally loops)"
+      - "FE: User can adjust playback speed"
+      - "FE: Unit tests for playback logic (start, stop, interval, loop)"
     testing:
       - "command: npx vitest run"

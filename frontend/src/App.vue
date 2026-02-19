@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, computed, watch } from 'vue'
 import type { TrainingRun, DimensionRole } from './api/types'
 import { apiClient } from './api/client'
 import { useDimensionMapping } from './composables/useDimensionMapping'
+import { useImagePreloader } from './composables/useImagePreloader'
 import TrainingRunSelector from './components/TrainingRunSelector.vue'
 import DimensionPanel from './components/DimensionPanel.vue'
 import XYGrid from './components/XYGrid.vue'
 import ComboFilter from './components/ComboFilter.vue'
+import MasterSlider from './components/MasterSlider.vue'
 
 const selectedTrainingRun = ref<TrainingRun | null>(null)
 const scanning = ref(false)
@@ -29,6 +31,12 @@ const comboSelections = reactive<Record<string, Set<string>>>({})
 
 /** Slider values per grid cell (key = "xVal|yVal"). */
 const sliderValues = reactive<Record<string, string>>({})
+
+/** Wrap reactive comboSelections as a computed ref for the preloader. */
+const comboSelectionsRef = computed(() => comboSelections as Record<string, Set<string>>)
+
+/** Pre-cache images: slider positions for visible cells first, then remaining. */
+useImagePreloader(images, xDimension, yDimension, sliderDimension, comboSelectionsRef)
 
 async function onTrainingRunSelect(run: TrainingRun) {
   selectedTrainingRun.value = run
@@ -68,6 +76,37 @@ function onAssignRole(dimensionName: string, role: DimensionRole) {
 function onComboUpdate(dimensionName: string, selected: Set<string>) {
   comboSelections[dimensionName] = selected
 }
+
+/** Master slider value ref. */
+const masterSliderValue = ref<string>('')
+
+/** Default slider value: master value if set, otherwise first value of slider dimension. */
+const defaultSliderValue = computed(() => {
+  if (masterSliderValue.value) return masterSliderValue.value
+  return sliderDimension.value?.values[0] ?? ''
+})
+
+// Reset master slider value when slider dimension changes
+watch(sliderDimension, (dim) => {
+  masterSliderValue.value = dim?.values[0] ?? ''
+  for (const key of Object.keys(sliderValues)) {
+    delete sliderValues[key]
+  }
+})
+
+/** Update a single cell's slider value. */
+function onSliderValueUpdate(cellKey: string, value: string) {
+  sliderValues[cellKey] = value
+}
+
+/** Master slider changes all cell slider values in sync. */
+function onMasterSliderChange(value: string) {
+  masterSliderValue.value = value
+  // Clear per-cell overrides so all cells follow the master
+  for (const key of Object.keys(sliderValues)) {
+    delete sliderValues[key]
+  }
+}
 </script>
 
 <template>
@@ -97,6 +136,13 @@ function onComboUpdate(dimensionName: string, selected: Set<string>) {
               @update="onComboUpdate"
             />
           </div>
+          <MasterSlider
+            v-if="sliderDimension"
+            :values="sliderDimension.values"
+            :current-value="defaultSliderValue"
+            :dimension-name="sliderDimension.name"
+            @change="onMasterSliderChange"
+          />
           <XYGrid
             :x-dimension="xDimension"
             :y-dimension="yDimension"
@@ -104,6 +150,8 @@ function onComboUpdate(dimensionName: string, selected: Set<string>) {
             :combo-selections="comboSelections"
             :slider-dimension="sliderDimension"
             :slider-values="sliderValues"
+            :default-slider-value="defaultSliderValue"
+            @update:slider-value="onSliderValueUpdate"
           />
         </template>
       </template>

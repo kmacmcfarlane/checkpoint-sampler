@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-011: Slider navigation
+- frontend/src/components/SliderBar.vue: Per-cell range slider component cycling through ordered slider-dimension values, with accessible aria-label and aria-valuetext, current value display
+- frontend/src/components/MasterSlider.vue: Top-level master slider that moves all individual cell sliders in sync, with dimension name label and accessible role="group" container
+- frontend/src/components/XYGrid.vue: Integrated SliderBar below each ImageCell when a slider dimension is assigned; emits update:sliderValue events for per-cell slider changes; accepts defaultSliderValue prop for master slider synchronization
+- frontend/src/composables/useImagePreloader.ts: Composable that preloads images via Image() objects to populate browser HTTP cache; priority 1: all slider positions for visible grid cells, priority 2: remaining filtered images, priority 3: all scan images; cancels in-flight preloads on reset; deduplicates URLs
+- frontend/src/App.vue: Integrated MasterSlider above the grid, wired master/individual slider value synchronization (master clears per-cell overrides), added useImagePreloader for background pre-caching, added watch to reset slider state on dimension change
+- 10 SliderBar unit tests: range input rendering, min/max bounds, current value index, unknown value fallback, value text display, change emission at various indices, accessible aria-label and aria-valuetext
+- 11 MasterSlider unit tests: range input rendering, dimension name label, min/max bounds, current value index, unknown value fallback, value text display, change emission, accessible aria-label, aria-valuetext, role="group" container
+- 8 useImagePreloader unit tests: preload all images without slider, prioritize slider positions for visible cells, Image() constructor usage, combo filter integration, restart on image change, empty list handling, URL deduplication, x/y dimension visible cell preloading
+- 3 new XYGrid slider integration tests: SliderBar per cell rendering, update:sliderValue emission, no slider when dimension unassigned
+
 ### S-010: Combo filters
 - frontend/src/components/ComboFilter.vue: Multi-select filter component for combo-assigned dimensions with checkboxes for each value, click-label single-selection shortcut, select-all/select-none controls, and accessible labels
 - frontend/src/App.vue: Integrated ComboFilter components for each combo-assigned dimension, wired combo selection updates to reactive state that drives XYGrid filtering
