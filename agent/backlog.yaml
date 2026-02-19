@@ -150,7 +150,7 @@ stories:
   - id: S-009
     title: "X/Y grid with dimension mapping"
     priority: 60
-    done: false
+    done: true
     blocked: false
     blocked_reason: ""
     requires: [S-008]

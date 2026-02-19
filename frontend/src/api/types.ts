@@ -29,3 +29,31 @@ export interface TrainingRun {
   pattern: string
   dimensions: DimensionConfig[]
 }
+
+/** An image returned from a scan. */
+export interface ScanImage {
+  relative_path: string
+  dimensions: Record<string, string>
+}
+
+/** A discovered dimension with its unique sorted values. */
+export interface ScanDimension {
+  name: string
+  type: 'int' | 'string'
+  values: string[]
+}
+
+/** Result of scanning a training run's directories. */
+export interface ScanResult {
+  images: ScanImage[]
+  dimensions: ScanDimension[]
+}
+
+/** UI role a dimension can be assigned to. */
+export type DimensionRole = 'x' | 'y' | 'slider' | 'combo'
+
+/** Assignment of a dimension to a UI role. */
+export interface DimensionAssignment {
+  dimensionName: string
+  role: DimensionRole
+}

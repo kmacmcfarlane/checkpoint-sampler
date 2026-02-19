@@ -5,6 +5,7 @@ import App from '../App.vue'
 vi.mock('../api/client', () => ({
   apiClient: {
     getTrainingRuns: vi.fn().mockResolvedValue([]),
+    scanTrainingRun: vi.fn().mockResolvedValue({ images: [], dimensions: [] }),
   },
 }))
 

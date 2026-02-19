@@ -1,4 +1,4 @@
-import type { ApiError, ApiErrorResponse, HealthStatus, TrainingRun } from './types'
+import type { ApiError, ApiErrorResponse, HealthStatus, ScanResult, TrainingRun } from './types'
 
 const DEFAULT_BASE_URL = '/api'
 
@@ -69,6 +69,11 @@ export class ApiClient {
   /** GET /api/training-runs — list all configured training runs. */
   async getTrainingRuns(): Promise<TrainingRun[]> {
     return this.request<TrainingRun[]>('/training-runs')
+  }
+
+  /** GET /api/training-runs/{id}/scan — scan directories and return image metadata. */
+  async scanTrainingRun(id: number): Promise<ScanResult> {
+    return this.request<ScanResult>(`/training-runs/${id}/scan`)
   }
 
   /** GET /health — check backend health. */

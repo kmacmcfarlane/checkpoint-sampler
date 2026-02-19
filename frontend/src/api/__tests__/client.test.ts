@@ -201,6 +201,44 @@ describe('ApiClient', () => {
     })
   })
 
+  describe('scanTrainingRun', () => {
+    it('fetches scan results from /api/training-runs/{id}/scan', async () => {
+      const client = new ApiClient({ baseUrl: 'http://localhost:8080/api' })
+      const scanResult = {
+        images: [{ relative_path: 'dir/img.png', dimensions: { seed: '42' } }],
+        dimensions: [{ name: 'seed', type: 'int', values: ['42'] }],
+      }
+      mockFetch({ json: () => Promise.resolve(scanResult) })
+
+      const result = await client.scanTrainingRun(0)
+
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        'http://localhost:8080/api/training-runs/0/scan',
+        undefined,
+      )
+      expect(result).toEqual(scanResult)
+    })
+
+    it('throws on scan failure', async () => {
+      const client = new ApiClient()
+      mockFetch({
+        ok: false,
+        status: 404,
+        json: () => Promise.resolve({ Code: 'not_found', Message: 'Training run not found' }),
+      })
+
+      let thrown: ApiError | undefined
+      try {
+        await client.scanTrainingRun(99)
+      } catch (err) {
+        thrown = err as ApiError
+      }
+
+      expect(thrown).toBeDefined()
+      expect(thrown!.code).toBe('not_found')
+    })
+  })
+
   describe('getHealth', () => {
     it('fetches health from /health endpoint', async () => {
       const client = new ApiClient({ baseUrl: 'http://localhost:8080/api' })
