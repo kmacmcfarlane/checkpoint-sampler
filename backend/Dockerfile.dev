@@ -9,8 +9,8 @@ RUN go install github.com/air-verse/air@latest && \
 # Make Go module cache and tooling readable by any user
 RUN chmod -R a+rX /go
 
-# Prepare writable cache dir for non-root user
-RUN mkdir -p /home/gouser/.cache/go-build && chmod -R 777 /home/gouser
+# Prepare writable cache dirs for non-root user
+RUN mkdir -p /home/gouser/.cache/go-build /home/gouser/go/pkg/mod && chmod -R 777 /home/gouser
 
 WORKDIR /build
 COPY go.mod go.sum ./

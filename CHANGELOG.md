@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-003: SQLite database setup and migrations
+- backend/internal/store/db.go: OpenDB() configures SQLite with WAL mode, 5s busy timeout, foreign keys ON; creates parent directory if needed
+- backend/internal/store/db.go: Migrate() forward-only migration runner with schema_migrations tracking table; applies pending migrations in order within transactions
+- backend/internal/store/migrations.go: AllMigrations() returns ordered migration list; migration 1 creates presets table (id, name, mapping JSON, created_at, updated_at)
+- backend/internal/store/store.go: Store type with New() constructor that runs migrations on init, Close(), and DB() accessor
+- docker-compose.dev.yml: added GOMODCACHE volume for writable Go module cache in dev containers
+- 16 unit tests covering DB pragma verification, migration execution, idempotency, error handling, presets table schema validation, and store initialization
+
 ### S-002: TOML configuration loading
 - backend/internal/model/config.go: domain types for Config, TrainingRunConfig, DimensionConfig, DimensionType
 - backend/internal/config/config.go: TOML config loading with Load(), LoadFromPath(), LoadFromString(); validation for root (must exist as directory), port (1-65535, default 8080), ip_address (valid IP, default 127.0.0.1), db_path (default ./data/), training run patterns and dimensions

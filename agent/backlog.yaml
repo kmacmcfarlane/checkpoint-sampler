@@ -43,7 +43,7 @@ stories:
   - id: S-003
     title: "SQLite database setup and migrations"
     priority: 90
-    done: false
+    done: true
     blocked: false
     blocked_reason: ""
     requires: [S-002]
