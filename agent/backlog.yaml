@@ -28,7 +28,7 @@ stories:
   - id: S-002
     title: "TOML configuration loading"
     priority: 95
-    done: false
+    done: true
     blocked: false
     blocked_reason: ""
     requires: []
