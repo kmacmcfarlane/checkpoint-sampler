@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-006: Docker Compose and Makefile wiring
+- config.toml: production config with ip_address=0.0.0.0 for LAN access, dataset root at /data/dataset (Docker mount point), db_path at ./data/checkpoint-sampler.db
+- docker-compose.yml: dataset root mounted as read-only volume via DATASET_ROOT env var, SQLite data as named Docker volume, config.toml mounted read-only, CONFIG_PATH set
+- docker-compose.dev.yml: dataset root and config.toml mounted into dev backend, named volume for data directory, CONFIG_PATH set for dev working directory
+- backend/Dockerfile.dev: added /build/data directory with world-writable permissions for named volume compatibility with non-root user
+- frontend/nginx.conf: reverse proxy for /api/, /health, and /docs to backend service using Docker embedded DNS resolver for dynamic upstream resolution
+- frontend/vite.config.ts: dev proxy for /api, /health, and /docs to backend service for HMR dev mode
+- .env.example: documents DATASET_ROOT environment variable
+- .gitignore: added .dataset-placeholder/ entry
+- Both make up (production) and make up-dev (hot-reload) build and start successfully; frontend proxies API requests to backend in both modes
+
 ### S-005: Frontend scaffold and API client
 - frontend/src/main.ts: Vue 3 app entry point mounting App component to #app
 - frontend/src/App.vue: App shell with header ("Checkpoint Sampler") and placeholder main content

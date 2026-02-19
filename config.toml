@@ -1,0 +1,15 @@
+# Checkpoint Sampler configuration
+# Override path with CONFIG_PATH environment variable.
+
+# Root directory for dataset files. All file access is restricted to this tree.
+# In Docker, this is the mount point for the dataset volume.
+root = "/data/dataset"
+
+# Backend server port
+port = 8080
+
+# Bind to all interfaces for LAN access
+ip_address = "0.0.0.0"
+
+# SQLite database path (relative to working directory)
+db_path = "./data/checkpoint-sampler.db"

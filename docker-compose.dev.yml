@@ -6,11 +6,14 @@ services:
     user: "${UID:-1000}:${GID:-1000}"
     volumes:
       - ./backend:/build
-      - ./data:/build/data
+      - backend_data:/build/data
+      - ./config.toml:/build/config.toml:ro
+      - ${DATASET_ROOT:-./.dataset-placeholder}:/data/dataset:ro
       - backend_go_cache:/home/gouser/.cache/go-build
       - backend_go_mod_cache:/home/gouser/go/pkg/mod
     environment:
       - PORT=8080
+      - CONFIG_PATH=/build/config.toml
       - GOPATH=/home/gouser/go
       - GOCACHE=/home/gouser/.cache/go-build
       - GOMODCACHE=/home/gouser/go/pkg/mod

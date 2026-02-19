@@ -91,7 +91,7 @@ stories:
   - id: S-006
     title: "Docker Compose and Makefile wiring"
     priority: 75
-    done: false
+    done: true
     blocked: false
     blocked_reason: ""
     requires: [S-004, S-005]
