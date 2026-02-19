@@ -1,13 +1,24 @@
 <script setup lang="ts">
+import { ref } from 'vue'
+import type { TrainingRun } from './api/types'
+import TrainingRunSelector from './components/TrainingRunSelector.vue'
+
+const selectedTrainingRun = ref<TrainingRun | null>(null)
+
+function onTrainingRunSelect(run: TrainingRun) {
+  selectedTrainingRun.value = run
+}
 </script>
 
 <template>
   <div class="app">
     <header class="app-header">
       <h1>Checkpoint Sampler</h1>
+      <TrainingRunSelector @select="onTrainingRunSelect" />
     </header>
     <main class="app-main">
-      <p>Select a training run to get started.</p>
+      <p v-if="!selectedTrainingRun">Select a training run to get started.</p>
+      <p v-else>Training run: {{ selectedTrainingRun.name }}</p>
     </main>
   </div>
 </template>

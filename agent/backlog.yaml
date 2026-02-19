@@ -110,7 +110,7 @@ stories:
   - id: S-007
     title: "Training run listing and selection"
     priority: 70
-    done: false
+    done: true
     blocked: false
     blocked_reason: ""
     requires: [S-004, S-005, S-006]

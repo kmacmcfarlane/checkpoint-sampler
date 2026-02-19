@@ -158,6 +158,49 @@ describe('ApiClient', () => {
     })
   })
 
+  describe('getTrainingRuns', () => {
+    it('fetches training runs from /api/training-runs', async () => {
+      const client = new ApiClient({ baseUrl: 'http://localhost:8080/api' })
+      const runs = [
+        { id: 0, name: 'run-alpha', pattern: '^alpha/.+', dimensions: [] },
+        {
+          id: 1,
+          name: 'run-beta',
+          pattern: '^beta/.+',
+          dimensions: [{ name: 'step', type: 'int', pattern: '-steps-(\\d+)-' }],
+        },
+      ]
+      mockFetch({ json: () => Promise.resolve(runs) })
+
+      const result = await client.getTrainingRuns()
+
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        'http://localhost:8080/api/training-runs',
+        undefined,
+      )
+      expect(result).toEqual(runs)
+    })
+
+    it('throws on training runs fetch failure', async () => {
+      const client = new ApiClient()
+      mockFetch({
+        ok: false,
+        status: 500,
+        json: () => Promise.resolve({ Code: 'INTERNAL_ERROR', Message: 'server error' }),
+      })
+
+      let thrown: ApiError | undefined
+      try {
+        await client.getTrainingRuns()
+      } catch (err) {
+        thrown = err as ApiError
+      }
+
+      expect(thrown).toBeDefined()
+      expect(thrown!.code).toBe('INTERNAL_ERROR')
+    })
+  })
+
   describe('getHealth', () => {
     it('fetches health from /health endpoint', async () => {
       const client = new ApiClient({ baseUrl: 'http://localhost:8080/api' })

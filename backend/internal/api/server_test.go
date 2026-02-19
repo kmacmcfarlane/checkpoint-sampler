@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -16,6 +17,9 @@ import (
 	genhealth "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/health"
 	gendocssvr "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/http/docs/server"
 	genhealthsvr "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/http/health/server"
+	gentrainingrunssvr "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/http/training_runs/server"
+	gentrainingruns "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/training_runs"
+	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/model"
 	goahttp "goa.design/goa/v3/http"
 )
 
@@ -27,12 +31,28 @@ var _ = Describe("Server integration", func() {
 
 	specJSON := []byte(`{"openapi":"3.0.0","info":{"title":"Checkpoint Sampler","version":"0.1.0"}}`)
 
+	testTrainingRuns := []model.TrainingRunConfig{
+		{
+			Name:    "test-run",
+			Pattern: regexp.MustCompile(`^test/.+`),
+			Dimensions: []model.DimensionConfig{
+				{
+					Name:    "step",
+					Type:    model.DimensionTypeInt,
+					Pattern: regexp.MustCompile(`-steps-(\d+)-`),
+				},
+			},
+		},
+	}
+
 	BeforeEach(func() {
 		healthSvc := api.NewHealthService()
 		docsSvc := api.NewDocsService(specJSON)
+		trainingRunsSvc := api.NewTrainingRunsService(testTrainingRuns)
 
 		healthEndpoints := genhealth.NewEndpoints(healthSvc)
 		docsEndpoints := gendocs.NewEndpoints(docsSvc)
+		trainingRunsEndpoints := gentrainingruns.NewEndpoints(trainingRunsSvc)
 
 		mux := goahttp.NewMuxer()
 		dec := goahttp.RequestDecoder
@@ -40,9 +60,11 @@ var _ = Describe("Server integration", func() {
 
 		healthServer := genhealthsvr.New(healthEndpoints, mux, dec, enc, nil, nil)
 		docsServer := gendocssvr.New(docsEndpoints, mux, dec, enc, nil, nil, nil)
+		trainingRunsServer := gentrainingrunssvr.New(trainingRunsEndpoints, mux, dec, enc, nil, nil)
 
 		healthServer.Mount(mux)
 		docsServer.Mount(mux)
+		trainingRunsServer.Mount(mux)
 
 		var handler http.Handler = mux
 		handler = api.CORSMiddleware("*")(handler)
@@ -100,6 +122,43 @@ var _ = Describe("Server integration", func() {
 			decoded, err := base64.StdEncoding.DecodeString(b64)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(decoded).To(Equal(specJSON))
+		})
+	})
+
+	Describe("GET /api/training-runs", func() {
+		It("returns 200 with training runs list", func() {
+			resp, err := client.Get(server.URL + "/api/training-runs")
+			Expect(err).NotTo(HaveOccurred())
+			defer resp.Body.Close()
+
+			Expect(resp.StatusCode).To(Equal(http.StatusOK))
+
+			body, err := io.ReadAll(resp.Body)
+			Expect(err).NotTo(HaveOccurred())
+
+			var result []map[string]interface{}
+			err = json.Unmarshal(body, &result)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result).To(HaveLen(1))
+			Expect(result[0]["name"]).To(Equal("test-run"))
+			Expect(result[0]["pattern"]).To(Equal(`^test/.+`))
+
+			dims, ok := result[0]["dimensions"].([]interface{})
+			Expect(ok).To(BeTrue())
+			Expect(dims).To(HaveLen(1))
+
+			dim, ok := dims[0].(map[string]interface{})
+			Expect(ok).To(BeTrue())
+			Expect(dim["name"]).To(Equal("step"))
+			Expect(dim["type"]).To(Equal("int"))
+		})
+
+		It("includes CORS headers", func() {
+			resp, err := client.Get(server.URL + "/api/training-runs")
+			Expect(err).NotTo(HaveOccurred())
+			defer resp.Body.Close()
+
+			Expect(resp.Header.Get("Access-Control-Allow-Origin")).To(Equal("*"))
 		})
 	})
 
