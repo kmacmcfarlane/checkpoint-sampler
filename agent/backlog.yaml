@@ -19,7 +19,7 @@ stories:
     requires: []
     acceptance:
       - "docs/architecture.md reflects checkpoint-sampler system (filesystem scanning, image serving, WebSocket, SQLite)"
-      - "docs/database.md documents the presets table schema and migration strategy"
+      - "docs/database.md documents the presets table schema"
       - "docs/api.md documents the REST and WebSocket API surface"
       - "CLAUDE.md section 5 updated to reference SQLite + TOML config"
     testing:
