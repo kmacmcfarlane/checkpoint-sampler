@@ -4,9 +4,11 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - ./data:/app/data
+      - backend_data:/app/data
+      - ./config.toml:/app/config.toml:ro
+      - ${DATASET_ROOT:-./.dataset-placeholder}:/data/dataset:ro
     environment:
-      - PORT=8080
+      - CONFIG_PATH=/app/config.toml
 
   frontend:
     build: ./frontend
@@ -14,3 +16,6 @@ services:
       - "3000:3000"
     depends_on:
       - backend
+
+volumes:
+  backend_data:
