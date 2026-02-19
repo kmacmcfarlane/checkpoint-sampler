@@ -48,7 +48,6 @@ Stores named dimension mapping configurations.
 CREATE TABLE presets (
     id               TEXT PRIMARY KEY,   -- UUID
     name             TEXT NOT NULL,
-    training_run_id  TEXT NOT NULL,      -- matches training run name from config
     mapping          TEXT NOT NULL,      -- JSON: dimension-to-role assignments
     created_at       TEXT NOT NULL,      -- RFC 3339
     updated_at       TEXT NOT NULL       -- RFC 3339
@@ -64,12 +63,6 @@ CREATE TABLE presets (
   "slider": "checkpoint",
   "combos": ["seed", "index"]
 }
-```
-
-### 3.2 Indexes
-
-```sql
-CREATE INDEX idx_presets_training_run ON presets(training_run_id);
 ```
 
 ## 4) Conventions

@@ -109,8 +109,8 @@ Goa maps service errors to HTTP status codes in the design DSL. General conventi
 
 ### 6.3 Presets
 
-- `GET /api/presets?training_run_id=...` — List presets, optionally filtered by training run.
-- `POST /api/presets` — Create a new preset (name, training_run_id, mapping JSON).
+- `GET /api/presets` — List all presets.
+- `POST /api/presets` — Create a new preset (name, mapping JSON).
 - `PUT /api/presets/{id}` — Update an existing preset.
 - `DELETE /api/presets/{id}` — Delete a preset.
 
@@ -123,7 +123,7 @@ Goa maps service errors to HTTP status codes in the design DSL. General conventi
 ### 7.1 List endpoints
 
 - Return arrays of resources.
-- Support filtering via query parameters (e.g., `?training_run_id=...` for presets).
+- Support filtering via query parameters where applicable.
 
 ### 7.2 Create/update endpoints
 

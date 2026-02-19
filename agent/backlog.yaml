@@ -13,7 +13,7 @@ stories:
   - id: S-001
     title: "Architecture and schema documentation"
     priority: 100
-    done: false
+    done: true
     blocked: false
     blocked_reason: ""
     requires: []
@@ -50,7 +50,7 @@ stories:
     acceptance:
       - "SQLite database created at configured db_path with WAL mode, busy timeout, foreign keys"
       - "Forward-only migration system with schema_migrations tracking table"
-      - "Initial migration creates presets table (id, name, training_run_id, mapping JSON, created_at, updated_at)"
+      - "Initial migration creates presets table (id, name, mapping JSON, created_at, updated_at)"
       - "Store layer exposes interface consumed by service layer"
       - "Unit tests cover migration execution and idempotency"
     testing:
@@ -195,7 +195,7 @@ stories:
       - "FE: Each ImageCell has an individual SliderBar cycling through slider-dimension values"
       - "FE: MasterSlider at the top moves all individual sliders in sync"
       - "FE: Moving a slider swaps the displayed image in that cell"
-      - "FE: Adjacent slider positions are preloaded for instant display"
+      - "FE: Pre-caching priority: (1) all slider positions for visible grid cells, then (2) remaining scan images in background"
       - "FE: Unit tests for SliderBar and MasterSlider"
     testing:
       - "command: npx vitest run"
@@ -210,11 +210,11 @@ stories:
     acceptance:
       - "BE: Goa DSL defines presets service with list, create, update, delete methods"
       - "BE: Presets CRUD wired through service layer to SQLite store"
-      - "BE: List supports filtering by training_run_id query parameter"
+      - "BE: List returns all presets"
       - "BE: Unit tests for presets service and store"
       - "FE: PresetSelector component with dropdown of saved presets"
       - "FE: Save button prompts for a name and creates a preset via API"
-      - "FE: Selecting a preset loads its mapping and re-renders the grid"
+      - "FE: Selecting a preset loads its mapping and re-renders the grid; unmatched dimensions show a warning"
       - "FE: Delete option on each preset"
       - "FE: Unit tests for PresetSelector"
     testing:

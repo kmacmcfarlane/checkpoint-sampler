@@ -110,6 +110,7 @@ Named dimension mapping configurations saved to the database. Users can save, lo
 - Moving a slider swaps the displayed image in that cell
 - A master slider at the top of the page moves all individual sliders in sync
 - Images are cached client-side so slider movement feels instant
+- Pre-caching priority: (1) all slider positions for visible grid cells, then (2) remaining images from the scan in the background
 
 ### US-6: Save and load presets
 
@@ -121,6 +122,7 @@ Named dimension mapping configurations saved to the database. Users can save, lo
 - A "Save preset" action stores the current dimension mapping with a user-chosen name
 - Saved presets appear in a selectable list
 - Selecting a preset applies its dimension mapping immediately
+- If a preset references dimensions not present in the current scan, matching dimensions are applied and a warning lists the unmatched ones
 - Presets persist across browser sessions and container restarts (stored in SQLite)
 
 ### US-7: View full-size image
@@ -250,7 +252,6 @@ The API is defined design-first using Goa v3 DSL. Swagger UI is served at `/docs
 |--------|------|-------------|
 | id | TEXT (UUID) | Primary key |
 | name | TEXT | User-chosen preset name |
-| training_run_id | TEXT | Which training run this preset applies to |
 | mapping | TEXT (JSON) | Serialized dimension-to-role assignments |
 | created_at | TEXT (RFC3339) | Creation timestamp |
 | updated_at | TEXT (RFC3339) | Last update timestamp |
@@ -263,7 +264,7 @@ The API is defined design-first using Goa v3 DSL. Swagger UI is served at `/docs
 
 ## 8) Non-functional requirements
 
-- **Performance**: With up to ~200 images per dataset, scanning must complete in under 2 seconds. Client-side caching ensures slider navigation feels instant.
+- **Performance**: With up to ~200 images per dataset, scanning must complete in under 2 seconds. Client-side caching ensures slider navigation feels instant. After the initially displayed images load, pre-cache all slider positions for visible grid cells, then remaining scan images in the background.
 - **Security**: Backend restricts all filesystem access to within the configured root. Path traversal is rejected. No authentication (local/LAN use only).
 - **Resilience**: WebSocket auto-reconnects on disconnect. Missing images show a placeholder. Malformed filenames are logged and skipped.
 - **Portability**: Runs on Linux via Docker Compose. No host dependencies beyond Docker.
