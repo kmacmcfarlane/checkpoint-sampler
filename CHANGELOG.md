@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-004: Goa API scaffold and codegen pipeline
+- backend/internal/api/design/api.go: Goa v3 API definition (title, version, server)
+- backend/internal/api/design/health.go: Health check service DSL with GET /health endpoint returning status
+- backend/internal/api/design/docs.go: Docs service DSL with GET /docs/openapi3.json and Swagger UI file serving at /docs/
+- backend/internal/api/generate.go: go:generate directive for Goa codegen
+- backend/internal/api/gen/: Generated Goa code (HTTP transport, encoders, OpenAPI 3.0 spec)
+- backend/internal/api/health.go: HealthService implementation returning {"status":"ok"}
+- backend/internal/api/docs.go: DocsService implementation serving OpenAPI spec bytes
+- backend/internal/api/cors.go: CORS middleware supporting configurable allowed origin
+- backend/internal/api/design/public/swagger-ui/: Swagger UI static assets (v5.18.2)
+- backend/cmd/server/main.go: Server entrypoint wiring config, database, Goa services, CORS middleware, and graceful shutdown
+- 10 unit tests covering health service, docs service, CORS middleware, and HTTP integration (health endpoint, OpenAPI spec, CORS preflight)
+
 ### S-003: SQLite database setup and migrations
 - backend/internal/store/db.go: OpenDB() configures SQLite with WAL mode, 5s busy timeout, foreign keys ON; creates parent directory if needed
 - backend/internal/store/db.go: Migrate() forward-only migration runner with schema_migrations tracking table; applies pending migrations in order within transactions
