@@ -6,6 +6,7 @@ import { useDimensionMapping } from './composables/useDimensionMapping'
 import TrainingRunSelector from './components/TrainingRunSelector.vue'
 import DimensionPanel from './components/DimensionPanel.vue'
 import XYGrid from './components/XYGrid.vue'
+import ComboFilter from './components/ComboFilter.vue'
 
 const selectedTrainingRun = ref<TrainingRun | null>(null)
 const scanning = ref(false)
@@ -18,6 +19,7 @@ const {
   xDimension,
   yDimension,
   sliderDimension,
+  comboDimensions,
   setScanResult,
   assignRole,
 } = useDimensionMapping()
@@ -62,6 +64,10 @@ async function onTrainingRunSelect(run: TrainingRun) {
 function onAssignRole(dimensionName: string, role: DimensionRole) {
   assignRole(dimensionName, role)
 }
+
+function onComboUpdate(dimensionName: string, selected: Set<string>) {
+  comboSelections[dimensionName] = selected
+}
 </script>
 
 <template>
@@ -81,6 +87,16 @@ function onAssignRole(dimensionName: string, role: DimensionRole) {
             :assignments="assignments"
             @assign="onAssignRole"
           />
+          <div class="combo-filters" v-if="comboDimensions.length > 0">
+            <ComboFilter
+              v-for="dim in comboDimensions"
+              :key="dim.name"
+              :dimension-name="dim.name"
+              :values="dim.values"
+              :selected="comboSelections[dim.name] ?? new Set()"
+              @update="onComboUpdate"
+            />
+          </div>
           <XYGrid
             :x-dimension="xDimension"
             :y-dimension="yDimension"
@@ -117,6 +133,13 @@ function onAssignRole(dimensionName: string, role: DimensionRole) {
 .app-main {
   padding: 1rem;
   flex: 1;
+}
+
+.combo-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
 }
 
 .error {

@@ -169,7 +169,7 @@ stories:
   - id: S-010
     title: "Combo filters"
     priority: 55
-    done: false
+    done: true
     blocked: false
     blocked_reason: ""
     requires: [S-009]
