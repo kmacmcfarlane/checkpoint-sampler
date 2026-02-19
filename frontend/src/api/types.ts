@@ -14,3 +14,18 @@ export interface ApiError {
 export interface HealthStatus {
   status: string
 }
+
+/** Dimension extraction configuration for a training run. */
+export interface DimensionConfig {
+  name: string
+  type: 'int' | 'string'
+  pattern: string
+}
+
+/** A configured training run. */
+export interface TrainingRun {
+  id: number
+  name: string
+  pattern: string
+  dimensions: DimensionConfig[]
+}

@@ -16,6 +16,8 @@ import (
 	genhealth "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/health"
 	gendocssvr "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/http/docs/server"
 	genhealthsvr "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/http/health/server"
+	gentrainingrunssvr "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/http/training_runs/server"
+	gentrainingruns "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/training_runs"
 	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/config"
 	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/store"
 	goahttp "goa.design/goa/v3/http"
@@ -56,10 +58,12 @@ func run() error {
 	// Create service implementations
 	healthSvc := api.NewHealthService()
 	docsSvc := api.NewDocsService(spec)
+	trainingRunsSvc := api.NewTrainingRunsService(cfg.TrainingRuns)
 
 	// Create Goa endpoints
 	healthEndpoints := genhealth.NewEndpoints(healthSvc)
 	docsEndpoints := gendocs.NewEndpoints(docsSvc)
+	trainingRunsEndpoints := gentrainingruns.NewEndpoints(trainingRunsSvc)
 
 	// Create Goa mux and mount handlers
 	mux := goahttp.NewMuxer()
@@ -69,9 +73,11 @@ func run() error {
 
 	healthServer := genhealthsvr.New(healthEndpoints, mux, dec, enc, nil, nil)
 	docsServer := gendocssvr.New(docsEndpoints, mux, dec, enc, nil, nil, http.Dir(swaggerUIDir()))
+	trainingRunsServer := gentrainingrunssvr.New(trainingRunsEndpoints, mux, dec, enc, nil, nil)
 
 	healthServer.Mount(mux)
 	docsServer.Mount(mux)
+	trainingRunsServer.Mount(mux)
 
 	// Redirect /docs to /docs/ for the Swagger UI
 	mux.Handle("GET", "/docs", http.RedirectHandler("/docs/", http.StatusMovedPermanently).ServeHTTP)

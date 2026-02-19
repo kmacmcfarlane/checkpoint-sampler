@@ -1,4 +1,4 @@
-import type { ApiError, ApiErrorResponse, HealthStatus } from './types'
+import type { ApiError, ApiErrorResponse, HealthStatus, TrainingRun } from './types'
 
 const DEFAULT_BASE_URL = '/api'
 
@@ -64,6 +64,11 @@ export class ApiClient {
     }
 
     return (await response.json()) as T
+  }
+
+  /** GET /api/training-runs — list all configured training runs. */
+  async getTrainingRuns(): Promise<TrainingRun[]> {
+    return this.request<TrainingRun[]>('/training-runs')
   }
 
   /** GET /health — check backend health. */

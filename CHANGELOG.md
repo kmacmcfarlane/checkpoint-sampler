@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-007: Training run listing and selection
+- backend/internal/api/design/training_runs.go: Goa DSL for training_runs service with list method returning TrainingRunResponse and DimensionConfigResponse types
+- backend/internal/api/gen/training_runs/: Generated Goa code for training_runs service
+- backend/internal/api/training_runs.go: TrainingRunsService implementation mapping config training runs to API response types
+- backend/cmd/server/main.go: Wired training_runs service into server startup
+- frontend/src/api/types.ts: Added TrainingRun and DimensionConfig types
+- frontend/src/api/client.ts: Added getTrainingRuns() method
+- frontend/src/components/TrainingRunSelector.vue: Dropdown component that fetches and displays training runs, emits selection events, shows loading/error states
+- frontend/src/App.vue: Integrated TrainingRunSelector into header, stores selected training run in app state
+- 6 backend unit tests: TrainingRunsService list (empty, with runs, with dimensions, empty dimensions) and HTTP integration (GET /api/training-runs response, CORS headers)
+- 8 frontend unit tests: TrainingRunSelector (rendering, loading state, dropdown population, selection emit, error display, disabled state) and API client getTrainingRuns method
+
 ### S-006: Docker Compose and Makefile wiring
 - config.toml: production config with ip_address=0.0.0.0 for LAN access, dataset root at /data/dataset (Docker mount point), db_path at ./data/checkpoint-sampler.db
 - docker-compose.yml: dataset root mounted as read-only volume via DATASET_ROOT env var, SQLite data as named Docker volume, config.toml mounted read-only, CONFIG_PATH set
