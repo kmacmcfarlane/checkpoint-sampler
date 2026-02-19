@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-005: Frontend scaffold and API client
+- frontend/src/main.ts: Vue 3 app entry point mounting App component to #app
+- frontend/src/App.vue: App shell with header ("Checkpoint Sampler") and placeholder main content
+- frontend/src/env.d.ts: TypeScript shims for .vue single-file components and Vite client types
+- frontend/src/api/types.ts: Shared API types (ApiErrorResponse, ApiError, HealthStatus)
+- frontend/src/api/client.ts: ApiClient class with typed fetch wrapper, error normalization (backend ErrorWithCode → ApiError), NETWORK_ERROR/UNKNOWN_ERROR fallbacks, and getHealth() method; exports singleton apiClient instance
+- frontend/index.html: updated title to "Checkpoint Sampler"
+- 12 unit tests: ApiClient request method (URL construction, RequestInit passthrough, default base URL, error code parsing, non-JSON error fallback, malformed error body, network errors), getHealth method, and App component rendering
+
 ### S-004: Goa API scaffold and codegen pipeline
 - backend/internal/api/design/api.go: Goa v3 API definition (title, version, server)
 - backend/internal/api/design/health.go: Health check service DSL with GET /health endpoint returning status

@@ -1,0 +1,191 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { ApiClient } from '../client'
+import type { ApiError } from '../types'
+
+describe('ApiClient', () => {
+  const originalFetch = globalThis.fetch
+
+  beforeEach(() => {
+    globalThis.fetch = vi.fn()
+  })
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch
+  })
+
+  function mockFetch(response: Partial<Response> & { json?: () => Promise<unknown> }) {
+    const defaults = {
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({}),
+      ...response,
+    }
+    ;(globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(defaults)
+  }
+
+  describe('request', () => {
+    it('makes a GET request to the correct URL', async () => {
+      const client = new ApiClient({ baseUrl: 'http://localhost:8080/api' })
+      mockFetch({ json: () => Promise.resolve({ items: [] }) })
+
+      const result = await client.request<{ items: unknown[] }>('/training-runs')
+
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        'http://localhost:8080/api/training-runs',
+        undefined,
+      )
+      expect(result).toEqual({ items: [] })
+    })
+
+    it('passes RequestInit options through to fetch', async () => {
+      const client = new ApiClient({ baseUrl: 'http://localhost:8080/api' })
+      mockFetch({ json: () => Promise.resolve({ id: '1' }) })
+
+      const init: RequestInit = {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'test' }),
+      }
+      await client.request('/presets', init)
+
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        'http://localhost:8080/api/presets',
+        init,
+      )
+    })
+
+    it('uses /api as the default base URL', async () => {
+      const client = new ApiClient()
+      mockFetch({ json: () => Promise.resolve({}) })
+
+      await client.request('/training-runs')
+
+      expect(globalThis.fetch).toHaveBeenCalledWith('/api/training-runs', undefined)
+    })
+
+    it('throws ApiError with backend error code on non-ok response', async () => {
+      const client = new ApiClient()
+      mockFetch({
+        ok: false,
+        status: 400,
+        json: () => Promise.resolve({ Code: 'INVALID_NAME', Message: 'Name is required' }),
+      })
+
+      let thrown: ApiError | undefined
+      try {
+        await client.request('/presets')
+      } catch (err) {
+        thrown = err as ApiError
+      }
+
+      expect(thrown).toBeDefined()
+      expect(thrown!.code).toBe('INVALID_NAME')
+      expect(thrown!.message).toBe('Name is required')
+    })
+
+    it('throws UNKNOWN_ERROR when error response is not JSON', async () => {
+      const client = new ApiClient()
+      mockFetch({
+        ok: false,
+        status: 500,
+        json: () => Promise.reject(new Error('not json')),
+      })
+
+      let thrown: ApiError | undefined
+      try {
+        await client.request('/presets')
+      } catch (err) {
+        thrown = err as ApiError
+      }
+
+      expect(thrown).toBeDefined()
+      expect(thrown!.code).toBe('UNKNOWN_ERROR')
+      expect(thrown!.message).toBe('Request failed with status 500')
+    })
+
+    it('throws UNKNOWN_ERROR when error response JSON lacks Code/Message', async () => {
+      const client = new ApiClient()
+      mockFetch({
+        ok: false,
+        status: 422,
+        json: () => Promise.resolve({ error: 'something' }),
+      })
+
+      let thrown: ApiError | undefined
+      try {
+        await client.request('/presets')
+      } catch (err) {
+        thrown = err as ApiError
+      }
+
+      expect(thrown).toBeDefined()
+      expect(thrown!.code).toBe('UNKNOWN_ERROR')
+      expect(thrown!.message).toBe('Request failed with status 422')
+    })
+
+    it('throws NETWORK_ERROR when fetch throws', async () => {
+      const client = new ApiClient()
+      ;(globalThis.fetch as ReturnType<typeof vi.fn>).mockRejectedValue(
+        new Error('Failed to fetch'),
+      )
+
+      let thrown: ApiError | undefined
+      try {
+        await client.request('/training-runs')
+      } catch (err) {
+        thrown = err as ApiError
+      }
+
+      expect(thrown).toBeDefined()
+      expect(thrown!.code).toBe('NETWORK_ERROR')
+      expect(thrown!.message).toBe('Failed to fetch')
+    })
+
+    it('throws NETWORK_ERROR with generic message for non-Error thrown values', async () => {
+      const client = new ApiClient()
+      ;(globalThis.fetch as ReturnType<typeof vi.fn>).mockRejectedValue('string error')
+
+      let thrown: ApiError | undefined
+      try {
+        await client.request('/training-runs')
+      } catch (err) {
+        thrown = err as ApiError
+      }
+
+      expect(thrown).toBeDefined()
+      expect(thrown!.code).toBe('NETWORK_ERROR')
+      expect(thrown!.message).toBe('Network error')
+    })
+  })
+
+  describe('getHealth', () => {
+    it('fetches health from /health endpoint', async () => {
+      const client = new ApiClient({ baseUrl: 'http://localhost:8080/api' })
+      mockFetch({ json: () => Promise.resolve({ status: 'ok' }) })
+
+      const result = await client.getHealth()
+
+      expect(globalThis.fetch).toHaveBeenCalledWith('http://localhost:8080/health')
+      expect(result).toEqual({ status: 'ok' })
+    })
+
+    it('throws on health check failure', async () => {
+      const client = new ApiClient({ baseUrl: 'http://localhost:8080/api' })
+      mockFetch({
+        ok: false,
+        status: 503,
+        json: () => Promise.resolve({ Code: 'INTERNAL_ERROR', Message: 'unhealthy' }),
+      })
+
+      let thrown: ApiError | undefined
+      try {
+        await client.getHealth()
+      } catch (err) {
+        thrown = err as ApiError
+      }
+
+      expect(thrown).toBeDefined()
+      expect(thrown!.code).toBe('INTERNAL_ERROR')
+    })
+  })
+})

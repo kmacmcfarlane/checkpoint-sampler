@@ -75,7 +75,7 @@ stories:
   - id: S-005
     title: "Frontend scaffold and API client"
     priority: 80
-    done: false
+    done: true
     blocked: false
     blocked_reason: ""
     requires: []
