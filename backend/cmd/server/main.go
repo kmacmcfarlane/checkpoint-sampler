@@ -19,6 +19,7 @@ import (
 	gentrainingrunssvr "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/http/training_runs/server"
 	gentrainingruns "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/training_runs"
 	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/config"
+	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/service"
 	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/store"
 	goahttp "goa.design/goa/v3/http"
 	goahttpmiddleware "goa.design/goa/v3/http/middleware"
@@ -55,10 +56,14 @@ func run() error {
 		return fmt.Errorf("reading openapi spec at %s: %w", specPath, err)
 	}
 
+	// Create filesystem and scanner
+	fs := store.NewFileSystem()
+	scanner := service.NewScanner(fs, cfg.Root)
+
 	// Create service implementations
 	healthSvc := api.NewHealthService()
 	docsSvc := api.NewDocsService(spec)
-	trainingRunsSvc := api.NewTrainingRunsService(cfg.TrainingRuns)
+	trainingRunsSvc := api.NewTrainingRunsService(cfg.TrainingRuns, scanner)
 
 	// Create Goa endpoints
 	healthEndpoints := genhealth.NewEndpoints(healthSvc)
@@ -78,6 +83,10 @@ func run() error {
 	healthServer.Mount(mux)
 	docsServer.Mount(mux)
 	trainingRunsServer.Mount(mux)
+
+	// Mount image serving handler
+	imageHandler := api.NewImageHandler(cfg.Root)
+	mux.Handle("GET", "/api/images/{*filepath}", imageHandler.ServeHTTP)
 
 	// Redirect /docs to /docs/ for the Swagger UI
 	mux.Handle("GET", "/docs", http.RedirectHandler("/docs/", http.StatusMovedPermanently).ServeHTTP)
