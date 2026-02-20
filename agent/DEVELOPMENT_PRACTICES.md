@@ -165,6 +165,13 @@ Within `/frontend`:
 
 ## 5) Docker and dev workflow practices
 
+### 5.0 Environment detection
+Before running build/test commands, detect whether the agent is inside a Docker container by checking for `/.dockerenv`. This determines the correct way to invoke tools:
+- **Inside container**: Go is not available; use `docker compose ... run --rm backend sh -c "..."` for Go commands. Node.js/npm/npx are available directly.
+- **On host**: Check for native tool availability (`which go`, etc.) and use them directly when present. Fall back to compose if not.
+
+See CLAUDE.md section 7 for full details.
+
 ### 5.1 Operational mode (`make up`)
 - Runs the application in a stable configuration:
     - built assets or production-like server mode
@@ -184,10 +191,24 @@ Within `/frontend`:
 Root Makefile must provide:
 - `up`, `down`, `logs`
 - `up-dev`
+- `test-frontend` (one-shot `npm run test` in docker)
 - `test-frontend-watch` (runs `npm run test:watch` in docker)
+- `test-backend` (one-shot `ginkgo -r` in docker; race + cover where feasible)
 - `test-backend-watch` (runs `ginkgo watch` in docker; race where feasible)
 
 Do not change these targets without updating PRD/backlog and related docs.
+
+### 5.4 Agent vs human workflows
+Watch mode (`test-backend-watch`, `test-frontend-watch`) is designed for human developers who monitor a terminal continuously. Agents cannot use watch mode because it is a long-running process that never exits — agents need discrete pass/fail results per tool invocation.
+
+**Agent workflow:**
+- Use one-shot targets: `make test-backend`, `make test-frontend`
+- After Goa DSL edits: run codegen (via compose or direct `make gen`), then `make test-backend`
+- Frontend: `make test-frontend` or `cd frontend && npx vitest run`
+
+**Human workflow:**
+- Use watch targets: `make test-backend-watch`, `make test-frontend-watch`
+- After Goa DSL edits: run `make gen`, watch output auto-reruns
 
 ## 6) Documentation and hygiene
 

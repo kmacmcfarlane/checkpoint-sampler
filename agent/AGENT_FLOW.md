@@ -95,6 +95,7 @@ For the selected story, perform in order:
 - Follow /agent/TEST_PRACTICES.md for structure, naming, and coverage expectations.
 
 ### 3.6 Run verification
+- **Detect runtime environment first**: check for `/.dockerenv` to determine whether running inside the claude-sandbox container or on the host. This determines how to invoke Go commands and other tools — see CLAUDE.md section 7.
 - Run the relevant test and lint commands (per Makefiles and CLAUDE.md).
 - Dev ergonomics targets must be maintained:
     - FE watch tests: `npm run test:watch`
@@ -117,6 +118,7 @@ Default: commit when a story reaches DONE and the user has reviewed the changes.
 - Create a single commit per story unless the story explicitly requires multiple commits.
 - Commit message format:
     - `story(<id>): <title>`
+- Do not add "Co-Authored-By" trailers or any other attribution lines to commit messages.
 - The commit must include:
     - code changes
     - passing tests for primary acceptance criteria

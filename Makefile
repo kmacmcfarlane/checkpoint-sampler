@@ -38,8 +38,14 @@ down-dev:
 logs-dev:
 	$(COMPOSE_DEV) logs -f
 
+test-frontend:
+	$(COMPOSE_DEV) exec frontend npm run test
+
 test-frontend-watch:
 	$(COMPOSE_DEV) exec frontend npm run test:watch
 
+test-backend:
+	$(COMPOSE_DEV) exec backend ginkgo -r --cover --race ./internal/... ./cmd/...
+
 test-backend-watch:
-	$(COMPOSE_DEV) exec backend ginkgo watch -r --race ./internal/... ./cmd/...
+	$(COMPOSE_DEV) exec backend ginkgo watch -r --cover --race ./internal/... ./cmd/...

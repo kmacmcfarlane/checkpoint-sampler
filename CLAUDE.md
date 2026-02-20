@@ -61,10 +61,13 @@ This project is part of the [kmac-claude-kit](https://github.com/kmacmcfarlane/k
 
 ## 7) Runtime environment (claude-sandbox)
 
-Claude Code runs inside a Docker container defined by the `claude-sandbox` tool (on PATH).
-It may be running in a ralph loop (fresh-context iterations via `ralph`) or interactively.
+Claude Code may run inside a Docker container (the `claude-sandbox`) or directly on the host.
+**Detect which at the start of each cycle** by checking for `/.dockerenv`:
+- File exists → running inside the claude-sandbox container
+- File does not exist → running directly on the host
 
-Key facts about the container:
+### 7.1 Inside the sandbox (/.dockerenv exists)
+The agent is already inside a Docker container with the project mounted. Key facts:
 - **Base image**: Debian bookworm-slim
 - **Installed**: Node.js 22, Docker CLI + compose plugin, git, make, jq, curl
 - **NOT installed**: Go, ginkgo, or any Go toolchain
@@ -73,36 +76,55 @@ Key facts about the container:
 - **UID/GID**: Container user `claude` is remapped to match the host user's UID/GID. BE CAREFUL INSIDE VOLUME MOUNTS FOR THIS REASON.
 
 Implications for development:
-- **Go tests**: Run via `docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm backend sh -c "ginkgo ..."` (the backend dev container has Go + ginkgo)
+- **Go commands**: Run via `docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm backend sh -c "..."` (the backend dev container has Go + ginkgo). Do NOT use `docker run` with separate images — always use the project's compose services.
 - **Frontend tests**: `npx vitest run` works directly (Node.js is installed in the sandbox)
-- **Go codegen**: Run via `docker compose ... run --rm backend sh -c "cd /build && make gen"`
+- **Go codegen**: Run via `docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm backend sh -c "cd /build && make gen"`
 - **Do not install system packages** or modify the container OS — it is ephemeral
 
+### 7.2 On the host (/.dockerenv does not exist)
+The agent is running directly on the host machine. Go and other tools may be available natively. Check before assuming — use `which go`, `which ginkgo`, etc.
+- If Go is installed: run Go commands directly (no docker compose needed)
+- If Go is NOT installed: fall back to the compose approach from 7.1
+- Frontend commands (npm/npx) work directly if Node.js is installed
+
 ## 8) Quick commands (keep accurate)
-Root (preferred entrypoints):
+
+Root Makefile targets (work in both sandbox and host — preferred for agent use):
 - `make up` / `make down` / `make logs`
 - `make up-dev`
-- `make test-backend-watch`
-- `make test-frontend-watch`
+- `make test-backend` / `make test-backend-watch`
+- `make test-frontend` / `make test-frontend-watch`
 
-Backend (from repo root):
+Backend via compose (sandbox — when Go is not installed locally):
+- Codegen: `docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm backend sh -c "cd /build && make gen"`
+- One-shot: use root `make test-backend`
+
+Backend direct (host — requires Go installed):
 - `cd backend && make gen`   (Goa codegen; must run before mocks when required)
 - `cd backend && make build`
 - `cd backend && make lint`
 - `cd backend && make test`
 - `cd backend && make run`
 
-Backend testing requirements (as a rule of thumb; actual commands live in Makefiles):
+Backend testing (as a rule of thumb; actual commands live in Makefiles):
 - ginkgo recursive with race where applicable, e.g.:
     - `ginkgo -r --race ./internal/... ./pkg/... ./cmd/...`
 - watch mode uses `ginkgo watch`
 
-Frontend (from repo root):
+Frontend (MUST run from /frontend, not the project root):
 - `cd frontend && npm ci`
 - `cd frontend && npm run dev`
 - `cd frontend && npm run build`
 - `cd frontend && npm run lint`
 - `cd frontend && npm run test:watch`  (Vitest)
+
+### Agent workflow (preferred sequence)
+Agents should use one-shot commands, not watch mode. Watch mode is a long-running process designed for human developers — agents need discrete pass/fail results per invocation.
+
+- **After Goa DSL edits**: run codegen (`make gen` via compose or direct), then `make test-backend` to verify
+- **Backend verification**: `make test-backend` (one-shot, returns exit code)
+- **Frontend verification**: `make test-frontend` or `cd frontend && npx vitest run`
+- **Do not use** `make test-backend-watch` or `make test-frontend-watch` — these never exit
 
 ## 9) Change discipline
 - One story at a time (from /agent/backlog.yaml) per /agent/AGENT_FLOW.md.
