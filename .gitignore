@@ -25,6 +25,7 @@ backend/internal/api/gen/
 
 # Test coverage
 coverage/
+backend/coverprofile.out
 
 # SQLite database files
 *.db
