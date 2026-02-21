@@ -172,6 +172,33 @@ Named dimension mapping configurations saved to the database. Users can save, lo
 - Click-drag pans the zoomed image
 - Escape or clicking outside the image closes the overlay
 
+### US-9: View checkpoint metadata
+
+**As a** user
+**I want to** view training metadata for checkpoints in the selected training run
+**So that** I can understand the training configuration and compare checkpoint details
+
+**Acceptance criteria:**
+- A slideout panel shows a list of all checkpoints in the current training run
+- The highest step count checkpoint is selected by default
+- Selecting a checkpoint displays metadata parsed from the `.safetensors` file header (`ss_*` fields): output name, total steps, epochs, optimizer, dataset info, base model name, etc.
+- Metadata is fetched on-the-fly when a checkpoint is selected (not during scan)
+- If the safetensors header contains no `ss_*` metadata, the panel shows a "no metadata available" message
+- The slideout can be opened and closed without affecting the grid state
+
+### US-10: View generation metadata in lightbox
+
+**As a** user
+**I want to** view the generation metadata embedded in a sample image
+**So that** I can see the exact ComfyUI parameters (prompt, seed, CFG, etc.) used to generate it
+
+**Acceptance criteria:**
+- The image lightbox (US-7) includes a metadata section showing the raw ComfyUI workflow JSON
+- Metadata is fetched on-the-fly from the backend when the lightbox opens (dedicated endpoint)
+- The JSON is displayed in a scrollable, formatted view
+- If no metadata is embedded in the PNG, a "no metadata available" message is shown
+- Viewing metadata does not interfere with zoom/pan functionality
+
 ### US-8: Live updates via WebSocket
 
 **As a** user
@@ -248,7 +275,8 @@ A single WebSocket endpoint pushes image-change events to connected clients. The
 | `ImageCell` | Single grid cell: image + individual slider |
 | `MasterSlider` | Top-level slider that drives all individual sliders |
 | `ComboFilter` | Multi-select dropdown for a combo-assigned dimension |
-| `ImageLightbox` | Modal overlay with zoom and pan for full-size viewing |
+| `ImageLightbox` | Modal overlay with zoom, pan, and generation metadata viewing |
+| `CheckpointMetadataPanel` | Slideout panel showing checkpoint list and safetensors metadata |
 
 ## 6) API surface (preliminary)
 
@@ -257,6 +285,8 @@ A single WebSocket endpoint pushes image-change events to connected clients. The
 | GET | `/api/training-runs` | List auto-discovered training runs (supports `?has_samples=true` filter) |
 | GET | `/api/training-runs/{id}/scan` | Scan directories and return image metadata + discovered dimensions |
 | GET | `/api/images/*filepath` | Serve an image file (path relative to sample_dir, validated) |
+| GET | `/api/images/*filepath/metadata` | Parse and return PNG embedded metadata (ComfyUI workflow JSON) |
+| GET | `/api/checkpoints/{filename}/metadata` | Parse and return safetensors header metadata (ss_* fields) |
 | GET | `/api/presets` | List saved dimension mapping presets |
 | POST | `/api/presets` | Create a new preset |
 | PUT | `/api/presets/{id}` | Update a preset |

@@ -336,3 +336,49 @@ stories:
       - "FE: Unit tests for playback logic (start, stop, interval, loop)"
     testing:
       - "command: npx vitest run"
+
+  - id: S-019
+    title: "Checkpoint metadata slideout panel"
+    priority: 12
+    done: false
+    blocked: false
+    blocked_reason: ""
+    requires: [S-018]
+    acceptance:
+      - "BE: Parse safetensors file headers to extract ss_* metadata fields (output_name, total_steps, epochs, optimizer, dataset, base_model, etc.)"
+      - "BE: GET /api/checkpoints/{filename}/metadata returns parsed metadata as JSON; filename is resolved against checkpoint_dirs"
+      - "BE: Validate filename stays within checkpoint_dirs (path traversal protection)"
+      - "BE: Return empty metadata object (not error) when no ss_* fields present"
+      - "BE: Unit tests for safetensors header parsing, path validation, missing metadata"
+      - "FE: CheckpointMetadataPanel slideout component with checkpoint list for the current training run"
+      - "FE: Highest step count checkpoint selected by default"
+      - "FE: Selecting a checkpoint fetches and displays its metadata from the API"
+      - "FE: Show 'no metadata available' when checkpoint has no ss_* fields"
+      - "FE: Slideout opens/closes without affecting grid state"
+      - "FE: Unit tests for CheckpointMetadataPanel"
+    testing:
+      - "command: ginkgo -r --cover --race ./internal/..."
+      - "command: npx vitest run"
+
+  - id: S-020
+    title: "Generation metadata in image lightbox"
+    priority: 10
+    done: false
+    blocked: false
+    blocked_reason: ""
+    requires: [S-013, S-018]
+    acceptance:
+      - "BE: Parse PNG tEXt chunks to extract ComfyUI Prompt and Workflow metadata"
+      - "BE: GET /api/images/*/metadata returns raw embedded JSON metadata for the image"
+      - "BE: Validate image path stays within sample_dir (path traversal protection)"
+      - "BE: Return empty metadata object (not error) when PNG has no embedded metadata"
+      - "BE: Unit tests for PNG metadata extraction, path validation, missing metadata"
+      - "FE: ImageLightbox shows a metadata section with the raw ComfyUI workflow JSON"
+      - "FE: Metadata fetched on-the-fly when lightbox opens (not pre-loaded)"
+      - "FE: JSON displayed in scrollable, formatted view"
+      - "FE: Show 'no metadata available' when PNG has no embedded metadata"
+      - "FE: Metadata section does not interfere with zoom/pan functionality"
+      - "FE: Unit tests for metadata display in lightbox"
+    testing:
+      - "command: ginkgo -r --cover --race ./internal/..."
+      - "command: npx vitest run"
