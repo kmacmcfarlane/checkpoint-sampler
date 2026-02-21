@@ -16,6 +16,7 @@ import (
 	genhealth "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/health"
 	genpresets "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/presets"
 	gentrainingruns "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/training_runs"
+	genws "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/ws"
 	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/config"
 	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/service"
 	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/store"
@@ -57,18 +58,30 @@ func run() error {
 	discovery := service.NewDiscoveryService(fs, cfg.CheckpointDirs, cfg.SampleDir)
 	scanner := service.NewScanner(fs, cfg.SampleDir)
 
+	// Create WebSocket hub and filesystem watcher
+	hub := service.NewHub(log.Default())
+	notifier, err := service.NewFSNotifier()
+	if err != nil {
+		return fmt.Errorf("creating filesystem notifier: %w", err)
+	}
+	defer notifier.Close()
+	watcher := service.NewWatcher(notifier, hub, cfg.SampleDir, log.Default())
+	defer watcher.Stop()
+
 	// Create service implementations
 	healthSvc := api.NewHealthService()
 	docsSvc := api.NewDocsService(spec)
-	trainingRunsSvc := api.NewTrainingRunsService(discovery, scanner)
+	trainingRunsSvc := api.NewTrainingRunsService(discovery, scanner, watcher)
 	presetSvc := service.NewPresetService(st)
 	presetsSvc := api.NewPresetsService(presetSvc)
+	wsSvc := api.NewWSService(hub)
 
 	// Create Goa endpoints
 	healthEndpoints := genhealth.NewEndpoints(healthSvc)
 	docsEndpoints := gendocs.NewEndpoints(docsSvc)
 	trainingRunsEndpoints := gentrainingruns.NewEndpoints(trainingRunsSvc)
 	presetsEndpoints := genpresets.NewEndpoints(presetsSvc)
+	wsEndpoints := genws.NewEndpoints(wsSvc)
 
 	// Build the HTTP handler with all transport setup
 	handler := api.NewHTTPHandler(api.HTTPHandlerConfig{
@@ -76,6 +89,7 @@ func run() error {
 		DocsEndpoints:        docsEndpoints,
 		TrainingRunEndpoints: trainingRunsEndpoints,
 		PresetsEndpoints:     presetsEndpoints,
+		WSEndpoints:          wsEndpoints,
 		ImageHandler:         api.NewImageHandler(cfg.SampleDir),
 		SwaggerUIDir:         http.Dir(swaggerUIDir()),
 		Logger:               log.Default(),

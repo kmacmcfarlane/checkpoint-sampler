@@ -73,7 +73,7 @@ var _ = Describe("TrainingRunsService", func() {
 			discoveryFS.files["/checkpoints"] = []string{}
 			discovery = service.NewDiscoveryService(discoveryFS, []string{"/checkpoints"}, sampleDir)
 			scanner = service.NewScanner(scanFS, sampleDir)
-			svc := api.NewTrainingRunsService(discovery, scanner)
+			svc := api.NewTrainingRunsService(discovery, scanner, nil)
 
 			result, err := svc.List(context.Background(), &gentrainingruns.ListPayload{HasSamples: false})
 
@@ -89,7 +89,7 @@ var _ = Describe("TrainingRunsService", func() {
 			}
 			discovery = service.NewDiscoveryService(discoveryFS, []string{"/checkpoints"}, sampleDir)
 			scanner = service.NewScanner(scanFS, sampleDir)
-			svc := api.NewTrainingRunsService(discovery, scanner)
+			svc := api.NewTrainingRunsService(discovery, scanner, nil)
 
 			result, err := svc.List(context.Background(), &gentrainingruns.ListPayload{HasSamples: false})
 
@@ -110,7 +110,7 @@ var _ = Describe("TrainingRunsService", func() {
 			discoveryFS.dirs["/samples/model-step00001000.safetensors"] = true
 			discovery = service.NewDiscoveryService(discoveryFS, []string{"/checkpoints"}, sampleDir)
 			scanner = service.NewScanner(scanFS, sampleDir)
-			svc := api.NewTrainingRunsService(discovery, scanner)
+			svc := api.NewTrainingRunsService(discovery, scanner, nil)
 
 			result, err := svc.List(context.Background(), &gentrainingruns.ListPayload{HasSamples: false})
 
@@ -133,7 +133,7 @@ var _ = Describe("TrainingRunsService", func() {
 			// model-b has no samples
 			discovery = service.NewDiscoveryService(discoveryFS, []string{"/checkpoints"}, sampleDir)
 			scanner = service.NewScanner(scanFS, sampleDir)
-			svc := api.NewTrainingRunsService(discovery, scanner)
+			svc := api.NewTrainingRunsService(discovery, scanner, nil)
 
 			result, err := svc.List(context.Background(), &gentrainingruns.ListPayload{HasSamples: true})
 
@@ -150,7 +150,7 @@ var _ = Describe("TrainingRunsService", func() {
 			discoveryFS.dirs["/samples/model-a.safetensors"] = true
 			discovery = service.NewDiscoveryService(discoveryFS, []string{"/checkpoints"}, sampleDir)
 			scanner = service.NewScanner(scanFS, sampleDir)
-			svc := api.NewTrainingRunsService(discovery, scanner)
+			svc := api.NewTrainingRunsService(discovery, scanner, nil)
 
 			result, err := svc.List(context.Background(), &gentrainingruns.ListPayload{HasSamples: false})
 
@@ -166,7 +166,7 @@ var _ = Describe("TrainingRunsService", func() {
 			}
 			discovery = service.NewDiscoveryService(discoveryFS, []string{"/checkpoints"}, sampleDir)
 			scanner = service.NewScanner(scanFS, sampleDir)
-			svc := api.NewTrainingRunsService(discovery, scanner)
+			svc := api.NewTrainingRunsService(discovery, scanner, nil)
 
 			_, err := svc.Scan(context.Background(), &gentrainingruns.ScanPayload{ID: 5})
 
@@ -180,7 +180,7 @@ var _ = Describe("TrainingRunsService", func() {
 			}
 			discovery = service.NewDiscoveryService(discoveryFS, []string{"/checkpoints"}, sampleDir)
 			scanner = service.NewScanner(scanFS, sampleDir)
-			svc := api.NewTrainingRunsService(discovery, scanner)
+			svc := api.NewTrainingRunsService(discovery, scanner, nil)
 
 			_, err := svc.Scan(context.Background(), &gentrainingruns.ScanPayload{ID: -1})
 
@@ -194,7 +194,7 @@ var _ = Describe("TrainingRunsService", func() {
 			discoveryFS.dirs["/samples/model-step00001000.safetensors"] = true
 			discovery = service.NewDiscoveryService(discoveryFS, []string{"/checkpoints"}, sampleDir)
 			scanner = service.NewScanner(scanFS, sampleDir)
-			svc := api.NewTrainingRunsService(discovery, scanner)
+			svc := api.NewTrainingRunsService(discovery, scanner, nil)
 
 			scanFS.files["/samples/model-step00001000.safetensors"] = []string{
 				"seed=1&cfg=3&_00001_.png",
@@ -215,7 +215,7 @@ var _ = Describe("TrainingRunsService", func() {
 			discoveryFS.dirs["/samples/model-step00001000.safetensors"] = true
 			discovery = service.NewDiscoveryService(discoveryFS, []string{"/checkpoints"}, sampleDir)
 			scanner = service.NewScanner(scanFS, sampleDir)
-			svc := api.NewTrainingRunsService(discovery, scanner)
+			svc := api.NewTrainingRunsService(discovery, scanner, nil)
 
 			scanFS.errs["/samples/model-step00001000.safetensors"] = fmt.Errorf("disk error")
 
@@ -234,7 +234,7 @@ var _ = Describe("TrainingRunsService", func() {
 			discoveryFS.dirs["/samples/model-step00002000.safetensors"] = true
 			discovery = service.NewDiscoveryService(discoveryFS, []string{"/checkpoints"}, sampleDir)
 			scanner = service.NewScanner(scanFS, sampleDir)
-			svc := api.NewTrainingRunsService(discovery, scanner)
+			svc := api.NewTrainingRunsService(discovery, scanner, nil)
 
 			scanFS.files["/samples/model-step00001000.safetensors"] = []string{
 				"seed=42&_00001_.png",

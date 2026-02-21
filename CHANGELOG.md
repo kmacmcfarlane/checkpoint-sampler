@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-014: WebSocket live updates (backend)
+- backend/internal/model/event.go: FSEvent domain type with EventType enum (image_added, image_removed, directory_added) and relative Path field
+- backend/internal/service/hub.go: WebSocket Hub managing connected HubClient instances; Register/Unregister clients, Broadcast FSEvents to all clients, auto-remove unresponsive clients
+- backend/internal/service/watcher.go: Filesystem Watcher using fsnotify; WatchTrainingRun watches sample directories for active training run checkpoints plus sample_dir root; converts fsnotify events (Create/Remove/Rename) into model.FSEvent broadcasts; auto-watches newly created directories; case-insensitive PNG detection; WatcherNotifier interface for testability
+- backend/internal/api/design/ws.go: Goa DSL defining ws service with StreamingResult subscribe method at GET /api/ws; FSEventResponse type with event type and path fields
+- backend/internal/api/ws.go: WSService implementing generated ws.Service interface; Subscribe method registers a streamClient with the Hub and blocks until client disconnects; streamClient adapts Goa SubscribeServerStream to HubClient with buffered event channel and write pump goroutine
+- backend/internal/api/http.go: Added WSEndpoints to HTTPHandlerConfig; WebSocket upgrader with permissive origin check; mounts generated ws server with gorilla/websocket upgrader
+- backend/internal/api/training_runs.go: Scan method now starts filesystem watching for the scanned training run (watcher is optional/nil-safe)
+- backend/cmd/server/main.go: Wired Hub, FSNotifier, Watcher, WSService, and ws endpoints into server startup; graceful shutdown closes notifier and stops watcher
+- go.mod: Added fsnotify v1.9.0 and gorilla/websocket v1.5.3 as direct dependencies
+- 10 Hub unit tests: register/unregister lifecycle, client count tracking, broadcast to all clients, removal of unresponsive clients, multiple events in sequence, no-op on empty hub
+- 13 Watcher unit tests: watch directory setup for checkpoints with samples, sample_dir root always watched, previous watch cleanup, image_added/image_removed/directory_added events, auto-watch new directories, non-PNG file ignoring, Write event ignoring, case-insensitive PNG, stop idempotency
+
 ### S-013: Image lightbox with zoom and pan
 - frontend/src/components/ImageLightbox.vue: Modal overlay component with full-size image display, mouse wheel zoom (toward cursor position), click-drag pan, Escape key and backdrop click to close, grab/grabbing cursor states, transform reset on image change
 - frontend/src/components/ImageCell.vue: Added click emit that fires with image URL when an image is present; cursor: pointer style on images
