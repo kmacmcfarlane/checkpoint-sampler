@@ -2,6 +2,7 @@ package store
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -68,4 +69,9 @@ func (fs *FileSystem) ListPNGFiles(dir string) ([]string, error) {
 		}
 	}
 	return files, nil
+}
+
+// OpenFile opens a file for reading. Implements service.CheckpointMetadataReader.
+func (fs *FileSystem) OpenFile(path string) (io.ReadCloser, error) {
+	return os.Open(path)
 }

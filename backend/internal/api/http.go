@@ -5,8 +5,10 @@ import (
 	"log"
 	"net/http"
 
+	gencheckpoints "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/checkpoints"
 	gendocs "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/docs"
 	genhealth "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/health"
+	gencheckpointssvr "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/http/checkpoints/server"
 	gendocssvr "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/http/docs/server"
 	genhealthsvr "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/http/health/server"
 	genpresetssvr "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/http/presets/server"
@@ -23,15 +25,16 @@ import (
 
 // HTTPHandlerConfig holds the dependencies needed by NewHTTPHandler.
 type HTTPHandlerConfig struct {
-	HealthEndpoints      *genhealth.Endpoints
-	DocsEndpoints        *gendocs.Endpoints
-	TrainingRunEndpoints *gentrainingruns.Endpoints
-	PresetsEndpoints     *genpresets.Endpoints
-	WSEndpoints          *genws.Endpoints
-	ImageHandler         *ImageHandler
-	SwaggerUIDir         http.FileSystem
-	Logger               *log.Logger
-	Debug                bool
+	HealthEndpoints       *genhealth.Endpoints
+	DocsEndpoints         *gendocs.Endpoints
+	TrainingRunEndpoints  *gentrainingruns.Endpoints
+	PresetsEndpoints      *genpresets.Endpoints
+	CheckpointsEndpoints  *gencheckpoints.Endpoints
+	WSEndpoints           *genws.Endpoints
+	ImageHandler          *ImageHandler
+	SwaggerUIDir          http.FileSystem
+	Logger                *log.Logger
+	Debug                 bool
 }
 
 // NewHTTPHandler creates a fully wired http.Handler with all Goa services,
@@ -53,6 +56,7 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 	docsServer := gendocssvr.New(cfg.DocsEndpoints, mux, dec, enc, eh, nil, cfg.SwaggerUIDir)
 	trainingRunsServer := gentrainingrunssvr.New(cfg.TrainingRunEndpoints, mux, dec, enc, eh, nil)
 	presetsServer := genpresetssvr.New(cfg.PresetsEndpoints, mux, dec, enc, eh, nil)
+	checkpointsServer := gencheckpointssvr.New(cfg.CheckpointsEndpoints, mux, dec, enc, eh, nil)
 
 	// WebSocket upgrader with permissive origin check for local/LAN use
 	upgrader := &websocket.Upgrader{
@@ -64,6 +68,7 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 	docsServer.Mount(mux)
 	trainingRunsServer.Mount(mux)
 	presetsServer.Mount(mux)
+	checkpointsServer.Mount(mux)
 	wsServer.Mount(mux)
 
 	// Mount custom image serving handler
@@ -84,6 +89,9 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 			cfg.Logger.Printf("HTTP %q mounted on %s %s", m.Method, m.Verb, m.Pattern)
 		}
 		for _, m := range presetsServer.Mounts {
+			cfg.Logger.Printf("HTTP %q mounted on %s %s", m.Method, m.Verb, m.Pattern)
+		}
+		for _, m := range checkpointsServer.Mounts {
 			cfg.Logger.Printf("HTTP %q mounted on %s %s", m.Method, m.Verb, m.Pattern)
 		}
 		for _, m := range wsServer.Mounts {

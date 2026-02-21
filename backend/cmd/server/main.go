@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api"
+	gencheckpoints "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/checkpoints"
 	gendocs "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/docs"
 	genhealth "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/health"
 	genpresets "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/presets"
@@ -74,6 +75,8 @@ func run() error {
 	trainingRunsSvc := api.NewTrainingRunsService(discovery, scanner, watcher)
 	presetSvc := service.NewPresetService(st)
 	presetsSvc := api.NewPresetsService(presetSvc)
+	checkpointMetadataSvc := service.NewCheckpointMetadataService(fs, cfg.CheckpointDirs)
+	checkpointsSvc := api.NewCheckpointsService(checkpointMetadataSvc)
 	wsSvc := api.NewWSService(hub)
 
 	// Create Goa endpoints
@@ -81,6 +84,7 @@ func run() error {
 	docsEndpoints := gendocs.NewEndpoints(docsSvc)
 	trainingRunsEndpoints := gentrainingruns.NewEndpoints(trainingRunsSvc)
 	presetsEndpoints := genpresets.NewEndpoints(presetsSvc)
+	checkpointsEndpoints := gencheckpoints.NewEndpoints(checkpointsSvc)
 	wsEndpoints := genws.NewEndpoints(wsSvc)
 
 	// Build the HTTP handler with all transport setup
@@ -89,6 +93,7 @@ func run() error {
 		DocsEndpoints:        docsEndpoints,
 		TrainingRunEndpoints: trainingRunsEndpoints,
 		PresetsEndpoints:     presetsEndpoints,
+		CheckpointsEndpoints: checkpointsEndpoints,
 		WSEndpoints:          wsEndpoints,
 		ImageHandler:         api.NewImageHandler(cfg.SampleDir),
 		SwaggerUIDir:         http.Dir(swaggerUIDir()),

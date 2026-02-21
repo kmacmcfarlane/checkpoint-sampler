@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-019: Checkpoint metadata slideout panel
+- backend/internal/service/checkpoint_metadata.go: CheckpointMetadataService parses safetensors file headers to extract ss_* training metadata fields; resolves checkpoint filenames against configured checkpoint_dirs via recursive filesystem walk; validates filenames for path traversal safety (rejects slashes, dots); reads 8-byte little-endian header length prefix, parses header JSON, extracts __metadata__.ss_* fields; returns empty map (not error) when no metadata present
+- backend/internal/store/filesystem.go: Added OpenFile method implementing CheckpointMetadataReader interface for reading safetensors files from disk
+- backend/internal/api/design/checkpoints.go: Goa DSL defining checkpoints service with metadata method at GET /api/checkpoints/{filename}/metadata; CheckpointMetadataResponse type with metadata map; not_found and invalid_filename error responses
+- backend/internal/api/checkpoints.go: CheckpointsService implementing generated interface; maps service errors to appropriate Goa error types (invalid_filename → 400, not_found → 404)
+- backend/internal/api/http.go: Added CheckpointsEndpoints to HTTPHandlerConfig; wired checkpoints server into NewHTTPHandler
+- backend/cmd/server/main.go: Wired CheckpointMetadataService and CheckpointsService into server startup
+- frontend/src/api/types.ts: Added CheckpointMetadata interface for metadata API response
+- frontend/src/api/client.ts: Added getCheckpointMetadata(filename) method with URL encoding
+- frontend/src/components/CheckpointMetadataPanel.vue: Slideout panel component with checkpoint list sorted by step number descending; highest step count checkpoint selected by default; fetches metadata on-the-fly when selecting a checkpoint; displays metadata in sorted key-value table; shows "No metadata available" when no ss_* fields; loading and error states; accessible roles (complementary, listbox, option) and aria-labels; close button
+- frontend/src/App.vue: Integrated CheckpointMetadataPanel with toggle button in header; panel opens/closes without affecting grid state
+- 15 service unit tests: ss_* field extraction, non-ss field exclusion, missing __metadata__ section, no ss_* fields, subdirectory file resolution, multiple checkpoint dirs, many metadata fields, path validation (empty, forward slash, backslash, dot-dot, single dot), file not found, truncated file, invalid JSON
+- 7 API unit tests: valid metadata response, empty metadata when no ss_* fields, empty metadata when no __metadata__ section, invalid_filename error for path traversal, not_found for nonexistent file, subdirectory file resolution via walk, multi-directory search
+- 13 CheckpointMetadataPanel component unit tests: panel rendering, descending sort, default highest selection, metadata display with sorted keys, no-metadata message, loading state, error display, checkpoint click fetch, close event, accessible close button, accessible listbox, step numbers display, empty checkpoints handling
+- 2 API client unit tests: getCheckpointMetadata success and failure
+
 ### S-017: Slider playback mode
 - frontend/src/components/MasterSlider.vue: Added Play/Pause button that auto-advances through slider values at a configurable interval; speed selector with 0.5s/1s/2s/3s options (default 1s); Loop checkbox to wrap around from last value to first; playback stops automatically at the last value when loop is off; speed changes during playback restart the interval; playback stops when the values prop changes (e.g. dimension switch); accessible aria-labels on all playback controls
 - 16 new MasterSlider playback tests: play button rendering, play/pause toggle, interval advance, multi-step advance, stop at last value without loop, wrap with loop enabled, no playback with <=1 values, stop on pause, speed selector default, speed adjustment, speed change during playback restarts interval, loop checkbox default state, accessible labels, play button aria-label changes, stop on values prop change

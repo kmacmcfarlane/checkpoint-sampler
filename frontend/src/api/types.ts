@@ -76,6 +76,11 @@ export interface Preset {
   updated_at: string
 }
 
+/** Checkpoint metadata response from safetensors header parsing. */
+export interface CheckpointMetadata {
+  metadata: Record<string, string>
+}
+
 /** WebSocket event types sent by the backend. */
 export type FSEventType = 'image_added' | 'image_removed' | 'directory_added'
 
