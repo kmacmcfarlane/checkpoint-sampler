@@ -558,7 +558,7 @@ stories:
   - id: B-004
     title: "Lightbox backdrop close broken and missing close button"
     priority: 3
-    done: false
+    done: true
     blocked: false
     blocked_reason: ""
     requires: [R-002]

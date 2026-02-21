@@ -34,7 +34,7 @@ describe('ImageLightbox', () => {
     expect(img.attributes('src')).toBe('/api/images/dir/image.png')
   })
 
-  it('emits close when clicking the backdrop', async () => {
+  it('emits close when clicking the backdrop directly', async () => {
     const wrapper = mount(ImageLightbox, { props: defaultProps })
     await flushPromises()
 
@@ -44,14 +44,43 @@ describe('ImageLightbox', () => {
     expect(wrapper.emitted('close')).toBeTruthy()
   })
 
-  it('does not emit close when clicking the image content area', async () => {
+  it('emits close when clicking the content area background (outside the image)', async () => {
     const wrapper = mount(ImageLightbox, { props: defaultProps })
     await flushPromises()
 
     const content = wrapper.find('.lightbox-content')
+    // Simulate clicking the content div itself (not the img child)
     await content.trigger('click')
-    // Click on content should not close (event target !== currentTarget on backdrop)
+    expect(wrapper.emitted('close')).toBeTruthy()
+  })
+
+  it('does not emit close when clicking the image itself', async () => {
+    const wrapper = mount(ImageLightbox, { props: defaultProps })
+    await flushPromises()
+
+    const img = wrapper.find('.lightbox-image')
+    await img.trigger('click')
+    // Click on the image should not close (event target !== currentTarget on content)
     expect(wrapper.emitted('close')).toBeFalsy()
+  })
+
+  it('emits close when clicking the X close button', async () => {
+    const wrapper = mount(ImageLightbox, { props: defaultProps })
+    await flushPromises()
+
+    const closeBtn = wrapper.find('.lightbox-close')
+    expect(closeBtn.exists()).toBe(true)
+    expect(closeBtn.attributes('aria-label')).toBe('Close lightbox')
+    await closeBtn.trigger('click')
+    expect(wrapper.emitted('close')).toBeTruthy()
+  })
+
+  it('renders X close button in the top-left corner', async () => {
+    const wrapper = mount(ImageLightbox, { props: defaultProps })
+    await flushPromises()
+
+    const closeBtn = wrapper.find('.lightbox-close')
+    expect(closeBtn.exists()).toBe(true)
   })
 
   it('emits close on Escape key press', async () => {

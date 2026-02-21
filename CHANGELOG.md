@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### B-004: Lightbox backdrop close broken and missing close button
+- frontend/src/components/ImageLightbox.vue: Fixed backdrop click-to-close bug — added onContentClick handler on `.lightbox-content` so clicking the area around the image (outside the image itself) now correctly closes the lightbox; the previous onBackdropClick handler on `.lightbox-backdrop` never fired because `.lightbox-content` fills the entire backdrop area (width/height 100%)
+- frontend/src/components/ImageLightbox.vue: Added X close button (NButton, quaternary circle) positioned in the top-left corner with `aria-label="Close lightbox"`; uses fixed positioning at top:12px, left:12px with z-index 1002 to stay above other lightbox elements
+- frontend/src/components/ImageLightbox.vue: Escape key continues to close the lightbox (unchanged)
+- Updated existing backdrop close test to verify clicking `.lightbox-content` (the actual clickable area) emits close; added test that clicking the image itself does not emit close; added test for X close button click and aria-label; added test verifying close button renders; 29 total ImageLightbox tests pass
+
 ### S-025: Main slider layout improvements
 - frontend/src/components/MasterSlider.vue: Slider is now 100% width of the main content area (removed max-width: 400px constraint); slider fills all available horizontal space via flex: 1
 - frontend/src/components/MasterSlider.vue: Play button moved inline with the slider in a single row layout; on small mobile (≤599px) the slider stacks below the label and play button via flex-wrap

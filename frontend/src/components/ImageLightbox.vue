@@ -107,6 +107,13 @@ function onBackdropClick(e: MouseEvent) {
   }
 }
 
+function onContentClick(e: MouseEvent) {
+  // Close when clicking the content area background (not the image itself)
+  if (e.target === e.currentTarget) {
+    emit('close')
+  }
+}
+
 function onKeyDown(e: KeyboardEvent) {
   if (e.key === 'Escape') {
     emit('close')
@@ -157,10 +164,21 @@ onUnmounted(() => {
     aria-label="Image lightbox"
     @click="onBackdropClick"
   >
+    <NButton
+      class="lightbox-close"
+      quaternary
+      circle
+      size="large"
+      aria-label="Close lightbox"
+      @click="emit('close')"
+    >
+      &times;
+    </NButton>
     <div
       class="lightbox-content"
       @wheel="onWheel"
       @mousedown="onMouseDown"
+      @click="onContentClick"
     >
       <img
         :src="imageUrl"
@@ -211,6 +229,15 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   z-index: 1000;
+}
+
+.lightbox-close {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 1002;
+  font-size: 1.5rem;
+  color: rgba(255, 255, 255, 0.8);
 }
 
 .lightbox-content {
