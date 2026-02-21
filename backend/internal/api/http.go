@@ -11,8 +11,11 @@ import (
 	genhealthsvr "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/http/health/server"
 	genpresetssvr "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/http/presets/server"
 	gentrainingrunssvr "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/http/training_runs/server"
+	genwssvr "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/http/ws/server"
 	genpresets "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/presets"
 	gentrainingruns "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/training_runs"
+	genws "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/ws"
+	"github.com/gorilla/websocket"
 	goahttp "goa.design/goa/v3/http"
 	goahttpmiddleware "goa.design/goa/v3/http/middleware"
 	goamiddleware "goa.design/goa/v3/middleware"
@@ -24,6 +27,7 @@ type HTTPHandlerConfig struct {
 	DocsEndpoints        *gendocs.Endpoints
 	TrainingRunEndpoints *gentrainingruns.Endpoints
 	PresetsEndpoints     *genpresets.Endpoints
+	WSEndpoints          *genws.Endpoints
 	ImageHandler         *ImageHandler
 	SwaggerUIDir         http.FileSystem
 	Logger               *log.Logger
@@ -50,10 +54,17 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 	trainingRunsServer := gentrainingrunssvr.New(cfg.TrainingRunEndpoints, mux, dec, enc, eh, nil)
 	presetsServer := genpresetssvr.New(cfg.PresetsEndpoints, mux, dec, enc, eh, nil)
 
+	// WebSocket upgrader with permissive origin check for local/LAN use
+	upgrader := &websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool { return true },
+	}
+	wsServer := genwssvr.New(cfg.WSEndpoints, mux, dec, enc, eh, nil, upgrader, nil)
+
 	healthServer.Mount(mux)
 	docsServer.Mount(mux)
 	trainingRunsServer.Mount(mux)
 	presetsServer.Mount(mux)
+	wsServer.Mount(mux)
 
 	// Mount custom image serving handler
 	mux.Handle("GET", "/api/images/{*filepath}", cfg.ImageHandler.ServeHTTP)
@@ -73,6 +84,9 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 			cfg.Logger.Printf("HTTP %q mounted on %s %s", m.Method, m.Verb, m.Pattern)
 		}
 		for _, m := range presetsServer.Mounts {
+			cfg.Logger.Printf("HTTP %q mounted on %s %s", m.Method, m.Verb, m.Pattern)
+		}
+		for _, m := range wsServer.Mounts {
 			cfg.Logger.Printf("HTTP %q mounted on %s %s", m.Method, m.Verb, m.Pattern)
 		}
 		cfg.Logger.Printf("HTTP image handler mounted on GET /api/images/{*filepath}")

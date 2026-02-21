@@ -13,11 +13,12 @@ import (
 type TrainingRunsService struct {
 	discovery *service.DiscoveryService
 	scanner   *service.Scanner
+	watcher   *service.Watcher
 }
 
 // NewTrainingRunsService returns a new TrainingRunsService.
-func NewTrainingRunsService(discovery *service.DiscoveryService, scanner *service.Scanner) *TrainingRunsService {
-	return &TrainingRunsService{discovery: discovery, scanner: scanner}
+func NewTrainingRunsService(discovery *service.DiscoveryService, scanner *service.Scanner, watcher *service.Watcher) *TrainingRunsService {
+	return &TrainingRunsService{discovery: discovery, scanner: scanner, watcher: watcher}
 }
 
 // List returns auto-discovered training runs, optionally filtered by has_samples.
@@ -73,6 +74,11 @@ func (s *TrainingRunsService) Scan(ctx context.Context, p *gentrainingruns.ScanP
 	scanResult, err := s.scanner.ScanTrainingRun(tr)
 	if err != nil {
 		return nil, gentrainingruns.MakeScanFailed(fmt.Errorf("scanning training run %q: %w", tr.Name, err))
+	}
+
+	// Start watching directories for this training run (best-effort)
+	if s.watcher != nil {
+		_ = s.watcher.WatchTrainingRun(tr)
 	}
 
 	// Map model types to API response types

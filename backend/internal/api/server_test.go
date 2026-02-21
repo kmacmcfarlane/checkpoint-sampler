@@ -51,7 +51,7 @@ var _ = Describe("Server integration", func() {
 
 		healthSvc := api.NewHealthService()
 		docsSvc := api.NewDocsService(specJSON)
-		trainingRunsSvc := api.NewTrainingRunsService(discovery, scanner)
+		trainingRunsSvc := api.NewTrainingRunsService(discovery, scanner, nil)
 
 		healthEndpoints := genhealth.NewEndpoints(healthSvc)
 		docsEndpoints := gendocs.NewEndpoints(docsSvc)
