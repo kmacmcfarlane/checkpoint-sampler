@@ -432,3 +432,174 @@ stories:
     testing:
       - "command: ginkgo -r --cover --race ./internal/..."
       - "command: npx vitest run"
+
+# ─── UI OVERHAUL ─────────────────────────────────────────────────────────────
+
+  - id: R-002
+    title: "Migrate to Naive UI component library"
+    priority: 9
+    done: false
+    blocked: false
+    blocked_reason: ""
+    requires: []
+    acceptance:
+      - "FE: Install naive-ui as a dependency"
+      - "FE: Set up NConfigProvider at the app root with theme support"
+      - "FE: Convert all buttons to NButton"
+      - "FE: Convert all selects/dropdowns to NSelect"
+      - "FE: Convert all checkboxes to NCheckbox/NCheckboxGroup"
+      - "FE: Convert range input sliders to NSlider"
+      - "FE: Convert tables to NTable or NDataTable"
+      - "FE: Convert the checkpoint metadata slideout to NDrawer"
+      - "FE: Remove custom CSS that is now handled by Naive UI components"
+      - "FE: All existing tests pass or are updated for Naive UI component wrappers"
+      - "FE: Application renders and functions identically to before (no visual regressions beyond component library styling)"
+    testing:
+      - "command: npx vitest run"
+
+  - id: S-021
+    title: "Dark/Light theme toggle"
+    priority: 8
+    done: false
+    blocked: false
+    blocked_reason: ""
+    requires: [R-002]
+    acceptance:
+      - "FE: 2-way theme toggle (Light/Dark) in the application header"
+      - "FE: Default theme determined by browser prefers-color-scheme media query"
+      - "FE: Selected theme persisted in localStorage"
+      - "FE: NConfigProvider theme prop wired to selected theme"
+      - "FE: All Naive UI components render correctly in both themes"
+      - "FE: Any remaining custom styles respect the active theme (no hardcoded colors)"
+      - "FE: Unit tests for theme toggle, persistence, and system default detection"
+    testing:
+      - "command: npx vitest run"
+
+  - id: S-022
+    title: "Left-side slide-out controls panel"
+    priority: 7
+    done: false
+    blocked: false
+    blocked_reason: ""
+    requires: [R-002]
+    acceptance:
+      - "FE: NDrawer component opens from the left in overlay mode (does not push main content)"
+      - "FE: Drawer contains (top to bottom): Training Run Picker, Preset Picker, Dimension Assignments"
+      - "FE: Hamburger toggle button in the header opens/closes the drawer"
+      - "FE: Drawer open by default on wide screens (>=1024px), closed on narrow screens"
+      - "FE: Drawer does not affect grid state when opened/closed"
+      - "FE: TrainingRunSelector and PresetSelector removed from header, moved into drawer"
+      - "FE: Unit tests for drawer toggle behavior and responsive default state"
+    testing:
+      - "command: npx vitest run"
+
+  - id: S-023
+    title: "Dimension filter modes (Hide/Single/Multi)"
+    priority: 6
+    done: false
+    blocked: false
+    blocked_reason: ""
+    requires: [R-002]
+    acceptance:
+      - "FE: Each dimension has a filter mode selector: Hide, Single, Multi"
+      - "FE: Hide mode: no filter UI rendered for that dimension; all values included"
+      - "FE: Single mode: NSelect or NRadioGroup allowing exactly one value at a time"
+      - "FE: Multi mode: NCheckboxGroup with solo/unsolo label click behavior"
+      - "FE: Multi solo: click a value label to select only that value"
+      - "FE: Multi unsolo: click the only-selected label to re-select all values"
+      - "FE: Dimensions assigned to X/Y/Slider always use Multi filter mode (implicit)"
+      - "FE: Unassigned dimensions default to Hide filter mode"
+      - "FE: Switching from Multi to Single defaults to first previously-selected value, or first value"
+      - "FE: Dimension filters in main content area are collapsed by default with expand/collapse toggle"
+      - "FE: Filtering is cumulative across all visible dimension filters"
+      - "FE: Unit tests for all three filter modes, mode switching, solo/unsolo, collapse behavior"
+    testing:
+      - "command: npx vitest run"
+
+  - id: S-024
+    title: "X/Y grid improvements"
+    priority: 5
+    done: false
+    blocked: false
+    blocked_reason: ""
+    requires: [R-002, S-023]
+    acceptance:
+      - "FE: Remove independent grid overflow; the entire page scrolls together (no max-height or overflow:auto on grid container)"
+      - "FE: Grid uses the full viewport width and height, minus a spacer for the sticky master slider at the top"
+      - "FE: Grid cell boundaries resizable by dragging dividers between cells"
+      - "FE: Vertical (column) dividers: all column widths change together when dragged"
+      - "FE: Horizontal (row) dividers: all row heights change together when dragged"
+      - "FE: Click an X column header to solo that value in the X dimension's Multi filter"
+      - "FE: Click a soloed X header to re-select all values for that dimension"
+      - "FE: Same solo/unsolo behavior for Y row headers"
+      - "FE: Unit tests for header click filtering, resize behavior, and scroll changes"
+    testing:
+      - "command: npx vitest run"
+
+  - id: S-025
+    title: "Main slider layout improvements"
+    priority: 4
+    done: false
+    blocked: false
+    blocked_reason: ""
+    requires: [R-002]
+    acceptance:
+      - "FE: Master slider is 100% width of the main content area"
+      - "FE: Master slider is always visible: position sticky at top of viewport so it stays accessible when grid overflows"
+      - "FE: Play button inline with the slider (stacks vertically on small mobile)"
+      - "FE: Pressing Play starts playback and reveals loop controls (loop checkbox + speed selector)"
+      - "FE: Stopping playback hides loop controls"
+      - "FE: Loop enabled by default"
+      - "FE: Speed options: 0.25s, 0.33s, 0.5s, 1s (default), 2s, 3s"
+      - "FE: Unit tests for play/stop visibility toggle, default loop state, new speed options"
+    testing:
+      - "command: npx vitest run"
+
+  - id: B-004
+    title: "Lightbox backdrop close broken and missing close button"
+    priority: 3
+    done: false
+    blocked: false
+    blocked_reason: ""
+    requires: [R-002]
+    acceptance:
+      - "FE: Fix backdrop click (clicking outside the image) to close the lightbox"
+      - "FE: Add an X button in the top-left corner to close the lightbox"
+      - "FE: Escape key continues to close the lightbox"
+      - "FE: Unit tests for backdrop close, X button close, and Escape close"
+    testing:
+      - "command: npx vitest run"
+
+  - id: S-026
+    title: "Checkpoint metadata panel improvements"
+    priority: 2
+    done: false
+    blocked: false
+    blocked_reason: ""
+    requires: [R-002]
+    acceptance:
+      - "FE: Slideout panel resizable by dragging its left edge"
+      - "FE: Min width 300px, max width 80vw"
+      - "FE: Full width at the smallest responsive breakpoint (<768px)"
+      - "FE: Stacked key-value layout: key displayed as header above value (not side-by-side table)"
+      - "FE: Unit tests for resize constraints and stacked layout rendering"
+    testing:
+      - "command: npx vitest run"
+
+  - id: S-027
+    title: "Responsive design polish"
+    priority: 1
+    done: false
+    blocked: false
+    blocked_reason: ""
+    requires: [R-002, S-021, S-022, S-023, S-024, S-025, B-004, S-026]
+    acceptance:
+      - "FE: All UI elements render correctly at mobile (<768px), tablet (768-1023px), and desktop (>=1024px) breakpoints"
+      - "FE: Left drawer responsive default verified at all breakpoints"
+      - "FE: Master slider stacks controls vertically at mobile breakpoint"
+      - "FE: Checkpoint metadata panel full width at mobile breakpoint"
+      - "FE: Dimension filters render appropriately at all breakpoints"
+      - "FE: No horizontal overflow at any breakpoint (single scrollable page)"
+      - "FE: Unit tests for responsive behavior where applicable"
+    testing:
+      - "command: npx vitest run"

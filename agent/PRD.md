@@ -72,11 +72,26 @@ An assignment of discovered dimensions to UI roles:
 | **X axis** | Grid columns. One column per unique value. |
 | **Y axis** | Grid rows. One row per unique value. |
 | **Slider** | Per-cell slider + master slider. Cycles through ordered values. |
-| **Combo filter** | Multi-select dropdown. Filters the visible image set. |
 
-Each dimension is assigned to exactly one role. Unassigned dimensions default to combo filter.
+Each dimension is assigned to exactly one role (X, Y, Slider) or left unassigned. Each dimension also has a filter mode (see section 2.6).
 
-### 2.6 Presets
+### 2.6 Dimension filters
+
+Each dimension has an independent filter mode controlling how its values are filtered in the UI:
+
+| Filter Mode | Behavior |
+|-------------|----------|
+| **Hide** | No filter UI shown. All values are included. |
+| **Single** | One value selectable at a time. Defaults to first previously-selected value, or first value if none. |
+| **Multi** | Checkbox multi-select. Click a value label to solo it. Click the only-selected label to re-select all values. |
+
+Rules:
+- Dimensions assigned to X, Y, or Slider always use Multi filter mode implicitly.
+- Unassigned dimensions default to Hide filter mode.
+- Filters in the main content area are collapsed by default with an expand/collapse toggle.
+- Filtering is cumulative across all visible dimension filters.
+
+### 2.7 Presets
 
 Named dimension mapping configurations saved to the database. Users can save, load, and switch between presets via the UI. Presets persist across browser sessions and container restarts.
 
@@ -211,6 +226,98 @@ Named dimension mapping configurations saved to the database. Users can save, lo
 - The UI updates available dimension values and grid cells without a full page reload
 - WebSocket reconnects automatically on disconnect
 
+### US-11: Consistent UI with Naive UI and theming
+
+**As a** user
+**I want** the UI to use a polished component library with dark and light theme support
+**So that** the interface feels professional and comfortable in different lighting conditions
+
+**Acceptance criteria:**
+- All UI elements use Naive UI components (buttons, selects, checkboxes, sliders, drawers, modals, tables)
+- A theme toggle switches between Light and Dark mode (2-way toggle)
+- Theme defaults to the system preference (prefers-color-scheme)
+- Selected theme persists in localStorage across sessions
+- All components render correctly in both themes
+
+### US-12: Controls in left-side drawer
+
+**As a** user
+**I want** training run selection, preset management, and dimension assignments in a collapsible left-side panel
+**So that** the main content area has maximum space for the image grid
+
+**Acceptance criteria:**
+- A left-side slide-out drawer contains: Training Run Picker, Preset Picker, Dimension Assignments (top to bottom)
+- A toggle button in the header opens/closes the drawer
+- The drawer overlays the main content (does not push it)
+- On wide screens (≥1024px), the drawer opens by default; on narrow screens, it starts closed
+- Dimension filters remain in the main content area (not in the drawer)
+
+### US-13: Flexible dimension filtering
+
+**As a** user
+**I want** to choose how each dimension is filtered: hidden, single-select, or multi-select
+**So that** I can simplify the UI for dimensions I don't need to filter
+
+**Acceptance criteria:**
+- Each dimension has a filter mode: Hide, Single, or Multi
+- Hide: no filter UI shown, all values included
+- Single: exactly one value selectable at a time; defaults to the first previously-selected value (or first value if none)
+- Multi: checkbox multi-select with solo/unsolo behavior (click label to solo; click only-selected label to re-select all)
+- Dimensions assigned to X, Y, or Slider always use Multi filter mode
+- Unassigned dimensions default to Hide
+- Dimension filters in the main content area are collapsed by default; a toggle opens each filter
+- Filters are cumulative across all visible dimensions
+
+### US-14: Grid cell resizing and header filtering
+
+**As a** user
+**I want** to resize grid cells by dragging dividers and click column/row headers to filter
+**So that** I can customize the view and quickly isolate specific dimension values
+
+**Acceptance criteria:**
+- Grid cell boundaries can be resized by dragging dividers between cells
+- Vertical (column) boundaries all change together; horizontal (row) boundaries all change together
+- Clicking an X column header solos that value in the X dimension's filter
+- Clicking a soloed X header re-selects all values for that dimension
+- Same solo/unsolo behavior for Y row headers
+- The image grid does not overflow independently of the rest of the page (whole page scrolls together)
+- The grid uses the full viewport, with a small spacer for the sticky master slider at the top
+
+### US-15: Main slider and playback improvements
+
+**As a** user
+**I want** a streamlined slider with inline controls and more speed options
+**So that** playback is easier to use without taking up extra vertical space
+
+**Acceptance criteria:**
+- Master slider is 100% width, inline with the Play button (stacks on small mobile)
+- Master slider is always visible: sticky-positioned at the top of the viewport so it remains accessible even when the grid overflows
+- Pressing Play reveals loop controls (loop checkbox + speed selector); stopping hides them
+- Loop is enabled by default
+- Speed options: 0.25s, 0.33s, 0.5s, 1s (default), 2s, 3s
+
+### US-16: Lightbox close improvements
+
+**As a** user
+**I want** clear ways to close the image lightbox
+**So that** I can easily return to the grid view
+
+**Acceptance criteria:**
+- Clicking the background (outside the image) closes the lightbox (bug fix)
+- An X button in the top-left corner closes the lightbox
+- Escape key continues to close the lightbox
+
+### US-17: Checkpoint metadata panel improvements
+
+**As a** user
+**I want** a resizable metadata panel with better key-value layout
+**So that** I can read metadata comfortably and adjust the panel to my needs
+
+**Acceptance criteria:**
+- The slideout panel is resizable by dragging its left edge
+- Min width: 300px; max width: 80vw; full width at the smallest responsive breakpoint
+- Each metadata field displays the key as a header above the value (stacked layout, not side-by-side table)
+
 ## 4) Configuration
 
 Server-side YAML file (`config.yaml` at the project root, or path specified via `CONFIG_PATH` environment variable).
@@ -266,17 +373,21 @@ A single WebSocket endpoint pushes image-change events to connected clients. The
 
 ### 5.5 Frontend components
 
+The frontend uses [Naive UI](https://www.naiveui.com/) as its component library with dark/light theme support. See [docs/ui.md](/docs/ui.md) for detailed UI architecture.
+
 | Component | Purpose |
 |-----------|---------|
+| `AppDrawer` | Left-side slide-out panel containing controls (Training Run, Presets, Dimensions) |
 | `TrainingRunSelector` | Dropdown to pick the active training run |
-| `DimensionPanel` | Assign dimensions to X, Y, slider, combo roles |
+| `DimensionPanel` | Assign dimensions to X, Y, slider roles and set filter modes |
 | `PresetSelector` | Save/load/switch dimension mapping presets |
-| `XYGrid` | Renders the image grid based on current mapping |
+| `DimensionFilter` | Per-dimension filter (Hide/Single/Multi mode) in main content area |
+| `XYGrid` | Renders the image grid with resizable cell dividers and header click filtering |
 | `ImageCell` | Single grid cell: image + individual slider |
-| `MasterSlider` | Top-level slider that drives all individual sliders |
-| `ComboFilter` | Multi-select dropdown for a combo-assigned dimension |
-| `ImageLightbox` | Modal overlay with zoom, pan, and generation metadata viewing |
-| `CheckpointMetadataPanel` | Slideout panel showing checkpoint list and safetensors metadata |
+| `MasterSlider` | Full-width slider with inline Play button and collapsible loop controls |
+| `ImageLightbox` | Modal overlay with zoom, pan, close button, and generation metadata viewing |
+| `CheckpointMetadataPanel` | Resizable slideout panel with stacked key-value metadata display |
+| `ThemeToggle` | Light/Dark theme switch |
 
 ## 6) API surface (preliminary)
 
