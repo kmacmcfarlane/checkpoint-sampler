@@ -22,7 +22,6 @@ const {
   xDimension,
   yDimension,
   sliderDimension,
-  comboDimensions,
   setScanResult,
   assignRole,
 } = useDimensionMapping()
@@ -127,11 +126,8 @@ function onPresetLoad(preset: Preset, warnings: string[]) {
       assignRole(dim.name, 'y')
     } else if (m.slider === dim.name) {
       assignRole(dim.name, 'slider')
-    } else if (m.combos.includes(dim.name)) {
-      assignRole(dim.name, 'combo')
     } else {
-      // Dimension not in preset — default to combo
-      assignRole(dim.name, 'combo')
+      assignRole(dim.name, 'none')
     }
   }
 }
@@ -172,9 +168,9 @@ function onPresetDelete() {
             :assignments="assignments"
             @assign="onAssignRole"
           />
-          <div class="combo-filters" v-if="comboDimensions.length > 0">
+          <div class="combo-filters" v-if="dimensions.length > 0">
             <ComboFilter
-              v-for="dim in comboDimensions"
+              v-for="dim in dimensions"
               :key="dim.name"
               :dimension-name="dim.name"
               :values="dim.values"

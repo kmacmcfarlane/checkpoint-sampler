@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### B-003: Dimension UI selection
+- frontend/src/api/types.ts: Changed DimensionRole from 'combo' to 'none' — unassigned dimensions now have 'none' role instead of 'combo' since combo filters are always visible
+- frontend/src/components/DimensionPanel.vue: Renamed role label from "Combo Filter" to "None"; default role changed to 'none'
+- frontend/src/composables/useDimensionMapping.ts: Default dimension role is now 'none'; displaced dimensions move to 'none'; removed comboDimensions computed (no longer needed since all dimensions show combo filters)
+- frontend/src/App.vue: ComboFilter components now render for ALL dimensions regardless of role (not just combo-role ones); preset loading maps combos to 'none' role
+- frontend/src/components/PresetSelector.vue: assignmentsToMapping maps 'none' role to combos list for backward-compatible preset serialization
+- No backend changes needed — preset mapping combos field naturally stores unassigned ('none' role) dimensions
+
 ### B-002: No config.yaml content
 - Created `.env` with local host paths for checkpoint and sample directories (gitignored)
 - Updated README.md Configuration section with step-by-step setup instructions for `.env` and `config.yaml`

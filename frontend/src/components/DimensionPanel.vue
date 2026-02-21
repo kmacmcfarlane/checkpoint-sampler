@@ -14,7 +14,7 @@ const roles: { value: DimensionRole; label: string }[] = [
   { value: 'x', label: 'X Axis' },
   { value: 'y', label: 'Y Axis' },
   { value: 'slider', label: 'Slider' },
-  { value: 'combo', label: 'Combo Filter' },
+  { value: 'none', label: 'None' },
 ]
 
 function onRoleChange(dimensionName: string, event: Event) {
@@ -23,7 +23,7 @@ function onRoleChange(dimensionName: string, event: Event) {
 }
 
 function getRole(dimensionName: string): DimensionRole {
-  return props.assignments.get(dimensionName) ?? 'combo'
+  return props.assignments.get(dimensionName) ?? 'none'
 }
 </script>
 

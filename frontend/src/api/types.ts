@@ -51,7 +51,7 @@ export interface ScanResult {
 }
 
 /** UI role a dimension can be assigned to. */
-export type DimensionRole = 'x' | 'y' | 'slider' | 'combo'
+export type DimensionRole = 'x' | 'y' | 'slider' | 'none'
 
 /** Assignment of a dimension to a UI role. */
 export interface DimensionAssignment {

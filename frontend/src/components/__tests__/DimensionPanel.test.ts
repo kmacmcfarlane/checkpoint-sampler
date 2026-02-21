@@ -14,7 +14,7 @@ function makeAssignments(
 ): Map<string, DimensionRole> {
   const map = new Map<string, DimensionRole>()
   for (const dim of sampleDimensions) {
-    map.set(dim.name, overrides[dim.name] ?? 'combo')
+    map.set(dim.name, overrides[dim.name] ?? 'none')
   }
   return map
 }
@@ -61,7 +61,7 @@ describe('DimensionPanel', () => {
 
     const options = selects[0].findAll('option')
     expect(options).toHaveLength(4)
-    expect(options.map((o) => o.text())).toEqual(['X Axis', 'Y Axis', 'Slider', 'Combo Filter'])
+    expect(options.map((o) => o.text())).toEqual(['X Axis', 'Y Axis', 'Slider', 'None'])
   })
 
   it('shows current role assignment as selected value', () => {
@@ -75,7 +75,7 @@ describe('DimensionPanel', () => {
     const selects = wrapper.findAll('select')
     expect((selects[0].element as HTMLSelectElement).value).toBe('x')
     expect((selects[1].element as HTMLSelectElement).value).toBe('y')
-    expect((selects[2].element as HTMLSelectElement).value).toBe('combo')
+    expect((selects[2].element as HTMLSelectElement).value).toBe('none')
   })
 
   it('emits assign event when role is changed', async () => {

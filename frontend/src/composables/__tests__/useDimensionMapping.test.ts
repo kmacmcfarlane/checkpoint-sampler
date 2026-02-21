@@ -29,14 +29,14 @@ function makeScanResult(overrides?: Partial<ScanResult>): ScanResult {
 
 describe('useDimensionMapping', () => {
   describe('setScanResult', () => {
-    it('initializes all dimensions to combo role', () => {
+    it('initializes all dimensions to none role', () => {
       const { setScanResult, assignments } = useDimensionMapping()
       setScanResult(makeScanResult())
 
       expect(assignments.value.size).toBe(3)
-      expect(assignments.value.get('index')).toBe('combo')
-      expect(assignments.value.get('seed')).toBe('combo')
-      expect(assignments.value.get('step')).toBe('combo')
+      expect(assignments.value.get('index')).toBe('none')
+      expect(assignments.value.get('seed')).toBe('none')
+      expect(assignments.value.get('step')).toBe('none')
     })
 
     it('exposes dimensions from scan result', () => {
@@ -61,7 +61,7 @@ describe('useDimensionMapping', () => {
       expect(assignments.value.get('index')).toBe('x')
 
       setScanResult(makeScanResult())
-      expect(assignments.value.get('index')).toBe('combo')
+      expect(assignments.value.get('index')).toBe('none')
     })
   })
 
@@ -82,17 +82,17 @@ describe('useDimensionMapping', () => {
       assignRole('step', 'x')
 
       expect(assignments.value.get('step')).toBe('x')
-      expect(assignments.value.get('index')).toBe('combo')
+      expect(assignments.value.get('index')).toBe('none')
     })
 
-    it('allows multiple dimensions in combo role', () => {
+    it('allows multiple dimensions in none role', () => {
       const { setScanResult, assignments, assignRole } = useDimensionMapping()
       setScanResult(makeScanResult())
 
       assignRole('index', 'x')
       assignRole('step', 'y')
-      // seed remains combo
-      expect(assignments.value.get('seed')).toBe('combo')
+      // seed remains none
+      expect(assignments.value.get('seed')).toBe('none')
       expect(assignments.value.get('index')).toBe('x')
       expect(assignments.value.get('step')).toBe('y')
     })
@@ -113,7 +113,7 @@ describe('useDimensionMapping', () => {
       assignRole('step', 'slider')
 
       expect(assignments.value.get('step')).toBe('slider')
-      expect(assignments.value.get('index')).toBe('combo')
+      expect(assignments.value.get('index')).toBe('none')
     })
   })
 
@@ -139,15 +139,6 @@ describe('useDimensionMapping', () => {
       expect(xDimension.value?.name).toBe('index')
       expect(yDimension.value?.name).toBe('step')
       expect(sliderDimension.value?.name).toBe('seed')
-    })
-
-    it('returns all combo dimensions', () => {
-      const { setScanResult, assignRole, comboDimensions } = useDimensionMapping()
-      setScanResult(makeScanResult())
-
-      assignRole('index', 'x')
-      expect(comboDimensions.value).toHaveLength(2)
-      expect(comboDimensions.value.map((d) => d.name)).toEqual(['seed', 'step'])
     })
   })
 

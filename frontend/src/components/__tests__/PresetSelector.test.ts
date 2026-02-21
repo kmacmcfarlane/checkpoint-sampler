@@ -45,7 +45,7 @@ const defaultProps = {
   assignments: new Map([
     ['cfg', 'x' as const],
     ['prompt', 'y' as const],
-    ['seed', 'combo' as const],
+    ['seed', 'none' as const],
   ]),
   dimensionNames: ['cfg', 'prompt', 'seed'],
 }

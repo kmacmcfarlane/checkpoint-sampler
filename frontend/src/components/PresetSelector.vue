@@ -128,7 +128,7 @@ function assignmentsToMapping(): PresetMapping {
       case 'slider':
         mapping.slider = dim
         break
-      case 'combo':
+      case 'none':
         mapping.combos.push(dim)
         break
     }

@@ -10,9 +10,10 @@ import type {
 /**
  * Composable managing dimension-to-role assignments and the derived grid state.
  *
- * Dimensions default to 'combo' role. The user can reassign any dimension
- * to exactly one of: x, y, slider, combo. At most one dimension may be
- * assigned to x, y, or slider at a time.
+ * Dimensions default to 'none' role. The user can reassign any dimension
+ * to exactly one of: x, y, slider, none. At most one dimension may be
+ * assigned to x, y, or slider at a time. Combo filters are always shown
+ * for every dimension regardless of role assignment.
  */
 export function useDimensionMapping() {
   const scanResult = ref<ScanResult | null>(null)
@@ -23,7 +24,7 @@ export function useDimensionMapping() {
     scanResult.value = result
     assignments.value = new Map()
     for (const dim of result.dimensions) {
-      assignments.value.set(dim.name, 'combo')
+      assignments.value.set(dim.name, 'none')
     }
   }
 
@@ -48,16 +49,16 @@ export function useDimensionMapping() {
 
   /**
    * Assign a dimension to a role. Enforces uniqueness for x, y, and slider:
-   * if another dimension already holds that role, it is moved to 'combo'.
+   * if another dimension already holds that role, it is moved to 'none'.
    */
   function assignRole(dimensionName: string, role: DimensionRole) {
     if (!assignments.value.has(dimensionName)) return
 
     // For x, y, slider — only one dimension may hold that role
-    if (role !== 'combo') {
+    if (role !== 'none') {
       for (const [name, existingRole] of assignments.value) {
         if (existingRole === role && name !== dimensionName) {
-          assignments.value.set(name, 'combo')
+          assignments.value.set(name, 'none')
         }
       }
     }
@@ -86,18 +87,6 @@ export function useDimensionMapping() {
   /** The dimension assigned to slider, or null. */
   const sliderDimension = computed(() => getDimensionForRole('slider'))
 
-  /** Dimensions assigned to combo filter role. */
-  const comboDimensions = computed<ScanDimension[]>(() => {
-    const result: ScanDimension[] = []
-    for (const [name, role] of assignments.value) {
-      if (role === 'combo') {
-        const dim = dimensions.value.find((d) => d.name === name)
-        if (dim) result.push(dim)
-      }
-    }
-    return result
-  })
-
   /**
    * Find the image matching a given set of dimension values.
    * Returns the first image whose dimensions match all specified key-value pairs.
@@ -125,7 +114,6 @@ export function useDimensionMapping() {
     xDimension,
     yDimension,
     sliderDimension,
-    comboDimensions,
     setScanResult,
     assignRole,
     findImage,
