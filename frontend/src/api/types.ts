@@ -75,3 +75,12 @@ export interface Preset {
   created_at: string
   updated_at: string
 }
+
+/** WebSocket event types sent by the backend. */
+export type FSEventType = 'image_added' | 'image_removed' | 'directory_added'
+
+/** A filesystem change event received over WebSocket. */
+export interface FSEventMessage {
+  type: FSEventType
+  path: string
+}

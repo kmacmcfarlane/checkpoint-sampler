@@ -344,7 +344,7 @@ stories:
   - id: S-015
     title: "WebSocket live updates (frontend)"
     priority: 30
-    done: false
+    done: true
     blocked: false
     blocked_reason: ""
     requires: [S-009, S-014]

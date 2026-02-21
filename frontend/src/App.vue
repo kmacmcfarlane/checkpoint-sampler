@@ -4,6 +4,7 @@ import type { TrainingRun, DimensionRole, Preset } from './api/types'
 import { apiClient } from './api/client'
 import { useDimensionMapping } from './composables/useDimensionMapping'
 import { useImagePreloader } from './composables/useImagePreloader'
+import { useWebSocket } from './composables/useWebSocket'
 import TrainingRunSelector from './components/TrainingRunSelector.vue'
 import DimensionPanel from './components/DimensionPanel.vue'
 import XYGrid from './components/XYGrid.vue'
@@ -34,6 +35,8 @@ const {
   sliderDimension,
   setScanResult,
   assignRole,
+  addImage,
+  removeImage,
 } = useDimensionMapping()
 
 /** Preset warnings for unmatched dimensions. */
@@ -50,6 +53,34 @@ const comboSelectionsRef = computed(() => comboSelections as Record<string, Set<
 
 /** Pre-cache images: slider positions for visible cells first, then remaining. */
 useImagePreloader(images, xDimension, yDimension, sliderDimension, comboSelectionsRef)
+
+/** Rescan the current training run (used by WebSocket on directory_added). */
+async function rescanCurrentTrainingRun() {
+  const run = selectedTrainingRun.value
+  if (!run) return
+  try {
+    const result = await apiClient.scanTrainingRun(run.id)
+    setScanResult(result)
+    // Reinitialize combo selections: all values selected by default
+    for (const key of Object.keys(comboSelections)) {
+      delete comboSelections[key]
+    }
+    for (const dim of result.dimensions) {
+      comboSelections[dim.name] = new Set(dim.values)
+    }
+  } catch {
+    // Silently ignore rescan failures from WebSocket events
+  }
+}
+
+/** WebSocket live updates: connect when a training run is selected. */
+const { connected: wsConnected } = useWebSocket(
+  selectedTrainingRun,
+  addImage,
+  removeImage,
+  comboSelections,
+  rescanCurrentTrainingRun,
+)
 
 async function onTrainingRunSelect(run: TrainingRun) {
   selectedTrainingRun.value = run
@@ -155,7 +186,16 @@ function onPresetDelete() {
   <div class="app">
     <header class="app-header">
       <h1>Checkpoint Sampler</h1>
-      <TrainingRunSelector @select="onTrainingRunSelect" />
+      <div class="header-controls">
+        <TrainingRunSelector @select="onTrainingRunSelect" />
+        <span
+          v-if="selectedTrainingRun"
+          class="ws-indicator"
+          :class="{ connected: wsConnected }"
+          :title="wsConnected ? 'Live updates connected' : 'Live updates disconnected'"
+          role="status"
+        >{{ wsConnected ? 'Live' : 'Disconnected' }}</span>
+      </div>
     </header>
     <main class="app-main">
       <p v-if="!selectedTrainingRun">Select a training run to get started.</p>
@@ -255,5 +295,24 @@ function onPresetDelete() {
 .warning {
   color: #f57c00;
   font-size: 0.875rem;
+}
+
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.ws-indicator {
+  font-size: 0.75rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 0.25rem;
+  background: #e0e0e0;
+  color: #666;
+}
+
+.ws-indicator.connected {
+  background: #c8e6c9;
+  color: #2e7d32;
 }
 </style>
