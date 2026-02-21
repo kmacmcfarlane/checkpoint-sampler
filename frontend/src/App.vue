@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, computed, watch } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import { NConfigProvider, NButton, NTag } from 'naive-ui'
 import type { TrainingRun, DimensionRole, Preset } from './api/types'
 import { apiClient } from './api/client'
@@ -7,6 +7,7 @@ import { useDimensionMapping } from './composables/useDimensionMapping'
 import { useImagePreloader } from './composables/useImagePreloader'
 import { useWebSocket } from './composables/useWebSocket'
 import { useTheme } from './composables/useTheme'
+import AppDrawer from './components/AppDrawer.vue'
 import TrainingRunSelector from './components/TrainingRunSelector.vue'
 import DimensionPanel from './components/DimensionPanel.vue'
 import XYGrid from './components/XYGrid.vue'
@@ -24,6 +25,35 @@ const scanning = ref(false)
 const scanError = ref<string | null>(null)
 const lightboxImageUrl = ref<string | null>(null)
 const metadataPanelOpen = ref(false)
+const drawerOpen = ref(false)
+
+const WIDE_BREAKPOINT = 1024
+
+function initDrawerState() {
+  drawerOpen.value = window.innerWidth >= WIDE_BREAKPOINT
+}
+
+let mediaQuery: MediaQueryList | null = null
+
+function onMediaChange(e: MediaQueryListEvent) {
+  drawerOpen.value = e.matches
+}
+
+onMounted(() => {
+  initDrawerState()
+  mediaQuery = window.matchMedia(`(min-width: ${WIDE_BREAKPOINT}px)`)
+  mediaQuery.addEventListener('change', onMediaChange)
+})
+
+onUnmounted(() => {
+  if (mediaQuery) {
+    mediaQuery.removeEventListener('change', onMediaChange)
+  }
+})
+
+function toggleDrawer() {
+  drawerOpen.value = !drawerOpen.value
+}
 
 function onImageClick(imageUrl: string) {
   lightboxImageUrl.value = imageUrl
@@ -193,9 +223,18 @@ function onPresetDelete() {
   <NConfigProvider :theme="theme">
     <div class="app" :class="{ 'dark-mode': isDark }">
       <header class="app-header">
-        <h1>Checkpoint Sampler</h1>
+        <div class="header-left">
+          <NButton
+            quaternary
+            size="small"
+            aria-label="Toggle controls drawer"
+            @click="toggleDrawer"
+          >
+            <span class="hamburger-icon">&#9776;</span>
+          </NButton>
+          <h1>Checkpoint Sampler</h1>
+        </div>
         <div class="header-controls">
-          <TrainingRunSelector @select="onTrainingRunSelect" />
           <NButton
             v-if="selectedTrainingRun && !scanning && !scanError"
             size="small"
@@ -212,12 +251,12 @@ function onPresetDelete() {
           <ThemeToggle :is-dark="isDark" @toggle="toggleTheme" />
         </div>
       </header>
-      <main class="app-main">
-        <p v-if="!selectedTrainingRun">Select a training run to get started.</p>
-        <template v-else>
-          <p v-if="scanning">Scanning...</p>
-          <p v-else-if="scanError" class="error" role="alert">{{ scanError }}</p>
-          <template v-else>
+      <AppDrawer v-model:show="drawerOpen">
+        <div class="drawer-section">
+          <TrainingRunSelector @select="onTrainingRunSelect" />
+        </div>
+        <template v-if="selectedTrainingRun && !scanning && !scanError">
+          <div class="drawer-section">
             <PresetSelector
               :assignments="assignments"
               :dimension-names="dimensionNames"
@@ -228,11 +267,22 @@ function onPresetDelete() {
             <p v-if="presetWarnings.length > 0" class="warning" role="status">
               Unmatched dimensions from preset: {{ presetWarnings.join(', ') }}
             </p>
+          </div>
+          <div class="drawer-section">
             <DimensionPanel
               :dimensions="dimensions"
               :assignments="assignments"
               @assign="onAssignRole"
             />
+          </div>
+        </template>
+      </AppDrawer>
+      <main class="app-main">
+        <p v-if="!selectedTrainingRun">Select a training run to get started.</p>
+        <template v-else>
+          <p v-if="scanning">Scanning...</p>
+          <p v-else-if="scanError" class="error" role="alert">{{ scanError }}</p>
+          <template v-else>
             <div class="combo-filters" v-if="dimensions.length > 0">
               <ComboFilter
                 v-for="dim in dimensions"
@@ -314,11 +364,25 @@ function onPresetDelete() {
 .app-header {
   padding: 1rem;
   border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .app-header h1 {
   margin: 0;
   font-size: 1.5rem;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.hamburger-icon {
+  font-size: 1.25rem;
+  line-height: 1;
 }
 
 .app-main {
@@ -346,5 +410,17 @@ function onPresetDelete() {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+}
+
+.drawer-section {
+  padding-bottom: 1rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--border-color, #e0e0e0);
+}
+
+.drawer-section:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
 }
 </style>

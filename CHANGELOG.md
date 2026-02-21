@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-022: Left-side slide-out controls panel
+- frontend/src/components/AppDrawer.vue: New component wrapping NDrawer with left placement, overlay mode, 360px width, closable drawer content with "Controls" title; accepts show prop with v-model:show for open/close state
+- frontend/src/App.vue: Moved TrainingRunSelector, PresetSelector, and DimensionPanel from header/main into AppDrawer slot; added hamburger toggle button (☰) in header-left with aria-label; responsive default state via matchMedia — drawer opens by default on wide screens (≥1024px), closed on narrow screens; listens for media query changes to auto-toggle; drawer does not affect grid state when opened/closed; combo filters, master slider, and grid remain in main content area
+- 6 AppDrawer component tests: NDrawer left placement, show prop passthrough, NDrawerContent title and closable, slot content rendering, update:show emission, closed state
+- Updated App.test.ts with 7 tests: header rendering, placeholder content, TrainingRunSelector in drawer, hamburger toggle button rendering, drawer toggle on click, closed default on narrow screens, open default on wide screens
+
 ### S-021: Dark/Light theme toggle
 - frontend/src/composables/useTheme.ts: New composable managing theme state (light/dark mode); defaults to browser prefers-color-scheme media query; persists user choice in localStorage; returns Naive UI GlobalTheme for NConfigProvider; applies body class for non-Naive-UI CSS; listens for system preference changes when user hasn't explicitly chosen
 - frontend/src/components/ThemeToggle.vue: 2-way toggle button (Light/Dark) using NButton with accessible aria-label describing the action

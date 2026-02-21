@@ -478,7 +478,7 @@ stories:
   - id: S-022
     title: "Left-side slide-out controls panel"
     priority: 7
-    done: false
+    done: true
     blocked: false
     blocked_reason: ""
     requires: [R-002]
