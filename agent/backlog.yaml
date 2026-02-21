@@ -230,6 +230,7 @@ stories:
     requires: [S-007, S-008]
     acceptance:
       - "BE: Switch config from TOML to YAML (config.yaml); remove [[training_runs]] and [[training_runs.dimensions]] from config parsing"
+      - "BE: Create a config.yaml.example with generic values, but create a config.yaml (gitignored) that has values for me (/home/rt/ai/models-training/stable-diffusion/checkpoints for the models dir and /home/rt/ai/outputs/stable-diffusion/comfyui/checkpoint-sampler for the samples dir)"
       - "BE: Config struct has checkpoint_dirs (list of strings), sample_dir (string), port, db_path"
       - "BE: Validation rejects missing checkpoint_dirs, missing sample_dir, non-existent directories"
       - "BE: Discovery service recursively scans all checkpoint_dirs for .safetensors files"
