@@ -573,7 +573,7 @@ stories:
   - id: S-026
     title: "Checkpoint metadata panel improvements"
     priority: 2
-    done: false
+    done: true
     blocked: false
     blocked_reason: ""
     requires: [R-002]

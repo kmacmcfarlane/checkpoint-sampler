@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-026: Checkpoint metadata panel improvements
+- frontend/src/components/CheckpointMetadataPanel.vue: Slideout panel is now resizable by dragging its left edge; a 6px drag handle with col-resize cursor is positioned on the left side of the NDrawer; mousedown/mousemove/mouseup events on document track drag state and update the drawer width reactively
+- frontend/src/components/CheckpointMetadataPanel.vue: Width constrained to min 300px and max 80vw during drag resize; values clamped in mousemove handler
+- frontend/src/components/CheckpointMetadataPanel.vue: Full viewport width at narrow screens (<768px); uses matchMedia listener to detect breakpoint transitions; resize handle hidden at narrow breakpoint since panel is already full width
+- frontend/src/components/CheckpointMetadataPanel.vue: Replaced NDataTable side-by-side table layout with stacked key-value layout using dl/dt/dd elements; each metadata field displays the key as an uppercase header (dt) above the value (dd); keys sorted alphabetically
+- frontend/src/components/CheckpointMetadataPanel.vue: Removed NDataTable and DataTableColumn imports; removed tableColumns and tableData computed properties
+- frontend/src/components/CheckpointMetadataPanel.vue: Resize handle has role="separator", aria-orientation="vertical", and aria-label="Resize metadata panel" for accessibility
+- 22 CheckpointMetadataPanel tests: updated metadata display test from NDataTable to stacked dt/dd layout; added stacked layout structure test; added 9 new tests for resize handle rendering on wide/narrow screens, full-width on narrow screens, default width on wide screens, mousemove width update during drag, min 300px clamp, max 80vw clamp, mouseup stops resize, media query transition response
+
 ### B-004: Lightbox backdrop close broken and missing close button
 - frontend/src/components/ImageLightbox.vue: Fixed backdrop click-to-close bug — added onContentClick handler on `.lightbox-content` so clicking the area around the image (outside the image itself) now correctly closes the lightbox; the previous onBackdropClick handler on `.lightbox-backdrop` never fired because `.lightbox-content` fills the entire backdrop area (width/height 100%)
 - frontend/src/components/ImageLightbox.vue: Added X close button (NButton, quaternary circle) positioned in the top-left corner with `aria-label="Close lightbox"`; uses fixed positioning at top:12px, left:12px with z-index 1002 to stay above other lightbox elements

@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
-import { NDrawer, NDrawerContent, NDataTable } from 'naive-ui'
+import { NDrawer, NDrawerContent } from 'naive-ui'
 import CheckpointMetadataPanel from '../CheckpointMetadataPanel.vue'
 import type { CheckpointInfo } from '../../api/types'
 
@@ -21,6 +21,20 @@ const sampleCheckpoints: CheckpointInfo[] = [
   { filename: 'model-step00002000.safetensors', step_number: 2000, has_samples: false },
 ]
 
+let matchMediaListener: ((e: MediaQueryListEvent) => void) | null = null
+
+function setupMatchMedia(matches: boolean) {
+  const mql = {
+    matches,
+    addEventListener: vi.fn((_: string, cb: (e: MediaQueryListEvent) => void) => {
+      matchMediaListener = cb
+    }),
+    removeEventListener: vi.fn(),
+  } as unknown as MediaQueryList
+  vi.spyOn(window, 'matchMedia').mockReturnValue(mql)
+  return mql
+}
+
 function mountPanel(overrides: Record<string, unknown> = {}) {
   return mount(CheckpointMetadataPanel, {
     props: { checkpoints: sampleCheckpoints, ...overrides },
@@ -36,6 +50,14 @@ function mountPanel(overrides: Record<string, unknown> = {}) {
 describe('CheckpointMetadataPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    matchMediaListener = null
+    // Default: wide screen (≥768px)
+    Object.defineProperty(window, 'innerWidth', { value: 1200, writable: true, configurable: true })
+    setupMatchMedia(true)
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   it('renders a NDrawer', async () => {
@@ -69,7 +91,7 @@ describe('CheckpointMetadataPanel', () => {
     expect(mockGetCheckpointMetadata).toHaveBeenCalledWith('model-step00003000.safetensors')
   })
 
-  it('fetches and displays metadata when a checkpoint is selected', async () => {
+  it('fetches and displays metadata in stacked key-value layout', async () => {
     mockGetCheckpointMetadata.mockResolvedValue({
       metadata: {
         ss_output_name: 'test-model',
@@ -80,17 +102,42 @@ describe('CheckpointMetadataPanel', () => {
     const wrapper = mountPanel()
     await flushPromises()
 
-    // NDataTable should be rendered with sorted metadata
-    const dataTable = wrapper.findComponent(NDataTable)
-    expect(dataTable.exists()).toBe(true)
-    const data = dataTable.props('data') as Array<{ field: string; value: string }>
-    expect(data).toHaveLength(3)
-    expect(data[0].field).toBe('ss_epoch')
-    expect(data[0].value).toBe('104')
-    expect(data[1].field).toBe('ss_output_name')
-    expect(data[1].value).toBe('test-model')
-    expect(data[2].field).toBe('ss_total_steps')
-    expect(data[2].value).toBe('9000')
+    // Stacked layout: dl with dt (key) and dd (value) pairs
+    const dl = wrapper.find('dl.metadata-list')
+    expect(dl.exists()).toBe(true)
+
+    const fields = wrapper.findAll('.metadata-field')
+    expect(fields).toHaveLength(3)
+
+    // Keys are sorted alphabetically
+    const keys = wrapper.findAll('.metadata-key')
+    expect(keys[0].text()).toBe('ss_epoch')
+    expect(keys[1].text()).toBe('ss_output_name')
+    expect(keys[2].text()).toBe('ss_total_steps')
+
+    const values = wrapper.findAll('.metadata-value')
+    expect(values[0].text()).toBe('104')
+    expect(values[1].text()).toBe('test-model')
+    expect(values[2].text()).toBe('9000')
+  })
+
+  it('renders key as dt header above value dd (stacked, not side-by-side)', async () => {
+    mockGetCheckpointMetadata.mockResolvedValue({
+      metadata: { ss_output_name: 'test-model' },
+    })
+    const wrapper = mountPanel()
+    await flushPromises()
+
+    const field = wrapper.find('.metadata-field')
+    expect(field.exists()).toBe(true)
+
+    // dt comes before dd within the same container
+    const dt = field.find('dt.metadata-key')
+    const dd = field.find('dd.metadata-value')
+    expect(dt.exists()).toBe(true)
+    expect(dd.exists()).toBe(true)
+    expect(dt.text()).toBe('ss_output_name')
+    expect(dd.text()).toBe('test-model')
   })
 
   it('shows "No metadata available" when checkpoint has no ss_* fields', async () => {
@@ -99,7 +146,7 @@ describe('CheckpointMetadataPanel', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('No metadata available')
-    expect(wrapper.findComponent(NDataTable).exists()).toBe(false)
+    expect(wrapper.find('dl.metadata-list').exists()).toBe(false)
   })
 
   it('shows loading state while fetching metadata', async () => {
@@ -181,5 +228,149 @@ describe('CheckpointMetadataPanel', () => {
 
     expect(mockGetCheckpointMetadata).not.toHaveBeenCalled()
     expect(wrapper.findAll('[role="option"]')).toHaveLength(0)
+  })
+
+  // ── Resize tests ──
+
+  it('renders a resize handle on wide screens', async () => {
+    mockGetCheckpointMetadata.mockResolvedValue({ metadata: {} })
+    const wrapper = mountPanel()
+    await flushPromises()
+
+    const handle = wrapper.find('.resize-handle')
+    expect(handle.exists()).toBe(true)
+    expect(handle.attributes('role')).toBe('separator')
+    expect(handle.attributes('aria-orientation')).toBe('vertical')
+    expect(handle.attributes('aria-label')).toBe('Resize metadata panel')
+  })
+
+  it('does not render resize handle on narrow screens (<768px)', async () => {
+    Object.defineProperty(window, 'innerWidth', { value: 600, writable: true, configurable: true })
+    setupMatchMedia(false)
+    mockGetCheckpointMetadata.mockResolvedValue({ metadata: {} })
+    const wrapper = mountPanel()
+    await flushPromises()
+
+    const handle = wrapper.find('.resize-handle')
+    expect(handle.exists()).toBe(false)
+  })
+
+  it('uses full viewport width on narrow screens (<768px)', async () => {
+    Object.defineProperty(window, 'innerWidth', { value: 600, writable: true, configurable: true })
+    setupMatchMedia(false)
+    mockGetCheckpointMetadata.mockResolvedValue({ metadata: {} })
+    const wrapper = mountPanel()
+    await flushPromises()
+
+    const drawer = wrapper.findComponent(NDrawer)
+    expect(drawer.props('width')).toBe(600)
+  })
+
+  it('uses default panel width on wide screens', async () => {
+    mockGetCheckpointMetadata.mockResolvedValue({ metadata: {} })
+    const wrapper = mountPanel()
+    await flushPromises()
+
+    const drawer = wrapper.findComponent(NDrawer)
+    expect(drawer.props('width')).toBe(420)
+  })
+
+  it('updates width on mousemove during drag', async () => {
+    mockGetCheckpointMetadata.mockResolvedValue({ metadata: {} })
+    const wrapper = mountPanel()
+    await flushPromises()
+
+    const handle = wrapper.find('.resize-handle')
+    // Start drag
+    await handle.trigger('mousedown', { clientX: 800, preventDefault: vi.fn() })
+
+    // Simulate mousemove on document — drawer on right, width = innerWidth - clientX
+    const moveEvent = new MouseEvent('mousemove', { clientX: 700 })
+    document.dispatchEvent(moveEvent)
+    await wrapper.vm.$nextTick()
+
+    // Width should be 1200 - 700 = 500
+    const drawer = wrapper.findComponent(NDrawer)
+    expect(drawer.props('width')).toBe(500)
+
+    // Clean up: mouseup
+    document.dispatchEvent(new MouseEvent('mouseup'))
+  })
+
+  it('clamps width to minimum 300px during drag', async () => {
+    mockGetCheckpointMetadata.mockResolvedValue({ metadata: {} })
+    const wrapper = mountPanel()
+    await flushPromises()
+
+    const handle = wrapper.find('.resize-handle')
+    await handle.trigger('mousedown', { clientX: 800, preventDefault: vi.fn() })
+
+    // Move mouse far right → very small width (1200 - 1100 = 100 < 300)
+    document.dispatchEvent(new MouseEvent('mousemove', { clientX: 1100 }))
+    await wrapper.vm.$nextTick()
+
+    const drawer = wrapper.findComponent(NDrawer)
+    expect(drawer.props('width')).toBe(300)
+
+    document.dispatchEvent(new MouseEvent('mouseup'))
+  })
+
+  it('clamps width to maximum 80vw during drag', async () => {
+    mockGetCheckpointMetadata.mockResolvedValue({ metadata: {} })
+    const wrapper = mountPanel()
+    await flushPromises()
+
+    const handle = wrapper.find('.resize-handle')
+    await handle.trigger('mousedown', { clientX: 800, preventDefault: vi.fn() })
+
+    // Move mouse far left → very large width (1200 - 10 = 1190 > 960 = 80% of 1200)
+    document.dispatchEvent(new MouseEvent('mousemove', { clientX: 10 }))
+    await wrapper.vm.$nextTick()
+
+    const drawer = wrapper.findComponent(NDrawer)
+    expect(drawer.props('width')).toBe(960) // 80% of 1200
+
+    document.dispatchEvent(new MouseEvent('mouseup'))
+  })
+
+  it('stops resizing on mouseup', async () => {
+    mockGetCheckpointMetadata.mockResolvedValue({ metadata: {} })
+    const wrapper = mountPanel()
+    await flushPromises()
+
+    const handle = wrapper.find('.resize-handle')
+    await handle.trigger('mousedown', { clientX: 800, preventDefault: vi.fn() })
+
+    // Move once
+    document.dispatchEvent(new MouseEvent('mousemove', { clientX: 700 }))
+    await wrapper.vm.$nextTick()
+
+    // Release
+    document.dispatchEvent(new MouseEvent('mouseup'))
+
+    // Move again — should not change width
+    document.dispatchEvent(new MouseEvent('mousemove', { clientX: 600 }))
+    await wrapper.vm.$nextTick()
+
+    const drawer = wrapper.findComponent(NDrawer)
+    // Width should stay at 500 (from the first move), not 600
+    expect(drawer.props('width')).toBe(500)
+  })
+
+  it('responds to media query changes for narrow/wide transitions', async () => {
+    mockGetCheckpointMetadata.mockResolvedValue({ metadata: {} })
+    const wrapper = mountPanel()
+    await flushPromises()
+
+    // Initially wide — resize handle visible
+    expect(wrapper.find('.resize-handle').exists()).toBe(true)
+
+    // Simulate media query change to narrow
+    if (matchMediaListener) {
+      matchMediaListener({ matches: false } as MediaQueryListEvent)
+      await wrapper.vm.$nextTick()
+    }
+
+    expect(wrapper.find('.resize-handle').exists()).toBe(false)
   })
 })
