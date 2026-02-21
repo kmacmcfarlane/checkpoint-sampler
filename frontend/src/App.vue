@@ -10,10 +10,20 @@ import XYGrid from './components/XYGrid.vue'
 import ComboFilter from './components/ComboFilter.vue'
 import MasterSlider from './components/MasterSlider.vue'
 import PresetSelector from './components/PresetSelector.vue'
+import ImageLightbox from './components/ImageLightbox.vue'
 
 const selectedTrainingRun = ref<TrainingRun | null>(null)
 const scanning = ref(false)
 const scanError = ref<string | null>(null)
+const lightboxImageUrl = ref<string | null>(null)
+
+function onImageClick(imageUrl: string) {
+  lightboxImageUrl.value = imageUrl
+}
+
+function onLightboxClose() {
+  lightboxImageUrl.value = null
+}
 
 const {
   dimensions,
@@ -194,10 +204,16 @@ function onPresetDelete() {
             :slider-values="sliderValues"
             :default-slider-value="defaultSliderValue"
             @update:slider-value="onSliderValueUpdate"
+            @image:click="onImageClick"
           />
         </template>
       </template>
     </main>
+    <ImageLightbox
+      v-if="lightboxImageUrl"
+      :image-url="lightboxImageUrl"
+      @close="onLightboxClose"
+    />
   </div>
 </template>
 

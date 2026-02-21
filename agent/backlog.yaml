@@ -311,7 +311,7 @@ stories:
   - id: S-013
     title: "Image lightbox with zoom and pan"
     priority: 40
-    done: false
+    done: true
     blocked: false
     blocked_reason: ""
     requires: [S-009]

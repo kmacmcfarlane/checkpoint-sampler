@@ -5,14 +5,24 @@ const props = defineProps<{
   relativePath: string | null
 }>()
 
+const emit = defineEmits<{
+  click: [imageUrl: string]
+}>()
+
 const imageUrl = computed(() => {
   if (!props.relativePath) return null
   return `/api/images/${props.relativePath}`
 })
+
+function onClick() {
+  if (imageUrl.value) {
+    emit('click', imageUrl.value)
+  }
+}
 </script>
 
 <template>
-  <div class="image-cell" :class="{ 'image-cell--empty': !relativePath }">
+  <div class="image-cell" :class="{ 'image-cell--empty': !relativePath }" @click="onClick">
     <img
       v-if="imageUrl"
       :src="imageUrl"
@@ -40,6 +50,7 @@ const imageUrl = computed(() => {
   max-width: 100%;
   height: auto;
   display: block;
+  cursor: pointer;
 }
 
 .image-cell--empty {

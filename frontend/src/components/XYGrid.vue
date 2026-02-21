@@ -17,6 +17,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'update:sliderValue': [cellKey: string, value: string]
+  'image:click': [imageUrl: string]
 }>()
 
 /** X axis values to render as columns. */
@@ -141,7 +142,7 @@ const flatImages = computed<ScanImage[]>(() => {
               class="xy-grid__cell"
               role="gridcell"
             >
-              <ImageCell :relative-path="getImage(xVal, yVal)?.relative_path ?? null" />
+              <ImageCell :relative-path="getImage(xVal, yVal)?.relative_path ?? null" @click="(url: string) => emit('image:click', url)" />
               <SliderBar
                 v-if="sliderDimension"
                 :values="sliderDimension.values"
@@ -153,7 +154,7 @@ const flatImages = computed<ScanImage[]>(() => {
           </template>
           <template v-else>
             <div class="xy-grid__cell" role="gridcell">
-              <ImageCell :relative-path="getImage(undefined, yVal)?.relative_path ?? null" />
+              <ImageCell :relative-path="getImage(undefined, yVal)?.relative_path ?? null" @click="(url: string) => emit('image:click', url)" />
               <SliderBar
                 v-if="sliderDimension"
                 :values="sliderDimension.values"
@@ -174,7 +175,7 @@ const flatImages = computed<ScanImage[]>(() => {
           class="xy-grid__cell"
           role="gridcell"
         >
-          <ImageCell :relative-path="getImage(xVal, undefined)?.relative_path ?? null" />
+          <ImageCell :relative-path="getImage(xVal, undefined)?.relative_path ?? null" @click="(url: string) => emit('image:click', url)" />
           <SliderBar
             v-if="sliderDimension"
             :values="sliderDimension.values"
@@ -195,7 +196,7 @@ const flatImages = computed<ScanImage[]>(() => {
         :key="img.relative_path"
         class="xy-grid-flat__cell"
       >
-        <ImageCell :relative-path="img.relative_path" />
+        <ImageCell :relative-path="img.relative_path" @click="(url: string) => emit('image:click', url)" />
         <SliderBar
           v-if="sliderDimension"
           :values="sliderDimension.values"

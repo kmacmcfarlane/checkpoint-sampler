@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-013: Image lightbox with zoom and pan
+- frontend/src/components/ImageLightbox.vue: Modal overlay component with full-size image display, mouse wheel zoom (toward cursor position), click-drag pan, Escape key and backdrop click to close, grab/grabbing cursor states, transform reset on image change
+- frontend/src/components/ImageCell.vue: Added click emit that fires with image URL when an image is present; cursor: pointer style on images
+- frontend/src/components/XYGrid.vue: Added image:click emit forwarding ImageCell click events to parent for all grid layouts (x+y, x-only, y-only, flat)
+- frontend/src/App.vue: Integrated ImageLightbox with lightbox state management; XYGrid image clicks open the lightbox, Escape/backdrop closes it
+- 13 ImageLightbox unit tests: dialog rendering, backdrop close, content area non-close, Escape close, non-Escape ignore, zoom in/out via wheel, mouse drag pan, grab cursor states, transform reset on prop change, non-draggable image, event listener cleanup on unmount, right-click drag ignore
+
 ### R-001: Refactor Goa HTTP wireup into NewHTTPHandler
 - backend/internal/api/http.go: New file with NewHTTPHandler() that encapsulates all Goa HTTP transport setup (mux creation, decoder/encoder, server instantiation, mounting, middleware application, custom handlers)
 - backend/internal/api/http.go: HTTPHandlerConfig struct takes pre-built Goa endpoints, ImageHandler, SwaggerUIDir, Logger, and Debug flag
