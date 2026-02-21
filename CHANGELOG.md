@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### B-001: WAL mode fails with read-only dev volume
+- docker-compose.dev.yml: Use separate `backend_dev_data` named volume for `/build/data` instead of sharing `backend_data` with production mode; the production Dockerfile creates `/app/data` as root with 755 permissions, so when the shared volume was initialized by production first and reused in dev mode (which runs as non-root), SQLite WAL PRAGMA failed with "attempt to write a readonly database"
+
 ### S-018: Auto-discover training runs from checkpoint files
 - backend/internal/config/config.go: Switched from TOML to YAML configuration (config.yaml); new yamlConfig struct with checkpoint_dirs (list of strings), sample_dir (string), port, ip_address, db_path; validates checkpoint_dirs and sample_dir exist as directories
 - config.yaml.example: Example YAML config file with documentation; config.yaml gitignored for local use

@@ -6,7 +6,7 @@ services:
     user: "${UID:-1000}:${GID:-1000}"
     volumes:
       - ./backend:/build
-      - backend_data:/build/data
+      - backend_dev_data:/build/data
       - ./config.yaml:/build/config.yaml:ro
       - ${CHECKPOINT_DIR:-./.dataset-placeholder}:/data/checkpoints:ro
       - ${SAMPLE_DIR:-./.dataset-placeholder}:/data/samples:ro
@@ -29,5 +29,6 @@ services:
 
 volumes:
   frontend_node_modules:
+  backend_dev_data:
   backend_go_cache:
   backend_go_mod_cache:

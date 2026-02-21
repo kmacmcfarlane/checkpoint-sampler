@@ -249,7 +249,7 @@ stories:
   - id: B-001
     title: "WAL mode fails with read-only dev volume"
     priority: 42
-    done: false
+    done: true
     blocked: false
     blocked_reason: ""
     requires: [S-003]
