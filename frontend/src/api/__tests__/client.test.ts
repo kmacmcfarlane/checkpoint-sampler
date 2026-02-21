@@ -363,6 +363,41 @@ describe('ApiClient', () => {
     })
   })
 
+  describe('getImageMetadata', () => {
+    it('fetches metadata from /api/images/{filepath}/metadata', async () => {
+      const client = new ApiClient({ baseUrl: 'http://localhost:8080/api' })
+      const metadata = { metadata: { prompt: '{"nodes": []}', workflow: '{"links": []}' } }
+      mockFetch({ json: () => Promise.resolve(metadata) })
+
+      const result = await client.getImageMetadata('checkpoint.safetensors/image.png')
+
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        'http://localhost:8080/api/images/checkpoint.safetensors/image.png/metadata',
+        undefined,
+      )
+      expect(result).toEqual(metadata)
+    })
+
+    it('throws on image metadata fetch failure', async () => {
+      const client = new ApiClient()
+      mockFetch({
+        ok: false,
+        status: 404,
+        json: () => Promise.resolve({ Code: 'not_found', Message: 'Image not found' }),
+      })
+
+      let thrown: ApiError | undefined
+      try {
+        await client.getImageMetadata('nonexistent/image.png')
+      } catch (err) {
+        thrown = err as ApiError
+      }
+
+      expect(thrown).toBeDefined()
+      expect(thrown!.code).toBe('not_found')
+    })
+  })
+
   describe('getHealth', () => {
     it('fetches health from /health endpoint', async () => {
       const client = new ApiClient({ baseUrl: 'http://localhost:8080/api' })

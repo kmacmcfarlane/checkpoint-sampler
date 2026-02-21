@@ -81,6 +81,11 @@ export interface CheckpointMetadata {
   metadata: Record<string, string>
 }
 
+/** Image metadata response from PNG tEXt chunk parsing. */
+export interface ImageMetadata {
+  metadata: Record<string, string>
+}
+
 /** WebSocket event types sent by the backend. */
 export type FSEventType = 'image_added' | 'image_removed' | 'directory_added'
 

@@ -8,9 +8,11 @@ import (
 )
 
 // ImageHandler serves image files from the dataset root with path traversal
-// protection and immutable cache headers.
+// protection and immutable cache headers. It also delegates to the metadata
+// handler for requests ending in /metadata.
 type ImageHandler struct {
-	root string
+	root            string
+	metadataHandler *ImageMetadataHandler
 }
 
 // NewImageHandler creates a handler that serves images from the given root directory.
@@ -18,7 +20,13 @@ func NewImageHandler(root string) *ImageHandler {
 	return &ImageHandler{root: root}
 }
 
+// SetMetadataHandler sets the handler for image metadata requests.
+func (h *ImageHandler) SetMetadataHandler(mh *ImageMetadataHandler) {
+	h.metadataHandler = mh
+}
+
 // ServeHTTP handles GET /api/images/{filepath} requests.
+// Requests ending in /metadata are delegated to the metadata handler.
 func (h *ImageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Extract the filepath from the URL path after /api/images/
 	const prefix = "/api/images/"
@@ -30,6 +38,12 @@ func (h *ImageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if reqPath == "" {
 		http.Error(w, `{"message":"filepath is required"}`, http.StatusBadRequest)
+		return
+	}
+
+	// Delegate metadata requests to the metadata handler
+	if strings.HasSuffix(reqPath, "/metadata") && h.metadataHandler != nil {
+		h.metadataHandler.ServeHTTP(w, r)
 		return
 	}
 

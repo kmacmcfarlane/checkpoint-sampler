@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-020: Generation metadata in image lightbox
+- backend/internal/service/image_metadata.go: ImageMetadataService parses PNG tEXt chunks to extract embedded ComfyUI metadata (prompt, workflow); validates image paths within sample_dir for path traversal safety; reads PNG signature, iterates chunks, extracts tEXt key-value pairs; returns empty map (not error) when no tEXt chunks present
+- backend/internal/api/image_metadata.go: ImageMetadataHandler serves GET /api/images/{filepath}/metadata; extracts filepath from URL, strips /metadata suffix, delegates to ImageMetadataService; returns JSON response with metadata map; maps errors to 400 (invalid path) and 404 (not found)
+- backend/internal/api/images.go: ImageHandler updated to delegate requests ending in /metadata to the ImageMetadataHandler via SetMetadataHandler; regular image serving unaffected
+- backend/cmd/server/main.go: Wired ImageMetadataService and ImageMetadataHandler into server startup
+- frontend/src/api/types.ts: Added ImageMetadata interface for image metadata API response
+- frontend/src/api/client.ts: Added getImageMetadata(filepath) method
+- frontend/src/components/ImageLightbox.vue: Added metadata panel with toggle button; fetches metadata on-the-fly when lightbox opens; displays tEXt chunk key-value pairs with JSON formatting for prompt/workflow; sorted keys; "No metadata available" for empty metadata; loading and error states; metadata panel positioned at bottom-right, does not interfere with zoom/pan; click.stop prevents panel clicks from closing lightbox
+- 12 service unit tests: tEXt chunk extraction (prompt+workflow, empty PNG, all chunk types, single chunk), path validation (empty, absolute, dot-dot, single dot, embedded traversal), error handling (missing file, non-PNG, truncated PNG)
+- 5 API handler tests: metadata response, empty metadata, not found, path traversal, regular image serving preserved
+- 13 new ImageLightbox component tests: metadata fetch on mount, toggle button, show/hide content, sorted keys, JSON formatting, empty metadata message, loading state, error state, re-fetch on URL change, zoom with panel open, accessible toggle, panel click isolation, non-JSON display
+- 2 API client tests: getImageMetadata success and failure
+
 ### S-019: Checkpoint metadata slideout panel
 - backend/internal/service/checkpoint_metadata.go: CheckpointMetadataService parses safetensors file headers to extract ss_* training metadata fields; resolves checkpoint filenames against configured checkpoint_dirs via recursive filesystem walk; validates filenames for path traversal safety (rejects slashes, dots); reads 8-byte little-endian header length prefix, parses header JSON, extracts __metadata__.ss_* fields; returns empty map (not error) when no metadata present
 - backend/internal/store/filesystem.go: Added OpenFile method implementing CheckpointMetadataReader interface for reading safetensors files from disk

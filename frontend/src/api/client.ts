@@ -1,4 +1,4 @@
-import type { ApiError, ApiErrorResponse, CheckpointMetadata, HealthStatus, Preset, PresetMapping, ScanResult, TrainingRun } from './types'
+import type { ApiError, ApiErrorResponse, CheckpointMetadata, HealthStatus, ImageMetadata, Preset, PresetMapping, ScanResult, TrainingRun } from './types'
 
 const DEFAULT_BASE_URL = '/api'
 
@@ -103,6 +103,11 @@ export class ApiClient {
   /** GET /api/checkpoints/{filename}/metadata — get checkpoint training metadata. */
   async getCheckpointMetadata(filename: string): Promise<CheckpointMetadata> {
     return this.request<CheckpointMetadata>(`/checkpoints/${encodeURIComponent(filename)}/metadata`)
+  }
+
+  /** GET /api/images/{filepath}/metadata — get PNG embedded metadata. */
+  async getImageMetadata(filepath: string): Promise<ImageMetadata> {
+    return this.request<ImageMetadata>(`/images/${filepath}/metadata`)
   }
 
   /** DELETE /api/presets/{id} — delete a preset. */
