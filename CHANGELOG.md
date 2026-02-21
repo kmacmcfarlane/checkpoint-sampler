@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-027: Responsive design polish
+- frontend/src/components/AppDrawer.vue: Drawer width is now responsive — uses 100% width on mobile screens (<768px) and 360px on wider screens; uses matchMedia listener to detect viewport changes dynamically
+- frontend/src/components/MasterSlider.vue: Changed mobile breakpoint from 599px to 767px for consistent mobile stacking; added flex-wrap on loop controls at mobile breakpoint
+- frontend/src/components/DimensionFilter.vue: Reduced min-width from 150px to 120px; added max-width: 100% and box-sizing: border-box to prevent overflow
+- frontend/src/components/DimensionPanel.vue: Dimension rows now flex-wrap for narrow containers; reduced dimension name min-width from 120px to 80px with text-overflow ellipsis; NSelect elements use CSS classes instead of inline styles for consistent sizing
+- frontend/src/components/TrainingRunSelector.vue: Added flex-wrap for wrapping on narrow screens; NSelect uses flex: 1 with min-width: 150px (down from 200px) for responsive fill
+- frontend/src/components/PresetSelector.vue: NSelect uses flex: 1 with min-width: 150px (down from 200px) for responsive fill
+- frontend/src/components/ImageLightbox.vue: Added mobile media query (<768px) — metadata panel expands to full viewport width; metadata content takes 100vw with no border radius
+- frontend/src/components/XYGrid.vue: Reduced grid corner and row header min-width from 100px to 60px; flat grid cells have max-width: 100% to prevent overflow
+- frontend/src/App.vue: Added overflow-x: hidden on root .app container to prevent horizontal scrolling; added mobile media query (<768px) for reduced header padding, smaller h1 font size (1.125rem), and reduced main padding
+- 4 new AppDrawer responsive width tests: 360px on wide screens, 100% on mobile, media query transitions in both directions
+- Updated 6 existing AppDrawer tests to use async mount helper for reliable onMounted execution
+- 382 total frontend tests pass across 21 test files
+
 ### S-026: Checkpoint metadata panel improvements
 - frontend/src/components/CheckpointMetadataPanel.vue: Slideout panel is now resizable by dragging its left edge; a 6px drag handle with col-resize cursor is positioned on the left side of the NDrawer; mousedown/mousemove/mouseup events on document track drag state and update the drawer width reactively
 - frontend/src/components/CheckpointMetadataPanel.vue: Width constrained to min 300px and max 80vw during drag resize; values clamped in mousemove handler

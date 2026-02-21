@@ -323,7 +323,7 @@ const flatImages = computed<ScanImage[]>(() => {
 }
 
 .xy-grid__corner {
-  min-width: 100px;
+  min-width: 60px;
   flex-shrink: 0;
 }
 
@@ -376,7 +376,7 @@ const flatImages = computed<ScanImage[]>(() => {
 }
 
 .xy-grid__row-header {
-  min-width: 100px;
+  min-width: 60px;
   display: flex;
   align-items: center;
   padding: 0.25rem 0.5rem;
@@ -406,6 +406,8 @@ const flatImages = computed<ScanImage[]>(() => {
 
 .xy-grid-flat__cell {
   width: 200px;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .xy-grid-empty {

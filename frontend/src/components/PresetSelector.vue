@@ -153,7 +153,7 @@ function assignmentsToMapping(): PresetMapping {
       :placeholder="loading ? 'Loading...' : 'Select a preset'"
       :loading="loading"
       clearable
-      style="min-width: 200px"
+      class="preset-select"
       size="small"
       @update:value="onSelect"
     />
@@ -190,6 +190,11 @@ function assignmentsToMapping(): PresetMapping {
 .preset-selector label {
   font-weight: 600;
   white-space: nowrap;
+}
+
+.preset-select {
+  min-width: 150px;
+  flex: 1;
 }
 
 .error {

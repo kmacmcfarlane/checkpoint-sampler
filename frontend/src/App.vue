@@ -409,6 +409,7 @@ function onPresetDelete() {
   flex-direction: column;
   background-color: var(--bg-color);
   color: var(--text-color);
+  overflow-x: hidden;
 }
 
 .app.dark-mode {
@@ -492,5 +493,25 @@ function onPresetDelete() {
   border-bottom: none;
   margin-bottom: 0;
   padding-bottom: 0;
+}
+
+@media (max-width: 767px) {
+  .app-header {
+    padding: 0.5rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .app-header h1 {
+    font-size: 1.125rem;
+  }
+
+  .app-main {
+    padding: 0.5rem;
+  }
+
+  .header-controls {
+    gap: 0.5rem;
+  }
 }
 </style>

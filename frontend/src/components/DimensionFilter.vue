@@ -144,7 +144,9 @@ function onSingleChange(value: string | null) {
   border: 1px solid var(--border-color, #e0e0e0);
   border-radius: 4px;
   padding: 0.5rem;
-  min-width: 150px;
+  min-width: 120px;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .dimension-filter__header {

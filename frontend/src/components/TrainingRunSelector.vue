@@ -63,7 +63,7 @@ function onSelect(value: number | null) {
       :disabled="loading || trainingRuns.length === 0"
       :placeholder="loading ? 'Loading...' : 'Select a training run'"
       :loading="loading"
-      style="min-width: 200px"
+      class="training-run-select"
       size="small"
       @update:value="onSelect"
     />
@@ -83,6 +83,12 @@ function onSelect(value: number | null) {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.training-run-select {
+  min-width: 150px;
+  flex: 1;
 }
 
 .training-run-selector label {

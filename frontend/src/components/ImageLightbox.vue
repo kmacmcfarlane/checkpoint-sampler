@@ -323,4 +323,25 @@ onUnmounted(() => {
   max-height: 30vh;
   overflow-y: auto;
 }
+
+@media (max-width: 767px) {
+  .metadata-panel {
+    max-width: 100vw;
+    left: 0;
+    right: 0;
+    align-items: stretch;
+  }
+
+  .metadata-content {
+    width: 100vw;
+    max-width: 100vw;
+    border-radius: 0;
+    box-sizing: border-box;
+  }
+
+  .metadata-toggle {
+    border-radius: 0.25rem 0.25rem 0 0;
+    align-self: flex-end;
+  }
+}
 </style>

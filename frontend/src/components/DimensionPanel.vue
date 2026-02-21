@@ -68,7 +68,7 @@ function isFilterModeDisabled(dimensionName: string): boolean {
           :value="getRole(dim.name)"
           :options="roleOptions"
           size="small"
-          style="min-width: 120px"
+          class="dimension-role-select"
           :aria-label="`Role for ${dim.name}`"
           @update:value="(v: string | null) => onRoleChange(dim.name, v)"
         />
@@ -77,7 +77,7 @@ function isFilterModeDisabled(dimensionName: string): boolean {
           :options="filterModeOptions"
           :disabled="isFilterModeDisabled(dim.name)"
           size="small"
-          style="min-width: 90px"
+          class="dimension-filter-select"
           :aria-label="`Filter mode for ${dim.name}`"
           @update:value="(v: string | null) => onFilterModeChange(dim.name, v)"
         />
@@ -110,11 +110,26 @@ function isFilterModeDisabled(dimensionName: string): boolean {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 .dimension-name {
   font-weight: 600;
-  min-width: 120px;
+  min-width: 80px;
+  flex-shrink: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dimension-role-select {
+  min-width: 100px;
+  flex-shrink: 1;
+}
+
+.dimension-filter-select {
+  min-width: 80px;
+  flex-shrink: 1;
 }
 
 .dimension-values {

@@ -208,7 +208,7 @@ onBeforeUnmount(() => {
   gap: 0.5rem;
 }
 
-@media (max-width: 599px) {
+@media (max-width: 767px) {
   .master-slider__main {
     flex-wrap: wrap;
   }
@@ -216,6 +216,10 @@ onBeforeUnmount(() => {
   .master-slider__slider {
     order: 2;
     flex-basis: 100%;
+  }
+
+  .master-slider__loop-controls {
+    flex-wrap: wrap;
   }
 }
 </style>

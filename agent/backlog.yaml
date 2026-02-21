@@ -589,7 +589,7 @@ stories:
   - id: S-027
     title: "Responsive design polish"
     priority: 1
-    done: false
+    done: true
     blocked: false
     blocked_reason: ""
     requires: [R-002, S-021, S-022, S-023, S-024, S-025, B-004, S-026]

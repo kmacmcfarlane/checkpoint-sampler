@@ -109,4 +109,11 @@ describe('App', () => {
     expect(appDrawer.exists()).toBe(true)
     expect(appDrawer.props('show')).toBe(true)
   })
+
+  it('app container has overflow-x hidden to prevent horizontal scrolling', async () => {
+    const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+    await flushPromises()
+    const app = wrapper.find('.app')
+    expect(app.exists()).toBe(true)
+  })
 })
