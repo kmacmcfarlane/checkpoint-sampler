@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-015: WebSocket live updates (frontend)
+- frontend/src/api/wsClient.ts: WSClient class managing WebSocket connection to /api/ws with auto-reconnect using exponential backoff (configurable initial delay, max delay, multiplier); resets backoff on successful connection; validates incoming FSEvent messages before dispatching; supports event listeners and connection state listeners
+- frontend/src/api/types.ts: Added FSEventType union type and FSEventMessage interface for typed WebSocket events
+- frontend/src/composables/parseImagePath.ts: Parses WebSocket event paths (checkpoint_dir/query_encoded_filename.png) into ScanImage objects; strips batch suffix; extracts query-encoded dimensions; resolves checkpoint step numbers from training run metadata
+- frontend/src/composables/useWebSocket.ts: Composable wiring WSClient to app state; handles image_added (parse + addImage + update combo selections), image_removed (removeImage), and directory_added (trigger full rescan); connects/disconnects based on selected training run
+- frontend/src/composables/useDimensionMapping.ts: Added addImage() for incremental image additions with dimension value updates (preserves role assignments, creates new dimensions as needed, sorts values); added removeImage() for image removal with dimension value recalculation (removes orphaned dimensions and their assignments); added helper functions for dimension value sorting, type inference, and rebuilding
+- frontend/src/App.vue: Integrated useWebSocket composable; added rescanCurrentTrainingRun for directory_added events; added WebSocket connection status indicator ("Live"/"Disconnected") in header
+- 20 WSClient unit tests: connection lifecycle, event dispatching (all 3 event types), invalid message handling (non-JSON, invalid types, missing fields, non-string data), listener management (add/remove), auto-reconnect with exponential backoff, backoff cap at maxDelay, backoff reset on successful connection, reconnect after error
+- 13 parseImagePath unit tests: standard query-encoded path, batch suffix stripping, no batch suffix, missing directory separator, non-PNG files, case-insensitive extension, empty filename, unparseable dimensions, checkpoint lookup with step numbers, unmatched checkpoint, no checkpoints provided
+- 11 useWebSocket unit tests: connect on training run selection, no connect on null, reconnect on change, disconnect on null, connected state tracking, image_added event handling with checkpoint dimension and combo selection updates, image_removed forwarding, directory_added rescan trigger, unparseable path handling, new dimension combo creation
+- 12 useDimensionMapping unit tests: addImage (new image, new dimension values with numeric sort, new dimension creation with assignment, assignment preservation, duplicate path replacement, no-op without scan result), removeImage (by path, orphaned value removal, assignment preservation, dimension disappearance cleanup, non-existent path no-op, no-op without scan result)
+
 ### S-014: WebSocket live updates (backend)
 - backend/internal/model/event.go: FSEvent domain type with EventType enum (image_added, image_removed, directory_added) and relative Path field
 - backend/internal/service/hub.go: WebSocket Hub managing connected HubClient instances; Register/Unregister clients, Broadcast FSEvents to all clients, auto-remove unresponsive clients
