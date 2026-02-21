@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### R-001: Refactor Goa HTTP wireup into NewHTTPHandler
+- backend/internal/api/http.go: New file with NewHTTPHandler() that encapsulates all Goa HTTP transport setup (mux creation, decoder/encoder, server instantiation, mounting, middleware application, custom handlers)
+- backend/internal/api/http.go: HTTPHandlerConfig struct takes pre-built Goa endpoints, ImageHandler, SwaggerUIDir, Logger, and Debug flag
+- backend/internal/api/http.go: errorHandler helper logs encoding errors with request ID for correlation
+- backend/internal/api/http.go: HTTP-level middleware (RequestID, CORS) applied inside NewHTTPHandler
+- backend/internal/api/http.go: Custom image handler and /docs redirect mounted inside NewHTTPHandler
+- backend/internal/api/http.go: Debug mode enables error handler and mount logging
+- backend/cmd/server/main.go: Simplified to only own dependency injection (config, stores, services, API impls, endpoint creation); calls NewHTTPHandler and wires result into http.Server
+- All existing tests pass unchanged (126 specs across 4 suites)
+
 ### B-003: Dimension UI selection
 - frontend/src/api/types.ts: Changed DimensionRole from 'combo' to 'none' — unassigned dimensions now have 'none' role instead of 'combo' since combo filters are always visible
 - frontend/src/components/DimensionPanel.vue: Renamed role label from "Combo Filter" to "None"; default role changed to 'none'

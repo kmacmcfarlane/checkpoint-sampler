@@ -290,7 +290,7 @@ stories:
   - id: R-001
     title: "Refactor Goa HTTP wireup into NewHTTPHandler"
     priority: 41
-    done: false
+    done: true
     blocked: false
     blocked_reason: ""
     requires: [S-004]

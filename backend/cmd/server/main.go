@@ -14,17 +14,11 @@ import (
 	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api"
 	gendocs "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/docs"
 	genhealth "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/health"
-	gendocssvr "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/http/docs/server"
-	genhealthsvr "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/http/health/server"
-	genpresetssvr "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/http/presets/server"
-	gentrainingrunssvr "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/http/training_runs/server"
 	genpresets "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/presets"
 	gentrainingruns "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/training_runs"
 	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/config"
 	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/service"
 	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/store"
-	goahttp "goa.design/goa/v3/http"
-	goahttpmiddleware "goa.design/goa/v3/http/middleware"
 )
 
 func main() {
@@ -76,33 +70,17 @@ func run() error {
 	trainingRunsEndpoints := gentrainingruns.NewEndpoints(trainingRunsSvc)
 	presetsEndpoints := genpresets.NewEndpoints(presetsSvc)
 
-	// Create Goa mux and mount handlers
-	mux := goahttp.NewMuxer()
-
-	dec := goahttp.RequestDecoder
-	enc := goahttp.ResponseEncoder
-
-	healthServer := genhealthsvr.New(healthEndpoints, mux, dec, enc, nil, nil)
-	docsServer := gendocssvr.New(docsEndpoints, mux, dec, enc, nil, nil, http.Dir(swaggerUIDir()))
-	trainingRunsServer := gentrainingrunssvr.New(trainingRunsEndpoints, mux, dec, enc, nil, nil)
-	presetsServer := genpresetssvr.New(presetsEndpoints, mux, dec, enc, nil, nil)
-
-	healthServer.Mount(mux)
-	docsServer.Mount(mux)
-	trainingRunsServer.Mount(mux)
-	presetsServer.Mount(mux)
-
-	// Mount image serving handler (serves from sample_dir)
-	imageHandler := api.NewImageHandler(cfg.SampleDir)
-	mux.Handle("GET", "/api/images/{*filepath}", imageHandler.ServeHTTP)
-
-	// Redirect /docs to /docs/ for the Swagger UI
-	mux.Handle("GET", "/docs", http.RedirectHandler("/docs/", http.StatusMovedPermanently).ServeHTTP)
-
-	// Wrap with middleware
-	var handler http.Handler = mux
-	handler = goahttpmiddleware.RequestID()(handler)
-	handler = api.CORSMiddleware("*")(handler)
+	// Build the HTTP handler with all transport setup
+	handler := api.NewHTTPHandler(api.HTTPHandlerConfig{
+		HealthEndpoints:      healthEndpoints,
+		DocsEndpoints:        docsEndpoints,
+		TrainingRunEndpoints: trainingRunsEndpoints,
+		PresetsEndpoints:     presetsEndpoints,
+		ImageHandler:         api.NewImageHandler(cfg.SampleDir),
+		SwaggerUIDir:         http.Dir(swaggerUIDir()),
+		Logger:               log.Default(),
+		Debug:                true,
+	})
 
 	// Create HTTP server
 	addr := net.JoinHostPort(cfg.IPAddress, fmt.Sprintf("%d", cfg.Port))
@@ -156,4 +134,3 @@ func swaggerUIDir() string {
 	}
 	return "internal/api/design"
 }
-
