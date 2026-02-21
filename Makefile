@@ -9,16 +9,16 @@ claude-resume:
 	claude-sandbox --resume
 
 ralph:
-	claude-sandbox --ralph --interactive
+	claude-sandbox --ralph --interactive ${ARGS}
 
 ralph-resume:
-	claude-sandbox --ralph --interactive --resume
+	claude-sandbox --ralph --interactive --resume ${ARGS}
 
 ralph-auto:
-	claude-sandbox --ralph --dangerously-skip-permissions
+	claude-sandbox --ralph --dangerously-skip-permissions ${ARGS}
 
 ralph-auto-once:
-	claude-sandbox --ralph --dangerously-skip-permissions --limit 1
+	claude-sandbox --ralph --dangerously-skip-permissions --limit 1 ${ARGS}
 
 # make ralph-auto-resume ARGS="<resume id>"
 ralph-auto-resume:

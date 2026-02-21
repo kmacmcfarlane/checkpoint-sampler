@@ -275,7 +275,7 @@ stories:
   - id: B-003
     title: "Dimension UI selection"
     priority: 42
-    done: true
+    done: false
     blocked: false
     blocked_reason: ""
     requires: [S-003]
