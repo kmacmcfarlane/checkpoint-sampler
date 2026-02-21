@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch, onBeforeUnmount } from 'vue'
+import { NSlider, NButton, NCheckbox, NSelect } from 'naive-ui'
 
 const props = defineProps<{
   /** Ordered values to cycle through. */
@@ -19,9 +20,7 @@ const currentIndex = computed(() => {
   return idx >= 0 ? idx : 0
 })
 
-function onInput(event: Event) {
-  const target = event.target as HTMLInputElement
-  const idx = Number(target.value)
+function onUpdate(idx: number) {
   if (idx >= 0 && idx < props.values.length) {
     emit('change', props.values[idx])
   }
@@ -100,9 +99,10 @@ function advance() {
   }
 }
 
-function onSpeedChange(event: Event) {
-  const target = event.target as HTMLSelectElement
-  speedMs.value = Number(target.value)
+function onSpeedUpdate(value: number | null) {
+  if (value !== null) {
+    speedMs.value = value
+  }
 }
 
 // Restart interval when speed changes during playback
@@ -127,35 +127,38 @@ onBeforeUnmount(() => {
     <label class="master-slider__label">
       {{ dimensionName }}
     </label>
-    <input
-      type="range"
-      :min="0"
-      :max="values.length - 1"
+    <NSlider
       :value="currentIndex"
+      :min="0"
+      :max="Math.max(0, values.length - 1)"
+      :step="1"
+      :tooltip="false"
       :aria-label="`Master ${dimensionName}`"
-      :aria-valuetext="currentValue"
-      class="master-slider__input"
-      @input="onInput"
+      class="master-slider__slider"
+      @update:value="onUpdate"
     />
     <span class="master-slider__value">{{ currentValue }}</span>
     <div class="master-slider__playback">
-      <button
-        class="master-slider__play-btn"
+      <NButton
+        size="small"
         :aria-label="playing ? 'Pause playback' : 'Play playback'"
         @click="togglePlayback"
-      >{{ playing ? 'Pause' : 'Play' }}</button>
-      <label class="master-slider__loop">
-        <input type="checkbox" :checked="loop" @change="loop = !loop" aria-label="Loop playback" />
-        Loop
-      </label>
-      <select
-        class="master-slider__speed"
-        :value="speedMs"
-        aria-label="Playback speed"
-        @change="onSpeedChange"
+      >{{ playing ? 'Pause' : 'Play' }}</NButton>
+      <NCheckbox
+        :checked="loop"
+        aria-label="Loop playback"
+        @update:checked="loop = $event"
       >
-        <option v-for="opt in speedOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-      </select>
+        Loop
+      </NCheckbox>
+      <NSelect
+        :value="speedMs"
+        :options="speedOptions"
+        size="small"
+        style="min-width: 80px"
+        aria-label="Playback speed"
+        @update:value="onSpeedUpdate"
+      />
     </div>
   </div>
 </template>
@@ -177,10 +180,9 @@ onBeforeUnmount(() => {
   min-width: 5rem;
 }
 
-.master-slider__input {
+.master-slider__slider {
   flex: 1;
   max-width: 400px;
-  cursor: pointer;
 }
 
 .master-slider__value {
@@ -194,32 +196,5 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-}
-
-.master-slider__play-btn {
-  padding: 0.25rem 0.75rem;
-  font-size: 0.8125rem;
-  cursor: pointer;
-  border: 1px solid #ccc;
-  border-radius: 0.25rem;
-  background: #f5f5f5;
-}
-
-.master-slider__play-btn:hover {
-  background: #e0e0e0;
-}
-
-.master-slider__loop {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  font-size: 0.8125rem;
-  cursor: pointer;
-}
-
-.master-slider__speed {
-  font-size: 0.8125rem;
-  padding: 0.125rem 0.25rem;
-  cursor: pointer;
 }
 </style>

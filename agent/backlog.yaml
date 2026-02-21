@@ -438,7 +438,7 @@ stories:
   - id: R-002
     title: "Migrate to Naive UI component library"
     priority: 9
-    done: false
+    done: true
     blocked: false
     blocked_reason: ""
     requires: []

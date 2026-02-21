@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { nextTick } from 'vue'
+import { NButton, NCheckbox } from 'naive-ui'
 import ComboFilter from '../ComboFilter.vue'
 
 const sampleValues = ['landscape', 'portrait', 'abstract']
@@ -20,9 +22,9 @@ describe('ComboFilter', () => {
     expect(wrapper.find('.combo-filter__name').text()).toBe('prompt_name')
   })
 
-  it('renders a checkbox for each value', () => {
+  it('renders a NCheckbox for each value', () => {
     const wrapper = mountFilter()
-    const checkboxes = wrapper.findAll('input[type="checkbox"]')
+    const checkboxes = wrapper.findAllComponents(NCheckbox)
     expect(checkboxes).toHaveLength(3)
   })
 
@@ -34,16 +36,17 @@ describe('ComboFilter', () => {
 
   it('checks boxes for selected values', () => {
     const wrapper = mountFilter({ selected: new Set(['landscape', 'abstract']) })
-    const checkboxes = wrapper.findAll('input[type="checkbox"]')
-    expect((checkboxes[0].element as HTMLInputElement).checked).toBe(true)
-    expect((checkboxes[1].element as HTMLInputElement).checked).toBe(false)
-    expect((checkboxes[2].element as HTMLInputElement).checked).toBe(true)
+    const checkboxes = wrapper.findAllComponents(NCheckbox)
+    expect(checkboxes[0].props('checked')).toBe(true)
+    expect(checkboxes[1].props('checked')).toBe(false)
+    expect(checkboxes[2].props('checked')).toBe(true)
   })
 
-  it('emits update with toggled value when checkbox is changed', async () => {
+  it('emits update with toggled value when checkbox is unchecked', async () => {
     const wrapper = mountFilter({ selected: new Set(sampleValues) })
-    const checkboxes = wrapper.findAll('input[type="checkbox"]')
-    await checkboxes[1].setValue(false)
+    const checkboxes = wrapper.findAllComponents(NCheckbox)
+    checkboxes[1].vm.$emit('update:checked', false)
+    await nextTick()
 
     const emitted = wrapper.emitted('update')
     expect(emitted).toBeDefined()
@@ -57,8 +60,9 @@ describe('ComboFilter', () => {
 
   it('emits update adding a value when unchecked box is checked', async () => {
     const wrapper = mountFilter({ selected: new Set(['landscape']) })
-    const checkboxes = wrapper.findAll('input[type="checkbox"]')
-    await checkboxes[1].setValue(true)
+    const checkboxes = wrapper.findAllComponents(NCheckbox)
+    checkboxes[1].vm.$emit('update:checked', true)
+    await nextTick()
 
     const emitted = wrapper.emitted('update')
     expect(emitted).toBeDefined()
@@ -83,7 +87,8 @@ describe('ComboFilter', () => {
 
   it('emits update with all values when All button is clicked', async () => {
     const wrapper = mountFilter({ selected: new Set(['landscape']) })
-    const allBtn = wrapper.findAll('.combo-filter__btn')[0]
+    const buttons = wrapper.findAllComponents(NButton)
+    const allBtn = buttons.find((b) => b.attributes('aria-label')?.includes('Select all'))!
     await allBtn.trigger('click')
 
     const emitted = wrapper.emitted('update')
@@ -95,7 +100,8 @@ describe('ComboFilter', () => {
 
   it('emits update with empty set when None button is clicked', async () => {
     const wrapper = mountFilter({ selected: new Set(sampleValues) })
-    const noneBtn = wrapper.findAll('.combo-filter__btn')[1]
+    const buttons = wrapper.findAllComponents(NButton)
+    const noneBtn = buttons.find((b) => b.attributes('aria-label')?.includes('Select none'))!
     await noneBtn.trigger('click')
 
     const emitted = wrapper.emitted('update')
@@ -107,32 +113,37 @@ describe('ComboFilter', () => {
 
   it('disables All button when all values are selected', () => {
     const wrapper = mountFilter({ selected: new Set(sampleValues) })
-    const allBtn = wrapper.findAll('.combo-filter__btn')[0]
-    expect((allBtn.element as HTMLButtonElement).disabled).toBe(true)
+    const buttons = wrapper.findAllComponents(NButton)
+    const allBtn = buttons.find((b) => b.attributes('aria-label')?.includes('Select all'))!
+    expect(allBtn.props('disabled')).toBe(true)
   })
 
   it('disables None button when no values are selected', () => {
     const wrapper = mountFilter({ selected: new Set<string>() })
-    const noneBtn = wrapper.findAll('.combo-filter__btn')[1]
-    expect((noneBtn.element as HTMLButtonElement).disabled).toBe(true)
+    const buttons = wrapper.findAllComponents(NButton)
+    const noneBtn = buttons.find((b) => b.attributes('aria-label')?.includes('Select none'))!
+    expect(noneBtn.props('disabled')).toBe(true)
   })
 
   it('enables All button when not all values are selected', () => {
     const wrapper = mountFilter({ selected: new Set(['landscape']) })
-    const allBtn = wrapper.findAll('.combo-filter__btn')[0]
-    expect((allBtn.element as HTMLButtonElement).disabled).toBe(false)
+    const buttons = wrapper.findAllComponents(NButton)
+    const allBtn = buttons.find((b) => b.attributes('aria-label')?.includes('Select all'))!
+    expect(allBtn.props('disabled')).toBe(false)
   })
 
   it('enables None button when some values are selected', () => {
     const wrapper = mountFilter({ selected: new Set(['landscape']) })
-    const noneBtn = wrapper.findAll('.combo-filter__btn')[1]
-    expect((noneBtn.element as HTMLButtonElement).disabled).toBe(false)
+    const buttons = wrapper.findAllComponents(NButton)
+    const noneBtn = buttons.find((b) => b.attributes('aria-label')?.includes('Select none'))!
+    expect(noneBtn.props('disabled')).toBe(false)
   })
 
   it('has accessible labels on controls', () => {
     const wrapper = mountFilter()
-    const allBtn = wrapper.findAll('.combo-filter__btn')[0]
-    const noneBtn = wrapper.findAll('.combo-filter__btn')[1]
+    const buttons = wrapper.findAllComponents(NButton)
+    const allBtn = buttons.find((b) => b.attributes('aria-label')?.includes('Select all'))!
+    const noneBtn = buttons.find((b) => b.attributes('aria-label')?.includes('Select none'))!
     expect(allBtn.attributes('aria-label')).toBe('Select all prompt_name')
     expect(noneBtn.attributes('aria-label')).toBe('Select none prompt_name')
 
@@ -142,7 +153,7 @@ describe('ComboFilter', () => {
 
   it('has accessible labels on value controls', () => {
     const wrapper = mountFilter()
-    const checkboxes = wrapper.findAll('input[type="checkbox"]')
+    const checkboxes = wrapper.findAllComponents(NCheckbox)
     expect(checkboxes[0].attributes('aria-label')).toBe('Toggle prompt_name landscape')
 
     const valueLabels = wrapper.findAll('.combo-filter__value')

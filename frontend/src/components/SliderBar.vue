@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { NSlider } from 'naive-ui'
 
 const props = defineProps<{
   /** Ordered values to cycle through. */
@@ -19,9 +20,7 @@ const currentIndex = computed(() => {
   return idx >= 0 ? idx : 0
 })
 
-function onInput(event: Event) {
-  const target = event.target as HTMLInputElement
-  const idx = Number(target.value)
+function onUpdate(idx: number) {
   if (idx >= 0 && idx < props.values.length) {
     emit('change', props.values[idx])
   }
@@ -45,16 +44,15 @@ function onKeydown(event: KeyboardEvent) {
 </script>
 
 <template>
-  <div class="slider-bar" tabindex="0" @keydown="onKeydown">
-    <input
-      type="range"
-      :min="0"
-      :max="values.length - 1"
+  <div class="slider-bar" tabindex="0" @keydown="onKeydown" :aria-label="label">
+    <NSlider
       :value="currentIndex"
-      :aria-label="label"
-      :aria-valuetext="currentValue"
-      class="slider-bar__input"
-      @input="onInput"
+      :min="0"
+      :max="Math.max(0, values.length - 1)"
+      :step="1"
+      :tooltip="false"
+      style="flex: 1"
+      @update:value="onUpdate"
     />
     <span class="slider-bar__value">{{ currentValue }}</span>
   </div>
@@ -66,11 +64,6 @@ function onKeydown(event: KeyboardEvent) {
   align-items: center;
   gap: 0.5rem;
   padding: 0.25rem 0;
-}
-
-.slider-bar__input {
-  flex: 1;
-  cursor: pointer;
 }
 
 .slider-bar__value {

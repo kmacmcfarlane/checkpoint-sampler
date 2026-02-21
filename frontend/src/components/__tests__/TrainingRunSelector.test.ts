@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { nextTick } from 'vue'
+import { NSelect, NCheckbox } from 'naive-ui'
 import TrainingRunSelector from '../TrainingRunSelector.vue'
 import type { TrainingRun } from '../../api/types'
 
@@ -43,13 +44,13 @@ describe('TrainingRunSelector', () => {
     vi.clearAllMocks()
   })
 
-  it('renders a select element with label', async () => {
+  it('renders a label and NSelect component', async () => {
     mockGetTrainingRuns.mockResolvedValue(sampleRuns)
     const wrapper = mount(TrainingRunSelector)
     await flushPromises()
 
     expect(wrapper.find('label').text()).toBe('Training Run')
-    expect(wrapper.find('select').exists()).toBe(true)
+    expect(wrapper.findComponent(NSelect).exists()).toBe(true)
   })
 
   it('shows loading state while fetching', async () => {
@@ -57,22 +58,21 @@ describe('TrainingRunSelector', () => {
     const wrapper = mount(TrainingRunSelector)
     await nextTick()
 
-    const select = wrapper.find('select')
-    expect((select.element as HTMLSelectElement).disabled).toBe(true)
-    const defaultOption = select.find('option[disabled]')
-    expect(defaultOption.text()).toBe('Loading...')
+    const select = wrapper.findComponent(NSelect)
+    expect(select.props('disabled')).toBe(true)
+    expect(select.props('loading')).toBe(true)
   })
 
-  it('populates dropdown with training runs after loading', async () => {
+  it('populates NSelect with training run options after loading', async () => {
     mockGetTrainingRuns.mockResolvedValue(sampleRuns)
     const wrapper = mount(TrainingRunSelector)
     await flushPromises()
 
-    const options = wrapper.findAll('option')
-    // 1 placeholder + 2 training runs
-    expect(options).toHaveLength(3)
-    expect(options[1].text()).toBe('psai4rt v0.3.0 qwen')
-    expect(options[2].text()).toBe('sdxl finetune')
+    const select = wrapper.findComponent(NSelect)
+    const options = select.props('options') as Array<{ label: string; value: number }>
+    expect(options).toHaveLength(2)
+    expect(options[0].label).toBe('psai4rt v0.3.0 qwen')
+    expect(options[1].label).toBe('sdxl finetune')
   })
 
   it('emits select event with training run when an option is selected', async () => {
@@ -80,7 +80,9 @@ describe('TrainingRunSelector', () => {
     const wrapper = mount(TrainingRunSelector)
     await flushPromises()
 
-    await wrapper.find('select').setValue('1')
+    const select = wrapper.findComponent(NSelect)
+    select.vm.$emit('update:value', 1)
+    await nextTick()
 
     const emitted = wrapper.emitted('select')
     expect(emitted).toBeDefined()
@@ -103,18 +105,19 @@ describe('TrainingRunSelector', () => {
     const wrapper = mount(TrainingRunSelector)
     await flushPromises()
 
-    expect((wrapper.find('select').element as HTMLSelectElement).disabled).toBe(true)
+    const select = wrapper.findComponent(NSelect)
+    expect(select.props('disabled')).toBe(true)
   })
 
   describe('has-samples filter', () => {
-    it('renders a has-samples checkbox that is checked by default', async () => {
+    it('renders a has-samples NCheckbox that is checked by default', async () => {
       mockGetTrainingRuns.mockResolvedValue(sampleRuns)
       const wrapper = mount(TrainingRunSelector)
       await flushPromises()
 
-      const checkbox = wrapper.find('[data-testid="has-samples-checkbox"]')
+      const checkbox = wrapper.findComponent(NCheckbox)
       expect(checkbox.exists()).toBe(true)
-      expect((checkbox.element as HTMLInputElement).checked).toBe(true)
+      expect(checkbox.props('checked')).toBe(true)
     })
 
     it('calls getTrainingRuns with has_samples=true on initial load', async () => {
@@ -133,8 +136,8 @@ describe('TrainingRunSelector', () => {
       mockGetTrainingRuns.mockClear()
       mockGetTrainingRuns.mockResolvedValue(sampleRuns)
 
-      const checkbox = wrapper.find('[data-testid="has-samples-checkbox"]')
-      await checkbox.setValue(false)
+      const checkbox = wrapper.findComponent(NCheckbox)
+      checkbox.vm.$emit('update:checked', false)
       await flushPromises()
 
       expect(mockGetTrainingRuns).toHaveBeenCalledWith(false)
@@ -146,16 +149,16 @@ describe('TrainingRunSelector', () => {
       await flushPromises()
 
       // Uncheck
-      const checkbox = wrapper.find('[data-testid="has-samples-checkbox"]')
+      const checkbox = wrapper.findComponent(NCheckbox)
       mockGetTrainingRuns.mockClear()
       mockGetTrainingRuns.mockResolvedValue([])
-      await checkbox.setValue(false)
+      checkbox.vm.$emit('update:checked', false)
       await flushPromises()
 
       // Re-check
       mockGetTrainingRuns.mockClear()
       mockGetTrainingRuns.mockResolvedValue(sampleRuns)
-      await checkbox.setValue(true)
+      checkbox.vm.$emit('update:checked', true)
       await flushPromises()
 
       expect(mockGetTrainingRuns).toHaveBeenCalledWith(true)
@@ -167,18 +170,19 @@ describe('TrainingRunSelector', () => {
       await flushPromises()
 
       // Select a run
-      await wrapper.find('select').setValue('0')
+      const select = wrapper.findComponent(NSelect)
+      select.vm.$emit('update:value', 0)
+      await nextTick()
       expect(wrapper.emitted('select')).toHaveLength(1)
 
       // Toggle filter
       mockGetTrainingRuns.mockResolvedValue([])
-      const checkbox = wrapper.find('[data-testid="has-samples-checkbox"]')
-      await checkbox.setValue(false)
+      const checkbox = wrapper.findComponent(NCheckbox)
+      checkbox.vm.$emit('update:checked', false)
       await flushPromises()
 
-      // Select should be back to placeholder
-      const select = wrapper.find('select')
-      expect((select.element as HTMLSelectElement).value).toBe('')
+      // Select value should be reset to null
+      expect(select.props('value')).toBeNull()
     })
   })
 })

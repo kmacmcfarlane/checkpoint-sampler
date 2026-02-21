@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### R-002: Migrate to Naive UI component library
+- frontend/package.json: Added naive-ui as a dependency
+- frontend/src/App.vue: Wrapped app in NConfigProvider; replaced native button with NButton for metadata toggle; replaced WebSocket status span with NTag
+- frontend/src/components/TrainingRunSelector.vue: Replaced native select with NSelect; replaced native checkbox with NCheckbox for has-samples filter
+- frontend/src/components/DimensionPanel.vue: Replaced native select elements with NSelect for dimension role assignment
+- frontend/src/components/PresetSelector.vue: Replaced native select with NSelect; replaced native buttons with NButton for save/delete
+- frontend/src/components/ComboFilter.vue: Replaced native buttons with NButton for All/None; replaced native checkboxes with NCheckbox
+- frontend/src/components/SliderBar.vue: Replaced native range input with NSlider
+- frontend/src/components/MasterSlider.vue: Replaced native range input with NSlider; replaced buttons with NButton for play/pause; replaced checkbox with NCheckbox for loop; replaced select with NSelect for speed
+- frontend/src/components/CheckpointMetadataPanel.vue: Replaced custom fixed-position panel with NDrawer + NDrawerContent; replaced HTML table with NDataTable for metadata display
+- frontend/src/components/ImageLightbox.vue: Replaced native button with NButton for metadata toggle
+- Removed custom CSS for elements now styled by Naive UI (metadata button, WebSocket indicator, select/checkbox/button/slider styles)
+- Updated 7 test files (TrainingRunSelector, DimensionPanel, PresetSelector, ComboFilter, SliderBar, MasterSlider, CheckpointMetadataPanel) to use Naive UI component finders (findComponent/findAllComponents) and event patterns (vm.$emit('update:value', ...))
+- All 265 tests pass across 17 test files
+
 ### S-020: Generation metadata in image lightbox
 - backend/internal/service/image_metadata.go: ImageMetadataService parses PNG tEXt chunks to extract embedded ComfyUI metadata (prompt, workflow); validates image paths within sample_dir for path traversal safety; reads PNG signature, iterates chunks, extracts tEXt key-value pairs; returns empty map (not error) when no tEXt chunks present
 - backend/internal/api/image_metadata.go: ImageMetadataHandler serves GET /api/images/{filepath}/metadata; extracts filepath from URL, strips /metadata suffix, delegates to ImageMetadataService; returns JSON response with metadata map; maps errors to 400 (invalid path) and 404 (not found)

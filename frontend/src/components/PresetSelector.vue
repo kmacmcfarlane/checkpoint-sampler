@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { NSelect, NButton } from 'naive-ui'
 import type { Preset, PresetMapping, DimensionRole } from '../api/types'
 import { apiClient } from '../api/client'
 
@@ -17,10 +18,17 @@ const emit = defineEmits<{
 }>()
 
 const presets = ref<Preset[]>([])
-const selectedId = ref<string>('')
+const selectedId = ref<string | null>(null)
 const loading = ref(false)
 const saving = ref(false)
 const error = ref<string | null>(null)
+
+const selectOptions = computed(() =>
+  presets.value.map((p) => ({
+    label: p.name,
+    value: p.id,
+  }))
+)
 
 onMounted(async () => {
   await fetchPresets()
@@ -42,15 +50,13 @@ async function fetchPresets() {
   }
 }
 
-function onSelect(event: Event) {
-  const target = event.target as HTMLSelectElement
-  const id = target.value
-  if (!id) {
-    selectedId.value = ''
+function onSelect(value: string | null) {
+  if (!value) {
+    selectedId.value = null
     return
   }
-  selectedId.value = id
-  const preset = presets.value.find((p) => p.id === id)
+  selectedId.value = value
+  const preset = presets.value.find((p) => p.id === value)
   if (preset) {
     const warnings = computeWarnings(preset)
     emit('load', preset, warnings)
@@ -103,7 +109,7 @@ async function onDelete(id: string) {
     await apiClient.deletePreset(id)
     presets.value = presets.value.filter((p) => p.id !== id)
     if (selectedId.value === id) {
-      selectedId.value = ''
+      selectedId.value = null
     }
     emit('delete', id)
   } catch (err: unknown) {
@@ -140,39 +146,35 @@ function assignmentsToMapping(): PresetMapping {
 <template>
   <div class="preset-selector">
     <label for="preset-select">Preset</label>
-    <select
-      id="preset-select"
+    <NSelect
       :value="selectedId"
+      :options="selectOptions"
       :disabled="loading"
-      @change="onSelect"
-    >
-      <option value="">
-        {{ loading ? 'Loading...' : 'Select a preset' }}
-      </option>
-      <option
-        v-for="preset in presets"
-        :key="preset.id"
-        :value="preset.id"
-      >
-        {{ preset.name }}
-      </option>
-    </select>
-    <button
-      class="save-btn"
+      :placeholder="loading ? 'Loading...' : 'Select a preset'"
+      :loading="loading"
+      clearable
+      style="min-width: 200px"
+      size="small"
+      @update:value="onSelect"
+    />
+    <NButton
+      size="small"
       :disabled="saving || assignments.size === 0"
-      @click="onSave"
+      :loading="saving"
       aria-label="Save preset"
+      @click="onSave"
     >
       {{ saving ? 'Saving...' : 'Save' }}
-    </button>
-    <button
+    </NButton>
+    <NButton
       v-if="selectedId"
-      class="delete-btn"
-      @click="onDelete(selectedId)"
+      size="small"
+      type="error"
       aria-label="Delete preset"
+      @click="onDelete(selectedId!)"
     >
       Delete
-    </button>
+    </NButton>
     <p v-if="error" class="error" role="alert">{{ error }}</p>
   </div>
 </template>
@@ -188,37 +190,6 @@ function assignmentsToMapping(): PresetMapping {
 .preset-selector label {
   font-weight: 600;
   white-space: nowrap;
-}
-
-.preset-selector select {
-  padding: 0.25rem 0.5rem;
-  font-size: 0.875rem;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  min-width: 200px;
-}
-
-.save-btn,
-.delete-btn {
-  padding: 0.25rem 0.75rem;
-  font-size: 0.875rem;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  cursor: pointer;
-  background: #fff;
-}
-
-.save-btn:hover:not(:disabled) {
-  background: #f0f0f0;
-}
-
-.delete-btn {
-  color: #d32f2f;
-  border-color: #d32f2f;
-}
-
-.delete-btn:hover {
-  background: #fce4ec;
 }
 
 .error {

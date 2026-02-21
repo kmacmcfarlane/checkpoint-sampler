@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { NSelect } from 'naive-ui'
 import type { DimensionRole, ScanDimension } from '../api/types'
 
 const props = defineProps<{
@@ -10,16 +11,17 @@ const emit = defineEmits<{
   assign: [dimensionName: string, role: DimensionRole]
 }>()
 
-const roles: { value: DimensionRole; label: string }[] = [
+const roleOptions = [
   { value: 'x', label: 'X Axis' },
   { value: 'y', label: 'Y Axis' },
   { value: 'slider', label: 'Slider' },
   { value: 'none', label: 'None' },
 ]
 
-function onRoleChange(dimensionName: string, event: Event) {
-  const target = event.target as HTMLSelectElement
-  emit('assign', dimensionName, target.value as DimensionRole)
+function onRoleChange(dimensionName: string, value: string | null) {
+  if (value !== null) {
+    emit('assign', dimensionName, value as DimensionRole)
+  }
 }
 
 function getRole(dimensionName: string): DimensionRole {
@@ -37,19 +39,14 @@ function getRole(dimensionName: string): DimensionRole {
         class="dimension-row"
       >
         <span class="dimension-name">{{ dim.name }}</span>
-        <select
-          :aria-label="`Role for ${dim.name}`"
+        <NSelect
           :value="getRole(dim.name)"
-          @change="onRoleChange(dim.name, $event)"
-        >
-          <option
-            v-for="role in roles"
-            :key="role.value"
-            :value="role.value"
-          >
-            {{ role.label }}
-          </option>
-        </select>
+          :options="roleOptions"
+          size="small"
+          style="min-width: 120px"
+          :aria-label="`Role for ${dim.name}`"
+          @update:value="(v: string | null) => onRoleChange(dim.name, v)"
+        />
         <span class="dimension-values">{{ dim.values.length }} values</span>
       </div>
     </div>
@@ -84,13 +81,6 @@ function getRole(dimensionName: string): DimensionRole {
 .dimension-name {
   font-weight: 600;
   min-width: 120px;
-}
-
-.dimension-row select {
-  padding: 0.25rem 0.5rem;
-  font-size: 0.875rem;
-  border: 1px solid #ccc;
-  border-radius: 4px;
 }
 
 .dimension-values {

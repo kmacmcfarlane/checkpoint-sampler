@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { NButton, NCheckbox } from 'naive-ui'
 
 const props = defineProps<{
   dimensionName: string
@@ -14,12 +15,12 @@ const emit = defineEmits<{
 const allSelected = computed(() => props.selected.size === props.values.length)
 const noneSelected = computed(() => props.selected.size === 0)
 
-function toggleValue(value: string) {
+function toggleValue(value: string, checked: boolean) {
   const next = new Set(props.selected)
-  if (next.has(value)) {
-    next.delete(value)
-  } else {
+  if (checked) {
     next.add(value)
+  } else {
+    next.delete(value)
   }
   emit('update', props.dimensionName, next)
 }
@@ -42,18 +43,18 @@ function selectNone() {
     <div class="combo-filter__header">
       <span class="combo-filter__name">{{ dimensionName }}</span>
       <div class="combo-filter__controls">
-        <button
-          class="combo-filter__btn"
+        <NButton
+          size="tiny"
           :disabled="allSelected"
           @click="selectAll"
           :aria-label="`Select all ${dimensionName}`"
-        >All</button>
-        <button
-          class="combo-filter__btn"
+        >All</NButton>
+        <NButton
+          size="tiny"
           :disabled="noneSelected"
           @click="selectNone"
           :aria-label="`Select none ${dimensionName}`"
-        >None</button>
+        >None</NButton>
       </div>
     </div>
     <ul class="combo-filter__list" role="group" :aria-label="`Filter by ${dimensionName}`">
@@ -63,10 +64,9 @@ function selectNone() {
         class="combo-filter__item"
       >
         <label class="combo-filter__checkbox-label">
-          <input
-            type="checkbox"
+          <NCheckbox
             :checked="selected.has(value)"
-            @change="toggleValue(value)"
+            @update:checked="(checked: boolean) => toggleValue(value, checked)"
             :aria-label="`Toggle ${dimensionName} ${value}`"
           />
           <span
@@ -104,20 +104,6 @@ function selectNone() {
 .combo-filter__controls {
   display: flex;
   gap: 0.25rem;
-}
-
-.combo-filter__btn {
-  padding: 0.125rem 0.375rem;
-  font-size: 0.75rem;
-  border: 1px solid #ccc;
-  border-radius: 3px;
-  background: #f9f9f9;
-  cursor: pointer;
-}
-
-.combo-filter__btn:disabled {
-  opacity: 0.4;
-  cursor: default;
 }
 
 .combo-filter__list {

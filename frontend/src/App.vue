@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch } from 'vue'
+import { NConfigProvider, NButton, NTag } from 'naive-ui'
 import type { TrainingRun, DimensionRole, Preset } from './api/types'
 import { apiClient } from './api/client'
 import { useDimensionMapping } from './composables/useDimensionMapping'
@@ -185,89 +186,91 @@ function onPresetDelete() {
 </script>
 
 <template>
-  <div class="app">
-    <header class="app-header">
-      <h1>Checkpoint Sampler</h1>
-      <div class="header-controls">
-        <TrainingRunSelector @select="onTrainingRunSelect" />
-        <button
-          v-if="selectedTrainingRun && !scanning && !scanError"
-          class="metadata-btn"
-          aria-label="Toggle checkpoint metadata panel"
-          @click="metadataPanelOpen = !metadataPanelOpen"
-        >Metadata</button>
-        <span
-          v-if="selectedTrainingRun"
-          class="ws-indicator"
-          :class="{ connected: wsConnected }"
-          :title="wsConnected ? 'Live updates connected' : 'Live updates disconnected'"
-          role="status"
-        >{{ wsConnected ? 'Live' : 'Disconnected' }}</span>
-      </div>
-    </header>
-    <main class="app-main">
-      <p v-if="!selectedTrainingRun">Select a training run to get started.</p>
-      <template v-else>
-        <p v-if="scanning">Scanning...</p>
-        <p v-else-if="scanError" class="error" role="alert">{{ scanError }}</p>
+  <NConfigProvider>
+    <div class="app">
+      <header class="app-header">
+        <h1>Checkpoint Sampler</h1>
+        <div class="header-controls">
+          <TrainingRunSelector @select="onTrainingRunSelect" />
+          <NButton
+            v-if="selectedTrainingRun && !scanning && !scanError"
+            size="small"
+            aria-label="Toggle checkpoint metadata panel"
+            @click="metadataPanelOpen = !metadataPanelOpen"
+          >Metadata</NButton>
+          <NTag
+            v-if="selectedTrainingRun"
+            :type="wsConnected ? 'success' : 'default'"
+            size="small"
+            :title="wsConnected ? 'Live updates connected' : 'Live updates disconnected'"
+            role="status"
+          >{{ wsConnected ? 'Live' : 'Disconnected' }}</NTag>
+        </div>
+      </header>
+      <main class="app-main">
+        <p v-if="!selectedTrainingRun">Select a training run to get started.</p>
         <template v-else>
-          <PresetSelector
-            :assignments="assignments"
-            :dimension-names="dimensionNames"
-            @load="onPresetLoad"
-            @save="onPresetSave"
-            @delete="onPresetDelete"
-          />
-          <p v-if="presetWarnings.length > 0" class="warning" role="status">
-            Unmatched dimensions from preset: {{ presetWarnings.join(', ') }}
-          </p>
-          <DimensionPanel
-            :dimensions="dimensions"
-            :assignments="assignments"
-            @assign="onAssignRole"
-          />
-          <div class="combo-filters" v-if="dimensions.length > 0">
-            <ComboFilter
-              v-for="dim in dimensions"
-              :key="dim.name"
-              :dimension-name="dim.name"
-              :values="dim.values"
-              :selected="comboSelections[dim.name] ?? new Set()"
-              @update="onComboUpdate"
+          <p v-if="scanning">Scanning...</p>
+          <p v-else-if="scanError" class="error" role="alert">{{ scanError }}</p>
+          <template v-else>
+            <PresetSelector
+              :assignments="assignments"
+              :dimension-names="dimensionNames"
+              @load="onPresetLoad"
+              @save="onPresetSave"
+              @delete="onPresetDelete"
             />
-          </div>
-          <MasterSlider
-            v-if="sliderDimension"
-            :values="sliderDimension.values"
-            :current-value="defaultSliderValue"
-            :dimension-name="sliderDimension.name"
-            @change="onMasterSliderChange"
-          />
-          <XYGrid
-            :x-dimension="xDimension"
-            :y-dimension="yDimension"
-            :images="images"
-            :combo-selections="comboSelections"
-            :slider-dimension="sliderDimension"
-            :slider-values="sliderValues"
-            :default-slider-value="defaultSliderValue"
-            @update:slider-value="onSliderValueUpdate"
-            @image:click="onImageClick"
-          />
+            <p v-if="presetWarnings.length > 0" class="warning" role="status">
+              Unmatched dimensions from preset: {{ presetWarnings.join(', ') }}
+            </p>
+            <DimensionPanel
+              :dimensions="dimensions"
+              :assignments="assignments"
+              @assign="onAssignRole"
+            />
+            <div class="combo-filters" v-if="dimensions.length > 0">
+              <ComboFilter
+                v-for="dim in dimensions"
+                :key="dim.name"
+                :dimension-name="dim.name"
+                :values="dim.values"
+                :selected="comboSelections[dim.name] ?? new Set()"
+                @update="onComboUpdate"
+              />
+            </div>
+            <MasterSlider
+              v-if="sliderDimension"
+              :values="sliderDimension.values"
+              :current-value="defaultSliderValue"
+              :dimension-name="sliderDimension.name"
+              @change="onMasterSliderChange"
+            />
+            <XYGrid
+              :x-dimension="xDimension"
+              :y-dimension="yDimension"
+              :images="images"
+              :combo-selections="comboSelections"
+              :slider-dimension="sliderDimension"
+              :slider-values="sliderValues"
+              :default-slider-value="defaultSliderValue"
+              @update:slider-value="onSliderValueUpdate"
+              @image:click="onImageClick"
+            />
+          </template>
         </template>
-      </template>
-    </main>
-    <ImageLightbox
-      v-if="lightboxImageUrl"
-      :image-url="lightboxImageUrl"
-      @close="onLightboxClose"
-    />
-    <CheckpointMetadataPanel
-      v-if="metadataPanelOpen && selectedTrainingRun"
-      :checkpoints="selectedTrainingRun.checkpoints"
-      @close="metadataPanelOpen = false"
-    />
-  </div>
+      </main>
+      <ImageLightbox
+        v-if="lightboxImageUrl"
+        :image-url="lightboxImageUrl"
+        @close="onLightboxClose"
+      />
+      <CheckpointMetadataPanel
+        v-if="metadataPanelOpen && selectedTrainingRun"
+        :checkpoints="selectedTrainingRun.checkpoints"
+        @close="metadataPanelOpen = false"
+      />
+    </div>
+  </NConfigProvider>
 </template>
 
 <style scoped>
@@ -314,31 +317,5 @@ function onPresetDelete() {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-}
-
-.metadata-btn {
-  font-size: 0.8125rem;
-  padding: 0.25rem 0.75rem;
-  border: 1px solid #ccc;
-  border-radius: 0.25rem;
-  background: #fafafa;
-  cursor: pointer;
-}
-
-.metadata-btn:hover {
-  background: #f0f0f0;
-}
-
-.ws-indicator {
-  font-size: 0.75rem;
-  padding: 0.125rem 0.5rem;
-  border-radius: 0.25rem;
-  background: #e0e0e0;
-  color: #666;
-}
-
-.ws-indicator.connected {
-  background: #c8e6c9;
-  color: #2e7d32;
 }
 </style>

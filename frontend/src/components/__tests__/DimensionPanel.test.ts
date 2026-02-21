@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { nextTick } from 'vue'
+import { NSelect } from 'naive-ui'
 import DimensionPanel from '../DimensionPanel.vue'
 import type { DimensionRole, ScanDimension } from '../../api/types'
 
@@ -51,17 +53,17 @@ describe('DimensionPanel', () => {
     expect(valueCounts[2].text()).toBe('2 values')
   })
 
-  it('renders select with four role options per dimension', () => {
+  it('renders NSelect with four role options per dimension', () => {
     const wrapper = mount(DimensionPanel, {
       props: { dimensions: sampleDimensions, assignments: makeAssignments() },
     })
 
-    const selects = wrapper.findAll('select')
+    const selects = wrapper.findAllComponents(NSelect)
     expect(selects).toHaveLength(3)
 
-    const options = selects[0].findAll('option')
+    const options = selects[0].props('options') as Array<{ value: string; label: string }>
     expect(options).toHaveLength(4)
-    expect(options.map((o) => o.text())).toEqual(['X Axis', 'Y Axis', 'Slider', 'None'])
+    expect(options.map((o) => o.label)).toEqual(['X Axis', 'Y Axis', 'Slider', 'None'])
   })
 
   it('shows current role assignment as selected value', () => {
@@ -72,10 +74,10 @@ describe('DimensionPanel', () => {
       },
     })
 
-    const selects = wrapper.findAll('select')
-    expect((selects[0].element as HTMLSelectElement).value).toBe('x')
-    expect((selects[1].element as HTMLSelectElement).value).toBe('y')
-    expect((selects[2].element as HTMLSelectElement).value).toBe('none')
+    const selects = wrapper.findAllComponents(NSelect)
+    expect(selects[0].props('value')).toBe('x')
+    expect(selects[1].props('value')).toBe('y')
+    expect(selects[2].props('value')).toBe('none')
   })
 
   it('emits assign event when role is changed', async () => {
@@ -83,8 +85,9 @@ describe('DimensionPanel', () => {
       props: { dimensions: sampleDimensions, assignments: makeAssignments() },
     })
 
-    const select = wrapper.findAll('select')[0]
-    await select.setValue('x')
+    const selects = wrapper.findAllComponents(NSelect)
+    selects[0].vm.$emit('update:value', 'x')
+    await nextTick()
 
     const emitted = wrapper.emitted('assign')
     expect(emitted).toBeDefined()
@@ -105,7 +108,7 @@ describe('DimensionPanel', () => {
       props: { dimensions: sampleDimensions, assignments: makeAssignments() },
     })
 
-    const selects = wrapper.findAll('select')
+    const selects = wrapper.findAllComponents(NSelect)
     expect(selects[0].attributes('aria-label')).toBe('Role for step')
     expect(selects[1].attributes('aria-label')).toBe('Role for seed')
   })

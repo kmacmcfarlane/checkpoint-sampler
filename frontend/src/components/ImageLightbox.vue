@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { NButton } from 'naive-ui'
 import { apiClient } from '../api/client'
 
 const props = defineProps<{
@@ -173,13 +174,14 @@ onUnmounted(() => {
       />
     </div>
     <div class="metadata-panel" @click.stop>
-      <button
+      <NButton
         class="metadata-toggle"
+        size="small"
         aria-label="Toggle metadata"
         @click="toggleMetadata"
       >
         {{ metadataOpen ? 'Hide Metadata' : 'Show Metadata' }}
-      </button>
+      </NButton>
       <div v-if="metadataOpen" class="metadata-content">
         <div v-if="metadataLoading" class="metadata-loading">Loading metadata...</div>
         <div v-else-if="metadataError" class="metadata-error">{{ metadataError }}</div>
@@ -240,17 +242,7 @@ onUnmounted(() => {
 }
 
 .metadata-toggle {
-  padding: 0.375rem 0.75rem;
-  border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 0.25rem 0.25rem 0 0;
-  background: rgba(30, 30, 30, 0.9);
-  color: #e0e0e0;
-  cursor: pointer;
-  font-size: 0.8125rem;
-}
-
-.metadata-toggle:hover {
-  background: rgba(50, 50, 50, 0.95);
 }
 
 .metadata-content {

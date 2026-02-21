@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
+import { nextTick } from 'vue'
+import { NSelect, NButton } from 'naive-ui'
 import PresetSelector from '../PresetSelector.vue'
 import type { Preset } from '../../api/types'
 
@@ -55,25 +57,25 @@ describe('PresetSelector', () => {
     vi.clearAllMocks()
   })
 
-  it('renders a select element with label', async () => {
+  it('renders a NSelect component with label', async () => {
     mockGetPresets.mockResolvedValue(samplePresets)
     const wrapper = mount(PresetSelector, { props: defaultProps })
     await flushPromises()
 
     expect(wrapper.find('label').text()).toBe('Preset')
-    expect(wrapper.find('select').exists()).toBe(true)
+    expect(wrapper.findComponent(NSelect).exists()).toBe(true)
   })
 
-  it('populates dropdown with presets after loading', async () => {
+  it('populates NSelect with preset options after loading', async () => {
     mockGetPresets.mockResolvedValue(samplePresets)
     const wrapper = mount(PresetSelector, { props: defaultProps })
     await flushPromises()
 
-    const options = wrapper.findAll('option')
-    // 1 placeholder + 2 presets
-    expect(options).toHaveLength(3)
-    expect(options[1].text()).toBe('Config A')
-    expect(options[2].text()).toBe('Config B')
+    const select = wrapper.findComponent(NSelect)
+    const options = select.props('options') as Array<{ label: string; value: string }>
+    expect(options).toHaveLength(2)
+    expect(options[0].label).toBe('Config A')
+    expect(options[1].label).toBe('Config B')
   })
 
   it('shows loading state while fetching', async () => {
@@ -81,8 +83,9 @@ describe('PresetSelector', () => {
     const wrapper = mount(PresetSelector, { props: defaultProps })
     await flushPromises()
 
-    const select = wrapper.find('select')
-    expect((select.element as HTMLSelectElement).disabled).toBe(true)
+    const select = wrapper.findComponent(NSelect)
+    expect(select.props('disabled')).toBe(true)
+    expect(select.props('loading')).toBe(true)
   })
 
   it('displays error message when API call fails', async () => {
@@ -100,7 +103,9 @@ describe('PresetSelector', () => {
     const wrapper = mount(PresetSelector, { props: defaultProps })
     await flushPromises()
 
-    await wrapper.find('select').setValue('p1')
+    const select = wrapper.findComponent(NSelect)
+    select.vm.$emit('update:value', 'p1')
+    await nextTick()
 
     const emitted = wrapper.emitted('load')
     expect(emitted).toBeDefined()
@@ -121,7 +126,9 @@ describe('PresetSelector', () => {
     const wrapper = mount(PresetSelector, { props: defaultProps })
     await flushPromises()
 
-    await wrapper.find('select').setValue('p3')
+    const select = wrapper.findComponent(NSelect)
+    select.vm.$emit('update:value', 'p3')
+    await nextTick()
 
     const emitted = wrapper.emitted('load')
     expect(emitted).toBeDefined()
@@ -144,7 +151,9 @@ describe('PresetSelector', () => {
     const wrapper = mount(PresetSelector, { props: defaultProps })
     await flushPromises()
 
-    await wrapper.find('.save-btn').trigger('click')
+    const buttons = wrapper.findAllComponents(NButton)
+    const saveBtn = buttons.find((b) => b.attributes('aria-label') === 'Save preset')!
+    await saveBtn.trigger('click')
     await flushPromises()
 
     expect(mockCreatePreset).toHaveBeenCalledWith('My Preset', {
@@ -164,7 +173,9 @@ describe('PresetSelector', () => {
     const wrapper = mount(PresetSelector, { props: defaultProps })
     await flushPromises()
 
-    await wrapper.find('.save-btn').trigger('click')
+    const buttons = wrapper.findAllComponents(NButton)
+    const saveBtn = buttons.find((b) => b.attributes('aria-label') === 'Save preset')!
+    await saveBtn.trigger('click')
     await flushPromises()
 
     expect(mockCreatePreset).not.toHaveBeenCalled()
@@ -177,8 +188,9 @@ describe('PresetSelector', () => {
     })
     await flushPromises()
 
-    const saveBtn = wrapper.find('.save-btn')
-    expect((saveBtn.element as HTMLButtonElement).disabled).toBe(true)
+    const buttons = wrapper.findAllComponents(NButton)
+    const saveBtn = buttons.find((b) => b.attributes('aria-label') === 'Save preset')!
+    expect(saveBtn.props('disabled')).toBe(true)
   })
 
   it('delete button appears when a preset is selected and calls deletePreset', async () => {
@@ -188,13 +200,16 @@ describe('PresetSelector', () => {
     await flushPromises()
 
     // No delete button initially
-    expect(wrapper.find('.delete-btn').exists()).toBe(false)
+    const deleteButtons = wrapper.findAllComponents(NButton).filter((b) => b.attributes('aria-label') === 'Delete preset')
+    expect(deleteButtons).toHaveLength(0)
 
     // Select a preset
-    await wrapper.find('select').setValue('p1')
+    const select = wrapper.findComponent(NSelect)
+    select.vm.$emit('update:value', 'p1')
+    await nextTick()
 
     // Delete button appears
-    const deleteBtn = wrapper.find('.delete-btn')
+    const deleteBtn = wrapper.findAllComponents(NButton).find((b) => b.attributes('aria-label') === 'Delete preset')!
     expect(deleteBtn.exists()).toBe(true)
 
     await deleteBtn.trigger('click')
@@ -211,10 +226,17 @@ describe('PresetSelector', () => {
     const wrapper = mount(PresetSelector, { props: defaultProps })
     await flushPromises()
 
-    expect(wrapper.find('.save-btn').attributes('aria-label')).toBe('Save preset')
+    const buttons = wrapper.findAllComponents(NButton)
+    const saveBtn = buttons.find((b) => b.attributes('aria-label') === 'Save preset')
+    expect(saveBtn).toBeDefined()
 
-    await wrapper.find('select').setValue('p1')
-    expect(wrapper.find('.delete-btn').attributes('aria-label')).toBe('Delete preset')
+    // Select a preset to show delete button
+    const select = wrapper.findComponent(NSelect)
+    select.vm.$emit('update:value', 'p1')
+    await nextTick()
+
+    const deleteBtn = wrapper.findAllComponents(NButton).find((b) => b.attributes('aria-label') === 'Delete preset')
+    expect(deleteBtn).toBeDefined()
   })
 
   afterAll(() => {

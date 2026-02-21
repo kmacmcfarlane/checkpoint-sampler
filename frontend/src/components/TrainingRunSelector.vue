@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
+import { NSelect, NCheckbox } from 'naive-ui'
 import type { TrainingRun } from '../api/types'
 import { apiClient } from '../api/client'
 
@@ -12,6 +13,13 @@ const hasSamplesFilter = ref(true)
 const emit = defineEmits<{
   select: [trainingRun: TrainingRun]
 }>()
+
+const selectOptions = computed(() =>
+  trainingRuns.value.map((run) => ({
+    label: run.name,
+    value: run.id,
+  }))
+)
 
 async function fetchTrainingRuns() {
   loading.value = true
@@ -33,15 +41,13 @@ onMounted(fetchTrainingRuns)
 
 watch(hasSamplesFilter, fetchTrainingRuns)
 
-function onSelect(event: Event) {
-  const target = event.target as HTMLSelectElement
-  const id = Number(target.value)
-  if (isNaN(id)) {
+function onSelect(value: number | null) {
+  if (value === null) {
     selectedId.value = null
     return
   }
-  selectedId.value = id
-  const run = trainingRuns.value.find((r) => r.id === id)
+  selectedId.value = value
+  const run = trainingRuns.value.find((r) => r.id === value)
   if (run) {
     emit('select', run)
   }
@@ -51,31 +57,23 @@ function onSelect(event: Event) {
 <template>
   <div class="training-run-selector">
     <label for="training-run-select">Training Run</label>
-    <select
-      id="training-run-select"
-      :value="selectedId ?? ''"
+    <NSelect
+      :value="selectedId"
+      :options="selectOptions"
       :disabled="loading || trainingRuns.length === 0"
-      @change="onSelect"
+      :placeholder="loading ? 'Loading...' : 'Select a training run'"
+      :loading="loading"
+      style="min-width: 200px"
+      size="small"
+      @update:value="onSelect"
+    />
+    <NCheckbox
+      :checked="hasSamplesFilter"
+      data-testid="has-samples-checkbox"
+      @update:checked="hasSamplesFilter = $event"
     >
-      <option value="" disabled>
-        {{ loading ? 'Loading...' : 'Select a training run' }}
-      </option>
-      <option
-        v-for="run in trainingRuns"
-        :key="run.id"
-        :value="run.id"
-      >
-        {{ run.name }}
-      </option>
-    </select>
-    <label class="has-samples-filter">
-      <input
-        type="checkbox"
-        v-model="hasSamplesFilter"
-        data-testid="has-samples-checkbox"
-      />
       Has samples
-    </label>
+    </NCheckbox>
     <p v-if="error" class="error" role="alert">{{ error }}</p>
   </div>
 </template>
@@ -90,23 +88,6 @@ function onSelect(event: Event) {
 .training-run-selector label {
   font-weight: 600;
   white-space: nowrap;
-}
-
-.training-run-selector select {
-  padding: 0.25rem 0.5rem;
-  font-size: 0.875rem;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  min-width: 200px;
-}
-
-.has-samples-filter {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  font-weight: 400;
-  font-size: 0.875rem;
-  cursor: pointer;
 }
 
 .training-run-selector .error {
