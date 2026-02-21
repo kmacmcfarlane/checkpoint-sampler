@@ -1,0 +1,20 @@
+# Checkpoint Sampler configuration
+# Override path with CONFIG_PATH environment variable.
+
+# Directories to recursively scan for .safetensors checkpoint files.
+# Multiple directories can be specified.
+checkpoint_dirs:
+  - /data/checkpoints
+
+# Directory where ComfyUI sample image output directories live.
+# Each subdirectory is named after the checkpoint filename (exact match).
+sample_dir: /data/samples
+
+# Backend server port
+port: 8080
+
+# Bind address (use 0.0.0.0 for LAN access)
+ip_address: "0.0.0.0"
+
+# SQLite database path (relative to working directory)
+db_path: ./data/checkpoint-sampler.db

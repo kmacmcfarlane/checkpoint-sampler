@@ -7,13 +7,14 @@ services:
     volumes:
       - ./backend:/build
       - backend_data:/build/data
-      - ./config.toml:/build/config.toml:ro
-      - ${DATASET_ROOT:-./.dataset-placeholder}:/data/dataset:ro
+      - ./config.yaml:/build/config.yaml:ro
+      - ${CHECKPOINT_DIR:-./.dataset-placeholder}:/data/checkpoints:ro
+      - ${SAMPLE_DIR:-./.dataset-placeholder}:/data/samples:ro
       - backend_go_cache:/home/gouser/.cache/go-build
       - backend_go_mod_cache:/home/gouser/go/pkg/mod
     environment:
       - PORT=8080
-      - CONFIG_PATH=/build/config.toml
+      - CONFIG_PATH=/build/config.yaml
       - GOPATH=/home/gouser/go
       - GOCACHE=/home/gouser/.cache/go-build
       - GOMODCACHE=/home/gouser/go/pkg/mod

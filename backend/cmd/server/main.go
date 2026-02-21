@@ -58,14 +58,15 @@ func run() error {
 		return fmt.Errorf("reading openapi spec at %s: %w", specPath, err)
 	}
 
-	// Create filesystem and scanner
+	// Create filesystem, discovery, and scanner services
 	fs := store.NewFileSystem()
-	scanner := service.NewScanner(fs, cfg.Root)
+	discovery := service.NewDiscoveryService(fs, cfg.CheckpointDirs, cfg.SampleDir)
+	scanner := service.NewScanner(fs, cfg.SampleDir)
 
 	// Create service implementations
 	healthSvc := api.NewHealthService()
 	docsSvc := api.NewDocsService(spec)
-	trainingRunsSvc := api.NewTrainingRunsService(cfg.TrainingRuns, scanner)
+	trainingRunsSvc := api.NewTrainingRunsService(discovery, scanner)
 	presetSvc := service.NewPresetService(st)
 	presetsSvc := api.NewPresetsService(presetSvc)
 
@@ -91,8 +92,8 @@ func run() error {
 	trainingRunsServer.Mount(mux)
 	presetsServer.Mount(mux)
 
-	// Mount image serving handler
-	imageHandler := api.NewImageHandler(cfg.Root)
+	// Mount image serving handler (serves from sample_dir)
+	imageHandler := api.NewImageHandler(cfg.SampleDir)
 	mux.Handle("GET", "/api/images/{*filepath}", imageHandler.ServeHTTP)
 
 	// Redirect /docs to /docs/ for the Swagger UI

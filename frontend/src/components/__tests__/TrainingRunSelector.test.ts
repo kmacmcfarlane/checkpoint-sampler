@@ -19,14 +19,22 @@ const sampleRuns: TrainingRun[] = [
   {
     id: 0,
     name: 'psai4rt v0.3.0 qwen',
-    pattern: '^psyart/qwen/.+',
-    dimensions: [{ name: 'step', type: 'int', pattern: '-steps-(\\d+)-' }],
+    checkpoint_count: 3,
+    has_samples: true,
+    checkpoints: [
+      { filename: 'psai4rt-v0.3.0-step00001000.safetensors', step_number: 1000, has_samples: true },
+      { filename: 'psai4rt-v0.3.0-step00002000.safetensors', step_number: 2000, has_samples: true },
+      { filename: 'psai4rt-v0.3.0.safetensors', step_number: 2000, has_samples: false },
+    ],
   },
   {
     id: 1,
     name: 'sdxl finetune',
-    pattern: '^sdxl/.+',
-    dimensions: [],
+    checkpoint_count: 1,
+    has_samples: true,
+    checkpoints: [
+      { filename: 'sdxl-finetune.safetensors', step_number: -1, has_samples: true },
+    ],
   },
 ]
 
@@ -96,5 +104,81 @@ describe('TrainingRunSelector', () => {
     await flushPromises()
 
     expect((wrapper.find('select').element as HTMLSelectElement).disabled).toBe(true)
+  })
+
+  describe('has-samples filter', () => {
+    it('renders a has-samples checkbox that is checked by default', async () => {
+      mockGetTrainingRuns.mockResolvedValue(sampleRuns)
+      const wrapper = mount(TrainingRunSelector)
+      await flushPromises()
+
+      const checkbox = wrapper.find('[data-testid="has-samples-checkbox"]')
+      expect(checkbox.exists()).toBe(true)
+      expect((checkbox.element as HTMLInputElement).checked).toBe(true)
+    })
+
+    it('calls getTrainingRuns with has_samples=true on initial load', async () => {
+      mockGetTrainingRuns.mockResolvedValue(sampleRuns)
+      mount(TrainingRunSelector)
+      await flushPromises()
+
+      expect(mockGetTrainingRuns).toHaveBeenCalledWith(true)
+    })
+
+    it('re-fetches with has_samples=false when checkbox is unchecked', async () => {
+      mockGetTrainingRuns.mockResolvedValue(sampleRuns)
+      const wrapper = mount(TrainingRunSelector)
+      await flushPromises()
+
+      mockGetTrainingRuns.mockClear()
+      mockGetTrainingRuns.mockResolvedValue(sampleRuns)
+
+      const checkbox = wrapper.find('[data-testid="has-samples-checkbox"]')
+      await checkbox.setValue(false)
+      await flushPromises()
+
+      expect(mockGetTrainingRuns).toHaveBeenCalledWith(false)
+    })
+
+    it('re-fetches with has_samples=true when checkbox is re-checked', async () => {
+      mockGetTrainingRuns.mockResolvedValue(sampleRuns)
+      const wrapper = mount(TrainingRunSelector)
+      await flushPromises()
+
+      // Uncheck
+      const checkbox = wrapper.find('[data-testid="has-samples-checkbox"]')
+      mockGetTrainingRuns.mockClear()
+      mockGetTrainingRuns.mockResolvedValue([])
+      await checkbox.setValue(false)
+      await flushPromises()
+
+      // Re-check
+      mockGetTrainingRuns.mockClear()
+      mockGetTrainingRuns.mockResolvedValue(sampleRuns)
+      await checkbox.setValue(true)
+      await flushPromises()
+
+      expect(mockGetTrainingRuns).toHaveBeenCalledWith(true)
+    })
+
+    it('resets selection when filter changes', async () => {
+      mockGetTrainingRuns.mockResolvedValue(sampleRuns)
+      const wrapper = mount(TrainingRunSelector)
+      await flushPromises()
+
+      // Select a run
+      await wrapper.find('select').setValue('0')
+      expect(wrapper.emitted('select')).toHaveLength(1)
+
+      // Toggle filter
+      mockGetTrainingRuns.mockResolvedValue([])
+      const checkbox = wrapper.find('[data-testid="has-samples-checkbox"]')
+      await checkbox.setValue(false)
+      await flushPromises()
+
+      // Select should be back to placeholder
+      const select = wrapper.find('select')
+      expect((select.element as HTMLSelectElement).value).toBe('')
+    })
   })
 })

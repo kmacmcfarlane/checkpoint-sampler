@@ -8,7 +8,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -21,44 +20,38 @@ import (
 	genhealthsvr "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/http/health/server"
 	gentrainingrunssvr "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/http/training_runs/server"
 	gentrainingruns "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/training_runs"
-	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/model"
 	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/service"
 	goahttp "goa.design/goa/v3/http"
 )
 
 var _ = Describe("Server integration", func() {
 	var (
-		server  *httptest.Server
-		client  *http.Client
-		fs      *fakeFS
-		root    string
-		scanner *service.Scanner
+		server      *httptest.Server
+		client      *http.Client
+		discoveryFS *fakeDiscoveryFS
+		scanFS      *fakeScanFS
+		sampleDir   string
 	)
 
 	specJSON := []byte(`{"openapi":"3.0.0","info":{"title":"Checkpoint Sampler","version":"0.1.0"}}`)
 
-	testTrainingRuns := []model.TrainingRunConfig{
-		{
-			Name:    "test-run",
-			Pattern: regexp.MustCompile(`^test/.+`),
-			Dimensions: []model.DimensionConfig{
-				{
-					Name:    "step",
-					Type:    model.DimensionTypeInt,
-					Pattern: regexp.MustCompile(`-steps-(\d+)-`),
-				},
-			},
-		},
-	}
-
 	BeforeEach(func() {
-		root = "/data/dataset"
-		fs = newFakeFS()
-		scanner = service.NewScanner(fs, root)
+		sampleDir = "/samples"
+		discoveryFS = newFakeDiscoveryFS()
+		scanFS = newFakeScanFS()
+
+		// Set up a default training run for integration tests
+		discoveryFS.files["/checkpoints"] = []string{
+			"test-run-step00001000.safetensors",
+		}
+		discoveryFS.dirs["/samples/test-run-step00001000.safetensors"] = true
+
+		discovery := service.NewDiscoveryService(discoveryFS, []string{"/checkpoints"}, sampleDir)
+		scanner := service.NewScanner(scanFS, sampleDir)
 
 		healthSvc := api.NewHealthService()
 		docsSvc := api.NewDocsService(specJSON)
-		trainingRunsSvc := api.NewTrainingRunsService(testTrainingRuns, scanner)
+		trainingRunsSvc := api.NewTrainingRunsService(discovery, scanner)
 
 		healthEndpoints := genhealth.NewEndpoints(healthSvc)
 		docsEndpoints := gendocs.NewEndpoints(docsSvc)
@@ -151,16 +144,8 @@ var _ = Describe("Server integration", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result).To(HaveLen(1))
 			Expect(result[0]["name"]).To(Equal("test-run"))
-			Expect(result[0]["pattern"]).To(Equal(`^test/.+`))
-
-			dims, ok := result[0]["dimensions"].([]interface{})
-			Expect(ok).To(BeTrue())
-			Expect(dims).To(HaveLen(1))
-
-			dim, ok := dims[0].(map[string]interface{})
-			Expect(ok).To(BeTrue())
-			Expect(dim["name"]).To(Equal("step"))
-			Expect(dim["type"]).To(Equal("int"))
+			Expect(result[0]["has_samples"]).To(BeTrue())
+			Expect(result[0]["checkpoint_count"]).To(BeNumerically("==", 1))
 		})
 
 		It("includes CORS headers", func() {
@@ -174,8 +159,7 @@ var _ = Describe("Server integration", func() {
 
 	Describe("GET /api/training-runs/{id}/scan", func() {
 		It("returns 200 with scan results", func() {
-			fs.dirs[root] = []string{"test/run-steps-500-ckpt"}
-			fs.files["/data/dataset/test/run-steps-500-ckpt"] = []string{
+			scanFS.files["/samples/test-run-step00001000.safetensors"] = []string{
 				"seed=1&cfg=3&_00001_.png",
 			}
 

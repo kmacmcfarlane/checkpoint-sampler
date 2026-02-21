@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 )
 
@@ -16,41 +15,39 @@ func NewFileSystem() *FileSystem {
 	return &FileSystem{}
 }
 
-// ListDirectories walks the directory tree under root and returns relative
-// paths of directories whose relative path matches the given pattern.
-func (fs *FileSystem) ListDirectories(root string, pattern *regexp.Regexp) ([]string, error) {
-	var dirs []string
+// ListSafetensorsFiles recursively scans root for .safetensors files and returns
+// their paths relative to root.
+func (fs *FileSystem) ListSafetensorsFiles(root string) ([]string, error) {
+	var files []string
 
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
-		if !info.IsDir() {
+		if info.IsDir() {
 			return nil
 		}
 
-		relPath, err := filepath.Rel(root, path)
-		if err != nil {
-			return err
-		}
-		// Skip the root directory itself
-		if relPath == "." {
-			return nil
-		}
-
-		// Normalize to forward slashes for pattern matching
-		relPath = filepath.ToSlash(relPath)
-
-		if pattern.MatchString(relPath) {
-			dirs = append(dirs, relPath)
+		if strings.EqualFold(filepath.Ext(path), ".safetensors") {
+			relPath, err := filepath.Rel(root, path)
+			if err != nil {
+				return err
+			}
+			files = append(files, filepath.ToSlash(relPath))
 		}
 		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("walking directory tree: %w", err)
+		return nil, fmt.Errorf("scanning for safetensors files: %w", err)
 	}
 
-	return dirs, nil
+	return files, nil
+}
+
+// DirectoryExists reports whether the given path exists and is a directory.
+func (fs *FileSystem) DirectoryExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
 }
 
 // ListPNGFiles returns the names of .png files in the given directory.

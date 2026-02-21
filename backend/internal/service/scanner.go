@@ -15,42 +15,32 @@ import (
 // batchPattern matches the _NNNNN_ suffix in ComfyUI filenames.
 var batchPattern = regexp.MustCompile(`_(\d+)_$`)
 
-// FileSystem defines the operations the scanner needs from the filesystem.
-type FileSystem interface {
-	// ListDirectories returns relative directory paths under root that match
-	// the given pattern. Paths are relative to root.
-	ListDirectories(root string, pattern *regexp.Regexp) ([]string, error)
-	// ListPNGFiles returns the names of .png files in the given directory.
+// ScannerFileSystem defines the operations the scanner needs from the filesystem.
+type ScannerFileSystem interface {
 	ListPNGFiles(dir string) ([]string, error)
 }
 
-// Scanner scans training run directories and discovers images with dimensions.
+// Scanner scans sample directories for a training run's checkpoints and discovers
+// images with dimensions.
 type Scanner struct {
-	fs   FileSystem
-	root string
+	fs        ScannerFileSystem
+	sampleDir string
 }
 
-// NewScanner creates a Scanner backed by the given filesystem and dataset root.
-func NewScanner(fs FileSystem, root string) *Scanner {
-	return &Scanner{fs: fs, root: root}
+// NewScanner creates a Scanner backed by the given filesystem and sample directory.
+func NewScanner(fs ScannerFileSystem, sampleDir string) *Scanner {
+	return &Scanner{fs: fs, sampleDir: sampleDir}
 }
 
-// Scan discovers images and dimensions for the given training run configuration.
-func (s *Scanner) Scan(tr model.TrainingRunConfig) (*model.ScanResult, error) {
-	dirs, err := s.fs.ListDirectories(s.root, tr.Pattern)
-	if err != nil {
-		return nil, fmt.Errorf("listing directories: %w", err)
-	}
-
+// ScanTrainingRun discovers images and dimensions for a training run by scanning
+// the sample directories for each checkpoint that has samples.
+func (s *Scanner) ScanTrainingRun(tr model.TrainingRun) (*model.ScanResult, error) {
 	// Track unique dimension values: dimName → set of values
 	dimValues := make(map[string]map[string]struct{})
-	// Track dimension types for directory dimensions
 	dimTypes := make(map[string]model.DimensionType)
 
-	// Register directory dimension names
-	for _, dc := range tr.Dimensions {
-		dimTypes[dc.Name] = dc.Type
-	}
+	// The checkpoint dimension is always int type
+	dimTypes["checkpoint"] = model.DimensionTypeInt
 
 	// key → image for deduplication (highest batch number wins)
 	type imageEntry struct {
@@ -59,20 +49,25 @@ func (s *Scanner) Scan(tr model.TrainingRunConfig) (*model.ScanResult, error) {
 	}
 	imageMap := make(map[string]imageEntry)
 
-	for _, relDir := range dirs {
-		// Extract directory dimensions
-		dirDims := extractDirectoryDimensions(relDir, tr.Dimensions)
-		for name, val := range dirDims {
-			if dimValues[name] == nil {
-				dimValues[name] = make(map[string]struct{})
-			}
-			dimValues[name][val] = struct{}{}
+	for _, cp := range tr.Checkpoints {
+		if !cp.HasSamples {
+			continue
 		}
 
-		absDir := filepath.Join(s.root, relDir)
-		files, err := s.fs.ListPNGFiles(absDir)
+		// Checkpoint dimension value
+		checkpointValue := strconv.Itoa(cp.StepNumber)
+
+		// Track checkpoint dimension value
+		if dimValues["checkpoint"] == nil {
+			dimValues["checkpoint"] = make(map[string]struct{})
+		}
+		dimValues["checkpoint"][checkpointValue] = struct{}{}
+
+		// Scan the sample directory for this checkpoint
+		sampleDirPath := filepath.Join(s.sampleDir, cp.Filename)
+		files, err := s.fs.ListPNGFiles(sampleDirPath)
 		if err != nil {
-			return nil, fmt.Errorf("listing PNG files in %s: %w", relDir, err)
+			return nil, fmt.Errorf("listing PNG files for checkpoint %q: %w", cp.Filename, err)
 		}
 
 		for _, filename := range files {
@@ -81,11 +76,9 @@ func (s *Scanner) Scan(tr model.TrainingRunConfig) (*model.ScanResult, error) {
 				continue
 			}
 
-			// Merge directory + file dimensions
+			// Merge checkpoint dimension + file dimensions
 			allDims := make(map[string]string)
-			for k, v := range dirDims {
-				allDims[k] = v
-			}
+			allDims["checkpoint"] = checkpointValue
 			for k, v := range fileDims {
 				allDims[k] = v
 			}
@@ -97,7 +90,6 @@ func (s *Scanner) Scan(tr model.TrainingRunConfig) (*model.ScanResult, error) {
 				}
 				dimValues[name][val] = struct{}{}
 				if _, exists := dimTypes[name]; !exists {
-					// Infer type: if parseable as int, use int; otherwise string
 					if _, err := strconv.Atoi(val); err == nil {
 						dimTypes[name] = model.DimensionTypeInt
 					} else {
@@ -109,7 +101,8 @@ func (s *Scanner) Scan(tr model.TrainingRunConfig) (*model.ScanResult, error) {
 			// Build dedup key from all dimensions except batch
 			dedupKey := buildDedupKey(allDims)
 
-			relPath := filepath.Join(relDir, filename)
+			// Relative path: checkpoint_filename/image_filename
+			relPath := filepath.Join(cp.Filename, filename)
 
 			existing, found := imageMap[dedupKey]
 			if !found || batchNum > existing.batchNum {
@@ -129,7 +122,6 @@ func (s *Scanner) Scan(tr model.TrainingRunConfig) (*model.ScanResult, error) {
 	for _, entry := range imageMap {
 		images = append(images, entry.image)
 	}
-	// Sort images by relative path for deterministic output
 	sort.Slice(images, func(i, j int) bool {
 		return images[i].RelativePath < images[j].RelativePath
 	})
@@ -159,7 +151,6 @@ func parseFilename(filename string) (dims map[string]string, batchNum int) {
 	batchNum = 0
 	if m := batchPattern.FindStringSubmatch(name); m != nil {
 		batchNum, _ = strconv.Atoi(m[1])
-		// Remove the batch suffix from the name before parsing dimensions
 		name = name[:len(name)-len(m[0])]
 	}
 
@@ -188,18 +179,6 @@ func parseFilename(filename string) (dims map[string]string, batchNum int) {
 	}
 
 	return dims, batchNum
-}
-
-// extractDirectoryDimensions applies regex capture groups to extract
-// dimension values from a directory path.
-func extractDirectoryDimensions(relDir string, dimConfigs []model.DimensionConfig) map[string]string {
-	dims := make(map[string]string)
-	for _, dc := range dimConfigs {
-		if m := dc.Pattern.FindStringSubmatch(relDir); len(m) > 1 {
-			dims[dc.Name] = m[1]
-		}
-	}
-	return dims
 }
 
 // buildDedupKey creates a stable deduplication key from dimension values.
@@ -235,7 +214,6 @@ func buildDimensions(dimValues map[string]map[string]struct{}, dimTypes map[stri
 			Values: vals,
 		})
 	}
-	// Sort dimensions by name for deterministic output
 	sort.Slice(dimensions, func(i, j int) bool {
 		return dimensions[i].Name < dimensions[j].Name
 	})

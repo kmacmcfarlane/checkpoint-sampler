@@ -15,19 +15,20 @@ export interface HealthStatus {
   status: string
 }
 
-/** Dimension extraction configuration for a training run. */
-export interface DimensionConfig {
-  name: string
-  type: 'int' | 'string'
-  pattern: string
+/** A checkpoint file within a training run. */
+export interface CheckpointInfo {
+  filename: string
+  step_number: number
+  has_samples: boolean
 }
 
-/** A configured training run. */
+/** An auto-discovered training run. */
 export interface TrainingRun {
   id: number
   name: string
-  pattern: string
-  dimensions: DimensionConfig[]
+  checkpoint_count: number
+  has_samples: boolean
+  checkpoints: CheckpointInfo[]
 }
 
 /** An image returned from a scan. */

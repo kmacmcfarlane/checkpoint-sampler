@@ -44,3 +44,6 @@ logs/
 
 # Dataset placeholder for Docker Compose
 .dataset-placeholder/
+
+# Local config (gitignored; use config.yaml.example as template)
+config.yaml
