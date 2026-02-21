@@ -539,7 +539,7 @@ stories:
   - id: S-025
     title: "Main slider layout improvements"
     priority: 4
-    done: false
+    done: true
     blocked: false
     blocked_reason: ""
     requires: [R-002]

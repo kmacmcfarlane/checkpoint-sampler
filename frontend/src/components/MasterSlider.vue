@@ -44,11 +44,13 @@ function onKeydown(event: KeyboardEvent) {
 
 // Playback state
 const playing = ref(false)
-const loop = ref(false)
+const loop = ref(true)
 const speedMs = ref(1000)
 let timerId: ReturnType<typeof setInterval> | null = null
 
 const speedOptions = [
+  { label: '0.25s', value: 250 },
+  { label: '0.33s', value: 330 },
   { label: '0.5s', value: 500 },
   { label: '1s', value: 1000 },
   { label: '2s', value: 2000 },
@@ -124,26 +126,28 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="master-slider" role="group" :aria-label="`Master ${dimensionName} slider`" tabindex="0" @keydown="onKeydown">
-    <label class="master-slider__label">
-      {{ dimensionName }}
-    </label>
-    <NSlider
-      :value="currentIndex"
-      :min="0"
-      :max="Math.max(0, values.length - 1)"
-      :step="1"
-      :tooltip="false"
-      :aria-label="`Master ${dimensionName}`"
-      class="master-slider__slider"
-      @update:value="onUpdate"
-    />
-    <span class="master-slider__value">{{ currentValue }}</span>
-    <div class="master-slider__playback">
+    <div class="master-slider__main">
+      <label class="master-slider__label">
+        {{ dimensionName }}
+      </label>
+      <NSlider
+        :value="currentIndex"
+        :min="0"
+        :max="Math.max(0, values.length - 1)"
+        :step="1"
+        :tooltip="false"
+        :aria-label="`Master ${dimensionName}`"
+        class="master-slider__slider"
+        @update:value="onUpdate"
+      />
+      <span class="master-slider__value">{{ currentValue }}</span>
       <NButton
         size="small"
         :aria-label="playing ? 'Pause playback' : 'Play playback'"
         @click="togglePlayback"
       >{{ playing ? 'Pause' : 'Play' }}</NButton>
+    </div>
+    <div v-if="playing" class="master-slider__loop-controls">
       <NCheckbox
         :checked="loop"
         aria-label="Loop playback"
@@ -166,35 +170,52 @@ onBeforeUnmount(() => {
 <style scoped>
 .master-slider {
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
+  flex-direction: column;
+  gap: 0.5rem;
   padding: 0.5rem 0;
   border-bottom: 1px solid var(--border-color, #e0e0e0);
   margin-bottom: 0.5rem;
-  flex-wrap: wrap;
+  width: 100%;
+}
+
+.master-slider__main {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
 }
 
 .master-slider__label {
   font-weight: 600;
   font-size: 0.875rem;
-  min-width: 5rem;
+  white-space: nowrap;
 }
 
 .master-slider__slider {
   flex: 1;
-  max-width: 400px;
+  min-width: 0;
 }
 
 .master-slider__value {
   font-size: 0.875rem;
   color: var(--text-secondary, #666);
-  min-width: 4rem;
-  text-align: right;
+  white-space: nowrap;
 }
 
-.master-slider__playback {
+.master-slider__loop-controls {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+}
+
+@media (max-width: 599px) {
+  .master-slider__main {
+    flex-wrap: wrap;
+  }
+
+  .master-slider__slider {
+    order: 2;
+    flex-basis: 100%;
+  }
 }
 </style>

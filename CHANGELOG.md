@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-025: Main slider layout improvements
+- frontend/src/components/MasterSlider.vue: Slider is now 100% width of the main content area (removed max-width: 400px constraint); slider fills all available horizontal space via flex: 1
+- frontend/src/components/MasterSlider.vue: Play button moved inline with the slider in a single row layout; on small mobile (≤599px) the slider stacks below the label and play button via flex-wrap
+- frontend/src/components/MasterSlider.vue: Loop controls (loop checkbox + speed selector) are now hidden by default; pressing Play reveals them, stopping playback hides them (v-if="playing")
+- frontend/src/components/MasterSlider.vue: Loop is now enabled by default (was disabled)
+- frontend/src/components/MasterSlider.vue: Added 0.25s (250ms) and 0.33s (330ms) speed options; full set: 0.25s, 0.33s, 0.5s, 1s (default), 2s, 3s
+- frontend/src/App.vue: Master slider remains sticky-positioned at top of viewport (position: sticky, top: 0, z-index: 10) — unchanged from S-024
+- 39 MasterSlider tests: updated loop checkbox default to checked, updated speed options to 6 entries, added tests for play/stop visibility toggle of loop controls, inline play button in main row, slider full-width layout, all existing keyboard/playback tests updated for new structure
+
 ### S-024: X/Y grid improvements
 - frontend/src/components/XYGrid.vue: Removed independent grid overflow (no max-height or overflow:auto on grid container); entire page scrolls together instead of the grid scrolling independently
 - frontend/src/components/XYGrid.vue: Grid cells now have explicit width/height styles derived from resizable cell dimensions (default 200px)
