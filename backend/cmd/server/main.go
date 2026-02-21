@@ -16,7 +16,9 @@ import (
 	genhealth "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/health"
 	gendocssvr "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/http/docs/server"
 	genhealthsvr "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/http/health/server"
+	genpresetssvr "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/http/presets/server"
 	gentrainingrunssvr "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/http/training_runs/server"
+	genpresets "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/presets"
 	gentrainingruns "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/training_runs"
 	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/config"
 	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/service"
@@ -64,11 +66,14 @@ func run() error {
 	healthSvc := api.NewHealthService()
 	docsSvc := api.NewDocsService(spec)
 	trainingRunsSvc := api.NewTrainingRunsService(cfg.TrainingRuns, scanner)
+	presetSvc := service.NewPresetService(st)
+	presetsSvc := api.NewPresetsService(presetSvc)
 
 	// Create Goa endpoints
 	healthEndpoints := genhealth.NewEndpoints(healthSvc)
 	docsEndpoints := gendocs.NewEndpoints(docsSvc)
 	trainingRunsEndpoints := gentrainingruns.NewEndpoints(trainingRunsSvc)
+	presetsEndpoints := genpresets.NewEndpoints(presetsSvc)
 
 	// Create Goa mux and mount handlers
 	mux := goahttp.NewMuxer()
@@ -79,10 +84,12 @@ func run() error {
 	healthServer := genhealthsvr.New(healthEndpoints, mux, dec, enc, nil, nil)
 	docsServer := gendocssvr.New(docsEndpoints, mux, dec, enc, nil, nil, http.Dir(swaggerUIDir()))
 	trainingRunsServer := gentrainingrunssvr.New(trainingRunsEndpoints, mux, dec, enc, nil, nil)
+	presetsServer := genpresetssvr.New(presetsEndpoints, mux, dec, enc, nil, nil)
 
 	healthServer.Mount(mux)
 	docsServer.Mount(mux)
 	trainingRunsServer.Mount(mux)
+	presetsServer.Mount(mux)
 
 	// Mount image serving handler
 	imageHandler := api.NewImageHandler(cfg.Root)

@@ -239,6 +239,95 @@ describe('ApiClient', () => {
     })
   })
 
+  describe('getPresets', () => {
+    it('fetches presets from /api/presets', async () => {
+      const client = new ApiClient({ baseUrl: 'http://localhost:8080/api' })
+      const presets = [
+        { id: 'p1', name: 'Config A', mapping: { combos: [] }, created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-01T00:00:00Z' },
+      ]
+      mockFetch({ json: () => Promise.resolve(presets) })
+
+      const result = await client.getPresets()
+
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        'http://localhost:8080/api/presets',
+        undefined,
+      )
+      expect(result).toEqual(presets)
+    })
+  })
+
+  describe('createPreset', () => {
+    it('posts a new preset to /api/presets', async () => {
+      const client = new ApiClient({ baseUrl: 'http://localhost:8080/api' })
+      const created = { id: 'new', name: 'Test', mapping: { x: 'cfg', combos: [] }, created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-01T00:00:00Z' }
+      mockFetch({ json: () => Promise.resolve(created) })
+
+      const result = await client.createPreset('Test', { x: 'cfg', combos: [] })
+
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        'http://localhost:8080/api/presets',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ name: 'Test', mapping: { x: 'cfg', combos: [] } }),
+        }),
+      )
+      expect(result).toEqual(created)
+    })
+  })
+
+  describe('updatePreset', () => {
+    it('puts an updated preset to /api/presets/{id}', async () => {
+      const client = new ApiClient({ baseUrl: 'http://localhost:8080/api' })
+      const updated = { id: 'p1', name: 'Renamed', mapping: { combos: ['seed'] }, created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-02T00:00:00Z' }
+      mockFetch({ json: () => Promise.resolve(updated) })
+
+      const result = await client.updatePreset('p1', 'Renamed', { combos: ['seed'] })
+
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        'http://localhost:8080/api/presets/p1',
+        expect.objectContaining({
+          method: 'PUT',
+          body: JSON.stringify({ name: 'Renamed', mapping: { combos: ['seed'] } }),
+        }),
+      )
+      expect(result).toEqual(updated)
+    })
+  })
+
+  describe('deletePreset', () => {
+    it('sends DELETE to /api/presets/{id}', async () => {
+      const client = new ApiClient({ baseUrl: 'http://localhost:8080/api' })
+      mockFetch({ ok: true, status: 204, json: () => Promise.resolve(undefined) })
+
+      await client.deletePreset('p1')
+
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        'http://localhost:8080/api/presets/p1',
+        { method: 'DELETE' },
+      )
+    })
+
+    it('throws on delete failure', async () => {
+      const client = new ApiClient()
+      mockFetch({
+        ok: false,
+        status: 404,
+        json: () => Promise.resolve({ Code: 'not_found', Message: 'Preset not found' }),
+      })
+
+      let thrown: ApiError | undefined
+      try {
+        await client.deletePreset('nonexistent')
+      } catch (err) {
+        thrown = err as ApiError
+      }
+
+      expect(thrown).toBeDefined()
+      expect(thrown!.code).toBe('not_found')
+    })
+  })
+
   describe('getHealth', () => {
     it('fetches health from /health endpoint', async () => {
       const client = new ApiClient({ baseUrl: 'http://localhost:8080/api' })

@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-012: Preset save and select
+- backend/internal/model/preset.go: Preset and PresetMapping domain types (ID, Name, Mapping with X/Y/Slider/Combos, timestamps)
+- backend/internal/store/preset.go: PresetStore CRUD operations (ListPresets, GetPreset, CreatePreset, UpdatePreset, DeletePreset) with JSON mapping serialization, RFC3339 timestamps, and sql.ErrNoRows for not-found cases
+- backend/internal/service/preset.go: PresetService business logic with UUID generation, name validation, and store delegation
+- backend/internal/api/design/presets.go: Goa DSL defining presets service with list, create, update, delete methods; PresetResponse, PresetMappingResponse, CreatePresetPayload, UpdatePresetPayload types
+- backend/internal/api/presets.go: PresetsService API implementation mapping between Goa generated types and domain model, wired to service layer
+- backend/cmd/server/main.go: Wired presets service, endpoints, and HTTP server into application startup
+- frontend/src/api/types.ts: Added Preset and PresetMapping types
+- frontend/src/api/client.ts: Added getPresets, createPreset, updatePreset, deletePreset methods
+- frontend/src/components/PresetSelector.vue: Component with preset dropdown, save button (prompts for name), delete button, load with unmatched dimension warnings, accessible labels
+- frontend/src/App.vue: Integrated PresetSelector with dimension assignment loading, preset warning display, save/delete handlers
+- 10 store unit tests: CRUD operations, empty list, ordered by name, duplicate ID rejection, not-found handling, optional mapping fields
+- 10 service unit tests: list empty/populated, create with UUID/validation, update with not-found/validation, delete with not-found
+- 8 API unit tests: list empty/populated with response mapping, create with payload mapping, update with not-found, delete
+- 11 PresetSelector component unit tests: rendering, loading state, error display, load/save/delete events, unmatched dimension warnings, accessible labels, prompt cancellation, disabled save button
+- 6 API client unit tests: getPresets, createPreset, updatePreset, deletePreset success and failure
+
 ### S-011: Slider navigation
 - frontend/src/components/SliderBar.vue: Per-cell range slider component cycling through ordered slider-dimension values, with accessible aria-label and aria-valuetext, current value display
 - frontend/src/components/MasterSlider.vue: Top-level master slider that moves all individual cell sliders in sync, with dimension name label and accessible role="group" container

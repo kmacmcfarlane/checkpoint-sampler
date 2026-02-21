@@ -57,3 +57,20 @@ export interface DimensionAssignment {
   dimensionName: string
   role: DimensionRole
 }
+
+/** Dimension-to-role mapping stored in a preset. */
+export interface PresetMapping {
+  x?: string
+  y?: string
+  slider?: string
+  combos: string[]
+}
+
+/** A saved dimension mapping preset. */
+export interface Preset {
+  id: string
+  name: string
+  mapping: PresetMapping
+  created_at: string
+  updated_at: string
+}

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch } from 'vue'
-import type { TrainingRun, DimensionRole } from './api/types'
+import type { TrainingRun, DimensionRole, Preset } from './api/types'
 import { apiClient } from './api/client'
 import { useDimensionMapping } from './composables/useDimensionMapping'
 import { useImagePreloader } from './composables/useImagePreloader'
@@ -9,6 +9,7 @@ import DimensionPanel from './components/DimensionPanel.vue'
 import XYGrid from './components/XYGrid.vue'
 import ComboFilter from './components/ComboFilter.vue'
 import MasterSlider from './components/MasterSlider.vue'
+import PresetSelector from './components/PresetSelector.vue'
 
 const selectedTrainingRun = ref<TrainingRun | null>(null)
 const scanning = ref(false)
@@ -25,6 +26,9 @@ const {
   setScanResult,
   assignRole,
 } = useDimensionMapping()
+
+/** Preset warnings for unmatched dimensions. */
+const presetWarnings = ref<string[]>([])
 
 /** Combo filter selections: dimension name → set of selected values. */
 const comboSelections = reactive<Record<string, Set<string>>>({})
@@ -107,6 +111,38 @@ function onMasterSliderChange(value: string) {
     delete sliderValues[key]
   }
 }
+
+/** All dimension names from the current scan. */
+const dimensionNames = computed(() => dimensions.value.map((d) => d.name))
+
+/** Load a preset: apply matching dimension assignments, warn about unmatched. */
+function onPresetLoad(preset: Preset, warnings: string[]) {
+  presetWarnings.value = warnings
+  // Apply the preset mapping to assignments
+  const m = preset.mapping
+  for (const dim of dimensions.value) {
+    if (m.x === dim.name) {
+      assignRole(dim.name, 'x')
+    } else if (m.y === dim.name) {
+      assignRole(dim.name, 'y')
+    } else if (m.slider === dim.name) {
+      assignRole(dim.name, 'slider')
+    } else if (m.combos.includes(dim.name)) {
+      assignRole(dim.name, 'combo')
+    } else {
+      // Dimension not in preset — default to combo
+      assignRole(dim.name, 'combo')
+    }
+  }
+}
+
+function onPresetSave() {
+  presetWarnings.value = []
+}
+
+function onPresetDelete() {
+  presetWarnings.value = []
+}
 </script>
 
 <template>
@@ -121,6 +157,16 @@ function onMasterSliderChange(value: string) {
         <p v-if="scanning">Scanning...</p>
         <p v-else-if="scanError" class="error" role="alert">{{ scanError }}</p>
         <template v-else>
+          <PresetSelector
+            :assignments="assignments"
+            :dimension-names="dimensionNames"
+            @load="onPresetLoad"
+            @save="onPresetSave"
+            @delete="onPresetDelete"
+          />
+          <p v-if="presetWarnings.length > 0" class="warning" role="status">
+            Unmatched dimensions from preset: {{ presetWarnings.join(', ') }}
+          </p>
           <DimensionPanel
             :dimensions="dimensions"
             :assignments="assignments"
@@ -192,5 +238,10 @@ function onMasterSliderChange(value: string) {
 
 .error {
   color: #d32f2f;
+}
+
+.warning {
+  color: #f57c00;
+  font-size: 0.875rem;
 }
 </style>

@@ -1,4 +1,4 @@
-import type { ApiError, ApiErrorResponse, HealthStatus, ScanResult, TrainingRun } from './types'
+import type { ApiError, ApiErrorResponse, HealthStatus, Preset, PresetMapping, ScanResult, TrainingRun } from './types'
 
 const DEFAULT_BASE_URL = '/api'
 
@@ -74,6 +74,44 @@ export class ApiClient {
   /** GET /api/training-runs/{id}/scan — scan directories and return image metadata. */
   async scanTrainingRun(id: number): Promise<ScanResult> {
     return this.request<ScanResult>(`/training-runs/${id}/scan`)
+  }
+
+  /** GET /api/presets — list all saved presets. */
+  async getPresets(): Promise<Preset[]> {
+    return this.request<Preset[]>('/presets')
+  }
+
+  /** POST /api/presets — create a new preset. */
+  async createPreset(name: string, mapping: PresetMapping): Promise<Preset> {
+    return this.request<Preset>('/presets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, mapping }),
+    })
+  }
+
+  /** PUT /api/presets/{id} — update an existing preset. */
+  async updatePreset(id: string, name: string, mapping: PresetMapping): Promise<Preset> {
+    return this.request<Preset>(`/presets/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, mapping }),
+    })
+  }
+
+  /** DELETE /api/presets/{id} — delete a preset. */
+  async deletePreset(id: string): Promise<void> {
+    const url = `${this.baseUrl}/presets/${id}`
+    let response: Response
+    try {
+      response = await fetch(url, { method: 'DELETE' })
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Network error'
+      throw { code: 'NETWORK_ERROR', message } satisfies ApiError
+    }
+    if (!response.ok) {
+      throw await normalizeError(response)
+    }
   }
 
   /** GET /health — check backend health. */
