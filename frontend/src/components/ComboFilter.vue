@@ -83,7 +83,7 @@ function selectNone() {
 
 <style scoped>
 .combo-filter {
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--border-color, #e0e0e0);
   border-radius: 4px;
   padding: 0.5rem;
   min-width: 150px;
@@ -132,6 +132,6 @@ function selectNone() {
 
 .combo-filter__value:hover {
   text-decoration: underline;
-  color: #1976d2;
+  color: var(--accent-color, #1976d2);
 }
 </style>

@@ -460,7 +460,7 @@ stories:
   - id: S-021
     title: "Dark/Light theme toggle"
     priority: 8
-    done: false
+    done: true
     blocked: false
     blocked_reason: ""
     requires: [R-002]

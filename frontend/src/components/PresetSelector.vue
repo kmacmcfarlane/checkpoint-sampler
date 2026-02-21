@@ -193,7 +193,7 @@ function assignmentsToMapping(): PresetMapping {
 }
 
 .error {
-  color: #d32f2f;
+  color: var(--error-color, #d32f2f);
   font-size: 0.875rem;
   margin: 0;
 }

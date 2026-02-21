@@ -56,7 +56,7 @@ function getRole(dimensionName: string): DimensionRole {
 <style scoped>
 .dimension-panel {
   padding: 0.5rem;
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--border-color, #e0e0e0);
   border-radius: 4px;
   margin-bottom: 1rem;
 }
@@ -84,7 +84,7 @@ function getRole(dimensionName: string): DimensionRole {
 }
 
 .dimension-values {
-  color: #666;
+  color: var(--text-secondary, #666);
   font-size: 0.75rem;
 }
 </style>

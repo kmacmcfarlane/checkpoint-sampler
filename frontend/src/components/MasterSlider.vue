@@ -169,7 +169,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 0.75rem;
   padding: 0.5rem 0;
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid var(--border-color, #e0e0e0);
   margin-bottom: 0.5rem;
   flex-wrap: wrap;
 }
@@ -187,7 +187,7 @@ onBeforeUnmount(() => {
 
 .master-slider__value {
   font-size: 0.875rem;
-  color: #666;
+  color: var(--text-secondary, #666);
   min-width: 4rem;
   text-align: right;
 }

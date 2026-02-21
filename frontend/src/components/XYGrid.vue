@@ -240,8 +240,8 @@ const flatImages = computed<ScanImage[]>(() => {
   font-weight: 600;
   text-align: center;
   font-size: 0.875rem;
-  background-color: #f5f5f5;
-  border: 1px solid #e0e0e0;
+  background-color: var(--bg-surface, #f5f5f5);
+  border: 1px solid var(--border-color, #e0e0e0);
 }
 
 .xy-grid__row {
@@ -257,8 +257,8 @@ const flatImages = computed<ScanImage[]>(() => {
   padding: 0.25rem 0.5rem;
   font-weight: 600;
   font-size: 0.875rem;
-  background-color: #f5f5f5;
-  border: 1px solid #e0e0e0;
+  background-color: var(--bg-surface, #f5f5f5);
+  border: 1px solid var(--border-color, #e0e0e0);
   flex-shrink: 0;
 }
 
@@ -277,7 +277,7 @@ const flatImages = computed<ScanImage[]>(() => {
 }
 
 .xy-grid-empty {
-  color: #666;
+  color: var(--text-secondary, #666);
   padding: 2rem;
   text-align: center;
 }

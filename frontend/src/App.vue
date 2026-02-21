@@ -6,6 +6,7 @@ import { apiClient } from './api/client'
 import { useDimensionMapping } from './composables/useDimensionMapping'
 import { useImagePreloader } from './composables/useImagePreloader'
 import { useWebSocket } from './composables/useWebSocket'
+import { useTheme } from './composables/useTheme'
 import TrainingRunSelector from './components/TrainingRunSelector.vue'
 import DimensionPanel from './components/DimensionPanel.vue'
 import XYGrid from './components/XYGrid.vue'
@@ -14,6 +15,9 @@ import MasterSlider from './components/MasterSlider.vue'
 import PresetSelector from './components/PresetSelector.vue'
 import ImageLightbox from './components/ImageLightbox.vue'
 import CheckpointMetadataPanel from './components/CheckpointMetadataPanel.vue'
+import ThemeToggle from './components/ThemeToggle.vue'
+
+const { theme, isDark, toggle: toggleTheme } = useTheme()
 
 const selectedTrainingRun = ref<TrainingRun | null>(null)
 const scanning = ref(false)
@@ -186,8 +190,8 @@ function onPresetDelete() {
 </script>
 
 <template>
-  <NConfigProvider>
-    <div class="app">
+  <NConfigProvider :theme="theme">
+    <div class="app" :class="{ 'dark-mode': isDark }">
       <header class="app-header">
         <h1>Checkpoint Sampler</h1>
         <div class="header-controls">
@@ -205,6 +209,7 @@ function onPresetDelete() {
             :title="wsConnected ? 'Live updates connected' : 'Live updates disconnected'"
             role="status"
           >{{ wsConnected ? 'Live' : 'Disconnected' }}</NTag>
+          <ThemeToggle :is-dark="isDark" @toggle="toggleTheme" />
         </div>
       </header>
       <main class="app-main">
@@ -275,16 +280,40 @@ function onPresetDelete() {
 
 <style scoped>
 .app {
+  --border-color: #e0e0e0;
+  --bg-color: #ffffff;
+  --text-color: #333333;
+  --text-secondary: #666666;
+  --bg-surface: #f5f5f5;
+  --error-color: #d32f2f;
+  --warning-color: #f57c00;
+  --accent-color: #1976d2;
+  --accent-bg: #e3f2fd;
+
   font-family: system-ui, -apple-system, sans-serif;
   max-width: 100vw;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+}
+
+.app.dark-mode {
+  --border-color: #3a3a3a;
+  --bg-color: #1a1a1a;
+  --text-color: #e0e0e0;
+  --text-secondary: #aaaaaa;
+  --bg-surface: #2a2a2a;
+  --error-color: #f44336;
+  --warning-color: #ffb74d;
+  --accent-color: #90caf9;
+  --accent-bg: #1e3a5f;
 }
 
 .app-header {
   padding: 1rem;
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .app-header h1 {
@@ -305,11 +334,11 @@ function onPresetDelete() {
 }
 
 .error {
-  color: #d32f2f;
+  color: var(--error-color);
 }
 
 .warning {
-  color: #f57c00;
+  color: var(--warning-color);
   font-size: 0.875rem;
 }
 

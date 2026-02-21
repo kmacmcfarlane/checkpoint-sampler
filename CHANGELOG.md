@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-021: Dark/Light theme toggle
+- frontend/src/composables/useTheme.ts: New composable managing theme state (light/dark mode); defaults to browser prefers-color-scheme media query; persists user choice in localStorage; returns Naive UI GlobalTheme for NConfigProvider; applies body class for non-Naive-UI CSS; listens for system preference changes when user hasn't explicitly chosen
+- frontend/src/components/ThemeToggle.vue: 2-way toggle button (Light/Dark) using NButton with accessible aria-label describing the action
+- frontend/src/App.vue: Integrated useTheme composable and ThemeToggle in header; NConfigProvider now receives theme prop; added CSS custom properties (--border-color, --bg-color, --text-color, --text-secondary, --bg-surface, --error-color, --warning-color, --accent-color, --accent-bg) with light and dark mode values; .dark-mode class toggles dark palette
+- Replaced hardcoded CSS colors across 10 components (ImageCell, XYGrid, CheckpointMetadataPanel, ComboFilter, DimensionPanel, MasterSlider, SliderBar, PresetSelector, TrainingRunSelector, App) with CSS custom property references for theme-awareness
+- 14 useTheme composable tests: light/dark system default detection, localStorage persistence and restoration, toggle behavior, setMode, body class application, system preference change following (ignored when user chose explicitly), darkTheme object validation, invalid localStorage handling
+- 5 ThemeToggle component tests: text rendering in both modes, toggle event emission, accessible aria-labels for both states
+- Updated App.test.ts with matchMedia mock for compatibility with useTheme
+
 ### R-002: Migrate to Naive UI component library
 - frontend/package.json: Added naive-ui as a dependency
 - frontend/src/App.vue: Wrapped app in NConfigProvider; replaced native button with NButton for metadata toggle; replaced WebSocket status span with NTag

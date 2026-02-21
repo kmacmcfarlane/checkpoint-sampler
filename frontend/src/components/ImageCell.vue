@@ -37,7 +37,7 @@ function onClick() {
 
 <style scoped>
 .image-cell {
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--border-color, #e0e0e0);
   overflow: hidden;
   display: flex;
   align-items: center;
@@ -54,11 +54,11 @@ function onClick() {
 }
 
 .image-cell--empty {
-  background-color: #f5f5f5;
+  background-color: var(--bg-surface, #f5f5f5);
 }
 
 .image-cell__placeholder {
-  color: #999;
+  color: var(--text-secondary, #999);
   font-size: 0.875rem;
   padding: 1rem;
   text-align: center;
