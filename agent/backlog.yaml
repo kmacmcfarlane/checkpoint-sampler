@@ -413,7 +413,7 @@ stories:
   - id: S-020
     title: "Generation metadata in image lightbox"
     priority: 10
-    done: false
+    done: true
     blocked: false
     blocked_reason: ""
     requires: [S-013, S-018]

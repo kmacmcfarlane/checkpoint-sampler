@@ -77,6 +77,7 @@ func run() error {
 	presetsSvc := api.NewPresetsService(presetSvc)
 	checkpointMetadataSvc := service.NewCheckpointMetadataService(fs, cfg.CheckpointDirs)
 	checkpointsSvc := api.NewCheckpointsService(checkpointMetadataSvc)
+	imageMetadataSvc := service.NewImageMetadataService(fs, cfg.SampleDir)
 	wsSvc := api.NewWSService(hub)
 
 	// Create Goa endpoints
@@ -87,6 +88,10 @@ func run() error {
 	checkpointsEndpoints := gencheckpoints.NewEndpoints(checkpointsSvc)
 	wsEndpoints := genws.NewEndpoints(wsSvc)
 
+	// Build image handler with metadata support
+	imageHandler := api.NewImageHandler(cfg.SampleDir)
+	imageHandler.SetMetadataHandler(api.NewImageMetadataHandler(imageMetadataSvc))
+
 	// Build the HTTP handler with all transport setup
 	handler := api.NewHTTPHandler(api.HTTPHandlerConfig{
 		HealthEndpoints:      healthEndpoints,
@@ -95,7 +100,7 @@ func run() error {
 		PresetsEndpoints:     presetsEndpoints,
 		CheckpointsEndpoints: checkpointsEndpoints,
 		WSEndpoints:          wsEndpoints,
-		ImageHandler:         api.NewImageHandler(cfg.SampleDir),
+		ImageHandler:         imageHandler,
 		SwaggerUIDir:         http.Dir(swaggerUIDir()),
 		Logger:               log.Default(),
 		Debug:                true,
