@@ -3,6 +3,9 @@
     "allow": [
       "mcp__discord__send_discord_notification",
 
+      "WebFetch(domain:www.gnu.org)",
+      "Bash(npx vue-tsc:*)",
+      "Bash(find:*)",
       "Bash(go:*)",
       "Bash(printf:*)",
       "Bash(git status:*)",

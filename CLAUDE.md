@@ -27,7 +27,7 @@ Never claim completion unless acceptance criteria are met and tests pass.
 - Frontend (Vue + Vite + TS): /frontend
 - Backend (Go + Goa v3): /backend
 - Agent docs: /agent
-- Architecture docs: /docs (architecture.md, database.md, api.md)
+- Architecture docs: /docs (architecture.md, database.md, api.md, filesystem.md)
 - Scripts: /scripts
 - Changelog: /CHANGELOG.md
 - Claude Code policy: /.claude/settings.json
@@ -49,9 +49,9 @@ Frontend never talks to providers. Frontend talks only to backend API.
 
 ## 5) Data persistence
 - **SQLite** via `modernc.org/sqlite` (pure Go, no CGO). WAL mode, 5s busy timeout, foreign keys ON.
-- **TOML configuration** at `config.toml` (override via `CONFIG_PATH` env var). Defines dataset root, training runs, and dimension extraction regexes.
-- **Filesystem** (dataset root) mounted read-only. Images served through the backend API.
-- Schema details in /docs/database.md. Full config schema in /agent/PRD.md section 4.
+- **YAML configuration** at `config.yaml` (override via `CONFIG_PATH` env var). Defines checkpoint directories, sample directory, port, and db path.
+- **Filesystem**: checkpoint directories (`.safetensors` files) and sample directory (images) mounted read-only. Images served through the backend API.
+- Schema details in /docs/database.md. Full config schema in /agent/PRD.md section 4. Filesystem layout in /docs/filesystem.md.
 
 ## 6) Tooling ecosystem
 This project is part of the [kmac-claude-kit](https://github.com/kmacmcfarlane/kmac-claude-kit) ecosystem:

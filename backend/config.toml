@@ -1,0 +1,12 @@
+root = "/home/rt/ai/outputs/stable-diffusion/comfyui"
+port = 8080
+db_path = "./data/checkpoint-sampler.db"
+
+[[training_runs]]
+name = "psai4rt v0.3.0 qwen"
+pattern = '^psyart/qwen/psai4rt-v0\.3\.0-qwen-2512-1024-adafactor-constant-2\.5e-6.+'
+
+    [[training_runs.dimensions]]
+    name = "step"
+    type = "int"
+    pattern = '-steps-(\d+)-'

@@ -2,7 +2,7 @@
 
 ## 1) Overview
 
-Checkpoint Sampler is a locally-running web-based image viewer for evaluating stable-diffusion training checkpoint outputs. It scans a configurable root directory for image files whose filenames encode dimension key-value pairs, and whose parent directory names carry additional dimension values extracted via regex. The tool displays images in a configurable X/Y grid with sliders and multi-select combo filters for navigating the dimension space.
+Checkpoint Sampler is a locally-running web-based image viewer for evaluating stable-diffusion training checkpoint outputs. It scans configured checkpoint directories for `.safetensors` files, groups them into training runs by stripping checkpoint suffixes, and correlates each checkpoint with its sample image directory. Dimensions are extracted from both directory names (checkpoint step/epoch) and query-encoded image filenames. The tool displays images in a configurable X/Y grid with sliders and multi-select combo filters for navigating the dimension space.
 
 **Primary use case:** Compare sample images across checkpoints, prompts, seeds, CFG values, and other parameters to evaluate training progress and select the best checkpoint.
 
@@ -10,22 +10,54 @@ Checkpoint Sampler is a locally-running web-based image viewer for evaluating st
 
 ## 2) Core concepts
 
-### 2.1 Dataset root
+### 2.1 Checkpoint directories and sample directory
 
-A single directory on the host filesystem configured in a TOML config file (e.g., `/home/rt/ai/outputs/stable-diffusion/comfyui`). The tool is restricted to reading files within this directory tree. Exposed to the backend container via a Docker volume mount.
+The tool reads from two distinct directory trees configured in YAML:
+
+- **`checkpoint_dirs`**: A list of directories to recursively scan for `.safetensors` checkpoint files. These are the source of truth for discovering training runs.
+- **`sample_dir`**: A single directory where ComfyUI sample image output directories live. Each subdirectory is named after the checkpoint filename (exact match) and contains the generated sample images.
+
+Both are exposed to the backend container via Docker volume mounts. The backend restricts all filesystem access to within these configured directories.
+
+See [docs/filesystem.md](/docs/filesystem.md) for the full directory structure and naming conventions.
 
 ### 2.2 Training run
 
-A group of checkpoint output directories under the dataset root, identified by a regex pattern matching relative directory paths. Training runs are defined in the TOML config and selectable in the UI.
+A group of checkpoint files sharing a common base name, auto-discovered from the filesystem. Training runs are selectable in the UI.
 
-Example: the pattern `^psyart/qwen/psai4rt-v0\.3\.0-qwen-2512-1024-adafactor-constant-2\.5e-6.+` matches all checkpoint directories for a specific training configuration.
+**Auto-discovery**: The tool recursively scans all `checkpoint_dirs` for `.safetensors` files. It groups checkpoint files into training runs by stripping suffixes from the filename:
+
+1. Remove `.safetensors` extension
+2. Remove step suffix: `-step<NNNNN>` (e.g., `-step00004500`)
+3. Remove epoch suffix: `-<NNNNNN>` (e.g., `-000104`)
+
+Files sharing the same base name after stripping form a training run. The full relative path (including parent directories within the checkpoint dir) is used for grouping to distinguish runs in different subdirectories.
+
+**Sample correlation**: For each checkpoint file, the tool looks for a matching directory under `sample_dir` whose name equals the checkpoint filename (including `.safetensors` extension). Checkpoints without a matching sample directory are still listed but flagged as having no samples.
+
+**Example:**
+```
+# checkpoint_dirs[0]: ~/ai/models-training/stable-diffusion/checkpoints
+qwen/
+  psai4rt-v0.3.0-no-reg.safetensors                    → base: qwen/psai4rt-v0.3.0-no-reg
+  psai4rt-v0.3.0-no-reg-step00004500.safetensors        → same base
+  psai4rt-v0.3.0-no-reg-step00004750.safetensors        → same base
+
+# sample_dir: ~/ai/outputs/stable-diffusion/comfyui
+psai4rt-v0.3.0-no-reg.safetensors/
+  index=0&prompt_name=forest_portals&seed=420&cfg=1&_00001_.png
+psai4rt-v0.3.0-no-reg-step00004500.safetensors/
+  index=0&prompt_name=forest_portals&seed=420&cfg=1&_00001_.png
+```
+
+All three checkpoint files belong to training run `qwen/psai4rt-v0.3.0-no-reg`. Two of the three have matching sample directories.
 
 ### 2.3 Dimensions
 
 Named parameters that vary across images. Two sources:
 
 - **Filename dimensions**: Parsed from query-encoded filenames. Example: `index=5&prompt_name=portal_hub&seed=422&cfg=3&_00001_.png` yields dimensions `index`, `prompt_name`, `seed`, `cfg`.
-- **Directory dimensions**: Extracted from parent directory names via configured regex capture groups. Example: `-steps-(\d+)-` mapped to dimension `step` of type `int`.
+- **Checkpoint dimension**: Auto-extracted from checkpoint filenames. Within a training run group, the step/epoch number from the filename suffix becomes the `checkpoint` dimension (sorted numerically). The final checkpoint (no suffix) is assigned the max step value from the training run name if detectable (e.g., `steps-9000` → checkpoint value `9000`), otherwise sorted last.
 
 ### 2.4 Batch counter
 
@@ -57,9 +89,12 @@ Named dimension mapping configurations saved to the database. Users can save, lo
 **So that** I can switch between different training experiments
 
 **Acceptance criteria:**
-- The UI lists all training runs defined in the config file
-- Selecting a training run scans its matching directories and loads image metadata
-- Directory dimension extraction regexes are applied to produce dimension values
+- The backend auto-discovers training runs by recursively scanning `checkpoint_dirs` for `.safetensors` files, grouping them by base name (after stripping checkpoint suffixes)
+- Each checkpoint is correlated with its sample directory under `sample_dir` (exact filename match)
+- The UI lists all auto-discovered training runs
+- The UI provides a default-checked filter to show only training runs with at least one checkpoint that has samples
+- Selecting a training run scans the sample directories for its checkpoints and loads image metadata
+- The checkpoint step/epoch number is auto-extracted as a dimension from checkpoint filename suffixes
 - All discovered dimensions and their values are refreshed on training run change
 
 ### US-2: View images in X/Y grid
@@ -151,44 +186,31 @@ Named dimension mapping configurations saved to the database. Users can save, lo
 
 ## 4) Configuration
 
-Server-side TOML file (`config.toml` at the project root, or path specified via environment variable).
+Server-side YAML file (`config.yaml` at the project root, or path specified via `CONFIG_PATH` environment variable).
 
-```toml
-# Root directory the tool is allowed to read from.
-# All file access is restricted to this tree.
-root = "/home/rt/ai/outputs/stable-diffusion/comfyui"
+```yaml
+# Directories to recursively scan for .safetensors checkpoint files.
+# Multiple directories can be specified.
+checkpoint_dirs:
+  - /home/rt/ai/models-training/stable-diffusion/checkpoints
+
+# Directory where ComfyUI sample image output directories live.
+# Each subdirectory is named after the checkpoint filename (exact match).
+sample_dir: /home/rt/ai/outputs/stable-diffusion/comfyui
 
 # Backend server port
-port = 8080
+port: 8080
 
 # SQLite database path (relative to working directory)
-db_path = "./data/checkpoint-sampler.db"
-
-# Training run definitions
-[[training_runs]]
-name = "psai4rt v0.3.0 qwen"
-# Regex matching directory paths relative to root
-pattern = '^psyart/qwen/psai4rt-v0\.3\.0-qwen-2512-1024-adafactor-constant-2\.5e-6.+'
-
-  # Dimension extraction from matched directory names
-  [[training_runs.dimensions]]
-  name = "step"
-  type = "int"
-  pattern = '-steps-(\d+)-'
-
-  [[training_runs.dimensions]]
-  name = "checkpoint"
-  type = "string"
-  pattern = '([^/]+)$'
+db_path: ./data/checkpoint-sampler.db
 ```
 
 ### Configuration notes
 
-- `root` acts as a security boundary. The backend rejects any path traversal outside this directory.
-- `pattern` is matched against directory paths relative to `root`. All matching directories are scanned for image files.
-- Each `training_runs.dimensions` entry defines a named dimension extracted via a regex with one capture group. The `type` field controls sort order (`int` sorts numerically, `string` sorts lexicographically).
-- Filename dimensions are always auto-discovered from query-encoded filenames. They do not need configuration.
-- Filename dimension types are inferred: values that parse as integers are sorted numerically, otherwise lexicographically.
+- `checkpoint_dirs` and `sample_dir` act as security boundaries. The backend rejects any path traversal outside these directories.
+- Training runs are auto-discovered by scanning `checkpoint_dirs` for `.safetensors` files and grouping by base name (see section 2.2). No per-run configuration is needed.
+- Filename dimensions are auto-discovered from query-encoded filenames. The checkpoint dimension is auto-extracted from checkpoint filename suffixes. No dimension configuration is needed.
+- Dimension types are inferred: values that parse as integers are sorted numerically, otherwise lexicographically.
 
 ## 5) Architecture
 
@@ -205,7 +227,7 @@ Follows the layered backend architecture defined in `/docs/architecture.md`.
 
 ### 5.2 Image serving
 
-The backend serves images from the filesystem through a dedicated API endpoint. The image path (relative to root) is validated against the configured root to prevent path traversal. Images are served with long-lived cache headers (`Cache-Control: max-age=31536000, immutable`) since checkpoint outputs are write-once.
+The backend serves images from the `sample_dir` filesystem through a dedicated API endpoint. The image path (relative to `sample_dir`) is validated to prevent path traversal outside the configured directory. Images are served with long-lived cache headers (`Cache-Control: max-age=31536000, immutable`) since checkpoint outputs are write-once.
 
 ### 5.3 Client-side caching
 
@@ -232,9 +254,9 @@ A single WebSocket endpoint pushes image-change events to connected clients. The
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/training-runs` | List configured training runs |
+| GET | `/api/training-runs` | List auto-discovered training runs (supports `?has_samples=true` filter) |
 | GET | `/api/training-runs/{id}/scan` | Scan directories and return image metadata + discovered dimensions |
-| GET | `/api/images/*filepath` | Serve an image file (path relative to root, validated) |
+| GET | `/api/images/*filepath` | Serve an image file (path relative to sample_dir, validated) |
 | GET | `/api/presets` | List saved dimension mapping presets |
 | POST | `/api/presets` | Create a new preset |
 | PUT | `/api/presets/{id}` | Update a preset |
@@ -258,14 +280,15 @@ The API is defined design-first using Goa v3 DSL. Swagger UI is served at `/docs
 
 ### In-memory (per scan)
 
-- **TrainingRun**: name, pattern, directory dimension configs (from TOML)
-- **Image**: relative path, parsed dimensions (map of dimension name to value)
+- **TrainingRun**: name (base name after stripping suffixes), list of Checkpoint entries
+- **Checkpoint**: filename, step/epoch number, has_samples flag, sample directory path (if exists)
+- **Image**: relative path (within sample_dir), parsed dimensions (map of dimension name to value)
 - **Dimension**: name, type, set of discovered values, assigned UI role
 
 ## 8) Non-functional requirements
 
 - **Performance**: With up to ~200 images per dataset, scanning must complete in under 2 seconds. Client-side caching ensures slider navigation feels instant. After the initially displayed images load, pre-cache all slider positions for visible grid cells, then remaining scan images in the background.
-- **Security**: Backend restricts all filesystem access to within the configured root. Path traversal is rejected. No authentication (local/LAN use only).
+- **Security**: Backend restricts all filesystem access to within the configured `checkpoint_dirs` and `sample_dir`. Path traversal is rejected. No authentication (local/LAN use only).
 - **Resilience**: WebSocket auto-reconnects on disconnect. Missing images show a placeholder. Malformed filenames are logged and skipped.
 - **Portability**: Runs on Linux via Docker Compose. No host dependencies beyond Docker.
 - **Image format**: Source images are 1344x1344 PNG. Served at full resolution.

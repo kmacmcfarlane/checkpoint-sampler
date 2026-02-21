@@ -222,21 +222,25 @@ stories:
       - "command: npx vitest run"
 
   - id: S-018
-    title: "Auto-discover training runs from filesystem"
+    title: "Auto-discover training runs from checkpoint files"
     priority: 43
     done: false
     blocked: false
     blocked_reason: ""
     requires: [S-007, S-008]
     acceptance:
-      - "BE: Remove [[training_runs]] and [[training_runs.dimensions]] from config parsing; config only needs root, port, db_path"
-      - "BE: New discovery service scans dataset root recursively for directories containing image files (.png)"
-      - "BE: Group directories into training runs by stripping checkpoint suffixes from directory names: .safetensors extension, -step<NNNNN> suffix, -<NNNNNN> epoch suffix"
-      - "BE: Auto-extract checkpoint step/epoch number as a 'checkpoint' dimension (sorted numerically); final checkpoint (no suffix) assigned max step value from training run name if detectable, otherwise sorted last"
-      - "BE: GET /api/training-runs returns auto-discovered training runs instead of config-defined ones"
-      - "BE: GET /api/training-runs/{id}/scan scans all directories in the group, producing filename dimensions plus the auto-extracted checkpoint dimension"
-      - "BE: Unit tests for directory grouping, suffix stripping, checkpoint dimension extraction"
-      - "FE: TrainingRunSelector works with auto-discovered runs (no frontend changes expected beyond any API response shape changes)"
+      - "BE: Switch config from TOML to YAML (config.yaml); remove [[training_runs]] and [[training_runs.dimensions]] from config parsing"
+      - "BE: Config struct has checkpoint_dirs (list of strings), sample_dir (string), port, db_path"
+      - "BE: Validation rejects missing checkpoint_dirs, missing sample_dir, non-existent directories"
+      - "BE: Discovery service recursively scans all checkpoint_dirs for .safetensors files"
+      - "BE: Group checkpoint files into training runs by stripping suffixes: .safetensors extension, -step<NNNNN> suffix, -<NNNNNN> epoch suffix"
+      - "BE: For each checkpoint file, look up matching sample directory under sample_dir (exact filename match); set has_samples flag"
+      - "BE: Auto-extract checkpoint step/epoch number as a 'checkpoint' dimension (sorted numerically); final checkpoint (no suffix) assigned max step value if detectable, otherwise sorted last"
+      - "BE: GET /api/training-runs returns auto-discovered training runs with checkpoint counts and has_samples info; supports ?has_samples=true filter"
+      - "BE: GET /api/training-runs/{id}/scan scans sample directories for the training run's checkpoints, producing filename dimensions plus the auto-extracted checkpoint dimension"
+      - "BE: Unit tests for config YAML parsing, directory scanning, suffix stripping, grouping, sample correlation, checkpoint dimension extraction"
+      - "FE: TrainingRunSelector shows auto-discovered runs with a default-checked 'Has samples' filter checkbox"
+      - "FE: Unit tests for the has-samples filter behavior"
     testing:
       - "command: ginkgo -r --cover --race ./internal/..."
       - "command: npx vitest run"
