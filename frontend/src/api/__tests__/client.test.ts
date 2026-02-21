@@ -328,6 +328,41 @@ describe('ApiClient', () => {
     })
   })
 
+  describe('getCheckpointMetadata', () => {
+    it('fetches metadata from /api/checkpoints/{filename}/metadata', async () => {
+      const client = new ApiClient({ baseUrl: 'http://localhost:8080/api' })
+      const metadata = { metadata: { ss_output_name: 'test', ss_total_steps: '9000' } }
+      mockFetch({ json: () => Promise.resolve(metadata) })
+
+      const result = await client.getCheckpointMetadata('model-step00001000.safetensors')
+
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        'http://localhost:8080/api/checkpoints/model-step00001000.safetensors/metadata',
+        undefined,
+      )
+      expect(result).toEqual(metadata)
+    })
+
+    it('throws on metadata fetch failure', async () => {
+      const client = new ApiClient()
+      mockFetch({
+        ok: false,
+        status: 404,
+        json: () => Promise.resolve({ Code: 'not_found', Message: 'Checkpoint not found' }),
+      })
+
+      let thrown: ApiError | undefined
+      try {
+        await client.getCheckpointMetadata('nonexistent.safetensors')
+      } catch (err) {
+        thrown = err as ApiError
+      }
+
+      expect(thrown).toBeDefined()
+      expect(thrown!.code).toBe('not_found')
+    })
+  })
+
   describe('getHealth', () => {
     it('fetches health from /health endpoint', async () => {
       const client = new ApiClient({ baseUrl: 'http://localhost:8080/api' })

@@ -12,11 +12,13 @@ import ComboFilter from './components/ComboFilter.vue'
 import MasterSlider from './components/MasterSlider.vue'
 import PresetSelector from './components/PresetSelector.vue'
 import ImageLightbox from './components/ImageLightbox.vue'
+import CheckpointMetadataPanel from './components/CheckpointMetadataPanel.vue'
 
 const selectedTrainingRun = ref<TrainingRun | null>(null)
 const scanning = ref(false)
 const scanError = ref<string | null>(null)
 const lightboxImageUrl = ref<string | null>(null)
+const metadataPanelOpen = ref(false)
 
 function onImageClick(imageUrl: string) {
   lightboxImageUrl.value = imageUrl
@@ -188,6 +190,12 @@ function onPresetDelete() {
       <h1>Checkpoint Sampler</h1>
       <div class="header-controls">
         <TrainingRunSelector @select="onTrainingRunSelect" />
+        <button
+          v-if="selectedTrainingRun && !scanning && !scanError"
+          class="metadata-btn"
+          aria-label="Toggle checkpoint metadata panel"
+          @click="metadataPanelOpen = !metadataPanelOpen"
+        >Metadata</button>
         <span
           v-if="selectedTrainingRun"
           class="ws-indicator"
@@ -254,6 +262,11 @@ function onPresetDelete() {
       :image-url="lightboxImageUrl"
       @close="onLightboxClose"
     />
+    <CheckpointMetadataPanel
+      v-if="metadataPanelOpen && selectedTrainingRun"
+      :checkpoints="selectedTrainingRun.checkpoints"
+      @close="metadataPanelOpen = false"
+    />
   </div>
 </template>
 
@@ -301,6 +314,19 @@ function onPresetDelete() {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+}
+
+.metadata-btn {
+  font-size: 0.8125rem;
+  padding: 0.25rem 0.75rem;
+  border: 1px solid #ccc;
+  border-radius: 0.25rem;
+  background: #fafafa;
+  cursor: pointer;
+}
+
+.metadata-btn:hover {
+  background: #f0f0f0;
 }
 
 .ws-indicator {

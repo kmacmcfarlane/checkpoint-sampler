@@ -390,7 +390,7 @@ stories:
   - id: S-019
     title: "Checkpoint metadata slideout panel"
     priority: 12
-    done: false
+    done: true
     blocked: false
     blocked_reason: ""
     requires: [S-018]
