@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-018: Auto-discover training runs from checkpoint files
+- backend/internal/config/config.go: Switched from TOML to YAML configuration (config.yaml); new yamlConfig struct with checkpoint_dirs (list of strings), sample_dir (string), port, ip_address, db_path; validates checkpoint_dirs and sample_dir exist as directories
+- config.yaml.example: Example YAML config file with documentation; config.yaml gitignored for local use
+- backend/internal/model/config.go: Replaced TrainingRunConfig/DimensionConfig with simplified Config struct (CheckpointDirs, SampleDir); removed pattern/dimensions/root fields
+- backend/internal/model/training_run.go: New TrainingRun and Checkpoint domain types for auto-discovered training runs (name, checkpoints, has_samples, step_number, filename, checkpoint_dir_index)
+- backend/internal/store/filesystem.go: Replaced ListDirectories with ListSafetensorsFiles (recursive .safetensors scanning) and DirectoryExists; kept ListPNGFiles
+- backend/internal/service/discovery.go: New DiscoveryService that recursively scans checkpoint_dirs for .safetensors files, strips suffixes (-step<NNNNN>, -<NNNNNN> epoch), groups into training runs by base name, correlates checkpoints with sample directories under sample_dir, extracts step/epoch numbers, assigns final checkpoint step values
+- backend/internal/service/scanner.go: Rewritten to use ScannerFileSystem (ListPNGFiles only); ScanTrainingRun takes model.TrainingRun, scans sample directories per checkpoint, auto-adds "checkpoint" dimension from step numbers, relative paths as checkpoint_filename/image_filename
+- backend/internal/api/design/training_runs.go: List method accepts has_samples boolean filter; TrainingRunResponse now includes checkpoint_count, has_samples, checkpoints array; new CheckpointResponse type; removed DimensionConfigResponse and pattern field; added discovery_failed error
+- backend/internal/api/training_runs.go: Uses DiscoveryService and Scanner; List calls Discover() with has_samples filter; Scan discovers then scans training run
+- backend/cmd/server/main.go: Wired DiscoveryService, updated Scanner and ImageHandler to use sampleDir
+- docker-compose.yml, docker-compose.dev.yml: Updated from config.toml to config.yaml; replaced DATASET_ROOT with CHECKPOINT_DIR and SAMPLE_DIR separate volume mounts
+- .env.example: Updated from DATASET_ROOT to CHECKPOINT_DIR and SAMPLE_DIR
+- frontend/src/api/types.ts: Replaced DimensionConfig with CheckpointInfo; TrainingRun now has checkpoint_count, has_samples, checkpoints instead of pattern/dimensions
+- frontend/src/api/client.ts: getTrainingRuns accepts optional hasSamples filter parameter
+- frontend/src/components/TrainingRunSelector.vue: Added default-checked "Has samples" filter checkbox; re-fetches training runs when filter changes; resets selection on filter toggle
+- 22 discovery service unit tests: suffix stripping (step/epoch), grouping, step extraction, sample correlation, multiple checkpoint dirs, empty dirs, ordering, path preservation, filename-only sample matching
+- 16 scanner unit tests: query-encoded filename parsing with checkpoint dimension, checkpoint dimension discovery, skipping checkpoints without samples, batch deduplication, dimension type inference, sorting, error handling, edge cases
+- 14 API unit tests: List with has_samples filter, checkpoint details in response, Scan with discovery-based lookup, model-to-API type mapping, error handling
+- 5 has-samples filter frontend unit tests: checkbox default state, initial API call with has_samples=true, re-fetch on toggle, selection reset on filter change
+
 ### S-012: Preset save and select
 - backend/internal/model/preset.go: Preset and PresetMapping domain types (ID, Name, Mapping with X/Y/Slider/Combos, timestamps)
 - backend/internal/store/preset.go: PresetStore CRUD operations (ListPresets, GetPreset, CreatePreset, UpdatePreset, DeletePreset) with JSON mapping serialization, RFC3339 timestamps, and sql.ErrNoRows for not-found cases

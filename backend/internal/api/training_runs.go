@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/model"
 	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/service"
 
 	gentrainingruns "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/training_runs"
@@ -12,46 +11,66 @@ import (
 
 // TrainingRunsService implements the generated training_runs service interface.
 type TrainingRunsService struct {
-	trainingRuns []model.TrainingRunConfig
-	scanner      *service.Scanner
+	discovery *service.DiscoveryService
+	scanner   *service.Scanner
 }
 
 // NewTrainingRunsService returns a new TrainingRunsService.
-func NewTrainingRunsService(trainingRuns []model.TrainingRunConfig, scanner *service.Scanner) *TrainingRunsService {
-	return &TrainingRunsService{trainingRuns: trainingRuns, scanner: scanner}
+func NewTrainingRunsService(discovery *service.DiscoveryService, scanner *service.Scanner) *TrainingRunsService {
+	return &TrainingRunsService{discovery: discovery, scanner: scanner}
 }
 
-// List returns all configured training runs.
-func (s *TrainingRunsService) List(ctx context.Context) ([]*gentrainingruns.TrainingRunResponse, error) {
-	result := make([]*gentrainingruns.TrainingRunResponse, len(s.trainingRuns))
-	for i, tr := range s.trainingRuns {
-		dims := make([]*gentrainingruns.DimensionConfigResponse, len(tr.Dimensions))
-		for j, d := range tr.Dimensions {
-			dims[j] = &gentrainingruns.DimensionConfigResponse{
-				Name:    d.Name,
-				Type:    string(d.Type),
-				Pattern: d.Pattern.String(),
+// List returns auto-discovered training runs, optionally filtered by has_samples.
+func (s *TrainingRunsService) List(ctx context.Context, p *gentrainingruns.ListPayload) ([]*gentrainingruns.TrainingRunResponse, error) {
+	runs, err := s.discovery.Discover()
+	if err != nil {
+		return nil, gentrainingruns.MakeDiscoveryFailed(fmt.Errorf("discovering training runs: %w", err))
+	}
+
+	var result []*gentrainingruns.TrainingRunResponse
+	for i, tr := range runs {
+		if p.HasSamples && !tr.HasSamples {
+			continue
+		}
+
+		checkpoints := make([]*gentrainingruns.CheckpointResponse, len(tr.Checkpoints))
+		for j, cp := range tr.Checkpoints {
+			checkpoints[j] = &gentrainingruns.CheckpointResponse{
+				Filename:   cp.Filename,
+				StepNumber: cp.StepNumber,
+				HasSamples: cp.HasSamples,
 			}
 		}
-		result[i] = &gentrainingruns.TrainingRunResponse{
-			ID:         i,
-			Name:       tr.Name,
-			Pattern:    tr.Pattern.String(),
-			Dimensions: dims,
-		}
+
+		result = append(result, &gentrainingruns.TrainingRunResponse{
+			ID:              i,
+			Name:            tr.Name,
+			CheckpointCount: len(tr.Checkpoints),
+			HasSamples:      tr.HasSamples,
+			Checkpoints:     checkpoints,
+		})
+	}
+
+	if result == nil {
+		result = []*gentrainingruns.TrainingRunResponse{}
 	}
 	return result, nil
 }
 
-// Scan scans a training run's directories and returns image metadata with
+// Scan scans a training run's sample directories and returns image metadata with
 // discovered dimensions.
 func (s *TrainingRunsService) Scan(ctx context.Context, p *gentrainingruns.ScanPayload) (*gentrainingruns.ScanResultResponse, error) {
-	if p.ID < 0 || p.ID >= len(s.trainingRuns) {
+	runs, err := s.discovery.Discover()
+	if err != nil {
+		return nil, gentrainingruns.MakeScanFailed(fmt.Errorf("discovering training runs: %w", err))
+	}
+
+	if p.ID < 0 || p.ID >= len(runs) {
 		return nil, gentrainingruns.MakeNotFound(fmt.Errorf("training run %d not found", p.ID))
 	}
 
-	tr := s.trainingRuns[p.ID]
-	scanResult, err := s.scanner.Scan(tr)
+	tr := runs[p.ID]
+	scanResult, err := s.scanner.ScanTrainingRun(tr)
 	if err != nil {
 		return nil, gentrainingruns.MakeScanFailed(fmt.Errorf("scanning training run %q: %w", tr.Name, err))
 	}

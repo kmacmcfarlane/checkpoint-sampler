@@ -224,7 +224,7 @@ stories:
   - id: S-018
     title: "Auto-discover training runs from checkpoint files"
     priority: 43
-    done: false
+    done: true
     blocked: false
     blocked_reason: ""
     requires: [S-007, S-008]

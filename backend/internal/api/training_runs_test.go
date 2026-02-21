@@ -3,44 +3,50 @@ package api_test
 import (
 	"context"
 	"fmt"
-	"regexp"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api"
 	gentrainingruns "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/training_runs"
-	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/model"
 	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/service"
 )
 
-// fakeFS is a test double for service.FileSystem.
-type fakeFS struct {
-	dirs  map[string][]string
+// fakeDiscoveryFS implements service.CheckpointFileSystem for testing.
+type fakeDiscoveryFS struct {
+	files map[string][]string // root → list of relative file paths
+	dirs  map[string]bool     // path → exists
+}
+
+func newFakeDiscoveryFS() *fakeDiscoveryFS {
+	return &fakeDiscoveryFS{
+		files: make(map[string][]string),
+		dirs:  make(map[string]bool),
+	}
+}
+
+func (f *fakeDiscoveryFS) ListSafetensorsFiles(root string) ([]string, error) {
+	return f.files[root], nil
+}
+
+func (f *fakeDiscoveryFS) DirectoryExists(path string) bool {
+	return f.dirs[path]
+}
+
+// fakeScanFS implements service.ScannerFileSystem for testing.
+type fakeScanFS struct {
 	files map[string][]string
 	errs  map[string]error
 }
 
-func newFakeFS() *fakeFS {
-	return &fakeFS{
-		dirs:  make(map[string][]string),
+func newFakeScanFS() *fakeScanFS {
+	return &fakeScanFS{
 		files: make(map[string][]string),
 		errs:  make(map[string]error),
 	}
 }
 
-func (f *fakeFS) ListDirectories(root string, pattern *regexp.Regexp) ([]string, error) {
-	allDirs := f.dirs[root]
-	var matched []string
-	for _, d := range allDirs {
-		if pattern.MatchString(d) {
-			matched = append(matched, d)
-		}
-	}
-	return matched, nil
-}
-
-func (f *fakeFS) ListPNGFiles(dir string) ([]string, error) {
+func (f *fakeScanFS) ListPNGFiles(dir string) ([]string, error) {
 	if err, ok := f.errs[dir]; ok {
 		return nil, err
 	}
@@ -49,111 +55,118 @@ func (f *fakeFS) ListPNGFiles(dir string) ([]string, error) {
 
 var _ = Describe("TrainingRunsService", func() {
 	var (
-		fs      *fakeFS
-		scanner *service.Scanner
-		root    string
+		discoveryFS *fakeDiscoveryFS
+		scanFS      *fakeScanFS
+		discovery   *service.DiscoveryService
+		scanner     *service.Scanner
+		sampleDir   string
 	)
 
 	BeforeEach(func() {
-		root = "/data/dataset"
-		fs = newFakeFS()
-		scanner = service.NewScanner(fs, root)
+		sampleDir = "/samples"
+		discoveryFS = newFakeDiscoveryFS()
+		scanFS = newFakeScanFS()
 	})
 
 	Describe("List", func() {
-		It("returns empty slice when no training runs configured", func() {
-			svc := api.NewTrainingRunsService(nil, scanner)
+		It("returns empty slice when no safetensors files found", func() {
+			discoveryFS.files["/checkpoints"] = []string{}
+			discovery = service.NewDiscoveryService(discoveryFS, []string{"/checkpoints"}, sampleDir)
+			scanner = service.NewScanner(scanFS, sampleDir)
+			svc := api.NewTrainingRunsService(discovery, scanner)
 
-			result, err := svc.List(context.Background())
+			result, err := svc.List(context.Background(), &gentrainingruns.ListPayload{HasSamples: false})
 
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result).To(HaveLen(0))
 		})
 
-		It("returns all configured training runs with correct IDs", func() {
-			runs := []model.TrainingRunConfig{
-				{
-					Name:    "run-alpha",
-					Pattern: regexp.MustCompile(`^alpha/.+`),
-				},
-				{
-					Name:    "run-beta",
-					Pattern: regexp.MustCompile(`^beta/.+`),
-				},
+		It("returns auto-discovered training runs", func() {
+			discoveryFS.files["/checkpoints"] = []string{
+				"model-a.safetensors",
+				"model-a-step00001000.safetensors",
+				"model-b.safetensors",
 			}
-			svc := api.NewTrainingRunsService(runs, scanner)
+			discovery = service.NewDiscoveryService(discoveryFS, []string{"/checkpoints"}, sampleDir)
+			scanner = service.NewScanner(scanFS, sampleDir)
+			svc := api.NewTrainingRunsService(discovery, scanner)
 
-			result, err := svc.List(context.Background())
+			result, err := svc.List(context.Background(), &gentrainingruns.ListPayload{HasSamples: false})
 
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result).To(HaveLen(2))
-			Expect(result[0].ID).To(Equal(0))
-			Expect(result[0].Name).To(Equal("run-alpha"))
-			Expect(result[0].Pattern).To(Equal(`^alpha/.+`))
-			Expect(result[1].ID).To(Equal(1))
-			Expect(result[1].Name).To(Equal("run-beta"))
-			Expect(result[1].Pattern).To(Equal(`^beta/.+`))
+			// Sorted by name
+			Expect(result[0].Name).To(Equal("model-a"))
+			Expect(result[0].CheckpointCount).To(Equal(2))
+			Expect(result[1].Name).To(Equal("model-b"))
+			Expect(result[1].CheckpointCount).To(Equal(1))
 		})
 
-		It("includes dimension configs in the response", func() {
-			runs := []model.TrainingRunConfig{
-				{
-					Name:    "with-dims",
-					Pattern: regexp.MustCompile(`^test`),
-					Dimensions: []model.DimensionConfig{
-						{
-							Name:    "step",
-							Type:    model.DimensionTypeInt,
-							Pattern: regexp.MustCompile(`-steps-(\d+)-`),
-						},
-						{
-							Name:    "checkpoint",
-							Type:    model.DimensionTypeString,
-							Pattern: regexp.MustCompile(`([^/]+)$`),
-						},
-					},
-				},
+		It("includes checkpoint details in response", func() {
+			discoveryFS.files["/checkpoints"] = []string{
+				"model-step00001000.safetensors",
+				"model-step00002000.safetensors",
 			}
-			svc := api.NewTrainingRunsService(runs, scanner)
+			discoveryFS.dirs["/samples/model-step00001000.safetensors"] = true
+			discovery = service.NewDiscoveryService(discoveryFS, []string{"/checkpoints"}, sampleDir)
+			scanner = service.NewScanner(scanFS, sampleDir)
+			svc := api.NewTrainingRunsService(discovery, scanner)
 
-			result, err := svc.List(context.Background())
+			result, err := svc.List(context.Background(), &gentrainingruns.ListPayload{HasSamples: false})
 
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result).To(HaveLen(1))
-			Expect(result[0].Dimensions).To(HaveLen(2))
-
-			Expect(result[0].Dimensions[0].Name).To(Equal("step"))
-			Expect(result[0].Dimensions[0].Type).To(Equal("int"))
-			Expect(result[0].Dimensions[0].Pattern).To(Equal(`-steps-(\d+)-`))
-
-			Expect(result[0].Dimensions[1].Name).To(Equal("checkpoint"))
-			Expect(result[0].Dimensions[1].Type).To(Equal("string"))
-			Expect(result[0].Dimensions[1].Pattern).To(Equal(`([^/]+)$`))
+			Expect(result[0].Checkpoints).To(HaveLen(2))
+			Expect(result[0].Checkpoints[0].Filename).To(Equal("model-step00001000.safetensors"))
+			Expect(result[0].Checkpoints[0].StepNumber).To(Equal(1000))
+			Expect(result[0].Checkpoints[0].HasSamples).To(BeTrue())
+			Expect(result[0].Checkpoints[1].Filename).To(Equal("model-step00002000.safetensors"))
+			Expect(result[0].Checkpoints[1].HasSamples).To(BeFalse())
 		})
 
-		It("returns empty dimensions slice when training run has no dimensions", func() {
-			runs := []model.TrainingRunConfig{
-				{
-					Name:       "no-dims",
-					Pattern:    regexp.MustCompile(`^test`),
-					Dimensions: nil,
-				},
+		It("filters by has_samples when requested", func() {
+			discoveryFS.files["/checkpoints"] = []string{
+				"model-a.safetensors",
+				"model-b.safetensors",
 			}
-			svc := api.NewTrainingRunsService(runs, scanner)
+			discoveryFS.dirs["/samples/model-a.safetensors"] = true
+			// model-b has no samples
+			discovery = service.NewDiscoveryService(discoveryFS, []string{"/checkpoints"}, sampleDir)
+			scanner = service.NewScanner(scanFS, sampleDir)
+			svc := api.NewTrainingRunsService(discovery, scanner)
 
-			result, err := svc.List(context.Background())
+			result, err := svc.List(context.Background(), &gentrainingruns.ListPayload{HasSamples: true})
 
 			Expect(err).NotTo(HaveOccurred())
-			Expect(result[0].Dimensions).To(HaveLen(0))
+			Expect(result).To(HaveLen(1))
+			Expect(result[0].Name).To(Equal("model-a"))
+		})
+
+		It("returns all runs when has_samples is false", func() {
+			discoveryFS.files["/checkpoints"] = []string{
+				"model-a.safetensors",
+				"model-b.safetensors",
+			}
+			discoveryFS.dirs["/samples/model-a.safetensors"] = true
+			discovery = service.NewDiscoveryService(discoveryFS, []string{"/checkpoints"}, sampleDir)
+			scanner = service.NewScanner(scanFS, sampleDir)
+			svc := api.NewTrainingRunsService(discovery, scanner)
+
+			result, err := svc.List(context.Background(), &gentrainingruns.ListPayload{HasSamples: false})
+
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result).To(HaveLen(2))
 		})
 	})
 
 	Describe("Scan", func() {
 		It("returns not_found for invalid training run ID", func() {
-			runs := []model.TrainingRunConfig{
-				{Name: "test", Pattern: regexp.MustCompile(`^test`)},
+			discoveryFS.files["/checkpoints"] = []string{
+				"model.safetensors",
 			}
-			svc := api.NewTrainingRunsService(runs, scanner)
+			discovery = service.NewDiscoveryService(discoveryFS, []string{"/checkpoints"}, sampleDir)
+			scanner = service.NewScanner(scanFS, sampleDir)
+			svc := api.NewTrainingRunsService(discovery, scanner)
 
 			_, err := svc.Scan(context.Background(), &gentrainingruns.ScanPayload{ID: 5})
 
@@ -162,10 +175,12 @@ var _ = Describe("TrainingRunsService", func() {
 		})
 
 		It("returns not_found for negative ID", func() {
-			runs := []model.TrainingRunConfig{
-				{Name: "test", Pattern: regexp.MustCompile(`^test`)},
+			discoveryFS.files["/checkpoints"] = []string{
+				"model.safetensors",
 			}
-			svc := api.NewTrainingRunsService(runs, scanner)
+			discovery = service.NewDiscoveryService(discoveryFS, []string{"/checkpoints"}, sampleDir)
+			scanner = service.NewScanner(scanFS, sampleDir)
+			svc := api.NewTrainingRunsService(discovery, scanner)
 
 			_, err := svc.Scan(context.Background(), &gentrainingruns.ScanPayload{ID: -1})
 
@@ -173,16 +188,15 @@ var _ = Describe("TrainingRunsService", func() {
 		})
 
 		It("returns scan results with images and dimensions", func() {
-			runs := []model.TrainingRunConfig{
-				{
-					Name:    "test-run",
-					Pattern: regexp.MustCompile(`^test/.+`),
-				},
+			discoveryFS.files["/checkpoints"] = []string{
+				"model-step00001000.safetensors",
 			}
-			svc := api.NewTrainingRunsService(runs, scanner)
+			discoveryFS.dirs["/samples/model-step00001000.safetensors"] = true
+			discovery = service.NewDiscoveryService(discoveryFS, []string{"/checkpoints"}, sampleDir)
+			scanner = service.NewScanner(scanFS, sampleDir)
+			svc := api.NewTrainingRunsService(discovery, scanner)
 
-			fs.dirs[root] = []string{"test/run1"}
-			fs.files["/data/dataset/test/run1"] = []string{
+			scanFS.files["/samples/model-step00001000.safetensors"] = []string{
 				"seed=1&cfg=3&_00001_.png",
 				"seed=2&cfg=7&_00001_.png",
 			}
@@ -195,16 +209,15 @@ var _ = Describe("TrainingRunsService", func() {
 		})
 
 		It("returns scan_failed when scanner encounters an error", func() {
-			runs := []model.TrainingRunConfig{
-				{
-					Name:    "test-run",
-					Pattern: regexp.MustCompile(`^test/.+`),
-				},
+			discoveryFS.files["/checkpoints"] = []string{
+				"model-step00001000.safetensors",
 			}
-			svc := api.NewTrainingRunsService(runs, scanner)
+			discoveryFS.dirs["/samples/model-step00001000.safetensors"] = true
+			discovery = service.NewDiscoveryService(discoveryFS, []string{"/checkpoints"}, sampleDir)
+			scanner = service.NewScanner(scanFS, sampleDir)
+			svc := api.NewTrainingRunsService(discovery, scanner)
 
-			fs.dirs[root] = []string{"test/run1"}
-			fs.errs["/data/dataset/test/run1"] = fmt.Errorf("disk error")
+			scanFS.errs["/samples/model-step00001000.safetensors"] = fmt.Errorf("disk error")
 
 			_, err := svc.Scan(context.Background(), &gentrainingruns.ScanPayload{ID: 0})
 
@@ -213,39 +226,34 @@ var _ = Describe("TrainingRunsService", func() {
 		})
 
 		It("maps model types to API response types correctly", func() {
-			runs := []model.TrainingRunConfig{
-				{
-					Name:    "test-run",
-					Pattern: regexp.MustCompile(`^test/.+`),
-					Dimensions: []model.DimensionConfig{
-						{
-							Name:    "step",
-							Type:    model.DimensionTypeInt,
-							Pattern: regexp.MustCompile(`steps-(\d+)`),
-						},
-					},
-				},
+			discoveryFS.files["/checkpoints"] = []string{
+				"model-step00001000.safetensors",
+				"model-step00002000.safetensors",
 			}
-			svc := api.NewTrainingRunsService(runs, scanner)
+			discoveryFS.dirs["/samples/model-step00001000.safetensors"] = true
+			discoveryFS.dirs["/samples/model-step00002000.safetensors"] = true
+			discovery = service.NewDiscoveryService(discoveryFS, []string{"/checkpoints"}, sampleDir)
+			scanner = service.NewScanner(scanFS, sampleDir)
+			svc := api.NewTrainingRunsService(discovery, scanner)
 
-			fs.dirs[root] = []string{"test/steps-500"}
-			fs.files["/data/dataset/test/steps-500"] = []string{
+			scanFS.files["/samples/model-step00001000.safetensors"] = []string{
+				"seed=42&_00001_.png",
+			}
+			scanFS.files["/samples/model-step00002000.safetensors"] = []string{
 				"seed=42&_00001_.png",
 			}
 
 			result, err := svc.Scan(context.Background(), &gentrainingruns.ScanPayload{ID: 0})
 
 			Expect(err).NotTo(HaveOccurred())
-			Expect(result.Images).To(HaveLen(1))
-			Expect(result.Images[0].RelativePath).To(Equal("test/steps-500/seed=42&_00001_.png"))
-			Expect(result.Images[0].Dimensions).To(HaveKeyWithValue("seed", "42"))
-			Expect(result.Images[0].Dimensions).To(HaveKeyWithValue("step", "500"))
+			Expect(result.Images).To(HaveLen(2))
 
 			dimMap := make(map[string]*gentrainingruns.DimensionResponse)
 			for _, d := range result.Dimensions {
 				dimMap[d.Name] = d
 			}
-			Expect(dimMap["step"].Type).To(Equal("int"))
+			Expect(dimMap["checkpoint"].Type).To(Equal("int"))
+			Expect(dimMap["checkpoint"].Values).To(Equal([]string{"1000", "2000"}))
 			Expect(dimMap["seed"].Type).To(Equal("int"))
 		})
 	})

@@ -5,10 +5,11 @@ services:
       - "8080:8080"
     volumes:
       - backend_data:/app/data
-      - ./config.toml:/app/config.toml:ro
-      - ${DATASET_ROOT:-./.dataset-placeholder}:/data/dataset:ro
+      - ./config.yaml:/app/config.yaml:ro
+      - ${CHECKPOINT_DIR:-./.dataset-placeholder}:/data/checkpoints:ro
+      - ${SAMPLE_DIR:-./.dataset-placeholder}:/data/samples:ro
     environment:
-      - CONFIG_PATH=/app/config.toml
+      - CONFIG_PATH=/app/config.yaml
 
   frontend:
     build: ./frontend

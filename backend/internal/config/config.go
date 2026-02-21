@@ -4,37 +4,23 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"regexp"
 
-	"github.com/BurntSushi/toml"
+	"gopkg.in/yaml.v3"
+
 	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/model"
 )
 
-// tomlConfig is the raw TOML-tagged representation of the config file.
-type tomlConfig struct {
-	Root         string            `toml:"root"`
-	Port         *int              `toml:"port"`
-	IPAddress    string            `toml:"ip_address"`
-	DBPath       string            `toml:"db_path"`
-	TrainingRuns []tomlTrainingRun `toml:"training_runs"`
-}
-
-// tomlTrainingRun is the TOML representation of a training run.
-type tomlTrainingRun struct {
-	Name       string          `toml:"name"`
-	Pattern    string          `toml:"pattern"`
-	Dimensions []tomlDimension `toml:"dimensions"`
-}
-
-// tomlDimension is the TOML representation of a dimension extraction config.
-type tomlDimension struct {
-	Name    string `toml:"name"`
-	Type    string `toml:"type"`
-	Pattern string `toml:"pattern"`
+// yamlConfig is the raw YAML-tagged representation of the config file.
+type yamlConfig struct {
+	CheckpointDirs []string `yaml:"checkpoint_dirs"`
+	SampleDir      string   `yaml:"sample_dir"`
+	Port           *int     `yaml:"port"`
+	IPAddress      string   `yaml:"ip_address"`
+	DBPath         string   `yaml:"db_path"`
 }
 
 // DefaultConfigPath is the default path to the configuration file.
-const DefaultConfigPath = "config.toml"
+const DefaultConfigPath = "config.yaml"
 
 // ConfigPathEnvVar is the environment variable that overrides the config path.
 const ConfigPathEnvVar = "CONFIG_PATH"
@@ -50,25 +36,25 @@ func Load() (*model.Config, error) {
 	return LoadFromPath(path)
 }
 
-// LoadFromPath reads and parses a TOML config file at the given path.
+// LoadFromPath reads and parses a YAML config file at the given path.
 func LoadFromPath(path string) (*model.Config, error) {
-	var raw tomlConfig
-	if _, err := toml.DecodeFile(path, &raw); err != nil {
+	data, err := os.ReadFile(path)
+	if err != nil {
 		return nil, fmt.Errorf("reading config file %q: %w", path, err)
 	}
-	return parseAndValidate(raw)
+	return LoadFromString(string(data))
 }
 
-// LoadFromString parses a TOML config from a string. Useful for testing.
+// LoadFromString parses a YAML config from a string. Useful for testing.
 func LoadFromString(data string) (*model.Config, error) {
-	var raw tomlConfig
-	if _, err := toml.Decode(data, &raw); err != nil {
+	var raw yamlConfig
+	if err := yaml.Unmarshal([]byte(data), &raw); err != nil {
 		return nil, fmt.Errorf("parsing config: %w", err)
 	}
 	return parseAndValidate(raw)
 }
 
-func parseAndValidate(raw tomlConfig) (*model.Config, error) {
+func parseAndValidate(raw yamlConfig) (*model.Config, error) {
 	// Apply defaults
 	port := 8080
 	if raw.Port != nil {
@@ -81,16 +67,33 @@ func parseAndValidate(raw tomlConfig) (*model.Config, error) {
 		raw.DBPath = "./data/"
 	}
 
-	// Validate root
-	if raw.Root == "" {
-		return nil, fmt.Errorf("config: root is required")
+	// Validate checkpoint_dirs
+	if len(raw.CheckpointDirs) == 0 {
+		return nil, fmt.Errorf("config: checkpoint_dirs is required (at least one directory)")
 	}
-	info, err := os.Stat(raw.Root)
+	for i, dir := range raw.CheckpointDirs {
+		if dir == "" {
+			return nil, fmt.Errorf("config: checkpoint_dirs[%d] is empty", i)
+		}
+		info, err := os.Stat(dir)
+		if err != nil {
+			return nil, fmt.Errorf("config: checkpoint_dirs[%d] %q does not exist: %w", i, dir, err)
+		}
+		if !info.IsDir() {
+			return nil, fmt.Errorf("config: checkpoint_dirs[%d] %q is not a directory", i, dir)
+		}
+	}
+
+	// Validate sample_dir
+	if raw.SampleDir == "" {
+		return nil, fmt.Errorf("config: sample_dir is required")
+	}
+	info, err := os.Stat(raw.SampleDir)
 	if err != nil {
-		return nil, fmt.Errorf("config: root directory %q does not exist: %w", raw.Root, err)
+		return nil, fmt.Errorf("config: sample_dir %q does not exist: %w", raw.SampleDir, err)
 	}
 	if !info.IsDir() {
-		return nil, fmt.Errorf("config: root %q is not a directory", raw.Root)
+		return nil, fmt.Errorf("config: sample_dir %q is not a directory", raw.SampleDir)
 	}
 
 	// Validate port
@@ -103,73 +106,11 @@ func parseAndValidate(raw tomlConfig) (*model.Config, error) {
 		return nil, fmt.Errorf("config: invalid ip_address %q", raw.IPAddress)
 	}
 
-	// Validate db_path is non-empty (already defaulted above)
-	if raw.DBPath == "" {
-		return nil, fmt.Errorf("config: db_path is required")
-	}
-
-	// Parse training runs
-	runs := make([]model.TrainingRunConfig, 0, len(raw.TrainingRuns))
-	for i, tr := range raw.TrainingRuns {
-		if tr.Name == "" {
-			return nil, fmt.Errorf("config: training_runs[%d].name is required", i)
-		}
-		if tr.Pattern == "" {
-			return nil, fmt.Errorf("config: training_runs[%d].pattern is required", i)
-		}
-		re, err := regexp.Compile(tr.Pattern)
-		if err != nil {
-			return nil, fmt.Errorf("config: training_runs[%d].pattern is invalid regex: %w", i, err)
-		}
-
-		dims := make([]model.DimensionConfig, 0, len(tr.Dimensions))
-		for j, d := range tr.Dimensions {
-			if d.Name == "" {
-				return nil, fmt.Errorf("config: training_runs[%d].dimensions[%d].name is required", i, j)
-			}
-			dimType, err := parseDimensionType(d.Type)
-			if err != nil {
-				return nil, fmt.Errorf("config: training_runs[%d].dimensions[%d].type: %w", i, j, err)
-			}
-			if d.Pattern == "" {
-				return nil, fmt.Errorf("config: training_runs[%d].dimensions[%d].pattern is required", i, j)
-			}
-			dimRe, err := regexp.Compile(d.Pattern)
-			if err != nil {
-				return nil, fmt.Errorf("config: training_runs[%d].dimensions[%d].pattern is invalid regex: %w", i, j, err)
-			}
-			dims = append(dims, model.DimensionConfig{
-				Name:    d.Name,
-				Type:    dimType,
-				Pattern: dimRe,
-			})
-		}
-
-		runs = append(runs, model.TrainingRunConfig{
-			Name:       tr.Name,
-			Pattern:    re,
-			Dimensions: dims,
-		})
-	}
-
 	return &model.Config{
-		Root:         raw.Root,
-		Port:         port,
-		IPAddress:    raw.IPAddress,
-		DBPath:       raw.DBPath,
-		TrainingRuns: runs,
+		CheckpointDirs: raw.CheckpointDirs,
+		SampleDir:      raw.SampleDir,
+		Port:           port,
+		IPAddress:      raw.IPAddress,
+		DBPath:         raw.DBPath,
 	}, nil
-}
-
-func parseDimensionType(s string) (model.DimensionType, error) {
-	switch s {
-	case "int":
-		return model.DimensionTypeInt, nil
-	case "string":
-		return model.DimensionTypeString, nil
-	case "":
-		return model.DimensionTypeString, nil // default to string
-	default:
-		return "", fmt.Errorf("invalid dimension type %q (must be \"int\" or \"string\")", s)
-	}
 }
