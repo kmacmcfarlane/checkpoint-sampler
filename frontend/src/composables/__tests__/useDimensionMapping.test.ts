@@ -115,6 +115,127 @@ describe('useDimensionMapping', () => {
       expect(assignments.value.get('step')).toBe('slider')
       expect(assignments.value.get('index')).toBe('none')
     })
+
+    it('sets filter mode to multi when assigning x/y/slider role', () => {
+      const { setScanResult, assignRole, getFilterMode } = useDimensionMapping()
+      setScanResult(makeScanResult())
+
+      assignRole('index', 'x')
+      expect(getFilterMode('index')).toBe('multi')
+
+      assignRole('step', 'y')
+      expect(getFilterMode('step')).toBe('multi')
+
+      assignRole('seed', 'slider')
+      expect(getFilterMode('seed')).toBe('multi')
+    })
+
+    it('reverts displaced dimension filter mode to hide', () => {
+      const { setScanResult, assignRole, getFilterMode } = useDimensionMapping()
+      setScanResult(makeScanResult())
+
+      assignRole('index', 'x')
+      expect(getFilterMode('index')).toBe('multi')
+
+      assignRole('step', 'x') // displaces index
+      expect(getFilterMode('index')).toBe('hide')
+      expect(getFilterMode('step')).toBe('multi')
+    })
+
+    it('sets filter mode to hide when assigning none role', () => {
+      const { setScanResult, assignRole, setFilterMode, getFilterMode } = useDimensionMapping()
+      setScanResult(makeScanResult())
+
+      setFilterMode('index', 'single')
+      expect(getFilterMode('index')).toBe('single')
+
+      assignRole('index', 'x')
+      expect(getFilterMode('index')).toBe('multi')
+
+      assignRole('index', 'none')
+      expect(getFilterMode('index')).toBe('hide')
+    })
+  })
+
+  describe('filterModes', () => {
+    it('initializes all dimensions to hide filter mode', () => {
+      const { setScanResult, filterModes } = useDimensionMapping()
+      setScanResult(makeScanResult())
+
+      expect(filterModes.value.size).toBe(3)
+      expect(filterModes.value.get('index')).toBe('hide')
+      expect(filterModes.value.get('seed')).toBe('hide')
+      expect(filterModes.value.get('step')).toBe('hide')
+    })
+
+    it('resets filter modes when setScanResult is called', () => {
+      const { setScanResult, setFilterMode, filterModes } = useDimensionMapping()
+      setScanResult(makeScanResult())
+      setFilterMode('index', 'multi')
+
+      setScanResult(makeScanResult())
+      expect(filterModes.value.get('index')).toBe('hide')
+    })
+  })
+
+  describe('setFilterMode', () => {
+    it('sets filter mode for unassigned dimension', () => {
+      const { setScanResult, setFilterMode, getFilterMode } = useDimensionMapping()
+      setScanResult(makeScanResult())
+
+      setFilterMode('index', 'single')
+      expect(getFilterMode('index')).toBe('single')
+
+      setFilterMode('index', 'multi')
+      expect(getFilterMode('index')).toBe('multi')
+
+      setFilterMode('index', 'hide')
+      expect(getFilterMode('index')).toBe('hide')
+    })
+
+    it('ignores filter mode changes for x/y/slider dimensions', () => {
+      const { setScanResult, assignRole, setFilterMode, getFilterMode } = useDimensionMapping()
+      setScanResult(makeScanResult())
+
+      assignRole('index', 'x')
+      setFilterMode('index', 'hide')
+      expect(getFilterMode('index')).toBe('multi')
+
+      setFilterMode('index', 'single')
+      expect(getFilterMode('index')).toBe('multi')
+    })
+
+    it('ignores unknown dimension names', () => {
+      const { setScanResult, setFilterMode, filterModes } = useDimensionMapping()
+      setScanResult(makeScanResult())
+
+      setFilterMode('nonexistent', 'multi')
+      expect(filterModes.value.has('nonexistent')).toBe(false)
+    })
+  })
+
+  describe('getFilterMode', () => {
+    it('returns hide for unassigned dimensions by default', () => {
+      const { setScanResult, getFilterMode } = useDimensionMapping()
+      setScanResult(makeScanResult())
+
+      expect(getFilterMode('index')).toBe('hide')
+    })
+
+    it('returns multi for x/y/slider dimensions regardless of stored mode', () => {
+      const { setScanResult, assignRole, getFilterMode } = useDimensionMapping()
+      setScanResult(makeScanResult())
+
+      assignRole('index', 'x')
+      expect(getFilterMode('index')).toBe('multi')
+    })
+
+    it('returns hide for unknown dimensions', () => {
+      const { setScanResult, getFilterMode } = useDimensionMapping()
+      setScanResult(makeScanResult())
+
+      expect(getFilterMode('nonexistent')).toBe('hide')
+    })
   })
 
   describe('computed dimensions by role', () => {
@@ -235,6 +356,18 @@ describe('useDimensionMapping', () => {
       expect(assignments.value.get('cfg')).toBe('none')
     })
 
+    it('initializes filter mode to hide for new dimensions', () => {
+      const { setScanResult, filterModes, addImage } = useDimensionMapping()
+      setScanResult(makeScanResult())
+
+      addImage({
+        relative_path: 'dir3/index=0&seed=42&cfg=7.5.png',
+        dimensions: { index: '0', seed: '42', step: '500', cfg: '7.5' },
+      })
+
+      expect(filterModes.value.get('cfg')).toBe('hide')
+    })
+
     it('preserves existing dimension assignments', () => {
       const { setScanResult, assignments, assignRole, addImage } = useDimensionMapping()
       setScanResult(makeScanResult())
@@ -326,6 +459,23 @@ describe('useDimensionMapping', () => {
 
       expect(dimensions.value.find((d) => d.name === 'unique')).toBeUndefined()
       expect(assignments.value.has('unique')).toBe(false)
+    })
+
+    it('removes filter mode when dimension disappears', () => {
+      const { setScanResult, filterModes, removeImage } = useDimensionMapping()
+      setScanResult({
+        images: [
+          { relative_path: 'a.png', dimensions: { x: '1', unique: 'val' } },
+          { relative_path: 'b.png', dimensions: { x: '2' } },
+        ],
+        dimensions: [
+          { name: 'x', type: 'int', values: ['1', '2'] },
+          { name: 'unique', type: 'string', values: ['val'] },
+        ],
+      })
+
+      removeImage('a.png')
+      expect(filterModes.value.has('unique')).toBe(false)
     })
 
     it('does nothing for non-existent relative path', () => {

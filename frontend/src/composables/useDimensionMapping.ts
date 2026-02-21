@@ -5,6 +5,7 @@ import type {
   ScanImage,
   DimensionRole,
   DimensionAssignment,
+  FilterMode,
 } from '../api/types'
 
 /**
@@ -103,13 +104,16 @@ function rebuildDimensions(
 export function useDimensionMapping() {
   const scanResult = ref<ScanResult | null>(null)
   const assignments = ref<Map<string, DimensionRole>>(new Map())
+  const filterModes = ref<Map<string, FilterMode>>(new Map())
 
   /** Replace the current scan data and reset assignments. */
   function setScanResult(result: ScanResult) {
     scanResult.value = result
     assignments.value = new Map()
+    filterModes.value = new Map()
     for (const dim of result.dimensions) {
       assignments.value.set(dim.name, 'none')
+      filterModes.value.set(dim.name, 'hide')
     }
   }
 
@@ -135,6 +139,8 @@ export function useDimensionMapping() {
   /**
    * Assign a dimension to a role. Enforces uniqueness for x, y, and slider:
    * if another dimension already holds that role, it is moved to 'none'.
+   * Dimensions assigned to x/y/slider always use 'multi' filter mode.
+   * Displaced dimensions revert to 'hide' filter mode.
    */
   function assignRole(dimensionName: string, role: DimensionRole) {
     if (!assignments.value.has(dimensionName)) return
@@ -144,12 +150,45 @@ export function useDimensionMapping() {
       for (const [name, existingRole] of assignments.value) {
         if (existingRole === role && name !== dimensionName) {
           assignments.value.set(name, 'none')
+          filterModes.value.set(name, 'hide')
         }
       }
     }
     assignments.value.set(dimensionName, role)
-    // Trigger reactivity by replacing the map
+
+    // x/y/slider always use multi filter mode; unassigned default to hide
+    if (role !== 'none') {
+      filterModes.value.set(dimensionName, 'multi')
+    } else {
+      filterModes.value.set(dimensionName, 'hide')
+    }
+
+    // Trigger reactivity by replacing the maps
     assignments.value = new Map(assignments.value)
+    filterModes.value = new Map(filterModes.value)
+  }
+
+  /**
+   * Set the filter mode for a dimension.
+   * Dimensions assigned to x/y/slider always use 'multi' (ignored for those).
+   */
+  function setFilterMode(dimensionName: string, mode: FilterMode) {
+    if (!filterModes.value.has(dimensionName)) return
+    // x/y/slider dimensions always use multi
+    const role = assignments.value.get(dimensionName)
+    if (role && role !== 'none') return
+    filterModes.value.set(dimensionName, mode)
+    filterModes.value = new Map(filterModes.value)
+  }
+
+  /**
+   * Get the effective filter mode for a dimension.
+   * x/y/slider always return 'multi'.
+   */
+  function getFilterMode(dimensionName: string): FilterMode {
+    const role = assignments.value.get(dimensionName)
+    if (role && role !== 'none') return 'multi'
+    return filterModes.value.get(dimensionName) ?? 'hide'
   }
 
   /** Get the dimension assigned to a specific role (null if none). */
@@ -216,11 +255,13 @@ export function useDimensionMapping() {
       dimensions: newDimensions,
     }
 
-    // Ensure new dimensions get an assignment
+    // Ensure new dimensions get an assignment and filter mode
     for (const dim of newDimensions) {
       if (!assignments.value.has(dim.name)) {
         assignments.value.set(dim.name, 'none')
+        filterModes.value.set(dim.name, 'hide')
         assignments.value = new Map(assignments.value)
+        filterModes.value = new Map(filterModes.value)
       }
     }
   }
@@ -245,16 +286,18 @@ export function useDimensionMapping() {
       dimensions: newDimensions,
     }
 
-    // Remove assignments for dimensions that no longer exist
-    let assignmentsChanged = false
+    // Remove assignments and filter modes for dimensions that no longer exist
+    let changed = false
     for (const [name] of assignments.value) {
       if (!newDimensions.some((d) => d.name === name)) {
         assignments.value.delete(name)
-        assignmentsChanged = true
+        filterModes.value.delete(name)
+        changed = true
       }
     }
-    if (assignmentsChanged) {
+    if (changed) {
       assignments.value = new Map(assignments.value)
+      filterModes.value = new Map(filterModes.value)
     }
   }
 
@@ -263,12 +306,15 @@ export function useDimensionMapping() {
     dimensions,
     images,
     assignments,
+    filterModes,
     dimensionAssignments,
     xDimension,
     yDimension,
     sliderDimension,
     setScanResult,
     assignRole,
+    setFilterMode,
+    getFilterMode,
     findImage,
     addImage,
     removeImage,

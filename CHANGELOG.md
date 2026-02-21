@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-023: Dimension filter modes (Hide/Single/Multi)
+- frontend/src/api/types.ts: Added FilterMode type ('hide' | 'single' | 'multi') for dimension filter mode control
+- frontend/src/composables/useDimensionMapping.ts: Added filterModes ref tracking per-dimension filter mode; setFilterMode and getFilterMode functions; dimensions assigned to X/Y/Slider always use 'multi' filter mode (enforced on role assignment); displaced dimensions revert to 'hide'; filter modes initialized to 'hide' for new dimensions; filter modes cleaned up when dimensions disappear
+- frontend/src/components/DimensionFilter.vue: New component replacing ComboFilter with mode-aware filtering; Hide mode renders nothing; Single mode renders NSelect for one value at a time; Multi mode renders NCheckboxGroup with solo/unsolo behavior (click label to solo, click only-selected label to re-select all); collapsed by default with expand/collapse toggle; accessible aria-expanded, aria-label attributes
+- frontend/src/components/DimensionPanel.vue: Added filter mode NSelect per dimension (Hide/Single/Multi options); filter mode selector disabled for X/Y/Slider dimensions (always Multi); emits update:filterMode event
+- frontend/src/App.vue: Replaced ComboFilter with DimensionFilter; wired filterModes and filter mode change handling; switching to Single reduces selection to one value (first previously-selected or first); switching to Hide restores all values; switching to Multi from Hide starts with all selected; passes getFilterMode to each DimensionFilter
+- 26 DimensionFilter component tests: hide mode renders nothing, collapse default/toggle/aria-expanded/aria-label, single mode NSelect rendering/value/change/accessibility/no checkboxes, multi mode checkboxes/toggle/solo/unsolo/all/none/disabled states/accessible labels/no NSelect
+- Updated DimensionPanel tests (15): filter mode selector rendering with 3 options, current mode display, multi override for assigned dimensions, disabled state for X/Y/Slider, update:filterMode emission, accessible labels
+- Updated useDimensionMapping tests (41): filter mode initialization to hide, reset on setScanResult, setFilterMode for unassigned dimensions, ignore for X/Y/Slider, getFilterMode defaults, role assignment sets multi/reverts hide, addImage initializes filter modes for new dimensions, removeImage cleans up filter modes
+
 ### S-022: Left-side slide-out controls panel
 - frontend/src/components/AppDrawer.vue: New component wrapping NDrawer with left placement, overlay mode, 360px width, closable drawer content with "Controls" title; accepts show prop with v-model:show for open/close state
 - frontend/src/App.vue: Moved TrainingRunSelector, PresetSelector, and DimensionPanel from header/main into AppDrawer slot; added hamburger toggle button (☰) in header-left with aria-label; responsive default state via matchMedia — drawer opens by default on wide screens (≥1024px), closed on narrow screens; listens for media query changes to auto-toggle; drawer does not affect grid state when opened/closed; combo filters, master slider, and grid remain in main content area

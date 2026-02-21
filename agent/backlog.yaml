@@ -496,7 +496,7 @@ stories:
   - id: S-023
     title: "Dimension filter modes (Hide/Single/Multi)"
     priority: 6
-    done: false
+    done: true
     blocked: false
     blocked_reason: ""
     requires: [R-002]

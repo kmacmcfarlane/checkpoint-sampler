@@ -1,14 +1,16 @@
 <script setup lang="ts">
 import { NSelect } from 'naive-ui'
-import type { DimensionRole, ScanDimension } from '../api/types'
+import type { DimensionRole, FilterMode, ScanDimension } from '../api/types'
 
 const props = defineProps<{
   dimensions: ScanDimension[]
   assignments: Map<string, DimensionRole>
+  filterModes: Map<string, FilterMode>
 }>()
 
 const emit = defineEmits<{
   assign: [dimensionName: string, role: DimensionRole]
+  'update:filterMode': [dimensionName: string, mode: FilterMode]
 }>()
 
 const roleOptions = [
@@ -18,14 +20,37 @@ const roleOptions = [
   { value: 'none', label: 'None' },
 ]
 
+const filterModeOptions = [
+  { value: 'hide', label: 'Hide' },
+  { value: 'single', label: 'Single' },
+  { value: 'multi', label: 'Multi' },
+]
+
 function onRoleChange(dimensionName: string, value: string | null) {
   if (value !== null) {
     emit('assign', dimensionName, value as DimensionRole)
   }
 }
 
+function onFilterModeChange(dimensionName: string, value: string | null) {
+  if (value !== null) {
+    emit('update:filterMode', dimensionName, value as FilterMode)
+  }
+}
+
 function getRole(dimensionName: string): DimensionRole {
   return props.assignments.get(dimensionName) ?? 'none'
+}
+
+function getFilterMode(dimensionName: string): FilterMode {
+  const role = getRole(dimensionName)
+  if (role !== 'none') return 'multi'
+  return props.filterModes.get(dimensionName) ?? 'hide'
+}
+
+function isFilterModeDisabled(dimensionName: string): boolean {
+  const role = getRole(dimensionName)
+  return role !== 'none'
 }
 </script>
 
@@ -46,6 +71,15 @@ function getRole(dimensionName: string): DimensionRole {
           style="min-width: 120px"
           :aria-label="`Role for ${dim.name}`"
           @update:value="(v: string | null) => onRoleChange(dim.name, v)"
+        />
+        <NSelect
+          :value="getFilterMode(dim.name)"
+          :options="filterModeOptions"
+          :disabled="isFilterModeDisabled(dim.name)"
+          size="small"
+          style="min-width: 90px"
+          :aria-label="`Filter mode for ${dim.name}`"
+          @update:value="(v: string | null) => onFilterModeChange(dim.name, v)"
         />
         <span class="dimension-values">{{ dim.values.length }} values</span>
       </div>

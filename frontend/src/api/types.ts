@@ -53,6 +53,9 @@ export interface ScanResult {
 /** UI role a dimension can be assigned to. */
 export type DimensionRole = 'x' | 'y' | 'slider' | 'none'
 
+/** Filter mode for a dimension's value filter. */
+export type FilterMode = 'hide' | 'single' | 'multi'
+
 /** Assignment of a dimension to a UI role. */
 export interface DimensionAssignment {
   dimensionName: string

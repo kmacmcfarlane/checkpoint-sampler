@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import { NConfigProvider, NButton, NTag } from 'naive-ui'
-import type { TrainingRun, DimensionRole, Preset } from './api/types'
+import type { TrainingRun, DimensionRole, FilterMode, Preset } from './api/types'
 import { apiClient } from './api/client'
 import { useDimensionMapping } from './composables/useDimensionMapping'
 import { useImagePreloader } from './composables/useImagePreloader'
@@ -11,7 +11,7 @@ import AppDrawer from './components/AppDrawer.vue'
 import TrainingRunSelector from './components/TrainingRunSelector.vue'
 import DimensionPanel from './components/DimensionPanel.vue'
 import XYGrid from './components/XYGrid.vue'
-import ComboFilter from './components/ComboFilter.vue'
+import DimensionFilter from './components/DimensionFilter.vue'
 import MasterSlider from './components/MasterSlider.vue'
 import PresetSelector from './components/PresetSelector.vue'
 import ImageLightbox from './components/ImageLightbox.vue'
@@ -67,11 +67,14 @@ const {
   dimensions,
   images,
   assignments,
+  filterModes,
   xDimension,
   yDimension,
   sliderDimension,
   setScanResult,
   assignRole,
+  setFilterMode,
+  getFilterMode,
   addImage,
   removeImage,
 } = useDimensionMapping()
@@ -154,7 +157,47 @@ function onAssignRole(dimensionName: string, role: DimensionRole) {
   assignRole(dimensionName, role)
 }
 
-function onComboUpdate(dimensionName: string, selected: Set<string>) {
+function onFilterModeChange(dimensionName: string, mode: FilterMode) {
+  const prevMode = getFilterMode(dimensionName)
+  setFilterMode(dimensionName, mode)
+
+  // When switching to 'single', reduce selection to one value
+  if (mode === 'single' && prevMode !== 'single') {
+    const current = comboSelections[dimensionName]
+    const dim = dimensions.value.find((d) => d.name === dimensionName)
+    if (dim) {
+      // Pick first previously-selected value that's still valid, or first value
+      let singleVal = dim.values[0]
+      if (current) {
+        for (const v of current) {
+          if (dim.values.includes(v)) {
+            singleVal = v
+            break
+          }
+        }
+      }
+      comboSelections[dimensionName] = new Set(singleVal ? [singleVal] : [])
+    }
+  }
+
+  // When switching to 'hide', restore all values (include everything)
+  if (mode === 'hide') {
+    const dim = dimensions.value.find((d) => d.name === dimensionName)
+    if (dim) {
+      comboSelections[dimensionName] = new Set(dim.values)
+    }
+  }
+
+  // When switching to 'multi' from 'hide', start with all values selected
+  if (mode === 'multi' && prevMode === 'hide') {
+    const dim = dimensions.value.find((d) => d.name === dimensionName)
+    if (dim) {
+      comboSelections[dimensionName] = new Set(dim.values)
+    }
+  }
+}
+
+function onFilterUpdate(dimensionName: string, selected: Set<string>) {
   comboSelections[dimensionName] = selected
 }
 
@@ -272,7 +315,9 @@ function onPresetDelete() {
             <DimensionPanel
               :dimensions="dimensions"
               :assignments="assignments"
+              :filter-modes="filterModes"
               @assign="onAssignRole"
+              @update:filter-mode="onFilterModeChange"
             />
           </div>
         </template>
@@ -283,14 +328,15 @@ function onPresetDelete() {
           <p v-if="scanning">Scanning...</p>
           <p v-else-if="scanError" class="error" role="alert">{{ scanError }}</p>
           <template v-else>
-            <div class="combo-filters" v-if="dimensions.length > 0">
-              <ComboFilter
+            <div class="dimension-filters" v-if="dimensions.length > 0">
+              <DimensionFilter
                 v-for="dim in dimensions"
                 :key="dim.name"
                 :dimension-name="dim.name"
                 :values="dim.values"
                 :selected="comboSelections[dim.name] ?? new Set()"
-                @update="onComboUpdate"
+                :filter-mode="getFilterMode(dim.name)"
+                @update="onFilterUpdate"
               />
             </div>
             <MasterSlider
@@ -390,7 +436,7 @@ function onPresetDelete() {
   flex: 1;
 }
 
-.combo-filters {
+.dimension-filters {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
