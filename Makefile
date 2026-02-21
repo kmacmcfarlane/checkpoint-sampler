@@ -17,8 +17,16 @@ ralph-resume:
 ralph-auto:
 	claude-sandbox --ralph --dangerously-skip-permissions
 
+ralph-auto-once:
+	claude-sandbox --ralph --dangerously-skip-permissions --limit 1
+
+# make ralph-auto-resume ARGS="<resume id>"
 ralph-auto-resume:
-	claude-sandbox --ralph --dangerously-skip-permissions --resume
+	claude-sandbox --ralph --dangerously-skip-permissions --resume ${ARGS}
+
+# make ralph-auto-resume-once ARGS="<resume id>"
+ralph-auto-resume-once:
+	claude-sandbox --ralph --dangerously-skip-permissions --limit 1 --resume ${ARGS}
 
 up:
 	docker compose up -d --build
