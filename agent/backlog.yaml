@@ -259,6 +259,27 @@ stories:
     testing:
       - "command: make up-dev (verify backend starts without WAL error)"
 
+  - id: R-001
+    title: "Refactor Goa HTTP wireup into NewHTTPHandler"
+    priority: 41
+    done: false
+    blocked: false
+    blocked_reason: ""
+    requires: [S-004]
+    acceptance:
+      - "BE: Extract all Goa HTTP transport setup from main.go into NewHTTPHandler() in internal/api/http.go"
+      - "BE: NewHTTPHandler takes pre-built *<service>.Endpoints, logger, and debug flag; returns http.Handler"
+      - "BE: Mux creation, decoder/encoder, server instantiation, mounting, and mount logging all live inside NewHTTPHandler"
+      - "BE: errorHandler helper function in internal/api/http.go logs errors with request ID for correlation"
+      - "BE: HTTP-level middleware (RequestID, CORS) applied inside NewHTTPHandler"
+      - "BE: main.go only owns dependency injection: config, stores, services, API impls, endpoint creation"
+      - "BE: main.go calls NewHTTPHandler and receives http.Handler; wires it into http.Server"
+      - "BE: Custom image handler and /docs redirect mounted inside NewHTTPHandler"
+      - "BE: All existing tests pass unchanged"
+      - "BE: Server starts and all endpoints respond identically to before"
+    testing:
+      - "command: make test-backend"
+
   - id: S-013
     title: "Image lightbox with zoom and pan"
     priority: 40
