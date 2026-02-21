@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-016: Keyboard navigation for sliders
+- frontend/src/components/SliderBar.vue: Added keyboard navigation — ArrowLeft/ArrowDown step to previous value, ArrowRight/ArrowUp step to next value; container div has tabindex="0" for focus; keydown events from the range input bubble to the container handler; preventDefault stops native range input behavior to avoid double-step
+- frontend/src/components/MasterSlider.vue: Same keyboard navigation as SliderBar; container div has tabindex="0" for focus when clicking near the slider area
+- 9 SliderBar keyboard tests: ArrowRight/ArrowLeft/ArrowUp/ArrowDown stepping, boundary clamping (no emit at first/last value), non-arrow key ignore, keyboard on range input via bubbling, tabindex presence
+- 9 MasterSlider keyboard tests: same coverage as SliderBar keyboard tests
+
 ### S-015: WebSocket live updates (frontend)
 - frontend/src/api/wsClient.ts: WSClient class managing WebSocket connection to /api/ws with auto-reconnect using exponential backoff (configurable initial delay, max delay, multiplier); resets backoff on successful connection; validates incoming FSEvent messages before dispatching; supports event listeners and connection state listeners
 - frontend/src/api/types.ts: Added FSEventType union type and FSEventMessage interface for typed WebSocket events

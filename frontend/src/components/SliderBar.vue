@@ -26,10 +26,26 @@ function onInput(event: Event) {
     emit('change', props.values[idx])
   }
 }
+
+function onKeydown(event: KeyboardEvent) {
+  if (props.values.length === 0) return
+  const idx = currentIndex.value
+  if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') {
+    event.preventDefault()
+    if (idx > 0) {
+      emit('change', props.values[idx - 1])
+    }
+  } else if (event.key === 'ArrowRight' || event.key === 'ArrowUp') {
+    event.preventDefault()
+    if (idx < props.values.length - 1) {
+      emit('change', props.values[idx + 1])
+    }
+  }
+}
 </script>
 
 <template>
-  <div class="slider-bar">
+  <div class="slider-bar" tabindex="0" @keydown="onKeydown">
     <input
       type="range"
       :min="0"
