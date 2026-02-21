@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-017: Slider playback mode
+- frontend/src/components/MasterSlider.vue: Added Play/Pause button that auto-advances through slider values at a configurable interval; speed selector with 0.5s/1s/2s/3s options (default 1s); Loop checkbox to wrap around from last value to first; playback stops automatically at the last value when loop is off; speed changes during playback restart the interval; playback stops when the values prop changes (e.g. dimension switch); accessible aria-labels on all playback controls
+- 16 new MasterSlider playback tests: play button rendering, play/pause toggle, interval advance, multi-step advance, stop at last value without loop, wrap with loop enabled, no playback with <=1 values, stop on pause, speed selector default, speed adjustment, speed change during playback restarts interval, loop checkbox default state, accessible labels, play button aria-label changes, stop on values prop change
+
 ### S-016: Keyboard navigation for sliders
 - frontend/src/components/SliderBar.vue: Added keyboard navigation — ArrowLeft/ArrowDown step to previous value, ArrowRight/ArrowUp step to next value; container div has tabindex="0" for focus; keydown events from the range input bubble to the container handler; preventDefault stops native range input behavior to avoid double-step
 - frontend/src/components/MasterSlider.vue: Same keyboard navigation as SliderBar; container div has tabindex="0" for focus when clicking near the slider area

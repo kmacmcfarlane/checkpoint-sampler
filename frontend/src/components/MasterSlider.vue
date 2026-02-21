@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch, onBeforeUnmount } from 'vue'
 
 const props = defineProps<{
   /** Ordered values to cycle through. */
@@ -42,6 +42,84 @@ function onKeydown(event: KeyboardEvent) {
     }
   }
 }
+
+// Playback state
+const playing = ref(false)
+const loop = ref(false)
+const speedMs = ref(1000)
+let timerId: ReturnType<typeof setInterval> | null = null
+
+const speedOptions = [
+  { label: '0.5s', value: 500 },
+  { label: '1s', value: 1000 },
+  { label: '2s', value: 2000 },
+  { label: '3s', value: 3000 },
+]
+
+function startPlayback() {
+  if (props.values.length <= 1) return
+  playing.value = true
+  scheduleNext()
+}
+
+function stopPlayback() {
+  playing.value = false
+  clearTimer()
+}
+
+function togglePlayback() {
+  if (playing.value) {
+    stopPlayback()
+  } else {
+    startPlayback()
+  }
+}
+
+function clearTimer() {
+  if (timerId !== null) {
+    clearInterval(timerId)
+    timerId = null
+  }
+}
+
+function scheduleNext() {
+  clearTimer()
+  timerId = setInterval(() => {
+    advance()
+  }, speedMs.value)
+}
+
+function advance() {
+  const idx = currentIndex.value
+  if (idx < props.values.length - 1) {
+    emit('change', props.values[idx + 1])
+  } else if (loop.value) {
+    emit('change', props.values[0])
+  } else {
+    stopPlayback()
+  }
+}
+
+function onSpeedChange(event: Event) {
+  const target = event.target as HTMLSelectElement
+  speedMs.value = Number(target.value)
+}
+
+// Restart interval when speed changes during playback
+watch(speedMs, () => {
+  if (playing.value) {
+    scheduleNext()
+  }
+})
+
+// Stop playback when values change (e.g. dimension switch)
+watch(() => props.values, () => {
+  stopPlayback()
+})
+
+onBeforeUnmount(() => {
+  clearTimer()
+})
 </script>
 
 <template>
@@ -60,6 +138,25 @@ function onKeydown(event: KeyboardEvent) {
       @input="onInput"
     />
     <span class="master-slider__value">{{ currentValue }}</span>
+    <div class="master-slider__playback">
+      <button
+        class="master-slider__play-btn"
+        :aria-label="playing ? 'Pause playback' : 'Play playback'"
+        @click="togglePlayback"
+      >{{ playing ? 'Pause' : 'Play' }}</button>
+      <label class="master-slider__loop">
+        <input type="checkbox" :checked="loop" @change="loop = !loop" aria-label="Loop playback" />
+        Loop
+      </label>
+      <select
+        class="master-slider__speed"
+        :value="speedMs"
+        aria-label="Playback speed"
+        @change="onSpeedChange"
+      >
+        <option v-for="opt in speedOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+      </select>
+    </div>
   </div>
 </template>
 
@@ -71,6 +168,7 @@ function onKeydown(event: KeyboardEvent) {
   padding: 0.5rem 0;
   border-bottom: 1px solid #e0e0e0;
   margin-bottom: 0.5rem;
+  flex-wrap: wrap;
 }
 
 .master-slider__label {
@@ -90,5 +188,38 @@ function onKeydown(event: KeyboardEvent) {
   color: #666;
   min-width: 4rem;
   text-align: right;
+}
+
+.master-slider__playback {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.master-slider__play-btn {
+  padding: 0.25rem 0.75rem;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  border: 1px solid #ccc;
+  border-radius: 0.25rem;
+  background: #f5f5f5;
+}
+
+.master-slider__play-btn:hover {
+  background: #e0e0e0;
+}
+
+.master-slider__loop {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.master-slider__speed {
+  font-size: 0.8125rem;
+  padding: 0.125rem 0.25rem;
+  cursor: pointer;
 }
 </style>

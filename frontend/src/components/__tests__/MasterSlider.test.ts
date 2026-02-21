@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { mount, VueWrapper } from '@vue/test-utils'
 import MasterSlider from '../MasterSlider.vue'
 
 const sampleValues = ['100', '500', '1000', '2000']
@@ -174,6 +174,197 @@ describe('MasterSlider', () => {
       const emitted = wrapper.emitted('change')
       expect(emitted).toBeDefined()
       expect(emitted![0]).toEqual(['1000'])
+    })
+  })
+
+  describe('playback', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('renders play button', () => {
+      const wrapper = mountMaster()
+      const btn = wrapper.find('.master-slider__play-btn')
+      expect(btn.exists()).toBe(true)
+      expect(btn.text()).toBe('Play')
+    })
+
+    it('shows Pause when playing', async () => {
+      const wrapper = mountMaster()
+      await wrapper.find('.master-slider__play-btn').trigger('click')
+      expect(wrapper.find('.master-slider__play-btn').text()).toBe('Pause')
+    })
+
+    it('shows Play when paused after playing', async () => {
+      const wrapper = mountMaster()
+      const btn = wrapper.find('.master-slider__play-btn')
+      await btn.trigger('click') // play
+      await btn.trigger('click') // pause
+      expect(btn.text()).toBe('Play')
+    })
+
+    it('emits change to next value on interval tick', async () => {
+      const wrapper = mountMaster({ currentValue: '100' })
+      await wrapper.find('.master-slider__play-btn').trigger('click')
+
+      vi.advanceTimersByTime(1000)
+      await wrapper.vm.$nextTick()
+
+      const emitted = wrapper.emitted('change')
+      expect(emitted).toBeDefined()
+      expect(emitted![0]).toEqual(['500'])
+    })
+
+    it('advances through multiple values over multiple ticks', async () => {
+      // Start at index 0, advance twice
+      const wrapper = mountMaster({ currentValue: '100' })
+      await wrapper.find('.master-slider__play-btn').trigger('click')
+
+      vi.advanceTimersByTime(1000)
+      await wrapper.vm.$nextTick()
+      // First advance emits '500'
+      let emitted = wrapper.emitted('change')!
+      expect(emitted[0]).toEqual(['500'])
+
+      // Update the prop to reflect the advance
+      await wrapper.setProps({ currentValue: '500' })
+      vi.advanceTimersByTime(1000)
+      await wrapper.vm.$nextTick()
+
+      emitted = wrapper.emitted('change')!
+      expect(emitted[1]).toEqual(['1000'])
+    })
+
+    it('stops at last value when loop is off', async () => {
+      const wrapper = mountMaster({ currentValue: '2000' })
+      await wrapper.find('.master-slider__play-btn').trigger('click')
+
+      vi.advanceTimersByTime(1000)
+      await wrapper.vm.$nextTick()
+
+      // Should not emit any change (already at last)
+      expect(wrapper.emitted('change')).toBeUndefined()
+      // Should stop playing
+      expect(wrapper.find('.master-slider__play-btn').text()).toBe('Play')
+    })
+
+    it('wraps to first value when loop is on and at last', async () => {
+      const wrapper = mountMaster({ currentValue: '2000' })
+      // Enable loop
+      const loopCheckbox = wrapper.find('input[type="checkbox"]')
+      await loopCheckbox.setValue(true)
+
+      await wrapper.find('.master-slider__play-btn').trigger('click')
+
+      vi.advanceTimersByTime(1000)
+      await wrapper.vm.$nextTick()
+
+      const emitted = wrapper.emitted('change')
+      expect(emitted).toBeDefined()
+      expect(emitted![0]).toEqual(['100'])
+      // Should still be playing
+      expect(wrapper.find('.master-slider__play-btn').text()).toBe('Pause')
+    })
+
+    it('does not start playback with 0 or 1 values', async () => {
+      const wrapper = mountMaster({ values: ['only'], currentValue: 'only' })
+      await wrapper.find('.master-slider__play-btn').trigger('click')
+      expect(wrapper.find('.master-slider__play-btn').text()).toBe('Play')
+    })
+
+    it('stops emitting after pause is clicked', async () => {
+      const wrapper = mountMaster({ currentValue: '100' })
+      const btn = wrapper.find('.master-slider__play-btn')
+      await btn.trigger('click') // play
+      await btn.trigger('click') // pause
+
+      vi.advanceTimersByTime(2000)
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.emitted('change')).toBeUndefined()
+    })
+
+    it('renders speed selector with default 1s', () => {
+      const wrapper = mountMaster()
+      const select = wrapper.find('.master-slider__speed')
+      expect(select.exists()).toBe(true)
+      expect((select.element as HTMLSelectElement).value).toBe('1000')
+    })
+
+    it('adjusts playback interval when speed changes', async () => {
+      const wrapper = mountMaster({ currentValue: '100' })
+      // Change speed to 500ms
+      const select = wrapper.find('.master-slider__speed')
+      await select.setValue('500')
+
+      await wrapper.find('.master-slider__play-btn').trigger('click')
+
+      // After 500ms, should advance
+      vi.advanceTimersByTime(500)
+      await wrapper.vm.$nextTick()
+
+      const emitted = wrapper.emitted('change')
+      expect(emitted).toBeDefined()
+      expect(emitted![0]).toEqual(['500'])
+    })
+
+    it('restarts interval when speed changes during playback', async () => {
+      const wrapper = mountMaster({ currentValue: '100' })
+      await wrapper.find('.master-slider__play-btn').trigger('click')
+
+      // Advance 800ms (not enough for 1000ms interval)
+      vi.advanceTimersByTime(800)
+      expect(wrapper.emitted('change')).toBeUndefined()
+
+      // Change speed to 500ms — restarts interval
+      const select = wrapper.find('.master-slider__speed')
+      await select.setValue('500')
+
+      // After 500ms from the speed change, should advance
+      vi.advanceTimersByTime(500)
+      await wrapper.vm.$nextTick()
+
+      const emitted = wrapper.emitted('change')
+      expect(emitted).toBeDefined()
+      expect(emitted![0]).toEqual(['500'])
+    })
+
+    it('renders loop checkbox unchecked by default', () => {
+      const wrapper = mountMaster()
+      const checkbox = wrapper.find('input[type="checkbox"]')
+      expect(checkbox.exists()).toBe(true)
+      expect((checkbox.element as HTMLInputElement).checked).toBe(false)
+    })
+
+    it('has accessible labels on playback controls', () => {
+      const wrapper = mountMaster()
+      const playBtn = wrapper.find('.master-slider__play-btn')
+      expect(playBtn.attributes('aria-label')).toBe('Play playback')
+
+      const checkbox = wrapper.find('input[type="checkbox"]')
+      expect(checkbox.attributes('aria-label')).toBe('Loop playback')
+
+      const select = wrapper.find('.master-slider__speed')
+      expect(select.attributes('aria-label')).toBe('Playback speed')
+    })
+
+    it('play button has aria-label Pause when playing', async () => {
+      const wrapper = mountMaster()
+      await wrapper.find('.master-slider__play-btn').trigger('click')
+      expect(wrapper.find('.master-slider__play-btn').attributes('aria-label')).toBe('Pause playback')
+    })
+
+    it('stops playback when values prop changes', async () => {
+      const wrapper = mountMaster({ currentValue: '100' })
+      await wrapper.find('.master-slider__play-btn').trigger('click')
+      expect(wrapper.find('.master-slider__play-btn').text()).toBe('Pause')
+
+      await wrapper.setProps({ values: ['a', 'b', 'c'] })
+      expect(wrapper.find('.master-slider__play-btn').text()).toBe('Play')
     })
   })
 })

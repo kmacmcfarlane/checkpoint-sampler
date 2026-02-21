@@ -375,7 +375,7 @@ stories:
   - id: S-017
     title: "Slider playback mode"
     priority: 15
-    done: false
+    done: true
     blocked: false
     blocked_reason: ""
     requires: [S-011]
