@@ -270,7 +270,22 @@ stories:
       - "BE: Create a config.yaml.example with generic values, but create a config.yaml (gitignored) that has values for me (/home/rt/ai/models-training/stable-diffusion/checkpoints for the models dir and /home/rt/ai/outputs/stable-diffusion/comfyui/checkpoint-sampler for the samples dir)"
       - "Updated README.md so other people know to copy and customize the config.yaml"
     testing:
-      - "command: make up-dev (verify backend starts without WAL error)"
+      - "command: make up-dev (verify backend starts without error)"
+
+  - id: B-003
+    title: "Dimension UI selection"
+    priority: 42
+    done: true
+    blocked: false
+    blocked_reason: ""
+    requires: [S-003]
+    acceptance:
+      - "FE: When a dimension in a combo box, you can select which values are enabled. If you disable a value, then change that dimension to be the X/Y/Slider, then you lose the ability to see those images."
+      - "FE: Always show the combo selectors even when the dimension is assigned to X/Y/Slider"
+      - "FE: Change label from 'combo filter' to 'none' since we always show combos"
+      - "BE: Make sure the value for the formerly 'combo filter' selection still makes sense as 'none' (it should have a null value to show it's unassigned I imagine)"
+    testing:
+      - "command: make up-dev (verify backend starts without error)"
 
   - id: R-001
     title: "Refactor Goa HTTP wireup into NewHTTPHandler"
