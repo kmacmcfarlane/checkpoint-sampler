@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-024: X/Y grid improvements
+- frontend/src/components/XYGrid.vue: Removed independent grid overflow (no max-height or overflow:auto on grid container); entire page scrolls together instead of the grid scrolling independently
+- frontend/src/components/XYGrid.vue: Grid cells now have explicit width/height styles derived from resizable cell dimensions (default 200px)
+- frontend/src/components/XYGrid.vue: Added column dividers between X columns (vertical separators with col-resize cursor); dragging any column divider changes all column widths together uniformly
+- frontend/src/components/XYGrid.vue: Added row dividers between Y rows (horizontal separators with row-resize cursor); dragging any row divider changes all row heights together uniformly
+- frontend/src/components/XYGrid.vue: Column and row headers now emit header:click events when clicked; accessible cursor:pointer and hover styles on headers
+- frontend/src/components/XYGrid.vue: Dividers have role="separator" with appropriate aria-orientation for accessibility
+- frontend/src/App.vue: Added onHeaderClick handler implementing solo/unsolo behavior — clicking a header solos that value (selects only that value); clicking an already-soloed header re-selects all values for that dimension
+- frontend/src/App.vue: Wired header:click event from XYGrid to the solo/unsolo handler
+- frontend/src/App.vue: Master slider wrapped in a sticky-positioned container (position:sticky, top:0, z-index:10) so it remains visible when the grid extends below the viewport
+- frontend/src/components/ImageCell.vue: Changed from fixed min-width/min-height to 100% width/height to fill parent cell dimensions set by XYGrid
+- 13 new XYGrid tests: header:click emission for X column headers, Y row headers, X-only grid headers; column/row header style classes; column divider rendering between X columns; row divider rendering between Y rows; separator roles and aria-orientation; cell width/height styles; header width/height styles; column/row divider mousedown triggers document listeners; no dividers for single-value axes; no row dividers in X-only grid; column dividers in X-only grid
+- Updated scrolling test: verifies container has no independent overflow (no overflow:auto or max-height)
+
 ### S-023: Dimension filter modes (Hide/Single/Multi)
 - frontend/src/api/types.ts: Added FilterMode type ('hide' | 'single' | 'multi') for dimension filter mode control
 - frontend/src/composables/useDimensionMapping.ts: Added filterModes ref tracking per-dimension filter mode; setFilterMode and getFilterMode functions; dimensions assigned to X/Y/Slider always use 'multi' filter mode (enforced on role assignment); displaced dimensions revert to 'hide'; filter modes initialized to 'hide' for new dimensions; filter modes cleaned up when dimensions disappear

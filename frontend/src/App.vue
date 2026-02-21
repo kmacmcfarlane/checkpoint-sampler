@@ -201,6 +201,20 @@ function onFilterUpdate(dimensionName: string, selected: Set<string>) {
   comboSelections[dimensionName] = selected
 }
 
+/** Handle header click from XYGrid: solo/unsolo a value in the dimension's filter. */
+function onHeaderClick(dimensionName: string, value: string) {
+  const dim = dimensions.value.find((d) => d.name === dimensionName)
+  if (!dim) return
+  const current = comboSelections[dimensionName]
+  // If only this value is selected, re-select all (unsolo)
+  if (current && current.size === 1 && current.has(value)) {
+    comboSelections[dimensionName] = new Set(dim.values)
+  } else {
+    // Solo: select only this value
+    comboSelections[dimensionName] = new Set([value])
+  }
+}
+
 /** Master slider value ref. */
 const masterSliderValue = ref<string>('')
 
@@ -339,13 +353,14 @@ function onPresetDelete() {
                 @update="onFilterUpdate"
               />
             </div>
-            <MasterSlider
-              v-if="sliderDimension"
-              :values="sliderDimension.values"
-              :current-value="defaultSliderValue"
-              :dimension-name="sliderDimension.name"
-              @change="onMasterSliderChange"
-            />
+            <div class="master-slider-sticky" v-if="sliderDimension">
+              <MasterSlider
+                :values="sliderDimension.values"
+                :current-value="defaultSliderValue"
+                :dimension-name="sliderDimension.name"
+                @change="onMasterSliderChange"
+              />
+            </div>
             <XYGrid
               :x-dimension="xDimension"
               :y-dimension="yDimension"
@@ -356,6 +371,7 @@ function onPresetDelete() {
               :default-slider-value="defaultSliderValue"
               @update:slider-value="onSliderValueUpdate"
               @image:click="onImageClick"
+              @header:click="onHeaderClick"
             />
           </template>
         </template>
@@ -441,6 +457,14 @@ function onPresetDelete() {
   flex-wrap: wrap;
   gap: 0.5rem;
   margin-bottom: 1rem;
+}
+
+.master-slider-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background-color: var(--bg-color);
+  padding-bottom: 0.5rem;
 }
 
 .error {

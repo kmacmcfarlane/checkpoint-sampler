@@ -42,8 +42,8 @@ function onClick() {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 200px;
-  min-height: 200px;
+  width: 100%;
+  height: 100%;
 }
 
 .image-cell img {

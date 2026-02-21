@@ -519,7 +519,7 @@ stories:
   - id: S-024
     title: "X/Y grid improvements"
     priority: 5
-    done: false
+    done: true
     blocked: false
     blocked_reason: ""
     requires: [R-002, S-023]

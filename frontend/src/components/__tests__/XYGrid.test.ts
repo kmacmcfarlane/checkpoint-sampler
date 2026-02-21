@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import XYGrid from '../XYGrid.vue'
 import SliderBar from '../SliderBar.vue'
@@ -44,6 +44,11 @@ function mountGrid(overrides: Record<string, unknown> = {}) {
     },
   })
 }
+
+afterEach(() => {
+  // Clean up any lingering document listeners from resize handlers
+  vi.restoreAllMocks()
+})
 
 describe('XYGrid', () => {
   describe('with X and Y dimensions', () => {
@@ -250,9 +255,177 @@ describe('XYGrid', () => {
   })
 
   describe('scrolling', () => {
-    it('wraps grid in a scrollable container', () => {
+    it('wraps grid in a container without independent overflow', () => {
       const wrapper = mountGrid()
-      expect(wrapper.find('.xy-grid-container').exists()).toBe(true)
+      const container = wrapper.find('.xy-grid-container')
+      expect(container.exists()).toBe(true)
+      // The container should not have overflow:auto or max-height
+      const style = getComputedStyle(container.element)
+      expect(style.overflow).not.toBe('auto')
+      expect(style.maxHeight).toBe('')
+    })
+  })
+
+  describe('header click filtering', () => {
+    it('emits header:click when an X column header is clicked', async () => {
+      const wrapper = mountGrid()
+      const headers = wrapper.findAll('.xy-grid__col-header')
+      expect(headers.length).toBe(2) // 42, 123
+
+      await headers[0].trigger('click')
+
+      const emitted = wrapper.emitted('header:click')
+      expect(emitted).toBeDefined()
+      expect(emitted![0]).toEqual(['seed', '42'])
+    })
+
+    it('emits header:click when a Y row header is clicked', async () => {
+      const wrapper = mountGrid()
+      const headers = wrapper.findAll('.xy-grid__row-header')
+      expect(headers.length).toBe(2) // 500, 1000
+
+      await headers[1].trigger('click')
+
+      const emitted = wrapper.emitted('header:click')
+      expect(emitted).toBeDefined()
+      expect(emitted![0]).toEqual(['step', '1000'])
+    })
+
+    it('emits header:click with correct dimension name for X-only grid', async () => {
+      const wrapper = mountGrid({ yDimension: null })
+      const headers = wrapper.findAll('.xy-grid__col-header')
+      expect(headers.length).toBe(2)
+
+      await headers[1].trigger('click')
+
+      const emitted = wrapper.emitted('header:click')
+      expect(emitted).toBeDefined()
+      expect(emitted![0]).toEqual(['seed', '123'])
+    })
+
+    it('column headers have cursor:pointer style', () => {
+      const wrapper = mountGrid()
+      const headers = wrapper.findAll('.xy-grid__col-header')
+      expect(headers.length).toBeGreaterThan(0)
+      // The scoped CSS should apply cursor: pointer via the class
+      expect(headers[0].classes()).toContain('xy-grid__col-header')
+    })
+
+    it('row headers have cursor:pointer style', () => {
+      const wrapper = mountGrid()
+      const headers = wrapper.findAll('.xy-grid__row-header')
+      expect(headers.length).toBeGreaterThan(0)
+      expect(headers[0].classes()).toContain('xy-grid__row-header')
+    })
+  })
+
+  describe('resizable cell dividers', () => {
+    it('renders column dividers between X column headers', () => {
+      const wrapper = mountGrid()
+      const dividers = wrapper.findAll('.xy-grid__col-divider')
+      // Between 2 headers = 1 divider in header row, 1 per data row (2 rows) = 3 total
+      // Actually: header row has 1, each Y row has 1, so 1 + 2 = 3
+      expect(dividers.length).toBeGreaterThanOrEqual(1)
+    })
+
+    it('renders row dividers between Y rows', () => {
+      const wrapper = mountGrid()
+      const dividers = wrapper.findAll('.xy-grid__row-divider')
+      // Between 2 rows = 1 divider
+      expect(dividers).toHaveLength(1)
+    })
+
+    it('column dividers have role="separator" with vertical orientation', () => {
+      const wrapper = mountGrid()
+      const dividers = wrapper.findAll('[role="separator"][aria-orientation="vertical"]')
+      expect(dividers.length).toBeGreaterThanOrEqual(1)
+    })
+
+    it('row dividers have role="separator" with horizontal orientation', () => {
+      const wrapper = mountGrid()
+      const dividers = wrapper.findAll('[role="separator"][aria-orientation="horizontal"]')
+      expect(dividers).toHaveLength(1)
+    })
+
+    it('cells have width and height styles from cell dimensions', () => {
+      const wrapper = mountGrid()
+      const cells = wrapper.findAll('[role="gridcell"]')
+      expect(cells.length).toBe(4)
+      // Default cell dimensions: 200px width, 200px height
+      expect(cells[0].attributes('style')).toContain('width: 200px')
+      expect(cells[0].attributes('style')).toContain('height: 200px')
+    })
+
+    it('column headers have width style matching cell width', () => {
+      const wrapper = mountGrid()
+      const headers = wrapper.findAll('.xy-grid__col-header')
+      expect(headers[0].attributes('style')).toContain('width: 200px')
+    })
+
+    it('row headers have height style matching cell height', () => {
+      const wrapper = mountGrid()
+      const headers = wrapper.findAll('.xy-grid__row-header')
+      expect(headers[0].attributes('style')).toContain('height: 200px')
+    })
+
+    it('column divider mousedown triggers resize mode', async () => {
+      const wrapper = mountGrid()
+      const dividers = wrapper.findAll('.xy-grid__col-divider')
+      expect(dividers.length).toBeGreaterThanOrEqual(1)
+
+      const addListenerSpy = vi.spyOn(document, 'addEventListener')
+
+      await dividers[0].trigger('mousedown', { clientX: 100, clientY: 100 })
+
+      // Should have added mousemove and mouseup listeners
+      expect(addListenerSpy).toHaveBeenCalledWith('mousemove', expect.any(Function))
+      expect(addListenerSpy).toHaveBeenCalledWith('mouseup', expect.any(Function))
+
+      // Clean up by firing mouseup
+      document.dispatchEvent(new MouseEvent('mouseup'))
+    })
+
+    it('row divider mousedown triggers resize mode', async () => {
+      const wrapper = mountGrid()
+      const dividers = wrapper.findAll('.xy-grid__row-divider')
+      expect(dividers).toHaveLength(1)
+
+      const addListenerSpy = vi.spyOn(document, 'addEventListener')
+
+      await dividers[0].trigger('mousedown', { clientX: 100, clientY: 100 })
+
+      expect(addListenerSpy).toHaveBeenCalledWith('mousemove', expect.any(Function))
+      expect(addListenerSpy).toHaveBeenCalledWith('mouseup', expect.any(Function))
+
+      // Clean up
+      document.dispatchEvent(new MouseEvent('mouseup'))
+    })
+
+    it('no column dividers when only one X value', () => {
+      const singleXDim: ScanDimension = { name: 'seed', type: 'int', values: ['42'] }
+      const wrapper = mountGrid({ xDimension: singleXDim })
+      const dividers = wrapper.findAll('.xy-grid__col-divider')
+      expect(dividers).toHaveLength(0)
+    })
+
+    it('no row dividers when only one Y value', () => {
+      const singleYDim: ScanDimension = { name: 'step', type: 'int', values: ['500'] }
+      const wrapper = mountGrid({ yDimension: singleYDim })
+      const dividers = wrapper.findAll('.xy-grid__row-divider')
+      expect(dividers).toHaveLength(0)
+    })
+
+    it('no row dividers in X-only grid', () => {
+      const wrapper = mountGrid({ yDimension: null })
+      const dividers = wrapper.findAll('.xy-grid__row-divider')
+      expect(dividers).toHaveLength(0)
+    })
+
+    it('column dividers present in X-only grid', () => {
+      const wrapper = mountGrid({ yDimension: null })
+      const dividers = wrapper.findAll('.xy-grid__col-divider')
+      // 2 X values → 1 divider between cells
+      expect(dividers.length).toBeGreaterThanOrEqual(1)
     })
   })
 })

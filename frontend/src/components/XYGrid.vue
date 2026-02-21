@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, onBeforeUnmount } from 'vue'
 import type { ScanDimension, ScanImage } from '../api/types'
 import ImageCell from './ImageCell.vue'
 import SliderBar from './SliderBar.vue'
@@ -18,7 +18,66 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:sliderValue': [cellKey: string, value: string]
   'image:click': [imageUrl: string]
+  'header:click': [dimensionName: string, value: string]
 }>()
+
+// --- Resizable cell dimensions ---
+const cellWidth = ref(200)
+const cellHeight = ref(200)
+
+let resizeStartX = 0
+let resizeStartY = 0
+let resizeStartWidth = 0
+let resizeStartHeight = 0
+
+function onColDividerMousedown(e: MouseEvent) {
+  e.preventDefault()
+  resizeStartX = e.clientX
+  resizeStartWidth = cellWidth.value
+  document.addEventListener('mousemove', onColDividerMousemove)
+  document.addEventListener('mouseup', onColDividerMouseup)
+}
+
+function onColDividerMousemove(e: MouseEvent) {
+  const delta = e.clientX - resizeStartX
+  const xCount = props.xDimension?.values.length ?? 1
+  cellWidth.value = Math.max(100, resizeStartWidth + delta / xCount)
+}
+
+function onColDividerMouseup() {
+  document.removeEventListener('mousemove', onColDividerMousemove)
+  document.removeEventListener('mouseup', onColDividerMouseup)
+}
+
+function onRowDividerMousedown(e: MouseEvent) {
+  e.preventDefault()
+  resizeStartY = e.clientY
+  resizeStartHeight = cellHeight.value
+  document.addEventListener('mousemove', onRowDividerMousemove)
+  document.addEventListener('mouseup', onRowDividerMouseup)
+}
+
+function onRowDividerMousemove(e: MouseEvent) {
+  const delta = e.clientY - resizeStartY
+  const yCount = props.yDimension?.values.length ?? 1
+  cellHeight.value = Math.max(100, resizeStartHeight + delta / yCount)
+}
+
+function onRowDividerMouseup() {
+  document.removeEventListener('mousemove', onRowDividerMousemove)
+  document.removeEventListener('mouseup', onRowDividerMouseup)
+}
+
+onBeforeUnmount(() => {
+  document.removeEventListener('mousemove', onColDividerMousemove)
+  document.removeEventListener('mouseup', onColDividerMouseup)
+  document.removeEventListener('mousemove', onRowDividerMousemove)
+  document.removeEventListener('mouseup', onRowDividerMouseup)
+})
+
+function onHeaderClick(dimensionName: string, value: string) {
+  emit('header:click', dimensionName, value)
+}
 
 /** X axis values to render as columns. */
 const xValues = computed(() => props.xDimension?.values ?? [])
@@ -116,74 +175,110 @@ const flatImages = computed<ScanImage[]>(() => {
       <!-- Header row with X values -->
       <div class="xy-grid__header-row" role="row" v-if="xDimension">
         <div class="xy-grid__corner" v-if="yDimension" role="columnheader"></div>
-        <div
-          v-for="xVal in xValues"
-          :key="xVal"
-          class="xy-grid__col-header"
-          role="columnheader"
-        >
-          {{ xVal }}
-        </div>
+        <template v-for="(xVal, idx) in xValues" :key="xVal">
+          <div
+            class="xy-grid__col-header"
+            role="columnheader"
+            :style="{ width: cellWidth + 'px' }"
+            @click="onHeaderClick(xDimension!.name, xVal)"
+          >
+            {{ xVal }}
+          </div>
+          <div
+            v-if="idx < xValues.length - 1"
+            class="xy-grid__col-divider"
+            role="separator"
+            aria-orientation="vertical"
+            @mousedown="onColDividerMousedown"
+          ></div>
+        </template>
       </div>
 
       <!-- Data rows -->
       <template v-if="yDimension">
-        <div
-          v-for="yVal in yValues"
-          :key="yVal"
-          class="xy-grid__row"
-          role="row"
-        >
-          <div class="xy-grid__row-header" role="rowheader">{{ yVal }}</div>
-          <template v-if="xDimension">
+        <template v-for="(yVal, yIdx) in yValues" :key="yVal">
+          <div class="xy-grid__row" role="row">
             <div
-              v-for="xVal in xValues"
-              :key="xVal"
-              class="xy-grid__cell"
-              role="gridcell"
+              class="xy-grid__row-header"
+              role="rowheader"
+              :style="{ height: cellHeight + 'px' }"
+              @click="onHeaderClick(yDimension!.name, yVal)"
             >
-              <ImageCell :relative-path="getImage(xVal, yVal)?.relative_path ?? null" @click="(url: string) => emit('image:click', url)" />
-              <SliderBar
-                v-if="sliderDimension"
-                :values="sliderDimension.values"
-                :current-value="getSliderValue(xVal, yVal)"
-                :label="`${sliderDimension.name} for ${xVal}, ${yVal}`"
-                @change="(v: string) => onSliderChange(xVal, yVal, v)"
-              />
+              {{ yVal }}
             </div>
-          </template>
-          <template v-else>
-            <div class="xy-grid__cell" role="gridcell">
-              <ImageCell :relative-path="getImage(undefined, yVal)?.relative_path ?? null" @click="(url: string) => emit('image:click', url)" />
-              <SliderBar
-                v-if="sliderDimension"
-                :values="sliderDimension.values"
-                :current-value="getSliderValue(undefined, yVal)"
-                :label="`${sliderDimension.name} for ${yVal}`"
-                @change="(v: string) => onSliderChange(undefined, yVal, v)"
-              />
-            </div>
-          </template>
-        </div>
+            <template v-if="xDimension">
+              <template v-for="(xVal, xIdx) in xValues" :key="xVal">
+                <div
+                  class="xy-grid__cell"
+                  role="gridcell"
+                  :style="{ width: cellWidth + 'px', height: cellHeight + 'px' }"
+                >
+                  <ImageCell :relative-path="getImage(xVal, yVal)?.relative_path ?? null" @click="(url: string) => emit('image:click', url)" />
+                  <SliderBar
+                    v-if="sliderDimension"
+                    :values="sliderDimension.values"
+                    :current-value="getSliderValue(xVal, yVal)"
+                    :label="`${sliderDimension.name} for ${xVal}, ${yVal}`"
+                    @change="(v: string) => onSliderChange(xVal, yVal, v)"
+                  />
+                </div>
+                <div
+                  v-if="xIdx < xValues.length - 1"
+                  class="xy-grid__col-divider xy-grid__col-divider--cell"
+                  @mousedown="onColDividerMousedown"
+                ></div>
+              </template>
+            </template>
+            <template v-else>
+              <div
+                class="xy-grid__cell"
+                role="gridcell"
+                :style="{ height: cellHeight + 'px' }"
+              >
+                <ImageCell :relative-path="getImage(undefined, yVal)?.relative_path ?? null" @click="(url: string) => emit('image:click', url)" />
+                <SliderBar
+                  v-if="sliderDimension"
+                  :values="sliderDimension.values"
+                  :current-value="getSliderValue(undefined, yVal)"
+                  :label="`${sliderDimension.name} for ${yVal}`"
+                  @change="(v: string) => onSliderChange(undefined, yVal, v)"
+                />
+              </div>
+            </template>
+          </div>
+          <div
+            v-if="yIdx < yValues.length - 1"
+            class="xy-grid__row-divider"
+            role="separator"
+            aria-orientation="horizontal"
+            @mousedown="onRowDividerMousedown"
+          ></div>
+        </template>
       </template>
 
       <!-- X-only row (no Y dimension) -->
       <div v-else-if="xDimension" class="xy-grid__row" role="row">
-        <div
-          v-for="xVal in xValues"
-          :key="xVal"
-          class="xy-grid__cell"
-          role="gridcell"
-        >
-          <ImageCell :relative-path="getImage(xVal, undefined)?.relative_path ?? null" @click="(url: string) => emit('image:click', url)" />
-          <SliderBar
-            v-if="sliderDimension"
-            :values="sliderDimension.values"
-            :current-value="getSliderValue(xVal, undefined)"
-            :label="`${sliderDimension.name} for ${xVal}`"
-            @change="(v: string) => onSliderChange(xVal, undefined, v)"
-          />
-        </div>
+        <template v-for="(xVal, xIdx) in xValues" :key="xVal">
+          <div
+            class="xy-grid__cell"
+            role="gridcell"
+            :style="{ width: cellWidth + 'px' }"
+          >
+            <ImageCell :relative-path="getImage(xVal, undefined)?.relative_path ?? null" @click="(url: string) => emit('image:click', url)" />
+            <SliderBar
+              v-if="sliderDimension"
+              :values="sliderDimension.values"
+              :current-value="getSliderValue(xVal, undefined)"
+              :label="`${sliderDimension.name} for ${xVal}`"
+              @change="(v: string) => onSliderChange(xVal, undefined, v)"
+            />
+          </div>
+          <div
+            v-if="xIdx < xValues.length - 1"
+            class="xy-grid__col-divider xy-grid__col-divider--cell"
+            @mousedown="onColDividerMousedown"
+          ></div>
+        </template>
       </div>
     </div>
   </div>
@@ -215,9 +310,7 @@ const flatImages = computed<ScanImage[]>(() => {
 
 <style scoped>
 .xy-grid-container {
-  overflow: auto;
-  max-width: 100%;
-  max-height: calc(100vh - 200px);
+  width: 100%;
 }
 
 .xy-grid {
@@ -226,7 +319,7 @@ const flatImages = computed<ScanImage[]>(() => {
 
 .xy-grid__header-row {
   display: flex;
-  gap: 2px;
+  align-items: stretch;
 }
 
 .xy-grid__corner {
@@ -235,19 +328,51 @@ const flatImages = computed<ScanImage[]>(() => {
 }
 
 .xy-grid__col-header {
-  min-width: 200px;
   padding: 0.25rem 0.5rem;
   font-weight: 600;
   text-align: center;
   font-size: 0.875rem;
   background-color: var(--bg-surface, #f5f5f5);
   border: 1px solid var(--border-color, #e0e0e0);
+  cursor: pointer;
+  user-select: none;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.xy-grid__col-header:hover {
+  background-color: var(--accent-bg, #e3f2fd);
+}
+
+.xy-grid__col-divider {
+  width: 6px;
+  cursor: col-resize;
+  background-color: transparent;
+  flex-shrink: 0;
+}
+
+.xy-grid__col-divider:hover {
+  background-color: var(--accent-color, #1976d2);
+  opacity: 0.3;
 }
 
 .xy-grid__row {
   display: flex;
-  gap: 2px;
-  margin-top: 2px;
+  align-items: stretch;
+  margin-top: 0;
+}
+
+.xy-grid__row-divider {
+  height: 6px;
+  cursor: row-resize;
+  background-color: transparent;
+}
+
+.xy-grid__row-divider:hover {
+  background-color: var(--accent-color, #1976d2);
+  opacity: 0.3;
 }
 
 .xy-grid__row-header {
@@ -260,10 +385,17 @@ const flatImages = computed<ScanImage[]>(() => {
   background-color: var(--bg-surface, #f5f5f5);
   border: 1px solid var(--border-color, #e0e0e0);
   flex-shrink: 0;
+  cursor: pointer;
+  user-select: none;
+}
+
+.xy-grid__row-header:hover {
+  background-color: var(--accent-bg, #e3f2fd);
 }
 
 .xy-grid__cell {
-  min-width: 200px;
+  flex-shrink: 0;
+  overflow: hidden;
 }
 
 .xy-grid-flat__grid {
