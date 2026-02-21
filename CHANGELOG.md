@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### B-002: No config.yaml content
+- Created `.env` with local host paths for checkpoint and sample directories (gitignored)
+- Updated README.md Configuration section with step-by-step setup instructions for `.env` and `config.yaml`
+
 ### B-001: WAL mode fails with read-only dev volume
 - docker-compose.dev.yml: Use separate `backend_dev_data` named volume for `/build/data` instead of sharing `backend_data` with production mode; the production Dockerfile creates `/app/data` as root with 755 permissions, so when the shared volume was initialized by production first and reused in dev mode (which runs as non-root), SQLite WAL PRAGMA failed with "attempt to write a readonly database"
 

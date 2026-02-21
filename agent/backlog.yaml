@@ -259,6 +259,19 @@ stories:
     testing:
       - "command: make up-dev (verify backend starts without WAL error)"
 
+  - id: B-002
+    title: "No config.yaml content"
+    priority: 42
+    done: true
+    blocked: false
+    blocked_reason: ""
+    requires: [S-003]
+    acceptance:
+      - "BE: Create a config.yaml.example with generic values, but create a config.yaml (gitignored) that has values for me (/home/rt/ai/models-training/stable-diffusion/checkpoints for the models dir and /home/rt/ai/outputs/stable-diffusion/comfyui/checkpoint-sampler for the samples dir)"
+      - "Updated README.md so other people know to copy and customize the config.yaml"
+    testing:
+      - "command: make up-dev (verify backend starts without WAL error)"
+
   - id: R-001
     title: "Refactor Goa HTTP wireup into NewHTTPHandler"
     priority: 41

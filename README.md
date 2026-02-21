@@ -122,9 +122,36 @@ The backend serves interactive Swagger UI at [http://localhost:8080/docs](http:/
 
 ## Configuration
 
+Before running the application, set up two configuration files:
+
+1. **`.env`** — Host paths for Docker volume mounts. Copy from `.env.example` and set the paths to your local directories:
+
+   ```bash
+   cp .env.example .env
+   ```
+
+   Edit `.env` to point at your checkpoint and sample directories:
+
+   ```env
+   CHECKPOINT_DIR=/path/to/your/checkpoints
+   SAMPLE_DIR=/path/to/your/samples
+   ```
+
+2. **`config.yaml`** — Backend application config. Copy from `config.yaml.example`:
+
+   ```bash
+   cp config.yaml.example config.yaml
+   ```
+
+   The defaults work out of the box with Docker Compose. Customise `port`, `ip_address`, or `db_path` if needed. The `checkpoint_dirs` and `sample_dir` values in this file refer to container-internal mount paths and should not normally need to change.
+
+Both files are gitignored.
+
 | Variable | Default | Description |
 |---|---|---|
-| `PORT` | `8080` | Backend server port |
+| `CHECKPOINT_DIR` | `.dataset-placeholder/` | Host path to checkpoint directory (mounted read-only into backend) |
+| `SAMPLE_DIR` | `.dataset-placeholder/` | Host path to sample image directory (mounted read-only into backend) |
+| `PORT` | `8080` | Backend server port (set in `config.yaml`) |
 
 ## Testing
 
