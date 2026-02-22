@@ -224,19 +224,39 @@ End the cycle when any occurs:
 
 ## 9) Discord notifications
 
-If the `send_discord_notification` MCP tool is available, use it to notify the user at these points:
+If the `send_discord_notification` MCP tool is available, use it to notify the user on every status transition and at key workflow points.
 
-- **Start story**: When starting a story, send a notification with a basic summary of the story being worked.
-- **Input needed**: Before displaying a claude permission request, send a notification to discord to get my attention.
-- **Implementation complete**: When the fullstack engineer finishes and the story moves to `review`. Include the story ID and brief summary.
-- **Review complete**: When the code reviewer finishes. Include the outcome (approved or changes requested).
-- **QA complete**: When the QA expert finishes. Include the outcome (approved or issues found).
-- **Story done**: When a story reaches `done`. Include the story ID, title, and brief summary.
-- **Story merged down**: If running in non-interactive mode, send another message when committing and merging down.
-- **Story blocked**: When a story becomes BLOCKED (section 6). Include the story ID and the blocked reason.
-- **Cycle ending with no work**: When no eligible stories remain (section 3). State that the backlog is empty or fully blocked.
+### 9.1 Message format
 
-Keep messages concise (1-3 sentences). Do not include secrets, file paths, or code in notifications. If the tool is unavailable or fails, continue normally — notifications are best-effort and must not block the workflow.
+Every message MUST start with the project name in brackets: `[project-name]`. The project name comes from the `project` field in backlog.yaml.
+
+Example: `[checkpoint-sampler] S-028: todo → in_progress. Starting XY grid corner-based cell resizing.`
+
+### 9.2 Status transition notifications
+
+Send a notification on every story status change:
+
+- **todo → in_progress**: `[project] <id>: todo → in_progress. Starting: <title>.`
+- **in_progress → review**: `[project] <id>: in_progress → review. Implementation complete: <brief summary of what changed>.`
+- **in_progress → blocked**: `[project] <id>: in_progress → blocked. <blocked_reason>.`
+- **review → testing**: `[project] <id>: review → testing. Code review approved.`
+- **review → in_progress**: `[project] <id>: review → in_progress. Changes requested: <1-2 sentence summary of feedback>.`
+- **testing → done**: `[project] <id>: testing → done. QA approved. <title> is complete.`
+- **testing → in_progress**: `[project] <id>: testing → in_progress. QA found issues: <1-2 sentence summary of feedback>.`
+
+When a story is returned to `in_progress` (from review or testing), always include a concise summary of the feedback so the user understands what went wrong without needing to check the repo.
+
+### 9.3 Other notifications
+
+- **Input needed**: Before displaying a claude permission request. `[project] Input needed — waiting for approval.`
+- **Story merged down**: If running in non-interactive mode, when committing and merging. `[project] <id>: Committed and merged to main.`
+- **Cycle ending with no work**: When no eligible stories remain. `[project] No eligible stories — backlog is empty or fully blocked.`
+
+### 9.4 Rules
+
+- Keep messages concise (1-3 sentences).
+- Do not include secrets, file paths, or code in notifications.
+- If the tool is unavailable or fails, continue normally — notifications are best-effort and must not block the workflow.
 
 ## 10) Ralph loop expectations
 
