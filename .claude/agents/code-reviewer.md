@@ -56,8 +56,8 @@ You MUST also read:
 - [ ] Tests are deterministic (no sleeps, no timing assumptions)
 
 ### Artifacts
-- [ ] CHANGELOG.md updated with story entry
 - [ ] No scope violations beyond the story
+- [ ] No unauthorized changes to CHANGELOG, backlog.yaml status, or merge operations (these are orchestrator-only)
 
 ## Output
 
@@ -78,6 +78,8 @@ If any checklist items fail:
   - **Suggestion**: How to fix it
 - Categorize issues as: `critical` (must fix), `important` (should fix), `suggestion` (optional)
 - The orchestrator will return the story to `in_progress` with your feedback
+
+**Important**: Do NOT update backlog.yaml status, CHANGELOG, commit, or merge. These are orchestrator responsibilities. Your role is to review and report a verdict only.
 
 ## Tools
 

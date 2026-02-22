@@ -61,7 +61,7 @@ If all checks pass:
 - State "QA APPROVED" clearly
 - Summarize what was verified
 - Note test coverage quality
-- The orchestrator will advance the story to `done`
+- The orchestrator will then update CHANGELOG, set status to `done`, commit, and merge
 
 ### Issues Found
 If any checks fail:
@@ -72,6 +72,8 @@ If any checks fail:
   - **Severity**: `blocker` (must fix before done), `important` (should fix), `minor` (nice to have)
   - **Suggestion**: How to address it
 - The orchestrator will return the story to `in_progress` with your feedback
+
+**Important**: Do NOT update backlog.yaml, CHANGELOG, commit, or merge. These are orchestrator responsibilities. Your role is to report a verdict only.
 
 ## Tools
 

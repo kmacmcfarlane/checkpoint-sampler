@@ -49,9 +49,9 @@ Any status ──► blocked (with blocked_reason)
 blocked ──► todo (when blocker is resolved by user)
 ```
 
-Valid transitions (each transition may ONLY be performed by the designated subagent):
+Valid transitions — the **Deciding subagent** column shows which subagent's verdict triggers the transition. The **orchestrator** writes all status changes to backlog.yaml; subagents only report their verdict.
 
-| Transition | Owner | Trigger |
+| Transition | Deciding subagent | Trigger |
 |---|---|---|
 | `todo` → `in_progress` | **Fullstack Engineer** | Picks up the story to begin implementation |
 | `in_progress` → `review` | **Fullstack Engineer** | Implementation and tests complete |
@@ -61,7 +61,10 @@ Valid transitions (each transition may ONLY be performed by the designated subag
 | `testing` → `done` | **QA Expert** | QA approved, all gates passed |
 | `testing` → `in_progress` | **QA Expert** | Issues found (feedback in `review_feedback`) |
 
-No subagent may set a status outside its designated transitions. The orchestrator enforces this by only invoking the correct subagent for the story's current status.
+**Ownership rules:**
+- No subagent may write status changes directly to backlog.yaml. Subagents report structured verdicts; the orchestrator updates backlog.yaml.
+- No subagent may update CHANGELOG, commit, or merge. These are exclusively orchestrator responsibilities (see section 4.5).
+- The orchestrator enforces valid transitions by only invoking the correct subagent for the story's current status.
 
 ### 1.2 Story dependencies (`requires`)
 
@@ -79,13 +82,15 @@ When a code reviewer or QA expert returns a story to `in_progress`, they record 
 
 The orchestrator delegates work to specialized subagents via the Task tool. Subagent definitions live in `/.claude/agents/`:
 
-| Subagent | File | Invoked when | Sets status to |
+| Subagent | File | Invoked when | Verdict triggers |
 |---|---|---|---|
-| Fullstack Engineer | `fullstack-engineer.md` | Story is `todo` or `in_progress` | `review` |
-| Code Reviewer | `code-reviewer.md` | Story is `review` | `testing` or `in_progress` |
-| QA Expert | `qa-expert.md` | Story is `testing` | `done` or `in_progress` |
+| Fullstack Engineer | `fullstack-engineer.md` | Story is `todo` or `in_progress` | → `review` (or → `blocked`) |
+| Code Reviewer | `code-reviewer.md` | Story is `review` | → `testing` or → `in_progress` |
+| QA Expert | `qa-expert.md` | Story is `testing` | → `done` or → `in_progress` |
 | Debugger | `debugger.md` | On demand (test failures, hard bugs) | n/a |
 | Security Auditor | `security-auditor.md` | On demand (security-sensitive stories) | n/a |
+
+Subagents report structured verdicts. The **orchestrator** writes all status changes, CHANGELOG updates, commits, and merges.
 
 ### 2.1 Invoking subagents
 
@@ -162,14 +167,25 @@ Based on the story's current status, invoke the appropriate subagent:
 2. If approved: set status to `done`
 3. If issues found: set status to `in_progress`, record feedback in `review_feedback`
 
-### 4.4 Update artifacts
+### 4.4 Update artifacts (orchestrator responsibility)
 
-After each subagent completes:
+After each subagent completes, the **orchestrator** (not the subagent) performs these updates:
 - Update /agent/backlog.yaml with the new status and any feedback
 - Are there questions that could help decide next steps? Update /agent/QUESTIONS.md and trigger a discord notification via the MCP tool. Also indicate questions in the chat output.
 - Update /agent/IDEAS.md with ideas for features that could enhance the application
 
-### 4.5 Commit rules
+### 4.5 Finalization on QA approval (orchestrator responsibility)
+
+When the QA expert reports **APPROVED**, the orchestrator performs these steps in order:
+
+1. **Update CHANGELOG**: Add an entry to /CHANGELOG.md for the completed story.
+2. **Update backlog**: Set `status: done` in /agent/backlog.yaml.
+3. **Commit**: Create the commit (per commit rules below).
+4. **Merge**: Merge the feature branch into `main` (per the commit/merge policy in PROMPT.md).
+
+These finalization actions are exclusively owned by the orchestrator. No subagent may update CHANGELOG, commit, or merge.
+
+### 4.6 Commit rules
 Default: commit when a story reaches `done` and the user has reviewed the changes. Wait for review before committing.
 - Create a single commit per story unless the story explicitly requires multiple commits.
 - Commit message format:
@@ -184,18 +200,23 @@ Default: commit when a story reaches `done` and the user has reviewed the change
 ## 5) Definition of Done (DoD)
 
 A story may be set to `status: done` only if all are true:
+
+**Verified by subagents (before QA approval):**
 1) All acceptance criteria are satisfied.
 2) Required tests are present and meaningful.
 3) All relevant test suites pass locally.
 4) Lint/typecheck passes where applicable (per story scope).
-5) /CHANGELOG.md updated with the story entry.
-6) Code review passed (story went through `review` → `testing` transition).
-7) QA testing passed (story went through `testing` → `done` transition).
-8) Work committed with correct message format (unless story explicitly overrides).
-9) No scope violations:
+5) Code review passed (story went through `review` → `testing` transition).
+6) QA testing passed (QA expert reports APPROVED).
+7) No scope violations:
     - no generated code edits in internal/api/gen or **/mocks or inside node_modules or any other generated/external code
     - no unofficial workarounds for stubbed features
     - no secrets added to repo or logs
+
+**Performed by the orchestrator (after QA approval):**
+8) /CHANGELOG.md updated with the story entry.
+9) Work committed with correct message format (unless story explicitly overrides).
+10) Feature branch merged to main (per commit/merge policy in PROMPT.md).
 
 ## 6) Blocking rules
 

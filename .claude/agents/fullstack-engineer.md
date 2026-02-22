@@ -27,7 +27,9 @@ You MUST also read:
 2. **Implement incrementally**: Apply changes in small steps. Respect architecture boundaries (see DEVELOPMENT_PRACTICES.md section 2).
 3. **Write tests**: Encode acceptance criteria in tests per TEST_PRACTICES.md. Every new behavior needs a happy-path and failure-path test.
 4. **Run verification**: Detect runtime environment (`/.dockerenv`), run test and lint commands, fix any failures.
-5. **Update artifacts**: Update `/CHANGELOG.md` with a story entry. Record questions in `/agent/QUESTIONS.md` if any.
+5. **Record questions**: Record any open questions in `/agent/QUESTIONS.md`.
+
+**Important**: Do NOT update CHANGELOG, backlog.yaml status, commit, or merge. These are orchestrator responsibilities. Your role is to implement and report results only.
 
 ## Constraints
 
@@ -44,7 +46,6 @@ When your implementation is complete:
 - All acceptance criteria are satisfied
 - Tests are written and passing
 - Lint/typecheck passes
-- CHANGELOG.md is updated
 - Report a summary of what you changed and any open questions
 
 The orchestrator will set the story status to `review` after your work is verified.
