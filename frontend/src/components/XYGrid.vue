@@ -167,125 +167,209 @@ const flatImages = computed<ScanImage[]>(() => {
   }
   return filteredImages.value
 })
+
+// --- CSS Grid placement helpers ---
+
+/** Column offset: data columns start at 2 when row headers present, else 1. */
+const colBase = computed(() => (props.yDimension ? 2 : 1))
+
+/** Row offset: data rows start at 2 when column headers present, else 1. */
+const rowBase = computed(() => (props.xDimension ? 2 : 1))
+
+/** CSS grid-column for the i-th X value (0-based). */
+function colIndex(i: number): number {
+  return colBase.value + i * 2
+}
+
+/** CSS grid-column for the divider between X[i] and X[i+1] (0-based). */
+function colDividerIndex(i: number): number {
+  return colBase.value + i * 2 + 1
+}
+
+/** CSS grid-row for the j-th Y value (0-based). */
+function rowIndex(j: number): number {
+  return rowBase.value + j * 2
+}
+
+/** CSS grid-row for the divider between Y[j] and Y[j+1] (0-based). */
+function rowDividerIndex(j: number): number {
+  return rowBase.value + j * 2 + 1
+}
+
+/** Computed grid-template-columns. */
+const gridTemplateColumns = computed(() => {
+  const parts: string[] = []
+  if (props.yDimension) parts.push('auto')
+  if (props.xDimension) {
+    for (let i = 0; i < xValues.value.length; i++) {
+      if (i > 0) parts.push('6px')
+      parts.push(`${cellWidth.value}px`)
+    }
+  } else if (props.yDimension) {
+    parts.push(`${cellWidth.value}px`)
+  }
+  return parts.join(' ')
+})
+
+/** Computed grid-template-rows. */
+const gridTemplateRows = computed(() => {
+  const parts: string[] = []
+  if (props.xDimension) parts.push('auto')
+  if (props.yDimension) {
+    for (let j = 0; j < yValues.value.length; j++) {
+      if (j > 0) parts.push('6px')
+      parts.push(`${cellHeight.value}px`)
+    }
+  } else if (props.xDimension) {
+    parts.push(`${cellHeight.value}px`)
+  }
+  return parts.join(' ')
+})
+
+/** Inline style for the CSS Grid container. */
+const gridStyle = computed(() => ({
+  display: 'grid',
+  gridTemplateColumns: gridTemplateColumns.value,
+  gridTemplateRows: gridTemplateRows.value,
+}))
+
+/** Inline style for the flat mode CSS Grid. */
+const flatGridStyle = computed(() => ({
+  display: 'grid',
+  gridTemplateColumns: `repeat(auto-fill, ${cellWidth.value}px)`,
+  gridAutoRows: `${cellHeight.value}px`,
+  gap: '4px',
+}))
 </script>
 
 <template>
   <div class="xy-grid-container" v-if="!hasNoAxes">
-    <div class="xy-grid" role="grid">
-      <!-- Header row with X values -->
-      <div class="xy-grid__header-row" role="row" v-if="xDimension">
-        <div class="xy-grid__corner" v-if="yDimension" role="columnheader"></div>
-        <template v-for="(xVal, idx) in xValues" :key="xVal">
-          <div
-            class="xy-grid__col-header"
-            role="columnheader"
-            :style="{ width: cellWidth + 'px' }"
-            @click="onHeaderClick(xDimension!.name, xVal)"
-          >
-            {{ xVal }}
-          </div>
-          <div
-            v-if="idx < xValues.length - 1"
-            class="xy-grid__col-divider"
-            role="separator"
-            aria-orientation="vertical"
-            @mousedown="onColDividerMousedown"
-          ></div>
-        </template>
-      </div>
+    <div class="xy-grid" role="grid" :style="gridStyle">
+      <!-- Corner cell (when both X and Y present) -->
+      <div
+        v-if="xDimension && yDimension"
+        class="xy-grid__corner"
+        role="columnheader"
+        :style="{ gridRow: 1, gridColumn: 1 }"
+      ></div>
 
-      <!-- Data rows -->
-      <template v-if="yDimension">
-        <template v-for="(yVal, yIdx) in yValues" :key="yVal">
-          <div class="xy-grid__row" role="row">
-            <div
-              class="xy-grid__row-header"
-              role="rowheader"
-              :style="{ height: cellHeight + 'px' }"
-              @click="onHeaderClick(yDimension!.name, yVal)"
-            >
-              {{ yVal }}
-            </div>
-            <template v-if="xDimension">
-              <template v-for="(xVal, xIdx) in xValues" :key="xVal">
-                <div
-                  class="xy-grid__cell"
-                  role="gridcell"
-                  :style="{ width: cellWidth + 'px', height: cellHeight + 'px' }"
-                >
-                  <ImageCell :relative-path="getImage(xVal, yVal)?.relative_path ?? null" @click="(url: string) => emit('image:click', url)" />
-                  <SliderBar
-                    v-if="sliderDimension"
-                    :values="sliderDimension.values"
-                    :current-value="getSliderValue(xVal, yVal)"
-                    :label="`${sliderDimension.name} for ${xVal}, ${yVal}`"
-                    @change="(v: string) => onSliderChange(xVal, yVal, v)"
-                  />
-                </div>
-                <div
-                  v-if="xIdx < xValues.length - 1"
-                  class="xy-grid__col-divider xy-grid__col-divider--cell"
-                  @mousedown="onColDividerMousedown"
-                ></div>
-              </template>
-            </template>
-            <template v-else>
-              <div
-                class="xy-grid__cell"
-                role="gridcell"
-                :style="{ height: cellHeight + 'px' }"
-              >
-                <ImageCell :relative-path="getImage(undefined, yVal)?.relative_path ?? null" @click="(url: string) => emit('image:click', url)" />
-                <SliderBar
-                  v-if="sliderDimension"
-                  :values="sliderDimension.values"
-                  :current-value="getSliderValue(undefined, yVal)"
-                  :label="`${sliderDimension.name} for ${yVal}`"
-                  @change="(v: string) => onSliderChange(undefined, yVal, v)"
-                />
-              </div>
-            </template>
-          </div>
-          <div
-            v-if="yIdx < yValues.length - 1"
-            class="xy-grid__row-divider"
-            role="separator"
-            aria-orientation="horizontal"
-            @mousedown="onRowDividerMousedown"
-          ></div>
-        </template>
+      <!-- Column headers -->
+      <template v-if="xDimension">
+        <div
+          v-for="(xVal, idx) in xValues"
+          :key="'ch-' + xVal"
+          class="xy-grid__col-header"
+          role="columnheader"
+          :style="{ gridRow: 1, gridColumn: colIndex(idx) }"
+          @click="onHeaderClick(xDimension!.name, xVal)"
+        >
+          {{ xVal }}
+        </div>
       </template>
 
-      <!-- X-only row (no Y dimension) -->
-      <div v-else-if="xDimension" class="xy-grid__row" role="row">
-        <template v-for="(xVal, xIdx) in xValues" :key="xVal">
+      <!-- Row headers + cells (Y dimension present) -->
+      <template v-if="yDimension">
+        <template v-for="(yVal, yIdx) in yValues" :key="'y-' + yVal">
+          <!-- Row header -->
           <div
+            class="xy-grid__row-header"
+            role="rowheader"
+            :style="{ gridRow: rowIndex(yIdx), gridColumn: 1 }"
+            @click="onHeaderClick(yDimension!.name, yVal)"
+          >
+            {{ yVal }}
+          </div>
+
+          <!-- Cells for X+Y grid -->
+          <template v-if="xDimension">
+            <div
+              v-for="(xVal, xIdx) in xValues"
+              :key="xVal"
+              class="xy-grid__cell"
+              role="gridcell"
+              :style="{ gridRow: rowIndex(yIdx), gridColumn: colIndex(xIdx) }"
+            >
+              <ImageCell :relative-path="getImage(xVal, yVal)?.relative_path ?? null" @click="(url: string) => emit('image:click', url)" />
+              <SliderBar
+                v-if="sliderDimension"
+                :values="sliderDimension.values"
+                :current-value="getSliderValue(xVal, yVal)"
+                :label="`${sliderDimension.name} for ${xVal}, ${yVal}`"
+                @change="(v: string) => onSliderChange(xVal, yVal, v)"
+              />
+            </div>
+          </template>
+
+          <!-- Single cell for Y-only grid -->
+          <div
+            v-else
             class="xy-grid__cell"
             role="gridcell"
-            :style="{ width: cellWidth + 'px' }"
+            :style="{ gridRow: rowIndex(yIdx), gridColumn: colBase }"
           >
-            <ImageCell :relative-path="getImage(xVal, undefined)?.relative_path ?? null" @click="(url: string) => emit('image:click', url)" />
+            <ImageCell :relative-path="getImage(undefined, yVal)?.relative_path ?? null" @click="(url: string) => emit('image:click', url)" />
             <SliderBar
               v-if="sliderDimension"
               :values="sliderDimension.values"
-              :current-value="getSliderValue(xVal, undefined)"
-              :label="`${sliderDimension.name} for ${xVal}`"
-              @change="(v: string) => onSliderChange(xVal, undefined, v)"
+              :current-value="getSliderValue(undefined, yVal)"
+              :label="`${sliderDimension.name} for ${yVal}`"
+              @change="(v: string) => onSliderChange(undefined, yVal, v)"
             />
           </div>
-          <div
-            v-if="xIdx < xValues.length - 1"
-            class="xy-grid__col-divider xy-grid__col-divider--cell"
-            @mousedown="onColDividerMousedown"
-          ></div>
         </template>
-      </div>
+      </template>
+
+      <!-- X-only cells (no Y dimension) -->
+      <template v-else-if="xDimension">
+        <div
+          v-for="(xVal, xIdx) in xValues"
+          :key="'xonly-' + xVal"
+          class="xy-grid__cell"
+          role="gridcell"
+          :style="{ gridRow: rowBase, gridColumn: colIndex(xIdx) }"
+        >
+          <ImageCell :relative-path="getImage(xVal, undefined)?.relative_path ?? null" @click="(url: string) => emit('image:click', url)" />
+          <SliderBar
+            v-if="sliderDimension"
+            :values="sliderDimension.values"
+            :current-value="getSliderValue(xVal, undefined)"
+            :label="`${sliderDimension.name} for ${xVal}`"
+            @change="(v: string) => onSliderChange(xVal, undefined, v)"
+          />
+        </div>
+      </template>
+
+      <!-- Column dividers (span all rows) -->
+      <template v-if="xDimension && xValues.length > 1">
+        <div
+          v-for="idx in (xValues.length - 1)"
+          :key="'cdiv-' + idx"
+          class="xy-grid__col-divider"
+          role="separator"
+          aria-orientation="vertical"
+          :style="{ gridRow: '1 / -1', gridColumn: colDividerIndex(idx - 1) }"
+          @mousedown="onColDividerMousedown"
+        ></div>
+      </template>
+
+      <!-- Row dividers (span all columns) -->
+      <template v-if="yDimension && yValues.length > 1">
+        <div
+          v-for="idx in (yValues.length - 1)"
+          :key="'rdiv-' + idx"
+          class="xy-grid__row-divider"
+          role="separator"
+          aria-orientation="horizontal"
+          :style="{ gridRow: rowDividerIndex(idx - 1), gridColumn: '1 / -1' }"
+          @mousedown="onRowDividerMousedown"
+        ></div>
+      </template>
     </div>
   </div>
 
   <!-- No axes: show flat image list -->
   <div class="xy-grid-flat" v-else-if="flatImages.length > 0">
-    <div class="xy-grid-flat__grid">
+    <div class="xy-grid-flat__grid" :style="flatGridStyle">
       <div
         v-for="img in flatImages"
         :key="img.relative_path"
@@ -313,18 +397,8 @@ const flatImages = computed<ScanImage[]>(() => {
   width: 100%;
 }
 
-.xy-grid {
-  display: inline-block;
-}
-
-.xy-grid__header-row {
-  display: flex;
-  align-items: stretch;
-}
-
 .xy-grid__corner {
   min-width: 60px;
-  flex-shrink: 0;
 }
 
 .xy-grid__col-header {
@@ -336,10 +410,10 @@ const flatImages = computed<ScanImage[]>(() => {
   border: 1px solid var(--border-color, #e0e0e0);
   cursor: pointer;
   user-select: none;
-  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
 }
 
 .xy-grid__col-header:hover {
@@ -347,10 +421,8 @@ const flatImages = computed<ScanImage[]>(() => {
 }
 
 .xy-grid__col-divider {
-  width: 6px;
   cursor: col-resize;
   background-color: transparent;
-  flex-shrink: 0;
 }
 
 .xy-grid__col-divider:hover {
@@ -358,14 +430,7 @@ const flatImages = computed<ScanImage[]>(() => {
   opacity: 0.3;
 }
 
-.xy-grid__row {
-  display: flex;
-  align-items: stretch;
-  margin-top: 0;
-}
-
 .xy-grid__row-divider {
-  height: 6px;
   cursor: row-resize;
   background-color: transparent;
 }
@@ -384,9 +449,9 @@ const flatImages = computed<ScanImage[]>(() => {
   font-size: 0.875rem;
   background-color: var(--bg-surface, #f5f5f5);
   border: 1px solid var(--border-color, #e0e0e0);
-  flex-shrink: 0;
   cursor: pointer;
   user-select: none;
+  overflow: hidden;
 }
 
 .xy-grid__row-header:hover {
@@ -394,20 +459,15 @@ const flatImages = computed<ScanImage[]>(() => {
 }
 
 .xy-grid__cell {
-  flex-shrink: 0;
   overflow: hidden;
-}
-
-.xy-grid-flat__grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
+  min-width: 0;
+  min-height: 0;
 }
 
 .xy-grid-flat__cell {
-  width: 200px;
   max-width: 100%;
   box-sizing: border-box;
+  overflow: hidden;
 }
 
 .xy-grid-empty {

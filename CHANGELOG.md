@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### B-005: X/Y grid layout breaks with different configurations
+- frontend/src/components/XYGrid.vue: Replaced flexbox grid layout with CSS Grid (`display: grid`) for consistent cell alignment regardless of content or configuration; all items are now direct children of the grid container with explicit `grid-row`/`grid-column` placement
+- frontend/src/components/XYGrid.vue: Removed wrapper elements (`.xy-grid__header-row`, `.xy-grid__row`) — flattened template structure eliminates per-row flex containers that caused misalignment
+- frontend/src/components/XYGrid.vue: Grid template columns/rows computed dynamically from cell dimensions (cellWidth/cellHeight refs), with 6px divider tracks between data columns/rows and `auto` tracks for headers
+- frontend/src/components/XYGrid.vue: Column dividers now span all rows (`grid-row: 1 / -1`) and row dividers span all columns (`grid-column: 1 / -1`) — single divider element per gap instead of per-row duplicates
+- frontend/src/components/XYGrid.vue: Empty/placeholder cells maintain consistent sizing since CSS Grid enforces uniform track sizes across all rows and columns
+- frontend/src/components/XYGrid.vue: Grid renders correctly with 1x1, 1xN, Nx1, NxM, X-only, and Y-only configurations
+- frontend/src/components/XYGrid.vue: Flat mode (no axes) now uses CSS Grid with `repeat(auto-fill, cellWidthpx)` and `grid-auto-rows: cellHeightpx` for consistent cell sizing
+- frontend/src/components/XYGrid.vue: Existing divider-based cell resizing continues to work — dragging dividers updates cellWidth/cellHeight refs which feed into `grid-template-columns`/`grid-template-rows`
+- 10 new CSS Grid alignment tests: 1x1/1xN/Nx1/NxM grid template verification, empty placeholder cell grid placement, X-only grid without row header column, Y-only grid without column header row, flat mode CSS Grid with consistent sizing, grid container display and template properties
+- Updated existing tests for flattened structure: removed `.xy-grid__header-row` references, updated divider count expectations (1 per gap instead of per-row), updated grid template style assertions
+- 388 total frontend tests pass across 21 test files
+
 ### S-027: Responsive design polish
 - frontend/src/components/AppDrawer.vue: Drawer width is now responsive — uses 100% width on mobile screens (<768px) and 360px on wider screens; uses matchMedia listener to detect viewport changes dynamically
 - frontend/src/components/MasterSlider.vue: Changed mobile breakpoint from 599px to 767px for consistent mobile stacking; added flex-wrap on loop controls at mobile breakpoint

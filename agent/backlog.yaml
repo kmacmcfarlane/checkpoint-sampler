@@ -586,6 +586,41 @@ stories:
     testing:
       - "command: npx vitest run"
 
+  - id: B-005
+    title: "X/Y grid layout breaks with different configurations"
+    priority: 3
+    done: true
+    blocked: false
+    blocked_reason: ""
+    requires: [S-024]
+    acceptance:
+      - "FE: Replace flexbox grid layout with CSS Grid so cells align correctly regardless of content or configuration"
+      - "FE: Grid must maintain consistent column widths and row heights across all rows/columns"
+      - "FE: Empty/placeholder cells must not collapse or shift adjacent cells"
+      - "FE: Grid renders correctly with varying numbers of X and Y values (1x1, 1xN, Nx1, NxM)"
+      - "FE: Flat mode (no axes assigned) also uses consistent cell sizing"
+      - "FE: Existing divider-based cell resizing continues to work with CSS Grid"
+      - "FE: Unit tests for grid alignment with varying configurations"
+    testing:
+      - "command: npx vitest run"
+
+  - id: B-006
+    title: "No zoom/scale control for grid cell size"
+    priority: 3
+    done: false
+    blocked: false
+    blocked_reason: ""
+    requires: [S-024]
+    acceptance:
+      - "FE: Add a zoom slider (or similar control) near the master slider area to scale grid cell size"
+      - "FE: Zoom slider adjusts both cellWidth and cellHeight proportionally"
+      - "FE: Zoom range covers useful sizes from thumbnail (~100px) to large (~600px)"
+      - "FE: Zoom control is more discoverable than the current drag-divider approach"
+      - "FE: Divider-based resizing may be kept as a secondary mechanism or removed"
+      - "FE: Unit tests for zoom slider controlling cell dimensions"
+    testing:
+      - "command: npx vitest run"
+
   - id: S-027
     title: "Responsive design polish"
     priority: 1
