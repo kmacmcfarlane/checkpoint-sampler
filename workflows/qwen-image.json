@@ -1,0 +1,150 @@
+{
+  "75:37": {
+    "inputs": {
+      "unet_name": "checkpoints/qwen/qwen_image_2512_bf16.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model",
+      "cs_role": "unet_loader"
+    }
+  },
+  "75:38": {
+    "inputs": {
+      "clip_name": "qwen/qwen_2.5_vl_7b.safetensors",
+      "type": "qwen_image",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP",
+      "cs_role": "clip_loader"
+    }
+  },
+  "75:39": {
+    "inputs": {
+      "vae_name": "qwen/qwen_image_vae_comfy.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE",
+      "cs_role": "vae_loader"
+    }
+  },
+  "75:6": {
+    "inputs": {
+      "text": "my prompt",
+      "clip": [
+        "75:38",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Positive Prompt)",
+      "cs_role": "positive_prompt"
+    }
+  },
+  "75:7": {
+    "inputs": {
+      "text": "",
+      "clip": [
+        "75:38",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Negative Prompt)",
+      "cs_role": "negative_prompt"
+    }
+  },
+  "75:58": {
+    "inputs": {
+      "width": 1344,
+      "height": 1344,
+      "batch_size": 1
+    },
+    "class_type": "EmptySD3LatentImage",
+    "_meta": {
+      "title": "EmptySD3LatentImage",
+      "cs_role": "latent_image"
+    }
+  },
+  "75:3": {
+    "inputs": {
+      "seed": 420,
+      "steps": 1,
+      "cfg": 3,
+      "sampler_name": "res_multistep",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "75:81",
+        0
+      ],
+      "positive": [
+        "75:6",
+        0
+      ],
+      "negative": [
+        "75:7",
+        0
+      ],
+      "latent_image": [
+        "75:58",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler",
+      "cs_role": "sampler"
+    }
+  },
+  "75:81": {
+    "inputs": {
+      "shift": 3,
+      "model": [
+        "75:37",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingAuraFlow",
+    "_meta": {
+      "title": "ModelSamplingAuraFlow",
+      "cs_role": "shift"
+    }
+  },
+  "75:8": {
+    "inputs": {
+      "samples": [
+        "75:3",
+        0
+      ],
+      "vae": [
+        "75:39",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "95": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": [
+        "75:8",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image",
+      "cs_role": "save_image"
+    }
+  }
+}

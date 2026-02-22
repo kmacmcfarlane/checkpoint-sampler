@@ -6,8 +6,9 @@
 checkpoint_dirs:
   - /data/checkpoints
 
-# Directory where ComfyUI sample image output directories live.
+# Directory where sample image output directories live.
 # Each subdirectory is named after the checkpoint filename (exact match).
+# Generated images from sample jobs are also saved here.
 sample_dir: /data/samples
 
 # Backend server port
@@ -18,3 +19,12 @@ ip_address: "0.0.0.0"
 
 # SQLite database path (relative to working directory)
 db_path: ./data/checkpoint-sampler.db
+
+# ComfyUI connection settings for inference pipeline (optional).
+# If omitted, inference pipeline features are disabled in the UI.
+# comfyui:
+#   host: localhost
+#   port: 8188
+
+# Directory containing workflow template JSON files (optional).
+# workflow_dir: ./workflows

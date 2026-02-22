@@ -638,3 +638,252 @@ stories:
       - "FE: Unit tests for responsive behavior where applicable"
     testing:
       - "command: npx vitest run"
+
+# ─── NEW BUGS & ENHANCEMENTS ──────────────────────────────────────────────────
+
+  - id: B-007
+    title: "Checkpoint metadata panel dark mode text unreadable"
+    priority: 3
+    done: false
+    blocked: false
+    blocked_reason: ""
+    requires: [S-026, S-021]
+    acceptance:
+      - "FE: Metadata value text color is readable in dark mode (uses theme-aware color tokens, not hardcoded colors)"
+      - "FE: Values are clearly legible against the dark background in both light and dark themes"
+      - "FE: Unit tests verify metadata values render with correct theme-aware styling"
+    testing:
+      - "command: npx vitest run"
+
+  - id: B-008
+    title: "Checkpoint selector in metadata slideout has unreadable background"
+    priority: 3
+    done: false
+    blocked: false
+    blocked_reason: ""
+    requires: [S-026, S-021]
+    acceptance:
+      - "FE: Checkpoint selector dropdown in the metadata slideout uses theme-appropriate background and text colors"
+      - "FE: Checkpoint names are clearly readable in both light and dark themes"
+      - "FE: Unit tests verify selector styling respects active theme"
+    testing:
+      - "command: npx vitest run"
+
+  - id: S-028
+    title: "XY grid corner-based cell resizing"
+    priority: 3
+    done: false
+    blocked: false
+    blocked_reason: ""
+    requires: [S-024]
+    acceptance:
+      - "FE: Grid cells can be resized by dragging corner handles (adjusts both width and height simultaneously)"
+      - "FE: Corner resize replaces or supplements the existing vertical/horizontal divider approach"
+      - "FE: Resize maintains aspect ratio or allows freeform (user preference)"
+      - "FE: All cells resize together (uniform grid sizing)"
+      - "FE: Unit tests for corner-based resize behavior"
+    testing:
+      - "command: npx vitest run"
+
+  - id: B-009
+    title: "XY grid header solo click should hide non-selected values from grid"
+    priority: 3
+    done: false
+    blocked: false
+    blocked_reason: ""
+    requires: [S-024]
+    acceptance:
+      - "FE: Clicking an X column header hides all other columns from the grid (not just highlights)"
+      - "FE: Clicking a Y row header hides all other rows from the grid"
+      - "FE: Clicking the soloed header again restores all values"
+      - "FE: Grid re-renders with only the selected row/column visible after header solo click"
+      - "FE: Unit tests for header solo filtering grid visibility"
+    testing:
+      - "command: npx vitest run"
+
+  - id: S-029
+    title: "Collapse all dimension filters into single expandable 'Filters' section"
+    priority: 3
+    done: false
+    blocked: false
+    blocked_reason: ""
+    requires: [S-023]
+    acceptance:
+      - "FE: Replace individual dimension filter expand/collapse toggles with a single 'Filters' arrow/header"
+      - "FE: Clicking 'Filters' expands to show all dimension filters; clicking again collapses all"
+      - "FE: Collapsed by default"
+      - "FE: Unit tests for expand/collapse behavior of the unified filters section"
+    testing:
+      - "command: npx vitest run"
+
+  - id: B-010
+    title: "WebSocket live updates always displays 'disconnected'"
+    priority: 3
+    done: false
+    blocked: false
+    blocked_reason: ""
+    requires: [S-015]
+    acceptance:
+      - "FE: WebSocket connection status indicator shows 'connected' when actually connected"
+      - "FE: Investigate and fix why the status always shows 'disconnected' (connection failure, incorrect status tracking, or display bug)"
+      - "FE: Status indicator accurately reflects the real connection state at all times"
+      - "FE: Unit tests for connection status display accuracy"
+    testing:
+      - "command: npx vitest run"
+
+  - id: B-011
+    title: "Auto-load previously used dimension preset from localStorage"
+    priority: 3
+    done: false
+    blocked: false
+    blocked_reason: ""
+    requires: [S-012]
+    acceptance:
+      - "FE: When a preset is selected, persist the preset ID (and training run ID) in localStorage"
+      - "FE: On app load, if a saved preset exists in localStorage, auto-select that training run and apply the preset"
+      - "FE: Gracefully handle stale/deleted presets (clear localStorage entry and fall back to no preset)"
+      - "FE: Unit tests for persistence, auto-load on startup, and stale preset handling"
+    testing:
+      - "command: npx vitest run"
+
+# ─── INFERENCE PIPELINE ────────────────────────────────────────────────────────
+
+  - id: S-030
+    title: "ComfyUI configuration, client, and model discovery"
+    priority: -1
+    done: false
+    blocked: false
+    blocked_reason: ""
+    requires: [S-002]
+    acceptance:
+      - "BE: Add comfyui.host (default localhost), comfyui.port (default 8188), and workflow_dir (default ./workflows) to config.yaml schema"
+      - "BE: Config validation: comfyui section is optional; if present, host and port must be valid"
+      - "BE: ComfyUI HTTP client: health check, submit prompt, get history, get queue status"
+      - "BE: ComfyUI WebSocket client: connect and receive progress/execution events"
+      - "BE: Model discovery: query /object_info/{node_type} for available VAEs (VAELoader), CLIPs (CLIPLoader), UNETs (UNETLoader), samplers, and schedulers"
+      - "BE: Goa DSL: comfyui service with status and models endpoints"
+      - "BE: API: GET /api/comfyui/status returns connection status"
+      - "BE: API: GET /api/comfyui/models?type={vae|clip|unet|sampler|scheduler} returns available model names"
+      - "BE: Unit tests for config parsing, ComfyUI client (mocked HTTP), model discovery parsing"
+      - "FE: ComfyUI connection status indicator in the UI header showing online/offline state with colored dot or badge"
+      - "FE: Status indicator polls /api/comfyui/status periodically and updates in real-time"
+      - "FE: When comfyui config is absent, the indicator is hidden (inference features disabled)"
+      - "FE: Unit tests for status indicator (online, offline, hidden states)"
+    testing:
+      - "command: ginkgo -r --cover --race ./internal/..."
+      - "command: npx vitest run"
+
+  - id: S-031
+    title: "Workflow template management"
+    priority: -2
+    done: false
+    blocked: false
+    blocked_reason: ""
+    requires: [S-030]
+    acceptance:
+      - "BE: Load workflow JSON files from configured workflow_dir on startup"
+      - "BE: Validate cs_role tags in _meta objects (required: save_image; known roles: unet_loader, clip_loader, vae_loader, sampler, positive_prompt, negative_prompt, shift, latent_image, save_image)"
+      - "BE: Reject workflows missing save_image role; flag unknown cs_role values as warnings"
+      - "BE: Extract role summary per workflow (which roles are present, which node IDs they map to)"
+      - "BE: Goa DSL: workflows service with list and show methods"
+      - "BE: API: GET /api/workflows returns list of available workflow templates with role summaries"
+      - "BE: API: GET /api/workflows/{name} returns full workflow details including roles and validation status"
+      - "BE: Create workflow_dir at startup if it does not exist"
+      - "BE: Unit tests for loading, validation, role extraction, missing directory handling"
+    testing:
+      - "command: ginkgo -r --cover --race ./internal/..."
+
+  - id: S-032
+    title: "Sample setting presets"
+    priority: -3
+    done: false
+    blocked: false
+    blocked_reason: ""
+    requires: [S-030, S-003]
+    acceptance:
+      - "BE: DB migration: create sample_presets table (id, name, prompts JSON, negative_prompt, steps JSON, cfgs JSON, samplers JSON, schedulers JSON, seeds JSON, width, height, created_at, updated_at)"
+      - "BE: Sample preset service and store with CRUD operations"
+      - "BE: Validation: at least one prompt, step, cfg, sampler, scheduler, and seed required; width/height must be positive"
+      - "BE: Computed field images_per_checkpoint returned with each preset"
+      - "BE: Goa DSL: sample_presets service with list, create, update, delete methods"
+      - "BE: Unit tests for CRUD, validation, images_per_checkpoint calculation"
+      - "FE: SamplePresetEditor component for creating/editing presets"
+      - "FE: Multi-value inputs for prompts (name + text pairs), steps, CFG values, seeds"
+      - "FE: Sampler and scheduler dropdowns populated from ComfyUI API (/api/comfyui/models?type=sampler|scheduler)"
+      - "FE: Width and height inputs"
+      - "FE: Negative prompt input"
+      - "FE: Computed total images per checkpoint displayed prominently"
+      - "FE: Save/load/edit/delete preset operations"
+      - "FE: Unit tests for preset editor, computed total, CRUD operations"
+    testing:
+      - "command: ginkgo -r --cover --race ./internal/..."
+      - "command: npx vitest run"
+
+  - id: S-033
+    title: "Sample job orchestration"
+    priority: -4
+    done: false
+    blocked: false
+    blocked_reason: ""
+    requires: [S-031, S-032]
+    acceptance:
+      - "BE: DB migration: create sample_jobs table (id, training_run_name, sample_preset_id, workflow_name, vae, clip, shift, status, total_items, completed_items, error_message, created_at, updated_at)"
+      - "BE: DB migration: create sample_job_items table (id, job_id, checkpoint_filename, comfyui_model_path, prompt_name, prompt_text, steps, cfg, sampler_name, scheduler, seed, status, comfyui_prompt_id, output_path, error_message, created_at, updated_at)"
+      - "BE: Job creation: expand sample preset parameters × training run checkpoints into individual work items"
+      - "BE: Checkpoint-to-ComfyUI path matching: query ComfyUI for available UNETs, match by checkpoint filename"
+      - "BE: Job state machine: pending → running → completed|failed|paused"
+      - "BE: Progress computation: checkpoints_completed, current_checkpoint_progress, estimated_completion_time"
+      - "BE: Goa DSL: sample_jobs service with create, list, show, stop, resume, delete methods"
+      - "BE: API endpoints for all job operations"
+      - "BE: Unit tests for job creation, item expansion, state transitions, progress calculation, path matching"
+    testing:
+      - "command: ginkgo -r --cover --race ./internal/..."
+
+  - id: S-034
+    title: "Sample job execution engine"
+    priority: -5
+    done: false
+    blocked: false
+    blocked_reason: ""
+    requires: [S-033]
+    acceptance:
+      - "BE: Background job executor goroutine processes work items sequentially"
+      - "BE: For each item: clone workflow template, substitute tagged node values (unet_loader, clip_loader, vae_loader, sampler params, prompts, shift, latent_image dimensions, save_image prefix)"
+      - "BE: Submit parameterized workflow to ComfyUI via POST /prompt"
+      - "BE: Monitor completion via ComfyUI WebSocket progress events"
+      - "BE: On completion: download output image via ComfyUI /view API"
+      - "BE: Save image to sample_dir/{checkpoint_filename}/{query_encoded_params}.png"
+      - "BE: Query-encoded filename includes: prompt_name, steps, cfg, sampler_name, scheduler, seed"
+      - "BE: Update job item status and job progress after each completion"
+      - "BE: Push job progress events to frontend clients via existing WebSocket"
+      - "BE: Stop: set job status to paused, cancel any queued ComfyUI prompt, stop after current item completes"
+      - "BE: Resume: pick up from first incomplete item, set job status back to running"
+      - "BE: Handle ComfyUI errors gracefully: mark item as failed, continue with next item"
+      - "BE: Job survives application restart: on startup, resume any jobs in 'running' state"
+      - "BE: Unit tests for workflow substitution, output filename generation, stop/resume logic, error handling"
+    testing:
+      - "command: ginkgo -r --cover --race ./internal/..."
+
+  - id: S-035
+    title: "Sample job launch and progress UI"
+    priority: -6
+    done: false
+    blocked: false
+    blocked_reason: ""
+    requires: [S-033, S-034]
+    acceptance:
+      - "FE: 'Generate Samples' button available on training runs (prominent for runs without samples)"
+      - "FE: JobLaunchDialog: select workflow template from dropdown"
+      - "FE: JobLaunchDialog: select sample setting preset from dropdown"
+      - "FE: JobLaunchDialog: select VAE from ComfyUI-populated dropdown"
+      - "FE: JobLaunchDialog: select CLIP/text encoder from ComfyUI-populated dropdown"
+      - "FE: JobLaunchDialog: shift value input (hidden if workflow has no shift role)"
+      - "FE: JobLaunchDialog: confirmation summary showing number of checkpoints, images per checkpoint, total images"
+      - "FE: JobProgressPanel: list of active and recent jobs"
+      - "FE: JobProgressPanel: per-job display — status badge, checkpoints completed/total, current checkpoint images completed/total, estimated completion time"
+      - "FE: JobProgressPanel: stop button for running jobs, resume button for paused jobs"
+      - "FE: Real-time progress updates via WebSocket"
+      - "FE: As images complete, they appear in the grid via the existing filesystem watcher / live update mechanism"
+      - "FE: Unit tests for launch dialog, progress display, stop/resume interactions"
+    testing:
+      - "command: npx vitest run"

@@ -4,7 +4,9 @@
 
 Checkpoint Sampler is a locally-running web-based image viewer for evaluating stable-diffusion training checkpoint outputs. It scans configured checkpoint directories for `.safetensors` files, groups them into training runs by stripping checkpoint suffixes, and correlates each checkpoint with its sample image directory. Dimensions are extracted from both directory names (checkpoint step/epoch) and query-encoded image filenames. The tool displays images in a configurable X/Y grid with sliders and multi-select combo filters for navigating the dimension space.
 
-**Primary use case:** Compare sample images across checkpoints, prompts, seeds, CFG values, and other parameters to evaluate training progress and select the best checkpoint.
+**Primary use cases:**
+1. Compare sample images across checkpoints, prompts, seeds, CFG values, and other parameters to evaluate training progress and select the best checkpoint.
+2. Generate sample images automatically by orchestrating ComfyUI inference across all checkpoints in a training run with configurable sampling parameters.
 
 **Access model:** Local-first. No authentication. Accessible from any machine on the LAN.
 
@@ -94,6 +96,68 @@ Rules:
 ### 2.7 Presets
 
 Named dimension mapping configurations saved to the database. Users can save, load, and switch between presets via the UI. Presets persist across browser sessions and container restarts.
+
+### 2.8 ComfyUI integration
+
+Checkpoint Sampler uses ComfyUI as its inference backend. Rather than implementing model loading and sampling directly, the tool orchestrates ComfyUI by submitting parameterized workflows via its HTTP/WebSocket API. This leverages ComfyUI's existing support for all model architectures (qwen-image, Flux, Flux2, SD, etc.), VRAM management, and sampling algorithms.
+
+**Connection:** Configured via `comfyui.host` and `comfyui.port` in `config.yaml`. Defaults to `localhost:8188`.
+
+**Model discovery:** Available VAEs, text encoders (CLIPs), UNETs, samplers, and schedulers are queried from ComfyUI's `/object_info/{node_type}` API endpoint. This guarantees the UI shows exactly what ComfyUI can load — no separate directory scanning needed.
+
+**Checkpoint path matching:** Training run checkpoints discovered by checkpoint-sampler must also be accessible to ComfyUI (via ComfyUI's `extra_model_paths.yaml`). When creating a sample job, checkpoint filenames are matched against ComfyUI's available model list to determine the correct ComfyUI-relative path for workflow substitution.
+
+### 2.9 Workflow templates
+
+ComfyUI API-format JSON files stored on disk in a configured `workflow_dir`. Each workflow represents a generation pipeline for a particular model type (e.g., qwen-image, Flux).
+
+**cs_role tags:** Nodes that checkpoint-sampler needs to parameterize are identified by a `cs_role` field in the node's `_meta` object. This is more robust than class_type matching since workflows may have multiple nodes of the same type.
+
+| cs_role | Substituted fields | Source |
+|---------|-------------------|--------|
+| `unet_loader` | `unet_name` or `ckpt_name` | Per checkpoint in training run (auto-matched) |
+| `clip_loader` | `clip_name` | Job-level setting (user selects from ComfyUI's available CLIPs) |
+| `vae_loader` | `vae_name` | Job-level setting (user selects from ComfyUI's available VAEs) |
+| `sampler` | `seed`, `steps`, `cfg`, `sampler_name`, `scheduler` | Sample preset (iterated across all combinations) |
+| `positive_prompt` | `text` | Sample preset (iterated across prompt list) |
+| `negative_prompt` | `text` | Sample preset (single value, same for all images) |
+| `shift` | `shift` | Job-level setting (e.g., AuraFlow shift parameter) |
+| `latent_image` | `width`, `height` | Sample preset |
+| `save_image` | `filename_prefix` | Controlled by checkpoint-sampler (not user-configurable) |
+
+**Validation:** A workflow template must have at least a `save_image` role. All other roles are optional — if a role is absent, the corresponding job-level setting is hidden in the UI.
+
+### 2.10 Sample setting presets
+
+Named parameter sets for image generation, stored in the database. Distinct from dimension mapping presets (section 2.7). A sample preset defines:
+
+- **Prompts**: Named list of positive prompts (e.g., `[{name: "forest_portals", text: "a mystical forest..."}]`)
+- **Negative prompt**: Single negative prompt text (applied to all images)
+- **Steps**: List of step counts to iterate (e.g., `[1, 4, 8]`)
+- **CFG values**: List of CFG scales to iterate (e.g., `[1, 3, 7]`)
+- **Samplers**: List of sampler names to iterate (e.g., `["euler", "res_multistep"]`)
+- **Schedulers**: List of scheduler names to iterate (e.g., `["simple", "normal"]`)
+- **Seeds**: List of seed values to iterate (e.g., `[420, 421, 422]`)
+- **Width / Height**: Image dimensions (single values, not iterated)
+
+**Images per checkpoint:** `len(prompts) × len(steps) × len(cfgs) × len(samplers) × len(schedulers) × len(seeds)`. Displayed in the UI when building a preset.
+
+### 2.11 Sample jobs
+
+A sample job generates images for every checkpoint in a training run using a sample preset and workflow template.
+
+**Job creation:** The user selects a training run (typically one without existing samples), a workflow template, a sample preset, and job-level settings (VAE, CLIP, shift). The system expands the preset parameters into individual work items: one per checkpoint × parameter combination.
+
+**Execution:** Work items are submitted to ComfyUI sequentially (one at a time to avoid queue congestion). For each completed image, checkpoint-sampler downloads the output via ComfyUI's `/view` API and saves it to `sample_dir/{checkpoint_filename}/{query_encoded_params}.png`. This integrates seamlessly with the existing filesystem scanner.
+
+**Output filenames:** The query-encoded filename includes all iterated parameters as dimensions: `prompt_name={name}&steps={n}&cfg={n}&sampler_name={s}&scheduler={s}&seed={n}.png`. Single-value settings (negative prompt, width, height, shift, VAE, CLIP) are not included since they don't vary within a job.
+
+**Progress:** Tracked at two levels:
+1. **Checkpoint level:** How many checkpoints have all their images completed out of the total.
+2. **Image level:** How many images in the current checkpoint are done out of the total for that checkpoint.
+3. **ETA:** Estimated from average image generation time × remaining items.
+
+**State machine:** `pending` → `running` → `completed` | `failed` | `paused`. Users can stop a running job (pauses at the current item) and resume it later (picks up from the first incomplete item).
 
 ## 3) User stories
 
@@ -214,6 +278,81 @@ Named dimension mapping configurations saved to the database. Users can save, lo
 - If no metadata is embedded in the PNG, a "no metadata available" message is shown
 - Viewing metadata does not interfere with zoom/pan functionality
 
+### US-18: Connect to ComfyUI and browse available models
+
+**As a** user setting up a sample job
+**I want to** see that ComfyUI is connected and browse its available models
+**So that** I can select the right VAE, text encoder, and sampling settings
+
+**Acceptance criteria:**
+- Backend connects to ComfyUI at the configured host:port
+- A connection status indicator shows whether ComfyUI is reachable
+- Available VAEs, CLIPs, UNETs, samplers, and schedulers are queryable from ComfyUI's API
+- Model lists are exposed through checkpoint-sampler's API for the frontend to consume
+
+### US-19: Manage workflow templates
+
+**As a** user
+**I want to** select from available workflow templates when launching a sample job
+**So that** I can use different generation pipelines for different model types
+
+**Acceptance criteria:**
+- Workflow JSON files in the configured `workflow_dir` are listed in the UI
+- Each workflow is validated for required `cs_role` tags
+- The UI shows which roles a workflow supports (helping the user understand what settings are configurable)
+- Invalid workflows are listed with an error indicator (not silently ignored)
+
+### US-20: Create and manage sample setting presets
+
+**As a** user
+**I want to** create named presets for sampling parameters
+**So that** I can reuse parameter sets across different training runs and sample jobs
+
+**Acceptance criteria:**
+- A preset editor allows configuring: prompts (named list), negative prompt, steps, CFG values, samplers, schedulers, seeds, width, height
+- Sampler and scheduler dropdowns are populated from ComfyUI's available options
+- The total images per checkpoint is displayed as parameters are configured
+- Presets can be saved, loaded, edited, and deleted
+- Presets persist in the database across sessions
+
+### US-21: Launch a sample job
+
+**As a** user
+**I want to** launch a sample generation job for a training run
+**So that** sample images are automatically generated for all checkpoints
+
+**Acceptance criteria:**
+- A "Generate Samples" action is available for training runs (especially those without existing samples)
+- Launch dialog allows selecting: workflow template, sample preset, VAE, CLIP, shift value
+- VAE/CLIP dropdowns populated from ComfyUI's available models
+- Settings that don't apply to the selected workflow (e.g., shift for non-AuraFlow workflows) are hidden
+- A confirmation summary shows: number of checkpoints, images per checkpoint, total images
+- Launching creates a job and begins submitting work items to ComfyUI
+
+### US-22: Monitor sample job progress
+
+**As a** user
+**I want to** see the progress of running sample jobs
+**So that** I know how far along generation is and when it will finish
+
+**Acceptance criteria:**
+- A job progress panel shows all active and recent jobs
+- Per job: status, checkpoints completed out of total, images completed for current checkpoint, estimated completion time
+- Progress updates in real-time via WebSocket
+- As images complete, they appear in the grid via the existing live update mechanism (filesystem watcher)
+
+### US-23: Stop and resume sample jobs
+
+**As a** user
+**I want to** stop a running job and resume it later
+**So that** I can free up GPU resources and continue generation at a convenient time
+
+**Acceptance criteria:**
+- A stop button pauses the job after the current image completes
+- A resume button continues from the first incomplete work item
+- Job state persists across application restarts (stored in database)
+- Completed images are retained when a job is stopped
+
 ### US-8: Live updates via WebSocket
 
 **As a** user
@@ -326,25 +465,50 @@ Server-side YAML file (`config.yaml` at the project root, or path specified via 
 # Directories to recursively scan for .safetensors checkpoint files.
 # Multiple directories can be specified.
 checkpoint_dirs:
-  - /home/rt/ai/models-training/stable-diffusion/checkpoints
+  - /data/checkpoints
 
-# Directory where ComfyUI sample image output directories live.
+# Directory where sample image output directories live.
 # Each subdirectory is named after the checkpoint filename (exact match).
-sample_dir: /home/rt/ai/outputs/stable-diffusion/comfyui
+# Generated images from sample jobs are also saved here.
+sample_dir: /data/samples
 
 # Backend server port
 port: 8080
 
+# Bind address (use 0.0.0.0 for LAN access)
+ip_address: "0.0.0.0"
+
 # SQLite database path (relative to working directory)
 db_path: ./data/checkpoint-sampler.db
+
+# ComfyUI connection settings for inference pipeline (optional)
+comfyui:
+  host: localhost        # ComfyUI server hostname
+  port: 8188             # ComfyUI server port (default: 8188)
+
+# Directory containing workflow template JSON files
+workflow_dir: ./workflows
 ```
 
 ### Configuration notes
 
+- `checkpoint_dirs` and `sample_dir` use container-internal paths (`/data/...`) mapped to host directories via Docker Compose volume mounts (see `docker-compose.yml`). The actual host paths are configured via environment variables (`CHECKPOINT_DIR`, `SAMPLE_DIR`).
 - `checkpoint_dirs` and `sample_dir` act as security boundaries. The backend rejects any path traversal outside these directories.
 - Training runs are auto-discovered by scanning `checkpoint_dirs` for `.safetensors` files and grouping by base name (see section 2.2). No per-run configuration is needed.
 - Filename dimensions are auto-discovered from query-encoded filenames. The checkpoint dimension is auto-extracted from checkpoint filename suffixes. No dimension configuration is needed.
 - Dimension types are inferred: values that parse as integers are sorted numerically, otherwise lexicographically.
+- `comfyui` settings are optional. If omitted, inference pipeline features are disabled in the UI.
+- `workflow_dir` must contain ComfyUI API-format JSON files with `cs_role` tags (see section 2.9). The directory is created at startup if it does not exist.
+- Checkpoint files must be accessible to both checkpoint-sampler (via `checkpoint_dirs`) and ComfyUI (via ComfyUI's `extra_model_paths.yaml`) for inference to work. Path matching is done by filename.
+
+### Development environment (claude-sandbox)
+
+The [claude-sandbox](https://github.com/kmacmcfarlane/claude-sandbox) container can mount external filesystems for read-only development access. Mount configuration is defined in `.claude-sandbox.yaml` (see `.claude-sandbox.example.yaml` for the template format). This file is processed by the claude-sandbox launcher to add extra volume mounts to the sandbox container. `.claude-sandbox.yaml` is gitignored; only the `.example` template is tracked.
+
+For the author's setup, the AI PC filesystem is available via CIFS at `/mnt/lucy/` on the host, and the sandbox mounts provide:
+- Checkpoints: `/mnt/lucy/models-training/stable-diffusion` → `/data/checkpoints/models-training` (read-only)
+- Sample output: `/mnt/lucy/outputs/stable-diffusion/checkpoint-sampler` → `/data/samples` (read-only)
+- ComfyUI repo (on the AI PC): `/mnt/lucy/repos/ComfyUI` (contains `extra_model_paths.yaml` defining ComfyUI's model search paths)
 
 ## 5) Architecture
 
@@ -354,10 +518,10 @@ Follows the layered backend architecture defined in `/docs/architecture.md`.
 
 | Layer | Responsibilities |
 |-------|-----------------|
-| **model** | Image, Dimension, DimensionValue, DimensionMapping, Preset, TrainingRun |
-| **service** | Filesystem scanning, filename parsing, dimension extraction, image lookup, preset CRUD, WebSocket hub, file watching |
-| **store** | SQLite for presets; filesystem for images and directory scanning |
-| **api** | Goa v3 REST endpoints, image serving endpoint, WebSocket upgrade endpoint, Swagger UI |
+| **model** | Image, Dimension, DimensionValue, DimensionMapping, Preset, TrainingRun, SamplePreset, SampleJob, SampleJobItem, Workflow |
+| **service** | Filesystem scanning, filename parsing, dimension extraction, image lookup, preset CRUD, WebSocket hub, file watching, ComfyUI client, workflow template management, sample preset CRUD, job orchestration and execution |
+| **store** | SQLite for presets, sample presets, and jobs; filesystem for images, directory scanning, and workflow templates |
+| **api** | Goa v3 REST endpoints, image serving endpoint, WebSocket upgrade endpoint, ComfyUI proxy endpoints, Swagger UI |
 
 ### 5.2 Image serving
 
@@ -388,6 +552,33 @@ The frontend uses [Naive UI](https://www.naiveui.com/) as its component library 
 | `ImageLightbox` | Modal overlay with zoom, pan, close button, and generation metadata viewing |
 | `CheckpointMetadataPanel` | Resizable slideout panel with stacked key-value metadata display |
 | `ThemeToggle` | Light/Dark theme switch |
+| `SamplePresetEditor` | Create/edit sample setting presets with parameter lists and ComfyUI-populated dropdowns |
+| `JobLaunchDialog` | Launch a sample job: select workflow, preset, VAE, CLIP, shift; shows confirmation summary |
+| `JobProgressPanel` | Display active/recent jobs with per-checkpoint and per-image progress, ETA, stop/resume controls |
+| `ComfyUIStatus` | Connection status indicator for ComfyUI |
+
+### 5.6 ComfyUI integration
+
+The backend maintains an HTTP + WebSocket client connection to a ComfyUI instance. Communication flow:
+
+1. **Model discovery:** Query `/object_info/{node_type}` to enumerate available VAEs, CLIPs, UNETs, samplers, schedulers. Cached with a short TTL.
+2. **Prompt submission:** POST to `/prompt` with the parameterized workflow JSON. Returns a `prompt_id`.
+3. **Progress monitoring:** WebSocket connection to ComfyUI receives per-node execution progress events keyed by `prompt_id`.
+4. **Output retrieval:** After prompt completion, query `/history/{prompt_id}` to get output metadata, then download images via `/view?filename={name}&subfolder={subfolder}&type=output`.
+5. **Queue management:** Query `/queue` to check pending/running prompts. Use `/queue` DELETE to cancel queued prompts on job stop.
+
+### 5.7 Job execution
+
+The job executor runs as a background goroutine. It processes one work item at a time:
+
+1. Pick the next incomplete item from the job (ordered by checkpoint, then parameter combination).
+2. Clone the workflow template and substitute tagged node values.
+3. Submit to ComfyUI and wait for completion (via WebSocket progress events).
+4. Download the output image and save to `sample_dir/{checkpoint_filename}/{query_encoded_params}.png`.
+5. Update job progress and push WebSocket event to connected frontend clients.
+6. Repeat until all items complete, or job is stopped.
+
+**Checkpoint path matching:** For each checkpoint in the training run, the executor queries ComfyUI's available models and matches by filename to find the ComfyUI-relative path. Checkpoints not accessible to ComfyUI are skipped with an error logged on the job item.
 
 ## 6) API surface (preliminary)
 
@@ -402,7 +593,21 @@ The frontend uses [Naive UI](https://www.naiveui.com/) as its component library 
 | POST | `/api/presets` | Create a new preset |
 | PUT | `/api/presets/{id}` | Update a preset |
 | DELETE | `/api/presets/{id}` | Delete a preset |
-| GET | `/api/ws` | WebSocket endpoint for live image update events |
+| GET | `/api/ws` | WebSocket endpoint for live image update and job progress events |
+| GET | `/api/comfyui/status` | Check ComfyUI connection status |
+| GET | `/api/comfyui/models` | List available models by type (`?type=vae\|clip\|unet\|sampler\|scheduler`) |
+| GET | `/api/workflows` | List available workflow templates |
+| GET | `/api/workflows/{name}` | Get workflow template details and cs_role info |
+| GET | `/api/sample-presets` | List sample setting presets |
+| POST | `/api/sample-presets` | Create a sample setting preset |
+| PUT | `/api/sample-presets/{id}` | Update a sample setting preset |
+| DELETE | `/api/sample-presets/{id}` | Delete a sample setting preset |
+| POST | `/api/sample-jobs` | Create and start a sample job |
+| GET | `/api/sample-jobs` | List sample jobs (active and recent) |
+| GET | `/api/sample-jobs/{id}` | Get sample job status and progress |
+| POST | `/api/sample-jobs/{id}/stop` | Stop a running job |
+| POST | `/api/sample-jobs/{id}/resume` | Resume a paused job |
+| DELETE | `/api/sample-jobs/{id}` | Delete a job and its items |
 
 The API is defined design-first using Goa v3 DSL. Swagger UI is served at `/docs`.
 
@@ -419,6 +624,61 @@ The API is defined design-first using Goa v3 DSL. Swagger UI is served at `/docs
 | created_at | TEXT (RFC3339) | Creation timestamp |
 | updated_at | TEXT (RFC3339) | Last update timestamp |
 
+**sample_presets**
+| Column | Type | Description |
+|--------|------|-------------|
+| id | TEXT (UUID) | Primary key |
+| name | TEXT | User-chosen preset name |
+| prompts | TEXT (JSON) | Array of `{name, text}` objects |
+| negative_prompt | TEXT | Negative prompt text |
+| steps | TEXT (JSON) | Array of step count integers |
+| cfgs | TEXT (JSON) | Array of CFG scale numbers |
+| samplers | TEXT (JSON) | Array of sampler name strings |
+| schedulers | TEXT (JSON) | Array of scheduler name strings |
+| seeds | TEXT (JSON) | Array of seed integers |
+| width | INTEGER | Image width in pixels |
+| height | INTEGER | Image height in pixels |
+| created_at | TEXT (RFC3339) | Creation timestamp |
+| updated_at | TEXT (RFC3339) | Last update timestamp |
+
+**sample_jobs**
+| Column | Type | Description |
+|--------|------|-------------|
+| id | TEXT (UUID) | Primary key |
+| training_run_name | TEXT | Training run identifier |
+| sample_preset_id | TEXT | FK to sample_presets |
+| workflow_name | TEXT | Workflow template filename |
+| vae | TEXT | Selected VAE (ComfyUI path) |
+| clip | TEXT | Selected CLIP/text encoder (ComfyUI path) |
+| shift | REAL | AuraFlow shift value (nullable if workflow has no shift role) |
+| status | TEXT | pending, running, paused, completed, failed |
+| total_items | INTEGER | Total work items (checkpoints × images_per_checkpoint) |
+| completed_items | INTEGER | Number of completed work items |
+| error_message | TEXT | Error details if failed |
+| created_at | TEXT (RFC3339) | Creation timestamp |
+| updated_at | TEXT (RFC3339) | Last update timestamp |
+
+**sample_job_items**
+| Column | Type | Description |
+|--------|------|-------------|
+| id | TEXT (UUID) | Primary key |
+| job_id | TEXT | FK to sample_jobs |
+| checkpoint_filename | TEXT | Checkpoint file being sampled |
+| comfyui_model_path | TEXT | ComfyUI-relative model path |
+| prompt_name | TEXT | Prompt name from preset |
+| prompt_text | TEXT | Prompt text |
+| steps | INTEGER | Step count |
+| cfg | REAL | CFG scale |
+| sampler_name | TEXT | Sampler name |
+| scheduler | TEXT | Scheduler name |
+| seed | INTEGER | Seed value |
+| status | TEXT | pending, running, completed, failed, skipped |
+| comfyui_prompt_id | TEXT | ComfyUI prompt ID (set when submitted) |
+| output_path | TEXT | Relative path of saved image (set when completed) |
+| error_message | TEXT | Error details if failed |
+| created_at | TEXT (RFC3339) | Creation timestamp |
+| updated_at | TEXT (RFC3339) | Last update timestamp |
+
 ### In-memory (per scan)
 
 - **TrainingRun**: name (base name after stripping suffixes), list of Checkpoint entries
@@ -430,12 +690,15 @@ The API is defined design-first using Goa v3 DSL. Swagger UI is served at `/docs
 
 - **Performance**: With up to ~200 images per dataset, scanning must complete in under 2 seconds. Client-side caching ensures slider navigation feels instant. After the initially displayed images load, pre-cache all slider positions for visible grid cells, then remaining scan images in the background.
 - **Security**: Backend restricts all filesystem access to within the configured `checkpoint_dirs` and `sample_dir`. Path traversal is rejected. No authentication (local/LAN use only).
-- **Resilience**: WebSocket auto-reconnects on disconnect. Missing images show a placeholder. Malformed filenames are logged and skipped.
+- **Resilience**: WebSocket auto-reconnects on disconnect. Missing images show a placeholder. Malformed filenames are logged and skipped. Sample jobs survive application restarts (state persisted in database). ComfyUI connection failures are retried with backoff.
 - **Portability**: Runs on Linux via Docker Compose. No host dependencies beyond Docker.
-- **Image format**: Source images are 1344x1344 PNG. Served at full resolution.
+- **Image format**: Source images are 1344x1344 PNG. Served at full resolution. Generated images saved as PNG.
+- **Inference**: ComfyUI integration is optional — the tool remains fully functional for viewing without a ComfyUI connection. Job execution is sequential (one prompt at a time) to avoid VRAM contention.
 
 ## 9) Future considerations (not in scope)
 
-- **Inference pipeline**: Generate sample images from selected checkpoints directly through the tool, replacing the manual ComfyUI workflow.
 - **Image annotations**: Add notes or ratings to individual images or checkpoints.
 - **Side-by-side comparison mode**: Pin images from different parameter sets for direct comparison.
+- **Parallel ComfyUI submission**: Submit multiple prompts concurrently for faster throughput (requires careful VRAM management).
+- **Remote ComfyUI instances**: Support connecting to multiple ComfyUI instances for distributed generation.
+- **Workflow editor**: Visual workflow editing within checkpoint-sampler (currently workflows are edited in ComfyUI and exported).
