@@ -30,6 +30,7 @@ Never claim completion unless acceptance criteria are met and tests pass.
 - Architecture docs: /docs (architecture.md, database.md, api.md, filesystem.md)
 - Scripts: /scripts
 - Changelog: /CHANGELOG.md
+- Subagent definitions: /.claude/agents/
 - Claude Code policy: /.claude/settings.json
 
 Compose modes via root Makefile:
@@ -133,8 +134,15 @@ Agents should use one-shot commands, not watch mode. Watch mode is a long-runnin
 - Update /CHANGELOG.md per completed story.
 - Commit policy is defined in /agent/AGENT_FLOW.md (follow it exactly).
 
-## 10) When blocked
+## 10) Subagent workflow
+Stories progress through a multi-agent pipeline: fullstack-engineer → code-reviewer → qa-expert.
+- Story status values: `todo`, `in_progress`, `review`, `testing`, `done`, `blocked`
+- The orchestrator (PROMPT.md) dispatches to the appropriate subagent based on story status
+- Subagent definitions live in /.claude/agents/ and are checked into the repository
+- See /agent/AGENT_FLOW.md for the full lifecycle and dispatch rules
+
+## 11) When blocked
 If acceptance criteria cannot be met:
 - Do not mark the story done.
-- Record a concrete blocker note in /agent/backlog.yaml (or the location specified by AGENT_FLOW).
+- Set `status: blocked` and record a concrete `blocked_reason` in /agent/backlog.yaml.
 - Stop work on that story until the backlog/PRD resolves the blocker.

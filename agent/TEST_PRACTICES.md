@@ -203,8 +203,35 @@ Add targeted integration tests when:
 
 Integration tests must still avoid real provider calls.
 
-## 5) Definition of Done (testing)
-A story may be marked done only when:
+## 5) QA subagent integration
+
+The QA expert subagent (/.claude/agents/qa-expert.md) is the final gate before a story is marked `status: done`. It verifies:
+
+### 5.1 Test execution
+- All backend tests pass (`make test-backend`)
+- All frontend tests pass (`make test-frontend`)
+- Zero test failures
+
+### 5.2 Acceptance traceability
+- Each acceptance criterion in the story is traced to a specific test or verified code path
+- Edge cases implied by acceptance criteria are covered
+- Tests are meaningful (not trivially passing)
+
+### 5.3 Coverage assessment
+- New/changed behaviors have tests following the practices in this document
+- Data-driven tests used where patterns repeat
+- Happy-path and failure-path coverage for new service methods
+- No real network calls in any test
+
+### 5.4 Regression verification
+- All pre-existing tests still pass
+- No functionality broken by the changes
+
+The QA expert may return a story to `in_progress` with specific issues recorded in the story's `review_feedback` field. The fullstack engineer must address all `blocker` and `important` severity issues before re-submitting.
+
+## 6) Definition of Done (testing)
+A story may be set to `status: done` only when:
 - New/changed behavior is covered by tests following these practices.
 - Tests are deterministic and fast enough for watch workflows.
 - All relevant suites pass locally and in docker watch mode (when applicable).
+- The QA expert subagent has approved the story (see section 5).

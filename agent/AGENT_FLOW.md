@@ -1,6 +1,6 @@
 # AGENT_FLOW.md  development contract
 
-This file defines the deterministic workflow the agent must follow. It is designed for “fresh context” Ralph-style loops: each cycle starts with no conversational memory and must re-derive state from repo files.
+This file defines the deterministic workflow the orchestrator agent must follow. It is designed for "fresh context" Ralph-style loops: each cycle starts with no conversational memory and must re-derive state from repo files.
 
 ## 0) Inputs and sources of truth
 
@@ -13,7 +13,7 @@ At the start of every cycle, read:
 - /CHANGELOG.md
 
 Rules:
-- /agent/backlog.yaml is the only source of “what to do next”.
+- /agent/backlog.yaml is the only source of "what to do next".
 - /agent/backlog.yaml and /agent/QUESTIONS.md are the only files in /agent that the agent should modify. The user is responsible for edits to the other files. If you would like to suggest an edit to these files, do so in /agent/IDEAS.md or /agent/QUESTIONS.md
 - /agent/PRD.md defines product requirements and scope.
 - /agent/TEST_PRACTICES.md and /agent/DEVELOPMENT_PRACTICES.md define standards.
@@ -26,95 +26,146 @@ If two docs conflict:
 
 ## 1) Story lifecycle
 
-Each story in backlog.yaml moves through these states:
-- TODO (default): done=false and not blocked
-- IN PROGRESS: done=false and agent has started implementation work in the current branch
-- DONE: done=true after all DoD conditions are satisfied
-- BLOCKED: done=false with a non-empty blocked_reason (or the schema equivalent)
+Each story in backlog.yaml has a `status` field with one of these values:
 
-The agent must work on exactly one story at a time.
+- **todo** (default): Not started. Eligible for selection by the fullstack engineer.
+- **in_progress**: Fullstack engineer is actively implementing.
+- **review**: Implementation complete. Pending code review.
+- **testing**: Code review passed. Pending QA testing.
+- **done**: All gates passed. Story is complete.
+- **blocked**: Cannot proceed. Must have a non-empty `blocked_reason`.
 
-### 1.1 Story dependencies (`requires`)
+### 1.1 Status transitions
+
+```
+todo ──────────► in_progress ──────────► review ──────────► testing ──────────► done
+                     ▲                     │                   │
+                     │    (changes requested)                  │ (issues found)
+                     └─────────────────────┘                   │
+                     ▲                                         │
+                     └─────────────────────────────────────────┘
+
+Any status ──► blocked (with blocked_reason)
+blocked ──► todo (when blocker is resolved by user)
+```
+
+Valid transitions:
+- `todo` → `in_progress`: Fullstack engineer picks up the story
+- `in_progress` → `review`: Implementation and tests complete, ready for code review
+- `in_progress` → `blocked`: Cannot continue without external input
+- `review` → `testing`: Code review approved
+- `review` → `in_progress`: Code review returned feedback (stored in `review_feedback`)
+- `testing` → `done`: QA approved, all gates passed
+- `testing` → `in_progress`: QA found issues (stored in `review_feedback`)
+
+### 1.2 Story dependencies (`requires`)
 
 A story may declare a `requires` field listing the IDs of stories that must be completed before it can be started. This is a structural dependency defined at planning time, distinct from the runtime `blocked` state.
 
-- A story with `requires: [S-002, S-004]` is not eligible for selection until both S-002 and S-004 have `done=true`.
+- A story with `requires: [S-002, S-004]` is not eligible for selection until both S-002 and S-004 have `status: done`.
 - `requires` dependencies are transitive in effect: if S-009 requires S-008, and S-008 requires S-007, then S-009 cannot start until both S-007 and S-008 are done.
 - A story may be both `requires`-gated and `blocked` — these are independent conditions.
 
-## 2) Selecting work
+### 1.3 Review feedback
 
-Selection algorithm (deterministic):
-1) Filter stories with done=false.
-2) Exclude stories that are blocked (blocked=true or blocked_reason present, per schema).
-3) Exclude stories whose `requires` list contains any story that is not yet done.
+When a code reviewer or QA expert returns a story to `in_progress`, they record feedback in the `review_feedback` field of the story in backlog.yaml. This field is a free-text string describing what needs to change. The fullstack engineer reads this field when resuming work on the story and clears it when setting status to `review` again.
+
+## 2) Subagents
+
+The orchestrator delegates work to specialized subagents via the Task tool. Subagent definitions live in `/.claude/agents/`:
+
+| Subagent | File | Invoked when | Sets status to |
+|---|---|---|---|
+| Fullstack Engineer | `fullstack-engineer.md` | Story is `todo` or `in_progress` | `review` |
+| Code Reviewer | `code-reviewer.md` | Story is `review` | `testing` or `in_progress` |
+| QA Expert | `qa-expert.md` | Story is `testing` | `done` or `in_progress` |
+| Debugger | `debugger.md` | On demand (test failures, hard bugs) | n/a |
+| Security Auditor | `security-auditor.md` | On demand (security-sensitive stories) | n/a |
+
+### 2.1 Invoking subagents
+
+Use the Task tool to invoke a subagent. Pass the subagent's prompt (from its `.md` file) along with the story context (ID, acceptance criteria, branch name, and any review feedback). The subagent works within the current repository state and returns a structured result.
+
+### 2.2 Subagent model selection
+
+- **Fullstack Engineer**: Use `sonnet` model for implementation speed
+- **Code Reviewer**: Use `opus` model for thorough review
+- **QA Expert**: Use `sonnet` model for test execution
+- **Debugger**: Use `sonnet` model for diagnosis
+- **Security Auditor**: Use `opus` model for thorough analysis
+
+## 3) Selecting work
+
+The orchestrator must process stories in this priority order:
+
+### 3.1 Priority: finish in-flight work first
+
+1. **Review queue**: Find stories with `status: review`. Process the highest priority one by invoking the code reviewer.
+2. **Testing queue**: Find stories with `status: testing`. Process the highest priority one by invoking the QA expert.
+3. **In-progress stories with feedback**: Find stories with `status: in_progress` AND a non-empty `review_feedback`. Process the highest priority one by invoking the fullstack engineer to address the feedback.
+4. **New work**: Select a new story using the algorithm below.
+
+### 3.2 New work selection algorithm (deterministic)
+
+1) Filter stories with `status: todo`.
+2) Exclude stories that are `blocked` (blocked=true or blocked_reason present).
+3) Exclude stories whose `requires` list contains any story that does not have `status: done`.
 4) Choose the highest priority story (higher number = higher priority unless backlog schema states otherwise).
 5) Tie-breaker: lowest id lexicographically.
 
-If no eligible stories remain:
+If no eligible stories remain across all queues:
 - Stop making changes and exit the cycle without modifying files.
 
-## 3) Per-cycle workflow
+## 4) Per-cycle workflow
 
-For the selected story, perform in order:
+The orchestrator performs these steps each cycle:
 
-### 3.1 Feature Branch
+### 4.1 Feature Branch
 - Work each story in its own feature branch (e.g. `S-123` for a story, `B-321` for a bug)
-- If a story becomes blocked, and you are halting, do not merge down the branch
-- If the story is complete and the user has approved it after reviewing, merge the branch into `main` after commiting
+- If the story is already `in_progress`/`review`/`testing`, the branch should already exist — switch to it
+- If a story becomes blocked, do not merge down the branch
+- If the story reaches `done` and the user has approved it, merge the branch into `main` after committing
 
-### 3.2 Check for requirements changes
+### 4.2 Check for requirements changes
 - Inspect the git commit history (or working set) for changes to the /agent/PRD.md or answers provided in /agent/QUESTIONS.md
 
-### 3.3 Confirm scope and plan
-- Re-read the story acceptance criteria and explicit constraints.
-- Identify impacted modules and files.
-- Define a minimal plan that satisfies acceptance criteria with the smallest change set.
-- Ensure plan matches PRD scope.
+### 4.3 Dispatch to subagent
 
-### 3.4 Implement incrementally
-- Apply changes in small, reviewable steps.
-- Maintain backend layering boundaries:
-    - internal/model for domain
-    - internal/service for business logic
-    - internal/store for persistence and provider clients
-    - internal/api for transport/goa glue
-    - internal/api/gen is generated and must not be edited
-- Maintain frontend/backend separation:
-    - frontend only calls backend API
-    - provider calls occur only in backend store/provider packages
-- For features marked as stubs in the PRD:
-    - create/keep interfaces and return explicit "not implemented" errors
-    - do not add unofficial workarounds unless backlog explicitly changes PRD
+Based on the story's current status, invoke the appropriate subagent:
 
-### 3.5 Update and add tests
-- Encode acceptance criteria in tests.
-- Ensure tests do not send real messages:
-    - use dry-run and mocks/stubs
-    - no network calls in unit tests
-- Follow /agent/TEST_PRACTICES.md for structure, naming, and coverage expectations.
+#### Story status: `todo` or `in_progress`
+1. Set status to `in_progress` in backlog.yaml if currently `todo`
+2. Invoke the **fullstack engineer** subagent with:
+   - Story ID, title, and acceptance criteria
+   - Any `review_feedback` (if returning from review/QA)
+   - Branch name
+3. On success: set status to `review`, clear `review_feedback`
+4. On failure/blocked: set status to `blocked` with `blocked_reason`
 
-### 3.6 Run verification
-- **Detect runtime environment first**: check for `/.dockerenv` to determine whether running inside the claude-sandbox container or on the host. This determines how to invoke Go commands and other tools — see CLAUDE.md section 7.
-- Run the relevant test and lint commands (per Makefiles and CLAUDE.md).
-- Dev ergonomics targets must be maintained:
-    - FE watch tests: `npm run test:watch`
-    - BE watch tests: `ginkgo watch` (race where feasible)
-- If tests fail:
-    - fix the failure and re-run
-    - do not disable or weaken tests to force green
+#### Story status: `review`
+1. Invoke the **code reviewer** subagent with:
+   - Story ID, title, and acceptance criteria
+   - Branch name (diff against main)
+2. If approved: set status to `testing`
+3. If changes requested: set status to `in_progress`, record feedback in `review_feedback`
 
-### 3.7 Update artifacts
-- Update /CHANGELOG.md with a concise entry for this story under “Unreleased” (or current top section).
-- Update /agent/backlog.yaml:
-    - Set done=true only when Definition of Done (DoD) is satisfied.
-    - If blocked, record a concrete blocked_reason and stop.
-    - If partially complete but not done, keep done=false and add a note field if schema supports it.
-- Are there questions that could help you decide if you are done or what to do? Update /agent/QUESTIONS.md with any requirement questions and trigger a discord notification via the MCP tool to get my attention. Also indicate that you have important questions in the chat output.
+#### Story status: `testing`
+1. Invoke the **QA expert** subagent with:
+   - Story ID, title, and acceptance criteria
+   - Branch name
+   - Code reviewer's approval notes (if any)
+2. If approved: set status to `done`
+3. If issues found: set status to `in_progress`, record feedback in `review_feedback`
+
+### 4.4 Update artifacts
+
+After each subagent completes:
+- Update /agent/backlog.yaml with the new status and any feedback
+- Are there questions that could help decide next steps? Update /agent/QUESTIONS.md and trigger a discord notification via the MCP tool. Also indicate questions in the chat output.
 - Update /agent/IDEAS.md with ideas for features that could enhance the application
 
-### 3.8 Commit rules
-Default: commit when a story reaches DONE and the user has reviewed the changes. Wait for review before commiting.
+### 4.5 Commit rules
+Default: commit when a story reaches `done` and the user has reviewed the changes. Wait for review before committing.
 - Create a single commit per story unless the story explicitly requires multiple commits.
 - Commit message format:
     - `story(<id>): <title>`
@@ -125,66 +176,72 @@ Default: commit when a story reaches DONE and the user has reviewed the changes.
     - backlog.yaml updates
     - changelog entry
 
-## 4) Definition of Done (DoD)
+## 5) Definition of Done (DoD)
 
-A story may be marked done=true only if all are true:
+A story may be set to `status: done` only if all are true:
 1) All acceptance criteria are satisfied.
 2) Required tests are present and meaningful.
 3) All relevant test suites pass locally.
 4) Lint/typecheck passes where applicable (per story scope).
 5) /CHANGELOG.md updated with the story entry.
-6) Work committed with correct message format (unless story explicitly overrides).
-7) No scope violations:
+6) Code review passed (story went through `review` → `testing` transition).
+7) QA testing passed (story went through `testing` → `done` transition).
+8) Work committed with correct message format (unless story explicitly overrides).
+9) No scope violations:
     - no generated code edits in internal/api/gen or **/mocks or inside node_modules or any other generated/external code
     - no unofficial workarounds for stubbed features
     - no secrets added to repo or logs
 
-## 5) Blocking rules
+## 6) Blocking rules
 
 A story is BLOCKED when:
 - A required dependency is missing (e.g., unresolved design decision, missing schema detail) AND
 - Progress cannot continue without inventing requirements or violating PRD.
 
 When blocked:
-- Do not mark done=true.
+- Set `status: blocked`.
 - Record blocked_reason with:
     - what is blocked
     - why it is blocked
     - what decision/input is needed
 - Update /agent/IDEAS.md with ideas for features that could enhance the application
-- Update /agent/backlog.yaml if stories now require eachother in a new way
+- Update /agent/backlog.yaml if stories now require each other in a new way
 
-## 6) Safety gates
+## 7) Safety gates
 
 At all times:
 - Respect CLAUDE.md safe-command policy.
 - Never log secrets.
 - Never modify infra/deploy/security-sensitive files unless the story explicitly requires it.
 
-## 7) Stopping conditions
+## 8) Stopping conditions
 
 End the cycle when any occurs:
-- The selected story reaches DONE and is committed.
-- The selected story becomes BLOCKED and backlog.yaml is updated accordingly.
-- No unblocked stories remain.
+- The selected story reaches `done` and is committed.
+- The selected story becomes `blocked` and backlog.yaml is updated accordingly.
+- No eligible stories remain across any queue.
 - A hard failure prevents continuing safely (e.g., irreconcilable test failures); record a blocker note and stop.
 
-## 8) Discord notifications
+## 9) Discord notifications
 
 If the `send_discord_notification` MCP tool is available, use it to notify the user at these points:
 
 - **Start story**: When starting a story, send a notification with a basic summary of the story being worked.
 - **Input needed**: Before displaying a claude permission request, send a notification to discord to get my attention.
-- **Story implemented**: Include the story ID, title, and a brief summary of what changed.
-- **Story merged down**: If you are running in non-interactive mode, send another message when committing and merging down.
-- **Story blocked**: When a story becomes BLOCKED (section 5). Include the story ID and the blocked reason.
-- **Cycle ending with no work**: When no unblocked stories remain (section 2). State that the backlog is empty or fully blocked.
+- **Implementation complete**: When the fullstack engineer finishes and the story moves to `review`. Include the story ID and brief summary.
+- **Review complete**: When the code reviewer finishes. Include the outcome (approved or changes requested).
+- **QA complete**: When the QA expert finishes. Include the outcome (approved or issues found).
+- **Story done**: When a story reaches `done`. Include the story ID, title, and brief summary.
+- **Story merged down**: If running in non-interactive mode, send another message when committing and merging down.
+- **Story blocked**: When a story becomes BLOCKED (section 6). Include the story ID and the blocked reason.
+- **Cycle ending with no work**: When no eligible stories remain (section 3). State that the backlog is empty or fully blocked.
 
-Keep messages concise (1–3 sentences). Do not include secrets, file paths, or code in notifications. If the tool is unavailable or fails, continue normally — notifications are best-effort and must not block the workflow.
+Keep messages concise (1-3 sentences). Do not include secrets, file paths, or code in notifications. If the tool is unavailable or fails, continue normally — notifications are best-effort and must not block the workflow.
 
-## 9) Ralph loop expectations
+## 10) Ralph loop expectations
 
 The agent must assume:
 - Context is cleared between cycles.
 - The only persisted state is the repository content and git history.
 - Therefore, always re-read the input files in section 0 before acting.
+- A single cycle may advance a story through multiple status transitions (e.g., `todo` → `in_progress` → `review` → `testing` → `done`) if all subagents complete successfully within the cycle.

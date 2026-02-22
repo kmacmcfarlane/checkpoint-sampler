@@ -1,9 +1,10 @@
 # IDE
 .idea/
 
-# Claude Code (allow settings.json for policy)
+# Claude Code (allow settings.json and agents/)
 .claude/*
 !.claude/settings.json
+!.claude/agents/
 .ralph.stop
 
 # OS

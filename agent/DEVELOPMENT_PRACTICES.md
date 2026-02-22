@@ -210,19 +210,40 @@ Watch mode (`test-backend-watch`, `test-frontend-watch`) is designed for human d
 - Use watch targets: `make test-backend-watch`, `make test-frontend-watch`
 - After Goa DSL edits: run `make gen`, watch output auto-reruns
 
-## 6) Documentation and hygiene
+## 6) Subagent workflow
 
-### 6.1 Agent docs
+### 6.1 Subagent definitions
+- Subagent prompts live in `/.claude/agents/` and are checked into the repository.
+- Available subagents: fullstack-engineer, code-reviewer, qa-expert, debugger, security-auditor.
+- The orchestrator (PROMPT.md / AGENT_FLOW.md) dispatches to subagents based on story status.
+
+### 6.2 Subagent responsibilities by phase
+- **Fullstack Engineer** (`status: todo` or `in_progress`): Implements the story following all practices in this document. Must produce passing tests before handing off.
+- **Code Reviewer** (`status: review`): Reviews implementation against this document and TEST_PRACTICES.md. Approves or returns with specific feedback.
+- **QA Expert** (`status: testing`): Verifies acceptance criteria, runs tests, checks coverage. Approves or returns with specific issues.
+- **Debugger** (on demand): Diagnoses and fixes issues found during any phase.
+- **Security Auditor** (on demand): Reviews security-sensitive changes against section 1.5 and CLAUDE.md safety rules.
+
+### 6.3 Handoff standards
+- When the fullstack engineer sets a story to `review`, all tests must be passing and CHANGELOG.md must be updated.
+- When the code reviewer approves, the review checklist in `code-reviewer.md` must be fully satisfied.
+- When the QA expert approves, all acceptance criteria must be traced to passing tests or verified code paths.
+- Feedback (when returning a story to `in_progress`) must be specific and actionable — recorded in the story's `review_feedback` field.
+
+## 7) Documentation and hygiene
+
+### 7.1 Agent docs
 - /agent/PRD.md is the product source of truth.
 - /agent/backlog.yaml is the only work queue.
 - /agent/AGENT_FLOW.md is the process contract.
 - /agent/TEST_PRACTICES.md and /agent/DEVELOPMENT_PRACTICES.md define standards.
+- /.claude/agents/ contains subagent definitions.
 
-### 6.2 Changelog
+### 7.2 Changelog
 - /CHANGELOG.md updated per completed story.
 - Keep entries concise and user-visible.
 
-### 6.3 README
+### 7.3 README
 - /README.md is the public-facing project overview and quick-start guide.
 - Update it when a completed story changes any of the following:
     - Features or capabilities (new channels, UI sections, major behaviours).
@@ -234,11 +255,11 @@ Watch mode (`test-backend-watch`, `test-frontend-watch`) is designed for human d
 - Keep the README concise and factual — it is not a changelog. Reference /CHANGELOG.md for detailed per-story history.
 - Do not duplicate information already covered in /docs/ or /agent/; link to those files instead.
 
-### 6.4 Git hygiene
+### 7.4 Git hygiene
 - Small, reviewable commits.
 - One story per commit unless story explicitly requires more.
 - Commit message format: `story(<id>): <title>`.
 
-## 7) Out of scope enforcement
+## 8) Out of scope enforcement
 - Features marked as stubs in the PRD remain stubs until PRD/backlog explicitly changes.
 - No unofficial scraping/spoofing/reverse-engineered APIs.
