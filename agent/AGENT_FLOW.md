@@ -49,14 +49,19 @@ Any status ──► blocked (with blocked_reason)
 blocked ──► todo (when blocker is resolved by user)
 ```
 
-Valid transitions:
-- `todo` → `in_progress`: Fullstack engineer picks up the story
-- `in_progress` → `review`: Implementation and tests complete, ready for code review
-- `in_progress` → `blocked`: Cannot continue without external input
-- `review` → `testing`: Code review approved
-- `review` → `in_progress`: Code review returned feedback (stored in `review_feedback`)
-- `testing` → `done`: QA approved, all gates passed
-- `testing` → `in_progress`: QA found issues (stored in `review_feedback`)
+Valid transitions (each transition may ONLY be performed by the designated subagent):
+
+| Transition | Owner | Trigger |
+|---|---|---|
+| `todo` → `in_progress` | **Fullstack Engineer** | Picks up the story to begin implementation |
+| `in_progress` → `review` | **Fullstack Engineer** | Implementation and tests complete |
+| `in_progress` → `blocked` | **Fullstack Engineer** | Cannot continue without external input |
+| `review` → `testing` | **Code Reviewer** | Code review approved |
+| `review` → `in_progress` | **Code Reviewer** | Changes requested (feedback in `review_feedback`) |
+| `testing` → `done` | **QA Expert** | QA approved, all gates passed |
+| `testing` → `in_progress` | **QA Expert** | Issues found (feedback in `review_feedback`) |
+
+No subagent may set a status outside its designated transitions. The orchestrator enforces this by only invoking the correct subagent for the story's current status.
 
 ### 1.2 Story dependencies (`requires`)
 
