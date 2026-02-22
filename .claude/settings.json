@@ -2,7 +2,6 @@
   "permissions": {
     "allow": [
       "mcp__discord__send_discord_notification",
-
       "WebFetch(domain:www.gnu.org)",
       "Bash(npx vue-tsc:*)",
       "Bash(find:*)",
@@ -17,13 +16,15 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(git merge:*)",
+      "Bash(git stash:*)",
+      "Bash(test:*)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:github.com)",
       "Bash(ls:*)",
       "Bash(make *)",
       "Bash(make up:*)",
       "Bash(docker compose:*)",
-
       "Bash(tree:*)",
-
       "Bash(curl http://localhost:*)",
       "Bash(curl http://127.0.0.1:*)",
       "Bash(curl http://[::1]:*)",
@@ -37,7 +38,6 @@
       "Bash(curl -sS http://127.0.0.1:*)",
       "Bash(curl -sS http://[::1]:*)",
       "Bash(echo :*)",
-
       "Bash(source:*)",
       "Bash(nvm use:*)",
       "Bash(npm install:*)",
@@ -48,10 +48,8 @@
       "Bash(npm run lint:*)",
       "Bash(npx eslint:*)",
       "Bash(npx esbuild:*)",
-
       "WebSearch",
       "WebFetch(domain:docs.anthropic.com)",
-
       "Bash(touch .ralph.stop)"
     ],
     "deny": [
@@ -68,5 +66,9 @@
       "Bash(*export *TOKEN*)*",
       "Bash(*export *KEY*)*"
     ]
+  },
+  "enabledPlugins": {
+    "voltagent-core-dev@voltagent-subagents": true,
+    "voltagent-qa-sec@voltagent-subagents": true
   }
 }
