@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### B-013: Migration 6 fails with duplicate column 'height' on existing databases
+- backend/internal/store/db.go: Modified Migrate() to handle SQLite "duplicate column name" errors gracefully; when an ALTER TABLE ADD COLUMN migration encounters a pre-existing column, the migration is recorded as applied and execution continues; added isDuplicateColumnError() helper for error detection and recordMigrationOutsideTx() for recording migration versions outside a failed transaction (necessary because SQLite auto-commits ALTER TABLE even inside transactions)
+- backend/internal/store/db_test.go: Added 2 new tests — generic duplicate column idempotency test (simulates missing migration record with pre-existing column) and specific migrations 5/6 test (creates sample_job_items table, manually adds width/height columns, then runs all migrations successfully); full foreign key chain validated with sample_preset → sample_job → sample_job_item inserts
+- 420 backend specs pass across 4 suites (79 API + 26 Config + 228 Service + 87 Store) with race detection; composite coverage 67.5%
+
 ### S-035: Sample job launch and progress UI
 - frontend/src/components/JobLaunchDialog.vue: Modal dialog for creating sample jobs; workflow template dropdown (filtered to valid only), sample preset dropdown, VAE and CLIP model dropdowns populated from ComfyUI API, conditional shift value input (hidden when workflow has no shift role), confirmation summary showing training run name, checkpoint count, images per checkpoint, and total images; form validation disables submit until all required fields filled; error display on submission failure
 - frontend/src/components/JobProgressPanel.vue: Modal panel displaying sample jobs sorted by creation date (newest first); per-job display with training run name, status badge (color-coded: info/warning/success/error/default), workflow name, creation timestamp, progress bar with percentage, completed/total items; checkpoint-level progress details (checkpoints completed/total, current checkpoint name, current checkpoint image progress, estimated completion time); stop button for running jobs, resume button for paused jobs; refresh button, empty state, loading states

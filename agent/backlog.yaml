@@ -833,7 +833,7 @@ stories:
   - id: B-013
     title: "Migration 6 fails with duplicate column 'height' on existing databases"
     priority: 99
-    status: todo
+    status: done
     requires: []
     acceptance:
       - "BE: Migration 6 does not fail with 'duplicate column name: height' when run against an existing database that already has the column"

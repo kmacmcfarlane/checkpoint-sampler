@@ -212,6 +212,111 @@ var _ = Describe("Migrate", func() {
 		err = db.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='t2'").Scan(new(string))
 		Expect(err).To(Equal(sql.ErrNoRows))
 	})
+
+	It("handles duplicate column errors gracefully (migration is idempotent)", func() {
+		// Create a table with a column
+		migrations1 := []store.Migration{
+			{Version: 1, SQL: "CREATE TABLE test_table (id TEXT PRIMARY KEY, name TEXT)"},
+			{Version: 2, SQL: "ALTER TABLE test_table ADD COLUMN age INTEGER NOT NULL DEFAULT 0"},
+		}
+		err := store.Migrate(db, migrations1)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Verify age column exists
+		var age int
+		err = db.QueryRow("INSERT INTO test_table (id, name, age) VALUES ('test', 'Test', 25) RETURNING age").Scan(&age)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(age).To(Equal(25))
+
+		// Now simulate the scenario where the column already exists but the migration wasn't recorded
+		// (e.g., manual schema change or partial migration failure)
+		// Delete the migration record for version 2
+		_, err = db.Exec("DELETE FROM schema_migrations WHERE version = 2")
+		Expect(err).NotTo(HaveOccurred())
+
+		// Run migrations again — migration 2 should succeed even though column exists
+		err = store.Migrate(db, migrations1)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Verify migration 2 is now recorded
+		var count int
+		err = db.QueryRow("SELECT COUNT(*) FROM schema_migrations WHERE version = 2").Scan(&count)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(count).To(Equal(1))
+
+		// Table should still be functional
+		err = db.QueryRow("SELECT age FROM test_table WHERE id = 'test'").Scan(&age)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(age).To(Equal(25))
+	})
+
+	It("handles migrations 5 and 6 idempotently with existing width/height columns", func() {
+		// Apply migrations 1-4 to create base tables
+		baseMigrations := store.AllMigrations()[:4]
+		err := store.Migrate(db, baseMigrations)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Manually add width and height columns (simulating a database that already has them)
+		_, err = db.Exec("ALTER TABLE sample_job_items ADD COLUMN width INTEGER NOT NULL DEFAULT 512")
+		Expect(err).NotTo(HaveOccurred())
+		_, err = db.Exec("ALTER TABLE sample_job_items ADD COLUMN height INTEGER NOT NULL DEFAULT 512")
+		Expect(err).NotTo(HaveOccurred())
+
+		// Now run all migrations including 5 and 6 — should succeed
+		err = store.Migrate(db, store.AllMigrations())
+		Expect(err).NotTo(HaveOccurred())
+
+		// Verify all 6 migrations are recorded
+		var count int
+		err = db.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&count)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(count).To(Equal(6))
+
+		// Verify the table is functional with width and height columns
+		// First create a sample preset and job to satisfy foreign key constraints
+		_, err = db.Exec(`
+			INSERT INTO sample_presets (
+				id, name, prompts, negative_prompt, steps, cfgs, samplers, schedulers,
+				seeds, width, height, created_at, updated_at
+			) VALUES (
+				'test-preset', 'Test Preset', '["prompt1"]', 'neg', '[20]', '[7.5]',
+				'["euler"]', '["normal"]', '[12345]', 512, 512,
+				'2025-01-01T00:00:00Z', '2025-01-01T00:00:00Z'
+			)
+		`)
+		Expect(err).NotTo(HaveOccurred())
+
+		_, err = db.Exec(`
+			INSERT INTO sample_jobs (
+				id, training_run_name, sample_preset_id, workflow_name, status,
+				total_items, created_at, updated_at
+			) VALUES (
+				'test-job', 'test-run', 'test-preset', 'workflow', 'pending',
+				1, '2025-01-01T00:00:00Z', '2025-01-01T00:00:00Z'
+			)
+		`)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Now insert a sample job item
+		_, err = db.Exec(`
+			INSERT INTO sample_job_items (
+				id, job_id, checkpoint_filename, comfyui_model_path,
+				prompt_name, prompt_text, steps, cfg, sampler_name, scheduler,
+				seed, status, width, height, created_at, updated_at
+			) VALUES (
+				'test-item', 'test-job', 'model.safetensors', '/models/test',
+				'prompt1', 'test prompt', 20, 7.5, 'euler', 'normal',
+				12345, 'pending', 1024, 768, '2025-01-01T00:00:00Z', '2025-01-01T00:00:00Z'
+			)
+		`)
+		Expect(err).NotTo(HaveOccurred())
+
+		var width, height int
+		err = db.QueryRow("SELECT width, height FROM sample_job_items WHERE id = 'test-item'").Scan(&width, &height)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(width).To(Equal(1024))
+		Expect(height).To(Equal(768))
+	})
 })
 
 var _ = Describe("AllMigrations", func() {
