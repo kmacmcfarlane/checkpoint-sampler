@@ -1,4 +1,4 @@
-import type { ApiError, ApiErrorResponse, CheckpointMetadata, ComfyUIModelType, ComfyUIModels, ComfyUIStatus, HealthStatus, ImageMetadata, Preset, PresetMapping, ScanResult, TrainingRun } from './types'
+import type { ApiError, ApiErrorResponse, CheckpointMetadata, ComfyUIModelType, ComfyUIModels, ComfyUIStatus, CreateSamplePresetPayload, HealthStatus, ImageMetadata, Preset, PresetMapping, SamplePreset, ScanResult, TrainingRun, UpdateSamplePresetPayload } from './types'
 
 const DEFAULT_BASE_URL = '/api'
 
@@ -151,6 +151,44 @@ export class ApiClient {
   /** GET /api/comfyui/models — get available models by type. */
   async getComfyUIModels(type: ComfyUIModelType): Promise<ComfyUIModels> {
     return this.request<ComfyUIModels>(`/comfyui/models?type=${type}`)
+  }
+
+  /** GET /api/sample-presets — list all sample presets. */
+  async listSamplePresets(): Promise<SamplePreset[]> {
+    return this.request<SamplePreset[]>('/sample-presets')
+  }
+
+  /** POST /api/sample-presets — create a new sample preset. */
+  async createSamplePreset(payload: CreateSamplePresetPayload): Promise<SamplePreset> {
+    return this.request<SamplePreset>('/sample-presets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+  }
+
+  /** PUT /api/sample-presets/{id} — update an existing sample preset. */
+  async updateSamplePreset(payload: UpdateSamplePresetPayload): Promise<SamplePreset> {
+    return this.request<SamplePreset>(`/sample-presets/${payload.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+  }
+
+  /** DELETE /api/sample-presets/{id} — delete a sample preset. */
+  async deleteSamplePreset(id: string): Promise<void> {
+    const url = `${this.baseUrl}/sample-presets/${id}`
+    let response: Response
+    try {
+      response = await fetch(url, { method: 'DELETE' })
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Network error'
+      throw { code: 'NETWORK_ERROR', message } satisfies ApiError
+    }
+    if (!response.ok) {
+      throw await normalizeError(response)
+    }
   }
 }
 

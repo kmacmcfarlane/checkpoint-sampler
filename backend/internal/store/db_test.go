@@ -217,10 +217,17 @@ var _ = Describe("Migrate", func() {
 var _ = Describe("AllMigrations", func() {
 	It("returns the presets table as migration 1", func() {
 		migrations := store.AllMigrations()
-		Expect(migrations).To(HaveLen(1))
+		Expect(migrations).To(HaveLen(2))
 		Expect(migrations[0].Version).To(Equal(1))
 		Expect(migrations[0].SQL).To(ContainSubstring("CREATE TABLE"))
 		Expect(migrations[0].SQL).To(ContainSubstring("presets"))
+	})
+
+	It("returns the sample_presets table as migration 2", func() {
+		migrations := store.AllMigrations()
+		Expect(migrations[1].Version).To(Equal(2))
+		Expect(migrations[1].SQL).To(ContainSubstring("CREATE TABLE"))
+		Expect(migrations[1].SQL).To(ContainSubstring("sample_presets"))
 	})
 })
 

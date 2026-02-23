@@ -14,10 +14,12 @@ import (
 	gendocssvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/docs/server"
 	genhealthsvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/health/server"
 	genpresetssvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/presets/server"
+	gensamplepresetssvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/sample_presets/server"
 	gentrainingrunssvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/training_runs/server"
 	genworkflowssvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/workflows/server"
 	genwssvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/ws/server"
 	genpresets "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/presets"
+	gensamplepresets "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/sample_presets"
 	gentrainingruns "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/training_runs"
 	genworkflows "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/workflows"
 	genws "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/ws"
@@ -29,18 +31,19 @@ import (
 
 // HTTPHandlerConfig holds the dependencies needed by NewHTTPHandler.
 type HTTPHandlerConfig struct {
-	HealthEndpoints      *genhealth.Endpoints
-	DocsEndpoints        *gendocs.Endpoints
-	TrainingRunEndpoints *gentrainingruns.Endpoints
-	PresetsEndpoints     *genpresets.Endpoints
-	CheckpointsEndpoints *gencheckpoints.Endpoints
-	ComfyUIEndpoints     *gencomfyui.Endpoints
-	WorkflowsEndpoints   *genworkflows.Endpoints
-	WSEndpoints          *genws.Endpoints
-	ImageHandler         *ImageHandler
-	SwaggerUIDir         http.FileSystem
-	Logger               *logrus.Logger
-	Debug                bool
+	HealthEndpoints        *genhealth.Endpoints
+	DocsEndpoints          *gendocs.Endpoints
+	TrainingRunEndpoints   *gentrainingruns.Endpoints
+	PresetsEndpoints       *genpresets.Endpoints
+	SamplePresetsEndpoints *gensamplepresets.Endpoints
+	CheckpointsEndpoints   *gencheckpoints.Endpoints
+	ComfyUIEndpoints       *gencomfyui.Endpoints
+	WorkflowsEndpoints     *genworkflows.Endpoints
+	WSEndpoints            *genws.Endpoints
+	ImageHandler           *ImageHandler
+	SwaggerUIDir           http.FileSystem
+	Logger                 *logrus.Logger
+	Debug                  bool
 }
 
 // NewHTTPHandler creates a fully wired http.Handler with all Goa services,
@@ -59,6 +62,7 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 	docsServer := gendocssvr.New(cfg.DocsEndpoints, mux, dec, enc, eh, nil, cfg.SwaggerUIDir)
 	trainingRunsServer := gentrainingrunssvr.New(cfg.TrainingRunEndpoints, mux, dec, enc, eh, nil)
 	presetsServer := genpresetssvr.New(cfg.PresetsEndpoints, mux, dec, enc, eh, nil)
+	samplePresetsServer := gensamplepresetssvr.New(cfg.SamplePresetsEndpoints, mux, dec, enc, eh, nil)
 	checkpointsServer := gencheckpointssvr.New(cfg.CheckpointsEndpoints, mux, dec, enc, eh, nil)
 	comfyuiServer := gencomfyuisvr.New(cfg.ComfyUIEndpoints, mux, dec, enc, eh, nil)
 	workflowsServer := genworkflowssvr.New(cfg.WorkflowsEndpoints, mux, dec, enc, eh, nil)
@@ -73,6 +77,7 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 	docsServer.Mount(mux)
 	trainingRunsServer.Mount(mux)
 	presetsServer.Mount(mux)
+	samplePresetsServer.Mount(mux)
 	checkpointsServer.Mount(mux)
 	comfyuiServer.Mount(mux)
 	workflowsServer.Mount(mux)
@@ -108,6 +113,13 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 			}).Debug("HTTP endpoint mounted")
 		}
 		for _, m := range presetsServer.Mounts {
+			cfg.Logger.WithFields(logrus.Fields{
+				"method":  m.Method,
+				"verb":    m.Verb,
+				"pattern": m.Pattern,
+			}).Debug("HTTP endpoint mounted")
+		}
+		for _, m := range samplePresetsServer.Mounts {
 			cfg.Logger.WithFields(logrus.Fields{
 				"method":  m.Method,
 				"verb":    m.Verb,

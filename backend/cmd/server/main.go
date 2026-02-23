@@ -18,6 +18,7 @@ import (
 	gendocs "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/docs"
 	genhealth "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/health"
 	genpresets "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/presets"
+	gensamplepresets "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/sample_presets"
 	gentrainingruns "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/training_runs"
 	genworkflows "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/workflows"
 	genws "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/ws"
@@ -125,6 +126,8 @@ func run() error {
 	trainingRunsSvc := api.NewTrainingRunsService(discovery, scanner, watcher)
 	presetSvc := service.NewPresetService(st, logger)
 	presetsSvc := api.NewPresetsService(presetSvc)
+	samplePresetSvc := service.NewSamplePresetService(st, logger)
+	samplePresetsSvc := api.NewSamplePresetsService(samplePresetSvc)
 	checkpointMetadataSvc := service.NewCheckpointMetadataService(fs, cfg.CheckpointDirs, logger)
 	checkpointsSvc := api.NewCheckpointsService(checkpointMetadataSvc)
 	imageMetadataSvc := service.NewImageMetadataService(fs, cfg.SampleDir, logger)
@@ -135,6 +138,7 @@ func run() error {
 	docsEndpoints := gendocs.NewEndpoints(docsSvc)
 	trainingRunsEndpoints := gentrainingruns.NewEndpoints(trainingRunsSvc)
 	presetsEndpoints := genpresets.NewEndpoints(presetsSvc)
+	samplePresetsEndpoints := gensamplepresets.NewEndpoints(samplePresetsSvc)
 	checkpointsEndpoints := gencheckpoints.NewEndpoints(checkpointsSvc)
 	comfyuiEndpoints := gencomfyui.NewEndpoints(comfyuiSvc)
 	workflowsEndpoints := genworkflows.NewEndpoints(workflowsSvc)
@@ -146,18 +150,19 @@ func run() error {
 
 	// Build the HTTP handler with all transport setup
 	handler := api.NewHTTPHandler(api.HTTPHandlerConfig{
-		HealthEndpoints:      healthEndpoints,
-		DocsEndpoints:        docsEndpoints,
-		TrainingRunEndpoints: trainingRunsEndpoints,
-		PresetsEndpoints:     presetsEndpoints,
-		CheckpointsEndpoints: checkpointsEndpoints,
-		ComfyUIEndpoints:     comfyuiEndpoints,
-		WorkflowsEndpoints:   workflowsEndpoints,
-		WSEndpoints:          wsEndpoints,
-		ImageHandler:         imageHandler,
-		SwaggerUIDir:         http.Dir(swaggerUIDir()),
-		Logger:               logger,
-		Debug:                true,
+		HealthEndpoints:        healthEndpoints,
+		DocsEndpoints:          docsEndpoints,
+		TrainingRunEndpoints:   trainingRunsEndpoints,
+		PresetsEndpoints:       presetsEndpoints,
+		SamplePresetsEndpoints: samplePresetsEndpoints,
+		CheckpointsEndpoints:   checkpointsEndpoints,
+		ComfyUIEndpoints:       comfyuiEndpoints,
+		WorkflowsEndpoints:     workflowsEndpoints,
+		WSEndpoints:            wsEndpoints,
+		ImageHandler:           imageHandler,
+		SwaggerUIDir:           http.Dir(swaggerUIDir()),
+		Logger:                 logger,
+		Debug:                  true,
 	})
 
 	// Create HTTP server
