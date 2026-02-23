@@ -147,6 +147,44 @@ describe('useWebSocket', () => {
     expect(connected.value).toBe(true)
   })
 
+  it('reports connected state when connection opens immediately on initialization', async () => {
+    const selectedRun = ref<TrainingRun | null>(makeTrainingRun())
+
+    // Override createWebSocket to simulate immediate connection
+    const options = {
+      wsClientOptions: {
+        url: 'ws://test/api/ws',
+        createWebSocket: ((url: string) => {
+          const ws = new MockWebSocket(url)
+          mockInstances.push(ws)
+          // Simulate immediate open (synchronous for testing)
+          queueMicrotask(() => ws.simulateOpen())
+          return ws
+        }) as unknown as (url: string) => WebSocket,
+        initialDelay: 100,
+      },
+    }
+
+    const { connected } = useWebSocket(
+      selectedRun,
+      addImage,
+      removeImage,
+      comboSelections,
+      rescan,
+      options,
+    )
+
+    // Initially false before microtasks flush
+    expect(connected.value).toBe(false)
+
+    // Flush microtasks to allow the watch to complete and connection to open
+    await vi.runAllTimersAsync()
+    await new Promise(resolve => queueMicrotask(resolve))
+
+    // After the connection opens, connected should be true
+    expect(connected.value).toBe(true)
+  })
+
   describe('event handling', () => {
     it('calls addImage for image_added events', () => {
       const selectedRun = ref<TrainingRun | null>(makeTrainingRun())

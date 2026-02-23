@@ -1,14 +1,85 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
-import { NButton } from 'naive-ui'
+import { NButton, NTag } from 'naive-ui'
 import App from '../App.vue'
+import type { TrainingRun } from '../api/types'
 
 vi.mock('../api/client', () => ({
   apiClient: {
-    getTrainingRuns: vi.fn().mockResolvedValue([]),
-    scanTrainingRun: vi.fn().mockResolvedValue({ images: [], dimensions: [] }),
+    getTrainingRuns: vi.fn().mockResolvedValue([
+      {
+        id: 1,
+        name: 'test-run',
+        checkpoint_count: 1,
+        has_samples: true,
+        checkpoints: [
+          { filename: 'model.safetensors', step_number: 1000, has_samples: true },
+        ],
+      },
+    ]),
+    scanTrainingRun: vi.fn().mockResolvedValue({
+      images: [],
+      dimensions: [
+        { name: 'seed', values: ['42'] },
+        { name: 'cfg', values: ['7'] },
+      ],
+    }),
   },
 }))
+
+const mockTrainingRun: TrainingRun = {
+  id: 1,
+  name: 'test-run',
+  checkpoint_count: 1,
+  has_samples: true,
+  checkpoints: [
+    { filename: 'model.safetensors', step_number: 1000, has_samples: true },
+  ],
+}
+
+/**
+ * Mock WebSocket for testing the connection status indicator.
+ */
+class MockWebSocket {
+  static CONNECTING = 0
+  static OPEN = 1
+  static CLOSING = 2
+  static CLOSED = 3
+
+  readyState = MockWebSocket.CONNECTING
+  onopen: ((event: Event) => void) | null = null
+  onclose: ((event: CloseEvent) => void) | null = null
+  onmessage: ((event: MessageEvent) => void) | null = null
+  onerror: ((event: Event) => void) | null = null
+
+  constructor(public url: string) {
+    // Store reference for testing
+    mockWebSocketInstances.push(this)
+  }
+
+  close() {
+    this.readyState = MockWebSocket.CLOSED
+  }
+
+  simulateOpen() {
+    this.readyState = MockWebSocket.OPEN
+    this.onopen?.(new Event('open'))
+  }
+
+  simulateClose() {
+    this.readyState = MockWebSocket.CLOSED
+    this.onclose?.(new CloseEvent('close'))
+  }
+}
+
+let mockWebSocketInstances: MockWebSocket[] = []
+
+// Set up WebSocket globals
+Object.defineProperty(globalThis, 'WebSocket', {
+  value: MockWebSocket,
+  writable: true,
+  configurable: true,
+})
 
 function createMatchMediaMock(matches: boolean) {
   const listeners: Array<(e: MediaQueryListEvent) => void> = []
@@ -29,10 +100,12 @@ function createMatchMediaMock(matches: boolean) {
 describe('App', () => {
   beforeEach(() => {
     vi.stubGlobal('matchMedia', createMatchMediaMock(false))
+    mockWebSocketInstances = []
   })
 
   afterEach(() => {
     vi.unstubAllGlobals()
+    mockWebSocketInstances = []
   })
 
   it('renders the application header', async () => {
@@ -115,5 +188,85 @@ describe('App', () => {
     await flushPromises()
     const app = wrapper.find('.app')
     expect(app.exists()).toBe(true)
+  })
+
+  it('does not show WebSocket status indicator when no training run is selected', async () => {
+    const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+    await flushPromises()
+
+    const statusTag = wrapper.findAllComponents(NTag).find(
+      (tag) => tag.text() === 'Live' || tag.text() === 'Disconnected'
+    )
+    expect(statusTag).toBeUndefined()
+  })
+
+  it('shows WebSocket status as "Disconnected" initially when training run is selected', async () => {
+    const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+    await flushPromises()
+
+    // Select a training run by finding the selector and emitting select
+    const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
+    selector.vm.$emit('select', mockTrainingRun)
+    await flushPromises()
+
+    // WebSocket should be created but not yet open
+    expect(mockWebSocketInstances.length).toBeGreaterThan(0)
+
+    // Status should show "Disconnected"
+    const statusTag = wrapper.findAllComponents(NTag).find(
+      (tag) => tag.text() === 'Live' || tag.text() === 'Disconnected'
+    )
+    expect(statusTag).toBeDefined()
+    expect(statusTag!.text()).toBe('Disconnected')
+    expect(statusTag!.props('type')).toBe('default')
+  })
+
+  it('shows WebSocket status as "Live" when connection opens', async () => {
+    const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+    await flushPromises()
+
+    // Select a training run
+    const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
+    selector.vm.$emit('select', mockTrainingRun)
+    await flushPromises()
+
+    // Simulate WebSocket opening
+    expect(mockWebSocketInstances.length).toBeGreaterThan(0)
+    mockWebSocketInstances[0].simulateOpen()
+    await flushPromises()
+
+    // Status should show "Live"
+    const statusTag = wrapper.findAllComponents(NTag).find(
+      (tag) => tag.text() === 'Live' || tag.text() === 'Disconnected'
+    )
+    expect(statusTag).toBeDefined()
+    expect(statusTag!.text()).toBe('Live')
+    expect(statusTag!.props('type')).toBe('success')
+  })
+
+  it('shows WebSocket status as "Disconnected" when connection closes', async () => {
+    const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+    await flushPromises()
+
+    // Select a training run
+    const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
+    selector.vm.$emit('select', mockTrainingRun)
+    await flushPromises()
+
+    // Simulate WebSocket opening then closing
+    expect(mockWebSocketInstances.length).toBeGreaterThan(0)
+    mockWebSocketInstances[0].simulateOpen()
+    await flushPromises()
+
+    mockWebSocketInstances[0].simulateClose()
+    await flushPromises()
+
+    // Status should show "Disconnected"
+    const statusTag = wrapper.findAllComponents(NTag).find(
+      (tag) => tag.text() === 'Live' || tag.text() === 'Disconnected'
+    )
+    expect(statusTag).toBeDefined()
+    expect(statusTag!.text()).toBe('Disconnected')
+    expect(statusTag!.props('type')).toBe('default')
   })
 })
