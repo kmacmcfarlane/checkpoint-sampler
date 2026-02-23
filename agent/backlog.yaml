@@ -728,7 +728,7 @@ stories:
   - id: S-031
     title: "Workflow template management"
     priority: -2
-    status: todo
+    status: done
     requires: [S-030]
     acceptance:
       - "BE: Load workflow JSON files from configured workflow_dir on startup"
