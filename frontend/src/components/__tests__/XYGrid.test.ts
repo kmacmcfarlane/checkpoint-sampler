@@ -354,6 +354,140 @@ describe('XYGrid', () => {
     })
   })
 
+  describe('header solo filtering grid visibility', () => {
+    it('hides non-selected X columns when X dimension is filtered', () => {
+      const wrapper = mountGrid({
+        comboSelections: {
+          seed: new Set(['42']), // solo seed=42
+        },
+      })
+
+      // Should only render one column header (seed=42)
+      const colHeaders = wrapper.findAll('.xy-grid__col-header')
+      expect(colHeaders).toHaveLength(1)
+      expect(colHeaders[0].text()).toBe('42')
+
+      // Should only render cells for seed=42 (2 rows * 1 col = 2 cells)
+      const cells = wrapper.findAll('[role="gridcell"]')
+      expect(cells).toHaveLength(2)
+    })
+
+    it('hides non-selected Y rows when Y dimension is filtered', () => {
+      const wrapper = mountGrid({
+        comboSelections: {
+          step: new Set(['500']), // solo step=500
+        },
+      })
+
+      // Should only render one row header (step=500)
+      const rowHeaders = wrapper.findAll('[role="rowheader"]')
+      expect(rowHeaders).toHaveLength(1)
+      expect(rowHeaders[0].text()).toBe('500')
+
+      // Should only render cells for step=500 (1 row * 2 cols = 2 cells)
+      const cells = wrapper.findAll('[role="gridcell"]')
+      expect(cells).toHaveLength(2)
+    })
+
+    it('hides both non-selected X columns and Y rows when both are filtered', () => {
+      const wrapper = mountGrid({
+        comboSelections: {
+          seed: new Set(['123']), // solo seed=123
+          step: new Set(['1000']), // solo step=1000
+        },
+      })
+
+      // Should only render one column header (seed=123)
+      const colHeaders = wrapper.findAll('.xy-grid__col-header')
+      expect(colHeaders).toHaveLength(1)
+      expect(colHeaders[0].text()).toBe('123')
+
+      // Should only render one row header (step=1000)
+      const rowHeaders = wrapper.findAll('[role="rowheader"]')
+      expect(rowHeaders).toHaveLength(1)
+      expect(rowHeaders[0].text()).toBe('1000')
+
+      // Should only render one cell (1 row * 1 col = 1 cell)
+      const cells = wrapper.findAll('[role="gridcell"]')
+      expect(cells).toHaveLength(1)
+    })
+
+    it('shows all X columns when all X values are selected', () => {
+      const wrapper = mountGrid({
+        comboSelections: {
+          seed: new Set(['42', '123']), // all values selected
+        },
+      })
+
+      // Should render all column headers
+      const colHeaders = wrapper.findAll('.xy-grid__col-header')
+      expect(colHeaders).toHaveLength(2)
+      expect(colHeaders[0].text()).toBe('42')
+      expect(colHeaders[1].text()).toBe('123')
+    })
+
+    it('shows all Y rows when all Y values are selected', () => {
+      const wrapper = mountGrid({
+        comboSelections: {
+          step: new Set(['500', '1000']), // all values selected
+        },
+      })
+
+      // Should render all row headers
+      const rowHeaders = wrapper.findAll('[role="rowheader"]')
+      expect(rowHeaders).toHaveLength(2)
+      expect(rowHeaders[0].text()).toBe('500')
+      expect(rowHeaders[1].text()).toBe('1000')
+    })
+
+    it('shows all values when comboSelections is empty for a dimension', () => {
+      const wrapper = mountGrid({
+        comboSelections: {
+          // seed dimension has no entry, so show all
+        },
+      })
+
+      // Should render all column headers
+      const colHeaders = wrapper.findAll('.xy-grid__col-header')
+      expect(colHeaders).toHaveLength(2)
+    })
+
+    it('shows all values when comboSelections Set has zero size', () => {
+      const wrapper = mountGrid({
+        comboSelections: {
+          seed: new Set(), // empty set, show all
+        },
+      })
+
+      // Should render all column headers
+      const colHeaders = wrapper.findAll('.xy-grid__col-header')
+      expect(colHeaders).toHaveLength(2)
+    })
+
+    it('updates grid when comboSelections change', async () => {
+      const wrapper = mountGrid({
+        comboSelections: {
+          seed: new Set(['42']), // solo seed=42
+        },
+      })
+
+      // Initially, only one column
+      let colHeaders = wrapper.findAll('.xy-grid__col-header')
+      expect(colHeaders).toHaveLength(1)
+
+      // Change to show all values
+      await wrapper.setProps({
+        comboSelections: {
+          seed: new Set(['42', '123']),
+        },
+      })
+
+      // Now should show both columns
+      colHeaders = wrapper.findAll('.xy-grid__col-header')
+      expect(colHeaders).toHaveLength(2)
+    })
+  })
+
   describe('CSS Grid alignment', () => {
     it('renders 1x1 grid correctly', () => {
       const singleX: ScanDimension = { name: 'seed', type: 'int', values: ['42'] }

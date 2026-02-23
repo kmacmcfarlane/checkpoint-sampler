@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### B-009: XY grid header solo click should hide non-selected values from grid
+- frontend/src/components/XYGrid.vue: Changed `xValues` and `yValues` computed properties to filter dimension values based on `comboSelections`; when a header is soloed (single value selected), only that column/row renders in the grid; when all values are selected or selections are empty, all columns/rows render
+- 8 new XYGrid tests for header solo filtering: solo X column, solo Y row, solo both, all selected X/Y, empty selections, zero-size Set, reactive prop updates
+- 415 total frontend tests pass across 22 test files
+
 ### B-008: Checkpoint selector in metadata slideout has unreadable background
 - frontend/src/components/CheckpointMetadataPanel.vue: Removed hardcoded CSS fallback values from all `var()` calls in checkpoint selector styling (border, hover, selected, heading, step, resize handle, metadata key, status, error); added explicit `color: var(--text-color)` to `.cp-filename` for proper dark mode text readability
 - 5 new CheckpointMetadataPanel tests: checkpoint list items, filenames, step numbers, list border/heading, and selected state all verified to use theme-aware CSS classes without inline color overrides

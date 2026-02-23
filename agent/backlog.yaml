@@ -613,7 +613,7 @@ stories:
   - id: B-009
     title: "XY grid header solo click should hide non-selected values from grid"
     priority: 3
-    status: todo
+    status: done
     requires: [S-024]
     acceptance:
       - "FE: Clicking an X column header hides all other columns from the grid (not just highlights)"

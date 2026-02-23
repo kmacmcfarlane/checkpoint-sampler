@@ -31,11 +31,23 @@ function onHeaderClick(dimensionName: string, value: string) {
   emit('header:click', dimensionName, value)
 }
 
-/** X axis values to render as columns. */
-const xValues = computed(() => props.xDimension?.values ?? [])
+/** X axis values to render as columns (filtered by combo selections). */
+const xValues = computed(() => {
+  const dim = props.xDimension
+  if (!dim) return []
+  const selections = props.comboSelections[dim.name]
+  if (!selections || selections.size === 0) return dim.values
+  return dim.values.filter((v) => selections.has(v))
+})
 
-/** Y axis values to render as rows. */
-const yValues = computed(() => props.yDimension?.values ?? [])
+/** Y axis values to render as rows (filtered by combo selections). */
+const yValues = computed(() => {
+  const dim = props.yDimension
+  if (!dim) return []
+  const selections = props.comboSelections[dim.name]
+  if (!selections || selections.size === 0) return dim.values
+  return dim.values.filter((v) => selections.has(v))
+})
 
 /** Filter images based on combo filter selections. Slider filtering is per-cell in imageIndex. */
 const filteredImages = computed<ScanImage[]>(() => {
