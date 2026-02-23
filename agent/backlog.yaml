@@ -788,7 +788,7 @@ stories:
   - id: S-034
     title: "Sample job execution engine"
     priority: -5
-    status: todo
+    status: done
     requires: [S-033]
     acceptance:
       - "BE: Background job executor goroutine processes work items sequentially"

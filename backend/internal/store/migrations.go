@@ -79,5 +79,13 @@ func AllMigrations() []Migration {
 				FOREIGN KEY (job_id) REFERENCES sample_jobs(id) ON DELETE CASCADE
 			)`,
 		},
+		{
+			Version: 5,
+			SQL:     `ALTER TABLE sample_job_items ADD COLUMN width INTEGER NOT NULL DEFAULT 512;`,
+		},
+		{
+			Version: 6,
+			SQL:     `ALTER TABLE sample_job_items ADD COLUMN height INTEGER NOT NULL DEFAULT 512;`,
+		},
 	}
 }

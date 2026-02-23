@@ -39,6 +39,8 @@ type sampleJobItemEntity struct {
 	SamplerName        string
 	Scheduler          string
 	Seed               int64
+	Width              int
+	Height             int
 	Status             string
 	ComfyUIPromptID    sql.NullString
 	OutputPath         sql.NullString
@@ -236,7 +238,7 @@ func (s *Store) ListSampleJobItems(jobID string) ([]model.SampleJobItem, error) 
 	s.logger.WithField("job_id", jobID).Trace("entering ListSampleJobItems")
 	defer s.logger.Trace("returning from ListSampleJobItems")
 
-	rows, err := s.db.Query(`SELECT id, job_id, checkpoint_filename, comfyui_model_path, prompt_name, prompt_text, steps, cfg, sampler_name, scheduler, seed, status, comfyui_prompt_id, output_path, error_message, created_at, updated_at
+	rows, err := s.db.Query(`SELECT id, job_id, checkpoint_filename, comfyui_model_path, prompt_name, prompt_text, steps, cfg, sampler_name, scheduler, seed, width, height, status, comfyui_prompt_id, output_path, error_message, created_at, updated_at
 		FROM sample_job_items WHERE job_id = ? ORDER BY created_at`, jobID)
 	if err != nil {
 		s.logger.WithFields(logrus.Fields{
@@ -250,7 +252,7 @@ func (s *Store) ListSampleJobItems(jobID string) ([]model.SampleJobItem, error) 
 	var items []model.SampleJobItem
 	for rows.Next() {
 		var e sampleJobItemEntity
-		if err := rows.Scan(&e.ID, &e.JobID, &e.CheckpointFilename, &e.ComfyUIModelPath, &e.PromptName, &e.PromptText, &e.Steps, &e.CFG, &e.SamplerName, &e.Scheduler, &e.Seed, &e.Status, &e.ComfyUIPromptID, &e.OutputPath, &e.ErrorMessage, &e.CreatedAt, &e.UpdatedAt); err != nil {
+		if err := rows.Scan(&e.ID, &e.JobID, &e.CheckpointFilename, &e.ComfyUIModelPath, &e.PromptName, &e.PromptText, &e.Steps, &e.CFG, &e.SamplerName, &e.Scheduler, &e.Seed, &e.Width, &e.Height, &e.Status, &e.ComfyUIPromptID, &e.OutputPath, &e.ErrorMessage, &e.CreatedAt, &e.UpdatedAt); err != nil {
 			s.logger.WithError(err).Error("failed to scan sample job item row")
 			return nil, fmt.Errorf("scanning sample job item row: %w", err)
 		}
@@ -283,8 +285,8 @@ func (s *Store) CreateSampleJobItem(i model.SampleJobItem) error {
 	entity := sampleJobItemModelToEntity(i)
 
 	_, err := s.db.Exec(
-		`INSERT INTO sample_job_items (id, job_id, checkpoint_filename, comfyui_model_path, prompt_name, prompt_text, steps, cfg, sampler_name, scheduler, seed, status, comfyui_prompt_id, output_path, error_message, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO sample_job_items (id, job_id, checkpoint_filename, comfyui_model_path, prompt_name, prompt_text, steps, cfg, sampler_name, scheduler, seed, width, height, status, comfyui_prompt_id, output_path, error_message, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		entity.ID,
 		entity.JobID,
 		entity.CheckpointFilename,
@@ -296,6 +298,8 @@ func (s *Store) CreateSampleJobItem(i model.SampleJobItem) error {
 		entity.SamplerName,
 		entity.Scheduler,
 		entity.Seed,
+		entity.Width,
+		entity.Height,
 		entity.Status,
 		entity.ComfyUIPromptID,
 		entity.OutputPath,
@@ -329,7 +333,7 @@ func (s *Store) UpdateSampleJobItem(i model.SampleJobItem) error {
 	entity := sampleJobItemModelToEntity(i)
 
 	result, err := s.db.Exec(
-		`UPDATE sample_job_items SET job_id = ?, checkpoint_filename = ?, comfyui_model_path = ?, prompt_name = ?, prompt_text = ?, steps = ?, cfg = ?, sampler_name = ?, scheduler = ?, seed = ?, status = ?, comfyui_prompt_id = ?, output_path = ?, error_message = ?, updated_at = ?
+		`UPDATE sample_job_items SET job_id = ?, checkpoint_filename = ?, comfyui_model_path = ?, prompt_name = ?, prompt_text = ?, steps = ?, cfg = ?, sampler_name = ?, scheduler = ?, seed = ?, width = ?, height = ?, status = ?, comfyui_prompt_id = ?, output_path = ?, error_message = ?, updated_at = ?
 		WHERE id = ?`,
 		entity.JobID,
 		entity.CheckpointFilename,
@@ -341,6 +345,8 @@ func (s *Store) UpdateSampleJobItem(i model.SampleJobItem) error {
 		entity.SamplerName,
 		entity.Scheduler,
 		entity.Seed,
+		entity.Width,
+		entity.Height,
 		entity.Status,
 		entity.ComfyUIPromptID,
 		entity.OutputPath,
@@ -455,6 +461,8 @@ func sampleJobItemEntityToModel(e sampleJobItemEntity) (model.SampleJobItem, err
 		SamplerName:        e.SamplerName,
 		Scheduler:          e.Scheduler,
 		Seed:               e.Seed,
+		Width:              e.Width,
+		Height:             e.Height,
 		Status:             model.SampleJobItemStatus(e.Status),
 		ComfyUIPromptID:    e.ComfyUIPromptID.String,
 		OutputPath:         e.OutputPath.String,
@@ -481,6 +489,8 @@ func sampleJobItemModelToEntity(i model.SampleJobItem) sampleJobItemEntity {
 		SamplerName:        i.SamplerName,
 		Scheduler:          i.Scheduler,
 		Seed:               i.Seed,
+		Width:              i.Width,
+		Height:             i.Height,
 		Status:             string(i.Status),
 		ComfyUIPromptID:    promptID,
 		OutputPath:         outputPath,

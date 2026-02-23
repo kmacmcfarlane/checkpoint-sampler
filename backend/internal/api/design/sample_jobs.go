@@ -47,6 +47,25 @@ var _ = Service("sample_jobs", func() {
 		})
 	})
 
+	Method("start", func() {
+		Description("Start a pending sample job")
+		Payload(func() {
+			Attribute("id", String, "Sample job ID", func() {
+				Example("550e8400-e29b-41d4-a716-446655440000")
+			})
+			Required("id")
+		})
+		Result(SampleJobResponse)
+		Error("not_found", ErrorResult, "Sample job not found")
+		Error("invalid_state", ErrorResult, "Cannot start job in current state")
+		HTTP(func() {
+			POST("/api/sample-jobs/{id}/start")
+			Response(StatusOK)
+			Response("not_found", StatusNotFound)
+			Response("invalid_state", StatusBadRequest)
+		})
+	})
+
 	Method("stop", func() {
 		Description("Stop a running sample job (pauses after current item)")
 		Payload(func() {

@@ -103,6 +103,19 @@ func (s *SampleJobsService) Create(ctx context.Context, p *gensamplejobs.CreateS
 	return sampleJobToResponse(job), nil
 }
 
+// Start transitions a pending job to running status.
+func (s *SampleJobsService) Start(ctx context.Context, p *gensamplejobs.StartPayload) (*gensamplejobs.SampleJobResponse, error) {
+	job, err := s.svc.Start(p.ID)
+	if err != nil {
+		if isNotFound(err) {
+			return nil, gensamplejobs.MakeNotFound(err)
+		}
+		// Check if error is about invalid state
+		return nil, gensamplejobs.MakeInvalidState(err)
+	}
+	return sampleJobToResponse(job), nil
+}
+
 // Stop pauses a running sample job.
 func (s *SampleJobsService) Stop(ctx context.Context, p *gensamplejobs.StopPayload) (*gensamplejobs.SampleJobResponse, error) {
 	job, err := s.svc.Stop(p.ID)

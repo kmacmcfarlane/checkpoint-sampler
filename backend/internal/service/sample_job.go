@@ -29,10 +29,17 @@ type PathMatcher interface {
 	MatchCheckpointPath(filename string) (string, error)
 }
 
+// SampleJobExecutor defines the interface for coordinating job execution.
+type SampleJobExecutor interface {
+	RequestStop(jobID string) error
+	RequestResume(jobID string) error
+}
+
 // SampleJobService manages sample job creation, state transitions, and progress tracking.
 type SampleJobService struct {
 	store       SampleJobStore
 	pathMatcher PathMatcher
+	executor    SampleJobExecutor
 	logger      *logrus.Entry
 }
 
@@ -41,8 +48,14 @@ func NewSampleJobService(store SampleJobStore, pathMatcher PathMatcher, logger *
 	return &SampleJobService{
 		store:       store,
 		pathMatcher: pathMatcher,
+		executor:    nil, // Set later via SetExecutor
 		logger:      logger.WithField("component", "sample_job"),
 	}
+}
+
+// SetExecutor sets the job executor (called after construction to avoid circular dependencies).
+func (s *SampleJobService) SetExecutor(executor SampleJobExecutor) {
+	s.executor = executor
 }
 
 // List returns all sample jobs ordered by creation time (newest first).
@@ -217,6 +230,8 @@ func (s *SampleJobService) expandJobItems(jobID string, checkpoints []model.Chec
 									SamplerName:        sampler,
 									Scheduler:          scheduler,
 									Seed:               seed,
+									Width:              preset.Width,
+									Height:             preset.Height,
 									Status:             model.SampleJobItemStatusPending,
 									CreatedAt:          now,
 									UpdatedAt:          now,
@@ -231,6 +246,49 @@ func (s *SampleJobService) expandJobItems(jobID string, checkpoints []model.Chec
 	}
 
 	return items
+}
+
+// Start transitions a pending job to running status.
+func (s *SampleJobService) Start(id string) (model.SampleJob, error) {
+	s.logger.WithField("sample_job_id", id).Trace("entering Start")
+	defer s.logger.Trace("returning from Start")
+
+	job, err := s.store.GetSampleJob(id)
+	if err == sql.ErrNoRows {
+		s.logger.WithField("sample_job_id", id).Debug("sample job not found")
+		return model.SampleJob{}, fmt.Errorf("sample job %s not found", id)
+	}
+	if err != nil {
+		s.logger.WithFields(logrus.Fields{
+			"sample_job_id": id,
+			"error":         err.Error(),
+		}).Error("failed to fetch sample job")
+		return model.SampleJob{}, fmt.Errorf("fetching sample job: %w", err)
+	}
+	s.logger.WithField("sample_job_id", id).Debug("fetched sample job from store")
+
+	// Validate state transition
+	if job.Status != model.SampleJobStatusPending {
+		s.logger.WithFields(logrus.Fields{
+			"sample_job_id":  id,
+			"current_status": job.Status,
+		}).Warn("cannot start job: job is not pending")
+		return model.SampleJob{}, fmt.Errorf("cannot start job in status %s", job.Status)
+	}
+
+	// Update status to running
+	job.Status = model.SampleJobStatusRunning
+	job.UpdatedAt = time.Now().UTC()
+
+	if err := s.store.UpdateSampleJob(job); err != nil {
+		s.logger.WithFields(logrus.Fields{
+			"sample_job_id": id,
+			"error":         err.Error(),
+		}).Error("failed to update sample job status")
+		return model.SampleJob{}, fmt.Errorf("updating sample job: %w", err)
+	}
+	s.logger.WithField("sample_job_id", id).Info("sample job started")
+	return job, nil
 }
 
 // Stop transitions a running job to paused status.
@@ -259,6 +317,13 @@ func (s *SampleJobService) Stop(id string) (model.SampleJob, error) {
 			"current_status": job.Status,
 		}).Warn("cannot stop job: job is not running")
 		return model.SampleJob{}, fmt.Errorf("cannot stop job in status %s", job.Status)
+	}
+
+	// Request the executor to stop
+	if s.executor != nil {
+		if err := s.executor.RequestStop(id); err != nil {
+			s.logger.WithError(err).Warn("executor stop request failed, updating status anyway")
+		}
 	}
 
 	// Update status to paused
@@ -315,6 +380,14 @@ func (s *SampleJobService) Resume(id string) (model.SampleJob, error) {
 		}).Error("failed to update sample job status")
 		return model.SampleJob{}, fmt.Errorf("updating sample job: %w", err)
 	}
+
+	// Request the executor to resume
+	if s.executor != nil {
+		if err := s.executor.RequestResume(id); err != nil {
+			s.logger.WithError(err).Warn("executor resume request failed")
+		}
+	}
+
 	s.logger.WithField("sample_job_id", id).Info("sample job resumed")
 	return job, nil
 }
