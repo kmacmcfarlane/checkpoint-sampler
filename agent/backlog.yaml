@@ -770,7 +770,7 @@ stories:
   - id: S-033
     title: "Sample job orchestration"
     priority: -4
-    status: todo
+    status: done
     requires: [S-031, S-032]
     acceptance:
       - "BE: DB migration: create sample_jobs table (id, training_run_name, sample_preset_id, workflow_name, vae, clip, shift, status, total_items, completed_items, error_message, created_at, updated_at)"
