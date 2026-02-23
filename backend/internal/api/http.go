@@ -15,9 +15,11 @@ import (
 	genhealthsvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/health/server"
 	genpresetssvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/presets/server"
 	gentrainingrunssvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/training_runs/server"
+	genworkflowssvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/workflows/server"
 	genwssvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/ws/server"
 	genpresets "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/presets"
 	gentrainingruns "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/training_runs"
+	genworkflows "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/workflows"
 	genws "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/ws"
 	"github.com/sirupsen/logrus"
 	goahttp "goa.design/goa/v3/http"
@@ -33,6 +35,7 @@ type HTTPHandlerConfig struct {
 	PresetsEndpoints     *genpresets.Endpoints
 	CheckpointsEndpoints *gencheckpoints.Endpoints
 	ComfyUIEndpoints     *gencomfyui.Endpoints
+	WorkflowsEndpoints   *genworkflows.Endpoints
 	WSEndpoints          *genws.Endpoints
 	ImageHandler         *ImageHandler
 	SwaggerUIDir         http.FileSystem
@@ -58,6 +61,7 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 	presetsServer := genpresetssvr.New(cfg.PresetsEndpoints, mux, dec, enc, eh, nil)
 	checkpointsServer := gencheckpointssvr.New(cfg.CheckpointsEndpoints, mux, dec, enc, eh, nil)
 	comfyuiServer := gencomfyuisvr.New(cfg.ComfyUIEndpoints, mux, dec, enc, eh, nil)
+	workflowsServer := genworkflowssvr.New(cfg.WorkflowsEndpoints, mux, dec, enc, eh, nil)
 
 	// WebSocket upgrader with permissive origin check for local/LAN use
 	upgrader := &websocket.Upgrader{
@@ -71,6 +75,7 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 	presetsServer.Mount(mux)
 	checkpointsServer.Mount(mux)
 	comfyuiServer.Mount(mux)
+	workflowsServer.Mount(mux)
 	wsServer.Mount(mux)
 
 	// Mount custom image serving handler
@@ -117,6 +122,13 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 			}).Debug("HTTP endpoint mounted")
 		}
 		for _, m := range comfyuiServer.Mounts {
+			cfg.Logger.WithFields(logrus.Fields{
+				"method":  m.Method,
+				"verb":    m.Verb,
+				"pattern": m.Pattern,
+			}).Debug("HTTP endpoint mounted")
+		}
+		for _, m := range workflowsServer.Mounts {
 			cfg.Logger.WithFields(logrus.Fields{
 				"method":  m.Method,
 				"verb":    m.Verb,

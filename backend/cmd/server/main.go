@@ -19,6 +19,7 @@ import (
 	genhealth "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/health"
 	genpresets "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/presets"
 	gentrainingruns "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/training_runs"
+	genworkflows "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/workflows"
 	genws "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/ws"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/config"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
@@ -99,13 +100,23 @@ func run() error {
 
 	// Create ComfyUI services if configured
 	var comfyuiSvc *api.ComfyUIService
+	var workflowsSvc *api.WorkflowService
 	if cfg.ComfyUI != nil {
 		httpClient := store.NewComfyUIHTTPClient(cfg.ComfyUI.Host, cfg.ComfyUI.Port, logger)
 		modelDiscovery := service.NewComfyUIModelDiscovery(httpClient, logger)
 		comfyuiSvc = api.NewComfyUIService(httpClient, modelDiscovery)
+
+		// Create workflow loader and ensure workflow directory exists
+		workflowLoader := service.NewWorkflowLoader(cfg.ComfyUI.WorkflowDir, logger)
+		if err := workflowLoader.EnsureWorkflowDir(); err != nil {
+			return fmt.Errorf("ensuring workflow directory: %w", err)
+		}
+		workflowsSvc = api.NewWorkflowService(workflowLoader)
 	} else {
 		// Create disabled service when ComfyUI is not configured
 		comfyuiSvc = api.NewComfyUIService(nil, nil)
+		// Create a disabled workflow service (nil loader will cause errors if called)
+		workflowsSvc = api.NewWorkflowService(nil)
 	}
 
 	// Create service implementations
@@ -126,6 +137,7 @@ func run() error {
 	presetsEndpoints := genpresets.NewEndpoints(presetsSvc)
 	checkpointsEndpoints := gencheckpoints.NewEndpoints(checkpointsSvc)
 	comfyuiEndpoints := gencomfyui.NewEndpoints(comfyuiSvc)
+	workflowsEndpoints := genworkflows.NewEndpoints(workflowsSvc)
 	wsEndpoints := genws.NewEndpoints(wsSvc)
 
 	// Build image handler with metadata support
@@ -140,6 +152,7 @@ func run() error {
 		PresetsEndpoints:     presetsEndpoints,
 		CheckpointsEndpoints: checkpointsEndpoints,
 		ComfyUIEndpoints:     comfyuiEndpoints,
+		WorkflowsEndpoints:   workflowsEndpoints,
 		WSEndpoints:          wsEndpoints,
 		ImageHandler:         imageHandler,
 		SwaggerUIDir:         http.Dir(swaggerUIDir()),

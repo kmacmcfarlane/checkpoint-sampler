@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-031: Workflow template management
+- backend/internal/model/workflow.go: WorkflowTemplate domain type with Name, Path, Workflow JSON map, Roles map (role name → node IDs), ValidationState (valid/invalid), Warnings; CSRole enum with all 9 known roles (save_image, unet_loader, clip_loader, vae_loader, sampler, positive_prompt, negative_prompt, shift, latent_image); KnownCSRoles() and IsKnownRole() helpers; no serialization tags
+- backend/internal/service/workflow_loader.go: WorkflowLoader service loads and validates ComfyUI workflow JSON files from configured workflow_dir; List() reads all .json files, skips non-JSON and subdirectories; Get() returns single workflow by name with path traversal protection (rejects .., /, \); extractRoles() parses _meta.cs_role tags from workflow nodes; validate() requires save_image role (marks invalid if missing); unknown cs_role values flagged as warnings; EnsureWorkflowDir() creates directory with MkdirAll if it doesn't exist; structured logrus logging throughout
+- backend/internal/api/design/workflows.go: Goa DSL defining workflows service with list (GET /api/workflows) and show (GET /api/workflows/{name}) methods; WorkflowSummary type (name, validation_state, roles, warnings); WorkflowDetails type (adds full workflow JSON); not_found error for show
+- backend/internal/api/workflows.go: WorkflowService implements generated interface; nil-safe disabled mode when ComfyUI not configured (returns empty list for List, not-found for Show); WorkflowLoader interface defined in consumer package
+- backend/internal/api/http.go: Added WorkflowsEndpoints to HTTPHandlerConfig; wired workflows server into NewHTTPHandler
+- backend/cmd/server/main.go: Wired WorkflowLoader and WorkflowService when ComfyUI is configured; calls EnsureWorkflowDir() on startup; creates disabled WorkflowService when ComfyUI is absent
+- 150 service tests: directory creation/idempotency, workflow loading (valid, invalid JSON, non-JSON files, subdirectories), role extraction (all 9 known roles via DescribeTable, multiple nodes per role, missing _meta, empty cs_role), validation (save_image required, all roles present), Get by name (with/without .json extension), path traversal rejection, missing directory handling
+- 11 API tests: disabled service List/Show, enabled List (happy path, empty, error), Show (happy path, not found), model-to-Goa type mapping, service construction
+- 298 backend specs pass across 4 suites; 465 frontend tests pass
+
 ### B-012: Training run selector dropdown not populating
 - frontend/src/components/TrainingRunSelector.vue: Changed default `hasSamplesFilter` from `true` to `false` so all training runs load on page load instead of only those with samples; users can opt-in to filtering by checking the "Has samples" checkbox
 - Root cause: The default filter excluded training runs without samples, leaving the dropdown empty when no runs had sample directories yet
