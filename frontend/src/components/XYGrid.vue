@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, onBeforeUnmount } from 'vue'
+import { computed } from 'vue'
 import type { ScanDimension, ScanImage } from '../api/types'
 import ImageCell from './ImageCell.vue'
 import SliderBar from './SliderBar.vue'
@@ -13,6 +13,8 @@ const props = defineProps<{
   sliderValues: Record<string, string>
   /** Default slider value when no per-cell override exists (set by master slider). */
   defaultSliderValue: string
+  /** Cell size in pixels (both width and height). */
+  cellSize: number
 }>()
 
 const emit = defineEmits<{
@@ -21,59 +23,9 @@ const emit = defineEmits<{
   'header:click': [dimensionName: string, value: string]
 }>()
 
-// --- Resizable cell dimensions ---
-const cellWidth = ref(200)
-const cellHeight = ref(200)
-
-let resizeStartX = 0
-let resizeStartY = 0
-let resizeStartWidth = 0
-let resizeStartHeight = 0
-
-function onColDividerMousedown(e: MouseEvent) {
-  e.preventDefault()
-  resizeStartX = e.clientX
-  resizeStartWidth = cellWidth.value
-  document.addEventListener('mousemove', onColDividerMousemove)
-  document.addEventListener('mouseup', onColDividerMouseup)
-}
-
-function onColDividerMousemove(e: MouseEvent) {
-  const delta = e.clientX - resizeStartX
-  const xCount = props.xDimension?.values.length ?? 1
-  cellWidth.value = Math.max(100, resizeStartWidth + delta / xCount)
-}
-
-function onColDividerMouseup() {
-  document.removeEventListener('mousemove', onColDividerMousemove)
-  document.removeEventListener('mouseup', onColDividerMouseup)
-}
-
-function onRowDividerMousedown(e: MouseEvent) {
-  e.preventDefault()
-  resizeStartY = e.clientY
-  resizeStartHeight = cellHeight.value
-  document.addEventListener('mousemove', onRowDividerMousemove)
-  document.addEventListener('mouseup', onRowDividerMouseup)
-}
-
-function onRowDividerMousemove(e: MouseEvent) {
-  const delta = e.clientY - resizeStartY
-  const yCount = props.yDimension?.values.length ?? 1
-  cellHeight.value = Math.max(100, resizeStartHeight + delta / yCount)
-}
-
-function onRowDividerMouseup() {
-  document.removeEventListener('mousemove', onRowDividerMousemove)
-  document.removeEventListener('mouseup', onRowDividerMouseup)
-}
-
-onBeforeUnmount(() => {
-  document.removeEventListener('mousemove', onColDividerMousemove)
-  document.removeEventListener('mouseup', onColDividerMouseup)
-  document.removeEventListener('mousemove', onRowDividerMousemove)
-  document.removeEventListener('mouseup', onRowDividerMouseup)
-})
+// --- Cell dimensions controlled by zoom ---
+const cellWidth = computed(() => props.cellSize)
+const cellHeight = computed(() => props.cellSize)
 
 function onHeaderClick(dimensionName: string, value: string) {
   emit('header:click', dimensionName, value)
@@ -178,22 +130,12 @@ const rowBase = computed(() => (props.xDimension ? 2 : 1))
 
 /** CSS grid-column for the i-th X value (0-based). */
 function colIndex(i: number): number {
-  return colBase.value + i * 2
-}
-
-/** CSS grid-column for the divider between X[i] and X[i+1] (0-based). */
-function colDividerIndex(i: number): number {
-  return colBase.value + i * 2 + 1
+  return colBase.value + i
 }
 
 /** CSS grid-row for the j-th Y value (0-based). */
 function rowIndex(j: number): number {
-  return rowBase.value + j * 2
-}
-
-/** CSS grid-row for the divider between Y[j] and Y[j+1] (0-based). */
-function rowDividerIndex(j: number): number {
-  return rowBase.value + j * 2 + 1
+  return rowBase.value + j
 }
 
 /** Computed grid-template-columns. */
@@ -202,7 +144,6 @@ const gridTemplateColumns = computed(() => {
   if (props.yDimension) parts.push('auto')
   if (props.xDimension) {
     for (let i = 0; i < xValues.value.length; i++) {
-      if (i > 0) parts.push('6px')
       parts.push(`${cellWidth.value}px`)
     }
   } else if (props.yDimension) {
@@ -217,7 +158,6 @@ const gridTemplateRows = computed(() => {
   if (props.xDimension) parts.push('auto')
   if (props.yDimension) {
     for (let j = 0; j < yValues.value.length; j++) {
-      if (j > 0) parts.push('6px')
       parts.push(`${cellHeight.value}px`)
     }
   } else if (props.xDimension) {
@@ -231,6 +171,7 @@ const gridStyle = computed(() => ({
   display: 'grid',
   gridTemplateColumns: gridTemplateColumns.value,
   gridTemplateRows: gridTemplateRows.value,
+  gap: '4px',
 }))
 
 /** Inline style for the flat mode CSS Grid. */
@@ -339,31 +280,6 @@ const flatGridStyle = computed(() => ({
         </div>
       </template>
 
-      <!-- Column dividers (span all rows) -->
-      <template v-if="xDimension && xValues.length > 1">
-        <div
-          v-for="idx in (xValues.length - 1)"
-          :key="'cdiv-' + idx"
-          class="xy-grid__col-divider"
-          role="separator"
-          aria-orientation="vertical"
-          :style="{ gridRow: '1 / -1', gridColumn: colDividerIndex(idx - 1) }"
-          @mousedown="onColDividerMousedown"
-        ></div>
-      </template>
-
-      <!-- Row dividers (span all columns) -->
-      <template v-if="yDimension && yValues.length > 1">
-        <div
-          v-for="idx in (yValues.length - 1)"
-          :key="'rdiv-' + idx"
-          class="xy-grid__row-divider"
-          role="separator"
-          aria-orientation="horizontal"
-          :style="{ gridRow: rowDividerIndex(idx - 1), gridColumn: '1 / -1' }"
-          @mousedown="onRowDividerMousedown"
-        ></div>
-      </template>
     </div>
   </div>
 
@@ -418,26 +334,6 @@ const flatGridStyle = computed(() => ({
 
 .xy-grid__col-header:hover {
   background-color: var(--accent-bg, #e3f2fd);
-}
-
-.xy-grid__col-divider {
-  cursor: col-resize;
-  background-color: transparent;
-}
-
-.xy-grid__col-divider:hover {
-  background-color: var(--accent-color, #1976d2);
-  opacity: 0.3;
-}
-
-.xy-grid__row-divider {
-  cursor: row-resize;
-  background-color: transparent;
-}
-
-.xy-grid__row-divider:hover {
-  background-color: var(--accent-color, #1976d2);
-  opacity: 0.3;
 }
 
 .xy-grid__row-header {

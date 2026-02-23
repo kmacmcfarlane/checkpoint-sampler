@@ -542,7 +542,7 @@ stories:
   - id: B-006
     title: "No zoom/scale control for grid cell size"
     priority: 3
-    status: todo
+    status: done
     requires: [S-024]
     acceptance:
       - "FE: Add a zoom slider (or similar control) near the master slider area to scale grid cell size"

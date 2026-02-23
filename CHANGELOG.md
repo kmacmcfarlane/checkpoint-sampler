@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### B-006: No zoom/scale control for grid cell size
+- frontend/src/components/ZoomControl.vue: New component providing a zoom slider (NSlider) with range 100px–600px in 10px steps; displays current size label; accessible with ARIA labels and role="group"; responsive layout
+- frontend/src/components/XYGrid.vue: Replaced drag-divider resizing with `cellSize` prop driving both cellWidth and cellHeight as computed properties; removed divider elements, mousedown/mousemove/mouseup handlers, and divider CSS; grid uses `gap: 4px` for spacing
+- frontend/src/App.vue: Integrated ZoomControl in sticky controls area above MasterSlider; cellSize ref (default 200px) passed to XYGrid; renamed `.master-slider-sticky` to `.controls-sticky`
+- 19 new ZoomControl tests: rendering, props, events, min/max/step config, data-driven range validation, proportional sizing, accessibility
+- 4 new XYGrid tests for cellSize prop controlling column widths, row heights, reactive updates, and gap spacing
+- Updated existing XYGrid tests to use cellSize prop and remove divider-related assertions
+- 400 total frontend tests pass across 22 test files
+
 ### B-005: X/Y grid layout breaks with different configurations
 - frontend/src/components/XYGrid.vue: Replaced flexbox grid layout with CSS Grid (`display: grid`) for consistent cell alignment regardless of content or configuration; all items are now direct children of the grid container with explicit `grid-row`/`grid-column` placement
 - frontend/src/components/XYGrid.vue: Removed wrapper elements (`.xy-grid__header-row`, `.xy-grid__row`) — flattened template structure eliminates per-row flex containers that caused misalignment
