@@ -829,3 +829,16 @@ stories:
       - "FE: Unit tests for launch dialog, progress display, stop/resume interactions"
     testing:
       - "command: npx vitest run"
+
+  - id: B-013
+    title: "Migration 6 fails with duplicate column 'height' on existing databases"
+    priority: 99
+    status: todo
+    requires: []
+    acceptance:
+      - "BE: Migration 6 does not fail with 'duplicate column name: height' when run against an existing database that already has the column"
+      - "BE: Migration is idempotent — safe to run on both fresh and pre-existing databases"
+      - "BE: Application starts successfully with an existing database"
+      - "BE: Unit tests cover migration 6 idempotency"
+    testing:
+      - "command: ginkgo -r --cover --race ./internal/..."
