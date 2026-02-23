@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### B-007: Checkpoint metadata panel dark mode text unreadable
+- frontend/src/components/CheckpointMetadataPanel.vue: Removed hardcoded `#333` color fallback from `.metadata-value` CSS rule; now uses `var(--text-color)` without fallback so dark mode text is readable (light text on dark background)
+- 2 new CheckpointMetadataPanel tests: theme-aware styling class verification, inline color override absence check
+- 402 total frontend tests pass across 22 test files
+
 ### B-006: No zoom/scale control for grid cell size
 - frontend/src/components/ZoomControl.vue: New component providing a zoom slider (NSlider) with range 100px–600px in 10px steps; displays current size label; accessible with ARIA labels and role="group"; responsive layout
 - frontend/src/components/XYGrid.vue: Replaced drag-divider resizing with `cellSize` prop driving both cellWidth and cellHeight as computed properties; removed divider elements, mousedown/mousemove/mouseup handlers, and divider CSS; grid uses `gap: 4px` for spacing

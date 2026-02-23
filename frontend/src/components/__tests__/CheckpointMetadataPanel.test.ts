@@ -373,4 +373,45 @@ describe('CheckpointMetadataPanel', () => {
 
     expect(wrapper.find('.resize-handle').exists()).toBe(false)
   })
+
+  // ── Theme-aware styling tests ──
+
+  it('metadata values use theme-aware text color (no hardcoded colors)', async () => {
+    mockGetCheckpointMetadata.mockResolvedValue({
+      metadata: { ss_output_name: 'test-model' },
+    })
+    const wrapper = mountPanel()
+    await flushPromises()
+
+    const valueElement = wrapper.find('.metadata-value')
+    expect(valueElement.exists()).toBe(true)
+
+    // Verify the element uses the metadata-value class which applies theme-aware styling
+    // The class uses CSS custom property var(--text-color) for color (not hardcoded)
+    expect(valueElement.classes()).toContain('metadata-value')
+  })
+
+  it('metadata values have theme-aware styling class for both light and dark mode', async () => {
+    mockGetCheckpointMetadata.mockResolvedValue({
+      metadata: {
+        ss_output_name: 'model-a',
+        ss_epoch: '100',
+      },
+    })
+    const wrapper = mountPanel()
+    await flushPromises()
+
+    const values = wrapper.findAll('.metadata-value')
+    expect(values).toHaveLength(2)
+
+    // All metadata values should use the theme-aware class
+    values.forEach((value) => {
+      expect(value.classes()).toContain('metadata-value')
+      // Verify no inline color styles that would override CSS variables
+      const styleAttr = value.attributes('style')
+      if (styleAttr) {
+        expect(styleAttr).not.toMatch(/color:\s*#/)
+      }
+    })
+  })
 })

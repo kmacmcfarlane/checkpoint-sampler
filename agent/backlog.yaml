@@ -575,7 +575,7 @@ stories:
   - id: B-007
     title: "Checkpoint metadata panel dark mode text unreadable"
     priority: 3
-    status: todo
+    status: done
     requires: [S-026, S-021]
     acceptance:
       - "FE: Metadata value text color is readable in dark mode (uses theme-aware color tokens, not hardcoded colors)"

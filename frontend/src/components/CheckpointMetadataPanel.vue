@@ -276,7 +276,7 @@ async function selectCheckpoint(cp: CheckpointInfo) {
   margin: 0;
   font-size: 0.875rem;
   word-break: break-word;
-  color: var(--text-color, #333);
+  color: var(--text-color);
 }
 
 .status {
