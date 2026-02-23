@@ -1,4 +1,4 @@
-import type { ApiError, ApiErrorResponse, CheckpointMetadata, HealthStatus, ImageMetadata, Preset, PresetMapping, ScanResult, TrainingRun } from './types'
+import type { ApiError, ApiErrorResponse, CheckpointMetadata, ComfyUIModelType, ComfyUIModels, ComfyUIStatus, HealthStatus, ImageMetadata, Preset, PresetMapping, ScanResult, TrainingRun } from './types'
 
 const DEFAULT_BASE_URL = '/api'
 
@@ -141,6 +141,16 @@ export class ApiClient {
       throw await normalizeError(response)
     }
     return (await response.json()) as HealthStatus
+  }
+
+  /** GET /api/comfyui/status — check ComfyUI connection status. */
+  async getComfyUIStatus(): Promise<ComfyUIStatus> {
+    return this.request<ComfyUIStatus>('/comfyui/status')
+  }
+
+  /** GET /api/comfyui/models — get available models by type. */
+  async getComfyUIModels(type: ComfyUIModelType): Promise<ComfyUIModels> {
+    return this.request<ComfyUIModels>(`/comfyui/models?type=${type}`)
   }
 }
 

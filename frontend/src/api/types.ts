@@ -97,3 +97,17 @@ export interface FSEventMessage {
   type: FSEventType
   path: string
 }
+
+/** ComfyUI connection status response. */
+export interface ComfyUIStatus {
+  connected: boolean
+  enabled: boolean
+}
+
+/** ComfyUI available models response. */
+export interface ComfyUIModels {
+  models: string[]
+}
+
+/** Valid ComfyUI model types. */
+export type ComfyUIModelType = 'vae' | 'clip' | 'unet' | 'sampler' | 'scheduler'

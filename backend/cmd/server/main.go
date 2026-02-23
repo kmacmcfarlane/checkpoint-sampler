@@ -11,13 +11,14 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api"
 	gencheckpoints "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/checkpoints"
+	gencomfyui "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/comfyui"
 	gendocs "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/docs"
 	genhealth "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/health"
 	genpresets "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/presets"
 	gentrainingruns "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/training_runs"
 	genws "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/ws"
+	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api"
 	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/config"
 	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/service"
 	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/store"
@@ -69,6 +70,17 @@ func run() error {
 	watcher := service.NewWatcher(notifier, hub, cfg.SampleDir, log.Default())
 	defer watcher.Stop()
 
+	// Create ComfyUI services if configured
+	var comfyuiSvc *api.ComfyUIService
+	if cfg.ComfyUI != nil {
+		httpClient := store.NewComfyUIHTTPClient(cfg.ComfyUI.Host, cfg.ComfyUI.Port)
+		modelDiscovery := service.NewComfyUIModelDiscovery(httpClient)
+		comfyuiSvc = api.NewComfyUIService(httpClient, modelDiscovery)
+	} else {
+		// Create disabled service when ComfyUI is not configured
+		comfyuiSvc = api.NewComfyUIService(nil, nil)
+	}
+
 	// Create service implementations
 	healthSvc := api.NewHealthService()
 	docsSvc := api.NewDocsService(spec)
@@ -86,6 +98,7 @@ func run() error {
 	trainingRunsEndpoints := gentrainingruns.NewEndpoints(trainingRunsSvc)
 	presetsEndpoints := genpresets.NewEndpoints(presetsSvc)
 	checkpointsEndpoints := gencheckpoints.NewEndpoints(checkpointsSvc)
+	comfyuiEndpoints := gencomfyui.NewEndpoints(comfyuiSvc)
 	wsEndpoints := genws.NewEndpoints(wsSvc)
 
 	// Build image handler with metadata support
@@ -99,6 +112,7 @@ func run() error {
 		TrainingRunEndpoints: trainingRunsEndpoints,
 		PresetsEndpoints:     presetsEndpoints,
 		CheckpointsEndpoints: checkpointsEndpoints,
+		ComfyUIEndpoints:     comfyuiEndpoints,
 		WSEndpoints:          wsEndpoints,
 		ImageHandler:         imageHandler,
 		SwaggerUIDir:         http.Dir(swaggerUIDir()),

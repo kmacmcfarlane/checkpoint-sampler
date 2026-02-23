@@ -12,11 +12,19 @@ import (
 
 // yamlConfig is the raw YAML-tagged representation of the config file.
 type yamlConfig struct {
-	CheckpointDirs []string `yaml:"checkpoint_dirs"`
-	SampleDir      string   `yaml:"sample_dir"`
-	Port           *int     `yaml:"port"`
-	IPAddress      string   `yaml:"ip_address"`
-	DBPath         string   `yaml:"db_path"`
+	CheckpointDirs []string         `yaml:"checkpoint_dirs"`
+	SampleDir      string           `yaml:"sample_dir"`
+	Port           *int             `yaml:"port"`
+	IPAddress      string           `yaml:"ip_address"`
+	DBPath         string           `yaml:"db_path"`
+	ComfyUI        *yamlComfyUIConfig `yaml:"comfyui"`
+}
+
+// yamlComfyUIConfig is the raw YAML-tagged representation of ComfyUI config.
+type yamlComfyUIConfig struct {
+	Host        string `yaml:"host"`
+	Port        *int   `yaml:"port"`
+	WorkflowDir string `yaml:"workflow_dir"`
 }
 
 // DefaultConfigPath is the default path to the configuration file.
@@ -106,11 +114,48 @@ func parseAndValidate(raw yamlConfig) (*model.Config, error) {
 		return nil, fmt.Errorf("config: invalid ip_address %q", raw.IPAddress)
 	}
 
+	// Parse and validate ComfyUI config if present
+	var comfyUI *model.ComfyUIConfig
+	if raw.ComfyUI != nil {
+		comfyUI, err = parseComfyUIConfig(raw.ComfyUI)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return &model.Config{
 		CheckpointDirs: raw.CheckpointDirs,
 		SampleDir:      raw.SampleDir,
 		Port:           port,
 		IPAddress:      raw.IPAddress,
 		DBPath:         raw.DBPath,
+		ComfyUI:        comfyUI,
+	}, nil
+}
+
+func parseComfyUIConfig(raw *yamlComfyUIConfig) (*model.ComfyUIConfig, error) {
+	// Apply defaults
+	host := "localhost"
+	if raw.Host != "" {
+		host = raw.Host
+	}
+	port := 8188
+	if raw.Port != nil {
+		port = *raw.Port
+	}
+	workflowDir := "./workflows"
+	if raw.WorkflowDir != "" {
+		workflowDir = raw.WorkflowDir
+	}
+
+	// Validate port
+	if port < 1 || port > 65535 {
+		return nil, fmt.Errorf("config: comfyui.port must be between 1 and 65535, got %d", port)
+	}
+
+	return &model.ComfyUIConfig{
+		Host:        host,
+		Port:        port,
+		WorkflowDir: workflowDir,
 	}, nil
 }

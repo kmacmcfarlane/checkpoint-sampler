@@ -19,6 +19,7 @@ import PresetSelector from './components/PresetSelector.vue'
 import ImageLightbox from './components/ImageLightbox.vue'
 import CheckpointMetadataPanel from './components/CheckpointMetadataPanel.vue'
 import ThemeToggle from './components/ThemeToggle.vue'
+import ComfyUIStatus from './components/ComfyUIStatus.vue'
 
 const { theme, isDark, toggle: toggleTheme } = useTheme()
 const { savedData, savePresetSelection, clearPresetSelection } = usePresetPersistence()
@@ -350,6 +351,7 @@ function onPresetDelete(presetId: string) {
             :title="wsConnected ? 'Live updates connected' : 'Live updates disconnected'"
             role="status"
           >{{ wsConnected ? 'Live' : 'Disconnected' }}</NTag>
+          <ComfyUIStatus />
           <ThemeToggle :is-dark="isDark" @toggle="toggleTheme" />
         </div>
       </header>

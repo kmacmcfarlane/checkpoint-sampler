@@ -6,9 +6,11 @@ import (
 	"net/http"
 
 	gencheckpoints "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/checkpoints"
+	gencomfyui "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/comfyui"
 	gendocs "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/docs"
 	genhealth "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/health"
 	gencheckpointssvr "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/http/checkpoints/server"
+	gencomfyuisvr "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/http/comfyui/server"
 	gendocssvr "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/http/docs/server"
 	genhealthsvr "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/http/health/server"
 	genpresetssvr "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/http/presets/server"
@@ -30,6 +32,7 @@ type HTTPHandlerConfig struct {
 	TrainingRunEndpoints  *gentrainingruns.Endpoints
 	PresetsEndpoints      *genpresets.Endpoints
 	CheckpointsEndpoints  *gencheckpoints.Endpoints
+	ComfyUIEndpoints      *gencomfyui.Endpoints
 	WSEndpoints           *genws.Endpoints
 	ImageHandler          *ImageHandler
 	SwaggerUIDir          http.FileSystem
@@ -57,6 +60,7 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 	trainingRunsServer := gentrainingrunssvr.New(cfg.TrainingRunEndpoints, mux, dec, enc, eh, nil)
 	presetsServer := genpresetssvr.New(cfg.PresetsEndpoints, mux, dec, enc, eh, nil)
 	checkpointsServer := gencheckpointssvr.New(cfg.CheckpointsEndpoints, mux, dec, enc, eh, nil)
+	comfyuiServer := gencomfyuisvr.New(cfg.ComfyUIEndpoints, mux, dec, enc, eh, nil)
 
 	// WebSocket upgrader with permissive origin check for local/LAN use
 	upgrader := &websocket.Upgrader{
@@ -69,6 +73,7 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 	trainingRunsServer.Mount(mux)
 	presetsServer.Mount(mux)
 	checkpointsServer.Mount(mux)
+	comfyuiServer.Mount(mux)
 	wsServer.Mount(mux)
 
 	// Mount custom image serving handler
@@ -92,6 +97,9 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 			cfg.Logger.Printf("HTTP %q mounted on %s %s", m.Method, m.Verb, m.Pattern)
 		}
 		for _, m := range checkpointsServer.Mounts {
+			cfg.Logger.Printf("HTTP %q mounted on %s %s", m.Method, m.Verb, m.Pattern)
+		}
+		for _, m := range comfyuiServer.Mounts {
 			cfg.Logger.Printf("HTTP %q mounted on %s %s", m.Method, m.Verb, m.Pattern)
 		}
 		for _, m := range wsServer.Mounts {
