@@ -860,7 +860,7 @@ stories:
   - id: B-015
     title: "Backend service errors not logged to container stdout"
     priority: 97
-    status: todo
+    status: done
     requires: []
     acceptance:
       - "BE: When an API endpoint returns an error (4xx or 5xx), the error message is logged to stdout with request ID for correlation"

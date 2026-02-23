@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### B-015: Backend service errors not logged to container stdout
+- backend/internal/api/error_logging.go: New ErrorLoggingMiddleware capturing HTTP error responses (4xx/5xx) with structured logrus logging; statusCapturingWriter wraps response writer to intercept status codes and buffer error response bodies; logErrorResponse extracts error messages from JSON response bodies (falls back to truncated raw text for non-JSON); implements http.Hijacker delegation for WebSocket compatibility; logrus warn level for 4xx client errors, error level for 5xx server errors
+- backend/internal/api/http.go: Integrated ErrorLoggingMiddleware into HTTP handler chain after RequestID middleware to ensure request IDs are available for correlation
+- backend/internal/api/error_logging_test.go: 20 unit tests covering 2xx/3xx no-logging, 4xx warn level, 5xx error level, required log fields (request_id, method, path, status_code, error_message), JSON error message extraction, non-JSON body truncation, empty body handling, missing request ID default, implicit 200 status, DescribeTable for HTTP methods
+- backend/internal/api/error_logging_integration_test.go: 6 integration tests validating full middleware stack with RequestID middleware, non-empty request ID assertion, correct log levels, error message extraction in production-like handler chains, multiple HTTP method coverage
+- 458 backend specs pass across 4 suites (117 API + 26 Config + 228 Service + 87 Store) with race detection; 520 frontend tests pass; composite coverage 68.7%
+
 ### B-014: API returns bare 500 errors without JSON error body
 - backend/internal/api/design/presets.go: Added internal_error error type and 500 response mapping to all four methods (list, create, update, delete)
 - backend/internal/api/design/sample_presets.go: Added internal_error error type and 500 response mapping to all four methods (list, create, update, delete)

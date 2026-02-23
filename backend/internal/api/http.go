@@ -175,6 +175,7 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 	// Create a logrus adapter for Goa middleware
 	adapter := &logrusAdapter{logger: cfg.Logger.WithField("component", "http")}
 	handler = goahttpmiddleware.Log(adapter)(handler)
+	handler = ErrorLoggingMiddleware(cfg.Logger)(handler)
 	handler = goahttpmiddleware.RequestID()(handler)
 	handler = CORSMiddleware("*")(handler)
 
