@@ -251,7 +251,7 @@ Watch mode (`test-backend-watch`, `test-frontend-watch`) is designed for human d
 
 ### 6.1 Subagent definitions
 - Subagent prompts live in `/.claude/agents/` and are checked into the repository.
-- Available subagents: fullstack-engineer, code-reviewer, qa-expert, debugger, security-auditor.
+- Available subagents: fullstack-developer, code-reviewer, qa-expert, debugger, security-auditor.
 - The orchestrator (PROMPT.md / AGENT_FLOW.md) dispatches to subagents based on story status.
 
 ### 6.2 Subagent responsibilities by phase

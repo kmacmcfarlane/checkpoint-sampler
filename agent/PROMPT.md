@@ -16,13 +16,13 @@ Follow /agent/AGENT_FLOW.md exactly.
 Select work from /agent/backlog.yaml per the priority rules in AGENT_FLOW.md section 3:
 1. First: stories in `review` status → invoke code-reviewer subagent
 2. Second: stories in `testing` status → invoke qa-expert subagent
-3. Third: stories in `in_progress` with `review_feedback` → invoke fullstack-engineer subagent
-4. Fourth: highest priority `todo` story → invoke fullstack-engineer subagent
+3. Third: stories in `in_progress` with `review_feedback` → invoke fullstack-developer subagent
+4. Fourth: highest priority `todo` story → invoke fullstack-developer subagent
 
 ## Subagent dispatch
 
 Read the subagent prompt from `/.claude/agents/<name>.md` and invoke via the Task tool:
-- **fullstack-engineer**: For `todo` and `in_progress` stories. Pass story ID, acceptance criteria, branch name, and any review_feedback.
+- **fullstack-developer**: For `todo` and `in_progress` stories. Pass story ID, acceptance criteria, branch name, and any review_feedback.
 - **code-reviewer**: For `review` stories. Pass story ID, acceptance criteria, and branch name.
 - **qa-expert**: For `testing` stories. Pass story ID, acceptance criteria, and branch name.
 - **debugger**: Invoke on demand when test failures or bugs are encountered.

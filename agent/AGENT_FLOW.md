@@ -84,7 +84,7 @@ The orchestrator delegates work to specialized subagents via the Task tool. Suba
 
 | Subagent | File | Invoked when | Verdict triggers |
 |---|---|---|---|
-| Fullstack Engineer | `fullstack-engineer.md` | Story is `todo` or `in_progress` | → `review` (or → `blocked`) |
+| Fullstack Engineer | `fullstack-developer.md` | Story is `todo` or `in_progress` | → `review` (or → `blocked`) |
 | Code Reviewer | `code-reviewer.md` | Story is `review` | → `testing` or → `in_progress` |
 | QA Expert | `qa-expert.md` | Story is `testing` | → `done` or → `in_progress` |
 | Debugger | `debugger.md` | On demand (test failures, hard bugs) | n/a |

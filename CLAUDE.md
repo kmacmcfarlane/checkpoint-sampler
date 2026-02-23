@@ -135,7 +135,7 @@ Agents should use one-shot commands, not watch mode. Watch mode is a long-runnin
 - Commit policy is defined in /agent/AGENT_FLOW.md (follow it exactly).
 
 ## 10) Subagent workflow
-Stories progress through a multi-agent pipeline: fullstack-engineer → code-reviewer → qa-expert.
+Stories progress through a multi-agent pipeline: fullstack-developer → code-reviewer → qa-expert.
 - Story status values: `todo`, `in_progress`, `review`, `testing`, `done`, `blocked`
 - The orchestrator (PROMPT.md) dispatches to the appropriate subagent based on story status
 - Subagent definitions live in /.claude/agents/ and are checked into the repository
