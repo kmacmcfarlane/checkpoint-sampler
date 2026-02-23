@@ -89,12 +89,9 @@ export interface ImageMetadata {
   metadata: Record<string, string>
 }
 
-/** WebSocket event types sent by the backend. */
-export type FSEventType = 'image_added' | 'image_removed' | 'directory_added'
-
 /** A filesystem change event received over WebSocket. */
 export interface FSEventMessage {
-  type: FSEventType
+  type: 'image_added' | 'image_removed' | 'directory_added'
   path: string
 }
 
@@ -163,4 +160,81 @@ export interface UpdateSamplePresetPayload {
   seeds: number[]
   width: number
   height: number
+}
+
+/** Sample job status. */
+export type SampleJobStatus = 'pending' | 'running' | 'paused' | 'completed' | 'failed'
+
+/** A sample job. */
+export interface SampleJob {
+  id: string
+  training_run_name: string
+  sample_preset_id: string
+  workflow_name: string
+  vae: string
+  clip: string
+  shift?: number
+  status: SampleJobStatus
+  total_items: number
+  completed_items: number
+  error_message?: string
+  created_at: string
+  updated_at: string
+}
+
+/** Job progress metrics. */
+export interface JobProgress {
+  checkpoints_completed: number
+  total_checkpoints: number
+  current_checkpoint?: string
+  current_checkpoint_progress?: number
+  current_checkpoint_total?: number
+  estimated_completion_time?: string
+}
+
+/** Sample job with progress metrics. */
+export interface SampleJobDetail {
+  job: SampleJob
+  progress: JobProgress
+}
+
+/** Payload for creating a new sample job. */
+export interface CreateSampleJobPayload {
+  training_run_name: string
+  sample_preset_id: string
+  workflow_name: string
+  vae?: string
+  clip?: string
+  shift?: number
+}
+
+/** Workflow template summary. */
+export interface WorkflowSummary {
+  name: string
+  validation_state: 'valid' | 'invalid'
+  roles: Record<string, string[]>
+  warnings: string[]
+}
+
+/** Workflow template details. */
+export interface WorkflowDetail {
+  name: string
+  validation_state: 'valid' | 'invalid'
+  roles: Record<string, string[]>
+  warnings: string[]
+  workflow: unknown
+}
+
+/** WebSocket job progress event. */
+export interface JobProgressMessage {
+  type: 'job_progress'
+  job_id: string
+  status: SampleJobStatus
+  total_items: number
+  completed_items: number
+  checkpoints_completed: number
+  total_checkpoints: number
+  current_checkpoint?: string
+  current_checkpoint_progress?: number
+  current_checkpoint_total?: number
 }

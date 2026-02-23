@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import { NConfigProvider, NButton, NTag } from 'naive-ui'
-import type { TrainingRun, DimensionRole, FilterMode, Preset } from './api/types'
+import type { TrainingRun, DimensionRole, FilterMode, Preset, SampleJob, JobProgressMessage } from './api/types'
 import { apiClient } from './api/client'
 import { useDimensionMapping } from './composables/useDimensionMapping'
 import { useImagePreloader } from './composables/useImagePreloader'
@@ -20,6 +20,8 @@ import ImageLightbox from './components/ImageLightbox.vue'
 import CheckpointMetadataPanel from './components/CheckpointMetadataPanel.vue'
 import ThemeToggle from './components/ThemeToggle.vue'
 import ComfyUIStatus from './components/ComfyUIStatus.vue'
+import JobLaunchDialog from './components/JobLaunchDialog.vue'
+import JobProgressPanel from './components/JobProgressPanel.vue'
 
 const { theme, isDark, toggle: toggleTheme } = useTheme()
 const { savedData, savePresetSelection, clearPresetSelection } = usePresetPersistence()
@@ -30,6 +32,10 @@ const scanError = ref<string | null>(null)
 const lightboxImageUrl = ref<string | null>(null)
 const metadataPanelOpen = ref(false)
 const drawerOpen = ref(false)
+const jobLaunchDialogOpen = ref(false)
+const jobProgressPanelOpen = ref(false)
+const sampleJobs = ref<SampleJob[]>([])
+const jobsLoading = ref(false)
 
 const WIDE_BREAKPOINT = 1024
 
@@ -121,13 +127,61 @@ async function rescanCurrentTrainingRun() {
 }
 
 /** WebSocket live updates: connect when a training run is selected. */
-const { connected: wsConnected } = useWebSocket(
+const { connected: wsConnected, wsClient } = useWebSocket(
   selectedTrainingRun,
   addImage,
   removeImage,
   comboSelections,
   rescanCurrentTrainingRun,
 )
+
+/** Job progress data tracked separately from basic job info. */
+const jobProgress = reactive<Record<string, {
+  checkpoints_completed: number
+  total_checkpoints: number
+  current_checkpoint?: string
+  current_checkpoint_progress?: number
+  current_checkpoint_total?: number
+  estimated_completion_time?: string
+}>>({})
+
+/** Handle job progress updates from WebSocket. */
+function handleJobProgress(message: JobProgressMessage) {
+  const jobIndex = sampleJobs.value.findIndex(j => j.id === message.job_id)
+  if (jobIndex !== -1) {
+    sampleJobs.value[jobIndex] = {
+      ...sampleJobs.value[jobIndex],
+      status: message.status,
+      total_items: message.total_items,
+      completed_items: message.completed_items,
+      updated_at: new Date().toISOString(),
+    }
+    // Store checkpoint-level progress separately
+    // Estimated completion time would need to be calculated or fetched separately
+    // For now, preserve existing value if available
+    const existingEta = jobProgress[message.job_id]?.estimated_completion_time
+    jobProgress[message.job_id] = {
+      checkpoints_completed: message.checkpoints_completed,
+      total_checkpoints: message.total_checkpoints,
+      current_checkpoint: message.current_checkpoint,
+      current_checkpoint_progress: message.current_checkpoint_progress,
+      current_checkpoint_total: message.current_checkpoint_total,
+      estimated_completion_time: existingEta,
+    }
+  } else {
+    // New job, fetch the full list
+    fetchSampleJobs()
+  }
+}
+
+// Register job progress listener
+onMounted(() => {
+  wsClient.onJobProgress(handleJobProgress)
+})
+
+onUnmounted(() => {
+  wsClient.offJobProgress(handleJobProgress)
+})
 
 async function onTrainingRunSelect(run: TrainingRun) {
   selectedTrainingRun.value = run
@@ -320,6 +374,62 @@ function onPresetDelete(presetId: string) {
     clearPresetSelection()
   }
 }
+
+/** Fetch all sample jobs. */
+async function fetchSampleJobs() {
+  jobsLoading.value = true
+  try {
+    sampleJobs.value = await apiClient.listSampleJobs()
+  } catch (err: unknown) {
+    console.warn('Failed to fetch sample jobs:', err)
+    sampleJobs.value = []
+  } finally {
+    jobsLoading.value = false
+  }
+}
+
+/** Open the job launch dialog. */
+function openJobLaunchDialog() {
+  jobLaunchDialogOpen.value = true
+}
+
+/** Handle successful job creation. */
+function onJobCreated() {
+  fetchSampleJobs()
+}
+
+/** Stop a sample job. */
+async function stopJob(jobId: string) {
+  try {
+    await apiClient.stopSampleJob(jobId)
+    await fetchSampleJobs()
+  } catch (err: unknown) {
+    console.warn('Failed to stop sample job:', err)
+  }
+}
+
+/** Resume a sample job. */
+async function resumeJob(jobId: string) {
+  try {
+    await apiClient.resumeSampleJob(jobId)
+    await fetchSampleJobs()
+  } catch (err: unknown) {
+    console.warn('Failed to resume sample job:', err)
+  }
+}
+
+/** Toggle the job progress panel. */
+function toggleJobProgressPanel() {
+  jobProgressPanelOpen.value = !jobProgressPanelOpen.value
+  if (jobProgressPanelOpen.value) {
+    fetchSampleJobs()
+  }
+}
+
+/** Compute whether the "Generate Samples" button should be prominent. */
+const showProminentGenerateButton = computed(() => {
+  return selectedTrainingRun.value && !selectedTrainingRun.value.has_samples
+})
 </script>
 
 <template>
@@ -338,6 +448,20 @@ function onPresetDelete(presetId: string) {
           <h1>Checkpoint Sampler</h1>
         </div>
         <div class="header-controls">
+          <NButton
+            v-if="selectedTrainingRun && !scanning && !scanError"
+            :type="showProminentGenerateButton ? 'primary' : 'default'"
+            size="small"
+            aria-label="Generate samples"
+            data-testid="generate-samples-button"
+            @click="openJobLaunchDialog"
+          >Generate Samples</NButton>
+          <NButton
+            v-if="selectedTrainingRun && !scanning && !scanError"
+            size="small"
+            aria-label="Toggle sample jobs panel"
+            @click="toggleJobProgressPanel"
+          >Jobs</NButton>
           <NButton
             v-if="selectedTrainingRun && !scanning && !scanError"
             size="small"
@@ -455,6 +579,21 @@ function onPresetDelete(presetId: string) {
         v-if="metadataPanelOpen && selectedTrainingRun"
         :checkpoints="selectedTrainingRun.checkpoints"
         @close="metadataPanelOpen = false"
+      />
+      <JobLaunchDialog
+        v-model:show="jobLaunchDialogOpen"
+        :training-run="selectedTrainingRun"
+        @success="onJobCreated"
+      />
+      <JobProgressPanel
+        :show="jobProgressPanelOpen"
+        :jobs="sampleJobs"
+        :job-progress="jobProgress"
+        :loading="jobsLoading"
+        @stop="stopJob"
+        @resume="resumeJob"
+        @refresh="fetchSampleJobs"
+        @close="jobProgressPanelOpen = false"
       />
     </div>
   </NConfigProvider>

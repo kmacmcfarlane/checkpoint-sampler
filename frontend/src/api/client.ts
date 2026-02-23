@@ -1,4 +1,4 @@
-import type { ApiError, ApiErrorResponse, CheckpointMetadata, ComfyUIModelType, ComfyUIModels, ComfyUIStatus, CreateSamplePresetPayload, HealthStatus, ImageMetadata, Preset, PresetMapping, SamplePreset, ScanResult, TrainingRun, UpdateSamplePresetPayload } from './types'
+import type { ApiError, ApiErrorResponse, CheckpointMetadata, ComfyUIModelType, ComfyUIModels, ComfyUIStatus, CreateSampleJobPayload, CreateSamplePresetPayload, HealthStatus, ImageMetadata, Preset, PresetMapping, SampleJob, SampleJobDetail, SamplePreset, ScanResult, TrainingRun, UpdateSamplePresetPayload, WorkflowSummary } from './types'
 
 const DEFAULT_BASE_URL = '/api'
 
@@ -179,6 +179,59 @@ export class ApiClient {
   /** DELETE /api/sample-presets/{id} — delete a sample preset. */
   async deleteSamplePreset(id: string): Promise<void> {
     const url = `${this.baseUrl}/sample-presets/${id}`
+    let response: Response
+    try {
+      response = await fetch(url, { method: 'DELETE' })
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Network error'
+      throw { code: 'NETWORK_ERROR', message } satisfies ApiError
+    }
+    if (!response.ok) {
+      throw await normalizeError(response)
+    }
+  }
+
+  /** GET /api/workflows — list all workflow templates. */
+  async listWorkflows(): Promise<WorkflowSummary[]> {
+    return this.request<WorkflowSummary[]>('/workflows')
+  }
+
+  /** GET /api/sample-jobs — list all sample jobs. */
+  async listSampleJobs(): Promise<SampleJob[]> {
+    return this.request<SampleJob[]>('/sample-jobs')
+  }
+
+  /** GET /api/sample-jobs/{id} — get sample job details with progress metrics. */
+  async getSampleJob(id: string): Promise<SampleJobDetail> {
+    return this.request<SampleJobDetail>(`/sample-jobs/${id}`)
+  }
+
+  /** POST /api/sample-jobs — create and start a new sample job. */
+  async createSampleJob(payload: CreateSampleJobPayload): Promise<SampleJob> {
+    return this.request<SampleJob>('/sample-jobs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+  }
+
+  /** POST /api/sample-jobs/{id}/stop — stop a running sample job. */
+  async stopSampleJob(id: string): Promise<SampleJob> {
+    return this.request<SampleJob>(`/sample-jobs/${id}/stop`, {
+      method: 'POST',
+    })
+  }
+
+  /** POST /api/sample-jobs/{id}/resume — resume a paused sample job. */
+  async resumeSampleJob(id: string): Promise<SampleJob> {
+    return this.request<SampleJob>(`/sample-jobs/${id}/resume`, {
+      method: 'POST',
+    })
+  }
+
+  /** DELETE /api/sample-jobs/{id} — delete a sample job. */
+  async deleteSampleJob(id: string): Promise<void> {
+    const url = `${this.baseUrl}/sample-jobs/${id}`
     let response: Response
     try {
       response = await fetch(url, { method: 'DELETE' })

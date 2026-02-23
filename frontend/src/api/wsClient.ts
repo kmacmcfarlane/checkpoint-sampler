@@ -1,4 +1,4 @@
-import type { FSEventMessage, FSEventType } from './types'
+import type { FSEventMessage, JobProgressMessage } from './types'
 
 /** Options for creating a WebSocket client. */
 export interface WSClientOptions {
@@ -17,10 +17,13 @@ export interface WSClientOptions {
 /** Listener callback for filesystem events. */
 export type FSEventListener = (event: FSEventMessage) => void
 
+/** Listener callback for job progress events. */
+export type JobProgressListener = (event: JobProgressMessage) => void
+
 /** Listener for connection state changes. */
 export type ConnectionStateListener = (connected: boolean) => void
 
-const VALID_EVENT_TYPES: Set<string> = new Set<string>([
+const VALID_FS_EVENT_TYPES: Set<string> = new Set<string>([
   'image_added',
   'image_removed',
   'directory_added',
@@ -48,6 +51,7 @@ export class WSClient {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   private intentionallyClosed = false
   private listeners: FSEventListener[] = []
+  private jobListeners: JobProgressListener[] = []
   private connectionListeners: ConnectionStateListener[] = []
 
   constructor(options: WSClientOptions = {}) {
@@ -67,6 +71,16 @@ export class WSClient {
   /** Remove a filesystem event listener. */
   offEvent(listener: FSEventListener): void {
     this.listeners = this.listeners.filter((l) => l !== listener)
+  }
+
+  /** Register a listener for job progress events. */
+  onJobProgress(listener: JobProgressListener): void {
+    this.jobListeners.push(listener)
+  }
+
+  /** Remove a job progress listener. */
+  offJobProgress(listener: JobProgressListener): void {
+    this.jobListeners = this.jobListeners.filter((l) => l !== listener)
   }
 
   /** Register a listener for connection state changes. */
@@ -135,11 +149,16 @@ export class WSClient {
       return
     }
 
-    if (!isValidFSEvent(parsed)) return
-
-    const event = parsed as FSEventMessage
-    for (const listener of this.listeners) {
-      listener(event)
+    if (isValidFSEvent(parsed)) {
+      const event = parsed as FSEventMessage
+      for (const listener of this.listeners) {
+        listener(event)
+      }
+    } else if (isValidJobProgressEvent(parsed)) {
+      const event = parsed as JobProgressMessage
+      for (const listener of this.jobListeners) {
+        listener(event)
+      }
     }
   }
 
@@ -174,8 +193,23 @@ function isValidFSEvent(data: unknown): data is FSEventMessage {
     typeof data === 'object' &&
     data !== null &&
     typeof (data as FSEventMessage).type === 'string' &&
-    VALID_EVENT_TYPES.has((data as FSEventMessage).type) &&
+    VALID_FS_EVENT_TYPES.has((data as FSEventMessage).type) &&
     typeof (data as FSEventMessage).path === 'string'
+  )
+}
+
+function isValidJobProgressEvent(data: unknown): data is JobProgressMessage {
+  const msg = data as JobProgressMessage
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    msg.type === 'job_progress' &&
+    typeof msg.job_id === 'string' &&
+    typeof msg.status === 'string' &&
+    typeof msg.total_items === 'number' &&
+    typeof msg.completed_items === 'number' &&
+    typeof msg.checkpoints_completed === 'number' &&
+    typeof msg.total_checkpoints === 'number'
   )
 }
 
