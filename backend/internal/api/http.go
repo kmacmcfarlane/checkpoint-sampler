@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"net/http"
+	"os"
 
 	"github.com/gorilla/websocket"
 	gencheckpoints "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/checkpoints"
@@ -76,6 +77,20 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 		CheckOrigin: func(r *http.Request) bool { return true },
 	}
 	wsServer := genwssvr.New(cfg.WSEndpoints, mux, dec, enc, eh, nil, upgrader, nil)
+
+	// Apply Debug middleware when debug mode is enabled (logs full request/response)
+	if cfg.Debug {
+		healthServer.Use(goahttpmiddleware.Debug(mux, os.Stdout))
+		docsServer.Use(goahttpmiddleware.Debug(mux, os.Stdout))
+		trainingRunsServer.Use(goahttpmiddleware.Debug(mux, os.Stdout))
+		presetsServer.Use(goahttpmiddleware.Debug(mux, os.Stdout))
+		samplePresetsServer.Use(goahttpmiddleware.Debug(mux, os.Stdout))
+		sampleJobsServer.Use(goahttpmiddleware.Debug(mux, os.Stdout))
+		checkpointsServer.Use(goahttpmiddleware.Debug(mux, os.Stdout))
+		comfyuiServer.Use(goahttpmiddleware.Debug(mux, os.Stdout))
+		workflowsServer.Use(goahttpmiddleware.Debug(mux, os.Stdout))
+		wsServer.Use(goahttpmiddleware.Debug(mux, os.Stdout))
+	}
 
 	healthServer.Mount(mux)
 	docsServer.Mount(mux)

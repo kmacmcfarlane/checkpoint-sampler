@@ -875,7 +875,7 @@ stories:
   - id: B-016
     title: "Frontend swallows API error messages due to field name mismatch and missing Goa Debug middleware"
     priority: 96
-    status: todo
+    status: done
     requires: []
     acceptance:
       - "FE: Fix ApiErrorResponse type to match Goa's actual JSON field names (lowercase 'name' and 'message', not uppercase 'Code' and 'Message')"

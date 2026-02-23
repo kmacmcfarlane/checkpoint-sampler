@@ -13,11 +13,20 @@ describe('ApiClient', () => {
     globalThis.fetch = originalFetch
   })
 
-  function mockFetch(response: Partial<Response> & { json?: () => Promise<unknown> }) {
+  function mockFetch(response: Partial<Response> & { json?: () => Promise<unknown>; text?: () => Promise<string> }) {
+    const jsonFn = response.json || (() => Promise.resolve({}))
     const defaults = {
       ok: true,
       status: 200,
-      json: () => Promise.resolve({}),
+      json: jsonFn,
+      text: async () => {
+        try {
+          const body = await jsonFn()
+          return JSON.stringify(body)
+        } catch {
+          return ''
+        }
+      },
       ...response,
     }
     ;(globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(defaults)
@@ -68,7 +77,7 @@ describe('ApiClient', () => {
       mockFetch({
         ok: false,
         status: 400,
-        json: () => Promise.resolve({ Code: 'INVALID_NAME', Message: 'Name is required' }),
+        json: () => Promise.resolve({ name: 'INVALID_NAME', message: 'Name is required', id: 'abc123', temporary: false, timeout: false, fault: false }),
       })
 
       let thrown: ApiError | undefined
@@ -85,11 +94,13 @@ describe('ApiClient', () => {
 
     it('throws UNKNOWN_ERROR when error response is not JSON', async () => {
       const client = new ApiClient()
-      mockFetch({
+      const mockResponse = {
         ok: false,
         status: 500,
+        text: () => Promise.resolve('Internal Server Error'),
         json: () => Promise.reject(new Error('not json')),
-      })
+      }
+      ;(globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(mockResponse)
 
       let thrown: ApiError | undefined
       try {
@@ -100,16 +111,18 @@ describe('ApiClient', () => {
 
       expect(thrown).toBeDefined()
       expect(thrown!.code).toBe('UNKNOWN_ERROR')
-      expect(thrown!.message).toBe('Request failed with status 500')
+      expect(thrown!.message).toBe('Request failed with status 500 (body: Internal Server Error)')
     })
 
-    it('throws UNKNOWN_ERROR when error response JSON lacks Code/Message', async () => {
+    it('throws UNKNOWN_ERROR when error response JSON lacks name/message', async () => {
       const client = new ApiClient()
-      mockFetch({
+      const bodyContent = JSON.stringify({ error: 'something' })
+      const mockResponse = {
         ok: false,
         status: 422,
-        json: () => Promise.resolve({ error: 'something' }),
-      })
+        text: () => Promise.resolve(bodyContent),
+      }
+      ;(globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(mockResponse)
 
       let thrown: ApiError | undefined
       try {
@@ -120,7 +133,7 @@ describe('ApiClient', () => {
 
       expect(thrown).toBeDefined()
       expect(thrown!.code).toBe('UNKNOWN_ERROR')
-      expect(thrown!.message).toBe('Request failed with status 422')
+      expect(thrown!.message).toBe(`Request failed with status 422 (body: ${bodyContent})`)
     })
 
     it('throws NETWORK_ERROR when fetch throws', async () => {
@@ -186,7 +199,7 @@ describe('ApiClient', () => {
       mockFetch({
         ok: false,
         status: 500,
-        json: () => Promise.resolve({ Code: 'INTERNAL_ERROR', Message: 'server error' }),
+        json: () => Promise.resolve({ name: 'INTERNAL_ERROR', message: 'server error', id: 'req1', temporary: false, timeout: false, fault: true }),
       })
 
       let thrown: ApiError | undefined
@@ -224,7 +237,7 @@ describe('ApiClient', () => {
       mockFetch({
         ok: false,
         status: 404,
-        json: () => Promise.resolve({ Code: 'not_found', Message: 'Training run not found' }),
+        json: () => Promise.resolve({ name: 'not_found', message: 'Training run not found', id: 'req2', temporary: false, timeout: false, fault: false }),
       })
 
       let thrown: ApiError | undefined
@@ -313,7 +326,7 @@ describe('ApiClient', () => {
       mockFetch({
         ok: false,
         status: 404,
-        json: () => Promise.resolve({ Code: 'not_found', Message: 'Preset not found' }),
+        json: () => Promise.resolve({ name: 'not_found', message: 'Preset not found', id: 'req3', temporary: false, timeout: false, fault: false }),
       })
 
       let thrown: ApiError | undefined
@@ -348,7 +361,7 @@ describe('ApiClient', () => {
       mockFetch({
         ok: false,
         status: 404,
-        json: () => Promise.resolve({ Code: 'not_found', Message: 'Checkpoint not found' }),
+        json: () => Promise.resolve({ name: 'not_found', message: 'Checkpoint not found', id: 'req4', temporary: false, timeout: false, fault: false }),
       })
 
       let thrown: ApiError | undefined
@@ -383,7 +396,7 @@ describe('ApiClient', () => {
       mockFetch({
         ok: false,
         status: 404,
-        json: () => Promise.resolve({ Code: 'not_found', Message: 'Image not found' }),
+        json: () => Promise.resolve({ name: 'not_found', message: 'Image not found', id: 'req5', temporary: false, timeout: false, fault: false }),
       })
 
       let thrown: ApiError | undefined
@@ -414,7 +427,7 @@ describe('ApiClient', () => {
       mockFetch({
         ok: false,
         status: 503,
-        json: () => Promise.resolve({ Code: 'INTERNAL_ERROR', Message: 'unhealthy' }),
+        json: () => Promise.resolve({ name: 'INTERNAL_ERROR', message: 'unhealthy', id: 'req6', temporary: false, timeout: false, fault: true }),
       })
 
       let thrown: ApiError | undefined

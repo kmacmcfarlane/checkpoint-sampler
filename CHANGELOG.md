@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### B-016: Frontend swallows API error messages due to field name mismatch and missing Goa Debug middleware
+- frontend/src/api/types.ts: Fixed ApiErrorResponse interface to match Goa's actual JSON field names (lowercase `name`, `message`, `id`, `temporary`, `timeout`, `fault` instead of uppercase `Code` and `Message`)
+- frontend/src/api/client.ts: Fixed normalizeError() to map Goa's `name` field to ApiError.code and `message` field to ApiError.message; refactored from response.json() to response.text() + JSON.parse() to enable body fallback; unknown errors now include the response body text in the error message for debugging; fixed isApiErrorResponse() type guard to check for lowercase field names
+- frontend/src/api/__tests__/client.test.ts: Updated all error test mocks to use Goa's actual error JSON shape ({ name, message, id, temporary, timeout, fault }); added text() to mock fetch responses; verified body inclusion in unknown error messages; removed unused variable
+- backend/internal/api/http.go: Added Goa Debug middleware (goahttpmiddleware.Debug) to all 10 HTTP servers when cfg.Debug is true; middleware applied via server.Use() before Mount() calls per Goa pattern; logs full HTTP request/response headers and bodies to stdout for development debugging
+- backend/internal/api/http_test.go: Added 2 tests verifying debug middleware wiring — handler works correctly with debug enabled (debug output visible in logs) and disabled (no debug output)
+- 460 backend specs pass across 4 suites with race detection; 520 frontend tests pass; composite coverage 71.5%
+
 ### B-015: Backend service errors not logged to container stdout
 - backend/internal/api/error_logging.go: New ErrorLoggingMiddleware capturing HTTP error responses (4xx/5xx) with structured logrus logging; statusCapturingWriter wraps response writer to intercept status codes and buffer error response bodies; logErrorResponse extracts error messages from JSON response bodies (falls back to truncated raw text for non-JSON); implements http.Hijacker delegation for WebSocket compatibility; logrus warn level for 4xx client errors, error level for 5xx server errors
 - backend/internal/api/http.go: Integrated ErrorLoggingMiddleware into HTTP handler chain after RequestID middleware to ensure request IDs are available for correlation

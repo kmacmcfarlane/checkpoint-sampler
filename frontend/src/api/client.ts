@@ -9,20 +9,24 @@ export interface ApiClientOptions {
 
 /**
  * Normalizes an error from a failed API response into a consistent shape.
- * Attempts to parse the backend's ErrorWithCode JSON; falls back to a generic error.
+ * Attempts to parse the backend's Goa error JSON; falls back to a generic error.
  */
 async function normalizeError(response: Response): Promise<ApiError> {
+  let bodyText: string | undefined
   try {
-    const body: unknown = await response.json()
+    bodyText = await response.text()
+    const body: unknown = JSON.parse(bodyText)
     if (isApiErrorResponse(body)) {
-      return { code: body.Code, message: body.Message }
+      return { code: body.name, message: body.message }
     }
   } catch {
     // response body wasn't JSON — fall through
   }
+  // Include body in error message for debugging unknown errors
+  const bodyInfo = bodyText ? ` (body: ${bodyText})` : ''
   return {
     code: 'UNKNOWN_ERROR',
-    message: `Request failed with status ${response.status}`,
+    message: `Request failed with status ${response.status}${bodyInfo}`,
   }
 }
 
@@ -30,8 +34,8 @@ function isApiErrorResponse(body: unknown): body is ApiErrorResponse {
   return (
     typeof body === 'object' &&
     body !== null &&
-    typeof (body as ApiErrorResponse).Code === 'string' &&
-    typeof (body as ApiErrorResponse).Message === 'string'
+    typeof (body as ApiErrorResponse).name === 'string' &&
+    typeof (body as ApiErrorResponse).message === 'string'
   )
 }
 

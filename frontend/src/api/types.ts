@@ -1,7 +1,11 @@
-/** Error shape returned by the backend API. */
+/** Error shape returned by the backend API (Goa error format). */
 export interface ApiErrorResponse {
-  Code: string
-  Message: string
+  name: string
+  message: string
+  id: string
+  temporary: boolean
+  timeout: boolean
+  fault: boolean
 }
 
 /** Normalized error used throughout the frontend. */
