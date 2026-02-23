@@ -13,7 +13,7 @@ const trainingRuns = ref<TrainingRun[]>([])
 const selectedId = ref<number | null>(null)
 const loading = ref(false)
 const error = ref<string | null>(null)
-const hasSamplesFilter = ref(true)
+const hasSamplesFilter = ref(false)
 const attemptedAutoSelect = ref(false)
 
 const emit = defineEmits<{

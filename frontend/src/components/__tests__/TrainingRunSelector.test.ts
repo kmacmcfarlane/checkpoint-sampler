@@ -110,58 +110,58 @@ describe('TrainingRunSelector', () => {
   })
 
   describe('has-samples filter', () => {
-    it('renders a has-samples NCheckbox that is checked by default', async () => {
+    it('renders a has-samples NCheckbox that is unchecked by default', async () => {
       mockGetTrainingRuns.mockResolvedValue(sampleRuns)
       const wrapper = mount(TrainingRunSelector)
       await flushPromises()
 
       const checkbox = wrapper.findComponent(NCheckbox)
       expect(checkbox.exists()).toBe(true)
-      expect(checkbox.props('checked')).toBe(true)
+      expect(checkbox.props('checked')).toBe(false)
     })
 
-    it('calls getTrainingRuns with has_samples=true on initial load', async () => {
+    it('calls getTrainingRuns with has_samples=false on initial load', async () => {
       mockGetTrainingRuns.mockResolvedValue(sampleRuns)
       mount(TrainingRunSelector)
-      await flushPromises()
-
-      expect(mockGetTrainingRuns).toHaveBeenCalledWith(true)
-    })
-
-    it('re-fetches with has_samples=false when checkbox is unchecked', async () => {
-      mockGetTrainingRuns.mockResolvedValue(sampleRuns)
-      const wrapper = mount(TrainingRunSelector)
-      await flushPromises()
-
-      mockGetTrainingRuns.mockClear()
-      mockGetTrainingRuns.mockResolvedValue(sampleRuns)
-
-      const checkbox = wrapper.findComponent(NCheckbox)
-      checkbox.vm.$emit('update:checked', false)
       await flushPromises()
 
       expect(mockGetTrainingRuns).toHaveBeenCalledWith(false)
     })
 
-    it('re-fetches with has_samples=true when checkbox is re-checked', async () => {
+    it('re-fetches with has_samples=true when checkbox is checked', async () => {
       mockGetTrainingRuns.mockResolvedValue(sampleRuns)
       const wrapper = mount(TrainingRunSelector)
       await flushPromises()
 
-      // Uncheck
-      const checkbox = wrapper.findComponent(NCheckbox)
-      mockGetTrainingRuns.mockClear()
-      mockGetTrainingRuns.mockResolvedValue([])
-      checkbox.vm.$emit('update:checked', false)
-      await flushPromises()
-
-      // Re-check
       mockGetTrainingRuns.mockClear()
       mockGetTrainingRuns.mockResolvedValue(sampleRuns)
+
+      const checkbox = wrapper.findComponent(NCheckbox)
       checkbox.vm.$emit('update:checked', true)
       await flushPromises()
 
       expect(mockGetTrainingRuns).toHaveBeenCalledWith(true)
+    })
+
+    it('re-fetches with has_samples=false when checkbox is unchecked again', async () => {
+      mockGetTrainingRuns.mockResolvedValue(sampleRuns)
+      const wrapper = mount(TrainingRunSelector)
+      await flushPromises()
+
+      // Check
+      const checkbox = wrapper.findComponent(NCheckbox)
+      mockGetTrainingRuns.mockClear()
+      mockGetTrainingRuns.mockResolvedValue([])
+      checkbox.vm.$emit('update:checked', true)
+      await flushPromises()
+
+      // Uncheck
+      mockGetTrainingRuns.mockClear()
+      mockGetTrainingRuns.mockResolvedValue(sampleRuns)
+      checkbox.vm.$emit('update:checked', false)
+      await flushPromises()
+
+      expect(mockGetTrainingRuns).toHaveBeenCalledWith(false)
     })
 
     it('resets selection when filter changes', async () => {
@@ -178,7 +178,7 @@ describe('TrainingRunSelector', () => {
       // Toggle filter
       mockGetTrainingRuns.mockResolvedValue([])
       const checkbox = wrapper.findComponent(NCheckbox)
-      checkbox.vm.$emit('update:checked', false)
+      checkbox.vm.$emit('update:checked', true)
       await flushPromises()
 
       // Select value should be reset to null
@@ -247,7 +247,7 @@ describe('TrainingRunSelector', () => {
       mockGetTrainingRuns.mockClear()
       mockGetTrainingRuns.mockResolvedValue(sampleRuns)
       const checkbox = wrapper.findComponent(NCheckbox)
-      checkbox.vm.$emit('update:checked', false)
+      checkbox.vm.$emit('update:checked', true)
       await flushPromises()
 
       // Auto-select should not trigger again

@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### B-012: Training run selector dropdown not populating
+- frontend/src/components/TrainingRunSelector.vue: Changed default `hasSamplesFilter` from `true` to `false` so all training runs load on page load instead of only those with samples; users can opt-in to filtering by checking the "Has samples" checkbox
+- Root cause: The default filter excluded training runs without samples, leaving the dropdown empty when no runs had sample directories yet
+- Updated 5 TrainingRunSelector tests to reflect the new default behavior
+- 255 backend specs pass; 465 frontend tests pass
+
 ### S-036: Structured logging with logrus
 - backend/go.mod: Added logrus v1.9.4 dependency
 - backend/cmd/server/main.go: LOG_LEVEL env var parsing (default: info) with logrus TextFormatter; replaced stdlib log with structured logrus logger throughout initialization

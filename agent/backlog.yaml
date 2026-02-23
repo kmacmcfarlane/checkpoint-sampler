@@ -714,7 +714,7 @@ stories:
   - id: B-012
     title: "Training run selector dropdown not populating"
     priority: 99
-    status: todo
+    status: done
     requires: [S-036]
     acceptance:
       - "FE/BE: Investigate why the training run selector dropdown is empty (no options shown)"
