@@ -668,7 +668,7 @@ stories:
   - id: S-030
     title: "ComfyUI configuration, client, and model discovery"
     priority: -1
-    status: todo
+    status: done
     requires: [S-002]
     acceptance:
       - "BE: Add comfyui.host (default localhost), comfyui.port (default 8188), and workflow_dir (default ./workflows) to config.yaml schema"

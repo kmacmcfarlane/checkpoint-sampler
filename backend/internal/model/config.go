@@ -7,6 +7,15 @@ type Config struct {
 	Port           int
 	IPAddress      string
 	DBPath         string
+	ComfyUI        *ComfyUIConfig
+}
+
+// ComfyUIConfig represents the ComfyUI integration configuration.
+// This section is optional; if absent, ComfyUI features are disabled.
+type ComfyUIConfig struct {
+	Host        string
+	Port        int
+	WorkflowDir string
 }
 
 // DimensionType indicates how dimension values are sorted.

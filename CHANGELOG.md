@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-030: ComfyUI configuration, client, and model discovery
+- backend/internal/model/config.go: Added ComfyUIConfig domain type (Host, Port, WorkflowDir) without serialization tags
+- backend/internal/config/config.go: Added optional comfyui YAML section parsing with defaults (localhost:8188, ./workflows); validation rejects invalid port range (1-65535)
+- backend/internal/store/comfyui_client.go: ComfyUI HTTP client with HealthCheck (GET /system_stats), SubmitPrompt (POST /prompt), GetHistory (GET /history), GetQueueStatus (GET /queue), GetObjectInfo (GET /object_info/{node_type}); custom QueueItem UnmarshalJSON for ComfyUI's array-based response format
+- backend/internal/store/comfyui_ws.go: ComfyUI WebSocket client for real-time progress and execution events; connect, disconnect, event handler registration, goroutine-based read loop
+- backend/internal/service/comfyui_models.go: Model discovery service querying ComfyUI for available VAEs (VAELoader), CLIPs (CLIPLoader), UNETs (UNETLoader), samplers and schedulers (KSampler); depends on ObjectInfoGetter interface for testability
+- backend/internal/api/design/comfyui.go: Goa DSL defining comfyui service with status (GET /api/comfyui/status) and models (GET /api/comfyui/models?type=) endpoints
+- backend/internal/api/comfyui.go: ComfyUIService implementation using ComfyUIHealthChecker and ComfyUIModelLister interfaces; graceful degradation when ComfyUI is disabled (returns enabled:false or empty models)
+- backend/cmd/server/main.go: Wired ComfyUI client, model discovery, and API service; disabled when config section absent
+- frontend/src/components/ComfyUIStatus.vue: Connection status indicator using NTag with success/default type; polls /api/comfyui/status every 10 seconds; hidden when ComfyUI is disabled
+- frontend/src/api/client.ts: Added getComfyUIStatus() and getComfyUIModels(type) methods
+- frontend/src/api/types.ts: Added ComfyUIStatus, ComfyUIModels, and ComfyUIModelType types
+- 3 config tests: ComfyUI defaults, optional section, port validation
+- 17 store tests: HTTP client methods with httptest.NewServer (health check, submit prompt, history, queue status, object info, QueueItem deserialization)
+- 18 service tests: model discovery for all types, input parsing, error handling, node type mapping (DescribeTable)
+- 9 API tests: disabled/enabled status, model queries for all types, error handling
+- 6 frontend tests: hidden state, online/offline status, periodic polling, error handling, cleanup
+- 249 backend specs pass across 4 suites; 465 frontend tests pass across 24 test files
+
 ### S-029: Collapse all dimension filters into single expandable 'Filters' section
 - frontend/src/App.vue: Added unified 'Filters' section with expand/collapse toggle wrapping all DimensionFilter components; collapsed by default; clickable header with rotating arrow icon; accessible aria-expanded and aria-label attributes; theme-aware styling using CSS custom properties
 - 6 new App component tests: filters section header rendering, collapsed by default, expand on click, collapse on second click, accessible aria-label, arrow rotation class

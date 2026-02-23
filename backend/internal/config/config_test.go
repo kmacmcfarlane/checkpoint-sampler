@@ -234,4 +234,110 @@ sample_dir: "` + filePath + `"
 			Expect(err.Error()).To(ContainSubstring("not a directory"))
 		})
 	})
+
+	Describe("ComfyUI configuration", func() {
+		Context("when comfyui section is present", func() {
+			It("parses comfyui config with all fields", func() {
+				yamlStr := `
+checkpoint_dirs:
+  - "` + filepath.Join(tmpDir, "checkpoints") + `"
+sample_dir: "` + sampleDir + `"
+comfyui:
+  host: "192.168.1.100"
+  port: 8188
+  workflow_dir: "/custom/workflows"
+`
+				cfg, err := config.LoadFromString(yamlStr)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(cfg.ComfyUI).NotTo(BeNil())
+				Expect(cfg.ComfyUI.Host).To(Equal("192.168.1.100"))
+				Expect(cfg.ComfyUI.Port).To(Equal(8188))
+				Expect(cfg.ComfyUI.WorkflowDir).To(Equal("/custom/workflows"))
+			})
+
+			It("uses default host when not specified", func() {
+				yamlStr := `
+checkpoint_dirs:
+  - "` + filepath.Join(tmpDir, "checkpoints") + `"
+sample_dir: "` + sampleDir + `"
+comfyui:
+  port: 8188
+`
+				cfg, err := config.LoadFromString(yamlStr)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(cfg.ComfyUI).NotTo(BeNil())
+				Expect(cfg.ComfyUI.Host).To(Equal("localhost"))
+			})
+
+			It("uses default port when not specified", func() {
+				yamlStr := `
+checkpoint_dirs:
+  - "` + filepath.Join(tmpDir, "checkpoints") + `"
+sample_dir: "` + sampleDir + `"
+comfyui:
+  host: "localhost"
+`
+				cfg, err := config.LoadFromString(yamlStr)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(cfg.ComfyUI).NotTo(BeNil())
+				Expect(cfg.ComfyUI.Port).To(Equal(8188))
+			})
+
+			It("uses default workflow_dir when not specified", func() {
+				yamlStr := `
+checkpoint_dirs:
+  - "` + filepath.Join(tmpDir, "checkpoints") + `"
+sample_dir: "` + sampleDir + `"
+comfyui:
+  host: "localhost"
+  port: 8188
+`
+				cfg, err := config.LoadFromString(yamlStr)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(cfg.ComfyUI).NotTo(BeNil())
+				Expect(cfg.ComfyUI.WorkflowDir).To(Equal("./workflows"))
+			})
+		})
+
+		Context("when comfyui section is absent", func() {
+			It("sets ComfyUI to nil", func() {
+				yamlStr := `
+checkpoint_dirs:
+  - "` + filepath.Join(tmpDir, "checkpoints") + `"
+sample_dir: "` + sampleDir + `"
+`
+				cfg, err := config.LoadFromString(yamlStr)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(cfg.ComfyUI).To(BeNil())
+			})
+		})
+
+		Context("comfyui validation errors", func() {
+			It("rejects invalid port (too low)", func() {
+				yamlStr := `
+checkpoint_dirs:
+  - "` + filepath.Join(tmpDir, "checkpoints") + `"
+sample_dir: "` + sampleDir + `"
+comfyui:
+  port: 0
+`
+				_, err := config.LoadFromString(yamlStr)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("comfyui.port must be between 1 and 65535"))
+			})
+
+			It("rejects invalid port (too high)", func() {
+				yamlStr := `
+checkpoint_dirs:
+  - "` + filepath.Join(tmpDir, "checkpoints") + `"
+sample_dir: "` + sampleDir + `"
+comfyui:
+  port: 70000
+`
+				_, err := config.LoadFromString(yamlStr)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("comfyui.port must be between 1 and 65535"))
+			})
+		})
+	})
 })
