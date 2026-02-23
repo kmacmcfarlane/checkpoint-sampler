@@ -13,9 +13,9 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api"
-	gencheckpoints "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/checkpoints"
-	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/service"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api"
+	gencheckpoints "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/checkpoints"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
 )
 
 // fakeMetadataReader implements service.CheckpointMetadataReader for testing.

@@ -11,17 +11,17 @@ import (
 	"syscall"
 	"time"
 
-	gencheckpoints "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/checkpoints"
-	gencomfyui "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/comfyui"
-	gendocs "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/docs"
-	genhealth "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/health"
-	genpresets "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/presets"
-	gentrainingruns "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/training_runs"
-	genws "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/ws"
-	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api"
-	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/config"
-	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/service"
-	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/store"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api"
+	gencheckpoints "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/checkpoints"
+	gencomfyui "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/comfyui"
+	gendocs "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/docs"
+	genhealth "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/health"
+	genpresets "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/presets"
+	gentrainingruns "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/training_runs"
+	genws "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/ws"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/config"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/store"
 )
 
 func main() {

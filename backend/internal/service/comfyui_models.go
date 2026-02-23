@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/store"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/store"
 )
 
 // ComfyUIModelType represents the type of model to query.

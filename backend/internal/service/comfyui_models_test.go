@@ -7,8 +7,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/service"
-	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/store"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/store"
 )
 
 // mockObjectInfoGetter implements the ObjectInfoGetter interface for testing
@@ -25,7 +25,7 @@ func (m *mockObjectInfoGetter) GetObjectInfo(ctx context.Context, nodeType strin
 
 var _ = Describe("ComfyUIModelDiscovery", func() {
 	var (
-		ctx      context.Context
+		ctx        context.Context
 		mockGetter *mockObjectInfoGetter
 		discovery  *service.ComfyUIModelDiscovery
 	)
@@ -303,11 +303,11 @@ var _ = Describe("ComfyUIModelDiscovery", func() {
 						Input: store.ObjectInfoInput{
 							Required: map[string][]interface{}{
 								// Return appropriate field based on node type
-								"vae_name":      {[]interface{}{"test"}},
-								"clip_name":     {[]interface{}{"test"}},
-								"unet_name":     {[]interface{}{"test"}},
-								"sampler_name":  {[]interface{}{"test"}},
-								"scheduler":     {[]interface{}{"test"}},
+								"vae_name":     {[]interface{}{"test"}},
+								"clip_name":    {[]interface{}{"test"}},
+								"unet_name":    {[]interface{}{"test"}},
+								"sampler_name": {[]interface{}{"test"}},
+								"scheduler":    {[]interface{}{"test"}},
 							},
 						},
 					}, nil

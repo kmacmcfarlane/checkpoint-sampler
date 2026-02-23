@@ -7,15 +7,15 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/model"
-	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/service"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
 )
 
 // fakePresetStore is an in-memory test double for service.PresetStore.
 type fakePresetStore struct {
-	presets map[string]model.Preset
-	listErr error
-	getErr  error
+	presets   map[string]model.Preset
+	listErr   error
+	getErr    error
 	createErr error
 	updateErr error
 	deleteErr error

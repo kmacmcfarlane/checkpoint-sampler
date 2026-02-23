@@ -3,8 +3,8 @@ package api
 import (
 	"context"
 
-	gencomfyui "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/comfyui"
-	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/service"
+	gencomfyui "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/comfyui"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
 )
 
 // ComfyUIHealthChecker defines the interface for checking ComfyUI health.

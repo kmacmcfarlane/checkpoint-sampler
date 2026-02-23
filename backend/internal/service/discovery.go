@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/model"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
 )
 
 // stepSuffixPattern matches -step<digits> at the end of a base name.

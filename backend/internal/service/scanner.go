@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/model"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
 )
 
 // batchPattern matches the _NNNNN_ suffix in ComfyUI filenames.

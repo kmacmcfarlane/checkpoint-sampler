@@ -3,7 +3,7 @@ package api
 import (
 	"context"
 
-	genhealth "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/health"
+	genhealth "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/health"
 )
 
 // HealthService implements the generated health service interface.

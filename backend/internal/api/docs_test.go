@@ -6,7 +6,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api"
 )
 
 var _ = Describe("DocsService", func() {

@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/model"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
 )
 
 // PresetStore defines the persistence operations the preset service needs.

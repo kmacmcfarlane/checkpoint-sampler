@@ -4,7 +4,7 @@ import (
 	"log"
 	"sync"
 
-	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/model"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
 )
 
 // HubClient is a connected WebSocket client that can receive events.

@@ -4,7 +4,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/service"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
 )
 
 // fakeCheckpointFS implements service.CheckpointFileSystem for testing.

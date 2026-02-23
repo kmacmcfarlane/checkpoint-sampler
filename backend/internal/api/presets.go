@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	genpresets "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/presets"
-	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/model"
-	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/service"
+	genpresets "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/presets"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
 )
 
 // PresetsService implements the generated presets service interface.

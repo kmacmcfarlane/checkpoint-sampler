@@ -1,4 +1,4 @@
-module github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend
+module github.com/kmacmcfarlane/checkpoint-sampler/backend
 
 go 1.25.6
 

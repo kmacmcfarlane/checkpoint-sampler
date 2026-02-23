@@ -6,15 +6,15 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/model"
-	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/service"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
 )
 
 // fakeHubClient implements service.HubClient for testing.
 type fakeHubClient struct {
-	mu       sync.Mutex
-	events   []model.FSEvent
-	sendOK   bool
+	mu     sync.Mutex
+	events []model.FSEvent
+	sendOK bool
 }
 
 func newFakeHubClient(sendOK bool) *fakeHubClient {

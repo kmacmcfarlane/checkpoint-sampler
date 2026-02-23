@@ -5,21 +5,21 @@ import (
 	"log"
 	"net/http"
 
-	gencheckpoints "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/checkpoints"
-	gencomfyui "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/comfyui"
-	gendocs "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/docs"
-	genhealth "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/health"
-	gencheckpointssvr "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/http/checkpoints/server"
-	gencomfyuisvr "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/http/comfyui/server"
-	gendocssvr "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/http/docs/server"
-	genhealthsvr "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/http/health/server"
-	genpresetssvr "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/http/presets/server"
-	gentrainingrunssvr "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/http/training_runs/server"
-	genwssvr "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/http/ws/server"
-	genpresets "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/presets"
-	gentrainingruns "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/training_runs"
-	genws "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/ws"
 	"github.com/gorilla/websocket"
+	gencheckpoints "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/checkpoints"
+	gencomfyui "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/comfyui"
+	gendocs "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/docs"
+	genhealth "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/health"
+	gencheckpointssvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/checkpoints/server"
+	gencomfyuisvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/comfyui/server"
+	gendocssvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/docs/server"
+	genhealthsvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/health/server"
+	genpresetssvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/presets/server"
+	gentrainingrunssvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/training_runs/server"
+	genwssvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/ws/server"
+	genpresets "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/presets"
+	gentrainingruns "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/training_runs"
+	genws "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/ws"
 	goahttp "goa.design/goa/v3/http"
 	goahttpmiddleware "goa.design/goa/v3/http/middleware"
 	goamiddleware "goa.design/goa/v3/middleware"
@@ -27,17 +27,17 @@ import (
 
 // HTTPHandlerConfig holds the dependencies needed by NewHTTPHandler.
 type HTTPHandlerConfig struct {
-	HealthEndpoints       *genhealth.Endpoints
-	DocsEndpoints         *gendocs.Endpoints
-	TrainingRunEndpoints  *gentrainingruns.Endpoints
-	PresetsEndpoints      *genpresets.Endpoints
-	CheckpointsEndpoints  *gencheckpoints.Endpoints
-	ComfyUIEndpoints      *gencomfyui.Endpoints
-	WSEndpoints           *genws.Endpoints
-	ImageHandler          *ImageHandler
-	SwaggerUIDir          http.FileSystem
-	Logger                *log.Logger
-	Debug                 bool
+	HealthEndpoints      *genhealth.Endpoints
+	DocsEndpoints        *gendocs.Endpoints
+	TrainingRunEndpoints *gentrainingruns.Endpoints
+	PresetsEndpoints     *genpresets.Endpoints
+	CheckpointsEndpoints *gencheckpoints.Endpoints
+	ComfyUIEndpoints     *gencomfyui.Endpoints
+	WSEndpoints          *genws.Endpoints
+	ImageHandler         *ImageHandler
+	SwaggerUIDir         http.FileSystem
+	Logger               *log.Logger
+	Debug                bool
 }
 
 // NewHTTPHandler creates a fully wired http.Handler with all Goa services,

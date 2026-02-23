@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/model"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
 )
 
 // presetEntity is the persistence representation of a preset.

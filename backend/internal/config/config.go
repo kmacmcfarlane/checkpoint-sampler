@@ -7,16 +7,16 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/model"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
 )
 
 // yamlConfig is the raw YAML-tagged representation of the config file.
 type yamlConfig struct {
-	CheckpointDirs []string         `yaml:"checkpoint_dirs"`
-	SampleDir      string           `yaml:"sample_dir"`
-	Port           *int             `yaml:"port"`
-	IPAddress      string           `yaml:"ip_address"`
-	DBPath         string           `yaml:"db_path"`
+	CheckpointDirs []string           `yaml:"checkpoint_dirs"`
+	SampleDir      string             `yaml:"sample_dir"`
+	Port           *int               `yaml:"port"`
+	IPAddress      string             `yaml:"ip_address"`
+	DBPath         string             `yaml:"db_path"`
 	ComfyUI        *yamlComfyUIConfig `yaml:"comfyui"`
 }
 

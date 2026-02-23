@@ -3,9 +3,9 @@ package api
 import (
 	"context"
 
-	genws "github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/api/gen/ws"
-	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/model"
-	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/service"
+	genws "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/ws"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
 )
 
 // WSService implements the generated ws service interface.

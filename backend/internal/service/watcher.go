@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	"github.com/fsnotify/fsnotify"
-	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/model"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
 )
 
 // WatcherEventSink receives filesystem events from the watcher.
@@ -31,7 +31,7 @@ type fsnotifyAdapter struct {
 	w *fsnotify.Watcher
 }
 
-func (a *fsnotifyAdapter) Add(name string) error        { return a.w.Add(name) }
+func (a *fsnotifyAdapter) Add(name string) error         { return a.w.Add(name) }
 func (a *fsnotifyAdapter) Remove(name string) error      { return a.w.Remove(name) }
 func (a *fsnotifyAdapter) Events() <-chan fsnotify.Event { return a.w.Events }
 func (a *fsnotifyAdapter) Errors() <-chan error          { return a.w.Errors }

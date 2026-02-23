@@ -8,18 +8,18 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/model"
-	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/service"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
 )
 
 // fakeNotifier implements service.WatcherNotifier for testing.
 type fakeNotifier struct {
-	mu        sync.Mutex
-	events    chan fsnotify.Event
-	errors    chan error
-	added     []string
-	removed   []string
-	closed    bool
+	mu      sync.Mutex
+	events  chan fsnotify.Event
+	errors  chan error
+	added   []string
+	removed []string
+	closed  bool
 }
 
 func newFakeNotifier() *fakeNotifier {

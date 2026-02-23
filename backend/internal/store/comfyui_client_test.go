@@ -10,7 +10,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/store"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/store"
 )
 
 var _ = Describe("ComfyUIHTTPClient", func() {
@@ -266,9 +266,9 @@ var _ = Describe("ComfyUIHTTPClient HTTP operations", func() {
 								},
 							},
 						},
-						"output": []string{"VAE"},
+						"output":   []string{"VAE"},
 						"category": "loaders",
-						"name": "VAELoader",
+						"name":     "VAELoader",
 					},
 				})
 			}))

@@ -9,7 +9,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/service"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
 )
 
 // buildPNGWithTextChunks creates a minimal PNG file with the given tEXt chunks.
@@ -21,13 +21,13 @@ func buildPNGWithTextChunks(texts map[string]string) []byte {
 
 	// Minimal IHDR chunk (13 bytes)
 	ihdr := new(bytes.Buffer)
-	binary.Write(ihdr, binary.BigEndian, uint32(1))  // width
-	binary.Write(ihdr, binary.BigEndian, uint32(1))  // height
-	ihdr.WriteByte(8)                                 // bit depth
-	ihdr.WriteByte(2)                                 // color type (RGB)
-	ihdr.WriteByte(0)                                 // compression
-	ihdr.WriteByte(0)                                 // filter
-	ihdr.WriteByte(0)                                 // interlace
+	binary.Write(ihdr, binary.BigEndian, uint32(1)) // width
+	binary.Write(ihdr, binary.BigEndian, uint32(1)) // height
+	ihdr.WriteByte(8)                               // bit depth
+	ihdr.WriteByte(2)                               // color type (RGB)
+	ihdr.WriteByte(0)                               // compression
+	ihdr.WriteByte(0)                               // filter
+	ihdr.WriteByte(0)                               // interlace
 	writeChunk(buf, "IHDR", ihdr.Bytes())
 
 	// tEXt chunks

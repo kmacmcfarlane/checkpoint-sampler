@@ -7,7 +7,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/kmacmcfarlane/checkpoint-sampler/local-web-app/backend/internal/config"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/config"
 )
 
 var _ = Describe("Config", func() {
