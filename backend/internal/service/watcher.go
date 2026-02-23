@@ -1,7 +1,6 @@
 package service
 
 import (
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,6 +8,7 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
+	"github.com/sirupsen/logrus"
 )
 
 // WatcherEventSink receives filesystem events from the watcher.
@@ -63,20 +63,20 @@ type Watcher struct {
 	sink      WatcherEventSink
 	sampleDir string
 	isDir     IsDirFunc
-	logger    *log.Logger
+	logger    *logrus.Entry
 	done      chan struct{}
 	stopped   chan struct{}
 	watching  bool
 }
 
 // NewWatcher creates a new Watcher.
-func NewWatcher(notifier WatcherNotifier, sink WatcherEventSink, sampleDir string, logger *log.Logger) *Watcher {
+func NewWatcher(notifier WatcherNotifier, sink WatcherEventSink, sampleDir string, logger *logrus.Logger) *Watcher {
 	return &Watcher{
 		notifier:  notifier,
 		sink:      sink,
 		sampleDir: sampleDir,
 		isDir:     OSIsDir,
-		logger:    logger,
+		logger:    logger.WithField("component", "watcher"),
 	}
 }
 
@@ -88,6 +88,9 @@ func (w *Watcher) SetIsDirFunc(fn IsDirFunc) {
 // WatchTrainingRun starts watching directories belonging to the given training run.
 // Any previously watched directories are cleared first.
 func (w *Watcher) WatchTrainingRun(run model.TrainingRun) error {
+	w.logger.WithField("run_name", run.Name).Trace("entering WatchTrainingRun")
+	defer w.logger.Trace("returning from WatchTrainingRun")
+
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
@@ -107,11 +110,19 @@ func (w *Watcher) WatchTrainingRun(run model.TrainingRun) error {
 	// Also watch the sample_dir root for new checkpoint directories.
 	dirs = append(dirs, w.sampleDir)
 
+	w.logger.WithFields(logrus.Fields{
+		"run_name":  run.Name,
+		"dir_count": len(dirs),
+	}).Debug("prepared directory watch list")
+
 	for _, dir := range dirs {
 		if err := w.notifier.Add(dir); err != nil {
-			if w.logger != nil {
-				w.logger.Printf("watcher: failed to watch %s: %v", dir, err)
-			}
+			w.logger.WithFields(logrus.Fields{
+				"dir":   dir,
+				"error": err.Error(),
+			}).Error("failed to watch directory")
+		} else {
+			w.logger.WithField("dir", dir).Debug("watching directory")
 		}
 	}
 
@@ -120,6 +131,8 @@ func (w *Watcher) WatchTrainingRun(run model.TrainingRun) error {
 	w.stopped = make(chan struct{})
 	w.watching = true
 	go w.loop()
+
+	w.logger.WithField("run_name", run.Name).Info("started watching training run directories")
 
 	return nil
 }
@@ -142,7 +155,9 @@ func (w *Watcher) stopLocked() {
 
 // loop processes fsnotify events and forwards them to the sink.
 func (w *Watcher) loop() {
+	w.logger.Trace("entering watcher event loop")
 	defer close(w.stopped)
+	defer w.logger.Trace("exiting watcher event loop")
 
 	for {
 		select {
@@ -157,23 +172,33 @@ func (w *Watcher) loop() {
 			if !ok {
 				return
 			}
-			if w.logger != nil {
-				w.logger.Printf("watcher: error: %v", err)
-			}
+			w.logger.WithError(err).Error("filesystem watcher error")
 		}
 	}
 }
 
 // handleEvent converts an fsnotify event into a model.FSEvent and broadcasts it.
 func (w *Watcher) handleEvent(ev fsnotify.Event) {
+	w.logger.WithFields(logrus.Fields{
+		"event_name": ev.Name,
+		"event_op":   ev.Op.String(),
+	}).Trace("entering handleEvent")
+	defer w.logger.Trace("returning from handleEvent")
+
 	relPath, err := filepath.Rel(w.sampleDir, ev.Name)
 	if err != nil {
-		if w.logger != nil {
-			w.logger.Printf("watcher: failed to get relative path for %s: %v", ev.Name, err)
-		}
+		w.logger.WithFields(logrus.Fields{
+			"absolute_path": ev.Name,
+			"error":         err.Error(),
+		}).Error("failed to compute relative path for filesystem event")
 		return
 	}
 	relPath = filepath.ToSlash(relPath)
+
+	w.logger.WithFields(logrus.Fields{
+		"event_op":      ev.Op.String(),
+		"relative_path": relPath,
+	}).Debug("processing filesystem event")
 
 	switch {
 	case ev.Op.Has(fsnotify.Create):
@@ -182,16 +207,19 @@ func (w *Watcher) handleEvent(ev fsnotify.Event) {
 				Type: model.EventImageAdded,
 				Path: relPath,
 			})
+			w.logger.WithField("image_path", relPath).Info("image added")
 		} else if w.isDir(ev.Name) {
 			w.sink.Broadcast(model.FSEvent{
 				Type: model.EventDirectoryAdded,
 				Path: relPath,
 			})
+			w.logger.WithField("directory_path", relPath).Info("directory added")
 			// Watch the new directory for images
 			if err := w.notifier.Add(ev.Name); err != nil {
-				if w.logger != nil {
-					w.logger.Printf("watcher: failed to add watch for new dir %s: %v", ev.Name, err)
-				}
+				w.logger.WithFields(logrus.Fields{
+					"directory": ev.Name,
+					"error":     err.Error(),
+				}).Error("failed to add watch for new directory")
 			}
 		}
 	case ev.Op.Has(fsnotify.Remove) || ev.Op.Has(fsnotify.Rename):
@@ -200,6 +228,7 @@ func (w *Watcher) handleEvent(ev fsnotify.Event) {
 				Type: model.EventImageRemoved,
 				Path: relPath,
 			})
+			w.logger.WithField("image_path", relPath).Info("image removed")
 		}
 	}
 }

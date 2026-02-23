@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/sirupsen/logrus"
 )
 
 // CheckpointMetadataReader defines filesystem operations needed to read checkpoint files.
@@ -20,13 +22,15 @@ type CheckpointMetadataReader interface {
 type CheckpointMetadataService struct {
 	reader         CheckpointMetadataReader
 	checkpointDirs []string
+	logger         *logrus.Entry
 }
 
 // NewCheckpointMetadataService creates a checkpoint metadata service.
-func NewCheckpointMetadataService(reader CheckpointMetadataReader, checkpointDirs []string) *CheckpointMetadataService {
+func NewCheckpointMetadataService(reader CheckpointMetadataReader, checkpointDirs []string, logger *logrus.Logger) *CheckpointMetadataService {
 	return &CheckpointMetadataService{
 		reader:         reader,
 		checkpointDirs: checkpointDirs,
+		logger:         logger.WithField("component", "checkpoint_metadata"),
 	}
 }
 
@@ -34,22 +38,42 @@ func NewCheckpointMetadataService(reader CheckpointMetadataReader, checkpointDir
 // ss_* metadata fields. The filename is resolved against checkpoint_dirs.
 // Returns an empty map (not an error) when no ss_* fields are present.
 func (s *CheckpointMetadataService) GetMetadata(filename string) (map[string]string, error) {
+	s.logger.WithField("filename", filename).Trace("entering GetMetadata")
+	defer s.logger.Trace("returning from GetMetadata")
+
 	// Validate filename is safe (no path traversal)
 	if !isFilenameSafe(filename) {
+		s.logger.WithField("filename", filename).Warn("invalid filename rejected")
 		return nil, fmt.Errorf("invalid filename: %q", filename)
 	}
 
 	// Find the file across checkpoint_dirs
 	filePath, err := s.resolveCheckpointFile(filename)
 	if err != nil {
+		s.logger.WithFields(logrus.Fields{
+			"filename": filename,
+			"error":    err.Error(),
+		}).Error("failed to resolve checkpoint file")
 		return nil, err
 	}
+	s.logger.WithFields(logrus.Fields{
+		"filename": filename,
+		"path":     filePath,
+	}).Debug("checkpoint file resolved")
 
 	// Parse safetensors header
 	metadata, err := parseSafetensorsMetadata(s.reader, filePath)
 	if err != nil {
+		s.logger.WithFields(logrus.Fields{
+			"filename": filename,
+			"error":    err.Error(),
+		}).Error("failed to parse safetensors metadata")
 		return nil, fmt.Errorf("parsing safetensors header: %w", err)
 	}
+	s.logger.WithFields(logrus.Fields{
+		"filename":       filename,
+		"metadata_count": len(metadata),
+	}).Debug("safetensors metadata extracted")
 
 	return metadata, nil
 }

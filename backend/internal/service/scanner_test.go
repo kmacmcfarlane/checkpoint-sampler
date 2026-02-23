@@ -2,9 +2,11 @@ package service_test
 
 import (
 	"fmt"
+	"io"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/sirupsen/logrus"
 
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
@@ -35,12 +37,15 @@ var _ = Describe("Scanner", func() {
 		fs        *fakeScannerFS
 		scanner   *service.Scanner
 		sampleDir string
+		logger    *logrus.Logger
 	)
 
 	BeforeEach(func() {
 		sampleDir = "/samples"
 		fs = newFakeScannerFS()
-		scanner = service.NewScanner(fs, sampleDir)
+		logger = logrus.New()
+		logger.SetOutput(io.Discard)
+		scanner = service.NewScanner(fs, sampleDir, logger)
 	})
 
 	Describe("ScanTrainingRun", func() {

@@ -3,12 +3,14 @@ package store_test
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/sirupsen/logrus"
 
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/store"
 )
@@ -70,10 +72,13 @@ var _ = Describe("ComfyUIHTTPClient HTTP operations", func() {
 	var (
 		ctx    context.Context
 		server *httptest.Server
+		logger *logrus.Logger
 	)
 
 	BeforeEach(func() {
 		ctx = context.Background()
+		logger = logrus.New()
+		logger.SetOutput(io.Discard)
 	})
 
 	AfterEach(func() {
@@ -83,7 +88,7 @@ var _ = Describe("ComfyUIHTTPClient HTTP operations", func() {
 	})
 
 	createClient := func(s *httptest.Server) *store.ComfyUIHTTPClient {
-		return store.NewComfyUIHTTPClient("127.0.0.1", s.Listener.Addr().(*net.TCPAddr).Port)
+		return store.NewComfyUIHTTPClient("127.0.0.1", s.Listener.Addr().(*net.TCPAddr).Port, logger)
 	}
 
 	Describe("HealthCheck", func() {
@@ -112,7 +117,7 @@ var _ = Describe("ComfyUIHTTPClient HTTP operations", func() {
 
 		It("fails when server is unreachable", func() {
 			// Create client pointing to non-existent server
-			client := store.NewComfyUIHTTPClient("localhost", 19999)
+			client := store.NewComfyUIHTTPClient("localhost", 19999, logger)
 			err := client.HealthCheck(ctx)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("health check failed"))

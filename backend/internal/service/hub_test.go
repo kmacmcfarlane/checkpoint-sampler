@@ -1,10 +1,12 @@
 package service_test
 
 import (
+	"io"
 	"sync"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/sirupsen/logrus"
 
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
@@ -37,10 +39,15 @@ func (c *fakeHubClient) getEvents() []model.FSEvent {
 }
 
 var _ = Describe("Hub", func() {
-	var hub *service.Hub
+	var (
+		hub    *service.Hub
+		logger *logrus.Logger
+	)
 
 	BeforeEach(func() {
-		hub = service.NewHub(nil)
+		logger = logrus.New()
+		logger.SetOutput(io.Discard) // Silence logs in tests
+		hub = service.NewHub(logger)
 	})
 
 	Describe("Register and Unregister", func() {

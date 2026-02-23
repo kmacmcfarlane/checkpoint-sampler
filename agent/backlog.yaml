@@ -691,7 +691,7 @@ stories:
   - id: S-036
     title: "Structured logging with logrus"
     priority: 100
-    status: todo
+    status: done
     requires: []
     acceptance:
       - "BE: Add logrus dependency to the backend"

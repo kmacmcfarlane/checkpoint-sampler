@@ -4,9 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"io"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/sirupsen/logrus"
 
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api"
 	genpresets "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/presets"
@@ -73,12 +75,15 @@ var _ = Describe("PresetsService", func() {
 		store   *fakePresetStore
 		presets *api.PresetsService
 		ctx     context.Context
+		logger  *logrus.Logger
 	)
 
 	BeforeEach(func() {
 		ctx = context.Background()
 		store = newFakePresetStore()
-		presetSvc := service.NewPresetService(store)
+		logger = logrus.New()
+		logger.SetOutput(io.Discard) // Silence logs in tests
+		presetSvc := service.NewPresetService(store, logger)
 		presets = api.NewPresetsService(presetSvc)
 	})
 

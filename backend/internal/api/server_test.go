@@ -12,6 +12,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/sirupsen/logrus"
 
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api"
 	gendocs "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/docs"
@@ -31,6 +32,7 @@ var _ = Describe("Server integration", func() {
 		discoveryFS *fakeDiscoveryFS
 		scanFS      *fakeScanFS
 		sampleDir   string
+		logger      *logrus.Logger
 	)
 
 	specJSON := []byte(`{"openapi":"3.0.0","info":{"title":"Checkpoint Sampler","version":"0.1.0"}}`)
@@ -39,6 +41,8 @@ var _ = Describe("Server integration", func() {
 		sampleDir = "/samples"
 		discoveryFS = newFakeDiscoveryFS()
 		scanFS = newFakeScanFS()
+		logger = logrus.New()
+		logger.SetOutput(io.Discard)
 
 		// Set up a default training run for integration tests
 		discoveryFS.files["/checkpoints"] = []string{
@@ -46,8 +50,8 @@ var _ = Describe("Server integration", func() {
 		}
 		discoveryFS.dirs["/samples/test-run-step00001000.safetensors"] = true
 
-		discovery := service.NewDiscoveryService(discoveryFS, []string{"/checkpoints"}, sampleDir)
-		scanner := service.NewScanner(scanFS, sampleDir)
+		discovery := service.NewDiscoveryService(discoveryFS, []string{"/checkpoints"}, sampleDir, logger)
+		scanner := service.NewScanner(scanFS, sampleDir, logger)
 
 		healthSvc := api.NewHealthService()
 		docsSvc := api.NewDocsService(specJSON)

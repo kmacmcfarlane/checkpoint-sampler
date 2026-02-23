@@ -8,41 +8,53 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	"github.com/sirupsen/logrus"
 )
 
 // ComfyUIHTTPClient provides HTTP operations for interacting with ComfyUI.
 type ComfyUIHTTPClient struct {
 	baseURL string
 	client  *http.Client
+	logger  *logrus.Entry
 }
 
 // NewComfyUIHTTPClient creates a new ComfyUI HTTP client.
-func NewComfyUIHTTPClient(host string, port int) *ComfyUIHTTPClient {
+func NewComfyUIHTTPClient(host string, port int, logger *logrus.Logger) *ComfyUIHTTPClient {
 	return &ComfyUIHTTPClient{
 		baseURL: fmt.Sprintf("http://%s:%d", host, port),
 		client: &http.Client{
 			Timeout: 10 * time.Second,
 		},
+		logger: logger.WithField("component", "comfyui_http"),
 	}
 }
 
 // HealthCheck verifies that ComfyUI is reachable.
 func (c *ComfyUIHTTPClient) HealthCheck(ctx context.Context) error {
+	c.logger.Trace("entering HealthCheck")
+	defer c.logger.Trace("returning from HealthCheck")
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/system_stats", nil)
 	if err != nil {
+		c.logger.WithError(err).Error("failed to create health check request")
 		return fmt.Errorf("creating health check request: %w", err)
 	}
 
+	c.logger.Debug("performing health check")
 	resp, err := c.client.Do(req)
 	if err != nil {
+		c.logger.WithError(err).Error("health check request failed")
 		return fmt.Errorf("health check failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		c.logger.WithField("status_code", resp.StatusCode).Error("health check returned non-OK status")
 		return fmt.Errorf("health check failed with status %d", resp.StatusCode)
 	}
 
+	c.logger.Debug("health check successful")
 	return nil
 }
 
@@ -63,33 +75,46 @@ type PromptResponse struct {
 
 // SubmitPrompt sends a prompt to ComfyUI for execution.
 func (c *ComfyUIHTTPClient) SubmitPrompt(ctx context.Context, req PromptRequest) (*PromptResponse, error) {
+	c.logger.WithField("client_id", req.ClientID).Trace("entering SubmitPrompt")
+	defer c.logger.Trace("returning from SubmitPrompt")
+
 	body, err := json.Marshal(req)
 	if err != nil {
+		c.logger.WithError(err).Error("failed to marshal prompt request")
 		return nil, fmt.Errorf("marshaling prompt request: %w", err)
 	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/prompt", bytes.NewReader(body))
 	if err != nil {
+		c.logger.WithError(err).Error("failed to create prompt request")
 		return nil, fmt.Errorf("creating prompt request: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 
+	c.logger.Debug("submitting prompt to ComfyUI")
 	resp, err := c.client.Do(httpReq)
 	if err != nil {
+		c.logger.WithError(err).Error("failed to submit prompt")
 		return nil, fmt.Errorf("submitting prompt: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
+		c.logger.WithFields(logrus.Fields{
+			"status_code": resp.StatusCode,
+			"response":    string(bodyBytes),
+		}).Error("prompt submission failed")
 		return nil, fmt.Errorf("submit prompt failed with status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	var promptResp PromptResponse
 	if err := json.NewDecoder(resp.Body).Decode(&promptResp); err != nil {
+		c.logger.WithError(err).Error("failed to decode prompt response")
 		return nil, fmt.Errorf("decoding prompt response: %w", err)
 	}
 
+	c.logger.WithField("prompt_id", promptResp.PromptID).Info("prompt submitted successfully")
 	return &promptResp, nil
 }
 
@@ -220,6 +245,9 @@ type ObjectInfoInput struct {
 
 // GetObjectInfo retrieves the schema for a specific node type.
 func (c *ComfyUIHTTPClient) GetObjectInfo(ctx context.Context, nodeType string) (*ObjectInfo, error) {
+	c.logger.WithField("node_type", nodeType).Trace("entering GetObjectInfo")
+	defer c.logger.Trace("returning from GetObjectInfo")
+
 	url := c.baseURL + "/object_info"
 	if nodeType != "" {
 		url = fmt.Sprintf("%s/%s", url, nodeType)
@@ -227,16 +255,26 @@ func (c *ComfyUIHTTPClient) GetObjectInfo(ctx context.Context, nodeType string) 
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
+		c.logger.WithError(err).Error("failed to create object info request")
 		return nil, fmt.Errorf("creating object info request: %w", err)
 	}
 
+	c.logger.WithField("node_type", nodeType).Debug("requesting object info from ComfyUI")
 	resp, err := c.client.Do(req)
 	if err != nil {
+		c.logger.WithFields(logrus.Fields{
+			"node_type": nodeType,
+			"error":     err.Error(),
+		}).Error("failed to get object info")
 		return nil, fmt.Errorf("getting object info: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		c.logger.WithFields(logrus.Fields{
+			"node_type":   nodeType,
+			"status_code": resp.StatusCode,
+		}).Error("object info request returned non-OK status")
 		return nil, fmt.Errorf("get object info failed with status %d", resp.StatusCode)
 	}
 
@@ -244,13 +282,16 @@ func (c *ComfyUIHTTPClient) GetObjectInfo(ctx context.Context, nodeType string) 
 	// wrapped in an object with the node type as the key
 	var result map[string]ObjectInfo
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		c.logger.WithError(err).Error("failed to decode object info response")
 		return nil, fmt.Errorf("decoding object info response: %w", err)
 	}
 
 	if nodeType != "" {
 		if info, ok := result[nodeType]; ok {
+			c.logger.WithField("node_type", nodeType).Debug("object info retrieved")
 			return &info, nil
 		}
+		c.logger.WithField("node_type", nodeType).Debug("node type not found in response")
 		return nil, fmt.Errorf("node type %q not found in response", nodeType)
 	}
 

@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
+	"github.com/sirupsen/logrus"
 )
 
 // stepSuffixPattern matches -step<digits> at the end of a base name.
@@ -29,27 +30,45 @@ type DiscoveryService struct {
 	fs             CheckpointFileSystem
 	checkpointDirs []string
 	sampleDir      string
+	logger         *logrus.Entry
 }
 
 // NewDiscoveryService creates a discovery service.
-func NewDiscoveryService(fs CheckpointFileSystem, checkpointDirs []string, sampleDir string) *DiscoveryService {
+func NewDiscoveryService(fs CheckpointFileSystem, checkpointDirs []string, sampleDir string, logger *logrus.Logger) *DiscoveryService {
 	return &DiscoveryService{
 		fs:             fs,
 		checkpointDirs: checkpointDirs,
 		sampleDir:      sampleDir,
+		logger:         logger.WithField("component", "discovery"),
 	}
 }
 
 // Discover scans all checkpoint directories and returns auto-discovered training runs.
 func (d *DiscoveryService) Discover() ([]model.TrainingRun, error) {
+	d.logger.Trace("entering Discover")
+	defer d.logger.Trace("returning from Discover")
+
 	// Map: training run name → list of checkpoints
 	runMap := make(map[string][]model.Checkpoint)
 
 	for dirIdx, checkpointDir := range d.checkpointDirs {
+		d.logger.WithFields(logrus.Fields{
+			"dir_index": dirIdx,
+			"path":      checkpointDir,
+		}).Debug("scanning checkpoint directory")
 		files, err := d.fs.ListSafetensorsFiles(checkpointDir)
 		if err != nil {
+			d.logger.WithFields(logrus.Fields{
+				"dir_index": dirIdx,
+				"path":      checkpointDir,
+				"error":     err.Error(),
+			}).Error("failed to list safetensors files")
 			return nil, fmt.Errorf("scanning checkpoint_dirs[%d] %q: %w", dirIdx, checkpointDir, err)
 		}
+		d.logger.WithFields(logrus.Fields{
+			"dir_index":  dirIdx,
+			"file_count": len(files),
+		}).Debug("found safetensors files")
 
 		for _, relPath := range files {
 			filename := path.Base(relPath)
@@ -123,6 +142,7 @@ func (d *DiscoveryService) Discover() ([]model.TrainingRun, error) {
 		return runs[i].Name < runs[j].Name
 	})
 
+	d.logger.WithField("run_count", len(runs)).Debug("training runs discovered")
 	return runs, nil
 }
 

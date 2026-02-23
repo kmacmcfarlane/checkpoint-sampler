@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"log"
 	"net/http"
 
 	"github.com/gorilla/websocket"
@@ -20,6 +19,7 @@ import (
 	genpresets "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/presets"
 	gentrainingruns "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/training_runs"
 	genws "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/ws"
+	"github.com/sirupsen/logrus"
 	goahttp "goa.design/goa/v3/http"
 	goahttpmiddleware "goa.design/goa/v3/http/middleware"
 	goamiddleware "goa.design/goa/v3/middleware"
@@ -36,7 +36,7 @@ type HTTPHandlerConfig struct {
 	WSEndpoints          *genws.Endpoints
 	ImageHandler         *ImageHandler
 	SwaggerUIDir         http.FileSystem
-	Logger               *log.Logger
+	Logger               *logrus.Logger
 	Debug                bool
 }
 
@@ -80,35 +80,64 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 	mux.Handle("GET", "/docs", http.RedirectHandler("/docs/", http.StatusMovedPermanently).ServeHTTP)
 
 	// Log mounts when debug is enabled
-	if cfg.Debug && cfg.Logger != nil {
+	if cfg.Debug {
 		for _, m := range healthServer.Mounts {
-			cfg.Logger.Printf("HTTP %q mounted on %s %s", m.Method, m.Verb, m.Pattern)
+			cfg.Logger.WithFields(logrus.Fields{
+				"method":  m.Method,
+				"verb":    m.Verb,
+				"pattern": m.Pattern,
+			}).Debug("HTTP endpoint mounted")
 		}
 		for _, m := range docsServer.Mounts {
-			cfg.Logger.Printf("HTTP %q mounted on %s %s", m.Method, m.Verb, m.Pattern)
+			cfg.Logger.WithFields(logrus.Fields{
+				"method":  m.Method,
+				"verb":    m.Verb,
+				"pattern": m.Pattern,
+			}).Debug("HTTP endpoint mounted")
 		}
 		for _, m := range trainingRunsServer.Mounts {
-			cfg.Logger.Printf("HTTP %q mounted on %s %s", m.Method, m.Verb, m.Pattern)
+			cfg.Logger.WithFields(logrus.Fields{
+				"method":  m.Method,
+				"verb":    m.Verb,
+				"pattern": m.Pattern,
+			}).Debug("HTTP endpoint mounted")
 		}
 		for _, m := range presetsServer.Mounts {
-			cfg.Logger.Printf("HTTP %q mounted on %s %s", m.Method, m.Verb, m.Pattern)
+			cfg.Logger.WithFields(logrus.Fields{
+				"method":  m.Method,
+				"verb":    m.Verb,
+				"pattern": m.Pattern,
+			}).Debug("HTTP endpoint mounted")
 		}
 		for _, m := range checkpointsServer.Mounts {
-			cfg.Logger.Printf("HTTP %q mounted on %s %s", m.Method, m.Verb, m.Pattern)
+			cfg.Logger.WithFields(logrus.Fields{
+				"method":  m.Method,
+				"verb":    m.Verb,
+				"pattern": m.Pattern,
+			}).Debug("HTTP endpoint mounted")
 		}
 		for _, m := range comfyuiServer.Mounts {
-			cfg.Logger.Printf("HTTP %q mounted on %s %s", m.Method, m.Verb, m.Pattern)
+			cfg.Logger.WithFields(logrus.Fields{
+				"method":  m.Method,
+				"verb":    m.Verb,
+				"pattern": m.Pattern,
+			}).Debug("HTTP endpoint mounted")
 		}
 		for _, m := range wsServer.Mounts {
-			cfg.Logger.Printf("HTTP %q mounted on %s %s", m.Method, m.Verb, m.Pattern)
+			cfg.Logger.WithFields(logrus.Fields{
+				"method":  m.Method,
+				"verb":    m.Verb,
+				"pattern": m.Pattern,
+			}).Debug("HTTP endpoint mounted")
 		}
-		cfg.Logger.Printf("HTTP image handler mounted on GET /api/images/{*filepath}")
-		cfg.Logger.Printf("HTTP redirect /docs -> /docs/")
+		cfg.Logger.WithField("pattern", "GET /api/images/{*filepath}").Debug("HTTP image handler mounted")
+		cfg.Logger.Debug("HTTP redirect /docs -> /docs/ mounted")
 	}
 
 	// Apply HTTP-level middleware
 	var handler http.Handler = mux
-	adapter := goamiddleware.NewLogger(cfg.Logger)
+	// Create a logrus adapter for Goa middleware
+	adapter := &logrusAdapter{logger: cfg.Logger.WithField("component", "http")}
 	handler = goahttpmiddleware.Log(adapter)(handler)
 	handler = goahttpmiddleware.RequestID()(handler)
 	handler = CORSMiddleware("*")(handler)
@@ -116,13 +145,33 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 	return handler
 }
 
+// logrusAdapter adapts a logrus.Logger to the goamiddleware.Logger interface.
+type logrusAdapter struct {
+	logger *logrus.Entry
+}
+
+func (a *logrusAdapter) Log(keyvals ...interface{}) error {
+	fields := logrus.Fields{}
+	for i := 0; i < len(keyvals); i += 2 {
+		if i+1 < len(keyvals) {
+			key, ok := keyvals[i].(string)
+			if ok {
+				fields[key] = keyvals[i+1]
+			}
+		}
+	}
+	a.logger.WithFields(fields).Info("HTTP request")
+	return nil
+}
+
 // errorHandler returns a function that logs HTTP encoding errors with the
 // request ID for correlation.
-func errorHandler(logger *log.Logger) func(context.Context, http.ResponseWriter, error) {
+func errorHandler(logger *logrus.Logger) func(context.Context, http.ResponseWriter, error) {
 	return func(ctx context.Context, w http.ResponseWriter, err error) {
 		id, _ := ctx.Value(goamiddleware.RequestIDKey).(string)
-		if logger != nil {
-			logger.Printf("[%s] encoding error: %v", id, err)
-		}
+		logger.WithFields(logrus.Fields{
+			"request_id": id,
+			"error":      err.Error(),
+		}).Error("HTTP encoding error")
 	}
 }

@@ -106,22 +106,59 @@ Within `/frontend`:
 - Migrations are applied on startup.
 - Treat schema changes as backward-compatible when possible; add migrations rather than destructive changes.
 
-### 3.6 Secrets
+### 3.6 Logging
+- Use logrus for structured logging throughout the backend.
+- Set log level via `LOG_LEVEL` environment variable (default: `info`).
+  - Development mode (`make up-dev`) uses `LOG_LEVEL=trace`.
+  - Production mode (`make up`) uses `LOG_LEVEL=info`.
+- Log levels:
+  - `trace`: Function entry/exit (e.g., "entering FunctionName", "returning from FunctionName").
+  - `debug`: Intermediate values inside functions (e.g., values returned from store/service calls). Always log these inside the callee, not at the call site.
+  - `info`: Data writes to stores, files, or external systems.
+  - `error`: When an error occurs.
+- Always use the `WithField()` or `WithFields()` builder pattern for contextual information (e.g., request ID, training run name, checkpoint filename, preset ID).
+- Never log secrets (tokens, passwords, auth headers) per section 1.5.
+- Logging inside callees: Log the result of a function inside the function itself, not where it is called. This keeps logging responsibilities localized.
+
+Example:
+```go
+func (s *PresetService) Create(name string, mapping model.PresetMapping) (model.Preset, error) {
+	s.logger.WithField("preset_name", name).Trace("entering Create")
+	defer s.logger.Trace("returning from Create")
+
+	// ... business logic ...
+
+	if err := s.store.CreatePreset(p); err != nil {
+		s.logger.WithFields(logrus.Fields{
+			"preset_id": p.ID,
+			"error": err.Error(),
+		}).Error("failed to create preset")
+		return model.Preset{}, fmt.Errorf("creating preset: %w", err)
+	}
+	s.logger.WithFields(logrus.Fields{
+		"preset_id": p.ID,
+		"preset_name": name,
+	}).Info("preset created")
+	return p, nil
+}
+```
+
+### 3.7 Secrets
 - Never log passwords, tokens, authorization headers, or raw responses that contain secrets.
 - Credential storage and authentication details are defined in the PRD.
 
-### 3.7 Goa usage
+### 3.8 Goa usage
 - All API shapes defined in `internal/api/design`.
 - Generated output goes to `internal/api/gen`.
 - Do not hand-edit generated files.
 - Host swagger UI at `/docs` with `openapi3.json` served.
 
-### 3.8 Mocking
+### 3.9 Mocking
 - Use mockery for interfaces.
 - Keep mocks in predictable package(s) (e.g., `serviceMocks`, `storeMocks`).
 - Ensure codegen ordering when types are generated (Goa before mocks).
 
-### 3.9 Build and lint
+### 3.10 Build and lint
 - Backend Makefile provides:
     - `gen`, `build`, `lint`, `test`, `run`
 - Linting must be consistent and enforced.

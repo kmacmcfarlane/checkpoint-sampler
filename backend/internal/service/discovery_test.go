@@ -1,8 +1,11 @@
 package service_test
 
 import (
+	"io"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/sirupsen/logrus"
 
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
 )
@@ -32,10 +35,13 @@ var _ = Describe("DiscoveryService", func() {
 	var (
 		fs        *fakeCheckpointFS
 		discovery *service.DiscoveryService
+		logger    *logrus.Logger
 	)
 
 	BeforeEach(func() {
 		fs = newFakeCheckpointFS()
+		logger = logrus.New()
+		logger.SetOutput(io.Discard)
 	})
 
 	Describe("Discover", func() {
@@ -46,7 +52,7 @@ var _ = Describe("DiscoveryService", func() {
 					"qwen/model-v1-step00004500.safetensors",
 					"qwen/model-v1-step00005000.safetensors",
 				}
-				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, "/samples")
+				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, "/samples", logger)
 
 				runs, err := discovery.Discover()
 
@@ -62,7 +68,7 @@ var _ = Describe("DiscoveryService", func() {
 					"model-v2-000104.safetensors",
 					"model-v2-000208.safetensors",
 				}
-				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, "/samples")
+				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, "/samples", logger)
 
 				runs, err := discovery.Discover()
 
@@ -78,7 +84,7 @@ var _ = Describe("DiscoveryService", func() {
 					"model-a-step00001000.safetensors",
 					"model-b.safetensors",
 				}
-				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, "/samples")
+				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, "/samples", logger)
 
 				runs, err := discovery.Discover()
 
@@ -97,7 +103,7 @@ var _ = Describe("DiscoveryService", func() {
 				fs.files["/checkpoints"] = []string{
 					"model-step00004500.safetensors",
 				}
-				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, "/samples")
+				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, "/samples", logger)
 
 				runs, err := discovery.Discover()
 
@@ -109,7 +115,7 @@ var _ = Describe("DiscoveryService", func() {
 				fs.files["/checkpoints"] = []string{
 					"model-000104.safetensors",
 				}
-				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, "/samples")
+				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, "/samples", logger)
 
 				runs, err := discovery.Discover()
 
@@ -121,7 +127,7 @@ var _ = Describe("DiscoveryService", func() {
 				fs.files["/checkpoints"] = []string{
 					"model.safetensors",
 				}
-				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, "/samples")
+				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, "/samples", logger)
 
 				runs, err := discovery.Discover()
 
@@ -135,7 +141,7 @@ var _ = Describe("DiscoveryService", func() {
 					"model-step00001000.safetensors",
 					"model-step00000500.safetensors",
 				}
-				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, "/samples")
+				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, "/samples", logger)
 
 				runs, err := discovery.Discover()
 
@@ -157,7 +163,7 @@ var _ = Describe("DiscoveryService", func() {
 				}
 				fs.dirs["/samples/model-step00001000.safetensors"] = true
 				// model-step00002000.safetensors has no sample dir
-				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, "/samples")
+				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, "/samples", logger)
 
 				runs, err := discovery.Discover()
 
@@ -176,7 +182,7 @@ var _ = Describe("DiscoveryService", func() {
 				fs.files["/checkpoints"] = []string{
 					"model.safetensors",
 				}
-				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, "/samples")
+				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, "/samples", logger)
 
 				runs, err := discovery.Discover()
 
@@ -193,7 +199,7 @@ var _ = Describe("DiscoveryService", func() {
 				fs.files["/checkpoints2"] = []string{
 					"model-b.safetensors",
 				}
-				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints1", "/checkpoints2"}, "/samples")
+				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints1", "/checkpoints2"}, "/samples", logger)
 
 				runs, err := discovery.Discover()
 
@@ -208,7 +214,7 @@ var _ = Describe("DiscoveryService", func() {
 				fs.files["/checkpoints2"] = []string{
 					"other.safetensors",
 				}
-				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints1", "/checkpoints2"}, "/samples")
+				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints1", "/checkpoints2"}, "/samples", logger)
 
 				runs, err := discovery.Discover()
 
@@ -226,7 +232,7 @@ var _ = Describe("DiscoveryService", func() {
 		Context("empty directories", func() {
 			It("returns empty results when no safetensors files found", func() {
 				fs.files["/checkpoints"] = []string{}
-				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, "/samples")
+				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, "/samples", logger)
 
 				runs, err := discovery.Discover()
 
@@ -242,7 +248,7 @@ var _ = Describe("DiscoveryService", func() {
 					"alpha.safetensors",
 					"middle.safetensors",
 				}
-				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, "/samples")
+				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, "/samples", logger)
 
 				runs, err := discovery.Discover()
 
@@ -260,7 +266,7 @@ var _ = Describe("DiscoveryService", func() {
 					"sub/dir/model.safetensors",
 					"sub/dir/model-step00001000.safetensors",
 				}
-				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, "/samples")
+				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, "/samples", logger)
 
 				runs, err := discovery.Discover()
 
@@ -277,7 +283,7 @@ var _ = Describe("DiscoveryService", func() {
 				}
 				// Sample dir matches the filename, not the full path
 				fs.dirs["/samples/model-step00001000.safetensors"] = true
-				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, "/samples")
+				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, "/samples", logger)
 
 				runs, err := discovery.Discover()
 

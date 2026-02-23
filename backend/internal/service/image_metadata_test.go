@@ -3,11 +3,13 @@ package service_test
 import (
 	"bytes"
 	"encoding/binary"
+	"io"
 	"os"
 	"path/filepath"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/sirupsen/logrus"
 
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
 )
@@ -63,12 +65,15 @@ var _ = Describe("ImageMetadataService", func() {
 	var (
 		tmpDir string
 		svc    *service.ImageMetadataService
+		logger *logrus.Logger
 	)
 
 	BeforeEach(func() {
 		var err error
 		tmpDir, err = os.MkdirTemp("", "image-metadata-test-*")
 		Expect(err).NotTo(HaveOccurred())
+		logger = logrus.New()
+		logger.SetOutput(io.Discard)
 	})
 
 	AfterEach(func() {
@@ -87,7 +92,7 @@ var _ = Describe("ImageMetadataService", func() {
 				})
 				Expect(os.WriteFile(filepath.Join(subDir, "image.png"), data, 0644)).To(Succeed())
 
-				svc = service.NewImageMetadataService(&realFileOpener{}, tmpDir)
+				svc = service.NewImageMetadataService(&realFileOpener{}, tmpDir, logger)
 				result, err := svc.GetMetadata("checkpoint.safetensors/image.png")
 
 				Expect(err).NotTo(HaveOccurred())
@@ -103,7 +108,7 @@ var _ = Describe("ImageMetadataService", func() {
 				data := buildMinimalPNG()
 				Expect(os.WriteFile(filepath.Join(subDir, "image.png"), data, 0644)).To(Succeed())
 
-				svc = service.NewImageMetadataService(&realFileOpener{}, tmpDir)
+				svc = service.NewImageMetadataService(&realFileOpener{}, tmpDir, logger)
 				result, err := svc.GetMetadata("checkpoint.safetensors/image.png")
 
 				Expect(err).NotTo(HaveOccurred())
@@ -121,7 +126,7 @@ var _ = Describe("ImageMetadataService", func() {
 				})
 				Expect(os.WriteFile(filepath.Join(subDir, "image.png"), data, 0644)).To(Succeed())
 
-				svc = service.NewImageMetadataService(&realFileOpener{}, tmpDir)
+				svc = service.NewImageMetadataService(&realFileOpener{}, tmpDir, logger)
 				result, err := svc.GetMetadata("checkpoint.safetensors/image.png")
 
 				Expect(err).NotTo(HaveOccurred())
@@ -140,7 +145,7 @@ var _ = Describe("ImageMetadataService", func() {
 				})
 				Expect(os.WriteFile(filepath.Join(subDir, "image.png"), data, 0644)).To(Succeed())
 
-				svc = service.NewImageMetadataService(&realFileOpener{}, tmpDir)
+				svc = service.NewImageMetadataService(&realFileOpener{}, tmpDir, logger)
 				result, err := svc.GetMetadata("checkpoint.safetensors/image.png")
 
 				Expect(err).NotTo(HaveOccurred())
@@ -151,7 +156,7 @@ var _ = Describe("ImageMetadataService", func() {
 
 		Context("path validation", func() {
 			BeforeEach(func() {
-				svc = service.NewImageMetadataService(&realFileOpener{}, tmpDir)
+				svc = service.NewImageMetadataService(&realFileOpener{}, tmpDir, logger)
 			})
 
 			It("rejects empty path", func() {
@@ -187,7 +192,7 @@ var _ = Describe("ImageMetadataService", func() {
 
 		Context("error handling", func() {
 			It("returns error when file does not exist", func() {
-				svc = service.NewImageMetadataService(&realFileOpener{}, tmpDir)
+				svc = service.NewImageMetadataService(&realFileOpener{}, tmpDir, logger)
 
 				_, err := svc.GetMetadata("nonexistent/image.png")
 				Expect(err).To(HaveOccurred())
@@ -199,7 +204,7 @@ var _ = Describe("ImageMetadataService", func() {
 				Expect(os.MkdirAll(subDir, 0755)).To(Succeed())
 				Expect(os.WriteFile(filepath.Join(subDir, "notapng.png"), []byte("not a png file"), 0644)).To(Succeed())
 
-				svc = service.NewImageMetadataService(&realFileOpener{}, tmpDir)
+				svc = service.NewImageMetadataService(&realFileOpener{}, tmpDir, logger)
 				_, err := svc.GetMetadata("checkpoint.safetensors/notapng.png")
 
 				Expect(err).To(HaveOccurred())
@@ -213,7 +218,7 @@ var _ = Describe("ImageMetadataService", func() {
 				data := []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}
 				Expect(os.WriteFile(filepath.Join(subDir, "truncated.png"), data, 0644)).To(Succeed())
 
-				svc = service.NewImageMetadataService(&realFileOpener{}, tmpDir)
+				svc = service.NewImageMetadataService(&realFileOpener{}, tmpDir, logger)
 				result, err := svc.GetMetadata("checkpoint.safetensors/truncated.png")
 
 				// A truncated PNG after signature should return empty metadata (no chunks found)
