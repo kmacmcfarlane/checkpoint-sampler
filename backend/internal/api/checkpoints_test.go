@@ -12,6 +12,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/sirupsen/logrus"
 
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api"
 	gencheckpoints "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/checkpoints"
@@ -57,12 +58,15 @@ func buildSafetensorsFile(metadata map[string]string) []byte {
 var _ = Describe("CheckpointsService", func() {
 	var (
 		tmpDir string
+		logger *logrus.Logger
 	)
 
 	BeforeEach(func() {
 		var err error
 		tmpDir, err = os.MkdirTemp("", "checkpoints-test-*")
 		Expect(err).NotTo(HaveOccurred())
+		logger = logrus.New()
+		logger.SetOutput(io.Discard)
 	})
 
 	AfterEach(func() {
@@ -83,7 +87,7 @@ var _ = Describe("CheckpointsService", func() {
 
 			reader := newFakeMetadataReader()
 			reader.files[filepath.Join(tmpDir, "model.safetensors")] = data
-			metadataSvc := service.NewCheckpointMetadataService(reader, []string{tmpDir})
+			metadataSvc := service.NewCheckpointMetadataService(reader, []string{tmpDir}, logger)
 			svc := api.NewCheckpointsService(metadataSvc)
 
 			result, err := svc.Metadata(context.Background(), &gencheckpoints.MetadataPayload{
@@ -108,7 +112,7 @@ var _ = Describe("CheckpointsService", func() {
 
 			reader := newFakeMetadataReader()
 			reader.files[filepath.Join(tmpDir, "model.safetensors")] = data
-			metadataSvc := service.NewCheckpointMetadataService(reader, []string{tmpDir})
+			metadataSvc := service.NewCheckpointMetadataService(reader, []string{tmpDir}, logger)
 			svc := api.NewCheckpointsService(metadataSvc)
 
 			result, err := svc.Metadata(context.Background(), &gencheckpoints.MetadataPayload{
@@ -138,7 +142,7 @@ var _ = Describe("CheckpointsService", func() {
 
 			reader := newFakeMetadataReader()
 			reader.files[filepath.Join(tmpDir, "model.safetensors")] = data
-			metadataSvc := service.NewCheckpointMetadataService(reader, []string{tmpDir})
+			metadataSvc := service.NewCheckpointMetadataService(reader, []string{tmpDir}, logger)
 			svc := api.NewCheckpointsService(metadataSvc)
 
 			result, err := svc.Metadata(context.Background(), &gencheckpoints.MetadataPayload{
@@ -151,7 +155,7 @@ var _ = Describe("CheckpointsService", func() {
 
 		It("returns invalid_filename error for path traversal attempt", func() {
 			reader := newFakeMetadataReader()
-			metadataSvc := service.NewCheckpointMetadataService(reader, []string{tmpDir})
+			metadataSvc := service.NewCheckpointMetadataService(reader, []string{tmpDir}, logger)
 			svc := api.NewCheckpointsService(metadataSvc)
 
 			_, err := svc.Metadata(context.Background(), &gencheckpoints.MetadataPayload{
@@ -164,7 +168,7 @@ var _ = Describe("CheckpointsService", func() {
 
 		It("returns not_found error for nonexistent file", func() {
 			reader := newFakeMetadataReader()
-			metadataSvc := service.NewCheckpointMetadataService(reader, []string{tmpDir})
+			metadataSvc := service.NewCheckpointMetadataService(reader, []string{tmpDir}, logger)
 			svc := api.NewCheckpointsService(metadataSvc)
 
 			_, err := svc.Metadata(context.Background(), &gencheckpoints.MetadataPayload{
@@ -191,7 +195,7 @@ var _ = Describe("CheckpointsService", func() {
 			// Use a real file reader for this test (not fakeMetadataReader)
 			// since we need to test the actual filesystem walk + read
 			realReader := &realFileReader{}
-			metadataSvc := service.NewCheckpointMetadataService(realReader, []string{tmpDir})
+			metadataSvc := service.NewCheckpointMetadataService(realReader, []string{tmpDir}, logger)
 			svc := api.NewCheckpointsService(metadataSvc)
 
 			result, err := svc.Metadata(context.Background(), &gencheckpoints.MetadataPayload{
@@ -214,7 +218,7 @@ var _ = Describe("CheckpointsService", func() {
 			Expect(os.WriteFile(filepath.Join(dir2, "model.safetensors"), data, 0644)).To(Succeed())
 
 			realReader := &realFileReader{}
-			metadataSvc := service.NewCheckpointMetadataService(realReader, []string{dir1, dir2})
+			metadataSvc := service.NewCheckpointMetadataService(realReader, []string{dir1, dir2}, logger)
 			svc := api.NewCheckpointsService(metadataSvc)
 
 			result, err := svc.Metadata(context.Background(), &gencheckpoints.MetadataPayload{

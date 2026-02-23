@@ -2,11 +2,13 @@ package store_test
 
 import (
 	"database/sql"
+	"io"
 	"os"
 	"path/filepath"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/sirupsen/logrus"
 
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/store"
 )
@@ -317,7 +319,9 @@ var _ = Describe("New", func() {
 		db, err := store.OpenDB(dbPath)
 		Expect(err).NotTo(HaveOccurred())
 
-		s, err := store.New(db)
+		logger := logrus.New()
+		logger.SetOutput(io.Discard) // Silence logs in tests
+		s, err := store.New(db, logger)
 		Expect(err).NotTo(HaveOccurred())
 		defer s.Close()
 
@@ -331,17 +335,20 @@ var _ = Describe("New", func() {
 	It("is idempotent — can be called multiple times on the same database", func() {
 		dbPath := filepath.Join(tmpDir, "test.db")
 
+		logger := logrus.New()
+		logger.SetOutput(io.Discard) // Silence logs in tests
+
 		// First store creation
 		db1, err := store.OpenDB(dbPath)
 		Expect(err).NotTo(HaveOccurred())
-		s1, err := store.New(db1)
+		s1, err := store.New(db1, logger)
 		Expect(err).NotTo(HaveOccurred())
 		s1.Close()
 
 		// Second store creation on same DB
 		db2, err := store.OpenDB(dbPath)
 		Expect(err).NotTo(HaveOccurred())
-		s2, err := store.New(db2)
+		s2, err := store.New(db2, logger)
 		Expect(err).NotTo(HaveOccurred())
 		defer s2.Close()
 

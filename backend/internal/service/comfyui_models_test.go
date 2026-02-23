@@ -3,9 +3,11 @@ package service_test
 import (
 	"context"
 	"fmt"
+	"io"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/sirupsen/logrus"
 
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/store"
@@ -28,12 +30,15 @@ var _ = Describe("ComfyUIModelDiscovery", func() {
 		ctx        context.Context
 		mockGetter *mockObjectInfoGetter
 		discovery  *service.ComfyUIModelDiscovery
+		logger     *logrus.Logger
 	)
 
 	BeforeEach(func() {
 		ctx = context.Background()
 		mockGetter = &mockObjectInfoGetter{}
-		discovery = service.NewComfyUIModelDiscovery(mockGetter)
+		logger = logrus.New()
+		logger.SetOutput(io.Discard)
+		discovery = service.NewComfyUIModelDiscovery(mockGetter, logger)
 	})
 
 	Describe("GetModels", func() {

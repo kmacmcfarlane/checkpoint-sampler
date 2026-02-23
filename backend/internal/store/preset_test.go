@@ -2,12 +2,14 @@ package store_test
 
 import (
 	"database/sql"
+	"io"
 	"os"
 	"path/filepath"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/sirupsen/logrus"
 
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/store"
@@ -17,6 +19,7 @@ var _ = Describe("PresetStore", func() {
 	var (
 		st     *store.Store
 		tmpDir string
+		logger *logrus.Logger
 	)
 
 	BeforeEach(func() {
@@ -28,7 +31,9 @@ var _ = Describe("PresetStore", func() {
 		db, err := store.OpenDB(dbPath)
 		Expect(err).NotTo(HaveOccurred())
 
-		st, err = store.New(db)
+		logger = logrus.New()
+		logger.SetOutput(io.Discard) // Silence logs in tests
+		st, err = store.New(db, logger)
 		Expect(err).NotTo(HaveOccurred())
 	})
 

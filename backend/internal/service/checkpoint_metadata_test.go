@@ -10,6 +10,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/sirupsen/logrus"
 
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
 )
@@ -51,12 +52,15 @@ var _ = Describe("CheckpointMetadataService", func() {
 	var (
 		tmpDir string
 		svc    *service.CheckpointMetadataService
+		logger *logrus.Logger
 	)
 
 	BeforeEach(func() {
 		var err error
 		tmpDir, err = os.MkdirTemp("", "checkpoint-metadata-test-*")
 		Expect(err).NotTo(HaveOccurred())
+		logger = logrus.New()
+		logger.SetOutput(io.Discard)
 	})
 
 	AfterEach(func() {
@@ -74,7 +78,7 @@ var _ = Describe("CheckpointMetadataService", func() {
 					"non_ss_field":   "should-be-excluded",
 					"another_field":  "also-excluded",
 				})
-				svc = service.NewCheckpointMetadataService(&realFileOpener{}, []string{tmpDir})
+				svc = service.NewCheckpointMetadataService(&realFileOpener{}, []string{tmpDir}, logger)
 
 				result, err := svc.GetMetadata("model.safetensors")
 
@@ -102,7 +106,7 @@ var _ = Describe("CheckpointMetadataService", func() {
 				buf.Write(headerBytes)
 
 				Expect(os.WriteFile(filepath.Join(tmpDir, "model.safetensors"), buf.Bytes(), 0644)).To(Succeed())
-				svc = service.NewCheckpointMetadataService(&realFileOpener{}, []string{tmpDir})
+				svc = service.NewCheckpointMetadataService(&realFileOpener{}, []string{tmpDir}, logger)
 
 				result, err := svc.GetMetadata("model.safetensors")
 
@@ -115,7 +119,7 @@ var _ = Describe("CheckpointMetadataService", func() {
 					"format":  "pt",
 					"version": "1.0",
 				})
-				svc = service.NewCheckpointMetadataService(&realFileOpener{}, []string{tmpDir})
+				svc = service.NewCheckpointMetadataService(&realFileOpener{}, []string{tmpDir}, logger)
 
 				result, err := svc.GetMetadata("model.safetensors")
 
@@ -128,7 +132,7 @@ var _ = Describe("CheckpointMetadataService", func() {
 				writeSafetensorsFile(subDir, "model.safetensors", map[string]string{
 					"ss_output_name": "nested-model",
 				})
-				svc = service.NewCheckpointMetadataService(&realFileOpener{}, []string{tmpDir})
+				svc = service.NewCheckpointMetadataService(&realFileOpener{}, []string{tmpDir}, logger)
 
 				result, err := svc.GetMetadata("model.safetensors")
 
@@ -145,7 +149,7 @@ var _ = Describe("CheckpointMetadataService", func() {
 				writeSafetensorsFile(dir2, "model.safetensors", map[string]string{
 					"ss_output_name": "model-in-dir2",
 				})
-				svc = service.NewCheckpointMetadataService(&realFileOpener{}, []string{dir1, dir2})
+				svc = service.NewCheckpointMetadataService(&realFileOpener{}, []string{dir1, dir2}, logger)
 
 				result, err := svc.GetMetadata("model.safetensors")
 
@@ -166,7 +170,7 @@ var _ = Describe("CheckpointMetadataService", func() {
 					"ss_network_dim":        "16",
 					"ss_network_alpha":      "8",
 				})
-				svc = service.NewCheckpointMetadataService(&realFileOpener{}, []string{tmpDir})
+				svc = service.NewCheckpointMetadataService(&realFileOpener{}, []string{tmpDir}, logger)
 
 				result, err := svc.GetMetadata("model.safetensors")
 
@@ -179,7 +183,7 @@ var _ = Describe("CheckpointMetadataService", func() {
 
 		Context("path validation", func() {
 			BeforeEach(func() {
-				svc = service.NewCheckpointMetadataService(&realFileOpener{}, []string{tmpDir})
+				svc = service.NewCheckpointMetadataService(&realFileOpener{}, []string{tmpDir}, logger)
 			})
 
 			It("rejects empty filename", func() {
@@ -220,7 +224,7 @@ var _ = Describe("CheckpointMetadataService", func() {
 
 		Context("error handling", func() {
 			It("returns error when file is not found in any checkpoint dir", func() {
-				svc = service.NewCheckpointMetadataService(&realFileOpener{}, []string{tmpDir})
+				svc = service.NewCheckpointMetadataService(&realFileOpener{}, []string{tmpDir}, logger)
 
 				_, err := svc.GetMetadata("nonexistent.safetensors")
 
@@ -231,7 +235,7 @@ var _ = Describe("CheckpointMetadataService", func() {
 			It("returns error for truncated safetensors file", func() {
 				// Write a file with truncated header
 				Expect(os.WriteFile(filepath.Join(tmpDir, "bad.safetensors"), []byte{0x01, 0x02}, 0644)).To(Succeed())
-				svc = service.NewCheckpointMetadataService(&realFileOpener{}, []string{tmpDir})
+				svc = service.NewCheckpointMetadataService(&realFileOpener{}, []string{tmpDir}, logger)
 
 				_, err := svc.GetMetadata("bad.safetensors")
 
@@ -246,7 +250,7 @@ var _ = Describe("CheckpointMetadataService", func() {
 				_ = binary.Write(buf, binary.LittleEndian, uint64(len(invalidJSON)))
 				buf.Write(invalidJSON)
 				Expect(os.WriteFile(filepath.Join(tmpDir, "badjson.safetensors"), buf.Bytes(), 0644)).To(Succeed())
-				svc = service.NewCheckpointMetadataService(&realFileOpener{}, []string{tmpDir})
+				svc = service.NewCheckpointMetadataService(&realFileOpener{}, []string{tmpDir}, logger)
 
 				_, err := svc.GetMetadata("badjson.safetensors")
 

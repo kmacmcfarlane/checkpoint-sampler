@@ -1,12 +1,14 @@
 package service_test
 
 import (
+	"io"
 	"sync"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/sirupsen/logrus"
 
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
@@ -113,13 +115,16 @@ var _ = Describe("Watcher", func() {
 		sink      *fakeEventSink
 		watcher   *service.Watcher
 		sampleDir string
+		logger    *logrus.Logger
 	)
 
 	BeforeEach(func() {
 		sampleDir = "/samples"
 		notifier = newFakeNotifier()
 		sink = newFakeEventSink()
-		watcher = service.NewWatcher(notifier, sink, sampleDir, nil)
+		logger = logrus.New()
+		logger.SetOutput(io.Discard) // Silence logs in tests
+		watcher = service.NewWatcher(notifier, sink, sampleDir, logger)
 	})
 
 	AfterEach(func() {

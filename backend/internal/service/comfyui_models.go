@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/store"
+	"github.com/sirupsen/logrus"
 )
 
 // ComfyUIModelType represents the type of model to query.
@@ -26,31 +27,54 @@ type ObjectInfoGetter interface {
 // ComfyUIModelDiscovery provides model discovery operations.
 type ComfyUIModelDiscovery struct {
 	client ObjectInfoGetter
+	logger *logrus.Entry
 }
 
 // NewComfyUIModelDiscovery creates a new model discovery service.
-func NewComfyUIModelDiscovery(client ObjectInfoGetter) *ComfyUIModelDiscovery {
+func NewComfyUIModelDiscovery(client ObjectInfoGetter, logger *logrus.Logger) *ComfyUIModelDiscovery {
 	return &ComfyUIModelDiscovery{
 		client: client,
+		logger: logger.WithField("component", "comfyui_models"),
 	}
 }
 
 // GetModels retrieves available models of the specified type.
 func (d *ComfyUIModelDiscovery) GetModels(ctx context.Context, modelType ComfyUIModelType) ([]string, error) {
+	d.logger.WithField("model_type", modelType).Trace("entering GetModels")
+	defer d.logger.Trace("returning from GetModels")
+
 	nodeType := d.nodeTypeForModelType(modelType)
 	if nodeType == "" {
+		d.logger.WithField("model_type", modelType).Warn("unsupported model type requested")
 		return nil, fmt.Errorf("unsupported model type: %s", modelType)
 	}
+	d.logger.WithFields(logrus.Fields{
+		"model_type": modelType,
+		"node_type":  nodeType,
+	}).Debug("mapped model type to node type")
 
 	info, err := d.client.GetObjectInfo(ctx, nodeType)
 	if err != nil {
+		d.logger.WithFields(logrus.Fields{
+			"node_type": nodeType,
+			"error":     err.Error(),
+		}).Error("failed to get object info from ComfyUI")
 		return nil, fmt.Errorf("getting object info for %s: %w", nodeType, err)
 	}
+	d.logger.WithField("node_type", nodeType).Debug("object info retrieved from ComfyUI")
 
 	models, err := d.extractModels(info, modelType)
 	if err != nil {
+		d.logger.WithFields(logrus.Fields{
+			"model_type": modelType,
+			"error":      err.Error(),
+		}).Error("failed to extract models from object info")
 		return nil, fmt.Errorf("extracting models for %s: %w", modelType, err)
 	}
+	d.logger.WithFields(logrus.Fields{
+		"model_type":  modelType,
+		"model_count": len(models),
+	}).Debug("models extracted")
 
 	return models, nil
 }

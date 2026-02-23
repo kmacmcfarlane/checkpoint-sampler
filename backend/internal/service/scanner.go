@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
+	"github.com/sirupsen/logrus"
 )
 
 // batchPattern matches the _NNNNN_ suffix in ComfyUI filenames.
@@ -25,16 +26,24 @@ type ScannerFileSystem interface {
 type Scanner struct {
 	fs        ScannerFileSystem
 	sampleDir string
+	logger    *logrus.Entry
 }
 
 // NewScanner creates a Scanner backed by the given filesystem and sample directory.
-func NewScanner(fs ScannerFileSystem, sampleDir string) *Scanner {
-	return &Scanner{fs: fs, sampleDir: sampleDir}
+func NewScanner(fs ScannerFileSystem, sampleDir string, logger *logrus.Logger) *Scanner {
+	return &Scanner{
+		fs:        fs,
+		sampleDir: sampleDir,
+		logger:    logger.WithField("component", "scanner"),
+	}
 }
 
 // ScanTrainingRun discovers images and dimensions for a training run by scanning
 // the sample directories for each checkpoint that has samples.
 func (s *Scanner) ScanTrainingRun(tr model.TrainingRun) (*model.ScanResult, error) {
+	s.logger.WithField("training_run", tr.Name).Trace("entering ScanTrainingRun")
+	defer s.logger.Trace("returning from ScanTrainingRun")
+
 	// Track unique dimension values: dimName → set of values
 	dimValues := make(map[string]map[string]struct{})
 	dimTypes := make(map[string]model.DimensionType)
@@ -65,10 +74,22 @@ func (s *Scanner) ScanTrainingRun(tr model.TrainingRun) (*model.ScanResult, erro
 
 		// Scan the sample directory for this checkpoint
 		sampleDirPath := filepath.Join(s.sampleDir, cp.Filename)
+		s.logger.WithFields(logrus.Fields{
+			"checkpoint": cp.Filename,
+			"path":       sampleDirPath,
+		}).Debug("scanning checkpoint sample directory")
 		files, err := s.fs.ListPNGFiles(sampleDirPath)
 		if err != nil {
+			s.logger.WithFields(logrus.Fields{
+				"checkpoint": cp.Filename,
+				"error":      err.Error(),
+			}).Error("failed to list PNG files")
 			return nil, fmt.Errorf("listing PNG files for checkpoint %q: %w", cp.Filename, err)
 		}
+		s.logger.WithFields(logrus.Fields{
+			"checkpoint": cp.Filename,
+			"file_count": len(files),
+		}).Debug("found PNG files")
 
 		for _, filename := range files {
 			fileDims, batchNum := parseFilename(filename)
@@ -128,6 +149,11 @@ func (s *Scanner) ScanTrainingRun(tr model.TrainingRun) (*model.ScanResult, erro
 
 	// Build dimension list
 	dimensions := buildDimensions(dimValues, dimTypes)
+
+	s.logger.WithFields(logrus.Fields{
+		"image_count":     len(images),
+		"dimension_count": len(dimensions),
+	}).Debug("scan result prepared")
 
 	return &model.ScanResult{
 		Images:     images,

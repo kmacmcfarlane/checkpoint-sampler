@@ -15,6 +15,7 @@ services:
     environment:
       - PORT=8080
       - CONFIG_PATH=/build/config.yaml
+      - LOG_LEVEL=trace
       - GOPATH=/home/gouser/go
       - GOCACHE=/home/gouser/.cache/go-build
       - GOMODCACHE=/home/gouser/go/pkg/mod

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -22,6 +23,7 @@ import (
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/config"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/store"
+	"github.com/sirupsen/logrus"
 )
 
 func main() {
@@ -31,18 +33,43 @@ func main() {
 }
 
 func run() error {
+	// Initialize logger
+	logger := logrus.New()
+	logger.SetFormatter(&logrus.TextFormatter{
+		FullTimestamp: true,
+	})
+
+	// Parse and set log level from environment variable (default: info)
+	logLevelStr := os.Getenv("LOG_LEVEL")
+	if logLevelStr == "" {
+		logLevelStr = "info"
+	}
+	logLevel, err := logrus.ParseLevel(strings.ToLower(logLevelStr))
+	if err != nil {
+		logger.WithFields(logrus.Fields{
+			"log_level": logLevelStr,
+			"error":     err.Error(),
+		}).Warn("invalid LOG_LEVEL value, defaulting to info")
+		logLevel = logrus.InfoLevel
+	}
+	logger.SetLevel(logLevel)
+
+	logger.WithField("log_level", logLevel.String()).Info("logger initialized")
+
 	// Load configuration
 	cfg, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
 	}
+	logger.WithField("config_path", os.Getenv("CONFIG_PATH")).Info("configuration loaded")
 
 	// Open database and run migrations
 	db, err := store.OpenDB(cfg.DBPath)
 	if err != nil {
 		return fmt.Errorf("opening database: %w", err)
 	}
-	st, err := store.New(db)
+	logger.WithField("db_path", cfg.DBPath).Info("database opened")
+	st, err := store.New(db, logger)
 	if err != nil {
 		return fmt.Errorf("initializing store: %w", err)
 	}
@@ -56,25 +83,25 @@ func run() error {
 	}
 
 	// Create filesystem, discovery, and scanner services
-	fs := store.NewFileSystem()
-	discovery := service.NewDiscoveryService(fs, cfg.CheckpointDirs, cfg.SampleDir)
-	scanner := service.NewScanner(fs, cfg.SampleDir)
+	fs := store.NewFileSystem(logger)
+	discovery := service.NewDiscoveryService(fs, cfg.CheckpointDirs, cfg.SampleDir, logger)
+	scanner := service.NewScanner(fs, cfg.SampleDir, logger)
 
 	// Create WebSocket hub and filesystem watcher
-	hub := service.NewHub(log.Default())
+	hub := service.NewHub(logger)
 	notifier, err := service.NewFSNotifier()
 	if err != nil {
 		return fmt.Errorf("creating filesystem notifier: %w", err)
 	}
 	defer notifier.Close()
-	watcher := service.NewWatcher(notifier, hub, cfg.SampleDir, log.Default())
+	watcher := service.NewWatcher(notifier, hub, cfg.SampleDir, logger)
 	defer watcher.Stop()
 
 	// Create ComfyUI services if configured
 	var comfyuiSvc *api.ComfyUIService
 	if cfg.ComfyUI != nil {
-		httpClient := store.NewComfyUIHTTPClient(cfg.ComfyUI.Host, cfg.ComfyUI.Port)
-		modelDiscovery := service.NewComfyUIModelDiscovery(httpClient)
+		httpClient := store.NewComfyUIHTTPClient(cfg.ComfyUI.Host, cfg.ComfyUI.Port, logger)
+		modelDiscovery := service.NewComfyUIModelDiscovery(httpClient, logger)
 		comfyuiSvc = api.NewComfyUIService(httpClient, modelDiscovery)
 	} else {
 		// Create disabled service when ComfyUI is not configured
@@ -85,11 +112,11 @@ func run() error {
 	healthSvc := api.NewHealthService()
 	docsSvc := api.NewDocsService(spec)
 	trainingRunsSvc := api.NewTrainingRunsService(discovery, scanner, watcher)
-	presetSvc := service.NewPresetService(st)
+	presetSvc := service.NewPresetService(st, logger)
 	presetsSvc := api.NewPresetsService(presetSvc)
-	checkpointMetadataSvc := service.NewCheckpointMetadataService(fs, cfg.CheckpointDirs)
+	checkpointMetadataSvc := service.NewCheckpointMetadataService(fs, cfg.CheckpointDirs, logger)
 	checkpointsSvc := api.NewCheckpointsService(checkpointMetadataSvc)
-	imageMetadataSvc := service.NewImageMetadataService(fs, cfg.SampleDir)
+	imageMetadataSvc := service.NewImageMetadataService(fs, cfg.SampleDir, logger)
 	wsSvc := api.NewWSService(hub)
 
 	// Create Goa endpoints
@@ -116,7 +143,7 @@ func run() error {
 		WSEndpoints:          wsEndpoints,
 		ImageHandler:         imageHandler,
 		SwaggerUIDir:         http.Dir(swaggerUIDir()),
-		Logger:               log.Default(),
+		Logger:               logger,
 		Debug:                true,
 	})
 
@@ -136,14 +163,15 @@ func run() error {
 
 	go func() {
 		<-ctx.Done()
+		logger.Info("shutdown signal received")
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		if err := srv.Shutdown(shutdownCtx); err != nil {
-			log.Printf("shutdown error: %v", err)
+			logger.WithError(err).Error("shutdown error")
 		}
 	}()
 
-	log.Printf("starting server on %s", addr)
+	logger.WithField("address", addr).Info("starting server")
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		return fmt.Errorf("server error: %w", err)
 	}

@@ -10,6 +10,7 @@ services:
       - ${SAMPLE_DIR:-./.dataset-placeholder}:/data/samples:ro
     environment:
       - CONFIG_PATH=/app/config.yaml
+      - LOG_LEVEL=info
 
   frontend:
     build: ./frontend

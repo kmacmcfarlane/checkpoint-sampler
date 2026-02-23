@@ -4,16 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"sync"
 
 	"github.com/gorilla/websocket"
+	"github.com/sirupsen/logrus"
 )
 
 // ComfyUIWSClient provides WebSocket connectivity to ComfyUI for real-time updates.
 type ComfyUIWSClient struct {
 	url    string
-	logger *log.Logger
+	logger *logrus.Entry
 
 	mu       sync.RWMutex
 	conn     *websocket.Conn
@@ -32,13 +32,10 @@ type ComfyUIEvent struct {
 }
 
 // NewComfyUIWSClient creates a new ComfyUI WebSocket client.
-func NewComfyUIWSClient(host string, port int, logger *log.Logger) *ComfyUIWSClient {
-	if logger == nil {
-		logger = log.Default()
-	}
+func NewComfyUIWSClient(host string, port int, logger *logrus.Logger) *ComfyUIWSClient {
 	return &ComfyUIWSClient{
 		url:      fmt.Sprintf("ws://%s:%d/ws", host, port),
-		logger:   logger,
+		logger:   logger.WithField("component", "comfyui_ws"),
 		handlers: []ComfyUIEventHandler{},
 		stopCh:   make(chan struct{}),
 	}
@@ -53,16 +50,25 @@ func (c *ComfyUIWSClient) AddHandler(handler ComfyUIEventHandler) {
 
 // Connect establishes the WebSocket connection and starts listening for events.
 func (c *ComfyUIWSClient) Connect(ctx context.Context) error {
+	c.logger.WithField("url", c.url).Trace("entering Connect")
+	defer c.logger.Trace("returning from Connect")
+
 	c.mu.Lock()
 	if c.conn != nil {
 		c.mu.Unlock()
+		c.logger.Warn("already connected")
 		return fmt.Errorf("already connected")
 	}
 	c.mu.Unlock()
 
+	c.logger.WithField("url", c.url).Debug("dialing ComfyUI WebSocket")
 	dialer := websocket.DefaultDialer
 	conn, _, err := dialer.DialContext(ctx, c.url, nil)
 	if err != nil {
+		c.logger.WithFields(logrus.Fields{
+			"url":   c.url,
+			"error": err.Error(),
+		}).Error("failed to dial ComfyUI WebSocket")
 		return fmt.Errorf("dialing ComfyUI WebSocket: %w", err)
 	}
 
@@ -71,6 +77,7 @@ func (c *ComfyUIWSClient) Connect(ctx context.Context) error {
 	c.stopped = false
 	c.mu.Unlock()
 
+	c.logger.Info("ComfyUI WebSocket connected")
 	go c.readLoop()
 
 	return nil
@@ -78,10 +85,14 @@ func (c *ComfyUIWSClient) Connect(ctx context.Context) error {
 
 // Close closes the WebSocket connection.
 func (c *ComfyUIWSClient) Close() error {
+	c.logger.Trace("entering Close")
+	defer c.logger.Trace("returning from Close")
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	if c.stopped {
+		c.logger.Debug("already stopped")
 		return nil
 	}
 
@@ -91,6 +102,11 @@ func (c *ComfyUIWSClient) Close() error {
 	if c.conn != nil {
 		err := c.conn.Close()
 		c.conn = nil
+		if err != nil {
+			c.logger.WithError(err).Error("failed to close WebSocket connection")
+		} else {
+			c.logger.Info("WebSocket connection closed")
+		}
 		return err
 	}
 
@@ -125,16 +141,17 @@ func (c *ComfyUIWSClient) readLoop() {
 
 		_, message, err := conn.ReadMessage()
 		if err != nil {
-			c.logger.Printf("ComfyUI WebSocket read error: %v", err)
+			c.logger.WithError(err).Error("WebSocket read error")
 			return
 		}
 
 		var event ComfyUIEvent
 		if err := json.Unmarshal(message, &event); err != nil {
-			c.logger.Printf("ComfyUI WebSocket unmarshal error: %v", err)
+			c.logger.WithError(err).Error("failed to unmarshal WebSocket event")
 			continue
 		}
 
+		c.logger.WithField("event_type", event.Type).Debug("received WebSocket event")
 		c.dispatchEvent(event)
 	}
 }

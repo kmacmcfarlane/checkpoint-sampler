@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -11,6 +12,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/sirupsen/logrus"
 
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
@@ -68,12 +70,15 @@ var _ = Describe("ImageMetadataHandler", func() {
 		server    *httptest.Server
 		client    *http.Client
 		sampleDir string
+		logger    *logrus.Logger
 	)
 
 	BeforeEach(func() {
 		var err error
 		sampleDir, err = os.MkdirTemp("", "image-metadata-handler-test-*")
 		Expect(err).NotTo(HaveOccurred())
+		logger = logrus.New()
+		logger.SetOutput(io.Discard)
 	})
 
 	AfterEach(func() {
@@ -85,7 +90,7 @@ var _ = Describe("ImageMetadataHandler", func() {
 
 	setupServer := func() {
 		fs := &realFileReader{}
-		metadataSvc := service.NewImageMetadataService(fs, sampleDir)
+		metadataSvc := service.NewImageMetadataService(fs, sampleDir, logger)
 		imageHandler := api.NewImageHandler(sampleDir)
 		imageHandler.SetMetadataHandler(api.NewImageMetadataHandler(metadataSvc))
 

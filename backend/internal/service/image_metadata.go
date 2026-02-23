@@ -7,6 +7,8 @@ import (
 	"io"
 	"path/filepath"
 	"strings"
+
+	"github.com/sirupsen/logrus"
 )
 
 // ImageMetadataReader defines filesystem operations needed to read image files.
@@ -18,13 +20,15 @@ type ImageMetadataReader interface {
 type ImageMetadataService struct {
 	reader    ImageMetadataReader
 	sampleDir string
+	logger    *logrus.Entry
 }
 
 // NewImageMetadataService creates an image metadata service.
-func NewImageMetadataService(reader ImageMetadataReader, sampleDir string) *ImageMetadataService {
+func NewImageMetadataService(reader ImageMetadataReader, sampleDir string, logger *logrus.Logger) *ImageMetadataService {
 	return &ImageMetadataService{
 		reader:    reader,
 		sampleDir: sampleDir,
+		logger:    logger.WithField("component", "image_metadata"),
 	}
 }
 
@@ -32,7 +36,11 @@ func NewImageMetadataService(reader ImageMetadataReader, sampleDir string) *Imag
 // and extracts tEXt chunk metadata. Returns an empty map (not error) when no
 // metadata is embedded.
 func (s *ImageMetadataService) GetMetadata(relPath string) (map[string]string, error) {
+	s.logger.WithField("relative_path", relPath).Trace("entering GetMetadata")
+	defer s.logger.Trace("returning from GetMetadata")
+
 	if !isPathSafe(relPath) {
+		s.logger.WithField("relative_path", relPath).Warn("invalid path rejected")
 		return nil, fmt.Errorf("invalid path: %q", relPath)
 	}
 
@@ -42,13 +50,27 @@ func (s *ImageMetadataService) GetMetadata(relPath string) (map[string]string, e
 	cleanRoot := filepath.Clean(s.sampleDir)
 	cleanPath := filepath.Clean(absPath)
 	if !strings.HasPrefix(cleanPath, cleanRoot+string(filepath.Separator)) && cleanPath != cleanRoot {
+		s.logger.WithField("relative_path", relPath).Warn("path traversal attempt rejected")
 		return nil, fmt.Errorf("invalid path: %q", relPath)
 	}
 
+	s.logger.WithFields(logrus.Fields{
+		"relative_path": relPath,
+		"absolute_path": absPath,
+	}).Debug("resolved image path")
+
 	metadata, err := parsePNGTextChunks(s.reader, absPath)
 	if err != nil {
+		s.logger.WithFields(logrus.Fields{
+			"relative_path": relPath,
+			"error":         err.Error(),
+		}).Error("failed to parse PNG metadata")
 		return nil, fmt.Errorf("parsing PNG metadata: %w", err)
 	}
+	s.logger.WithFields(logrus.Fields{
+		"relative_path":  relPath,
+		"metadata_count": len(metadata),
+	}).Debug("PNG metadata extracted")
 
 	return metadata, nil
 }

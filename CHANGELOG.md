@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-036: Structured logging with logrus
+- backend/go.mod: Added logrus v1.9.4 dependency
+- backend/cmd/server/main.go: LOG_LEVEL env var parsing (default: info) with logrus TextFormatter; replaced stdlib log with structured logrus logger throughout initialization
+- docker-compose.yml: Added LOG_LEVEL=info for production mode
+- docker-compose.dev.yml: Added LOG_LEVEL=trace for development mode
+- backend/internal/service/preset.go: Added logrus logger with trace entry/exit, debug intermediate values, info on data writes, warn on validation failures, error on store failures
+- backend/internal/service/discovery.go: Added logrus logger with trace/debug/error logging for training run discovery
+- backend/internal/service/scanner.go: Added logrus logger with trace/debug/error logging for filesystem scanning
+- backend/internal/service/checkpoint_metadata.go: Added logrus logger with trace/debug/error logging for safetensors metadata parsing
+- backend/internal/service/image_metadata.go: Added logrus logger with trace/debug/error logging for PNG metadata extraction
+- backend/internal/service/comfyui_models.go: Added logrus logger with trace/debug/error logging for ComfyUI model discovery
+- backend/internal/service/hub.go: Added logrus logger with trace/debug/info logging for WebSocket client management
+- backend/internal/service/watcher.go: Added logrus logger with trace/debug/info/error logging for filesystem watching
+- backend/internal/store/store.go: Updated constructor to accept logrus logger; trace/info logging for migrations
+- backend/internal/store/preset.go: Added logrus logger with trace/debug/info/error logging for preset CRUD operations
+- backend/internal/store/filesystem.go: Added logrus logger with trace/debug/error logging for filesystem operations
+- backend/internal/store/comfyui_client.go: Added logrus logger with trace/debug/info/error logging for ComfyUI HTTP client
+- backend/internal/store/comfyui_ws.go: Replaced stdlib log.Logger with logrus logger for WebSocket client
+- backend/internal/api/http.go: Updated to use logrus.Logger; logrusAdapter bridges Goa middleware to logrus; "component" field used consistently
+- All log messages use WithField()/WithFields() builder pattern with contextual fields (component, preset_id, training_run, checkpoint, etc.)
+- 6 new PresetService logging tests using logrus/hooks/test: verify trace entry/exit, info on create, error on store failure, debug for intermediate values, warn for validation, debug for not-found
+- agent/DEVELOPMENT_PRACTICES.md: Added section 3.6 "Logging" documenting logrus usage, log level definitions, WithField() pattern, LOG_LEVEL env var, and callee logging rule
+- 255 backend specs pass across 4 suites; 465 frontend tests pass across 24 test files
+
 ### S-030: ComfyUI configuration, client, and model discovery
 - backend/internal/model/config.go: Added ComfyUIConfig domain type (Host, Port, WorkflowDir) without serialization tags
 - backend/internal/config/config.go: Added optional comfyui YAML section parsing with defaults (localhost:8188, ./workflows); validation rejects invalid port range (1-65535)
