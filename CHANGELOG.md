@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### B-011: Auto-load previously used dimension preset from localStorage
+- frontend/src/composables/usePresetPersistence.ts: New composable managing persistence of last-used preset and training run in localStorage; saves preset ID and training run ID on preset selection; validates stored data structure and types on restore; clears storage on preset deletion or stale data
+- frontend/src/components/PresetSelector.vue: Added `autoLoadPresetId` prop; on mount, auto-loads the matching preset if it exists; emits `delete` event for stale/non-existent presets to trigger cleanup
+- frontend/src/components/TrainingRunSelector.vue: Added `autoSelectRunId` prop; on mount, auto-selects the matching training run if it exists in the fetched list
+- frontend/src/App.vue: Integrated usePresetPersistence composable; passes saved training run ID and preset ID to selectors; saves selection on preset load/save; clears on preset delete
+- 11 usePresetPersistence tests: save/restore, clear, overwrite, invalid JSON, missing fields, wrong types, primitives, null handling
+- 5 new TrainingRunSelector tests: auto-select success, stale run, null/undefined props, single execution guarantee
+- 4 new PresetSelector tests: auto-load success, stale preset cleanup, null/undefined props, single execution guarantee
+- 441 total frontend tests pass across 23 test files
+
 ### B-010: WebSocket live updates always displays 'disconnected'
 - frontend/vite.config.ts: Added `ws: true` to Vite dev proxy configuration for `/api` routes; enables WebSocket upgrade forwarding so the `/api/ws` endpoint connects correctly during development
 - Root cause: Vite's proxy was not configured to handle WebSocket protocol upgrades, causing all WebSocket connections to fail immediately and the status indicator to permanently show "Disconnected"

@@ -7,6 +7,7 @@ import { useDimensionMapping } from './composables/useDimensionMapping'
 import { useImagePreloader } from './composables/useImagePreloader'
 import { useWebSocket } from './composables/useWebSocket'
 import { useTheme } from './composables/useTheme'
+import { usePresetPersistence } from './composables/usePresetPersistence'
 import AppDrawer from './components/AppDrawer.vue'
 import TrainingRunSelector from './components/TrainingRunSelector.vue'
 import DimensionPanel from './components/DimensionPanel.vue'
@@ -20,6 +21,7 @@ import CheckpointMetadataPanel from './components/CheckpointMetadataPanel.vue'
 import ThemeToggle from './components/ThemeToggle.vue'
 
 const { theme, isDark, toggle: toggleTheme } = useTheme()
+const { savedData, savePresetSelection, clearPresetSelection } = usePresetPersistence()
 
 const selectedTrainingRun = ref<TrainingRun | null>(null)
 const scanning = ref(false)
@@ -82,6 +84,9 @@ const {
 
 /** Preset warnings for unmatched dimensions. */
 const presetWarnings = ref<string[]>([])
+
+/** Currently selected preset ID (for tracking and persistence). */
+const selectedPresetId = ref<string | null>(null)
 
 /** Combo filter selections: dimension name → set of selected values. */
 const comboSelections = reactive<Record<string, Set<string>>>({})
@@ -253,9 +258,21 @@ function onMasterSliderChange(value: string) {
 /** All dimension names from the current scan. */
 const dimensionNames = computed(() => dimensions.value.map((d) => d.name))
 
+/**
+ * Determine if we should attempt auto-loading a preset.
+ * Only auto-load once per training run, and only if the saved training run matches the current one.
+ */
+const shouldAutoLoadPreset = computed(() => {
+  if (!savedData.value) return false
+  if (!selectedTrainingRun.value) return false
+  return savedData.value.trainingRunId === selectedTrainingRun.value.id
+})
+
 /** Load a preset: apply matching dimension assignments, warn about unmatched. */
 function onPresetLoad(preset: Preset, warnings: string[]) {
   presetWarnings.value = warnings
+  selectedPresetId.value = preset.id
+
   // Apply the preset mapping to assignments
   const m = preset.mapping
   for (const dim of dimensions.value) {
@@ -269,14 +286,31 @@ function onPresetLoad(preset: Preset, warnings: string[]) {
       assignRole(dim.name, 'none')
     }
   }
+
+  // Persist the selection to localStorage
+  if (selectedTrainingRun.value) {
+    savePresetSelection(selectedTrainingRun.value.id, preset.id)
+  }
 }
 
-function onPresetSave() {
+function onPresetSave(preset: Preset) {
   presetWarnings.value = []
+  selectedPresetId.value = preset.id
+
+  // Persist the new preset selection
+  if (selectedTrainingRun.value) {
+    savePresetSelection(selectedTrainingRun.value.id, preset.id)
+  }
 }
 
-function onPresetDelete() {
+function onPresetDelete(presetId: string) {
   presetWarnings.value = []
+
+  // If the deleted preset was the selected one, clear the selection
+  if (selectedPresetId.value === presetId) {
+    selectedPresetId.value = null
+    clearPresetSelection()
+  }
 }
 </script>
 
@@ -314,13 +348,17 @@ function onPresetDelete() {
       </header>
       <AppDrawer v-model:show="drawerOpen">
         <div class="drawer-section">
-          <TrainingRunSelector @select="onTrainingRunSelect" />
+          <TrainingRunSelector
+            :auto-select-run-id="savedData?.trainingRunId ?? null"
+            @select="onTrainingRunSelect"
+          />
         </div>
         <template v-if="selectedTrainingRun && !scanning && !scanError">
           <div class="drawer-section">
             <PresetSelector
               :assignments="assignments"
               :dimension-names="dimensionNames"
+              :auto-load-preset-id="shouldAutoLoadPreset ? savedData?.presetId ?? null : null"
               @load="onPresetLoad"
               @save="onPresetSave"
               @delete="onPresetDelete"

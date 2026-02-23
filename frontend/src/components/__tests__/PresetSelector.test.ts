@@ -239,6 +239,76 @@ describe('PresetSelector', () => {
     expect(deleteBtn).toBeDefined()
   })
 
+  it('auto-loads preset when autoLoadPresetId is provided and preset exists', async () => {
+    mockGetPresets.mockResolvedValue(samplePresets)
+    const wrapper = mount(PresetSelector, {
+      props: { ...defaultProps, autoLoadPresetId: 'p2' },
+    })
+    await flushPromises()
+
+    const emitted = wrapper.emitted('load')
+    expect(emitted).toBeDefined()
+    expect(emitted).toHaveLength(1)
+    expect(emitted![0][0]).toEqual(samplePresets[1]) // p2 is the second preset
+  })
+
+  it('emits delete event when autoLoadPresetId references a stale preset', async () => {
+    mockGetPresets.mockResolvedValue(samplePresets) // only p1 and p2 exist
+    const wrapper = mount(PresetSelector, {
+      props: { ...defaultProps, autoLoadPresetId: 'p99-stale' },
+    })
+    await flushPromises()
+
+    const loadEmitted = wrapper.emitted('load')
+    expect(loadEmitted).toBeUndefined() // no load event
+
+    const deleteEmitted = wrapper.emitted('delete')
+    expect(deleteEmitted).toBeDefined()
+    expect(deleteEmitted).toHaveLength(1)
+    expect(deleteEmitted![0][0]).toBe('p99-stale')
+  })
+
+  it('does not auto-load when autoLoadPresetId is null', async () => {
+    mockGetPresets.mockResolvedValue(samplePresets)
+    const wrapper = mount(PresetSelector, {
+      props: { ...defaultProps, autoLoadPresetId: null },
+    })
+    await flushPromises()
+
+    const emitted = wrapper.emitted('load')
+    expect(emitted).toBeUndefined()
+  })
+
+  it('does not auto-load when autoLoadPresetId is undefined', async () => {
+    mockGetPresets.mockResolvedValue(samplePresets)
+    const wrapper = mount(PresetSelector, {
+      props: { ...defaultProps, autoLoadPresetId: undefined },
+    })
+    await flushPromises()
+
+    const emitted = wrapper.emitted('load')
+    expect(emitted).toBeUndefined()
+  })
+
+  it('auto-loads preset only once even if presets list changes', async () => {
+    mockGetPresets.mockResolvedValue(samplePresets)
+    const wrapper = mount(PresetSelector, {
+      props: { ...defaultProps, autoLoadPresetId: 'p1' },
+    })
+    await flushPromises()
+
+    // First auto-load should happen
+    expect(wrapper.emitted('load')).toHaveLength(1)
+
+    // Change the presets (simulate a refetch or update)
+    mockGetPresets.mockResolvedValue([...samplePresets])
+    await wrapper.vm.$forceUpdate()
+    await flushPromises()
+
+    // Auto-load should not trigger again
+    expect(wrapper.emitted('load')).toHaveLength(1)
+  })
+
   afterAll(() => {
     globalThis.prompt = originalPrompt
   })

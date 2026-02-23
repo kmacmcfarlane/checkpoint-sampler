@@ -4,11 +4,17 @@ import { NSelect, NCheckbox } from 'naive-ui'
 import type { TrainingRun } from '../api/types'
 import { apiClient } from '../api/client'
 
+const props = defineProps<{
+  /** Auto-select this training run ID if provided (used for restoring from localStorage). */
+  autoSelectRunId?: number | null
+}>()
+
 const trainingRuns = ref<TrainingRun[]>([])
 const selectedId = ref<number | null>(null)
 const loading = ref(false)
 const error = ref<string | null>(null)
 const hasSamplesFilter = ref(true)
+const attemptedAutoSelect = ref(false)
 
 const emit = defineEmits<{
   select: [trainingRun: TrainingRun]
@@ -27,6 +33,7 @@ async function fetchTrainingRuns() {
   selectedId.value = null
   try {
     trainingRuns.value = await apiClient.getTrainingRuns(hasSamplesFilter.value)
+    attemptAutoSelect()
   } catch (err: unknown) {
     const message = err && typeof err === 'object' && 'message' in err
       ? String((err as { message: string }).message)
@@ -35,6 +42,23 @@ async function fetchTrainingRuns() {
   } finally {
     loading.value = false
   }
+}
+
+/**
+ * Auto-select a training run if autoSelectRunId is provided and the run exists.
+ * Gracefully handles stale training runs by doing nothing.
+ */
+function attemptAutoSelect() {
+  if (props.autoSelectRunId === null || props.autoSelectRunId === undefined) return
+  if (attemptedAutoSelect.value) return
+  attemptedAutoSelect.value = true
+
+  const run = trainingRuns.value.find((r) => r.id === props.autoSelectRunId)
+  if (run) {
+    selectedId.value = run.id
+    emit('select', run)
+  }
+  // If run doesn't exist, do nothing (stale training run ID in localStorage)
 }
 
 onMounted(fetchTrainingRuns)
