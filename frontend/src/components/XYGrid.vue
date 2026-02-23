@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, onUnmounted } from 'vue'
 import type { ScanDimension, ScanImage } from '../api/types'
 import ImageCell from './ImageCell.vue'
 import SliderBar from './SliderBar.vue'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   xDimension: ScanDimension | null
   yDimension: ScanDimension | null
   images: ScanImage[]
@@ -15,12 +15,17 @@ const props = defineProps<{
   defaultSliderValue: string
   /** Cell size in pixels (both width and height). */
   cellSize: number
-}>()
+  /** Whether to maintain aspect ratio during corner resize (default: true). */
+  maintainAspectRatio?: boolean
+}>(), {
+  maintainAspectRatio: true,
+})
 
 const emit = defineEmits<{
   'update:sliderValue': [cellKey: string, value: string]
   'image:click': [imageUrl: string]
   'header:click': [dimensionName: string, value: string]
+  'update:cellSize': [size: number]
 }>()
 
 // --- Cell dimensions controlled by zoom ---
@@ -193,11 +198,75 @@ const flatGridStyle = computed(() => ({
   gridAutoRows: `${cellHeight.value}px`,
   gap: '4px',
 }))
+
+// --- Corner-based resize logic ---
+
+const MIN_CELL_SIZE = 100
+const MAX_CELL_SIZE = 600
+
+const isDragging = ref(false)
+const dragStartX = ref(0)
+const dragStartY = ref(0)
+const dragStartSize = ref(0)
+
+function onResizeHandleMouseDown(event: MouseEvent) {
+  event.preventDefault()
+  isDragging.value = true
+  dragStartX.value = event.clientX
+  dragStartY.value = event.clientY
+  dragStartSize.value = props.cellSize
+
+  document.addEventListener('mousemove', onDocumentMouseMove)
+  document.addEventListener('mouseup', onDocumentMouseUp)
+}
+
+function onDocumentMouseMove(event: MouseEvent) {
+  if (!isDragging.value) return
+
+  const deltaX = event.clientX - dragStartX.value
+  const deltaY = event.clientY - dragStartY.value
+
+  // Calculate new size based on diagonal movement
+  // When maintainAspectRatio is true or undefined (default), use average of deltas
+  // When false, use max delta for freeform resize
+  const shouldMaintainAspectRatio = props.maintainAspectRatio !== false
+  const delta = shouldMaintainAspectRatio
+    ? (deltaX + deltaY) / 2
+    : Math.max(deltaX, deltaY)
+
+  let newSize = Math.round(dragStartSize.value + delta)
+  newSize = Math.max(MIN_CELL_SIZE, Math.min(MAX_CELL_SIZE, newSize))
+
+  if (newSize !== props.cellSize) {
+    emit('update:cellSize', newSize)
+  }
+}
+
+function onDocumentMouseUp() {
+  isDragging.value = false
+  document.removeEventListener('mousemove', onDocumentMouseMove)
+  document.removeEventListener('mouseup', onDocumentMouseUp)
+}
+
+onUnmounted(() => {
+  // Clean up event listeners if component unmounts during drag
+  document.removeEventListener('mousemove', onDocumentMouseMove)
+  document.removeEventListener('mouseup', onDocumentMouseUp)
+})
 </script>
 
 <template>
   <div class="xy-grid-container" v-if="!hasNoAxes">
     <div class="xy-grid" role="grid" :style="gridStyle">
+      <!-- Corner resize handle -->
+      <div
+        class="xy-grid__resize-handle"
+        role="button"
+        tabindex="0"
+        aria-label="Resize grid cells"
+        :class="{ 'xy-grid__resize-handle--dragging': isDragging }"
+        @mousedown="onResizeHandleMouseDown"
+      ></div>
       <!-- Corner cell (when both X and Y present) -->
       <div
         v-if="xDimension && yDimension"
@@ -323,10 +392,65 @@ const flatGridStyle = computed(() => ({
 <style scoped>
 .xy-grid-container {
   width: 100%;
+  position: relative;
+}
+
+.xy-grid {
+  position: relative;
 }
 
 .xy-grid__corner {
   min-width: 60px;
+}
+
+.xy-grid__resize-handle {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  width: 20px;
+  height: 20px;
+  background-color: var(--accent-color, #1976d2);
+  border: 2px solid var(--bg-color, #ffffff);
+  border-radius: 4px;
+  cursor: nwse-resize;
+  z-index: 100;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  transition: transform 0.2s ease;
+}
+
+.xy-grid__resize-handle:hover {
+  transform: scale(1.2);
+  background-color: var(--accent-bg, #e3f2fd);
+  border-color: var(--accent-color, #1976d2);
+}
+
+.xy-grid__resize-handle--dragging {
+  transform: scale(1.3);
+  background-color: var(--accent-bg, #e3f2fd);
+  border-color: var(--accent-color, #1976d2);
+}
+
+.xy-grid__resize-handle::before,
+.xy-grid__resize-handle::after {
+  content: '';
+  position: absolute;
+  background-color: var(--bg-color, #ffffff);
+}
+
+.xy-grid__resize-handle::before {
+  width: 12px;
+  height: 2px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.xy-grid__resize-handle::after {
+  width: 2px;
+  height: 12px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(45deg);
 }
 
 .xy-grid__col-header {

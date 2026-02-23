@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-028: XY grid corner-based cell resizing
+- frontend/src/components/XYGrid.vue: Added fixed corner resize handle (bottom-right) that allows dragging to adjust grid cell size; both width and height update simultaneously via single cellSize prop; maintains aspect ratio by default (averages X/Y deltas) with freeform mode available via `maintainAspectRatio` prop; size constrained to 100px–600px; handle hidden in flat mode (no axes assigned); visual feedback with diagonal cursor, hover scale, and dragging state; proper event listener cleanup on mouseup and component unmount
+- frontend/src/App.vue: Connected `@update:cell-size` event from XYGrid to existing cellSize reactive state
+- 12 new XYGrid tests: resize handle rendering and ARIA attributes, drag emission with delta calculation, dragging CSS class, min/max bounds enforcement, aspect ratio mode, freeform mode, event listener cleanup on mouseup and unmount, zero-delta suppression, uniform cell updates, cursor styling, flat mode exclusion
+- 453 total frontend tests pass across 23 test files
+
 ### B-011: Auto-load previously used dimension preset from localStorage
 - frontend/src/composables/usePresetPersistence.ts: New composable managing persistence of last-used preset and training run in localStorage; saves preset ID and training run ID on preset selection; validates stored data structure and types on restore; clears storage on preset deletion or stale data
 - frontend/src/components/PresetSelector.vue: Added `autoLoadPresetId` prop; on mount, auto-loads the matching preset if it exists; emits `delete` event for stale/non-existent presets to trigger cleanup

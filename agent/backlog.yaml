@@ -599,7 +599,7 @@ stories:
   - id: S-028
     title: "XY grid corner-based cell resizing"
     priority: 3
-    status: todo
+    status: done
     requires: [S-024]
     acceptance:
       - "FE: Grid cells can be resized by dragging corner handles (adjusts both width and height simultaneously)"

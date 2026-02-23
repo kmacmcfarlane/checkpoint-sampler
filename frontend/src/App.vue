@@ -418,6 +418,7 @@ function onPresetDelete(presetId: string) {
               :default-slider-value="defaultSliderValue"
               :cell-size="cellSize"
               @update:slider-value="onSliderValueUpdate"
+              @update:cell-size="cellSize = $event"
               @image:click="onImageClick"
               @header:click="onHeaderClick"
             />

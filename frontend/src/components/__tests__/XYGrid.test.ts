@@ -607,4 +607,216 @@ describe('XYGrid', () => {
       expect(style).toContain('grid-auto-rows: 200px')
     })
   })
+
+  describe('corner-based cell resizing', () => {
+    it('renders resize handle when grid has axes', () => {
+      const wrapper = mountGrid()
+      const handle = wrapper.find('.xy-grid__resize-handle')
+      expect(handle.exists()).toBe(true)
+      expect(handle.attributes('role')).toBe('button')
+      expect(handle.attributes('aria-label')).toBe('Resize grid cells')
+    })
+
+    it('emits update:cellSize when resize handle is dragged', async () => {
+      const wrapper = mountGrid({ cellSize: 200 })
+      const handle = wrapper.find('.xy-grid__resize-handle')
+
+      // Simulate mousedown
+      await handle.trigger('mousedown', { clientX: 100, clientY: 100 })
+
+      // Simulate mousemove
+      const mouseMoveEvent = new MouseEvent('mousemove', {
+        clientX: 150,
+        clientY: 150,
+        bubbles: true,
+      })
+      document.dispatchEvent(mouseMoveEvent)
+      await wrapper.vm.$nextTick()
+
+      // Check that update:cellSize was emitted
+      const emitted = wrapper.emitted('update:cellSize')
+      expect(emitted).toBeDefined()
+      expect(emitted!.length).toBeGreaterThan(0)
+      // Delta is (50 + 50) / 2 = 50, so new size should be 250
+      expect(emitted![0]).toEqual([250])
+
+      // Simulate mouseup to clean up
+      const mouseUpEvent = new MouseEvent('mouseup', { bubbles: true })
+      document.dispatchEvent(mouseUpEvent)
+    })
+
+    it('applies dragging class during resize', async () => {
+      const wrapper = mountGrid()
+      const handle = wrapper.find('.xy-grid__resize-handle')
+
+      expect(handle.classes()).not.toContain('xy-grid__resize-handle--dragging')
+
+      await handle.trigger('mousedown', { clientX: 100, clientY: 100 })
+      await wrapper.vm.$nextTick()
+
+      expect(handle.classes()).toContain('xy-grid__resize-handle--dragging')
+
+      const mouseUpEvent = new MouseEvent('mouseup', { bubbles: true })
+      document.dispatchEvent(mouseUpEvent)
+      await wrapper.vm.$nextTick()
+
+      expect(handle.classes()).not.toContain('xy-grid__resize-handle--dragging')
+    })
+
+    it('constrains cell size to min/max bounds', async () => {
+      const wrapper = mountGrid({ cellSize: 200 })
+      const handle = wrapper.find('.xy-grid__resize-handle')
+
+      // Try to drag way beyond max (600px)
+      await handle.trigger('mousedown', { clientX: 100, clientY: 100 })
+      const largeMoveEvent = new MouseEvent('mousemove', {
+        clientX: 1000,
+        clientY: 1000,
+        bubbles: true,
+      })
+      document.dispatchEvent(largeMoveEvent)
+      await wrapper.vm.$nextTick()
+
+      const emitted = wrapper.emitted('update:cellSize')
+      expect(emitted).toBeDefined()
+      // Size should be capped at 600
+      const maxEmitted = emitted!.find((e) => e[0] === 600)
+      expect(maxEmitted).toBeDefined()
+
+      const mouseUpEvent = new MouseEvent('mouseup', { bubbles: true })
+      document.dispatchEvent(mouseUpEvent)
+    })
+
+    it('maintains aspect ratio by default', async () => {
+      const wrapper = mountGrid({ cellSize: 200 })
+      const handle = wrapper.find('.xy-grid__resize-handle')
+
+      await handle.trigger('mousedown', { clientX: 100, clientY: 100 })
+
+      // Drag with different X and Y deltas
+      const mouseMoveEvent = new MouseEvent('mousemove', {
+        clientX: 160, // delta X = 60
+        clientY: 140, // delta Y = 40
+        bubbles: true,
+      })
+      document.dispatchEvent(mouseMoveEvent)
+      await wrapper.vm.$nextTick()
+
+      const emitted = wrapper.emitted('update:cellSize')
+      expect(emitted).toBeDefined()
+      // Average delta: (60 + 40) / 2 = 50
+      // New size: 200 + 50 = 250
+      expect(emitted![0]).toEqual([250])
+
+      const mouseUpEvent = new MouseEvent('mouseup', { bubbles: true })
+      document.dispatchEvent(mouseUpEvent)
+    })
+
+    it('allows freeform resize when maintainAspectRatio is false', async () => {
+      const wrapper = mountGrid({ cellSize: 200, maintainAspectRatio: false })
+      const handle = wrapper.find('.xy-grid__resize-handle')
+
+      await handle.trigger('mousedown', { clientX: 100, clientY: 100 })
+
+      // Drag with different X and Y deltas
+      const mouseMoveEvent = new MouseEvent('mousemove', {
+        clientX: 160, // delta X = 60
+        clientY: 140, // delta Y = 40
+        bubbles: true,
+      })
+      document.dispatchEvent(mouseMoveEvent)
+      await wrapper.vm.$nextTick()
+
+      const emitted = wrapper.emitted('update:cellSize')
+      expect(emitted).toBeDefined()
+      // Max delta: max(60, 40) = 60
+      // New size: 200 + 60 = 260
+      expect(emitted![0]).toEqual([260])
+
+      const mouseUpEvent = new MouseEvent('mouseup', { bubbles: true })
+      document.dispatchEvent(mouseUpEvent)
+    })
+
+    it('cleans up event listeners on mouseup', async () => {
+      const wrapper = mountGrid()
+      const handle = wrapper.find('.xy-grid__resize-handle')
+
+      const removeEventListenerSpy = vi.spyOn(document, 'removeEventListener')
+
+      await handle.trigger('mousedown', { clientX: 100, clientY: 100 })
+
+      const mouseUpEvent = new MouseEvent('mouseup', { bubbles: true })
+      document.dispatchEvent(mouseUpEvent)
+      await wrapper.vm.$nextTick()
+
+      expect(removeEventListenerSpy).toHaveBeenCalledWith('mousemove', expect.any(Function))
+      expect(removeEventListenerSpy).toHaveBeenCalledWith('mouseup', expect.any(Function))
+
+      removeEventListenerSpy.mockRestore()
+    })
+
+    it('cleans up event listeners on component unmount', async () => {
+      const wrapper = mountGrid()
+      const handle = wrapper.find('.xy-grid__resize-handle')
+
+      const removeEventListenerSpy = vi.spyOn(document, 'removeEventListener')
+
+      await handle.trigger('mousedown', { clientX: 100, clientY: 100 })
+
+      wrapper.unmount()
+
+      expect(removeEventListenerSpy).toHaveBeenCalledWith('mousemove', expect.any(Function))
+      expect(removeEventListenerSpy).toHaveBeenCalledWith('mouseup', expect.any(Function))
+
+      removeEventListenerSpy.mockRestore()
+    })
+
+    it('does not emit update:cellSize if size has not changed', async () => {
+      const wrapper = mountGrid({ cellSize: 200 })
+      const handle = wrapper.find('.xy-grid__resize-handle')
+
+      await handle.trigger('mousedown', { clientX: 100, clientY: 100 })
+
+      // Drag with zero delta
+      const mouseMoveEvent = new MouseEvent('mousemove', {
+        clientX: 100,
+        clientY: 100,
+        bubbles: true,
+      })
+      document.dispatchEvent(mouseMoveEvent)
+      await wrapper.vm.$nextTick()
+
+      const emitted = wrapper.emitted('update:cellSize')
+      expect(emitted).toBeUndefined()
+
+      const mouseUpEvent = new MouseEvent('mouseup', { bubbles: true })
+      document.dispatchEvent(mouseUpEvent)
+    })
+
+    it('updates all cells uniformly when cellSize changes', async () => {
+      const wrapper = mountGrid({ cellSize: 200 })
+      let grid = wrapper.find('[role="grid"]')
+      let style = grid.attributes('style') ?? ''
+      expect(style).toContain('grid-template-columns: auto 200px 200px')
+      expect(style).toContain('grid-template-rows: auto 200px 200px')
+
+      await wrapper.setProps({ cellSize: 300 })
+      grid = wrapper.find('[role="grid"]')
+      style = grid.attributes('style') ?? ''
+      expect(style).toContain('grid-template-columns: auto 300px 300px')
+      expect(style).toContain('grid-template-rows: auto 300px 300px')
+    })
+
+    it('resize handle has correct cursor style', () => {
+      const wrapper = mountGrid()
+      const handle = wrapper.find('.xy-grid__resize-handle')
+      expect(handle.classes()).toContain('xy-grid__resize-handle')
+    })
+
+    it('does not render resize handle in flat mode', () => {
+      const wrapper = mountGrid({ xDimension: null, yDimension: null })
+      const handle = wrapper.find('.xy-grid__resize-handle')
+      expect(handle.exists()).toBe(false)
+    })
+  })
 })
