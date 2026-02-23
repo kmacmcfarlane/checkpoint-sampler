@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/gorilla/websocket"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
 	"github.com/sirupsen/logrus"
 )
 
@@ -17,18 +18,23 @@ type ComfyUIWSClient struct {
 
 	mu       sync.RWMutex
 	conn     *websocket.Conn
-	handlers []ComfyUIEventHandler
+	handlers []model.ComfyUIEventHandler
 	stopCh   chan struct{}
 	stopped  bool
 }
 
-// ComfyUIEventHandler is a callback for ComfyUI events.
-type ComfyUIEventHandler func(event ComfyUIEvent)
-
-// ComfyUIEvent represents a WebSocket event from ComfyUI.
-type ComfyUIEvent struct {
+// comfyUIEventEntity is the JSON-serializable store entity for WebSocket events.
+type comfyUIEventEntity struct {
 	Type string                 `json:"type"`
 	Data map[string]interface{} `json:"data"`
+}
+
+// toModelComfyUIEvent converts store entity to model.ComfyUIEvent.
+func toModelComfyUIEvent(entity comfyUIEventEntity) model.ComfyUIEvent {
+	return model.ComfyUIEvent{
+		Type: entity.Type,
+		Data: entity.Data,
+	}
 }
 
 // NewComfyUIWSClient creates a new ComfyUI WebSocket client.
@@ -36,13 +42,13 @@ func NewComfyUIWSClient(host string, port int, logger *logrus.Logger) *ComfyUIWS
 	return &ComfyUIWSClient{
 		url:      fmt.Sprintf("ws://%s:%d/ws", host, port),
 		logger:   logger.WithField("component", "comfyui_ws"),
-		handlers: []ComfyUIEventHandler{},
+		handlers: []model.ComfyUIEventHandler{},
 		stopCh:   make(chan struct{}),
 	}
 }
 
 // AddHandler registers an event handler.
-func (c *ComfyUIWSClient) AddHandler(handler ComfyUIEventHandler) {
+func (c *ComfyUIWSClient) AddHandler(handler model.ComfyUIEventHandler) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.handlers = append(c.handlers, handler)
@@ -145,19 +151,20 @@ func (c *ComfyUIWSClient) readLoop() {
 			return
 		}
 
-		var event ComfyUIEvent
-		if err := json.Unmarshal(message, &event); err != nil {
+		var eventEntity comfyUIEventEntity
+		if err := json.Unmarshal(message, &eventEntity); err != nil {
 			c.logger.WithError(err).Error("failed to unmarshal WebSocket event")
 			continue
 		}
 
+		event := toModelComfyUIEvent(eventEntity)
 		c.logger.WithField("event_type", event.Type).Debug("received WebSocket event")
 		c.dispatchEvent(event)
 	}
 }
 
 // dispatchEvent calls all registered handlers with the event.
-func (c *ComfyUIWSClient) dispatchEvent(event ComfyUIEvent) {
+func (c *ComfyUIWSClient) dispatchEvent(event model.ComfyUIEvent) {
 	c.mu.RLock()
 	handlers := c.handlers
 	c.mu.RUnlock()

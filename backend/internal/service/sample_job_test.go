@@ -152,6 +152,28 @@ func (f *fakePathMatcher) MatchCheckpointPath(filename string) (string, error) {
 	return path, nil
 }
 
+// fakeSampleJobExecutor is a test double for service.SampleJobExecutor.
+type fakeSampleJobExecutor struct {
+	stopCalled   bool
+	resumeCalled bool
+	stopErr      error
+	resumeErr    error
+}
+
+func newFakeSampleJobExecutor() *fakeSampleJobExecutor {
+	return &fakeSampleJobExecutor{}
+}
+
+func (f *fakeSampleJobExecutor) RequestStop(jobID string) error {
+	f.stopCalled = true
+	return f.stopErr
+}
+
+func (f *fakeSampleJobExecutor) RequestResume(jobID string) error {
+	f.resumeCalled = true
+	return f.resumeErr
+}
+
 var _ = Describe("SampleJobService", func() {
 	var (
 		store       *fakeSampleJobStore
@@ -279,6 +301,43 @@ var _ = Describe("SampleJobService", func() {
 			_, err := svc.Get("nonexistent")
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("not found"))
+		})
+	})
+
+	Describe("Start", func() {
+		It("transitions pending job to running", func() {
+			job := model.SampleJob{
+				ID:     "job-1",
+				Status: model.SampleJobStatusPending,
+			}
+			store.jobs[job.ID] = job
+
+			result, err := svc.Start("job-1")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Status).To(Equal(model.SampleJobStatusRunning))
+
+			// Verify the job was updated in the store
+			updated, err := svc.Get("job-1")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(updated.Status).To(Equal(model.SampleJobStatusRunning))
+		})
+
+		It("returns error when job not found", func() {
+			_, err := svc.Start("nonexistent")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("not found"))
+		})
+
+		It("returns error when job is not pending", func() {
+			job := model.SampleJob{
+				ID:     "job-1",
+				Status: model.SampleJobStatusRunning,
+			}
+			store.jobs[job.ID] = job
+
+			_, err := svc.Start("job-1")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("cannot start job"))
 		})
 	})
 

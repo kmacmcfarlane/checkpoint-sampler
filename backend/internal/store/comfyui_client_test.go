@@ -12,6 +12,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/sirupsen/logrus"
 
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/store"
 )
 
@@ -131,22 +132,22 @@ var _ = Describe("ComfyUIHTTPClient HTTP operations", func() {
 				Expect(r.Method).To(Equal(http.MethodPost))
 				Expect(r.Header.Get("Content-Type")).To(Equal("application/json"))
 
-				// Verify request body
-				var req store.PromptRequest
+				// Verify request body (should be JSON with prompt field)
+				var req map[string]interface{}
 				err := json.NewDecoder(r.Body).Decode(&req)
 				Expect(err).NotTo(HaveOccurred())
-				Expect(req.Prompt).To(HaveKey("1"))
+				Expect(req).To(HaveKey("prompt"))
 
-				// Return response
+				// Return response (JSON format)
 				w.WriteHeader(http.StatusOK)
-				json.NewEncoder(w).Encode(store.PromptResponse{
-					PromptID: "test-prompt-id",
-					Number:   1,
+				json.NewEncoder(w).Encode(map[string]interface{}{
+					"prompt_id": "test-prompt-id",
+					"number":    1,
 				})
 			}))
 
 			client := createClient(server)
-			resp, err := client.SubmitPrompt(ctx, store.PromptRequest{
+			resp, err := client.SubmitPrompt(ctx, model.PromptRequest{
 				Prompt: map[string]interface{}{
 					"1": map[string]interface{}{"inputs": map[string]interface{}{}},
 				},
@@ -165,7 +166,7 @@ var _ = Describe("ComfyUIHTTPClient HTTP operations", func() {
 			}))
 
 			client := createClient(server)
-			_, err := client.SubmitPrompt(ctx, store.PromptRequest{Prompt: map[string]interface{}{}})
+			_, err := client.SubmitPrompt(ctx, model.PromptRequest{Prompt: map[string]interface{}{}})
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("status 400"))
 		})
@@ -178,13 +179,13 @@ var _ = Describe("ComfyUIHTTPClient HTTP operations", func() {
 				Expect(r.Method).To(Equal(http.MethodGet))
 
 				w.WriteHeader(http.StatusOK)
-				json.NewEncoder(w).Encode(store.HistoryResponse{
-					"test-id": store.HistoryEntry{
-						Prompt: []interface{}{},
-						Outputs: map[string]interface{}{
+				json.NewEncoder(w).Encode(map[string]interface{}{
+					"test-id": map[string]interface{}{
+						"prompt": []interface{}{},
+						"outputs": map[string]interface{}{
 							"images": []interface{}{},
 						},
-						Status: map[string]interface{}{
+						"status": map[string]interface{}{
 							"completed": true,
 						},
 					},
@@ -201,7 +202,7 @@ var _ = Describe("ComfyUIHTTPClient HTTP operations", func() {
 			server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				Expect(r.URL.Path).To(Equal("/history"))
 				w.WriteHeader(http.StatusOK)
-				json.NewEncoder(w).Encode(store.HistoryResponse{})
+				json.NewEncoder(w).Encode(map[string]interface{}{})
 			}))
 
 			client := createClient(server)

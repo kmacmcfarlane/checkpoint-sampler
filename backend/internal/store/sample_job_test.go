@@ -369,6 +369,8 @@ var _ = Describe("SampleJob Store", func() {
 				SamplerName:        "euler",
 				Scheduler:          "simple",
 				Seed:               42,
+				Width:              512,
+				Height:             512,
 				Status:             model.SampleJobItemStatusPending,
 				ComfyUIPromptID:    "",
 				OutputPath:         "",
@@ -401,6 +403,69 @@ var _ = Describe("SampleJob Store", func() {
 				Expect(items[0].ComfyUIPromptID).To(Equal(""))
 				Expect(items[0].OutputPath).To(Equal(""))
 				Expect(items[0].ErrorMessage).To(Equal(""))
+			})
+
+			It("persists explicit width and height values", func() {
+				now := time.Now().UTC().Truncate(time.Second)
+				itemWithExplicitSize := model.SampleJobItem{
+					ID:                 "item-explicit-size",
+					JobID:              sampleJob.ID,
+					CheckpointFilename: "checkpoint-003.safetensors",
+					ComfyUIModelPath:   "/models/checkpoint-003.safetensors",
+					PromptName:         "test",
+					PromptText:         "test prompt",
+					Steps:              4,
+					CFG:                7.0,
+					SamplerName:        "euler",
+					Scheduler:          "simple",
+					Seed:               42,
+					Width:              1024,
+					Height:             768,
+					Status:             model.SampleJobItemStatusPending,
+					CreatedAt:          now,
+					UpdatedAt:          now,
+				}
+
+				err := s.CreateSampleJobItem(itemWithExplicitSize)
+				Expect(err).NotTo(HaveOccurred())
+
+				items, err := s.ListSampleJobItems(sampleJob.ID)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(items).To(HaveLen(1))
+				Expect(items[0].Width).To(Equal(1024))
+				Expect(items[0].Height).To(Equal(768))
+			})
+
+			It("persists zero width and height values as-is", func() {
+				now := time.Now().UTC().Truncate(time.Second)
+				itemWithZeroSize := model.SampleJobItem{
+					ID:                 "item-zero-size",
+					JobID:              sampleJob.ID,
+					CheckpointFilename: "checkpoint-004.safetensors",
+					ComfyUIModelPath:   "/models/checkpoint-004.safetensors",
+					PromptName:         "test",
+					PromptText:         "test prompt",
+					Steps:              4,
+					CFG:                7.0,
+					SamplerName:        "euler",
+					Scheduler:          "simple",
+					Seed:               42,
+					Width:              0,
+					Height:             0,
+					Status:             model.SampleJobItemStatusPending,
+					CreatedAt:          now,
+					UpdatedAt:          now,
+				}
+
+				err := s.CreateSampleJobItem(itemWithZeroSize)
+				Expect(err).NotTo(HaveOccurred())
+
+				items, err := s.ListSampleJobItems(sampleJob.ID)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(items).To(HaveLen(1))
+				// Zero values are stored as-is (migration only applies to existing rows)
+				Expect(items[0].Width).To(Equal(0))
+				Expect(items[0].Height).To(Equal(0))
 			})
 
 			It("creates a sample job item with nullable fields populated", func() {

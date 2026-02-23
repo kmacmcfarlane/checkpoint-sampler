@@ -43,6 +43,8 @@ type SampleJobItem struct {
 	SamplerName        string
 	Scheduler          string
 	Seed               int64
+	Width              int
+	Height             int
 	Status             SampleJobItemStatus
 	ComfyUIPromptID    string
 	OutputPath         string

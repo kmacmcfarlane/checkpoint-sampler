@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-034: Sample job execution engine
+- backend/internal/model/comfyui.go: New file defining ComfyUI protocol types in model layer (PromptRequest, PromptResponse, HistoryResponse, HistoryEntry, ComfyUIEvent, ComfyUIEventHandler); no serialization tags per architecture standards
+- backend/internal/service/job_executor.go: Background job executor with goroutine loop processing work items sequentially; workflow template cloning and substitution for all 9 cs_role types (unet_loader, clip_loader, vae_loader, sampler, positive_prompt, negative_prompt, shift, latent_image, save_image); ComfyUI prompt submission and WebSocket progress monitoring; output image download and disk persistence with query-encoded filenames; job progress tracking and WebSocket broadcast to frontend clients; stop/resume with ComfyUI prompt cancellation; graceful error handling (mark failed, continue next); startup resume of running jobs; path traversal protection on output paths; proper mutex management releasing lock before all blocking I/O
+- backend/internal/service/job_executor_fs.go: FileSystemWriter interface (MkdirAll, WriteFile, Stat) with RealFileSystemWriter production implementation; enables testability without real filesystem I/O
+- backend/internal/service/job_executor_test.go: 225+ service specs covering workflow substitution (all cs_roles), output filename generation, output path construction with traversal protection, item completion flow, download error handling, stop/resume logic, ComfyUI error handling, WebSocket event processing (completion and error events)
+- backend/internal/service/sample_job.go: Added SampleJobExecutor interface and SetExecutor(); Start() method transitioning pending→running; expandJobItems() populates Width/Height from sample preset
+- backend/internal/service/sample_job_test.go: Added Start method tests (happy path, not found, invalid state)
+- backend/internal/model/sample_job.go: Added Width and Height int fields to SampleJobItem
+- backend/internal/store/migrations.go: Migration v5 (width column) and v6 (height column) on sample_job_items with DEFAULT 512
+- backend/internal/store/sample_job.go: Updated queries and entity mappings for width/height columns
+- backend/internal/store/sample_job_test.go: Added width/height round-trip persistence tests
+- backend/internal/store/comfyui_client.go: Added DownloadImage() with proper URL encoding via net/url.Values; added CancelPrompt() via ComfyUI queue delete API; refactored public methods to accept/return model types with internal entity types for JSON serialization
+- backend/internal/store/comfyui_ws.go: Refactored to use model.ComfyUIEvent type with internal entity mapping
+- backend/internal/store/db_test.go: Updated migration count expectation to 6
+- backend/internal/api/design/sample_jobs.go: Added start endpoint (POST /api/sample-jobs/{id}/start)
+- backend/internal/api/sample_jobs.go: Added Start method implementation
+- backend/cmd/server/main.go: Wired JobExecutor with RealFileSystemWriter; connected to SampleJobService via SetExecutor; start/stop on server lifecycle
+- 418 backend specs pass across 4 suites (79 API + 26 Config + 228 Service + 85 Store) with race detection; 485 frontend tests pass; composite coverage 67.4%
+
 ### S-033: Sample job orchestration
 - backend/internal/store/migrations.go: Migration v3 creating sample_jobs table (id, training_run_name, sample_preset_id FK to sample_presets, workflow_name, vae, clip, shift, status, total_items, completed_items, error_message, created_at, updated_at); Migration v4 creating sample_job_items table (id, job_id FK with CASCADE DELETE, checkpoint_filename, comfyui_model_path, prompt_name, prompt_text, steps, cfg, sampler_name, scheduler, seed, status, comfyui_prompt_id, output_path, error_message, created_at, updated_at)
 - backend/internal/model/sample_job.go: SampleJob domain type with all fields; SampleJobStatus enum (pending, running, paused, completed, failed); SampleJobItem domain type for individual work items; SampleJobItemStatus enum (pending, running, completed, failed, skipped); JobProgress type for progress metrics (CheckpointsCompleted, TotalCheckpoints, CurrentCheckpoint, CurrentCheckpointProgress, CurrentCheckpointTotal, EstimatedCompletionTime); no serialization tags

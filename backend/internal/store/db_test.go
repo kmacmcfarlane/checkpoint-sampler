@@ -217,7 +217,7 @@ var _ = Describe("Migrate", func() {
 var _ = Describe("AllMigrations", func() {
 	It("returns the presets table as migration 1", func() {
 		migrations := store.AllMigrations()
-		Expect(migrations).To(HaveLen(4))
+		Expect(migrations).To(HaveLen(6))
 		Expect(migrations[0].Version).To(Equal(1))
 		Expect(migrations[0].SQL).To(ContainSubstring("CREATE TABLE"))
 		Expect(migrations[0].SQL).To(ContainSubstring("presets"))
@@ -242,6 +242,20 @@ var _ = Describe("AllMigrations", func() {
 		Expect(migrations[3].Version).To(Equal(4))
 		Expect(migrations[3].SQL).To(ContainSubstring("CREATE TABLE"))
 		Expect(migrations[3].SQL).To(ContainSubstring("sample_job_items"))
+	})
+
+	It("returns the width column as migration 5", func() {
+		migrations := store.AllMigrations()
+		Expect(migrations[4].Version).To(Equal(5))
+		Expect(migrations[4].SQL).To(ContainSubstring("ALTER TABLE"))
+		Expect(migrations[4].SQL).To(ContainSubstring("width"))
+	})
+
+	It("returns the height column as migration 6", func() {
+		migrations := store.AllMigrations()
+		Expect(migrations[5].Version).To(Equal(6))
+		Expect(migrations[5].SQL).To(ContainSubstring("ALTER TABLE"))
+		Expect(migrations[5].SQL).To(ContainSubstring("height"))
 	})
 })
 

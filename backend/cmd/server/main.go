@@ -104,8 +104,10 @@ func run() error {
 	var comfyuiSvc *api.ComfyUIService
 	var workflowsSvc *api.WorkflowService
 	var modelDiscovery *service.ComfyUIModelDiscovery
+	var jobExecutor *service.JobExecutor
 	if cfg.ComfyUI != nil {
 		httpClient := store.NewComfyUIHTTPClient(cfg.ComfyUI.Host, cfg.ComfyUI.Port, logger)
+		wsClient := store.NewComfyUIWSClient(cfg.ComfyUI.Host, cfg.ComfyUI.Port, logger)
 		modelDiscovery = service.NewComfyUIModelDiscovery(httpClient, logger)
 		comfyuiSvc = api.NewComfyUIService(httpClient, modelDiscovery)
 
@@ -115,6 +117,10 @@ func run() error {
 			return fmt.Errorf("ensuring workflow directory: %w", err)
 		}
 		workflowsSvc = api.NewWorkflowService(workflowLoader)
+
+		// Create job executor
+		fsWriter := &service.RealFileSystemWriter{}
+		jobExecutor = service.NewJobExecutor(st, httpClient, wsClient, workflowLoader, hub, cfg.SampleDir, fsWriter, logger)
 	} else {
 		// Create disabled service when ComfyUI is not configured
 		comfyuiSvc = api.NewComfyUIService(nil, nil)
@@ -140,6 +146,16 @@ func run() error {
 	if cfg.ComfyUI != nil {
 		pathMatcher := service.NewCheckpointPathMatcher(modelDiscovery, logger)
 		sampleJobSvc := service.NewSampleJobService(st, pathMatcher, logger)
+
+		// Wire the executor and service together (avoiding circular dependency)
+		sampleJobSvc.SetExecutor(jobExecutor)
+
+		// Start the job executor
+		if err := jobExecutor.Start(); err != nil {
+			return fmt.Errorf("starting job executor: %w", err)
+		}
+		defer jobExecutor.Stop()
+
 		sampleJobsSvc = api.NewSampleJobsService(sampleJobSvc, discovery)
 	} else {
 		// Create a disabled service when ComfyUI is not configured
