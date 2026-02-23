@@ -17,6 +17,7 @@ import (
 	gencomfyui "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/comfyui"
 	gendocs "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/docs"
 	genhealth "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/health"
+	genimages "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/images"
 	genpresets "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/presets"
 	gensamplejobs "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/sample_jobs"
 	gensamplepresets "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/sample_presets"
@@ -139,6 +140,7 @@ func run() error {
 	checkpointMetadataSvc := service.NewCheckpointMetadataService(fs, cfg.CheckpointDirs, logger)
 	checkpointsSvc := api.NewCheckpointsService(checkpointMetadataSvc)
 	imageMetadataSvc := service.NewImageMetadataService(fs, cfg.SampleDir, logger)
+	imagesSvc := api.NewImagesService(cfg.SampleDir, imageMetadataSvc, logger)
 	wsSvc := api.NewWSService(hub)
 
 	// Create sample job service (requires ComfyUI model discovery for path matching)
@@ -172,11 +174,8 @@ func run() error {
 	checkpointsEndpoints := gencheckpoints.NewEndpoints(checkpointsSvc)
 	comfyuiEndpoints := gencomfyui.NewEndpoints(comfyuiSvc)
 	workflowsEndpoints := genworkflows.NewEndpoints(workflowsSvc)
+	imagesEndpoints := genimages.NewEndpoints(imagesSvc)
 	wsEndpoints := genws.NewEndpoints(wsSvc)
-
-	// Build image handler with metadata support
-	imageHandler := api.NewImageHandler(cfg.SampleDir)
-	imageHandler.SetMetadataHandler(api.NewImageMetadataHandler(imageMetadataSvc))
 
 	// Build the HTTP handler with all transport setup
 	handler := api.NewHTTPHandler(api.HTTPHandlerConfig{
@@ -189,8 +188,8 @@ func run() error {
 		CheckpointsEndpoints:   checkpointsEndpoints,
 		ComfyUIEndpoints:       comfyuiEndpoints,
 		WorkflowsEndpoints:     workflowsEndpoints,
+		ImagesEndpoints:        imagesEndpoints,
 		WSEndpoints:            wsEndpoints,
-		ImageHandler:           imageHandler,
 		SwaggerUIDir:           http.Dir(swaggerUIDir()),
 		Logger:                 logger,
 		Debug:                  true,

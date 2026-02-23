@@ -4,16 +4,19 @@ import (
 	"context"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/gorilla/websocket"
 	gencheckpoints "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/checkpoints"
 	gencomfyui "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/comfyui"
 	gendocs "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/docs"
 	genhealth "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/health"
+	genimages "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/images"
 	gencheckpointssvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/checkpoints/server"
 	gencomfyuisvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/comfyui/server"
 	gendocssvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/docs/server"
 	genhealthsvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/health/server"
+	genimagessvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/images/server"
 	genpresetssvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/presets/server"
 	gensamplejobssvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/sample_jobs/server"
 	gensamplepresetssvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/sample_presets/server"
@@ -43,8 +46,8 @@ type HTTPHandlerConfig struct {
 	CheckpointsEndpoints   *gencheckpoints.Endpoints
 	ComfyUIEndpoints       *gencomfyui.Endpoints
 	WorkflowsEndpoints     *genworkflows.Endpoints
+	ImagesEndpoints        *genimages.Endpoints
 	WSEndpoints            *genws.Endpoints
-	ImageHandler           *ImageHandler
 	SwaggerUIDir           http.FileSystem
 	Logger                 *logrus.Logger
 	Debug                  bool
@@ -71,6 +74,7 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 	checkpointsServer := gencheckpointssvr.New(cfg.CheckpointsEndpoints, mux, dec, enc, eh, nil)
 	comfyuiServer := gencomfyuisvr.New(cfg.ComfyUIEndpoints, mux, dec, enc, eh, nil)
 	workflowsServer := genworkflowssvr.New(cfg.WorkflowsEndpoints, mux, dec, enc, eh, nil)
+	imagesServer := genimagessvr.New(cfg.ImagesEndpoints, mux, dec, enc, eh, nil)
 
 	// WebSocket upgrader with permissive origin check for local/LAN use
 	upgrader := &websocket.Upgrader{
@@ -89,6 +93,7 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 		checkpointsServer.Use(goahttpmiddleware.Debug(mux, os.Stdout))
 		comfyuiServer.Use(goahttpmiddleware.Debug(mux, os.Stdout))
 		workflowsServer.Use(goahttpmiddleware.Debug(mux, os.Stdout))
+		imagesServer.Use(goahttpmiddleware.Debug(mux, os.Stdout))
 		wsServer.Use(goahttpmiddleware.Debug(mux, os.Stdout))
 	}
 
@@ -101,10 +106,8 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 	checkpointsServer.Mount(mux)
 	comfyuiServer.Mount(mux)
 	workflowsServer.Mount(mux)
+	imagesServer.Mount(mux)
 	wsServer.Mount(mux)
-
-	// Mount custom image serving handler
-	mux.Handle("GET", "/api/images/{*filepath}", cfg.ImageHandler.ServeHTTP)
 
 	// Redirect /docs to /docs/ for the Swagger UI
 	mux.Handle("GET", "/docs", http.RedirectHandler("/docs/", http.StatusMovedPermanently).ServeHTTP)
@@ -174,6 +177,13 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 				"pattern": m.Pattern,
 			}).Debug("HTTP endpoint mounted")
 		}
+		for _, m := range imagesServer.Mounts {
+			cfg.Logger.WithFields(logrus.Fields{
+				"method":  m.Method,
+				"verb":    m.Verb,
+				"pattern": m.Pattern,
+			}).Debug("HTTP endpoint mounted")
+		}
 		for _, m := range wsServer.Mounts {
 			cfg.Logger.WithFields(logrus.Fields{
 				"method":  m.Method,
@@ -181,12 +191,13 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 				"pattern": m.Pattern,
 			}).Debug("HTTP endpoint mounted")
 		}
-		cfg.Logger.WithField("pattern", "GET /api/images/{*filepath}").Debug("HTTP image handler mounted")
 		cfg.Logger.Debug("HTTP redirect /docs -> /docs/ mounted")
 	}
 
 	// Apply HTTP-level middleware
 	var handler http.Handler = mux
+	// Apply URL rewrite middleware first (innermost, closest to the mux)
+	handler = imageMetadataRewriteMiddleware(handler)
 	// Create a logrus adapter for Goa middleware
 	adapter := &logrusAdapter{logger: cfg.Logger.WithField("component", "http")}
 	handler = goahttpmiddleware.Log(adapter)(handler)
@@ -195,6 +206,32 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 	handler = CORSMiddleware("*")(handler)
 
 	return handler
+}
+
+// imageMetadataRewriteMiddleware rewrites /api/images/{path}/metadata requests
+// to /api/_images_metadata/{path} to work around chi router's wildcard limitation.
+// This allows the frontend to use the natural URL pattern while routing to the
+// Goa-generated handler which uses an internal path structure.
+func imageMetadataRewriteMiddleware(next http.Handler) http.Handler {
+	const metadataSuffix = "/metadata"
+	const imagePrefix = "/api/images/"
+	const rewritePrefix = "/api/_images_metadata/"
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, imagePrefix) && strings.HasSuffix(r.URL.Path, metadataSuffix) {
+			// Extract the filepath between /api/images/ and /metadata
+			filepath := r.URL.Path[len(imagePrefix) : len(r.URL.Path)-len(metadataSuffix)]
+			if filepath != "" {
+				// Clone the request and rewrite the path
+				r2 := r.Clone(r.Context())
+				r2.URL.Path = rewritePrefix + filepath
+				r2.RequestURI = r2.URL.RequestURI()
+				next.ServeHTTP(w, r2)
+				return
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // logrusAdapter adapts a logrus.Logger to the goamiddleware.Logger interface.

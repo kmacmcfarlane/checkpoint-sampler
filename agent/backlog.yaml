@@ -897,7 +897,7 @@ stories:
   - id: R-003
     title: "Refactor image serving and metadata endpoints to idiomatic Goa with SkipResponseBodyEncodeDecode"
     priority: 95
-    status: todo
+    status: done
     requires: []
     acceptance:
       - "BE: Define an 'images' Goa service in internal/api/design/images.go with a 'download' method"

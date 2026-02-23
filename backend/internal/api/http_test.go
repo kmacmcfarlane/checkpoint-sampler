@@ -1,9 +1,12 @@
 package api_test
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -14,6 +17,7 @@ import (
 	gencomfyui "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/comfyui"
 	gendocs "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/docs"
 	genhealth "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/health"
+	genimages "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/images"
 	genpresets "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/presets"
 	gensamplejobs "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/sample_jobs"
 	gensamplepresets "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/sample_presets"
@@ -52,6 +56,7 @@ var _ = Describe("NewHTTPHandler", func() {
 		*gencheckpoints.Endpoints,
 		*gencomfyui.Endpoints,
 		*genworkflows.Endpoints,
+		*genimages.Endpoints,
 		*genws.Endpoints,
 	) {
 		// Service layer services
@@ -61,6 +66,7 @@ var _ = Describe("NewHTTPHandler", func() {
 		samplePresetSvc := service.NewSamplePresetService(newFakeSamplePresetStore(), logger)
 		sampleJobSvc := service.NewSampleJobService(newFakeSampleJobStore(), &fakePathMatcher{}, logger)
 		checkpointMetadataSvc := service.NewCheckpointMetadataService(newFakeMetadataReader(), []string{"/checkpoints"}, logger)
+		imageMetadataSvc := service.NewImageMetadataService(&realFileReader{}, sampleDir, logger)
 		hub := service.NewHub(logger)
 
 		// API layer services
@@ -73,6 +79,7 @@ var _ = Describe("NewHTTPHandler", func() {
 		checkpointsAPISvc := api.NewCheckpointsService(checkpointMetadataSvc)
 		comfyuiAPISvc := api.NewComfyUIService(nil, nil)
 		workflowsAPISvc := api.NewWorkflowService(nil)
+		imagesAPISvc := api.NewImagesService(sampleDir, imageMetadataSvc, logger)
 		wsAPISvc := api.NewWSService(hub)
 
 		return genhealth.NewEndpoints(healthAPISvc),
@@ -84,6 +91,7 @@ var _ = Describe("NewHTTPHandler", func() {
 			gencheckpoints.NewEndpoints(checkpointsAPISvc),
 			gencomfyui.NewEndpoints(comfyuiAPISvc),
 			genworkflows.NewEndpoints(workflowsAPISvc),
+			genimages.NewEndpoints(imagesAPISvc),
 			genws.NewEndpoints(wsAPISvc)
 	}
 
@@ -91,9 +99,7 @@ var _ = Describe("NewHTTPHandler", func() {
 		It("logs full request/response when debug is enabled", func() {
 			healthEndpoints, docsEndpoints, trainingRunsEndpoints, presetsEndpoints,
 				samplePresetsEndpoints, sampleJobsEndpoints, checkpointsEndpoints,
-				comfyuiEndpoints, workflowsEndpoints, wsEndpoints := createAllEndpoints()
-
-			imageHandler := api.NewImageHandler(sampleDir)
+				comfyuiEndpoints, workflowsEndpoints, imagesEndpoints, wsEndpoints := createAllEndpoints()
 
 			cfg := api.HTTPHandlerConfig{
 				HealthEndpoints:        healthEndpoints,
@@ -105,8 +111,8 @@ var _ = Describe("NewHTTPHandler", func() {
 				CheckpointsEndpoints:   checkpointsEndpoints,
 				ComfyUIEndpoints:       comfyuiEndpoints,
 				WorkflowsEndpoints:     workflowsEndpoints,
+				ImagesEndpoints:        imagesEndpoints,
 				WSEndpoints:            wsEndpoints,
-				ImageHandler:           imageHandler,
 				SwaggerUIDir:           nil,
 				Logger:                 logger,
 				Debug:                  true,
@@ -128,9 +134,7 @@ var _ = Describe("NewHTTPHandler", func() {
 		It("does not log debug info when debug is disabled", func() {
 			healthEndpoints, docsEndpoints, trainingRunsEndpoints, presetsEndpoints,
 				samplePresetsEndpoints, sampleJobsEndpoints, checkpointsEndpoints,
-				comfyuiEndpoints, workflowsEndpoints, wsEndpoints := createAllEndpoints()
-
-			imageHandler := api.NewImageHandler(sampleDir)
+				comfyuiEndpoints, workflowsEndpoints, imagesEndpoints, wsEndpoints := createAllEndpoints()
 
 			cfg := api.HTTPHandlerConfig{
 				HealthEndpoints:        healthEndpoints,
@@ -142,8 +146,8 @@ var _ = Describe("NewHTTPHandler", func() {
 				CheckpointsEndpoints:   checkpointsEndpoints,
 				ComfyUIEndpoints:       comfyuiEndpoints,
 				WorkflowsEndpoints:     workflowsEndpoints,
+				ImagesEndpoints:        imagesEndpoints,
 				WSEndpoints:            wsEndpoints,
-				ImageHandler:           imageHandler,
 				SwaggerUIDir:           nil,
 				Logger:                 logger,
 				Debug:                  false,
@@ -159,6 +163,73 @@ var _ = Describe("NewHTTPHandler", func() {
 			defer resp.Body.Close()
 
 			Expect(resp.StatusCode).To(Equal(http.StatusOK))
+		})
+	})
+
+	Describe("Image metadata URL rewrite", func() {
+		It("rewrites /api/images/{path}/metadata to the internal Goa endpoint", func() {
+			// Create a temporary directory for images
+			tmpDir, err := os.MkdirTemp("", "http-test-images-*")
+			Expect(err).NotTo(HaveOccurred())
+			defer os.RemoveAll(tmpDir)
+
+			// Create a test PNG with metadata
+			subDir := filepath.Join(tmpDir, "checkpoint.safetensors")
+			Expect(os.MkdirAll(subDir, 0755)).To(Succeed())
+
+			pngData := buildTestPNGWithTextChunks(map[string]string{
+				"prompt": "test prompt",
+			})
+			imagePath := filepath.Join(subDir, "test.png")
+			Expect(os.WriteFile(imagePath, pngData, 0644)).To(Succeed())
+
+			// Create services and endpoints
+			healthEndpoints, docsEndpoints, trainingRunsEndpoints, presetsEndpoints,
+				samplePresetsEndpoints, sampleJobsEndpoints, checkpointsEndpoints,
+				comfyuiEndpoints, workflowsEndpoints, _, wsEndpoints := createAllEndpoints()
+
+			// Create images service with the test directory
+			fs := &realFileReader{}
+			metadataSvc := service.NewImageMetadataService(fs, tmpDir, logger)
+			imagesSvc := api.NewImagesService(tmpDir, metadataSvc, logger)
+			imagesEndpoints := genimages.NewEndpoints(imagesSvc)
+
+			cfg := api.HTTPHandlerConfig{
+				HealthEndpoints:        healthEndpoints,
+				DocsEndpoints:          docsEndpoints,
+				TrainingRunEndpoints:   trainingRunsEndpoints,
+				PresetsEndpoints:       presetsEndpoints,
+				SamplePresetsEndpoints: samplePresetsEndpoints,
+				SampleJobsEndpoints:    sampleJobsEndpoints,
+				CheckpointsEndpoints:   checkpointsEndpoints,
+				ComfyUIEndpoints:       comfyuiEndpoints,
+				WorkflowsEndpoints:     workflowsEndpoints,
+				ImagesEndpoints:        imagesEndpoints,
+				WSEndpoints:            wsEndpoints,
+				SwaggerUIDir:           nil,
+				Logger:                 logger,
+				Debug:                  false,
+			}
+
+			handler := api.NewHTTPHandler(cfg)
+			server := httptest.NewServer(handler)
+			defer server.Close()
+
+			// Test that the original URL pattern works
+			resp, err := http.Get(server.URL + "/api/images/checkpoint.safetensors/test.png/metadata")
+			Expect(err).NotTo(HaveOccurred())
+			defer resp.Body.Close()
+
+			Expect(resp.StatusCode).To(Equal(http.StatusOK))
+
+			var result map[string]interface{}
+			body, err := io.ReadAll(resp.Body)
+			Expect(err).NotTo(HaveOccurred())
+			err = json.Unmarshal(body, &result)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result).To(HaveKey("metadata"))
+			metadata := result["metadata"].(map[string]interface{})
+			Expect(metadata["prompt"]).To(Equal("test prompt"))
 		})
 	})
 })

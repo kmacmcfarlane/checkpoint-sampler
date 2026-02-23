@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### R-003: Refactor image serving and metadata endpoints to idiomatic Goa with SkipResponseBodyEncodeDecode
+- backend/internal/api/design/images.go: New Goa DSL defining images service with download method (SkipResponseBodyEncodeDecode for streaming) and metadata method (standard JSON encoding); ImageDownloadResult type with Content-Type, Content-Length, Cache-Control response headers; ImageMetadataResponse type with metadata map; not_found and bad_request error responses for both methods
+- backend/internal/api/images_service.go: New ImagesService implementing generated interface; Download method opens image file, detects content type via http.DetectContentType, seeks back to start, and returns *os.File as io.ReadCloser for Goa to stream; Cache-Control set to 'max-age=31536000, immutable'; isPathSafe helper rejects '..', '.', absolute paths, and empty paths; secondary resolved-path check validates within sampleDir; Metadata method delegates to ImageMetadataService with error classification
+- backend/internal/api/http.go: Added ImagesEndpoints to HTTPHandlerConfig and wired Goa-generated images server; added imageMetadataRewriteMiddleware that transparently rewrites /api/images/{path}/metadata to /api/_images_metadata/{path} to work around chi router wildcard limitation (chi does not support wildcard parameters followed by additional path segments); removed manual mux.Handle for custom image handler; debug middleware and mount logging applied to images server
+- backend/internal/api/http_test.go: Updated createAllEndpoints to include ImagesEndpoints; added integration test verifying URL rewrite middleware correctly routes metadata requests through the full middleware stack
+- backend/internal/api/images_service_test.go: 13 unit tests covering Download (successful with correct headers, content type detection, not_found for nonexistent files, bad_request for path traversal/absolute/empty/dot paths, directory rejection) and Metadata (successful retrieval with tEXt chunks, empty metadata, not_found, bad_request for traversal/absolute paths)
+- backend/cmd/server/main.go: Wired ImagesService with sampleDir, imageMetadataSvc, and logger; created ImagesEndpoints and passed to HTTPHandlerConfig; removed old ImageHandler wiring
+- Deleted backend/internal/api/images.go (custom ImageHandler), backend/internal/api/image_metadata.go (custom ImageMetadataHandler), backend/internal/api/image_metadata_test.go (old handler tests)
+- Both endpoints appear in generated OpenAPI 3.0 spec and Swagger UI at /docs
+- Frontend unchanged — API contract preserved via URL rewrite middleware
+- 462 backend specs pass across 4 suites (121 API + 26 Config + 228 Service + 87 Store) with race detection; 520 frontend tests pass; composite coverage 71.6%
+
 ### B-016: Frontend swallows API error messages due to field name mismatch and missing Goa Debug middleware
 - frontend/src/api/types.ts: Fixed ApiErrorResponse interface to match Goa's actual JSON field names (lowercase `name`, `message`, `id`, `temporary`, `timeout`, `fault` instead of uppercase `Code` and `Message`)
 - frontend/src/api/client.ts: Fixed normalizeError() to map Goa's `name` field to ApiError.code and `message` field to ApiError.message; refactored from response.json() to response.text() + JSON.parse() to enable body fallback; unknown errors now include the response body text in the error message for debugging; fixed isApiErrorResponse() type guard to check for lowercase field names
