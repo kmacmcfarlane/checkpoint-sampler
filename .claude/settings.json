@@ -1,7 +1,13 @@
 {
+  "enabledMcpjsonServers": [
+    "discord"
+  ],
   "permissions": {
     "allow": [
+      "Skill(goa)",
+
       "mcp__discord__send_discord_notification",
+
       "WebFetch(domain:www.gnu.org)",
       "Bash(npx vue-tsc:*)",
       "Bash(find:*)",
@@ -67,9 +73,5 @@
       "Bash(*export *TOKEN*)*",
       "Bash(*export *KEY*)*"
     ]
-  },
-  "enabledPlugins": {
-    "voltagent-core-dev@voltagent-subagents": true,
-    "voltagent-qa-sec@voltagent-subagents": true
   }
 }

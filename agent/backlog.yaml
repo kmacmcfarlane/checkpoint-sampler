@@ -871,3 +871,51 @@ stories:
       - "BE: Unit tests verify error logging occurs for failed service calls"
     testing:
       - "command: ginkgo -r --cover --race ./internal/..."
+
+  - id: B-016
+    title: "Frontend swallows API error messages due to field name mismatch and missing Goa Debug middleware"
+    priority: 96
+    status: todo
+    requires: []
+    acceptance:
+      - "FE: Fix ApiErrorResponse type to match Goa's actual JSON field names (lowercase 'name' and 'message', not uppercase 'Code' and 'Message')"
+      - "FE: normalizeError() maps Goa's 'name' field to ApiError.code and 'message' field to ApiError.message"
+      - "FE: Update isApiErrorResponse() type guard to check for the correct lowercase field names"
+      - "FE: Error messages from the backend are now visible in the UI (e.g. 'listing training runs: database error' instead of generic 'Request failed with status 500')"
+      - "FE: If an error is unknown, include the body in the `Request failed with status` message for debugging purposes"
+      - "FE: Unit tests for normalizeError() updated to use Goa's actual error JSON shape ({ name: '...', message: '...', id: '...', temporary: false, timeout: false, fault: true })"
+      - "BE: Enable Goa Debug middleware (httpmdlwr.Debug) on all servers when cfg.Debug is true, per the Goa HTTP Handler Wireup pattern — logs full HTTP request/response headers and bodies to stdout for development"
+      - "BE: Debug middleware must be applied via servers.Use(httpmdlwr.Debug(mux, os.Stdout)) BEFORE mounting servers on the mux"
+      - "BE: Debug middleware only active in dev mode (controlled by existing Debug config flag)"
+      - "BE: Unit tests verify debug middleware is wired when debug=true"
+    testing:
+      - "command: ginkgo -r --cover --race ./internal/..."
+      - "command: npx vitest run"
+
+
+
+  - id: R-003
+    title: "Refactor image serving and metadata endpoints to idiomatic Goa with SkipResponseBodyEncodeDecode"
+    priority: 95
+    status: todo
+    requires: []
+    acceptance:
+      - "BE: Define an 'images' Goa service in internal/api/design/images.go with a 'download' method"
+      - "BE: download method uses SkipResponseBodyEncodeDecode() so Goa skips body encoding and the service returns (result, io.ReadCloser, error)"
+      - "BE: Response headers defined in DSL: Content-Type, Content-Length, Cache-Control"
+      - "BE: Goa design declares not_found and bad_request error responses for the download method"
+      - "BE: Service implementation opens the image file, detects content type, seeks back to start, and returns the *os.File as the io.ReadCloser body — Goa closes it after streaming"
+      - "BE: Path traversal protection preserved in service layer (reject '..', absolute paths, paths outside sample_dir)"
+      - "BE: Cache-Control header set to 'max-age=31536000, immutable' via the result struct"
+      - "BE: Define image metadata as a separate Goa method (GET /api/images/{*filepath}/metadata) using standard Goa JSON encoding (no SkipResponseBodyEncodeDecode)"
+      - "BE: Image metadata method returns the same JSON shape as today ({ metadata: { ... } })"
+      - "BE: Remove the custom ImageHandler and ImageMetadataHandler structs and their raw http.Handler implementations (images.go, image_metadata.go)"
+      - "BE: Remove the manual mux.Handle('GET', '/api/images/{*filepath}', ...) call from http.go; the Goa-generated server mount replaces it"
+      - "BE: Both endpoints appear in the generated OpenAPI 3.0 spec and are visible in Swagger UI at /docs"
+      - "BE: Run codegen (make gen) after DSL changes and verify generated code compiles"
+      - "BE: All existing image serving and metadata tests pass or are updated to use the new Goa service interface"
+      - "BE: Unit tests for the new Goa service: successful download, not_found, bad_request (path traversal), metadata retrieval, empty metadata"
+      - "FE: No frontend changes required — the API contract (paths, response shapes, headers) remains identical"
+    testing:
+      - "command: ginkgo -r --cover --race ./internal/..."
+      - "command: npx vitest run"
