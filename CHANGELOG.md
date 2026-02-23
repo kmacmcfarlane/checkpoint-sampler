@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-029: Collapse all dimension filters into single expandable 'Filters' section
+- frontend/src/App.vue: Added unified 'Filters' section with expand/collapse toggle wrapping all DimensionFilter components; collapsed by default; clickable header with rotating arrow icon; accessible aria-expanded and aria-label attributes; theme-aware styling using CSS custom properties
+- 6 new App component tests: filters section header rendering, collapsed by default, expand on click, collapse on second click, accessible aria-label, arrow rotation class
+- 459 total frontend tests pass across 23 test files
+
 ### S-028: XY grid corner-based cell resizing
 - frontend/src/components/XYGrid.vue: Added fixed corner resize handle (bottom-right) that allows dragging to adjust grid cell size; both width and height update simultaneously via single cellSize prop; maintains aspect ratio by default (averages X/Y deltas) with freeform mode available via `maintainAspectRatio` prop; size constrained to 100px–600px; handle hidden in flat mode (no axes assigned); visual feedback with diagonal cursor, hover scale, and dragging state; proper event listener cleanup on mouseup and component unmount
 - frontend/src/App.vue: Connected `@update:cell-size` event from XYGrid to existing cellSize reactive state

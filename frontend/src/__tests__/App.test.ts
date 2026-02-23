@@ -269,4 +269,129 @@ describe('App', () => {
     expect(statusTag!.text()).toBe('Disconnected')
     expect(statusTag!.props('type')).toBe('default')
   })
+
+  describe('Unified Filters Section', () => {
+    it('renders filters section with "Filters" header when training run has dimensions', async () => {
+      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      await flushPromises()
+
+      // Select a training run
+      const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
+      selector.vm.$emit('select', mockTrainingRun)
+      await flushPromises()
+
+      // Filters section should exist
+      const filtersSection = wrapper.find('.filters-section')
+      expect(filtersSection.exists()).toBe(true)
+
+      // Header should show "Filters"
+      const header = wrapper.find('.filters-section__header')
+      expect(header.exists()).toBe(true)
+      expect(header.find('.filters-section__name').text()).toBe('Filters')
+    })
+
+    it('filters section is collapsed by default', async () => {
+      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      await flushPromises()
+
+      // Select a training run
+      const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
+      selector.vm.$emit('select', mockTrainingRun)
+      await flushPromises()
+
+      // Dimension filters should not be visible initially
+      const dimensionFilters = wrapper.find('.dimension-filters')
+      expect(dimensionFilters.exists()).toBe(false)
+
+      // Toggle should have aria-expanded="false"
+      const toggle = wrapper.find('.filters-section__toggle')
+      expect(toggle.attributes('aria-expanded')).toBe('false')
+    })
+
+    it('clicking "Filters" header expands to show all dimension filters', async () => {
+      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      await flushPromises()
+
+      // Select a training run
+      const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
+      selector.vm.$emit('select', mockTrainingRun)
+      await flushPromises()
+
+      // Click the header to expand
+      const header = wrapper.find('.filters-section__header')
+      await header.trigger('click')
+
+      // Dimension filters should now be visible
+      const dimensionFilters = wrapper.find('.dimension-filters')
+      expect(dimensionFilters.exists()).toBe(true)
+
+      // Should render DimensionFilter components for each dimension (2 from mock scan result)
+      const filters = wrapper.findAllComponents({ name: 'DimensionFilter' })
+      expect(filters.length).toBe(2)
+
+      // Toggle should have aria-expanded="true"
+      const toggle = wrapper.find('.filters-section__toggle')
+      expect(toggle.attributes('aria-expanded')).toBe('true')
+    })
+
+    it('clicking "Filters" header again collapses all filters', async () => {
+      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      await flushPromises()
+
+      // Select a training run
+      const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
+      selector.vm.$emit('select', mockTrainingRun)
+      await flushPromises()
+
+      // Expand first
+      const header = wrapper.find('.filters-section__header')
+      await header.trigger('click')
+      expect(wrapper.find('.dimension-filters').exists()).toBe(true)
+
+      // Click again to collapse
+      await header.trigger('click')
+
+      // Dimension filters should be hidden
+      expect(wrapper.find('.dimension-filters').exists()).toBe(false)
+
+      // Toggle should have aria-expanded="false"
+      const toggle = wrapper.find('.filters-section__toggle')
+      expect(toggle.attributes('aria-expanded')).toBe('false')
+    })
+
+    it('has accessible aria-label on toggle button', async () => {
+      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      await flushPromises()
+
+      // Select a training run
+      const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
+      selector.vm.$emit('select', mockTrainingRun)
+      await flushPromises()
+
+      // Toggle should have aria-label
+      const toggle = wrapper.find('.filters-section__toggle')
+      expect(toggle.attributes('aria-label')).toBe('Toggle all filters')
+    })
+
+    it('arrow rotates when expanded', async () => {
+      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      await flushPromises()
+
+      // Select a training run
+      const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
+      selector.vm.$emit('select', mockTrainingRun)
+      await flushPromises()
+
+      const arrow = wrapper.find('.filters-section__arrow')
+
+      // Arrow should not have expanded class initially
+      expect(arrow.classes()).not.toContain('filters-section__arrow--expanded')
+
+      // Click to expand
+      await wrapper.find('.filters-section__header').trigger('click')
+
+      // Arrow should now have expanded class
+      expect(arrow.classes()).toContain('filters-section__arrow--expanded')
+    })
+  })
 })

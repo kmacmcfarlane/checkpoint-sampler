@@ -627,7 +627,7 @@ stories:
   - id: S-029
     title: "Collapse all dimension filters into single expandable 'Filters' section"
     priority: 3
-    status: todo
+    status: done
     requires: [S-023]
     acceptance:
       - "FE: Replace individual dimension filter expand/collapse toggles with a single 'Filters' arrow/header"

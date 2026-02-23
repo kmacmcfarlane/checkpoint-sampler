@@ -233,6 +233,13 @@ const defaultSliderValue = computed(() => {
 /** Cell size for grid zoom control. */
 const cellSize = ref(200)
 
+/** Filters section expanded/collapsed state (collapsed by default). */
+const filtersExpanded = ref(false)
+
+function toggleFilters() {
+  filtersExpanded.value = !filtersExpanded.value
+}
+
 // Reset master slider value when slider dimension changes
 watch(sliderDimension, (dim) => {
   masterSliderValue.value = dim?.values[0] ?? ''
@@ -384,16 +391,28 @@ function onPresetDelete(presetId: string) {
           <p v-if="scanning">Scanning...</p>
           <p v-else-if="scanError" class="error" role="alert">{{ scanError }}</p>
           <template v-else>
-            <div class="dimension-filters" v-if="dimensions.length > 0">
-              <DimensionFilter
-                v-for="dim in dimensions"
-                :key="dim.name"
-                :dimension-name="dim.name"
-                :values="dim.values"
-                :selected="comboSelections[dim.name] ?? new Set()"
-                :filter-mode="getFilterMode(dim.name)"
-                @update="onFilterUpdate"
-              />
+            <div v-if="dimensions.length > 0" class="filters-section">
+              <div class="filters-section__header" @click="toggleFilters">
+                <button
+                  class="filters-section__toggle"
+                  :aria-expanded="filtersExpanded"
+                  aria-label="Toggle all filters"
+                >
+                  <span class="filters-section__arrow" :class="{ 'filters-section__arrow--expanded': filtersExpanded }">&#9654;</span>
+                  <span class="filters-section__name">Filters</span>
+                </button>
+              </div>
+              <div v-if="filtersExpanded" class="dimension-filters">
+                <DimensionFilter
+                  v-for="dim in dimensions"
+                  :key="dim.name"
+                  :dimension-name="dim.name"
+                  :values="dim.values"
+                  :selected="comboSelections[dim.name] ?? new Set()"
+                  :filter-mode="getFilterMode(dim.name)"
+                  @update="onFilterUpdate"
+                />
+              </div>
             </div>
             <div class="controls-sticky">
               <ZoomControl
@@ -500,6 +519,47 @@ function onPresetDelete(presetId: string) {
 .app-main {
   padding: 1rem;
   flex: 1;
+}
+
+.filters-section {
+  margin-bottom: 1rem;
+}
+
+.filters-section__header {
+  cursor: pointer;
+  user-select: none;
+  padding: 0.5rem;
+  border: 1px solid var(--border-color, #e0e0e0);
+  border-radius: 4px;
+  background-color: var(--bg-surface);
+  margin-bottom: 0.5rem;
+}
+
+.filters-section__toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.filters-section__arrow {
+  display: inline-block;
+  font-size: 0.75rem;
+  transition: transform 0.15s;
+}
+
+.filters-section__arrow--expanded {
+  transform: rotate(90deg);
+}
+
+.filters-section__name {
+  font-weight: 600;
+  font-size: 1rem;
 }
 
 .dimension-filters {
