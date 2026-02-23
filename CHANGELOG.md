@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### B-010: WebSocket live updates always displays 'disconnected'
+- frontend/vite.config.ts: Added `ws: true` to Vite dev proxy configuration for `/api` routes; enables WebSocket upgrade forwarding so the `/api/ws` endpoint connects correctly during development
+- Root cause: Vite's proxy was not configured to handle WebSocket protocol upgrades, causing all WebSocket connections to fail immediately and the status indicator to permanently show "Disconnected"
+- 4 new App component tests: status indicator hidden when no training run, initial "Disconnected" state, "Live" when connection opens, "Disconnected" when connection closes
+- 1 new useWebSocket composable test: connected state on immediate initialization
+- 420 total frontend tests pass across 22 test files
+
 ### B-009: XY grid header solo click should hide non-selected values from grid
 - frontend/src/components/XYGrid.vue: Changed `xValues` and `yValues` computed properties to filter dimension values based on `comboSelections`; when a header is soloed (single value selected), only that column/row renders in the grid; when all values are selected or selections are empty, all columns/rows render
 - 8 new XYGrid tests for header solo filtering: solo X column, solo Y row, solo both, all selected X/Y, empty selections, zero-size Set, reactive prop updates

@@ -640,7 +640,7 @@ stories:
   - id: B-010
     title: "WebSocket live updates always displays 'disconnected'"
     priority: 3
-    status: todo
+    status: done
     requires: [S-015]
     acceptance:
       - "FE: WebSocket connection status indicator shows 'connected' when actually connected"
