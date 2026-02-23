@@ -13,6 +13,7 @@ import DimensionPanel from './components/DimensionPanel.vue'
 import XYGrid from './components/XYGrid.vue'
 import DimensionFilter from './components/DimensionFilter.vue'
 import MasterSlider from './components/MasterSlider.vue'
+import ZoomControl from './components/ZoomControl.vue'
 import PresetSelector from './components/PresetSelector.vue'
 import ImageLightbox from './components/ImageLightbox.vue'
 import CheckpointMetadataPanel from './components/CheckpointMetadataPanel.vue'
@@ -224,6 +225,9 @@ const defaultSliderValue = computed(() => {
   return sliderDimension.value?.values[0] ?? ''
 })
 
+/** Cell size for grid zoom control. */
+const cellSize = ref(200)
+
 // Reset master slider value when slider dimension changes
 watch(sliderDimension, (dim) => {
   masterSliderValue.value = dim?.values[0] ?? ''
@@ -353,8 +357,13 @@ function onPresetDelete() {
                 @update="onFilterUpdate"
               />
             </div>
-            <div class="master-slider-sticky" v-if="sliderDimension">
+            <div class="controls-sticky">
+              <ZoomControl
+                :cell-size="cellSize"
+                @update:cell-size="cellSize = $event"
+              />
               <MasterSlider
+                v-if="sliderDimension"
                 :values="sliderDimension.values"
                 :current-value="defaultSliderValue"
                 :dimension-name="sliderDimension.name"
@@ -369,6 +378,7 @@ function onPresetDelete() {
               :slider-dimension="sliderDimension"
               :slider-values="sliderValues"
               :default-slider-value="defaultSliderValue"
+              :cell-size="cellSize"
               @update:slider-value="onSliderValueUpdate"
               @image:click="onImageClick"
               @header:click="onHeaderClick"
@@ -460,7 +470,7 @@ function onPresetDelete() {
   margin-bottom: 1rem;
 }
 
-.master-slider-sticky {
+.controls-sticky {
   position: sticky;
   top: 0;
   z-index: 10;

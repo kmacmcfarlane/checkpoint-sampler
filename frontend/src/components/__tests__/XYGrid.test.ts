@@ -40,6 +40,7 @@ function mountGrid(overrides: Record<string, unknown> = {}) {
       sliderDimension: null,
       sliderValues: {},
       defaultSliderValue: '',
+      cellSize: 200,
       ...overrides,
     },
   })
@@ -318,102 +319,38 @@ describe('XYGrid', () => {
     })
   })
 
-  describe('resizable cell dividers', () => {
-    it('renders column dividers between X column headers', () => {
-      const wrapper = mountGrid()
-      const dividers = wrapper.findAll('.xy-grid__col-divider')
-      // With CSS Grid, one divider per gap (between 2 X values = 1 divider)
-      expect(dividers).toHaveLength(1)
+  describe('cell size control via zoom', () => {
+    it('uses cellSize prop for grid template columns', () => {
+      const wrapper = mountGrid({ cellSize: 300 })
+      const grid = wrapper.find('[role="grid"]')
+      const style = grid.attributes('style') ?? ''
+      expect(style).toContain('grid-template-columns: auto 300px 300px')
     })
 
-    it('renders row dividers between Y rows', () => {
-      const wrapper = mountGrid()
-      const dividers = wrapper.findAll('.xy-grid__row-divider')
-      // Between 2 rows = 1 divider
-      expect(dividers).toHaveLength(1)
+    it('uses cellSize prop for grid template rows', () => {
+      const wrapper = mountGrid({ cellSize: 300 })
+      const grid = wrapper.find('[role="grid"]')
+      const style = grid.attributes('style') ?? ''
+      expect(style).toContain('grid-template-rows: auto 300px 300px')
     })
 
-    it('column dividers have role="separator" with vertical orientation', () => {
-      const wrapper = mountGrid()
-      const dividers = wrapper.findAll('[role="separator"][aria-orientation="vertical"]')
-      expect(dividers).toHaveLength(1)
+    it('updates grid when cellSize changes', async () => {
+      const wrapper = mountGrid({ cellSize: 200 })
+      let grid = wrapper.find('[role="grid"]')
+      let style = grid.attributes('style') ?? ''
+      expect(style).toContain('grid-template-columns: auto 200px 200px')
+
+      await wrapper.setProps({ cellSize: 400 })
+      grid = wrapper.find('[role="grid"]')
+      style = grid.attributes('style') ?? ''
+      expect(style).toContain('grid-template-columns: auto 400px 400px')
     })
 
-    it('row dividers have role="separator" with horizontal orientation', () => {
-      const wrapper = mountGrid()
-      const dividers = wrapper.findAll('[role="separator"][aria-orientation="horizontal"]')
-      expect(dividers).toHaveLength(1)
-    })
-
-    it('grid container has CSS Grid display with correct template', () => {
+    it('grid has gap for spacing between cells', () => {
       const wrapper = mountGrid()
       const grid = wrapper.find('[role="grid"]')
       const style = grid.attributes('style') ?? ''
-      expect(style).toContain('display: grid')
-      // X+Y: auto 200px 6px 200px (row header + 2 data cols with divider)
-      expect(style).toContain('grid-template-columns: auto 200px 6px 200px')
-      // X+Y: auto 200px 6px 200px (col header + 2 data rows with divider)
-      expect(style).toContain('grid-template-rows: auto 200px 6px 200px')
-    })
-
-    it('column divider mousedown triggers resize mode', async () => {
-      const wrapper = mountGrid()
-      const dividers = wrapper.findAll('.xy-grid__col-divider')
-      expect(dividers.length).toBe(1)
-
-      const addListenerSpy = vi.spyOn(document, 'addEventListener')
-
-      await dividers[0].trigger('mousedown', { clientX: 100, clientY: 100 })
-
-      // Should have added mousemove and mouseup listeners
-      expect(addListenerSpy).toHaveBeenCalledWith('mousemove', expect.any(Function))
-      expect(addListenerSpy).toHaveBeenCalledWith('mouseup', expect.any(Function))
-
-      // Clean up by firing mouseup
-      document.dispatchEvent(new MouseEvent('mouseup'))
-    })
-
-    it('row divider mousedown triggers resize mode', async () => {
-      const wrapper = mountGrid()
-      const dividers = wrapper.findAll('.xy-grid__row-divider')
-      expect(dividers).toHaveLength(1)
-
-      const addListenerSpy = vi.spyOn(document, 'addEventListener')
-
-      await dividers[0].trigger('mousedown', { clientX: 100, clientY: 100 })
-
-      expect(addListenerSpy).toHaveBeenCalledWith('mousemove', expect.any(Function))
-      expect(addListenerSpy).toHaveBeenCalledWith('mouseup', expect.any(Function))
-
-      // Clean up
-      document.dispatchEvent(new MouseEvent('mouseup'))
-    })
-
-    it('no column dividers when only one X value', () => {
-      const singleXDim: ScanDimension = { name: 'seed', type: 'int', values: ['42'] }
-      const wrapper = mountGrid({ xDimension: singleXDim })
-      const dividers = wrapper.findAll('.xy-grid__col-divider')
-      expect(dividers).toHaveLength(0)
-    })
-
-    it('no row dividers when only one Y value', () => {
-      const singleYDim: ScanDimension = { name: 'step', type: 'int', values: ['500'] }
-      const wrapper = mountGrid({ yDimension: singleYDim })
-      const dividers = wrapper.findAll('.xy-grid__row-divider')
-      expect(dividers).toHaveLength(0)
-    })
-
-    it('no row dividers in X-only grid', () => {
-      const wrapper = mountGrid({ yDimension: null })
-      const dividers = wrapper.findAll('.xy-grid__row-divider')
-      expect(dividers).toHaveLength(0)
-    })
-
-    it('column dividers present in X-only grid', () => {
-      const wrapper = mountGrid({ yDimension: null })
-      const dividers = wrapper.findAll('.xy-grid__col-divider')
-      // 2 X values → 1 divider
-      expect(dividers).toHaveLength(1)
+      expect(style).toContain('gap: 4px')
     })
   })
 
@@ -429,10 +366,6 @@ describe('XYGrid', () => {
       expect(wrapper.findAll('[role="gridcell"]')).toHaveLength(1)
       expect(wrapper.findAll('[role="columnheader"]')).toHaveLength(2) // corner + 1 header
       expect(wrapper.findAll('[role="rowheader"]')).toHaveLength(1)
-
-      // No dividers for single values
-      expect(wrapper.findAll('.xy-grid__col-divider')).toHaveLength(0)
-      expect(wrapper.findAll('.xy-grid__row-divider')).toHaveLength(0)
 
       const grid = wrapper.find('[role="grid"]')
       const style = grid.attributes('style') ?? ''
@@ -452,13 +385,11 @@ describe('XYGrid', () => {
 
       expect(wrapper.findAll('[role="gridcell"]')).toHaveLength(3)
       expect(wrapper.findAll('[role="rowheader"]')).toHaveLength(3)
-      expect(wrapper.findAll('.xy-grid__row-divider')).toHaveLength(2)
-      expect(wrapper.findAll('.xy-grid__col-divider')).toHaveLength(0)
 
       const grid = wrapper.find('[role="grid"]')
       const style = grid.attributes('style') ?? ''
       expect(style).toContain('grid-template-columns: auto 200px')
-      expect(style).toContain('grid-template-rows: auto 200px 6px 200px 6px 200px')
+      expect(style).toContain('grid-template-rows: auto 200px 200px 200px')
     })
 
     it('renders Nx1 grid (multiple columns, single row)', () => {
@@ -473,12 +404,10 @@ describe('XYGrid', () => {
 
       expect(wrapper.findAll('[role="gridcell"]')).toHaveLength(3)
       expect(wrapper.findAll('.xy-grid__col-header')).toHaveLength(3)
-      expect(wrapper.findAll('.xy-grid__col-divider')).toHaveLength(2)
-      expect(wrapper.findAll('.xy-grid__row-divider')).toHaveLength(0)
 
       const grid = wrapper.find('[role="grid"]')
       const style = grid.attributes('style') ?? ''
-      expect(style).toContain('grid-template-columns: auto 200px 6px 200px 6px 200px')
+      expect(style).toContain('grid-template-columns: auto 200px 200px 200px')
       expect(style).toContain('grid-template-rows: auto 200px')
     })
 
@@ -487,10 +416,10 @@ describe('XYGrid', () => {
       const grid = wrapper.find('[role="grid"]')
       const style = grid.attributes('style') ?? ''
 
-      // 2 X values + Y header: auto 200px 6px 200px
-      expect(style).toContain('grid-template-columns: auto 200px 6px 200px')
-      // 2 Y values + X header: auto 200px 6px 200px
-      expect(style).toContain('grid-template-rows: auto 200px 6px 200px')
+      // 2 X values + Y header: auto 200px 200px
+      expect(style).toContain('grid-template-columns: auto 200px 200px')
+      // 2 Y values + X header: auto 200px 200px
+      expect(style).toContain('grid-template-rows: auto 200px 200px')
     })
 
     it('empty placeholder cells have same grid placement as filled cells', () => {
@@ -518,7 +447,7 @@ describe('XYGrid', () => {
       const style = grid.attributes('style') ?? ''
 
       // No 'auto' prefix (no row header column)
-      expect(style).toContain('grid-template-columns: 200px 6px 200px')
+      expect(style).toContain('grid-template-columns: 200px 200px')
       // Header row + one data row
       expect(style).toContain('grid-template-rows: auto 200px')
     })
@@ -531,7 +460,7 @@ describe('XYGrid', () => {
       // Row header + single data column
       expect(style).toContain('grid-template-columns: auto 200px')
       // No 'auto' prefix (no column header row)
-      expect(style).toContain('grid-template-rows: 200px 6px 200px')
+      expect(style).toContain('grid-template-rows: 200px 200px')
     })
 
     it('flat mode uses CSS Grid with consistent cell sizing', () => {
