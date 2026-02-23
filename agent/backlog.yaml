@@ -842,3 +842,32 @@ stories:
       - "BE: Unit tests cover migration 6 idempotency"
     testing:
       - "command: ginkgo -r --cover --race ./internal/..."
+
+  - id: B-014
+    title: "API returns bare 500 errors without JSON error body"
+    priority: 98
+    status: todo
+    requires: []
+    acceptance:
+      - "BE: All API service methods return Goa ServiceError types (via Make*() constructors) for every error path — no plain fmt.Errorf() or errors.New() escaping to the transport layer"
+      - "BE: Audit all API implementation files (training_runs.go, presets.go, sample_presets.go, sample_jobs.go, checkpoints.go, workflows.go, comfyui.go) for error paths that return plain Go errors"
+      - "BE: Known gaps: PresetsService.List (line 28) and PresetsService.Delete (line 67) return plain fmt.Errorf; other services likely have similar issues"
+      - "BE: Every 500 response includes a JSON body with name, message, id, temporary, timeout, fault fields (standard Goa error format)"
+      - "BE: Unit tests verify that error responses from each endpoint include a JSON body with the expected fields"
+    testing:
+      - "command: ginkgo -r --cover --race ./internal/..."
+
+  - id: B-015
+    title: "Backend service errors not logged to container stdout"
+    priority: 97
+    status: todo
+    requires: []
+    acceptance:
+      - "BE: When an API endpoint returns an error (4xx or 5xx), the error message is logged to stdout with request ID for correlation"
+      - "BE: The current errorHandler in http.go only fires on encoding failures, not service errors — fix or supplement it so service errors are also logged"
+      - "BE: Error log entries include: request ID, HTTP method, path, status code, and error message"
+      - "BE: Use logrus at error level for 5xx and warn level for 4xx"
+      - "BE: docker logs for the backend container show meaningful error details when API calls fail"
+      - "BE: Unit tests verify error logging occurs for failed service calls"
+    testing:
+      - "command: ginkgo -r --cover --race ./internal/..."
