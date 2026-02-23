@@ -811,7 +811,7 @@ stories:
   - id: S-035
     title: "Sample job launch and progress UI"
     priority: -6
-    status: todo
+    status: done
     requires: [S-033, S-034]
     acceptance:
       - "FE: 'Generate Samples' button available on training runs (prominent for runs without samples)"

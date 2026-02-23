@@ -238,6 +238,194 @@ describe('WSClient', () => {
     })
   })
 
+  describe('job progress event dispatching', () => {
+    it('dispatches valid job progress messages to job listeners', () => {
+      const client = createClient()
+      const jobListener = vi.fn()
+      client.onJobProgress(jobListener)
+      client.connect()
+      mockInstances[0].simulateOpen()
+
+      mockInstances[0].simulateMessage(
+        JSON.stringify({
+          type: 'job_progress',
+          job_id: 'job-123',
+          status: 'running',
+          total_items: 100,
+          completed_items: 50,
+          checkpoints_completed: 2,
+          total_checkpoints: 5,
+          current_checkpoint: 'checkpoint_00002.safetensors',
+          current_checkpoint_progress: 10,
+          current_checkpoint_total: 20,
+        }),
+      )
+
+      expect(jobListener).toHaveBeenCalledWith({
+        type: 'job_progress',
+        job_id: 'job-123',
+        status: 'running',
+        total_items: 100,
+        completed_items: 50,
+        checkpoints_completed: 2,
+        total_checkpoints: 5,
+        current_checkpoint: 'checkpoint_00002.safetensors',
+        current_checkpoint_progress: 10,
+        current_checkpoint_total: 20,
+      })
+    })
+
+    it('does not dispatch job progress messages to FS event listeners', () => {
+      const client = createClient()
+      const fsListener = vi.fn()
+      client.onEvent(fsListener)
+      client.connect()
+      mockInstances[0].simulateOpen()
+
+      mockInstances[0].simulateMessage(
+        JSON.stringify({
+          type: 'job_progress',
+          job_id: 'job-123',
+          status: 'running',
+          total_items: 100,
+          completed_items: 50,
+          checkpoints_completed: 2,
+          total_checkpoints: 5,
+        }),
+      )
+
+      expect(fsListener).not.toHaveBeenCalled()
+    })
+
+    it('does not dispatch FS events to job progress listeners', () => {
+      const client = createClient()
+      const jobListener = vi.fn()
+      client.onJobProgress(jobListener)
+      client.connect()
+      mockInstances[0].simulateOpen()
+
+      mockInstances[0].simulateMessage(
+        JSON.stringify({ type: 'image_added', path: 'test.png' }),
+      )
+
+      expect(jobListener).not.toHaveBeenCalled()
+    })
+
+    it('ignores job progress messages missing required job_id field', () => {
+      const client = createClient()
+      const jobListener = vi.fn()
+      client.onJobProgress(jobListener)
+      client.connect()
+      mockInstances[0].simulateOpen()
+
+      mockInstances[0].simulateMessage(
+        JSON.stringify({
+          type: 'job_progress',
+          status: 'running',
+          total_items: 100,
+          completed_items: 50,
+          checkpoints_completed: 2,
+          total_checkpoints: 5,
+        }),
+      )
+
+      expect(jobListener).not.toHaveBeenCalled()
+    })
+
+    it('ignores job progress messages missing required status field', () => {
+      const client = createClient()
+      const jobListener = vi.fn()
+      client.onJobProgress(jobListener)
+      client.connect()
+      mockInstances[0].simulateOpen()
+
+      mockInstances[0].simulateMessage(
+        JSON.stringify({
+          type: 'job_progress',
+          job_id: 'job-123',
+          total_items: 100,
+          completed_items: 50,
+          checkpoints_completed: 2,
+          total_checkpoints: 5,
+        }),
+      )
+
+      expect(jobListener).not.toHaveBeenCalled()
+    })
+
+    it('ignores job progress messages missing required checkpoints_completed field', () => {
+      const client = createClient()
+      const jobListener = vi.fn()
+      client.onJobProgress(jobListener)
+      client.connect()
+      mockInstances[0].simulateOpen()
+
+      mockInstances[0].simulateMessage(
+        JSON.stringify({
+          type: 'job_progress',
+          job_id: 'job-123',
+          status: 'running',
+          total_items: 100,
+          completed_items: 50,
+          total_checkpoints: 5,
+        }),
+      )
+
+      expect(jobListener).not.toHaveBeenCalled()
+    })
+
+    it('ignores job progress messages missing required total_checkpoints field', () => {
+      const client = createClient()
+      const jobListener = vi.fn()
+      client.onJobProgress(jobListener)
+      client.connect()
+      mockInstances[0].simulateOpen()
+
+      mockInstances[0].simulateMessage(
+        JSON.stringify({
+          type: 'job_progress',
+          job_id: 'job-123',
+          status: 'running',
+          total_items: 100,
+          completed_items: 50,
+          checkpoints_completed: 2,
+        }),
+      )
+
+      expect(jobListener).not.toHaveBeenCalled()
+    })
+
+    it('accepts job progress messages with optional fields omitted', () => {
+      const client = createClient()
+      const jobListener = vi.fn()
+      client.onJobProgress(jobListener)
+      client.connect()
+      mockInstances[0].simulateOpen()
+
+      mockInstances[0].simulateMessage(
+        JSON.stringify({
+          type: 'job_progress',
+          job_id: 'job-123',
+          status: 'running',
+          total_items: 100,
+          completed_items: 50,
+          checkpoints_completed: 2,
+          total_checkpoints: 5,
+        }),
+      )
+
+      expect(jobListener).toHaveBeenCalledWith({
+        type: 'job_progress',
+        job_id: 'job-123',
+        status: 'running',
+        total_items: 100,
+        completed_items: 50,
+        checkpoints_completed: 2,
+        total_checkpoints: 5,
+      })
+    })
+  })
+
   describe('listener management', () => {
     it('removes event listener with offEvent', () => {
       const client = createClient()
@@ -260,6 +448,28 @@ describe('WSClient', () => {
       client.offConnectionChange(listener)
       client.connect()
       mockInstances[0].simulateOpen()
+      expect(listener).not.toHaveBeenCalled()
+    })
+
+    it('removes job progress listener with offJobProgress', () => {
+      const client = createClient()
+      const listener = vi.fn()
+      client.onJobProgress(listener)
+      client.offJobProgress(listener)
+      client.connect()
+      mockInstances[0].simulateOpen()
+
+      mockInstances[0].simulateMessage(
+        JSON.stringify({
+          type: 'job_progress',
+          job_id: 'job-123',
+          status: 'running',
+          total_items: 100,
+          completed_items: 50,
+          checkpoints_completed: 2,
+          total_checkpoints: 5,
+        }),
+      )
       expect(listener).not.toHaveBeenCalled()
     })
   })
