@@ -653,7 +653,7 @@ stories:
   - id: B-011
     title: "Auto-load previously used dimension preset from localStorage"
     priority: 3
-    status: todo
+    status: done
     requires: [S-012]
     acceptance:
       - "FE: When a preset is selected, persist the preset ID (and training run ID) in localStorage"

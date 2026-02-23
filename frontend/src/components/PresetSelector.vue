@@ -9,6 +9,8 @@ const props = defineProps<{
   assignments: Map<string, DimensionRole>
   /** Names of all currently discovered dimensions. */
   dimensionNames: string[]
+  /** Auto-load this preset ID if provided (used for restoring from localStorage). */
+  autoLoadPresetId?: string | null
 }>()
 
 const emit = defineEmits<{
@@ -22,6 +24,7 @@ const selectedId = ref<string | null>(null)
 const loading = ref(false)
 const saving = ref(false)
 const error = ref<string | null>(null)
+const attemptedAutoLoad = ref(false)
 
 const selectOptions = computed(() =>
   presets.value.map((p) => ({
@@ -32,7 +35,28 @@ const selectOptions = computed(() =>
 
 onMounted(async () => {
   await fetchPresets()
+  attemptAutoLoad()
 })
+
+/**
+ * Auto-load a preset if autoLoadPresetId is provided and the preset exists.
+ * Gracefully handles stale/deleted presets by clearing the selection.
+ */
+function attemptAutoLoad() {
+  if (!props.autoLoadPresetId || attemptedAutoLoad.value) return
+  attemptedAutoLoad.value = true
+
+  const preset = presets.value.find((p) => p.id === props.autoLoadPresetId)
+  if (preset) {
+    // Preset exists, load it
+    selectedId.value = preset.id
+    const warnings = computeWarnings(preset)
+    emit('load', preset, warnings)
+  } else {
+    // Preset no longer exists (stale), emit delete to clear localStorage
+    emit('delete', props.autoLoadPresetId)
+  }
+}
 
 async function fetchPresets() {
   loading.value = true

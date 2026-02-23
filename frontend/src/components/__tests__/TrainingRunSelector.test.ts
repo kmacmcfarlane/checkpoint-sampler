@@ -185,4 +185,73 @@ describe('TrainingRunSelector', () => {
       expect(select.props('value')).toBeNull()
     })
   })
+
+  describe('auto-select behavior', () => {
+    it('auto-selects training run when autoSelectRunId is provided and run exists', async () => {
+      mockGetTrainingRuns.mockResolvedValue(sampleRuns)
+      const wrapper = mount(TrainingRunSelector, {
+        props: { autoSelectRunId: 1 },
+      })
+      await flushPromises()
+
+      const emitted = wrapper.emitted('select')
+      expect(emitted).toBeDefined()
+      expect(emitted).toHaveLength(1)
+      expect(emitted![0][0]).toEqual(sampleRuns[1])
+    })
+
+    it('does not auto-select when autoSelectRunId references a stale training run', async () => {
+      mockGetTrainingRuns.mockResolvedValue(sampleRuns) // only runs 0 and 1 exist
+      const wrapper = mount(TrainingRunSelector, {
+        props: { autoSelectRunId: 999 },
+      })
+      await flushPromises()
+
+      const emitted = wrapper.emitted('select')
+      expect(emitted).toBeUndefined()
+    })
+
+    it('does not auto-select when autoSelectRunId is null', async () => {
+      mockGetTrainingRuns.mockResolvedValue(sampleRuns)
+      const wrapper = mount(TrainingRunSelector, {
+        props: { autoSelectRunId: null },
+      })
+      await flushPromises()
+
+      const emitted = wrapper.emitted('select')
+      expect(emitted).toBeUndefined()
+    })
+
+    it('does not auto-select when autoSelectRunId is undefined', async () => {
+      mockGetTrainingRuns.mockResolvedValue(sampleRuns)
+      const wrapper = mount(TrainingRunSelector, {
+        props: { autoSelectRunId: undefined },
+      })
+      await flushPromises()
+
+      const emitted = wrapper.emitted('select')
+      expect(emitted).toBeUndefined()
+    })
+
+    it('auto-selects only once even if training runs list changes', async () => {
+      mockGetTrainingRuns.mockResolvedValue(sampleRuns)
+      const wrapper = mount(TrainingRunSelector, {
+        props: { autoSelectRunId: 0 },
+      })
+      await flushPromises()
+
+      // First auto-select should happen
+      expect(wrapper.emitted('select')).toHaveLength(1)
+
+      // Change the filter to trigger a refetch
+      mockGetTrainingRuns.mockClear()
+      mockGetTrainingRuns.mockResolvedValue(sampleRuns)
+      const checkbox = wrapper.findComponent(NCheckbox)
+      checkbox.vm.$emit('update:checked', false)
+      await flushPromises()
+
+      // Auto-select should not trigger again
+      expect(wrapper.emitted('select')).toHaveLength(1)
+    })
+  })
 })
