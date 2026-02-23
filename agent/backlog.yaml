@@ -711,6 +711,20 @@ stories:
     testing:
       - "command: ginkgo -r --cover --race ./internal/..."
 
+  - id: B-012
+    title: "Training run selector dropdown not populating"
+    priority: 99
+    status: todo
+    requires: [S-036]
+    acceptance:
+      - "FE/BE: Investigate why the training run selector dropdown is empty (no options shown)"
+      - "FE/BE: Root cause identified and fixed so that training runs populate correctly in the dropdown"
+      - "FE: TrainingRunSelector dropdown displays all discovered training runs on page load"
+      - "FE/BE: Unit tests cover the fix"
+    testing:
+      - "command: ginkgo -r --cover --race ./internal/..."
+      - "command: npx vitest run"
+
   - id: S-031
     title: "Workflow template management"
     priority: -2
