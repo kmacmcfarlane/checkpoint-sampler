@@ -688,6 +688,29 @@ stories:
       - "command: ginkgo -r --cover --race ./internal/..."
       - "command: npx vitest run"
 
+  - id: S-036
+    title: "Structured logging with logrus"
+    priority: 100
+    status: todo
+    requires: []
+    acceptance:
+      - "BE: Add logrus dependency to the backend"
+      - "BE: Add LOG_LEVEL env var to the API cmd entrypoint (default: info); parse and set logrus level on startup"
+      - "BE: In dev mode (make up-dev), set LOG_LEVEL=trace in docker-compose.dev.yml; production (make up) uses LOG_LEVEL=info"
+      - "BE: Use proper log levels throughout the backend codebase:"
+      - "  - trace: function entry/exit (e.g. 'entering FunctionName', 'returning from FunctionName')"
+      - "  - debug: intermediate values inside functions, e.g. values returned from store/service calls (logged inside the callee, not at the call site)"
+      - "  - info: data writes to stores, files, or external systems"
+      - "  - error: when an error occurs"
+      - "BE: All log messages use logrus WithField()/WithFields() builder pattern for contextual information (e.g. request ID, training run name, checkpoint filename, etc.)"
+      - "BE: Instrument existing service, store, and API layers with logging at the appropriate levels"
+      - "BE: Ensure no secrets (tokens, passwords, auth headers) appear in log output per DEVELOPMENT_PRACTICES.md section 1.5"
+      - "BE: Unit tests verify logger is called at appropriate levels (mock logrus or use test hooks)"
+      - "DOC: Add a 'Logging' section to /agent/DEVELOPMENT_PRACTICES.md documenting: logrus usage, log level definitions (trace/debug/info/error), WithField() pattern, LOG_LEVEL env var, and the rule about logging inside callees not at call sites"
+      - "DOC: Add the same 'Logging' section to /home/rt/work/src/github.com/kmacmcfarlane/claude-templates/local-web-app/agent/DEVELOPMENT_PRACTICES.md to keep the template up-to-date"
+    testing:
+      - "command: ginkgo -r --cover --race ./internal/..."
+
   - id: S-031
     title: "Workflow template management"
     priority: -2

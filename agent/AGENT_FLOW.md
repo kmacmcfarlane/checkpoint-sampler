@@ -178,7 +178,7 @@ After each subagent completes, the **orchestrator** (not the subagent) performs 
 
 When the QA expert reports **APPROVED**, the orchestrator performs these steps in order:
 
-1. **Update CHANGELOG**: Add an entry to /CHANGELOG.md for the completed story.
+1. **Update CHANGELOG**: Add an entry to /CHANGELOG.md for the completed story. Include a token consumption summary line at the end of the entry (e.g., `- Token usage: <input_tokens> input, <output_tokens> output`). Use the cumulative token counts from the current conversation session (visible via `/cost` or session stats).
 2. **Update backlog**: Set `status: done` in /agent/backlog.yaml.
 3. **Commit**: Create the commit (per commit rules below).
 4. **Merge**: Merge the feature branch into `main` (per the commit/merge policy in PROMPT.md).
@@ -267,7 +267,7 @@ Send a notification on every story status change:
 - **in_progress → blocked**: `[project] <id>: in_progress → blocked. <blocked_reason>.`
 - **review → testing**: `[project] <id>: review → testing. Code review approved.`
 - **review → in_progress**: `[project] <id>: review → in_progress. Changes requested: <1-2 sentence summary of feedback>.`
-- **testing → done**: `[project] <id>: testing → done. QA approved. <title> is complete.`
+- **testing → done**: `[project] <id>: testing → done. QA approved. <title> is complete. Tokens: <input_tokens>in / <output_tokens>out.`
 - **testing → in_progress**: `[project] <id>: testing → in_progress. QA found issues: <1-2 sentence summary of feedback>.`
 
 When a story is returned to `in_progress` (from review or testing), always include a concise summary of the feedback so the user understands what went wrong without needing to check the repo.
@@ -284,7 +284,26 @@ When a story is returned to `in_progress` (from review or testing), always inclu
 - Do not include secrets, file paths, or code in notifications.
 - If the tool is unavailable or fails, continue normally — notifications are best-effort and must not block the workflow.
 
-## 10) Ralph loop expectations
+## 10) Token tracking
+
+When a story reaches `done`, the orchestrator must record the cumulative token consumption for the current conversation session. This provides cost visibility per story.
+
+### 10.1 How to obtain token counts
+
+Run `/cost` in the Claude Code session to get the current session's token usage. Extract the input and output token counts.
+
+### 10.2 Where to record
+
+1. **Discord notification** (section 9.2): Append `Tokens: <input>in / <output>out.` to the `testing → done` message.
+2. **CHANGELOG entry** (section 4.5): Add a `- Token usage: <input> input, <output> output` line at the end of the story's changelog entry.
+
+### 10.3 Notes
+
+- Token counts reflect the full conversation session, which may include multiple subagent invocations and retry loops for a single story.
+- If a story spans multiple ralph cycles (e.g., review rejection → re-implementation), only the final cycle's tokens are recorded (prior cycles' context is lost).
+- If token counts cannot be obtained (e.g., `/cost` unavailable), omit the token line rather than guessing.
+
+## 11) Ralph loop expectations
 
 The agent must assume:
 - Context is cleared between cycles.
