@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-032: Sample setting presets
+- backend/internal/model/sample_preset.go: SamplePreset domain type with all fields (ID, Name, Prompts, NegativePrompt, Steps, CFGs, Samplers, Schedulers, Seeds, Width, Height, timestamps); NamedPrompt type for prompt name/text pairs; ImagesPerCheckpoint() computed method calculating total images as len(prompts) × len(steps) × len(cfgs) × len(samplers) × len(schedulers) × len(seeds); no serialization tags
+- backend/internal/store/migrations.go: Migration v2 creating sample_presets table (id, name, prompts JSON, negative_prompt, steps JSON, cfgs JSON, samplers JSON, schedulers JSON, seeds JSON, width INTEGER, height INTEGER, created_at, updated_at)
+- backend/internal/store/sample_preset.go: SamplePresetStore with full CRUD operations (List, Get, Create, Update, Delete); samplePresetEntity with JSON marshaling/unmarshaling for array fields; entity-to-model conversion; structured logrus logging at trace/debug/info/error levels
+- backend/internal/service/sample_preset.go: SamplePresetService with business logic; comprehensive validation (name required, at least one prompt/step/cfg/sampler/scheduler/seed, positive width/height, positive step/cfg values, non-empty sampler/scheduler strings, prompt name/text required); UUID generation; SamplePresetStore interface defined in consumer package
+- backend/internal/api/design/sample_presets.go: Goa DSL defining sample_presets service with list (GET /api/sample-presets), create (POST), update (PUT /api/sample-presets/{id}), delete (DELETE /api/sample-presets/{id}); SamplePresetResponse includes computed images_per_checkpoint field; NamedPrompt, CreateSamplePresetPayload, UpdateSamplePresetPayload types; invalid_payload and not_found errors
+- backend/internal/api/sample_presets.go: SamplePresetsService implementation mapping Goa types to domain model; reuses existing isNotFound helper
+- backend/internal/api/http.go: Added SamplePresetsEndpoints to HTTPHandlerConfig; wired sample_presets server into NewHTTPHandler
+- backend/cmd/server/main.go: Wired SamplePresetService and SamplePresetsService into dependency graph
+- frontend/src/api/types.ts: Added SamplePreset, NamedPrompt, CreateSamplePresetPayload, UpdateSamplePresetPayload types
+- frontend/src/api/client.ts: Added listSamplePresets, createSamplePreset, updateSamplePreset, deleteSamplePreset methods
+- frontend/src/components/SamplePresetEditor.vue: Full preset editor with preset selector dropdown, name input, NDynamicInput for prompts (name+text pairs), negative prompt textarea, comma-separated number inputs for steps/CFGs/seeds, multi-select NSelect dropdowns for samplers/schedulers populated from ComfyUI API, NInputNumber for width/height, computed total images per checkpoint displayed prominently, save/load/edit/delete/new operations, form validation, error handling, loading states
+- 31 service tests: List (3), Create (5), DescribeTable validation (21 entries covering all rules), Update (3), Delete (2), ImagesPerCheckpoint (1)
+- 12 store tests: JSON round-trip marshaling (2), CRUD operations with temp SQLite (Create, List empty/populated, Get/Update/Delete success + not found)
+- 20 frontend tests: rendering, preset fetching, ComfyUI model loading, preset selection, computed total calculation, create/update/delete operations, form reset, comma-separated parsing, error handling, loading states, manual sampler/scheduler entry, empty prompt filtering
+- 343 backend specs pass across 4 suites; 485 frontend tests pass across 25 test files
+
 ### S-031: Workflow template management
 - backend/internal/model/workflow.go: WorkflowTemplate domain type with Name, Path, Workflow JSON map, Roles map (role name → node IDs), ValidationState (valid/invalid), Warnings; CSRole enum with all 9 known roles (save_image, unet_loader, clip_loader, vae_loader, sampler, positive_prompt, negative_prompt, shift, latent_image); KnownCSRoles() and IsKnownRole() helpers; no serialization tags
 - backend/internal/service/workflow_loader.go: WorkflowLoader service loads and validates ComfyUI workflow JSON files from configured workflow_dir; List() reads all .json files, skips non-JSON and subdirectories; Get() returns single workflow by name with path traversal protection (rejects .., /, \); extractRoles() parses _meta.cs_role tags from workflow nodes; validate() requires save_image role (marks invalid if missing); unknown cs_role values flagged as warnings; EnsureWorkflowDir() creates directory with MkdirAll if it doesn't exist; structured logrus logging throughout

@@ -746,7 +746,7 @@ stories:
   - id: S-032
     title: "Sample setting presets"
     priority: -3
-    status: todo
+    status: done
     requires: [S-030, S-003]
     acceptance:
       - "BE: DB migration: create sample_presets table (id, name, prompts JSON, negative_prompt, steps JSON, cfgs JSON, samplers JSON, schedulers JSON, seeds JSON, width, height, created_at, updated_at)"

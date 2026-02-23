@@ -111,3 +111,56 @@ export interface ComfyUIModels {
 
 /** Valid ComfyUI model types. */
 export type ComfyUIModelType = 'vae' | 'clip' | 'unet' | 'sampler' | 'scheduler'
+
+/** A named prompt with a name and text. */
+export interface NamedPrompt {
+  name: string
+  text: string
+}
+
+/** A saved sample setting preset. */
+export interface SamplePreset {
+  id: string
+  name: string
+  prompts: NamedPrompt[]
+  negative_prompt: string
+  steps: number[]
+  cfgs: number[]
+  samplers: string[]
+  schedulers: string[]
+  seeds: number[]
+  width: number
+  height: number
+  images_per_checkpoint: number
+  created_at: string
+  updated_at: string
+}
+
+/** Payload for creating a new sample preset. */
+export interface CreateSamplePresetPayload {
+  name: string
+  prompts: NamedPrompt[]
+  negative_prompt: string
+  steps: number[]
+  cfgs: number[]
+  samplers: string[]
+  schedulers: string[]
+  seeds: number[]
+  width: number
+  height: number
+}
+
+/** Payload for updating a sample preset. */
+export interface UpdateSamplePresetPayload {
+  id: string
+  name: string
+  prompts: NamedPrompt[]
+  negative_prompt: string
+  steps: number[]
+  cfgs: number[]
+  samplers: string[]
+  schedulers: string[]
+  seeds: number[]
+  width: number
+  height: number
+}
