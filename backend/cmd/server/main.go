@@ -18,6 +18,7 @@ import (
 	gendocs "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/docs"
 	genhealth "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/health"
 	genpresets "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/presets"
+	gensamplejobs "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/sample_jobs"
 	gensamplepresets "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/sample_presets"
 	gentrainingruns "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/training_runs"
 	genworkflows "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/workflows"
@@ -102,9 +103,10 @@ func run() error {
 	// Create ComfyUI services if configured
 	var comfyuiSvc *api.ComfyUIService
 	var workflowsSvc *api.WorkflowService
+	var modelDiscovery *service.ComfyUIModelDiscovery
 	if cfg.ComfyUI != nil {
 		httpClient := store.NewComfyUIHTTPClient(cfg.ComfyUI.Host, cfg.ComfyUI.Port, logger)
-		modelDiscovery := service.NewComfyUIModelDiscovery(httpClient, logger)
+		modelDiscovery = service.NewComfyUIModelDiscovery(httpClient, logger)
 		comfyuiSvc = api.NewComfyUIService(httpClient, modelDiscovery)
 
 		// Create workflow loader and ensure workflow directory exists
@@ -133,12 +135,24 @@ func run() error {
 	imageMetadataSvc := service.NewImageMetadataService(fs, cfg.SampleDir, logger)
 	wsSvc := api.NewWSService(hub)
 
+	// Create sample job service (requires ComfyUI model discovery for path matching)
+	var sampleJobsSvc *api.SampleJobsService
+	if cfg.ComfyUI != nil {
+		pathMatcher := service.NewCheckpointPathMatcher(modelDiscovery, logger)
+		sampleJobSvc := service.NewSampleJobService(st, pathMatcher, logger)
+		sampleJobsSvc = api.NewSampleJobsService(sampleJobSvc, discovery)
+	} else {
+		// Create a disabled service when ComfyUI is not configured
+		sampleJobsSvc = api.NewSampleJobsService(nil, discovery)
+	}
+
 	// Create Goa endpoints
 	healthEndpoints := genhealth.NewEndpoints(healthSvc)
 	docsEndpoints := gendocs.NewEndpoints(docsSvc)
 	trainingRunsEndpoints := gentrainingruns.NewEndpoints(trainingRunsSvc)
 	presetsEndpoints := genpresets.NewEndpoints(presetsSvc)
 	samplePresetsEndpoints := gensamplepresets.NewEndpoints(samplePresetsSvc)
+	sampleJobsEndpoints := gensamplejobs.NewEndpoints(sampleJobsSvc)
 	checkpointsEndpoints := gencheckpoints.NewEndpoints(checkpointsSvc)
 	comfyuiEndpoints := gencomfyui.NewEndpoints(comfyuiSvc)
 	workflowsEndpoints := genworkflows.NewEndpoints(workflowsSvc)
@@ -155,6 +169,7 @@ func run() error {
 		TrainingRunEndpoints:   trainingRunsEndpoints,
 		PresetsEndpoints:       presetsEndpoints,
 		SamplePresetsEndpoints: samplePresetsEndpoints,
+		SampleJobsEndpoints:    sampleJobsEndpoints,
 		CheckpointsEndpoints:   checkpointsEndpoints,
 		ComfyUIEndpoints:       comfyuiEndpoints,
 		WorkflowsEndpoints:     workflowsEndpoints,

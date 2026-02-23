@@ -1,0 +1,430 @@
+package service_test
+
+import (
+	"database/sql"
+	"errors"
+	"io"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+	"github.com/sirupsen/logrus"
+
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
+)
+
+// fakeSampleJobStore is an in-memory test double for service.SampleJobStore.
+type fakeSampleJobStore struct {
+	jobs          map[string]model.SampleJob
+	items         map[string][]model.SampleJobItem
+	presets       map[string]model.SamplePreset
+	listJobsErr   error
+	getJobErr     error
+	createJobErr  error
+	updateJobErr  error
+	deleteJobErr  error
+	listItemsErr  error
+	createItemErr error
+	updateItemErr error
+	getPresetErr  error
+}
+
+func newFakeSampleJobStore() *fakeSampleJobStore {
+	return &fakeSampleJobStore{
+		jobs:    make(map[string]model.SampleJob),
+		items:   make(map[string][]model.SampleJobItem),
+		presets: make(map[string]model.SamplePreset),
+	}
+}
+
+func (f *fakeSampleJobStore) ListSampleJobs() ([]model.SampleJob, error) {
+	if f.listJobsErr != nil {
+		return nil, f.listJobsErr
+	}
+	var result []model.SampleJob
+	for _, j := range f.jobs {
+		result = append(result, j)
+	}
+	return result, nil
+}
+
+func (f *fakeSampleJobStore) GetSampleJob(id string) (model.SampleJob, error) {
+	if f.getJobErr != nil {
+		return model.SampleJob{}, f.getJobErr
+	}
+	j, ok := f.jobs[id]
+	if !ok {
+		return model.SampleJob{}, sql.ErrNoRows
+	}
+	return j, nil
+}
+
+func (f *fakeSampleJobStore) CreateSampleJob(j model.SampleJob) error {
+	if f.createJobErr != nil {
+		return f.createJobErr
+	}
+	f.jobs[j.ID] = j
+	return nil
+}
+
+func (f *fakeSampleJobStore) UpdateSampleJob(j model.SampleJob) error {
+	if f.updateJobErr != nil {
+		return f.updateJobErr
+	}
+	if _, ok := f.jobs[j.ID]; !ok {
+		return sql.ErrNoRows
+	}
+	f.jobs[j.ID] = j
+	return nil
+}
+
+func (f *fakeSampleJobStore) DeleteSampleJob(id string) error {
+	if f.deleteJobErr != nil {
+		return f.deleteJobErr
+	}
+	if _, ok := f.jobs[id]; !ok {
+		return sql.ErrNoRows
+	}
+	delete(f.jobs, id)
+	delete(f.items, id) // Cascade delete items
+	return nil
+}
+
+func (f *fakeSampleJobStore) ListSampleJobItems(jobID string) ([]model.SampleJobItem, error) {
+	if f.listItemsErr != nil {
+		return nil, f.listItemsErr
+	}
+	return f.items[jobID], nil
+}
+
+func (f *fakeSampleJobStore) CreateSampleJobItem(i model.SampleJobItem) error {
+	if f.createItemErr != nil {
+		return f.createItemErr
+	}
+	f.items[i.JobID] = append(f.items[i.JobID], i)
+	return nil
+}
+
+func (f *fakeSampleJobStore) UpdateSampleJobItem(i model.SampleJobItem) error {
+	if f.updateItemErr != nil {
+		return f.updateItemErr
+	}
+	items := f.items[i.JobID]
+	for idx := range items {
+		if items[idx].ID == i.ID {
+			items[idx] = i
+			f.items[i.JobID] = items
+			return nil
+		}
+	}
+	return sql.ErrNoRows
+}
+
+func (f *fakeSampleJobStore) GetSamplePreset(id string) (model.SamplePreset, error) {
+	if f.getPresetErr != nil {
+		return model.SamplePreset{}, f.getPresetErr
+	}
+	p, ok := f.presets[id]
+	if !ok {
+		return model.SamplePreset{}, sql.ErrNoRows
+	}
+	return p, nil
+}
+
+// fakePathMatcher is a test double for service.PathMatcher.
+type fakePathMatcher struct {
+	paths     map[string]string
+	matchErr  error
+}
+
+func newFakePathMatcher() *fakePathMatcher {
+	return &fakePathMatcher{paths: make(map[string]string)}
+}
+
+func (f *fakePathMatcher) MatchCheckpointPath(filename string) (string, error) {
+	if f.matchErr != nil {
+		return "", f.matchErr
+	}
+	path, ok := f.paths[filename]
+	if !ok {
+		return "", errors.New("checkpoint not found in ComfyUI")
+	}
+	return path, nil
+}
+
+var _ = Describe("SampleJobService", func() {
+	var (
+		store       *fakeSampleJobStore
+		pathMatcher *fakePathMatcher
+		svc         *service.SampleJobService
+		logger      *logrus.Logger
+	)
+
+	BeforeEach(func() {
+		store = newFakeSampleJobStore()
+		pathMatcher = newFakePathMatcher()
+		logger = logrus.New()
+		logger.SetOutput(io.Discard)
+		svc = service.NewSampleJobService(store, pathMatcher, logger)
+	})
+
+	Describe("Create", func() {
+		var (
+			samplePreset model.SamplePreset
+			checkpoints  []model.Checkpoint
+		)
+
+		BeforeEach(func() {
+			samplePreset = model.SamplePreset{
+				ID:             "preset-1",
+				Name:           "Test Preset",
+				Prompts:        []model.NamedPrompt{{Name: "prompt1", Text: "text1"}, {Name: "prompt2", Text: "text2"}},
+				NegativePrompt: "bad",
+				Steps:          []int{1, 4},
+				CFGs:           []float64{1.0, 3.0},
+				Samplers:       []string{"euler"},
+				Schedulers:     []string{"simple"},
+				Seeds:          []int64{420},
+			}
+			store.presets[samplePreset.ID] = samplePreset
+
+			checkpoints = []model.Checkpoint{
+				{Filename: "checkpoint1.safetensors", StepNumber: 1000},
+				{Filename: "checkpoint2.safetensors", StepNumber: 2000},
+			}
+
+			pathMatcher.paths["checkpoint1.safetensors"] = "models/checkpoint1.safetensors"
+			pathMatcher.paths["checkpoint2.safetensors"] = "models/checkpoint2.safetensors"
+		})
+
+		It("creates a job and expands items correctly", func() {
+			shift := 1.5
+			job, err := svc.Create("test-run", checkpoints, "preset-1", "workflow.json", "vae.safetensors", "clip.safetensors", &shift)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(job.ID).NotTo(BeEmpty())
+			Expect(job.TrainingRunName).To(Equal("test-run"))
+			Expect(job.SamplePresetID).To(Equal("preset-1"))
+			Expect(job.WorkflowName).To(Equal("workflow.json"))
+			Expect(job.VAE).To(Equal("vae.safetensors"))
+			Expect(job.CLIP).To(Equal("clip.safetensors"))
+			Expect(job.Shift).NotTo(BeNil())
+			Expect(*job.Shift).To(Equal(1.5))
+			Expect(job.Status).To(Equal(model.SampleJobStatusPending))
+
+			// Total items = 2 checkpoints × (2 prompts × 2 steps × 2 cfgs × 1 sampler × 1 scheduler × 1 seed) = 2 × 8 = 16
+			Expect(job.TotalItems).To(Equal(16))
+			Expect(job.CompletedItems).To(Equal(0))
+
+			// Verify items were created
+			items := store.items[job.ID]
+			Expect(items).To(HaveLen(16))
+
+			// Verify checkpoint path matching
+			for _, item := range items {
+				Expect(item.ComfyUIModelPath).NotTo(BeEmpty())
+				Expect(item.Status).To(Equal(model.SampleJobItemStatusPending))
+			}
+		})
+
+		It("calculates total items correctly", func() {
+			job, err := svc.Create("test-run", checkpoints, "preset-1", "workflow.json", "", "", nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			// 2 checkpoints × 2 prompts × 2 steps × 2 cfgs × 1 sampler × 1 scheduler × 1 seed = 16
+			Expect(job.TotalItems).To(Equal(16))
+		})
+
+		It("returns error when preset not found", func() {
+			_, err := svc.Create("test-run", checkpoints, "nonexistent", "workflow.json", "", "", nil)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("not found"))
+		})
+
+		It("marks items as skipped when checkpoint path matching fails", func() {
+			pathMatcher.paths = make(map[string]string) // Clear paths to simulate no matches
+
+			job, err := svc.Create("test-run", checkpoints, "preset-1", "workflow.json", "", "", nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			items := store.items[job.ID]
+			Expect(items).To(HaveLen(16))
+			for _, item := range items {
+				Expect(item.Status).To(Equal(model.SampleJobItemStatusSkipped))
+				Expect(item.ErrorMessage).To(ContainSubstring("checkpoint not found in ComfyUI"))
+			}
+		})
+
+		It("handles nil shift parameter", func() {
+			job, err := svc.Create("test-run", checkpoints, "preset-1", "workflow.json", "", "", nil)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(job.Shift).To(BeNil())
+		})
+	})
+
+	Describe("Get", func() {
+		It("returns a job by ID", func() {
+			job := model.SampleJob{
+				ID:              "job-1",
+				TrainingRunName: "test-run",
+				Status:          model.SampleJobStatusPending,
+			}
+			store.jobs[job.ID] = job
+
+			result, err := svc.Get("job-1")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.ID).To(Equal("job-1"))
+		})
+
+		It("returns error when job not found", func() {
+			_, err := svc.Get("nonexistent")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("not found"))
+		})
+	})
+
+	Describe("List", func() {
+		It("returns all jobs", func() {
+			store.jobs["job-1"] = model.SampleJob{ID: "job-1"}
+			store.jobs["job-2"] = model.SampleJob{ID: "job-2"}
+
+			result, err := svc.List()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result).To(HaveLen(2))
+		})
+
+		It("returns empty slice when no jobs exist", func() {
+			result, err := svc.List()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result).To(HaveLen(0))
+		})
+	})
+
+	Describe("Stop", func() {
+		It("transitions running job to paused", func() {
+			job := model.SampleJob{
+				ID:     "job-1",
+				Status: model.SampleJobStatusRunning,
+			}
+			store.jobs[job.ID] = job
+
+			result, err := svc.Stop("job-1")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Status).To(Equal(model.SampleJobStatusPaused))
+		})
+
+		It("returns error when job is not running", func() {
+			job := model.SampleJob{
+				ID:     "job-1",
+				Status: model.SampleJobStatusPending,
+			}
+			store.jobs[job.ID] = job
+
+			_, err := svc.Stop("job-1")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("cannot stop job"))
+		})
+
+		It("returns error when job not found", func() {
+			_, err := svc.Stop("nonexistent")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("not found"))
+		})
+	})
+
+	Describe("Resume", func() {
+		It("transitions paused job to running", func() {
+			job := model.SampleJob{
+				ID:     "job-1",
+				Status: model.SampleJobStatusPaused,
+			}
+			store.jobs[job.ID] = job
+
+			result, err := svc.Resume("job-1")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Status).To(Equal(model.SampleJobStatusRunning))
+		})
+
+		It("returns error when job is not paused", func() {
+			job := model.SampleJob{
+				ID:     "job-1",
+				Status: model.SampleJobStatusRunning,
+			}
+			store.jobs[job.ID] = job
+
+			_, err := svc.Resume("job-1")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("cannot resume job"))
+		})
+
+		It("returns error when job not found", func() {
+			_, err := svc.Resume("nonexistent")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("not found"))
+		})
+	})
+
+	Describe("Delete", func() {
+		It("deletes a job", func() {
+			job := model.SampleJob{ID: "job-1"}
+			store.jobs[job.ID] = job
+
+			err := svc.Delete("job-1")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(store.jobs).NotTo(HaveKey("job-1"))
+		})
+
+		It("returns error when job not found", func() {
+			err := svc.Delete("nonexistent")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("not found"))
+		})
+	})
+
+	Describe("GetProgress", func() {
+		It("computes progress metrics correctly", func() {
+			job := model.SampleJob{
+				ID:         "job-1",
+				TotalItems: 16,
+			}
+			store.jobs[job.ID] = job
+
+			// 2 checkpoints, 8 items each
+			// Checkpoint 1: all 8 items completed
+			// Checkpoint 2: 3 of 8 items completed
+			for i := 0; i < 8; i++ {
+				store.items[job.ID] = append(store.items[job.ID], model.SampleJobItem{
+					ID:                 "item-1-" + string(rune(i)),
+					JobID:              job.ID,
+					CheckpointFilename: "checkpoint1.safetensors",
+					Status:             model.SampleJobItemStatusCompleted,
+				})
+			}
+			for i := 0; i < 8; i++ {
+				status := model.SampleJobItemStatusPending
+				if i < 3 {
+					status = model.SampleJobItemStatusCompleted
+				}
+				store.items[job.ID] = append(store.items[job.ID], model.SampleJobItem{
+					ID:                 "item-2-" + string(rune(i)),
+					JobID:              job.ID,
+					CheckpointFilename: "checkpoint2.safetensors",
+					Status:             status,
+				})
+			}
+
+			progress, err := svc.GetProgress("job-1")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(progress.TotalCheckpoints).To(Equal(2))
+			Expect(progress.CheckpointsCompleted).To(Equal(1))
+			Expect(progress.CurrentCheckpoint).To(Equal("checkpoint2.safetensors"))
+			Expect(progress.CurrentCheckpointProgress).To(Equal(3))
+			Expect(progress.CurrentCheckpointTotal).To(Equal(8))
+		})
+
+		It("returns error when job not found", func() {
+			_, err := svc.GetProgress("nonexistent")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("not found"))
+		})
+	})
+})
