@@ -10,9 +10,11 @@ var _ = Service("workflows", func() {
 	Method("list", func() {
 		Description("List all workflow templates")
 		Result(ArrayOf(WorkflowSummary))
+		Error("internal_error", ErrorResult, "Internal server error")
 		HTTP(func() {
 			GET("/api/workflows")
 			Response(StatusOK)
+			Response("internal_error", StatusInternalServerError)
 		})
 	})
 

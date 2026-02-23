@@ -28,7 +28,7 @@ func NewSampleJobsService(svc *service.SampleJobService, discovery *service.Disc
 func (s *SampleJobsService) List(ctx context.Context) ([]*gensamplejobs.SampleJobResponse, error) {
 	jobs, err := s.svc.List()
 	if err != nil {
-		return nil, fmt.Errorf("listing sample jobs: %w", err)
+		return nil, gensamplejobs.MakeInternalError(fmt.Errorf("listing sample jobs: %w", err))
 	}
 	result := make([]*gensamplejobs.SampleJobResponse, len(jobs))
 	for i, j := range jobs {
@@ -44,12 +44,12 @@ func (s *SampleJobsService) Show(ctx context.Context, p *gensamplejobs.ShowPaylo
 		if isNotFound(err) {
 			return nil, gensamplejobs.MakeNotFound(err)
 		}
-		return nil, fmt.Errorf("fetching sample job: %w", err)
+		return nil, gensamplejobs.MakeInternalError(fmt.Errorf("fetching sample job: %w", err))
 	}
 
 	progress, err := s.svc.GetProgress(p.ID)
 	if err != nil {
-		return nil, fmt.Errorf("computing job progress: %w", err)
+		return nil, gensamplejobs.MakeInternalError(fmt.Errorf("computing job progress: %w", err))
 	}
 
 	return &gensamplejobs.SampleJobDetailResponse{
@@ -149,7 +149,7 @@ func (s *SampleJobsService) Delete(ctx context.Context, p *gensamplejobs.DeleteP
 		if isNotFound(err) {
 			return gensamplejobs.MakeNotFound(err)
 		}
-		return fmt.Errorf("deleting sample job: %w", err)
+		return gensamplejobs.MakeInternalError(fmt.Errorf("deleting sample job: %w", err))
 	}
 	return nil
 }

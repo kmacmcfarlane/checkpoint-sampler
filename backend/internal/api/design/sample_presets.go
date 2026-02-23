@@ -10,9 +10,11 @@ var _ = Service("sample_presets", func() {
 	Method("list", func() {
 		Description("List all saved sample presets")
 		Result(ArrayOf(SamplePresetResponse))
+		Error("internal_error", ErrorResult, "Internal server error")
 		HTTP(func() {
 			GET("/api/sample-presets")
 			Response(StatusOK)
+			Response("internal_error", StatusInternalServerError)
 		})
 	})
 
@@ -21,10 +23,12 @@ var _ = Service("sample_presets", func() {
 		Payload(CreateSamplePresetPayload)
 		Result(SamplePresetResponse)
 		Error("invalid_payload", ErrorResult, "Invalid sample preset data")
+		Error("internal_error", ErrorResult, "Internal server error")
 		HTTP(func() {
 			POST("/api/sample-presets")
 			Response(StatusCreated)
 			Response("invalid_payload", StatusBadRequest)
+			Response("internal_error", StatusInternalServerError)
 		})
 	})
 
@@ -34,11 +38,13 @@ var _ = Service("sample_presets", func() {
 		Result(SamplePresetResponse)
 		Error("not_found", ErrorResult, "Sample preset not found")
 		Error("invalid_payload", ErrorResult, "Invalid sample preset data")
+		Error("internal_error", ErrorResult, "Internal server error")
 		HTTP(func() {
 			PUT("/api/sample-presets/{id}")
 			Response(StatusOK)
 			Response("not_found", StatusNotFound)
 			Response("invalid_payload", StatusBadRequest)
+			Response("internal_error", StatusInternalServerError)
 		})
 	})
 
@@ -51,10 +57,12 @@ var _ = Service("sample_presets", func() {
 			Required("id")
 		})
 		Error("not_found", ErrorResult, "Sample preset not found")
+		Error("internal_error", ErrorResult, "Internal server error")
 		HTTP(func() {
 			DELETE("/api/sample-presets/{id}")
 			Response(StatusNoContent)
 			Response("not_found", StatusNotFound)
+			Response("internal_error", StatusInternalServerError)
 		})
 	})
 })

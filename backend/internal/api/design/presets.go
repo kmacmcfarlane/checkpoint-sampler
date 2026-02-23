@@ -10,9 +10,11 @@ var _ = Service("presets", func() {
 	Method("list", func() {
 		Description("List all saved presets")
 		Result(ArrayOf(PresetResponse))
+		Error("internal_error", ErrorResult, "Internal server error")
 		HTTP(func() {
 			GET("/api/presets")
 			Response(StatusOK)
+			Response("internal_error", StatusInternalServerError)
 		})
 	})
 
@@ -21,10 +23,12 @@ var _ = Service("presets", func() {
 		Payload(CreatePresetPayload)
 		Result(PresetResponse)
 		Error("invalid_payload", ErrorResult, "Invalid preset data")
+		Error("internal_error", ErrorResult, "Internal server error")
 		HTTP(func() {
 			POST("/api/presets")
 			Response(StatusCreated)
 			Response("invalid_payload", StatusBadRequest)
+			Response("internal_error", StatusInternalServerError)
 		})
 	})
 
@@ -34,11 +38,13 @@ var _ = Service("presets", func() {
 		Result(PresetResponse)
 		Error("not_found", ErrorResult, "Preset not found")
 		Error("invalid_payload", ErrorResult, "Invalid preset data")
+		Error("internal_error", ErrorResult, "Internal server error")
 		HTTP(func() {
 			PUT("/api/presets/{id}")
 			Response(StatusOK)
 			Response("not_found", StatusNotFound)
 			Response("invalid_payload", StatusBadRequest)
+			Response("internal_error", StatusInternalServerError)
 		})
 	})
 
@@ -51,10 +57,12 @@ var _ = Service("presets", func() {
 			Required("id")
 		})
 		Error("not_found", ErrorResult, "Preset not found")
+		Error("internal_error", ErrorResult, "Internal server error")
 		HTTP(func() {
 			DELETE("/api/presets/{id}")
 			Response(StatusNoContent)
 			Response("not_found", StatusNotFound)
+			Response("internal_error", StatusInternalServerError)
 		})
 	})
 })

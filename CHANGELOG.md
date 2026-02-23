@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### B-014: API returns bare 500 errors without JSON error body
+- backend/internal/api/design/presets.go: Added internal_error error type and 500 response mapping to all four methods (list, create, update, delete)
+- backend/internal/api/design/sample_presets.go: Added internal_error error type and 500 response mapping to all four methods (list, create, update, delete)
+- backend/internal/api/design/sample_jobs.go: Added internal_error error type and 500 response mapping to list, show, and delete methods
+- backend/internal/api/design/workflows.go: Added internal_error error type and 500 response mapping to list method
+- backend/internal/api/presets.go: Replaced bare fmt.Errorf in List (line 28) and Delete (line 67) with genpresets.MakeInternalError() for proper Goa JSON error responses
+- backend/internal/api/sample_presets.go: Replaced bare fmt.Errorf in List and Delete with gensamplepresets.MakeInternalError()
+- backend/internal/api/sample_jobs.go: Replaced bare fmt.Errorf in List, Show (2 paths), and Delete with gensamplejobs.MakeInternalError()
+- backend/internal/api/workflows.go: Replaced bare err return in List with genworkflows.MakeInternalError()
+- backend/internal/api/presets_test.go: Added 3 ErrorName() assertion tests verifying Goa ServiceError structure; extracted shared errorNamer interface at file level
+- backend/internal/api/sample_presets_test.go: Added 3 ErrorName() assertion tests (List internal_error, Delete internal_error, Delete not_found)
+- backend/internal/api/sample_jobs_test.go: Added 5 ErrorName() assertion tests (List internal_error, Show internal_error, Show not_found, Delete internal_error, Delete not_found)
+- backend/internal/api/workflows_test.go: Added 1 ErrorName() assertion test (List internal_error)
+- All seven API implementation files audited (training_runs.go, checkpoints.go, comfyui.go already clean); zero bare Go errors escape to transport layer
+- 432 backend specs pass across 4 suites (91 API + 26 Config + 228 Service + 87 Store) with race detection; 520 frontend tests pass; composite coverage 68.4%
+
 ### B-013: Migration 6 fails with duplicate column 'height' on existing databases
 - backend/internal/store/db.go: Modified Migrate() to handle SQLite "duplicate column name" errors gracefully; when an ALTER TABLE ADD COLUMN migration encounters a pre-existing column, the migration is recorded as applied and execution continues; added isDuplicateColumnError() helper for error detection and recordMigrationOutsideTx() for recording migration versions outside a failed transaction (necessary because SQLite auto-commits ALTER TABLE even inside transactions)
 - backend/internal/store/db_test.go: Added 2 new tests — generic duplicate column idempotency test (simulates missing migration record with pre-existing column) and specific migrations 5/6 test (creates sample_job_items table, manually adds width/height columns, then runs all migrations successfully); full foreign key chain validated with sample_preset → sample_job → sample_job_item inserts

@@ -38,7 +38,7 @@ func (s *WorkflowService) List(ctx context.Context) ([]*genworkflows.WorkflowSum
 
 	templates, err := s.loader.List(ctx)
 	if err != nil {
-		return nil, err
+		return nil, genworkflows.MakeInternalError(err)
 	}
 
 	summaries := make([]*genworkflows.WorkflowSummary, len(templates))

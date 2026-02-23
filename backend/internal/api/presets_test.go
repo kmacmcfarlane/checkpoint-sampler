@@ -21,6 +21,7 @@ type fakePresetStore struct {
 	presets   map[string]model.Preset
 	listErr   error
 	createErr error
+	deleteErr error
 }
 
 func newFakePresetStore() *fakePresetStore {
@@ -63,11 +64,20 @@ func (f *fakePresetStore) UpdatePreset(p model.Preset) error {
 }
 
 func (f *fakePresetStore) DeletePreset(id string) error {
+	if f.deleteErr != nil {
+		return f.deleteErr
+	}
 	if _, ok := f.presets[id]; !ok {
 		return sql.ErrNoRows
 	}
 	delete(f.presets, id)
 	return nil
+}
+
+// errorNamer interface is implemented by Goa ServiceError types
+// to provide the error name field (e.g., "internal_error", "not_found")
+type errorNamer interface {
+	ErrorName() string
 }
 
 var _ = Describe("PresetsService", func() {
@@ -219,6 +229,43 @@ var _ = Describe("PresetsService", func() {
 		It("returns not_found error for non-existent preset", func() {
 			err := presets.Delete(ctx, &genpresets.DeletePayload{ID: "nonexistent"})
 			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("not found"))
+		})
+	})
+
+	Describe("Error responses include Goa ServiceError structure", func() {
+		It("List returns ServiceError with proper fields on store failure", func() {
+			store.listErr = errors.New("database connection failed")
+			_, err := presets.List(ctx)
+			Expect(err).To(HaveOccurred())
+
+			// Verify it's a Goa ServiceError with proper structure
+			serviceErr, ok := err.(errorNamer)
+			Expect(ok).To(BeTrue(), "error should implement ErrorNamer interface")
+			Expect(serviceErr.ErrorName()).To(Equal("internal_error"))
+			Expect(err.Error()).To(ContainSubstring("listing presets"))
+		})
+
+		It("Delete returns ServiceError with proper fields on internal error", func() {
+			store.deleteErr = errors.New("database write failed")
+			err := presets.Delete(ctx, &genpresets.DeletePayload{ID: "test-id"})
+			Expect(err).To(HaveOccurred())
+
+			// Verify it's a Goa ServiceError with proper structure
+			serviceErr, ok := err.(errorNamer)
+			Expect(ok).To(BeTrue(), "error should implement ErrorNamer interface")
+			Expect(serviceErr.ErrorName()).To(Equal("internal_error"))
+			Expect(err.Error()).To(ContainSubstring("deleting preset"))
+		})
+
+		It("Delete returns not_found ServiceError with proper fields", func() {
+			err := presets.Delete(ctx, &genpresets.DeletePayload{ID: "nonexistent"})
+			Expect(err).To(HaveOccurred())
+
+			// Verify it's a Goa ServiceError with proper structure
+			serviceErr, ok := err.(errorNamer)
+			Expect(ok).To(BeTrue(), "error should implement ErrorNamer interface")
+			Expect(serviceErr.ErrorName()).To(Equal("not_found"))
 			Expect(err.Error()).To(ContainSubstring("not found"))
 		})
 	})

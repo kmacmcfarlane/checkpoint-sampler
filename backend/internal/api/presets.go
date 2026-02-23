@@ -25,7 +25,7 @@ func NewPresetsService(svc *service.PresetService) *PresetsService {
 func (s *PresetsService) List(ctx context.Context) ([]*genpresets.PresetResponse, error) {
 	presets, err := s.svc.List()
 	if err != nil {
-		return nil, fmt.Errorf("listing presets: %w", err)
+		return nil, genpresets.MakeInternalError(fmt.Errorf("listing presets: %w", err))
 	}
 	result := make([]*genpresets.PresetResponse, len(presets))
 	for i, p := range presets {
@@ -64,7 +64,7 @@ func (s *PresetsService) Delete(ctx context.Context, p *genpresets.DeletePayload
 		if isNotFound(err) {
 			return genpresets.MakeNotFound(err)
 		}
-		return fmt.Errorf("deleting preset: %w", err)
+		return genpresets.MakeInternalError(fmt.Errorf("deleting preset: %w", err))
 	}
 	return nil
 }

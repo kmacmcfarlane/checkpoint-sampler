@@ -10,9 +10,11 @@ var _ = Service("sample_jobs", func() {
 	Method("list", func() {
 		Description("List all sample jobs (newest first)")
 		Result(ArrayOf(SampleJobResponse))
+		Error("internal_error", ErrorResult, "Internal server error")
 		HTTP(func() {
 			GET("/api/sample-jobs")
 			Response(StatusOK)
+			Response("internal_error", StatusInternalServerError)
 		})
 	})
 
@@ -26,10 +28,12 @@ var _ = Service("sample_jobs", func() {
 		})
 		Result(SampleJobDetailResponse)
 		Error("not_found", ErrorResult, "Sample job not found")
+		Error("internal_error", ErrorResult, "Internal server error")
 		HTTP(func() {
 			GET("/api/sample-jobs/{id}")
 			Response(StatusOK)
 			Response("not_found", StatusNotFound)
+			Response("internal_error", StatusInternalServerError)
 		})
 	})
 
@@ -113,10 +117,12 @@ var _ = Service("sample_jobs", func() {
 			Required("id")
 		})
 		Error("not_found", ErrorResult, "Sample job not found")
+		Error("internal_error", ErrorResult, "Internal server error")
 		HTTP(func() {
 			DELETE("/api/sample-jobs/{id}")
 			Response(StatusNoContent)
 			Response("not_found", StatusNotFound)
+			Response("internal_error", StatusInternalServerError)
 		})
 	})
 })

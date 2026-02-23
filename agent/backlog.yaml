@@ -846,7 +846,7 @@ stories:
   - id: B-014
     title: "API returns bare 500 errors without JSON error body"
     priority: 98
-    status: todo
+    status: done
     requires: []
     acceptance:
       - "BE: All API service methods return Goa ServiceError types (via Make*() constructors) for every error path — no plain fmt.Errorf() or errors.New() escaping to the transport layer"

@@ -2,6 +2,7 @@ package api_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -305,6 +306,25 @@ var _ = Describe("WorkflowService", func() {
 
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result).To(HaveLen(1))
+		})
+	})
+
+	Describe("Error responses include Goa ServiceError structure", func() {
+		It("List returns ServiceError with proper fields on loader failure", func() {
+			mockLoader := &mockWorkflowLoader{
+				listFunc: func(ctx context.Context) ([]model.WorkflowTemplate, error) {
+					return nil, errors.New("filesystem error")
+				},
+			}
+
+			svc := api.NewWorkflowService(mockLoader)
+			_, err := svc.List(ctx)
+			Expect(err).To(HaveOccurred())
+
+			// Verify it's a Goa ServiceError with proper structure
+			serviceErr, ok := err.(errorNamer)
+			Expect(ok).To(BeTrue(), "error should implement ErrorNamer interface")
+			Expect(serviceErr.ErrorName()).To(Equal("internal_error"))
 		})
 	})
 })
