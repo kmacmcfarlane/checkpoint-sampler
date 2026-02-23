@@ -587,7 +587,7 @@ stories:
   - id: B-008
     title: "Checkpoint selector in metadata slideout has unreadable background"
     priority: 3
-    status: todo
+    status: done
     requires: [S-026, S-021]
     acceptance:
       - "FE: Checkpoint selector dropdown in the metadata slideout uses theme-appropriate background and text colors"

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
-import { NDrawer, NDrawerContent } from 'naive-ui'
+import { NDrawer } from 'naive-ui'
 import CheckpointMetadataPanel from '../CheckpointMetadataPanel.vue'
 import type { CheckpointInfo } from '../../api/types'
 
@@ -413,5 +413,100 @@ describe('CheckpointMetadataPanel', () => {
         expect(styleAttr).not.toMatch(/color:\s*#/)
       }
     })
+  })
+
+  // ── Checkpoint selector theme-aware styling tests ──
+
+  it('checkpoint list items use theme-aware styling classes', async () => {
+    mockGetCheckpointMetadata.mockResolvedValue({ metadata: {} })
+    const wrapper = mountPanel()
+    await flushPromises()
+
+    const listItems = wrapper.findAll('[role="option"]')
+    expect(listItems.length).toBeGreaterThan(0)
+
+    // Verify list items don't have inline color styles
+    listItems.forEach((item) => {
+      const styleAttr = item.attributes('style')
+      if (styleAttr) {
+        expect(styleAttr).not.toMatch(/color:\s*#/)
+        expect(styleAttr).not.toMatch(/background:\s*#/)
+      }
+    })
+  })
+
+  it('checkpoint filenames use theme-aware text color', async () => {
+    mockGetCheckpointMetadata.mockResolvedValue({ metadata: {} })
+    const wrapper = mountPanel()
+    await flushPromises()
+
+    const filenames = wrapper.findAll('.cp-filename')
+    expect(filenames.length).toBeGreaterThan(0)
+
+    filenames.forEach((filename) => {
+      expect(filename.classes()).toContain('cp-filename')
+      // Verify no inline color styles that would override CSS variables
+      const styleAttr = filename.attributes('style')
+      if (styleAttr) {
+        expect(styleAttr).not.toMatch(/color:\s*#/)
+      }
+    })
+  })
+
+  it('checkpoint step numbers use theme-aware secondary text color', async () => {
+    mockGetCheckpointMetadata.mockResolvedValue({ metadata: {} })
+    const wrapper = mountPanel()
+    await flushPromises()
+
+    const steps = wrapper.findAll('.cp-step')
+    expect(steps.length).toBeGreaterThan(0)
+
+    steps.forEach((step) => {
+      expect(step.classes()).toContain('cp-step')
+      // Verify no inline color styles that would override CSS variables
+      const styleAttr = step.attributes('style')
+      if (styleAttr) {
+        expect(styleAttr).not.toMatch(/color:\s*#/)
+      }
+    })
+  })
+
+  it('checkpoint list border and heading use theme-aware colors', async () => {
+    mockGetCheckpointMetadata.mockResolvedValue({ metadata: {} })
+    const wrapper = mountPanel()
+    await flushPromises()
+
+    const listContainer = wrapper.find('.checkpoint-list')
+    expect(listContainer.exists()).toBe(true)
+
+    const heading = listContainer.find('h3')
+    expect(heading.exists()).toBe(true)
+
+    // Verify no inline color/border styles that would override CSS variables
+    const containerStyle = listContainer.attributes('style')
+    if (containerStyle) {
+      expect(containerStyle).not.toMatch(/border.*:\s*.*#/)
+    }
+
+    const headingStyle = heading.attributes('style')
+    if (headingStyle) {
+      expect(headingStyle).not.toMatch(/color:\s*#/)
+    }
+  })
+
+  it('selected checkpoint uses theme-aware accent background', async () => {
+    mockGetCheckpointMetadata.mockResolvedValue({ metadata: {} })
+    const wrapper = mountPanel()
+    await flushPromises()
+
+    const selectedItem = wrapper.find('[aria-selected="true"]')
+    expect(selectedItem.exists()).toBe(true)
+    expect(selectedItem.classes()).toContain('selected')
+
+    // Verify no inline background color styles
+    const styleAttr = selectedItem.attributes('style')
+    if (styleAttr) {
+      expect(styleAttr).not.toMatch(/background:\s*#/)
+    }
   })
 })

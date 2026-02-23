@@ -190,13 +190,13 @@ async function selectCheckpoint(cp: CheckpointInfo) {
 }
 
 .resize-handle:hover {
-  background: var(--accent-color, #1976d2);
+  background: var(--accent-color);
   opacity: 0.3;
 }
 
 .checkpoint-list {
   padding-bottom: 0.75rem;
-  border-bottom: 1px solid var(--border-color, #e0e0e0);
+  border-bottom: 1px solid var(--border-color);
   max-height: 200px;
   overflow-y: auto;
 }
@@ -204,7 +204,7 @@ async function selectCheckpoint(cp: CheckpointInfo) {
 .checkpoint-list h3 {
   margin: 0 0 0.5rem;
   font-size: 0.875rem;
-  color: var(--text-secondary, #666);
+  color: var(--text-secondary);
 }
 
 .checkpoint-list ul {
@@ -224,11 +224,11 @@ async function selectCheckpoint(cp: CheckpointInfo) {
 }
 
 .checkpoint-list li:hover {
-  background: var(--bg-surface, #f5f5f5);
+  background: var(--bg-surface);
 }
 
 .checkpoint-list li.selected {
-  background: var(--accent-bg, #e3f2fd);
+  background: var(--accent-bg);
   font-weight: 500;
 }
 
@@ -238,10 +238,11 @@ async function selectCheckpoint(cp: CheckpointInfo) {
   white-space: nowrap;
   flex: 1;
   margin-right: 0.5rem;
+  color: var(--text-color);
 }
 
 .cp-step {
-  color: var(--text-secondary, #888);
+  color: var(--text-secondary);
   white-space: nowrap;
   font-size: 0.75rem;
 }
@@ -266,7 +267,7 @@ async function selectCheckpoint(cp: CheckpointInfo) {
 .metadata-key {
   font-size: 0.75rem;
   font-weight: 600;
-  color: var(--text-secondary, #666);
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.03em;
   margin-bottom: 0.25rem;
@@ -280,11 +281,11 @@ async function selectCheckpoint(cp: CheckpointInfo) {
 }
 
 .status {
-  color: var(--text-secondary, #666);
+  color: var(--text-secondary);
   font-size: 0.875rem;
 }
 
 .status.error {
-  color: var(--error-color, #d32f2f);
+  color: var(--error-color);
 }
 </style>

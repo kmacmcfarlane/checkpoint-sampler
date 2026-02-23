@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### B-008: Checkpoint selector in metadata slideout has unreadable background
+- frontend/src/components/CheckpointMetadataPanel.vue: Removed hardcoded CSS fallback values from all `var()` calls in checkpoint selector styling (border, hover, selected, heading, step, resize handle, metadata key, status, error); added explicit `color: var(--text-color)` to `.cp-filename` for proper dark mode text readability
+- 5 new CheckpointMetadataPanel tests: checkpoint list items, filenames, step numbers, list border/heading, and selected state all verified to use theme-aware CSS classes without inline color overrides
+- 407 total frontend tests pass across 22 test files
+
 ### B-007: Checkpoint metadata panel dark mode text unreadable
 - frontend/src/components/CheckpointMetadataPanel.vue: Removed hardcoded `#333` color fallback from `.metadata-value` CSS rule; now uses `var(--text-color)` without fallback so dark mode text is readable (light text on dark background)
 - 2 new CheckpointMetadataPanel tests: theme-aware styling class verification, inline color override absence check
