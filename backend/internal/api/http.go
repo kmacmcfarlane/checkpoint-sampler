@@ -50,10 +50,7 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 	dec := goahttp.RequestDecoder
 	enc := goahttp.ResponseEncoder
 
-	var eh func(context.Context, http.ResponseWriter, error)
-	if cfg.Debug {
-		eh = errorHandler(cfg.Logger)
-	}
+	var eh = errorHandler(cfg.Logger)
 
 	healthServer := genhealthsvr.New(cfg.HealthEndpoints, mux, dec, enc, eh, nil)
 	docsServer := gendocssvr.New(cfg.DocsEndpoints, mux, dec, enc, eh, nil, cfg.SwaggerUIDir)
@@ -111,6 +108,8 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 
 	// Apply HTTP-level middleware
 	var handler http.Handler = mux
+	adapter := goamiddleware.NewLogger(cfg.Logger)
+	handler = goahttpmiddleware.Log(adapter)(handler)
 	handler = goahttpmiddleware.RequestID()(handler)
 	handler = CORSMiddleware("*")(handler)
 
