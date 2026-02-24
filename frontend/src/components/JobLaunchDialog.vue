@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { NModal, NCard, NSelect, NInputNumber, NButton, NSpace, NAlert, NDivider } from 'naive-ui'
 import type { TrainingRun, SamplePreset, WorkflowSummary, CreateSampleJobPayload } from '../api/types'
 import { apiClient } from '../api/client'
+import SamplePresetEditor from './SamplePresetEditor.vue'
 
 const props = defineProps<{
   show: boolean
@@ -22,6 +23,9 @@ const workflows = ref<WorkflowSummary[]>([])
 const samplePresets = ref<SamplePreset[]>([])
 const vaeModels = ref<string[]>([])
 const clipModels = ref<string[]>([])
+
+// Preset editor sub-dialog
+const presetEditorOpen = ref(false)
 
 // Form selections
 const selectedWorkflow = ref<string | null>(null)
@@ -154,6 +158,28 @@ function resetForm() {
   error.value = null
 }
 
+function openPresetEditor() {
+  presetEditorOpen.value = true
+}
+
+function closePresetEditor() {
+  presetEditorOpen.value = false
+}
+
+async function onPresetSaved(preset: SamplePreset) {
+  // Refresh the preset list and auto-select the newly saved preset
+  await fetchSamplePresets()
+  selectedPreset.value = preset.id
+}
+
+async function onPresetDeleted(presetId: string) {
+  // If the deleted preset was selected, clear the selection
+  if (selectedPreset.value === presetId) {
+    selectedPreset.value = null
+  }
+  await fetchSamplePresets()
+}
+
 async function submit() {
   if (!canSubmit.value || !props.trainingRun) return
 
@@ -197,6 +223,20 @@ async function submit() {
     :on-close="close"
     @update:show="emit('update:show', $event)"
   >
+    <NModal
+      :show="presetEditorOpen"
+      preset="card"
+      title="Manage Sample Presets"
+      style="max-width: 860px;"
+      :on-close="closePresetEditor"
+      @update:show="presetEditorOpen = $event"
+    >
+      <SamplePresetEditor
+        @preset-saved="onPresetSaved"
+        @preset-deleted="onPresetDeleted"
+      />
+    </NModal>
+
     <NSpace vertical :size="16">
       <NAlert v-if="error" type="error" closable @close="error = null">
         {{ error }}
@@ -216,14 +256,24 @@ async function submit() {
 
       <div class="form-field">
         <label for="preset-select">Sample Preset</label>
-        <NSelect
-          id="preset-select"
-          v-model:value="selectedPreset"
-          :options="presetOptions"
-          placeholder="Select a sample preset"
-          clearable
-          data-testid="preset-select"
-        />
+        <div class="preset-field-row">
+          <NSelect
+            id="preset-select"
+            v-model:value="selectedPreset"
+            :options="presetOptions"
+            placeholder="Select a sample preset"
+            clearable
+            data-testid="preset-select"
+            class="preset-select"
+          />
+          <NButton
+            size="medium"
+            data-testid="manage-presets-button"
+            @click="openPresetEditor"
+          >
+            Manage Presets
+          </NButton>
+        </div>
       </div>
 
       <div class="form-field">
@@ -296,6 +346,16 @@ async function submit() {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+}
+
+.preset-field-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.preset-select {
+  flex: 1;
 }
 
 .form-field label {

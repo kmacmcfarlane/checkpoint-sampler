@@ -986,7 +986,7 @@ stories:
   - id: B-020
     title: "Sample preset editor not visible or accessible in the Generate Samples UI"
     priority: 70
-    status: todo
+    status: done
     requires: []
     acceptance:
       - "FE: The SamplePresetEditor (with New Preset button, form fields, save/delete) is visible and accessible from the Generate Samples / Job Launch flow"

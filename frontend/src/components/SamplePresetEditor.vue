@@ -4,6 +4,11 @@ import { NInput, NInputNumber, NSelect, NButton, NDynamicInput, NCard, NSpace, N
 import type { SamplePreset, NamedPrompt, CreateSamplePresetPayload, UpdateSamplePresetPayload } from '../api/types'
 import { apiClient } from '../api/client'
 
+const emit = defineEmits<{
+  'preset-saved': [preset: SamplePreset]
+  'preset-deleted': [presetId: string]
+}>()
+
 const presets = ref<SamplePreset[]>([])
 const selectedPresetId = ref<string | null>(null)
 const loading = ref(false)
@@ -214,6 +219,7 @@ async function savePreset() {
       presets.value.push(result)
       selectedPresetId.value = result.id
     }
+    emit('preset-saved', result)
   } catch (err: unknown) {
     const message =
       err && typeof err === 'object' && 'message' in err
@@ -233,10 +239,12 @@ async function deletePreset() {
 
   error.value = null
   try {
+    const deletedId = selectedPresetId.value
     await apiClient.deleteSamplePreset(selectedPresetId.value)
     presets.value = presets.value.filter(p => p.id !== selectedPresetId.value)
     resetForm()
     selectedPresetId.value = null
+    emit('preset-deleted', deletedId)
   } catch (err: unknown) {
     const message =
       err && typeof err === 'object' && 'message' in err
