@@ -11,7 +11,6 @@ import (
 	gencomfyui "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/comfyui"
 	gendocs "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/docs"
 	genhealth "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/health"
-	genimages "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/images"
 	gencheckpointssvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/checkpoints/server"
 	gencomfyuisvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/comfyui/server"
 	gendocssvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/docs/server"
@@ -23,6 +22,7 @@ import (
 	gentrainingrunssvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/training_runs/server"
 	genworkflowssvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/workflows/server"
 	genwssvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/ws/server"
+	genimages "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/images"
 	genpresets "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/presets"
 	gensamplejobs "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/sample_jobs"
 	gensamplepresets "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/sample_presets"
@@ -93,7 +93,7 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 		checkpointsServer.Use(goahttpmiddleware.Debug(mux, os.Stdout))
 		comfyuiServer.Use(goahttpmiddleware.Debug(mux, os.Stdout))
 		workflowsServer.Use(goahttpmiddleware.Debug(mux, os.Stdout))
-		imagesServer.Use(goahttpmiddleware.Debug(mux, os.Stdout))
+		// DO NOT LOG BINARY IMAGE DATA, IT'S ANNOYING imagesServer.Use(goahttpmiddleware.Debug(mux, os.Stdout))
 		wsServer.Use(goahttpmiddleware.Debug(mux, os.Stdout))
 	}
 
