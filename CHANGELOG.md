@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### B-019: Workflow templates not loading — config nesting error and missing Docker volume mount
+- docker-compose.yml: Added `./workflows:/app/workflows:ro` volume mount so the backend container can access workflow template JSON files in production mode
+- docker-compose.dev.yml: Added `./workflows:/build/workflows:ro` volume mount so the backend container can access workflow template JSON files in development mode
+- config.yaml.example and config.yaml already had workflow_dir correctly nested under comfyui: section (no changes needed — story notes indicated a nesting issue, but it had already been resolved)
+- Verified: GET /api/workflows returns the loaded workflow templates (e.g., qwen-image.json) when the directory is correctly mounted
+- 477 backend specs pass across 4 suites (121 API + 29 Config + 235 Service + 92 Store) with race detection; 520 frontend tests pass; composite coverage 73.0%
+
 ### B-021: ComfyUI config: replace host+port with url field to support HTTPS reverse proxies
 - backend/internal/model/config.go: Replaced `Host string` + `Port int` with single `URL string` field in ComfyUIConfig struct; no serialization tags per architecture standards
 - backend/internal/config/config.go: Updated `yamlComfyUIConfig` to use `url` YAML field instead of `host` + `port`; `parseComfyUIConfig` applies default `http://localhost:8188`; added `parseAndValidateURL` helper validating URL format (must have scheme http/https, must have host); removed port range validation

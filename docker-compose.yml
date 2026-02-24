@@ -6,6 +6,7 @@ services:
     volumes:
       - backend_data:/app/data
       - ./config.yaml:/app/config.yaml:ro
+      - ./workflows:/app/workflows:ro
       - ${CHECKPOINT_DIR:-./.dataset-placeholder}:/data/checkpoints:ro
       - ${SAMPLE_DIR:-./.dataset-placeholder}:/data/samples:ro
     environment:

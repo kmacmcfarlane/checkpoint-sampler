@@ -963,7 +963,7 @@ stories:
   - id: B-019
     title: "Workflow templates not loading — config nesting error and missing Docker volume mount"
     priority: 80
-    status: todo
+    status: done
     requires: []
     acceptance:
       - "OPS: config.yaml.example shows workflow_dir nested under comfyui: section (not top-level)"
