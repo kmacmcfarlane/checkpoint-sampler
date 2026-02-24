@@ -10,6 +10,9 @@ When the user saves a preset in the "Manage Presets" sub-modal, it could automat
 ### Preset preview in selector
 The job launch dialog's preset dropdown could show a tooltip or inline summary (images per checkpoint, sampler count) when hovering over a preset option, helping users pick the right preset without opening the editor.
 
+### E2E test for sample generation batch
+Add a Playwright E2E test that exercises the full sample generation flow: select a training run, configure a preset, launch a job, and verify images appear in the grid. This depends on a running ComfyUI instance and will be slow compared to other E2E tests, so it should be behind a separate test tag or only run on demand. Needs design work around how to mock or connect to ComfyUI in CI and how to handle the long execution time.
+
 ## Dev Ops
 
 ### Playwright E2E smoke tests for QA
@@ -47,3 +50,6 @@ The SamplePresetEditor component's events (preset-saved, preset-deleted) are not
 
 ### Nested modal mount-call ordering in tests
 When a child component also calls the same API on mount, the test mock order must account for it. A note in TEST_PRACTICES.md about accounting for child component API calls in integration tests would help avoid this gotcha.
+
+### Tiered code review model selection
+Consider using sonnet for code review on simple, pattern-following changes (small frontend-only diffs, single-component changes) and reserving opus for architectural changes, security-sensitive stories, or cross-stack modifications. This could be driven by a `complexity` field on the story or heuristically derived from the diff size and layers touched. The B-020 review used opus for a 4-file frontend-only change that was straightforward — sonnet would likely have caught the same issues at lower cost and latency.

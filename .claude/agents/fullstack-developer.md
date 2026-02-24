@@ -232,6 +232,54 @@ Integration with other agents:
 - Engage qa-expert on test strategies
 - Align with microservices-architect on boundaries
 
+## Change Summary (REQUIRED)
+
+Your verdict MUST include a structured "Change Summary" section listing every file you modified and a brief description of what changed. This is extracted by the orchestrator and passed to the code reviewer and QA expert so they can orient faster.
+
+Format:
+
+```
+## Change Summary
+
+- **<file path>**: <1-sentence description of what changed>
+- **<file path>**: <1-sentence description of what changed>
+```
+
+Example:
+
+```
+## Change Summary
+
+- **frontend/src/components/SamplePresetEditor.vue**: Added defineEmits with preset-saved and preset-deleted events
+- **frontend/src/components/JobLaunchDialog.vue**: Added "Manage Presets" button, nested NModal with SamplePresetEditor, event handlers for refresh/auto-select
+- **frontend/src/components/__tests__/JobLaunchDialog.test.ts**: 4 new integration tests for preset editor modal
+```
+
+Rules:
+- List ONLY files you actually modified (not files you only read)
+- Keep descriptions concise — one sentence per file
+- Include test files
+- Do NOT include agent/backlog.yaml (the orchestrator manages that)
+
+## Blind Spot Reporting (REQUIRED)
+
+Before returning your result, you MUST include a "What I did NOT check (and why)" section. This creates an honest audit trail for downstream agents (code reviewer, QA) and humans. List:
+
+- Areas you did not verify and why (e.g., "Visual rendering in a real browser — cannot open a browser in this environment")
+- Assumptions you made that could be wrong (e.g., "Assumed nested NModal z-index works correctly based on Naive UI docs")
+- Edge cases you considered but did not test (e.g., "Did not test behavior when API call fails during save — existing error handling covers it")
+
+Format:
+
+```
+## What I did NOT check (and why)
+
+- **<area>**: <why it was not checked>
+- **Assumption**: <what was assumed and why>
+```
+
+This section is mandatory. Do not skip it even if you believe coverage is thorough — there are always blind spots worth documenting.
+
 ## Process Improvement Suggestions
 
 Before returning your result, reflect on the work you just did and include a "Process Improvements" section at the end of your response. Think about:

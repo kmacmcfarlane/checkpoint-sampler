@@ -150,13 +150,14 @@ Based on the story's current status, invoke the appropriate subagent:
    - Story ID, title, and acceptance criteria
    - Any `review_feedback` (if returning from review/QA)
    - Branch name
-3. On success: set status to `review`, clear `review_feedback`
+3. On success: extract the **Change Summary** from the fullstack engineer's verdict (see section 4.3.2). Set status to `review`, clear `review_feedback`.
 4. On failure/blocked: set status to `blocked` with `blocked_reason`
 
 #### Story status: `review`
 1. Invoke the **code reviewer** subagent with:
    - Story ID, title, and acceptance criteria
    - Branch name (diff against main)
+   - **Change summary** extracted from the fullstack engineer's verdict (see section 4.3.2)
 2. If approved: set status to `testing`
 3. If changes requested: set status to `in_progress`, record feedback in `review_feedback`
 
@@ -165,10 +166,54 @@ Based on the story's current status, invoke the appropriate subagent:
    - Story ID, title, and acceptance criteria
    - Branch name
    - Code reviewer's approval notes (if any)
+   - **Change summary** extracted from the fullstack engineer's verdict (see section 4.3.2)
 2. Parse the QA verdict for both the story result and runtime error sweep findings.
 3. If approved: set status to `done`
 4. If issues found: set status to `in_progress`, record feedback in `review_feedback`
 5. After the story status transition, process any sweep findings per section 4.4.1.
+
+### 4.3.2 Change summary extraction and passthrough
+
+When the fullstack engineer completes successfully, its verdict includes a "Change Summary" section listing modified files and descriptions. The orchestrator:
+
+1. **Extracts** the change summary from the fullstack engineer's response.
+2. **Stores** it in the orchestrator's working state for the current cycle.
+3. **Passes** it to the code reviewer and QA expert as part of their dispatch context, formatted as:
+   ```
+   Change summary (from fullstack engineer):
+   - <file path>: <description>
+   - <file path>: <description>
+   ```
+
+This helps downstream agents orient faster by knowing which files changed and why, reducing redundant exploratory reads. The change summary does NOT replace reading actual source files — reviewers and QA must still read the code. It supplements their initial orientation.
+
+If the fullstack engineer's response does not include a change summary (e.g., older prompt format), the orchestrator should fall back to `git diff --name-only main..HEAD` to generate a file list and pass that instead (without descriptions).
+
+### 4.3.1 Timing instrumentation
+
+The orchestrator MUST record timing data for each subagent invocation in the debug log (`.ralph-debug/orchestrator.md`):
+
+- **Before dispatching**: Record the current timestamp (ISO 8601) as `dispatch_time`
+- **After subagent returns**: Record the current timestamp as `return_time` and compute `elapsed`
+- **Format in debug log**:
+  ```
+  ## [<date>] Subagent result: <agent-name> for <story-id>
+  - Dispatch time: <ISO 8601>
+  - Return time: <ISO 8601>
+  - Elapsed: <minutes>m <seconds>s
+  - Verdict: <verdict>
+  ...
+  ```
+- **In the summary file** (`.ralph-debug/summary.md`), include a timing summary:
+  ```
+  ## Timing
+  - fullstack-developer: Xm Ys
+  - code-reviewer: Xm Ys
+  - qa-expert: Xm Ys
+  - Total cycle: Xm Ys
+  ```
+
+This data enables identifying bottlenecks and informing model selection decisions. Use `date +%Y-%m-%dT%H:%M:%S%z` via Bash to capture timestamps.
 
 ### 4.4 Update artifacts (orchestrator responsibility)
 
@@ -196,6 +241,7 @@ When the QA expert's verdict includes a "Runtime Error Sweep" section with findi
 
 2. **Improvement ideas**: For each improvement idea reported by QA:
    - Append to /agent/IDEAS.md with the title and description.
+   - Send a discord notification: `[project] New ideas from qa-expert sweep: <title> — <brief description>, <title> — <brief description>.`
 
 3. **Discord notification**: If any bug tickets were filed, send a notification (see section 9.2).
 

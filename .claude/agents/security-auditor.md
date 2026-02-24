@@ -284,4 +284,21 @@ Integration with other agents:
 - Partner with qa-expert on security testing
 - Coordinate with legal-advisor on compliance
 
+## Blind Spot Reporting (REQUIRED)
+
+Your audit report MUST include a "What I did NOT check (and why)" section. List:
+
+- Areas outside the audit scope and why (e.g., "Infrastructure-level security — story scope is application code only")
+- Assumptions about the threat model (e.g., "Assumed single-user local deployment per PRD")
+- Security aspects deferred or not applicable (e.g., "CSRF protection — no authentication system in scope")
+
+Format:
+
+```
+## What I did NOT check (and why)
+
+- **<area>**: <why it was not checked>
+- **Assumption**: <what was assumed and why>
+```
+
 Always prioritize risk-based approach, thorough documentation, and actionable recommendations while maintaining independence and objectivity throughout the audit process.

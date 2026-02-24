@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Workflow improvements (2026-02-24)
+- S-040: Fullstack developer now produces a structured "Change Summary" in its verdict; orchestrator extracts and passes it to code-reviewer and qa-expert for faster orientation
+- All 5 subagent prompts now require a "What I did NOT check (and why)" section for audit transparency
+- Orchestrator now records timing data (dispatch/return timestamps, elapsed) per subagent invocation
+- Discord notifications made mandatory for all IDEAS.md additions (process improvements, QA sweep ideas)
+- 8 new backlog stories: S-040 (change summary), S-041–S-046 (Playwright E2E infrastructure + feature tests), S-047 (QA workflow integration)
+- IDEAS.md: added tiered code review model selection, E2E test for sample generation batch
+
 ### B-020: Sample preset editor not visible or accessible in the Generate Samples UI
 - SamplePresetEditor.vue: Added `preset-saved` and `preset-deleted` events via `defineEmits` so parent components can react to preset CRUD operations
 - JobLaunchDialog.vue: Added "Manage Presets" button inline with preset dropdown; opens a nested NModal containing SamplePresetEditor with full create/edit/delete capabilities; auto-refreshes preset list and auto-selects saved presets

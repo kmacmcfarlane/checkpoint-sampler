@@ -1026,6 +1026,166 @@ stories:
     testing:
       - "command: make test-backend"
 
+  # ─── Workflow improvements (2026-02-24) ──────────────────────────────────────
+
+  - id: S-040
+    title: "Pass change summary from fullstack-developer to downstream subagents"
+    priority: 50
+    status: done
+    requires: []
+    acceptance:
+      - "WORKFLOW: The orchestrator extracts a structured change summary from the fullstack-developer verdict (files changed, brief description of each change)"
+      - "WORKFLOW: The change summary is passed to the code-reviewer and qa-expert subagents as additional context alongside the story dispatch"
+      - "WORKFLOW: Subagent prompts (code-reviewer.md, qa-expert.md) document the change summary as an expected input and instruct agents to use it for faster orientation"
+      - "WORKFLOW: AGENT_FLOW.md section 4.3 updated to document the change summary extraction and passthrough"
+      - "WORKFLOW: The change summary does NOT replace reading actual source files — it supplements them for faster focus"
+    notes: |
+      All three subagents independently read the same files during B-020, adding redundant
+      token cost. Passing a brief change summary (files + descriptions) from the fullstack
+      developer helps downstream agents orient faster without replacing their own code reads.
+      Format example:
+        files_changed:
+          - SamplePresetEditor.vue: Added defineEmits with preset-saved/preset-deleted events
+          - JobLaunchDialog.vue: Added Manage Presets button, nested NModal, event handlers
+          - JobLaunchDialog.test.ts: 4 new tests for integration
+    testing:
+      - "command: (workflow change — verify by running a story through the pipeline)"
+
+  # ─── Playwright E2E testing (2026-02-24) ────────────────────────────────────
+
+  - id: S-041
+    title: "Playwright E2E test infrastructure setup"
+    priority: 55
+    status: todo
+    requires: []
+    acceptance:
+      - "DEVOPS: @playwright/test installed as a dev dependency in /frontend"
+      - "DEVOPS: playwright.config.ts created with baseURL http://localhost:3000, headless Chromium, list reporter"
+      - "DEVOPS: E2E test directory created at frontend/e2e/"
+      - "DEVOPS: Root Makefile target 'make test-e2e' runs Playwright tests (assumes make up-dev is already running)"
+      - "DEVOPS: A minimal smoke E2E test exists in frontend/e2e/smoke.spec.ts that verifies the app loads and the health endpoint returns 200 through the frontend proxy"
+      - "DEVOPS: CLAUDE.md section 8 updated with the new make test-e2e target"
+      - "DEVOPS: TEST_PRACTICES.md updated with a new section for E2E testing practices"
+      - "DEVOPS: Playwright works in the claude-sandbox (headless Chromium, chromiumSandbox: false if needed)"
+    notes: |
+      Foundation for browser-driven E2E tests. The existing QA smoke test (curl /health) cannot
+      verify frontend rendering. Playwright fills this gap.
+      See IDEAS.md "Playwright E2E smoke tests for QA" for the full setup sketch including
+      sandbox considerations.
+      Key files: frontend/package.json, frontend/playwright.config.ts, frontend/e2e/smoke.spec.ts,
+      Makefile, CLAUDE.md, agent/TEST_PRACTICES.md.
+    testing:
+      - "command: make test-e2e (with make up-dev running)"
+
+  - id: S-042
+    title: "E2E test: training run selection and XY grid display"
+    priority: 50
+    status: todo
+    requires: [S-041]
+    acceptance:
+      - "E2E: Test selects a training run from the sidebar dropdown"
+      - "E2E: Test verifies the XY grid renders with expected dimension axes after selection"
+      - "E2E: Test verifies image cells appear in the grid (at least one image loads)"
+      - "E2E: Test verifies dimension axis labels are visible"
+      - "E2E: Test passes in headless Chromium via make test-e2e"
+    notes: |
+      Core user journey: open app → pick training run → see grid. This is the most fundamental
+      E2E test after the basic smoke test.
+      Key files: frontend/e2e/training-run-grid.spec.ts
+    testing:
+      - "command: make test-e2e"
+
+  - id: S-043
+    title: "E2E test: image lightbox interaction"
+    priority: 48
+    status: todo
+    requires: [S-042]
+    acceptance:
+      - "E2E: Test clicks an image cell to open the lightbox"
+      - "E2E: Test verifies the lightbox displays the full-size image"
+      - "E2E: Test verifies zoom controls are visible and functional (zoom in, zoom out, reset)"
+      - "E2E: Test verifies the metadata panel displays image metadata"
+      - "E2E: Test closes the lightbox and verifies return to the grid view"
+      - "E2E: Test passes in headless Chromium via make test-e2e"
+    notes: |
+      Second core journey: click image → inspect in lightbox → close.
+      Depends on S-042 because it needs a training run selected and images visible.
+      Key files: frontend/e2e/lightbox.spec.ts
+    testing:
+      - "command: make test-e2e"
+
+  - id: S-044
+    title: "E2E test: dimension filtering and combo filters"
+    priority: 46
+    status: todo
+    requires: [S-042]
+    acceptance:
+      - "E2E: Test opens the dimension panel and changes X/Y axis assignments"
+      - "E2E: Test verifies the grid updates to reflect the new axis dimensions"
+      - "E2E: Test applies a combo filter (deselects a value) and verifies grid rows/columns reduce"
+      - "E2E: Test clears the filter and verifies the grid returns to its full state"
+      - "E2E: Test passes in headless Chromium via make test-e2e"
+    notes: |
+      Tests the dimension configuration and filtering workflow.
+      Key files: frontend/e2e/dimension-filtering.spec.ts
+    testing:
+      - "command: make test-e2e"
+
+  - id: S-045
+    title: "E2E test: sample preset CRUD via job launch dialog"
+    priority: 44
+    status: todo
+    requires: [S-042]
+    acceptance:
+      - "E2E: Test opens the Generate Samples dialog"
+      - "E2E: Test clicks 'Manage Presets' to open the preset editor"
+      - "E2E: Test creates a new preset with a unique name and saves it"
+      - "E2E: Test verifies the new preset appears in the preset selector dropdown"
+      - "E2E: Test edits the preset (changes a field) and saves"
+      - "E2E: Test deletes the preset and verifies it is removed from the dropdown"
+      - "E2E: Test passes in headless Chromium via make test-e2e"
+    notes: |
+      Tests the full preset CRUD lifecycle through the UI, covering the B-020 fix end-to-end.
+      Key files: frontend/e2e/preset-crud.spec.ts
+    testing:
+      - "command: make test-e2e"
+
+  - id: S-046
+    title: "E2E test: slider and playback controls"
+    priority: 42
+    status: todo
+    requires: [S-042]
+    acceptance:
+      - "E2E: Test assigns a dimension to the slider and verifies the master slider appears"
+      - "E2E: Test drags or steps the master slider and verifies all image cells update"
+      - "E2E: Test starts playback and verifies automatic advancement (at least 2 steps)"
+      - "E2E: Test stops playback and verifies the slider holds its position"
+      - "E2E: Test passes in headless Chromium via make test-e2e"
+    notes: |
+      Tests the slider/playback animation workflow, a key differentiator of the app.
+      Key files: frontend/e2e/slider-playback.spec.ts
+    testing:
+      - "command: make test-e2e"
+
+  - id: S-047
+    title: "Integrate Playwright E2E tests into QA subagent workflow"
+    priority: 52
+    status: todo
+    requires: [S-041, S-042]
+    acceptance:
+      - "WORKFLOW: QA subagent prompt (qa-expert.md) updated to run 'make test-e2e' as part of its verification steps"
+      - "WORKFLOW: TEST_PRACTICES.md section 5 updated to include E2E test execution as a QA gate"
+      - "WORKFLOW: For frontend-only stories, QA uses Playwright smoke test results instead of curl-based health checks for frontend verification"
+      - "WORKFLOW: AGENT_FLOW.md updated to document that the orchestrator ensures make up-dev is running before dispatching to QA when E2E tests are required"
+      - "WORKFLOW: QA verdict format updated to include E2E test results section"
+    notes: |
+      Closes the gap where QA could only curl /health for frontend stories. After this,
+      QA runs real browser-based verification. Depends on the setup story (S-041) and at
+      least one working E2E test (S-042) to be meaningful.
+      Key files: .claude/agents/qa-expert.md, agent/TEST_PRACTICES.md, agent/AGENT_FLOW.md
+    testing:
+      - "command: (workflow change — verify by running a frontend story through the pipeline)"
+
   # ─── Promoted from IDEAS.md ─────────────────────────────────────────────────
 
   - id: S-037

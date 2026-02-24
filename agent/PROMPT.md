@@ -22,11 +22,27 @@ Select work from /agent/backlog.yaml per the priority rules in AGENT_FLOW.md sec
 ## Subagent dispatch
 
 Read the subagent prompt from `/.claude/agents/<name>.md` and invoke via the Task tool:
-- **fullstack-developer**: For `todo` and `in_progress` stories. Pass story ID, acceptance criteria, branch name, and any review_feedback.
-- **code-reviewer**: For `review` stories. Pass story ID, acceptance criteria, and branch name.
-- **qa-expert**: For `testing` stories. Pass story ID, acceptance criteria, branch name, and path to /agent/QA_ALLOWED_ERRORS.md.
+- **fullstack-developer**: For `todo` and `in_progress` stories. Pass story ID, acceptance criteria, branch name, and any review_feedback. On success, extract the "Change Summary" section from the verdict and store it for downstream dispatch.
+- **code-reviewer**: For `review` stories. Pass story ID, acceptance criteria, branch name, and the **change summary** from the fullstack engineer. If no change summary is available, generate one from `git diff --name-only main..HEAD`.
+- **qa-expert**: For `testing` stories. Pass story ID, acceptance criteria, branch name, path to /agent/QA_ALLOWED_ERRORS.md, and the **change summary** from the fullstack engineer.
 - **debugger**: Invoke on demand when test failures or bugs are encountered.
 - **security-auditor**: Invoke on demand for security-sensitive stories.
+
+### Change summary passthrough
+
+Per AGENT_FLOW.md section 4.3.2, the orchestrator extracts the "Change Summary" from the fullstack engineer's verdict and passes it to downstream agents (code-reviewer, qa-expert). Format when passing to downstream agents:
+
+```
+Change summary (from fullstack engineer):
+- <file path>: <description>
+- <file path>: <description>
+```
+
+This helps downstream agents orient faster. If the fullstack engineer's response lacks a change summary, fall back to `git diff --name-only main..HEAD` for the file list.
+
+## Timing instrumentation
+
+Record timestamps before and after each subagent dispatch per AGENT_FLOW.md section 4.3.1. Use `date +%Y-%m-%dT%H:%M:%S%z` to capture wall-clock times. Include elapsed time in both the orchestrator debug log and the summary file.
 
 ## Status management
 
@@ -43,20 +59,23 @@ After handling the QA story verdict (approved or rejected), check the QA verdict
 
 1. If sweep result is `FINDINGS`:
    - For each "New bug ticket": determine next `B-NNN` ID (scan backlog.yaml for highest B- number and increment), add to backlog.yaml with QA-suggested fields (title, priority, acceptance, testing, notes with log evidence).
-   - For each "Improvement idea": append to /agent/IDEAS.md.
+   - For each "Improvement idea": append to /agent/IDEAS.md and send a discord notification:
+     `[project] New ideas from qa-expert sweep: <title> — <brief description>, <title> — <brief description>.`
    - If any bug tickets were filed, send a discord notification:
      `[project] QA sweep: filed N new ticket(s): B-NNN (title — brief description), ... See backlog.yaml.`
 2. If sweep result is `CLEAN` or absent: no action needed.
 3. Include new backlog.yaml entries and IDEAS.md updates in the story's commit.
 
-### Processing process improvement ideas
+### Processing process improvement ideas (MANDATORY Discord notification)
 
 After every subagent completes (fullstack-developer, qa-expert), check its response for a "Process Improvements" section. If present:
 
 1. For each idea under `Features`, `Dev Ops`, or `Workflow`, append it to the matching section in /agent/IDEAS.md (format: `### <title>\n<description>`).
-2. Send a discord notification summarizing the new ideas:
+2. **MUST send a discord notification** summarizing ALL new ideas added to IDEAS.md:
    `[project] New ideas from <agent-name>: <title> — <brief description>, <title> — <brief description>.`
 3. Skip any category marked "None".
+
+Every addition to IDEAS.md (whether from process improvements, QA sweep findings, or any other source) MUST trigger a Discord notification so the user is aware of new suggestions.
 
 ## Completion conditions for a story
 
