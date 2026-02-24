@@ -54,6 +54,7 @@
       "Bash(npm run lint:*)",
       "Bash(npx eslint:*)",
       "Bash(npx esbuild:*)",
+      "Bash(wc:*)",
       "WebSearch",
       "WebFetch(domain:docs.anthropic.com)",
       "Bash(touch .ralph.stop)"

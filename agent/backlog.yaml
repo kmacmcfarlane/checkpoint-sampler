@@ -1025,3 +1025,83 @@ stories:
       and path prefix.
     testing:
       - "command: make test-backend"
+
+  # ─── Promoted from IDEAS.md ─────────────────────────────────────────────────
+
+  - id: S-037
+    title: "Slider navigation in image lightbox"
+    priority: 45
+    status: todo
+    requires: []
+    acceptance:
+      - "FE: When the lightbox is open, a SliderBar is shown below the image allowing the user to step through values of the slider-assigned dimension"
+      - "FE: The lightbox slider displays the same ordered values and current value as the cell's individual slider that was clicked to open the lightbox"
+      - "FE: Moving the lightbox slider swaps the displayed image in the lightbox to the image matching the new slider value (same x/y cell, different slider position)"
+      - "FE: Moving the lightbox slider updates that cell's per-cell slider override (sliderValues[cellKey]) so the grid reflects the change when the lightbox is closed"
+      - "FE: The lightbox slider does NOT affect other cells — only the cell that opened the lightbox"
+      - "FE: When the master slider is next moved (after the lightbox changed a single cell), all cells sync together as usual (master clears per-cell overrides)"
+      - "FE: The lightbox must receive enough context to know which cell (x/y values) it belongs to, the slider dimension values, and the current slider value for that cell"
+      - "FE: If no slider dimension is assigned, no slider is shown in the lightbox"
+      - "FE: Zoom/pan and metadata panel continue to work alongside the slider"
+      - "FE: Image preloading: adjacent slider positions are prefetched so lightbox slider feels instant"
+      - "FE: Unit tests for lightbox slider rendering, value changes updating the displayed image, per-cell override propagation, and no-slider-dimension case"
+    notes: |
+      Currently the lightbox shows a single static image. Adding a slider lets users flip
+      through the slider dimension (e.g. checkpoints) without closing the lightbox, which is
+      especially useful for detailed comparison at full resolution.
+      The lightbox needs additional props: cell coordinates (xVal, yVal), slider dimension
+      values, current slider value, and callbacks to update per-cell slider state.
+      App.vue opens the lightbox — it already knows the grid state, so it can pass this context.
+      Key files: frontend/src/components/ImageLightbox.vue, frontend/src/components/SliderBar.vue,
+      frontend/src/components/XYGrid.vue, frontend/src/App.vue (lightbox state management).
+    testing:
+      - "command: cd frontend && npx vitest run"
+
+  - id: S-038
+    title: "Keyboard navigation for sliders"
+    priority: 35
+    status: todo
+    requires: []
+    acceptance:
+      - "FE: When an ImageCell is focused (clicked or tabbed to), left/right arrow keys step the cell's slider backward/forward by one value"
+      - "FE: When the MasterSlider area is focused, left/right arrow keys step all sliders in sync (same behavior as dragging the master slider)"
+      - "FE: Arrow key steps wrap around if the slider is at the first or last value (consistent with playback loop behavior)"
+      - "FE: Visual focus indicator on the active cell so the user knows which cell will respond to arrow keys"
+      - "FE: Arrow key navigation does not interfere with normal page scrolling when no cell or slider is focused"
+      - "FE: Keyboard interaction works alongside existing mouse-based slider dragging and playback controls"
+      - "FE: Unit tests for arrow key stepping on ImageCell (forward, backward, wrap-around)"
+      - "FE: Unit tests for arrow key stepping on MasterSlider (syncs all cells)"
+    notes: |
+      Complements mouse-based slider interaction for power users reviewing many checkpoints
+      quickly. Arrow keys (left/right) step through slider values when a cell or the master
+      slider is focused.
+      Key files: frontend/src/components/ImageCell.vue, frontend/src/components/MasterSlider.vue,
+      frontend/src/components/XYGrid.vue (focus management).
+    testing:
+      - "command: cd frontend && npx vitest run"
+
+  - id: S-039
+    title: "JSON sidecar metadata per image"
+    priority: 30
+    status: todo
+    requires: [S-034]
+    acceptance:
+      - "BE: When the job executor saves a generated image to sample_dir, it also writes a .json sidecar file alongside it with the same base name (e.g. prompt_name=forest&seed=420&cfg=1.png → prompt_name=forest&seed=420&cfg=1.json)"
+      - "BE: Sidecar JSON contains flat key-value generation metadata: checkpoint (filename), prompt_name, prompt_text, seed, cfg, steps, sampler_name, scheduler, width, height, negative_prompt, vae, clip, shift (if applicable), workflow_name, job_id, timestamp"
+      - "BE: Sidecar is written atomically (write to temp file then rename) to avoid partial reads"
+      - "BE: Image metadata endpoint (/api/images/{*filepath}/metadata) reads from the .json sidecar if it exists, falling back to PNG embedded metadata if no sidecar is found"
+      - "BE: Sidecar metadata is returned in the same API response shape as PNG-embedded metadata so the frontend needs no changes for basic display"
+      - "BE: Filesystem scanner ignores .json files when discovering images (only .png files are treated as images)"
+      - "BE: Unit tests for sidecar writing (correct path, correct content, atomic write)"
+      - "BE: Unit tests for metadata endpoint sidecar-first fallback logic"
+      - "BE: Unit tests for filesystem scanner ignoring .json files"
+    notes: |
+      Sidecars make metadata extraction trivial and decouple from ComfyUI-specific PNG embedding.
+      The flat key-value format is easy to parse and could be consumed by external tools.
+      Sidecar-first with PNG fallback ensures backward compatibility with images generated
+      before this feature.
+      Key files: backend/internal/service/job_executor.go (write sidecar),
+      backend/internal/service/image_metadata.go (read sidecar),
+      backend/internal/service/scanner.go (ignore .json).
+    testing:
+      - "command: ginkgo -r --cover --race ./internal/..."
