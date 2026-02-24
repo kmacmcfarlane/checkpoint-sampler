@@ -24,7 +24,7 @@ Select work from /agent/backlog.yaml per the priority rules in AGENT_FLOW.md sec
 Read the subagent prompt from `/.claude/agents/<name>.md` and invoke via the Task tool:
 - **fullstack-developer**: For `todo` and `in_progress` stories. Pass story ID, acceptance criteria, branch name, and any review_feedback.
 - **code-reviewer**: For `review` stories. Pass story ID, acceptance criteria, and branch name.
-- **qa-expert**: For `testing` stories. Pass story ID, acceptance criteria, and branch name.
+- **qa-expert**: For `testing` stories. Pass story ID, acceptance criteria, branch name, and path to /agent/QA_ALLOWED_ERRORS.md.
 - **debugger**: Invoke on demand when test failures or bugs are encountered.
 - **security-auditor**: Invoke on demand for security-sensitive stories.
 
@@ -34,8 +34,29 @@ After each subagent completes, update /agent/backlog.yaml:
 - Fullstack engineer success → set `status: review`, clear `review_feedback`
 - Code reviewer approved → set `status: testing`
 - Code reviewer rejected → set `status: in_progress`, record `review_feedback`
-- QA expert approved → set `status: done`
-- QA expert rejected → set `status: in_progress`, record `review_feedback`
+- QA expert approved → set `status: done`, then process sweep findings (see below)
+- QA expert rejected → set `status: in_progress`, record `review_feedback`, then process sweep findings (see below)
+
+### Processing QA sweep findings
+
+After handling the QA story verdict (approved or rejected), check the QA verdict for a "Runtime Error Sweep" section:
+
+1. If sweep result is `FINDINGS`:
+   - For each "New bug ticket": determine next `B-NNN` ID (scan backlog.yaml for highest B- number and increment), add to backlog.yaml with QA-suggested fields (title, priority, acceptance, testing, notes with log evidence).
+   - For each "Improvement idea": append to /agent/IDEAS.md.
+   - If any bug tickets were filed, send a discord notification:
+     `[project] QA sweep: filed N new ticket(s): B-NNN (title — brief description), ... See backlog.yaml.`
+2. If sweep result is `CLEAN` or absent: no action needed.
+3. Include new backlog.yaml entries and IDEAS.md updates in the story's commit.
+
+### Processing process improvement ideas
+
+After every subagent completes (fullstack-developer, qa-expert), check its response for a "Process Improvements" section. If present:
+
+1. For each idea under `Features`, `Dev Ops`, or `Workflow`, append it to the matching section in /agent/IDEAS.md (format: `### <title>\n<description>`).
+2. Send a discord notification summarizing the new ideas:
+   `[project] New ideas from <agent-name>: <title> — <brief description>, <title> — <brief description>.`
+3. Skip any category marked "None".
 
 ## Completion conditions for a story
 

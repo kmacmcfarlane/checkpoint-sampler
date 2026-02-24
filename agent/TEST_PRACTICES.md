@@ -245,6 +245,41 @@ For stories that add or modify backend API endpoints, the QA expert must verify 
 
 The QA expert may return a story to `in_progress` with specific issues recorded in the story's `review_feedback` field. The fullstack engineer must address all `blocker` and `important` severity issues before re-submitting.
 
+### 5.7 Runtime error sweep (secondary findings)
+
+After completing sections 5.5 (smoke test) and 5.6 (API endpoint verification), the QA expert must perform a runtime error sweep on the application logs. This sweep is a **secondary check** — its results do NOT block the current story. If the story's acceptance criteria pass, the story is APPROVED regardless of sweep findings.
+
+#### 5.7.1 Procedure
+
+1. While the application is still running (started in 5.5), capture logs:
+   ```
+   docker compose logs --tail=500 --no-color 2>&1
+   ```
+2. Filter for error-level and fatal-level messages:
+   ```
+   grep -iE 'level=(error|fatal|panic)|FATAL|PANIC|panic:'
+   ```
+3. Read `/agent/QA_ALLOWED_ERRORS.md` for the expected error allowlist.
+4. For each error line found, classify it as one of:
+   - **Expected**: Matches a pattern in `QA_ALLOWED_ERRORS.md`. Skip it.
+   - **Bug**: An unexpected runtime error that indicates a defect. Report as a new bug ticket.
+   - **Improvement**: A non-critical issue suggesting a code improvement (e.g., noisy logging for recoverable conditions). Report as an IDEAS.md suggestion.
+5. Report findings in the QA verdict using the structured format (see qa-expert.md).
+
+#### 5.7.2 Bug ticket fields
+
+For each finding classified as **Bug**, the QA agent reports:
+- A brief title (suitable for a backlog ticket)
+- The error log line(s) that triggered the finding
+- A brief root cause hypothesis (1-2 sentences)
+- Suggested acceptance criteria (1-3 items)
+- Suggested testing commands
+- Suggested priority (default: 70)
+
+#### 5.7.3 Non-blocking rule
+
+Sweep findings never affect the story verdict. If the story's acceptance criteria pass, the story is **APPROVED** and sweep findings are filed as separate tickets by the orchestrator. This prevents infinite loops where every story bounces for pre-existing issues.
+
 ## 6) Definition of Done (testing)
 A story may be set to `status: done` only when:
 - New/changed behavior is covered by tests following these practices.

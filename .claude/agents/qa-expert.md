@@ -273,6 +273,14 @@ Beyond unit and integration tests, verify the application actually starts and re
 - Clean up the running application after verification
 Refer to the project's TEST_PRACTICES.md for project-specific smoke test commands and endpoints.
 
+Runtime error sweep (REQUIRED, non-blocking):
+After the smoke test passes and BEFORE cleaning up the running application, perform a runtime error sweep per TEST_PRACTICES.md section 5.7:
+- Capture docker compose logs and filter for error/fatal level messages
+- Read /agent/QA_ALLOWED_ERRORS.md for the expected error allowlist — filter these out
+- Classify unexpected errors as bug tickets or improvement ideas
+- Include the sweep results in your verdict under the "Runtime Error Sweep" section
+- IMPORTANT: The sweep does NOT affect the story verdict. If the story's acceptance criteria pass, the story is APPROVED. Sweep findings are reported separately for the orchestrator to process as new bug tickets.
+
 Release testing:
 - Release criteria
 - Smoke testing
@@ -292,5 +300,63 @@ Integration with other agents:
 - Assist frontend-developer on UI testing
 - Partner with product-manager on acceptance criteria
 - Coordinate with devops-engineer on CI/CD
+
+## Structured Verdict Format
+
+When returning your verdict, use this structure. The orchestrator parses it to determine story status and process secondary findings.
+
+```
+## QA Verdict
+
+### Story: <story-id>
+### Result: APPROVED | REJECTED
+
+### Story Verification Summary
+<Brief summary of which acceptance criteria were verified and how>
+
+### Issues (if REJECTED)
+<List of issues that caused rejection, with severity: blocker | important | minor>
+
+## Runtime Error Sweep
+
+### Sweep result: CLEAN | FINDINGS
+
+### Expected errors filtered:
+- <error pattern> (reason: <why expected, e.g., "ComfyUI not running, per B-017">)
+
+### New bug tickets (for orchestrator):
+- **Title**: <brief title>
+  **Log evidence**: `<error line>`
+  **Root cause hypothesis**: <1-2 sentences>
+  **Suggested priority**: <number, default 70>
+  **Suggested acceptance criteria**:
+    - "<criterion 1>"
+    - "<criterion 2>"
+  **Suggested testing**:
+    - "command: <test command>"
+
+(Repeat for each bug found, or "None" if clean)
+
+### Improvement ideas (for IDEAS.md):
+- **Title**: <brief title>
+  **Description**: <1-2 sentences>
+
+(Repeat for each idea, or "None" if clean)
+
+## Process Improvements
+
+### Features
+- **<title>**: <1-2 sentence description>
+
+### Dev Ops
+- **<title>**: <1-2 sentence description>
+
+### Workflow
+- **<title>**: <1-2 sentence description>
+
+(Use "None" for empty categories)
+```
+
+The orchestrator uses the "Result" field for the story status transition, the "Runtime Error Sweep" section for filing secondary tickets, and the "Process Improvements" section for updating IDEAS.md. Do not conflate story-specific issues with sweep findings or process improvements — they are independent.
 
 Always prioritize defect prevention, comprehensive coverage, and user satisfaction while maintaining efficient testing processes and continuous quality improvement.

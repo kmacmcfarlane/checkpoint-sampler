@@ -120,8 +120,9 @@ The orchestrator must process stories in this priority order:
 1) Filter stories with `status: todo`.
 2) Exclude stories that are `blocked` (blocked=true or blocked_reason present).
 3) Exclude stories whose `requires` list contains any story that does not have `status: done`.
-4) Choose the highest priority story (higher number = higher priority unless backlog schema states otherwise).
-5) Tie-breaker: lowest id lexicographically.
+4) **Bugs first**: Partition eligible stories into bugs (id starts with `B-`) and non-bugs. If any bugs are eligible, select from bugs only.
+5) Within the selected partition, choose the highest priority story (higher number = higher priority).
+6) Tie-breaker: lowest id lexicographically.
 
 If no eligible stories remain across all queues:
 - Stop making changes and exit the cycle without modifying files.
@@ -164,15 +165,43 @@ Based on the story's current status, invoke the appropriate subagent:
    - Story ID, title, and acceptance criteria
    - Branch name
    - Code reviewer's approval notes (if any)
-2. If approved: set status to `done`
-3. If issues found: set status to `in_progress`, record feedback in `review_feedback`
+2. Parse the QA verdict for both the story result and runtime error sweep findings.
+3. If approved: set status to `done`
+4. If issues found: set status to `in_progress`, record feedback in `review_feedback`
+5. After the story status transition, process any sweep findings per section 4.4.1.
 
 ### 4.4 Update artifacts (orchestrator responsibility)
 
 After each subagent completes, the **orchestrator** (not the subagent) performs these updates:
 - Update /agent/backlog.yaml with the new status and any feedback
 - Are there questions that could help decide next steps? Update /agent/QUESTIONS.md and trigger a discord notification via the MCP tool. Also indicate questions in the chat output.
-- Update /agent/IDEAS.md with ideas for features that could enhance the application
+- **Process improvement ideas**: If the subagent's response includes a "Process Improvements" section, append each idea to the appropriate section in /agent/IDEAS.md (`## Features`, `## Dev Ops`, or `## Workflow`). Then send a discord notification:
+  `[project] New ideas from <agent-name>: <title> — <brief description>, <title> — <brief description>.`
+
+### 4.4.1 Processing QA runtime error sweep findings
+
+When the QA expert's verdict includes a "Runtime Error Sweep" section with findings (sweep result: FINDINGS), the orchestrator processes them **after** the story status transition:
+
+1. **New bug tickets**: For each bug ticket reported by QA:
+   - Determine the next available `B-NNN` ID by scanning existing bug IDs in backlog.yaml.
+   - Add the ticket to the `stories` list in /agent/backlog.yaml with:
+     - `id`: Next sequential B-NNN
+     - `title`: From QA's suggested title
+     - `priority`: From QA's suggested priority (default: 70)
+     - `status: todo`
+     - `requires: []`
+     - `acceptance`: From QA's suggested acceptance criteria
+     - `testing`: From QA's suggested testing commands
+     - `notes`: Include the log evidence and root cause hypothesis from the QA report
+
+2. **Improvement ideas**: For each improvement idea reported by QA:
+   - Append to /agent/IDEAS.md with the title and description.
+
+3. **Discord notification**: If any bug tickets were filed, send a notification (see section 9.2).
+
+4. **Timing**: Process sweep findings after the story status transition and before the commit. This ensures new backlog entries are included in the story's commit. If the story was REJECTED, sweep findings are still processed — they are independent of the story result.
+
+5. **No sweep findings**: If sweep result is CLEAN or the section is absent, skip this step.
 
 ### 4.5 Finalization on QA approval (orchestrator responsibility)
 
@@ -271,6 +300,10 @@ Send a notification on every story status change:
 - **testing → in_progress**: `[project] <id>: testing → in_progress. QA found issues: <1-2 sentence summary of feedback>.`
 
 When a story is returned to `in_progress` (from review or testing), always include a concise summary of the feedback so the user understands what went wrong without needing to check the repo.
+
+- **QA sweep findings**: `[project] QA sweep: filed <N> new ticket(s): <B-NNN> (<title> — <1-2 sentence description>), <B-NNN> (<title> — <1-2 sentence description>). See backlog.yaml.`
+  - Sent only when the QA sweep produced new bug tickets (not for improvement ideas alone).
+  - Sent immediately after the story status notification.
 
 ### 9.3 Other notifications
 

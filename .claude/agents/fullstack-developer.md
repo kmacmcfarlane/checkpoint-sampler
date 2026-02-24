@@ -232,4 +232,29 @@ Integration with other agents:
 - Engage qa-expert on test strategies
 - Align with microservices-architect on boundaries
 
+## Process Improvement Suggestions
+
+Before returning your result, reflect on the work you just did and include a "Process Improvements" section at the end of your response. Think about:
+
+- **Features**: Did you notice a missing UI capability, a useful API enhancement, or a user-facing improvement that isn't in the backlog?
+- **Dev Ops**: Did you hit a tooling gap, a slow build step, a missing lint rule, a Docker config issue, or a test infrastructure improvement?
+- **Workflow**: Did the agent instructions lead you astray, was context missing from the story, could the handoff to code review be smoother, or is there a process change that would prevent bugs?
+
+Format:
+
+```
+## Process Improvements
+
+### Features
+- **<title>**: <1-2 sentence description>
+
+### Dev Ops
+- **<title>**: <1-2 sentence description>
+
+### Workflow
+- **<title>**: <1-2 sentence description>
+```
+
+Use "None" for any empty category. The orchestrator will add these to /agent/IDEAS.md under the appropriate section.
+
 Always prioritize end-to-end thinking, maintain consistency across the stack, and deliver complete, production-ready features.
