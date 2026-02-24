@@ -109,6 +109,36 @@ describe('TrainingRunSelector', () => {
     expect(select.props('disabled')).toBe(true)
   })
 
+  it('NSelect is filterable so users can type to filter training runs', async () => {
+    mockGetTrainingRuns.mockResolvedValue(sampleRuns)
+    const wrapper = mount(TrainingRunSelector)
+    await flushPromises()
+
+    const select = wrapper.findComponent(NSelect)
+    expect(select.props('filterable')).toBe(true)
+  })
+
+  it('NSelect has consistent-menu-width=false so the dropdown can be wider than the trigger', async () => {
+    mockGetTrainingRuns.mockResolvedValue(sampleRuns)
+    const wrapper = mount(TrainingRunSelector)
+    await flushPromises()
+
+    const select = wrapper.findComponent(NSelect)
+    expect(select.props('consistentMenuWidth')).toBe(false)
+  })
+
+  it('NSelect menu-props include min-width and max-width constraints for long names', async () => {
+    mockGetTrainingRuns.mockResolvedValue(sampleRuns)
+    const wrapper = mount(TrainingRunSelector)
+    await flushPromises()
+
+    const select = wrapper.findComponent(NSelect)
+    const menuProps = select.props('menuProps') as { style: string }
+    expect(menuProps).toBeDefined()
+    expect(menuProps.style).toContain('min-width')
+    expect(menuProps.style).toContain('max-width')
+  })
+
   describe('has-samples filter', () => {
     it('renders a has-samples NCheckbox that is unchecked by default', async () => {
       mockGetTrainingRuns.mockResolvedValue(sampleRuns)

@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### B-018: Training run selector dropdown too narrow to read long names
+- TrainingRunSelector.vue: Added `filterable` prop to NSelect so users can type to filter training runs; set `consistent-menu-width="false"` and `menu-props` with `min-width: 320px; max-width: min(600px, 100vw)` so the dropdown popover is wide enough for long names without exceeding viewport width on small screens
+- TrainingRunSelector.test.ts: 3 new tests covering filterable, consistentMenuWidth, and menuProps style constraints
+- 527 frontend tests pass; 477 backend specs pass
+
 ### Workflow improvements (2026-02-24)
 - S-040: Fullstack developer now produces a structured "Change Summary" in its verdict; orchestrator extracts and passes it to code-reviewer and qa-expert for faster orientation
 - All 5 subagent prompts now require a "What I did NOT check (and why)" section for audit transparency

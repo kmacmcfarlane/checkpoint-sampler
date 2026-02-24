@@ -87,6 +87,9 @@ function onSelect(value: number | null) {
       :disabled="loading || trainingRuns.length === 0"
       :placeholder="loading ? 'Loading...' : 'Select a training run'"
       :loading="loading"
+      :consistent-menu-width="false"
+      :menu-props="{ style: 'min-width: 320px; max-width: min(600px, 100vw)' }"
+      filterable
       class="training-run-select"
       size="small"
       @update:value="onSelect"

@@ -942,7 +942,7 @@ stories:
   - id: B-018
     title: "Training run selector dropdown too narrow to read long names"
     priority: 60
-    status: todo
+    status: done
     requires: []
     acceptance:
       - "FE: let's switch to an input I can filter by typing in and select the training run I want"
