@@ -227,6 +227,22 @@ The QA expert subagent (/.claude/agents/qa-expert.md) is the final gate before a
 - All pre-existing tests still pass
 - No functionality broken by the changes
 
+### 5.5 Application smoke test
+For any story that touches backend code, the QA expert must verify the application actually starts and responds:
+1. Start the application using the project's standard dev command (e.g. `make up-dev`)
+2. Wait for containers/processes to be healthy
+3. Verify the health endpoint returns HTTP 200 (via `curl` or equivalent)
+4. Clean up (e.g. `make down`)
+
+This catches fatal startup errors (crash loops, missing dependencies, broken wiring) that unit tests cannot detect. If the application is not reachable or returns non-200 on the health endpoint, the story fails QA.
+
+### 5.6 API endpoint verification
+For stories that add or modify backend API endpoints, the QA expert must verify affected endpoints against the running application (started in 5.5):
+1. For each endpoint touched by the story, issue a basic request (via `curl` from within the docker network or from the host)
+2. Verify the response status code is correct (200 for success paths, appropriate 4xx/5xx for error paths)
+3. Verify the response body shape matches expectations (valid JSON, expected top-level fields present)
+4. This is not a substitute for unit tests — it validates that the full stack (routing, middleware, serialization, service wiring) works end-to-end
+
 The QA expert may return a story to `in_progress` with specific issues recorded in the story's `review_feedback` field. The fullstack engineer must address all `blocker` and `important` severity issues before re-submitting.
 
 ## 6) Definition of Done (testing)
