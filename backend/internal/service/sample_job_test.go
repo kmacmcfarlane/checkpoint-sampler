@@ -158,10 +158,13 @@ type fakeSampleJobExecutor struct {
 	resumeCalled bool
 	stopErr      error
 	resumeErr    error
+	connected    bool
 }
 
 func newFakeSampleJobExecutor() *fakeSampleJobExecutor {
-	return &fakeSampleJobExecutor{}
+	return &fakeSampleJobExecutor{
+		connected: true, // Default to connected for most tests
+	}
 }
 
 func (f *fakeSampleJobExecutor) RequestStop(jobID string) error {
@@ -174,10 +177,15 @@ func (f *fakeSampleJobExecutor) RequestResume(jobID string) error {
 	return f.resumeErr
 }
 
+func (f *fakeSampleJobExecutor) IsConnected() bool {
+	return f.connected
+}
+
 var _ = Describe("SampleJobService", func() {
 	var (
 		store       *fakeSampleJobStore
 		pathMatcher *fakePathMatcher
+		executor    *fakeSampleJobExecutor
 		svc         *service.SampleJobService
 		logger      *logrus.Logger
 	)
@@ -185,9 +193,11 @@ var _ = Describe("SampleJobService", func() {
 	BeforeEach(func() {
 		store = newFakeSampleJobStore()
 		pathMatcher = newFakePathMatcher()
+		executor = newFakeSampleJobExecutor()
 		logger = logrus.New()
 		logger.SetOutput(io.Discard)
 		svc = service.NewSampleJobService(store, pathMatcher, logger)
+		svc.SetExecutor(executor)
 	})
 
 	Describe("Create", func() {
@@ -320,6 +330,19 @@ var _ = Describe("SampleJobService", func() {
 			updated, err := svc.Get("job-1")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(updated.Status).To(Equal(model.SampleJobStatusRunning))
+		})
+
+		It("returns error when ComfyUI is not connected", func() {
+			executor.connected = false
+			job := model.SampleJob{
+				ID:     "job-1",
+				Status: model.SampleJobStatusPending,
+			}
+			store.jobs[job.ID] = job
+
+			_, err := svc.Start("job-1")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("ComfyUI not connected"))
 		})
 
 		It("returns error when job not found", func() {

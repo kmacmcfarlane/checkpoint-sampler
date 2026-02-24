@@ -33,6 +33,7 @@ type PathMatcher interface {
 type SampleJobExecutor interface {
 	RequestStop(jobID string) error
 	RequestResume(jobID string) error
+	IsConnected() bool
 }
 
 // SampleJobService manages sample job creation, state transitions, and progress tracking.
@@ -253,6 +254,12 @@ func (s *SampleJobService) Start(id string) (model.SampleJob, error) {
 	s.logger.WithField("sample_job_id", id).Trace("entering Start")
 	defer s.logger.Trace("returning from Start")
 
+	// Check if executor is available and connected
+	if s.executor == nil || !s.executor.IsConnected() {
+		s.logger.Warn("cannot start job: ComfyUI not connected")
+		return model.SampleJob{}, fmt.Errorf("ComfyUI not connected")
+	}
+
 	job, err := s.store.GetSampleJob(id)
 	if err == sql.ErrNoRows {
 		s.logger.WithField("sample_job_id", id).Debug("sample job not found")
@@ -346,6 +353,12 @@ func (s *SampleJobService) Resume(id string) (model.SampleJob, error) {
 	s.logger.WithField("sample_job_id", id).Trace("entering Resume")
 	defer s.logger.Trace("returning from Resume")
 
+	// Check if executor is available and connected
+	if s.executor == nil || !s.executor.IsConnected() {
+		s.logger.Warn("cannot resume job: ComfyUI not connected")
+		return model.SampleJob{}, fmt.Errorf("ComfyUI not connected")
+	}
+
 	job, err := s.store.GetSampleJob(id)
 	if err == sql.ErrNoRows {
 		s.logger.WithField("sample_job_id", id).Debug("sample job not found")
@@ -363,7 +376,7 @@ func (s *SampleJobService) Resume(id string) (model.SampleJob, error) {
 	// Validate state transition
 	if job.Status != model.SampleJobStatusPaused {
 		s.logger.WithFields(logrus.Fields{
-			"sample_job_id": id,
+			"sample_job_id":  id,
 			"current_status": job.Status,
 		}).Warn("cannot resume job: job is not paused")
 		return model.SampleJob{}, fmt.Errorf("cannot resume job in status %s", job.Status)

@@ -104,7 +104,9 @@ func (m *mockComfyUIClient) CancelPrompt(ctx context.Context, promptID string) e
 }
 
 type mockComfyUIWS struct {
-	handlers []model.ComfyUIEventHandler
+	handlers   []model.ComfyUIEventHandler
+	connectErr error
+	closeErr   error
 }
 
 func (m *mockComfyUIWS) AddHandler(handler model.ComfyUIEventHandler) {
@@ -112,10 +114,16 @@ func (m *mockComfyUIWS) AddHandler(handler model.ComfyUIEventHandler) {
 }
 
 func (m *mockComfyUIWS) Connect(ctx context.Context) error {
+	if m.connectErr != nil {
+		return m.connectErr
+	}
 	return nil
 }
 
 func (m *mockComfyUIWS) Close() error {
+	if m.closeErr != nil {
+		return m.closeErr
+	}
 	return nil
 }
 
@@ -647,6 +655,165 @@ var _ = Describe("JobExecutor", func() {
 			// Verify item was marked as failed
 			items := mockStore.items["job-1"]
 			Expect(items[0].Status).To(Equal(model.SampleJobItemStatusFailed))
+		})
+	})
+
+	Describe("Resilient startup", func() {
+		It("starts successfully when ComfyUI WebSocket connection fails", func() {
+			// Create a new executor with a WS client that fails to connect
+			mockWSFailing := &mockComfyUIWS{
+				connectErr: errors.New("connection refused"),
+			}
+			executorWithFailingWS := NewJobExecutor(
+				mockStore,
+				mockClient,
+				mockWSFailing,
+				mockLoader,
+				mockHub,
+				"/test/samples",
+				mockFS,
+				logger,
+			)
+
+			// Start should succeed even though the connection fails
+			err := executorWithFailingWS.Start()
+			Expect(err).ToNot(HaveOccurred())
+
+			// Verify executor is marked as not connected
+			Expect(executorWithFailingWS.IsConnected()).To(BeFalse())
+
+			// Clean up
+			executorWithFailingWS.Stop()
+		})
+
+		It("reports connected status after successful connection", func() {
+			err := executor.Start()
+			Expect(err).ToNot(HaveOccurred())
+
+			// Verify executor is marked as connected
+			Expect(executor.IsConnected()).To(BeTrue())
+
+			// Clean up
+			executor.Stop()
+		})
+
+		It("does not process items when not connected", func() {
+			// Create executor with failing WS
+			mockWSFailing := &mockComfyUIWS{
+				connectErr: errors.New("connection refused"),
+			}
+			executorWithFailingWS := NewJobExecutor(
+				mockStore,
+				mockClient,
+				mockWSFailing,
+				mockLoader,
+				mockHub,
+				"/test/samples",
+				mockFS,
+				logger,
+			)
+
+			// Add a running job
+			job := model.SampleJob{
+				ID:             "job-1",
+				Status:         model.SampleJobStatusRunning,
+				TotalItems:     1,
+				CompletedItems: 0,
+			}
+			item := model.SampleJobItem{
+				ID:     "item-1",
+				JobID:  "job-1",
+				Status: model.SampleJobItemStatusPending,
+			}
+			mockStore.jobs[job.ID] = job
+			mockStore.items[job.ID] = []model.SampleJobItem{item}
+
+			// Start executor
+			err := executorWithFailingWS.Start()
+			Expect(err).ToNot(HaveOccurred())
+
+			// Try to process (should be skipped because not connected)
+			executorWithFailingWS.processNextItem()
+
+			// Verify item is still pending (not processed)
+			items := mockStore.items[job.ID]
+			Expect(items[0].Status).To(Equal(model.SampleJobItemStatusPending))
+
+			// Clean up
+			executorWithFailingWS.Stop()
+		})
+
+		It("handles Stop gracefully when Start was never called", func() {
+			freshExecutor := NewJobExecutor(
+				mockStore,
+				mockClient,
+				mockWS,
+				mockLoader,
+				mockHub,
+				"/test/samples",
+				mockFS,
+				logger,
+			)
+
+			// Should not panic or error
+			freshExecutor.Stop()
+		})
+
+		It("handles Stop gracefully when Start failed", func() {
+			mockWSFailing := &mockComfyUIWS{
+				connectErr: errors.New("connection refused"),
+			}
+			executorWithFailingWS := NewJobExecutor(
+				mockStore,
+				mockClient,
+				mockWSFailing,
+				mockLoader,
+				mockHub,
+				"/test/samples",
+				mockFS,
+				logger,
+			)
+
+			// Start (will succeed but not connected)
+			_ = executorWithFailingWS.Start()
+
+			// Should not panic or error
+			executorWithFailingWS.Stop()
+		})
+
+		It("transitions from disconnected to connected when WS becomes available", func() {
+			// Create mock WS that initially fails but can succeed later
+			mockWSVariable := &mockComfyUIWS{
+				connectErr: errors.New("connection refused"),
+			}
+			executorWithVariableWS := NewJobExecutor(
+				mockStore,
+				mockClient,
+				mockWSVariable,
+				mockLoader,
+				mockHub,
+				"/test/samples",
+				mockFS,
+				logger,
+			)
+
+			// Start with failing connection
+			err := executorWithVariableWS.Start()
+			Expect(err).ToNot(HaveOccurred())
+			Expect(executorWithVariableWS.IsConnected()).To(BeFalse())
+
+			// Clear the connection error to simulate ComfyUI becoming available
+			mockWSVariable.connectErr = nil
+
+			// Manually trigger tryConnect (simulates the reconnection loop)
+			err = executorWithVariableWS.tryConnect()
+			Expect(err).ToNot(HaveOccurred())
+
+			// Verify executor is now connected
+			Expect(executorWithVariableWS.IsConnected()).To(BeTrue())
+
+			// Clean up
+			executorWithVariableWS.Stop()
 		})
 	})
 })

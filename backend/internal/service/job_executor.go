@@ -59,15 +59,17 @@ type JobExecutor struct {
 	fsWriter       FileSystemWriter
 	logger         *logrus.Entry
 
-	mu              sync.Mutex
-	activeJobID     string
-	activeItemID    string
-	activePromptID  string
-	stopRequested   bool
-	ctx             context.Context
-	cancel          context.CancelFunc
-	shutdownCh      chan struct{}
+	mu               sync.Mutex
+	activeJobID      string
+	activeItemID     string
+	activePromptID   string
+	stopRequested    bool
+	connected        bool
+	ctx              context.Context
+	cancel           context.CancelFunc
+	shutdownCh       chan struct{}
 	shutdownComplete chan struct{}
+	started          bool
 }
 
 // NewJobExecutor creates a new job executor.
@@ -99,18 +101,29 @@ func NewJobExecutor(
 }
 
 // Start begins the background executor goroutine and resumes any running jobs.
+// It attempts to connect to ComfyUI but does not fail if the connection is unavailable.
+// The executor will retry the connection in the background.
 func (e *JobExecutor) Start() error {
 	e.logger.Trace("entering Start")
 	defer e.logger.Trace("returning from Start")
 
-	// Connect to ComfyUI WebSocket
-	if err := e.comfyuiWS.Connect(e.ctx); err != nil {
-		e.logger.WithError(err).Error("failed to connect to ComfyUI WebSocket")
-		return fmt.Errorf("connecting to ComfyUI WebSocket: %w", err)
+	e.mu.Lock()
+	if e.started {
+		e.mu.Unlock()
+		e.logger.Warn("job executor already started")
+		return fmt.Errorf("job executor already started")
 	}
+	e.started = true
+	e.mu.Unlock()
 
-	// Register WebSocket event handler
+	// Register WebSocket event handler (must be done before connection attempts)
 	e.comfyuiWS.AddHandler(e.handleComfyUIEvent)
+
+	// Attempt initial connection to ComfyUI WebSocket
+	if err := e.tryConnect(); err != nil {
+		e.logger.WithError(err).Warn("initial ComfyUI connection failed, will retry in background")
+		// Do NOT return error - continue starting the executor
+	}
 
 	// Resume any running jobs on startup
 	if err := e.resumeRunningJobs(); err != nil {
@@ -124,10 +137,36 @@ func (e *JobExecutor) Start() error {
 	return nil
 }
 
+// tryConnect attempts to connect to ComfyUI WebSocket and updates the connected state.
+func (e *JobExecutor) tryConnect() error {
+	e.logger.Debug("attempting to connect to ComfyUI WebSocket")
+	if err := e.comfyuiWS.Connect(e.ctx); err != nil {
+		e.mu.Lock()
+		e.connected = false
+		e.mu.Unlock()
+		return err
+	}
+
+	e.mu.Lock()
+	e.connected = true
+	e.mu.Unlock()
+	e.logger.Info("ComfyUI WebSocket connected")
+	return nil
+}
+
 // Stop gracefully shuts down the executor.
+// Safe to call even if Start() was not called or failed.
 func (e *JobExecutor) Stop() {
 	e.logger.Trace("entering Stop")
 	defer e.logger.Trace("returning from Stop")
+
+	e.mu.Lock()
+	if !e.started {
+		e.mu.Unlock()
+		e.logger.Debug("job executor not started, nothing to stop")
+		return
+	}
+	e.mu.Unlock()
 
 	close(e.shutdownCh)
 	e.cancel()
@@ -149,6 +188,11 @@ func (e *JobExecutor) resumeRunningJobs() error {
 	e.logger.Trace("entering resumeRunningJobs")
 	defer e.logger.Trace("returning from resumeRunningJobs")
 
+	// Check if connected
+	e.mu.Lock()
+	isConnected := e.connected
+	e.mu.Unlock()
+
 	jobs, err := e.store.ListSampleJobs()
 	if err != nil {
 		e.logger.WithError(err).Error("failed to list jobs")
@@ -159,12 +203,20 @@ func (e *JobExecutor) resumeRunningJobs() error {
 	for _, job := range jobs {
 		if job.Status == model.SampleJobStatusRunning {
 			runningCount++
-			e.logger.WithField("job_id", job.ID).Info("found running job to resume")
+			if isConnected {
+				e.logger.WithField("job_id", job.ID).Info("found running job to resume")
+			} else {
+				e.logger.WithField("job_id", job.ID).Warn("found running job to resume but ComfyUI connection not available")
+			}
 		}
 	}
 
 	if runningCount > 0 {
-		e.logger.WithField("count", runningCount).Info("will resume running jobs")
+		if isConnected {
+			e.logger.WithField("count", runningCount).Info("will resume running jobs")
+		} else {
+			e.logger.WithField("count", runningCount).Warn("will resume running jobs once ComfyUI connection is established")
+		}
 	}
 
 	return nil
@@ -178,11 +230,25 @@ func (e *JobExecutor) run() {
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
+	reconnectTicker := time.NewTicker(10 * time.Second)
+	defer reconnectTicker.Stop()
+
 	for {
 		select {
 		case <-e.shutdownCh:
 			e.logger.Debug("executor loop shutting down")
 			return
+		case <-reconnectTicker.C:
+			// Attempt to reconnect if not connected
+			e.mu.Lock()
+			isConnected := e.connected
+			e.mu.Unlock()
+
+			if !isConnected {
+				if err := e.tryConnect(); err != nil {
+					e.logger.WithError(err).Debug("ComfyUI reconnection attempt failed")
+				}
+			}
 		case <-ticker.C:
 			e.processNextItem()
 		}
@@ -197,6 +263,12 @@ func (e *JobExecutor) processNextItem() {
 	if e.stopRequested {
 		e.mu.Unlock()
 		e.logger.Debug("stop requested, skipping item processing")
+		return
+	}
+
+	// If not connected to ComfyUI, skip processing
+	if !e.connected {
+		e.mu.Unlock()
 		return
 	}
 
@@ -302,6 +374,13 @@ func (e *JobExecutor) processItem(job model.SampleJob, item model.SampleJobItem)
 	promptResp, err := e.comfyuiClient.SubmitPrompt(e.ctx, promptReq)
 	if err != nil {
 		e.logger.WithError(err).Error("failed to submit prompt to ComfyUI")
+		// Check if this is a connection error and mark as disconnected to trigger reconnect
+		if isConnectionError(err) {
+			e.logger.Warn("detected ComfyUI connection error, marking as disconnected")
+			e.mu.Lock()
+			e.connected = false
+			e.mu.Unlock()
+		}
 		e.failItem(item.ID, fmt.Sprintf("ComfyUI prompt submission failed: %v", err))
 		return
 	}
@@ -821,6 +900,13 @@ func (e *JobExecutor) RequestResume(jobID string) error {
 	return nil
 }
 
+// IsConnected returns whether the executor is currently connected to ComfyUI.
+func (e *JobExecutor) IsConnected() bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.connected
+}
+
 // deepCloneWorkflow performs a deep clone of a workflow map.
 func deepCloneWorkflow(workflow map[string]interface{}) (map[string]interface{}, error) {
 	data, err := json.Marshal(workflow)
@@ -832,4 +918,19 @@ func deepCloneWorkflow(workflow map[string]interface{}) (map[string]interface{},
 		return nil, fmt.Errorf("unmarshaling cloned workflow: %w", err)
 	}
 	return cloned, nil
+}
+
+// isConnectionError detects if an error is a connection-related failure.
+func isConnectionError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "connection refused") ||
+		strings.Contains(msg, "connection reset") ||
+		strings.Contains(msg, "eof") ||
+		strings.Contains(msg, "broken pipe") ||
+		strings.Contains(msg, "network") ||
+		strings.Contains(msg, "dial") ||
+		strings.Contains(msg, "timeout")
 }
