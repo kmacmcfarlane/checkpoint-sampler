@@ -4,6 +4,12 @@ Ideas are organized by category. Agents append here; the user curates and promot
 
 ## Features
 
+### Preset auto-close on save
+When the user saves a preset in the "Manage Presets" sub-modal, it could automatically close the sub-modal and return focus to the job launch dialog, reducing the required clicks to complete the launch flow.
+
+### Preset preview in selector
+The job launch dialog's preset dropdown could show a tooltip or inline summary (images per checkpoint, sampler count) when hovering over a preset option, helping users pick the right preset without opening the editor.
+
 ## Dev Ops
 
 ### Playwright E2E smoke tests for QA
@@ -35,3 +41,9 @@ The QA subagent would run E2E tests as part of its verification:
 - Browser version is pinned to the Playwright npm package version — always use the bundled browser, not system Chrome
 
 ## Workflow
+
+### SamplePresetEditor event contract documentation
+The SamplePresetEditor component's events (preset-saved, preset-deleted) are not documented in the component's JSDoc or in the UI architecture docs. A lightweight contract comment above defineEmits would help future agents integrating this component know what events to listen for.
+
+### Nested modal mount-call ordering in tests
+When a child component also calls the same API on mount, the test mock order must account for it. A note in TEST_PRACTICES.md about accounting for child component API calls in integration tests would help avoid this gotcha.

@@ -3,6 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { NModal, NSelect, NInputNumber, NButton } from 'naive-ui'
 import JobLaunchDialog from '../JobLaunchDialog.vue'
+import SamplePresetEditor from '../SamplePresetEditor.vue'
 import type { TrainingRun, WorkflowSummary, SamplePreset, SampleJob } from '../../api/types'
 
 // Mock the api client module
@@ -12,6 +13,9 @@ vi.mock('../../api/client', () => ({
     listSamplePresets: vi.fn(),
     getComfyUIModels: vi.fn(),
     createSampleJob: vi.fn(),
+    createSamplePreset: vi.fn(),
+    updateSamplePreset: vi.fn(),
+    deleteSamplePreset: vi.fn(),
   },
 }))
 
@@ -397,5 +401,131 @@ describe('JobLaunchDialog', () => {
 
     // The error message should be visible in the component text
     expect(wrapper.text()).toContain('Failed to create job')
+  })
+
+  it('renders a "Manage Presets" button next to the preset selector', async () => {
+    const wrapper = mount(JobLaunchDialog, {
+      props: { show: true, trainingRun: sampleTrainingRun },
+      global: { stubs: { Teleport: true } },
+    })
+    await flushPromises()
+
+    const manageButton = wrapper.find('[data-testid="manage-presets-button"]')
+    expect(manageButton.exists()).toBe(true)
+    expect(manageButton.text()).toBe('Manage Presets')
+  })
+
+  it('opens the preset editor modal when "Manage Presets" is clicked', async () => {
+    const wrapper = mount(JobLaunchDialog, {
+      props: { show: true, trainingRun: sampleTrainingRun },
+      global: { stubs: { Teleport: true } },
+    })
+    await flushPromises()
+
+    // The preset editor modal should be hidden initially
+    const modals = wrapper.findAllComponents(NModal)
+    const editorModal = modals.find(m => m.props('title') === 'Manage Sample Presets')
+    expect(editorModal).toBeDefined()
+    expect(editorModal!.props('show')).toBe(false)
+
+    // Click "Manage Presets"
+    const manageButton = wrapper.find('[data-testid="manage-presets-button"]')
+    await manageButton.trigger('click')
+    await nextTick()
+
+    // The editor modal should now be open
+    const updatedModals = wrapper.findAllComponents(NModal)
+    const openedEditorModal = updatedModals.find(m => m.props('title') === 'Manage Sample Presets')
+    expect(openedEditorModal!.props('show')).toBe(true)
+  })
+
+  it('refreshes preset list and auto-selects preset when preset-saved is emitted from editor', async () => {
+    const newPreset: SamplePreset = {
+      id: 'preset-new',
+      name: 'Newly Created',
+      prompts: [{ name: 'test', text: 'a test' }],
+      negative_prompt: '',
+      steps: [20],
+      cfgs: [7.0],
+      samplers: ['euler'],
+      schedulers: ['normal'],
+      seeds: [42],
+      width: 1024,
+      height: 1024,
+      images_per_checkpoint: 1,
+      created_at: '2025-01-01T00:00:00Z',
+      updated_at: '2025-01-01T00:00:00Z',
+    }
+
+    // After preset-saved, the dialog will call fetchSamplePresets again
+    // Return the new preset in the refreshed list.
+    // Note: SamplePresetEditor also calls listSamplePresets when it mounts, so we
+    // need one call for the editor's own load plus one for the dialog's refresh.
+    const updatedPresets = [...samplePresets, newPreset]
+    mockListSamplePresets
+      .mockResolvedValueOnce(samplePresets)  // initial dialog load
+      .mockResolvedValueOnce(samplePresets)  // SamplePresetEditor own mount load
+      .mockResolvedValueOnce(updatedPresets) // dialog refresh after preset-saved
+
+    const wrapper = mount(JobLaunchDialog, {
+      props: { show: true, trainingRun: sampleTrainingRun },
+      global: { stubs: { Teleport: true } },
+    })
+    await flushPromises()
+
+    // Verify initial preset options
+    const presetSelect = wrapper.find('[data-testid="preset-select"]').findComponent(NSelect)
+    expect((presetSelect.props('options') as Array<{ label: string; value: string }>)).toHaveLength(2)
+
+    // Open the editor and wait for SamplePresetEditor to mount and fetch its own presets
+    await wrapper.find('[data-testid="manage-presets-button"]').trigger('click')
+    await flushPromises()
+
+    // Find SamplePresetEditor and emit preset-saved
+    const editor = wrapper.findComponent(SamplePresetEditor)
+    await editor.vm.$emit('preset-saved', newPreset)
+    await flushPromises()
+
+    // The preset list should now have 3 options
+    const refreshedOptions = presetSelect.props('options') as Array<{ label: string; value: string }>
+    expect(refreshedOptions).toHaveLength(3)
+    expect(refreshedOptions[2].label).toBe('Newly Created')
+
+    // The newly created preset should be auto-selected
+    expect(presetSelect.props('value')).toBe('preset-new')
+  })
+
+  it('clears selected preset when preset-deleted is emitted for the selected preset', async () => {
+    const wrapper = mount(JobLaunchDialog, {
+      props: { show: true, trainingRun: sampleTrainingRun },
+      global: { stubs: { Teleport: true } },
+    })
+    await flushPromises()
+
+    // Select a preset first
+    const presetSelect = wrapper.find('[data-testid="preset-select"]').findComponent(NSelect)
+    presetSelect.vm.$emit('update:value', 'preset-1')
+    await nextTick()
+
+    // Open editor
+    await wrapper.find('[data-testid="manage-presets-button"]').trigger('click')
+    await nextTick()
+
+    // Second call returns list without deleted preset
+    const presetsWithoutFirst = samplePresets.filter(p => p.id !== 'preset-1')
+    mockListSamplePresets.mockResolvedValueOnce(presetsWithoutFirst)
+
+    // Simulate preset-deleted from editor
+    const editor = wrapper.findComponent(SamplePresetEditor)
+    await editor.vm.$emit('preset-deleted', 'preset-1')
+    await flushPromises()
+
+    // Selected preset should be cleared
+    expect(presetSelect.props('value')).toBeNull()
+
+    // Options should be refreshed
+    const refreshedOptions = presetSelect.props('options') as Array<{ label: string; value: string }>
+    expect(refreshedOptions).toHaveLength(1)
+    expect(refreshedOptions[0].label).toBe('Full Test')
   })
 })

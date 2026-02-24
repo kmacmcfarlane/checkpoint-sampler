@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### B-020: Sample preset editor not visible or accessible in the Generate Samples UI
+- SamplePresetEditor.vue: Added `preset-saved` and `preset-deleted` events via `defineEmits` so parent components can react to preset CRUD operations
+- JobLaunchDialog.vue: Added "Manage Presets" button inline with preset dropdown; opens a nested NModal containing SamplePresetEditor with full create/edit/delete capabilities; auto-refreshes preset list and auto-selects saved presets
+- JobLaunchDialog.test.ts: 4 new tests covering Manage Presets button rendering, modal opening, preset save+refresh+auto-select flow, and preset delete+clear-selection flow
+- 524 frontend tests pass; 477 backend specs pass across 4 suites with race detection
+
 ### B-019: Workflow templates not loading — config nesting error and missing Docker volume mount
 - docker-compose.yml: Added `./workflows:/app/workflows:ro` volume mount so the backend container can access workflow template JSON files in production mode
 - docker-compose.dev.yml: Added `./workflows:/build/workflows:ro` volume mount so the backend container can access workflow template JSON files in development mode
