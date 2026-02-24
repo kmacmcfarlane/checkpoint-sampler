@@ -243,44 +243,42 @@ checkpoint_dirs:
   - "` + filepath.Join(tmpDir, "checkpoints") + `"
 sample_dir: "` + sampleDir + `"
 comfyui:
-  host: "192.168.1.100"
-  port: 8188
+  url: "https://comfyui.example.com"
   workflow_dir: "/custom/workflows"
 `
 				cfg, err := config.LoadFromString(yamlStr)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(cfg.ComfyUI).NotTo(BeNil())
-				Expect(cfg.ComfyUI.Host).To(Equal("192.168.1.100"))
-				Expect(cfg.ComfyUI.Port).To(Equal(8188))
+				Expect(cfg.ComfyUI.URL).To(Equal("https://comfyui.example.com"))
 				Expect(cfg.ComfyUI.WorkflowDir).To(Equal("/custom/workflows"))
 			})
 
-			It("uses default host when not specified", func() {
+			It("parses http URL", func() {
 				yamlStr := `
 checkpoint_dirs:
   - "` + filepath.Join(tmpDir, "checkpoints") + `"
 sample_dir: "` + sampleDir + `"
 comfyui:
-  port: 8188
+  url: "http://192.168.1.100:8188"
 `
 				cfg, err := config.LoadFromString(yamlStr)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(cfg.ComfyUI).NotTo(BeNil())
-				Expect(cfg.ComfyUI.Host).To(Equal("localhost"))
+				Expect(cfg.ComfyUI.URL).To(Equal("http://192.168.1.100:8188"))
 			})
 
-			It("uses default port when not specified", func() {
+			It("uses default URL when not specified", func() {
 				yamlStr := `
 checkpoint_dirs:
   - "` + filepath.Join(tmpDir, "checkpoints") + `"
 sample_dir: "` + sampleDir + `"
 comfyui:
-  host: "localhost"
+  workflow_dir: "/custom/workflows"
 `
 				cfg, err := config.LoadFromString(yamlStr)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(cfg.ComfyUI).NotTo(BeNil())
-				Expect(cfg.ComfyUI.Port).To(Equal(8188))
+				Expect(cfg.ComfyUI.URL).To(Equal("http://localhost:8188"))
 			})
 
 			It("uses default workflow_dir when not specified", func() {
@@ -289,8 +287,7 @@ checkpoint_dirs:
   - "` + filepath.Join(tmpDir, "checkpoints") + `"
 sample_dir: "` + sampleDir + `"
 comfyui:
-  host: "localhost"
-  port: 8188
+  url: "http://localhost:8188"
 `
 				cfg, err := config.LoadFromString(yamlStr)
 				Expect(err).NotTo(HaveOccurred())
@@ -312,31 +309,58 @@ sample_dir: "` + sampleDir + `"
 			})
 		})
 
-		Context("comfyui validation errors", func() {
-			It("rejects invalid port (too low)", func() {
+		Context("comfyui URL validation", func() {
+			DescribeTable("rejects invalid URLs",
+				func(url string, expectedErr string) {
+					yamlStr := `
+checkpoint_dirs:
+  - "` + filepath.Join(tmpDir, "checkpoints") + `"
+sample_dir: "` + sampleDir + `"
+comfyui:
+  url: "` + url + `"
+`
+					_, err := config.LoadFromString(yamlStr)
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).To(ContainSubstring(expectedErr))
+				},
+				Entry("missing scheme",
+					"localhost:8188",
+					"scheme must be http or https",
+				),
+				Entry("invalid scheme",
+					"ftp://localhost:8188",
+					"scheme must be http or https",
+				),
+				Entry("missing host",
+					"http://",
+					"must include a host",
+				),
+			)
+
+			It("accepts https URLs", func() {
 				yamlStr := `
 checkpoint_dirs:
   - "` + filepath.Join(tmpDir, "checkpoints") + `"
 sample_dir: "` + sampleDir + `"
 comfyui:
-  port: 0
+  url: "https://comfyui.example.com"
 `
-				_, err := config.LoadFromString(yamlStr)
-				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring("comfyui.port must be between 1 and 65535"))
+				cfg, err := config.LoadFromString(yamlStr)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(cfg.ComfyUI.URL).To(Equal("https://comfyui.example.com"))
 			})
 
-			It("rejects invalid port (too high)", func() {
+			It("accepts URLs with ports", func() {
 				yamlStr := `
 checkpoint_dirs:
   - "` + filepath.Join(tmpDir, "checkpoints") + `"
 sample_dir: "` + sampleDir + `"
 comfyui:
-  port: 70000
+  url: "http://localhost:9999"
 `
-				_, err := config.LoadFromString(yamlStr)
-				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring("comfyui.port must be between 1 and 65535"))
+				cfg, err := config.LoadFromString(yamlStr)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(cfg.ComfyUI.URL).To(Equal("http://localhost:9999"))
 			})
 		})
 	})

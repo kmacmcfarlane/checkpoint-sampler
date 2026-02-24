@@ -936,3 +936,92 @@ stories:
     testing:
       - "command: ginkgo -r --cover --race ./internal/..."
       - "command: npx vitest run"
+
+  # ─── User-reported issues (2026-02-24) ──────────────────────────────────────
+
+  - id: B-018
+    title: "Training run selector dropdown too narrow to read long names"
+    priority: 60
+    status: todo
+    requires: []
+    acceptance:
+      - "FE: let's switch to an input I can filter by typing in and select the training run I want"
+      - "FE: dropdown popover in TrainingRunSelector is wide enough to display training run names up to 128+ characters without truncation"
+      - "FE: The closed (collapsed) selector may still ellipsize, but the open dropdown list shows full names"
+      - "FE: Dropdown width does not exceed viewport width on small screens"
+      - "FE: Existing TrainingRunSelector tests still pass"
+    notes: |
+      Root cause: NSelect inherits width from the 360px AppDrawer, giving only ~200-250px
+      for text. User wants the dropdown popover to be wider than the trigger element so
+      full names are readable when selecting. Naive UI NSelect supports CSS overrides on the
+      dropdown popover (e.g. menu-props or consistent-menu-width=false).
+      Key files: frontend/src/components/TrainingRunSelector.vue,
+      frontend/src/components/AppDrawer.vue (360px width).
+    testing:
+      - "command: cd frontend && npx vitest run"
+
+  - id: B-019
+    title: "Workflow templates not loading — config nesting error and missing Docker volume mount"
+    priority: 80
+    status: todo
+    requires: []
+    acceptance:
+      - "OPS: config.yaml.example shows workflow_dir nested under comfyui: section (not top-level)"
+      - "OPS: docker-compose.yml and docker-compose.dev.yml mount ./workflows into the backend container"
+      - "BE: When workflow_dir is correctly configured and mounted, GET /api/workflows returns the workflow templates from the directory"
+      - "BE: Existing workflow loader tests still pass"
+    notes: |
+      Two root causes found:
+      1. In config.yaml, workflow_dir is at the YAML top level but the parser (yamlComfyUIConfig)
+         expects it nested under comfyui:. It is silently ignored, falling back to default "./workflows".
+      2. docker-compose.yml does not mount the host's workflows/ directory into the backend container,
+         so even with the correct config the container can't see the files.
+      Fix: (a) move workflow_dir under comfyui: in config.yaml, (b) add volume mount to both
+      docker-compose.yml and docker-compose.dev.yml, (c) update config.yaml.example.
+      Key files: config.yaml (lines 20-26), docker-compose.yml, docker-compose.dev.yml,
+      config.yaml.example, backend/internal/config/config.go (yamlComfyUIConfig struct).
+    testing:
+      - "command: make test-backend"
+
+  - id: B-020
+    title: "Sample preset editor not visible or accessible in the Generate Samples UI"
+    priority: 70
+    status: todo
+    requires: []
+    acceptance:
+      - "FE: The SamplePresetEditor (with New Preset button, form fields, save/delete) is visible and accessible from the Generate Samples / Job Launch flow"
+      - "FE: User can create, edit, and delete sample presets without navigating away from the job launch dialog"
+      - "FE: After creating a preset, it appears in the preset selector dropdown"
+      - "FE: Existing SamplePresetEditor and JobLaunchDialog tests still pass"
+    notes: |
+      The full CRUD system exists — SamplePresetEditor.vue has a "New Preset" button, form
+      validation, save/delete. Backend API and database are implemented. The issue is that
+      SamplePresetEditor is not surfaced where the user expects it in the job launch flow.
+      Investigate whether JobLaunchDialog imports/renders SamplePresetEditor or only shows a
+      read-only PresetSelector dropdown without the editor.
+      Key files: frontend/src/components/JobLaunchDialog.vue,
+      frontend/src/components/SamplePresetEditor.vue.
+    testing:
+      - "command: cd frontend && npx vitest run"
+
+  - id: B-021
+    title: "ComfyUI config: replace host+port with url field to support HTTPS reverse proxies, debug connectivity"
+    priority: 85
+    status: done
+    requires: []
+    acceptance:
+      - "BE: ComfyUI config accepts a single `url` field (e.g. 'https://comfyui.lucy.mcfacehead.com') instead of separate host and port"
+      - "BE: HTTP client uses the URL scheme (http:// or https://) from the configured url"
+      - "BE: WebSocket client derives ws:// or wss:// from the configured url scheme"
+      - "BE: Config validation rejects invalid URLs and URLs without a scheme"
+      - "BE: The old host+port fields are removed from yamlComfyUIConfig and model.ComfyUIConfig"
+      - "BE: config.yaml.example updated to show the new url field"
+      - "BE: All existing ComfyUI client, config, and job executor tests updated and passing"
+      - "FE: No frontend changes required (frontend talks to backend API, not directly to ComfyUI)"
+    notes: |
+      Root cause: The backend hardcodes http:// and ws:// schemes when constructing ComfyUI
+      URLs from host+port. When ComfyUI is behind an HTTPS reverse proxy (port 443), the
+      connection fails. A single `url` field is more flexible — supports any scheme, port,
+      and path prefix.
+    testing:
+      - "command: make test-backend"

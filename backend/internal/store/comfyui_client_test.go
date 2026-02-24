@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"net"
 	"net/http"
 	"net/http/httptest"
 
@@ -89,7 +88,7 @@ var _ = Describe("ComfyUIHTTPClient HTTP operations", func() {
 	})
 
 	createClient := func(s *httptest.Server) *store.ComfyUIHTTPClient {
-		return store.NewComfyUIHTTPClient("127.0.0.1", s.Listener.Addr().(*net.TCPAddr).Port, logger)
+		return store.NewComfyUIHTTPClient(s.URL, logger)
 	}
 
 	Describe("HealthCheck", func() {
@@ -118,7 +117,7 @@ var _ = Describe("ComfyUIHTTPClient HTTP operations", func() {
 
 		It("fails when server is unreachable", func() {
 			// Create client pointing to non-existent server
-			client := store.NewComfyUIHTTPClient("localhost", 19999, logger)
+			client := store.NewComfyUIHTTPClient("http://localhost:19999", logger)
 			err := client.HealthCheck(ctx)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("health check failed"))

@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
+	"strings"
 	"sync"
 
 	"github.com/gorilla/websocket"
@@ -38,13 +40,45 @@ func toModelComfyUIEvent(entity comfyUIEventEntity) model.ComfyUIEvent {
 }
 
 // NewComfyUIWSClient creates a new ComfyUI WebSocket client.
-func NewComfyUIWSClient(host string, port int, logger *logrus.Logger) *ComfyUIWSClient {
+// The baseURL should be the HTTP(S) URL (e.g., "http://localhost:8188" or "https://comfyui.example.com").
+// The WebSocket URL is derived by converting http -> ws and https -> wss, and appending /ws.
+func NewComfyUIWSClient(baseURL string, logger *logrus.Logger) *ComfyUIWSClient {
+	wsURL := DeriveWebSocketURL(baseURL)
 	return &ComfyUIWSClient{
-		url:      fmt.Sprintf("ws://%s:%d/ws", host, port),
+		url:      wsURL,
 		logger:   logger.WithField("component", "comfyui_ws"),
 		handlers: []model.ComfyUIEventHandler{},
 		stopCh:   make(chan struct{}),
 	}
+}
+
+// DeriveWebSocketURL converts an HTTP(S) URL to a WebSocket URL.
+// http://host:port -> ws://host:port/ws
+// https://host:port -> wss://host:port/ws
+func DeriveWebSocketURL(httpURL string) string {
+	// Parse the HTTP URL
+	parsed, err := url.Parse(httpURL)
+	if err != nil {
+		// Fallback to simple string replacement if parsing fails
+		wsURL := strings.Replace(httpURL, "http://", "ws://", 1)
+		wsURL = strings.Replace(wsURL, "https://", "wss://", 1)
+		return wsURL + "/ws"
+	}
+
+	// Convert scheme
+	scheme := "ws"
+	if parsed.Scheme == "https" {
+		scheme = "wss"
+	}
+
+	// Build WebSocket URL
+	wsURL := &url.URL{
+		Scheme: scheme,
+		Host:   parsed.Host,
+		Path:   "/ws",
+	}
+
+	return wsURL.String()
 }
 
 // AddHandler registers an event handler.
