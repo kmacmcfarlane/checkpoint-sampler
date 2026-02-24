@@ -62,11 +62,13 @@ var _ = Service("sample_jobs", func() {
 		Result(SampleJobResponse)
 		Error("not_found", ErrorResult, "Sample job not found")
 		Error("invalid_state", ErrorResult, "Cannot start job in current state")
+		Error("service_unavailable", ErrorResult, "ComfyUI service unavailable")
 		HTTP(func() {
 			POST("/api/sample-jobs/{id}/start")
 			Response(StatusOK)
 			Response("not_found", StatusNotFound)
 			Response("invalid_state", StatusBadRequest)
+			Response("service_unavailable", StatusServiceUnavailable)
 		})
 	})
 
@@ -100,11 +102,13 @@ var _ = Service("sample_jobs", func() {
 		Result(SampleJobResponse)
 		Error("not_found", ErrorResult, "Sample job not found")
 		Error("invalid_state", ErrorResult, "Cannot resume job in current state")
+		Error("service_unavailable", ErrorResult, "ComfyUI service unavailable")
 		HTTP(func() {
 			POST("/api/sample-jobs/{id}/resume")
 			Response(StatusOK)
 			Response("not_found", StatusNotFound)
 			Response("invalid_state", StatusBadRequest)
+			Response("service_unavailable", StatusServiceUnavailable)
 		})
 	})
 

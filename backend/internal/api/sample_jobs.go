@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	gensamplejobs "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/sample_jobs"
@@ -110,6 +111,9 @@ func (s *SampleJobsService) Start(ctx context.Context, p *gensamplejobs.StartPay
 		if isNotFound(err) {
 			return nil, gensamplejobs.MakeNotFound(err)
 		}
+		if isServiceUnavailable(err) {
+			return nil, gensamplejobs.MakeServiceUnavailable(err)
+		}
 		// Check if error is about invalid state
 		return nil, gensamplejobs.MakeInvalidState(err)
 	}
@@ -135,6 +139,9 @@ func (s *SampleJobsService) Resume(ctx context.Context, p *gensamplejobs.ResumeP
 	if err != nil {
 		if isNotFound(err) {
 			return nil, gensamplejobs.MakeNotFound(err)
+		}
+		if isServiceUnavailable(err) {
+			return nil, gensamplejobs.MakeServiceUnavailable(err)
 		}
 		// Check if error is about invalid state
 		return nil, gensamplejobs.MakeInvalidState(err)
@@ -207,4 +214,12 @@ func jobProgressToResponse(p model.JobProgress) *gensamplejobs.JobProgressRespon
 	}
 
 	return resp
+}
+
+func isServiceUnavailable(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "ComfyUI not connected") || strings.Contains(msg, "service unavailable")
 }

@@ -897,7 +897,7 @@ stories:
   - id: B-017
     title: "Backend crash-loops when ComfyUI is unreachable, preventing all API requests"
     priority: 100
-    status: todo
+    status: done
     requires: []
     acceptance:
       - "BE: Backend HTTP server starts and serves API requests even when ComfyUI is unreachable"

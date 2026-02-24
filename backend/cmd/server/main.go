@@ -152,9 +152,10 @@ func run() error {
 		// Wire the executor and service together (avoiding circular dependency)
 		sampleJobSvc.SetExecutor(jobExecutor)
 
-		// Start the job executor
+		// Start the job executor (non-fatal if ComfyUI is unreachable)
 		if err := jobExecutor.Start(); err != nil {
-			return fmt.Errorf("starting job executor: %w", err)
+			logger.WithError(err).Warn("job executor failed to start, sample jobs may not work until ComfyUI is available")
+			// Continue - the executor will retry connection in the background
 		}
 		defer jobExecutor.Stop()
 
