@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### B-021: ComfyUI config: replace host+port with url field to support HTTPS reverse proxies
+- backend/internal/model/config.go: Replaced `Host string` + `Port int` with single `URL string` field in ComfyUIConfig struct; no serialization tags per architecture standards
+- backend/internal/config/config.go: Updated `yamlComfyUIConfig` to use `url` YAML field instead of `host` + `port`; `parseComfyUIConfig` applies default `http://localhost:8188`; added `parseAndValidateURL` helper validating URL format (must have scheme http/https, must have host); removed port range validation
+- backend/internal/config/config_test.go: Updated ComfyUI config tests — DescribeTable for URL validation covering happy path (http, https, with ports), defaults, and error cases (missing scheme, invalid scheme, missing host)
+- backend/internal/store/comfyui_client.go: `NewComfyUIHTTPClient` accepts `baseURL string` directly instead of constructing from host+port
+- backend/internal/store/comfyui_client_test.go: Updated to use `httptest.Server.URL` instead of manually extracting host/port
+- backend/internal/store/comfyui_ws.go: `NewComfyUIWSClient` accepts HTTP URL and derives WebSocket URL via exported `DeriveWebSocketURL` function; converts http→ws and https→wss scheme, appends `/ws` path
+- backend/internal/store/comfyui_ws_test.go: New test file with 4-entry DescribeTable verifying URL derivation (http→ws, https→wss, with various host/port combinations)
+- backend/cmd/server/main.go: Updated ComfyUI client initialization to pass `cfg.ComfyUI.URL` instead of separate host and port
+- config.yaml.example: Updated to show `url: http://localhost:8188` under `comfyui:` section with documentation about scheme requirement
+- 477 backend specs pass across 4 suites (121 API + 29 Config + 235 Service + 92 Store) with race detection; 520 frontend tests pass; composite coverage 73.0%
+
 ### B-017: Backend crash-loops when ComfyUI is unreachable, preventing all API requests
 - backend/cmd/server/main.go: Changed `jobExecutor.Start()` from fatal error to warning; server continues startup when ComfyUI is unreachable; log message warns that sample jobs may not work until ComfyUI is available
 - backend/internal/service/job_executor.go: Made `Start()` resilient to ComfyUI unavailability — attempts initial WebSocket connection but continues on failure; added `tryConnect()` helper with `connected` state tracking under mutex; added background reconnection loop (every 10 seconds) in `run()` goroutine; `processNextItem()` skips processing when not connected; added `IsConnected()` public method; added `started` guard in `Stop()` to prevent panics when `Start()` was never called; `resumeRunningJobs()` logs at Warn level when disconnected; added `isConnectionError()` helper detecting connection-related failures (refused, reset, EOF, broken pipe, timeout); `processItem()` sets `connected=false` on ComfyUI connection errors to trigger reconnect loop

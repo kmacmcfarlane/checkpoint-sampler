@@ -22,9 +22,10 @@ type ComfyUIHTTPClient struct {
 }
 
 // NewComfyUIHTTPClient creates a new ComfyUI HTTP client.
-func NewComfyUIHTTPClient(host string, port int, logger *logrus.Logger) *ComfyUIHTTPClient {
+// The baseURL should include the scheme (http:// or https://) and host:port.
+func NewComfyUIHTTPClient(baseURL string, logger *logrus.Logger) *ComfyUIHTTPClient {
 	return &ComfyUIHTTPClient{
-		baseURL: fmt.Sprintf("http://%s:%d", host, port),
+		baseURL: baseURL,
 		client: &http.Client{
 			Timeout: 10 * time.Second,
 		},

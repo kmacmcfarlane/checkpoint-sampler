@@ -22,9 +22,7 @@ db_path: ./data/checkpoint-sampler.db
 
 # ComfyUI connection settings for inference pipeline (optional).
 # If omitted, inference pipeline features are disabled in the UI.
+# The URL must include the scheme (http:// or https://).
 # comfyui:
-#   host: localhost
-#   port: 8188
-
-# Directory containing workflow template JSON files (optional).
-# workflow_dir: ./workflows
+#   url: http://localhost:8188
+#   workflow_dir: ./workflows

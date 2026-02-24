@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"net"
+	"net/url"
 	"os"
 
 	"gopkg.in/yaml.v3"
@@ -22,8 +23,7 @@ type yamlConfig struct {
 
 // yamlComfyUIConfig is the raw YAML-tagged representation of ComfyUI config.
 type yamlComfyUIConfig struct {
-	Host        string `yaml:"host"`
-	Port        *int   `yaml:"port"`
+	URL         string `yaml:"url"`
 	WorkflowDir string `yaml:"workflow_dir"`
 }
 
@@ -135,27 +135,53 @@ func parseAndValidate(raw yamlConfig) (*model.Config, error) {
 
 func parseComfyUIConfig(raw *yamlComfyUIConfig) (*model.ComfyUIConfig, error) {
 	// Apply defaults
-	host := "localhost"
-	if raw.Host != "" {
-		host = raw.Host
-	}
-	port := 8188
-	if raw.Port != nil {
-		port = *raw.Port
+	rawURL := "http://localhost:8188"
+	if raw.URL != "" {
+		rawURL = raw.URL
 	}
 	workflowDir := "./workflows"
 	if raw.WorkflowDir != "" {
 		workflowDir = raw.WorkflowDir
 	}
 
-	// Validate port
-	if port < 1 || port > 65535 {
-		return nil, fmt.Errorf("config: comfyui.port must be between 1 and 65535, got %d", port)
+	// Validate URL
+	parsedURL, err := parseAndValidateURL(rawURL)
+	if err != nil {
+		return nil, fmt.Errorf("config: comfyui.url: %w", err)
 	}
 
 	return &model.ComfyUIConfig{
-		Host:        host,
-		Port:        port,
+		URL:         parsedURL,
 		WorkflowDir: workflowDir,
 	}, nil
+}
+
+// parseAndValidateURL validates that the URL is well-formed and has a scheme.
+func parseAndValidateURL(urlStr string) (string, error) {
+	if urlStr == "" {
+		return "", fmt.Errorf("url cannot be empty")
+	}
+
+	// Parse the URL
+	parsedURL, err := url.Parse(urlStr)
+	if err != nil {
+		return "", fmt.Errorf("invalid url: %w", err)
+	}
+
+	// Ensure scheme is present
+	if parsedURL.Scheme == "" {
+		return "", fmt.Errorf("url must include a scheme (e.g., http:// or https://)")
+	}
+
+	// Ensure scheme is http or https
+	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+		return "", fmt.Errorf("url scheme must be http or https, got %q", parsedURL.Scheme)
+	}
+
+	// Ensure host is present
+	if parsedURL.Host == "" {
+		return "", fmt.Errorf("url must include a host")
+	}
+
+	return urlStr, nil
 }

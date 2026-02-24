@@ -13,8 +13,7 @@ type Config struct {
 // ComfyUIConfig represents the ComfyUI integration configuration.
 // This section is optional; if absent, ComfyUI features are disabled.
 type ComfyUIConfig struct {
-	Host        string
-	Port        int
+	URL         string
 	WorkflowDir string
 }
 

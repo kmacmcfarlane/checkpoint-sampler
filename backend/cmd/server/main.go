@@ -107,8 +107,8 @@ func run() error {
 	var modelDiscovery *service.ComfyUIModelDiscovery
 	var jobExecutor *service.JobExecutor
 	if cfg.ComfyUI != nil {
-		httpClient := store.NewComfyUIHTTPClient(cfg.ComfyUI.Host, cfg.ComfyUI.Port, logger)
-		wsClient := store.NewComfyUIWSClient(cfg.ComfyUI.Host, cfg.ComfyUI.Port, logger)
+		httpClient := store.NewComfyUIHTTPClient(cfg.ComfyUI.URL, logger)
+		wsClient := store.NewComfyUIWSClient(cfg.ComfyUI.URL, logger)
 		modelDiscovery = service.NewComfyUIModelDiscovery(httpClient, logger)
 		comfyuiSvc = api.NewComfyUIService(httpClient, modelDiscovery)
 
