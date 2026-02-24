@@ -894,6 +894,23 @@ stories:
 
 
 
+  - id: B-017
+    title: "Backend crash-loops when ComfyUI is unreachable, preventing all API requests"
+    priority: 100
+    status: todo
+    requires: []
+    acceptance:
+      - "BE: Backend HTTP server starts and serves API requests even when ComfyUI is unreachable"
+      - "BE: jobExecutor.Start() failure in main.go (line 156) must not be fatal — log the error and continue server startup"
+      - "BE: When ComfyUI is unavailable, sample job endpoints return a clear error (e.g. 'ComfyUI not connected') rather than the entire server crashing"
+      - "BE: Non-ComfyUI endpoints (health, training runs, presets, checkpoints, images, docs) work normally regardless of ComfyUI state"
+      - "BE: When ComfyUI becomes available later, the job executor can still be used (lazy connect or background retry)"
+      - "BE: docker logs show a warning about ComfyUI being unreachable, not a fatal exit"
+      - "BE: Unit tests verify server starts successfully when ComfyUI WebSocket connection fails"
+    testing:
+      - "command: ginkgo -r --cover --race ./internal/..."
+      - "command: make up-dev (verify backend starts and GET /api/health returns 200 when ComfyUI is unreachable)"
+
   - id: R-003
     title: "Refactor image serving and metadata endpoints to idiomatic Goa with SkipResponseBodyEncodeDecode"
     priority: 95

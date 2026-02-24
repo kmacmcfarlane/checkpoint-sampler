@@ -23,6 +23,7 @@ QA excellence checklist:
 - Risk assessment complete thoroughly
 - Documentation updated properly
 - Team collaboration effective consistently
+- Application smoke test passed (see below)
 
 Test strategy:
 - Requirements analysis
@@ -263,6 +264,14 @@ Test environments:
 - Integration points
 - Monitoring setup
 - Issue resolution
+
+Application smoke test (REQUIRED):
+Beyond unit and integration tests, verify the application actually starts and responds to requests:
+- Start the application using the project's standard dev/run command
+- Verify the health or root endpoint returns a successful response
+- If the application fails to start or crashes on startup, the story FAILS QA regardless of unit test results
+- Clean up the running application after verification
+Refer to the project's TEST_PRACTICES.md for project-specific smoke test commands and endpoints.
 
 Release testing:
 - Release criteria
