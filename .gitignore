@@ -1,10 +1,11 @@
 # IDE
 .idea/
 
-# Claude Code (allow settings.json and agents/)
+# Claude Code (allow settings.json, agents/, and skills/)
 .claude/*
 !.claude/settings.json
 !.claude/agents/
+!.claude/skills/
 .ralph.stop
 
 # OS
