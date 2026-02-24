@@ -1059,6 +1059,7 @@ stories:
     status: todo
     requires: []
     acceptance:
+      - "DEVOPS: Set up a new makefile target up-test; it should have separate docker named volume(s) such that test runs can do `make down-test` to reset storage without affecting my environment using make up-dev"
       - "DEVOPS: @playwright/test installed as a dev dependency in /frontend"
       - "DEVOPS: playwright.config.ts created with baseURL http://localhost:3000, headless Chromium, list reporter"
       - "DEVOPS: E2E test directory created at frontend/e2e/"
@@ -1075,7 +1076,7 @@ stories:
       Key files: frontend/package.json, frontend/playwright.config.ts, frontend/e2e/smoke.spec.ts,
       Makefile, CLAUDE.md, agent/TEST_PRACTICES.md.
     testing:
-      - "command: make test-e2e (with make up-dev running)"
+      - "command: make test-e2e (with make up-test running)"
 
   - id: S-042
     title: "E2E test: training run selection and XY grid display"
