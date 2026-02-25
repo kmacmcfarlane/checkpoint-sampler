@@ -1244,7 +1244,7 @@ stories:
   - id: S-039
     title: "JSON sidecar metadata per image"
     priority: 30
-    status: todo
+    status: done
     requires: [S-034]
     acceptance:
       - "BE: When the job executor saves a generated image to sample_dir, it also writes a .json sidecar file alongside it with the same base name (e.g. prompt_name=forest&seed=420&cfg=1.png → prompt_name=forest&seed=420&cfg=1.json)"
@@ -1264,5 +1264,22 @@ stories:
       Key files: backend/internal/service/job_executor.go (write sidecar),
       backend/internal/service/image_metadata.go (read sidecar),
       backend/internal/service/scanner.go (ignore .json).
+    testing:
+      - "command: ginkgo -r --cover --race ./internal/..."
+
+  - id: B-022
+    title: "FileSystem.OpenFile logs at error level for expected sidecar miss (file not found)"
+    priority: 50
+    status: todo
+    requires: []
+    acceptance:
+      - "When OpenFile is called for a path that does not exist, the log entry is emitted at debug level, not error level"
+      - "When OpenFile fails for a reason other than file-not-found (e.g., permission denied), the log entry remains at error level"
+    notes: |
+      store.FileSystem.OpenFile() logs at level=error unconditionally on any os.Open failure.
+      For sidecar lookups, a file-not-found result is expected for all pre-existing images
+      (those generated before S-039), causing noisy error logs on every metadata request
+      that falls back to PNG. Fix: log at debug level when os.IsNotExist(err) is true.
+      Found by QA runtime error sweep during S-039.
     testing:
       - "command: ginkgo -r --cover --race ./internal/..."

@@ -3,8 +3,11 @@ package service
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -16,7 +19,8 @@ type ImageMetadataReader interface {
 	OpenFile(path string) (io.ReadCloser, error)
 }
 
-// ImageMetadataService parses PNG tEXt chunks to extract embedded metadata.
+// ImageMetadataService parses image metadata from JSON sidecar files (preferred)
+// or falls back to PNG tEXt chunk parsing for backward compatibility.
 type ImageMetadataService struct {
 	reader    ImageMetadataReader
 	sampleDir string
@@ -32,9 +36,10 @@ func NewImageMetadataService(reader ImageMetadataReader, sampleDir string, logge
 	}
 }
 
-// GetMetadata reads the PNG file at the given relative path (within sampleDir)
-// and extracts tEXt chunk metadata. Returns an empty map (not error) when no
-// metadata is embedded.
+// GetMetadata reads metadata for the image at the given relative path (within sampleDir).
+// It first checks for a JSON sidecar file (same base name, .json extension). If found,
+// the sidecar is parsed and returned. If no sidecar exists, it falls back to parsing
+// PNG tEXt chunks. Returns an empty map (not error) when no metadata is available.
 func (s *ImageMetadataService) GetMetadata(relPath string) (map[string]string, error) {
 	s.logger.WithField("relative_path", relPath).Trace("entering GetMetadata")
 	defer s.logger.Trace("returning from GetMetadata")
@@ -59,6 +64,31 @@ func (s *ImageMetadataService) GetMetadata(relPath string) (map[string]string, e
 		"absolute_path": absPath,
 	}).Debug("resolved image path")
 
+	// Derive sidecar path: replace image extension with .json
+	ext := filepath.Ext(absPath)
+	sidecarPath := absPath[:len(absPath)-len(ext)] + ".json"
+
+	// Try sidecar-first
+	sidecarMeta, err := parseSidecarJSON(s.reader, sidecarPath)
+	if err == nil {
+		s.logger.WithFields(logrus.Fields{
+			"relative_path":  relPath,
+			"sidecar_path":   sidecarPath,
+			"metadata_count": len(sidecarMeta),
+		}).Debug("metadata read from sidecar")
+		return sidecarMeta, nil
+	}
+
+	// Sidecar not found or unreadable — fall back to PNG tEXt chunks
+	if !errors.Is(err, os.ErrNotExist) {
+		s.logger.WithFields(logrus.Fields{
+			"sidecar_path": sidecarPath,
+			"error":        err.Error(),
+		}).Debug("sidecar read failed, falling back to PNG metadata")
+	} else {
+		s.logger.WithField("sidecar_path", sidecarPath).Debug("no sidecar found, reading PNG metadata")
+	}
+
 	metadata, err := parsePNGTextChunks(s.reader, absPath)
 	if err != nil {
 		s.logger.WithFields(logrus.Fields{
@@ -73,6 +103,48 @@ func (s *ImageMetadataService) GetMetadata(relPath string) (map[string]string, e
 	}).Debug("PNG metadata extracted")
 
 	return metadata, nil
+}
+
+// parseSidecarJSON reads a JSON sidecar file and returns its contents as a flat
+// string map. Returns os.ErrNotExist (wrapped) when the file does not exist.
+func parseSidecarJSON(reader ImageMetadataReader, path string) (map[string]string, error) {
+	f, err := reader.OpenFile(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	data, err := io.ReadAll(f)
+	if err != nil {
+		return nil, fmt.Errorf("reading sidecar: %w", err)
+	}
+
+	// Unmarshal into a generic map so we handle any JSON object
+	var raw map[string]interface{}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, fmt.Errorf("unmarshaling sidecar JSON: %w", err)
+	}
+
+	// Convert all values to strings for a uniform flat key-value response
+	result := make(map[string]string, len(raw))
+	for k, v := range raw {
+		switch val := v.(type) {
+		case string:
+			result[k] = val
+		case nil:
+			result[k] = ""
+		default:
+			// Numbers, booleans, nested objects — marshal back to compact JSON string
+			b, err := json.Marshal(val)
+			if err != nil {
+				result[k] = fmt.Sprintf("%v", val)
+			} else {
+				result[k] = string(b)
+			}
+		}
+	}
+
+	return result, nil
 }
 
 // isPathSafe checks that a relative path does not contain path traversal components.

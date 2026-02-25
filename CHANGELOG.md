@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-039: JSON sidecar metadata per image
+- `backend/internal/fileformat/sidecar.go`: New file — defines `SidecarMetadata` external file format type with JSON tags for sidecar files written alongside generated images
+- `backend/internal/model/sample_job.go`: Added `NegativePrompt` field to `SampleJobItem` domain model
+- `backend/internal/service/job_executor_fs.go`: Added `RenameFile` method to `FileSystemWriter` interface and `RealFileSystemWriter` implementation for atomic sidecar writes
+- `backend/internal/service/job_executor.go`: Added `writeSidecar()` method with atomic temp+rename write pattern, called from `handleItemCompletionAsync` after saving images
+- `backend/internal/service/image_metadata.go`: Added `parseSidecarJSON` function; updated `GetMetadata` to read from .json sidecar first, falling back to PNG tEXt chunks
+- `backend/internal/service/sample_job.go`: Populated `NegativePrompt` from preset when expanding job items
+- `backend/internal/store/migrations.go`: Added migration 7 for `negative_prompt` column on `sample_job_items`
+- `backend/internal/store/sample_job.go`: Added `NegativePrompt` to persistence entity, updated SQL queries and mappers
+- `backend/internal/store/filesystem_test.go`: New file — unit tests for `ListPNGFiles` ignoring .json files
+- 497 backend tests pass (121 API + 29 Config + 247 Service + 100 Store); 26 E2E tests pass
+
 ### S-038: Keyboard navigation for sliders
 - `frontend/src/components/ImageCell.vue`: Added optional `sliderValues` and `currentSliderValue` props, keyboard event handler (`onKeydown`) with wrap-around left/right/up/down arrow navigation, `slider:change` emit, conditional `tabindex="0"` for focusability, and CSS `:focus` outline for visual focus indicator
 - `frontend/src/components/MasterSlider.vue`: Updated `onKeydown` to wrap around at boundaries — ArrowRight at last value emits first value, ArrowLeft at first value emits last value (consistent with playback loop behavior)

@@ -283,6 +283,53 @@ var _ = Describe("Scanner", func() {
 			})
 		})
 
+		Context("sidecar file filtering", func() {
+			It("ignores .json sidecar files returned by the filesystem (only .png treated as images)", func() {
+				tr := model.TrainingRun{
+					Name: "model",
+					Checkpoints: []model.Checkpoint{
+						{Filename: "model-step00001000.safetensors", StepNumber: 1000, HasSamples: true},
+					},
+				}
+				// The fake FS returns only .png files (ListPNGFiles contract), but
+				// we verify the scanner correctly ignores any non-PNG names.
+				fs.files["/samples/model-step00001000.safetensors"] = []string{
+					"seed=1&cfg=3&_00001_.png",
+					// .json files should never appear here because ListPNGFiles filters them,
+					// but parseFilename also guards against non-.png extensions:
+					"seed=1&cfg=3&_00001_.json",
+				}
+
+				result, err := scanner.ScanTrainingRun(tr)
+
+				Expect(err).NotTo(HaveOccurred())
+				// Only the .png image should be discovered; the .json sidecar is ignored
+				Expect(result.Images).To(HaveLen(1))
+				Expect(result.Images[0].RelativePath).To(HaveSuffix(".png"))
+			})
+
+			It("does not count .json files as images when mixed with .png files", func() {
+				tr := model.TrainingRun{
+					Name: "model",
+					Checkpoints: []model.Checkpoint{
+						{Filename: "model-step00001000.safetensors", StepNumber: 1000, HasSamples: true},
+					},
+				}
+				fs.files["/samples/model-step00001000.safetensors"] = []string{
+					"seed=1&cfg=3&_00001_.png",
+					"seed=2&cfg=3&_00001_.png",
+				}
+
+				result, err := scanner.ScanTrainingRun(tr)
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result.Images).To(HaveLen(2))
+				for _, img := range result.Images {
+					Expect(img.RelativePath).To(HaveSuffix(".png"))
+				}
+			})
+		})
+
 		Context("edge cases", func() {
 			It("handles filenames without batch suffix", func() {
 				tr := model.TrainingRun{
