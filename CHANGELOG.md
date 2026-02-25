@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-046: E2E test: slider and playback controls
+- Added `frontend/e2e/slider-playback.spec.ts` with 5 Playwright E2E tests covering the slider and playback workflow: assigning a dimension to the Slider role and verifying the master slider appears, keyboard navigation (ArrowRight/ArrowLeft) stepping through slider values, verifying all image cells update synchronously when the master slider steps, starting playback at 0.25s speed and observing at least 2 automatic advances with loop, and stopping playback and verifying the slider holds its position
+- 26 E2E tests pass (5 new slider-playback + 21 existing); 536 frontend unit tests pass; 477 backend specs pass
+
 ### S-045: E2E test: sample preset CRUD via job launch dialog
 - Added `frontend/e2e/preset-crud.spec.ts` with 5 Playwright E2E tests covering the full sample preset CRUD lifecycle: opening the Generate Samples dialog, opening the Manage Presets editor, creating a new preset with all required fields and verifying it appears in the preset selector dropdown, editing a preset name and saving the update, and deleting a preset with confirmation dialog handling and verifying removal from both the editor and job dialog dropdowns
 - `frontend/src/components/SamplePresetEditor.vue`: Added 4 `data-testid` attributes (`preset-editor-select`, `new-preset-button`, `save-preset-button`, `delete-preset-button`) for reliable E2E test targeting

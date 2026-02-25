@@ -1154,7 +1154,7 @@ stories:
   - id: S-046
     title: "E2E test: slider and playback controls"
     priority: 42
-    status: todo
+    status: done
     requires: [S-042]
     acceptance:
       - "E2E: Test assigns a dimension to the slider and verifies the master slider appears"

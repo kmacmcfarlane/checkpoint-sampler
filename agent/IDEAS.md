@@ -156,5 +156,14 @@ The test-fixtures data currently has only one `cfg` value, so E2E tests cannot e
 ### Preset state persistence after dialog close
 Currently, when the Manage Presets modal is closed, JobLaunchDialog re-fetches presets and auto-selects the last saved preset. A user flow improvement would be to also show the preset that was last edited/deleted as the currently selected option in the job dialog, rather than always auto-selecting saved presets.
 
+### Slider dimension with more than 2 values in test fixtures
+The test fixture only supports 2 slider values (landscape/portrait). Adding a third value like `seed=42,seed=99` would enable richer slider tests (e.g., advance past index 1, non-looping stop at end).
+
+### Acceptance criteria map in E2E test docblocks
+Consider requiring that each acceptance criterion be explicitly referenced in the test or docblock (e.g., `// AC: Test drags or steps master slider and verifies all image cells update`). This would make QA traceability verification faster for the QA agent.
+
+### Playback test timeout budgeting documentation
+The playback advancement tests use `{ timeout: 5000 }` with a 0.25s playback speed, giving a 20x safety margin. Document this as the recommended approach for timing-sensitive E2E assertions in TEST_PRACTICES.md section 6.5 ("set speed to minimum, use generous timeouts, avoid waitForTimeout except for hold-position verification").
+
 ### Tiered code review model selection
 Consider using sonnet for code review on simple, pattern-following changes (small frontend-only diffs, single-component changes) and reserving opus for architectural changes, security-sensitive stories, or cross-stack modifications. This could be driven by a `complexity` field on the story or heuristically derived from the diff size and layers touched. The B-020 review used opus for a 4-file frontend-only change that was straightforward — sonnet would likely have caught the same issues at lower cost and latency.
