@@ -226,6 +226,7 @@ func (s *SampleJobService) expandJobItems(jobID string, checkpoints []model.Chec
 									ComfyUIModelPath:   "", // Will be filled by path matching
 									PromptName:         prompt.Name,
 									PromptText:         prompt.Text,
+									NegativePrompt:     preset.NegativePrompt,
 									Steps:              steps,
 									CFG:                cfg,
 									SamplerName:        sampler,

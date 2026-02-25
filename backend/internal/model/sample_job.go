@@ -38,6 +38,7 @@ type SampleJobItem struct {
 	ComfyUIModelPath   string
 	PromptName         string
 	PromptText         string
+	NegativePrompt     string
 	Steps              int
 	CFG                float64
 	SamplerName        string

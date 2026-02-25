@@ -250,27 +250,30 @@ var _ = Describe("Migrate", func() {
 		Expect(age).To(Equal(25))
 	})
 
-	It("handles migrations 5 and 6 idempotently with existing width/height columns", func() {
+	It("handles migrations 5, 6, and 7 idempotently with existing columns", func() {
 		// Apply migrations 1-4 to create base tables
 		baseMigrations := store.AllMigrations()[:4]
 		err := store.Migrate(db, baseMigrations)
 		Expect(err).NotTo(HaveOccurred())
 
-		// Manually add width and height columns (simulating a database that already has them)
+		// Manually add width, height, and negative_prompt columns
+		// (simulating a database that already has them)
 		_, err = db.Exec("ALTER TABLE sample_job_items ADD COLUMN width INTEGER NOT NULL DEFAULT 512")
 		Expect(err).NotTo(HaveOccurred())
 		_, err = db.Exec("ALTER TABLE sample_job_items ADD COLUMN height INTEGER NOT NULL DEFAULT 512")
 		Expect(err).NotTo(HaveOccurred())
+		_, err = db.Exec("ALTER TABLE sample_job_items ADD COLUMN negative_prompt TEXT NOT NULL DEFAULT ''")
+		Expect(err).NotTo(HaveOccurred())
 
-		// Now run all migrations including 5 and 6 — should succeed
+		// Now run all migrations including 5, 6, and 7 — should succeed
 		err = store.Migrate(db, store.AllMigrations())
 		Expect(err).NotTo(HaveOccurred())
 
-		// Verify all 6 migrations are recorded
+		// Verify all 7 migrations are recorded
 		var count int
 		err = db.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&count)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(count).To(Equal(6))
+		Expect(count).To(Equal(7))
 
 		// Verify the table is functional with width and height columns
 		// First create a sample preset and job to satisfy foreign key constraints
@@ -322,7 +325,7 @@ var _ = Describe("Migrate", func() {
 var _ = Describe("AllMigrations", func() {
 	It("returns the presets table as migration 1", func() {
 		migrations := store.AllMigrations()
-		Expect(migrations).To(HaveLen(6))
+		Expect(migrations).To(HaveLen(7))
 		Expect(migrations[0].Version).To(Equal(1))
 		Expect(migrations[0].SQL).To(ContainSubstring("CREATE TABLE"))
 		Expect(migrations[0].SQL).To(ContainSubstring("presets"))
@@ -361,6 +364,13 @@ var _ = Describe("AllMigrations", func() {
 		Expect(migrations[5].Version).To(Equal(6))
 		Expect(migrations[5].SQL).To(ContainSubstring("ALTER TABLE"))
 		Expect(migrations[5].SQL).To(ContainSubstring("height"))
+	})
+
+	It("returns the negative_prompt column as migration 7", func() {
+		migrations := store.AllMigrations()
+		Expect(migrations[6].Version).To(Equal(7))
+		Expect(migrations[6].SQL).To(ContainSubstring("ALTER TABLE"))
+		Expect(migrations[6].SQL).To(ContainSubstring("negative_prompt"))
 	})
 })
 

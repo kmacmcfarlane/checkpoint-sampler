@@ -3,6 +3,7 @@ package service_test
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"io"
 	"os"
 	"path/filepath"
@@ -222,6 +223,118 @@ var _ = Describe("ImageMetadataService", func() {
 				result, err := svc.GetMetadata("checkpoint.safetensors/truncated.png")
 
 				// A truncated PNG after signature should return empty metadata (no chunks found)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result).To(BeEmpty())
+			})
+		})
+
+		Context("sidecar-first metadata reading", func() {
+			It("reads metadata from JSON sidecar when present, ignoring PNG tEXt chunks", func() {
+				subDir := filepath.Join(tmpDir, "checkpoint.safetensors")
+				Expect(os.MkdirAll(subDir, 0755)).To(Succeed())
+
+				// Write PNG with tEXt metadata
+				pngData := buildPNGWithTextChunks(map[string]string{
+					"prompt": `{"nodes": []}`,
+				})
+				Expect(os.WriteFile(filepath.Join(subDir, "image.png"), pngData, 0644)).To(Succeed())
+
+				// Write sidecar JSON with different metadata
+				sidecar := map[string]interface{}{
+					"prompt_name":     "forest",
+					"prompt_text":     "a dense forest at dawn",
+					"seed":            420,
+					"cfg":             1.0,
+					"steps":           20,
+					"sampler_name":    "euler",
+					"scheduler":       "normal",
+					"width":           1024,
+					"height":          768,
+					"negative_prompt": "blurry",
+					"checkpoint":      "checkpoint.safetensors",
+					"workflow_name":   "flux_dev.json",
+					"job_id":          "job-1",
+					"timestamp":       "2026-02-25T12:00:00Z",
+				}
+				sidecarData, err := json.Marshal(sidecar)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(os.WriteFile(filepath.Join(subDir, "image.json"), sidecarData, 0644)).To(Succeed())
+
+				svc = service.NewImageMetadataService(&realFileOpener{}, tmpDir, logger)
+				result, err := svc.GetMetadata("checkpoint.safetensors/image.png")
+
+				Expect(err).NotTo(HaveOccurred())
+				// Sidecar data should be returned, not the PNG tEXt chunk
+				Expect(result).To(HaveKeyWithValue("prompt_name", "forest"))
+				Expect(result).To(HaveKeyWithValue("prompt_text", "a dense forest at dawn"))
+				Expect(result).To(HaveKeyWithValue("negative_prompt", "blurry"))
+				Expect(result).To(HaveKeyWithValue("workflow_name", "flux_dev.json"))
+				// PNG tEXt "prompt" key should NOT appear (we read sidecar, not PNG)
+				Expect(result).NotTo(HaveKey("prompt"))
+			})
+
+			It("falls back to PNG tEXt chunks when no sidecar exists", func() {
+				subDir := filepath.Join(tmpDir, "checkpoint.safetensors")
+				Expect(os.MkdirAll(subDir, 0755)).To(Succeed())
+
+				// Write PNG with tEXt metadata but NO sidecar
+				pngData := buildPNGWithTextChunks(map[string]string{
+					"prompt":   `{"nodes": []}`,
+					"workflow": `{"nodes": []}`,
+				})
+				Expect(os.WriteFile(filepath.Join(subDir, "image.png"), pngData, 0644)).To(Succeed())
+
+				svc = service.NewImageMetadataService(&realFileOpener{}, tmpDir, logger)
+				result, err := svc.GetMetadata("checkpoint.safetensors/image.png")
+
+				Expect(err).NotTo(HaveOccurred())
+				// Should return PNG tEXt metadata when sidecar is absent
+				Expect(result).To(HaveKey("prompt"))
+				Expect(result).To(HaveKey("workflow"))
+			})
+
+			It("returns sidecar data including numeric and omitempty fields as strings", func() {
+				subDir := filepath.Join(tmpDir, "checkpoint.safetensors")
+				Expect(os.MkdirAll(subDir, 0755)).To(Succeed())
+
+				// Write minimal PNG
+				pngData := buildMinimalPNG()
+				Expect(os.WriteFile(filepath.Join(subDir, "image.png"), pngData, 0644)).To(Succeed())
+
+				// Write sidecar with numeric values and no shift (omitempty)
+				sidecar := map[string]interface{}{
+					"seed":  int64(12345),
+					"steps": 20,
+					"cfg":   7.5,
+					"job_id": "job-42",
+				}
+				sidecarData, err := json.Marshal(sidecar)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(os.WriteFile(filepath.Join(subDir, "image.json"), sidecarData, 0644)).To(Succeed())
+
+				svc = service.NewImageMetadataService(&realFileOpener{}, tmpDir, logger)
+				result, err := svc.GetMetadata("checkpoint.safetensors/image.png")
+
+				Expect(err).NotTo(HaveOccurred())
+				// Numeric values are returned as JSON-serialized strings
+				Expect(result).To(HaveKey("seed"))
+				Expect(result).To(HaveKey("steps"))
+				Expect(result).To(HaveKey("cfg"))
+				Expect(result).To(HaveKeyWithValue("job_id", "job-42"))
+			})
+
+			It("returns empty map when sidecar is empty JSON object", func() {
+				subDir := filepath.Join(tmpDir, "checkpoint.safetensors")
+				Expect(os.MkdirAll(subDir, 0755)).To(Succeed())
+
+				pngData := buildMinimalPNG()
+				Expect(os.WriteFile(filepath.Join(subDir, "image.png"), pngData, 0644)).To(Succeed())
+
+				Expect(os.WriteFile(filepath.Join(subDir, "image.json"), []byte(`{}`), 0644)).To(Succeed())
+
+				svc = service.NewImageMetadataService(&realFileOpener{}, tmpDir, logger)
+				result, err := svc.GetMetadata("checkpoint.safetensors/image.png")
+
 				Expect(err).NotTo(HaveOccurred())
 				Expect(result).To(BeEmpty())
 			})

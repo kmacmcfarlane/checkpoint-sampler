@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/fileformat"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
 	"github.com/sirupsen/logrus"
 )
@@ -505,6 +506,17 @@ func (e *JobExecutor) handleItemCompletionAsync(jobID, itemID, promptID string) 
 
 	e.logger.WithField("output_path", outputPath).Info("image saved successfully")
 
+	// Fetch the job to get job-level metadata for the sidecar
+	job, err := e.store.GetSampleJob(jobID)
+	if err != nil {
+		e.logger.WithError(err).Warn("failed to fetch job for sidecar metadata, continuing without sidecar")
+	} else {
+		// Write sidecar JSON alongside the image (non-fatal if it fails)
+		if sidecarErr := e.writeSidecar(outputPath, job, *item); sidecarErr != nil {
+			e.logger.WithError(sidecarErr).Warn("failed to write sidecar, image saved but metadata sidecar missing")
+		}
+	}
+
 	// Update item status to completed
 	item.Status = model.SampleJobItemStatusCompleted
 	item.OutputPath = outputPath
@@ -723,6 +735,66 @@ func (e *JobExecutor) saveImage(path string, data []byte) error {
 	}
 
 	e.logger.WithField("path", path).Info("image file written")
+	return nil
+}
+
+// writeSidecar writes a JSON sidecar file alongside the image at imagePath.
+// The sidecar file has the same base name as the image but with a .json extension.
+// The write is atomic: data is written to a temp file in the same directory, then
+// renamed over the final destination.
+func (e *JobExecutor) writeSidecar(imagePath string, job model.SampleJob, item model.SampleJobItem) error {
+	e.logger.WithField("image_path", imagePath).Trace("entering writeSidecar")
+	defer e.logger.Trace("returning from writeSidecar")
+
+	// Derive sidecar path from image path
+	ext := filepath.Ext(imagePath)
+	sidecarPath := imagePath[:len(imagePath)-len(ext)] + ".json"
+	dir := filepath.Dir(imagePath)
+	tempPath := sidecarPath + ".tmp"
+
+	meta := fileformat.SidecarMetadata{
+		Checkpoint:     item.CheckpointFilename,
+		PromptName:     item.PromptName,
+		PromptText:     item.PromptText,
+		Seed:           item.Seed,
+		CFG:            item.CFG,
+		Steps:          item.Steps,
+		SamplerName:    item.SamplerName,
+		Scheduler:      item.Scheduler,
+		Width:          item.Width,
+		Height:         item.Height,
+		NegativePrompt: item.NegativePrompt,
+		VAE:            job.VAE,
+		CLIP:           job.CLIP,
+		Shift:          job.Shift,
+		WorkflowName:   job.WorkflowName,
+		JobID:          job.ID,
+		Timestamp:      time.Now().UTC().Format(time.RFC3339),
+	}
+
+	data, err := json.Marshal(meta)
+	if err != nil {
+		return fmt.Errorf("marshaling sidecar metadata: %w", err)
+	}
+
+	// Ensure directory exists (should already exist from saveImage, but be safe)
+	if err := e.ensureDir(dir); err != nil {
+		return fmt.Errorf("ensuring sidecar directory: %w", err)
+	}
+
+	// Write to temp file first
+	if err := e.fsWriter.WriteFile(tempPath, data, 0644); err != nil {
+		e.logger.WithError(err).Error("failed to write sidecar temp file")
+		return fmt.Errorf("writing sidecar temp file: %w", err)
+	}
+
+	// Atomically rename temp file to final destination
+	if err := e.fsWriter.RenameFile(tempPath, sidecarPath); err != nil {
+		e.logger.WithError(err).Error("failed to rename sidecar temp file")
+		return fmt.Errorf("renaming sidecar file: %w", err)
+	}
+
+	e.logger.WithField("sidecar_path", sidecarPath).Info("sidecar file written")
 	return nil
 }
 

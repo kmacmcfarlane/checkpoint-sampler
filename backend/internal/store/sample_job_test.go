@@ -653,5 +653,65 @@ var _ = Describe("SampleJob Store", func() {
 				Expect(err).To(Equal(sql.ErrNoRows))
 			})
 		})
+
+		Describe("NegativePrompt persistence", func() {
+			It("persists and retrieves negative_prompt field", func() {
+				now := time.Now().UTC().Truncate(time.Second)
+				item := model.SampleJobItem{
+					ID:                 "item-neg-prompt",
+					JobID:              sampleJob.ID,
+					CheckpointFilename: "checkpoint.safetensors",
+					ComfyUIModelPath:   "/models/checkpoint.safetensors",
+					PromptName:         "test",
+					PromptText:         "a beautiful landscape",
+					NegativePrompt:     "blurry, artifacts, bad quality",
+					Steps:              20,
+					CFG:                7.0,
+					SamplerName:        "euler",
+					Scheduler:          "normal",
+					Seed:               42,
+					Width:              512,
+					Height:             512,
+					Status:             model.SampleJobItemStatusPending,
+					CreatedAt:          now,
+					UpdatedAt:          now,
+				}
+
+				err := s.CreateSampleJobItem(item)
+				Expect(err).NotTo(HaveOccurred())
+
+				items, err := s.ListSampleJobItems(sampleJob.ID)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(items).To(HaveLen(1))
+				Expect(items[0].NegativePrompt).To(Equal("blurry, artifacts, bad quality"))
+			})
+
+			It("stores empty string when negative_prompt is not set", func() {
+				err := s.CreateSampleJobItem(sampleJobItem)
+				Expect(err).NotTo(HaveOccurred())
+
+				items, err := s.ListSampleJobItems(sampleJob.ID)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(items).To(HaveLen(1))
+				Expect(items[0].NegativePrompt).To(Equal(""))
+			})
+
+			It("updates negative_prompt on existing item", func() {
+				err := s.CreateSampleJobItem(sampleJobItem)
+				Expect(err).NotTo(HaveOccurred())
+
+				updated := sampleJobItem
+				updated.NegativePrompt = "low quality, blurry"
+				updated.UpdatedAt = time.Now().UTC()
+
+				err = s.UpdateSampleJobItem(updated)
+				Expect(err).NotTo(HaveOccurred())
+
+				items, err := s.ListSampleJobItems(sampleJob.ID)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(items).To(HaveLen(1))
+				Expect(items[0].NegativePrompt).To(Equal("low quality, blurry"))
+			})
+		})
 	})
 })

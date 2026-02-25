@@ -2,8 +2,10 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/fileformat"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -161,18 +163,43 @@ func (m mockFileInfo) IsDir() bool {
 	return m.isDir
 }
 
-type mockFileSystemWriter struct{}
+type mockFileSystemWriter struct {
+	writtenFiles map[string][]byte
+	renameErr    error
+}
+
+func newMockFileSystemWriter() *mockFileSystemWriter {
+	return &mockFileSystemWriter{
+		writtenFiles: make(map[string][]byte),
+	}
+}
 
 func (m *mockFileSystemWriter) MkdirAll(path string, perm uint32) error {
 	return nil
 }
 
 func (m *mockFileSystemWriter) WriteFile(path string, data []byte, perm uint32) error {
+	if m.writtenFiles != nil {
+		m.writtenFiles[path] = data
+	}
 	return nil
 }
 
 func (m *mockFileSystemWriter) Stat(path string) (fileInfo, error) {
 	return mockFileInfo{isDir: true}, nil
+}
+
+func (m *mockFileSystemWriter) RenameFile(oldPath, newPath string) error {
+	if m.renameErr != nil {
+		return m.renameErr
+	}
+	if m.writtenFiles != nil {
+		if data, ok := m.writtenFiles[oldPath]; ok {
+			m.writtenFiles[newPath] = data
+			delete(m.writtenFiles, oldPath)
+		}
+	}
+	return nil
 }
 
 var _ = Describe("JobExecutor", func() {
@@ -242,7 +269,7 @@ var _ = Describe("JobExecutor", func() {
 			},
 		}
 		mockHub = &mockEventHub{}
-		mockFS = &mockFileSystemWriter{}
+		mockFS = newMockFileSystemWriter()
 		logger = logrus.New()
 		logger.SetOutput(GinkgoWriter)
 
@@ -814,6 +841,180 @@ var _ = Describe("JobExecutor", func() {
 
 			// Clean up
 			executorWithVariableWS.Stop()
+		})
+	})
+
+	Describe("writeSidecar", func() {
+		var job model.SampleJob
+		var item model.SampleJobItem
+		var shift float64
+
+		BeforeEach(func() {
+			shift = 3.5
+			job = model.SampleJob{
+				ID:           "job-sidecar-1",
+				WorkflowName: "flux_dev.json",
+				VAE:          "ae.safetensors",
+				CLIP:         "clip_l.safetensors",
+				Shift:        &shift,
+			}
+			item = model.SampleJobItem{
+				ID:                 "item-sidecar-1",
+				JobID:              "job-sidecar-1",
+				CheckpointFilename: "model-step00001000.safetensors",
+				PromptName:         "forest",
+				PromptText:         "a dense forest at dawn",
+				NegativePrompt:     "blurry, artifacts",
+				Seed:               420,
+				CFG:                1.0,
+				Steps:              20,
+				SamplerName:        "euler",
+				Scheduler:          "normal",
+				Width:              1024,
+				Height:             768,
+			}
+		})
+
+		It("writes sidecar with correct path (same base name, .json extension)", func() {
+			err := executor.writeSidecar("/test/samples/model-step00001000.safetensors/image.png", job, item)
+			Expect(err).ToNot(HaveOccurred())
+
+			// After atomic rename, the sidecar should be at the .json path
+			sidecarPath := "/test/samples/model-step00001000.safetensors/image.json"
+			Expect(mockFS.writtenFiles).To(HaveKey(sidecarPath))
+		})
+
+		It("writes sidecar with correct content", func() {
+			err := executor.writeSidecar("/test/samples/model-step00001000.safetensors/image.png", job, item)
+			Expect(err).ToNot(HaveOccurred())
+
+			sidecarPath := "/test/samples/model-step00001000.safetensors/image.json"
+			data, ok := mockFS.writtenFiles[sidecarPath]
+			Expect(ok).To(BeTrue())
+
+			var meta fileformat.SidecarMetadata
+			Expect(json.Unmarshal(data, &meta)).To(Succeed())
+
+			Expect(meta.Checkpoint).To(Equal("model-step00001000.safetensors"))
+			Expect(meta.PromptName).To(Equal("forest"))
+			Expect(meta.PromptText).To(Equal("a dense forest at dawn"))
+			Expect(meta.NegativePrompt).To(Equal("blurry, artifacts"))
+			Expect(meta.Seed).To(Equal(int64(420)))
+			Expect(meta.CFG).To(Equal(1.0))
+			Expect(meta.Steps).To(Equal(20))
+			Expect(meta.SamplerName).To(Equal("euler"))
+			Expect(meta.Scheduler).To(Equal("normal"))
+			Expect(meta.Width).To(Equal(1024))
+			Expect(meta.Height).To(Equal(768))
+			Expect(meta.VAE).To(Equal("ae.safetensors"))
+			Expect(meta.CLIP).To(Equal("clip_l.safetensors"))
+			Expect(meta.Shift).To(Equal(&shift))
+			Expect(meta.WorkflowName).To(Equal("flux_dev.json"))
+			Expect(meta.JobID).To(Equal("job-sidecar-1"))
+			Expect(meta.Timestamp).NotTo(BeEmpty())
+		})
+
+		It("uses atomic write: writes to temp file first then renames", func() {
+			imagePath := "/test/samples/model-step00001000.safetensors/image.png"
+			tempPath := "/test/samples/model-step00001000.safetensors/image.json.tmp"
+			sidecarPath := "/test/samples/model-step00001000.safetensors/image.json"
+
+			err := executor.writeSidecar(imagePath, job, item)
+			Expect(err).ToNot(HaveOccurred())
+
+			// Temp file should not exist after rename
+			Expect(mockFS.writtenFiles).NotTo(HaveKey(tempPath))
+			// Final sidecar file should exist
+			Expect(mockFS.writtenFiles).To(HaveKey(sidecarPath))
+		})
+
+		It("omits shift field when job has no shift", func() {
+			jobNoShift := model.SampleJob{
+				ID:           "job-no-shift",
+				WorkflowName: "sd15.json",
+				Shift:        nil,
+			}
+
+			err := executor.writeSidecar("/test/samples/model.safetensors/image.png", jobNoShift, item)
+			Expect(err).ToNot(HaveOccurred())
+
+			sidecarPath := "/test/samples/model.safetensors/image.json"
+			data, ok := mockFS.writtenFiles[sidecarPath]
+			Expect(ok).To(BeTrue())
+
+			// When shift is nil, it should be omitted from JSON (omitempty)
+			var raw map[string]interface{}
+			Expect(json.Unmarshal(data, &raw)).To(Succeed())
+			Expect(raw).NotTo(HaveKey("shift"))
+		})
+
+		It("returns error when rename fails", func() {
+			mockFS.renameErr = errors.New("rename failed")
+
+			err := executor.writeSidecar("/test/samples/model.safetensors/image.png", job, item)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("renaming sidecar file"))
+		})
+	})
+
+	Describe("handleItemCompletionAsync sidecar integration", func() {
+		var job model.SampleJob
+		var item model.SampleJobItem
+
+		BeforeEach(func() {
+			job = model.SampleJob{
+				ID:             "job-1",
+				Status:         model.SampleJobStatusRunning,
+				WorkflowName:   "flux_dev.json",
+				VAE:            "ae.safetensors",
+				TotalItems:     1,
+				CompletedItems: 0,
+			}
+			item = model.SampleJobItem{
+				ID:                 "item-1",
+				JobID:              "job-1",
+				CheckpointFilename: "test.safetensors",
+				PromptName:         "test-prompt",
+				PromptText:         "a test image",
+				NegativePrompt:     "bad quality",
+				Steps:              20,
+				CFG:                7.5,
+				SamplerName:        "euler",
+				Scheduler:          "normal",
+				Seed:               12345,
+				Width:              512,
+				Height:             512,
+				Status:             model.SampleJobItemStatusRunning,
+			}
+
+			mockStore.jobs[job.ID] = job
+			mockStore.items[job.ID] = []model.SampleJobItem{item}
+		})
+
+		It("writes sidecar alongside image when item completes", func() {
+			executor.handleItemCompletionAsync(job.ID, item.ID, "test-prompt-id")
+
+			// Verify item was completed
+			items := mockStore.items[job.ID]
+			Expect(items[0].Status).To(Equal(model.SampleJobItemStatusCompleted))
+
+			// Verify a .json sidecar was written alongside the .png
+			var sidecarPath string
+			for path := range mockFS.writtenFiles {
+				if len(path) > 5 && path[len(path)-5:] == ".json" {
+					sidecarPath = path
+					break
+				}
+			}
+			Expect(sidecarPath).NotTo(BeEmpty(), "expected a .json sidecar file to be written")
+
+			// Verify sidecar content
+			data := mockFS.writtenFiles[sidecarPath]
+			var meta fileformat.SidecarMetadata
+			Expect(json.Unmarshal(data, &meta)).To(Succeed())
+			Expect(meta.PromptName).To(Equal("test-prompt"))
+			Expect(meta.JobID).To(Equal("job-1"))
+			Expect(meta.WorkflowName).To(Equal("flux_dev.json"))
 		})
 	})
 })

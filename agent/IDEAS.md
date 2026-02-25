@@ -66,6 +66,12 @@ The `npm ci` in the playwright container produces 5 high severity vulnerability 
 ### Update .air.toml to use build.entrypoint
 The air hot-reload configuration uses the deprecated `build.bin` setting, producing a startup warning on every dev container launch. Migrating to `build.entrypoint` would silence this warning and keep the config current with the air toolchain.
 
+### OpenFile log level for os.ErrNotExist
+The `FileSystem.OpenFile()` method logs at error level for all open failures. For the sidecar-first metadata reading pattern, file-not-found is an expected condition for pre-existing images. Downgrading not-found errors to debug level while keeping error level for unexpected failures would reduce log noise significantly.
+
+### fileformat package linting
+The new `internal/fileformat` package has no tests of its own (the type is tested indirectly). Adding a linting rule to enforce all packages in `internal/` have test files would catch this early.
+
 ### Suppress Docker Compose orphan container warning in test-e2e
 Running `make test-e2e` after `make up-dev` produces a Docker Compose orphan container warning. Adding `--remove-orphans` to the `COMPOSE_E2E` run command, or documenting it as expected behavior in TEST_PRACTICES.md, would remove the noise.
 
@@ -179,6 +185,18 @@ SliderBar could optionally support wrap-around behavior (configurable via a prop
 
 ### XYGrid keyboard integration test
 Add a test to XYGrid.test.ts that triggers a keydown on an ImageCell component within XYGrid and asserts that update:sliderValue is emitted with the correct cell key and new value. This would make the event-wiring path explicitly tested.
+
+### Sidecar reader for metadata display
+The current `parseSidecarJSON` returns all values as strings, which means numeric fields like `seed` come back as JSON numbers serialized to strings. A dedicated API response type could differentiate string vs numeric fields for richer frontend display.
+
+### Sidecar migration tool
+For existing images generated before S-039, there's no way to generate sidecars retroactively. A background migration endpoint or CLI tool that generates sidecars for existing PNG images using their embedded tEXt metadata would improve backward compatibility.
+
+### NegativePrompt model field sequencing
+The `NegativePrompt` field on `SampleJobItem` required a DB migration as part of S-039. Stories touching sidecar formats should include schema prerequisites in their AC list to minimize migration churn.
+
+### AC completeness check for cross-cutting concerns
+Acceptance criteria mentioning sidecar fields should explicitly call out any missing model fields or DB columns as prerequisites, so implementers don't discover them mid-story.
 
 ### Tiered code review model selection
 Consider using sonnet for code review on simple, pattern-following changes (small frontend-only diffs, single-component changes) and reserving opus for architectural changes, security-sensitive stories, or cross-stack modifications. This could be driven by a `complexity` field on the story or heuristically derived from the diff size and layers touched. The B-020 review used opus for a 4-file frontend-only change that was straightforward — sonnet would likely have caught the same issues at lower cost and latency.

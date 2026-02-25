@@ -87,5 +87,9 @@ func AllMigrations() []Migration {
 			Version: 6,
 			SQL:     `ALTER TABLE sample_job_items ADD COLUMN height INTEGER NOT NULL DEFAULT 512;`,
 		},
+		{
+			Version: 7,
+			SQL:     `ALTER TABLE sample_job_items ADD COLUMN negative_prompt TEXT NOT NULL DEFAULT '';`,
+		},
 	}
 }

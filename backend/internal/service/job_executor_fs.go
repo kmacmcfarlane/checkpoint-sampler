@@ -14,6 +14,7 @@ type FileSystemWriter interface {
 	MkdirAll(path string, perm uint32) error
 	WriteFile(path string, data []byte, perm uint32) error
 	Stat(path string) (fileInfo, error)
+	RenameFile(oldPath, newPath string) error
 }
 
 // RealFileSystemWriter provides real filesystem operations.
@@ -32,4 +33,9 @@ func (r *RealFileSystemWriter) WriteFile(path string, data []byte, perm uint32) 
 // Stat returns file information.
 func (r *RealFileSystemWriter) Stat(path string) (fileInfo, error) {
 	return os.Stat(path)
+}
+
+// RenameFile atomically renames oldPath to newPath.
+func (r *RealFileSystemWriter) RenameFile(oldPath, newPath string) error {
+	return os.Rename(oldPath, newPath)
 }
