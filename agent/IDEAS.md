@@ -111,6 +111,9 @@ The qa-expert.md now has three different ways to satisfy the smoke test requirem
 ### AC sandbox interpretation clarity
 Story acceptance criteria mentioning "works in the claude-sandbox" should clarify whether they mean "directly in the sandbox process" or "from the sandbox environment via Docker". The Docker approach follows existing project patterns but the distinction matters for implementation.
 
+### ImageClickContext export convention
+Exporting an interface from a `.vue` file (as done with `ImageClickContext` in XYGrid.vue) is a slightly unusual pattern. A dedicated `types.ts` file in the components directory would be a cleaner convention for shared component types.
+
 ### SamplePresetEditor event contract documentation
 The SamplePresetEditor component's events (preset-saved, preset-deleted) are not documented in the component's JSDoc or in the UI architecture docs. A lightweight contract comment above defineEmits would help future agents integrating this component know what events to listen for.
 
@@ -134,6 +137,15 @@ The NDrawer mask blocks pointer events on grid cells when the drawer is open. Co
 
 ### Lightbox keyboard navigation
 The lightbox could support arrow-key navigation between images in the grid, which is a common UX pattern for lightboxes and would be a high-value enhancement.
+
+### Lightbox slider with dimension label
+The slider in the lightbox currently shows a generic "Slider" label. It would be more informative to show the actual slider dimension name (e.g., "cfg", "checkpoint") — this would require passing the dimension name through as another prop.
+
+### XYGrid image:click emit test for full context payload
+The `image:click` event in `XYGrid.vue` now emits a full `ImageClickContext` (cellKey, sliderValues, currentSliderValue, imagesBySliderValue), but XYGrid.test.ts has no test asserting the shape of this payload. Adding one test for `image:click` emit context would catch regressions if the payload structure changes.
+
+### E2E fixture with multiple slider values for lightbox slider testing
+The test-fixtures data currently has only one `cfg` value, so E2E tests cannot exercise the lightbox slider. Adding a second cfg value to the fixture images would allow an E2E test verifying the lightbox slider appears and changes the displayed image.
 
 ### Tiered code review model selection
 Consider using sonnet for code review on simple, pattern-following changes (small frontend-only diffs, single-component changes) and reserving opus for architectural changes, security-sensitive stories, or cross-stack modifications. This could be driven by a `complexity` field on the story or heuristically derived from the diff size and layers touched. The B-020 review used opus for a 4-file frontend-only change that was straightforward — sonnet would likely have caught the same issues at lower cost and latency.

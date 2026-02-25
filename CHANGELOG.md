@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-037: Slider navigation in image lightbox
+- `frontend/src/components/XYGrid.vue`: Added `ImageClickContext` interface export and changed `image:click` emit to carry full cell context (imageUrl, cellKey, sliderValues, currentSliderValue, imagesBySliderValue) so the lightbox receives enough info to render a slider
+- `frontend/src/App.vue`: Added `lightboxContext` ref, `onLightboxSliderChange` handler that updates per-cell slider override and lightbox image URL, passed all slider context props to `ImageLightbox`
+- `frontend/src/components/ImageLightbox.vue`: Added `SliderBar` import, 4 new props (`cellKey`, `sliderValues`, `currentSliderValue`, `imagesBySliderValue`), `slider-change` emit, `hasSlider` computed, adjacent image preloading via `Image()` constructor, and `.lightbox-slider-panel` CSS
+- `frontend/src/components/__tests__/ImageLightbox.test.ts`: 9 new tests in `slider navigation` describe block covering slider rendering, no-slider cases (empty values, null cellKey, single value), prop passing, slider-change emission, zoom/pan coexistence, metadata coexistence, and adjacent image preloading
+- 536 frontend tests pass; 16/16 E2E tests pass
+
 ### S-044: E2E test: dimension filtering and combo filters
 - Added `frontend/e2e/dimension-filtering.spec.ts` with 4 Playwright E2E tests covering the dimension configuration and filtering workflow: opening the dimension panel and changing X/Y axis assignments, verifying the grid updates to reflect new axis dimensions, applying a combo filter (deselecting a value) to reduce grid columns, and clearing the filter to restore the full grid state
 - 16 E2E tests pass (4 new dimension-filtering + 12 existing); no application code modified

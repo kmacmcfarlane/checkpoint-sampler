@@ -12,6 +12,7 @@ import AppDrawer from './components/AppDrawer.vue'
 import TrainingRunSelector from './components/TrainingRunSelector.vue'
 import DimensionPanel from './components/DimensionPanel.vue'
 import XYGrid from './components/XYGrid.vue'
+import type { ImageClickContext } from './components/XYGrid.vue'
 import DimensionFilter from './components/DimensionFilter.vue'
 import MasterSlider from './components/MasterSlider.vue'
 import ZoomControl from './components/ZoomControl.vue'
@@ -30,6 +31,7 @@ const selectedTrainingRun = ref<TrainingRun | null>(null)
 const scanning = ref(false)
 const scanError = ref<string | null>(null)
 const lightboxImageUrl = ref<string | null>(null)
+const lightboxContext = ref<ImageClickContext | null>(null)
 const metadataPanelOpen = ref(false)
 const drawerOpen = ref(false)
 const jobLaunchDialogOpen = ref(false)
@@ -65,12 +67,27 @@ function toggleDrawer() {
   drawerOpen.value = !drawerOpen.value
 }
 
-function onImageClick(imageUrl: string) {
-  lightboxImageUrl.value = imageUrl
+function onImageClick(context: ImageClickContext) {
+  lightboxImageUrl.value = context.imageUrl
+  lightboxContext.value = context
 }
 
 function onLightboxClose() {
   lightboxImageUrl.value = null
+  lightboxContext.value = null
+}
+
+function onLightboxSliderChange(cellKey: string, value: string) {
+  // Update the per-cell slider override
+  onSliderValueUpdate(cellKey, value)
+  // Also update the lightbox image URL
+  if (lightboxContext.value) {
+    const newUrl = lightboxContext.value.imagesBySliderValue[value]
+    if (newUrl) {
+      lightboxImageUrl.value = newUrl
+      lightboxContext.value = { ...lightboxContext.value, currentSliderValue: value, imageUrl: newUrl }
+    }
+  }
 }
 
 const {
@@ -573,7 +590,12 @@ const showProminentGenerateButton = computed(() => {
       <ImageLightbox
         v-if="lightboxImageUrl"
         :image-url="lightboxImageUrl"
+        :cell-key="lightboxContext?.cellKey ?? null"
+        :slider-values="lightboxContext?.sliderValues ?? []"
+        :current-slider-value="lightboxContext?.currentSliderValue ?? ''"
+        :images-by-slider-value="lightboxContext?.imagesBySliderValue ?? {}"
         @close="onLightboxClose"
+        @slider-change="onLightboxSliderChange"
       />
       <CheckpointMetadataPanel
         v-if="metadataPanelOpen && selectedTrainingRun"

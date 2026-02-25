@@ -21,9 +21,18 @@ const props = withDefaults(defineProps<{
   maintainAspectRatio: true,
 })
 
+/** Context passed when a cell image is clicked. */
+export interface ImageClickContext {
+  imageUrl: string
+  cellKey: string
+  sliderValues: string[]
+  currentSliderValue: string
+  imagesBySliderValue: Record<string, string>
+}
+
 const emit = defineEmits<{
   'update:sliderValue': [cellKey: string, value: string]
-  'image:click': [imageUrl: string]
+  'image:click': [context: ImageClickContext]
   'header:click': [dimensionName: string, value: string]
   'update:cellSize': [size: number]
 }>()
@@ -117,6 +126,40 @@ function getSliderValue(xVal: string | undefined, yVal: string | undefined): str
 function onSliderChange(xVal: string | undefined, yVal: string | undefined, value: string) {
   const key = imageKey(xVal, yVal)
   emit('update:sliderValue', key, value)
+}
+
+/** Build a map from slider value → image URL for a given cell (all slider positions). */
+function getImagesBySliderValue(xVal: string | undefined, yVal: string | undefined): Record<string, string> {
+  if (!props.sliderDimension) return {}
+  const sliderDimName = props.sliderDimension.name
+  const xDimName = props.xDimension?.name
+  const yDimName = props.yDimension?.name
+  const result: Record<string, string> = {}
+  for (const img of filteredImages.value) {
+    const imgXVal = xDimName ? img.dimensions[xDimName] : undefined
+    const imgYVal = yDimName ? img.dimensions[yDimName] : undefined
+    if (imgXVal !== xVal || imgYVal !== yVal) continue
+    const sliderVal = img.dimensions[sliderDimName]
+    if (sliderVal !== undefined && !(sliderVal in result)) {
+      result[sliderVal] = `/api/images/${img.relative_path}`
+    }
+  }
+  return result
+}
+
+/** Emit an image:click event with full cell context. */
+function onImageClick(xVal: string | undefined, yVal: string | undefined, imageUrl: string) {
+  const key = imageKey(xVal, yVal)
+  const sliderVals = props.sliderDimension?.values ?? []
+  const currentSliderVal = getSliderValue(xVal, yVal)
+  const imagesBySliderValue = getImagesBySliderValue(xVal, yVal)
+  emit('image:click', {
+    imageUrl,
+    cellKey: key,
+    sliderValues: sliderVals,
+    currentSliderValue: currentSliderVal,
+    imagesBySliderValue,
+  })
 }
 
 /** Check whether there are no axis assignments. */
@@ -311,7 +354,7 @@ onUnmounted(() => {
               role="gridcell"
               :style="{ gridRow: rowIndex(yIdx), gridColumn: colIndex(xIdx) }"
             >
-              <ImageCell :relative-path="getImage(xVal, yVal)?.relative_path ?? null" @click="(url: string) => emit('image:click', url)" />
+              <ImageCell :relative-path="getImage(xVal, yVal)?.relative_path ?? null" @click="(url: string) => onImageClick(xVal, yVal, url)" />
               <SliderBar
                 v-if="sliderDimension"
                 :values="sliderDimension.values"
@@ -329,7 +372,7 @@ onUnmounted(() => {
             role="gridcell"
             :style="{ gridRow: rowIndex(yIdx), gridColumn: colBase }"
           >
-            <ImageCell :relative-path="getImage(undefined, yVal)?.relative_path ?? null" @click="(url: string) => emit('image:click', url)" />
+            <ImageCell :relative-path="getImage(undefined, yVal)?.relative_path ?? null" @click="(url: string) => onImageClick(undefined, yVal, url)" />
             <SliderBar
               v-if="sliderDimension"
               :values="sliderDimension.values"
@@ -350,7 +393,7 @@ onUnmounted(() => {
           role="gridcell"
           :style="{ gridRow: rowBase, gridColumn: colIndex(xIdx) }"
         >
-          <ImageCell :relative-path="getImage(xVal, undefined)?.relative_path ?? null" @click="(url: string) => emit('image:click', url)" />
+          <ImageCell :relative-path="getImage(xVal, undefined)?.relative_path ?? null" @click="(url: string) => onImageClick(xVal, undefined, url)" />
           <SliderBar
             v-if="sliderDimension"
             :values="sliderDimension.values"
@@ -372,7 +415,7 @@ onUnmounted(() => {
         :key="img.relative_path"
         class="xy-grid-flat__cell"
       >
-        <ImageCell :relative-path="img.relative_path" @click="(url: string) => emit('image:click', url)" />
+        <ImageCell :relative-path="img.relative_path" @click="(url: string) => onImageClick(undefined, undefined, url)" />
         <SliderBar
           v-if="sliderDimension"
           :values="sliderDimension.values"

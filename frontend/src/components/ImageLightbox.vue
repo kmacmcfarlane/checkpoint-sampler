@@ -1,14 +1,24 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
 import { NButton } from 'naive-ui'
 import { apiClient } from '../api/client'
+import SliderBar from './SliderBar.vue'
 
 const props = defineProps<{
   imageUrl: string
+  /** Cell key (xVal|yVal) identifying which grid cell opened the lightbox. Null when no slider. */
+  cellKey: string | null
+  /** Ordered slider dimension values. Empty array when no slider dimension assigned. */
+  sliderValues: string[]
+  /** Current slider value for this cell. Empty string when no slider dimension. */
+  currentSliderValue: string
+  /** Map from slider value → image URL for this cell. Empty object when no slider. */
+  imagesBySliderValue: Record<string, string>
 }>()
 
 const emit = defineEmits<{
   close: []
+  'slider-change': [cellKey: string, value: string]
 }>()
 
 const scale = ref(1)
@@ -149,6 +159,32 @@ function formatJSON(value: string): string {
   }
 }
 
+/** Whether the slider bar should be shown. */
+const hasSlider = computed(() => props.sliderValues.length > 1 && props.cellKey !== null)
+
+/** Handle slider value change in the lightbox. */
+function onLightboxSliderChange(value: string) {
+  if (!props.cellKey) return
+  emit('slider-change', props.cellKey, value)
+}
+
+/** Preload adjacent slider position images for instant feel. */
+function preloadAdjacentSliderImages(currentValue: string) {
+  if (!hasSlider.value) return
+  const idx = props.sliderValues.indexOf(currentValue)
+  const toPreload: number[] = []
+  if (idx > 0) toPreload.push(idx - 1)
+  if (idx < props.sliderValues.length - 1) toPreload.push(idx + 1)
+  for (const i of toPreload) {
+    const val = props.sliderValues[i]
+    const url = props.imagesBySliderValue[val]
+    if (url) {
+      const img = new Image()
+      img.src = url
+    }
+  }
+}
+
 // Reset transform and fetch metadata when the image changes
 watch(() => props.imageUrl, () => {
   scale.value = 1
@@ -160,11 +196,17 @@ watch(() => props.imageUrl, () => {
   fetchMetadata()
 })
 
+// Preload adjacent images when slider value changes
+watch(() => props.currentSliderValue, (newVal) => {
+  preloadAdjacentSliderImages(newVal)
+})
+
 onMounted(() => {
   document.addEventListener('keydown', onKeyDown)
   document.addEventListener('mousemove', onMouseMove)
   document.addEventListener('mouseup', onMouseUp)
   fetchMetadata()
+  preloadAdjacentSliderImages(props.currentSliderValue)
 })
 
 onUnmounted(() => {
@@ -229,6 +271,14 @@ onUnmounted(() => {
           cursor: isDragging ? 'grabbing' : 'grab',
         }"
         draggable="false"
+      />
+    </div>
+    <div v-if="hasSlider" class="lightbox-slider-panel" @click.stop>
+      <SliderBar
+        :values="sliderValues"
+        :current-value="currentSliderValue"
+        label="Slider"
+        @change="onLightboxSliderChange"
       />
     </div>
     <div class="metadata-panel" @click.stop>
@@ -309,6 +359,16 @@ onUnmounted(() => {
   max-height: 90vh;
   transform-origin: center center;
   user-select: none;
+}
+
+.lightbox-slider-panel {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 1001;
+  background: rgba(20, 20, 20, 0.85);
+  padding: 0.5rem 1rem;
 }
 
 .metadata-panel {

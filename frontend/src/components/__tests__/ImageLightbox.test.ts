@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import ImageLightbox from '../ImageLightbox.vue'
+import SliderBar from '../SliderBar.vue'
 
 // Mock the api client module
 vi.mock('../../api/client', () => ({
@@ -16,6 +17,10 @@ const mockGetImageMetadata = apiClient.getImageMetadata as ReturnType<typeof vi.
 describe('ImageLightbox', () => {
   const defaultProps = {
     imageUrl: '/api/images/dir/image.png',
+    cellKey: null,
+    sliderValues: [],
+    currentSliderValue: '',
+    imagesBySliderValue: {},
   }
 
   beforeEach(() => {
@@ -513,5 +518,132 @@ describe('ImageLightbox', () => {
 
     const value = wrapper.find('.metadata-value')
     expect(value.text()).toBe('plain text value')
+  })
+
+  // --- Lightbox slider tests ---
+
+  describe('slider navigation', () => {
+    const sliderProps = {
+      imageUrl: '/api/images/seed=42&step=500&cfg=3.png',
+      cellKey: '42|500',
+      sliderValues: ['3', '7', '15'],
+      currentSliderValue: '7',
+      imagesBySliderValue: {
+        '3': '/api/images/seed=42&step=500&cfg=3.png',
+        '7': '/api/images/seed=42&step=500&cfg=7.png',
+        '15': '/api/images/seed=42&step=500&cfg=15.png',
+      },
+    }
+
+    it('renders a SliderBar when slider dimension values are provided', async () => {
+      const wrapper = mount(ImageLightbox, { props: sliderProps })
+      await flushPromises()
+
+      const slider = wrapper.findComponent(SliderBar)
+      expect(slider.exists()).toBe(true)
+    })
+
+    it('does not render SliderBar when sliderValues is empty', async () => {
+      const wrapper = mount(ImageLightbox, { props: defaultProps })
+      await flushPromises()
+
+      const slider = wrapper.findComponent(SliderBar)
+      expect(slider.exists()).toBe(false)
+    })
+
+    it('does not render SliderBar when cellKey is null even if sliderValues are provided', async () => {
+      const wrapper = mount(ImageLightbox, {
+        props: { ...sliderProps, cellKey: null },
+      })
+      await flushPromises()
+
+      const slider = wrapper.findComponent(SliderBar)
+      expect(slider.exists()).toBe(false)
+    })
+
+    it('passes the correct values and currentValue to SliderBar', async () => {
+      const wrapper = mount(ImageLightbox, { props: sliderProps })
+      await flushPromises()
+
+      const slider = wrapper.findComponent(SliderBar)
+      expect(slider.props('values')).toEqual(['3', '7', '15'])
+      expect(slider.props('currentValue')).toBe('7')
+    })
+
+    it('emits slider-change with cellKey and new value when SliderBar changes', async () => {
+      const wrapper = mount(ImageLightbox, { props: sliderProps })
+      await flushPromises()
+
+      const slider = wrapper.findComponent(SliderBar)
+      slider.vm.$emit('change', '15')
+      await wrapper.vm.$nextTick()
+
+      const emitted = wrapper.emitted('slider-change')
+      expect(emitted).toBeDefined()
+      expect(emitted![0]).toEqual(['42|500', '15'])
+    })
+
+    it('zoom and pan still work when slider is present', async () => {
+      const wrapper = mount(ImageLightbox, { props: sliderProps })
+      await flushPromises()
+
+      const contentEl = wrapper.find('.lightbox-content').element
+      const img = wrapper.find('.lightbox-image')
+
+      const wheelEvent = new WheelEvent('wheel', {
+        deltaY: -100,
+        clientX: 400,
+        clientY: 300,
+        bubbles: true,
+        cancelable: true,
+      })
+      contentEl.dispatchEvent(wheelEvent)
+      await wrapper.vm.$nextTick()
+
+      const style = img.attributes('style') ?? ''
+      const scaleMatch = style.match(/scale\(([^)]+)\)/)
+      expect(scaleMatch).toBeTruthy()
+      expect(parseFloat(scaleMatch![1])).toBeGreaterThan(1)
+    })
+
+    it('metadata panel still works when slider is present', async () => {
+      mockGetImageMetadata.mockResolvedValue({ metadata: { prompt: '{}' } })
+
+      const wrapper = mount(ImageLightbox, { props: sliderProps })
+      await flushPromises()
+
+      await wrapper.find('.metadata-toggle').trigger('click')
+      expect(wrapper.find('.metadata-content').exists()).toBe(true)
+    })
+
+    it('does not render SliderBar when sliderValues has only one value', async () => {
+      const wrapper = mount(ImageLightbox, {
+        props: {
+          ...sliderProps,
+          sliderValues: ['3'],
+          currentSliderValue: '3',
+        },
+      })
+      await flushPromises()
+
+      const slider = wrapper.findComponent(SliderBar)
+      expect(slider.exists()).toBe(false)
+    })
+
+    it('preloads adjacent slider images on mount', async () => {
+      const imageSpy = vi.spyOn(global, 'Image').mockImplementation(() => {
+        return { src: '' } as HTMLImageElement
+      })
+
+      mount(ImageLightbox, { props: sliderProps })
+      await flushPromises()
+
+      // Current value is '7' (index 1), so adjacent are '3' (index 0) and '15' (index 2)
+      const createdImages = imageSpy.mock.results.map((r) => r.value.src)
+      expect(createdImages).toContain('/api/images/seed=42&step=500&cfg=3.png')
+      expect(createdImages).toContain('/api/images/seed=42&step=500&cfg=15.png')
+
+      imageSpy.mockRestore()
+    })
   })
 })

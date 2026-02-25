@@ -1192,7 +1192,7 @@ stories:
   - id: S-037
     title: "Slider navigation in image lightbox"
     priority: 45
-    status: todo
+    status: done
     requires: []
     acceptance:
       - "FE: When the lightbox is open, a SliderBar is shown below the image allowing the user to step through values of the slider-assigned dimension"
