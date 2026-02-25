@@ -1,0 +1,36 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    user: "${UID:-1000}:${GID:-1000}"
+    volumes:
+      - ./backend:/build
+      - backend_test_data:/build/data
+      - ./config.yaml:/build/config.yaml:ro
+      - ./workflows:/build/workflows:ro
+      - ${CHECKPOINT_DIR:-./.dataset-placeholder}:/data/checkpoints:ro
+      - ${SAMPLE_DIR:-./.dataset-placeholder}:/data/samples:ro
+      - backend_test_go_cache:/home/gouser/.cache/go-build
+      - backend_test_go_mod_cache:/home/gouser/go/pkg/mod
+    environment:
+      - PORT=8080
+      - CONFIG_PATH=/build/config.yaml
+      - LOG_LEVEL=info
+      - GOPATH=/home/gouser/go
+      - GOCACHE=/home/gouser/.cache/go-build
+      - GOMODCACHE=/home/gouser/go/pkg/mod
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./frontend:/app
+      - frontend_test_node_modules:/app/node_modules
+
+volumes:
+  frontend_test_node_modules:
+  backend_test_data:
+  backend_test_go_cache:
+  backend_test_go_mod_cache:

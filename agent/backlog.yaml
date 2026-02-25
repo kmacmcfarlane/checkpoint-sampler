@@ -1056,7 +1056,7 @@ stories:
   - id: S-041
     title: "Playwright E2E test infrastructure setup"
     priority: 55
-    status: todo
+    status: done
     requires: []
     acceptance:
       - "DEVOPS: Set up a new makefile target up-test; it should have separate docker named volume(s) such that test runs can do `make down-test` to reset storage without affecting my environment using make up-dev"
