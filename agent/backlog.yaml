@@ -1221,7 +1221,7 @@ stories:
   - id: S-038
     title: "Keyboard navigation for sliders"
     priority: 35
-    status: todo
+    status: done
     requires: []
     acceptance:
       - "FE: When an ImageCell is focused (clicked or tabbed to), left/right arrow keys step the cell's slider backward/forward by one value"

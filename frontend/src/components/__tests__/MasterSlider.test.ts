@@ -152,20 +152,26 @@ describe('MasterSlider', () => {
       expect(emitted![0]).toEqual(['100'])
     })
 
-    it('does not emit when ArrowRight at last value', async () => {
+    it('wraps forward: ArrowRight at last value emits first value', async () => {
       const wrapper = mountMaster({ currentValue: '2000' })
       const container = wrapper.find('.master-slider')
       await container.trigger('keydown', { key: 'ArrowRight' })
 
-      expect(wrapper.emitted('change')).toBeUndefined()
+      const emitted = wrapper.emitted('change')
+      expect(emitted).toBeDefined()
+      expect(emitted).toHaveLength(1)
+      expect(emitted![0]).toEqual(['100'])
     })
 
-    it('does not emit when ArrowLeft at first value', async () => {
+    it('wraps backward: ArrowLeft at first value emits last value', async () => {
       const wrapper = mountMaster({ currentValue: '100' })
       const container = wrapper.find('.master-slider')
       await container.trigger('keydown', { key: 'ArrowLeft' })
 
-      expect(wrapper.emitted('change')).toBeUndefined()
+      const emitted = wrapper.emitted('change')
+      expect(emitted).toBeDefined()
+      expect(emitted).toHaveLength(1)
+      expect(emitted![0]).toEqual(['2000'])
     })
 
     it('does not emit for non-arrow keys', async () => {

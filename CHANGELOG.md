@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-038: Keyboard navigation for sliders
+- `frontend/src/components/ImageCell.vue`: Added optional `sliderValues` and `currentSliderValue` props, keyboard event handler (`onKeydown`) with wrap-around left/right/up/down arrow navigation, `slider:change` emit, conditional `tabindex="0"` for focusability, and CSS `:focus` outline for visual focus indicator
+- `frontend/src/components/MasterSlider.vue`: Updated `onKeydown` to wrap around at boundaries — ArrowRight at last value emits first value, ArrowLeft at first value emits last value (consistent with playback loop behavior)
+- `frontend/src/components/XYGrid.vue`: Updated all four ImageCell usages (X+Y grid, Y-only grid, X-only grid, flat grid) to pass `sliderValues` and `currentSliderValue` props and wire the `@slider:change` event
+- `frontend/src/components/__tests__/ImageCell.test.ts`: 12 new tests covering arrow key stepping, wrap-around, non-arrow key passthrough, missing/empty sliderValues, and visual focus indicator
+- `frontend/src/components/__tests__/MasterSlider.test.ts`: Updated boundary tests to verify wrap-around behavior instead of no-emit
+- 548 frontend tests pass; 26/26 E2E tests pass
+
 ### S-046: E2E test: slider and playback controls
 - Added `frontend/e2e/slider-playback.spec.ts` with 5 Playwright E2E tests covering the slider and playback workflow: assigning a dimension to the Slider role and verifying the master slider appears, keyboard navigation (ArrowRight/ArrowLeft) stepping through slider values, verifying all image cells update synchronously when the master slider steps, starting playback at 0.25s speed and observing at least 2 automatic advances with loop, and stopping playback and verifying the slider holds its position
 - 26 E2E tests pass (5 new slider-playback + 21 existing); 536 frontend unit tests pass; 477 backend specs pass

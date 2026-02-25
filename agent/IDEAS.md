@@ -36,6 +36,9 @@ The orchestrator currently has no structured mechanism to accumulate E2E pass/fa
 
 ## Dev Ops
 
+### E2E log capture before teardown
+Consider adding a `make test-e2e-logs` target or `--always-save-logs` option that captures docker compose logs to a file before teardown, enabling the QA runtime error sweep even for self-contained E2E runs.
+
 ### Shared E2E test helper module
 The helper functions `selectTrainingRun`, `selectNaiveOption`, `closeDrawer`, `expandFiltersSection`, and `expandDimensionFilter` are duplicated across multiple E2E spec files. A shared E2E helper module at `frontend/e2e/helpers.ts` would reduce duplication and make tests easier to maintain.
 
@@ -162,8 +165,20 @@ The test fixture only supports 2 slider values (landscape/portrait). Adding a th
 ### Acceptance criteria map in E2E test docblocks
 Consider requiring that each acceptance criterion be explicitly referenced in the test or docblock (e.g., `// AC: Test drags or steps master slider and verifies all image cells update`). This would make QA traceability verification faster for the QA agent.
 
+### AC-to-test annotation in unit tests
+The acceptance criterion about not interfering with page scrolling (AC5) is verified indirectly (no global keydown listener, preventDefault scoped to focused cells). Adding inline comments linking specific tests to acceptance criteria would make traceability explicit for future maintainers and QA.
+
+### Acceptance criteria gap for SliderBar wrap-around
+The S-038 story specifies wrap-around for ImageCell and MasterSlider but does not mention SliderBar. A note clarifying SliderBar's intended boundary behavior would prevent ambiguity for future implementors.
+
 ### Playback test timeout budgeting documentation
 The playback advancement tests use `{ timeout: 5000 }` with a 0.25s playback speed, giving a 20x safety margin. Document this as the recommended approach for timing-sensitive E2E assertions in TEST_PRACTICES.md section 6.5 ("set speed to minimum, use generous timeouts, avoid waitForTimeout except for hold-position verification").
+
+### SliderBar wrap-around consistency
+SliderBar could optionally support wrap-around behavior (configurable via a prop) so keyboard navigation on the SliderBar is consistent with the ImageCell. Currently they differ at boundaries.
+
+### XYGrid keyboard integration test
+Add a test to XYGrid.test.ts that triggers a keydown on an ImageCell component within XYGrid and asserts that update:sliderValue is emitted with the correct cell key and new value. This would make the event-wiring path explicitly tested.
 
 ### Tiered code review model selection
 Consider using sonnet for code review on simple, pattern-following changes (small frontend-only diffs, single-component changes) and reserving opus for architectural changes, security-sensitive stories, or cross-stack modifications. This could be driven by a `complexity` field on the story or heuristically derived from the diff size and layers touched. The B-020 review used opus for a 4-file frontend-only change that was straightforward — sonnet would likely have caught the same issues at lower cost and latency.

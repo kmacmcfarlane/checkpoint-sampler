@@ -31,14 +31,12 @@ function onKeydown(event: KeyboardEvent) {
   const idx = currentIndex.value
   if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') {
     event.preventDefault()
-    if (idx > 0) {
-      emit('change', props.values[idx - 1])
-    }
+    const prevIdx = idx > 0 ? idx - 1 : props.values.length - 1
+    emit('change', props.values[prevIdx])
   } else if (event.key === 'ArrowRight' || event.key === 'ArrowUp') {
     event.preventDefault()
-    if (idx < props.values.length - 1) {
-      emit('change', props.values[idx + 1])
-    }
+    const nextIdx = idx < props.values.length - 1 ? idx + 1 : 0
+    emit('change', props.values[nextIdx])
   }
 }
 

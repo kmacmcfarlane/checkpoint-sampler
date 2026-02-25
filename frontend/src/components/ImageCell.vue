@@ -3,10 +3,15 @@ import { computed } from 'vue'
 
 const props = defineProps<{
   relativePath: string | null
+  /** Ordered slider values for this cell. When provided, arrow keys step through them. */
+  sliderValues?: string[]
+  /** Currently active slider value for this cell. */
+  currentSliderValue?: string
 }>()
 
 const emit = defineEmits<{
   click: [imageUrl: string]
+  'slider:change': [value: string]
 }>()
 
 const imageUrl = computed(() => {
@@ -19,10 +24,35 @@ function onClick() {
     emit('click', imageUrl.value)
   }
 }
+
+function onKeydown(event: KeyboardEvent) {
+  const values = props.sliderValues
+  if (!values || values.length === 0) return
+
+  const current = props.currentSliderValue ?? ''
+  const idx = values.indexOf(current)
+  const currentIdx = idx >= 0 ? idx : 0
+
+  if (event.key === 'ArrowRight' || event.key === 'ArrowUp') {
+    event.preventDefault()
+    const nextIdx = currentIdx < values.length - 1 ? currentIdx + 1 : 0
+    emit('slider:change', values[nextIdx])
+  } else if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') {
+    event.preventDefault()
+    const prevIdx = currentIdx > 0 ? currentIdx - 1 : values.length - 1
+    emit('slider:change', values[prevIdx])
+  }
+}
 </script>
 
 <template>
-  <div class="image-cell" :class="{ 'image-cell--empty': !relativePath }" @click="onClick">
+  <div
+    class="image-cell"
+    :class="{ 'image-cell--empty': !relativePath }"
+    :tabindex="sliderValues && sliderValues.length > 0 ? 0 : undefined"
+    @click="onClick"
+    @keydown="onKeydown"
+  >
     <img
       v-if="imageUrl"
       :src="imageUrl"
@@ -44,6 +74,11 @@ function onClick() {
   justify-content: center;
   width: 100%;
   height: 100%;
+}
+
+.image-cell:focus {
+  outline: 2px solid var(--accent-color, #1976d2);
+  outline-offset: -2px;
 }
 
 .image-cell img {

@@ -354,7 +354,13 @@ onUnmounted(() => {
               role="gridcell"
               :style="{ gridRow: rowIndex(yIdx), gridColumn: colIndex(xIdx) }"
             >
-              <ImageCell :relative-path="getImage(xVal, yVal)?.relative_path ?? null" @click="(url: string) => onImageClick(xVal, yVal, url)" />
+              <ImageCell
+                :relative-path="getImage(xVal, yVal)?.relative_path ?? null"
+                :slider-values="sliderDimension?.values"
+                :current-slider-value="getSliderValue(xVal, yVal)"
+                @click="(url: string) => onImageClick(xVal, yVal, url)"
+                @slider:change="(v: string) => onSliderChange(xVal, yVal, v)"
+              />
               <SliderBar
                 v-if="sliderDimension"
                 :values="sliderDimension.values"
@@ -372,7 +378,13 @@ onUnmounted(() => {
             role="gridcell"
             :style="{ gridRow: rowIndex(yIdx), gridColumn: colBase }"
           >
-            <ImageCell :relative-path="getImage(undefined, yVal)?.relative_path ?? null" @click="(url: string) => onImageClick(undefined, yVal, url)" />
+            <ImageCell
+              :relative-path="getImage(undefined, yVal)?.relative_path ?? null"
+              :slider-values="sliderDimension?.values"
+              :current-slider-value="getSliderValue(undefined, yVal)"
+              @click="(url: string) => onImageClick(undefined, yVal, url)"
+              @slider:change="(v: string) => onSliderChange(undefined, yVal, v)"
+            />
             <SliderBar
               v-if="sliderDimension"
               :values="sliderDimension.values"
@@ -393,7 +405,13 @@ onUnmounted(() => {
           role="gridcell"
           :style="{ gridRow: rowBase, gridColumn: colIndex(xIdx) }"
         >
-          <ImageCell :relative-path="getImage(xVal, undefined)?.relative_path ?? null" @click="(url: string) => onImageClick(xVal, undefined, url)" />
+          <ImageCell
+            :relative-path="getImage(xVal, undefined)?.relative_path ?? null"
+            :slider-values="sliderDimension?.values"
+            :current-slider-value="getSliderValue(xVal, undefined)"
+            @click="(url: string) => onImageClick(xVal, undefined, url)"
+            @slider:change="(v: string) => onSliderChange(xVal, undefined, v)"
+          />
           <SliderBar
             v-if="sliderDimension"
             :values="sliderDimension.values"
@@ -415,7 +433,13 @@ onUnmounted(() => {
         :key="img.relative_path"
         class="xy-grid-flat__cell"
       >
-        <ImageCell :relative-path="img.relative_path" @click="(url: string) => onImageClick(undefined, undefined, url)" />
+        <ImageCell
+          :relative-path="img.relative_path"
+          :slider-values="sliderDimension?.values"
+          :current-slider-value="getSliderValue(undefined, undefined)"
+          @click="(url: string) => onImageClick(undefined, undefined, url)"
+          @slider:change="(v: string) => onSliderChange(undefined, undefined, v)"
+        />
         <SliderBar
           v-if="sliderDimension"
           :values="sliderDimension.values"
