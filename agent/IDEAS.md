@@ -66,6 +66,9 @@ The `npm ci` in the playwright container produces 5 high severity vulnerability 
 ### Update .air.toml to use build.entrypoint
 The air hot-reload configuration uses the deprecated `build.bin` setting, producing a startup warning on every dev container launch. Migrating to `build.entrypoint` would silence this warning and keep the config current with the air toolchain.
 
+### make test-backend with run --rm instead of exec
+The Makefile's `test-backend` target uses `exec` which requires the dev stack to be running, making it unusable as a one-shot command when the stack is down. Changing it to `run --rm` would align documentation with implementation and make it usable without a running stack.
+
 ### OpenFile log level for os.ErrNotExist
 The `FileSystem.OpenFile()` method logs at error level for all open failures. For the sidecar-first metadata reading pattern, file-not-found is an expected condition for pre-existing images. Downgrading not-found errors to debug level while keeping error level for unexpected failures would reduce log noise significantly.
 
@@ -186,6 +189,9 @@ SliderBar could optionally support wrap-around behavior (configurable via a prop
 ### XYGrid keyboard integration test
 Add a test to XYGrid.test.ts that triggers a keydown on an ImageCell component within XYGrid and asserts that update:sliderValue is emitted with the correct cell key and new value. This would make the event-wiring path explicitly tested.
 
+### Log-level tuning for other "expected miss" paths
+The `ListPNGFiles` and `ListSafetensorsFiles` functions also log at error unconditionally on directory-not-found. Those paths may have similar "expected miss" scenarios (e.g., a checkpoint directory configured but not yet mounted). A follow-up could apply the same debug-level pattern there.
+
 ### Sidecar reader for metadata display
 The current `parseSidecarJSON` returns all values as strings, which means numeric fields like `seed` come back as JSON numbers serialized to strings. A dedicated API response type could differentiate string vs numeric fields for richer frontend display.
 
@@ -197,6 +203,9 @@ The `NegativePrompt` field on `SampleJobItem` required a DB migration as part of
 
 ### AC completeness check for cross-cutting concerns
 Acceptance criteria mentioning sidecar fields should explicitly call out any missing model fields or DB columns as prerequisites, so implementers don't discover them mid-story.
+
+### Bug reports should include call site context
+Bug descriptions should include the call chain (e.g., "called from `image_metadata.go` sidecar lookup") so the developer immediately understands the scope of the issue, not just the symptom.
 
 ### Tiered code review model selection
 Consider using sonnet for code review on simple, pattern-following changes (small frontend-only diffs, single-component changes) and reserving opus for architectural changes, security-sensitive stories, or cross-stack modifications. This could be driven by a `complexity` field on the story or heuristically derived from the diff size and layers touched. The B-020 review used opus for a 4-file frontend-only change that was straightforward — sonnet would likely have caught the same issues at lower cost and latency.

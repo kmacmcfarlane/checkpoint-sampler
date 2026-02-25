@@ -109,10 +109,15 @@ func (fs *FileSystem) OpenFile(path string) (io.ReadCloser, error) {
 	fs.logger.WithField("path", path).Debug("opening file")
 	file, err := os.Open(path)
 	if err != nil {
-		fs.logger.WithFields(logrus.Fields{
+		fields := logrus.Fields{
 			"path":  path,
 			"error": err.Error(),
-		}).Error("failed to open file")
+		}
+		if os.IsNotExist(err) {
+			fs.logger.WithFields(fields).Debug("file not found")
+		} else {
+			fs.logger.WithFields(fields).Error("failed to open file")
+		}
 		return nil, err
 	}
 	return file, nil

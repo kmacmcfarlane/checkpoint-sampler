@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### B-022: FileSystem.OpenFile logs at error level for expected sidecar miss (file not found)
+- `backend/internal/store/filesystem.go`: Changed `OpenFile` error handler to log at `debug` level when `os.IsNotExist(err)` is true, retaining `error` level for all other failures (e.g., permission denied)
+- `backend/internal/store/filesystem_test.go`: Added 4 new `OpenFile` tests covering happy-path read, file-not-found error return, file-not-found logs at debug (not error), and permission-denied logs at error level
+- 501 backend tests pass (121 API + 29 Config + 247 Service + 104 Store); 26 E2E tests pass
+
 ### S-039: JSON sidecar metadata per image
 - `backend/internal/fileformat/sidecar.go`: New file — defines `SidecarMetadata` external file format type with JSON tags for sidecar files written alongside generated images
 - `backend/internal/model/sample_job.go`: Added `NegativePrompt` field to `SampleJobItem` domain model
