@@ -1,0 +1,12 @@
+# E2E test fixture configuration
+# Used by docker-compose.e2e.yml to provide deterministic test data.
+
+checkpoint_dirs:
+  - /data/checkpoints
+
+sample_dir: /data/samples
+
+port: 8080
+ip_address: "0.0.0.0"
+
+db_path: ./data/checkpoint-sampler.db

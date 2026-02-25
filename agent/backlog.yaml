@@ -1081,7 +1081,7 @@ stories:
   - id: S-042
     title: "E2E test: training run selection and XY grid display"
     priority: 50
-    status: todo
+    status: done
     requires: [S-041]
     acceptance:
       - "E2E: Test selects a training run from the sidebar dropdown"

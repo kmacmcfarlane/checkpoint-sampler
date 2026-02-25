@@ -25,6 +25,9 @@ There is currently no way to run E2E tests against `make up-test` (the isolated 
 ### Playwright HTML report as secondary reporter
 Adding an HTML report alongside the list reporter (e.g., `reporter: [['list'], ['html', { open: 'never' }]]`) would provide richer failure analysis for complex E2E failures without changing pass/fail behavior.
 
+### E2E screenshot on failure
+Consider adding `screenshot: 'only-on-failure'` to `playwright.config.ts` to capture screenshots for debugging failed tests. Currently no visual evidence is captured on failure.
+
 ## Dev Ops
 
 ### Playwright browser pre-warming
@@ -35,6 +38,15 @@ When the implicit project name changed from directory-derived `checkpoint-sample
 
 ### Network name constant for E2E compose
 The string `checkpoint-sampler-dev_default` appears in both `docker-compose.e2e.yml` and documentation. If the project name ever changes, both must be updated in sync. A single source of truth (e.g., `.env` variable) would reduce drift risk.
+
+### E2E cold-build startup time
+The backend uses `Dockerfile.dev` (air with `go generate` + `go build`) which can take 5+ minutes cold. A production-mode E2E image or pre-compiled binary could dramatically speed up CI runs.
+
+### npm audit warnings in playwright run
+The `npm ci` in the playwright container produces 5 high severity vulnerability warnings on every run. These are pre-existing but should be addressed to clean up CI output.
+
+### Update .air.toml to use build.entrypoint
+The air hot-reload configuration uses the deprecated `build.bin` setting, producing a startup warning on every dev container launch. Migrating to `build.entrypoint` would silence this warning and keep the config current with the air toolchain.
 
 ### Suppress Docker Compose orphan container warning in test-e2e
 Running `make test-e2e` after `make up-dev` produces a Docker Compose orphan container warning. Adding `--remove-orphans` to the `COMPOSE_E2E` run command, or documenting it as expected behavior in TEST_PRACTICES.md, would remove the noise.
@@ -83,6 +95,12 @@ When testing Naive UI component props, the kebab-case template syntax (e.g. `con
 
 ### Sandbox curl workaround for QA smoke tests
 The QA agent runs inside a Docker sandbox that cannot directly reach host-mapped ports (localhost:8080). Smoke tests should use `docker compose exec <service> wget` or similar within-network commands. Documenting this pattern in TEST_PRACTICES.md section 5.5 would save future QA agents from debugging the connectivity gap.
+
+### Fixture-aware smoke test
+The existing smoke test assumes no specific data. Now that test fixtures always exist in the E2E stack, the smoke test could be enhanced to verify a training run is listed in the API response as a basic sanity check.
+
+### Document /health vs /api/health discrepancy
+The smoke test instructions in TEST_PRACTICES.md section 5.5 reference checking a "health or root endpoint" but do not specify the exact path. The actual health endpoint is `/health` (direct backend path), while the frontend Vite proxy exposes it at `/health`. Documenting the canonical health check path would prevent confusion in future QA cycles.
 
 ### Tiered code review model selection
 Consider using sonnet for code review on simple, pattern-following changes (small frontend-only diffs, single-component changes) and reserving opus for architectural changes, security-sensitive stories, or cross-stack modifications. This could be driven by a `complexity` field on the story or heuristically derived from the diff size and layers touched. The B-020 review used opus for a 4-file frontend-only change that was straightforward — sonnet would likely have caught the same issues at lower cost and latency.

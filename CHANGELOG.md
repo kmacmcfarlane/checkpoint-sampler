@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-042: E2E test: training run selection and XY grid display
+- Added `frontend/e2e/training-run-grid.spec.ts` with 4 Playwright E2E tests covering the core user journey: selecting a training run, assigning dimension axes, verifying the XY grid renders with dimension labels, and verifying image cells appear
+- Redesigned `docker-compose.e2e.yml` to be a fully self-contained E2E stack with backend, frontend, and playwright services using deterministic test fixture data — `make test-e2e` no longer requires `make up-dev` to be running
+- Added `test-fixtures/` directory with checkpoint stubs, minimal PNG sample images, and a test config.yaml for reproducible E2E testing
+- Updated Makefile `test-e2e` target to start the E2E stack, run Playwright, then tear down automatically; added `down-e2e` target
+- Updated CLAUDE.md and TEST_PRACTICES.md to document the new self-contained E2E approach
+- 6 E2E tests pass (4 new + 2 existing smoke tests); 527 frontend unit tests pass
+
 ### S-041: Playwright E2E test infrastructure setup
 - Added `make up-test` / `make down-test` targets with isolated Docker Compose project (`checkpoint-sampler-test`) and separate named volumes, so test environment resets don't affect `make up-dev`
 - Added `make test-e2e` target using official Playwright Docker image (`mcr.microsoft.com/playwright:v1.58.2-noble`) that connects to the running dev stack via external Docker network
