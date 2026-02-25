@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-044: E2E test: dimension filtering and combo filters
+- Added `frontend/e2e/dimension-filtering.spec.ts` with 4 Playwright E2E tests covering the dimension configuration and filtering workflow: opening the dimension panel and changing X/Y axis assignments, verifying the grid updates to reflect new axis dimensions, applying a combo filter (deselecting a value) to reduce grid columns, and clearing the filter to restore the full grid state
+- 16 E2E tests pass (4 new dimension-filtering + 12 existing); no application code modified
+
 ### S-043: E2E test: image lightbox interaction
 - Added `frontend/e2e/lightbox.spec.ts` with 6 Playwright E2E tests covering the image lightbox user journey: clicking an image cell to open the lightbox, verifying the full-size image displays, zoom controls (zoom in, zoom out, reset) visibility and functionality, metadata panel toggle, close button dismissal, and Escape key dismissal
 - Updated `frontend/src/components/ImageLightbox.vue`: added explicit zoom in, zoom out, and reset zoom buttons with `aria-label` attributes and corresponding `zoomIn()`, `zoomOut()`, `resetZoom()` functions to enable E2E testing of zoom controls

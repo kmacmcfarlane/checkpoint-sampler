@@ -1118,7 +1118,7 @@ stories:
   - id: S-044
     title: "E2E test: dimension filtering and combo filters"
     priority: 46
-    status: todo
+    status: done
     requires: [S-042]
     acceptance:
       - "E2E: Test opens the dimension panel and changes X/Y axis assignments"

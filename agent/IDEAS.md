@@ -13,6 +13,9 @@ The job launch dialog's preset dropdown could show a tooltip or inline summary (
 ### E2E test for dropdown width
 A Playwright test that opens the TrainingRunSelector with a 128+ character training run name and asserts the dropdown option is not truncated (i.e., scrollWidth === clientWidth) would give stronger confidence in the dropdown width fix without relying purely on prop assertions.
 
+### Combo filter "Solo" click in E2E tests
+The `DimensionFilter` component supports clicking a value text to "solo" it (select only that value). This workflow wasn't covered by E2E tests. A future story could add coverage for the solo interaction as it's a power-user feature.
+
 ### E2E test for sample generation batch
 Add a Playwright E2E test that exercises the full sample generation flow: select a training run, configure a preset, launch a job, and verify images appear in the grid. This depends on a running ComfyUI instance and will be slow compared to other E2E tests, so it should be behind a separate test tag or only run on demand. Needs design work around how to mock or connect to ComfyUI in CI and how to handle the long execution time.
 
@@ -32,6 +35,9 @@ Consider adding `screenshot: 'only-on-failure'` to `playwright.config.ts` to cap
 The orchestrator currently has no structured mechanism to accumulate E2E pass/fail trends over time. Adding a simple log of E2E results per story to `.ralph-debug/` could enable spotting regressions before they become endemic.
 
 ## Dev Ops
+
+### Shared E2E test helper module
+The helper functions `selectTrainingRun`, `selectNaiveOption`, `closeDrawer`, `expandFiltersSection`, and `expandDimensionFilter` are duplicated across multiple E2E spec files. A shared E2E helper module at `frontend/e2e/helpers.ts` would reduce duplication and make tests easier to maintain.
 
 ### Playwright test isolation via shared fixture
 Each E2E test in the lightbox suite repeats the full `setupGridWithImages` flow (~2.5s per test). A shared test fixture that loads the grid once and then runs each test via Playwright's `test.beforeEach` scoped to a `describe` block could reduce total E2E run time.
