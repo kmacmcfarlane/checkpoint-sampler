@@ -1,6 +1,8 @@
-.PHONY: claude claude-resume ralph ralph-resume ralph-auto ralph-auto-resume ralph-auto-debug ralph-debug capture-runtime-context up down logs up-dev down-dev logs-dev test-frontend-watch test-backend-watch
+.PHONY: claude claude-resume ralph ralph-resume ralph-auto ralph-auto-resume ralph-auto-debug ralph-debug capture-runtime-context up down logs up-dev down-dev logs-dev test-frontend-watch test-backend-watch up-test down-test test-e2e
 
-COMPOSE_DEV = docker compose -f docker-compose.yml -f docker-compose.dev.yml
+COMPOSE_DEV = docker compose -p checkpoint-sampler-dev -f docker-compose.yml -f docker-compose.dev.yml
+COMPOSE_TEST = docker compose -p checkpoint-sampler-test -f docker-compose.yml -f docker-compose.test.yml
+COMPOSE_E2E = docker compose -p checkpoint-sampler-dev -f docker-compose.e2e.yml
 
 claude:
 	claude-sandbox
@@ -70,3 +72,16 @@ test-backend:
 
 test-backend-watch:
 	$(COMPOSE_DEV) exec backend ginkgo watch -r --cover --race ./internal/... ./cmd/...
+
+# Test environment: isolated volumes for E2E runs; use make down-test to wipe without affecting up-dev
+up-test:
+	$(COMPOSE_TEST) up -d --build
+
+down-test:
+	$(COMPOSE_TEST) down -v
+
+# Run Playwright E2E tests using the official Playwright Docker image.
+# Requires make up-dev to already be running. The playwright container joins the
+# checkpoint-sampler-dev_default network and connects to the frontend service there.
+test-e2e:
+	$(COMPOSE_E2E) run --rm playwright sh -c "npm ci && npx playwright test"

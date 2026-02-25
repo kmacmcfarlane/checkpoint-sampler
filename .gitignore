@@ -17,6 +17,10 @@ dist/
 build/
 *.tsbuildinfo
 
+# Playwright
+frontend/test-results/
+frontend/playwright-report/
+
 # Go build artifacts
 backend/server
 backend/bin/

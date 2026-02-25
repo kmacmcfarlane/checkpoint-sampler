@@ -95,9 +95,11 @@ Root Makefile targets (work in both sandbox and host — preferred for agent use
 - `make up-dev`
 - `make test-backend` / `make test-backend-watch`
 - `make test-frontend` / `make test-frontend-watch`
+- `make test-e2e` (Playwright E2E tests; requires `make up-dev` to already be running)
+- `make up-test` / `make down-test` (isolated test environment with separate volumes; independent from up-dev)
 
 Backend via compose (sandbox — when Go is not installed locally):
-- Codegen: `docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm backend sh -c "cd /build && make gen"`
+- Codegen: `docker compose -p checkpoint-sampler-dev -f docker-compose.yml -f docker-compose.dev.yml run --rm backend sh -c "cd /build && make gen"`
 - One-shot: use root `make test-backend`
 
 Backend direct (host — requires Go installed):

@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-041: Playwright E2E test infrastructure setup
+- Added `make up-test` / `make down-test` targets with isolated Docker Compose project (`checkpoint-sampler-test`) and separate named volumes, so test environment resets don't affect `make up-dev`
+- Added `make test-e2e` target using official Playwright Docker image (`mcr.microsoft.com/playwright:v1.58.2-noble`) that connects to the running dev stack via external Docker network
+- Installed `@playwright/test ^1.58.2` as frontend dev dependency with `playwright.config.ts` (headless Chromium, list reporter, `chromiumSandbox: false` for Docker compatibility)
+- Created `frontend/e2e/smoke.spec.ts` with 2 smoke tests: app loads with correct title, health endpoint returns 200 through the frontend proxy
+- Docker Compose stacks now use explicit project names (`checkpoint-sampler-dev`, `checkpoint-sampler-test`) for full volume isolation
+- Vitest config properly extends `configDefaults.exclude` to avoid dropping default exclusions
+- CLAUDE.md section 8 and TEST_PRACTICES.md section 6 updated with E2E testing documentation
+- 527 frontend tests pass; 477 backend specs pass; 2 E2E smoke tests pass
+
 ### B-018: Training run selector dropdown too narrow to read long names
 - TrainingRunSelector.vue: Added `filterable` prop to NSelect so users can type to filter training runs; set `consistent-menu-width="false"` and `menu-props` with `min-width: 320px; max-width: min(600px, 100vw)` so the dropdown popover is wide enough for long names without exceeding viewport width on small screens
 - TrainingRunSelector.test.ts: 3 new tests covering filterable, consistentMenuWidth, and menuProps style constraints

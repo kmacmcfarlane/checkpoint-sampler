@@ -16,7 +16,28 @@ A Playwright test that opens the TrainingRunSelector with a 128+ character train
 ### E2E test for sample generation batch
 Add a Playwright E2E test that exercises the full sample generation flow: select a training run, configure a preset, launch a job, and verify images appear in the grid. This depends on a running ComfyUI instance and will be slow compared to other E2E tests, so it should be behind a separate test tag or only run on demand. Needs design work around how to mock or connect to ComfyUI in CI and how to handle the long execution time.
 
+### Test-E2E isolated target
+A `make test-e2e-isolated` target could run `make up-test`, then `make test-e2e`, then `make down-test` as a fully self-contained E2E run. This would be useful for CI pipelines.
+
+### E2E tests against isolated test stack
+There is currently no way to run E2E tests against `make up-test` (the isolated volume stack). A second target using a test-specific network would enable CI to run E2E against a fully isolated environment without touching the dev stack.
+
+### Playwright HTML report as secondary reporter
+Adding an HTML report alongside the list reporter (e.g., `reporter: [['list'], ['html', { open: 'never' }]]`) would provide richer failure analysis for complex E2E failures without changing pass/fail behavior.
+
 ## Dev Ops
+
+### Playwright browser pre-warming
+The `npm ci` on every E2E test invocation adds 5-10 seconds. Consider building a custom image `FROM mcr.microsoft.com/playwright:...` with `npm ci` baked in as a project-maintained Docker image to speed up CI.
+
+### Old Docker Compose stack migration helper
+When the implicit project name changed from directory-derived `checkpoint-sampler` to explicit `checkpoint-sampler-dev`, existing running stacks are orphaned. A one-time migration note or a `make migrate-dev-stack` helper would prevent confusion.
+
+### Network name constant for E2E compose
+The string `checkpoint-sampler-dev_default` appears in both `docker-compose.e2e.yml` and documentation. If the project name ever changes, both must be updated in sync. A single source of truth (e.g., `.env` variable) would reduce drift risk.
+
+### Suppress Docker Compose orphan container warning in test-e2e
+Running `make test-e2e` after `make up-dev` produces a Docker Compose orphan container warning. Adding `--remove-orphans` to the `COMPOSE_E2E` run command, or documenting it as expected behavior in TEST_PRACTICES.md, would remove the noise.
 
 ### Playwright E2E smoke tests for QA
 Add Playwright for end-to-end testing that verifies the full application stack (frontend rendering, API routing, service wiring) works beyond what unit tests can catch. This would replace the manual `curl`-based smoke tests in the QA phase with proper browser-driven verification.
@@ -47,6 +68,9 @@ The QA subagent would run E2E tests as part of its verification:
 - Browser version is pinned to the Playwright npm package version — always use the bundled browser, not system Chrome
 
 ## Workflow
+
+### AC sandbox interpretation clarity
+Story acceptance criteria mentioning "works in the claude-sandbox" should clarify whether they mean "directly in the sandbox process" or "from the sandbox environment via Docker". The Docker approach follows existing project patterns but the distinction matters for implementation.
 
 ### SamplePresetEditor event contract documentation
 The SamplePresetEditor component's events (preset-saved, preset-deleted) are not documented in the component's JSDoc or in the UI architecture docs. A lightweight contract comment above defineEmits would help future agents integrating this component know what events to listen for.

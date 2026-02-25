@@ -280,7 +280,46 @@ For each finding classified as **Bug**, the QA agent reports:
 
 Sweep findings never affect the story verdict. If the story's acceptance criteria pass, the story is **APPROVED** and sweep findings are filed as separate tickets by the orchestrator. This prevents infinite loops where every story bounces for pre-existing issues.
 
-## 6) Definition of Done (testing)
+## 6) End-to-End (E2E) testing practices — Playwright
+
+### 6.1 Frameworks and tooling
+- Use `@playwright/test` (installed as a dev dependency in `/frontend`).
+- Configuration lives at `frontend/playwright.config.ts`.
+- E2E test files live at `frontend/e2e/` with the `*.spec.ts` extension.
+- Run with `make test-e2e` (requires the app to be running via `make up-dev` or `make up-test`).
+
+### 6.2 Environment
+- Base URL: `http://localhost:3000` (the Vite dev server).
+- Use headless Chromium. In the claude-sandbox, `chromiumSandbox: false` and `--no-sandbox` args are required.
+- `make test-e2e` requires `make up-dev` to already be running. The Playwright container joins the
+  `checkpoint-sampler-dev_default` Docker network and connects to the frontend service running there.
+- Use `make up-test` / `make down-test` for an isolated test stack with separate Docker volumes and a
+  separate project name (`checkpoint-sampler-test`). Resetting with `make down-test` does not affect
+  the `make up-dev` environment.
+
+### 6.3 What belongs in E2E tests
+- Critical user journeys that span the full stack (UI, API, DB).
+- Smoke tests that verify the app loads and the backend is reachable.
+- Flows that cannot be validated by unit or component tests alone (navigation, real API responses).
+
+### 6.4 What does NOT belong in E2E tests
+- Business logic that is already covered by unit or component tests.
+- Exhaustive validation of every input combination (use unit tests for that).
+- Anything requiring network calls outside the project (all external calls must be internal to the test stack).
+
+### 6.5 Writing E2E tests
+- Use `page.goto('/')` and Playwright locators; prefer role-based or `data-testid` selectors.
+- Use `request.get('/health')` (via the `request` fixture) to verify API endpoints through the proxy.
+- Avoid arbitrary `page.waitForTimeout()` calls; use `expect(...).toBeVisible()` and Playwright's auto-waiting instead.
+- Keep each spec file focused on a single feature or user journey.
+- The smoke test in `frontend/e2e/smoke.spec.ts` is the canonical example.
+
+### 6.6 Running E2E tests
+- Agent workflow (one-shot): `make test-e2e` (requires `make up-dev` already running).
+- Playwright browsers are installed in the project's local `node_modules` — no global install needed.
+- Playwright outputs results in list reporter format for easy log scanning.
+
+## 7) Definition of Done (testing)
 A story may be set to `status: done` only when:
 - New/changed behavior is covered by tests following these practices.
 - Tests are deterministic and fast enough for watch workflows.
