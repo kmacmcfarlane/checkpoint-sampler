@@ -286,13 +286,15 @@ Sweep findings never affect the story verdict. If the story's acceptance criteri
 - Use `@playwright/test` (installed as a dev dependency in `/frontend`).
 - Configuration lives at `frontend/playwright.config.ts`.
 - E2E test files live at `frontend/e2e/` with the `*.spec.ts` extension.
-- Run with `make test-e2e` (requires the app to be running via `make up-dev` or `make up-test`).
+- Run with `make test-e2e` — fully self-contained, no separate stack required.
 
 ### 6.2 Environment
-- Base URL: `http://localhost:3000` (the Vite dev server).
+- Base URL: `http://frontend:3000` (Vite dev server inside the E2E compose stack).
 - Use headless Chromium. In the claude-sandbox, `chromiumSandbox: false` and `--no-sandbox` args are required.
-- `make test-e2e` requires `make up-dev` to already be running. The Playwright container joins the
-  `checkpoint-sampler-dev_default` Docker network and connects to the frontend service running there.
+- `make test-e2e` is self-contained: it starts backend + frontend using `docker-compose.e2e.yml` with
+  `test-fixtures/` data, runs Playwright, then tears down. No separate `make up-dev` needed.
+- The E2E compose project is named `checkpoint-sampler-e2e` — isolated from `make up-dev`.
+- Test fixture data lives in `test-fixtures/`: deterministic checkpoint and sample data for reproducible E2E tests.
 - Use `make up-test` / `make down-test` for an isolated test stack with separate Docker volumes and a
   separate project name (`checkpoint-sampler-test`). Resetting with `make down-test` does not affect
   the `make up-dev` environment.
@@ -315,7 +317,7 @@ Sweep findings never affect the story verdict. If the story's acceptance criteri
 - The smoke test in `frontend/e2e/smoke.spec.ts` is the canonical example.
 
 ### 6.6 Running E2E tests
-- Agent workflow (one-shot): `make test-e2e` (requires `make up-dev` already running).
+- Agent workflow (one-shot): `make test-e2e` (self-contained; starts the stack, runs tests, tears down).
 - Playwright browsers are installed in the project's local `node_modules` — no global install needed.
 - Playwright outputs results in list reporter format for easy log scanning.
 

@@ -1,8 +1,8 @@
-.PHONY: claude claude-resume ralph ralph-resume ralph-auto ralph-auto-resume ralph-auto-debug ralph-debug capture-runtime-context up down logs up-dev down-dev logs-dev test-frontend-watch test-backend-watch up-test down-test test-e2e
+.PHONY: claude claude-resume ralph ralph-resume ralph-auto ralph-auto-resume ralph-auto-debug ralph-debug capture-runtime-context up down logs up-dev down-dev logs-dev test-frontend-watch test-backend-watch up-test down-test test-e2e down-e2e
 
 COMPOSE_DEV = docker compose -p checkpoint-sampler-dev -f docker-compose.yml -f docker-compose.dev.yml
 COMPOSE_TEST = docker compose -p checkpoint-sampler-test -f docker-compose.yml -f docker-compose.test.yml
-COMPOSE_E2E = docker compose -p checkpoint-sampler-dev -f docker-compose.e2e.yml
+COMPOSE_E2E = docker compose -p checkpoint-sampler-e2e -f docker-compose.e2e.yml
 
 claude:
 	claude-sandbox
@@ -80,8 +80,15 @@ up-test:
 down-test:
 	$(COMPOSE_TEST) down -v
 
-# Run Playwright E2E tests using the official Playwright Docker image.
-# Requires make up-dev to already be running. The playwright container joins the
-# checkpoint-sampler-dev_default network and connects to the frontend service there.
+# Run Playwright E2E tests against a self-contained stack with test fixture data.
+# Starts backend + frontend with test-fixtures/ data, waits until healthy, runs
+# playwright, then tears down. Does not require make up-dev to be running.
 test-e2e:
-	$(COMPOSE_E2E) run --rm playwright sh -c "npm ci && npx playwright test"
+	$(COMPOSE_E2E) up -d --build --wait backend frontend && \
+	$(COMPOSE_E2E) run --rm playwright sh -c "npm ci && npx playwright test"; \
+	STATUS=$$?; \
+	$(COMPOSE_E2E) down -v; \
+	exit $$STATUS
+
+down-e2e:
+	$(COMPOSE_E2E) down -v

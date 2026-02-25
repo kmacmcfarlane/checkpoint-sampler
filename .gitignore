@@ -54,6 +54,7 @@ logs/
 
 # Local config (gitignored; use config.yaml.example as template)
 config.yaml
+!test-fixtures/config.yaml
 
 # Claude sandbox local mounts (gitignored; use .claude-sandbox.example.yaml as template)
 .claude-sandbox.yaml
