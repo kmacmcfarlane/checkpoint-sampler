@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-045: E2E test: sample preset CRUD via job launch dialog
+- Added `frontend/e2e/preset-crud.spec.ts` with 5 Playwright E2E tests covering the full sample preset CRUD lifecycle: opening the Generate Samples dialog, opening the Manage Presets editor, creating a new preset with all required fields and verifying it appears in the preset selector dropdown, editing a preset name and saving the update, and deleting a preset with confirmation dialog handling and verifying removal from both the editor and job dialog dropdowns
+- `frontend/src/components/SamplePresetEditor.vue`: Added 4 `data-testid` attributes (`preset-editor-select`, `new-preset-button`, `save-preset-button`, `delete-preset-button`) for reliable E2E test targeting
+- 21 E2E tests pass (5 new preset-crud + 16 existing); 536 frontend unit tests pass; 477 backend specs pass
+
 ### S-037: Slider navigation in image lightbox
 - `frontend/src/components/XYGrid.vue`: Added `ImageClickContext` interface export and changed `image:click` emit to carry full cell context (imageUrl, cellKey, sliderValues, currentSliderValue, imagesBySliderValue) so the lightbox receives enough info to render a slider
 - `frontend/src/App.vue`: Added `lightboxContext` ref, `onLightboxSliderChange` handler that updates per-cell slider override and lightbox image URL, passed all slider context props to `ImageLightbox`

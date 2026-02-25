@@ -1135,7 +1135,7 @@ stories:
   - id: S-045
     title: "E2E test: sample preset CRUD via job launch dialog"
     priority: 44
-    status: todo
+    status: done
     requires: [S-042]
     acceptance:
       - "E2E: Test opens the Generate Samples dialog"

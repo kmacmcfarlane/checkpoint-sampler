@@ -286,10 +286,12 @@ function formatNumberList(values: number[]): string {
             clearable
             class="preset-select"
             size="medium"
+            data-testid="preset-editor-select"
             @update:value="onSelectPreset"
           />
           <NButton
             size="medium"
+            data-testid="new-preset-button"
             @click="createNewPreset"
           >
             New Preset
@@ -448,6 +450,7 @@ function formatNumberList(values: number[]): string {
             size="medium"
             :disabled="!canSave || saving"
             :loading="saving"
+            data-testid="save-preset-button"
             @click="savePreset"
           >
             {{ saving ? 'Saving...' : (selectedPresetId ? 'Update Preset' : 'Save Preset') }}
@@ -456,6 +459,7 @@ function formatNumberList(values: number[]): string {
             v-if="selectedPresetId"
             type="error"
             size="medium"
+            data-testid="delete-preset-button"
             @click="deletePreset"
           >
             Delete Preset

@@ -45,6 +45,9 @@ Each E2E test in the lightbox suite repeats the full `setupGridWithImages` flow 
 ### Playwright browser pre-warming
 The `npm ci` on every E2E test invocation adds 5-10 seconds. Consider building a custom image `FROM mcr.microsoft.com/playwright:...` with `npm ci` baked in as a project-maintained Docker image to speed up CI.
 
+### E2E test data isolation per run
+While the E2E stack recreates volumes on each run, there is no mechanism to seed the database with a known preset state before tests. Adding a "reset DB" helper endpoint (in test-only mode) or using API calls in beforeEach to set up and tear down test data would make tests more explicit and independent from each other.
+
 ### Old Docker Compose stack migration helper
 When the implicit project name changed from directory-derived `checkpoint-sampler` to explicit `checkpoint-sampler-dev`, existing running stacks are orphaned. A one-time migration note or a `make migrate-dev-stack` helper would prevent confusion.
 
@@ -92,6 +95,9 @@ The QA subagent would run E2E tests as part of its verification:
 - Browser version is pinned to the Playwright npm package version — always use the bundled browser, not system Chrome
 
 ## Workflow
+
+### E2E test timeout in playwright.config.ts
+The default Playwright timeout is 30 seconds, matching what the tests use. Consider explicitly setting `timeout: 30000` in `playwright.config.ts` alongside `use:` so it is visible and intentional, reducing ambiguity when diagnosing timeout failures.
 
 ### Document NDrawer mask click-blocking issue in TEST_PRACTICES.md
 The pattern of closing the NDrawer before clicking grid elements in E2E tests is non-obvious and will trip up future E2E test authors. Adding a note to TEST_PRACTICES.md section 6.5 about NDrawer's mask intercepting pointer events would save debugging time.
@@ -146,6 +152,9 @@ The `image:click` event in `XYGrid.vue` now emits a full `ImageClickContext` (ce
 
 ### E2E fixture with multiple slider values for lightbox slider testing
 The test-fixtures data currently has only one `cfg` value, so E2E tests cannot exercise the lightbox slider. Adding a second cfg value to the fixture images would allow an E2E test verifying the lightbox slider appears and changes the displayed image.
+
+### Preset state persistence after dialog close
+Currently, when the Manage Presets modal is closed, JobLaunchDialog re-fetches presets and auto-selects the last saved preset. A user flow improvement would be to also show the preset that was last edited/deleted as the currently selected option in the job dialog, rather than always auto-selecting saved presets.
 
 ### Tiered code review model selection
 Consider using sonnet for code review on simple, pattern-following changes (small frontend-only diffs, single-component changes) and reserving opus for architectural changes, security-sensitive stories, or cross-stack modifications. This could be driven by a `complexity` field on the story or heuristically derived from the diff size and layers touched. The B-020 review used opus for a 4-file frontend-only change that was straightforward — sonnet would likely have caught the same issues at lower cost and latency.
