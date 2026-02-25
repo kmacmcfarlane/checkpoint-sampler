@@ -280,6 +280,28 @@ For each finding classified as **Bug**, the QA agent reports:
 
 Sweep findings never affect the story verdict. If the story's acceptance criteria pass, the story is **APPROVED** and sweep findings are filed as separate tickets by the orchestrator. This prevents infinite loops where every story bounces for pre-existing issues.
 
+### 5.8 E2E test execution (Playwright)
+
+The QA expert must run the full Playwright E2E suite as part of every verification cycle:
+
+```
+make test-e2e
+```
+
+Key facts:
+- `make test-e2e` is fully self-contained: it starts backend + frontend using `docker-compose.e2e.yml` with `test-fixtures/` data, runs all Playwright tests, and tears down automatically. No separate `make up-dev` is required.
+- The E2E compose project (`checkpoint-sampler-e2e`) is isolated from the dev environment — running `make test-e2e` does not interfere with an active `make up-dev` session.
+- Results (tests run, passed, failed) must be recorded in the "E2E Test Results" section of the QA verdict.
+
+**When E2E failures block the story:**
+- If the story explicitly adds or modifies E2E tests (i.e., it is an E2E story), failures are blocking and the story must be returned to `in_progress`.
+
+**When E2E failures are non-blocking:**
+- For all other stories, E2E failures are non-blocking. Record the results, note any failures and whether they appear pre-existing, but do not reject the story on E2E failures alone. Report unexpected failures as bug tickets via the runtime error sweep mechanism.
+
+**Frontend-only stories:**
+- For stories that touch only the frontend, the E2E smoke test results from `make test-e2e` may serve as the primary smoke test, replacing the manual `make up-dev` + curl health check approach. A passing E2E smoke test confirms the full stack starts and serves requests end-to-end.
+
 ## 6) End-to-End (E2E) testing practices — Playwright
 
 ### 6.1 Frameworks and tooling

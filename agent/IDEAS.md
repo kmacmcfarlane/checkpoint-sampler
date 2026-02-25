@@ -28,6 +28,9 @@ Adding an HTML report alongside the list reporter (e.g., `reporter: [['list'], [
 ### E2E screenshot on failure
 Consider adding `screenshot: 'only-on-failure'` to `playwright.config.ts` to capture screenshots for debugging failed tests. Currently no visual evidence is captured on failure.
 
+### E2E test result parsing in orchestrator
+The orchestrator currently has no structured mechanism to accumulate E2E pass/fail trends over time. Adding a simple log of E2E results per story to `.ralph-debug/` could enable spotting regressions before they become endemic.
+
 ## Dev Ops
 
 ### Playwright browser pre-warming
@@ -80,6 +83,15 @@ The QA subagent would run E2E tests as part of its verification:
 - Browser version is pinned to the Playwright npm package version — always use the bundled browser, not system Chrome
 
 ## Workflow
+
+### E2E blocking policy escalation
+Consider adding a backlog-level flag (e.g., `e2e_story: true`) on stories that touch E2E tests, so the orchestrator can automatically tell the QA agent whether E2E failures are blocking — rather than relying on the QA agent to infer it from the change summary.
+
+### E2E sweep log capture for self-contained stacks
+The current runtime error sweep procedure (TEST_PRACTICES.md 5.7.1) assumes the app is still running when the sweep is performed. Since `make test-e2e` tears down the stack automatically, logs cannot be captured post-teardown. Consider augmenting the sweep procedure to optionally pipe E2E compose logs to a temp file during the run, so the sweep can inspect them even after teardown completes.
+
+### QA smoke test consolidation
+The qa-expert.md now has three different ways to satisfy the smoke test requirement (make up-dev + curl, make test-e2e for frontend stories, or both). A future refactor could unify them into a single explicit decision tree to reduce confusion.
 
 ### AC sandbox interpretation clarity
 Story acceptance criteria mentioning "works in the claude-sandbox" should clarify whether they mean "directly in the sandbox process" or "from the sandbox environment via Docker". The Docker approach follows existing project patterns but the distinction matters for implementation.

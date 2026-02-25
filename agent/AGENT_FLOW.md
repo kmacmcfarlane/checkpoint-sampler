@@ -167,10 +167,11 @@ Based on the story's current status, invoke the appropriate subagent:
    - Branch name
    - Code reviewer's approval notes (if any)
    - **Change summary** extracted from the fullstack engineer's verdict (see section 4.3.2)
-2. Parse the QA verdict for both the story result and runtime error sweep findings.
-3. If approved: set status to `done`
-4. If issues found: set status to `in_progress`, record feedback in `review_feedback`
-5. After the story status transition, process any sweep findings per section 4.4.1.
+2. The QA expert will run `make test-e2e` as part of its verification. This command is self-contained — it starts an isolated backend + frontend stack (`checkpoint-sampler-e2e`), runs all Playwright tests, and tears down automatically. The orchestrator does NOT need to ensure `make up-dev` is running before dispatching to QA for E2E tests.
+3. Parse the QA verdict for the story result, E2E test results, and runtime error sweep findings.
+4. If approved: set status to `done`
+5. If issues found: set status to `in_progress`, record feedback in `review_feedback`
+6. After the story status transition, process any sweep findings per section 4.4.1.
 
 ### 4.3.2 Change summary extraction and passthrough
 

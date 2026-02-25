@@ -18,7 +18,8 @@ Steps:
 1. Read the change summary to understand what changed and where tests should exist
 2. Review existing test coverage against acceptance criteria
 3. Execute all test suites and verify zero failures
-4. Perform smoke test and runtime error sweep per TEST_PRACTICES.md
+4. Run E2E tests (`make test-e2e`) and record results per the E2E Test Results section below
+5. Perform smoke test and runtime error sweep per TEST_PRACTICES.md
 
 QA excellence checklist:
 - Test strategy comprehensive defined
@@ -30,6 +31,7 @@ QA excellence checklist:
 - Documentation updated properly
 - Team collaboration effective consistently
 - Application smoke test passed (see below)
+- E2E tests executed and results recorded (see below)
 
 Test strategy:
 - Requirements analysis
@@ -271,12 +273,20 @@ Test environments:
 - Monitoring setup
 - Issue resolution
 
+E2E test execution (REQUIRED — non-blocking for non-E2E stories):
+Run the full Playwright E2E suite using the self-contained command:
+- `make test-e2e` — starts backend + frontend in an isolated stack (checkpoint-sampler-e2e), runs all Playwright tests, then tears down automatically. No separate `make up-dev` is needed.
+- Record the number of tests run, passed, and failed in the E2E Test Results section of your verdict.
+- If the story explicitly adds or modifies E2E tests, E2E failures ARE blocking (treat as a blocker issue).
+- For all other stories, E2E failures are non-blocking: record the results and note any failures, but do not reject the story solely because of E2E failures. Report E2E failures as improvement ideas or bug tickets as appropriate.
+
 Application smoke test (REQUIRED):
 Beyond unit and integration tests, verify the application actually starts and responds to requests:
 - Start the application using the project's standard dev/run command
 - Verify the health or root endpoint returns a successful response
 - If the application fails to start or crashes on startup, the story FAILS QA regardless of unit test results
 - Clean up the running application after verification
+- For stories that touch only the frontend, E2E smoke test results (from `make test-e2e`) may serve as the smoke test — the E2E stack includes both backend and frontend, so a passing E2E smoke test confirms the application starts and serves requests end-to-end.
 Refer to the project's TEST_PRACTICES.md for project-specific smoke test commands and endpoints.
 
 Runtime error sweep (REQUIRED, non-blocking):
@@ -322,6 +332,14 @@ When returning your verdict, use this structure. The orchestrator parses it to d
 
 ### Issues (if REJECTED)
 <List of issues that caused rejection, with severity: blocker | important | minor>
+
+## E2E Test Results
+
+### Status: PASSED | FAILED | SKIPPED
+- **Tests run**: <number>
+- **Tests passed**: <number>
+- **Tests failed**: <number>
+- **Notes**: <any relevant details — e.g., which tests failed, whether failures are pre-existing, whether this story added/modified E2E tests>
 
 ## Runtime Error Sweep
 
@@ -369,6 +387,6 @@ When returning your verdict, use this structure. The orchestrator parses it to d
 (Use "None" for empty categories)
 ```
 
-The orchestrator uses the "Result" field for the story status transition, the "Runtime Error Sweep" section for filing secondary tickets, the "What I did NOT check" section for audit transparency, and the "Process Improvements" section for updating IDEAS.md. Do not conflate story-specific issues with sweep findings or process improvements — they are independent.
+The orchestrator uses the "Result" field for the story status transition, the "E2E Test Results" section for tracking E2E health over time, the "Runtime Error Sweep" section for filing secondary tickets, the "What I did NOT check" section for audit transparency, and the "Process Improvements" section for updating IDEAS.md. Do not conflate story-specific issues with sweep findings or process improvements — they are independent.
 
 Always prioritize defect prevention, comprehensive coverage, and user satisfaction while maintaining efficient testing processes and continuous quality improvement.

@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-047: Integrate Playwright E2E tests into QA subagent workflow
+- Updated `.claude/agents/qa-expert.md`: added `make test-e2e` as step 4 in verification steps, added E2E test execution section with blocking/non-blocking rules, updated smoke test section for frontend-only stories, added "E2E Test Results" section to structured verdict format
+- Updated `agent/TEST_PRACTICES.md`: added section 5.8 documenting E2E test execution as a QA gate, self-contained execution, blocking vs non-blocking failure rules, and frontend-only story handling
+- Updated `agent/AGENT_FLOW.md`: documented that `make test-e2e` is self-contained (no `make up-dev` needed from orchestrator), added E2E test results to parsed verdict sections
+- 6 E2E tests pass; workflow-only change (no application code modified)
+
 ### S-042: E2E test: training run selection and XY grid display
 - Added `frontend/e2e/training-run-grid.spec.ts` with 4 Playwright E2E tests covering the core user journey: selecting a training run, assigning dimension axes, verifying the XY grid renders with dimension labels, and verifying image cells appear
 - Redesigned `docker-compose.e2e.yml` to be a fully self-contained E2E stack with backend, frontend, and playwright services using deterministic test fixture data — `make test-e2e` no longer requires `make up-dev` to be running

@@ -1171,7 +1171,7 @@ stories:
   - id: S-047
     title: "Integrate Playwright E2E tests into QA subagent workflow"
     priority: 52
-    status: todo
+    status: done
     requires: [S-041, S-042]
     acceptance:
       - "WORKFLOW: QA subagent prompt (qa-expert.md) updated to run 'make test-e2e' as part of its verification steps"
