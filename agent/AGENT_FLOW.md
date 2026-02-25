@@ -255,9 +255,23 @@ When the QA expert's verdict includes a "Runtime Error Sweep" section with findi
 When the QA expert reports **APPROVED**, the orchestrator performs these steps in order:
 
 1. **Update CHANGELOG**: Add an entry to /CHANGELOG.md for the completed story. Include a token consumption summary line at the end of the entry (e.g., `- Token usage: <input_tokens> input, <output_tokens> output`). Use the cumulative token counts from the current conversation session (visible via `/cost` or session stats).
-2. **Update backlog**: Set `status: done` in /agent/backlog.yaml.
+2. **Update backlog**: Set `status: done` and record `implementation_duration` in /agent/backlog.yaml (see section 4.5.1).
 3. **Commit**: Create the commit (per commit rules below).
 4. **Merge**: Merge the feature branch into `main` (per the commit/merge policy in PROMPT.md).
+
+### 4.5.1 Recording implementation duration
+
+When a story reaches `done`, the orchestrator adds an `implementation_duration` field to the story in backlog.yaml. This captures the total wall-clock time spent on subagent work during the completing cycle.
+
+**How to compute:**
+- Sum the elapsed times of all subagent invocations for the story in the current cycle (fullstack-developer + code-reviewer + qa-expert, as applicable).
+- These times are already captured by the timing instrumentation in section 4.3.1.
+
+**Format:** `implementation_duration: "<Xm Ys>"` — e.g., `implementation_duration: "14m 32s"`.
+
+**Notes:**
+- If a story spans multiple ralph cycles (e.g., review rejection → re-implementation), only the final cycle's duration is recorded (prior cycles' context is lost).
+- This is the sum of subagent wall-clock times, not the total cycle wall-clock time (which includes orchestrator overhead between dispatches).
 
 These finalization actions are exclusively owned by the orchestrator. No subagent may update CHANGELOG, commit, or merge.
 

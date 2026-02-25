@@ -50,7 +50,7 @@ After each subagent completes, update /agent/backlog.yaml:
 - Fullstack engineer success → set `status: review`, clear `review_feedback`
 - Code reviewer approved → set `status: testing`
 - Code reviewer rejected → set `status: in_progress`, record `review_feedback`
-- QA expert approved → set `status: done`, then process sweep findings (see below)
+- QA expert approved → set `status: done`, record `implementation_duration` (see AGENT_FLOW.md 4.5.1), then process sweep findings (see below)
 - QA expert rejected → set `status: in_progress`, record `review_feedback`, then process sweep findings (see below)
 
 ### Processing QA sweep findings
@@ -84,7 +84,7 @@ Every addition to IDEAS.md (whether from process improvements, QA sweep findings
 - /CHANGELOG.md updated
 - Code review passed (code-reviewer approved)
 - QA testing passed (qa-expert approved)
-- /agent/backlog.yaml updated (`status: done` only when all gates pass and user approval has been given)
+- /agent/backlog.yaml updated (`status: done` with `implementation_duration` only when all gates pass and user approval has been given)
 - Suggest a commit message in format: story(<id>): <title> (unless AGENT_FLOW/backlog explicitly overrides)
 
 ## Constraints
