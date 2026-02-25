@@ -1099,7 +1099,7 @@ stories:
   - id: S-043
     title: "E2E test: image lightbox interaction"
     priority: 48
-    status: todo
+    status: done
     requires: [S-042]
     acceptance:
       - "E2E: Test clicks an image cell to open the lightbox"

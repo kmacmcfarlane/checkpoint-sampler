@@ -28,6 +28,7 @@ const metadataOpen = ref(false)
 const MIN_SCALE = 0.1
 const MAX_SCALE = 20
 const ZOOM_FACTOR = 1.1
+const ZOOM_STEP = 0.25
 
 /** Extract the relative image filepath from the full image URL. */
 function extractFilepath(imageUrl: string): string | null {
@@ -120,6 +121,22 @@ function onKeyDown(e: KeyboardEvent) {
   }
 }
 
+function zoomIn() {
+  const newScale = Math.min(MAX_SCALE, scale.value + ZOOM_STEP)
+  scale.value = newScale
+}
+
+function zoomOut() {
+  const newScale = Math.max(MIN_SCALE, scale.value - ZOOM_STEP)
+  scale.value = newScale
+}
+
+function resetZoom() {
+  scale.value = 1
+  translateX.value = 0
+  translateY.value = 0
+}
+
 function toggleMetadata() {
   metadataOpen.value = !metadataOpen.value
 }
@@ -174,6 +191,29 @@ onUnmounted(() => {
     >
       &times;
     </NButton>
+    <div class="lightbox-zoom-controls" aria-label="Zoom controls">
+      <NButton
+        class="lightbox-zoom-btn"
+        quaternary
+        size="small"
+        aria-label="Zoom in"
+        @click="zoomIn"
+      >+</NButton>
+      <NButton
+        class="lightbox-zoom-btn"
+        quaternary
+        size="small"
+        aria-label="Reset zoom"
+        @click="resetZoom"
+      >Reset</NButton>
+      <NButton
+        class="lightbox-zoom-btn"
+        quaternary
+        size="small"
+        aria-label="Zoom out"
+        @click="zoomOut"
+      >-</NButton>
+    </div>
     <div
       class="lightbox-content"
       @wheel="onWheel"
@@ -238,6 +278,21 @@ onUnmounted(() => {
   z-index: 1002;
   font-size: 1.5rem;
   color: rgba(255, 255, 255, 0.8);
+}
+
+.lightbox-zoom-controls {
+  position: fixed;
+  top: 12px;
+  left: 60px;
+  z-index: 1002;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.lightbox-zoom-btn {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 1rem;
 }
 
 .lightbox-content {

@@ -33,6 +33,9 @@ The orchestrator currently has no structured mechanism to accumulate E2E pass/fa
 
 ## Dev Ops
 
+### Playwright test isolation via shared fixture
+Each E2E test in the lightbox suite repeats the full `setupGridWithImages` flow (~2.5s per test). A shared test fixture that loads the grid once and then runs each test via Playwright's `test.beforeEach` scoped to a `describe` block could reduce total E2E run time.
+
 ### Playwright browser pre-warming
 The `npm ci` on every E2E test invocation adds 5-10 seconds. Consider building a custom image `FROM mcr.microsoft.com/playwright:...` with `npm ci` baked in as a project-maintained Docker image to speed up CI.
 
@@ -84,6 +87,12 @@ The QA subagent would run E2E tests as part of its verification:
 
 ## Workflow
 
+### Document NDrawer mask click-blocking issue in TEST_PRACTICES.md
+The pattern of closing the NDrawer before clicking grid elements in E2E tests is non-obvious and will trip up future E2E test authors. Adding a note to TEST_PRACTICES.md section 6.5 about NDrawer's mask intercepting pointer events would save debugging time.
+
+### Add unit tests for button-triggered zoom actions in ImageLightbox
+The new zoom buttons (zoomIn, zoomOut, resetZoom) added to ImageLightbox.vue are covered by E2E tests, but the unit test suite in ImageLightbox.test.ts only tests mouse-wheel zoom. Adding Vitest unit tests for the button click paths would ensure fast, isolated regression coverage without depending on the E2E stack.
+
 ### E2E blocking policy escalation
 Consider adding a backlog-level flag (e.g., `e2e_story: true`) on stories that touch E2E tests, so the orchestrator can automatically tell the QA agent whether E2E failures are blocking — rather than relying on the QA agent to infer it from the change summary.
 
@@ -113,6 +122,12 @@ The existing smoke test assumes no specific data. Now that test fixtures always 
 
 ### Document /health vs /api/health discrepancy
 The smoke test instructions in TEST_PRACTICES.md section 5.5 reference checking a "health or root endpoint" but do not specify the exact path. The actual health endpoint is `/health` (direct backend path), while the frontend Vite proxy exposes it at `/health`. Documenting the canonical health check path would prevent confusion in future QA cycles.
+
+### Drawer auto-collapse on image grid interaction
+The NDrawer mask blocks pointer events on grid cells when the drawer is open. Consider auto-collapsing the drawer when the user starts interacting with the grid (e.g., after axis assignment), reducing friction for both real users and tests.
+
+### Lightbox keyboard navigation
+The lightbox could support arrow-key navigation between images in the grid, which is a common UX pattern for lightboxes and would be a high-value enhancement.
 
 ### Tiered code review model selection
 Consider using sonnet for code review on simple, pattern-following changes (small frontend-only diffs, single-component changes) and reserving opus for architectural changes, security-sensitive stories, or cross-stack modifications. This could be driven by a `complexity` field on the story or heuristically derived from the diff size and layers touched. The B-020 review used opus for a 4-file frontend-only change that was straightforward — sonnet would likely have caught the same issues at lower cost and latency.

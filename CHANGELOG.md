@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-043: E2E test: image lightbox interaction
+- Added `frontend/e2e/lightbox.spec.ts` with 6 Playwright E2E tests covering the image lightbox user journey: clicking an image cell to open the lightbox, verifying the full-size image displays, zoom controls (zoom in, zoom out, reset) visibility and functionality, metadata panel toggle, close button dismissal, and Escape key dismissal
+- Updated `frontend/src/components/ImageLightbox.vue`: added explicit zoom in, zoom out, and reset zoom buttons with `aria-label` attributes and corresponding `zoomIn()`, `zoomOut()`, `resetZoom()` functions to enable E2E testing of zoom controls
+- 12 E2E tests pass (6 new lightbox + 6 existing); 527 frontend unit tests pass; 477 backend specs pass
+
 ### S-047: Integrate Playwright E2E tests into QA subagent workflow
 - Updated `.claude/agents/qa-expert.md`: added `make test-e2e` as step 4 in verification steps, added E2E test execution section with blocking/non-blocking rules, updated smoke test section for frontend-only stories, added "E2E Test Results" section to structured verdict format
 - Updated `agent/TEST_PRACTICES.md`: added section 5.8 documenting E2E test execution as a QA gate, self-contained execution, blocking vs non-blocking failure rules, and frontend-only story handling
