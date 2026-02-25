@@ -190,31 +190,42 @@ This helps downstream agents orient faster by knowing which files changed and wh
 
 If the fullstack engineer's response does not include a change summary (e.g., older prompt format), the orchestrator should fall back to `git diff --name-only main..HEAD` to generate a file list and pass that instead (without descriptions).
 
-### 4.3.1 Timing instrumentation
+### 4.3.1 Timing and token instrumentation
 
-The orchestrator MUST record timing data for each subagent invocation in the debug log (`.ralph-debug/orchestrator.md`):
+The orchestrator MUST record timing and token data for each subagent invocation. This data feeds both the debug log and the story `metrics` map (section 4.5.1).
 
-- **Before dispatching**: Record the current timestamp (ISO 8601) as `dispatch_time`
-- **After subagent returns**: Record the current timestamp as `return_time` and compute `elapsed`
-- **Format in debug log**:
-  ```
-  ## [<date>] Subagent result: <agent-name> for <story-id>
-  - Dispatch time: <ISO 8601>
-  - Return time: <ISO 8601>
-  - Elapsed: <minutes>m <seconds>s
-  - Verdict: <verdict>
-  ...
-  ```
-- **In the summary file** (`.ralph-debug/summary.md`), include a timing summary:
-  ```
-  ## Timing
-  - fullstack-developer: Xm Ys
-  - code-reviewer: Xm Ys
-  - qa-expert: Xm Ys
-  - Total cycle: Xm Ys
-  ```
+**Before dispatching each subagent:**
+1. Record the current timestamp (ISO 8601) as `dispatch_time`. Use `date +%Y-%m-%dT%H:%M:%S%z` via Bash.
+2. Snapshot the current session token counts by running `/cost`. Record `tokens_in_before` and `tokens_out_before`.
 
-This data enables identifying bottlenecks and informing model selection decisions. Use `date +%Y-%m-%dT%H:%M:%S%z` via Bash to capture timestamps.
+**After each subagent returns:**
+1. Record the current timestamp as `return_time` and compute `elapsed`.
+2. Snapshot `/cost` again. Record `tokens_in_after` and `tokens_out_after`.
+3. Compute deltas: `tokens_in = tokens_in_after - tokens_in_before`, `tokens_out = tokens_out_after - tokens_out_before`.
+
+**Accumulate per-subagent totals** across the cycle. If the same subagent is invoked multiple times (e.g., fullstack-developer called again after review rejection), sum the durations, token deltas, and increment the invocation count.
+
+**Format in debug log** (`.ralph-debug/orchestrator.md`):
+```
+## [<date>] Subagent result: <agent-name> for <story-id>
+- Dispatch time: <ISO 8601>
+- Return time: <ISO 8601>
+- Elapsed: <minutes>m <seconds>s
+- Tokens: <tokens_in> in / <tokens_out> out
+- Verdict: <verdict>
+...
+```
+
+**In the summary file** (`.ralph-debug/summary.md`), include a timing and token summary:
+```
+## Metrics
+- fullstack-developer: Xm Ys, N invocation(s), Xin / Yout tokens
+- code-reviewer: Xm Ys, N invocation(s), Xin / Yout tokens
+- qa-expert: Xm Ys, N invocation(s), Xin / Yout tokens
+- Total: Xm Ys, N invocation(s), Xin / Yout tokens
+```
+
+This data enables identifying bottlenecks, informing model selection decisions, and tracking per-story cost.
 
 ### 4.4 Update artifacts (orchestrator responsibility)
 
@@ -255,23 +266,62 @@ When the QA expert's verdict includes a "Runtime Error Sweep" section with findi
 When the QA expert reports **APPROVED**, the orchestrator performs these steps in order:
 
 1. **Update CHANGELOG**: Add an entry to /CHANGELOG.md for the completed story. Include a token consumption summary line at the end of the entry (e.g., `- Token usage: <input_tokens> input, <output_tokens> output`). Use the cumulative token counts from the current conversation session (visible via `/cost` or session stats).
-2. **Update backlog**: Set `status: done` and record `implementation_duration` in /agent/backlog.yaml (see section 4.5.1).
+2. **Update backlog**: Set `status: done` and record `metrics` in /agent/backlog.yaml (see section 4.5.1).
 3. **Commit**: Create the commit (per commit rules below).
 4. **Merge**: Merge the feature branch into `main` (per the commit/merge policy in PROMPT.md).
 
-### 4.5.1 Recording implementation duration
+### 4.5.1 Recording metrics
 
-When a story reaches `done`, the orchestrator adds an `implementation_duration` field to the story in backlog.yaml. This captures the total wall-clock time spent on subagent work during the completing cycle.
+When a story reaches `done`, the orchestrator adds a `metrics` map to the story in backlog.yaml. This captures cost and performance data from the completing cycle.
+
+**Structure:**
+
+```yaml
+metrics:
+  duration: "14m 32s"
+  tokens_in: 245000
+  tokens_out: 18500
+  invocations: 5
+  subagents:
+    fullstack-developer:
+      invocations: 2
+      duration: "8m 12s"
+      tokens_in: 150000
+      tokens_out: 12000
+    code-reviewer:
+      invocations: 2
+      duration: "4m 05s"
+      tokens_in: 70000
+      tokens_out: 4500
+    qa-expert:
+      invocations: 1
+      duration: "2m 15s"
+      tokens_in: 25000
+      tokens_out: 2000
+```
+
+**Fields:**
+
+| Level | Field | Description |
+|---|---|---|
+| Top | `duration` | Sum of all subagent durations |
+| Top | `tokens_in` | Sum of all subagent input token deltas |
+| Top | `tokens_out` | Sum of all subagent output token deltas |
+| Top | `invocations` | Sum of all subagent invocation counts |
+| Per-subagent | `invocations` | Number of dispatches to that subagent |
+| Per-subagent | `duration` | Sum of wall-clock elapsed times for that subagent |
+| Per-subagent | `tokens_in` | Sum of `/cost` input token deltas for that subagent |
+| Per-subagent | `tokens_out` | Sum of `/cost` output token deltas for that subagent |
 
 **How to compute:**
-- Sum the elapsed times of all subagent invocations for the story in the current cycle (fullstack-developer + code-reviewer + qa-expert, as applicable).
-- These times are already captured by the timing instrumentation in section 4.3.1.
-
-**Format:** `implementation_duration: "<Xm Ys>"` — e.g., `implementation_duration: "14m 32s"`.
+- Use the per-dispatch timing and token data captured by the instrumentation in section 4.3.1.
+- Accumulate per-subagent totals across all invocations in the current cycle, then sum for the top-level totals.
+- Only include subagents that were actually invoked (e.g., if no debugger was used, omit it).
 
 **Notes:**
-- If a story spans multiple ralph cycles (e.g., review rejection → re-implementation), only the final cycle's duration is recorded (prior cycles' context is lost).
-- This is the sum of subagent wall-clock times, not the total cycle wall-clock time (which includes orchestrator overhead between dispatches).
+- If a story spans multiple ralph cycles (e.g., review rejection → re-implementation), only the final cycle's metrics are recorded (prior cycles' context is lost).
+- Durations are subagent wall-clock times, not total cycle wall-clock time (excludes orchestrator overhead between dispatches).
+- If `/cost` is unavailable, omit token fields rather than guessing. Duration and invocation counts should still be recorded.
 
 These finalization actions are exclusively owned by the orchestrator. No subagent may update CHANGELOG, commit, or merge.
 
@@ -380,22 +430,18 @@ When a story is returned to `in_progress` (from review or testing), always inclu
 
 ## 10) Token tracking
 
-When a story reaches `done`, the orchestrator must record the cumulative token consumption for the current conversation session. This provides cost visibility per story.
+Per-subagent token counts are captured via `/cost` snapshots before and after each dispatch (section 4.3.1) and recorded in the story's `metrics` map (section 4.5.1). The top-level `metrics.tokens_in` and `metrics.tokens_out` are the sums across all subagent invocations in the completing cycle.
 
-### 10.1 How to obtain token counts
+### 10.1 Where to record
 
-Run `/cost` in the Claude Code session to get the current session's token usage. Extract the input and output token counts.
+1. **backlog.yaml `metrics` map** (section 4.5.1): Per-subagent and total token counts.
+2. **Discord notification** (section 9.2): Append `Tokens: <total_in>in / <total_out>out.` to the `testing → done` message using `metrics.tokens_in` and `metrics.tokens_out`.
+3. **CHANGELOG entry** (section 4.5): Add a `- Token usage: <total_in> input, <total_out> output` line using `metrics.tokens_in` and `metrics.tokens_out`.
 
-### 10.2 Where to record
+### 10.2 Notes
 
-1. **Discord notification** (section 9.2): Append `Tokens: <input>in / <output>out.` to the `testing → done` message.
-2. **CHANGELOG entry** (section 4.5): Add a `- Token usage: <input> input, <output> output` line at the end of the story's changelog entry.
-
-### 10.3 Notes
-
-- Token counts reflect the full conversation session, which may include multiple subagent invocations and retry loops for a single story.
-- If a story spans multiple ralph cycles (e.g., review rejection → re-implementation), only the final cycle's tokens are recorded (prior cycles' context is lost).
-- If token counts cannot be obtained (e.g., `/cost` unavailable), omit the token line rather than guessing.
+- Token counts reflect the completing cycle only. If a story spans multiple ralph cycles, prior cycles' tokens are lost.
+- If `/cost` is unavailable, omit token fields from `metrics` and from the Discord/CHANGELOG lines rather than guessing. Duration and invocation counts should still be recorded.
 
 ## 11) Ralph loop expectations
 
