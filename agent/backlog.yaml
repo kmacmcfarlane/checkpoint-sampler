@@ -1270,7 +1270,7 @@ stories:
   - id: B-022
     title: "FileSystem.OpenFile logs at error level for expected sidecar miss (file not found)"
     priority: 50
-    status: todo
+    status: done
     requires: []
     acceptance:
       - "When OpenFile is called for a path that does not exist, the log entry is emitted at debug level, not error level"
