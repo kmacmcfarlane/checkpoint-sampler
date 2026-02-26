@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### B-024: Sample Preset Editor crashes when adding second prompt
+- `frontend/src/components/SamplePresetEditor.vue`: Added `createPromptItem()` function returning `{name: '', text: ''}` and wired it as `:on-create` handler on NDynamicInput; added null-guards (`p != null &&`) in `computedTotalImages`, `canSave`, and `savePreset()` to prevent TypeError on null prompt entries
+- `frontend/src/components/__tests__/SamplePresetEditor.test.ts`: Added tests for onCreate returning correct shape, adding multiple prompts without console errors, null-safe computedTotalImages counting, and canSave handling empty prompts
+- 552 frontend tests pass; 26 E2E tests pass
+
 ### B-022: FileSystem.OpenFile logs at error level for expected sidecar miss (file not found)
 - `backend/internal/store/filesystem.go`: Changed `OpenFile` error handler to log at `debug` level when `os.IsNotExist(err)` is true, retaining `error` level for all other failures (e.g., permission denied)
 - `backend/internal/store/filesystem_test.go`: Added 4 new `OpenFile` tests covering happy-path read, file-not-found error return, file-not-found logs at debug (not error), and permission-denied logs at error level

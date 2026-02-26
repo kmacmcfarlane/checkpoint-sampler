@@ -57,7 +57,7 @@ const schedulerOptions = computed(() =>
 )
 
 const computedTotalImages = computed(() => {
-  const validPrompts = prompts.value.filter(p => p.name && p.text)
+  const validPrompts = prompts.value.filter(p => p != null && p.name && p.text)
   return (
     validPrompts.length *
     steps.value.length *
@@ -71,7 +71,7 @@ const computedTotalImages = computed(() => {
 const canSave = computed(() => {
   return (
     presetName.value.trim() !== '' &&
-    prompts.value.some(p => p.name.trim() !== '' && p.text.trim() !== '') &&
+    prompts.value.some(p => p != null && p.name.trim() !== '' && p.text.trim() !== '') &&
     steps.value.length > 0 &&
     cfgs.value.length > 0 &&
     samplers.value.length > 0 &&
@@ -176,7 +176,7 @@ async function savePreset() {
   error.value = null
   try {
     // Filter out empty prompts
-    const validPrompts = prompts.value.filter(p => p.name.trim() !== '' && p.text.trim() !== '')
+    const validPrompts = prompts.value.filter(p => p != null && p.name.trim() !== '' && p.text.trim() !== '')
 
     const payload: CreateSamplePresetPayload | UpdateSamplePresetPayload = selectedPresetId.value
       ? {
@@ -254,6 +254,10 @@ async function deletePreset() {
   }
 }
 
+function createPromptItem(): NamedPrompt {
+  return { name: '', text: '' }
+}
+
 function parseNumberList(value: string): number[] {
   return value
     .split(',')
@@ -314,6 +318,7 @@ function formatNumberList(values: number[]): string {
           <NDynamicInput
             v-model:value="prompts"
             :min="1"
+            :on-create="createPromptItem"
             #="{ index, value }"
           >
             <div class="prompt-row">
