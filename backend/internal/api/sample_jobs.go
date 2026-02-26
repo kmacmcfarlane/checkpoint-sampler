@@ -93,6 +93,8 @@ func (s *SampleJobsService) Create(ctx context.Context, p *gensamplejobs.CreateS
 		p.Vae,
 		p.Clip,
 		shift,
+		p.CheckpointFilenames,
+		p.ClearExisting,
 	)
 	if err != nil {
 		if isNotFound(err) {

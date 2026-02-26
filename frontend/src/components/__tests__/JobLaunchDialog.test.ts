@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { nextTick } from 'vue'
-import { NModal, NSelect, NInputNumber, NButton } from 'naive-ui'
+import { NModal, NSelect, NInputNumber, NButton, NCheckbox } from 'naive-ui'
 import JobLaunchDialog from '../JobLaunchDialog.vue'
 import SamplePresetEditor from '../SamplePresetEditor.vue'
 import type { TrainingRun, WorkflowSummary, SamplePreset, SampleJob } from '../../api/types'
@@ -9,6 +9,8 @@ import type { TrainingRun, WorkflowSummary, SamplePreset, SampleJob } from '../.
 // Mock the api client module
 vi.mock('../../api/client', () => ({
   apiClient: {
+    getTrainingRuns: vi.fn(),
+    listSampleJobs: vi.fn(),
     listWorkflows: vi.fn(),
     listSamplePresets: vi.fn(),
     getComfyUIModels: vi.fn(),
@@ -21,12 +23,15 @@ vi.mock('../../api/client', () => ({
 
 import { apiClient } from '../../api/client'
 
+const mockGetTrainingRuns = apiClient.getTrainingRuns as ReturnType<typeof vi.fn>
+const mockListSampleJobs = apiClient.listSampleJobs as ReturnType<typeof vi.fn>
 const mockListWorkflows = apiClient.listWorkflows as ReturnType<typeof vi.fn>
 const mockListSamplePresets = apiClient.listSamplePresets as ReturnType<typeof vi.fn>
 const mockGetComfyUIModels = apiClient.getComfyUIModels as ReturnType<typeof vi.fn>
 const mockCreateSampleJob = apiClient.createSampleJob as ReturnType<typeof vi.fn>
 
-const sampleTrainingRun: TrainingRun = {
+// Training run without samples (gray)
+const runEmpty: TrainingRun = {
   id: 1,
   name: 'qwen/psai4rt-v0.3.0',
   checkpoint_count: 5,
@@ -34,6 +39,30 @@ const sampleTrainingRun: TrainingRun = {
   checkpoints: [
     { filename: 'checkpoint1.safetensors', step_number: 1000, has_samples: false },
     { filename: 'checkpoint2.safetensors', step_number: 2000, has_samples: false },
+  ],
+}
+
+// Training run with samples (green)
+const runWithSamples: TrainingRun = {
+  id: 2,
+  name: 'qwen/psai4rt-v0.4.0',
+  checkpoint_count: 3,
+  has_samples: true,
+  checkpoints: [
+    { filename: 'chk-a.safetensors', step_number: 1000, has_samples: true },
+    { filename: 'chk-b.safetensors', step_number: 2000, has_samples: false },
+    { filename: 'chk-c.safetensors', step_number: 3000, has_samples: true },
+  ],
+}
+
+// Training run with a running job (blue)
+const runRunning: TrainingRun = {
+  id: 3,
+  name: 'qwen/psai4rt-v0.5.0',
+  checkpoint_count: 2,
+  has_samples: false,
+  checkpoints: [
+    { filename: 'chk-x.safetensors', step_number: 500, has_samples: false },
   ],
 }
 
@@ -99,9 +128,25 @@ const samplePresets: SamplePreset[] = [
 const vaeModels = ['ae.safetensors', 'vae-ft-mse.safetensors']
 const clipModels = ['clip_l.safetensors', 't5xxl_fp16.safetensors']
 
+const runningJob: SampleJob = {
+  id: 'job-running',
+  training_run_name: 'qwen/psai4rt-v0.5.0',
+  sample_preset_id: 'preset-1',
+  workflow_name: 'qwen-image.json',
+  status: 'running',
+  total_items: 10,
+  completed_items: 2,
+  created_at: '2025-01-01T00:00:00Z',
+  updated_at: '2025-01-01T00:00:00Z',
+}
+
+const allTrainingRuns = [runEmpty, runWithSamples, runRunning]
+
 describe('JobLaunchDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockGetTrainingRuns.mockResolvedValue(allTrainingRuns)
+    mockListSampleJobs.mockResolvedValue([runningJob])
     mockListWorkflows.mockResolvedValue(sampleWorkflows)
     mockListSamplePresets.mockResolvedValue(samplePresets)
     mockGetComfyUIModels.mockImplementation((type: string) => {
@@ -113,7 +158,7 @@ describe('JobLaunchDialog', () => {
 
   it('renders a modal with title "Generate Samples"', async () => {
     const wrapper = mount(JobLaunchDialog, {
-      props: { show: true, trainingRun: sampleTrainingRun },
+      props: { show: true },
       global: { stubs: { Teleport: true } },
     })
     await flushPromises()
@@ -123,22 +168,69 @@ describe('JobLaunchDialog', () => {
     expect(modal.props('title')).toBe('Generate Samples')
   })
 
-  it('fetches workflows, presets, and ComfyUI models on mount', async () => {
+  it('fetches training runs, jobs, workflows, presets, and ComfyUI models on mount', async () => {
     mount(JobLaunchDialog, {
-      props: { show: true, trainingRun: sampleTrainingRun },
+      props: { show: true },
       global: { stubs: { Teleport: true } },
     })
     await flushPromises()
 
+    expect(mockGetTrainingRuns).toHaveBeenCalledTimes(1)
+    expect(mockListSampleJobs).toHaveBeenCalledTimes(1)
     expect(mockListWorkflows).toHaveBeenCalledTimes(1)
     expect(mockListSamplePresets).toHaveBeenCalledTimes(1)
     expect(mockGetComfyUIModels).toHaveBeenCalledWith('vae')
     expect(mockGetComfyUIModels).toHaveBeenCalledWith('clip')
   })
 
+  it('starts with no training run pre-selected', async () => {
+    const wrapper = mount(JobLaunchDialog, {
+      props: { show: true },
+      global: { stubs: { Teleport: true } },
+    })
+    await flushPromises()
+
+    const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
+    expect(runSelect.props('value')).toBeNull()
+  })
+
+  describe('default filter (only empty runs)', () => {
+    it('shows only runs without samples or active jobs by default', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
+      const options = runSelect.props('options') as Array<{ label: string; value: number }>
+      // runEmpty (id=1) is gray (no samples, no jobs) — should appear
+      // runWithSamples (id=2) is green (has_samples) — hidden by default
+      // runRunning (id=3) has a running job — hidden by default
+      expect(options).toHaveLength(1)
+      expect(options[0].value).toBe(1)
+    })
+
+    it('shows all runs when "show all" checkbox is checked', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const checkbox = wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox)
+      checkbox.vm.$emit('update:checked', true)
+      await nextTick()
+
+      const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
+      const options = runSelect.props('options') as Array<{ label: string; value: number }>
+      expect(options).toHaveLength(3)
+    })
+  })
+
   it('populates workflow select with valid workflows only', async () => {
     const wrapper = mount(JobLaunchDialog, {
-      props: { show: true, trainingRun: sampleTrainingRun },
+      props: { show: true },
       global: { stubs: { Teleport: true } },
     })
     await flushPromises()
@@ -152,7 +244,7 @@ describe('JobLaunchDialog', () => {
 
   it('populates preset select with all presets', async () => {
     const wrapper = mount(JobLaunchDialog, {
-      props: { show: true, trainingRun: sampleTrainingRun },
+      props: { show: true },
       global: { stubs: { Teleport: true } },
     })
     await flushPromises()
@@ -166,7 +258,7 @@ describe('JobLaunchDialog', () => {
 
   it('shows shift input only when workflow has shift role', async () => {
     const wrapper = mount(JobLaunchDialog, {
-      props: { show: true, trainingRun: sampleTrainingRun },
+      props: { show: true },
       global: { stubs: { Teleport: true } },
     })
     await flushPromises()
@@ -184,17 +276,32 @@ describe('JobLaunchDialog', () => {
     expect(wrapper.find('[data-testid="shift-input"]').exists()).toBe(true)
   })
 
-  it('displays confirmation summary with correct calculations', async () => {
+  it('displays confirmation summary with N/A when no training run selected', async () => {
     const wrapper = mount(JobLaunchDialog, {
-      props: { show: true, trainingRun: sampleTrainingRun },
+      props: { show: true },
       global: { stubs: { Teleport: true } },
     })
     await flushPromises()
 
-    // Select a preset
-    const presetSelect = wrapper.find('[data-testid="preset-select"]')
-    const select = presetSelect.findComponent(NSelect)
-    select.vm.$emit('update:value', 'preset-2')
+    const summary = wrapper.find('[data-testid="job-summary"]')
+    expect(summary.text()).toContain('Training Run: N/A')
+  })
+
+  it('displays confirmation summary with correct values when run and preset selected', async () => {
+    const wrapper = mount(JobLaunchDialog, {
+      props: { show: true },
+      global: { stubs: { Teleport: true } },
+    })
+    await flushPromises()
+
+    // Show all runs and select the empty run
+    wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
+    await nextTick()
+
+    wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+    await nextTick()
+
+    wrapper.find('[data-testid="preset-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-2')
     await nextTick()
 
     const summary = wrapper.find('[data-testid="job-summary"]')
@@ -206,39 +313,37 @@ describe('JobLaunchDialog', () => {
 
   it('disables submit button when required fields are missing', async () => {
     const wrapper = mount(JobLaunchDialog, {
-      props: { show: true, trainingRun: sampleTrainingRun },
+      props: { show: true },
       global: { stubs: { Teleport: true } },
     })
     await flushPromises()
 
     const buttons = wrapper.findAllComponents(NButton)
-    const submitButton = buttons.find(b => b.text() === 'Generate Samples')
+    const submitButton = buttons.find(b => b.text() === 'Generate Samples' || b.text() === 'Regenerate Samples')
     expect(submitButton).toBeDefined()
     expect(submitButton!.props('disabled')).toBe(true)
   })
 
-  it('enables submit button when all required fields are filled', async () => {
+  it('enables submit button when all required fields are filled for an empty run', async () => {
     const wrapper = mount(JobLaunchDialog, {
-      props: { show: true, trainingRun: sampleTrainingRun },
+      props: { show: true },
       global: { stubs: { Teleport: true } },
     })
     await flushPromises()
 
-    // Select all required fields
-    const workflowSelect = wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect)
-    workflowSelect.vm.$emit('update:value', 'qwen-image.json')
+    wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
     await nextTick()
 
-    const presetSelect = wrapper.find('[data-testid="preset-select"]').findComponent(NSelect)
-    presetSelect.vm.$emit('update:value', 'preset-1')
+    wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect).vm.$emit('update:value', 'qwen-image.json')
     await nextTick()
 
-    const vaeSelect = wrapper.find('[data-testid="vae-select"]').findComponent(NSelect)
-    vaeSelect.vm.$emit('update:value', 'ae.safetensors')
+    wrapper.find('[data-testid="preset-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
     await nextTick()
 
-    const clipSelect = wrapper.find('[data-testid="clip-select"]').findComponent(NSelect)
-    clipSelect.vm.$emit('update:value', 'clip_l.safetensors')
+    wrapper.find('[data-testid="vae-select"]').findComponent(NSelect).vm.$emit('update:value', 'ae.safetensors')
+    await nextTick()
+
+    wrapper.find('[data-testid="clip-select"]').findComponent(NSelect).vm.$emit('update:value', 'clip_l.safetensors')
     await nextTick()
 
     const buttons = wrapper.findAllComponents(NButton)
@@ -246,7 +351,7 @@ describe('JobLaunchDialog', () => {
     expect(submitButton!.props('disabled')).toBe(false)
   })
 
-  it('creates sample job with correct payload when submitted', async () => {
+  it('creates sample job with correct payload for an empty training run', async () => {
     const mockJob: SampleJob = {
       id: 'job-1',
       training_run_name: 'qwen/psai4rt-v0.3.0',
@@ -263,19 +368,19 @@ describe('JobLaunchDialog', () => {
     mockCreateSampleJob.mockResolvedValue(mockJob)
 
     const wrapper = mount(JobLaunchDialog, {
-      props: { show: true, trainingRun: sampleTrainingRun },
+      props: { show: true },
       global: { stubs: { Teleport: true } },
     })
     await flushPromises()
 
-    // Fill form
+    // Select empty run (only one shown by default)
+    wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
     wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect).vm.$emit('update:value', 'qwen-image.json')
     wrapper.find('[data-testid="preset-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
     wrapper.find('[data-testid="vae-select"]').findComponent(NSelect).vm.$emit('update:value', 'ae.safetensors')
     wrapper.find('[data-testid="clip-select"]').findComponent(NSelect).vm.$emit('update:value', 'clip_l.safetensors')
     await nextTick()
 
-    // Submit
     const buttons = wrapper.findAllComponents(NButton)
     const submitButton = buttons.find(b => b.text() === 'Generate Samples')
     await submitButton!.trigger('click')
@@ -308,23 +413,21 @@ describe('JobLaunchDialog', () => {
     mockCreateSampleJob.mockResolvedValue(mockJob)
 
     const wrapper = mount(JobLaunchDialog, {
-      props: { show: true, trainingRun: sampleTrainingRun },
+      props: { show: true },
       global: { stubs: { Teleport: true } },
     })
     await flushPromises()
 
-    // Fill form with workflow that has shift role
+    wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
     wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect).vm.$emit('update:value', 'auraflow-image.json')
     wrapper.find('[data-testid="preset-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
     wrapper.find('[data-testid="vae-select"]').findComponent(NSelect).vm.$emit('update:value', 'ae.safetensors')
     wrapper.find('[data-testid="clip-select"]').findComponent(NSelect).vm.$emit('update:value', 'clip_l.safetensors')
     await nextTick()
 
-    const shiftInput = wrapper.find('[data-testid="shift-input"]').findComponent(NInputNumber)
-    shiftInput.vm.$emit('update:value', 3.0)
+    wrapper.find('[data-testid="shift-input"]').findComponent(NInputNumber).vm.$emit('update:value', 3.0)
     await nextTick()
 
-    // Submit
     const buttons = wrapper.findAllComponents(NButton)
     const submitButton = buttons.find(b => b.text() === 'Generate Samples')
     await submitButton!.trigger('click')
@@ -341,28 +444,25 @@ describe('JobLaunchDialog', () => {
   })
 
   it('emits success event and closes on successful submission', async () => {
-    const mockJob: SampleJob = {
+    mockCreateSampleJob.mockResolvedValue({
       id: 'job-1',
       training_run_name: 'qwen/psai4rt-v0.3.0',
       sample_preset_id: 'preset-1',
       workflow_name: 'qwen-image.json',
-      vae: 'ae.safetensors',
-      clip: 'clip_l.safetensors',
       status: 'running',
       total_items: 5,
       completed_items: 0,
       created_at: '2025-01-01T00:00:00Z',
       updated_at: '2025-01-01T00:00:00Z',
-    }
-    mockCreateSampleJob.mockResolvedValue(mockJob)
+    })
 
     const wrapper = mount(JobLaunchDialog, {
-      props: { show: true, trainingRun: sampleTrainingRun },
+      props: { show: true },
       global: { stubs: { Teleport: true } },
     })
     await flushPromises()
 
-    // Fill and submit
+    wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
     wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect).vm.$emit('update:value', 'qwen-image.json')
     wrapper.find('[data-testid="preset-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
     wrapper.find('[data-testid="vae-select"]').findComponent(NSelect).vm.$emit('update:value', 'ae.safetensors')
@@ -382,12 +482,12 @@ describe('JobLaunchDialog', () => {
     mockCreateSampleJob.mockRejectedValue({ code: 'NETWORK_ERROR', message: 'Failed to create job' })
 
     const wrapper = mount(JobLaunchDialog, {
-      props: { show: true, trainingRun: sampleTrainingRun },
+      props: { show: true },
       global: { stubs: { Teleport: true } },
     })
     await flushPromises()
 
-    // Fill and submit
+    wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
     wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect).vm.$emit('update:value', 'qwen-image.json')
     wrapper.find('[data-testid="preset-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
     wrapper.find('[data-testid="vae-select"]').findComponent(NSelect).vm.$emit('update:value', 'ae.safetensors')
@@ -399,13 +499,12 @@ describe('JobLaunchDialog', () => {
     await submitButton!.trigger('click')
     await flushPromises()
 
-    // The error message should be visible in the component text
     expect(wrapper.text()).toContain('Failed to create job')
   })
 
   it('renders a "Manage Presets" button next to the preset selector', async () => {
     const wrapper = mount(JobLaunchDialog, {
-      props: { show: true, trainingRun: sampleTrainingRun },
+      props: { show: true },
       global: { stubs: { Teleport: true } },
     })
     await flushPromises()
@@ -417,7 +516,7 @@ describe('JobLaunchDialog', () => {
 
   it('opens the preset editor modal when "Manage Presets" is clicked', async () => {
     const wrapper = mount(JobLaunchDialog, {
-      props: { show: true, trainingRun: sampleTrainingRun },
+      props: { show: true },
       global: { stubs: { Teleport: true } },
     })
     await flushPromises()
@@ -429,11 +528,9 @@ describe('JobLaunchDialog', () => {
     expect(editorModal!.props('show')).toBe(false)
 
     // Click "Manage Presets"
-    const manageButton = wrapper.find('[data-testid="manage-presets-button"]')
-    await manageButton.trigger('click')
+    await wrapper.find('[data-testid="manage-presets-button"]').trigger('click')
     await nextTick()
 
-    // The editor modal should now be open
     const updatedModals = wrapper.findAllComponents(NModal)
     const openedEditorModal = updatedModals.find(m => m.props('title') === 'Manage Sample Presets')
     expect(openedEditorModal!.props('show')).toBe(true)
@@ -457,10 +554,6 @@ describe('JobLaunchDialog', () => {
       updated_at: '2025-01-01T00:00:00Z',
     }
 
-    // After preset-saved, the dialog will call fetchSamplePresets again
-    // Return the new preset in the refreshed list.
-    // Note: SamplePresetEditor also calls listSamplePresets when it mounts, so we
-    // need one call for the editor's own load plus one for the dialog's refresh.
     const updatedPresets = [...samplePresets, newPreset]
     mockListSamplePresets
       .mockResolvedValueOnce(samplePresets)  // initial dialog load
@@ -468,64 +561,174 @@ describe('JobLaunchDialog', () => {
       .mockResolvedValueOnce(updatedPresets) // dialog refresh after preset-saved
 
     const wrapper = mount(JobLaunchDialog, {
-      props: { show: true, trainingRun: sampleTrainingRun },
+      props: { show: true },
       global: { stubs: { Teleport: true } },
     })
     await flushPromises()
 
-    // Verify initial preset options
     const presetSelect = wrapper.find('[data-testid="preset-select"]').findComponent(NSelect)
     expect((presetSelect.props('options') as Array<{ label: string; value: string }>)).toHaveLength(2)
 
-    // Open the editor and wait for SamplePresetEditor to mount and fetch its own presets
     await wrapper.find('[data-testid="manage-presets-button"]').trigger('click')
     await flushPromises()
 
-    // Find SamplePresetEditor and emit preset-saved
     const editor = wrapper.findComponent(SamplePresetEditor)
     await editor.vm.$emit('preset-saved', newPreset)
     await flushPromises()
 
-    // The preset list should now have 3 options
     const refreshedOptions = presetSelect.props('options') as Array<{ label: string; value: string }>
     expect(refreshedOptions).toHaveLength(3)
     expect(refreshedOptions[2].label).toBe('Newly Created')
-
-    // The newly created preset should be auto-selected
     expect(presetSelect.props('value')).toBe('preset-new')
   })
 
   it('clears selected preset when preset-deleted is emitted for the selected preset', async () => {
     const wrapper = mount(JobLaunchDialog, {
-      props: { show: true, trainingRun: sampleTrainingRun },
+      props: { show: true },
       global: { stubs: { Teleport: true } },
     })
     await flushPromises()
 
-    // Select a preset first
     const presetSelect = wrapper.find('[data-testid="preset-select"]').findComponent(NSelect)
     presetSelect.vm.$emit('update:value', 'preset-1')
     await nextTick()
 
-    // Open editor
     await wrapper.find('[data-testid="manage-presets-button"]').trigger('click')
     await nextTick()
 
-    // Second call returns list without deleted preset
     const presetsWithoutFirst = samplePresets.filter(p => p.id !== 'preset-1')
     mockListSamplePresets.mockResolvedValueOnce(presetsWithoutFirst)
 
-    // Simulate preset-deleted from editor
     const editor = wrapper.findComponent(SamplePresetEditor)
     await editor.vm.$emit('preset-deleted', 'preset-1')
     await flushPromises()
 
-    // Selected preset should be cleared
     expect(presetSelect.props('value')).toBeNull()
 
-    // Options should be refreshed
     const refreshedOptions = presetSelect.props('options') as Array<{ label: string; value: string }>
     expect(refreshedOptions).toHaveLength(1)
     expect(refreshedOptions[0].label).toBe('Full Test')
+  })
+
+  describe('checkpoint picker for regeneration', () => {
+    it('does not show checkpoint picker when empty run is selected', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      await nextTick()
+
+      expect(wrapper.find('[data-testid="checkpoint-picker"]').exists()).toBe(false)
+    })
+
+    it('shows checkpoint picker when run with samples is selected', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Show all to see runs with samples
+      wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
+      await nextTick()
+
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      await nextTick()
+
+      expect(wrapper.find('[data-testid="checkpoint-picker"]').exists()).toBe(true)
+    })
+
+    it('shows "Select All" and "Deselect All" controls in checkpoint picker', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
+      await nextTick()
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      await nextTick()
+
+      expect(wrapper.find('[data-testid="select-all-checkpoints"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="deselect-all-checkpoints"]').exists()).toBe(true)
+    })
+  })
+
+  describe('payload for regeneration', () => {
+    it('sends clear_existing=true when a run with samples is selected', async () => {
+      mockCreateSampleJob.mockResolvedValue({
+        id: 'job-2',
+        training_run_name: 'qwen/psai4rt-v0.4.0',
+        sample_preset_id: 'preset-1',
+        workflow_name: 'qwen-image.json',
+        status: 'pending',
+        total_items: 3,
+        completed_items: 0,
+        created_at: '2025-01-01T00:00:00Z',
+        updated_at: '2025-01-01T00:00:00Z',
+      })
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
+      await nextTick()
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect).vm.$emit('update:value', 'qwen-image.json')
+      wrapper.find('[data-testid="preset-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
+      wrapper.find('[data-testid="vae-select"]').findComponent(NSelect).vm.$emit('update:value', 'ae.safetensors')
+      wrapper.find('[data-testid="clip-select"]').findComponent(NSelect).vm.$emit('update:value', 'clip_l.safetensors')
+      await nextTick()
+
+      const buttons = wrapper.findAllComponents(NButton)
+      const submitButton = buttons.find(b => b.text() === 'Regenerate Samples')
+      await submitButton!.trigger('click')
+      await flushPromises()
+
+      const call = mockCreateSampleJob.mock.calls[0][0]
+      expect(call.clear_existing).toBe(true)
+      expect(call.training_run_name).toBe('qwen/psai4rt-v0.4.0')
+      // No specific checkpoints selected, so checkpoint_filenames should be absent
+      expect(call.checkpoint_filenames).toBeUndefined()
+    })
+
+    it('shows "Regenerate Samples" button text when run has samples', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
+      await nextTick()
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      await nextTick()
+
+      const buttons = wrapper.findAllComponents(NButton)
+      const regenerateButton = buttons.find(b => b.text() === 'Regenerate Samples')
+      expect(regenerateButton).toBeDefined()
+    })
+
+    it('shows "Generate Samples" button text when run has no samples', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      await nextTick()
+
+      const buttons = wrapper.findAllComponents(NButton)
+      const generateButton = buttons.find(b => b.text() === 'Generate Samples')
+      expect(generateButton).toBeDefined()
+    })
   })
 })

@@ -260,3 +260,24 @@ Adding a short section documenting the canonical CSS variables (--text-color, --
 
 ### Persist Has Samples filter preference in localStorage
 The `hasSamplesFilter` state in TrainingRunSelector is transient — it resets to the default on every page load. A user who prefers to see all runs (unchecked) will have to uncheck it every session. Consider persisting this preference the same way training run selection is persisted via localStorage.
+
+### Bead count in sidebar
+The "Generate Samples" button in the header could show a colored bead indicating whether the current sidebar-selected run has samples/jobs, giving a quick visual hint without opening the dialog.
+
+### Training run list refresh in dialog
+When the dialog is already open and a job completes (via WebSocket), the dialog's training run options and beads should refresh automatically. Currently they are fetched once on mount.
+
+### make gen root-level target
+There is no root-level `make gen` target — codegen requires either a full `docker compose ... run --rm backend sh -c "cd /build && make gen"` invocation or being inside the backend dev container. A root-level `make gen` target would simplify the codegen step for agents and developers alike.
+
+### Unused import detection in Vue SFCs
+The TypeScript compiler doesn't always catch unused imports in `<script setup>` blocks. An ESLint rule for Vue SFCs could catch this automatically during lint.
+
+### Test ID for training run options bead
+The status bead rendering inside `NSelect` option slots cannot be easily asserted in unit tests because Naive UI renders the dropdown lazily. A `data-testid` on each run option row in a custom lightweight selector component would make bead color assertions testable.
+
+### Checkpoint filtering as a separate story
+The `checkpoint_filenames` and `clear_existing` backend features are fairly complex alongside the UI story. Breaking them into a "backend only" sub-story and a "frontend UI" sub-story would allow smaller, more focused reviews.
+
+### Checkpoint regeneration status bead differentiation
+The queued bead color (yellow/amber) covers both `pending` and `paused` job statuses, but these could be visually differentiated (e.g., paused = orange, queued = yellow) for a richer user experience.

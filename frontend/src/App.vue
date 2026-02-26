@@ -604,7 +604,6 @@ const showProminentGenerateButton = computed(() => {
       />
       <JobLaunchDialog
         v-model:show="jobLaunchDialogOpen"
-        :training-run="selectedTrainingRun"
         @success="onJobCreated"
       />
       <JobProgressPanel

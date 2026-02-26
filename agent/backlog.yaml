@@ -1512,7 +1512,7 @@ stories:
   - id: S-049
     title: "Generate Samples dialog — own training run selector with status beads and regeneration support"
     priority: 55
-    status: todo
+    status: uat
     requires: []
     acceptance:
       # Training run selector
@@ -1566,6 +1566,19 @@ stories:
     testing:
       - "command: cd frontend && npx vitest run"
       - "command: make test-backend"
+    metrics:
+      duration: "22m 16s"
+      invocations: 3
+      subagents:
+        fullstack-developer:
+          invocations: 1
+          duration: "10m 44s"
+        code-reviewer:
+          invocations: 1
+          duration: "4m 44s"
+        qa-expert:
+          invocations: 1
+          duration: "6m 48s"
 
   - id: S-050
     title: "Remember last workflow and model-type-specific inputs in Generate Samples dialog"

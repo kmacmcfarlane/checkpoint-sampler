@@ -1,13 +1,25 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { NModal, NCard, NSelect, NInputNumber, NButton, NSpace, NAlert, NDivider } from 'naive-ui'
-import type { TrainingRun, SamplePreset, WorkflowSummary, CreateSampleJobPayload } from '../api/types'
+import { ref, computed, onMounted, watch } from 'vue'
+import {
+  NModal,
+  NSelect,
+  NInputNumber,
+  NButton,
+  NSpace,
+  NAlert,
+  NDivider,
+  NCheckbox,
+  NTag,
+} from 'naive-ui'
+import type { TrainingRun, SamplePreset, WorkflowSummary, CreateSampleJobPayload, SampleJob } from '../api/types'
 import { apiClient } from '../api/client'
 import SamplePresetEditor from './SamplePresetEditor.vue'
 
+/** Status of a training run used to determine bead color. */
+type TrainingRunStatus = 'complete' | 'running' | 'queued' | 'empty'
+
 const props = defineProps<{
   show: boolean
-  trainingRun: TrainingRun | null
 }>()
 
 const emit = defineEmits<{
@@ -19,6 +31,8 @@ const loading = ref(false)
 const error = ref<string | null>(null)
 
 // Available options
+const trainingRuns = ref<TrainingRun[]>([])
+const sampleJobs = ref<SampleJob[]>([])
 const workflows = ref<WorkflowSummary[]>([])
 const samplePresets = ref<SamplePreset[]>([])
 const vaeModels = ref<string[]>([])
@@ -27,38 +41,125 @@ const clipModels = ref<string[]>([])
 // Preset editor sub-dialog
 const presetEditorOpen = ref(false)
 
+// Training run filter: when false, show only gray (empty) runs
+const showAllRuns = ref(false)
+
 // Form selections
+const selectedTrainingRunId = ref<number | null>(null)
 const selectedWorkflow = ref<string | null>(null)
 const selectedPreset = ref<string | null>(null)
 const selectedVAE = ref<string | null>(null)
 const selectedCLIP = ref<string | null>(null)
 const shiftValue = ref<number | null>(null)
 
+// Checkpoint selection for regeneration
+const selectedCheckpoints = ref<Set<string>>(new Set())
+
+// Computed: the selected training run object
+const selectedTrainingRun = computed(() =>
+  trainingRuns.value.find(r => r.id === selectedTrainingRunId.value) ?? null
+)
+
+// Compute status per training run based on job list
+function getRunStatus(run: TrainingRun): TrainingRunStatus {
+  const runJobs = sampleJobs.value.filter(j => j.training_run_name === run.name)
+  const hasRunning = runJobs.some(j => j.status === 'running')
+  const hasQueued = runJobs.some(j => j.status === 'pending' || j.status === 'paused')
+  if (hasRunning) return 'running'
+  if (hasQueued) return 'queued'
+  if (run.has_samples) return 'complete'
+  return 'empty'
+}
+
+// Bead color per status
+function beadColor(status: TrainingRunStatus): string {
+  switch (status) {
+    case 'complete': return '#18a058' // green
+    case 'running': return '#2080f0'  // blue
+    case 'queued': return '#f0a020'   // yellow/amber
+    case 'empty': return '#909090'    // gray
+  }
+}
+
+// Training run select options (filtered by showAllRuns)
+const trainingRunOptions = computed(() => {
+  return trainingRuns.value
+    .filter(run => {
+      if (showAllRuns.value) return true
+      return getRunStatus(run) === 'empty'
+    })
+    .map(run => {
+      const status = getRunStatus(run)
+      const color = beadColor(status)
+      return {
+        label: run.name,
+        value: run.id,
+        // Custom rendering via renderLabel
+        _status: status,
+        _color: color,
+      }
+    })
+})
+
+// Whether the selected run has any existing samples or active jobs
+const selectedRunHasSamples = computed(() => {
+  const run = selectedTrainingRun.value
+  if (!run) return false
+  const status = getRunStatus(run)
+  return status === 'complete' || status === 'running' || status === 'queued'
+})
+
+// Checkpoints of the selected training run
+const selectedRunCheckpoints = computed(() => selectedTrainingRun.value?.checkpoints ?? [])
+
+// Initialize checkpoint selections when the training run changes
+watch(selectedTrainingRunId, () => {
+  selectedCheckpoints.value = new Set()
+})
+
+function selectAllCheckpoints() {
+  selectedCheckpoints.value = new Set(selectedRunCheckpoints.value.map(c => c.filename))
+}
+
+function deselectAllCheckpoints() {
+  selectedCheckpoints.value = new Set()
+}
+
+function toggleCheckpoint(filename: string) {
+  const next = new Set(selectedCheckpoints.value)
+  if (next.has(filename)) {
+    next.delete(filename)
+  } else {
+    next.add(filename)
+  }
+  selectedCheckpoints.value = next
+}
+
 const workflowOptions = computed(() =>
   workflows.value
     .filter(w => w.validation_state === 'valid')
-    .map((w) => ({
+    .map(w => ({
       label: w.name,
       value: w.name,
     }))
 )
 
 const presetOptions = computed(() =>
-  samplePresets.value.map((p) => ({
+  samplePresets.value.map(p => ({
     label: p.name,
     value: p.id,
   }))
 )
 
 const vaeOptions = computed(() =>
-  vaeModels.value.map((v) => ({
+  vaeModels.value.map(v => ({
     label: v,
     value: v,
   }))
 )
 
 const clipOptions = computed(() =>
-  clipModels.value.map((c) => ({
+  clipModels.value.map(c => ({
     label: c,
     value: c,
   }))
@@ -78,20 +179,37 @@ const selectedPresetDetail = computed(() =>
   samplePresets.value.find(p => p.id === selectedPreset.value)
 )
 
-const totalCheckpoints = computed(() => {
-  return props.trainingRun?.checkpoint_count ?? 0
+// Effective checkpoints to use: if picker is shown and checkpoints are selected, use them;
+// otherwise all checkpoints (empty array = all)
+const effectiveCheckpointFilenames = computed((): string[] | undefined => {
+  if (!selectedRunHasSamples.value) return undefined
+  if (selectedCheckpoints.value.size === 0) return undefined
+  return Array.from(selectedCheckpoints.value)
 })
 
-const imagesPerCheckpoint = computed(() => {
-  return selectedPresetDetail.value?.images_per_checkpoint ?? 0
+// How many checkpoints will be targeted
+const targetedCheckpointCount = computed(() => {
+  if (!selectedRunHasSamples.value) {
+    return selectedTrainingRun.value?.checkpoint_count ?? 0
+  }
+  // If checkpoints are selected, use that count; otherwise all
+  if (selectedCheckpoints.value.size > 0) {
+    return selectedCheckpoints.value.size
+  }
+  return selectedTrainingRun.value?.checkpoint_count ?? 0
 })
 
-const totalImages = computed(() => {
-  return totalCheckpoints.value * imagesPerCheckpoint.value
-})
+const totalCheckpoints = computed(() => selectedTrainingRun.value?.checkpoint_count ?? 0)
+
+const imagesPerCheckpoint = computed(() =>
+  selectedPresetDetail.value?.images_per_checkpoint ?? 0
+)
+
+const totalImages = computed(() => targetedCheckpointCount.value * imagesPerCheckpoint.value)
 
 const canSubmit = computed(() => {
   return (
+    selectedTrainingRunId.value !== null &&
     selectedWorkflow.value !== null &&
     selectedPreset.value !== null &&
     selectedVAE.value !== null &&
@@ -102,6 +220,7 @@ const canSubmit = computed(() => {
 
 onMounted(async () => {
   await Promise.all([
+    fetchTrainingRunsAndJobs(),
     fetchWorkflows(),
     fetchSamplePresets(),
     fetchVAEModels(),
@@ -109,11 +228,24 @@ onMounted(async () => {
   ])
 })
 
+async function fetchTrainingRunsAndJobs() {
+  try {
+    const [runs, jobs] = await Promise.all([
+      apiClient.getTrainingRuns(),
+      apiClient.listSampleJobs(),
+    ])
+    trainingRuns.value = runs
+    sampleJobs.value = jobs
+  } catch {
+    trainingRuns.value = []
+    sampleJobs.value = []
+  }
+}
+
 async function fetchWorkflows() {
   try {
     workflows.value = await apiClient.listWorkflows()
-  } catch (err: unknown) {
-    // Silently fail - will be empty
+  } catch {
     workflows.value = []
   }
 }
@@ -121,7 +253,7 @@ async function fetchWorkflows() {
 async function fetchSamplePresets() {
   try {
     samplePresets.value = await apiClient.listSamplePresets()
-  } catch (err: unknown) {
+  } catch {
     samplePresets.value = []
   }
 }
@@ -130,7 +262,7 @@ async function fetchVAEModels() {
   try {
     const result = await apiClient.getComfyUIModels('vae')
     vaeModels.value = result.models
-  } catch (err: unknown) {
+  } catch {
     vaeModels.value = []
   }
 }
@@ -139,7 +271,7 @@ async function fetchCLIPModels() {
   try {
     const result = await apiClient.getComfyUIModels('clip')
     clipModels.value = result.models
-  } catch (err: unknown) {
+  } catch {
     clipModels.value = []
   }
 }
@@ -150,11 +282,14 @@ function close() {
 }
 
 function resetForm() {
+  selectedTrainingRunId.value = null
   selectedWorkflow.value = null
   selectedPreset.value = null
   selectedVAE.value = null
   selectedCLIP.value = null
   shiftValue.value = null
+  selectedCheckpoints.value = new Set()
+  showAllRuns.value = false
   error.value = null
 }
 
@@ -167,13 +302,11 @@ function closePresetEditor() {
 }
 
 async function onPresetSaved(preset: SamplePreset) {
-  // Refresh the preset list and auto-select the newly saved preset
   await fetchSamplePresets()
   selectedPreset.value = preset.id
 }
 
 async function onPresetDeleted(presetId: string) {
-  // If the deleted preset was selected, clear the selection
   if (selectedPreset.value === presetId) {
     selectedPreset.value = null
   }
@@ -181,14 +314,14 @@ async function onPresetDeleted(presetId: string) {
 }
 
 async function submit() {
-  if (!canSubmit.value || !props.trainingRun) return
+  if (!canSubmit.value || !selectedTrainingRun.value) return
 
   loading.value = true
   error.value = null
 
   try {
     const payload: CreateSampleJobPayload = {
-      training_run_name: props.trainingRun.name,
+      training_run_name: selectedTrainingRun.value.name,
       sample_preset_id: selectedPreset.value!,
       workflow_name: selectedWorkflow.value!,
       vae: selectedVAE.value ?? '',
@@ -197,6 +330,13 @@ async function submit() {
 
     if (hasShiftRole.value && shiftValue.value !== null) {
       payload.shift = shiftValue.value
+    }
+
+    if (selectedRunHasSamples.value) {
+      payload.clear_existing = true
+      if (effectiveCheckpointFilenames.value) {
+        payload.checkpoint_filenames = effectiveCheckpointFilenames.value
+      }
     }
 
     await apiClient.createSampleJob(payload)
@@ -219,7 +359,7 @@ async function submit() {
     :show="show"
     preset="card"
     title="Generate Samples"
-    style="max-width: 600px;"
+    style="max-width: 640px;"
     :on-close="close"
     @update:show="emit('update:show', $event)"
   >
@@ -241,6 +381,93 @@ async function submit() {
       <NAlert v-if="error" type="error" closable @close="error = null">
         {{ error }}
       </NAlert>
+
+      <!-- Training run selector -->
+      <div class="form-field">
+        <div class="field-header">
+          <label for="training-run-select">Training Run</label>
+          <NCheckbox
+            :checked="showAllRuns"
+            data-testid="show-all-runs-checkbox"
+            @update:checked="showAllRuns = $event; selectedTrainingRunId = null"
+          >
+            Show all (including with existing samples)
+          </NCheckbox>
+        </div>
+        <NSelect
+          id="training-run-select"
+          v-model:value="selectedTrainingRunId"
+          :options="trainingRunOptions"
+          placeholder="Select a training run"
+          clearable
+          filterable
+          data-testid="training-run-select"
+        >
+          <template #option="{ option }">
+            <div class="run-option">
+              <span
+                class="status-bead"
+                :style="{ backgroundColor: (option as { _color: string })._color }"
+                :title="(option as { _status: string })._status"
+              />
+              <span>{{ option.label }}</span>
+            </div>
+          </template>
+        </NSelect>
+      </div>
+
+      <!-- Checkpoint picker (only shown when run has existing samples) -->
+      <div
+        v-if="selectedRunHasSamples && selectedRunCheckpoints.length > 0"
+        class="form-field"
+        data-testid="checkpoint-picker"
+      >
+        <div class="field-header">
+          <label>Checkpoints to Regenerate</label>
+          <div class="checkpoint-controls">
+            <NButton
+              size="tiny"
+              data-testid="select-all-checkpoints"
+              @click="selectAllCheckpoints"
+            >
+              Select All
+            </NButton>
+            <NButton
+              size="tiny"
+              data-testid="deselect-all-checkpoints"
+              @click="deselectAllCheckpoints"
+            >
+              Deselect All
+            </NButton>
+          </div>
+        </div>
+        <p class="field-hint">
+          {{ selectedCheckpoints.size === 0 ? 'All checkpoints selected (none deselected)' : `${selectedCheckpoints.size} of ${selectedRunCheckpoints.length} selected` }}
+        </p>
+        <div class="checkpoint-list">
+          <div
+            v-for="cp in selectedRunCheckpoints"
+            :key="cp.filename"
+            class="checkpoint-row"
+            :data-testid="`checkpoint-row-${cp.filename}`"
+          >
+            <NCheckbox
+              :checked="selectedCheckpoints.has(cp.filename)"
+              @update:checked="toggleCheckpoint(cp.filename)"
+            >
+              <span class="checkpoint-filename">{{ cp.filename }}</span>
+              <NTag
+                v-if="cp.has_samples"
+                size="tiny"
+                type="success"
+                class="has-samples-tag"
+              >
+                has samples
+              </NTag>
+            </NCheckbox>
+          </div>
+        </div>
+      </div>
 
       <div class="form-field">
         <label for="workflow-select">Workflow Template</label>
@@ -318,8 +545,11 @@ async function submit() {
       <NDivider />
 
       <div class="summary" data-testid="job-summary">
-        <p><strong>Training Run:</strong> {{ trainingRun?.name ?? 'N/A' }}</p>
+        <p><strong>Training Run:</strong> {{ selectedTrainingRun?.name ?? 'N/A' }}</p>
         <p><strong>Checkpoints:</strong> {{ totalCheckpoints }}</p>
+        <p v-if="selectedRunHasSamples">
+          <strong>Checkpoints to regenerate:</strong> {{ targetedCheckpointCount === totalCheckpoints ? 'All' : targetedCheckpointCount }}
+        </p>
         <p><strong>Images per checkpoint:</strong> {{ imagesPerCheckpoint }}</p>
         <p class="total-images"><strong>Total images:</strong> {{ totalImages }}</p>
       </div>
@@ -331,7 +561,7 @@ async function submit() {
           :loading="loading"
           @click="submit"
         >
-          {{ loading ? 'Creating...' : 'Generate Samples' }}
+          {{ loading ? 'Creating...' : (selectedRunHasSamples ? 'Regenerate Samples' : 'Generate Samples') }}
         </NButton>
         <NButton @click="close">
           Cancel
@@ -345,6 +575,14 @@ async function submit() {
 .form-field {
   display: flex;
   flex-direction: column;
+  gap: 0.5rem;
+}
+
+.field-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
   gap: 0.5rem;
 }
 
@@ -362,6 +600,55 @@ async function submit() {
   font-weight: 600;
   font-size: 0.875rem;
   color: var(--text-color);
+}
+
+.field-hint {
+  font-size: 0.8125rem;
+  color: var(--text-secondary, #666666);
+  margin: 0;
+}
+
+.checkpoint-controls {
+  display: flex;
+  gap: 0.375rem;
+}
+
+.checkpoint-list {
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color, #e0e0e0);
+  border-radius: 0.25rem;
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.checkpoint-row {
+  display: flex;
+  align-items: center;
+}
+
+.checkpoint-filename {
+  font-family: monospace;
+  font-size: 0.8125rem;
+}
+
+.has-samples-tag {
+  margin-left: 0.5rem;
+}
+
+.run-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.status-bead {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .summary {
