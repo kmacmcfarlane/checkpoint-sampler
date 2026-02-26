@@ -1731,3 +1731,572 @@ stories:
       Key files: frontend/playwright.config.ts.
     testing:
       - "command: make test-e2e"
+
+  # ─── User-reported issues (2026-02-26) ──────────────────────────────────────
+
+  - id: W-001
+    title: "Update QA agent to write/modify E2E tests and file ideas for unrelated coverage"
+    priority: 200
+    status: todo
+    requires: []
+    acceptance:
+      - "AGENT: Add Write and Edit tools to the qa-expert agent definition (/.claude/agents/qa-expert.md)"
+      - "AGENT: Use tiered model selection: sonnet for simple E2E additions, opus for complex test authoring"
+      - "AGENT: QA agent instructions explicitly encourage writing or modifying Playwright E2E tests to enhance coverage of the story under test"
+      - "AGENT: Items not related to the story under test should be returned as ideas to add to agent/ideas/"
+      - "AGENT: QA agent retains autonomous empowerment for E2E helpers, fixtures, and config tweaks (no idea filing needed for those)"
+    testing:
+      - "command: (n/a) agent definition change only"
+
+  - id: B-028
+    title: "Investigate and fix tokens_out always reporting 0 in metrics"
+    priority: 199
+    status: todo
+    requires: []
+    acceptance:
+      - "AGENT: Investigate why tokens_out is always 0 in CHANGELOG entries and backlog.yaml metrics"
+      - "AGENT: Root cause identified — either /cost output parsing is wrong, snapshot delta computation has a bug, or /cost doesn't report output tokens"
+      - "AGENT: Fix applied so tokens_out reflects actual output token usage"
+      - "AGENT: If /cost genuinely doesn't provide output tokens, document this limitation and update AGENT_FLOW.md section 10.2 accordingly"
+    notes: |
+      Every CHANGELOG entry shows "Token usage: NNNNNN input, 0 output". The orchestrator
+      captures /cost snapshots before and after subagent dispatch (AGENT_FLOW.md section 4.3.1)
+      and computes deltas. The output token delta is consistently 0.
+      Key files: agent/AGENT_FLOW.md (sections 4.3.1, 10), agent/PROMPT.md (token tracking logic).
+    testing:
+      - "command: (n/a) agent workflow change"
+
+  - id: B-029
+    title: "Sample jobs stuck in pending — backend should auto-start and execute jobs"
+    priority: 198
+    status: todo
+    requires: []
+    acceptance:
+      - "BE: Job executor polls for jobs in pending status and auto-transitions them to running"
+      - "BE: No explicit Start API call or UI button required — jobs start automatically after creation"
+      - "BE: Only one job runs at a time; additional pending jobs wait in queue"
+      - "BE: ComfyUI workflow submissions appear in ComfyUI stdout when a job is processing"
+      - "BE: Job executor correctly submits parameterized workflows to ComfyUI and monitors completion via WebSocket"
+      - "BE: If ComfyUI is unreachable when a job is created, the executor retries once ComfyUI becomes available"
+      - "BE: Unit tests for auto-start behavior (executor picks up pending jobs without explicit Start call)"
+    notes: |
+      Two issues merged: (1) Jobs are created as pending but there is no UI Start button and no
+      backend auto-start, so jobs never transition to running. (2) Even if started, ComfyUI
+      workflow submissions may not be reaching ComfyUI. Root cause is likely that processNextItem()
+      only looks for jobs with status=running, but nothing transitions pending→running.
+      The executor should poll for pending jobs and auto-start them.
+      Key files: backend/internal/service/job_executor.go (processNextItem, run loop),
+      backend/internal/service/sample_job.go (Create, Start methods),
+      backend/internal/api/sample_jobs.go.
+    testing:
+      - "command: ginkgo -r --cover --race ./internal/..."
+
+  - id: B-030
+    title: "Top nav elements unavailable on narrow screens until drawer opens"
+    priority: 50
+    status: todo
+    requires: []
+    acceptance:
+      - "FE: On narrow screens (<1024px), the app eagerly loads the saved training run from localStorage and triggers a scan on mount, regardless of drawer state"
+      - "FE: Header buttons (Generate Samples, Jobs, Metadata, Live indicator) appear immediately after app load when a saved training run exists"
+      - "FE: The drawer's TrainingRunSelector still reflects the auto-selected training run when opened"
+      - "FE: On wide screens (>=1024px), behavior is unchanged (drawer auto-opens, training run auto-selects)"
+      - "FE: If no saved training run exists in localStorage, the app shows 'Select a training run to get started' as before"
+      - "FE: Unit tests for eager loading on narrow screens"
+    notes: |
+      Root cause: TrainingRunSelector is inside AppDrawer, which is not mounted on narrow screens
+      until the user opens it. The auto-select logic lives in TrainingRunSelector's onMounted hook,
+      so it never fires. Fix: move auto-select and scan logic to App.vue's onMounted, independent
+      of drawer state. TrainingRunSelector can still sync its UI when mounted later.
+      Key files: frontend/src/App.vue (onMounted, onTrainingRunSelect),
+      frontend/src/components/TrainingRunSelector.vue (auto-select logic),
+      frontend/src/composables/usePresetPersistence.ts.
+    testing:
+      - "command: cd frontend && npx vitest run"
+
+  - id: B-031
+    title: "Generate Samples dialog doesn't sync preset selection to manage presets sub-dialog"
+    priority: 40
+    status: todo
+    requires: []
+    acceptance:
+      - "FE: When opening the 'Manage Sample Presets' sub-dialog from the Generate Samples dialog, the currently selected sample preset in the parent dropdown is pre-selected in the SamplePresetEditor"
+      - "FE: If no preset is selected in the parent, the SamplePresetEditor opens with no preset selected (current behavior)"
+      - "FE: After saving or editing a preset in the sub-dialog, the parent dialog's preset dropdown reflects the changes"
+      - "FE: Unit tests for preset selection sync between parent and sub-dialog"
+    notes: |
+      Currently SamplePresetEditor always opens with no preset selected. JobLaunchDialog
+      passes @preset-saved and @preset-deleted events but not the currently selected preset ID.
+      Fix: pass selectedPresetId as a prop to SamplePresetEditor.
+      Key files: frontend/src/components/JobLaunchDialog.vue (lines 444-456),
+      frontend/src/components/SamplePresetEditor.vue.
+    testing:
+      - "command: cd frontend && npx vitest run"
+
+  - id: B-032
+    title: "Dark mode contrast issues in job cards and sample preset editor"
+    priority: 35
+    status: todo
+    requires: []
+    acceptance:
+      - "FE: Job card text in JobProgressPanel is readable in dark mode (uses theme-aware color tokens)"
+      - "FE: Job card background, metadata text, progress text, and progress labels all have sufficient contrast in dark mode"
+      - "FE: 'Total images per checkpoint' text in SamplePresetEditor is readable in dark mode"
+      - "FE: Audit all CSS custom property fallbacks in JobProgressPanel.vue and SamplePresetEditor.vue for dark mode compatibility"
+      - "FE: Any other components with similar hardcoded light-mode fallback colors are fixed"
+      - "FE: Unit tests verify text elements render with theme-aware styling"
+    notes: |
+      Same class of bug as B-023 (summary text) and B-007/B-008 (metadata panel). CSS custom
+      properties use light-mode fallbacks (e.g., --bg-surface: #f5f5f5, --text-secondary: #666666,
+      --accent-bg: #e3f2fd) that don't work in dark mode.
+      Key files: frontend/src/components/JobProgressPanel.vue (.job-item, .job-meta, .progress-text,
+      .progress-line, .progress-details classes),
+      frontend/src/components/SamplePresetEditor.vue (.total-images class).
+    testing:
+      - "command: cd frontend && npx vitest run"
+
+  - id: S-055
+    title: "Prompt prefix field in sample presets"
+    priority: 30
+    status: todo
+    requires: [S-032]
+    acceptance:
+      - "BE: DB migration adds prompt_prefix column (text, default empty string) to sample_presets table"
+      - "BE: Sample preset model, service, and store updated to include prompt_prefix field"
+      - "BE: Goa DSL updated for sample presets to include prompt_prefix in create/update/show/list"
+      - "BE: At generation time, prompt_prefix is prepended to each prompt's text with smart separator: append '. ' unless prefix already ends with '. ' or ', '"
+      - "BE: prompt_prefix is NOT included in output filenames (same as other single-value settings)"
+      - "BE: prompt_prefix is included in the JSON sidecar metadata for each generated image"
+      - "BE: Unit tests for prefix joining logic (empty prefix, prefix with trailing period+space, prefix with trailing comma+space, prefix without trailing delimiter)"
+      - "FE: SamplePresetEditor has a 'Prompt Prefix' text input field above the prompts list"
+      - "FE: Prompt prefix is saved/loaded with the preset"
+      - "FE: Unit tests for prompt prefix field in the editor"
+    notes: |
+      The prompt prefix is stored as part of the sample preset in the database and applied at
+      generation time, so individual prompt texts remain clean in the editor. The join logic:
+      if prefix ends with '. ' or ', ', concatenate directly; otherwise append '. ' between
+      prefix and prompt text. Empty prefix means no prepending.
+      Key files: backend/internal/store/migrations.go (new migration),
+      backend/internal/model/sample_preset.go, backend/internal/service/sample_preset.go,
+      backend/internal/store/sample_preset.go, backend/internal/api/design/sample_presets.go,
+      backend/internal/service/sample_job.go (prefix application during item expansion),
+      frontend/src/components/SamplePresetEditor.vue, frontend/src/api/types.ts.
+    testing:
+      - "command: ginkgo -r --cover --race ./internal/..."
+      - "command: cd frontend && npx vitest run"
+
+  # ─── Approved ideas (2026-02-26) ────────────────────────────────────────────
+
+  - id: W-002
+    title: "E2E test result parsing — QA addresses failures and files bug tickets"
+    priority: 197
+    status: todo
+    requires: [W-001]
+    acceptance:
+      - "AGENT: QA agent actively addresses failing E2E tests during the testing phase rather than just reporting them"
+      - "AGENT: Any E2E test failures not directly caused by the story under test result in bug tickets added to the backlog"
+      - "AGENT: Orchestrator records E2E pass/fail results per story in .ralph-debug/ for regression tracking"
+      - "AGENT: AGENT_FLOW.md updated with E2E failure handling procedure"
+    notes: |
+      Source: agent_workflow idea "E2E test result parsing in orchestrator" (high priority).
+      The orchestrator currently has no structured mechanism to handle E2E failures beyond
+      reporting them. The QA agent should triage: fix story-related failures, file bugs for others.
+      Key files: agent/AGENT_FLOW.md, .claude/agents/qa-expert.md.
+    testing:
+      - "command: (n/a) agent workflow change"
+
+  - id: W-003
+    title: "Story notes improvements — root cause documentation and numeric format spec"
+    priority: 196
+    status: todo
+    requires: []
+    acceptance:
+      - "AGENT: Story notes for bug fixes include root cause analysis (e.g., which function/guard/condition caused the issue) so the developer can focus immediately"
+      - "AGENT: AGENT_FLOW.md or DEVELOPMENT_PRACTICES.md updated with root cause documentation expectations"
+      - "AGENT: Numeric format specification added to practices: CFG values are floating point, steps and seeds must be integers"
+      - "AGENT: Story acceptance criteria for numeric inputs specify the expected format explicitly"
+    notes: |
+      Combines two approved agent_workflow ideas:
+      1. "Root cause documentation in story notes" (high) — richer analysis in notes helps
+         developers focus on the correct fix immediately.
+      2. "Story notes numeric format spec" (low) — CFG should be floating point, steps and seeds
+         must be integers. Prevents ambiguity in acceptance criteria.
+      Key files: agent/AGENT_FLOW.md, agent/DEVELOPMENT_PRACTICES.md.
+    testing:
+      - "command: (n/a) agent workflow change"
+
+  - id: S-056
+    title: "E2E log capture before teardown"
+    priority: 90
+    status: todo
+    requires: []
+    acceptance:
+      - "OPS: Add a make test-e2e-logs target or integrate log capture into the existing make test-e2e flow"
+      - "OPS: Docker compose logs are saved to a file before the test stack is torn down"
+      - "OPS: Log file location is deterministic and documented (e.g., .ralph-debug/e2e-logs.txt or similar)"
+      - "OPS: QA runtime error sweep can reference the captured logs even for self-contained E2E runs"
+      - "OPS: Existing make test-e2e behavior is preserved (tests still pass/fail correctly)"
+    notes: |
+      Source: devops idea "E2E log capture before teardown" (high priority).
+      Currently docker compose logs are lost when make test-e2e tears down the stack, making
+      the QA runtime error sweep impossible for E2E-only runs.
+      Key files: Makefile (test-e2e target), docker-compose.test.yml.
+    testing:
+      - "command: make test-e2e"
+
+  - id: S-057
+    title: "Accessibility audit integration (axe-core)"
+    priority: 85
+    status: todo
+    requires: []
+    acceptance:
+      - "FE: Add @axe-core/playwright or similar accessibility testing library as a dev dependency"
+      - "E2E: At least one Playwright test runs an axe accessibility scan on the main app page"
+      - "E2E: Accessibility violations at 'critical' and 'serious' impact levels fail the test"
+      - "E2E: Low-contrast issues (like the recurring dark mode bugs) are caught automatically"
+      - "DOC: TEST_PRACTICES.md updated with accessibility testing section"
+    notes: |
+      Source: devops idea "Accessibility audit tool" (high priority).
+      Recurring dark mode contrast bugs (B-007, B-008, B-023, B-032) suggest an automated
+      accessibility check would catch these before UAT.
+      Key files: frontend/package.json, frontend/e2e/accessibility.spec.ts (new),
+      agent/TEST_PRACTICES.md.
+    testing:
+      - "command: make test-e2e"
+
+  - id: B-033
+    title: "Negative prompt not injected into workflow substitution"
+    priority: 80
+    status: todo
+    requires: []
+    acceptance:
+      - "BE: The negative_prompt cs_role injects the sample preset's negative prompt text into the workflow during job execution"
+      - "BE: When the workflow has a negative_prompt node and the preset has a negative prompt, the text is substituted"
+      - "BE: When the preset has no negative prompt (empty string), the node keeps its default value"
+      - "BE: Unit tests for negative prompt substitution (with text, empty text, missing role)"
+    notes: |
+      Source: new_features idea "Negative prompt injection" (low priority, but it's a bug).
+      The substituteNode() function for CSRoleNegativePrompt currently does not inject the
+      preset's negative prompt text — it keeps the default or sets empty. The positive_prompt
+      role correctly injects item.PromptText but negative_prompt does not.
+      Key files: backend/internal/service/job_executor.go (substituteNode, CSRoleNegativePrompt case).
+    testing:
+      - "command: ginkgo -r --cover --race ./internal/..."
+
+  - id: S-058
+    title: "Frontend lint rules — CSS variable linting and unused import detection"
+    priority: 75
+    status: todo
+    requires: []
+    acceptance:
+      - "FE: Add stylelint with a rule that warns when color/background-color properties use hardcoded values instead of CSS custom properties (--text-color, --bg-*)"
+      - "FE: Add ESLint rule for Vue SFCs to detect unused imports in <script setup> blocks"
+      - "FE: Both rules integrated into npm run lint"
+      - "FE: Existing code passes or violations are documented as known exceptions"
+      - "FE: No false positives on intentional hardcoded colors (e.g., white text on error backgrounds)"
+    notes: |
+      Combines two approved devops ideas:
+      1. "CSS variable linting" (medium) — prevents dark mode contrast bugs at lint time.
+      2. "Unused import detection in Vue SFCs" (low) — TypeScript doesn't always catch these.
+      Key files: frontend/package.json, frontend/.stylelintrc (new), frontend/.eslintrc or
+      eslint.config.js.
+    testing:
+      - "command: cd frontend && npm run lint"
+
+  - id: S-061
+    title: "Lightbox UX improvements — keyboard navigation and slider dimension label"
+    priority: 70
+    status: todo
+    requires: []
+    acceptance:
+      - "FE: Shift+ArrowLeft and Shift+ArrowRight navigate between images in the grid while the lightbox is open"
+      - "FE: Regular ArrowLeft/ArrowRight continue to control the slider (existing behavior)"
+      - "FE: Navigation wraps around at grid boundaries"
+      - "FE: Lightbox slider label shows the actual dimension name (e.g., 'cfg', 'checkpoint') instead of generic 'Slider'"
+      - "FE: Dimension name passed through to the lightbox as a prop from the grid"
+      - "FE: Unit tests for shift+arrow navigation and dimension label display"
+    notes: |
+      Combines two approved ideas:
+      1. "Lightbox keyboard navigation" (medium) — shift+arrows navigate images since regular
+         arrows already control the slider.
+      2. "Lightbox slider with dimension label" (medium) — shows actual dimension name.
+      Key files: frontend/src/components/ImageLightbox.vue, frontend/src/components/XYGrid.vue,
+      frontend/src/App.vue (prop passing).
+    testing:
+      - "command: cd frontend && npx vitest run"
+
+  - id: S-062
+    title: "Generate Samples dialog polish — bead indicator, preset auto-close, training run restore and refresh"
+    priority: 65
+    status: todo
+    requires: []
+    acceptance:
+      - "FE: Generate Samples header button shows a colored bead indicating sample/job status of the current sidebar-selected training run"
+      - "FE: Saving a preset in the Manage Presets sub-modal auto-closes the sub-modal and returns focus to the job launch dialog"
+      - "FE: Dialog remembers and restores the last selected training run (in addition to existing workflow/model-type persistence)"
+      - "FE: When a job completes via WebSocket while the dialog is open, training run options and status beads refresh automatically"
+      - "FE: After closing the Manage Presets modal, the preset that was last edited is shown as selected in the job dialog dropdown"
+      - "FE: Unit tests for each behavior"
+    notes: |
+      Bundles five approved enhancement ideas for the Generate Samples dialog:
+      1. "Bead count in sidebar" (medium) — visual hint on header button.
+      2. "Preset auto-close on save" (low) — reduces clicks.
+      3. "Last training run restore in Generate Samples dialog" (low) — resume where left off.
+      4. "Training run list refresh in dialog" (low) — auto-refresh on job completion.
+      5. "Preset state persistence after dialog close" (low) — show last edited preset.
+      Key files: frontend/src/App.vue, frontend/src/components/JobLaunchDialog.vue,
+      frontend/src/components/SamplePresetEditor.vue,
+      frontend/src/composables/useGenerateInputsPersistence.ts.
+    testing:
+      - "command: cd frontend && npx vitest run"
+
+  - id: S-063
+    title: "MasterSlider keyboard conflict guard for multiple instances"
+    priority: 60
+    status: todo
+    requires: []
+    acceptance:
+      - "FE: If multiple MasterSlider components are mounted simultaneously, only one captures keyboard input"
+      - "FE: Global singleton or priority system determines which slider is active"
+      - "FE: No duplicate key handling when multiple sliders exist"
+      - "FE: Unit tests for conflict-free operation with multiple mounted instances"
+    notes: |
+      Source: enhancements idea "Multiple MasterSlider keyboard conflict guard" (medium).
+      Currently each MasterSlider registers its own document-level keydown listener. If multiple
+      instances exist, both handle the same arrow key press.
+      Key files: frontend/src/components/MasterSlider.vue.
+    testing:
+      - "command: cd frontend && npx vitest run"
+
+  - id: S-064
+    title: "E2E test data isolation per run"
+    priority: 55
+    status: todo
+    requires: []
+    acceptance:
+      - "E2E: Tests have a mechanism to seed the database with known state before each test (e.g., API-based setup/teardown or test-only reset endpoint)"
+      - "E2E: Each E2E test is independent — no test depends on state left by a previous test"
+      - "E2E: Database state is predictable at the start of each test file or describe block"
+      - "E2E: Existing E2E tests updated to use the isolation mechanism"
+    notes: |
+      Source: testing idea "E2E test data isolation per run" (medium).
+      While the E2E stack recreates volumes on each run, there is no mechanism to seed the
+      database with a known preset state before individual tests. Tests may depend on ordering.
+      Key files: frontend/e2e/*.spec.ts, backend (optional test-only reset endpoint).
+    testing:
+      - "command: make test-e2e"
+
+  - id: S-059
+    title: "Build tooling quality-of-life improvements"
+    priority: 29
+    status: todo
+    requires: []
+    acceptance:
+      - "OPS: Update .air.toml from deprecated build.bin to build.entrypoint to silence startup warning"
+      - "OPS: Change make test-backend from exec to run --rm so it works without a running dev stack"
+      - "OPS: Add --remove-orphans to E2E compose commands to suppress orphan container warning"
+      - "OPS: Add root-level make gen target that wraps the docker compose codegen invocation"
+      - "OPS: All existing tests and make targets still work"
+    notes: |
+      Bundles four approved low-priority devops ideas:
+      1. "Update .air.toml to use build.entrypoint" — deprecated setting warning.
+      2. "make test-backend with run --rm instead of exec" — usable without running stack.
+      3. "Suppress Docker Compose orphan container warning" — reduce noise.
+      4. "make gen root-level target" — simplify codegen for agents and developers.
+      Key files: .air.toml, Makefile, docker-compose.test.yml.
+    testing:
+      - "command: make test-backend"
+      - "command: make test-e2e"
+
+  - id: S-060
+    title: "Playwright browser pre-warming via custom Docker image"
+    priority: 28
+    status: todo
+    requires: []
+    acceptance:
+      - "OPS: Custom Playwright Docker image built FROM mcr.microsoft.com/playwright with npm ci baked in"
+      - "OPS: E2E test runs use the pre-built image instead of running npm ci on every invocation"
+      - "OPS: E2E test startup time reduced by 5-10 seconds"
+      - "OPS: Image build process documented in README or Makefile"
+      - "OPS: Existing E2E tests pass with the new image"
+    notes: |
+      Source: devops idea "Playwright browser pre-warming" (low priority).
+      npm ci runs on every E2E test invocation adding 5-10 seconds of overhead.
+      Key files: frontend/Dockerfile.playwright (new), Makefile, docker-compose.test.yml.
+    testing:
+      - "command: make test-e2e"
+
+  - id: S-065
+    title: "E2E test coverage additions — combo solo click and XYGrid emit test"
+    priority: 27
+    status: todo
+    requires: []
+    acceptance:
+      - "E2E: Add Playwright test for DimensionFilter solo click interaction (click value text to solo, click again to unsolo)"
+      - "FE: Add unit test asserting the shape of XYGrid's image:click emit payload (ImageClickContext with cellKey, sliderValues, currentSliderValue, imagesBySliderValue)"
+      - "E2E/FE: All existing tests still pass"
+    notes: |
+      Combines two approved low-priority test ideas:
+      1. "Combo filter Solo click in E2E tests" — power-user feature not yet covered.
+      2. "XYGrid image:click emit test" — payload shape not asserted in tests.
+      Key files: frontend/e2e/ (new spec), frontend/src/components/__tests__/XYGrid.test.ts.
+    testing:
+      - "command: make test-e2e"
+      - "command: cd frontend && npx vitest run"
+
+  - id: S-066
+    title: "Documentation — WebSocket path and capture-phase handler ordering"
+    priority: 26
+    status: todo
+    requires: []
+    acceptance:
+      - "DOC: /docs/api.md updated with WebSocket endpoint documentation listing /api/ws"
+      - "DOC: New section in /docs/ or DEVELOPMENT_PRACTICES.md documenting the capture-phase keyboard event handler ordering pattern used in ImageLightbox/MasterSlider"
+      - "DOC: Pattern explanation covers why capture-phase + stopImmediatePropagation prevents double-firing"
+    notes: |
+      Combines two approved documentation ideas:
+      1. "WebSocket path documentation" (medium) — no documented contract for WS URLs.
+      2. "Capture-phase handler ordering documentation" (low) — the ImageLightbox pattern
+         is well-commented but not documented project-wide.
+      Key files: docs/api.md, agent/DEVELOPMENT_PRACTICES.md or docs/keyboard-events.md.
+    testing:
+      - "command: (n/a) documentation only"
+
+  - id: S-067
+    title: "Persistence and display polish — Has Samples filter, CFG trailing-zero, workflow preference, slider wrap-around"
+    priority: 25
+    status: todo
+    requires: []
+    acceptance:
+      - "FE: Persist hasSamplesFilter preference in localStorage so it survives page reloads"
+      - "FE: CFG tag input preserves one decimal place (e.g., 7.0 displays as '7.0' not '7')"
+      - "FE: Workflow selection in Generate Samples dialog scoped per model type rather than global"
+      - "FE: SliderBar supports optional wrap-around behavior (configurable prop) consistent with ImageCell keyboard navigation"
+      - "FE: Unit tests for each behavior"
+    notes: |
+      Bundles four approved low-priority enhancement ideas:
+      1. "Persist Has Samples filter preference" — resets every session.
+      2. "CFG trailing-zero display" — parseFloat normalization loses .0.
+      3. "Per-model-type workflow preference" — different workflows per model type.
+      4. "SliderBar wrap-around consistency" — boundary behavior differs from ImageCell.
+      Key files: frontend/src/components/TrainingRunSelector.vue,
+      frontend/src/components/SamplePresetEditor.vue,
+      frontend/src/composables/useGenerateInputsPersistence.ts,
+      frontend/src/components/SliderBar.vue.
+    testing:
+      - "command: cd frontend && npx vitest run"
+
+  - id: S-068
+    title: "Backend quality — log-level tuning and sidecar typed metadata"
+    priority: 24
+    status: todo
+    requires: []
+    acceptance:
+      - "BE: ListPNGFiles and ListSafetensorsFiles log directory-not-found at debug level instead of error (expected miss pattern)"
+      - "BE: parseSidecarJSON returns typed fields (numeric for seed, steps, cfg; string for others) instead of all strings"
+      - "BE: API response type for image metadata differentiates string vs numeric fields for richer frontend display"
+      - "BE: Unit tests for log level changes and typed metadata fields"
+    notes: |
+      Combines two approved low-priority backend ideas:
+      1. "Log-level tuning for other expected miss paths" — same pattern as B-022 applied
+         to ListPNGFiles and ListSafetensorsFiles.
+      2. "Sidecar reader for metadata display" — numeric fields come back as strings.
+      Key files: backend/internal/store/filesystem.go, backend/internal/service/image_metadata.go.
+    testing:
+      - "command: ginkgo -r --cover --race ./internal/..."
+
+  - id: S-069
+    title: "Drawer auto-collapse on image grid interaction"
+    priority: 23
+    status: todo
+    requires: []
+    acceptance:
+      - "FE: The NDrawer auto-collapses when the user starts interacting with the grid (e.g., clicking an image cell, using keyboard navigation)"
+      - "FE: Auto-collapse only triggers on narrow/medium screens where the drawer overlays content"
+      - "FE: On wide screens the drawer remains open (current behavior)"
+      - "FE: Manual drawer toggle still works regardless of auto-collapse"
+      - "FE: Unit tests for auto-collapse behavior"
+    notes: |
+      Source: enhancements idea "Drawer auto-collapse on image grid interaction" (low priority).
+      The NDrawer mask blocks pointer events on grid cells when open, creating friction.
+      Key files: frontend/src/App.vue, frontend/src/components/AppDrawer.vue.
+    testing:
+      - "command: cd frontend && npx vitest run"
+
+  - id: W-004
+    title: "QA smoke test standardization — E2E tests as primary verification"
+    priority: 195
+    status: todo
+    requires: [W-001]
+    acceptance:
+      - "AGENT: QA agent uses E2E tests as the standard verification method for story acceptance"
+      - "AGENT: QA agent writes new E2E tests for acceptance criteria not already covered by existing E2E tests"
+      - "AGENT: Manual curl/HTTP checks are reserved for debugging activities during test authoring, not as a substitute for E2E tests"
+      - "AGENT: TEST_PRACTICES.md updated to reflect this standard: E2E tests are the primary smoke test mechanism"
+      - "AGENT: Remove or simplify the multiple smoke test approaches (manual curl, docker logs inspection, etc.) in favor of E2E-first"
+    notes: |
+      Source: agent_workflow idea "QA smoke test consolidation" (low priority).
+      User direction: E2E tests are the standard for verification. Manual curl calls and
+      similar are only for debugging while writing tests. This aligns with W-001 (QA writes
+      E2E tests) and W-002 (QA addresses failing E2E tests).
+      Key files: agent/TEST_PRACTICES.md, .claude/agents/qa-expert.md.
+    testing:
+      - "command: (n/a) agent workflow change"
+
+  - id: R-004
+    title: "Consolidate docker-compose.test.yml and docker-compose.e2e.yml"
+    priority: 22
+    status: todo
+    requires: []
+    acceptance:
+      - "OPS: Merge docker-compose.e2e.yml into docker-compose.test.yml (test fixtures, healthchecks, Playwright container)"
+      - "OPS: Remove docker-compose.e2e.yml"
+      - "OPS: make test-e2e uses docker-compose.test.yml instead of docker-compose.e2e.yml"
+      - "OPS: make up-test / make down-test targets run the consolidated test stack"
+      - "OPS: Remove COMPOSE_E2E variable from Makefile; COMPOSE_TEST handles all test operations"
+      - "OPS: Update CLAUDE.md section 8 to remove up-test/down-test as separate from test-e2e"
+      - "OPS: All E2E tests pass with the consolidated stack"
+    notes: |
+      User observed docker-compose.test.yml and docker-compose.e2e.yml are nearly identical
+      and serve overlapping roles. Consolidate into one test stack under docker-compose.test.yml.
+      The E2E stack (test fixtures, healthchecks, Playwright) becomes the single test environment.
+      Key files: docker-compose.test.yml, docker-compose.e2e.yml (delete), Makefile, CLAUDE.md.
+    testing:
+      - "command: make test-e2e"
+
+  - id: S-070
+    title: "E2E test for full sample generation flow"
+    priority: 21
+    status: todo
+    requires: [B-029]
+    acceptance:
+      - "E2E: Playwright test exercises the full generation flow: select training run, configure preset, launch job, verify job starts"
+      - "E2E: Test uses a mock or lightweight ComfyUI stub that accepts workflow submissions and returns a test image"
+      - "E2E: Test verifies the job progresses from pending through running (at minimum — full completion if mock supports it)"
+      - "E2E: Test is tagged or in a separate spec file so it can be run independently from the main E2E suite"
+      - "E2E: Design documented for how ComfyUI is mocked in the test environment"
+    notes: |
+      Source: new_features idea "E2E test for sample generation batch" (medium priority).
+      Depends on B-029 (job auto-start) being fixed first. Needs design work around how to
+      mock ComfyUI — options include a lightweight HTTP stub container in docker-compose.test.yml
+      or intercepting at the backend service layer.
+      Key files: frontend/e2e/ (new spec), docker-compose.test.yml (mock ComfyUI service).
+    testing:
+      - "command: make test-e2e"
+
+  - id: S-071
+    title: "nginx config validation and WebSocket header checks in build pipeline"
+    priority: 20
+    status: todo
+    requires: []
+    acceptance:
+      - "OPS: Add nginx -t syntax check to the frontend Dockerfile build stage or a Makefile target"
+      - "OPS: Add a check (grep or lint step) that verifies nginx.conf contains required WebSocket headers (proxy_http_version 1.1, Upgrade, Connection)"
+      - "OPS: Both checks run as part of the build or a make lint-nginx target"
+      - "OPS: Build fails if nginx config is syntactically invalid or missing WebSocket headers"
+      - "OPS: Existing builds pass with the current nginx.conf"
+    notes: |
+      Combines two approved devops ideas:
+      1. "nginx config validation in CI" (low) — catch syntax errors before runtime.
+      2. "Automated nginx WebSocket validation" (low) — prevent regression of B-026 fix.
+      Key files: frontend/Dockerfile (build stage), frontend/nginx.conf, Makefile.
