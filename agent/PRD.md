@@ -225,6 +225,7 @@ A sample job generates images for every checkpoint in a training run using a sam
 - A master slider at the top of the page moves all individual sliders in sync
 - Images are cached client-side so slider movement feels instant
 - Pre-caching priority: (1) all slider positions for visible grid cells, then (2) remaining images from the scan in the background
+- SliderBar (the per-cell slider UI) stops at boundaries (first and last value) — it does not wrap around. Wrap-around behavior is specific to ImageCell keyboard navigation and MasterSlider keyboard navigation only.
 
 ### US-6: Save and load presets
 

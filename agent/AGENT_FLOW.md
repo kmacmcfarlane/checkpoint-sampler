@@ -14,7 +14,7 @@ At the start of every cycle, read:
 
 Rules:
 - /agent/backlog.yaml is the only source of "what to do next".
-- /agent/backlog.yaml and /agent/QUESTIONS.md are the only files in /agent that the agent should modify. The user is responsible for edits to the other files. If you would like to suggest an edit to these files, do so in /agent/IDEAS.md or /agent/QUESTIONS.md
+- /agent/backlog.yaml, /agent/QUESTIONS.md, and files under /agent/ideas/ are the only files in /agent that the agent should modify. The user is responsible for edits to the other files. If you would like to suggest an edit to these files, do so in the appropriate file under /agent/ideas/ or /agent/QUESTIONS.md
 - /agent/PRD.md defines product requirements and scope.
 - /agent/TEST_PRACTICES.md and /agent/DEVELOPMENT_PRACTICES.md define standards.
 
@@ -115,7 +115,10 @@ Use the Task tool to invoke a subagent. Pass the subagent's prompt (from its `.m
 ### 2.2 Subagent model selection
 
 - **Fullstack Engineer**: Use `sonnet` model for implementation speed
-- **Code Reviewer**: Use `opus` model for thorough review
+- **Code Reviewer**: Model depends on change complexity reported by the fullstack engineer:
+  - `low` complexity: Use `sonnet` (fast, sufficient for pattern-following changes)
+  - `medium` or `high` complexity: Use `opus` (thorough review for architectural/cross-stack changes)
+  - If complexity is not reported: default to `opus`
 - **QA Expert**: Use `sonnet` model for test execution
 - **Debugger**: Use `sonnet` model for diagnosis
 - **Security Auditor**: Use `opus` model for thorough analysis
@@ -250,14 +253,28 @@ This data enables identifying bottlenecks, informing model selection decisions, 
 After each subagent completes, the **orchestrator** (not the subagent) performs these updates:
 - Update /agent/backlog.yaml with the new status and any feedback
 - Are there questions that could help decide next steps? Update /agent/QUESTIONS.md and trigger a discord notification via the MCP tool. Also indicate questions in the chat output.
-- **Process improvement ideas**: If the subagent's response includes a "Process Improvements" section, append each idea to the appropriate section in /agent/IDEAS.md (`## Features`, `## Dev Ops`, or `## Workflow`). Then send a discord notification:
+- **Process improvement ideas**: If the subagent's response includes a "Process Improvements" section, route each idea to the appropriate file under `/agent/ideas/`:
+  - `Features` → `agent/ideas/new_features.md` (net-new capabilities) or `agent/ideas/enhancements.md` (improvements to existing features)
+  - `Dev Ops` → `agent/ideas/devops.md`
+  - `Workflow` → `agent/ideas/agent_workflow.md`
+  - Testing infrastructure ideas → `agent/ideas/testing.md`
+
+  Each idea must include `* status: needs_approval`, `* priority: <value>` (using the priority suggested by the subagent), and `* source: <agent>` identifying the originating agent (`developer`, `reviewer`, `qa`, or `orchestrator`). Format:
+  ```
+  ### <title>
+  * status: needs_approval
+  * priority: <low|medium|high|very-low>
+  * source: <developer|reviewer|qa|orchestrator>
+  <description>
+  ```
+  Then send a discord notification:
   `[project] New ideas from <agent-name>: <title> — <brief description>, <title> — <brief description>.`
 
 ### 4.4.1 Processing QA runtime error sweep findings
 
 When the QA expert's verdict includes a "Runtime Error Sweep" section with findings (sweep result: FINDINGS), the orchestrator processes them **after** the story status transition:
 
-1. **New bug tickets**: For each bug ticket reported by QA:
+1. **New bug tickets**: For each bug ticket reported by QA (see /agent/BUG_REPORTING.md for quality requirements):
    - Determine the next available `B-NNN` ID by scanning existing bug IDs in backlog.yaml.
    - Add the ticket to the `stories` list in /agent/backlog.yaml with:
      - `id`: Next sequential B-NNN
@@ -270,7 +287,7 @@ When the QA expert's verdict includes a "Runtime Error Sweep" section with findi
      - `notes`: Include the log evidence and root cause hypothesis from the QA report
 
 2. **Improvement ideas**: For each improvement idea reported by QA:
-   - Append to /agent/IDEAS.md with the title and description.
+   - Route to the appropriate file under `/agent/ideas/` (see section 4.4 for routing rules). Include `* status: needs_approval`, `* priority: <value>` (using the priority suggested by QA), and `* source: qa`.
    - Send a discord notification: `[project] New ideas from qa-expert sweep: <title> — <brief description>, <title> — <brief description>.`
 
 3. **Discord notification**: If any bug tickets were filed, send a notification (see section 9.2).
@@ -396,7 +413,7 @@ When blocked:
     - what is blocked
     - why it is blocked
     - what decision/input is needed
-- Update /agent/IDEAS.md with ideas for features that could enhance the application
+- Update the appropriate file under /agent/ideas/ with ideas for features that could enhance the application
 - Update /agent/backlog.yaml if stories now require each other in a new way
 
 ## 7) Safety gates

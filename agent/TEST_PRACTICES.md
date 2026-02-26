@@ -178,6 +178,18 @@ Avoid:
     - `npm run test:watch`
     - Root target `make test-frontend-watch` runs this inside docker dev workflow.
 
+### 3.7 Auto-unmount
+All frontend test files must use `enableAutoUnmount(afterEach)` from `@vue/test-utils`, either in each test file or in a shared vitest setup file. This prevents test interference from stale event listeners when `wrapper.unmount()` is not called explicitly.
+
+### 3.8 localStorage isolation
+A global `beforeEach` in the vitest setup file must call `localStorage.clear()` to prevent cross-test contamination. Do not rely on individual test files to clear localStorage.
+
+### 3.9 Nested component mock ordering
+When a parent and child component both call the same API on mount, the test mock setup must account for both calls in the correct order. Document the expected call sequence in test comments when mock ordering is non-obvious.
+
+### 3.10 Naive UI prop casing
+Naive UI template attributes use kebab-case (e.g., `consistent-menu-width`) but Vue props in test assertions use camelCase (e.g., `consistentMenuWidth`). Always use camelCase when asserting on component props in tests.
+
 ## 4) Cross-cutting test policies
 
 ### 4.1 Fixtures and test data
@@ -236,6 +248,10 @@ For any story that touches backend code, the QA expert must verify the applicati
 
 This catches fatal startup errors (crash loops, missing dependencies, broken wiring) that unit tests cannot detect. If the application is not reachable or returns non-200 on the health endpoint, the story fails QA.
 
+Notes on sandbox connectivity:
+- When running inside the claude-sandbox, `localhost` ports mapped to the host are not directly reachable. Use `docker compose exec <service> wget -qO- http://localhost:<port>/health` or similar within-network commands for smoke tests.
+- The canonical health check path is `/health` (direct backend endpoint).
+
 ### 5.6 API endpoint verification
 For stories that add or modify backend API endpoints, the QA expert must verify affected endpoints against the running application (started in 5.5):
 1. For each endpoint touched by the story, issue a basic request (via `curl` from within the docker network or from the host)
@@ -263,7 +279,7 @@ After completing sections 5.5 (smoke test) and 5.6 (API endpoint verification), 
 4. For each error line found, classify it as one of:
    - **Expected**: Matches a pattern in `QA_ALLOWED_ERRORS.md`. Skip it.
    - **Bug**: An unexpected runtime error that indicates a defect. Report as a new bug ticket.
-   - **Improvement**: A non-critical issue suggesting a code improvement (e.g., noisy logging for recoverable conditions). Report as an IDEAS.md suggestion.
+   - **Improvement**: A non-critical issue suggesting a code improvement (e.g., noisy logging for recoverable conditions). Report as an improvement idea for the appropriate file under `/agent/ideas/`.
 5. Report findings in the QA verdict using the structured format (see qa-expert.md).
 
 #### 5.7.2 Bug ticket fields
@@ -338,10 +354,25 @@ Key facts:
 - Keep each spec file focused on a single feature or user journey.
 - The smoke test in `frontend/e2e/smoke.spec.ts` is the canonical example.
 
+**AC-to-test traceability**
+Tests should include inline comments linking to the acceptance criteria they verify. Format: `// AC: <acceptance criterion text or summary>`. This makes QA traceability verification faster. Both unit tests and E2E tests should follow this pattern.
+
 ### 6.6 Running E2E tests
 - Agent workflow (one-shot): `make test-e2e` (self-contained; starts the stack, runs tests, tears down).
 - Playwright browsers are installed in the project's local `node_modules` — no global install needed.
 - Playwright outputs results in list reporter format for easy log scanning.
+
+### 6.7 Selector stability
+Never use Naive UI internal CSS classes (e.g., `.n-dynamic-tags__add`, `.n-select-option`) in E2E selectors — these can change between library versions. Always use `data-testid` attributes on interactive elements. When wrapping Naive UI components, add `data-testid` to the wrapper's interactive sub-elements.
+
+### 6.8 E2E timeout configuration
+Set an explicit `timeout` in `playwright.config.ts` (e.g., `timeout: 15000`) so the value is visible and intentional. Do not rely on Playwright's default timeout.
+
+### 6.9 NDrawer mask interaction
+NDrawer renders a mask overlay that intercepts pointer events on elements behind it. In E2E tests, always close or collapse the drawer before clicking on grid cells or other elements underneath it. Add a brief `page.waitForTimeout(300)` after closing to allow the mask animation to complete.
+
+### 6.10 Playback test timing
+For timing-sensitive E2E assertions (e.g., slider playback advancement), set playback speed to the minimum value and use generous timeouts (e.g., `{ timeout: 5000 }` for a 0.25s speed gives a 20x safety margin). Avoid `page.waitForTimeout()` except for hold-position verification where you need to assert the slider has NOT moved.
 
 ## 7) Definition of Done (testing)
 A story may be set to `status: uat` only when:

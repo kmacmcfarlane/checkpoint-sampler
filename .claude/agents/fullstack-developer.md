@@ -261,6 +261,21 @@ Rules:
 - Include test files
 - Do NOT include agent/backlog.yaml (the orchestrator manages that)
 
+### Complexity assessment (REQUIRED)
+
+After the file list, include a complexity assessment for the changes:
+
+```
+### Complexity: low | medium | high
+```
+
+Guidelines:
+- **low**: Single-layer change (frontend-only or backend-only), fewer than 5 files, pattern-following (e.g., adding a component similar to existing ones)
+- **medium**: Cross-stack change, 5-15 files, or changes involving non-trivial logic (validation, state management, event handling)
+- **high**: Architectural change, security-sensitive, new patterns introduced, or changes spanning 15+ files
+
+The orchestrator uses this to select the appropriate model for code review (sonnet for low, opus for medium/high).
+
 ## Blind Spot Reporting (REQUIRED)
 
 Before returning your result, you MUST include a "What I did NOT check (and why)" section. This creates an honest audit trail for downstream agents (code reviewer, QA) and humans. List:
@@ -282,11 +297,20 @@ This section is mandatory. Do not skip it even if you believe coverage is thorou
 
 ## Process Improvement Suggestions
 
-Before returning your result, reflect on the work you just did and include a "Process Improvements" section at the end of your response. Think about:
+Before returning your result, reflect on the work you just did and include a "Process Improvements" section at the end of your response.
 
-- **Features**: Did you notice a missing UI capability, a useful API enhancement, or a user-facing improvement that isn't in the backlog?
-- **Dev Ops**: Did you hit a tooling gap, a slow build step, a missing lint rule, a Docker config issue, or a test infrastructure improvement?
-- **Workflow**: Did the agent instructions lead you astray, was context missing from the story, could the handoff to code review be smoother, or is there a process change that would prevent bugs?
+**Only report ideas that you cannot implement within the current story.** Do NOT file:
+- Routine test additions or improvements you could have made (just do them)
+- Documentation updates within the scope of the story (just write them)
+- Code quality tweaks that fit within the current diff (just fix them)
+
+DO file:
+- New user-facing features or significant UX changes not in the backlog
+- Infrastructure changes that affect the build pipeline or Docker setup
+- Changes to agent workflow or orchestrator behavior
+- Anything requiring user approval, design decisions, or cross-story coordination
+
+Each idea must include a suggested priority (`low`, `medium`, `high`, or `very-low`) and a category to help the orchestrator route it to the correct file in `agent/ideas/`.
 
 Format:
 
@@ -294,15 +318,15 @@ Format:
 ## Process Improvements
 
 ### Features
-- **<title>**: <1-2 sentence description>
+- **<title>** (priority: <low|medium|high|very-low>): <1-2 sentence description>
 
 ### Dev Ops
-- **<title>**: <1-2 sentence description>
+- **<title>** (priority: <low|medium|high|very-low>): <1-2 sentence description>
 
 ### Workflow
-- **<title>**: <1-2 sentence description>
+- **<title>** (priority: <low|medium|high|very-low>): <1-2 sentence description>
 ```
 
-Use "None" for any empty category. The orchestrator will add these to /agent/IDEAS.md under the appropriate section.
+Use "None" for any empty category. The orchestrator routes ideas to the appropriate file in `agent/ideas/` with `status: needs_approval` and your suggested priority.
 
 Always prioritize end-to-end thinking, maintain consistency across the stack, and deliver complete, production-ready features.

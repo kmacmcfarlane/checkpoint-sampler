@@ -32,7 +32,7 @@ claude-templates/
     │   ├── PROMPT_INTERACTIVE.md ← SYNCED (universal)
     │   ├── PRD.md             (stub, NOT synced)
     │   ├── backlog.yaml       (stub, NOT synced)
-    │   ├── IDEAS.md           (stub, NOT synced)
+    │   ├── ideas/             (directory, NOT synced — contains categorized idea files)
     │   └── QUESTIONS.md       (stub, NOT synced)
     ├── .claude/
     │   ├── settings.json

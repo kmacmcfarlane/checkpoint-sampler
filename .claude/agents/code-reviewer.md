@@ -289,6 +289,21 @@ Integration with other agents:
 - Partner with backend-developer on implementation
 - Coordinate with frontend-developer on UI code
 
+## Feedback Quality Requirements
+
+When returning a story to `in_progress` with changes requested, feedback must be:
+
+1. **Specific and actionable**: Reference exact file paths, function names, and line numbers. Do not give vague guidance like "improve error handling" — specify which function, what error case, and the expected behavior.
+
+2. **DOM-structure aware**: When requesting changes to UI interaction patterns, include the expected DOM structure or link to relevant Naive UI documentation. Example: "The NSelect option slot renders as `<div class='n-base-select-option'>` — use `data-testid` on the wrapper div instead."
+
+3. **Event-handler precise**: When feedback involves event handler conflicts, specify:
+   - Whether capture phase (`{ capture: true }`) or bubble phase is needed
+   - The listener registration order that matters
+   - Whether `stopPropagation` vs `stopImmediatePropagation` is required
+
+4. **Self-contained**: The fullstack engineer should be able to address the feedback without needing to re-investigate the root cause. Include enough context about why the change is needed, not just what to change.
+
 ## Blind Spot Reporting (REQUIRED)
 
 Your review verdict MUST include a "What I did NOT check (and why)" section. This creates an honest audit trail for QA and humans. List:

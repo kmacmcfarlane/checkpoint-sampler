@@ -213,7 +213,7 @@ Remember to commit and push in:
 ## What NOT to Sync
 
 Project-specific content that must never go upstream:
-- `agent/backlog.yaml`, `agent/PRD.md`, `agent/IDEAS.md`, `agent/QUESTIONS.md`
+- `agent/backlog.yaml`, `agent/PRD.md`, `agent/ideas/` (directory), `agent/QUESTIONS.md`
 - `agent/claude-kit-repo-map.md` (this IS the project-specific config)
 - `CHANGELOG.md`, `CLAUDE.md`
 - `config.yaml`, `docker-compose*.yml`, `Makefile`

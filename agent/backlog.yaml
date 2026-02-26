@@ -1527,6 +1527,8 @@ stories:
     priority: 55
     status: uat
     requires: []
+    uat_feedback:
+      - "I'm not seeing the training run status beads"
     acceptance:
       # Training run selector
       - "FE: JobLaunchDialog has its own training run dropdown (separate from sidebar TrainingRunSelector)"
@@ -1674,3 +1676,58 @@ stories:
           duration: "3m 59s"
           tokens_in: 49705
           tokens_out: 0
+
+  # ─── Code quality alignment stories ──────────────────────────────────────────
+
+  - id: S-052
+    title: "Apply data-testid selectors and test isolation to existing frontend tests"
+    priority: 45
+    status: todo
+    requires: []
+    acceptance:
+      - "FE: All E2E tests use data-testid selectors instead of Naive UI internal CSS classes (e.g., .n-dynamic-tags__add)"
+      - "FE: Components wrapping Naive UI interactive elements have data-testid attributes added"
+      - "FE: enableAutoUnmount(afterEach) is configured in a shared vitest setup file or added to all frontend test files"
+      - "FE: A global beforeEach in vitest setup calls localStorage.clear() to prevent cross-test contamination"
+      - "FE: All existing frontend tests still pass"
+      - "E2E: All existing E2E tests still pass with the updated selectors"
+    notes: |
+      Aligns existing tests with the new standing instructions in TEST_PRACTICES.md sections 3.7, 3.8, and 6.7.
+      Key files: frontend/e2e/*.spec.ts, frontend/src/components/**/*.vue (data-testid additions),
+      frontend/vitest.setup.ts (or equivalent), frontend/src/components/__tests__/*.test.ts.
+    testing:
+      - "command: make test-frontend"
+      - "command: make test-e2e"
+
+  - id: S-053
+    title: "Frontend lint enforcement and component type hygiene"
+    priority: 40
+    status: todo
+    requires: []
+    acceptance:
+      - "FE: make test-frontend runs npm run lint before tests (lint failure = pipeline failure)"
+      - "FE: Shared component interfaces (e.g., ImageClickContext in XYGrid.vue) are moved to dedicated types.ts files"
+      - "FE: Components using defineEmits have brief contract comments describing each event"
+      - "FE: All existing frontend tests and lint pass"
+    notes: |
+      Aligns codebase with DEVELOPMENT_PRACTICES.md sections 4.7, 4.9, and the types.ts convention in 2.3.
+      Key files: frontend/package.json or Makefile (lint step), frontend/src/components/types.ts (new or existing),
+      frontend/src/components/*.vue (defineEmits comments, type exports moved).
+    testing:
+      - "command: make test-frontend"
+
+  - id: S-054
+    title: "Playwright config hardening (HTML reporter, screenshot on failure, explicit timeout)"
+    priority: 38
+    status: todo
+    requires: []
+    acceptance:
+      - "E2E: playwright.config.ts uses reporter: [['list'], ['html', { open: 'never' }]] for dual reporting"
+      - "E2E: playwright.config.ts sets screenshot: 'only-on-failure' in the use block"
+      - "E2E: playwright.config.ts sets an explicit timeout (e.g., 15000) rather than relying on Playwright defaults"
+      - "E2E: All existing E2E tests still pass with the updated config"
+    notes: |
+      Aligns Playwright config with TEST_PRACTICES.md sections 6.7 and 6.8.
+      Key files: frontend/playwright.config.ts.
+    testing:
+      - "command: make test-e2e"

@@ -73,6 +73,7 @@ Within `/frontend`:
 - `src/stores/`  state management (if used).
 - `src/lib/`  shared utilities (markdown rendering, formatting).
 - `src/types/`  shared TS types (or `src/api/types`).
+- Shared component types (interfaces used across multiple components) must be exported from dedicated `types.ts` files in the relevant directory, not from `.vue` files. This keeps imports clean and avoids circular dependencies.
 
 ## 3) Backend (Go) practices
 
@@ -199,6 +200,31 @@ func (s *PresetService) Create(name string, mapping model.PresetMapping) (model.
 ### 4.6 Lint and format
 - Enforce linting and formatting consistently (ESLint/Prettier or equivalent).
 - No formatting churn unrelated to a story.
+
+### 4.7 Frontend lint verification
+The developer must run `npm run lint` (or equivalent) as part of implementation verification before submitting for review. This catches TypeScript type errors and ESLint issues before they reach the review or QA phase. The code reviewer must also verify lint passes.
+
+### 4.8 CSS variable usage
+Use the project's canonical CSS variables for all color properties. Do not use hard-coded color values. The canonical variables are:
+- `--text-color`, `--text-secondary` — text colors
+- `--bg-color`, `--bg-surface` — background colors
+- `--accent-color` — accent/highlight color
+- `--border-color` — border color
+
+These are defined in `App.vue` and adapt to light/dark theme. When adding new UI elements, always use these variables rather than Naive UI's internal color tokens or raw hex values.
+
+### 4.9 Emit contract documentation
+Vue components using `defineEmits` must include a brief contract comment describing each event, its payload, and when it fires. This helps agents integrating the component understand the event API without reading the full implementation.
+
+Example:
+```typescript
+// preset-saved: Emitted after a preset is created or updated. Payload: { id: string, name: string }
+// preset-deleted: Emitted after a preset is deleted. Payload: { id: string }
+const emit = defineEmits<{
+  'preset-saved': [preset: { id: string; name: string }]
+  'preset-deleted': [preset: { id: string }]
+}>()
+```
 
 ## 5) Docker and dev workflow practices
 

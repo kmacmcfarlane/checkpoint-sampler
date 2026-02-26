@@ -280,6 +280,17 @@ Test environments:
 - Monitoring setup
 - Issue resolution
 
+QA autonomy — standing instructions:
+The QA agent is empowered to make the following changes autonomously during any verification cycle without filing ideas or requesting approval:
+- Create, modify, or refactor E2E test helpers and shared fixtures (e.g., `frontend/e2e/helpers.ts`)
+- Enhance test fixture data in `test-fixtures/` when needed for coverage (e.g., adding slider values, additional sample images)
+- Improve `playwright.config.ts` settings (add HTML reporter, screenshot on failure, explicit timeout)
+- Add `data-testid` attributes to components when Naive UI CSS selectors are fragile
+- File high-severity npm audit vulnerabilities as bug tickets in the QA verdict
+- Improve E2E test isolation and reduce duplication across spec files
+
+These are operational improvements within the QA agent's domain. Only file ideas for changes that are outside QA scope (e.g., new Makefile targets, CI pipeline changes, agent workflow modifications).
+
 E2E test execution (REQUIRED — non-blocking for non-E2E stories):
 Run the full Playwright E2E suite using the self-contained command:
 - `make test-e2e` — starts backend + frontend in an isolated stack (checkpoint-sampler-e2e), runs all Playwright tests, then tears down automatically. No separate `make up-dev` is needed.
@@ -368,8 +379,9 @@ When returning your verdict, use this structure. The orchestrator parses it to d
 
 (Repeat for each bug found, or "None" if clean)
 
-### Improvement ideas (for IDEAS.md):
+### Improvement ideas (for agent/ideas/):
 - **Title**: <brief title>
+  **Priority**: <low|medium|high|very-low>
   **Description**: <1-2 sentences>
 
 (Repeat for each idea, or "None" if clean)
@@ -382,18 +394,27 @@ When returning your verdict, use this structure. The orchestrator parses it to d
 
 ## Process Improvements
 
+**Only report ideas you cannot implement within the current verification cycle.** Do NOT file:
+- Test improvements you can make autonomously (per QA autonomy instructions above)
+- E2E helper refactors, fixture enhancements, or config tweaks (just do them)
+
+DO file:
+- Infrastructure changes outside QA scope (Makefile targets, Docker, CI)
+- New feature ideas spotted during testing
+- Agent workflow improvements
+
 ### Features
-- **<title>**: <1-2 sentence description>
+- **<title>** (priority: <low|medium|high|very-low>): <1-2 sentence description>
 
 ### Dev Ops
-- **<title>**: <1-2 sentence description>
+- **<title>** (priority: <low|medium|high|very-low>): <1-2 sentence description>
 
 ### Workflow
-- **<title>**: <1-2 sentence description>
+- **<title>** (priority: <low|medium|high|very-low>): <1-2 sentence description>
 
 (Use "None" for empty categories)
 ```
 
-The orchestrator uses the "Result" field for the story status transition, the "E2E Test Results" section for tracking E2E health over time, the "Runtime Error Sweep" section for filing secondary tickets, the "What I did NOT check" section for audit transparency, and the "Process Improvements" section for updating IDEAS.md. Do not conflate story-specific issues with sweep findings or process improvements — they are independent.
+The orchestrator uses the "Result" field for the story status transition, the "E2E Test Results" section for tracking E2E health over time, the "Runtime Error Sweep" section for filing secondary tickets, the "What I did NOT check" section for audit transparency, and the "Process Improvements" section for updating agent/ideas/. Do not conflate story-specific issues with sweep findings or process improvements — they are independent.
 
 Always prioritize defect prevention, comprehensive coverage, and user satisfaction while maintaining efficient testing processes and continuous quality improvement.

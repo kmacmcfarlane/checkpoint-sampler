@@ -24,7 +24,7 @@ Select work from /agent/backlog.yaml per the priority rules in AGENT_FLOW.md sec
 
 Read the subagent prompt from `/.claude/agents/<name>.md` and invoke via the Task tool:
 - **fullstack-developer**: For `todo` and `in_progress` stories. Pass story ID, acceptance criteria, branch name, and any review_feedback. On success, extract the "Change Summary" section from the verdict and store it for downstream dispatch.
-- **code-reviewer**: For `review` stories. Pass story ID, acceptance criteria, branch name, and the **change summary** from the fullstack engineer. If no change summary is available, generate one from `git diff --name-only main..HEAD`.
+- **code-reviewer**: For `review` stories. Pass story ID, acceptance criteria, branch name, and the **change summary** from the fullstack engineer. If no change summary is available, generate one from `git diff --name-only main..HEAD`. Extract the **complexity** field from the fullstack engineer's verdict and select the model accordingly: use `sonnet` for `low` complexity, `opus` for `medium` or `high` complexity. Default to `opus` if complexity is not reported.
 - **qa-expert**: For `testing` stories. Pass story ID, acceptance criteria, branch name, path to /agent/QA_ALLOWED_ERRORS.md, and the **change summary** from the fullstack engineer.
 - **debugger**: Invoke on demand when test failures or bugs are encountered.
 - **security-auditor**: Invoke on demand for security-sensitive stories.
@@ -62,23 +62,29 @@ After handling the QA story verdict (approved or rejected), check the QA verdict
 
 1. If sweep result is `FINDINGS`:
    - For each "New bug ticket": determine next `B-NNN` ID (scan backlog.yaml for highest B- number and increment), add to backlog.yaml with QA-suggested fields (title, priority, acceptance, testing, notes with log evidence).
-   - For each "Improvement idea": append to /agent/IDEAS.md and send a discord notification:
+   - For each "Improvement idea": route to the appropriate file under `/agent/ideas/` (see "Processing process improvement ideas" below for routing rules). Include `* status: needs_approval`, `* priority: <value>` (using the priority suggested by QA), and `* source: qa`, then send a discord notification:
      `[project] New ideas from qa-expert sweep: <title> — <brief description>, <title> — <brief description>.`
    - If any bug tickets were filed, send a discord notification:
      `[project] QA sweep: filed N new ticket(s): B-NNN (title — brief description), ... See backlog.yaml.`
 2. If sweep result is `CLEAN` or absent: no action needed.
-3. Include new backlog.yaml entries and IDEAS.md updates in the story's commit.
+3. Include new backlog.yaml entries and agent/ideas/ updates in the story's commit.
 
 ### Processing process improvement ideas (MANDATORY Discord notification)
 
 After every subagent completes (fullstack-developer, qa-expert), check its response for a "Process Improvements" section. If present:
 
-1. For each idea under `Features`, `Dev Ops`, or `Workflow`, append it to the matching section in /agent/IDEAS.md (format: `### <title>\n<description>`).
-2. **MUST send a discord notification** summarizing ALL new ideas added to IDEAS.md:
+1. Route each idea to the appropriate file under `/agent/ideas/`:
+   - `Features` (net-new capabilities) → `agent/ideas/new_features.md`
+   - `Features` (improvements to existing) → `agent/ideas/enhancements.md`
+   - `Dev Ops` → `agent/ideas/devops.md`
+   - `Workflow` → `agent/ideas/agent_workflow.md`
+   - Testing infrastructure → `agent/ideas/testing.md`
+   Format: `### <title>\n* status: needs_approval\n* priority: <value>\n* source: <developer|reviewer|qa|orchestrator>\n<description>`. Use the priority suggested by the subagent. The source maps from the subagent name: fullstack-developer → `developer`, code-reviewer → `reviewer`, qa-expert → `qa`.
+2. **MUST send a discord notification** summarizing ALL new ideas added to agent/ideas/:
    `[project] New ideas from <agent-name>: <title> — <brief description>, <title> — <brief description>.`
 3. Skip any category marked "None".
 
-Every addition to IDEAS.md (whether from process improvements, QA sweep findings, or any other source) MUST trigger a Discord notification so the user is aware of new suggestions.
+Every addition to agent/ideas/ (whether from process improvements, QA sweep findings, or any other source) MUST trigger a Discord notification so the user is aware of new suggestions.
 
 ## Completion conditions for a story (agent-driven, reaching `uat`)
 
