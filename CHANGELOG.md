@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### B-025: Has Samples filter should default to checked
+- `frontend/src/components/TrainingRunSelector.vue`: Changed `hasSamplesFilter` default from `ref(false)` to `ref(true)` so the "Has Samples" checkbox is checked on initial load and the initial API call filters to training runs with samples
+- `frontend/src/components/__tests__/TrainingRunSelector.test.ts`: Updated 4 tests in the `has-samples filter` describe block to reflect the new default
+- 565 frontend tests pass; 26 E2E tests pass
+- Token usage: 100403 input, 0 output
+
 ### B-023: Generate Samples dialog summary text unreadable (low contrast)
 - `frontend/src/components/JobLaunchDialog.vue`: Added `color: var(--text-color, #333333)` to `.summary p` CSS rule so summary text uses the theme-aware text color variable, ensuring readable contrast against the `--bg-surface` background in both dark and light themes
 - 565 frontend tests pass; 26 E2E tests pass

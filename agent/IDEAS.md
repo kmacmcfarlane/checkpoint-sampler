@@ -257,3 +257,6 @@ A Lighthouse or axe-core integration in the CI pipeline would catch low-contrast
 
 ### Theme-aware variable reference in DEVELOPMENT_PRACTICES.md
 Adding a short section documenting the canonical CSS variables (--text-color, --text-secondary, --bg-color, --bg-surface, --accent-color, --border-color) would help future contributors choose the right variable without needing to grep App.vue.
+
+### Persist Has Samples filter preference in localStorage
+The `hasSamplesFilter` state in TrainingRunSelector is transient — it resets to the default on every page load. A user who prefers to see all runs (unchecked) will have to uncheck it every session. Consider persisting this preference the same way training run selection is persisted via localStorage.

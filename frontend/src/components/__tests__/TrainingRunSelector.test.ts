@@ -140,22 +140,22 @@ describe('TrainingRunSelector', () => {
   })
 
   describe('has-samples filter', () => {
-    it('renders a has-samples NCheckbox that is unchecked by default', async () => {
+    it('renders a has-samples NCheckbox that is checked by default', async () => {
       mockGetTrainingRuns.mockResolvedValue(sampleRuns)
       const wrapper = mount(TrainingRunSelector)
       await flushPromises()
 
       const checkbox = wrapper.findComponent(NCheckbox)
       expect(checkbox.exists()).toBe(true)
-      expect(checkbox.props('checked')).toBe(false)
+      expect(checkbox.props('checked')).toBe(true)
     })
 
-    it('calls getTrainingRuns with has_samples=false on initial load', async () => {
+    it('calls getTrainingRuns with has_samples=true on initial load', async () => {
       mockGetTrainingRuns.mockResolvedValue(sampleRuns)
       mount(TrainingRunSelector)
       await flushPromises()
 
-      expect(mockGetTrainingRuns).toHaveBeenCalledWith(false)
+      expect(mockGetTrainingRuns).toHaveBeenCalledWith(true)
     })
 
     it('re-fetches with has_samples=true when checkbox is checked', async () => {
@@ -163,10 +163,16 @@ describe('TrainingRunSelector', () => {
       const wrapper = mount(TrainingRunSelector)
       await flushPromises()
 
+      const checkbox = wrapper.findComponent(NCheckbox)
+
+      // Uncheck first (default is true), then re-check to verify has_samples=true triggers a fetch
+      mockGetTrainingRuns.mockClear()
+      mockGetTrainingRuns.mockResolvedValue([])
+      checkbox.vm.$emit('update:checked', false)
+      await flushPromises()
+
       mockGetTrainingRuns.mockClear()
       mockGetTrainingRuns.mockResolvedValue(sampleRuns)
-
-      const checkbox = wrapper.findComponent(NCheckbox)
       checkbox.vm.$emit('update:checked', true)
       await flushPromises()
 
@@ -205,10 +211,10 @@ describe('TrainingRunSelector', () => {
       await nextTick()
       expect(wrapper.emitted('select')).toHaveLength(1)
 
-      // Toggle filter
+      // Toggle filter (uncheck from default true to false to trigger a change)
       mockGetTrainingRuns.mockResolvedValue([])
       const checkbox = wrapper.findComponent(NCheckbox)
-      checkbox.vm.$emit('update:checked', true)
+      checkbox.vm.$emit('update:checked', false)
       await flushPromises()
 
       // Select value should be reset to null

@@ -1359,7 +1359,7 @@ stories:
   - id: B-025
     title: "Has Samples filter should default to checked"
     priority: 45
-    status: todo
+    status: uat
     requires: []
     acceptance:
       - "FE: The 'Has Samples' checkbox in TrainingRunSelector defaults to checked (true) on initial load"
@@ -1372,6 +1372,27 @@ stories:
       Key file: frontend/src/components/TrainingRunSelector.vue.
     testing:
       - "command: cd frontend && npx vitest run"
+    metrics:
+      duration: "7m 52s"
+      tokens_in: 100403
+      tokens_out: 0
+      invocations: 3
+      subagents:
+        fullstack-developer:
+          invocations: 1
+          duration: "2m 15s"
+          tokens_in: 30185
+          tokens_out: 0
+        code-reviewer:
+          invocations: 1
+          duration: "2m 7s"
+          tokens_in: 37116
+          tokens_out: 0
+        qa-expert:
+          invocations: 1
+          duration: "3m 30s"
+          tokens_in: 33102
+          tokens_out: 0
 
   - id: B-026
     title: "WebSocket fails on remote LAN hosts (nginx missing upgrade headers)"
