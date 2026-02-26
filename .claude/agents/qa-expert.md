@@ -21,6 +21,13 @@ Steps:
 4. Run E2E tests (`make test-e2e`) and record results per the E2E Test Results section below
 5. Perform smoke test and runtime error sweep per TEST_PRACTICES.md
 
+Resource constraints (IMPORTANT — prevents OOM on the host):
+- Test commands run as host-level processes via the mounted Docker socket and consume host memory directly.
+- Never run more than 2 test processes concurrently. Run `free -m` before launching a test command and only proceed if the "available" column shows at least 1024 MB.
+- Safe parallel pair: `make test-backend` + `make test-frontend` (different runtimes).
+- Never run `make test-e2e` in parallel with anything else — it starts its own full stack.
+- If available memory is below 1024 MB, run all test commands sequentially and wait for each to finish before starting the next.
+
 QA excellence checklist:
 - Test strategy comprehensive defined
 - Test coverage > 90% achieved
