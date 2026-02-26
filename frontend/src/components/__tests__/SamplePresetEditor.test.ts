@@ -578,6 +578,87 @@ describe('SamplePresetEditor', () => {
     expect(call.prompts[0]).toEqual({ name: 'valid', text: 'valid prompt' })
   })
 
+  it('NDynamicInput has onCreate prop that returns correct shape {name, text}', async () => {
+    const wrapper = mount(SamplePresetEditor)
+    await flushPromises()
+
+    const dynamicInput = wrapper.findComponent(NDynamicInput)
+    expect(dynamicInput.exists()).toBe(true)
+
+    // The onCreate prop must be a function that returns {name: '', text: ''}
+    const onCreate = dynamicInput.props('onCreate') as (() => unknown) | undefined
+    expect(typeof onCreate).toBe('function')
+    const newItem = onCreate!()
+    expect(newItem).toEqual({ name: '', text: '' })
+  })
+
+  it('adding a second prompt via onCreate produces an item with correct shape and no console errors', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const wrapper = mount(SamplePresetEditor)
+    await flushPromises()
+
+    // Simulate what NDynamicInput does when the user clicks "Add" —
+    // call the onCreate handler and push the result into prompts
+    const dynamicInput = wrapper.findComponent(NDynamicInput)
+    const onCreate = dynamicInput.props('onCreate') as (index: number) => unknown
+    const newItem = onCreate(1)
+
+    // The item must be a properly shaped object (not null)
+    expect(newItem).toEqual({ name: '', text: '' })
+
+    // Push the new item into the reactive prompts array and verify no errors
+    const vm = wrapper.vm as unknown as { prompts: unknown[] }
+    vm.prompts = [...vm.prompts, newItem]
+    await nextTick()
+
+    expect(consoleErrorSpy).not.toHaveBeenCalled()
+    consoleErrorSpy.mockRestore()
+  })
+
+  it('computedTotalImages counts only fully-filled prompt entries', async () => {
+    const wrapper = mount(SamplePresetEditor)
+    await flushPromises()
+
+    // Set up one valid prompt plus one empty prompt (as created by onCreate)
+    const vm = wrapper.vm as unknown as { prompts: { name: string; text: string }[] }
+    vm.prompts = [
+      { name: 'valid', text: 'valid text' },
+      { name: '', text: '' }, // empty prompt created by onCreate — should be excluded
+    ]
+
+    const samplersSelect = wrapper.findComponent('[data-testid="samplers-select"]')
+    samplersSelect.vm.$emit('update:value', ['euler'])
+    const schedulersSelect = wrapper.findComponent('[data-testid="schedulers-select"]')
+    schedulersSelect.vm.$emit('update:value', ['normal'])
+    await nextTick()
+
+    const totalDiv = wrapper.find('.total-images')
+    // Only the 1 valid prompt counts: 1 * 1 step * 1 cfg * 1 sampler * 1 scheduler * 1 seed = 1
+    expect(totalDiv.text()).toContain('1')
+  })
+
+  it('canSave returns false when all prompts are empty (as after onCreate)', async () => {
+    const wrapper = mount(SamplePresetEditor)
+    await flushPromises()
+
+    // Fill preset name and samplers/schedulers but leave prompts with only empty entries
+    const nameInput = wrapper.findComponent('[data-testid="preset-name-input"]')
+    nameInput.vm.$emit('update:value', 'My Preset')
+
+    const samplersSelect = wrapper.findComponent('[data-testid="samplers-select"]')
+    samplersSelect.vm.$emit('update:value', ['euler'])
+    const schedulersSelect = wrapper.findComponent('[data-testid="schedulers-select"]')
+    schedulersSelect.vm.$emit('update:value', ['normal'])
+    await nextTick()
+
+    // Default prompt is {name:'', text:''} — save must be disabled
+    const saveButton = wrapper
+      .findAllComponents(NButton)
+      .find((b) => b.text().includes('Save Preset'))!
+    expect(saveButton.props('disabled')).toBe(true)
+  })
+
   afterAll(() => {
     globalThis.confirm = originalConfirm
   })

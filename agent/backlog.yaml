@@ -1307,7 +1307,7 @@ stories:
   - id: B-024
     title: "Sample Preset Editor crashes when adding second prompt"
     priority: 70
-    status: todo
+    status: uat
     requires: []
     acceptance:
       - "FE: User can add multiple prompts in the Sample Preset Editor without errors"
@@ -1323,6 +1323,17 @@ stories:
       Key file: frontend/src/components/SamplePresetEditor.vue (lines 60, 74, 315).
     testing:
       - "command: cd frontend && npx vitest run"
+    metrics:
+      duration: "3m 4s"
+      tokens_in: 45052
+      tokens_out: 0
+      invocations: 1
+      subagents:
+        qa-expert:
+          invocations: 1
+          duration: "3m 4s"
+          tokens_in: 45052
+          tokens_out: 0
 
   - id: B-025
     title: "Has Samples filter should default to checked"

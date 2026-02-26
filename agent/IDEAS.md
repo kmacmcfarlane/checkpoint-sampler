@@ -123,6 +123,9 @@ Consider adding a backlog-level flag (e.g., `e2e_story: true`) on stories that t
 ### E2E sweep log capture for self-contained stacks
 The current runtime error sweep procedure (TEST_PRACTICES.md 5.7.1) assumes the app is still running when the sweep is performed. Since `make test-e2e` tears down the stack automatically, logs cannot be captured post-teardown. Consider augmenting the sweep procedure to optionally pipe E2E compose logs to a temp file during the run, so the sweep can inspect them even after teardown completes.
 
+### Retain E2E logs before teardown for runtime error sweep
+The `make test-e2e` target tears down the compose stack immediately after tests complete, which prevents post-run log capture for the runtime error sweep. Adding a `docker compose logs --tail=200` step before `$(COMPOSE_E2E) down -v` in the Makefile (or a separate `make logs-e2e` target) would allow the QA agent to capture runtime error evidence even after a successful run.
+
 ### QA smoke test consolidation
 The qa-expert.md now has three different ways to satisfy the smoke test requirement (make up-dev + curl, make test-e2e for frontend stories, or both). A future refactor could unify them into a single explicit decision tree to reduce confusion.
 

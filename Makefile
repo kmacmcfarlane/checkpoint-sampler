@@ -30,6 +30,10 @@ ralph-auto-resume:
 ralph-auto-resume-once:
 	claude-sandbox --ralph --dangerously-skip-permissions --limit 1 --resume ${ARGS}
 
+# make ralph-auto-resume-once ARGS="<resume id>"
+ralph-auto-resume-once-debug:
+	claude-sandbox --ralph --dangerously-skip-permissions --limit 1 --log-context --resume ${ARGS}
+
 # Debug: run the normal story pipeline with full decision logging (autonomous, single pass).
 # After the run, review .ralph-debug/ for the full decision trail of every agent.
 ralph-auto-debug:
