@@ -116,6 +116,12 @@ Data flows: **Browser &rarr; Frontend (Vue) &rarr; Backend API (Goa) &rarr; Serv
 
 For full details see [docs/architecture.md](docs/architecture.md), [docs/database.md](docs/database.md), and [docs/api.md](docs/api.md).
 
+## Workflow templates
+
+Checkpoint Sampler generates images by submitting parameterized ComfyUI workflows. Workflow templates are ComfyUI API-format JSON files stored in the `workflow_dir` directory (default: `./workflows`). They require special `cs_role` annotations to identify which nodes should be parameterized — a plain ComfyUI export will not work without these annotations.
+
+See [docs/workflows.md](docs/workflows.md) for the full reference: what annotations are required, what each role controls, and step-by-step instructions for creating a compatible workflow.
+
 ## API documentation
 
 The backend serves interactive Swagger UI at [http://localhost:8080/docs](http://localhost:8080/docs) with an OpenAPI 3.0 spec.

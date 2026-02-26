@@ -4,6 +4,9 @@ Ideas are organized by category. Agents append here; the user curates and promot
 
 ## Features
 
+### Negative prompt injection
+The `negative_prompt` cs_role currently does not inject the sample preset's negative prompt text into the workflow at execution time — only `positive_prompt` does. This is an inconsistency that users will find surprising. The code comment says "Keep default or set empty" which suggests this may be intentional for now, but should be a tracked enhancement.
+
 ### Preset auto-close on save
 When the user saves a preset in the "Manage Presets" sub-modal, it could automatically close the sub-modal and return focus to the job launch dialog, reducing the required clicks to complete the launch flow.
 
@@ -140,6 +143,12 @@ Review feedback that requests changes to UI interaction patterns should include 
 Story notes mentioning "add input validation to reject non-numeric characters" should specify how trailing zeros should be handled (e.g., should `7.0` round-trip as `7` or `7.0`). Explicit formatting requirements in acceptance criteria would avoid ambiguity.
 
 ## Workflow
+
+### Documentation cross-reference test
+For stories that add documentation about code behavior, consider a light automated check (e.g., a script that extracts role names from model constants and compares them against the markdown table) to prevent documentation drift as new roles are added in the future.
+
+### Behavior accuracy for docs stories
+Documentation stories benefit from having a "key behaviors to document" list in the story notes, particularly for subtle behaviors like the negative_prompt non-injection. Without this, a documentation author must trace through the code to discover the nuance, which risks missing it or getting it wrong. A brief technical notes section in the story would help.
 
 ### Global localStorage.clear() in Vitest setup
 Adding a global `beforeEach` in a Vitest setup file that clears localStorage would prevent cross-test contamination without requiring per-file boilerplate. Currently test isolation depends on individual files adding `localStorage.clear()`.

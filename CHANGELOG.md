@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-051: Workflows documentation (docs/workflows.md)
+- `docs/workflows.md`: New file documenting how to create and annotate ComfyUI workflow templates for use with checkpoint-sampler — covers the `cs_role` annotation system, complete role reference table with field substitutions, step-by-step instructions for adding a new workflow, annotated JSON example based on `qwen-image.json`, validation rules, and troubleshooting
+- `README.md`: Added "Workflow templates" section with brief explanation that specially annotated workflows are required and link to docs/workflows.md
+- 619 frontend tests pass; 509 backend tests pass; 26 E2E tests pass
+- Token usage: 192699 input, 0 output
+
 ### S-050: Remember last workflow and model-type-specific inputs in Generate Samples dialog
 - `frontend/src/composables/useGenerateInputsPersistence.ts`: New composable providing typed read/write access to `checkpoint-sampler:generate-inputs` localStorage key, storing `lastWorkflowId` (global) and `byModelType` (keyed by `ss_base_model_version`) with full validation/corruption handling
 - `frontend/src/components/JobLaunchDialog.vue`: Added persistence integration — restores last workflow on mount, fetches first checkpoint metadata to determine model type, restores model-type-specific VAE/CLIP/shift inputs, persists all selections on change with stale-value fallback

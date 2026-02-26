@@ -1639,7 +1639,7 @@ stories:
   - id: S-051
     title: "Workflows documentation (docs/workflows.md)"
     priority: 30
-    status: todo
+    status: uat
     requires: []
     acceptance:
       - "A new docs/workflows.md file documents how to create and annotate ComfyUI workflows for use with checkpoint-sampler"
@@ -1653,3 +1653,24 @@ stories:
       Key files: docs/workflows.md (new), README.md, backend/internal/service/ (workflow parsing logic).
     testing:
       - "command: (n/a) documentation only"
+    metrics:
+      duration: "9m 28s"
+      tokens_in: 192699
+      tokens_out: 0
+      invocations: 3
+      subagents:
+        fullstack-developer:
+          invocations: 1
+          duration: "2m 52s"
+          tokens_in: 75841
+          tokens_out: 0
+        code-reviewer:
+          invocations: 1
+          duration: "2m 37s"
+          tokens_in: 67153
+          tokens_out: 0
+        qa-expert:
+          invocations: 1
+          duration: "3m 59s"
+          tokens_in: 49705
+          tokens_out: 0
