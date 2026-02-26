@@ -18,10 +18,13 @@ vi.mock('../../api/client', () => ({
     createSamplePreset: vi.fn(),
     updateSamplePreset: vi.fn(),
     deleteSamplePreset: vi.fn(),
+    getCheckpointMetadata: vi.fn(),
   },
 }))
 
 import { apiClient } from '../../api/client'
+import { GENERATE_INPUTS_STORAGE_KEY } from '../../composables/useGenerateInputsPersistence'
+import type { GenerateInputsState } from '../../composables/useGenerateInputsPersistence'
 
 const mockGetTrainingRuns = apiClient.getTrainingRuns as ReturnType<typeof vi.fn>
 const mockListSampleJobs = apiClient.listSampleJobs as ReturnType<typeof vi.fn>
@@ -29,6 +32,7 @@ const mockListWorkflows = apiClient.listWorkflows as ReturnType<typeof vi.fn>
 const mockListSamplePresets = apiClient.listSamplePresets as ReturnType<typeof vi.fn>
 const mockGetComfyUIModels = apiClient.getComfyUIModels as ReturnType<typeof vi.fn>
 const mockCreateSampleJob = apiClient.createSampleJob as ReturnType<typeof vi.fn>
+const mockGetCheckpointMetadata = apiClient.getCheckpointMetadata as ReturnType<typeof vi.fn>
 
 // Training run without samples (gray)
 const runEmpty: TrainingRun = {
@@ -145,6 +149,7 @@ const allTrainingRuns = [runEmpty, runWithSamples, runRunning]
 describe('JobLaunchDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    localStorage.clear()
     mockGetTrainingRuns.mockResolvedValue(allTrainingRuns)
     mockListSampleJobs.mockResolvedValue([runningJob])
     mockListWorkflows.mockResolvedValue(sampleWorkflows)
@@ -154,6 +159,8 @@ describe('JobLaunchDialog', () => {
       if (type === 'clip') return Promise.resolve({ models: clipModels })
       return Promise.resolve({ models: [] })
     })
+    // Default: no checkpoint metadata (empty ss_* fields)
+    mockGetCheckpointMetadata.mockResolvedValue({ metadata: {} })
   })
 
   it('renders a modal with title "Generate Samples"', async () => {
@@ -729,6 +736,253 @@ describe('JobLaunchDialog', () => {
       const buttons = wrapper.findAllComponents(NButton)
       const generateButton = buttons.find(b => b.text() === 'Generate Samples')
       expect(generateButton).toBeDefined()
+    })
+  })
+
+  describe('localStorage persistence', () => {
+    it('restores last workflow ID on mount when workflow is still available', async () => {
+      const state: GenerateInputsState = {
+        lastWorkflowId: 'qwen-image.json',
+        byModelType: {},
+      }
+      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const workflowSelect = wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect)
+      expect(workflowSelect.props('value')).toBe('qwen-image.json')
+    })
+
+    it('does not restore workflow ID when it is no longer available', async () => {
+      const state: GenerateInputsState = {
+        lastWorkflowId: 'deleted-workflow.json',
+        byModelType: {},
+      }
+      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const workflowSelect = wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect)
+      expect(workflowSelect.props('value')).toBeNull()
+    })
+
+    it('does not restore invalid workflow (validation_state=invalid) from localStorage', async () => {
+      const state: GenerateInputsState = {
+        lastWorkflowId: 'invalid-workflow.json',
+        byModelType: {},
+      }
+      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const workflowSelect = wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect)
+      expect(workflowSelect.props('value')).toBeNull()
+    })
+
+    it('persists workflow ID to localStorage when workflow is selected', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect).vm.$emit('update:value', 'auraflow-image.json')
+      await nextTick()
+
+      const stored = JSON.parse(localStorage.getItem(GENERATE_INPUTS_STORAGE_KEY) ?? '{}') as GenerateInputsState
+      expect(stored.lastWorkflowId).toBe('auraflow-image.json')
+    })
+
+    it('restores model-type-specific VAE and CLIP inputs when training run is selected', async () => {
+      // Pre-populate persisted state for model type 'qwen_image'
+      const state: GenerateInputsState = {
+        lastWorkflowId: null,
+        byModelType: {
+          qwen_image: { vae: 'ae.safetensors', clip: 'clip_l.safetensors', shift: null },
+        },
+      }
+      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
+
+      // Mock metadata to return ss_base_model_version = 'qwen_image'
+      mockGetCheckpointMetadata.mockResolvedValue({
+        metadata: { ss_base_model_version: 'qwen_image' },
+      })
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select empty run (id=1)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      await flushPromises()
+
+      const vaeSelect = wrapper.find('[data-testid="vae-select"]').findComponent(NSelect)
+      const clipSelect = wrapper.find('[data-testid="clip-select"]').findComponent(NSelect)
+      expect(vaeSelect.props('value')).toBe('ae.safetensors')
+      expect(clipSelect.props('value')).toBe('clip_l.safetensors')
+    })
+
+    it('restores shift value when training run is selected and workflow has shift role', async () => {
+      const state: GenerateInputsState = {
+        lastWorkflowId: 'auraflow-image.json',
+        byModelType: {
+          aura_flow: { vae: 'ae.safetensors', clip: 't5xxl_fp16.safetensors', shift: 3.0 },
+        },
+      }
+      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
+
+      mockGetCheckpointMetadata.mockResolvedValue({
+        metadata: { ss_base_model_version: 'aura_flow' },
+      })
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select empty run (id=1)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      await flushPromises()
+
+      // Workflow is restored, so shift input should appear
+      const shiftInput = wrapper.find('[data-testid="shift-input"]').findComponent(NInputNumber)
+      expect(shiftInput.props('value')).toBe(3.0)
+    })
+
+    it('falls back to null for VAE and CLIP when persisted values are no longer available', async () => {
+      const state: GenerateInputsState = {
+        lastWorkflowId: null,
+        byModelType: {
+          qwen_image: { vae: 'deleted-vae.safetensors', clip: 'deleted-clip.safetensors', shift: null },
+        },
+      }
+      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
+
+      mockGetCheckpointMetadata.mockResolvedValue({
+        metadata: { ss_base_model_version: 'qwen_image' },
+      })
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      await flushPromises()
+
+      const vaeSelect = wrapper.find('[data-testid="vae-select"]').findComponent(NSelect)
+      const clipSelect = wrapper.find('[data-testid="clip-select"]').findComponent(NSelect)
+      expect(vaeSelect.props('value')).toBeNull()
+      expect(clipSelect.props('value')).toBeNull()
+    })
+
+    it('persists VAE and CLIP selections to localStorage when a model type is known', async () => {
+      mockGetCheckpointMetadata.mockResolvedValue({
+        metadata: { ss_base_model_version: 'qwen_image' },
+      })
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select a training run so model type is fetched
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      await flushPromises()
+
+      // Now select VAE and CLIP
+      wrapper.find('[data-testid="vae-select"]').findComponent(NSelect).vm.$emit('update:value', 'ae.safetensors')
+      await nextTick()
+      wrapper.find('[data-testid="clip-select"]').findComponent(NSelect).vm.$emit('update:value', 'clip_l.safetensors')
+      await nextTick()
+
+      const stored = JSON.parse(localStorage.getItem(GENERATE_INPUTS_STORAGE_KEY) ?? '{}') as GenerateInputsState
+      expect(stored.byModelType['qwen_image']).toEqual({
+        vae: 'ae.safetensors',
+        clip: 'clip_l.safetensors',
+        shift: null,
+      })
+    })
+
+    it('does not persist VAE/CLIP if model type is unknown (metadata fetch failed)', async () => {
+      mockGetCheckpointMetadata.mockRejectedValue({ code: 'NETWORK_ERROR', message: 'fail' })
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      await flushPromises()
+
+      wrapper.find('[data-testid="vae-select"]').findComponent(NSelect).vm.$emit('update:value', 'ae.safetensors')
+      await nextTick()
+
+      const stored = JSON.parse(localStorage.getItem(GENERATE_INPUTS_STORAGE_KEY) ?? '{}') as GenerateInputsState
+      // byModelType should be empty since model type was never resolved
+      expect(Object.keys(stored.byModelType ?? {})).toHaveLength(0)
+    })
+
+    it('does not restore model inputs when checkpoint has no ss_base_model_version', async () => {
+      // Metadata present but no ss_base_model_version key
+      mockGetCheckpointMetadata.mockResolvedValue({
+        metadata: { ss_output_name: 'my-model' },
+      })
+
+      const state: GenerateInputsState = {
+        lastWorkflowId: null,
+        byModelType: {
+          qwen_image: { vae: 'ae.safetensors', clip: 'clip_l.safetensors', shift: null },
+        },
+      }
+      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      await flushPromises()
+
+      // No model type was found, so VAE and CLIP remain null
+      const vaeSelect = wrapper.find('[data-testid="vae-select"]').findComponent(NSelect)
+      const clipSelect = wrapper.find('[data-testid="clip-select"]').findComponent(NSelect)
+      expect(vaeSelect.props('value')).toBeNull()
+      expect(clipSelect.props('value')).toBeNull()
+    })
+
+    it('fetches checkpoint metadata for the first checkpoint of the selected run', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      await flushPromises()
+
+      // runEmpty has checkpoints[0].filename = 'checkpoint1.safetensors'
+      expect(mockGetCheckpointMetadata).toHaveBeenCalledWith('checkpoint1.safetensors')
     })
   })
 })

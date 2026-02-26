@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-050: Remember last workflow and model-type-specific inputs in Generate Samples dialog
+- `frontend/src/composables/useGenerateInputsPersistence.ts`: New composable providing typed read/write access to `checkpoint-sampler:generate-inputs` localStorage key, storing `lastWorkflowId` (global) and `byModelType` (keyed by `ss_base_model_version`) with full validation/corruption handling
+- `frontend/src/components/JobLaunchDialog.vue`: Added persistence integration — restores last workflow on mount, fetches first checkpoint metadata to determine model type, restores model-type-specific VAE/CLIP/shift inputs, persists all selections on change with stale-value fallback
+- `frontend/src/composables/__tests__/useGenerateInputsPersistence.test.ts`: 26 tests covering all composable functions and edge cases (corrupt data, missing keys, wrong types)
+- `frontend/src/components/__tests__/JobLaunchDialog.test.ts`: 11 new integration tests for localStorage persistence (workflow restore, model input restore, stale fallback, persist on selection)
+- 619 frontend tests pass; 26 E2E tests pass
+- Token usage: 234348 input, 0 output
+
 ### S-048: Sample preset steps/cfg/seeds as multi-value tag inputs with validation
 - `frontend/src/components/SamplePresetEditor.vue`: Replaced NInput comma-separated text fields for steps, CFG, and seeds with NDynamicTags multi-value tag inputs; added `numericInputProps` with `allowInput` regex to restrict entry to digits and `.` only; changed default steps from 20 to 30; removed `parseNumberList`/`formatNumberList` helpers
 - `frontend/src/components/__tests__/SamplePresetEditor.test.ts`: Updated all tests for NDynamicTags; replaced `steps-input`/`cfgs-input`/`seeds-input` selectors with `steps-tags`/`cfgs-tags`/`seeds-tags`; added tests for input validation, round-tripping, and preset loading

@@ -1596,7 +1596,7 @@ stories:
   - id: S-050
     title: "Remember last workflow and model-type-specific inputs in Generate Samples dialog"
     priority: 45
-    status: todo
+    status: uat
     requires: [S-049]
     acceptance:
       - "FE: Last selected workflow ID is persisted to localStorage and restored when dialog opens"
@@ -1614,6 +1614,27 @@ stories:
       Key files: frontend/src/components/JobLaunchDialog.vue, frontend/src/api/client.ts (metadata fetch).
     testing:
       - "command: cd frontend && npx vitest run"
+    metrics:
+      duration: "12m 55s"
+      tokens_in: 234348
+      tokens_out: 0
+      invocations: 3
+      subagents:
+        fullstack-developer:
+          invocations: 1
+          duration: "6m 10s"
+          tokens_in: 100759
+          tokens_out: 0
+        code-reviewer:
+          invocations: 1
+          duration: "2m 33s"
+          tokens_in: 73399
+          tokens_out: 0
+        qa-expert:
+          invocations: 1
+          duration: "4m 12s"
+          tokens_in: 60190
+          tokens_out: 0
 
   - id: S-051
     title: "Workflows documentation (docs/workflows.md)"

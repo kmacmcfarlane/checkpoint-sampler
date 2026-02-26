@@ -81,6 +81,9 @@ Naive UI internal CSS classes (like `.n-dynamic-tags__add`) can change between l
 ### npm audit warnings in playwright run
 The `npm ci` in the playwright container produces 5 high severity vulnerability warnings on every run. These are pre-existing but should be addressed to clean up CI output.
 
+### Frontend lint step in test-frontend pipeline
+Running `npm run lint` before tests would catch TypeScript type errors and ESLint issues before test execution. Adding a lint step to `make test-frontend` or a pre-test hook would surface type errors earlier.
+
 ### Update .air.toml to use build.entrypoint
 The air hot-reload configuration uses the deprecated `build.bin` setting, producing a startup warning on every dev container launch. Migrating to `build.entrypoint` would silence this warning and keep the config current with the air toolchain.
 
@@ -137,6 +140,9 @@ Review feedback that requests changes to UI interaction patterns should include 
 Story notes mentioning "add input validation to reject non-numeric characters" should specify how trailing zeros should be handled (e.g., should `7.0` round-trip as `7` or `7.0`). Explicit formatting requirements in acceptance criteria would avoid ambiguity.
 
 ## Workflow
+
+### Global localStorage.clear() in Vitest setup
+Adding a global `beforeEach` in a Vitest setup file that clears localStorage would prevent cross-test contamination without requiring per-file boilerplate. Currently test isolation depends on individual files adding `localStorage.clear()`.
 
 ### Remote LAN testing as explicit UAT step
 Acceptance criteria that require physical multi-host network verification (e.g., "WebSocket works from remote LAN host") cannot be automated in the agent pipeline. These should be explicitly flagged as manual UAT steps in the story so reviewers and QA know they are out-of-band checks.
@@ -296,3 +302,9 @@ The E2E tests currently rely on NDynamicTags defaults being populated (from rese
 
 ### CFG trailing-zero display
 When a user enters `7.0` as a CFG value, it displays as `7` after the tag is committed due to `parseFloat` normalization. A custom `formatNumber` function that preserves one decimal place for CFG values would provide a better UX.
+
+### Last training run restore in Generate Samples dialog
+The dialog currently restores the last workflow and model-type inputs but not the last selected training run. A future enhancement could remember and restore the last training run selection, providing a more complete "resume where I left off" experience.
+
+### Per-model-type workflow preference
+Users who use different workflows for different model types (e.g., qwen-image.json for Qwen models) would benefit from the workflow selection also being scoped per model type rather than global.

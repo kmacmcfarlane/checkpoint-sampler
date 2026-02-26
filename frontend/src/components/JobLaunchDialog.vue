@@ -14,6 +14,7 @@ import {
 import type { TrainingRun, SamplePreset, WorkflowSummary, CreateSampleJobPayload, SampleJob } from '../api/types'
 import { apiClient } from '../api/client'
 import SamplePresetEditor from './SamplePresetEditor.vue'
+import { useGenerateInputsPersistence } from '../composables/useGenerateInputsPersistence'
 
 /** Status of a training run used to determine bead color. */
 type TrainingRunStatus = 'complete' | 'running' | 'queued' | 'empty'
@@ -54,6 +55,12 @@ const shiftValue = ref<number | null>(null)
 
 // Checkpoint selection for regeneration
 const selectedCheckpoints = ref<Set<string>>(new Set())
+
+// Current model type derived from the first checkpoint's ss_base_model_version metadata
+const currentModelType = ref<string | null>(null)
+
+// Persistence composable
+const persistence = useGenerateInputsPersistence()
 
 // Computed: the selected training run object
 const selectedTrainingRun = computed(() =>
@@ -112,10 +119,69 @@ const selectedRunHasSamples = computed(() => {
 // Checkpoints of the selected training run
 const selectedRunCheckpoints = computed(() => selectedTrainingRun.value?.checkpoints ?? [])
 
-// Initialize checkpoint selections when the training run changes
-watch(selectedTrainingRunId, () => {
+// Initialize checkpoint selections and restore persisted inputs when the training run changes
+watch(selectedTrainingRunId, async () => {
   selectedCheckpoints.value = new Set()
+  currentModelType.value = null
+
+  const run = selectedTrainingRun.value
+  if (!run || run.checkpoints.length === 0) return
+
+  // Fetch metadata for the first checkpoint to determine the model type
+  const firstCheckpoint = run.checkpoints[0]
+  try {
+    const metadataResult = await apiClient.getCheckpointMetadata(firstCheckpoint.filename)
+    const modelType = metadataResult.metadata['ss_base_model_version'] ?? null
+    currentModelType.value = modelType
+
+    if (modelType) {
+      restoreModelInputs(modelType)
+    }
+  } catch {
+    // Metadata fetch failure is non-fatal; proceed without model-type restoration
+  }
 })
+
+// Persist workflow selection changes
+watch(selectedWorkflow, (workflowId) => {
+  persistence.saveWorkflowId(workflowId)
+})
+
+// Persist model-type-specific input changes
+watch([selectedVAE, selectedCLIP, shiftValue], () => {
+  if (!currentModelType.value) return
+  persistence.saveModelInputs(currentModelType.value, {
+    vae: selectedVAE.value,
+    clip: selectedCLIP.value,
+    shift: shiftValue.value,
+  })
+})
+
+/**
+ * Restore model-type-specific inputs from persistence, filtering any values
+ * that are no longer available in the current model/clip lists.
+ */
+function restoreModelInputs(modelType: string) {
+  const saved = persistence.getModelInputs(modelType)
+  if (!saved) return
+
+  // Restore VAE only if still available
+  if (saved.vae !== null && vaeModels.value.includes(saved.vae)) {
+    selectedVAE.value = saved.vae
+  } else {
+    selectedVAE.value = null
+  }
+
+  // Restore CLIP only if still available
+  if (saved.clip !== null && clipModels.value.includes(saved.clip)) {
+    selectedCLIP.value = saved.clip
+  } else {
+    selectedCLIP.value = null
+  }
+
+  // Restore shift value (no availability check needed — it's a free numeric value)
+  shiftValue.value = saved.shift
+}
 
 function selectAllCheckpoints() {
   selectedCheckpoints.value = new Set(selectedRunCheckpoints.value.map(c => c.filename))
@@ -226,6 +292,17 @@ onMounted(async () => {
     fetchVAEModels(),
     fetchCLIPModels(),
   ])
+
+  // Restore last used workflow (only if it's still available as a valid workflow)
+  const lastWorkflowId = persistence.getLastWorkflowId()
+  if (lastWorkflowId !== null) {
+    const isAvailable = workflows.value.some(
+      w => w.name === lastWorkflowId && w.validation_state === 'valid'
+    )
+    if (isAvailable) {
+      selectedWorkflow.value = lastWorkflowId
+    }
+  }
 })
 
 async function fetchTrainingRunsAndJobs() {
@@ -289,6 +366,7 @@ function resetForm() {
   selectedCLIP.value = null
   shiftValue.value = null
   selectedCheckpoints.value = new Set()
+  currentModelType.value = null
   showAllRuns.value = false
   error.value = null
 }
