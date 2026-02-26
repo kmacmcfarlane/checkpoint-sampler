@@ -16,5 +16,5 @@ Each entry has:
 ### ComfyUI connection errors
 - **Pattern**: Any log line matching `comfyui` or `ComfyUI` combined with `level=error`
 - **Includes**: `failed to dial ComfyUI WebSocket`, `websocket: bad handshake`, `health check returned non-OK status` from `component=comfyui_ws` or `component=comfyui_http`
-- **Reason**: ComfyUI is an external service that is not running in the test/dev environment. The backend reconnects on a loop, logging errors each attempt. This is non-fatal by design — the application continues to serve all other functionality.
+- **Reason**: ComfyUI is an external service that may not running in the test/dev environment. Manually check if it is running before assuming this is a bug. The backend reconnects on a loop, logging errors each attempt. This is non-fatal by design — the application continues to serve all other functionality.
 - **Reference**: B-017 (backend crash-loops when ComfyUI is unreachable)
