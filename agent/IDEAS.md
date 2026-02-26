@@ -34,7 +34,19 @@ Consider adding `screenshot: 'only-on-failure'` to `playwright.config.ts` to cap
 ### E2E test result parsing in orchestrator
 The orchestrator currently has no structured mechanism to accumulate E2E pass/fail trends over time. Adding a simple log of E2E results per story to `.ralph-debug/` could enable spotting regressions before they become endemic.
 
+### WebSocket path documentation
+The project has no documented contract for which URL paths carry WebSocket traffic. A short note in /docs/api.md listing /api/ws would make it easier to audit nginx configs in the future.
+
 ## Dev Ops
+
+### nginx config validation in CI
+Adding an `nginx -t` config syntax check step to the build pipeline (e.g., in the frontend Dockerfile build stage or a Makefile target) would catch nginx config errors before they reach a running container.
+
+### Integration smoke test for WebSocket via nginx
+A Playwright E2E test that asserts the "Live" status indicator is shown (not "Disconnected") after page load would automate WebSocket connectivity verification and catch any future nginx regressions.
+
+### Automated nginx WebSocket validation
+A test or CI step could verify the presence of required WebSocket headers in nginx.conf at build time (e.g., a simple grep/lint step in the Makefile), preventing accidental removal of the headers in future changes.
 
 ### E2E log capture before teardown
 Consider adding a `make test-e2e-logs` target or `--always-save-logs` option that captures docker compose logs to a file before teardown, enabling the QA runtime error sweep even for self-contained E2E runs.
@@ -107,6 +119,9 @@ The QA subagent would run E2E tests as part of its verification:
 - Browser version is pinned to the Playwright npm package version — always use the bundled browser, not system Chrome
 
 ## Workflow
+
+### Remote LAN testing as explicit UAT step
+Acceptance criteria that require physical multi-host network verification (e.g., "WebSocket works from remote LAN host") cannot be automated in the agent pipeline. These should be explicitly flagged as manual UAT steps in the story so reviewers and QA know they are out-of-band checks.
 
 ### E2E test timeout in playwright.config.ts
 The default Playwright timeout is 30 seconds, matching what the tests use. Consider explicitly setting `timeout: 30000` in `playwright.config.ts` alongside `use:` so it is visible and intentional, reducing ambiguity when diagnosing timeout failures.

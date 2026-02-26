@@ -1355,8 +1355,29 @@ stories:
   - id: B-026
     title: "WebSocket fails on remote LAN hosts (nginx missing upgrade headers)"
     priority: 65
-    status: todo
+    status: uat
     requires: []
+    metrics:
+      duration: "8m 35s"
+      tokens_in: 94689
+      tokens_out: 0
+      invocations: 3
+      subagents:
+        fullstack-developer:
+          invocations: 1
+          duration: "1m 9s"
+          tokens_in: 16396
+          tokens_out: 0
+        code-reviewer:
+          invocations: 1
+          duration: "2m 13s"
+          tokens_in: 34573
+          tokens_out: 0
+        qa-expert:
+          invocations: 1
+          duration: "5m 13s"
+          tokens_in: 43720
+          tokens_out: 0
     acceptance:
       - "FE: nginx.conf /api/ location includes WebSocket upgrade headers (proxy_http_version 1.1, Upgrade, Connection)"
       - "FE: WebSocket connection succeeds when accessing the application from a remote LAN host (not just localhost)"
