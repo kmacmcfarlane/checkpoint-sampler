@@ -121,6 +121,13 @@ func (f *fakePathMatcher) MatchCheckpointPath(filename string) (string, error) {
 	return filename, nil
 }
 
+// fakeSampleDirRemover is a test double for service.SampleDirRemover.
+type fakeSampleDirRemover struct{}
+
+func (f *fakeSampleDirRemover) RemoveSampleDir(checkpointFilename string) error {
+	return nil
+}
+
 // fakeCheckpointFileSystem is a test double for service.CheckpointFileSystem.
 type fakeCheckpointFileSystem struct{}
 
@@ -155,7 +162,7 @@ var _ = Describe("SampleJobsService", func() {
 		discovery = service.NewDiscoveryService(fs, []string{}, "", logger)
 
 		// Create sample job service
-		sampleJobSvc := service.NewSampleJobService(store, pathMatcher, logger)
+		sampleJobSvc := service.NewSampleJobService(store, pathMatcher, &fakeSampleDirRemover{}, "/samples", logger)
 		sampleJobs = api.NewSampleJobsService(sampleJobSvc, discovery)
 	})
 

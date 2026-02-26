@@ -210,6 +210,10 @@ export interface CreateSampleJobPayload {
   vae?: string
   clip?: string
   shift?: number
+  /** Optional list of checkpoint filenames to include; omit to include all checkpoints. */
+  checkpoint_filenames?: string[]
+  /** When true, delete existing sample directories for selected checkpoints before creating job items. */
+  clear_existing?: boolean
 }
 
 /** Workflow template summary. */

@@ -3,6 +3,7 @@ package service
 import (
 	"database/sql"
 	"fmt"
+	"path/filepath"
 	"sort"
 	"time"
 
@@ -29,6 +30,11 @@ type PathMatcher interface {
 	MatchCheckpointPath(filename string) (string, error)
 }
 
+// SampleDirRemover defines the interface for removing sample directories for a checkpoint.
+type SampleDirRemover interface {
+	RemoveSampleDir(checkpointFilename string) error
+}
+
 // SampleJobExecutor defines the interface for coordinating job execution.
 type SampleJobExecutor interface {
 	RequestStop(jobID string) error
@@ -40,15 +46,19 @@ type SampleJobExecutor interface {
 type SampleJobService struct {
 	store       SampleJobStore
 	pathMatcher PathMatcher
+	dirRemover  SampleDirRemover
+	sampleDir   string
 	executor    SampleJobExecutor
 	logger      *logrus.Entry
 }
 
 // NewSampleJobService creates a SampleJobService backed by the given store.
-func NewSampleJobService(store SampleJobStore, pathMatcher PathMatcher, logger *logrus.Logger) *SampleJobService {
+func NewSampleJobService(store SampleJobStore, pathMatcher PathMatcher, dirRemover SampleDirRemover, sampleDir string, logger *logrus.Logger) *SampleJobService {
 	return &SampleJobService{
 		store:       store,
 		pathMatcher: pathMatcher,
+		dirRemover:  dirRemover,
+		sampleDir:   sampleDir,
 		executor:    nil, // Set later via SetExecutor
 		logger:      logger.WithField("component", "sample_job"),
 	}
@@ -98,13 +108,53 @@ func (s *SampleJobService) Get(id string) (model.SampleJob, error) {
 }
 
 // Create creates a new sample job by expanding preset parameters across training run checkpoints.
-func (s *SampleJobService) Create(trainingRunName string, checkpoints []model.Checkpoint, samplePresetID string, workflowName string, vae string, clip string, shift *float64) (model.SampleJob, error) {
+// checkpointFilenames is an optional filter: when non-empty, only the listed checkpoints are included.
+// clearExisting: when true, the sample directory for each selected checkpoint is removed before creating job items.
+func (s *SampleJobService) Create(trainingRunName string, checkpoints []model.Checkpoint, samplePresetID string, workflowName string, vae string, clip string, shift *float64, checkpointFilenames []string, clearExisting bool) (model.SampleJob, error) {
 	s.logger.WithFields(logrus.Fields{
-		"training_run_name": trainingRunName,
-		"sample_preset_id":  samplePresetID,
-		"workflow_name":     workflowName,
+		"training_run_name":     trainingRunName,
+		"sample_preset_id":      samplePresetID,
+		"workflow_name":         workflowName,
+		"checkpoint_filter_len": len(checkpointFilenames),
+		"clear_existing":        clearExisting,
 	}).Trace("entering Create")
 	defer s.logger.Trace("returning from Create")
+
+	// Filter checkpoints when a specific list is provided
+	if len(checkpointFilenames) > 0 {
+		filterSet := make(map[string]struct{}, len(checkpointFilenames))
+		for _, fn := range checkpointFilenames {
+			filterSet[fn] = struct{}{}
+		}
+		filtered := checkpoints[:0:0]
+		for _, cp := range checkpoints {
+			if _, ok := filterSet[cp.Filename]; ok {
+				filtered = append(filtered, cp)
+			}
+		}
+		checkpoints = filtered
+		s.logger.WithFields(logrus.Fields{
+			"training_run_name": trainingRunName,
+			"filtered_count":    len(checkpoints),
+		}).Debug("filtered checkpoints by filename list")
+	}
+
+	// Clear existing sample directories when requested
+	if clearExisting && s.dirRemover != nil {
+		for _, cp := range checkpoints {
+			if err := s.dirRemover.RemoveSampleDir(cp.Filename); err != nil {
+				s.logger.WithFields(logrus.Fields{
+					"checkpoint_filename": cp.Filename,
+					"error":               err.Error(),
+				}).Warn("failed to remove sample dir, continuing")
+			} else {
+				s.logger.WithFields(logrus.Fields{
+					"checkpoint_filename": cp.Filename,
+					"sample_dir":          filepath.Join(s.sampleDir, cp.Filename),
+				}).Info("cleared existing sample directory")
+			}
+		}
+	}
 
 	// Fetch the sample preset
 	preset, err := s.store.GetSamplePreset(samplePresetID)

@@ -147,7 +147,8 @@ func run() error {
 	var sampleJobsSvc *api.SampleJobsService
 	if cfg.ComfyUI != nil {
 		pathMatcher := service.NewCheckpointPathMatcher(modelDiscovery, logger)
-		sampleJobSvc := service.NewSampleJobService(st, pathMatcher, logger)
+		dirRemover := store.NewCheckpointSampleDirRemover(fs, cfg.SampleDir)
+		sampleJobSvc := service.NewSampleJobService(st, pathMatcher, dirRemover, cfg.SampleDir, logger)
 
 		// Wire the executor and service together (avoiding circular dependency)
 		sampleJobSvc.SetExecutor(jobExecutor)
@@ -162,6 +163,7 @@ func run() error {
 		sampleJobsSvc = api.NewSampleJobsService(sampleJobSvc, discovery)
 	} else {
 		// Create a disabled service when ComfyUI is not configured
+		// dirRemover is nil since there are no jobs to clear
 		sampleJobsSvc = api.NewSampleJobsService(nil, discovery)
 	}
 

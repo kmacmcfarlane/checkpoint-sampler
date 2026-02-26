@@ -222,5 +222,11 @@ var CreateSampleJobPayload = Type("CreateSampleJobPayload", func() {
 		Default("")
 	})
 	Attribute("shift", Float64, "AuraFlow shift value (nullable, for workflows with shift role)")
+	Attribute("checkpoint_filenames", ArrayOf(String), "Optional list of checkpoint filenames to include; when omitted all checkpoints are included", func() {
+		Example([]string{"psai4rt-v0.3.0-no-reg-step00004500.safetensors"})
+	})
+	Attribute("clear_existing", Boolean, "When true, delete existing sample directories for selected checkpoints before creating job items", func() {
+		Default(false)
+	})
 	Required("training_run_name", "sample_preset_id", "workflow_name")
 })

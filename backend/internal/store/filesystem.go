@@ -101,6 +101,45 @@ func (fs *FileSystem) ListPNGFiles(dir string) ([]string, error) {
 	return files, nil
 }
 
+// RemoveSampleDir removes the sample directory for a given checkpoint filename.
+// The directory is located at sampleDir/checkpointFilename/.
+// If the directory does not exist, this is a no-op (not an error).
+func (fs *FileSystem) RemoveSampleDir(sampleDir string, checkpointFilename string) error {
+	fs.logger.WithFields(logrus.Fields{
+		"checkpoint_filename": checkpointFilename,
+		"sample_dir":          sampleDir,
+	}).Trace("entering RemoveSampleDir")
+	defer fs.logger.Trace("returning from RemoveSampleDir")
+
+	target := filepath.Join(sampleDir, checkpointFilename)
+	if err := os.RemoveAll(target); err != nil {
+		fs.logger.WithFields(logrus.Fields{
+			"target": target,
+			"error":  err.Error(),
+		}).Error("failed to remove sample directory")
+		return fmt.Errorf("removing sample directory %s: %w", target, err)
+	}
+	fs.logger.WithField("target", target).Info("sample directory removed")
+	return nil
+}
+
+// CheckpointSampleDirRemover implements service.SampleDirRemover by removing per-checkpoint
+// sample directories under a configured sample root directory.
+type CheckpointSampleDirRemover struct {
+	fs        *FileSystem
+	sampleDir string
+}
+
+// NewCheckpointSampleDirRemover creates a CheckpointSampleDirRemover.
+func NewCheckpointSampleDirRemover(fs *FileSystem, sampleDir string) *CheckpointSampleDirRemover {
+	return &CheckpointSampleDirRemover{fs: fs, sampleDir: sampleDir}
+}
+
+// RemoveSampleDir removes sample_dir/checkpointFilename/ for the given checkpoint.
+func (r *CheckpointSampleDirRemover) RemoveSampleDir(checkpointFilename string) error {
+	return r.fs.RemoveSampleDir(r.sampleDir, checkpointFilename)
+}
+
 // OpenFile opens a file for reading. Implements service.CheckpointMetadataReader.
 func (fs *FileSystem) OpenFile(path string) (io.ReadCloser, error) {
 	fs.logger.WithField("path", path).Trace("entering OpenFile")
