@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### B-027: Slider keyboard navigation only selects first or last value
+- `frontend/src/components/MasterSlider.vue`: Added `:keyboard="false"` to NSlider to disable built-in arrow key handling, added `event.stopPropagation()` to custom `onKeydown` handler, added document-level `keydown` listener (`onDocumentKeydown`) with input-element and contentEditable focus guard so arrow keys work without explicit focus on the slider
+- `frontend/src/components/SliderBar.vue`: Added `:keyboard="false"` to NSlider and `event.stopPropagation()` to the `onKeydown` handler to prevent double-firing
+- `frontend/src/components/ImageLightbox.vue`: Extended document-level `onKeyDown` to handle ArrowLeft/ArrowRight/ArrowUp/ArrowDown for slider navigation; uses capture-phase listener with `e.stopImmediatePropagation()` to prevent MasterSlider's document handler from double-firing when lightbox is open
+- `frontend/src/components/__tests__/MasterSlider.test.ts`: Added keyboard=false test, 5 document-level keyboard navigation tests, afterEach cleanup, integration test for MasterSlider + ImageLightbox dual-handler isolation
+- `frontend/src/components/__tests__/SliderBar.test.ts`: Added keyboard=false test
+- `frontend/src/components/__tests__/ImageLightbox.test.ts`: Added enableAutoUnmount(afterEach), 5 slider navigation tests for document-level arrow key handling
+- 565 frontend tests pass; 501 backend tests pass; 26 E2E tests pass
+- Token usage: 341164 input, 0 output
+
 ### B-026: WebSocket fails on remote LAN hosts (nginx missing upgrade headers)
 - `frontend/nginx.conf`: Added `proxy_http_version 1.1`, `proxy_set_header Upgrade $http_upgrade`, and `proxy_set_header Connection "upgrade"` to the `/api/` location block to enable WebSocket protocol upgrade through the nginx reverse proxy, fixing "WebSocket is closed before the connection is established" when accessing from remote LAN hosts
 - 552 frontend tests pass; 501 backend tests pass; 26 E2E tests pass

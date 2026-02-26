@@ -1,7 +1,12 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
 import ImageLightbox from '../ImageLightbox.vue'
 import SliderBar from '../SliderBar.vue'
+
+// Automatically unmount all wrappers after each test to prevent stale document
+// event listeners (especially the capture-phase keydown listener) from leaking
+// between tests and interfering with subsequent tests.
+enableAutoUnmount(afterEach)
 
 // Mock the api client module
 vi.mock('../../api/client', () => ({
@@ -644,6 +649,83 @@ describe('ImageLightbox', () => {
       expect(createdImages).toContain('/api/images/seed=42&step=500&cfg=15.png')
 
       imageSpy.mockRestore()
+    })
+
+    it('emits slider-change on ArrowRight via document keydown without requiring focus', async () => {
+      const wrapper = mount(ImageLightbox, { props: sliderProps })
+      await flushPromises()
+
+      // currentSliderValue is '7' (index 1), ArrowRight should go to '15' (index 2)
+      const event = new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true })
+      document.dispatchEvent(event)
+      await wrapper.vm.$nextTick()
+
+      const emitted = wrapper.emitted('slider-change')
+      expect(emitted).toBeDefined()
+      expect(emitted).toHaveLength(1)
+      expect(emitted![0]).toEqual(['42|500', '15'])
+
+      wrapper.unmount()
+    })
+
+    it('emits slider-change on ArrowLeft via document keydown without requiring focus', async () => {
+      const wrapper = mount(ImageLightbox, { props: sliderProps })
+      await flushPromises()
+
+      // currentSliderValue is '7' (index 1), ArrowLeft should go to '3' (index 0)
+      const event = new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true })
+      document.dispatchEvent(event)
+      await wrapper.vm.$nextTick()
+
+      const emitted = wrapper.emitted('slider-change')
+      expect(emitted).toBeDefined()
+      expect(emitted).toHaveLength(1)
+      expect(emitted![0]).toEqual(['42|500', '3'])
+
+      wrapper.unmount()
+    })
+
+    it('does not emit slider-change on ArrowRight at last slider value', async () => {
+      const wrapper = mount(ImageLightbox, {
+        props: { ...sliderProps, currentSliderValue: '15' },
+      })
+      await flushPromises()
+
+      const event = new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true })
+      document.dispatchEvent(event)
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.emitted('slider-change')).toBeUndefined()
+
+      wrapper.unmount()
+    })
+
+    it('does not emit slider-change on ArrowLeft at first slider value', async () => {
+      const wrapper = mount(ImageLightbox, {
+        props: { ...sliderProps, currentSliderValue: '3' },
+      })
+      await flushPromises()
+
+      const event = new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true })
+      document.dispatchEvent(event)
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.emitted('slider-change')).toBeUndefined()
+
+      wrapper.unmount()
+    })
+
+    it('does not emit slider-change on arrow keys when no slider is shown', async () => {
+      const wrapper = mount(ImageLightbox, { props: defaultProps })
+      await flushPromises()
+
+      const event = new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true })
+      document.dispatchEvent(event)
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.emitted('slider-change')).toBeUndefined()
+
+      wrapper.unmount()
     })
   })
 })

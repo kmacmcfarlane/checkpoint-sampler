@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch, onBeforeUnmount } from 'vue'
+import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { NSlider, NButton, NCheckbox, NSelect } from 'naive-ui'
 
 const props = defineProps<{
@@ -31,10 +31,12 @@ function onKeydown(event: KeyboardEvent) {
   const idx = currentIndex.value
   if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') {
     event.preventDefault()
+    event.stopPropagation()
     const prevIdx = idx > 0 ? idx - 1 : props.values.length - 1
     emit('change', props.values[prevIdx])
   } else if (event.key === 'ArrowRight' || event.key === 'ArrowUp') {
     event.preventDefault()
+    event.stopPropagation()
     const nextIdx = idx < props.values.length - 1 ? idx + 1 : 0
     emit('change', props.values[nextIdx])
   }
@@ -117,8 +119,27 @@ watch(() => props.values, () => {
   stopPlayback()
 })
 
+/**
+ * Document-level keydown handler so arrow keys navigate the slider even when
+ * focus is elsewhere (e.g. on the page body or after clicking the NSlider
+ * thumb). Skips when a text-input element has focus to avoid interfering with
+ * typing.
+ */
+function onDocumentKeydown(event: KeyboardEvent) {
+  const tag = (document.activeElement?.tagName ?? '').toLowerCase()
+  const isInputFocused = tag === 'input' || tag === 'textarea' || tag === 'select'
+    || (document.activeElement?.isContentEditable ?? false)
+  if (isInputFocused) return
+  onKeydown(event)
+}
+
+onMounted(() => {
+  document.addEventListener('keydown', onDocumentKeydown)
+})
+
 onBeforeUnmount(() => {
   clearTimer()
+  document.removeEventListener('keydown', onDocumentKeydown)
 })
 </script>
 
@@ -134,6 +155,7 @@ onBeforeUnmount(() => {
         :max="Math.max(0, values.length - 1)"
         :step="1"
         :tooltip="false"
+        :keyboard="false"
         :aria-label="`Master ${dimensionName}`"
         class="master-slider__slider"
         @update:value="onUpdate"

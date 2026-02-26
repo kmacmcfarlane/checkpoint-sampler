@@ -3,6 +3,14 @@ import { mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { NSlider, NButton, NCheckbox, NSelect } from 'naive-ui'
 import MasterSlider from '../MasterSlider.vue'
+import ImageLightbox from '../ImageLightbox.vue'
+
+// Mock the api client module (needed by ImageLightbox)
+vi.mock('../../api/client', () => ({
+  apiClient: {
+    getImageMetadata: vi.fn().mockResolvedValue({ metadata: {} }),
+  },
+}))
 
 const sampleValues = ['100', '500', '1000', '2000']
 
@@ -180,6 +188,129 @@ describe('MasterSlider', () => {
       await container.trigger('keydown', { key: 'Enter' })
 
       expect(wrapper.emitted('change')).toBeUndefined()
+    })
+
+    it('NSlider has keyboard=false to prevent built-in arrow key conflict', () => {
+      const wrapper = mountMaster()
+      const slider = wrapper.findComponent(NSlider)
+      expect(slider.props('keyboard')).toBe(false)
+    })
+  })
+
+  describe('document-level keyboard navigation', () => {
+    let wrapper: ReturnType<typeof mountMaster> | null = null
+
+    afterEach(() => {
+      if (wrapper) {
+        wrapper.unmount()
+        wrapper = null
+      }
+    })
+
+    it('emits change on ArrowRight via document keydown when wrapper is not focused', async () => {
+      wrapper = mountMaster({ currentValue: '500' })
+
+      const event = new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true })
+      document.dispatchEvent(event)
+      await nextTick()
+
+      const emitted = wrapper.emitted('change')
+      expect(emitted).toBeDefined()
+      expect(emitted).toHaveLength(1)
+      expect(emitted![0]).toEqual(['1000'])
+    })
+
+    it('emits change on ArrowLeft via document keydown when wrapper is not focused', async () => {
+      wrapper = mountMaster({ currentValue: '500' })
+
+      const event = new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true })
+      document.dispatchEvent(event)
+      await nextTick()
+
+      const emitted = wrapper.emitted('change')
+      expect(emitted).toBeDefined()
+      expect(emitted).toHaveLength(1)
+      expect(emitted![0]).toEqual(['100'])
+    })
+
+    it('does not emit when an input element is focused', async () => {
+      wrapper = mountMaster({ currentValue: '500' })
+
+      const input = document.createElement('input')
+      document.body.appendChild(input)
+      input.focus()
+
+      const event = new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true })
+      document.dispatchEvent(event)
+      await nextTick()
+
+      expect(wrapper.emitted('change')).toBeUndefined()
+
+      input.remove()
+    })
+
+    it('does not emit when a textarea is focused', async () => {
+      wrapper = mountMaster({ currentValue: '500' })
+
+      const textarea = document.createElement('textarea')
+      document.body.appendChild(textarea)
+      textarea.focus()
+
+      const event = new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true })
+      document.dispatchEvent(event)
+      await nextTick()
+
+      expect(wrapper.emitted('change')).toBeUndefined()
+
+      textarea.remove()
+    })
+
+    it('removes document listener on unmount', async () => {
+      const removeSpy = vi.spyOn(document, 'removeEventListener')
+      wrapper = mountMaster({ currentValue: '500' })
+
+      wrapper.unmount()
+      wrapper = null  // afterEach should not double-unmount
+
+      const removed = removeSpy.mock.calls.some((c) => c[0] === 'keydown')
+      expect(removed).toBe(true)
+
+      removeSpy.mockRestore()
+    })
+
+    it('does not emit when ImageLightbox is open and consumes the arrow key via stopImmediatePropagation', async () => {
+      // Mount MasterSlider
+      wrapper = mountMaster({ currentValue: '500' })
+
+      // Mount ImageLightbox with a slider so its arrow key handler fires
+      const lightboxWrapper = mount(ImageLightbox, {
+        props: {
+          imageUrl: '/api/images/dir/image.png',
+          cellKey: 'x|y',
+          sliderValues: ['3', '7', '15'],
+          currentSliderValue: '7',
+          imagesBySliderValue: {
+            '3': '/api/images/dir/a.png',
+            '7': '/api/images/dir/b.png',
+            '15': '/api/images/dir/c.png',
+          },
+        },
+      })
+
+      // ImageLightbox registers its keydown listener on mount.
+      // Because ImageLightbox calls stopImmediatePropagation() before MasterSlider's handler
+      // runs, MasterSlider should NOT emit 'change'.
+      const event = new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true })
+      document.dispatchEvent(event)
+      await nextTick()
+
+      // Lightbox should have emitted slider-change
+      expect(lightboxWrapper.emitted('slider-change')).toBeDefined()
+
+      // MasterSlider should NOT have emitted change (event was consumed by lightbox)
+      expect(wrapper.emitted('change')).toBeUndefined()
+
+      lightboxWrapper.unmount()
     })
   })
 

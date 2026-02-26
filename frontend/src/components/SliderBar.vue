@@ -31,11 +31,13 @@ function onKeydown(event: KeyboardEvent) {
   const idx = currentIndex.value
   if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') {
     event.preventDefault()
+    event.stopPropagation()
     if (idx > 0) {
       emit('change', props.values[idx - 1])
     }
   } else if (event.key === 'ArrowRight' || event.key === 'ArrowUp') {
     event.preventDefault()
+    event.stopPropagation()
     if (idx < props.values.length - 1) {
       emit('change', props.values[idx + 1])
     }
@@ -51,6 +53,7 @@ function onKeydown(event: KeyboardEvent) {
       :max="Math.max(0, values.length - 1)"
       :step="1"
       :tooltip="false"
+      :keyboard="false"
       style="flex: 1"
       @update:value="onUpdate"
     />

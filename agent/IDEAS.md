@@ -87,6 +87,12 @@ The `FileSystem.OpenFile()` method logs at error level for all open failures. Fo
 ### fileformat package linting
 The new `internal/fileformat` package has no tests of its own (the type is tested indirectly). Adding a linting rule to enforce all packages in `internal/` have test files would catch this early.
 
+### NSlider type declaration verification in CI
+The `keyboard` prop is present in NSlider's JS source but it would be useful to have a lint step that validates all naive-ui props against their TypeScript declarations to catch silent prop mismatches.
+
+### Auto-unmount in all test files
+The `enableAutoUnmount(afterEach)` pattern from @vue/test-utils should be added to all test files (or in a shared vitest setup file) by default. Many test files mount components without explicitly calling `wrapper.unmount()`, which can lead to subtle test interference from stale event listeners.
+
 ### Suppress Docker Compose orphan container warning in test-e2e
 Running `make test-e2e` after `make up-dev` produces a Docker Compose orphan container warning. Adding `--remove-orphans` to the `COMPOSE_E2E` run command, or documenting it as expected behavior in TEST_PRACTICES.md, would remove the noise.
 
@@ -204,6 +210,12 @@ The playback advancement tests use `{ timeout: 5000 }` with a 0.25s playback spe
 ### SliderBar wrap-around consistency
 SliderBar could optionally support wrap-around behavior (configurable via a prop) so keyboard navigation on the SliderBar is consistent with the ImageCell. Currently they differ at boundaries.
 
+### Multiple MasterSlider keyboard conflict guard
+If multiple MasterSlider components are ever mounted simultaneously, their document-level keydown listeners would conflict (both would handle the same arrow key). A future improvement would be to use a global singleton or priority system for which slider captures keyboard input.
+
+### Capture-phase handler ordering documentation
+The pattern in ImageLightbox.vue where capture-phase listeners with stopImmediatePropagation are used to prevent MasterSlider's bubble-phase handler from double-firing is well-commented but could be documented in a project-wide keyboard event handling guide to help future developers understand the intentional ordering.
+
 ### XYGrid keyboard integration test
 Add a test to XYGrid.test.ts that triggers a keydown on an ImageCell component within XYGrid and asserts that update:sliderValue is emitted with the correct cell key and new value. This would make the event-wiring path explicitly tested.
 
@@ -227,3 +239,12 @@ Bug descriptions should include the call chain (e.g., "called from `image_metada
 
 ### Tiered code review model selection
 Consider using sonnet for code review on simple, pattern-following changes (small frontend-only diffs, single-component changes) and reserving opus for architectural changes, security-sensitive stories, or cross-stack modifications. This could be driven by a `complexity` field on the story or heuristically derived from the diff size and layers touched. The B-020 review used opus for a 4-file frontend-only change that was straightforward — sonnet would likely have caught the same issues at lower cost and latency.
+
+### Root cause documentation in story notes
+Story notes should include richer root cause analysis (e.g., "NSlider's handleStepValue uses activeIndex === -1 guard") to help the developer focus immediately on the correct fix rather than investigating alternative approaches.
+
+### Review feedback should specify capture-phase requirements
+When review feedback involves event handler conflicts, include a note about listener registration order and whether capture phase is needed. The B-027 review suggested stopImmediatePropagation alone, but the actual fix also required capture: true to work regardless of mount order.
+
+### E2E slider keyboard test coverage
+The existing slider-playback.spec.ts E2E test exercises keyboard navigation but focuses on playback advancement. A dedicated E2E spec for keyboard-only slider navigation (without mouse focus on the slider) would add an extra safety net for this regression class of bugs.

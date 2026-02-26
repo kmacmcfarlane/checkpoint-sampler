@@ -128,6 +128,24 @@ function onContentClick(e: MouseEvent) {
 function onKeyDown(e: KeyboardEvent) {
   if (e.key === 'Escape') {
     emit('close')
+    return
+  }
+
+  // Arrow keys navigate the lightbox slider when it is visible
+  if (!hasSlider.value || !props.cellKey) return
+  const idx = props.sliderValues.indexOf(props.currentSliderValue)
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+    e.preventDefault()
+    e.stopImmediatePropagation()  // prevent MasterSlider document handler from also firing
+    if (idx > 0) {
+      emit('slider-change', props.cellKey, props.sliderValues[idx - 1])
+    }
+  } else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+    e.preventDefault()
+    e.stopImmediatePropagation()  // prevent MasterSlider document handler from also firing
+    if (idx < props.sliderValues.length - 1) {
+      emit('slider-change', props.cellKey, props.sliderValues[idx + 1])
+    }
   }
 }
 
@@ -202,7 +220,9 @@ watch(() => props.currentSliderValue, (newVal) => {
 })
 
 onMounted(() => {
-  document.addEventListener('keydown', onKeyDown)
+  // Use capture phase so this handler fires before non-capture listeners (e.g. MasterSlider),
+  // allowing stopImmediatePropagation to prevent them from also handling the same arrow key.
+  document.addEventListener('keydown', onKeyDown, true)
   document.addEventListener('mousemove', onMouseMove)
   document.addEventListener('mouseup', onMouseUp)
   fetchMetadata()
@@ -210,7 +230,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  document.removeEventListener('keydown', onKeyDown)
+  document.removeEventListener('keydown', onKeyDown, true)
   document.removeEventListener('mousemove', onMouseMove)
   document.removeEventListener('mouseup', onMouseUp)
 })

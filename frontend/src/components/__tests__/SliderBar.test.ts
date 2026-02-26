@@ -162,5 +162,11 @@ describe('SliderBar', () => {
 
       expect(wrapper.emitted('change')).toBeUndefined()
     })
+
+    it('NSlider has keyboard=false to prevent built-in arrow key conflict', () => {
+      const wrapper = mountSlider()
+      const slider = wrapper.findComponent(NSlider)
+      expect(slider.props('keyboard')).toBe(false)
+    })
   })
 })

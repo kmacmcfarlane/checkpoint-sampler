@@ -1399,7 +1399,28 @@ stories:
   - id: B-027
     title: "Slider keyboard navigation only selects first or last value"
     priority: 60
-    status: todo
+    status: uat
+    metrics:
+      duration: "23m 12s"
+      tokens_in: 341164
+      tokens_out: 0
+      invocations: 5
+      subagents:
+        fullstack-developer:
+          invocations: 2
+          duration: "13m 44s"
+          tokens_in: 158035
+          tokens_out: 0
+        code-reviewer:
+          invocations: 2
+          duration: "5m 11s"
+          tokens_in: 117349
+          tokens_out: 0
+        qa-expert:
+          invocations: 1
+          duration: "4m 17s"
+          tokens_in: 65780
+          tokens_out: 0
     requires: []
     acceptance:
       - "FE: Arrow keys on the MasterSlider step through all intermediate values, not just first and last"
