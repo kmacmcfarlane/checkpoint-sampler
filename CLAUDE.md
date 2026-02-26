@@ -138,8 +138,11 @@ Agents should use one-shot commands, not watch mode. Watch mode is a long-runnin
 
 ## 10) Subagent workflow
 Stories progress through a multi-agent pipeline: fullstack-developer → code-reviewer → qa-expert.
-- Story status values: `todo`, `in_progress`, `review`, `testing`, `done`, `blocked`
+- Story status values: `todo`, `in_progress`, `review`, `testing`, `uat`, `done`, `blocked`
 - The orchestrator (PROMPT.md) dispatches to the appropriate subagent based on story status
+- After QA approval, stories enter `uat` (not `done`). Code is merged to main at this point.
+- The user reviews functionality in `uat` and either moves to `done` or provides `uat_feedback` for rework.
+- Agents never set `status: done` directly. `uat` stories without `uat_feedback` are not eligible work.
 - Subagent definitions live in /.claude/agents/ and are checked into the repository
 - See /agent/AGENT_FLOW.md for the full lifecycle and dispatch rules
 

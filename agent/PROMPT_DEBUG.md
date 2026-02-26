@@ -84,7 +84,7 @@ For each significant decision:
 
 Before exiting, write a final summary to `.ralph-debug/summary.md`:
 - What story was worked on
-- Full status transition chain (e.g., todo → in_progress → review → testing → done)
+- Full status transition chain (e.g., todo → in_progress → review → testing → uat)
 - For each subagent invoked: one-line summary of its verdict
 - Any concerns or gaps noted
 - List of all debug log files written

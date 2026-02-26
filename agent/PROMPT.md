@@ -16,8 +16,9 @@ Follow /agent/AGENT_FLOW.md exactly.
 Select work from /agent/backlog.yaml per the priority rules in AGENT_FLOW.md section 3:
 1. First: stories in `review` status → invoke code-reviewer subagent
 2. Second: stories in `testing` status → invoke qa-expert subagent
-3. Third: stories in `in_progress` with `review_feedback` → invoke fullstack-developer subagent
-4. Fourth: highest priority `todo` story → invoke fullstack-developer subagent
+3. Third: stories in `uat` with non-empty `uat_feedback` → copy `uat_feedback` to `review_feedback`, clear `uat_feedback`, set `status: in_progress`, create new branch from main, then invoke fullstack-developer subagent
+4. Fourth: stories in `in_progress` with `review_feedback` → invoke fullstack-developer subagent
+5. Fifth: highest priority `todo` story → invoke fullstack-developer subagent
 
 ## Subagent dispatch
 
@@ -50,8 +51,10 @@ After each subagent completes, update /agent/backlog.yaml:
 - Fullstack engineer success → set `status: review`, clear `review_feedback`
 - Code reviewer approved → set `status: testing`
 - Code reviewer rejected → set `status: in_progress`, record `review_feedback`
-- QA expert approved → set `status: done`, record `metrics` (see AGENT_FLOW.md 4.5.1), then process sweep findings (see below)
+- QA expert approved → set `status: uat`, record `metrics` (see AGENT_FLOW.md 4.5.1), then process sweep findings (see below)
 - QA expert rejected → set `status: in_progress`, record `review_feedback`, then process sweep findings (see below)
+
+Note: Agents never set `status: done`. The user manually moves stories from `uat` to `done` after acceptance.
 
 ### Processing QA sweep findings
 
@@ -77,15 +80,17 @@ After every subagent completes (fullstack-developer, qa-expert), check its respo
 
 Every addition to IDEAS.md (whether from process improvements, QA sweep findings, or any other source) MUST trigger a Discord notification so the user is aware of new suggestions.
 
-## Completion conditions for a story
+## Completion conditions for a story (agent-driven, reaching `uat`)
 
 - All acceptance criteria satisfied
 - Tests required by the story are added/updated and pass locally
 - /CHANGELOG.md updated
 - Code review passed (code-reviewer approved)
 - QA testing passed (qa-expert approved)
-- /agent/backlog.yaml updated (`status: done` with `metrics` only when all gates pass and user approval has been given)
-- Suggest a commit message in format: story(<id>): <title> (unless AGENT_FLOW/backlog explicitly overrides)
+- /agent/backlog.yaml updated (`status: uat` with `metrics` when all gates pass)
+- Committed and merged to main with message format: story(<id>): <title> (unless AGENT_FLOW/backlog explicitly overrides)
+
+Note: `uat` → `done` is a user action. Agents never set `status: done`.
 
 ## Constraints
 
@@ -94,7 +99,7 @@ Every addition to IDEAS.md (whether from process improvements, QA sweep findings
 
 ## Stop conditions
 
-- If no eligible stories remain across any queue, make no changes, touch the stop file and exit.
+- If no eligible stories remain across any queue, make no changes, touch the stop file and exit. Note: `uat` stories without `uat_feedback` are not eligible work — they are waiting for user acceptance.
 - If blocked, record a concrete blocked_reason in /agent/backlog.yaml and exit.
 
 How to stop:

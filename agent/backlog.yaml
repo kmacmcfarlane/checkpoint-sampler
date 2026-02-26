@@ -6,6 +6,7 @@ defaults:
   blocked_field: "blocked"
   blocked_reason_field: "blocked_reason"
   review_feedback_field: "review_feedback"
+  uat_feedback_field: "uat_feedback"
   requires_field: "requires"
 
 # ─── SETUP ───────────────────────────────────────────────────────────────────

@@ -205,7 +205,7 @@ Integration tests must still avoid real provider calls.
 
 ## 5) QA subagent integration
 
-The QA expert subagent (/.claude/agents/qa-expert.md) is the final gate before a story is marked `status: done`. It verifies:
+The QA expert subagent (/.claude/agents/qa-expert.md) is the final gate before a story is marked `status: uat`. It verifies:
 
 ### 5.1 Test execution
 - All backend tests pass (`make test-backend`)
@@ -344,7 +344,7 @@ Key facts:
 - Playwright outputs results in list reporter format for easy log scanning.
 
 ## 7) Definition of Done (testing)
-A story may be set to `status: done` only when:
+A story may be set to `status: uat` only when:
 - New/changed behavior is covered by tests following these practices.
 - Tests are deterministic and fast enough for watch workflows.
 - All relevant suites pass locally and in docker watch mode (when applicable).

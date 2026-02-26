@@ -32,18 +32,22 @@ Each story in backlog.yaml has a `status` field with one of these values:
 - **in_progress**: Fullstack engineer is actively implementing.
 - **review**: Implementation complete. Pending code review.
 - **testing**: Code review passed. Pending QA testing.
-- **done**: All gates passed. Story is complete.
+- **uat**: QA approved. Code is merged to main. Awaiting user acceptance testing. User may provide `uat_feedback` or manually move to `done`.
+- **done**: User accepted. Story is complete.
 - **blocked**: Cannot proceed. Must have a non-empty `blocked_reason`.
 
 ### 1.1 Status transitions
 
 ```
-todo ──────────► in_progress ──────────► review ──────────► testing ──────────► done
-                     ▲                     │                   │
-                     │    (changes requested)                  │ (issues found)
-                     └─────────────────────┘                   │
-                     ▲                                         │
-                     └─────────────────────────────────────────┘
+todo ──► in_progress ──► review ──► testing ──► uat ──► done (user action)
+              ▲             │           │         │
+              │  (changes   │           │         │ (uat_feedback)
+              │  requested) │           │         │
+              └─────────────┘           │         │
+              ▲  (issues found)         │         │
+              └─────────────────────────┘         │
+              ▲  (uat_feedback)                   │
+              └───────────────────────────────────┘
 
 Any status ──► blocked (with blocked_reason)
 blocked ──► todo (when blocker is resolved by user)
@@ -58,8 +62,10 @@ Valid transitions — the **Deciding subagent** column shows which subagent's ve
 | `in_progress` → `blocked` | **Fullstack Engineer** | Cannot continue without external input |
 | `review` → `testing` | **Code Reviewer** | Code review approved |
 | `review` → `in_progress` | **Code Reviewer** | Changes requested (feedback in `review_feedback`) |
-| `testing` → `done` | **QA Expert** | QA approved, all gates passed |
+| `testing` → `uat` | **QA Expert** | QA approved; finalization performed (CHANGELOG, metrics, commit, merge) |
 | `testing` → `in_progress` | **QA Expert** | Issues found (feedback in `review_feedback`) |
+| `uat` → `in_progress` | **Orchestrator** | User provided `uat_feedback`; orchestrator copies to `review_feedback` and clears `uat_feedback` |
+| `uat` → `done` | **User** (manual) | User accepted; edits backlog.yaml directly |
 
 **Ownership rules:**
 - No subagent may write status changes directly to backlog.yaml. Subagents report structured verdicts; the orchestrator updates backlog.yaml.
@@ -70,13 +76,23 @@ Valid transitions — the **Deciding subagent** column shows which subagent's ve
 
 A story may declare a `requires` field listing the IDs of stories that must be completed before it can be started. This is a structural dependency defined at planning time, distinct from the runtime `blocked` state.
 
-- A story with `requires: [S-002, S-004]` is not eligible for selection until both S-002 and S-004 have `status: done`.
-- `requires` dependencies are transitive in effect: if S-009 requires S-008, and S-008 requires S-007, then S-009 cannot start until both S-007 and S-008 are done.
+- A story with `requires: [S-002, S-004]` is not eligible for selection until both S-002 and S-004 have `status: done` or `status: uat` (code is on main in both cases).
+- `requires` dependencies are transitive in effect: if S-009 requires S-008, and S-008 requires S-007, then S-009 cannot start until both S-007 and S-008 are done or uat.
 - A story may be both `requires`-gated and `blocked` — these are independent conditions.
 
 ### 1.3 Review feedback
 
 When a code reviewer or QA expert returns a story to `in_progress`, they record feedback in the `review_feedback` field of the story in backlog.yaml. This field is a free-text string describing what needs to change. The fullstack engineer reads this field when resuming work on the story and clears it when setting status to `review` again.
+
+### 1.4 UAT feedback
+
+After a story reaches `uat`, the user may provide feedback by writing to the `uat_feedback` field in backlog.yaml. The orchestrator detects this during work selection (section 3.1). When detected, the orchestrator:
+1. Copies the `uat_feedback` content into `review_feedback`.
+2. Clears `uat_feedback`.
+3. Sets `status: in_progress`.
+4. Creates a new feature branch from `main` (since the prior branch was already merged).
+
+This allows the fullstack engineer to use the standard `review_feedback` field without awareness of UAT. The rework follows the normal cycle: `in_progress` → `review` → `testing` → `uat`.
 
 ## 2) Subagents
 
@@ -86,7 +102,7 @@ The orchestrator delegates work to specialized subagents via the Task tool. Suba
 |---|---|---|---|
 | Fullstack Engineer | `fullstack-developer.md` | Story is `todo` or `in_progress` | → `review` (or → `blocked`) |
 | Code Reviewer | `code-reviewer.md` | Story is `review` | → `testing` or → `in_progress` |
-| QA Expert | `qa-expert.md` | Story is `testing` | → `done` or → `in_progress` |
+| QA Expert | `qa-expert.md` | Story is `testing` | → `uat` or → `in_progress` |
 | Debugger | `debugger.md` | On demand (test failures, hard bugs) | n/a |
 | Security Auditor | `security-auditor.md` | On demand (security-sensitive stories) | n/a |
 
@@ -112,14 +128,15 @@ The orchestrator must process stories in this priority order:
 
 1. **Review queue**: Find stories with `status: review`. Process the highest priority one by invoking the code reviewer.
 2. **Testing queue**: Find stories with `status: testing`. Process the highest priority one by invoking the QA expert.
-3. **In-progress stories with feedback**: Find stories with `status: in_progress` AND a non-empty `review_feedback`. Process the highest priority one by invoking the fullstack engineer to address the feedback.
-4. **New work**: Select a new story using the algorithm below.
+3. **UAT feedback queue**: Find stories with `status: uat` AND a non-empty `uat_feedback`. For the highest priority one: copy `uat_feedback` into `review_feedback`, clear `uat_feedback`, set `status: in_progress`, create a new feature branch from `main`, and then invoke the fullstack engineer to address the feedback.
+4. **In-progress stories with feedback**: Find stories with `status: in_progress` AND a non-empty `review_feedback`. Process the highest priority one by invoking the fullstack engineer to address the feedback.
+5. **New work**: Select a new story using the algorithm below.
 
 ### 3.2 New work selection algorithm (deterministic)
 
 1) Filter stories with `status: todo`.
 2) Exclude stories that are `blocked` (blocked=true or blocked_reason present).
-3) Exclude stories whose `requires` list contains any story that does not have `status: done`.
+3) Exclude stories whose `requires` list contains any story that does not have `status: done` or `status: uat`.
 4) **Bugs first**: Partition eligible stories into bugs (id starts with `B-`) and non-bugs. If any bugs are eligible, select from bugs only.
 5) Within the selected partition, choose the highest priority story (higher number = higher priority).
 6) Tie-breaker: lowest id lexicographically.
@@ -135,7 +152,8 @@ The orchestrator performs these steps each cycle:
 - Work each story in its own feature branch (e.g. `S-123` for a story, `B-321` for a bug)
 - If the story is already `in_progress`/`review`/`testing`, the branch should already exist — switch to it
 - If a story becomes blocked, do not merge down the branch
-- If the story reaches `done` and the user has approved it, merge the branch into `main` after committing
+- If the story reaches `uat`, the branch has already been merged into `main` (see section 4.5)
+- **UAT rework**: When a `uat` story returns to `in_progress` (via `uat_feedback`), create a new feature branch from current `main`. The previous branch was already merged. Use the standard branch name (e.g., `S-123`); if it still exists from the prior merge, delete it first and recreate from `main`.
 
 ### 4.2 Check for requirements changes
 - Inspect the git commit history (or working set) for changes to the /agent/PRD.md or answers provided in /agent/QUESTIONS.md
@@ -169,7 +187,7 @@ Based on the story's current status, invoke the appropriate subagent:
    - **Change summary** extracted from the fullstack engineer's verdict (see section 4.3.2)
 2. The QA expert will run `make test-e2e` as part of its verification. This command is self-contained — it starts an isolated backend + frontend stack (`checkpoint-sampler-e2e`), runs all Playwright tests, and tears down automatically. The orchestrator does NOT need to ensure `make up-dev` is running before dispatching to QA for E2E tests.
 3. Parse the QA verdict for the story result, E2E test results, and runtime error sweep findings.
-4. If approved: set status to `done`
+4. If approved: set status to `uat` (finalization per section 4.5)
 5. If issues found: set status to `in_progress`, record feedback in `review_feedback`
 6. After the story status transition, process any sweep findings per section 4.4.1.
 
@@ -265,14 +283,16 @@ When the QA expert's verdict includes a "Runtime Error Sweep" section with findi
 
 When the QA expert reports **APPROVED**, the orchestrator performs these steps in order:
 
-1. **Update CHANGELOG**: Add an entry to /CHANGELOG.md for the completed story. Include a token consumption summary line at the end of the entry (e.g., `- Token usage: <input_tokens> input, <output_tokens> output`). Use the cumulative token counts from the current conversation session (visible via `/cost` or session stats).
-2. **Update backlog**: Set `status: done` and record `metrics` in /agent/backlog.yaml (see section 4.5.1).
+1. **Update CHANGELOG**: Add an entry to /CHANGELOG.md for the completed story. Include a token consumption summary line at the end of the entry (e.g., `- Token usage: <input_tokens> input, <output_tokens> output`). Use the cumulative token counts from the current conversation session (visible via `/cost` or session stats). If a CHANGELOG entry already exists for this story (e.g., from a prior UAT rework cycle), replace it rather than adding a duplicate.
+2. **Update backlog**: Set `status: uat` and record `metrics` in /agent/backlog.yaml (see section 4.5.1).
 3. **Commit**: Create the commit (per commit rules below).
 4. **Merge**: Merge the feature branch into `main` (per the commit/merge policy in PROMPT.md).
 
+The story enters `uat` with code on `main`. The user reviews functionality and either moves the story to `done` (manual edit) or provides `uat_feedback` to trigger a rework cycle.
+
 ### 4.5.1 Recording metrics
 
-When a story reaches `done`, the orchestrator adds a `metrics` map to the story in backlog.yaml. This captures cost and performance data from the completing cycle.
+When a story reaches `uat`, the orchestrator adds a `metrics` map to the story in backlog.yaml. This captures cost and performance data from the completing cycle.
 
 **Structure:**
 
@@ -326,7 +346,7 @@ metrics:
 These finalization actions are exclusively owned by the orchestrator. No subagent may update CHANGELOG, commit, or merge.
 
 ### 4.6 Commit rules
-Default: commit when a story reaches `done` and the user has reviewed the changes. Wait for review before committing.
+Default: commit when a story reaches `uat`. Finalization (commit and merge) happens immediately upon QA approval. For UAT rework cycles, use commit message format: `story(<id>): <title> (UAT rework)`.
 - Create a single commit per story unless the story explicitly requires multiple commits.
 - Commit message format:
     - `story(<id>): <title>`
@@ -339,7 +359,9 @@ Default: commit when a story reaches `done` and the user has reviewed the change
 
 ## 5) Definition of Done (DoD)
 
-A story may be set to `status: done` only if all are true:
+### 5.1 Entry to `uat` (agent-driven)
+
+A story may be set to `status: uat` only if all are true:
 
 **Verified by subagents (before QA approval):**
 1) All acceptance criteria are satisfied.
@@ -357,6 +379,10 @@ A story may be set to `status: done` only if all are true:
 8) /CHANGELOG.md updated with the story entry.
 9) Work committed with correct message format (unless story explicitly overrides).
 10) Feature branch merged to main (per commit/merge policy in PROMPT.md).
+
+### 5.2 Entry to `done` (user-driven)
+
+The user manually sets `status: done` in backlog.yaml after reviewing the deployed functionality during `uat`. Agents never set `status: done` directly.
 
 ## 6) Blocking rules
 
@@ -383,9 +409,9 @@ At all times:
 ## 8) Stopping conditions
 
 End the cycle when any occurs:
-- The selected story reaches `done` and is committed.
+- The selected story reaches `uat` and is committed/merged to main.
 - The selected story becomes `blocked` and backlog.yaml is updated accordingly.
-- No eligible stories remain across any queue.
+- No eligible stories remain across any queue (note: `uat` stories without `uat_feedback` are NOT eligible work).
 - A hard failure prevents continuing safely (e.g., irreconcilable test failures); record a blocker note and stop.
 
 ## 9) Discord notifications
@@ -407,8 +433,9 @@ Send a notification on every story status change:
 - **in_progress → blocked**: `[project] <id>: in_progress → blocked. <blocked_reason>.`
 - **review → testing**: `[project] <id>: review → testing. Code review approved.`
 - **review → in_progress**: `[project] <id>: review → in_progress. Changes requested: <1-2 sentence summary of feedback>.`
-- **testing → done**: `[project] <id>: testing → done. QA approved. <title> is complete. Tokens: <input_tokens>in / <output_tokens>out.`
+- **testing → uat**: `[project] <id>: testing → uat. QA approved. <title> merged to main, awaiting user acceptance. Tokens: <input_tokens>in / <output_tokens>out.`
 - **testing → in_progress**: `[project] <id>: testing → in_progress. QA found issues: <1-2 sentence summary of feedback>.`
+- **uat → in_progress**: `[project] <id>: uat → in_progress. UAT feedback received: <1-2 sentence summary of uat_feedback>.`
 
 When a story is returned to `in_progress` (from review or testing), always include a concise summary of the feedback so the user understands what went wrong without needing to check the repo.
 
@@ -435,7 +462,7 @@ Per-subagent token counts are captured via `/cost` snapshots before and after ea
 ### 10.1 Where to record
 
 1. **backlog.yaml `metrics` map** (section 4.5.1): Per-subagent and total token counts.
-2. **Discord notification** (section 9.2): Append `Tokens: <total_in>in / <total_out>out.` to the `testing → done` message using `metrics.tokens_in` and `metrics.tokens_out`.
+2. **Discord notification** (section 9.2): Append `Tokens: <total_in>in / <total_out>out.` to the `testing → uat` message using `metrics.tokens_in` and `metrics.tokens_out`.
 3. **CHANGELOG entry** (section 4.5): Add a `- Token usage: <total_in> input, <total_out> output` line using `metrics.tokens_in` and `metrics.tokens_out`.
 
 ### 10.2 Notes
@@ -449,4 +476,4 @@ The agent must assume:
 - Context is cleared between cycles.
 - The only persisted state is the repository content and git history.
 - Therefore, always re-read the input files in section 0 before acting.
-- A single cycle may advance a story through multiple status transitions (e.g., `todo` → `in_progress` → `review` → `testing` → `done`) if all subagents complete successfully within the cycle.
+- A single cycle may advance a story through multiple status transitions (e.g., `todo` → `in_progress` → `review` → `testing` → `uat`) if all subagents complete successfully within the cycle. The `uat` → `done` transition is always a manual user action.
