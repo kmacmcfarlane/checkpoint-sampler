@@ -75,6 +75,9 @@ The string `checkpoint-sampler-dev_default` appears in both `docker-compose.e2e.
 ### E2E cold-build startup time
 The backend uses `Dockerfile.dev` (air with `go generate` + `go build`) which can take 5+ minutes cold. A production-mode E2E image or pre-compiled binary could dramatically speed up CI runs.
 
+### E2E CSS class stability for Naive UI
+Naive UI internal CSS classes (like `.n-dynamic-tags__add`) can change between library versions and break E2E tests silently. Adding `data-testid` attributes to interactive Naive UI sub-elements in the component wrapper would make E2E selectors stable and independent of Naive UI internals.
+
 ### npm audit warnings in playwright run
 The `npm ci` in the playwright container produces 5 high severity vulnerability warnings on every run. These are pre-existing but should be addressed to clean up CI output.
 
@@ -126,6 +129,12 @@ The QA subagent would run E2E tests as part of its verification:
 - Use `--only-shell` flag for smaller disk footprint (~150MB vs ~400MB for full Chromium)
 - Chromium sandboxing may need `chromiumSandbox: false` in config if running as root inside Docker
 - Browser version is pinned to the Playwright npm package version — always use the bundled browser, not system Chrome
+
+### Review feedback DOM structure hints
+Review feedback that requests changes to UI interaction patterns should include expected DOM structures or links to Naive UI docs, reducing assumption-making during rework cycles.
+
+### Story notes numeric format spec
+Story notes mentioning "add input validation to reject non-numeric characters" should specify how trailing zeros should be handled (e.g., should `7.0` round-trip as `7` or `7.0`). Explicit formatting requirements in acceptance criteria would avoid ambiguity.
 
 ## Workflow
 
@@ -281,3 +290,9 @@ The `checkpoint_filenames` and `clear_existing` backend features are fairly comp
 
 ### Checkpoint regeneration status bead differentiation
 The queued bead color (yellow/amber) covers both `pending` and `paused` job statuses, but these could be visually differentiated (e.g., paused = orange, queued = yellow) for a richer user experience.
+
+### NDynamicTags default value display in E2E
+The E2E tests currently rely on NDynamicTags defaults being populated (from resetForm()). A small E2E assertion that the default tags are actually visible before proceeding to save would make the tests more robust against regressions in default values.
+
+### CFG trailing-zero display
+When a user enters `7.0` as a CFG value, it displays as `7` after the tag is committed due to `parseFloat` normalization. A custom `formatNumber` function that preserves one decimal place for CFG values would provide a better UX.

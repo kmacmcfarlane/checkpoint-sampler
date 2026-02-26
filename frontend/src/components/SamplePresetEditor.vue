@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { NInput, NInputNumber, NSelect, NButton, NDynamicInput, NCard, NSpace, NAlert } from 'naive-ui'
+import { NInput, NInputNumber, NSelect, NButton, NDynamicInput, NDynamicTags, NCard, NSpace, NAlert } from 'naive-ui'
 import type { SamplePreset, NamedPrompt, CreateSamplePresetPayload, UpdateSamplePresetPayload } from '../api/types'
 import { apiClient } from '../api/client'
 
@@ -19,7 +19,7 @@ const error = ref<string | null>(null)
 const presetName = ref('')
 const prompts = ref<NamedPrompt[]>([{ name: '', text: '' }])
 const negativePrompt = ref('')
-const steps = ref<number[]>([20])
+const steps = ref<number[]>([30])
 const cfgs = ref<number[]>([7.0])
 const samplers = ref<string[]>([])
 const schedulers = ref<string[]>([])
@@ -55,6 +55,16 @@ const schedulerOptions = computed(() =>
     value: s,
   }))
 )
+
+// String representations for NDynamicTags
+const stepsAsStrings = computed(() => steps.value.map(String))
+const cfgsAsStrings = computed(() => cfgs.value.map(String))
+const seedsAsStrings = computed(() => seeds.value.map(String))
+
+// Input props to restrict entry to digits and '.' only
+const numericInputProps = {
+  allowInput: (val: string) => /^[0-9.]*$/.test(val),
+}
 
 const computedTotalImages = computed(() => {
   const validPrompts = prompts.value.filter(p => p != null && p.name && p.text)
@@ -155,7 +165,7 @@ function resetForm() {
   presetName.value = ''
   prompts.value = [{ name: '', text: '' }]
   negativePrompt.value = ''
-  steps.value = [20]
+  steps.value = [30]
   cfgs.value = [7.0]
   samplers.value = []
   schedulers.value = []
@@ -258,17 +268,16 @@ function createPromptItem(): NamedPrompt {
   return { name: '', text: '' }
 }
 
-function parseNumberList(value: string): number[] {
-  return value
-    .split(',')
-    .map(s => s.trim())
-    .filter(s => s !== '')
-    .map(s => parseFloat(s))
-    .filter(n => !isNaN(n))
+function onUpdateSteps(tags: string[]) {
+  steps.value = tags.map(s => parseFloat(s)).filter(n => !isNaN(n))
 }
 
-function formatNumberList(values: number[]): string {
-  return values.join(', ')
+function onUpdateCfgs(tags: string[]) {
+  cfgs.value = tags.map(s => parseFloat(s)).filter(n => !isNaN(n))
+}
+
+function onUpdateSeeds(tags: string[]) {
+  seeds.value = tags.map(s => parseFloat(s)).filter(n => !isNaN(n))
 }
 </script>
 
@@ -353,26 +362,24 @@ function formatNumberList(values: number[]): string {
 
         <div class="form-row">
           <div class="form-field">
-            <label for="steps">Steps (comma-separated)</label>
-            <NInput
-              id="steps"
-              :value="formatNumberList(steps)"
-              placeholder="1, 4, 8, 20"
+            <label>Steps</label>
+            <NDynamicTags
+              :value="stepsAsStrings"
+              :input-props="numericInputProps"
               size="medium"
-              data-testid="steps-input"
-              @update:value="steps = parseNumberList($event)"
+              data-testid="steps-tags"
+              @update:value="onUpdateSteps"
             />
           </div>
 
           <div class="form-field">
-            <label for="cfgs">CFG Values (comma-separated)</label>
-            <NInput
-              id="cfgs"
-              :value="formatNumberList(cfgs)"
-              placeholder="1.0, 3.0, 7.0"
+            <label>CFG Values</label>
+            <NDynamicTags
+              :value="cfgsAsStrings"
+              :input-props="numericInputProps"
               size="medium"
-              data-testid="cfgs-input"
-              @update:value="cfgs = parseNumberList($event)"
+              data-testid="cfgs-tags"
+              @update:value="onUpdateCfgs"
             />
           </div>
         </div>
@@ -408,14 +415,13 @@ function formatNumberList(values: number[]): string {
         </div>
 
         <div class="form-field">
-          <label for="seeds">Seeds (comma-separated)</label>
-          <NInput
-            id="seeds"
-            :value="formatNumberList(seeds)"
-            placeholder="42, 420, 1337"
+          <label>Seeds</label>
+          <NDynamicTags
+            :value="seedsAsStrings"
+            :input-props="numericInputProps"
             size="medium"
-            data-testid="seeds-input"
-            @update:value="seeds = parseNumberList($event)"
+            data-testid="seeds-tags"
+            @update:value="onUpdateSeeds"
           />
         </div>
 

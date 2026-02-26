@@ -74,11 +74,20 @@ async function fillPresetName(page: Page, name: string): Promise<void> {
 }
 
 /**
- * Fills in a text input field identified by data-testid.
+ * Adds a value as a tag in a Naive UI NDynamicTags component.
+ * Clicks the "+" Add button to reveal the inline input, types the value, then presses Enter.
  */
-async function fillField(page: Page, testId: string, value: string): Promise<void> {
-  const input = page.locator(`[data-testid="${testId}"] input`)
+async function addTagToNDynamicTags(page: Page, tagsTestId: string, value: string): Promise<void> {
+  const container = page.locator(`[data-testid="${tagsTestId}"]`)
+  // Click the "+" add button to reveal the inline input
+  const addButton = container.locator('.n-dynamic-tags__add')
+  await addButton.click()
+  // Type the value into the revealed input
+  const input = container.locator('input')
   await input.fill(value)
+  await input.press('Enter')
+  // Wait for the tag to appear
+  await expect(container).toContainText(value)
 }
 
 /**
@@ -208,11 +217,8 @@ test.describe('sample preset CRUD via job launch dialog', () => {
     // Fill in the first prompt row (required for saving)
     await fillFirstPromptRow(page, 'landscape', 'a beautiful landscape')
 
-    // Steps, CFGs, and seeds default to "20", "7", "42" respectively.
-    // Explicitly fill them to ensure they are set.
-    await fillField(page, 'steps-input', '20')
-    await fillField(page, 'cfgs-input', '7')
-    await fillField(page, 'seeds-input', '42')
+    // Steps, CFGs, and seeds default to [30], [7.0], [42] respectively via NDynamicTags.
+    // The defaults are sufficient; no additional tags need to be added.
 
     // Add a sampler via tag mode (ComfyUI may not be available; tag mode allows custom values)
     await addTagToNaiveSelect(page, 'samplers-select', 'euler')
@@ -259,9 +265,7 @@ test.describe('sample preset CRUD via job launch dialog', () => {
     await page.locator('[data-testid="new-preset-button"]').click()
     await fillPresetName(page, uniquePresetName)
     await fillFirstPromptRow(page, 'portrait', 'a dramatic portrait')
-    await fillField(page, 'steps-input', '20')
-    await fillField(page, 'cfgs-input', '7')
-    await fillField(page, 'seeds-input', '42')
+    // Steps, CFGs, and seeds default to [30], [7.0], [42] via NDynamicTags; use defaults.
     await addTagToNaiveSelect(page, 'samplers-select', 'euler')
     await addTagToNaiveSelect(page, 'schedulers-select', 'normal')
 
@@ -301,9 +305,7 @@ test.describe('sample preset CRUD via job launch dialog', () => {
     await page.locator('[data-testid="new-preset-button"]').click()
     await fillPresetName(page, uniquePresetName)
     await fillFirstPromptRow(page, 'abstract', 'abstract art')
-    await fillField(page, 'steps-input', '20')
-    await fillField(page, 'cfgs-input', '7')
-    await fillField(page, 'seeds-input', '42')
+    // Steps, CFGs, and seeds default to [30], [7.0], [42] via NDynamicTags; use defaults.
     await addTagToNaiveSelect(page, 'samplers-select', 'euler')
     await addTagToNaiveSelect(page, 'schedulers-select', 'normal')
 

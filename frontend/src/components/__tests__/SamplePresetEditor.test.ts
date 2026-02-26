@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { nextTick } from 'vue'
-import { NSelect, NButton, NInput, NInputNumber, NDynamicInput } from 'naive-ui'
+import { NSelect, NButton, NInput, NInputNumber, NDynamicInput, NDynamicTags } from 'naive-ui'
 import SamplePresetEditor from '../SamplePresetEditor.vue'
 import type { SamplePreset, ComfyUIModels } from '../../api/types'
 
@@ -94,6 +94,7 @@ describe('SamplePresetEditor', () => {
 
     expect(wrapper.findComponent(NInput).exists()).toBe(true)
     expect(wrapper.findComponent(NDynamicInput).exists()).toBe(true)
+    expect(wrapper.findAllComponents(NDynamicTags)).toHaveLength(3)
   })
 
   it('fetches presets on mount', async () => {
@@ -135,6 +136,20 @@ describe('SamplePresetEditor', () => {
 
     const heightInput = wrapper.findAllComponents(NInputNumber)[1]
     expect(heightInput.props('value')).toBe(1024)
+  })
+
+  it('loads steps, cfgs and seeds into NDynamicTags when preset is selected', async () => {
+    const wrapper = mount(SamplePresetEditor)
+    await flushPromises()
+
+    const select = wrapper.findAllComponents(NSelect)[0]
+    select.vm.$emit('update:value', 'preset-1')
+    await nextTick()
+
+    const [stepsTags, cfgsTags, seedsTags] = wrapper.findAllComponents(NDynamicTags)
+    expect(stepsTags.props('value')).toEqual(['1', '4', '8'])
+    expect(cfgsTags.props('value')).toEqual(['1', '3', '7'])
+    expect(seedsTags.props('value')).toEqual(['42', '420'])
   })
 
   it('displays computed total images per checkpoint', async () => {
@@ -182,7 +197,7 @@ describe('SamplePresetEditor', () => {
       name: 'New Preset',
       prompts: [{ name: 'test', text: 'test prompt' }],
       negative_prompt: '',
-      steps: [20],
+      steps: [30],
       cfgs: [7.0],
       samplers: ['euler'],
       schedulers: ['normal'],
@@ -234,7 +249,7 @@ describe('SamplePresetEditor', () => {
       name: 'New Preset',
       prompts: [{ name: 'test', text: 'test prompt' }],
       negative_prompt: '',
-      steps: [20],
+      steps: [30],
       cfgs: [7.0],
       samplers: ['euler'],
       schedulers: ['normal'],
@@ -360,6 +375,26 @@ describe('SamplePresetEditor', () => {
     expect(nameInput.props('value')).toBe('')
   })
 
+  it('resets steps to default [30] when New Preset is clicked', async () => {
+    const wrapper = mount(SamplePresetEditor)
+    await flushPromises()
+
+    // Select preset to change steps
+    const select = wrapper.findAllComponents(NSelect)[0]
+    select.vm.$emit('update:value', 'preset-1')
+    await nextTick()
+
+    // Click New Preset to reset
+    const newButton = wrapper
+      .findAllComponents(NButton)
+      .find((b) => b.text() === 'New Preset')!
+    await newButton.trigger('click')
+    await nextTick()
+
+    const stepsTags = wrapper.findComponent('[data-testid="steps-tags"]')
+    expect(stepsTags.props('value')).toEqual(['30'])
+  })
+
   it('disables save button when required fields are empty', async () => {
     const wrapper = mount(SamplePresetEditor)
     await flushPromises()
@@ -370,15 +405,15 @@ describe('SamplePresetEditor', () => {
     expect(saveButton.props('disabled')).toBe(true)
   })
 
-  it('parses comma-separated step values correctly', async () => {
+  it('NDynamicTags for steps updates steps state when tags are changed', async () => {
     const wrapper = mount(SamplePresetEditor)
     await flushPromises()
 
-    const stepsInput = wrapper.findComponent('[data-testid="steps-input"]')
-    stepsInput.vm.$emit('update:value', '1, 4, 8, 20')
+    const stepsTags = wrapper.findComponent('[data-testid="steps-tags"]')
+    stepsTags.vm.$emit('update:value', ['1', '4', '8', '20'])
     await nextTick()
 
-    // Need to add valid prompts first
+    // Verify by adding valid prompts + samplers/schedulers and checking total calculation
     const promptInputs = wrapper.findAllComponents(NInput)
     const promptNameInput = promptInputs.find((input) =>
       input.props('placeholder')?.includes('Prompt name')
@@ -390,7 +425,6 @@ describe('SamplePresetEditor', () => {
     )!
     promptTextInput.vm.$emit('update:value', 'test prompt')
 
-    // Verify by selecting samplers/schedulers and checking total calculation
     const samplersSelect = wrapper.findComponent('[data-testid="samplers-select"]')
     samplersSelect.vm.$emit('update:value', ['euler'])
 
@@ -404,15 +438,14 @@ describe('SamplePresetEditor', () => {
     expect(totalDiv.text()).toContain('4')
   })
 
-  it('parses comma-separated CFG values correctly', async () => {
+  it('NDynamicTags for cfgs updates cfgs state when tags are changed', async () => {
     const wrapper = mount(SamplePresetEditor)
     await flushPromises()
 
-    const cfgsInput = wrapper.findComponent('[data-testid="cfgs-input"]')
-    cfgsInput.vm.$emit('update:value', '1.0, 3.0, 7.0')
+    const cfgsTags = wrapper.findComponent('[data-testid="cfgs-tags"]')
+    cfgsTags.vm.$emit('update:value', ['1.0', '3.0', '7.0'])
     await nextTick()
 
-    // Need to add valid prompts first
     const promptInputs = wrapper.findAllComponents(NInput)
     const promptNameInput = promptInputs.find((input) =>
       input.props('placeholder')?.includes('Prompt name')
@@ -437,15 +470,14 @@ describe('SamplePresetEditor', () => {
     expect(totalDiv.text()).toContain('3')
   })
 
-  it('parses comma-separated seed values correctly', async () => {
+  it('NDynamicTags for seeds updates seeds state when tags are changed', async () => {
     const wrapper = mount(SamplePresetEditor)
     await flushPromises()
 
-    const seedsInput = wrapper.findComponent('[data-testid="seeds-input"]')
-    seedsInput.vm.$emit('update:value', '42, 420, 1337')
+    const seedsTags = wrapper.findComponent('[data-testid="seeds-tags"]')
+    seedsTags.vm.$emit('update:value', ['42', '420', '1337'])
     await nextTick()
 
-    // Need to add valid prompts first
     const promptInputs = wrapper.findAllComponents(NInput)
     const promptNameInput = promptInputs.find((input) =>
       input.props('placeholder')?.includes('Prompt name')
@@ -522,13 +554,50 @@ describe('SamplePresetEditor', () => {
     }
   })
 
+  it('NDynamicTags inputProps restricts entry to digits and "." only', async () => {
+    const wrapper = mount(SamplePresetEditor)
+    await flushPromises()
+
+    const [stepsTags] = wrapper.findAllComponents(NDynamicTags)
+    const inputProps = stepsTags.props('inputProps') as { allowInput: (val: string) => boolean }
+    expect(typeof inputProps.allowInput).toBe('function')
+
+    // Valid inputs
+    expect(inputProps.allowInput('123')).toBe(true)
+    expect(inputProps.allowInput('3.14')).toBe(true)
+    expect(inputProps.allowInput('0')).toBe(true)
+    expect(inputProps.allowInput('')).toBe(true)
+
+    // Invalid inputs
+    expect(inputProps.allowInput('abc')).toBe(false)
+    expect(inputProps.allowInput('1a')).toBe(false)
+    expect(inputProps.allowInput('1,2')).toBe(false)
+    expect(inputProps.allowInput('1 2')).toBe(false)
+  })
+
+  it('NDynamicTags inputProps is shared across all numeric tag inputs', async () => {
+    const wrapper = mount(SamplePresetEditor)
+    await flushPromises()
+
+    const tagComponents = wrapper.findAllComponents(NDynamicTags)
+    expect(tagComponents).toHaveLength(3)
+
+    // All three tag inputs should have the allowInput restriction
+    for (const tagComp of tagComponents) {
+      const inputProps = tagComp.props('inputProps') as { allowInput: (val: string) => boolean }
+      expect(typeof inputProps.allowInput).toBe('function')
+      expect(inputProps.allowInput('abc')).toBe(false)
+      expect(inputProps.allowInput('123')).toBe(true)
+    }
+  })
+
   it('filters out empty prompts when saving', async () => {
     const createdPreset: SamplePreset = {
       id: 'new-preset-id',
       name: 'Test',
       prompts: [{ name: 'valid', text: 'valid prompt' }],
       negative_prompt: '',
-      steps: [20],
+      steps: [30],
       cfgs: [7.0],
       samplers: ['euler'],
       schedulers: ['normal'],
@@ -657,6 +726,47 @@ describe('SamplePresetEditor', () => {
       .findAllComponents(NButton)
       .find((b) => b.text().includes('Save Preset'))!
     expect(saveButton.props('disabled')).toBe(true)
+  })
+
+  it.each([
+    {
+      field: 'steps',
+      testid: 'steps-tags',
+      tags: ['1', '4', '8', '20'],
+      expectedNumbers: [1, 4, 8, 20],
+      expectedStrings: ['1', '4', '8', '20'],
+    },
+    {
+      field: 'cfgs',
+      testid: 'cfgs-tags',
+      // parseFloat normalises trailing zeros: '1.0' -> 1 -> '1', '3.5' stays '3.5'
+      tags: ['1.0', '3.5', '7.0'],
+      expectedNumbers: [1.0, 3.5, 7.0],
+      expectedStrings: ['1', '3.5', '7'],
+    },
+    {
+      field: 'seeds',
+      testid: 'seeds-tags',
+      tags: ['42', '420'],
+      expectedNumbers: [42, 420],
+      expectedStrings: ['42', '420'],
+    },
+  ])('NDynamicTags $field round-trips numeric values correctly', async ({ testid, tags, expectedNumbers, expectedStrings }) => {
+    const wrapper = mount(SamplePresetEditor)
+    await flushPromises()
+
+    const tagsComponent = wrapper.findComponent(`[data-testid="${testid}"]`)
+    tagsComponent.vm.$emit('update:value', tags)
+    await nextTick()
+
+    // Verify the displayed value reflects parsed numbers converted back to strings
+    expect(tagsComponent.props('value')).toEqual(expectedStrings)
+
+    // Verify the internal numeric state is correct by checking via vm
+    const vm = wrapper.vm as unknown as { steps: number[]; cfgs: number[]; seeds: number[] }
+    if (testid === 'steps-tags') expect(vm.steps).toEqual(expectedNumbers)
+    if (testid === 'cfgs-tags') expect(vm.cfgs).toEqual(expectedNumbers)
+    if (testid === 'seeds-tags') expect(vm.seeds).toEqual(expectedNumbers)
   })
 
   afterAll(() => {

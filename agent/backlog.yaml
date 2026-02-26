@@ -1491,7 +1491,7 @@ stories:
   - id: S-048
     title: "Sample preset steps/cfg/seeds as multi-value tag inputs with validation"
     priority: 50
-    status: todo
+    status: uat
     requires: [B-024]
     acceptance:
       - "FE: Steps, CFG, and Seeds fields in SamplePresetEditor use multi-value tag-style inputs (NDynamicTags or similar) instead of comma-separated text inputs"
@@ -1501,6 +1501,19 @@ stories:
       - "FE: Existing preset data round-trips correctly (save and load preserves values)"
       - "FE: computedTotalImages still calculates correctly with the new input format"
       - "FE: Existing SamplePresetEditor tests updated for new input components"
+    metrics:
+      duration: "16m 28s"
+      invocations: 5
+      subagents:
+        fullstack-developer:
+          invocations: 2
+          duration: "6m 38s"
+        code-reviewer:
+          invocations: 2
+          duration: "6m 01s"
+        qa-expert:
+          invocations: 1
+          duration: "3m 49s"
     notes: |
       Currently steps/cfgs/seeds are NInput with comma-separated text parsed by parseNumberList.
       Change to match the pattern used by samplers/schedulers: multi-value NSelect with tag
