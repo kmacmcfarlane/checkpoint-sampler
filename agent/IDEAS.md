@@ -39,6 +39,9 @@ The project has no documented contract for which URL paths carry WebSocket traff
 
 ## Dev Ops
 
+### CSS variable linting
+A stylelint rule (e.g., a custom plugin or stylelint-no-undefined-variables) that warns when a color property does not use a --text-color or --bg-* variable could prevent low-contrast issues from being introduced in the first place.
+
 ### nginx config validation in CI
 Adding an `nginx -t` config syntax check step to the build pipeline (e.g., in the frontend Dockerfile build stage or a Makefile target) would catch nginx config errors before they reach a running container.
 
@@ -248,3 +251,9 @@ When review feedback involves event handler conflicts, include a note about list
 
 ### E2E slider keyboard test coverage
 The existing slider-playback.spec.ts E2E test exercises keyboard navigation but focuses on playback advancement. A dedicated E2E spec for keyboard-only slider navigation (without mouse focus on the slider) would add an extra safety net for this regression class of bugs.
+
+### Accessibility audit tool
+A Lighthouse or axe-core integration in the CI pipeline would catch low-contrast issues like B-023 automatically before they reach UAT, reducing the number of purely visual bug stories entering the backlog.
+
+### Theme-aware variable reference in DEVELOPMENT_PRACTICES.md
+Adding a short section documenting the canonical CSS variables (--text-color, --text-secondary, --bg-color, --bg-surface, --accent-color, --border-color) would help future contributors choose the right variable without needing to grep App.vue.

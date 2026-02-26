@@ -1290,7 +1290,7 @@ stories:
   - id: B-023
     title: "Generate Samples dialog summary text unreadable (low contrast)"
     priority: 55
-    status: todo
+    status: uat
     requires: []
     acceptance:
       - "FE: The summary section at the bottom of JobLaunchDialog (training run name, checkpoint count, images per checkpoint) has sufficient text contrast in both dark and light themes"
@@ -1303,6 +1303,27 @@ stories:
       Key file: frontend/src/components/JobLaunchDialog.vue (styles around line 367-380).
     testing:
       - "command: cd frontend && npx vitest run"
+    metrics:
+      duration: "7m 25s"
+      tokens_in: 111788
+      tokens_out: 0
+      invocations: 3
+      subagents:
+        fullstack-developer:
+          invocations: 1
+          duration: "1m 28s"
+          tokens_in: 28515
+          tokens_out: 0
+        code-reviewer:
+          invocations: 1
+          duration: "2m 20s"
+          tokens_in: 38654
+          tokens_out: 0
+        qa-expert:
+          invocations: 1
+          duration: "3m 37s"
+          tokens_in: 44619
+          tokens_out: 0
 
   - id: B-024
     title: "Sample Preset Editor crashes when adding second prompt"

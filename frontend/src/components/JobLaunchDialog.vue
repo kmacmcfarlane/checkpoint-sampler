@@ -372,6 +372,7 @@ async function submit() {
 
 .summary p {
   margin: 0.5rem 0;
+  color: var(--text-color, #333333);
 }
 
 .summary .total-images {

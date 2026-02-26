@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### B-023: Generate Samples dialog summary text unreadable (low contrast)
+- `frontend/src/components/JobLaunchDialog.vue`: Added `color: var(--text-color, #333333)` to `.summary p` CSS rule so summary text uses the theme-aware text color variable, ensuring readable contrast against the `--bg-surface` background in both dark and light themes
+- 565 frontend tests pass; 26 E2E tests pass
+- Token usage: 111788 input, 0 output
+
 ### B-027: Slider keyboard navigation only selects first or last value
 - `frontend/src/components/MasterSlider.vue`: Added `:keyboard="false"` to NSlider to disable built-in arrow key handling, added `event.stopPropagation()` to custom `onKeydown` handler, added document-level `keydown` listener (`onDocumentKeydown`) with input-element and contentEditable focus guard so arrow keys work without explicit focus on the slider
 - `frontend/src/components/SliderBar.vue`: Added `:keyboard="false"` to NSlider and `event.stopPropagation()` to the `onKeydown` handler to prevent double-firing
