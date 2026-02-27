@@ -51,10 +51,31 @@ function onMediaChange(e: MediaQueryListEvent) {
   drawerOpen.value = e.matches
 }
 
+/**
+ * Eagerly auto-select a saved training run on mount, regardless of drawer state.
+ * On narrow screens the drawer (and TrainingRunSelector) may not mount immediately,
+ * so this ensures header buttons and scan data are available right away.
+ */
+async function eagerAutoSelect() {
+  const saved = savedData.value
+  if (!saved) return
+
+  try {
+    const runs = await apiClient.getTrainingRuns(true)
+    const run = runs.find((r) => r.id === saved.trainingRunId)
+    if (run) {
+      await onTrainingRunSelect(run)
+    }
+  } catch {
+    // Silently ignore — TrainingRunSelector will retry when it mounts
+  }
+}
+
 onMounted(() => {
   initDrawerState()
   mediaQuery = window.matchMedia(`(min-width: ${WIDE_BREAKPOINT}px)`)
   mediaQuery.addEventListener('change', onMediaChange)
+  eagerAutoSelect()
 })
 
 onUnmounted(() => {
@@ -203,6 +224,11 @@ onUnmounted(() => {
 })
 
 async function onTrainingRunSelect(run: TrainingRun) {
+  // Skip redundant scan if the same training run is already selected and loaded
+  if (selectedTrainingRun.value?.id === run.id && !scanning.value && !scanError.value && dimensions.value.length > 0) {
+    return
+  }
+
   selectedTrainingRun.value = run
   scanning.value = true
   scanError.value = null

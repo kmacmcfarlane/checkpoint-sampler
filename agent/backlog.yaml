@@ -292,7 +292,7 @@ stories:
   - id: B-030
     title: "Top nav elements unavailable on narrow screens until drawer opens"
     priority: 50
-    status: todo
+    status: uat
     requires: []
     acceptance:
       - "FE: On narrow screens (<1024px), the app eagerly loads the saved training run from localStorage and triggers a scan on mount, regardless of drawer state"

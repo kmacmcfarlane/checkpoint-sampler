@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### B-030: Top nav elements unavailable on narrow screens until drawer opens
+- `frontend/src/App.vue`: Added `eagerAutoSelect()` function that eagerly loads saved training run from localStorage on mount (independent of drawer state), and added idempotency guard to `onTrainingRunSelect` to prevent redundant scans when the same run is re-selected
+- `frontend/src/__tests__/App.test.ts`: Added 8 new tests in "Eager auto-select on narrow screens" describe block covering eager loading, header button visibility, no-data fallback, stale data handling, drawer sync, idempotency, wide screen behavior, and API failure graceful handling
+- 646 frontend tests pass; 555 backend tests pass; 26 E2E tests pass
+
 ### B-036: Job status does not report failed items — add error reporting, completed_with_errors status, and failed-checkpoint regeneration flow
 - `backend/internal/model/sample_job.go`: Added `SampleJobStatusCompletedWithErrors` constant, `ItemStatusCounts` and `FailedItemDetail` types, updated `JobProgress` struct with item counts and failed details
 - `backend/internal/model/event.go`: Added `EventJobProgress` constant and `JobProgressEventData` struct for structured WebSocket broadcasting with status, failed_items, pending_items

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { NButton, NTag } from 'naive-ui'
 import App from '../App.vue'
+import TrainingRunSelector from '../components/TrainingRunSelector.vue'
 import type { TrainingRun } from '../api/types'
 
 vi.mock('../api/client', () => ({
@@ -26,6 +27,11 @@ vi.mock('../api/client', () => ({
     }),
   },
 }))
+
+import { apiClient } from '../api/client'
+
+const mockGetTrainingRuns = apiClient.getTrainingRuns as ReturnType<typeof vi.fn>
+const mockScanTrainingRun = apiClient.scanTrainingRun as ReturnType<typeof vi.fn>
 
 const mockTrainingRun: TrainingRun = {
   id: 1,
@@ -99,6 +105,9 @@ function createMatchMediaMock(matches: boolean) {
 
 describe('App', () => {
   beforeEach(() => {
+    localStorage.clear()
+    mockGetTrainingRuns.mockClear()
+    mockScanTrainingRun.mockClear()
     vi.stubGlobal('matchMedia', createMatchMediaMock(false))
     mockWebSocketInstances = []
   })
@@ -392,6 +401,197 @@ describe('App', () => {
 
       // Arrow should now have expanded class
       expect(arrow.classes()).toContain('filters-section__arrow--expanded')
+    })
+  })
+
+  describe('Eager auto-select on narrow screens', () => {
+    // AC: On narrow screens (<1024px), the app eagerly loads the saved training run
+    // from localStorage and triggers a scan on mount, regardless of drawer state.
+
+    function setSavedPresetData(trainingRunId: number, presetId: string) {
+      localStorage.setItem(
+        'checkpoint-sampler-last-preset',
+        JSON.stringify({ trainingRunId, presetId }),
+      )
+    }
+
+    it('eagerly selects saved training run on narrow screen when localStorage has data', async () => {
+      // AC 1: On narrow screens (<1024px), the app eagerly loads the saved training run
+      // from localStorage and triggers a scan on mount, regardless of drawer state.
+      Object.defineProperty(window, 'innerWidth', { value: 800, configurable: true })
+      vi.stubGlobal('matchMedia', createMatchMediaMock(false))
+
+      setSavedPresetData(1, 'preset-abc')
+
+      mount(App, { global: { stubs: { Teleport: true } } })
+      await flushPromises()
+
+      // eagerAutoSelect should have called getTrainingRuns and scanTrainingRun
+      // getTrainingRuns is called by both eagerAutoSelect and TrainingRunSelector.onMounted
+      expect(mockScanTrainingRun).toHaveBeenCalledWith(1)
+    })
+
+    it('shows header buttons immediately after eager auto-select on narrow screen', async () => {
+      // AC 2: Header buttons (Generate Samples, Jobs, Metadata, Live indicator)
+      // appear immediately after app load when a saved training run exists.
+      Object.defineProperty(window, 'innerWidth', { value: 800, configurable: true })
+      vi.stubGlobal('matchMedia', createMatchMediaMock(false))
+
+      setSavedPresetData(1, 'preset-abc')
+
+      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      await flushPromises()
+
+      // Header buttons should be visible
+      const generateBtn = wrapper.find('[data-testid="generate-samples-button"]')
+      expect(generateBtn.exists()).toBe(true)
+
+      const jobsBtn = wrapper.findAllComponents(NButton).find(
+        (b) => b.attributes('aria-label') === 'Toggle sample jobs panel',
+      )
+      expect(jobsBtn).toBeDefined()
+
+      const metadataBtn = wrapper.findAllComponents(NButton).find(
+        (b) => b.attributes('aria-label') === 'Toggle checkpoint metadata panel',
+      )
+      expect(metadataBtn).toBeDefined()
+
+      // Live/Disconnected indicator should appear
+      const statusTag = wrapper.findAllComponents(NTag).find(
+        (tag) => tag.text() === 'Live' || tag.text() === 'Disconnected',
+      )
+      expect(statusTag).toBeDefined()
+    })
+
+    it('does not eagerly auto-select when no saved data exists in localStorage', async () => {
+      // AC 5: If no saved training run exists in localStorage, the app shows
+      // 'Select a training run to get started' as before.
+      Object.defineProperty(window, 'innerWidth', { value: 800, configurable: true })
+      vi.stubGlobal('matchMedia', createMatchMediaMock(false))
+
+      // No localStorage data set
+      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      await flushPromises()
+
+      // scanTrainingRun should NOT have been called by eagerAutoSelect
+      // (it may be called by TrainingRunSelector's auto-select if the drawer is open,
+      // but on narrow screens the drawer is closed)
+      expect(wrapper.find('main').text()).toContain('Select a training run to get started.')
+    })
+
+    it('does not eagerly auto-select when saved training run ID is stale', async () => {
+      // Saved data references a training run that no longer exists
+      Object.defineProperty(window, 'innerWidth', { value: 800, configurable: true })
+      vi.stubGlobal('matchMedia', createMatchMediaMock(false))
+
+      setSavedPresetData(999, 'preset-abc')
+
+      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      await flushPromises()
+
+      // scanTrainingRun should NOT have been called since run 999 doesn't exist
+      // getTrainingRuns returns [{id: 1, ...}], so find(999) returns undefined
+      expect(mockScanTrainingRun).not.toHaveBeenCalled()
+      expect(wrapper.find('main').text()).toContain('Select a training run to get started.')
+    })
+
+    it('drawer TrainingRunSelector reflects the eagerly selected run when opened', async () => {
+      // AC 3: The drawer's TrainingRunSelector still reflects the auto-selected
+      // training run when opened.
+      Object.defineProperty(window, 'innerWidth', { value: 800, configurable: true })
+      vi.stubGlobal('matchMedia', createMatchMediaMock(false))
+
+      setSavedPresetData(1, 'preset-abc')
+
+      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      await flushPromises()
+
+      // On narrow screens the drawer is closed, so NDrawer may not render slot
+      // content initially. Open the drawer by clicking the hamburger button.
+      const toggleBtn = wrapper.findAllComponents(NButton).find(
+        (b) => b.attributes('aria-label') === 'Toggle controls drawer',
+      )
+      expect(toggleBtn).toBeDefined()
+      await toggleBtn!.trigger('click')
+      await flushPromises()
+
+      // Now the drawer is open, TrainingRunSelector should be rendered
+      expect(wrapper.find('.training-run-selector').exists()).toBe(true)
+
+      // The autoSelectRunId prop should match the saved training run
+      const selector = wrapper.findComponent(TrainingRunSelector)
+      expect(selector.exists()).toBe(true)
+      expect(selector.props('autoSelectRunId')).toBe(1)
+    })
+
+    it('does not re-scan when TrainingRunSelector re-emits the same run after eager select', async () => {
+      // Verify idempotency: when the drawer opens and TrainingRunSelector emits
+      // the same run, onTrainingRunSelect skips the redundant scan.
+      Object.defineProperty(window, 'innerWidth', { value: 800, configurable: true })
+      vi.stubGlobal('matchMedia', createMatchMediaMock(false))
+
+      setSavedPresetData(1, 'preset-abc')
+
+      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      await flushPromises()
+
+      // eagerAutoSelect called scanTrainingRun once
+      const callsAfterMount = mockScanTrainingRun.mock.calls.length
+      expect(callsAfterMount).toBeGreaterThanOrEqual(1)
+
+      // Open the drawer to render TrainingRunSelector
+      const toggleBtn = wrapper.findAllComponents(NButton).find(
+        (b) => b.attributes('aria-label') === 'Toggle controls drawer',
+      )
+      await toggleBtn!.trigger('click')
+      await flushPromises()
+
+      // TrainingRunSelector mounts and auto-selects the same run.
+      // The idempotency guard in onTrainingRunSelect should prevent a re-scan.
+      // Note: TrainingRunSelector also calls getTrainingRuns on mount, but
+      // scanTrainingRun should not be called again.
+      expect(mockScanTrainingRun).toHaveBeenCalledTimes(callsAfterMount)
+    })
+
+    it('wide screen behavior is unchanged: drawer auto-opens and training run auto-selects', async () => {
+      // AC 4: On wide screens (>=1024px), behavior is unchanged
+      Object.defineProperty(window, 'innerWidth', { value: 1200, configurable: true })
+      vi.stubGlobal('matchMedia', createMatchMediaMock(true))
+
+      setSavedPresetData(1, 'preset-abc')
+
+      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      await flushPromises()
+
+      // Drawer should be open on wide screens
+      const appDrawer = wrapper.findComponent({ name: 'AppDrawer' })
+      expect(appDrawer.props('show')).toBe(true)
+
+      // Training run should be selected (via either eager select or TrainingRunSelector)
+      expect(mockScanTrainingRun).toHaveBeenCalledWith(1)
+
+      // Header buttons should be visible
+      const generateBtn = wrapper.find('[data-testid="generate-samples-button"]')
+      expect(generateBtn.exists()).toBe(true)
+    })
+
+    it('handles eagerAutoSelect API failure gracefully', async () => {
+      // If getTrainingRuns fails during eager select, the error is silently caught
+      // and TrainingRunSelector will retry when it mounts.
+      Object.defineProperty(window, 'innerWidth', { value: 800, configurable: true })
+      vi.stubGlobal('matchMedia', createMatchMediaMock(false))
+
+      setSavedPresetData(1, 'preset-abc')
+
+      // Make getTrainingRuns reject for the first call (eagerAutoSelect), then succeed
+      // for the second call (TrainingRunSelector.onMounted)
+      mockGetTrainingRuns.mockRejectedValueOnce(new Error('Network error'))
+
+      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      await flushPromises()
+
+      // App should not crash; placeholder text may be shown
+      expect(wrapper.find('h1').text()).toBe('Checkpoint Sampler')
     })
   })
 })
