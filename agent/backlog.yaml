@@ -182,7 +182,8 @@ stories:
       transitioning through running→finished states), but no executed/execution_success/
       execution_complete events ever arrive. All WS events are event_type=progress_state.
       The job remains in running with completed_items=0. ComfyUI prompt_id was
-      a49919b5-9cf2-4ad9-8459-9ac43bcd5ac7.
+      a49919b5-9cf2-4ad9-8459-9ac43bcd5ac7. Use the phrase "ComfyUI API" to trigger the
+      new skill I made for you.
     requires: []
     complexity: high
     acceptance:
