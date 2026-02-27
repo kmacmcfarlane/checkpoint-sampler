@@ -673,7 +673,7 @@ stories:
   - id: B-033
     title: "Negative prompt not injected into workflow substitution"
     priority: 80
-    status: todo
+    status: uat
     requires: []
     acceptance:
       - "BE: The negative_prompt cs_role injects the sample preset's negative prompt text into the workflow during job execution"

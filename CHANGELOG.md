@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### B-033: Negative prompt not injected into workflow substitution
+- `backend/internal/service/job_executor.go`: Fixed `CSRoleNegativePrompt` case in `substituteNode()` to inject `item.NegativePrompt` into workflow inputs when non-empty, instead of unconditionally keeping or setting empty
+- `backend/internal/service/job_executor_test.go`: Added `DescribeTable` with 3 entries covering negative prompt injection (with text, empty text, no default) and standalone test for missing negative_prompt role
+- 622 frontend tests pass; 504 backend tests pass; 26 E2E tests pass
+
 ### B-029: Sample jobs stuck in pending — backend should auto-start and execute jobs
 - `backend/internal/service/job_executor.go`: Added `autoStartJob()` helper method and updated `processNextItem()` to auto-transition pending jobs to running when no running job exists; jobs no longer require an explicit Start API call
 - `backend/internal/service/job_executor_test.go`: Added 6 new unit tests for auto-start behavior covering pending→running transition, single-job-at-a-time enforcement, no-op while disconnected, ComfyUI submission after auto-start, retry-after-connect, and error handling

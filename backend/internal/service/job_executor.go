@@ -630,9 +630,9 @@ func (e *JobExecutor) substituteNode(workflow map[string]interface{}, nodeID str
 	case model.CSRolePositivePrompt:
 		inputs["text"] = item.PromptText
 	case model.CSRoleNegativePrompt:
-		// Keep default or set empty
-		if _, exists := inputs["text"]; !exists {
-			inputs["text"] = ""
+		// Inject negative prompt text when present; keep node default otherwise
+		if item.NegativePrompt != "" {
+			inputs["text"] = item.NegativePrompt
 		}
 	case model.CSRoleShift:
 		if job.Shift != nil {

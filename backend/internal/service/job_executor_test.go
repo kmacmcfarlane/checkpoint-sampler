@@ -585,6 +585,65 @@ var _ = Describe("JobExecutor", func() {
 			Expect(inputs7["text"]).To(Equal("a beautiful landscape"))
 		})
 
+		// AC: BE: negative_prompt cs_role injects preset's negative prompt into workflow
+		DescribeTable("negative_prompt role substitution",
+			func(negativePrompt string, existingDefault string, expectedText string) {
+				job := model.SampleJob{ID: "job-1"}
+				item := model.SampleJobItem{
+					NegativePrompt: negativePrompt,
+				}
+
+				inputs := map[string]interface{}{}
+				if existingDefault != "" {
+					inputs["text"] = existingDefault
+				}
+				mockLoader.workflow.Workflow["9"] = map[string]interface{}{
+					"inputs": inputs,
+					"_meta": map[string]interface{}{
+						"cs_role": "negative_prompt",
+					},
+				}
+				mockLoader.workflow.Roles["negative_prompt"] = []string{"9"}
+
+				result, err := executor.substituteWorkflow(mockLoader.workflow, job, item)
+				Expect(err).ToNot(HaveOccurred())
+
+				node9 := result["9"].(map[string]interface{})
+				inputs9 := node9["inputs"].(map[string]interface{})
+				// AC: When the preset has no negative prompt, the node keeps its default value
+				if expectedText != "" {
+					Expect(inputs9["text"]).To(Equal(expectedText))
+				} else if existingDefault != "" {
+					// Empty negative prompt leaves the existing default in place
+					Expect(inputs9["text"]).To(Equal(existingDefault))
+				} else {
+					// No negative prompt and no existing default: key may be absent or empty
+					Expect(inputs9).NotTo(HaveKey("text"))
+				}
+			},
+			// AC: When the workflow has a negative_prompt node and the preset has a negative prompt, the text is substituted
+			Entry("injects negative prompt text when non-empty", "blurry, artifacts", "", "blurry, artifacts"),
+			// AC: When the preset has no negative prompt (empty string), the node keeps its default value
+			Entry("keeps existing default when negative prompt is empty", "", "ugly, deformed", ""),
+			// AC: When the preset has no negative prompt (empty string), the node keeps its default value (no default set)
+			Entry("no substitution when negative prompt is empty and no default", "", "", ""),
+		)
+
+		// AC: BE: When the workflow has no negative_prompt role, no error occurs
+		It("does not error when workflow has no negative_prompt node", func() {
+			job := model.SampleJob{ID: "job-1"}
+			item := model.SampleJobItem{
+				NegativePrompt: "blurry",
+			}
+
+			// Ensure negative_prompt role is not in the workflow
+			delete(mockLoader.workflow.Roles, "negative_prompt")
+
+			result, err := executor.substituteWorkflow(mockLoader.workflow, job, item)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(result).NotTo(BeNil())
+		})
+
 		It("substitutes latent_image with width and height", func() {
 			job := model.SampleJob{ID: "job-1"}
 			item := model.SampleJobItem{
