@@ -20,6 +20,16 @@ Select work from /agent/backlog.yaml per the priority rules in AGENT_FLOW.md sec
 4. Fourth: stories in `in_progress` with `review_feedback` → invoke fullstack-developer subagent
 5. Fifth: highest priority `todo` story → invoke fullstack-developer subagent
 
+## Story marker
+
+As soon as you select a story, emit an HTML comment so the user can identify the active story in the conversation:
+
+```
+<!-- story: S-123 -->
+```
+
+Use the actual story ID (e.g., `S-051`, `B-003`). Emit this before any subagent dispatch or status change.
+
 ## Subagent dispatch
 
 Read the subagent prompt from `/.claude/agents/<name>.md` and invoke via the Task tool:
@@ -41,17 +51,13 @@ Change summary (from fullstack engineer):
 
 This helps downstream agents orient faster. If the fullstack engineer's response lacks a change summary, fall back to `git diff --name-only main..HEAD` for the file list.
 
-## Timing instrumentation
-
-Record timestamps and `/cost` snapshots before and after each subagent dispatch per AGENT_FLOW.md section 4.3.1. Use `date +%Y-%m-%dT%H:%M:%S%z` for wall-clock times. Compute per-subagent token deltas from the `/cost` snapshots. Include elapsed time and token counts in both the orchestrator debug log and the summary file. Accumulate per-subagent totals for the story `metrics` map (section 4.5.1).
-
 ## Status management
 
 After each subagent completes, update /agent/backlog.yaml:
 - Fullstack engineer success → set `status: review`, clear `review_feedback`
 - Code reviewer approved → set `status: testing`
 - Code reviewer rejected → set `status: in_progress`, record `review_feedback`
-- QA expert approved → set `status: uat`, record `metrics` (see AGENT_FLOW.md 4.5.1), then process sweep findings (see below)
+- QA expert approved → set `status: uat`, then process sweep findings (see below)
 - QA expert rejected → set `status: in_progress`, record `review_feedback`, then process sweep findings (see below)
 
 Note: Agents never set `status: done`. The user manually moves stories from `uat` to `done` after acceptance.
@@ -93,7 +99,7 @@ Every addition to agent/ideas/ (whether from process improvements, QA sweep find
 - /CHANGELOG.md updated
 - Code review passed (code-reviewer approved)
 - QA testing passed (qa-expert approved)
-- /agent/backlog.yaml updated (`status: uat` with `metrics` when all gates pass)
+- /agent/backlog.yaml updated (`status: uat` when all gates pass)
 - Committed and merged to main with message format: story(<id>): <title> (unless AGENT_FLOW/backlog explicitly overrides)
 
 Note: `uat` → `done` is a user action. Agents never set `status: done`.

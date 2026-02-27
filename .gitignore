@@ -6,7 +6,9 @@
 !.claude/settings.json
 !.claude/agents/
 !.claude/skills/
+
 .ralph.stop
+.ralph-temp/
 
 # OS
 .DS_Store
@@ -58,7 +60,3 @@ config.yaml
 
 # Claude sandbox local mounts (gitignored; use .claude-sandbox.example.yaml as template)
 .claude-sandbox.yaml
-
-# Debug mode output (agent decision logs from ralph-auto-debug)
-.ralph-debug/
-.debug-context

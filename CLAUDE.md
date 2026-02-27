@@ -32,6 +32,7 @@ Never claim completion unless acceptance criteria are met and tests pass.
 - Changelog: /CHANGELOG.md
 - Subagent definitions: /.claude/agents/
 - Claude Code policy: /.claude/settings.json
+- Per-iteration temp files: /.ralph-temp/ (auto-created, emptied each ralph iteration)
 
 Compose modes via root Makefile:
 - `make up`      : operational mode

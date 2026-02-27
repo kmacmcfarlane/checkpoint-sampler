@@ -1,0 +1,1298 @@
+schema_version: 2
+project: checkpoint-sampler
+defaults:
+  priority_order: "higher_is_more_important"
+  status_field: "status"
+  blocked_field: "blocked"
+  blocked_reason_field: "blocked_reason"
+  review_feedback_field: "review_feedback"
+  uat_feedback_field: "uat_feedback"
+  requires_field: "requires"
+
+# ─── SETUP ───────────────────────────────────────────────────────────────────
+
+stories:
+  - id: S-001
+    title: "Architecture and schema documentation"
+    priority: 100
+    status: done
+    requires: []
+    acceptance:
+      - "docs/architecture.md reflects checkpoint-sampler system (filesystem scanning, image serving, WebSocket, SQLite)"
+      - "docs/database.md documents the presets table schema"
+      - "docs/api.md documents the REST and WebSocket API surface"
+      - "CLAUDE.md section 5 updated to reference SQLite + TOML config"
+    testing:
+      - "command: (n/a) documentation only"
+
+  - id: S-002
+    title: "TOML configuration loading"
+    priority: 95
+    status: done
+    requires: []
+    acceptance:
+      - "Backend reads config.toml at startup (path overridable via CONFIG_PATH env var)"
+      - "Config struct covers: root (no files below this dir should be accessed, validation error if it does not exist), port (webUI), ip_address (default 127.0.0.1 but can be set to 0.0.0.0 for external access), db_path (default to ./data/), training_runs (regex path patterns that match below the root)"
+      - "Validation rejects missing root, invalid regex patterns, invalid port, invalid ip address, or db_path"
+      - "Unit tests cover valid config, missing fields, invalid regex"
+    testing:
+      - "command: ginkgo -r --cover --race ./internal/..."
+
+  - id: S-003
+    title: "SQLite database setup and migrations"
+    priority: 90
+    status: done
+    requires: [S-002]
+    acceptance:
+      - "SQLite database created at configured db_path with WAL mode, busy timeout, foreign keys"
+      - "Forward-only migration system with schema_migrations tracking table"
+      - "Initial migration creates presets table (id, name, mapping JSON, created_at, updated_at)"
+      - "Store layer exposes interface consumed by service layer"
+      - "Unit tests cover migration execution and idempotency"
+    testing:
+      - "command: ginkgo -r --cover --race ./internal/..."
+
+  - id: S-004
+    title: "Goa API scaffold and codegen pipeline"
+    priority: 85
+    status: done
+    requires: [S-002]
+    acceptance:
+      - "Goa DSL defines health and docs services"
+      - "make gen produces generated code under internal/api/gen"
+      - "Swagger UI served at /docs with OpenAPI 3.0 spec"
+      - "Server starts and responds to health check"
+      - "CORS configured for frontend origin"
+    testing:
+      - "command: ginkgo -r --cover --race ./internal/..."
+
+  - id: S-005
+    title: "Frontend scaffold and API client"
+    priority: 80
+    status: done
+    requires: []
+    acceptance:
+      - "Vue 3 app with TypeScript strict, Composition API, Vite dev server"
+      - "API client module in src/api/ with typed fetch wrapper"
+      - "Error normalization in the API client layer"
+      - "App shell renders with placeholder content"
+      - "Unit test infrastructure working (vitest)"
+    testing:
+      - "command: npx vitest run"
+
+  - id: S-006
+    title: "Docker Compose and Makefile wiring"
+    priority: 75
+    status: done
+    requires: [S-004, S-005]
+    acceptance:
+      - "docker-compose.yml mounts dataset root as read-only volume into backend container"
+      - "docker-compose.yml mounts SQLite data directory as read-write volume"
+      - "make up launches production build; both containers start and respond"
+      - "make up-dev launches hot-reload mode (air + Vite HMR)"
+      - "Backend binds 0.0.0.0 for LAN access"
+      - "Frontend proxies API requests to backend"
+    testing:
+      - "command: make up (verify containers start and respond)"
+
+# ─── FEATURES (end-to-end) ───────────────────────────────────────────────────
+
+  - id: S-007
+    title: "Training run listing and selection"
+    priority: 70
+    status: done
+    requires: [S-004, S-005, S-006]
+    acceptance:
+      - "BE: GET /api/training-runs returns all training runs from config (name, pattern, dimensions)"
+      - "BE: Goa DSL defines training_runs service and list method"
+      - "BE: Unit tests for the training runs endpoint"
+      - "FE: TrainingRunSelector component renders a dropdown of training runs from the API"
+      - "FE: Selecting a training run stores it in app state"
+      - "FE: Unit tests for TrainingRunSelector and API client method"
+    testing:
+      - "command: ginkgo -r --cover --race ./internal/..."
+      - "command: npx vitest run"
+
+  - id: S-008
+    title: "Filesystem scanning and image serving (backend)"
+    priority: 65
+    status: done
+    requires: [S-007]
+    acceptance:
+      - "Service layer: given a training run config, find all directories under root matching the pattern"
+      - "Service layer: scan matching directories for .png files"
+      - "Service layer: parse query-encoded filenames into dimension key-value pairs"
+      - "Service layer: ignore _NNNNN_ batch suffix; use highest batch number when duplicates exist"
+      - "Service layer: apply directory dimension extraction regexes"
+      - "Service layer: return list of images with dimensions, and list of all discovered dimensions with unique values"
+      - "API: GET /api/training-runs/{id}/scan triggers scan and returns results"
+      - "API: GET /api/images/*filepath serves image files with path traversal protection"
+      - "API: image responses include Cache-Control: max-age=31536000, immutable"
+      - "All filesystem access validated to stay within configured root"
+      - "Unit tests: filename parsing, batch dedup, directory regex extraction, path traversal rejection, image serving"
+    testing:
+      - "command: ginkgo -r --cover --race ./internal/..."
+
+  - id: S-009
+    title: "X/Y grid with dimension mapping"
+    priority: 60
+    status: done
+    requires: [S-008]
+    acceptance:
+      - "FE: DimensionPanel component lists all discovered dimensions from scan results"
+      - "FE: Each dimension can be assigned to exactly one role: X, Y, slider, or combo"
+      - "FE: XYGrid component renders rows (Y values) and columns (X values)"
+      - "FE: ImageCell displays the matching image at full resolution (1344x1344 source)"
+      - "FE: Missing X/Y combinations show an empty placeholder cell"
+      - "FE: Grid scrolls horizontally and vertically as needed"
+      - "FE: Changing dimension assignments re-renders the grid immediately"
+      - "FE: Unit tests for DimensionPanel, XYGrid, and ImageCell"
+    testing:
+      - "command: npx vitest run"
+
+  - id: S-010
+    title: "Combo filters"
+    priority: 55
+    status: done
+    requires: [S-009]
+    acceptance:
+      - "FE: ComboFilter component for each combo-assigned dimension"
+      - "FE: Dropdown populated with all discovered values for that dimension"
+      - "FE: Multi-select via checkboxes"
+      - "FE: Click value label for single-selection shortcut"
+      - "FE: Select-all / select-none control on each combo"
+      - "FE: Filtering is cumulative across all combos and updates the grid"
+      - "FE: Unit tests for ComboFilter"
+    testing:
+      - "command: npx vitest run"
+
+  - id: S-011
+    title: "Slider navigation"
+    priority: 50
+    status: done
+    requires: [S-009]
+    acceptance:
+      - "FE: Each ImageCell has an individual SliderBar cycling through slider-dimension values"
+      - "FE: MasterSlider at the top moves all individual sliders in sync"
+      - "FE: Moving a slider swaps the displayed image in that cell"
+      - "FE: Pre-caching priority: (1) all slider positions for visible grid cells, then (2) remaining scan images in background"
+      - "FE: Unit tests for SliderBar and MasterSlider"
+    testing:
+      - "command: npx vitest run"
+
+  - id: S-012
+    title: "Preset save and select"
+    priority: 45
+    status: done
+    requires: [S-003, S-009]
+    acceptance:
+      - "BE: Goa DSL defines presets service with list, create, update, delete methods"
+      - "BE: Presets CRUD wired through service layer to SQLite store"
+      - "BE: List returns all presets"
+      - "BE: Unit tests for presets service and store"
+      - "FE: PresetSelector component with dropdown of saved presets"
+      - "FE: Save button prompts for a name and creates a preset via API"
+      - "FE: Selecting a preset loads its mapping and re-renders the grid; unmatched dimensions show a warning"
+      - "FE: Delete option on each preset"
+      - "FE: Unit tests for PresetSelector"
+    testing:
+      - "command: ginkgo -r --cover --race ./internal/..."
+      - "command: npx vitest run"
+
+  - id: S-018
+    title: "Auto-discover training runs from checkpoint files"
+    priority: 43
+    status: done
+    requires: [S-007, S-008]
+    acceptance:
+      - "BE: Switch config from TOML to YAML (config.yaml); remove [[training_runs]] and [[training_runs.dimensions]] from config parsing"
+      - "BE: Create a config.yaml.example with generic values, but create a config.yaml (gitignored) that has values for me (/home/rt/ai/models-training/stable-diffusion/checkpoints for the models dir and /home/rt/ai/outputs/stable-diffusion/comfyui/checkpoint-sampler for the samples dir)"
+      - "BE: Config struct has checkpoint_dirs (list of strings), sample_dir (string), port, db_path"
+      - "BE: Validation rejects missing checkpoint_dirs, missing sample_dir, non-existent directories"
+      - "BE: Discovery service recursively scans all checkpoint_dirs for .safetensors files"
+      - "BE: Group checkpoint files into training runs by stripping suffixes: .safetensors extension, -step<NNNNN> suffix, -<NNNNNN> epoch suffix"
+      - "BE: For each checkpoint file, look up matching sample directory under sample_dir (exact filename match); set has_samples flag"
+      - "BE: Auto-extract checkpoint step/epoch number as a 'checkpoint' dimension (sorted numerically); final checkpoint (no suffix) assigned max step value if detectable, otherwise sorted last"
+      - "BE: GET /api/training-runs returns auto-discovered training runs with checkpoint counts and has_samples info; supports ?has_samples=true filter"
+      - "BE: GET /api/training-runs/{id}/scan scans sample directories for the training run's checkpoints, producing filename dimensions plus the auto-extracted checkpoint dimension"
+      - "BE: Unit tests for config YAML parsing, directory scanning, suffix stripping, grouping, sample correlation, checkpoint dimension extraction"
+      - "FE: TrainingRunSelector shows auto-discovered runs with a default-checked 'Has samples' filter checkbox"
+      - "FE: Unit tests for the has-samples filter behavior"
+    testing:
+      - "command: ginkgo -r --cover --race ./internal/..."
+      - "command: npx vitest run"
+
+  - id: B-001
+    title: "WAL mode fails with read-only dev volume"
+    priority: 42
+    status: done
+    requires: [S-003]
+    acceptance:
+      - "make up-dev starts without 'attempt to write a readonly database' error on PRAGMA journal_mode=WAL"
+      - "SQLite database is writable in both make up and make up-dev modes"
+    testing:
+      - "command: make up-dev (verify backend starts without WAL error)"
+
+  - id: B-002
+    title: "No config.yaml content"
+    priority: 42
+    status: done
+    requires: [S-003]
+    acceptance:
+      - "BE: Create a config.yaml.example with generic values, but create a config.yaml (gitignored) that has values for me (/home/rt/ai/models-training/stable-diffusion/checkpoints for the models dir and /home/rt/ai/outputs/stable-diffusion/comfyui/checkpoint-sampler for the samples dir)"
+      - "Updated README.md so other people know to copy and customize the config.yaml"
+    testing:
+      - "command: make up-dev (verify backend starts without error)"
+
+  - id: B-003
+    title: "Dimension UI selection"
+    priority: 42
+    status: done
+    requires: [S-003]
+    acceptance:
+      - "FE: When a dimension in a combo box, you can select which values are enabled. If you disable a value, then change that dimension to be the X/Y/Slider, then you lose the ability to see those images."
+      - "FE: Always show the combo selectors even when the dimension is assigned to X/Y/Slider"
+      - "FE: Change label from 'combo filter' to 'none' since we always show combos"
+      - "BE: Make sure the value for the formerly 'combo filter' selection still makes sense as 'none' (it should have a null value to show it's unassigned I imagine)"
+    testing:
+      - "command: make up-dev (verify backend starts without error)"
+
+  - id: R-001
+    title: "Refactor Goa HTTP wireup into NewHTTPHandler"
+    priority: 41
+    status: done
+    requires: [S-004]
+    acceptance:
+      - "BE: Extract all Goa HTTP transport setup from main.go into NewHTTPHandler() in internal/api/http.go"
+      - "BE: NewHTTPHandler takes pre-built *<service>.Endpoints, logger, and debug flag; returns http.Handler"
+      - "BE: Mux creation, decoder/encoder, server instantiation, mounting, and mount logging all live inside NewHTTPHandler"
+      - "BE: errorHandler helper function in internal/api/http.go logs errors with request ID for correlation"
+      - "BE: HTTP-level middleware (RequestID, CORS) applied inside NewHTTPHandler"
+      - "BE: main.go only owns dependency injection: config, stores, services, API impls, endpoint creation"
+      - "BE: main.go calls NewHTTPHandler and receives http.Handler; wires it into http.Server"
+      - "BE: Custom image handler and /docs redirect mounted inside NewHTTPHandler"
+      - "BE: All existing tests pass unchanged"
+      - "BE: Server starts and all endpoints respond identically to before"
+    testing:
+      - "command: make test-backend"
+
+  - id: S-013
+    title: "Image lightbox with zoom and pan"
+    priority: 40
+    status: done
+    requires: [S-009]
+    acceptance:
+      - "FE: Clicking an image cell opens ImageLightbox modal overlay"
+      - "FE: Mouse wheel zooms in/out"
+      - "FE: Click-drag pans the zoomed image"
+      - "FE: Escape or clicking outside closes the overlay or pressing the esc key"
+      - "FE: Unit tests for ImageLightbox"
+    testing:
+      - "command: npx vitest run"
+
+  - id: S-014
+    title: "WebSocket live updates (backend)"
+    priority: 35
+    status: done
+    requires: [S-008]
+    acceptance:
+      - "BE: WebSocket hub manages connected clients"
+      - "BE: fsnotify watches directories belonging to the active training run"
+      - "BE: New/changed/removed image files produce JSON events pushed to clients"
+      - "BE: Event types: image_added, image_removed, directory_added"
+      - "BE: Goa DSL defines ws service with WebSocket upgrade endpoint"
+      - "BE: Unit tests for WebSocket hub and filesystem watcher"
+    testing:
+      - "command: ginkgo -r --cover --race ./internal/..."
+
+  - id: S-015
+    title: "WebSocket live updates (frontend)"
+    priority: 30
+    status: done
+    requires: [S-009, S-014]
+    acceptance:
+      - "FE: WebSocket client in src/api/ connects to /api/ws"
+      - "FE: Auto-reconnects on disconnect with backoff"
+      - "FE: Incoming events update dimension values and grid cells without full reload"
+      - "FE: Unit tests for WebSocket client and reconnection logic"
+    testing:
+      - "command: npx vitest run"
+
+# ─── ENHANCEMENTS ─────────────────────────────────────────────────────────────
+
+  - id: S-016
+    title: "Keyboard navigation for sliders"
+    priority: 20
+    status: done
+    requires: [S-011]
+    acceptance:
+      - "FE: Arrow keys (left/right) step through slider values when a grid cell or slider is focused"
+      - "FE: Keyboard interaction works for both individual cell sliders and the master slider"
+      - "FE: Unit tests for keyboard navigation behavior"
+    testing:
+      - "command: npx vitest run"
+
+  - id: S-017
+    title: "Slider playback mode"
+    priority: 15
+    status: done
+    requires: [S-011]
+    acceptance:
+      - "FE: Play/pause button on the master slider that auto-advances through values at a configurable interval"
+      - "FE: Playback stops when reaching the last value (or optionally loops)"
+      - "FE: User can adjust playback speed"
+      - "FE: Unit tests for playback logic (start, stop, interval, loop)"
+    testing:
+      - "command: npx vitest run"
+
+  - id: S-019
+    title: "Checkpoint metadata slideout panel"
+    priority: 12
+    status: done
+    requires: [S-018]
+    acceptance:
+      - "BE: Parse safetensors file headers to extract ss_* metadata fields (output_name, total_steps, epochs, optimizer, dataset, base_model, etc.)"
+      - "BE: GET /api/checkpoints/{filename}/metadata returns parsed metadata as JSON; filename is resolved against checkpoint_dirs"
+      - "BE: Validate filename stays within checkpoint_dirs (path traversal protection)"
+      - "BE: Return empty metadata object (not error) when no ss_* fields present"
+      - "BE: Unit tests for safetensors header parsing, path validation, missing metadata"
+      - "FE: CheckpointMetadataPanel slideout component with checkpoint list for the current training run"
+      - "FE: Highest step count checkpoint selected by default"
+      - "FE: Selecting a checkpoint fetches and displays its metadata from the API"
+      - "FE: Show 'no metadata available' when checkpoint has no ss_* fields"
+      - "FE: Slideout opens/closes without affecting grid state"
+      - "FE: Unit tests for CheckpointMetadataPanel"
+    testing:
+      - "command: ginkgo -r --cover --race ./internal/..."
+      - "command: npx vitest run"
+
+  - id: S-020
+    title: "Generation metadata in image lightbox"
+    priority: 10
+    status: done
+    requires: [S-013, S-018]
+    acceptance:
+      - "BE: Parse PNG tEXt chunks to extract ComfyUI Prompt and Workflow metadata"
+      - "BE: GET /api/images/*/metadata returns raw embedded JSON metadata for the image"
+      - "BE: Validate image path stays within sample_dir (path traversal protection)"
+      - "BE: Return empty metadata object (not error) when PNG has no embedded metadata"
+      - "BE: Unit tests for PNG metadata extraction, path validation, missing metadata"
+      - "FE: ImageLightbox shows a metadata section with the raw ComfyUI workflow JSON"
+      - "FE: Metadata fetched on-the-fly when lightbox opens (not pre-loaded)"
+      - "FE: JSON displayed in scrollable, formatted view"
+      - "FE: Show 'no metadata available' when PNG has no embedded metadata"
+      - "FE: Metadata section does not interfere with zoom/pan functionality"
+      - "FE: Unit tests for metadata display in lightbox"
+    testing:
+      - "command: ginkgo -r --cover --race ./internal/..."
+      - "command: npx vitest run"
+
+# ─── UI OVERHAUL ─────────────────────────────────────────────────────────────
+
+  - id: R-002
+    title: "Migrate to Naive UI component library"
+    priority: 9
+    status: done
+    requires: []
+    acceptance:
+      - "FE: Install naive-ui as a dependency"
+      - "FE: Set up NConfigProvider at the app root with theme support"
+      - "FE: Convert all buttons to NButton"
+      - "FE: Convert all selects/dropdowns to NSelect"
+      - "FE: Convert all checkboxes to NCheckbox/NCheckboxGroup"
+      - "FE: Convert range input sliders to NSlider"
+      - "FE: Convert tables to NTable or NDataTable"
+      - "FE: Convert the checkpoint metadata slideout to NDrawer"
+      - "FE: Remove custom CSS that is now handled by Naive UI components"
+      - "FE: All existing tests pass or are updated for Naive UI component wrappers"
+      - "FE: Application renders and functions identically to before (no visual regressions beyond component library styling)"
+    testing:
+      - "command: npx vitest run"
+
+  - id: S-021
+    title: "Dark/Light theme toggle"
+    priority: 8
+    status: done
+    requires: [R-002]
+    acceptance:
+      - "FE: 2-way theme toggle (Light/Dark) in the application header"
+      - "FE: Default theme determined by browser prefers-color-scheme media query"
+      - "FE: Selected theme persisted in localStorage"
+      - "FE: NConfigProvider theme prop wired to selected theme"
+      - "FE: All Naive UI components render correctly in both themes"
+      - "FE: Any remaining custom styles respect the active theme (no hardcoded colors)"
+      - "FE: Unit tests for theme toggle, persistence, and system default detection"
+    testing:
+      - "command: npx vitest run"
+
+  - id: S-022
+    title: "Left-side slide-out controls panel"
+    priority: 7
+    status: done
+    requires: [R-002]
+    acceptance:
+      - "FE: NDrawer component opens from the left in overlay mode (does not push main content)"
+      - "FE: Drawer contains (top to bottom): Training Run Picker, Preset Picker, Dimension Assignments"
+      - "FE: Hamburger toggle button in the header opens/closes the drawer"
+      - "FE: Drawer open by default on wide screens (>=1024px), closed on narrow screens"
+      - "FE: Drawer does not affect grid state when opened/closed"
+      - "FE: TrainingRunSelector and PresetSelector removed from header, moved into drawer"
+      - "FE: Unit tests for drawer toggle behavior and responsive default state"
+    testing:
+      - "command: npx vitest run"
+
+  - id: S-023
+    title: "Dimension filter modes (Hide/Single/Multi)"
+    priority: 6
+    status: done
+    requires: [R-002]
+    acceptance:
+      - "FE: Each dimension has a filter mode selector: Hide, Single, Multi"
+      - "FE: Hide mode: no filter UI rendered for that dimension; all values included"
+      - "FE: Single mode: NSelect or NRadioGroup allowing exactly one value at a time"
+      - "FE: Multi mode: NCheckboxGroup with solo/unsolo label click behavior"
+      - "FE: Multi solo: click a value label to select only that value"
+      - "FE: Multi unsolo: click the only-selected label to re-select all values"
+      - "FE: Dimensions assigned to X/Y/Slider always use Multi filter mode (implicit)"
+      - "FE: Unassigned dimensions default to Hide filter mode"
+      - "FE: Switching from Multi to Single defaults to first previously-selected value, or first value"
+      - "FE: Dimension filters in main content area are collapsed by default with expand/collapse toggle"
+      - "FE: Filtering is cumulative across all visible dimension filters"
+      - "FE: Unit tests for all three filter modes, mode switching, solo/unsolo, collapse behavior"
+    testing:
+      - "command: npx vitest run"
+
+  - id: S-024
+    title: "X/Y grid improvements"
+    priority: 5
+    status: done
+    requires: [R-002, S-023]
+    acceptance:
+      - "FE: Remove independent grid overflow; the entire page scrolls together (no max-height or overflow:auto on grid container)"
+      - "FE: Grid uses the full viewport width and height, minus a spacer for the sticky master slider at the top"
+      - "FE: Grid cell boundaries resizable by dragging dividers between cells"
+      - "FE: Vertical (column) dividers: all column widths change together when dragged"
+      - "FE: Horizontal (row) dividers: all row heights change together when dragged"
+      - "FE: Click an X column header to solo that value in the X dimension's Multi filter"
+      - "FE: Click a soloed X header to re-select all values for that dimension"
+      - "FE: Same solo/unsolo behavior for Y row headers"
+      - "FE: Unit tests for header click filtering, resize behavior, and scroll changes"
+    testing:
+      - "command: npx vitest run"
+
+  - id: S-025
+    title: "Main slider layout improvements"
+    priority: 4
+    status: done
+    requires: [R-002]
+    acceptance:
+      - "FE: Master slider is 100% width of the main content area"
+      - "FE: Master slider is always visible: position sticky at top of viewport so it stays accessible when grid overflows"
+      - "FE: Play button inline with the slider (stacks vertically on small mobile)"
+      - "FE: Pressing Play starts playback and reveals loop controls (loop checkbox + speed selector)"
+      - "FE: Stopping playback hides loop controls"
+      - "FE: Loop enabled by default"
+      - "FE: Speed options: 0.25s, 0.33s, 0.5s, 1s (default), 2s, 3s"
+      - "FE: Unit tests for play/stop visibility toggle, default loop state, new speed options"
+    testing:
+      - "command: npx vitest run"
+
+  - id: B-004
+    title: "Lightbox backdrop close broken and missing close button"
+    priority: 3
+    status: done
+    requires: [R-002]
+    acceptance:
+      - "FE: Fix backdrop click (clicking outside the image) to close the lightbox"
+      - "FE: Add an X button in the top-left corner to close the lightbox"
+      - "FE: Escape key continues to close the lightbox"
+      - "FE: Unit tests for backdrop close, X button close, and Escape close"
+    testing:
+      - "command: npx vitest run"
+
+  - id: S-026
+    title: "Checkpoint metadata panel improvements"
+    priority: 2
+    status: done
+    requires: [R-002]
+    acceptance:
+      - "FE: Slideout panel resizable by dragging its left edge"
+      - "FE: Min width 300px, max width 80vw"
+      - "FE: Full width at the smallest responsive breakpoint (<768px)"
+      - "FE: Stacked key-value layout: key displayed as header above value (not side-by-side table)"
+      - "FE: Unit tests for resize constraints and stacked layout rendering"
+    testing:
+      - "command: npx vitest run"
+
+  - id: B-005
+    title: "X/Y grid layout breaks with different configurations"
+    priority: 3
+    status: done
+    requires: [S-024]
+    acceptance:
+      - "FE: Replace flexbox grid layout with CSS Grid so cells align correctly regardless of content or configuration"
+      - "FE: Grid must maintain consistent column widths and row heights across all rows/columns"
+      - "FE: Empty/placeholder cells must not collapse or shift adjacent cells"
+      - "FE: Grid renders correctly with varying numbers of X and Y values (1x1, 1xN, Nx1, NxM)"
+      - "FE: Flat mode (no axes assigned) also uses consistent cell sizing"
+      - "FE: Existing divider-based cell resizing continues to work with CSS Grid"
+      - "FE: Unit tests for grid alignment with varying configurations"
+    testing:
+      - "command: npx vitest run"
+
+  - id: B-006
+    title: "No zoom/scale control for grid cell size"
+    priority: 3
+    status: done
+    requires: [S-024]
+    acceptance:
+      - "FE: Add a zoom slider (or similar control) near the master slider area to scale grid cell size"
+      - "FE: Zoom slider adjusts both cellWidth and cellHeight proportionally"
+      - "FE: Zoom range covers useful sizes from thumbnail (~100px) to large (~600px)"
+      - "FE: Zoom control is more discoverable than the current drag-divider approach"
+      - "FE: Divider-based resizing may be kept as a secondary mechanism or removed"
+      - "FE: Unit tests for zoom slider controlling cell dimensions"
+    testing:
+      - "command: npx vitest run"
+
+  - id: S-027
+    title: "Responsive design polish"
+    priority: 1
+    status: done
+    requires: [R-002, S-021, S-022, S-023, S-024, S-025, B-004, S-026]
+    acceptance:
+      - "FE: All UI elements render correctly at mobile (<768px), tablet (768-1023px), and desktop (>=1024px) breakpoints"
+      - "FE: Left drawer responsive default verified at all breakpoints"
+      - "FE: Master slider stacks controls vertically at mobile breakpoint"
+      - "FE: Checkpoint metadata panel full width at mobile breakpoint"
+      - "FE: Dimension filters render appropriately at all breakpoints"
+      - "FE: No horizontal overflow at any breakpoint (single scrollable page)"
+      - "FE: Unit tests for responsive behavior where applicable"
+    testing:
+      - "command: npx vitest run"
+
+# ─── NEW BUGS & ENHANCEMENTS ──────────────────────────────────────────────────
+
+  - id: B-007
+    title: "Checkpoint metadata panel dark mode text unreadable"
+    priority: 3
+    status: done
+    requires: [S-026, S-021]
+    acceptance:
+      - "FE: Metadata value text color is readable in dark mode (uses theme-aware color tokens, not hardcoded colors)"
+      - "FE: Values are clearly legible against the dark background in both light and dark themes"
+      - "FE: Unit tests verify metadata values render with correct theme-aware styling"
+    testing:
+      - "command: npx vitest run"
+
+  - id: B-008
+    title: "Checkpoint selector in metadata slideout has unreadable background"
+    priority: 3
+    status: done
+    requires: [S-026, S-021]
+    acceptance:
+      - "FE: Checkpoint selector dropdown in the metadata slideout uses theme-appropriate background and text colors"
+      - "FE: Checkpoint names are clearly readable in both light and dark themes"
+      - "FE: Unit tests verify selector styling respects active theme"
+    testing:
+      - "command: npx vitest run"
+
+  - id: S-028
+    title: "XY grid corner-based cell resizing"
+    priority: 3
+    status: done
+    requires: [S-024]
+    acceptance:
+      - "FE: Grid cells can be resized by dragging corner handles (adjusts both width and height simultaneously)"
+      - "FE: Corner resize replaces or supplements the existing vertical/horizontal divider approach"
+      - "FE: Resize maintains aspect ratio or allows freeform (user preference)"
+      - "FE: All cells resize together (uniform grid sizing)"
+      - "FE: Unit tests for corner-based resize behavior"
+    testing:
+      - "command: npx vitest run"
+
+  - id: B-009
+    title: "XY grid header solo click should hide non-selected values from grid"
+    priority: 3
+    status: done
+    requires: [S-024]
+    acceptance:
+      - "FE: Clicking an X column header hides all other columns from the grid (not just highlights)"
+      - "FE: Clicking a Y row header hides all other rows from the grid"
+      - "FE: Clicking the soloed header again restores all values"
+      - "FE: Grid re-renders with only the selected row/column visible after header solo click"
+      - "FE: Unit tests for header solo filtering grid visibility"
+    testing:
+      - "command: npx vitest run"
+
+  - id: S-029
+    title: "Collapse all dimension filters into single expandable 'Filters' section"
+    priority: 3
+    status: done
+    requires: [S-023]
+    acceptance:
+      - "FE: Replace individual dimension filter expand/collapse toggles with a single 'Filters' arrow/header"
+      - "FE: Clicking 'Filters' expands to show all dimension filters; clicking again collapses all"
+      - "FE: Collapsed by default"
+      - "FE: Unit tests for expand/collapse behavior of the unified filters section"
+    testing:
+      - "command: npx vitest run"
+
+  - id: B-010
+    title: "WebSocket live updates always displays 'disconnected'"
+    priority: 3
+    status: done
+    requires: [S-015]
+    acceptance:
+      - "FE: WebSocket connection status indicator shows 'connected' when actually connected"
+      - "FE: Investigate and fix why the status always shows 'disconnected' (connection failure, incorrect status tracking, or display bug)"
+      - "FE: Status indicator accurately reflects the real connection state at all times"
+      - "FE: Unit tests for connection status display accuracy"
+    testing:
+      - "command: npx vitest run"
+
+  - id: B-011
+    title: "Auto-load previously used dimension preset from localStorage"
+    priority: 3
+    status: done
+    requires: [S-012]
+    acceptance:
+      - "FE: When a preset is selected, persist the preset ID (and training run ID) in localStorage"
+      - "FE: On app load, if a saved preset exists in localStorage, auto-select that training run and apply the preset"
+      - "FE: Gracefully handle stale/deleted presets (clear localStorage entry and fall back to no preset)"
+      - "FE: Unit tests for persistence, auto-load on startup, and stale preset handling"
+    testing:
+      - "command: npx vitest run"
+
+# ─── INFERENCE PIPELINE ────────────────────────────────────────────────────────
+
+  - id: S-030
+    title: "ComfyUI configuration, client, and model discovery"
+    priority: -1
+    status: done
+    requires: [S-002]
+    acceptance:
+      - "BE: Add comfyui.host (default localhost), comfyui.port (default 8188), and workflow_dir (default ./workflows) to config.yaml schema"
+      - "BE: Config validation: comfyui section is optional; if present, host and port must be valid"
+      - "BE: ComfyUI HTTP client: health check, submit prompt, get history, get queue status"
+      - "BE: ComfyUI WebSocket client: connect and receive progress/execution events"
+      - "BE: Model discovery: query /object_info/{node_type} for available VAEs (VAELoader), CLIPs (CLIPLoader), UNETs (UNETLoader), samplers, and schedulers"
+      - "BE: Goa DSL: comfyui service with status and models endpoints"
+      - "BE: API: GET /api/comfyui/status returns connection status"
+      - "BE: API: GET /api/comfyui/models?type={vae|clip|unet|sampler|scheduler} returns available model names"
+      - "BE: Unit tests for config parsing, ComfyUI client (mocked HTTP), model discovery parsing"
+      - "FE: ComfyUI connection status indicator in the UI header showing online/offline state with colored dot or badge"
+      - "FE: Status indicator polls /api/comfyui/status periodically and updates in real-time"
+      - "FE: When comfyui config is absent, the indicator is hidden (inference features disabled)"
+      - "FE: Unit tests for status indicator (online, offline, hidden states)"
+    testing:
+      - "command: ginkgo -r --cover --race ./internal/..."
+      - "command: npx vitest run"
+
+  - id: S-036
+    title: "Structured logging with logrus"
+    priority: 100
+    status: done
+    requires: []
+    acceptance:
+      - "BE: Add logrus dependency to the backend"
+      - "BE: Add LOG_LEVEL env var to the API cmd entrypoint (default: info); parse and set logrus level on startup"
+      - "BE: In dev mode (make up-dev), set LOG_LEVEL=trace in docker-compose.dev.yml; production (make up) uses LOG_LEVEL=info"
+      - "BE: Use proper log levels throughout the backend codebase:"
+      - "  - trace: function entry/exit (e.g. 'entering FunctionName', 'returning from FunctionName')"
+      - "  - debug: intermediate values inside functions, e.g. values returned from store/service calls (logged inside the callee, not at the call site)"
+      - "  - info: data writes to stores, files, or external systems"
+      - "  - error: when an error occurs"
+      - "BE: All log messages use logrus WithField()/WithFields() builder pattern for contextual information (e.g. request ID, training run name, checkpoint filename, etc.)"
+      - "BE: Instrument existing service, store, and API layers with logging at the appropriate levels"
+      - "BE: Ensure no secrets (tokens, passwords, auth headers) appear in log output per DEVELOPMENT_PRACTICES.md section 1.5"
+      - "BE: Unit tests verify logger is called at appropriate levels (mock logrus or use test hooks)"
+      - "DOC: Add a 'Logging' section to /agent/DEVELOPMENT_PRACTICES.md documenting: logrus usage, log level definitions (trace/debug/info/error), WithField() pattern, LOG_LEVEL env var, and the rule about logging inside callees not at call sites"
+      - "DOC: Add the same 'Logging' section to /home/rt/work/src/github.com/kmacmcfarlane/claude-templates/local-web-app/agent/DEVELOPMENT_PRACTICES.md to keep the template up-to-date"
+    testing:
+      - "command: ginkgo -r --cover --race ./internal/..."
+
+  - id: B-012
+    title: "Training run selector dropdown not populating"
+    priority: 99
+    status: done
+    requires: [S-036]
+    acceptance:
+      - "FE/BE: Investigate why the training run selector dropdown is empty (no options shown)"
+      - "FE/BE: Root cause identified and fixed so that training runs populate correctly in the dropdown"
+      - "FE: TrainingRunSelector dropdown displays all discovered training runs on page load"
+      - "FE/BE: Unit tests cover the fix"
+    testing:
+      - "command: ginkgo -r --cover --race ./internal/..."
+      - "command: npx vitest run"
+
+  - id: S-031
+    title: "Workflow template management"
+    priority: -2
+    status: done
+    requires: [S-030]
+    acceptance:
+      - "BE: Load workflow JSON files from configured workflow_dir on startup"
+      - "BE: Validate cs_role tags in _meta objects (required: save_image; known roles: unet_loader, clip_loader, vae_loader, sampler, positive_prompt, negative_prompt, shift, latent_image, save_image)"
+      - "BE: Reject workflows missing save_image role; flag unknown cs_role values as warnings"
+      - "BE: Extract role summary per workflow (which roles are present, which node IDs they map to)"
+      - "BE: Goa DSL: workflows service with list and show methods"
+      - "BE: API: GET /api/workflows returns list of available workflow templates with role summaries"
+      - "BE: API: GET /api/workflows/{name} returns full workflow details including roles and validation status"
+      - "BE: Create workflow_dir at startup if it does not exist"
+      - "BE: Unit tests for loading, validation, role extraction, missing directory handling"
+    testing:
+      - "command: ginkgo -r --cover --race ./internal/..."
+
+  - id: S-032
+    title: "Sample setting presets"
+    priority: -3
+    status: done
+    requires: [S-030, S-003]
+    acceptance:
+      - "BE: DB migration: create sample_presets table (id, name, prompts JSON, negative_prompt, steps JSON, cfgs JSON, samplers JSON, schedulers JSON, seeds JSON, width, height, created_at, updated_at)"
+      - "BE: Sample preset service and store with CRUD operations"
+      - "BE: Validation: at least one prompt, step, cfg, sampler, scheduler, and seed required; width/height must be positive"
+      - "BE: Computed field images_per_checkpoint returned with each preset"
+      - "BE: Goa DSL: sample_presets service with list, create, update, delete methods"
+      - "BE: Unit tests for CRUD, validation, images_per_checkpoint calculation"
+      - "FE: SamplePresetEditor component for creating/editing presets"
+      - "FE: Multi-value inputs for prompts (name + text pairs), steps, CFG values, seeds"
+      - "FE: Sampler and scheduler dropdowns populated from ComfyUI API (/api/comfyui/models?type=sampler|scheduler)"
+      - "FE: Width and height inputs"
+      - "FE: Negative prompt input"
+      - "FE: Computed total images per checkpoint displayed prominently"
+      - "FE: Save/load/edit/delete preset operations"
+      - "FE: Unit tests for preset editor, computed total, CRUD operations"
+    testing:
+      - "command: ginkgo -r --cover --race ./internal/..."
+      - "command: npx vitest run"
+
+  - id: S-033
+    title: "Sample job orchestration"
+    priority: -4
+    status: done
+    requires: [S-031, S-032]
+    acceptance:
+      - "BE: DB migration: create sample_jobs table (id, training_run_name, sample_preset_id, workflow_name, vae, clip, shift, status, total_items, completed_items, error_message, created_at, updated_at)"
+      - "BE: DB migration: create sample_job_items table (id, job_id, checkpoint_filename, comfyui_model_path, prompt_name, prompt_text, steps, cfg, sampler_name, scheduler, seed, status, comfyui_prompt_id, output_path, error_message, created_at, updated_at)"
+      - "BE: Job creation: expand sample preset parameters × training run checkpoints into individual work items"
+      - "BE: Checkpoint-to-ComfyUI path matching: query ComfyUI for available UNETs, match by checkpoint filename"
+      - "BE: Job state machine: pending → running → completed|failed|paused"
+      - "BE: Progress computation: checkpoints_completed, current_checkpoint_progress, estimated_completion_time"
+      - "BE: Goa DSL: sample_jobs service with create, list, show, stop, resume, delete methods"
+      - "BE: API endpoints for all job operations"
+      - "BE: Unit tests for job creation, item expansion, state transitions, progress calculation, path matching"
+    testing:
+      - "command: ginkgo -r --cover --race ./internal/..."
+
+  - id: S-034
+    title: "Sample job execution engine"
+    priority: -5
+    status: done
+    requires: [S-033]
+    acceptance:
+      - "BE: Background job executor goroutine processes work items sequentially"
+      - "BE: For each item: clone workflow template, substitute tagged node values (unet_loader, clip_loader, vae_loader, sampler params, prompts, shift, latent_image dimensions, save_image prefix)"
+      - "BE: Submit parameterized workflow to ComfyUI via POST /prompt"
+      - "BE: Monitor completion via ComfyUI WebSocket progress events"
+      - "BE: On completion: download output image via ComfyUI /view API"
+      - "BE: Save image to sample_dir/{checkpoint_filename}/{query_encoded_params}.png"
+      - "BE: Query-encoded filename includes: prompt_name, steps, cfg, sampler_name, scheduler, seed"
+      - "BE: Update job item status and job progress after each completion"
+      - "BE: Push job progress events to frontend clients via existing WebSocket"
+      - "BE: Stop: set job status to paused, cancel any queued ComfyUI prompt, stop after current item completes"
+      - "BE: Resume: pick up from first incomplete item, set job status back to running"
+      - "BE: Handle ComfyUI errors gracefully: mark item as failed, continue with next item"
+      - "BE: Job survives application restart: on startup, resume any jobs in 'running' state"
+      - "BE: Unit tests for workflow substitution, output filename generation, stop/resume logic, error handling"
+    testing:
+      - "command: ginkgo -r --cover --race ./internal/..."
+
+  - id: S-035
+    title: "Sample job launch and progress UI"
+    priority: -6
+    status: done
+    requires: [S-033, S-034]
+    acceptance:
+      - "FE: 'Generate Samples' button available on training runs (prominent for runs without samples)"
+      - "FE: JobLaunchDialog: select workflow template from dropdown"
+      - "FE: JobLaunchDialog: select sample setting preset from dropdown"
+      - "FE: JobLaunchDialog: select VAE from ComfyUI-populated dropdown"
+      - "FE: JobLaunchDialog: select CLIP/text encoder from ComfyUI-populated dropdown"
+      - "FE: JobLaunchDialog: shift value input (hidden if workflow has no shift role)"
+      - "FE: JobLaunchDialog: confirmation summary showing number of checkpoints, images per checkpoint, total images"
+      - "FE: JobProgressPanel: list of active and recent jobs"
+      - "FE: JobProgressPanel: per-job display — status badge, checkpoints completed/total, current checkpoint images completed/total, estimated completion time"
+      - "FE: JobProgressPanel: stop button for running jobs, resume button for paused jobs"
+      - "FE: Real-time progress updates via WebSocket"
+      - "FE: As images complete, they appear in the grid via the existing filesystem watcher / live update mechanism"
+      - "FE: Unit tests for launch dialog, progress display, stop/resume interactions"
+    testing:
+      - "command: npx vitest run"
+
+  - id: B-013
+    title: "Migration 6 fails with duplicate column 'height' on existing databases"
+    priority: 99
+    status: done
+    requires: []
+    acceptance:
+      - "BE: Migration 6 does not fail with 'duplicate column name: height' when run against an existing database that already has the column"
+      - "BE: Migration is idempotent — safe to run on both fresh and pre-existing databases"
+      - "BE: Application starts successfully with an existing database"
+      - "BE: Unit tests cover migration 6 idempotency"
+    testing:
+      - "command: ginkgo -r --cover --race ./internal/..."
+
+  - id: B-014
+    title: "API returns bare 500 errors without JSON error body"
+    priority: 98
+    status: done
+    requires: []
+    acceptance:
+      - "BE: All API service methods return Goa ServiceError types (via Make*() constructors) for every error path — no plain fmt.Errorf() or errors.New() escaping to the transport layer"
+      - "BE: Audit all API implementation files (training_runs.go, presets.go, sample_presets.go, sample_jobs.go, checkpoints.go, workflows.go, comfyui.go) for error paths that return plain Go errors"
+      - "BE: Known gaps: PresetsService.List (line 28) and PresetsService.Delete (line 67) return plain fmt.Errorf; other services likely have similar issues"
+      - "BE: Every 500 response includes a JSON body with name, message, id, temporary, timeout, fault fields (standard Goa error format)"
+      - "BE: Unit tests verify that error responses from each endpoint include a JSON body with the expected fields"
+    testing:
+      - "command: ginkgo -r --cover --race ./internal/..."
+
+  - id: B-015
+    title: "Backend service errors not logged to container stdout"
+    priority: 97
+    status: done
+    requires: []
+    acceptance:
+      - "BE: When an API endpoint returns an error (4xx or 5xx), the error message is logged to stdout with request ID for correlation"
+      - "BE: The current errorHandler in http.go only fires on encoding failures, not service errors — fix or supplement it so service errors are also logged"
+      - "BE: Error log entries include: request ID, HTTP method, path, status code, and error message"
+      - "BE: Use logrus at error level for 5xx and warn level for 4xx"
+      - "BE: docker logs for the backend container show meaningful error details when API calls fail"
+      - "BE: Unit tests verify error logging occurs for failed service calls"
+    testing:
+      - "command: ginkgo -r --cover --race ./internal/..."
+
+  - id: B-016
+    title: "Frontend swallows API error messages due to field name mismatch and missing Goa Debug middleware"
+    priority: 96
+    status: done
+    requires: []
+    acceptance:
+      - "FE: Fix ApiErrorResponse type to match Goa's actual JSON field names (lowercase 'name' and 'message', not uppercase 'Code' and 'Message')"
+      - "FE: normalizeError() maps Goa's 'name' field to ApiError.code and 'message' field to ApiError.message"
+      - "FE: Update isApiErrorResponse() type guard to check for the correct lowercase field names"
+      - "FE: Error messages from the backend are now visible in the UI (e.g. 'listing training runs: database error' instead of generic 'Request failed with status 500')"
+      - "FE: If an error is unknown, include the body in the `Request failed with status` message for debugging purposes"
+      - "FE: Unit tests for normalizeError() updated to use Goa's actual error JSON shape ({ name: '...', message: '...', id: '...', temporary: false, timeout: false, fault: true })"
+      - "BE: Enable Goa Debug middleware (httpmdlwr.Debug) on all servers when cfg.Debug is true, per the Goa HTTP Handler Wireup pattern — logs full HTTP request/response headers and bodies to stdout for development"
+      - "BE: Debug middleware must be applied via servers.Use(httpmdlwr.Debug(mux, os.Stdout)) BEFORE mounting servers on the mux"
+      - "BE: Debug middleware only active in dev mode (controlled by existing Debug config flag)"
+      - "BE: Unit tests verify debug middleware is wired when debug=true"
+    testing:
+      - "command: ginkgo -r --cover --race ./internal/..."
+      - "command: npx vitest run"
+
+  - id: B-017
+    title: "Backend crash-loops when ComfyUI is unreachable, preventing all API requests"
+    priority: 100
+    status: done
+    requires: []
+    acceptance:
+      - "BE: Backend HTTP server starts and serves API requests even when ComfyUI is unreachable"
+      - "BE: jobExecutor.Start() failure in main.go (line 156) must not be fatal — log the error and continue server startup"
+      - "BE: When ComfyUI is unavailable, sample job endpoints return a clear error (e.g. 'ComfyUI not connected') rather than the entire server crashing"
+      - "BE: Non-ComfyUI endpoints (health, training runs, presets, checkpoints, images, docs) work normally regardless of ComfyUI state"
+      - "BE: When ComfyUI becomes available later, the job executor can still be used (lazy connect or background retry)"
+      - "BE: docker logs show a warning about ComfyUI being unreachable, not a fatal exit"
+      - "BE: Unit tests verify server starts successfully when ComfyUI WebSocket connection fails"
+    testing:
+      - "command: ginkgo -r --cover --race ./internal/..."
+      - "command: make up-dev (verify backend starts and GET /api/health returns 200 when ComfyUI is unreachable)"
+
+  - id: R-003
+    title: "Refactor image serving and metadata endpoints to idiomatic Goa with SkipResponseBodyEncodeDecode"
+    priority: 95
+    status: done
+    requires: []
+    acceptance:
+      - "BE: Define an 'images' Goa service in internal/api/design/images.go with a 'download' method"
+      - "BE: download method uses SkipResponseBodyEncodeDecode() so Goa skips body encoding and the service returns (result, io.ReadCloser, error)"
+      - "BE: Response headers defined in DSL: Content-Type, Content-Length, Cache-Control"
+      - "BE: Goa design declares not_found and bad_request error responses for the download method"
+      - "BE: Service implementation opens the image file, detects content type, seeks back to start, and returns the *os.File as the io.ReadCloser body — Goa closes it after streaming"
+      - "BE: Path traversal protection preserved in service layer (reject '..', absolute paths, paths outside sample_dir)"
+      - "BE: Cache-Control header set to 'max-age=31536000, immutable' via the result struct"
+      - "BE: Define image metadata as a separate Goa method (GET /api/images/{*filepath}/metadata) using standard Goa JSON encoding (no SkipResponseBodyEncodeDecode)"
+      - "BE: Image metadata method returns the same JSON shape as today ({ metadata: { ... } })"
+      - "BE: Remove the custom ImageHandler and ImageMetadataHandler structs and their raw http.Handler implementations (images.go, image_metadata.go)"
+      - "BE: Remove the manual mux.Handle('GET', '/api/images/{*filepath}', ...) call from http.go; the Goa-generated server mount replaces it"
+      - "BE: Both endpoints appear in the generated OpenAPI 3.0 spec and are visible in Swagger UI at /docs"
+      - "BE: Run codegen (make gen) after DSL changes and verify generated code compiles"
+      - "BE: All existing image serving and metadata tests pass or are updated to use the new Goa service interface"
+      - "BE: Unit tests for the new Goa service: successful download, not_found, bad_request (path traversal), metadata retrieval, empty metadata"
+      - "FE: No frontend changes required — the API contract (paths, response shapes, headers) remains identical"
+    testing:
+      - "command: ginkgo -r --cover --race ./internal/..."
+      - "command: npx vitest run"
+
+  # ─── User-reported issues (2026-02-24) ──────────────────────────────────────
+
+  - id: B-018
+    title: "Training run selector dropdown too narrow to read long names"
+    priority: 60
+    status: done
+    requires: []
+    acceptance:
+      - "FE: let's switch to an input I can filter by typing in and select the training run I want"
+      - "FE: dropdown popover in TrainingRunSelector is wide enough to display training run names up to 128+ characters without truncation"
+      - "FE: The closed (collapsed) selector may still ellipsize, but the open dropdown list shows full names"
+      - "FE: Dropdown width does not exceed viewport width on small screens"
+      - "FE: Existing TrainingRunSelector tests still pass"
+    notes: |
+      Root cause: NSelect inherits width from the 360px AppDrawer, giving only ~200-250px
+      for text. User wants the dropdown popover to be wider than the trigger element so
+      full names are readable when selecting. Naive UI NSelect supports CSS overrides on the
+      dropdown popover (e.g. menu-props or consistent-menu-width=false).
+      Key files: frontend/src/components/TrainingRunSelector.vue,
+      frontend/src/components/AppDrawer.vue (360px width).
+    testing:
+      - "command: cd frontend && npx vitest run"
+
+  - id: B-019
+    title: "Workflow templates not loading — config nesting error and missing Docker volume mount"
+    priority: 80
+    status: done
+    requires: []
+    acceptance:
+      - "OPS: config.yaml.example shows workflow_dir nested under comfyui: section (not top-level)"
+      - "OPS: docker-compose.yml and docker-compose.dev.yml mount ./workflows into the backend container"
+      - "BE: When workflow_dir is correctly configured and mounted, GET /api/workflows returns the workflow templates from the directory"
+      - "BE: Existing workflow loader tests still pass"
+    notes: |
+      Two root causes found:
+      1. In config.yaml, workflow_dir is at the YAML top level but the parser (yamlComfyUIConfig)
+         expects it nested under comfyui:. It is silently ignored, falling back to default "./workflows".
+      2. docker-compose.yml does not mount the host's workflows/ directory into the backend container,
+         so even with the correct config the container can't see the files.
+      Fix: (a) move workflow_dir under comfyui: in config.yaml, (b) add volume mount to both
+      docker-compose.yml and docker-compose.dev.yml, (c) update config.yaml.example.
+      Key files: config.yaml (lines 20-26), docker-compose.yml, docker-compose.dev.yml,
+      config.yaml.example, backend/internal/config/config.go (yamlComfyUIConfig struct).
+    testing:
+      - "command: make test-backend"
+
+  - id: B-020
+    title: "Sample preset editor not visible or accessible in the Generate Samples UI"
+    priority: 70
+    status: done
+    requires: []
+    acceptance:
+      - "FE: The SamplePresetEditor (with New Preset button, form fields, save/delete) is visible and accessible from the Generate Samples / Job Launch flow"
+      - "FE: User can create, edit, and delete sample presets without navigating away from the job launch dialog"
+      - "FE: After creating a preset, it appears in the preset selector dropdown"
+      - "FE: Existing SamplePresetEditor and JobLaunchDialog tests still pass"
+    notes: |
+      The full CRUD system exists — SamplePresetEditor.vue has a "New Preset" button, form
+      validation, save/delete. Backend API and database are implemented. The issue is that
+      SamplePresetEditor is not surfaced where the user expects it in the job launch flow.
+      Investigate whether JobLaunchDialog imports/renders SamplePresetEditor or only shows a
+      read-only PresetSelector dropdown without the editor.
+      Key files: frontend/src/components/JobLaunchDialog.vue,
+      frontend/src/components/SamplePresetEditor.vue.
+    testing:
+      - "command: cd frontend && npx vitest run"
+
+  - id: B-021
+    title: "ComfyUI config: replace host+port with url field to support HTTPS reverse proxies, debug connectivity"
+    priority: 85
+    status: done
+    requires: []
+    acceptance:
+      - "BE: ComfyUI config accepts a single `url` field (e.g. 'https://comfyui.lucy.mcfacehead.com') instead of separate host and port"
+      - "BE: HTTP client uses the URL scheme (http:// or https://) from the configured url"
+      - "BE: WebSocket client derives ws:// or wss:// from the configured url scheme"
+      - "BE: Config validation rejects invalid URLs and URLs without a scheme"
+      - "BE: The old host+port fields are removed from yamlComfyUIConfig and model.ComfyUIConfig"
+      - "BE: config.yaml.example updated to show the new url field"
+      - "BE: All existing ComfyUI client, config, and job executor tests updated and passing"
+      - "FE: No frontend changes required (frontend talks to backend API, not directly to ComfyUI)"
+    notes: |
+      Root cause: The backend hardcodes http:// and ws:// schemes when constructing ComfyUI
+      URLs from host+port. When ComfyUI is behind an HTTPS reverse proxy (port 443), the
+      connection fails. A single `url` field is more flexible — supports any scheme, port,
+      and path prefix.
+    testing:
+      - "command: make test-backend"
+
+  # ─── Workflow improvements (2026-02-24) ──────────────────────────────────────
+
+  - id: S-040
+    title: "Pass change summary from fullstack-developer to downstream subagents"
+    priority: 50
+    status: done
+    requires: []
+    acceptance:
+      - "WORKFLOW: The orchestrator extracts a structured change summary from the fullstack-developer verdict (files changed, brief description of each change)"
+      - "WORKFLOW: The change summary is passed to the code-reviewer and qa-expert subagents as additional context alongside the story dispatch"
+      - "WORKFLOW: Subagent prompts (code-reviewer.md, qa-expert.md) document the change summary as an expected input and instruct agents to use it for faster orientation"
+      - "WORKFLOW: AGENT_FLOW.md section 4.3 updated to document the change summary extraction and passthrough"
+      - "WORKFLOW: The change summary does NOT replace reading actual source files — it supplements them for faster focus"
+    notes: |
+      All three subagents independently read the same files during B-020, adding redundant
+      token cost. Passing a brief change summary (files + descriptions) from the fullstack
+      developer helps downstream agents orient faster without replacing their own code reads.
+      Format example:
+        files_changed:
+          - SamplePresetEditor.vue: Added defineEmits with preset-saved/preset-deleted events
+          - JobLaunchDialog.vue: Added Manage Presets button, nested NModal, event handlers
+          - JobLaunchDialog.test.ts: 4 new tests for integration
+    testing:
+      - "command: (workflow change — verify by running a story through the pipeline)"
+
+  # ─── Playwright E2E testing (2026-02-24) ────────────────────────────────────
+
+  - id: S-041
+    title: "Playwright E2E test infrastructure setup"
+    priority: 55
+    status: done
+    requires: []
+    acceptance:
+      - "DEVOPS: Set up a new makefile target up-test; it should have separate docker named volume(s) such that test runs can do `make down-test` to reset storage without affecting my environment using make up-dev"
+      - "DEVOPS: @playwright/test installed as a dev dependency in /frontend"
+      - "DEVOPS: playwright.config.ts created with baseURL http://localhost:3000, headless Chromium, list reporter"
+      - "DEVOPS: E2E test directory created at frontend/e2e/"
+      - "DEVOPS: Root Makefile target 'make test-e2e' runs Playwright tests (assumes make up-dev is already running)"
+      - "DEVOPS: A minimal smoke E2E test exists in frontend/e2e/smoke.spec.ts that verifies the app loads and the health endpoint returns 200 through the frontend proxy"
+      - "DEVOPS: CLAUDE.md section 8 updated with the new make test-e2e target"
+      - "DEVOPS: TEST_PRACTICES.md updated with a new section for E2E testing practices"
+      - "DEVOPS: Playwright works in the claude-sandbox (headless Chromium, chromiumSandbox: false if needed)"
+    notes: |
+      Foundation for browser-driven E2E tests. The existing QA smoke test (curl /health) cannot
+      verify frontend rendering. Playwright fills this gap.
+      See IDEAS.md "Playwright E2E smoke tests for QA" for the full setup sketch including
+      sandbox considerations.
+      Key files: frontend/package.json, frontend/playwright.config.ts, frontend/e2e/smoke.spec.ts,
+      Makefile, CLAUDE.md, agent/TEST_PRACTICES.md.
+    testing:
+      - "command: make test-e2e (with make up-test running)"
+
+  - id: S-042
+    title: "E2E test: training run selection and XY grid display"
+    priority: 50
+    status: done
+    requires: [S-041]
+    acceptance:
+      - "E2E: Test selects a training run from the sidebar dropdown"
+      - "E2E: Test verifies the XY grid renders with expected dimension axes after selection"
+      - "E2E: Test verifies image cells appear in the grid (at least one image loads)"
+      - "E2E: Test verifies dimension axis labels are visible"
+      - "E2E: Test passes in headless Chromium via make test-e2e"
+    notes: |
+      Core user journey: open app → pick training run → see grid. This is the most fundamental
+      E2E test after the basic smoke test.
+      Key files: frontend/e2e/training-run-grid.spec.ts
+    testing:
+      - "command: make test-e2e"
+
+  - id: S-043
+    title: "E2E test: image lightbox interaction"
+    priority: 48
+    status: done
+    requires: [S-042]
+    acceptance:
+      - "E2E: Test clicks an image cell to open the lightbox"
+      - "E2E: Test verifies the lightbox displays the full-size image"
+      - "E2E: Test verifies zoom controls are visible and functional (zoom in, zoom out, reset)"
+      - "E2E: Test verifies the metadata panel displays image metadata"
+      - "E2E: Test closes the lightbox and verifies return to the grid view"
+      - "E2E: Test passes in headless Chromium via make test-e2e"
+    notes: |
+      Second core journey: click image → inspect in lightbox → close.
+      Depends on S-042 because it needs a training run selected and images visible.
+      Key files: frontend/e2e/lightbox.spec.ts
+    testing:
+      - "command: make test-e2e"
+
+  - id: S-044
+    title: "E2E test: dimension filtering and combo filters"
+    priority: 46
+    status: done
+    requires: [S-042]
+    acceptance:
+      - "E2E: Test opens the dimension panel and changes X/Y axis assignments"
+      - "E2E: Test verifies the grid updates to reflect the new axis dimensions"
+      - "E2E: Test applies a combo filter (deselects a value) and verifies grid rows/columns reduce"
+      - "E2E: Test clears the filter and verifies the grid returns to its full state"
+      - "E2E: Test passes in headless Chromium via make test-e2e"
+    notes: |
+      Tests the dimension configuration and filtering workflow.
+      Key files: frontend/e2e/dimension-filtering.spec.ts
+    testing:
+      - "command: make test-e2e"
+
+  - id: S-045
+    title: "E2E test: sample preset CRUD via job launch dialog"
+    priority: 44
+    status: done
+    requires: [S-042]
+    acceptance:
+      - "E2E: Test opens the Generate Samples dialog"
+      - "E2E: Test clicks 'Manage Presets' to open the preset editor"
+      - "E2E: Test creates a new preset with a unique name and saves it"
+      - "E2E: Test verifies the new preset appears in the preset selector dropdown"
+      - "E2E: Test edits the preset (changes a field) and saves"
+      - "E2E: Test deletes the preset and verifies it is removed from the dropdown"
+      - "E2E: Test passes in headless Chromium via make test-e2e"
+    notes: |
+      Tests the full preset CRUD lifecycle through the UI, covering the B-020 fix end-to-end.
+      Key files: frontend/e2e/preset-crud.spec.ts
+    testing:
+      - "command: make test-e2e"
+
+  - id: S-046
+    title: "E2E test: slider and playback controls"
+    priority: 42
+    status: done
+    requires: [S-042]
+    acceptance:
+      - "E2E: Test assigns a dimension to the slider and verifies the master slider appears"
+      - "E2E: Test drags or steps the master slider and verifies all image cells update"
+      - "E2E: Test starts playback and verifies automatic advancement (at least 2 steps)"
+      - "E2E: Test stops playback and verifies the slider holds its position"
+      - "E2E: Test passes in headless Chromium via make test-e2e"
+    notes: |
+      Tests the slider/playback animation workflow, a key differentiator of the app.
+      Key files: frontend/e2e/slider-playback.spec.ts
+    testing:
+      - "command: make test-e2e"
+
+  - id: S-047
+    title: "Integrate Playwright E2E tests into QA subagent workflow"
+    priority: 52
+    status: done
+    requires: [S-041, S-042]
+    acceptance:
+      - "WORKFLOW: QA subagent prompt (qa-expert.md) updated to run 'make test-e2e' as part of its verification steps"
+      - "WORKFLOW: TEST_PRACTICES.md section 5 updated to include E2E test execution as a QA gate"
+      - "WORKFLOW: For frontend-only stories, QA uses Playwright smoke test results instead of curl-based health checks for frontend verification"
+      - "WORKFLOW: AGENT_FLOW.md updated to document that the orchestrator ensures make up-dev is running before dispatching to QA when E2E tests are required"
+      - "WORKFLOW: QA verdict format updated to include E2E test results section"
+    notes: |
+      Closes the gap where QA could only curl /health for frontend stories. After this,
+      QA runs real browser-based verification. Depends on the setup story (S-041) and at
+      least one working E2E test (S-042) to be meaningful.
+      Key files: .claude/agents/qa-expert.md, agent/TEST_PRACTICES.md, agent/AGENT_FLOW.md
+    testing:
+      - "command: (workflow change — verify by running a frontend story through the pipeline)"
+
+  # ─── Promoted from IDEAS.md ─────────────────────────────────────────────────
+
+  - id: S-037
+    title: "Slider navigation in image lightbox"
+    priority: 45
+    status: done
+    requires: []
+    acceptance:
+      - "FE: When the lightbox is open, a SliderBar is shown below the image allowing the user to step through values of the slider-assigned dimension"
+      - "FE: The lightbox slider displays the same ordered values and current value as the cell's individual slider that was clicked to open the lightbox"
+      - "FE: Moving the lightbox slider swaps the displayed image in the lightbox to the image matching the new slider value (same x/y cell, different slider position)"
+      - "FE: Moving the lightbox slider updates that cell's per-cell slider override (sliderValues[cellKey]) so the grid reflects the change when the lightbox is closed"
+      - "FE: The lightbox slider does NOT affect other cells — only the cell that opened the lightbox"
+      - "FE: When the master slider is next moved (after the lightbox changed a single cell), all cells sync together as usual (master clears per-cell overrides)"
+      - "FE: The lightbox must receive enough context to know which cell (x/y values) it belongs to, the slider dimension values, and the current slider value for that cell"
+      - "FE: If no slider dimension is assigned, no slider is shown in the lightbox"
+      - "FE: Zoom/pan and metadata panel continue to work alongside the slider"
+      - "FE: Image preloading: adjacent slider positions are prefetched so lightbox slider feels instant"
+      - "FE: Unit tests for lightbox slider rendering, value changes updating the displayed image, per-cell override propagation, and no-slider-dimension case"
+    notes: |
+      Currently the lightbox shows a single static image. Adding a slider lets users flip
+      through the slider dimension (e.g. checkpoints) without closing the lightbox, which is
+      especially useful for detailed comparison at full resolution.
+      The lightbox needs additional props: cell coordinates (xVal, yVal), slider dimension
+      values, current slider value, and callbacks to update per-cell slider state.
+      App.vue opens the lightbox — it already knows the grid state, so it can pass this context.
+      Key files: frontend/src/components/ImageLightbox.vue, frontend/src/components/SliderBar.vue,
+      frontend/src/components/XYGrid.vue, frontend/src/App.vue (lightbox state management).
+    testing:
+      - "command: cd frontend && npx vitest run"
+
+  - id: S-038
+    title: "Keyboard navigation for sliders"
+    priority: 35
+    status: done
+    requires: []
+    acceptance:
+      - "FE: When an ImageCell is focused (clicked or tabbed to), left/right arrow keys step the cell's slider backward/forward by one value"
+      - "FE: When the MasterSlider area is focused, left/right arrow keys step all sliders in sync (same behavior as dragging the master slider)"
+      - "FE: Arrow key steps wrap around if the slider is at the first or last value (consistent with playback loop behavior)"
+      - "FE: Visual focus indicator on the active cell so the user knows which cell will respond to arrow keys"
+      - "FE: Arrow key navigation does not interfere with normal page scrolling when no cell or slider is focused"
+      - "FE: Keyboard interaction works alongside existing mouse-based slider dragging and playback controls"
+      - "FE: Unit tests for arrow key stepping on ImageCell (forward, backward, wrap-around)"
+      - "FE: Unit tests for arrow key stepping on MasterSlider (syncs all cells)"
+    notes: |
+      Complements mouse-based slider interaction for power users reviewing many checkpoints
+      quickly. Arrow keys (left/right) step through slider values when a cell or the master
+      slider is focused.
+      Key files: frontend/src/components/ImageCell.vue, frontend/src/components/MasterSlider.vue,
+      frontend/src/components/XYGrid.vue (focus management).
+    testing:
+      - "command: cd frontend && npx vitest run"
+
+  - id: S-039
+    title: "JSON sidecar metadata per image"
+    priority: 30
+    status: done
+    requires: [S-034]
+    acceptance:
+      - "BE: When the job executor saves a generated image to sample_dir, it also writes a .json sidecar file alongside it with the same base name (e.g. prompt_name=forest&seed=420&cfg=1.png → prompt_name=forest&seed=420&cfg=1.json)"
+      - "BE: Sidecar JSON contains flat key-value generation metadata: checkpoint (filename), prompt_name, prompt_text, seed, cfg, steps, sampler_name, scheduler, width, height, negative_prompt, vae, clip, shift (if applicable), workflow_name, job_id, timestamp"
+      - "BE: Sidecar is written atomically (write to temp file then rename) to avoid partial reads"
+      - "BE: Image metadata endpoint (/api/images/{*filepath}/metadata) reads from the .json sidecar if it exists, falling back to PNG embedded metadata if no sidecar is found"
+      - "BE: Sidecar metadata is returned in the same API response shape as PNG-embedded metadata so the frontend needs no changes for basic display"
+      - "BE: Filesystem scanner ignores .json files when discovering images (only .png files are treated as images)"
+      - "BE: Unit tests for sidecar writing (correct path, correct content, atomic write)"
+      - "BE: Unit tests for metadata endpoint sidecar-first fallback logic"
+      - "BE: Unit tests for filesystem scanner ignoring .json files"
+    notes: |
+      Sidecars make metadata extraction trivial and decouple from ComfyUI-specific PNG embedding.
+      The flat key-value format is easy to parse and could be consumed by external tools.
+      Sidecar-first with PNG fallback ensures backward compatibility with images generated
+      before this feature.
+      Key files: backend/internal/service/job_executor.go (write sidecar),
+      backend/internal/service/image_metadata.go (read sidecar),
+      backend/internal/service/scanner.go (ignore .json).
+    testing:
+      - "command: ginkgo -r --cover --race ./internal/..."
+
+  - id: B-022
+    title: "FileSystem.OpenFile logs at error level for expected sidecar miss (file not found)"
+    priority: 50
+    status: done
+    requires: []
+    acceptance:
+      - "When OpenFile is called for a path that does not exist, the log entry is emitted at debug level, not error level"
+      - "When OpenFile fails for a reason other than file-not-found (e.g., permission denied), the log entry remains at error level"
+    notes: |
+      store.FileSystem.OpenFile() logs at level=error unconditionally on any os.Open failure.
+      For sidecar lookups, a file-not-found result is expected for all pre-existing images
+      (those generated before S-039), causing noisy error logs on every metadata request
+      that falls back to PNG. Fix: log at debug level when os.IsNotExist(err) is true.
+      Found by QA runtime error sweep during S-039.
+    testing:
+      - "command: ginkgo -r --cover --race ./internal/..."
+
+  - id: B-028
+    title: "Investigate and fix tokens_out always reporting 0 in metrics"
+    priority: 199
+    status: done
+    requires: []
+    acceptance:
+      - "AGENT: Investigate why tokens_out is always 0 in CHANGELOG entries and backlog.yaml metrics"
+      - "AGENT: Root cause identified — either /cost output parsing is wrong, snapshot delta computation has a bug, or /cost doesn't report output tokens"
+      - "AGENT: Fix applied so tokens_out reflects actual output token usage"
+      - "AGENT: If /cost genuinely doesn't provide output tokens, document this limitation and update AGENT_FLOW.md section 10.2 accordingly"
+    notes: |
+      Resolved: In-orchestrator metrics and token tracking removed entirely. Metrics are now
+      handled externally by claude-sandbox via ~/.claude/projects jsonl files.

@@ -13,7 +13,7 @@ At the start of every cycle, read:
 - /CHANGELOG.md
 
 Rules:
-- /agent/backlog.yaml is the only source of "what to do next".
+- /agent/backlog.yaml is the only source of "what to do next". Completed stories are archived in /agent/backlog_done.yaml (read-only reference; do not modify).
 - /agent/backlog.yaml, /agent/QUESTIONS.md, and files under /agent/ideas/ are the only files in /agent that the agent should modify. The user is responsible for edits to the other files. If you would like to suggest an edit to these files, do so in the appropriate file under /agent/ideas/ or /agent/QUESTIONS.md
 - /agent/PRD.md defines product requirements and scope.
 - /agent/TEST_PRACTICES.md and /agent/DEVELOPMENT_PRACTICES.md define standards.
@@ -62,7 +62,7 @@ Valid transitions — the **Deciding subagent** column shows which subagent's ve
 | `in_progress` → `blocked` | **Fullstack Engineer** | Cannot continue without external input |
 | `review` → `testing` | **Code Reviewer** | Code review approved |
 | `review` → `in_progress` | **Code Reviewer** | Changes requested (feedback in `review_feedback`) |
-| `testing` → `uat` | **QA Expert** | QA approved; finalization performed (CHANGELOG, metrics, commit, merge) |
+| `testing` → `uat` | **QA Expert** | QA approved; finalization performed (CHANGELOG, commit, merge) |
 | `testing` → `in_progress` | **QA Expert** | Issues found (feedback in `review_feedback`) |
 | `uat` → `in_progress` | **Orchestrator** | User provided `uat_feedback`; orchestrator copies to `review_feedback` and clears `uat_feedback` |
 | `uat` → `done` | **User** (manual) | User accepted; edits backlog.yaml directly |
@@ -211,43 +211,6 @@ This helps downstream agents orient faster by knowing which files changed and wh
 
 If the fullstack engineer's response does not include a change summary (e.g., older prompt format), the orchestrator should fall back to `git diff --name-only main..HEAD` to generate a file list and pass that instead (without descriptions).
 
-### 4.3.1 Timing and token instrumentation
-
-The orchestrator MUST record timing and token data for each subagent invocation. This data feeds both the debug log and the story `metrics` map (section 4.5.1).
-
-**Before dispatching each subagent:**
-1. Record the current timestamp (ISO 8601) as `dispatch_time`. Use `date +%Y-%m-%dT%H:%M:%S%z` via Bash.
-2. Snapshot the current session token counts by running `/cost`. Record `tokens_in_before` and `tokens_out_before`.
-
-**After each subagent returns:**
-1. Record the current timestamp as `return_time` and compute `elapsed`.
-2. Snapshot `/cost` again. Record `tokens_in_after` and `tokens_out_after`.
-3. Compute deltas: `tokens_in = tokens_in_after - tokens_in_before`, `tokens_out = tokens_out_after - tokens_out_before`.
-
-**Accumulate per-subagent totals** across the cycle. If the same subagent is invoked multiple times (e.g., fullstack-developer called again after review rejection), sum the durations, token deltas, and increment the invocation count.
-
-**Format in debug log** (`.ralph-debug/orchestrator.md`):
-```
-## [<date>] Subagent result: <agent-name> for <story-id>
-- Dispatch time: <ISO 8601>
-- Return time: <ISO 8601>
-- Elapsed: <minutes>m <seconds>s
-- Tokens: <tokens_in> in / <tokens_out> out
-- Verdict: <verdict>
-...
-```
-
-**In the summary file** (`.ralph-debug/summary.md`), include a timing and token summary:
-```
-## Metrics
-- fullstack-developer: Xm Ys, N invocation(s), Xin / Yout tokens
-- code-reviewer: Xm Ys, N invocation(s), Xin / Yout tokens
-- qa-expert: Xm Ys, N invocation(s), Xin / Yout tokens
-- Total: Xm Ys, N invocation(s), Xin / Yout tokens
-```
-
-This data enables identifying bottlenecks, informing model selection decisions, and tracking per-story cost.
-
 ### 4.4 Update artifacts (orchestrator responsibility)
 
 After each subagent completes, the **orchestrator** (not the subagent) performs these updates:
@@ -300,65 +263,12 @@ When the QA expert's verdict includes a "Runtime Error Sweep" section with findi
 
 When the QA expert reports **APPROVED**, the orchestrator performs these steps in order:
 
-1. **Update CHANGELOG**: Add an entry to /CHANGELOG.md for the completed story. Include a token consumption summary line at the end of the entry (e.g., `- Token usage: <input_tokens> input, <output_tokens> output`). Use the cumulative token counts from the current conversation session (visible via `/cost` or session stats). If a CHANGELOG entry already exists for this story (e.g., from a prior UAT rework cycle), replace it rather than adding a duplicate.
-2. **Update backlog**: Set `status: uat` and record `metrics` in /agent/backlog.yaml (see section 4.5.1).
+1. **Update CHANGELOG**: Add an entry to /CHANGELOG.md for the completed story. If a CHANGELOG entry already exists for this story (e.g., from a prior UAT rework cycle), replace it rather than adding a duplicate.
+2. **Update backlog**: Set `status: uat` in /agent/backlog.yaml.
 3. **Commit**: Create the commit (per commit rules below).
 4. **Merge**: Merge the feature branch into `main` (per the commit/merge policy in PROMPT.md).
 
 The story enters `uat` with code on `main`. The user reviews functionality and either moves the story to `done` (manual edit) or provides `uat_feedback` to trigger a rework cycle.
-
-### 4.5.1 Recording metrics
-
-When a story reaches `uat`, the orchestrator adds a `metrics` map to the story in backlog.yaml. This captures cost and performance data from the completing cycle.
-
-**Structure:**
-
-```yaml
-metrics:
-  duration: "14m 32s"
-  tokens_in: 245000
-  tokens_out: 18500
-  invocations: 5
-  subagents:
-    fullstack-developer:
-      invocations: 2
-      duration: "8m 12s"
-      tokens_in: 150000
-      tokens_out: 12000
-    code-reviewer:
-      invocations: 2
-      duration: "4m 05s"
-      tokens_in: 70000
-      tokens_out: 4500
-    qa-expert:
-      invocations: 1
-      duration: "2m 15s"
-      tokens_in: 25000
-      tokens_out: 2000
-```
-
-**Fields:**
-
-| Level | Field | Description |
-|---|---|---|
-| Top | `duration` | Sum of all subagent durations |
-| Top | `tokens_in` | Sum of all subagent input token deltas |
-| Top | `tokens_out` | Sum of all subagent output token deltas |
-| Top | `invocations` | Sum of all subagent invocation counts |
-| Per-subagent | `invocations` | Number of dispatches to that subagent |
-| Per-subagent | `duration` | Sum of wall-clock elapsed times for that subagent |
-| Per-subagent | `tokens_in` | Sum of `/cost` input token deltas for that subagent |
-| Per-subagent | `tokens_out` | Sum of `/cost` output token deltas for that subagent |
-
-**How to compute:**
-- Use the per-dispatch timing and token data captured by the instrumentation in section 4.3.1.
-- Accumulate per-subagent totals across all invocations in the current cycle, then sum for the top-level totals.
-- Only include subagents that were actually invoked (e.g., if no debugger was used, omit it).
-
-**Notes:**
-- If a story spans multiple ralph cycles (e.g., review rejection → re-implementation), only the final cycle's metrics are recorded (prior cycles' context is lost).
-- Durations are subagent wall-clock times, not total cycle wall-clock time (excludes orchestrator overhead between dispatches).
-- If `/cost` is unavailable, omit token fields rather than guessing. Duration and invocation counts should still be recorded.
 
 These finalization actions are exclusively owned by the orchestrator. No subagent may update CHANGELOG, commit, or merge.
 
@@ -450,7 +360,7 @@ Send a notification on every story status change:
 - **in_progress → blocked**: `[project] <id>: in_progress → blocked. <blocked_reason>.`
 - **review → testing**: `[project] <id>: review → testing. Code review approved.`
 - **review → in_progress**: `[project] <id>: review → in_progress. Changes requested: <1-2 sentence summary of feedback>.`
-- **testing → uat**: `[project] <id>: testing → uat. QA approved. <title> merged to main, awaiting user acceptance. Tokens: <input_tokens>in / <output_tokens>out.`
+- **testing → uat**: `[project] <id>: testing → uat. QA approved. <title> merged to main, awaiting user acceptance.`
 - **testing → in_progress**: `[project] <id>: testing → in_progress. QA found issues: <1-2 sentence summary of feedback>.`
 - **uat → in_progress**: `[project] <id>: uat → in_progress. UAT feedback received: <1-2 sentence summary of uat_feedback>.`
 
@@ -472,25 +382,20 @@ When a story is returned to `in_progress` (from review or testing), always inclu
 - Do not include secrets, file paths, or code in notifications.
 - If the tool is unavailable or fails, continue normally — notifications are best-effort and must not block the workflow.
 
-## 10) Token tracking
-
-Per-subagent token counts are captured via `/cost` snapshots before and after each dispatch (section 4.3.1) and recorded in the story's `metrics` map (section 4.5.1). The top-level `metrics.tokens_in` and `metrics.tokens_out` are the sums across all subagent invocations in the completing cycle.
-
-### 10.1 Where to record
-
-1. **backlog.yaml `metrics` map** (section 4.5.1): Per-subagent and total token counts.
-2. **Discord notification** (section 9.2): Append `Tokens: <total_in>in / <total_out>out.` to the `testing → uat` message using `metrics.tokens_in` and `metrics.tokens_out`.
-3. **CHANGELOG entry** (section 4.5): Add a `- Token usage: <total_in> input, <total_out> output` line using `metrics.tokens_in` and `metrics.tokens_out`.
-
-### 10.2 Notes
-
-- Token counts reflect the completing cycle only. If a story spans multiple ralph cycles, prior cycles' tokens are lost.
-- If `/cost` is unavailable, omit token fields from `metrics` and from the Discord/CHANGELOG lines rather than guessing. Duration and invocation counts should still be recorded.
-
-## 11) Ralph loop expectations
+## 10) Ralph loop expectations
 
 The agent must assume:
 - Context is cleared between cycles.
 - The only persisted state is the repository content and git history.
 - Therefore, always re-read the input files in section 0 before acting.
 - A single cycle may advance a story through multiple status transitions (e.g., `todo` → `in_progress` → `review` → `testing` → `uat`) if all subagents complete successfully within the cycle. The `uat` → `done` transition is always a manual user action.
+
+### 10.1 Per-iteration temp directory (`.ralph-temp/`)
+
+The `.ralph-temp/` directory is available for any ephemeral per-iteration files (logs, debug context, intermediate outputs). Key facts:
+
+- **Auto-created**: claude-sandbox creates the directory automatically if it does not exist.
+- **Emptied each iteration**: Contents are deleted at the start of each ralph iteration, unless the iteration is a `--resume` (in which case previous contents are preserved).
+- **Gitignored**: The directory is in `.gitignore` — never commit its contents.
+- **Not committed**: Do not include `.ralph-temp/` files in story commits.
+- **Use cases**: E2E log capture, runtime context snapshots (`capture-runtime-context.sh`), any other temporary diagnostic output.
