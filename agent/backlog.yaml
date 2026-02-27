@@ -206,6 +206,7 @@ stories:
     priority: 250
     status: todo
     requires: []
+    complexity: high
     acceptance:
       - "WORKFLOW: build yourself a comfyui-api skill using context7 for full understanding of the comfyui API structure (especially the websocket portion)"
       - "BE: Job executor receives and processes ComfyUI 'executed' and 'execution_success' WebSocket events for submitted prompts"
@@ -419,9 +420,6 @@ stories:
     priority: 80
     status: uat
     requires: []
-    uat_feedback: |
-      If a job is already running, then the new job preempts the running job. This is incorrect
-      behavior — new jobs should queue behind running jobs.
     acceptance:
       - "BE: The negative_prompt cs_role injects the sample preset's negative prompt text into the workflow during job execution"
       - "BE: When the workflow has a negative_prompt node and the preset has a negative prompt, the text is substituted"

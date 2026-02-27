@@ -460,6 +460,64 @@ var _ = Describe("JobExecutor", func() {
 			// Restore for cleanup
 			mockStore.updateJobError = nil
 		})
+
+		It("does not auto-start a new job when activeJobID is set but store shows no running job", func() {
+			// Non-preemption guard: when the executor is actively tracking job A in memory
+			// (activeJobID set) but the store already shows it as completed (race with completeJob),
+			// a newly-created pending job must NOT be auto-started until activeJobID is cleared.
+			// This prevents a new job from preempting the in-flight job's cleanup phase.
+			pendingJob := model.SampleJob{
+				ID:     "job-new-pending",
+				Status: model.SampleJobStatusPending,
+			}
+			pendingItem := model.SampleJobItem{
+				ID:               "item-new-1",
+				JobID:            pendingJob.ID,
+				Status:           model.SampleJobItemStatusPending,
+				ComfyUIModelPath: "models/test.safetensors",
+			}
+			mockStore.jobs[pendingJob.ID] = pendingJob
+			mockStore.items[pendingJob.ID] = []model.SampleJobItem{pendingItem}
+
+			// Simulate: executor is tracking job A in memory (activeJobID set),
+			// but the store no longer shows any running job (completeJob updated the DB
+			// but hasn't yet cleared activeJobID).
+			executor.mu.Lock()
+			executor.activeJobID = "job-old-running"
+			executor.mu.Unlock()
+
+			executor.processNextItem()
+
+			// Pending job must remain pending — the in-memory guard prevents premature auto-start
+			Expect(mockStore.jobs[pendingJob.ID].Status).To(Equal(model.SampleJobStatusPending))
+		})
+
+		It("auto-starts a pending job once the previous job's activeJobID has been cleared", func() {
+			// After the previous job finishes and clears activeJobID (completeJob),
+			// the next pending job should be picked up on the very next tick.
+			pendingJob := model.SampleJob{
+				ID:     "job-queued",
+				Status: model.SampleJobStatusPending,
+			}
+			pendingItem := model.SampleJobItem{
+				ID:               "item-queued-1",
+				JobID:            pendingJob.ID,
+				Status:           model.SampleJobItemStatusPending,
+				ComfyUIModelPath: "models/test.safetensors",
+			}
+			mockStore.jobs[pendingJob.ID] = pendingJob
+			mockStore.items[pendingJob.ID] = []model.SampleJobItem{pendingItem}
+
+			// Simulate: activeJobID was cleared (completeJob finished cleaning up)
+			executor.mu.Lock()
+			executor.activeJobID = ""
+			executor.mu.Unlock()
+
+			executor.processNextItem()
+
+			// Pending job should now be auto-started
+			Expect(mockStore.jobs[pendingJob.ID].Status).To(Equal(model.SampleJobStatusRunning))
+		})
 	})
 
 	Describe("substituteWorkflow", func() {

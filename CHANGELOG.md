@@ -4,10 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
-### B-033: Negative prompt not injected into workflow substitution
-- `backend/internal/service/job_executor.go`: Fixed `CSRoleNegativePrompt` case in `substituteNode()` to inject `item.NegativePrompt` into workflow inputs when non-empty, instead of unconditionally keeping or setting empty
-- `backend/internal/service/job_executor_test.go`: Added `DescribeTable` with 3 entries covering negative prompt injection (with text, empty text, no default) and standalone test for missing negative_prompt role
-- 622 frontend tests pass; 504 backend tests pass; 26 E2E tests pass
+### B-033: Negative prompt not injected into workflow substitution (UAT rework)
+- `backend/internal/service/job_executor.go`: Fixed `CSRoleNegativePrompt` case in `substituteNode()` to inject `item.NegativePrompt` into workflow inputs when non-empty; added `activeJobID` guard in `processNextItem()` to prevent new pending jobs from preempting a running job during the `completeJob` race window
+- `backend/internal/service/job_executor_test.go`: Added `DescribeTable` with 3 entries covering negative prompt injection (with text, empty text, no default), standalone test for missing negative_prompt role, and 2 new tests for non-preemption guard (pending stays pending when activeJobID set, auto-starts once cleared)
+- 622 frontend tests pass; 521 backend tests pass; 26 E2E tests pass
 
 ### B-029: Sample jobs stuck in pending — backend should auto-start and execute jobs
 - `backend/internal/service/job_executor.go`: Added `autoStartJob()` helper method and updated `processNextItem()` to auto-transition pending jobs to running when no running job exists; jobs no longer require an explicit Start API call

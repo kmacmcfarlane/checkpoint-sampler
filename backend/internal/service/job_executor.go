@@ -310,6 +310,15 @@ func (e *JobExecutor) processNextItem() {
 
 	// AC: No explicit Start API call required — auto-start the first pending job
 	if runningJob == nil {
+		// Guard: if we are actively tracking a job in memory, do not auto-start a new one.
+		// This prevents a race where completeJob has already marked a job completed in the DB
+		// but has not yet cleared activeJobID — a concurrent tick would otherwise see no
+		// running job and prematurely start a queued job.
+		if e.activeJobID != "" {
+			e.mu.Unlock()
+			return
+		}
+
 		// Look for a pending job to auto-start (note: ListSampleJobs returns newest-first; FIFO ordering improvement tracked in agent/ideas/enhancements.md)
 		for i := range jobs {
 			if jobs[i].Status == model.SampleJobStatusPending {
