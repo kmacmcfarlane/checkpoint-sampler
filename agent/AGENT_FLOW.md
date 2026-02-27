@@ -43,11 +43,11 @@ todo ──► in_progress ──► review ──► testing ──► uat ─�
               ▲             │           │         │
               │  (changes   │           │         │ (uat_feedback)
               │  requested) │           │         │
-              └─────────────┘           │         │
+              └────────────┘           │         │
               ▲  (issues found)         │         │
-              └─────────────────────────┘         │
+              └───────────────────────┘         │
               ▲  (uat_feedback)                   │
-              └───────────────────────────────────┘
+              └────────────────────────────────┘
 
 Any status ──► blocked (with blocked_reason)
 blocked ──► todo (when blocker is resolved by user)
@@ -55,17 +55,17 @@ blocked ──► todo (when blocker is resolved by user)
 
 Valid transitions — the **Deciding subagent** column shows which subagent's verdict triggers the transition. The **orchestrator** writes all status changes to backlog.yaml; subagents only report their verdict.
 
-| Transition | Deciding subagent | Trigger |
-|---|---|---|
-| `todo` → `in_progress` | **Fullstack Engineer** | Picks up the story to begin implementation |
+| Transition | Deciding subagent      | Trigger |
+|---|------------------------|---|
+| `todo` → `in_progress` | **Orchestrator**       | Picks up the story to begin implementation |
 | `in_progress` → `review` | **Fullstack Engineer** | Implementation and tests complete |
 | `in_progress` → `blocked` | **Fullstack Engineer** | Cannot continue without external input |
-| `review` → `testing` | **Code Reviewer** | Code review approved |
-| `review` → `in_progress` | **Code Reviewer** | Changes requested (feedback in `review_feedback`) |
-| `testing` → `uat` | **QA Expert** | QA approved; finalization performed (CHANGELOG, commit, merge) |
-| `testing` → `in_progress` | **QA Expert** | Issues found (feedback in `review_feedback`) |
-| `uat` → `in_progress` | **Orchestrator** | User provided `uat_feedback`; orchestrator copies to `review_feedback` and clears `uat_feedback` |
-| `uat` → `done` | **User** (manual) | User accepted; edits backlog.yaml directly |
+| `review` → `testing` | **Code Reviewer**      | Code review approved |
+| `review` → `in_progress` | **Code Reviewer**      | Changes requested (feedback in `review_feedback`) |
+| `testing` → `uat` | **QA Expert**          | QA approved; finalization performed (CHANGELOG, commit, merge) |
+| `testing` → `in_progress` | **QA Expert**          | Issues found (feedback in `review_feedback`) |
+| `uat` → `in_progress` | **Orchestrator**       | User provided `uat_feedback`; orchestrator copies to `review_feedback` and clears `uat_feedback` |
+| `uat` → `done` | **User** (manual)      | User accepted; edits backlog.yaml directly |
 
 **Ownership rules:**
 - No subagent may write status changes directly to backlog.yaml. Subagents report structured verdicts; the orchestrator updates backlog.yaml.
@@ -119,7 +119,7 @@ Use the Task tool to invoke a subagent. Pass the subagent's prompt (from its `.m
   - `low` complexity: Use `sonnet` (fast, sufficient for pattern-following changes)
   - `medium` or `high` complexity: Use `opus` (thorough review for architectural/cross-stack changes)
   - If complexity is not reported: default to `opus`
-- **QA Expert**: Use `sonnet` model for test execution
+- **QA Expert**: Use `opus` model for test execution and writing E2E tests
 - **Debugger**: Use `sonnet` model for diagnosis
 - **Security Auditor**: Use `opus` model for thorough analysis
 
