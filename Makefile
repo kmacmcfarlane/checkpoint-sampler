@@ -13,6 +13,9 @@ claude-resume:
 ralph:
 	claude-sandbox --ralph --interactive ${ARGS}
 
+ralph-dangerous:
+	claude-sandbox --ralph --interactive ${ARGS}
+
 ralph-resume:
 	claude-sandbox --ralph --interactive --resume ${ARGS}
 
@@ -59,10 +62,10 @@ test-frontend-watch:
 	$(COMPOSE_DEV) exec frontend npm run test:watch
 
 test-backend:
-	$(COMPOSE_DEV) exec backend ginkgo -r --cover --race ./internal/... ./cmd/...
+	$(COMPOSE_DEV) exec -w /app/backend backend ginkgo -r --cover --race ./internal/... ./cmd/...
 
 test-backend-watch:
-	$(COMPOSE_DEV) exec backend ginkgo watch -r --cover --race ./internal/... ./cmd/...
+	$(COMPOSE_DEV) exec -w /app/backend backend ginkgo watch -r --cover --race ./internal/... ./cmd/...
 
 # Test environment: isolated volumes for E2E runs; use make down-test to wipe without affecting up-dev
 up-test:

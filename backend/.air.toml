@@ -3,6 +3,7 @@ tmp_dir = "tmp"
 
 [build]
   bin = "./tmp/server"
+  full_bin = "cd /app && ./backend/tmp/server"
   cmd = "go build -o ./tmp/server ./cmd/server"
   delay = 1000
   exclude_dir = ["tmp", "internal/api/gen", "bin"]

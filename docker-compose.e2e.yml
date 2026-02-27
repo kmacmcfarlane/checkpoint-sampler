@@ -5,16 +5,16 @@ services:
       dockerfile: Dockerfile.dev
     user: "${UID:-1000}:${GID:-1000}"
     volumes:
-      - ./backend:/build
-      - e2e_backend_data:/build/data
-      - ./test-fixtures/config.yaml:/build/config.yaml:ro
+      - ./backend:/app/backend
+      - e2e_backend_data:/app/data
+      - ./test-fixtures/config.yaml:/app/config.yaml:ro
       - ./test-fixtures/checkpoints:/data/checkpoints:ro
       - ./test-fixtures/samples:/data/samples:ro
       - e2e_go_cache:/home/gouser/.cache/go-build
       - e2e_go_mod_cache:/home/gouser/go/pkg/mod
     environment:
       - PORT=8080
-      - CONFIG_PATH=/build/config.yaml
+      - CONFIG_PATH=/app/config.yaml
       - LOG_LEVEL=info
       - GOPATH=/home/gouser/go
       - GOCACHE=/home/gouser/.cache/go-build

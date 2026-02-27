@@ -11,10 +11,10 @@ RUN go build -o server ./cmd/server
 
 FROM alpine:3.21
 WORKDIR /app
-COPY --from=builder /build/server .
-COPY --from=builder /build/internal/api/design/public ./public
-COPY --from=builder /build/internal/api/gen/http/openapi3.json ./gen/http/openapi3.json
+COPY --from=builder /build/server ./backend/bin/server
+COPY --from=builder /build/internal/api/design/public ./backend/public
+COPY --from=builder /build/internal/api/gen/http/openapi3.json ./backend/gen/http/openapi3.json
 
 RUN mkdir -p /app/data
 EXPOSE 8080
-CMD ["./server"]
+CMD ["./backend/bin/server"]

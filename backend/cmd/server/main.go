@@ -231,23 +231,25 @@ func run() error {
 }
 
 // openAPISpecPath returns the path to the generated OpenAPI 3.0 spec.
-// In production (Dockerfile), it's at gen/http/openapi3.json.
-// In development, it's at internal/api/gen/http/openapi3.json.
+// In production (Dockerfile), it's at backend/gen/http/openapi3.json.
+// In development, it's at backend/internal/api/gen/http/openapi3.json.
+// Both are relative to CWD /app.
 func openAPISpecPath() string {
 	// Check production path first
-	if _, err := os.Stat("gen/http/openapi3.json"); err == nil {
-		return "gen/http/openapi3.json"
+	if _, err := os.Stat("backend/gen/http/openapi3.json"); err == nil {
+		return "backend/gen/http/openapi3.json"
 	}
-	return "internal/api/gen/http/openapi3.json"
+	return "backend/internal/api/gen/http/openapi3.json"
 }
 
 // swaggerUIDir returns the base directory for static file serving.
-// In production (Dockerfile), swagger-ui is at public/swagger-ui/.
-// In development, it's at internal/api/design/public/swagger-ui/.
+// In production (Dockerfile), swagger-ui is at backend/public/swagger-ui/.
+// In development, it's at backend/internal/api/design/public/swagger-ui/.
+// Both are relative to CWD /app.
 func swaggerUIDir() string {
 	// Check production path first
-	if _, err := os.Stat("public/swagger-ui"); err == nil {
-		return "."
+	if _, err := os.Stat("backend/public/swagger-ui"); err == nil {
+		return "backend"
 	}
-	return "internal/api/design"
+	return "backend/internal/api/design"
 }

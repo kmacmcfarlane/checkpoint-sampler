@@ -80,7 +80,7 @@ The agent is already inside a Docker container with the project mounted. Key fac
 Implications for development:
 - **Go commands**: Run via `docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm backend sh -c "..."` (the backend dev container has Go + ginkgo). Do NOT use `docker run` with separate images — always use the project's compose services.
 - **Frontend tests**: `npx vitest run` works directly (Node.js is installed in the sandbox)
-- **Go codegen**: Run via `docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm backend sh -c "cd /build && make gen"`
+- **Go codegen**: Run via `docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm -w /app/backend backend make gen`
 - **Do not install system packages** or modify the container OS — it is ephemeral
 
 ### 7.2 On the host (/.dockerenv does not exist)
@@ -100,7 +100,7 @@ Root Makefile targets (work in both sandbox and host — preferred for agent use
 - `make up-test` / `make down-test` (isolated test environment with separate volumes; independent from up-dev)
 
 Backend via compose (sandbox — when Go is not installed locally):
-- Codegen: `docker compose -p checkpoint-sampler-dev -f docker-compose.yml -f docker-compose.dev.yml run --rm backend sh -c "cd /build && make gen"`
+- Codegen: `docker compose -p checkpoint-sampler-dev -f docker-compose.yml -f docker-compose.dev.yml run --rm -w /app/backend backend make gen`
 - One-shot: use root `make test-backend`
 
 Backend direct (host — requires Go installed):
