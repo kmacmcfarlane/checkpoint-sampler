@@ -1296,3 +1296,147 @@ stories:
     notes: |
       Resolved: In-orchestrator metrics and token tracking removed entirely. Metrics are now
       handled externally by claude-sandbox via ~/.claude/projects jsonl files.
+
+  # ─── UAT approved (2026-02-27) ───────────────────────────────────────────────
+
+  - id: B-023
+    title: "Generate Samples dialog summary text unreadable (low contrast)"
+    priority: 55
+    status: done
+    requires: []
+    acceptance:
+      - "FE: The summary section at the bottom of JobLaunchDialog (training run name, checkpoint count, images per checkpoint) has sufficient text contrast in both dark and light themes"
+      - "FE: Text color uses a theme-aware variable that ensures readability against the summary background in both themes"
+      - "FE: Existing JobLaunchDialog tests still pass"
+    notes: |
+      The .summary section in JobLaunchDialog.vue uses background: var(--bg-surface, #f5f5f5)
+      but text inherits default color, which in the dark theme can be too similar to the background.
+      Fix: set explicit color on .summary p elements using theme-aware CSS variable.
+      Key file: frontend/src/components/JobLaunchDialog.vue (styles around line 367-380).
+    testing:
+      - "command: cd frontend && npx vitest run"
+
+  - id: B-024
+    title: "Sample Preset Editor crashes when adding second prompt"
+    priority: 70
+    status: done
+    requires: []
+    acceptance:
+      - "FE: User can add multiple prompts in the Sample Preset Editor without errors"
+      - "FE: NDynamicInput creates new prompt items with correct shape {name: '', text: ''} instead of null"
+      - "FE: The computedTotalImages and canSave computeds are null-safe against incomplete prompt entries"
+      - "FE: No console errors when adding, editing, or removing prompts"
+      - "FE: Existing SamplePresetEditor tests still pass"
+    notes: |
+      TypeError: Cannot read properties of null (reading 'name') at SamplePresetEditor.vue:60.
+      Root cause: NDynamicInput's default onCreate returns null. The computed at line 60 does
+      p.name without null-guarding. Fix: (1) add an onCreate handler to NDynamicInput that
+      returns {name: '', text: ''}, (2) add null guards in computedTotalImages and canSave.
+      Key file: frontend/src/components/SamplePresetEditor.vue (lines 60, 74, 315).
+    testing:
+      - "command: cd frontend && npx vitest run"
+
+  - id: B-025
+    title: "Has Samples filter should default to checked"
+    priority: 45
+    status: done
+    requires: []
+    acceptance:
+      - "FE: The 'Has Samples' checkbox in TrainingRunSelector defaults to checked (true) on initial load"
+      - "FE: Initial API call uses has_samples=true query parameter"
+      - "FE: User can still uncheck to see all training runs"
+      - "FE: Existing TrainingRunSelector tests updated to reflect the new default"
+    notes: |
+      TrainingRunSelector.vue:16 has const hasSamplesFilter = ref(false). Change to ref(true).
+      Update test at line 153 that asserts has_samples=false on initial load.
+      Key file: frontend/src/components/TrainingRunSelector.vue.
+    testing:
+      - "command: cd frontend && npx vitest run"
+
+  - id: B-027
+    title: "Slider keyboard navigation only selects first or last value"
+    priority: 60
+    status: done
+    requires: []
+    acceptance:
+      - "FE: Arrow keys on the MasterSlider step through all intermediate values, not just first and last"
+      - "FE: Arrow keys on the SliderBar (per-cell and lightbox) step through all intermediate values"
+      - "FE: MasterSlider responds to keyboard input without requiring explicit focus on the slider wrapper"
+      - "FE: Lightbox SliderBar responds to keyboard input without requiring explicit focus"
+      - "FE: No conflict between NSlider's built-in keyboard handling and the custom keydown handler"
+      - "FE: Existing slider and keyboard navigation tests still pass"
+    notes: |
+      Both MasterSlider.vue and SliderBar.vue use NSlider with custom @keydown handlers on
+      wrapper divs. The keyboard-only issue (can only reach first/last) suggests NSlider's
+      built-in arrow key handling may be conflicting with the custom handler — NSlider may be
+      consuming the event and jumping to min/max while the custom handler also fires.
+      Investigate: (1) whether NSlider keyboard prop or keyboard={false} can disable its built-in
+      key handling, (2) whether the custom keydown handler should use stopPropagation/stopImmediate
+      to prevent NSlider from also handling the event.
+      The "doesn't work when not focused" issue requires the master slider to capture keyboard
+      events more broadly — possibly a document-level listener when the slider dimension is active.
+      Key files: frontend/src/components/MasterSlider.vue, frontend/src/components/SliderBar.vue,
+      frontend/src/components/ImageLightbox.vue.
+    testing:
+      - "command: cd frontend && npx vitest run"
+
+  - id: S-048
+    title: "Sample preset steps/cfg/seeds as multi-value tag inputs with validation"
+    priority: 50
+    status: done
+    requires: [B-024]
+    acceptance:
+      - "FE: Steps, CFG, and Seeds fields in SamplePresetEditor use multi-value tag-style inputs (NDynamicTags or similar) instead of comma-separated text inputs"
+      - "FE: Input is restricted to digits and '.' characters only (no letters, special chars)"
+      - "FE: Invalid non-numeric values are rejected on entry"
+      - "FE: Default value for steps is 30 when creating a new preset"
+      - "FE: Existing preset data round-trips correctly (save and load preserves values)"
+      - "FE: computedTotalImages still calculates correctly with the new input format"
+      - "FE: Existing SamplePresetEditor tests updated for new input components"
+    notes: |
+      Currently steps/cfgs/seeds are NInput with comma-separated text parsed by parseNumberList.
+      Change to match the pattern used by samplers/schedulers: multi-value NSelect with tag
+      or NDynamicTags. Add input validation to reject non-numeric characters.
+      Key file: frontend/src/components/SamplePresetEditor.vue.
+    testing:
+      - "command: cd frontend && npx vitest run"
+
+  - id: S-050
+    title: "Remember last workflow and model-type-specific inputs in Generate Samples dialog"
+    priority: 45
+    status: done
+    requires: [S-049]
+    acceptance:
+      - "FE: Last selected workflow ID is persisted to localStorage and restored when dialog opens"
+      - "FE: Last used VAE, Text Encoder, Shift, and other model-type-specific inputs are persisted to localStorage"
+      - "FE: Persisted inputs are keyed by model type (derived from ss_base_model_version of the first checkpoint's metadata)"
+      - "FE: When switching to a training run with a different model type, the remembered inputs for that model type are restored (if available)"
+      - "FE: If a remembered value is no longer available (e.g., VAE was deleted), the field falls back to empty/default"
+      - "BE: Checkpoint metadata includes ss_base_model_version (already available from safetensors header parsing)"
+      - "FE: Existing JobLaunchDialog tests updated for persistence behavior"
+    notes: |
+      Use localStorage with a structured key like 'checkpoint-sampler:generate-inputs'.
+      Store: { lastWorkflowId: string, byModelType: { [modelType: string]: { vae, clip, shift, ... } } }.
+      ss_base_model_version from the first checkpoint in the training run provides the model type key
+      (e.g., 'qwen_image'). The metadata endpoint already parses safetensors headers which include this field.
+      Key files: frontend/src/components/JobLaunchDialog.vue, frontend/src/api/client.ts (metadata fetch).
+    testing:
+      - "command: cd frontend && npx vitest run"
+
+  - id: S-051
+    title: "Workflows documentation (docs/workflows.md)"
+    priority: 30
+    status: done
+    requires: []
+    acceptance:
+      - "A new docs/workflows.md file documents how to create and annotate ComfyUI workflows for use with checkpoint-sampler"
+      - "Documents the required workflow annotations/roles (checkpoint, vae, clip, shift, etc.) and how the tool uses them"
+      - "Includes step-by-step instructions for adding a new workflow to the workflows/ directory"
+      - "README.md references docs/workflows.md with a brief mention that specially annotated workflows are required"
+    notes: |
+      Users need to know that the tool requires specially annotated ComfyUI workflows — not just
+      any exported workflow will work. The documentation should explain what annotations are needed,
+      how the backend parses them, and how to create a compatible workflow.
+      Key files: docs/workflows.md (new), README.md, backend/internal/service/ (workflow parsing logic).
+    testing:
+      - "command: (n/a) documentation only"
