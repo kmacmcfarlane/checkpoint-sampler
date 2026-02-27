@@ -207,6 +207,7 @@ stories:
     status: todo
     requires: []
     acceptance:
+      - "WORKFLOW: build yourself a comfyui-api skill using context7 for full understanding of the comfyui API structure (especially the websocket portion)"
       - "BE: Job executor receives and processes ComfyUI 'executed' and 'execution_success' WebSocket events for submitted prompts"
       - "BE: On completion, executor downloads/saves the generated image to the sample directory under the correct checkpoint subdirectory"
       - "BE: Job item is marked completed and completed_items counter increments"
