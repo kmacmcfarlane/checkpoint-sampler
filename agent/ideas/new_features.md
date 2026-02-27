@@ -20,6 +20,12 @@ Example:
 
 ## Ideas
 
+### Resume completed_with_errors jobs directly
+* status: needs_approval
+* priority: low
+* source: developer
+Currently the regeneration flow for failed items requires launching a new job. A "retry failed" button on the JobProgressPanel that directly re-queues only failed items in the same job would be more streamlined for users dealing with partial failures.
+
 ### WebSocket heartbeat/ping-pong mechanism
 * status: needs_approval
 * priority: medium

@@ -208,6 +208,8 @@ function isValidJobProgressEvent(data: unknown): data is JobProgressMessage {
     typeof msg.status === 'string' &&
     typeof msg.total_items === 'number' &&
     typeof msg.completed_items === 'number' &&
+    typeof msg.failed_items === 'number' &&
+    typeof msg.pending_items === 'number' &&
     typeof msg.checkpoints_completed === 'number' &&
     typeof msg.total_checkpoints === 'number'
   )

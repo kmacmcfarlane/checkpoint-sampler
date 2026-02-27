@@ -137,9 +137,13 @@ const runningJob: SampleJob = {
   training_run_name: 'qwen/psai4rt-v0.5.0',
   sample_preset_id: 'preset-1',
   workflow_name: 'qwen-image.json',
+  vae: 'ae.safetensors',
+  clip: 'clip_l.safetensors',
   status: 'running',
   total_items: 10,
   completed_items: 2,
+  failed_items: 0,
+  pending_items: 8,
   created_at: '2025-01-01T00:00:00Z',
   updated_at: '2025-01-01T00:00:00Z',
 }
@@ -437,6 +441,8 @@ describe('JobLaunchDialog', () => {
       status: 'running',
       total_items: 5,
       completed_items: 0,
+      failed_items: 0,
+      pending_items: 5,
       created_at: '2025-01-01T00:00:00Z',
       updated_at: '2025-01-01T00:00:00Z',
     }
@@ -482,6 +488,8 @@ describe('JobLaunchDialog', () => {
       status: 'running',
       total_items: 5,
       completed_items: 0,
+      failed_items: 0,
+      pending_items: 5,
       created_at: '2025-01-01T00:00:00Z',
       updated_at: '2025-01-01T00:00:00Z',
     }
@@ -527,6 +535,8 @@ describe('JobLaunchDialog', () => {
       status: 'running',
       total_items: 5,
       completed_items: 0,
+      failed_items: 0,
+      pending_items: 5,
       created_at: '2025-01-01T00:00:00Z',
       updated_at: '2025-01-01T00:00:00Z',
     })
@@ -743,6 +753,8 @@ describe('JobLaunchDialog', () => {
         status: 'pending',
         total_items: 3,
         completed_items: 0,
+        failed_items: 0,
+        pending_items: 3,
         created_at: '2025-01-01T00:00:00Z',
         updated_at: '2025-01-01T00:00:00Z',
       })
@@ -770,8 +782,8 @@ describe('JobLaunchDialog', () => {
       const call = mockCreateSampleJob.mock.calls[0][0]
       expect(call.clear_existing).toBe(true)
       expect(call.training_run_name).toBe('qwen/psai4rt-v0.4.0')
-      // No specific checkpoints selected, so checkpoint_filenames should be absent
-      expect(call.checkpoint_filenames).toBeUndefined()
+      // All checkpoints are auto-selected when run has samples
+      expect(call.checkpoint_filenames).toEqual(['chk-a.safetensors', 'chk-b.safetensors', 'chk-c.safetensors'])
     })
 
     it('shows "Regenerate Samples" button text when run has samples', async () => {
@@ -1051,6 +1063,219 @@ describe('JobLaunchDialog', () => {
 
       // runEmpty has checkpoints[0].filename = 'checkpoint1.safetensors'
       expect(mockGetCheckpointMetadata).toHaveBeenCalledWith('checkpoint1.safetensors')
+    })
+  })
+
+  describe('failed checkpoint awareness', () => {
+    const completedWithErrorsJob: SampleJob = {
+      id: 'job-errors',
+      training_run_name: 'qwen/psai4rt-v0.4.0',
+      sample_preset_id: 'preset-1',
+      workflow_name: 'qwen-image.json',
+      vae: 'ae.safetensors',
+      clip: 'clip_l.safetensors',
+      status: 'completed_with_errors',
+      total_items: 3,
+      completed_items: 1,
+      failed_items: 2,
+      pending_items: 0,
+      failed_item_details: [
+        { checkpoint_filename: 'chk-a.safetensors', error_message: 'VRAM overflow' },
+        { checkpoint_filename: 'chk-c.safetensors', error_message: 'timeout expired' },
+      ],
+      created_at: '2025-01-02T00:00:00Z',
+      updated_at: '2025-01-02T00:00:00Z',
+    }
+
+    it('shows red bead for training run with completed_with_errors jobs', async () => {
+      mockListSampleJobs.mockResolvedValue([completedWithErrorsJob])
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Show all runs to see runs with errors
+      wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
+      await nextTick()
+
+      const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
+      const options = runSelect.props('options') as Array<{ label: string; value: number; _status: string; _color: string }>
+      const errorRunOpt = options.find(o => o.value === 2)
+      expect(errorRunOpt?._status).toBe('complete_with_errors')
+      expect(errorRunOpt?._color).toBe('#d03050')
+    })
+
+    it('pre-selects only failed checkpoints when completed_with_errors run is selected', async () => {
+      mockListSampleJobs.mockResolvedValue([completedWithErrorsJob])
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Show all runs and select run with errors
+      wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
+      await nextTick()
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      await flushPromises()
+
+      // Check that only failed checkpoints (chk-a, chk-c) are pre-selected
+      const chkA = wrapper.find('[data-testid="checkpoint-row-chk-a.safetensors"]').findComponent(NCheckbox)
+      expect(chkA.props('checked')).toBe(true)
+
+      const chkB = wrapper.find('[data-testid="checkpoint-row-chk-b.safetensors"]').findComponent(NCheckbox)
+      expect(chkB.props('checked')).toBe(false)
+
+      const chkC = wrapper.find('[data-testid="checkpoint-row-chk-c.safetensors"]').findComponent(NCheckbox)
+      expect(chkC.props('checked')).toBe(true)
+    })
+
+    it('shows failed badge on checkpoints with errors', async () => {
+      mockListSampleJobs.mockResolvedValue([completedWithErrorsJob])
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
+      await nextTick()
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      await flushPromises()
+
+      // Failed checkpoints should have a 'failed' badge
+      expect(wrapper.find('[data-testid="checkpoint-failed-badge-chk-a.safetensors"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="checkpoint-failed-badge-chk-c.safetensors"]').exists()).toBe(true)
+
+      // Non-failed checkpoint should not have a failed badge
+      expect(wrapper.find('[data-testid="checkpoint-failed-badge-chk-b.safetensors"]').exists()).toBe(false)
+    })
+
+    it('auto-enables clear_existing when failed checkpoints are pre-selected', async () => {
+      mockListSampleJobs.mockResolvedValue([completedWithErrorsJob])
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
+      await nextTick()
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      await flushPromises()
+
+      const clearExistingCheckbox = wrapper.find('[data-testid="clear-existing-checkbox"]').findComponent(NCheckbox)
+      expect(clearExistingCheckbox.props('checked')).toBe(true)
+    })
+
+    it('disables submit when all checkpoints are deselected', async () => {
+      mockListSampleJobs.mockResolvedValue([completedWithErrorsJob])
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select the run with errors
+      wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
+      await nextTick()
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      await flushPromises()
+
+      // Fill other required fields
+      wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect).vm.$emit('update:value', 'qwen-image.json')
+      wrapper.find('[data-testid="preset-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
+      wrapper.find('[data-testid="vae-select"]').findComponent(NSelect).vm.$emit('update:value', 'ae.safetensors')
+      wrapper.find('[data-testid="clip-select"]').findComponent(NSelect).vm.$emit('update:value', 'clip_l.safetensors')
+      await nextTick()
+
+      // Deselect all checkpoints
+      wrapper.find('[data-testid="deselect-all-checkpoints"]').trigger('click')
+      await nextTick()
+
+      // Submit should be disabled
+      const buttons = wrapper.findAllComponents(NButton)
+      const submitButton = buttons.find(b => b.text() === 'Regenerate Samples')
+      expect(submitButton!.props('disabled')).toBe(true)
+
+      // Validation message should be shown
+      expect(wrapper.find('[data-testid="checkpoint-validation-error"]').exists()).toBe(true)
+    })
+
+    it('sends clear_existing and failed checkpoint filenames in payload', async () => {
+      mockListSampleJobs.mockResolvedValue([completedWithErrorsJob])
+      mockCreateSampleJob.mockResolvedValue({
+        id: 'job-regen',
+        training_run_name: 'qwen/psai4rt-v0.4.0',
+        sample_preset_id: 'preset-1',
+        workflow_name: 'qwen-image.json',
+        status: 'pending',
+        total_items: 2,
+        completed_items: 0,
+        failed_items: 0,
+        pending_items: 2,
+        created_at: '2025-01-02T00:00:00Z',
+        updated_at: '2025-01-02T00:00:00Z',
+      })
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
+      await nextTick()
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      await flushPromises()
+      wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect).vm.$emit('update:value', 'qwen-image.json')
+      wrapper.find('[data-testid="preset-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
+      wrapper.find('[data-testid="vae-select"]').findComponent(NSelect).vm.$emit('update:value', 'ae.safetensors')
+      wrapper.find('[data-testid="clip-select"]').findComponent(NSelect).vm.$emit('update:value', 'clip_l.safetensors')
+      await nextTick()
+
+      // Submit (failed checkpoints pre-selected: chk-a, chk-c)
+      const buttons = wrapper.findAllComponents(NButton)
+      const submitButton = buttons.find(b => b.text() === 'Regenerate Samples')
+      await submitButton!.trigger('click')
+      await flushPromises()
+
+      const call = mockCreateSampleJob.mock.calls[0][0]
+      expect(call.clear_existing).toBe(true)
+      expect(call.checkpoint_filenames).toEqual(expect.arrayContaining(['chk-a.safetensors', 'chk-c.safetensors']))
+      expect(call.checkpoint_filenames).toHaveLength(2)
+    })
+
+    it('selects all checkpoints for run with samples but no failures', async () => {
+      // No jobs with errors
+      mockListSampleJobs.mockResolvedValue([])
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
+      await nextTick()
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      await flushPromises()
+
+      // All checkpoints should be selected
+      const chkA = wrapper.find('[data-testid="checkpoint-row-chk-a.safetensors"]').findComponent(NCheckbox)
+      expect(chkA.props('checked')).toBe(true)
+
+      const chkB = wrapper.find('[data-testid="checkpoint-row-chk-b.safetensors"]').findComponent(NCheckbox)
+      expect(chkB.props('checked')).toBe(true)
+
+      const chkC = wrapper.find('[data-testid="checkpoint-row-chk-c.safetensors"]').findComponent(NCheckbox)
+      expect(chkC.props('checked')).toBe(true)
     })
   })
 })

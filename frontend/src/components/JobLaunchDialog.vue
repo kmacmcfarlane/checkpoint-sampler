@@ -10,6 +10,7 @@ import {
   NDivider,
   NCheckbox,
   NTag,
+  NTooltip,
 } from 'naive-ui'
 import type { SelectRenderLabel } from 'naive-ui'
 import type { TrainingRun, SamplePreset, WorkflowSummary, CreateSampleJobPayload, SampleJob } from '../api/types'
@@ -18,7 +19,7 @@ import SamplePresetEditor from './SamplePresetEditor.vue'
 import { useGenerateInputsPersistence } from '../composables/useGenerateInputsPersistence'
 
 /** Status of a training run used to determine bead color. */
-type TrainingRunStatus = 'complete' | 'running' | 'queued' | 'empty'
+type TrainingRunStatus = 'complete' | 'complete_with_errors' | 'running' | 'queued' | 'empty'
 
 const props = defineProps<{
   show: boolean
@@ -57,6 +58,9 @@ const shiftValue = ref<number | null>(null)
 // Checkpoint selection for regeneration
 const selectedCheckpoints = ref<Set<string>>(new Set())
 
+// Whether to clear existing sample directories for selected checkpoints
+const clearExisting = ref(false)
+
 // Current model type derived from the first checkpoint's ss_base_model_version metadata
 const currentModelType = ref<string | null>(null)
 
@@ -73,8 +77,10 @@ function getRunStatus(run: TrainingRun): TrainingRunStatus {
   const runJobs = sampleJobs.value.filter(j => j.training_run_name === run.name)
   const hasRunning = runJobs.some(j => j.status === 'running')
   const hasQueued = runJobs.some(j => j.status === 'pending' || j.status === 'stopped')
+  const hasCompletedWithErrors = runJobs.some(j => j.status === 'completed_with_errors')
   if (hasRunning) return 'running'
   if (hasQueued) return 'queued'
+  if (hasCompletedWithErrors) return 'complete_with_errors'
   if (run.has_samples) return 'complete'
   return 'empty'
 }
@@ -82,10 +88,11 @@ function getRunStatus(run: TrainingRun): TrainingRunStatus {
 // Bead color per status
 function beadColor(status: TrainingRunStatus): string {
   switch (status) {
-    case 'complete': return '#18a058' // green
-    case 'running': return '#2080f0'  // blue
-    case 'queued': return '#f0a020'   // yellow/amber
-    case 'empty': return '#909090'    // gray
+    case 'complete': return '#18a058'            // green
+    case 'complete_with_errors': return '#d03050' // red
+    case 'running': return '#2080f0'              // blue
+    case 'queued': return '#f0a020'               // yellow/amber
+    case 'empty': return '#909090'                // gray
   }
 }
 
@@ -140,19 +147,64 @@ const selectedRunHasSamples = computed(() => {
   const run = selectedTrainingRun.value
   if (!run) return false
   const status = getRunStatus(run)
-  return status === 'complete' || status === 'running' || status === 'queued'
+  return status === 'complete' || status === 'complete_with_errors' || status === 'running' || status === 'queued'
 })
 
 // Checkpoints of the selected training run
 const selectedRunCheckpoints = computed(() => selectedTrainingRun.value?.checkpoints ?? [])
 
+// Map of checkpoint filename -> error message for checkpoints that failed in the most
+// recent completed_with_errors job for the selected training run.
+const failedCheckpointMap = computed((): Map<string, string> => {
+  const run = selectedTrainingRun.value
+  if (!run) return new Map()
+
+  // Find the most recent completed_with_errors job for this run
+  const errorJobs = sampleJobs.value
+    .filter(j => j.training_run_name === run.name && j.status === 'completed_with_errors')
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+
+  if (errorJobs.length === 0) return new Map()
+
+  const mostRecentErrorJob = errorJobs[0]
+  const details = mostRecentErrorJob.failed_item_details ?? []
+  if (details.length === 0) return new Map()
+
+  const result = new Map<string, string>()
+  for (const detail of details) {
+    // If multiple errors for the same checkpoint, join them
+    const existing = result.get(detail.checkpoint_filename)
+    if (existing) {
+      result.set(detail.checkpoint_filename, `${existing}; ${detail.error_message}`)
+    } else {
+      result.set(detail.checkpoint_filename, detail.error_message)
+    }
+  }
+  return result
+})
+
 // Initialize checkpoint selections and restore persisted inputs when the training run changes
 watch(selectedTrainingRunId, async () => {
   selectedCheckpoints.value = new Set()
+  clearExisting.value = false
   currentModelType.value = null
 
   const run = selectedTrainingRun.value
   if (!run || run.checkpoints.length === 0) return
+
+  // Auto-select failed checkpoints if any exist for this training run,
+  // otherwise select all checkpoints by default for regeneration
+  const failedCps = failedCheckpointMap.value
+  if (failedCps.size > 0) {
+    selectedCheckpoints.value = new Set(failedCps.keys())
+  } else if (selectedRunHasSamples.value) {
+    selectedCheckpoints.value = new Set(run.checkpoints.map(c => c.filename))
+  }
+
+  // Auto-enable clear_existing when run has existing samples
+  if (selectedRunHasSamples.value) {
+    clearExisting.value = true
+  }
 
   // Fetch metadata for the first checkpoint to determine the model type
   const firstCheckpoint = run.checkpoints[0]
@@ -272,11 +324,9 @@ const selectedPresetDetail = computed(() =>
   samplePresets.value.find(p => p.id === selectedPreset.value)
 )
 
-// Effective checkpoints to use: if picker is shown and checkpoints are selected, use them;
-// otherwise all checkpoints (empty array = all)
+// Effective checkpoints to use: when picker is shown, always use explicit selection
 const effectiveCheckpointFilenames = computed((): string[] | undefined => {
   if (!selectedRunHasSamples.value) return undefined
-  if (selectedCheckpoints.value.size === 0) return undefined
   return Array.from(selectedCheckpoints.value)
 })
 
@@ -285,11 +335,7 @@ const targetedCheckpointCount = computed(() => {
   if (!selectedRunHasSamples.value) {
     return selectedTrainingRun.value?.checkpoint_count ?? 0
   }
-  // If checkpoints are selected, use that count; otherwise all
-  if (selectedCheckpoints.value.size > 0) {
-    return selectedCheckpoints.value.size
-  }
-  return selectedTrainingRun.value?.checkpoint_count ?? 0
+  return selectedCheckpoints.value.size
 })
 
 const totalCheckpoints = computed(() => selectedTrainingRun.value?.checkpoint_count ?? 0)
@@ -300,6 +346,14 @@ const imagesPerCheckpoint = computed(() =>
 
 const totalImages = computed(() => targetedCheckpointCount.value * imagesPerCheckpoint.value)
 
+// Validation: when checkpoint picker is shown, at least one must be selected
+const checkpointValidationError = computed((): string | null => {
+  if (!selectedRunHasSamples.value) return null
+  if (selectedRunCheckpoints.value.length === 0) return null
+  if (selectedCheckpoints.value.size === 0) return 'Select at least one checkpoint to regenerate'
+  return null
+})
+
 const canSubmit = computed(() => {
   return (
     selectedTrainingRunId.value !== null &&
@@ -307,7 +361,8 @@ const canSubmit = computed(() => {
     selectedPreset.value !== null &&
     selectedVAE.value !== null &&
     selectedCLIP.value !== null &&
-    (!hasShiftRole.value || shiftValue.value !== null)
+    (!hasShiftRole.value || shiftValue.value !== null) &&
+    checkpointValidationError.value === null
   )
 })
 
@@ -393,6 +448,7 @@ function resetForm() {
   selectedCLIP.value = null
   shiftValue.value = null
   selectedCheckpoints.value = new Set()
+  clearExisting.value = false
   currentModelType.value = null
   showAllRuns.value = false
   error.value = null
@@ -438,8 +494,8 @@ async function submit() {
     }
 
     if (selectedRunHasSamples.value) {
-      payload.clear_existing = true
-      if (effectiveCheckpointFilenames.value) {
+      payload.clear_existing = clearExisting.value
+      if (effectiveCheckpointFilenames.value && effectiveCheckpointFilenames.value.length > 0) {
         payload.checkpoint_filenames = effectiveCheckpointFilenames.value
       }
     }
@@ -537,7 +593,10 @@ async function submit() {
           </div>
         </div>
         <p class="field-hint">
-          {{ selectedCheckpoints.size === 0 ? 'All checkpoints selected (none deselected)' : `${selectedCheckpoints.size} of ${selectedRunCheckpoints.length} selected` }}
+          {{ selectedCheckpoints.size === 0 ? 'No checkpoints selected' : `${selectedCheckpoints.size} of ${selectedRunCheckpoints.length} selected` }}
+        </p>
+        <p v-if="checkpointValidationError" class="field-error" data-testid="checkpoint-validation-error">
+          {{ checkpointValidationError }}
         </p>
         <div class="checkpoint-list">
           <div
@@ -559,9 +618,30 @@ async function submit() {
               >
                 has samples
               </NTag>
+              <NTooltip v-if="failedCheckpointMap.has(cp.filename)" trigger="hover">
+                <template #trigger>
+                  <NTag
+                    size="tiny"
+                    type="error"
+                    class="failed-checkpoint-tag"
+                    :data-testid="`checkpoint-failed-badge-${cp.filename}`"
+                  >
+                    failed
+                  </NTag>
+                </template>
+                {{ failedCheckpointMap.get(cp.filename) }}
+              </NTooltip>
             </NCheckbox>
           </div>
         </div>
+        <NCheckbox
+          :checked="clearExisting"
+          data-testid="clear-existing-checkbox"
+          class="clear-existing-checkbox"
+          @update:checked="clearExisting = $event"
+        >
+          Clear existing samples for selected checkpoints
+        </NCheckbox>
       </div>
 
       <div class="form-field">
@@ -731,6 +811,21 @@ async function submit() {
 
 .has-samples-tag {
   margin-left: 0.5rem;
+}
+
+.failed-checkpoint-tag {
+  margin-left: 0.5rem;
+}
+
+.field-error {
+  font-size: 0.8125rem;
+  color: var(--error-color, #d32f2f);
+  margin: 0;
+  font-weight: 500;
+}
+
+.clear-existing-checkbox {
+  margin-top: 0.5rem;
 }
 
 .summary {

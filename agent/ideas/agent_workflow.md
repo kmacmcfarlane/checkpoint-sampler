@@ -20,6 +20,12 @@ Example:
 
 ## Ideas
 
+### Fix pre-existing TypeScript errors in frontend test files
+* status: needs_approval
+* priority: medium
+* source: developer
+SamplePresetEditor.test.ts has 28 pre-existing vue-tsc errors (.vm and .props on WrapperLike). These should be fixed with proper type casting to avoid masking new errors during type checks.
+
 ### Update PRD.md to use "stopped" instead of "paused" in state machine documentation
 * status: needs_approval
 * priority: low

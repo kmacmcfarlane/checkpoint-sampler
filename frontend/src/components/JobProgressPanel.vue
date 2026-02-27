@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { NModal, NButton, NTag, NProgress, NSpace, NEmpty, NSpin } from 'naive-ui'
 import type { SampleJob, SampleJobStatus } from '../api/types'
 
@@ -30,10 +30,26 @@ const sortedJobs = computed(() => {
   })
 })
 
+/** Map of job IDs to whether their error section is expanded. */
+const expandedErrors = ref<Record<string, boolean>>({})
+
+function toggleErrorSection(jobId: string) {
+  expandedErrors.value = {
+    ...expandedErrors.value,
+    [jobId]: !expandedErrors.value[jobId],
+  }
+}
+
+function isErrorExpanded(jobId: string): boolean {
+  return expandedErrors.value[jobId] ?? false
+}
+
 function getStatusType(status: SampleJobStatus): 'success' | 'error' | 'warning' | 'info' | 'default' {
   switch (status) {
     case 'completed':
       return 'success'
+    case 'completed_with_errors':
+      return 'warning'
     case 'failed':
       return 'error'
     case 'stopped':
@@ -45,9 +61,21 @@ function getStatusType(status: SampleJobStatus): 'success' | 'error' | 'warning'
   }
 }
 
+function getStatusLabel(status: SampleJobStatus): string {
+  if (status === 'completed_with_errors') return 'completed with errors'
+  return status
+}
+
 function getProgressPercentage(job: SampleJob): number {
   if (job.total_items === 0) return 0
   return Math.round((job.completed_items / job.total_items) * 100)
+}
+
+function getProgressStatus(job: SampleJob): 'error' | 'success' | 'warning' | 'default' {
+  if (job.status === 'failed') return 'error'
+  if (job.status === 'completed_with_errors') return 'warning'
+  if (job.status === 'completed') return 'success'
+  return 'default'
 }
 
 function canStop(job: SampleJob): boolean {
@@ -78,6 +106,35 @@ function getJobProgress(jobId: string) {
 function hasCheckpointProgress(jobId: string): boolean {
   const progress = getJobProgress(jobId)
   return progress !== undefined && progress.total_checkpoints > 0
+}
+
+/** Whether a job has any failed items. */
+function hasFailedItems(job: SampleJob): boolean {
+  return (job.failed_items ?? 0) > 0
+}
+
+/**
+ * Group failed item details by error message.
+ * Returns an array of { errorMessage, checkpoints } objects.
+ */
+function getGroupedErrors(job: SampleJob): Array<{ errorMessage: string; checkpoints: string[] }> {
+  const details = job.failed_item_details ?? []
+  if (details.length === 0) return []
+
+  const grouped = new Map<string, string[]>()
+  for (const detail of details) {
+    const existing = grouped.get(detail.error_message)
+    if (existing) {
+      existing.push(detail.checkpoint_filename)
+    } else {
+      grouped.set(detail.error_message, [detail.checkpoint_filename])
+    }
+  }
+
+  return Array.from(grouped.entries()).map(([errorMessage, checkpoints]) => ({
+    errorMessage,
+    checkpoints: checkpoints.sort(),
+  }))
 }
 </script>
 
@@ -119,7 +176,7 @@ function hasCheckpointProgress(jobId: string): boolean {
                 size="small"
                 :data-testid="`job-${job.id}-status`"
               >
-                {{ job.status }}
+                {{ getStatusLabel(job.status) }}
               </NTag>
             </div>
             <div class="job-actions">
@@ -170,6 +227,14 @@ function hasCheckpointProgress(jobId: string): boolean {
                   <span>{{ formatTimestamp(getJobProgress(job.id)!.estimated_completion_time!) }}</span>
                 </p>
               </div>
+
+              <!-- Item counts: completed, failed, pending -->
+              <div class="item-counts" :data-testid="`job-${job.id}-counts`">
+                <span>{{ job.completed_items }} completed</span>
+                <span v-if="hasFailedItems(job)" class="failed-count" :data-testid="`job-${job.id}-failed-count`">{{ job.failed_items }} failed</span>
+                <span v-if="(job.pending_items ?? 0) > 0">{{ job.pending_items }} pending</span>
+              </div>
+
               <div class="progress-text">
                 <span>Total progress: {{ job.completed_items }} / {{ job.total_items }} items</span>
                 <span>{{ getProgressPercentage(job) }}%</span>
@@ -178,8 +243,36 @@ function hasCheckpointProgress(jobId: string): boolean {
                 type="line"
                 :percentage="getProgressPercentage(job)"
                 :show-indicator="false"
-                :status="job.status === 'failed' ? 'error' : job.status === 'completed' ? 'success' : 'default'"
+                :status="getProgressStatus(job)"
               />
+            </div>
+
+            <!-- Expandable error section for jobs with failed items -->
+            <div v-if="hasFailedItems(job)" class="error-section" :data-testid="`job-${job.id}-error-section`">
+              <button
+                class="error-section-toggle"
+                :data-testid="`job-${job.id}-error-toggle`"
+                @click="toggleErrorSection(job.id)"
+              >
+                <span class="error-section-arrow" :class="{ 'error-section-arrow--expanded': isErrorExpanded(job.id) }">&#9654;</span>
+                <span class="error-section-label">{{ job.failed_items }} failed item{{ job.failed_items === 1 ? '' : 's' }}</span>
+              </button>
+              <div v-if="isErrorExpanded(job.id)" class="error-details" :data-testid="`job-${job.id}-error-details`">
+                <div
+                  v-for="(group, idx) in getGroupedErrors(job)"
+                  :key="idx"
+                  class="error-group"
+                >
+                  <p class="error-group-header">
+                    {{ group.errorMessage }} ({{ group.checkpoints.length }} checkpoint{{ group.checkpoints.length === 1 ? '' : 's' }})
+                  </p>
+                  <ul class="error-group-checkpoints">
+                    <li v-for="cp in group.checkpoints" :key="cp" class="error-group-checkpoint">
+                      {{ cp }}
+                    </li>
+                  </ul>
+                </div>
+              </div>
             </div>
 
             <p v-if="job.error_message" class="error-message">
@@ -273,6 +366,18 @@ function hasCheckpointProgress(jobId: string): boolean {
   margin-right: 0.5rem;
 }
 
+.item-counts {
+  display: flex;
+  gap: 0.75rem;
+  font-size: 0.875rem;
+  color: var(--text-secondary, #666666);
+}
+
+.failed-count {
+  color: var(--error-color, #d32f2f);
+  font-weight: 600;
+}
+
 .progress-text {
   display: flex;
   justify-content: space-between;
@@ -280,11 +385,79 @@ function hasCheckpointProgress(jobId: string): boolean {
   color: var(--text-secondary, #666666);
 }
 
+.error-section {
+  margin-top: 0.25rem;
+}
+
+.error-section-toggle {
+  background: none;
+  border: none;
+  padding: 0.25rem 0;
+  font: inherit;
+  color: var(--error-color, #d32f2f);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-weight: 500;
+  font-size: 0.875rem;
+}
+
+.error-section-arrow {
+  display: inline-block;
+  font-size: 0.625rem;
+  transition: transform 0.15s;
+}
+
+.error-section-arrow--expanded {
+  transform: rotate(90deg);
+}
+
+.error-section-label {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+}
+
+.error-details {
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  background: var(--bg-color, #ffffff);
+  border: 1px solid var(--error-color, #d32f2f);
+  border-radius: 0.25rem;
+}
+
+.error-group {
+  margin-bottom: 0.5rem;
+}
+
+.error-group:last-child {
+  margin-bottom: 0;
+}
+
+.error-group-header {
+  margin: 0 0 0.25rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--error-color, #d32f2f);
+}
+
+.error-group-checkpoints {
+  margin: 0;
+  padding-left: 1.25rem;
+  list-style: disc;
+}
+
+.error-group-checkpoint {
+  font-size: 0.8125rem;
+  font-family: monospace;
+  color: var(--text-secondary, #666666);
+}
+
 .error-message {
   margin: 0;
   padding: 0.5rem;
   background: var(--error-color, #d32f2f);
-  color: white;
+  color: var(--bg-color);
   border-radius: 0.25rem;
   font-size: 0.875rem;
 }

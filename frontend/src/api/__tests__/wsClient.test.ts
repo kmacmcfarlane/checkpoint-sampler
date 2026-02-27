@@ -253,6 +253,8 @@ describe('WSClient', () => {
           status: 'running',
           total_items: 100,
           completed_items: 50,
+          failed_items: 3,
+          pending_items: 47,
           checkpoints_completed: 2,
           total_checkpoints: 5,
           current_checkpoint: 'checkpoint_00002.safetensors',
@@ -267,6 +269,8 @@ describe('WSClient', () => {
         status: 'running',
         total_items: 100,
         completed_items: 50,
+        failed_items: 3,
+        pending_items: 47,
         checkpoints_completed: 2,
         total_checkpoints: 5,
         current_checkpoint: 'checkpoint_00002.safetensors',
@@ -289,6 +293,8 @@ describe('WSClient', () => {
           status: 'running',
           total_items: 100,
           completed_items: 50,
+          failed_items: 0,
+          pending_items: 50,
           checkpoints_completed: 2,
           total_checkpoints: 5,
         }),
@@ -402,6 +408,7 @@ describe('WSClient', () => {
       client.connect()
       mockInstances[0].simulateOpen()
 
+      // Optional fields: current_checkpoint, current_checkpoint_progress, current_checkpoint_total
       mockInstances[0].simulateMessage(
         JSON.stringify({
           type: 'job_progress',
@@ -409,6 +416,8 @@ describe('WSClient', () => {
           status: 'running',
           total_items: 100,
           completed_items: 50,
+          failed_items: 0,
+          pending_items: 50,
           checkpoints_completed: 2,
           total_checkpoints: 5,
         }),
@@ -420,6 +429,8 @@ describe('WSClient', () => {
         status: 'running',
         total_items: 100,
         completed_items: 50,
+        failed_items: 0,
+        pending_items: 50,
         checkpoints_completed: 2,
         total_checkpoints: 5,
       })

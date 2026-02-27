@@ -33,7 +33,14 @@ func (s *SampleJobsService) List(ctx context.Context) ([]*gensamplejobs.SampleJo
 	}
 	result := make([]*gensamplejobs.SampleJobResponse, len(jobs))
 	for i, j := range jobs {
-		result[i] = sampleJobToResponse(j)
+		progress, err := s.svc.GetProgress(j.ID)
+		if err != nil {
+			progress = model.JobProgress{
+				ItemCounts:        model.ItemStatusCounts{},
+				FailedItemDetails: []model.FailedItemDetail{},
+			}
+		}
+		result[i] = sampleJobToResponse(j, progress.ItemCounts, progress.FailedItemDetails)
 	}
 	return result, nil
 }
@@ -54,7 +61,7 @@ func (s *SampleJobsService) Show(ctx context.Context, p *gensamplejobs.ShowPaylo
 	}
 
 	return &gensamplejobs.SampleJobDetailResponse{
-		Job:      sampleJobToResponse(job),
+		Job:      sampleJobToResponse(job, progress.ItemCounts, progress.FailedItemDetails),
 		Progress: jobProgressToResponse(progress),
 	}, nil
 }
@@ -103,7 +110,9 @@ func (s *SampleJobsService) Create(ctx context.Context, p *gensamplejobs.CreateS
 		return nil, gensamplejobs.MakeInvalidPayload(fmt.Errorf("creating sample job: %w", err))
 	}
 
-	return sampleJobToResponse(job), nil
+	// New job: all items are pending, none completed/failed
+	counts := model.ItemStatusCounts{Pending: job.TotalItems}
+	return sampleJobToResponse(job, counts, []model.FailedItemDetail{}), nil
 }
 
 // Start transitions a pending job to running status.
@@ -119,7 +128,8 @@ func (s *SampleJobsService) Start(ctx context.Context, p *gensamplejobs.StartPay
 		// Check if error is about invalid state
 		return nil, gensamplejobs.MakeInvalidState(err)
 	}
-	return sampleJobToResponse(job), nil
+	counts, _ := s.svc.GetItemCounts(p.ID)
+	return sampleJobToResponse(job, counts, []model.FailedItemDetail{}), nil
 }
 
 // Stop stops a running sample job.
@@ -132,7 +142,8 @@ func (s *SampleJobsService) Stop(ctx context.Context, p *gensamplejobs.StopPaylo
 		// Check if error is about invalid state
 		return nil, gensamplejobs.MakeInvalidState(err)
 	}
-	return sampleJobToResponse(job), nil
+	counts, _ := s.svc.GetItemCounts(p.ID)
+	return sampleJobToResponse(job, counts, []model.FailedItemDetail{}), nil
 }
 
 // Resume resumes a stopped sample job.
@@ -148,7 +159,8 @@ func (s *SampleJobsService) Resume(ctx context.Context, p *gensamplejobs.ResumeP
 		// Check if error is about invalid state
 		return nil, gensamplejobs.MakeInvalidState(err)
 	}
-	return sampleJobToResponse(job), nil
+	counts, _ := s.svc.GetItemCounts(p.ID)
+	return sampleJobToResponse(job, counts, []model.FailedItemDetail{}), nil
 }
 
 // Delete removes a sample job and all its items.
@@ -163,7 +175,7 @@ func (s *SampleJobsService) Delete(ctx context.Context, p *gensamplejobs.DeleteP
 	return nil
 }
 
-func sampleJobToResponse(j model.SampleJob) *gensamplejobs.SampleJobResponse {
+func sampleJobToResponse(j model.SampleJob, counts model.ItemStatusCounts, failedDetails []model.FailedItemDetail) *gensamplejobs.SampleJobResponse {
 	resp := &gensamplejobs.SampleJobResponse{
 		ID:              j.ID,
 		TrainingRunName: j.TrainingRunName,
@@ -172,6 +184,8 @@ func sampleJobToResponse(j model.SampleJob) *gensamplejobs.SampleJobResponse {
 		Status:          string(j.Status),
 		TotalItems:      j.TotalItems,
 		CompletedItems:  j.CompletedItems,
+		FailedItems:     counts.Failed,
+		PendingItems:    counts.Pending,
 		CreatedAt:       j.CreatedAt.UTC().Format(time.RFC3339),
 		UpdatedAt:       j.UpdatedAt.UTC().Format(time.RFC3339),
 	}
@@ -190,6 +204,15 @@ func sampleJobToResponse(j model.SampleJob) *gensamplejobs.SampleJobResponse {
 
 	if j.ErrorMessage != "" {
 		resp.ErrorMessage = &j.ErrorMessage
+	}
+
+	// Populate failed item details
+	resp.FailedItemDetails = make([]*gensamplejobs.FailedItemDetailResponse, len(failedDetails))
+	for i, d := range failedDetails {
+		resp.FailedItemDetails[i] = &gensamplejobs.FailedItemDetailResponse{
+			CheckpointFilename: d.CheckpointFilename,
+			ErrorMessage:       d.ErrorMessage,
+		}
 	}
 
 	return resp

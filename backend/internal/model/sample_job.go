@@ -23,11 +23,12 @@ type SampleJob struct {
 type SampleJobStatus string
 
 const (
-	SampleJobStatusPending   SampleJobStatus = "pending"
-	SampleJobStatusRunning   SampleJobStatus = "running"
-	SampleJobStatusStopped   SampleJobStatus = "stopped"
-	SampleJobStatusCompleted SampleJobStatus = "completed"
-	SampleJobStatusFailed    SampleJobStatus = "failed"
+	SampleJobStatusPending            SampleJobStatus = "pending"
+	SampleJobStatusRunning            SampleJobStatus = "running"
+	SampleJobStatusStopped            SampleJobStatus = "stopped"
+	SampleJobStatusCompleted          SampleJobStatus = "completed"
+	SampleJobStatusCompletedWithErrors SampleJobStatus = "completed_with_errors"
+	SampleJobStatusFailed             SampleJobStatus = "failed"
 )
 
 // SampleJobItem represents a single work item in a sample job.
@@ -65,6 +66,20 @@ const (
 	SampleJobItemStatusSkipped   SampleJobItemStatus = "skipped"
 )
 
+// ItemStatusCounts contains counts of items grouped by status, computed on-the-fly.
+type ItemStatusCounts struct {
+	Completed int
+	Failed    int
+	Pending   int
+}
+
+// FailedItemDetail contains information about a failed checkpoint.
+// A checkpoint is considered failed if ANY of its items have status=failed.
+type FailedItemDetail struct {
+	CheckpointFilename string
+	ErrorMessage       string
+}
+
 // JobProgress contains computed progress metrics for a sample job.
 type JobProgress struct {
 	CheckpointsCompleted      int
@@ -73,4 +88,6 @@ type JobProgress struct {
 	CurrentCheckpointProgress int
 	CurrentCheckpointTotal    int
 	EstimatedCompletionTime   *time.Time
+	ItemCounts                ItemStatusCounts
+	FailedItemDetails         []FailedItemDetail
 }

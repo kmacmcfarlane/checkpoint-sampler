@@ -131,7 +131,7 @@ stories:
     title: "Job status does not report failed items — add error reporting, completed_with_errors status, and failed-checkpoint regeneration flow"
     priority: 190
     complexity: high
-    status: todo
+    status: uat
     requires: [S-049]
     acceptance:
       # Backend — compute counts on-the-fly from item statuses

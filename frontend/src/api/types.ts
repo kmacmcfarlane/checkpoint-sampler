@@ -167,7 +167,13 @@ export interface UpdateSamplePresetPayload {
 }
 
 /** Sample job status. */
-export type SampleJobStatus = 'pending' | 'running' | 'stopped' | 'completed' | 'failed'
+export type SampleJobStatus = 'pending' | 'running' | 'stopped' | 'completed' | 'completed_with_errors' | 'failed'
+
+/** Details of a failed checkpoint within a job. */
+export interface FailedItemDetail {
+  checkpoint_filename: string
+  error_message: string
+}
 
 /** A sample job. */
 export interface SampleJob {
@@ -181,6 +187,9 @@ export interface SampleJob {
   status: SampleJobStatus
   total_items: number
   completed_items: number
+  failed_items: number
+  pending_items: number
+  failed_item_details?: FailedItemDetail[]
   error_message?: string
   created_at: string
   updated_at: string
@@ -240,6 +249,8 @@ export interface JobProgressMessage {
   status: SampleJobStatus
   total_items: number
   completed_items: number
+  failed_items: number
+  pending_items: number
   checkpoints_completed: number
   total_checkpoints: number
   current_checkpoint?: string

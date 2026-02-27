@@ -16,6 +16,8 @@ const sampleJobs: SampleJob[] = [
     status: 'running',
     total_items: 100,
     completed_items: 40,
+    failed_items: 0,
+    pending_items: 60,
     created_at: '2025-01-01T00:00:00Z',
     updated_at: '2025-01-01T00:00:00Z',
   },
@@ -29,6 +31,8 @@ const sampleJobs: SampleJob[] = [
     status: 'stopped',
     total_items: 50,
     completed_items: 25,
+    failed_items: 0,
+    pending_items: 25,
     created_at: '2025-01-01T01:00:00Z',
     updated_at: '2025-01-01T01:00:00Z',
   },
@@ -42,6 +46,8 @@ const sampleJobs: SampleJob[] = [
     status: 'completed',
     total_items: 200,
     completed_items: 200,
+    failed_items: 0,
+    pending_items: 0,
     created_at: '2025-01-01T02:00:00Z',
     updated_at: '2025-01-01T02:00:00Z',
   },
@@ -55,6 +61,8 @@ const sampleJobs: SampleJob[] = [
     status: 'failed',
     total_items: 10,
     completed_items: 5,
+    failed_items: 3,
+    pending_items: 2,
     error_message: 'ComfyUI connection lost',
     created_at: '2025-01-01T03:00:00Z',
     updated_at: '2025-01-01T03:00:00Z',
@@ -257,5 +265,148 @@ describe('JobProgressPanel', () => {
     const job = wrapper.find('[data-testid="job-job-1"]')
     expect(job.text()).toContain('qwen-image.json')
     expect(job.text()).toContain('Created:')
+  })
+
+  describe('item counts display', () => {
+    it('displays item counts section for each job', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: sampleJobs },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const counts = wrapper.find('[data-testid="job-job-1-counts"]')
+      expect(counts.exists()).toBe(true)
+      expect(counts.text()).toContain('40 completed')
+      expect(counts.text()).toContain('60 pending')
+    })
+
+    it('shows failed count in red for jobs with failures', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: sampleJobs },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const failedCount = wrapper.find('[data-testid="job-job-4-failed-count"]')
+      expect(failedCount.exists()).toBe(true)
+      expect(failedCount.text()).toBe('3 failed')
+    })
+
+    it('does not show failed count for jobs without failures', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: sampleJobs },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const failedCount = wrapper.find('[data-testid="job-job-1-failed-count"]')
+      expect(failedCount.exists()).toBe(false)
+    })
+  })
+
+  describe('completed_with_errors status', () => {
+    const jobWithErrors: SampleJob = {
+      id: 'job-errors',
+      training_run_name: 'test/partial',
+      sample_preset_id: 'preset-1',
+      workflow_name: 'test.json',
+      vae: 'ae.safetensors',
+      clip: 'clip.safetensors',
+      status: 'completed_with_errors',
+      total_items: 10,
+      completed_items: 7,
+      failed_items: 3,
+      pending_items: 0,
+      failed_item_details: [
+        { checkpoint_filename: 'chk-a.safetensors', error_message: 'VRAM overflow' },
+        { checkpoint_filename: 'chk-b.safetensors', error_message: 'VRAM overflow' },
+        { checkpoint_filename: 'chk-c.safetensors', error_message: 'timeout expired' },
+      ],
+      created_at: '2025-01-01T04:00:00Z',
+      updated_at: '2025-01-01T04:00:00Z',
+    }
+
+    it('displays completed_with_errors status as warning tag', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: [jobWithErrors] },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const tag = wrapper.find('[data-testid="job-job-errors-status"]').findComponent(NTag)
+      expect(tag.props('type')).toBe('warning')
+      expect(tag.text()).toBe('completed with errors')
+    })
+
+    it('shows warning progress bar for completed_with_errors jobs', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: [jobWithErrors] },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const progress = wrapper.find('[data-testid="job-job-errors"]').findComponent(NProgress)
+      expect(progress.props('status')).toBe('warning')
+    })
+
+    it('shows expandable error section for jobs with failed items', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: [jobWithErrors] },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const errorSection = wrapper.find('[data-testid="job-job-errors-error-section"]')
+      expect(errorSection.exists()).toBe(true)
+    })
+
+    it('expands error details when toggle is clicked', async () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: [jobWithErrors] },
+        global: { stubs: { Teleport: true } },
+      })
+
+      // Initially collapsed
+      expect(wrapper.find('[data-testid="job-job-errors-error-details"]').exists()).toBe(false)
+
+      // Click toggle
+      await wrapper.find('[data-testid="job-job-errors-error-toggle"]').trigger('click')
+      await nextTick()
+
+      // Now expanded
+      const details = wrapper.find('[data-testid="job-job-errors-error-details"]')
+      expect(details.exists()).toBe(true)
+    })
+
+    it('groups errors by error message in expanded details', async () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: [jobWithErrors] },
+        global: { stubs: { Teleport: true } },
+      })
+
+      await wrapper.find('[data-testid="job-job-errors-error-toggle"]').trigger('click')
+      await nextTick()
+
+      const details = wrapper.find('[data-testid="job-job-errors-error-details"]')
+      const groups = details.findAll('.error-group')
+
+      // Two error groups: 'VRAM overflow' (2 checkpoints) and 'timeout expired' (1 checkpoint)
+      expect(groups).toHaveLength(2)
+
+      const groupTexts = groups.map(g => g.text())
+      const vramGroup = groupTexts.find(t => t.includes('VRAM overflow'))
+      expect(vramGroup).toBeDefined()
+      expect(vramGroup).toContain('2 checkpoints')
+
+      const timeoutGroup = groupTexts.find(t => t.includes('timeout expired'))
+      expect(timeoutGroup).toBeDefined()
+      expect(timeoutGroup).toContain('1 checkpoint')
+    })
+
+    it('does not show error section for jobs without failures', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: sampleJobs },
+        global: { stubs: { Teleport: true } },
+      })
+
+      // job-1 has no failures
+      const errorSection = wrapper.find('[data-testid="job-job-1-error-section"]')
+      expect(errorSection.exists()).toBe(false)
+    })
   })
 })

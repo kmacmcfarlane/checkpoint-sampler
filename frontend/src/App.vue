@@ -171,6 +171,8 @@ function handleJobProgress(message: JobProgressMessage) {
       status: message.status,
       total_items: message.total_items,
       completed_items: message.completed_items,
+      failed_items: message.failed_items,
+      pending_items: message.pending_items,
       updated_at: new Date().toISOString(),
     }
     // Store checkpoint-level progress separately

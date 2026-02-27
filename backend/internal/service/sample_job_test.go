@@ -517,6 +517,45 @@ var _ = Describe("SampleJobService", func() {
 		})
 	})
 
+	Describe("GetItemCounts", func() {
+		It("computes counts with mixed item statuses", func() {
+			job := model.SampleJob{ID: "job-counts", TotalItems: 6}
+			store.jobs[job.ID] = job
+			store.items[job.ID] = []model.SampleJobItem{
+				{ID: "i1", JobID: job.ID, Status: model.SampleJobItemStatusCompleted},
+				{ID: "i2", JobID: job.ID, Status: model.SampleJobItemStatusCompleted},
+				{ID: "i3", JobID: job.ID, Status: model.SampleJobItemStatusFailed},
+				{ID: "i4", JobID: job.ID, Status: model.SampleJobItemStatusPending},
+				{ID: "i5", JobID: job.ID, Status: model.SampleJobItemStatusPending},
+				{ID: "i6", JobID: job.ID, Status: model.SampleJobItemStatusRunning}, // running items are not counted in any bucket
+			}
+
+			counts, err := svc.GetItemCounts("job-counts")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(counts.Completed).To(Equal(2))
+			Expect(counts.Failed).To(Equal(1))
+			Expect(counts.Pending).To(Equal(2))
+		})
+
+		It("returns zero counts for a job with no items", func() {
+			job := model.SampleJob{ID: "job-empty", TotalItems: 0}
+			store.jobs[job.ID] = job
+
+			counts, err := svc.GetItemCounts("job-empty")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(counts.Completed).To(Equal(0))
+			Expect(counts.Failed).To(Equal(0))
+			Expect(counts.Pending).To(Equal(0))
+		})
+
+		It("returns error when list items fails", func() {
+			store.listItemsErr = errors.New("db error")
+			_, err := svc.GetItemCounts("any-id")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("listing sample job items"))
+		})
+	})
+
 	Describe("GetProgress", func() {
 		It("computes progress metrics correctly", func() {
 			job := model.SampleJob{
@@ -562,6 +601,81 @@ var _ = Describe("SampleJobService", func() {
 			_, err := svc.GetProgress("nonexistent")
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("not found"))
+		})
+
+		It("populates item counts in progress", func() {
+			job := model.SampleJob{ID: "job-counts", TotalItems: 4}
+			store.jobs[job.ID] = job
+			store.items[job.ID] = []model.SampleJobItem{
+				{ID: "i1", JobID: job.ID, CheckpointFilename: "chk1.safetensors", Status: model.SampleJobItemStatusCompleted},
+				{ID: "i2", JobID: job.ID, CheckpointFilename: "chk1.safetensors", Status: model.SampleJobItemStatusFailed, ErrorMessage: "VRAM overflow"},
+				{ID: "i3", JobID: job.ID, CheckpointFilename: "chk2.safetensors", Status: model.SampleJobItemStatusPending},
+				{ID: "i4", JobID: job.ID, CheckpointFilename: "chk2.safetensors", Status: model.SampleJobItemStatusPending},
+			}
+
+			progress, err := svc.GetProgress("job-counts")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(progress.ItemCounts.Completed).To(Equal(1))
+			Expect(progress.ItemCounts.Failed).To(Equal(1))
+			Expect(progress.ItemCounts.Pending).To(Equal(2))
+		})
+
+		It("populates failed item details grouped by checkpoint", func() {
+			job := model.SampleJob{ID: "job-details", TotalItems: 4}
+			store.jobs[job.ID] = job
+			store.items[job.ID] = []model.SampleJobItem{
+				{ID: "i1", JobID: job.ID, CheckpointFilename: "chk-a.safetensors", Status: model.SampleJobItemStatusFailed, ErrorMessage: "VRAM overflow"},
+				{ID: "i2", JobID: job.ID, CheckpointFilename: "chk-a.safetensors", Status: model.SampleJobItemStatusFailed, ErrorMessage: "VRAM overflow"},
+				{ID: "i3", JobID: job.ID, CheckpointFilename: "chk-b.safetensors", Status: model.SampleJobItemStatusFailed, ErrorMessage: "timeout expired"},
+				{ID: "i4", JobID: job.ID, CheckpointFilename: "chk-c.safetensors", Status: model.SampleJobItemStatusCompleted},
+			}
+
+			progress, err := svc.GetProgress("job-details")
+			Expect(err).NotTo(HaveOccurred())
+
+			// Should have 2 failed item details (chk-a with VRAM overflow, chk-b with timeout)
+			Expect(progress.FailedItemDetails).To(HaveLen(2))
+
+			// Build a map for deterministic assertion
+			detailMap := make(map[string]string)
+			for _, d := range progress.FailedItemDetails {
+				detailMap[d.CheckpointFilename] = d.ErrorMessage
+			}
+			Expect(detailMap).To(HaveKey("chk-a.safetensors"))
+			Expect(detailMap["chk-a.safetensors"]).To(Equal("VRAM overflow"))
+			Expect(detailMap).To(HaveKey("chk-b.safetensors"))
+			Expect(detailMap["chk-b.safetensors"]).To(Equal("timeout expired"))
+
+			// chk-c should not appear (no failures)
+			Expect(detailMap).NotTo(HaveKey("chk-c.safetensors"))
+		})
+
+		It("returns empty failed item details when no items have failed", func() {
+			job := model.SampleJob{ID: "job-no-fail", TotalItems: 2}
+			store.jobs[job.ID] = job
+			store.items[job.ID] = []model.SampleJobItem{
+				{ID: "i1", JobID: job.ID, CheckpointFilename: "chk1.safetensors", Status: model.SampleJobItemStatusCompleted},
+				{ID: "i2", JobID: job.ID, CheckpointFilename: "chk1.safetensors", Status: model.SampleJobItemStatusCompleted},
+			}
+
+			progress, err := svc.GetProgress("job-no-fail")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(progress.FailedItemDetails).To(BeEmpty())
+			Expect(progress.FailedItemDetails).NotTo(BeNil())
+		})
+
+		It("includes checkpoint with unknown error when failed item has no error message", func() {
+			job := model.SampleJob{ID: "job-no-msg", TotalItems: 1}
+			store.jobs[job.ID] = job
+			store.items[job.ID] = []model.SampleJobItem{
+				{ID: "i1", JobID: job.ID, CheckpointFilename: "chk1.safetensors", Status: model.SampleJobItemStatusFailed, ErrorMessage: ""},
+			}
+
+			progress, err := svc.GetProgress("job-no-msg")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(progress.FailedItemDetails).To(HaveLen(1))
+			Expect(progress.FailedItemDetails[0].CheckpointFilename).To(Equal("chk1.safetensors"))
+			Expect(progress.FailedItemDetails[0].ErrorMessage).To(Equal("unknown error"))
 		})
 	})
 })

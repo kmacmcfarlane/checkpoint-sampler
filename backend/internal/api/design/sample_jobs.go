@@ -152,9 +152,9 @@ var SampleJobResponse = Type("SampleJobResponse", func() {
 		Example("clip_l.safetensors")
 	})
 	Attribute("shift", Float64, "AuraFlow shift value (nullable)")
-	Attribute("status", String, "Job status: pending, running, stopped, completed, failed", func() {
+	Attribute("status", String, "Job status: pending, running, stopped, completed, completed_with_errors, failed", func() {
 		Example("running")
-		Enum("pending", "running", "stopped", "completed", "failed")
+		Enum("pending", "running", "stopped", "completed", "completed_with_errors", "failed")
 	})
 	Attribute("total_items", Int, "Total work items", func() {
 		Example(540)
@@ -162,6 +162,13 @@ var SampleJobResponse = Type("SampleJobResponse", func() {
 	Attribute("completed_items", Int, "Completed work items", func() {
 		Example(120)
 	})
+	Attribute("failed_items", Int, "Failed work items (computed on-the-fly from item statuses)", func() {
+		Example(5)
+	})
+	Attribute("pending_items", Int, "Pending work items (computed on-the-fly from item statuses)", func() {
+		Example(390)
+	})
+	Attribute("failed_item_details", ArrayOf(FailedItemDetailResponse), "Details of failed checkpoints (populated only when job has failed items)")
 	Attribute("error_message", String, "Error details if failed")
 	Attribute("created_at", String, "Creation timestamp (RFC3339)", func() {
 		Example("2025-01-01T00:00:00Z")
@@ -169,7 +176,18 @@ var SampleJobResponse = Type("SampleJobResponse", func() {
 	Attribute("updated_at", String, "Last update timestamp (RFC3339)", func() {
 		Example("2025-01-01T00:00:00Z")
 	})
-	Required("id", "training_run_name", "sample_preset_id", "workflow_name", "status", "total_items", "completed_items", "created_at", "updated_at")
+	Required("id", "training_run_name", "sample_preset_id", "workflow_name", "status", "total_items", "completed_items", "failed_items", "pending_items", "created_at", "updated_at")
+})
+
+var FailedItemDetailResponse = Type("FailedItemDetailResponse", func() {
+	Description("Details of a failed checkpoint")
+	Attribute("checkpoint_filename", String, "Checkpoint filename that failed", func() {
+		Example("psai4rt-v0.3.0-no-reg-step00004500.safetensors")
+	})
+	Attribute("error_message", String, "Error message describing the failure", func() {
+		Example("read-only file system")
+	})
+	Required("checkpoint_filename", "error_message")
 })
 
 var SampleJobDetailResponse = Type("SampleJobDetailResponse", func() {

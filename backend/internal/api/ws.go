@@ -79,11 +79,32 @@ func (c *streamClient) SendEvent(event model.FSEvent) bool {
 func (c *streamClient) writePump() {
 	defer close(c.done)
 	for event := range c.events {
-		err := c.stream.Send(&genws.FSEventResponse{
+		resp := &genws.FSEventResponse{
 			Type: string(event.Type),
 			Path: event.Path,
-		})
-		if err != nil {
+		}
+
+		// Include job progress data when present
+		if event.JobProgressData != nil {
+			d := event.JobProgressData
+			resp.JobID = &d.JobID
+			resp.Status = &d.Status
+			resp.TotalItems = &d.TotalItems
+			resp.CompletedItems = &d.CompletedItems
+			resp.FailedItems = &d.FailedItems
+			resp.PendingItems = &d.PendingItems
+			resp.CheckpointsCompleted = &d.CheckpointsCompleted
+			resp.TotalCheckpoints = &d.TotalCheckpoints
+			if d.CurrentCheckpoint != "" {
+				resp.CurrentCheckpoint = &d.CurrentCheckpoint
+			}
+			if d.CurrentCheckpointTotal > 0 {
+				resp.CurrentCheckpointProgress = &d.CurrentCheckpointProgress
+				resp.CurrentCheckpointTotal = &d.CurrentCheckpointTotal
+			}
+		}
+
+		if err := c.stream.Send(resp); err != nil {
 			return
 		}
 	}

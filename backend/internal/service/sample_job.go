@@ -477,6 +477,42 @@ func (s *SampleJobService) Delete(id string) error {
 	return nil
 }
 
+// GetItemCounts computes item status counts for a job on-the-fly.
+func (s *SampleJobService) GetItemCounts(id string) (model.ItemStatusCounts, error) {
+	s.logger.WithField("sample_job_id", id).Trace("entering GetItemCounts")
+	defer s.logger.Trace("returning from GetItemCounts")
+
+	items, err := s.store.ListSampleJobItems(id)
+	if err != nil {
+		s.logger.WithFields(logrus.Fields{
+			"sample_job_id": id,
+			"error":         err.Error(),
+		}).Error("failed to list sample job items")
+		return model.ItemStatusCounts{}, fmt.Errorf("listing sample job items: %w", err)
+	}
+
+	var counts model.ItemStatusCounts
+	for _, item := range items {
+		switch item.Status {
+		case model.SampleJobItemStatusCompleted:
+			counts.Completed++
+		case model.SampleJobItemStatusFailed:
+			counts.Failed++
+		case model.SampleJobItemStatusPending:
+			counts.Pending++
+		}
+	}
+
+	s.logger.WithFields(logrus.Fields{
+		"sample_job_id": id,
+		"completed":     counts.Completed,
+		"failed":        counts.Failed,
+		"pending":       counts.Pending,
+	}).Debug("computed item status counts")
+
+	return counts, nil
+}
+
 // GetProgress computes the current progress metrics for a job.
 func (s *SampleJobService) GetProgress(id string) (model.JobProgress, error) {
 	s.logger.WithField("sample_job_id", id).Trace("entering GetProgress")
@@ -509,22 +545,42 @@ func (s *SampleJobService) GetProgress(id string) (model.JobProgress, error) {
 		"item_count":    len(items),
 	}).Debug("fetched sample job items from store")
 
-	// Group items by checkpoint and count completed
-	checkpointProgress := make(map[string]struct {
+	// Group items by checkpoint and count by status
+	type checkpointStats struct {
 		total     int
 		completed int
-	})
+		failed    int
+		// Track unique error messages per checkpoint
+		errors map[string]struct{}
+	}
+	checkpointProgress := make(map[string]*checkpointStats)
+
+	// Compute on-the-fly item status counts
+	var itemCounts model.ItemStatusCounts
 
 	for _, item := range items {
-		stats := checkpointProgress[item.CheckpointFilename]
-		stats.total++
-		if item.Status == model.SampleJobItemStatusCompleted {
-			stats.completed++
+		stats, ok := checkpointProgress[item.CheckpointFilename]
+		if !ok {
+			stats = &checkpointStats{errors: make(map[string]struct{})}
+			checkpointProgress[item.CheckpointFilename] = stats
 		}
-		checkpointProgress[item.CheckpointFilename] = stats
+		stats.total++
+		switch item.Status {
+		case model.SampleJobItemStatusCompleted:
+			stats.completed++
+			itemCounts.Completed++
+		case model.SampleJobItemStatusFailed:
+			stats.failed++
+			itemCounts.Failed++
+			if item.ErrorMessage != "" {
+				stats.errors[item.ErrorMessage] = struct{}{}
+			}
+		case model.SampleJobItemStatusPending:
+			itemCounts.Pending++
+		}
 	}
 
-	// Count fully completed checkpoints
+	// Count fully completed checkpoints and build failed item details
 	checkpointsCompleted := 0
 	totalCheckpoints := len(checkpointProgress)
 	var currentCheckpoint string
@@ -538,19 +594,45 @@ func (s *SampleJobService) GetProgress(id string) (model.JobProgress, error) {
 	}
 	sort.Strings(checkpointNames)
 
+	var failedItemDetails []model.FailedItemDetail
+
 	for _, checkpoint := range checkpointNames {
 		stats := checkpointProgress[checkpoint]
-		if stats.completed == stats.total {
+		allDone := stats.completed+stats.failed == stats.total
+		if allDone && stats.failed == 0 {
 			checkpointsCompleted++
-		} else if currentCheckpoint == "" {
+		} else if currentCheckpoint == "" && !allDone {
 			// First incomplete checkpoint becomes the "current" one
 			currentCheckpoint = checkpoint
 			currentCheckpointProgress = stats.completed
 			currentCheckpointTotal = stats.total
 		}
+
+		// A checkpoint is considered failed if ANY of its items have status=failed
+		if stats.failed > 0 {
+			// Collect unique error messages for this checkpoint
+			for errMsg := range stats.errors {
+				failedItemDetails = append(failedItemDetails, model.FailedItemDetail{
+					CheckpointFilename: checkpoint,
+					ErrorMessage:       errMsg,
+				})
+			}
+			// If there are failed items but no error messages recorded, still include the checkpoint
+			if len(stats.errors) == 0 {
+				failedItemDetails = append(failedItemDetails, model.FailedItemDetail{
+					CheckpointFilename: checkpoint,
+					ErrorMessage:       "unknown error",
+				})
+			}
+		}
 	}
 
-	// Estimated completion time: not implemented in this story (S-034 will handle execution)
+	// Ensure empty slice rather than nil for consistent API responses
+	if failedItemDetails == nil {
+		failedItemDetails = []model.FailedItemDetail{}
+	}
+
+	// Estimated completion time: not implemented in this story
 	var estimatedCompletion *time.Time
 
 	progress := model.JobProgress{
@@ -560,12 +642,17 @@ func (s *SampleJobService) GetProgress(id string) (model.JobProgress, error) {
 		CurrentCheckpointProgress: currentCheckpointProgress,
 		CurrentCheckpointTotal:    currentCheckpointTotal,
 		EstimatedCompletionTime:   estimatedCompletion,
+		ItemCounts:                itemCounts,
+		FailedItemDetails:         failedItemDetails,
 	}
 
 	s.logger.WithFields(logrus.Fields{
 		"sample_job_id":         id,
 		"checkpoints_completed": checkpointsCompleted,
 		"total_checkpoints":     totalCheckpoints,
+		"completed_items":       itemCounts.Completed,
+		"failed_items":          itemCounts.Failed,
+		"pending_items":         itemCounts.Pending,
 	}).Debug("computed job progress")
 
 	return progress, nil

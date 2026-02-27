@@ -938,8 +938,10 @@ var _ = Describe("JobExecutor", func() {
 
 			// Verify progress event was broadcast
 			Expect(mockHub.events).To(HaveLen(1))
-			Expect(mockHub.events[0].Type).To(Equal(model.EventImageAdded))
+			Expect(mockHub.events[0].Type).To(Equal(model.EventJobProgress))
 			Expect(mockHub.events[0].Path).To(ContainSubstring("job_progress/job-1"))
+			Expect(mockHub.events[0].JobProgressData).NotTo(BeNil())
+			Expect(mockHub.events[0].JobProgressData.JobID).To(Equal("job-1"))
 		})
 
 		It("handles download errors gracefully", func() {
@@ -1591,6 +1593,109 @@ var _ = Describe("JobExecutor", func() {
 			// Now processNextItem should auto-start the pending job
 			executor.processNextItem()
 			Expect(mockStore.jobs[pendingJob.ID].Status).To(Equal(model.SampleJobStatusRunning))
+		})
+	})
+
+	Describe("Job completion with errors", func() {
+		BeforeEach(func() {
+			executor.mu.Lock()
+			executor.connected = true
+			executor.mu.Unlock()
+		})
+
+		It("transitions job to completed_with_errors when some items failed", func() {
+			// Job with 3 items: 2 completed, 1 failed (no pending)
+			job := model.SampleJob{
+				ID:         "job-partial-fail",
+				Status:     model.SampleJobStatusRunning,
+				TotalItems: 3,
+			}
+			mockStore.jobs[job.ID] = job
+			mockStore.items[job.ID] = []model.SampleJobItem{
+				{ID: "i1", JobID: job.ID, CheckpointFilename: "chk1.safetensors", Status: model.SampleJobItemStatusCompleted},
+				{ID: "i2", JobID: job.ID, CheckpointFilename: "chk1.safetensors", Status: model.SampleJobItemStatusCompleted},
+				{ID: "i3", JobID: job.ID, CheckpointFilename: "chk2.safetensors", Status: model.SampleJobItemStatusFailed, ErrorMessage: "VRAM overflow"},
+			}
+
+			// processNextItem should find no pending items and call completeJob
+			executor.mu.Lock()
+			executor.activeJobID = job.ID
+			executor.mu.Unlock()
+			executor.processNextItem()
+
+			// Job should be completed_with_errors
+			updatedJob := mockStore.jobs[job.ID]
+			Expect(updatedJob.Status).To(Equal(model.SampleJobStatusCompletedWithErrors))
+		})
+
+		It("transitions job to completed when all items succeeded", func() {
+			// Job with 2 items: all completed (no failed, no pending)
+			job := model.SampleJob{
+				ID:         "job-all-pass",
+				Status:     model.SampleJobStatusRunning,
+				TotalItems: 2,
+			}
+			mockStore.jobs[job.ID] = job
+			mockStore.items[job.ID] = []model.SampleJobItem{
+				{ID: "i1", JobID: job.ID, CheckpointFilename: "chk1.safetensors", Status: model.SampleJobItemStatusCompleted},
+				{ID: "i2", JobID: job.ID, CheckpointFilename: "chk1.safetensors", Status: model.SampleJobItemStatusCompleted},
+			}
+
+			executor.mu.Lock()
+			executor.activeJobID = job.ID
+			executor.mu.Unlock()
+			executor.processNextItem()
+
+			updatedJob := mockStore.jobs[job.ID]
+			Expect(updatedJob.Status).To(Equal(model.SampleJobStatusCompleted))
+		})
+
+		It("transitions job to completed_with_errors when ALL items failed", func() {
+			job := model.SampleJob{
+				ID:         "job-all-fail",
+				Status:     model.SampleJobStatusRunning,
+				TotalItems: 2,
+			}
+			mockStore.jobs[job.ID] = job
+			mockStore.items[job.ID] = []model.SampleJobItem{
+				{ID: "i1", JobID: job.ID, CheckpointFilename: "chk1.safetensors", Status: model.SampleJobItemStatusFailed, ErrorMessage: "error1"},
+				{ID: "i2", JobID: job.ID, CheckpointFilename: "chk2.safetensors", Status: model.SampleJobItemStatusFailed, ErrorMessage: "error2"},
+			}
+
+			executor.mu.Lock()
+			executor.activeJobID = job.ID
+			executor.mu.Unlock()
+			executor.processNextItem()
+
+			updatedJob := mockStore.jobs[job.ID]
+			Expect(updatedJob.Status).To(Equal(model.SampleJobStatusCompletedWithErrors))
+		})
+
+		It("broadcasts job_progress event with correct status on completion", func() {
+			job := model.SampleJob{
+				ID:         "job-broadcast",
+				Status:     model.SampleJobStatusRunning,
+				TotalItems: 2,
+			}
+			mockStore.jobs[job.ID] = job
+			mockStore.items[job.ID] = []model.SampleJobItem{
+				{ID: "i1", JobID: job.ID, CheckpointFilename: "chk1.safetensors", Status: model.SampleJobItemStatusCompleted},
+				{ID: "i2", JobID: job.ID, CheckpointFilename: "chk2.safetensors", Status: model.SampleJobItemStatusFailed, ErrorMessage: "err"},
+			}
+
+			executor.mu.Lock()
+			executor.activeJobID = job.ID
+			executor.mu.Unlock()
+			executor.processNextItem()
+
+			// Should have broadcast a job_progress event
+			Expect(mockHub.events).NotTo(BeEmpty())
+			lastEvent := mockHub.events[len(mockHub.events)-1]
+			Expect(lastEvent.Type).To(Equal(model.EventJobProgress))
+			Expect(lastEvent.JobProgressData).NotTo(BeNil())
+			Expect(lastEvent.JobProgressData.Status).To(Equal("completed_with_errors"))
+			Expect(lastEvent.JobProgressData.CompletedItems).To(Equal(1))
+			Expect(lastEvent.JobProgressData.FailedItems).To(Equal(1))
 		})
 	})
 

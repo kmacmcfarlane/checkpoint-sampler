@@ -1031,7 +1031,9 @@ func (e *JobExecutor) updateJobProgress(jobID string) {
 	}).Debug("job progress updated")
 }
 
-// completeJob marks a job as completed when all items are done.
+// completeJob marks a job as completed (or completed_with_errors) when all items are done.
+// If at least one item has status=failed, the job transitions to completed_with_errors.
+// If all items completed successfully (none failed), the job transitions to completed.
 func (e *JobExecutor) completeJob(jobID string) {
 	e.logger.WithField("job_id", jobID).Info("completing job")
 
@@ -1041,7 +1043,28 @@ func (e *JobExecutor) completeJob(jobID string) {
 		return
 	}
 
-	job.Status = model.SampleJobStatusCompleted
+	// Check if any items failed to determine terminal status
+	items, err := e.store.ListSampleJobItems(jobID)
+	if err != nil {
+		e.logger.WithError(err).Error("failed to list items for completion check")
+		// Fall back to completed status
+		job.Status = model.SampleJobStatusCompleted
+	} else {
+		hasFailed := false
+		for _, item := range items {
+			if item.Status == model.SampleJobItemStatusFailed {
+				hasFailed = true
+				break
+			}
+		}
+		if hasFailed {
+			job.Status = model.SampleJobStatusCompletedWithErrors
+			e.logger.WithField("job_id", jobID).Info("job has failed items, transitioning to completed_with_errors")
+		} else {
+			job.Status = model.SampleJobStatusCompleted
+		}
+	}
+
 	job.UpdatedAt = time.Now().UTC()
 	if err := e.store.UpdateSampleJob(job); err != nil {
 		e.logger.WithError(err).Error("failed to mark job as completed")
@@ -1058,19 +1081,90 @@ func (e *JobExecutor) completeJob(jobID string) {
 	e.activePromptID = ""
 	e.mu.Unlock()
 
-	e.logger.WithField("job_id", jobID).Info("job completed successfully")
+	e.logger.WithFields(logrus.Fields{
+		"job_id": jobID,
+		"status": job.Status,
+	}).Info("job completed")
 }
 
 // broadcastJobProgress broadcasts a job progress event to WebSocket clients.
+// It computes the current item counts and checkpoint progress and sends them
+// as a structured job_progress event.
 func (e *JobExecutor) broadcastJobProgress(jobID string) {
-	// Broadcast a filesystem event to trigger frontend refresh
-	// We use the job ID as the path
+	job, err := e.store.GetSampleJob(jobID)
+	if err != nil {
+		e.logger.WithError(err).Error("failed to get job for progress broadcast")
+		return
+	}
+
+	items, err := e.store.ListSampleJobItems(jobID)
+	if err != nil {
+		e.logger.WithError(err).Error("failed to list items for progress broadcast")
+		return
+	}
+
+	// Compute on-the-fly item counts by status
+	var completed, failed, pending int
+	checkpointStats := make(map[string]struct {
+		total     int
+		completed int
+	})
+
+	for _, item := range items {
+		stats := checkpointStats[item.CheckpointFilename]
+		stats.total++
+		switch item.Status {
+		case model.SampleJobItemStatusCompleted:
+			completed++
+			stats.completed++
+		case model.SampleJobItemStatusFailed:
+			failed++
+		case model.SampleJobItemStatusPending:
+			pending++
+		}
+		checkpointStats[item.CheckpointFilename] = stats
+	}
+
+	// Count fully completed checkpoints and find current
+	checkpointsCompleted := 0
+	totalCheckpoints := len(checkpointStats)
+	var currentCheckpoint string
+	var currentCheckpointProgress, currentCheckpointTotal int
+
+	for checkpoint, stats := range checkpointStats {
+		if stats.completed == stats.total {
+			checkpointsCompleted++
+		} else if currentCheckpoint == "" {
+			currentCheckpoint = checkpoint
+			currentCheckpointProgress = stats.completed
+			currentCheckpointTotal = stats.total
+		}
+	}
+
 	event := model.FSEvent{
-		Type: model.EventImageAdded,
+		Type: model.EventJobProgress,
 		Path: fmt.Sprintf("job_progress/%s", jobID),
+		JobProgressData: &model.JobProgressEventData{
+			JobID:                     jobID,
+			Status:                    string(job.Status),
+			TotalItems:                job.TotalItems,
+			CompletedItems:            completed,
+			FailedItems:               failed,
+			PendingItems:              pending,
+			CheckpointsCompleted:      checkpointsCompleted,
+			TotalCheckpoints:          totalCheckpoints,
+			CurrentCheckpoint:         currentCheckpoint,
+			CurrentCheckpointProgress: currentCheckpointProgress,
+			CurrentCheckpointTotal:    currentCheckpointTotal,
+		},
 	}
 	e.hub.Broadcast(event)
-	e.logger.WithField("job_id", jobID).Debug("broadcasted job progress event")
+	e.logger.WithFields(logrus.Fields{
+		"job_id":       jobID,
+		"completed":    completed,
+		"failed":       failed,
+		"pending":      pending,
+	}).Debug("broadcasted job progress event")
 }
 
 // RequestStop requests the executor to stop the given job immediately.
