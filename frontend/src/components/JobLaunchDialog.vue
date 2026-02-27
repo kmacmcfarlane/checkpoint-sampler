@@ -92,13 +92,23 @@ function beadColor(status: TrainingRunStatus): string {
 // renderLabel function for the training run NSelect.
 // NSelect does not support a #option slot — custom option rendering must be
 // done via the renderLabel prop (a render function returning VNodeChild).
+//
+// IMPORTANT: VNodes returned from renderLabel are rendered outside Vue's scoped
+// compilation context, so scoped CSS classes (e.g. .status-bead) are NOT applied.
+// All styles must be inlined directly on the element.
 const renderTrainingRunLabel: SelectRenderLabel = (option) => {
   const color = (option as { _color?: string })._color ?? '#909090'
   const status = (option as { _status?: string })._status ?? 'empty'
-  return h('div', { class: 'run-option' }, [
+  return h('div', { style: { display: 'flex', alignItems: 'center', gap: '0.5rem' } }, [
     h('span', {
-      class: 'status-bead',
-      style: { backgroundColor: color },
+      style: {
+        display: 'inline-block',
+        width: '10px',
+        height: '10px',
+        borderRadius: '50%',
+        flexShrink: '0',
+        backgroundColor: color,
+      },
       title: status,
     }),
     h('span', {}, String(option.label ?? '')),
@@ -721,19 +731,6 @@ async function submit() {
 
 .has-samples-tag {
   margin-left: 0.5rem;
-}
-
-.run-option {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.status-bead {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  flex-shrink: 0;
 }
 
 .summary {

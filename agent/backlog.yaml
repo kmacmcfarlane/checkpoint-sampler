@@ -42,8 +42,6 @@ stories:
     priority: 55
     status: uat
     requires: []
-    uat_feedback: |
-      Regenerate selection input is there, but it doesn't have any beads (colored status indicators).
     acceptance:
       # Training run selector
       - "FE: JobLaunchDialog has its own training run dropdown (separate from sidebar TrainingRunSelector)"

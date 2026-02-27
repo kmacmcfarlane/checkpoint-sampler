@@ -35,9 +35,8 @@ All notable changes to this project will be documented in this file.
 - 582 frontend tests pass; 26 E2E tests pass
 
 ### S-049: Generate Samples dialog — own training run selector with status beads and regeneration support (UAT rework)
-- `frontend/src/components/JobLaunchDialog.vue`: Fixed status bead rendering by replacing non-functional `#option` template slot with `renderLabel` function prop using Vue's `h()` to produce bead+label VNode; Naive UI NSelect requires `renderLabel` prop, not `#option` slot
-- `frontend/src/components/__tests__/JobLaunchDialog.test.ts`: Added 3 tests covering `renderLabel` prop presence, `_status`/`_color` metadata on option statuses, and VNode structure
-- 622 frontend tests pass; 509 backend tests pass; 26 E2E tests pass
+- `frontend/src/components/JobLaunchDialog.vue`: Fixed status bead visibility by replacing scoped CSS class references (`.run-option`, `.status-bead`) in the `renderLabel` function with inline styles — scoped CSS is not applied to VNodes created via `h()` outside Vue's compilation context; removed dead CSS classes from `<style scoped>` block
+- 622 frontend tests pass; 26 E2E tests pass
 
 ### B-025: Has Samples filter should default to checked
 - `frontend/src/components/TrainingRunSelector.vue`: Changed `hasSamplesFilter` default from `ref(false)` to `ref(true)` so the "Has Samples" checkbox is checked on initial load and the initial API call filters to training runs with samples

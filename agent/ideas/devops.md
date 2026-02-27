@@ -20,6 +20,12 @@ Example:
 
 ## Ideas
 
+### Scoped-CSS-in-render-functions lint rule or doc note
+* status: needs_approval
+* priority: low
+* source: developer
+A custom ESLint rule or DEVELOPMENT_PRACTICES doc note could warn developers when CSS class names from `<style scoped>` are used inside `h()` render functions or `renderLabel`/`renderOption` callbacks — scoped CSS is not applied to VNodes created outside Vue's template compilation context. This footgun caused a two-iteration UAT cycle on S-049.
+
 ### Update frontend npm dependencies to resolve high-severity audit findings
 * status: needs_approval
 * priority: medium
