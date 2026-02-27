@@ -194,7 +194,7 @@ stories:
   - id: B-035
     title: "Job executor never receives ComfyUI completion events — jobs stuck in running"
     priority: 250
-    status: todo
+    status: uat
     requires: []
     complexity: high
     acceptance:

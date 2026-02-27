@@ -31,3 +31,9 @@ The `ListSampleJobs()` store query should ORDER BY `created_at ASC` to ensure FI
 * priority: medium
 * source: developer
 The `SampleJobService.Start()` method doesn't verify that no other job is already running. While the executor now won't preempt, the DB can end up with two `running` jobs, which is confusing. `Start()` should check for existing running jobs and return an error if one exists.
+
+### ComfyUI WS reconnect on disconnect — recover stuck jobs
+* status: needs_approval
+* priority: medium
+* source: developer
+If the WebSocket connection drops mid-job (e.g. ComfyUI restarts), the executor never receives the completion event and the job stays stuck in running. A recovery mechanism that polls the ComfyUI history API after reconnect to detect already-completed prompts would make the system resilient to mid-job connection losses.

@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### B-035: Job executor never receives ComfyUI completion events — jobs stuck in running
+- `backend/internal/service/job_executor.go`: Added `execution_success` event handling in `handleComfyUIEvent` (primary bug fix — ComfyUI sends this event type on completion but it was not being processed); added early `activePromptID` clearing under the lock to prevent double-completion when both `executing`-null-node and `execution_success` arrive for the same prompt; added debug logging of all received WebSocket events with full data
+- `backend/internal/store/comfyui_ws.go`: Added binary message handling in `readLoop` to skip ComfyUI preview-image binary frames (previously caused spurious JSON parse error logs); improved text event debug log to use structured `logrus.Fields`
+- `backend/internal/service/job_executor_test.go`: Added 4 new unit tests for `execution_success` completion, wrong prompt_id filtering for both event types, and no-active-prompt guard; renamed existing completion test for clarity
+- 622 frontend tests pass; 531 backend tests pass; 26 E2E tests pass
+
 ### B-033: Negative prompt not injected into workflow substitution (UAT rework)
 - `backend/internal/service/job_executor.go`: Fixed `CSRoleNegativePrompt` case in `substituteNode()` to inject `item.NegativePrompt` into workflow inputs when non-empty; added `activeJobID` guard in `processNextItem()` to prevent new pending jobs from preempting a running job during the `completeJob` race window
 - `backend/internal/service/job_executor_test.go`: Added `DescribeTable` with 3 entries covering negative prompt injection (with text, empty text, no default), standalone test for missing negative_prompt role, and 2 new tests for non-preemption guard (pending stays pending when activeJobID set, auto-starts once cleared)

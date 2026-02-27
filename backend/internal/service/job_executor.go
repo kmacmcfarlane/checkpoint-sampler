@@ -470,6 +470,12 @@ func (e *JobExecutor) processItem(job model.SampleJob, item model.SampleJobItem)
 
 // handleComfyUIEvent processes WebSocket events from ComfyUI.
 func (e *JobExecutor) handleComfyUIEvent(event model.ComfyUIEvent) {
+	// Log all events at debug level for observability (regardless of active prompt)
+	e.logger.WithFields(logrus.Fields{
+		"event_type": event.Type,
+		"event_data": event.Data,
+	}).Debug("ComfyUI WebSocket event received")
+
 	e.mu.Lock()
 
 	// Only handle events for the active prompt
@@ -478,21 +484,53 @@ func (e *JobExecutor) handleComfyUIEvent(event model.ComfyUIEvent) {
 		return
 	}
 
-	// Check for execution completion
+	// Check for execution completion via "executing" event with null node.
+	// ComfyUI sends this event for each node that begins executing; when node is
+	// null (or absent), it signals that the entire prompt has finished.
 	if event.Type == "executing" {
 		data := event.Data
 		promptID, _ := data["prompt_id"].(string)
 		nodeID, ok := data["node"].(string)
 
 		if promptID == e.activePromptID && (!ok || nodeID == "") {
-			// Execution completed (node is null when done)
-			// Capture state and release lock before blocking I/O
+			// Execution completed (node is null when done).
+			// Clear activePromptID now (under the lock) to prevent a second completion
+			// event (e.g. execution_success) from triggering a duplicate completion.
 			capturedJobID := e.activeJobID
 			capturedItemID := e.activeItemID
 			capturedPromptID := e.activePromptID
+			e.activePromptID = ""
 			e.mu.Unlock()
 
-			e.logger.WithField("prompt_id", capturedPromptID).Info("ComfyUI execution completed")
+			e.logger.WithFields(logrus.Fields{
+				"prompt_id": capturedPromptID,
+				"trigger":   "executing_null_node",
+			}).Info("ComfyUI execution completed")
+			e.handleItemCompletionAsync(capturedJobID, capturedItemID, capturedPromptID)
+			return
+		}
+	}
+
+	// Check for execution completion via "execution_success" event.
+	// Newer ComfyUI versions (and some configurations) emit this event instead of
+	// — or in addition to — the "executing" null-node event when a prompt finishes.
+	if event.Type == "execution_success" {
+		data := event.Data
+		promptID, _ := data["prompt_id"].(string)
+
+		if promptID == e.activePromptID {
+			// Clear activePromptID now (under the lock) to prevent a duplicate
+			// completion if both "executing" null-node and "execution_success" arrive.
+			capturedJobID := e.activeJobID
+			capturedItemID := e.activeItemID
+			capturedPromptID := e.activePromptID
+			e.activePromptID = ""
+			e.mu.Unlock()
+
+			e.logger.WithFields(logrus.Fields{
+				"prompt_id": capturedPromptID,
+				"trigger":   "execution_success",
+			}).Info("ComfyUI execution completed")
 			e.handleItemCompletionAsync(capturedJobID, capturedItemID, capturedPromptID)
 			return
 		}

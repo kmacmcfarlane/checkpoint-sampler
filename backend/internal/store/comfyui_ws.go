@@ -179,10 +179,17 @@ func (c *ComfyUIWSClient) readLoop() {
 			return
 		}
 
-		_, message, err := conn.ReadMessage()
+		msgType, message, err := conn.ReadMessage()
 		if err != nil {
 			c.logger.WithError(err).Error("WebSocket read error")
 			return
+		}
+
+		// ComfyUI sends binary messages for in-progress preview images.
+		// These are not JSON events and must be silently skipped.
+		if msgType == websocket.BinaryMessage {
+			c.logger.WithField("bytes", len(message)).Debug("received binary WebSocket message (preview image), skipping")
+			continue
 		}
 
 		var eventEntity comfyUIEventEntity
@@ -192,7 +199,9 @@ func (c *ComfyUIWSClient) readLoop() {
 		}
 
 		event := toModelComfyUIEvent(eventEntity)
-		c.logger.WithField("event_type", event.Type).Debug("received WebSocket event")
+		c.logger.WithFields(logrus.Fields{
+			"event_type": event.Type,
+		}).Debug("received ComfyUI WebSocket event")
 		c.dispatchEvent(event)
 	}
 }

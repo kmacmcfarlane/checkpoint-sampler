@@ -1018,7 +1018,8 @@ var _ = Describe("JobExecutor", func() {
 			executor.activePromptID = "test-prompt-id"
 		})
 
-		It("handles execution completion event", func() {
+		// AC: BE: Job executor receives and processes ComfyUI "executing" (null node) WebSocket events
+		It("handles execution completion via executing event with null node", func() {
 			event := model.ComfyUIEvent{
 				Type: "executing",
 				Data: map[string]interface{}{
@@ -1033,6 +1034,79 @@ var _ = Describe("JobExecutor", func() {
 			// Verify item was completed
 			items := mockStore.items["job-1"]
 			Expect(items[0].Status).To(Equal(model.SampleJobItemStatusCompleted))
+		})
+
+		// AC: BE: Job executor receives and processes ComfyUI "execution_success" WebSocket events
+		It("handles execution completion via execution_success event", func() {
+			// execution_success is emitted by newer ComfyUI versions upon successful
+			// completion of a prompt, carrying the prompt_id in data.
+			event := model.ComfyUIEvent{
+				Type: "execution_success",
+				Data: map[string]interface{}{
+					"prompt_id": "test-prompt-id",
+					"timestamp": float64(1700000000000),
+				},
+			}
+
+			executor.handleComfyUIEvent(event)
+
+			// Verify item was completed
+			items := mockStore.items["job-1"]
+			Expect(items[0].Status).To(Equal(model.SampleJobItemStatusCompleted))
+		})
+
+		// AC: BE: execution_success for a different prompt_id is ignored
+		It("ignores execution_success for a different prompt_id", func() {
+			event := model.ComfyUIEvent{
+				Type: "execution_success",
+				Data: map[string]interface{}{
+					"prompt_id": "other-prompt-id",
+					"timestamp": float64(1700000000000),
+				},
+			}
+
+			executor.handleComfyUIEvent(event)
+
+			// Verify item was NOT completed
+			items := mockStore.items["job-1"]
+			Expect(items[0].Status).To(Equal(model.SampleJobItemStatusRunning))
+		})
+
+		// AC: BE: executing null-node event for a different prompt_id is ignored
+		It("ignores executing null-node event for a different prompt_id", func() {
+			event := model.ComfyUIEvent{
+				Type: "executing",
+				Data: map[string]interface{}{
+					"prompt_id": "other-prompt-id",
+					"node":      nil,
+				},
+			}
+
+			executor.handleComfyUIEvent(event)
+
+			// Verify item was NOT completed
+			items := mockStore.items["job-1"]
+			Expect(items[0].Status).To(Equal(model.SampleJobItemStatusRunning))
+		})
+
+		// AC: BE: events received when no prompt is active are ignored without panicking
+		It("ignores events when no active prompt is set", func() {
+			executor.mu.Lock()
+			executor.activePromptID = ""
+			executor.mu.Unlock()
+
+			event := model.ComfyUIEvent{
+				Type: "execution_success",
+				Data: map[string]interface{}{
+					"prompt_id": "test-prompt-id",
+				},
+			}
+
+			// Should not panic or modify state
+			executor.handleComfyUIEvent(event)
+
+			items := mockStore.items["job-1"]
+			Expect(items[0].Status).To(Equal(model.SampleJobItemStatusRunning))
 		})
 
 		It("handles execution error event", func() {
