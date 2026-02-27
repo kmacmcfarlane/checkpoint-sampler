@@ -19,3 +19,9 @@ Example:
 ```
 
 ## Ideas
+
+### Deterministic pending-job pickup order
+* status: needs_approval
+* priority: low
+* source: developer
+The `ListSampleJobs()` store query should ORDER BY `created_at ASC` to ensure FIFO processing of pending jobs. Currently the SQLite query may return jobs in arbitrary order when multiple jobs are pending.

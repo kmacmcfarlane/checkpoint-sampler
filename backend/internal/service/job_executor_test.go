@@ -15,8 +15,9 @@ import (
 // Mock implementations
 
 type mockJobExecutorStore struct {
-	jobs  map[string]model.SampleJob
-	items map[string][]model.SampleJobItem
+	jobs            map[string]model.SampleJob
+	items           map[string][]model.SampleJobItem
+	updateJobError  error
 }
 
 func newMockJobExecutorStore() *mockJobExecutorStore {
@@ -35,6 +36,9 @@ func (m *mockJobExecutorStore) GetSampleJob(id string) (model.SampleJob, error) 
 }
 
 func (m *mockJobExecutorStore) UpdateSampleJob(j model.SampleJob) error {
+	if m.updateJobError != nil {
+		return m.updateJobError
+	}
 	m.jobs[j.ID] = j
 	return nil
 }
@@ -287,6 +291,175 @@ var _ = Describe("JobExecutor", func() {
 
 	AfterEach(func() {
 		// Note: We don't start the executor in tests, so no need to stop it
+	})
+
+	// AC: Job executor auto-starts pending jobs without requiring an explicit Start API call
+	Describe("Auto-start behavior (pending → running)", func() {
+		BeforeEach(func() {
+			// Mark executor as connected so it processes items
+			executor.mu.Lock()
+			executor.connected = true
+			executor.mu.Unlock()
+		})
+
+		It("transitions a pending job to running when processNextItem is called", func() {
+			// AC: BE: Job executor polls for jobs in pending status and auto-transitions them to running
+			job := model.SampleJob{
+				ID:     "job-pending-1",
+				Status: model.SampleJobStatusPending,
+			}
+			item := model.SampleJobItem{
+				ID:     "item-1",
+				JobID:  job.ID,
+				Status: model.SampleJobItemStatusPending,
+				// Required for processItem to not fail immediately
+				ComfyUIModelPath: "models/test.safetensors",
+			}
+			mockStore.jobs[job.ID] = job
+			mockStore.items[job.ID] = []model.SampleJobItem{item}
+
+			executor.processNextItem()
+
+			// Verify the job was transitioned from pending to running
+			updatedJob := mockStore.jobs[job.ID]
+			Expect(updatedJob.Status).To(Equal(model.SampleJobStatusRunning))
+		})
+
+		It("does not start a second job while one is already running", func() {
+			// AC: BE: Only one job runs at a time; additional pending jobs wait in queue
+			runningJob := model.SampleJob{
+				ID:     "job-running-1",
+				Status: model.SampleJobStatusRunning,
+			}
+			pendingJob := model.SampleJob{
+				ID:     "job-pending-2",
+				Status: model.SampleJobStatusPending,
+			}
+			// Running job has one pending item
+			runningItem := model.SampleJobItem{
+				ID:               "item-running-1",
+				JobID:            runningJob.ID,
+				Status:           model.SampleJobItemStatusPending,
+				ComfyUIModelPath: "models/test.safetensors",
+			}
+			mockStore.jobs[runningJob.ID] = runningJob
+			mockStore.jobs[pendingJob.ID] = pendingJob
+			mockStore.items[runningJob.ID] = []model.SampleJobItem{runningItem}
+			mockStore.items[pendingJob.ID] = []model.SampleJobItem{}
+
+			executor.processNextItem()
+
+			// Pending job must remain pending — only the running job is processed
+			Expect(mockStore.jobs[pendingJob.ID].Status).To(Equal(model.SampleJobStatusPending))
+			// Running job should still be running
+			Expect(mockStore.jobs[runningJob.ID].Status).To(Equal(model.SampleJobStatusRunning))
+		})
+
+		It("does not auto-start a pending job when not connected to ComfyUI", func() {
+			// AC: BE: If ComfyUI is unreachable when a job is created, the executor retries
+			// once ComfyUI becomes available (i.e. does not transition to running while disconnected)
+			executor.mu.Lock()
+			executor.connected = false
+			executor.mu.Unlock()
+
+			job := model.SampleJob{
+				ID:     "job-pending-3",
+				Status: model.SampleJobStatusPending,
+			}
+			mockStore.jobs[job.ID] = job
+
+			executor.processNextItem()
+
+			// Job should remain pending — ComfyUI not available yet
+			Expect(mockStore.jobs[job.ID].Status).To(Equal(model.SampleJobStatusPending))
+		})
+
+		It("auto-starts pending job and submits first item to ComfyUI", func() {
+			// AC: BE: ComfyUI workflow submissions appear when a job is processing
+			job := model.SampleJob{
+				ID:           "job-pending-submit",
+				Status:       model.SampleJobStatusPending,
+				WorkflowName: "test-workflow.json",
+			}
+			item := model.SampleJobItem{
+				ID:               "item-submit-1",
+				JobID:            job.ID,
+				Status:           model.SampleJobItemStatusPending,
+				ComfyUIModelPath: "models/test.safetensors",
+				SamplerName:      "euler",
+				Scheduler:        "normal",
+				Seed:             42,
+				Steps:            20,
+				CFG:              7.5,
+				Width:            512,
+				Height:           512,
+			}
+			mockStore.jobs[job.ID] = job
+			mockStore.items[job.ID] = []model.SampleJobItem{item}
+
+			executor.processNextItem()
+
+			// Job was transitioned to running
+			Expect(mockStore.jobs[job.ID].Status).To(Equal(model.SampleJobStatusRunning))
+			// Item was submitted to ComfyUI (item status is now running with a prompt ID)
+			items := mockStore.items[job.ID]
+			Expect(items).To(HaveLen(1))
+			Expect(items[0].Status).To(Equal(model.SampleJobItemStatusRunning))
+			Expect(items[0].ComfyUIPromptID).To(Equal("test-prompt-id"))
+		})
+
+		It("picks up a pending job after becoming connected", func() {
+			// AC: BE: If ComfyUI is unreachable when a job is created, the executor retries
+			// once ComfyUI becomes available
+			executor.mu.Lock()
+			executor.connected = false
+			executor.mu.Unlock()
+
+			job := model.SampleJob{
+				ID:     "job-retry",
+				Status: model.SampleJobStatusPending,
+			}
+			item := model.SampleJobItem{
+				ID:               "item-retry-1",
+				JobID:            job.ID,
+				Status:           model.SampleJobItemStatusPending,
+				ComfyUIModelPath: "models/test.safetensors",
+			}
+			mockStore.jobs[job.ID] = job
+			mockStore.items[job.ID] = []model.SampleJobItem{item}
+
+			// First call — disconnected, job stays pending
+			executor.processNextItem()
+			Expect(mockStore.jobs[job.ID].Status).To(Equal(model.SampleJobStatusPending))
+
+			// ComfyUI becomes available
+			executor.mu.Lock()
+			executor.connected = true
+			executor.mu.Unlock()
+
+			// Second call — now connected, job should be auto-started
+			executor.processNextItem()
+			Expect(mockStore.jobs[job.ID].Status).To(Equal(model.SampleJobStatusRunning))
+		})
+
+		It("returns error from autoStartJob when store update fails", func() {
+			// Failure path: store write fails during auto-start
+			job := model.SampleJob{
+				ID:     "job-fail-start",
+				Status: model.SampleJobStatusPending,
+			}
+			mockStore.jobs[job.ID] = job
+			mockStore.updateJobError = errors.New("db write failed")
+
+			// autoStartJob should return an error and job status should remain pending in-memory
+			jobCopy := job
+			err := executor.autoStartJob(&jobCopy)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("auto-starting job"))
+
+			// Restore for cleanup
+			mockStore.updateJobError = nil
+		})
 	})
 
 	Describe("substituteWorkflow", func() {

@@ -474,7 +474,7 @@ stories:
   - id: B-029
     title: "Sample jobs stuck in pending — backend should auto-start and execute jobs"
     priority: 198
-    status: todo
+    status: uat
     requires: []
     acceptance:
       - "BE: Job executor polls for jobs in pending status and auto-transitions them to running"

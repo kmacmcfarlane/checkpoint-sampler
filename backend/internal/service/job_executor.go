@@ -223,6 +223,24 @@ func (e *JobExecutor) resumeRunningJobs() error {
 	return nil
 }
 
+// autoStartJob transitions a pending job to running status.
+// It performs blocking I/O (a store write) without holding the mutex.
+// Returns an error if the transition fails; on success the job's Status field is updated in place.
+func (e *JobExecutor) autoStartJob(job *model.SampleJob) error {
+	e.logger.WithField("job_id", job.ID).Info("auto-starting pending job")
+	job.Status = model.SampleJobStatusRunning
+	job.UpdatedAt = time.Now().UTC()
+	if err := e.store.UpdateSampleJob(*job); err != nil {
+		e.logger.WithFields(logrus.Fields{
+			"job_id": job.ID,
+			"error":  err.Error(),
+		}).Error("failed to auto-start pending job")
+		return fmt.Errorf("auto-starting job: %w", err)
+	}
+	e.logger.WithField("job_id", job.ID).Info("pending job transitioned to running")
+	return nil
+}
+
 // run is the main executor loop.
 func (e *JobExecutor) run() {
 	defer close(e.shutdownComplete)
@@ -257,6 +275,7 @@ func (e *JobExecutor) run() {
 }
 
 // processNextItem finds the next pending item in a running job and processes it.
+// If no running job exists, it auto-starts the first pending job (pending → running).
 func (e *JobExecutor) processNextItem() {
 	e.mu.Lock()
 
@@ -273,7 +292,7 @@ func (e *JobExecutor) processNextItem() {
 		return
 	}
 
-	// Find a running job
+	// Find a running job (or auto-start the first pending job)
 	jobs, err := e.store.ListSampleJobs()
 	if err != nil {
 		e.mu.Unlock()
@@ -289,9 +308,27 @@ func (e *JobExecutor) processNextItem() {
 		}
 	}
 
+	// AC: No explicit Start API call required — auto-start the first pending job
 	if runningJob == nil {
+		// Look for a pending job to auto-start (note: ListSampleJobs returns newest-first; FIFO ordering improvement tracked in agent/ideas/enhancements.md)
+		for i := range jobs {
+			if jobs[i].Status == model.SampleJobStatusPending {
+				runningJob = &jobs[i]
+				break
+			}
+		}
+		if runningJob == nil {
+			e.mu.Unlock()
+			return
+		}
+
+		// Transition pending → running (release lock before I/O, re-acquire after)
 		e.mu.Unlock()
-		return
+		if err := e.autoStartJob(runningJob); err != nil {
+			return
+		}
+		// Re-acquire the lock to continue with item processing
+		e.mu.Lock()
 	}
 
 	// Already processing an item for this job

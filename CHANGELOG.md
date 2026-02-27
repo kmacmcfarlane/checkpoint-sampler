@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### B-029: Sample jobs stuck in pending — backend should auto-start and execute jobs
+- `backend/internal/service/job_executor.go`: Added `autoStartJob()` helper method and updated `processNextItem()` to auto-transition pending jobs to running when no running job exists; jobs no longer require an explicit Start API call
+- `backend/internal/service/job_executor_test.go`: Added 6 new unit tests for auto-start behavior covering pending→running transition, single-job-at-a-time enforcement, no-op while disconnected, ComfyUI submission after auto-start, retry-after-connect, and error handling
+- 622 frontend tests pass; 515 backend tests pass; 26 E2E tests pass
+
 ### S-051: Workflows documentation (docs/workflows.md)
 - `docs/workflows.md`: New file documenting how to create and annotate ComfyUI workflow templates for use with checkpoint-sampler — covers the `cs_role` annotation system, complete role reference table with field substitutions, step-by-step instructions for adding a new workflow, annotated JSON example based on `qwen-image.json`, validation rules, and troubleshooting
 - `README.md`: Added "Workflow templates" section with brief explanation that specially annotated workflows are required and link to docs/workflows.md
