@@ -427,7 +427,7 @@ stories:
   - id: B-034
     title: "High-severity npm audit vulnerabilities in frontend dependencies (rollup path traversal, minimatch ReDoS)"
     priority: 55
-    status: todo
+    status: uat
     requires: []
     acceptance:
       - "Running npm audit in /frontend reports zero high-severity vulnerabilities"
