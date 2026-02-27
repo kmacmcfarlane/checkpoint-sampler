@@ -25,3 +25,9 @@ Example:
 * priority: low
 * source: developer
 The `ListSampleJobs()` store query should ORDER BY `created_at ASC` to ensure FIFO processing of pending jobs. Currently the SQLite query may return jobs in arbitrary order when multiple jobs are pending.
+
+### Guard explicit Start() API against concurrent running jobs
+* status: needs_approval
+* priority: medium
+* source: developer
+The `SampleJobService.Start()` method doesn't verify that no other job is already running. While the executor now won't preempt, the DB can end up with two `running` jobs, which is confusing. `Start()` should check for existing running jobs and return an error if one exists.

@@ -9,10 +9,10 @@ All notable changes to this project will be documented in this file.
 - `backend/internal/service/job_executor_test.go`: Added `DescribeTable` with 3 entries covering negative prompt injection (with text, empty text, no default), standalone test for missing negative_prompt role, and 2 new tests for non-preemption guard (pending stays pending when activeJobID set, auto-starts once cleared)
 - 622 frontend tests pass; 521 backend tests pass; 26 E2E tests pass
 
-### B-029: Sample jobs stuck in pending — backend should auto-start and execute jobs
-- `backend/internal/service/job_executor.go`: Added `autoStartJob()` helper method and updated `processNextItem()` to auto-transition pending jobs to running when no running job exists; jobs no longer require an explicit Start API call
-- `backend/internal/service/job_executor_test.go`: Added 6 new unit tests for auto-start behavior covering pending→running transition, single-job-at-a-time enforcement, no-op while disconnected, ComfyUI submission after auto-start, retry-after-connect, and error handling
-- 622 frontend tests pass; 515 backend tests pass; 26 E2E tests pass
+### B-029: Sample jobs stuck in pending — backend should auto-start and execute jobs (UAT rework)
+- `backend/internal/service/job_executor.go`: Rewrote `processNextItem()` to prevent job preemption — executor now tracks active job by ID and never switches to a different running job; added early `activeItemID` guard to prevent double-submission; auto-start logic only triggers when no job is currently tracked
+- `backend/internal/service/job_executor_test.go`: Added 3 new tests for non-preemption (tracked job not displaced by new pending job, no switch to different running job) and same-tick ComfyUI submission after auto-start
+- 622 frontend tests pass; 522 backend tests pass; 26 E2E tests pass
 
 ### S-051: Workflows documentation (docs/workflows.md)
 - `docs/workflows.md`: New file documenting how to create and annotate ComfyUI workflow templates for use with checkpoint-sampler — covers the `cs_role` annotation system, complete role reference table with field substitutions, step-by-step instructions for adding a new workflow, annotated JSON example based on `qwen-image.json`, validation rules, and troubleshooting

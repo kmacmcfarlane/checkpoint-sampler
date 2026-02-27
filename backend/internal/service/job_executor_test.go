@@ -461,62 +461,140 @@ var _ = Describe("JobExecutor", func() {
 			mockStore.updateJobError = nil
 		})
 
-		It("does not auto-start a new job when activeJobID is set but store shows no running job", func() {
-			// Non-preemption guard: when the executor is actively tracking job A in memory
-			// (activeJobID set) but the store already shows it as completed (race with completeJob),
-			// a newly-created pending job must NOT be auto-started until activeJobID is cleared.
-			// This prevents a new job from preempting the in-flight job's cleanup phase.
+		It("does not preempt the tracked active job when a new pending job is created", func() {
+			// AC: BE: Only one job runs at a time — when activeJobID is set, a new pending
+			// job must not displace the job the executor is already tracking.
+			runningJob := model.SampleJob{
+				ID:     "job-active",
+				Status: model.SampleJobStatusRunning,
+			}
+			runningItem := model.SampleJobItem{
+				ID:               "item-active-1",
+				JobID:            runningJob.ID,
+				Status:           model.SampleJobItemStatusPending,
+				ComfyUIModelPath: "models/active.safetensors",
+			}
 			pendingJob := model.SampleJob{
 				ID:     "job-new-pending",
 				Status: model.SampleJobStatusPending,
 			}
-			pendingItem := model.SampleJobItem{
-				ID:               "item-new-1",
-				JobID:            pendingJob.ID,
-				Status:           model.SampleJobItemStatusPending,
-				ComfyUIModelPath: "models/test.safetensors",
-			}
-			mockStore.jobs[pendingJob.ID] = pendingJob
-			mockStore.items[pendingJob.ID] = []model.SampleJobItem{pendingItem}
 
-			// Simulate: executor is tracking job A in memory (activeJobID set),
-			// but the store no longer shows any running job (completeJob updated the DB
-			// but hasn't yet cleared activeJobID).
+			mockStore.jobs[runningJob.ID] = runningJob
+			mockStore.jobs[pendingJob.ID] = pendingJob
+			mockStore.items[runningJob.ID] = []model.SampleJobItem{runningItem}
+			mockStore.items[pendingJob.ID] = []model.SampleJobItem{}
+
+			// Simulate executor already tracking job-active with an item in flight
 			executor.mu.Lock()
-			executor.activeJobID = "job-old-running"
+			executor.activeJobID = runningJob.ID
+			executor.activeItemID = "item-active-1"
 			executor.mu.Unlock()
 
+			// processNextItem should detect the in-flight item and bail out early,
+			// leaving the pending job untouched.
 			executor.processNextItem()
 
-			// Pending job must remain pending — the in-memory guard prevents premature auto-start
+			// The pending job must not have been auto-started
 			Expect(mockStore.jobs[pendingJob.ID].Status).To(Equal(model.SampleJobStatusPending))
+			// The running job remains running
+			Expect(mockStore.jobs[runningJob.ID].Status).To(Equal(model.SampleJobStatusRunning))
+			// The executor still tracks the original active job
+			executor.mu.Lock()
+			Expect(executor.activeJobID).To(Equal(runningJob.ID))
+			executor.mu.Unlock()
 		})
 
-		It("auto-starts a pending job once the previous job's activeJobID has been cleared", func() {
-			// After the previous job finishes and clears activeJobID (completeJob),
-			// the next pending job should be picked up on the very next tick.
-			pendingJob := model.SampleJob{
-				ID:     "job-queued",
-				Status: model.SampleJobStatusPending,
+		It("does not switch to a different running job when activeJobID is already set", func() {
+			// AC: BE: Executor must not preempt its tracked job by switching to a different
+			// running job that appears in the store (e.g. started via an external API call).
+			trackedJob := model.SampleJob{
+				ID:     "job-tracked",
+				Status: model.SampleJobStatusRunning,
 			}
-			pendingItem := model.SampleJobItem{
-				ID:               "item-queued-1",
-				JobID:            pendingJob.ID,
+			// trackedJob's item has been submitted to ComfyUI; activeItemID is non-empty
+			trackedItem := model.SampleJobItem{
+				ID:               "item-tracked-1",
+				JobID:            trackedJob.ID,
+				Status:           model.SampleJobItemStatusRunning,
+				ComfyUIModelPath: "models/tracked.safetensors",
+			}
+			otherRunningJob := model.SampleJob{
+				ID:     "job-other-running",
+				Status: model.SampleJobStatusRunning,
+			}
+			otherItem := model.SampleJobItem{
+				ID:               "item-other-1",
+				JobID:            otherRunningJob.ID,
 				Status:           model.SampleJobItemStatusPending,
-				ComfyUIModelPath: "models/test.safetensors",
+				ComfyUIModelPath: "models/other.safetensors",
 			}
-			mockStore.jobs[pendingJob.ID] = pendingJob
-			mockStore.items[pendingJob.ID] = []model.SampleJobItem{pendingItem}
 
-			// Simulate: activeJobID was cleared (completeJob finished cleaning up)
+			mockStore.jobs[trackedJob.ID] = trackedJob
+			mockStore.jobs[otherRunningJob.ID] = otherRunningJob
+			mockStore.items[trackedJob.ID] = []model.SampleJobItem{trackedItem}
+			mockStore.items[otherRunningJob.ID] = []model.SampleJobItem{otherItem}
+
+			// Executor is already tracking trackedJob with an item in-flight
 			executor.mu.Lock()
-			executor.activeJobID = ""
+			executor.activeJobID = trackedJob.ID
+			executor.activeItemID = "item-tracked-1"
 			executor.mu.Unlock()
 
 			executor.processNextItem()
 
-			// Pending job should now be auto-started
-			Expect(mockStore.jobs[pendingJob.ID].Status).To(Equal(model.SampleJobStatusRunning))
+			// Other running job's item must not have been submitted to ComfyUI
+			// (its item should still be pending, not running)
+			otherItems := mockStore.items[otherRunningJob.ID]
+			Expect(otherItems[0].Status).To(Equal(model.SampleJobItemStatusPending))
+
+			// Executor still tracks the original job
+			executor.mu.Lock()
+			Expect(executor.activeJobID).To(Equal(trackedJob.ID))
+			executor.mu.Unlock()
+		})
+
+		It("auto-starts a pending job and immediately submits work to ComfyUI in the same tick", func() {
+			// AC: BE: After auto-starting a pending job, the executor submits the first work
+			// item to ComfyUI in the same processNextItem call (no extra tick required).
+			job := model.SampleJob{
+				ID:           "job-autostart-submit",
+				Status:       model.SampleJobStatusPending,
+				WorkflowName: "test-workflow.json",
+			}
+			item := model.SampleJobItem{
+				ID:               "item-autostart-1",
+				JobID:            job.ID,
+				Status:           model.SampleJobItemStatusPending,
+				ComfyUIModelPath: "models/autostart.safetensors",
+				SamplerName:      "dpm_2",
+				Scheduler:        "karras",
+				Seed:             99,
+				Steps:            30,
+				CFG:              6.0,
+				Width:            768,
+				Height:           768,
+			}
+			mockStore.jobs[job.ID] = job
+			mockStore.items[job.ID] = []model.SampleJobItem{item}
+
+			// No prior activeJobID — executor starts fresh
+			executor.processNextItem()
+
+			// Job must have been transitioned to running
+			Expect(mockStore.jobs[job.ID].Status).To(Equal(model.SampleJobStatusRunning))
+
+			// The item must now be running with a ComfyUI prompt ID assigned,
+			// proving that SubmitPrompt was called in the same tick.
+			items := mockStore.items[job.ID]
+			Expect(items).To(HaveLen(1))
+			Expect(items[0].Status).To(Equal(model.SampleJobItemStatusRunning))
+			Expect(items[0].ComfyUIPromptID).To(Equal("test-prompt-id"))
+
+			// Executor state must reflect the active job and item
+			executor.mu.Lock()
+			Expect(executor.activeJobID).To(Equal(job.ID))
+			Expect(executor.activeItemID).To(Equal(item.ID))
+			executor.mu.Unlock()
 		})
 	})
 

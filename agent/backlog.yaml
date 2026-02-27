@@ -169,12 +169,8 @@ stories:
   - id: B-029
     title: "Sample jobs stuck in pending — backend should auto-start and execute jobs"
     priority: 198
-    status: in_progress
+    status: uat
     requires: []
-    review_feedback: |
-      Two issues: (1) New jobs preempt existing running jobs instead of queuing behind them.
-      (2) Jobs don't start creating samples with ComfyUI — they move to running but don't
-      actually submit work to ComfyUI.
     acceptance:
       - "BE: Job executor polls for jobs in pending status and auto-transitions them to running"
       - "BE: No explicit Start API call or UI button required — jobs start automatically after creation"

@@ -276,6 +276,11 @@ func (e *JobExecutor) run() {
 
 // processNextItem finds the next pending item in a running job and processes it.
 // If no running job exists, it auto-starts the first pending job (pending → running).
+//
+// Non-preemption guarantee: once a job is tracked via activeJobID, processNextItem
+// exclusively works on that job until it completes. A new pending job is never
+// auto-started while activeJobID is set, and a different running job is never
+// substituted for the tracked job.
 func (e *JobExecutor) processNextItem() {
 	e.mu.Lock()
 
@@ -292,7 +297,14 @@ func (e *JobExecutor) processNextItem() {
 		return
 	}
 
-	// Find a running job (or auto-start the first pending job)
+	// If an item is currently in-flight (submitted to ComfyUI, awaiting WS completion),
+	// don't start another one. This is the primary guard against double-submission.
+	if e.activeItemID != "" {
+		e.mu.Unlock()
+		return
+	}
+
+	// Fetch all jobs to determine what to work on next.
 	jobs, err := e.store.ListSampleJobs()
 	if err != nil {
 		e.mu.Unlock()
@@ -301,52 +313,60 @@ func (e *JobExecutor) processNextItem() {
 	}
 
 	var runningJob *model.SampleJob
-	for i := range jobs {
-		if jobs[i].Status == model.SampleJobStatusRunning {
-			runningJob = &jobs[i]
-			break
-		}
-	}
 
-	// AC: No explicit Start API call required — auto-start the first pending job
-	if runningJob == nil {
-		// Guard: if we are actively tracking a job in memory, do not auto-start a new one.
-		// This prevents a race where completeJob has already marked a job completed in the DB
-		// but has not yet cleared activeJobID — a concurrent tick would otherwise see no
-		// running job and prematurely start a queued job.
-		if e.activeJobID != "" {
-			e.mu.Unlock()
-			return
-		}
-
-		// Look for a pending job to auto-start (note: ListSampleJobs returns newest-first; FIFO ordering improvement tracked in agent/ideas/enhancements.md)
+	if e.activeJobID != "" {
+		// We are already tracking a job. Look it up by ID so we never switch to a
+		// different running job (preemption prevention).
 		for i := range jobs {
-			if jobs[i].Status == model.SampleJobStatusPending {
+			if jobs[i].ID == e.activeJobID {
 				runningJob = &jobs[i]
 				break
 			}
 		}
 		if runningJob == nil {
+			// Tracked job has disappeared from the store (should not happen in normal
+			// operation). Clear stale state and bail out for this tick.
+			e.logger.WithField("job_id", e.activeJobID).Warn("tracked job not found in store, clearing active state")
+			e.activeJobID = ""
+			e.activePromptID = ""
 			e.mu.Unlock()
 			return
 		}
-
-		// Transition pending → running (release lock before I/O, re-acquire after)
-		e.mu.Unlock()
-		if err := e.autoStartJob(runningJob); err != nil {
-			return
+	} else {
+		// No job currently tracked. Look for a running job first (e.g. resume after restart).
+		for i := range jobs {
+			if jobs[i].Status == model.SampleJobStatusRunning {
+				runningJob = &jobs[i]
+				break
+			}
 		}
-		// Re-acquire the lock to continue with item processing
-		e.mu.Lock()
+
+		// AC: No explicit Start API call required — auto-start the first pending job
+		if runningJob == nil {
+			// Look for a pending job to auto-start (note: ListSampleJobs returns newest-first;
+			// FIFO ordering improvement tracked in agent/ideas/enhancements.md)
+			for i := range jobs {
+				if jobs[i].Status == model.SampleJobStatusPending {
+					runningJob = &jobs[i]
+					break
+				}
+			}
+			if runningJob == nil {
+				e.mu.Unlock()
+				return
+			}
+
+			// Transition pending → running (release lock before I/O, re-acquire after)
+			e.mu.Unlock()
+			if err := e.autoStartJob(runningJob); err != nil {
+				return
+			}
+			// Re-acquire the lock to continue with item processing
+			e.mu.Lock()
+		}
 	}
 
-	// Already processing an item for this job
-	if e.activeJobID == runningJob.ID && e.activeItemID != "" {
-		e.mu.Unlock()
-		return
-	}
-
-	// Find the next pending item
+	// Find the next pending item for the running job
 	items, err := e.store.ListSampleJobItems(runningJob.ID)
 	if err != nil {
 		e.mu.Unlock()
@@ -377,7 +397,7 @@ func (e *JobExecutor) processNextItem() {
 	// Release the lock before performing blocking I/O
 	e.mu.Unlock()
 
-	// Process the item (this does blocking I/O)
+	// Process the item (this does blocking I/O: workflow load, ComfyUI submit)
 	e.processItem(*runningJob, *nextItem)
 }
 
