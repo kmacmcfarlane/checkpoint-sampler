@@ -201,7 +201,9 @@ func (s *PresetService) Create(name string, mapping model.PresetMapping) (model.
 - Enforce linting and formatting consistently (ESLint/Prettier or equivalent).
 - No formatting churn unrelated to a story.
 
-### 4.7 Frontend lint verification
+### 4.7 Frontend Verification
+
+#### 4.7.1 Linting
 The developer must run `npm run lint` (or equivalent) as part of implementation verification before submitting for review. This catches TypeScript type errors and ESLint issues before they reach the review or QA phase. The code reviewer must also verify lint passes.
 
 ### 4.8 CSS variable usage

@@ -114,7 +114,8 @@ func (c *ComfyUIHTTPClient) SubmitPrompt(ctx context.Context, req model.PromptRe
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 
-	c.logger.Debug("submitting prompt to ComfyUI")
+	reqJSON, _ := json.Marshal(reqEntity)
+	c.logger.WithField("request", string(reqJSON)).Debug("submitting prompt to ComfyUI")
 	resp, err := c.client.Do(httpReq)
 	if err != nil {
 		c.logger.WithError(err).Error("failed to submit prompt")
@@ -138,7 +139,8 @@ func (c *ComfyUIHTTPClient) SubmitPrompt(ctx context.Context, req model.PromptRe
 	}
 
 	modelResp := toModelPromptResponse(respEntity)
-	c.logger.WithField("prompt_id", modelResp.PromptID).Info("prompt submitted successfully")
+	respJSON, _ := json.Marshal(respEntity)
+	c.logger.WithField("resp", string(respJSON)).Info("prompt submitted successfully")
 	return modelResp, nil
 }
 

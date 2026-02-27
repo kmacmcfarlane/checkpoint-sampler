@@ -190,6 +190,9 @@ When a parent and child component both call the same API on mount, the test mock
 ### 3.10 Naive UI prop casing
 Naive UI template attributes use kebab-case (e.g., `consistent-menu-width`) but Vue props in test assertions use camelCase (e.g., `consistentMenuWidth`). Always use camelCase when asserting on component props in tests.
 
+### 3.11 Security Audit
+If `npm audit` shows any high-severity vulnerabilities, fail the QA cycle and have the developer upgrade the vulnerable packages.
+
 ## 4) Cross-cutting test policies
 
 ### 4.1 Fixtures and test data
