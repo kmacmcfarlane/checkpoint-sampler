@@ -9,9 +9,9 @@
 #   writable:  boolean, default false (mounts :ro unless true)
 
 mounts: []
-  # - host: /home/user/shared-libs
-  #   container: /home/user/shared-libs
+  # - host: /home/myuser/my-models/stable-diffusion
+  #   container: /data/checkpoints
   #
-  # - host: /data/datasets
-  #   container: /mnt/data
+  # - host: /home/myuser/checkpoint-sampler/samples
+  #   container: /data/samples
   #   writable: true

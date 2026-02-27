@@ -114,7 +114,9 @@ Use the Task tool to invoke a subagent. Pass the subagent's prompt (from its `.m
 
 ### 2.2 Subagent model selection
 
-- **Fullstack Engineer**: Use `sonnet` model for implementation speed
+- **Fullstack Engineer**:
+  - `low` complexity: Use `sonnet` (fast, sufficient for simple changes)
+  - `medium` or `high` complexity: Use `opus` (deeper capabilities for refactors/architectural/cross-stack changes)
 - **Code Reviewer**: Model depends on change complexity reported by the fullstack engineer:
   - `low` complexity: Use `sonnet` (fast, sufficient for pattern-following changes)
   - `medium` or `high` complexity: Use `opus` (thorough review for architectural/cross-stack changes)

@@ -10,7 +10,7 @@ services:
       - ./config.yaml:/app/config.yaml:ro
       - ./workflows:/app/workflows:ro
       - ${CHECKPOINT_DIR:-./.dataset-placeholder}:/data/checkpoints:ro
-      - ${SAMPLE_DIR:-./.dataset-placeholder}:/data/samples:ro
+      - ${SAMPLE_DIR:-./.dataset-placeholder}:/data/samples:rw,bind
       - backend_go_cache:/home/gouser/.cache/go-build
       - backend_go_mod_cache:/home/gouser/go/pkg/mod
     environment:
