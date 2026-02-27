@@ -175,9 +175,9 @@ stories:
   - id: B-029
     title: "Sample jobs stuck in pending — backend should auto-start and execute jobs"
     priority: 198
-    status: uat
+    status: in_progress
     requires: []
-    uat_feedback: |
+    review_feedback: |
       Two issues: (1) New jobs preempt existing running jobs instead of queuing behind them.
       (2) Jobs don't start creating samples with ComfyUI — they move to running but don't
       actually submit work to ComfyUI.
@@ -198,6 +198,44 @@ stories:
       Key files: backend/internal/service/job_executor.go (processNextItem, run loop),
       backend/internal/service/sample_job.go (Create, Start methods),
       backend/internal/api/sample_jobs.go.
+    testing:
+      - "command: ginkgo -r --cover --race ./internal/..."
+
+  - id: B-035
+    title: "Job executor never receives ComfyUI completion events — jobs stuck in running"
+    priority: 250
+    status: todo
+    requires: []
+    acceptance:
+      - "BE: Job executor receives and processes ComfyUI 'executed' and 'execution_success' WebSocket events for submitted prompts"
+      - "BE: On completion, executor downloads/saves the generated image to the sample directory under the correct checkpoint subdirectory"
+      - "BE: Job item is marked completed and completed_items counter increments"
+      - "BE: After all items complete, job transitions from running to completed"
+      - "BE: Images appear in the expected output directory (sample_dir/<checkpoint_filename>/)"
+      - "BE: Unit tests for WS event handling of execution completion events"
+    notes: |
+      Observed 2026-02-27: A sample job was created and auto-started for checkpoint
+      psai4rt-v0.3.0-qwen-2512-1024-adafactor-cosine-2e-6-min-2-percent-steps-9000-timestep-qinglong_qwen-cap_drop-0.
+      The prompt was submitted to ComfyUI (prompt_id=9cd45b88-290b-411d-a78e-c386e51eb395) and ComfyUI
+      generated an image successfully (confirmed visually). However the backend WS listener only logged
+      status (13), progress_state (44), and progress (30) events — zero executed/execution_success/
+      execution_complete events were received. The job stayed stuck at running with 0/1 completed_items.
+      No image was saved to the sample directory.
+
+      Root cause: The ComfyUI WS client (comfyui_ws) logs all received events as generic
+      "received WebSocket event" with event_type, but the executor's completion listener appears to
+      either not subscribe to execution events, not match on prompt_id, or not handle the event types
+      that ComfyUI actually sends. The WS event processing pipeline needs to be traced from
+      comfyui_ws through to the executor's waitForCompletion logic.
+
+      Key log evidence:
+        07:13:22 job created (b559eaad), auto-started, prompt submitted (9cd45b88)
+        07:13:22–07:14:05 progress/progress_state events received (denoising)
+        07:14:05+ only status events — no completion event ever arrives
+        Job remains running with completed_items=0 indefinitely
+
+      Key files: backend/internal/service/job_executor.go (waitForCompletion, processJobItem),
+      backend/internal/store/comfyui_ws.go (WebSocket event parsing and dispatch).
     testing:
       - "command: ginkgo -r --cover --race ./internal/..."
 
