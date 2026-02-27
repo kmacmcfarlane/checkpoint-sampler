@@ -252,8 +252,6 @@ stories:
     priority: 55
     status: uat
     requires: []
-    uat_feedback:
-      - "I'm not seeing the training run status beads"
     acceptance:
       # Training run selector
       - "FE: JobLaunchDialog has its own training run dropdown (separate from sidebar TrainingRunSelector)"
@@ -690,6 +688,24 @@ stories:
       Key files: backend/internal/service/job_executor.go (substituteNode, CSRoleNegativePrompt case).
     testing:
       - "command: ginkgo -r --cover --race ./internal/..."
+
+  - id: B-034
+    title: "High-severity npm audit vulnerabilities in frontend dependencies (rollup path traversal, minimatch ReDoS)"
+    priority: 55
+    status: todo
+    requires: []
+    acceptance:
+      - "Running npm audit in /frontend reports zero high-severity vulnerabilities"
+      - "All frontend tests continue to pass after the dependency updates"
+      - "The rollup upgrade does not break the Vite build (npm run build succeeds)"
+    notes: |
+      QA sweep finding from S-049. rollup 4.0.0-4.58.0 has arbitrary file write via path traversal
+      (GHSA-mw96-cpmx-2vgc). minimatch 9.0.0-9.0.6 (transitive via @vue/test-utils → js-beautify →
+      editorconfig) has three ReDoS CVEs. rollup fix available via npm audit fix (non-breaking);
+      minimatch chain requires evaluation of @vue/test-utils downgrade to 2.4.0 (possibly breaking).
+    testing:
+      - "command: cd frontend && npm audit"
+      - "command: cd frontend && npx vitest run"
 
   - id: S-058
     title: "Frontend lint rules — CSS variable linting and unused import detection"

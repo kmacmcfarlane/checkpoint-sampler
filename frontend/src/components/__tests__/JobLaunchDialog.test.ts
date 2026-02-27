@@ -235,6 +235,74 @@ describe('JobLaunchDialog', () => {
     })
   })
 
+  describe('status bead rendering via renderLabel', () => {
+    it('sets the renderLabel prop on the training run select', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
+      expect(typeof runSelect.props('renderLabel')).toBe('function')
+    })
+
+    it('training run options carry _status and _color metadata for bead rendering', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Show all runs to get all three statuses
+      wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
+      await nextTick()
+
+      const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
+      const options = runSelect.props('options') as Array<{ label: string; value: number; _status: string; _color: string }>
+
+      // runEmpty (id=1): no samples, no jobs → gray
+      const emptyOpt = options.find(o => o.value === 1)
+      expect(emptyOpt?._status).toBe('empty')
+      expect(emptyOpt?._color).toBe('#909090')
+
+      // runWithSamples (id=2): has_samples=true, no active jobs → complete/green
+      const completeOpt = options.find(o => o.value === 2)
+      expect(completeOpt?._status).toBe('complete')
+      expect(completeOpt?._color).toBe('#18a058')
+
+      // runRunning (id=3): has a running job → blue
+      const runningOpt = options.find(o => o.value === 3)
+      expect(runningOpt?._status).toBe('running')
+      expect(runningOpt?._color).toBe('#2080f0')
+    })
+
+    it('renderLabel function returns a VNode containing both a bead span and label text', async () => {
+      const { h: vueH } = await import('vue')
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
+      const renderLabel = runSelect.props('renderLabel') as (option: Record<string, unknown>) => ReturnType<typeof vueH>
+
+      const vnode = renderLabel({
+        label: 'my-run',
+        value: 99,
+        _status: 'complete',
+        _color: '#18a058',
+      })
+
+      // The returned VNode should be a div containing two children: bead span + label span
+      expect(vnode).toBeTruthy()
+      const children = (vnode as { children?: unknown[] }).children
+      expect(Array.isArray(children)).toBe(true)
+      expect((children as unknown[]).length).toBe(2)
+    })
+  })
+
   it('populates workflow select with valid workflows only', async () => {
     const wrapper = mount(JobLaunchDialog, {
       props: { show: true },

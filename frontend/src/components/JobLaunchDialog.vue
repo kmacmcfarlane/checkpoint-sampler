@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, h } from 'vue'
 import {
   NModal,
   NSelect,
@@ -11,6 +11,7 @@ import {
   NCheckbox,
   NTag,
 } from 'naive-ui'
+import type { SelectRenderLabel } from 'naive-ui'
 import type { TrainingRun, SamplePreset, WorkflowSummary, CreateSampleJobPayload, SampleJob } from '../api/types'
 import { apiClient } from '../api/client'
 import SamplePresetEditor from './SamplePresetEditor.vue'
@@ -86,6 +87,22 @@ function beadColor(status: TrainingRunStatus): string {
     case 'queued': return '#f0a020'   // yellow/amber
     case 'empty': return '#909090'    // gray
   }
+}
+
+// renderLabel function for the training run NSelect.
+// NSelect does not support a #option slot — custom option rendering must be
+// done via the renderLabel prop (a render function returning VNodeChild).
+const renderTrainingRunLabel: SelectRenderLabel = (option) => {
+  const color = (option as { _color?: string })._color ?? '#909090'
+  const status = (option as { _status?: string })._status ?? 'empty'
+  return h('div', { class: 'run-option' }, [
+    h('span', {
+      class: 'status-bead',
+      style: { backgroundColor: color },
+      title: status,
+    }),
+    h('span', {}, String(option.label ?? '')),
+  ])
 }
 
 // Training run select options (filtered by showAllRuns)
@@ -476,22 +493,12 @@ async function submit() {
           id="training-run-select"
           v-model:value="selectedTrainingRunId"
           :options="trainingRunOptions"
+          :render-label="renderTrainingRunLabel"
           placeholder="Select a training run"
           clearable
           filterable
           data-testid="training-run-select"
-        >
-          <template #option="{ option }">
-            <div class="run-option">
-              <span
-                class="status-bead"
-                :style="{ backgroundColor: (option as { _color: string })._color }"
-                :title="(option as { _status: string })._status"
-              />
-              <span>{{ option.label }}</span>
-            </div>
-          </template>
-        </NSelect>
+        />
       </div>
 
       <!-- Checkpoint picker (only shown when run has existing samples) -->

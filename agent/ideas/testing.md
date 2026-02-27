@@ -19,3 +19,9 @@ Example:
 ```
 
 ## Ideas
+
+### Add "queued" status (yellow bead) test case to JobLaunchDialog status bead tests
+* status: needs_approval
+* priority: low
+* source: qa
+The `_status`/`_color` metadata test covers empty/complete/running but does not exercise the queued path (pending or paused job). Adding a `pendingJob` fixture for a training run with status `pending` and asserting `_status: 'queued'` and `_color: '#f0a020'` would complete the 4-of-4 coverage for the `beadColor()` function.

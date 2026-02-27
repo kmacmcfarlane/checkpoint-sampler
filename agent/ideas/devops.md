@@ -19,3 +19,9 @@ Example:
 ```
 
 ## Ideas
+
+### Update frontend npm dependencies to resolve high-severity audit findings
+* status: needs_approval
+* priority: medium
+* source: qa
+`rollup` can be updated non-breakingly via `npm audit fix`; the `minimatch`/`@vue/test-utils` chain requires evaluation of the breaking-change downgrade to `@vue/test-utils@2.4.0`. See B-034 in backlog.yaml.

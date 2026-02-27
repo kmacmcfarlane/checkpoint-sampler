@@ -24,18 +24,10 @@ All notable changes to this project will be documented in this file.
 - `frontend/e2e/preset-crud.spec.ts`: Replaced `fillField()` helper with `addTagToNDynamicTags()` for NDynamicTags interaction; updated default step value comments from 20 to 30
 - 582 frontend tests pass; 26 E2E tests pass
 
-### S-049: Generate Samples dialog — own training run selector with status beads and regeneration support
-- `backend/internal/api/design/sample_jobs.go`: Added `checkpoint_filenames` (optional `[]string`) and `clear_existing` (optional `bool`, default `false`) to `CreateSampleJobPayload` Goa DSL
-- `backend/internal/api/sample_jobs.go`: Updated `Create` handler to pass new fields to service layer
-- `backend/internal/service/sample_job.go`: Added `SampleDirRemover` interface, checkpoint filtering by `checkpointFilenames`, and sample directory clearing when `clearExisting=true`
-- `backend/internal/store/filesystem.go`: Added `RemoveSampleDir` method and `CheckpointSampleDirRemover` adapter
-- `backend/cmd/server/main.go`: Wired `CheckpointSampleDirRemover` into service when ComfyUI is configured
-- `frontend/src/components/JobLaunchDialog.vue`: Fully rewritten — removed `trainingRun` prop, added internal training run selector with colored status beads (green/blue/yellow/gray), default filter showing only empty runs, "show all" toggle, checkpoint picker for regeneration with select-all/deselect-all
-- `frontend/src/App.vue`: Removed `:training-run` prop from `JobLaunchDialog`
-- `frontend/src/api/types.ts`: Added `checkpoint_filenames` and `clear_existing` to `CreateSampleJobPayload`
-- `frontend/src/components/__tests__/JobLaunchDialog.test.ts`: Complete rewrite with 26 tests covering new selector, default filter, checkpoint picker, regeneration payload
-- `backend/internal/service/sample_job_test.go`: Added `DescribeTable` for checkpoint filtering (5 entries) and 3 `clear_existing` tests
-- 575 frontend tests pass; 509 backend tests pass; 26 E2E tests pass
+### S-049: Generate Samples dialog — own training run selector with status beads and regeneration support (UAT rework)
+- `frontend/src/components/JobLaunchDialog.vue`: Fixed status bead rendering by replacing non-functional `#option` template slot with `renderLabel` function prop using Vue's `h()` to produce bead+label VNode; Naive UI NSelect requires `renderLabel` prop, not `#option` slot
+- `frontend/src/components/__tests__/JobLaunchDialog.test.ts`: Added 3 tests covering `renderLabel` prop presence, `_status`/`_color` metadata on option statuses, and VNode structure
+- 622 frontend tests pass; 509 backend tests pass; 26 E2E tests pass
 
 ### B-025: Has Samples filter should default to checked
 - `frontend/src/components/TrainingRunSelector.vue`: Changed `hasSamplesFilter` default from `ref(false)` to `ref(true)` so the "Has Samples" checkbox is checked on initial load and the initial API call filters to training runs with samples
