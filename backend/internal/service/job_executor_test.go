@@ -1045,15 +1045,15 @@ var _ = Describe("JobExecutor", func() {
 			executor.mu.Unlock()
 
 			// Stop the running job (simulates user clicking Stop)
-			// The service layer also transitions the DB job to paused, but for this unit test
-			// we only test executor state. We manually update the store to reflect paused.
+			// The service layer also transitions the DB job to stopped, but for this unit test
+			// we only test executor state. We manually update the store to reflect stopped.
 			err := executor.RequestStop(runningJob.ID)
 			Expect(err).ToNot(HaveOccurred())
 
-			// Update store to reflect the paused status (done by SampleJobService.Stop in production)
-			paused := mockStore.jobs[runningJob.ID]
-			paused.Status = model.SampleJobStatusPaused
-			mockStore.jobs[runningJob.ID] = paused
+			// Update store to reflect the stopped status (done by SampleJobService.Stop in production)
+			stopped := mockStore.jobs[runningJob.ID]
+			stopped.Status = model.SampleJobStatusStopped
+			mockStore.jobs[runningJob.ID] = stopped
 
 			// Executor state must be fully cleared after stop
 			executor.mu.Lock()

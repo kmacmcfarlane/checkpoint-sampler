@@ -25,7 +25,7 @@ type SampleJobStatus string
 const (
 	SampleJobStatusPending   SampleJobStatus = "pending"
 	SampleJobStatusRunning   SampleJobStatus = "running"
-	SampleJobStatusPaused    SampleJobStatus = "paused"
+	SampleJobStatusStopped   SampleJobStatus = "stopped"
 	SampleJobStatusCompleted SampleJobStatus = "completed"
 	SampleJobStatusFailed    SampleJobStatus = "failed"
 )

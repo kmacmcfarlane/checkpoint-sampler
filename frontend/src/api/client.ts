@@ -226,7 +226,7 @@ export class ApiClient {
     })
   }
 
-  /** POST /api/sample-jobs/{id}/resume — resume a paused sample job. */
+  /** POST /api/sample-jobs/{id}/resume — resume a stopped sample job. */
   async resumeSampleJob(id: string): Promise<SampleJob> {
     return this.request<SampleJob>(`/sample-jobs/${id}/resume`, {
       method: 'POST',

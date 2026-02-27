@@ -437,7 +437,7 @@ var _ = Describe("SampleJobService", func() {
 	})
 
 	Describe("Stop", func() {
-		It("transitions running job to paused", func() {
+		It("transitions running job to stopped", func() {
 			job := model.SampleJob{
 				ID:     "job-1",
 				Status: model.SampleJobStatusRunning,
@@ -446,7 +446,7 @@ var _ = Describe("SampleJobService", func() {
 
 			result, err := svc.Stop("job-1")
 			Expect(err).NotTo(HaveOccurred())
-			Expect(result.Status).To(Equal(model.SampleJobStatusPaused))
+			Expect(result.Status).To(Equal(model.SampleJobStatusStopped))
 		})
 
 		It("returns error when job is not running", func() {
@@ -469,10 +469,10 @@ var _ = Describe("SampleJobService", func() {
 	})
 
 	Describe("Resume", func() {
-		It("transitions paused job to running", func() {
+		It("transitions stopped job to running", func() {
 			job := model.SampleJob{
 				ID:     "job-1",
-				Status: model.SampleJobStatusPaused,
+				Status: model.SampleJobStatusStopped,
 			}
 			store.jobs[job.ID] = job
 
@@ -481,7 +481,7 @@ var _ = Describe("SampleJobService", func() {
 			Expect(result.Status).To(Equal(model.SampleJobStatusRunning))
 		})
 
-		It("returns error when job is not paused", func() {
+		It("returns error when job is not stopped", func() {
 			job := model.SampleJob{
 				ID:     "job-1",
 				Status: model.SampleJobStatusRunning,

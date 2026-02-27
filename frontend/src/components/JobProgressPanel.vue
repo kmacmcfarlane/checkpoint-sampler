@@ -36,10 +36,10 @@ function getStatusType(status: SampleJobStatus): 'success' | 'error' | 'warning'
       return 'success'
     case 'failed':
       return 'error'
+    case 'stopped':
+      return 'error'
     case 'running':
       return 'info'
-    case 'paused':
-      return 'warning'
     case 'pending':
       return 'default'
   }
@@ -55,7 +55,7 @@ function canStop(job: SampleJob): boolean {
 }
 
 function canResume(job: SampleJob): boolean {
-  return job.status === 'paused'
+  return job.status === 'stopped'
 }
 
 function handleStop(jobId: string) {

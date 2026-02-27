@@ -72,7 +72,7 @@ const selectedTrainingRun = computed(() =>
 function getRunStatus(run: TrainingRun): TrainingRunStatus {
   const runJobs = sampleJobs.value.filter(j => j.training_run_name === run.name)
   const hasRunning = runJobs.some(j => j.status === 'running')
-  const hasQueued = runJobs.some(j => j.status === 'pending' || j.status === 'paused')
+  const hasQueued = runJobs.some(j => j.status === 'pending' || j.status === 'stopped')
   if (hasRunning) return 'running'
   if (hasQueued) return 'queued'
   if (run.has_samples) return 'complete'

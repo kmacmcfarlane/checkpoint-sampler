@@ -19,3 +19,9 @@ Example:
 ```
 
 ## Ideas
+
+### Update PRD.md to use "stopped" instead of "paused" in state machine documentation
+* status: needs_approval
+* priority: low
+* source: qa
+PRD.md still references "paused" in the job state machine and database schema documentation. These should be updated to match the renamed "stopped" status after the S-049 terminology change.

@@ -122,7 +122,7 @@ func (s *SampleJobsService) Start(ctx context.Context, p *gensamplejobs.StartPay
 	return sampleJobToResponse(job), nil
 }
 
-// Stop pauses a running sample job.
+// Stop stops a running sample job.
 func (s *SampleJobsService) Stop(ctx context.Context, p *gensamplejobs.StopPayload) (*gensamplejobs.SampleJobResponse, error) {
 	job, err := s.svc.Stop(p.ID)
 	if err != nil {
@@ -135,7 +135,7 @@ func (s *SampleJobsService) Stop(ctx context.Context, p *gensamplejobs.StopPaylo
 	return sampleJobToResponse(job), nil
 }
 
-// Resume resumes a paused sample job.
+// Resume resumes a stopped sample job.
 func (s *SampleJobsService) Resume(ctx context.Context, p *gensamplejobs.ResumePayload) (*gensamplejobs.SampleJobResponse, error) {
 	job, err := s.svc.Resume(p.ID)
 	if err != nil {

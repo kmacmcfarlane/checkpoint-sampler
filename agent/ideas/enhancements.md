@@ -42,4 +42,10 @@ If the WebSocket connection drops mid-job (e.g. ComfyUI restarts), the executor 
 * status: needs_approval
 * priority: low
 * source: developer
-Currently `RequestStop` clears executor state but the DB update to `paused` happens in the service layer separately. The executor could own the DB status update after stop (like `completeJob` does), reducing the window where the DB and executor state diverge.
+Currently `RequestStop` clears executor state but the DB update to `stopped` happens in the service layer separately. The executor could own the DB status update after stop (like `completeJob` does), reducing the window where the DB and executor state diverge.
+
+### Update agent ideas files to use "stopped" instead of "paused" terminology
+* status: needs_approval
+* priority: very-low
+* source: qa
+Two agent idea files (`agent/ideas/enhancements.md` and `agent/ideas/testing.md`) still reference the old "paused" terminology. These should be updated to say "stopped" for consistency with the codebase after the S-049 rename.

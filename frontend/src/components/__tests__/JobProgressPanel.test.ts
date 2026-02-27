@@ -26,7 +26,7 @@ const sampleJobs: SampleJob[] = [
     workflow_name: 'sdxl-image.json',
     vae: 'vae.safetensors',
     clip: 'clip.safetensors',
-    status: 'paused',
+    status: 'stopped',
     total_items: 50,
     completed_items: 25,
     created_at: '2025-01-01T01:00:00Z',
@@ -109,8 +109,8 @@ describe('JobProgressPanel', () => {
     const runningJobTag = wrapper.find('[data-testid="job-job-1-status"]').findComponent(NTag)
     expect(runningJobTag.props('type')).toBe('info')
 
-    const pausedJobTag = wrapper.find('[data-testid="job-job-2-status"]').findComponent(NTag)
-    expect(pausedJobTag.props('type')).toBe('warning')
+    const stoppedJobTag = wrapper.find('[data-testid="job-job-2-status"]').findComponent(NTag)
+    expect(stoppedJobTag.props('type')).toBe('error')
 
     const completedJobTag = wrapper.find('[data-testid="job-job-3-status"]').findComponent(NTag)
     expect(completedJobTag.props('type')).toBe('success')
@@ -143,21 +143,21 @@ describe('JobProgressPanel', () => {
     const runningJobStopButton = wrapper.find('[data-testid="job-job-1-stop"]')
     expect(runningJobStopButton.exists()).toBe(true)
 
-    const pausedJobStopButton = wrapper.find('[data-testid="job-job-2-stop"]')
-    expect(pausedJobStopButton.exists()).toBe(false)
+    const stoppedJobStopButton = wrapper.find('[data-testid="job-job-2-stop"]')
+    expect(stoppedJobStopButton.exists()).toBe(false)
 
     const completedJobStopButton = wrapper.find('[data-testid="job-job-3-stop"]')
     expect(completedJobStopButton.exists()).toBe(false)
   })
 
-  it('shows resume button only for paused jobs', () => {
+  it('shows resume button only for stopped jobs', () => {
     const wrapper = mount(JobProgressPanel, {
       props: { show: true, jobs: sampleJobs },
       global: { stubs: { Teleport: true } },
     })
 
-    const pausedJobResumeButton = wrapper.find('[data-testid="job-job-2-resume"]')
-    expect(pausedJobResumeButton.exists()).toBe(true)
+    const stoppedJobResumeButton = wrapper.find('[data-testid="job-job-2-resume"]')
+    expect(stoppedJobResumeButton.exists()).toBe(true)
 
     const runningJobResumeButton = wrapper.find('[data-testid="job-job-1-resume"]')
     expect(runningJobResumeButton.exists()).toBe(false)

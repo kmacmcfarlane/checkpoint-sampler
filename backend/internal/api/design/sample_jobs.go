@@ -73,7 +73,7 @@ var _ = Service("sample_jobs", func() {
 	})
 
 	Method("stop", func() {
-		Description("Stop a running sample job (pauses after current item)")
+		Description("Stop a running sample job (stops after current item)")
 		Payload(func() {
 			Attribute("id", String, "Sample job ID", func() {
 				Example("550e8400-e29b-41d4-a716-446655440000")
@@ -92,7 +92,7 @@ var _ = Service("sample_jobs", func() {
 	})
 
 	Method("resume", func() {
-		Description("Resume a paused sample job")
+		Description("Resume a stopped sample job")
 		Payload(func() {
 			Attribute("id", String, "Sample job ID", func() {
 				Example("550e8400-e29b-41d4-a716-446655440000")
@@ -152,9 +152,9 @@ var SampleJobResponse = Type("SampleJobResponse", func() {
 		Example("clip_l.safetensors")
 	})
 	Attribute("shift", Float64, "AuraFlow shift value (nullable)")
-	Attribute("status", String, "Job status: pending, running, paused, completed, failed", func() {
+	Attribute("status", String, "Job status: pending, running, stopped, completed, failed", func() {
 		Example("running")
-		Enum("pending", "running", "paused", "completed", "failed")
+		Enum("pending", "running", "stopped", "completed", "failed")
 	})
 	Attribute("total_items", Int, "Total work items", func() {
 		Example(540)

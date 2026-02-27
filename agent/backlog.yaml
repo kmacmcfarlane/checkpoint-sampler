@@ -16,8 +16,6 @@ stories:
     title: "Generate Samples dialog — own training run selector with status beads and regeneration support"
     priority: 55
     status: uat
-    uat_feedback: |
-      Make paused -> stopped, and make the bead color red for this status.
     requires: []
     acceptance:
       # Training run selector

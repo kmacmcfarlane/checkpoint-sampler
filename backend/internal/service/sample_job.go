@@ -349,7 +349,7 @@ func (s *SampleJobService) Start(id string) (model.SampleJob, error) {
 	return job, nil
 }
 
-// Stop transitions a running job to paused status.
+// Stop transitions a running job to stopped status.
 func (s *SampleJobService) Stop(id string) (model.SampleJob, error) {
 	s.logger.WithField("sample_job_id", id).Trace("entering Stop")
 	defer s.logger.Trace("returning from Stop")
@@ -384,8 +384,8 @@ func (s *SampleJobService) Stop(id string) (model.SampleJob, error) {
 		}
 	}
 
-	// Update status to paused
-	job.Status = model.SampleJobStatusPaused
+	// Update status to stopped
+	job.Status = model.SampleJobStatusStopped
 	job.UpdatedAt = time.Now().UTC()
 
 	if err := s.store.UpdateSampleJob(job); err != nil {
@@ -395,11 +395,11 @@ func (s *SampleJobService) Stop(id string) (model.SampleJob, error) {
 		}).Error("failed to update sample job status")
 		return model.SampleJob{}, fmt.Errorf("updating sample job: %w", err)
 	}
-	s.logger.WithField("sample_job_id", id).Info("sample job stopped (paused)")
+	s.logger.WithField("sample_job_id", id).Info("sample job stopped")
 	return job, nil
 }
 
-// Resume transitions a paused job back to running status.
+// Resume transitions a stopped job back to running status.
 func (s *SampleJobService) Resume(id string) (model.SampleJob, error) {
 	s.logger.WithField("sample_job_id", id).Trace("entering Resume")
 	defer s.logger.Trace("returning from Resume")
@@ -425,11 +425,11 @@ func (s *SampleJobService) Resume(id string) (model.SampleJob, error) {
 	s.logger.WithField("sample_job_id", id).Debug("fetched sample job from store")
 
 	// Validate state transition
-	if job.Status != model.SampleJobStatusPaused {
+	if job.Status != model.SampleJobStatusStopped {
 		s.logger.WithFields(logrus.Fields{
 			"sample_job_id":  id,
 			"current_status": job.Status,
-		}).Warn("cannot resume job: job is not paused")
+		}).Warn("cannot resume job: job is not stopped")
 		return model.SampleJob{}, fmt.Errorf("cannot resume job in status %s", job.Status)
 	}
 

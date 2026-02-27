@@ -167,7 +167,7 @@ export interface UpdateSamplePresetPayload {
 }
 
 /** Sample job status. */
-export type SampleJobStatus = 'pending' | 'running' | 'paused' | 'completed' | 'failed'
+export type SampleJobStatus = 'pending' | 'running' | 'stopped' | 'completed' | 'failed'
 
 /** A sample job. */
 export interface SampleJob {

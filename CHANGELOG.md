@@ -47,8 +47,9 @@ All notable changes to this project will be documented in this file.
 - 582 frontend tests pass; 26 E2E tests pass
 
 ### S-049: Generate Samples dialog — own training run selector with status beads and regeneration support (UAT rework)
-- `frontend/src/components/JobLaunchDialog.vue`: Fixed status bead visibility by replacing scoped CSS class references (`.run-option`, `.status-bead`) in the `renderLabel` function with inline styles — scoped CSS is not applied to VNodes created via `h()` outside Vue's compilation context; removed dead CSS classes from `<style scoped>` block
-- 622 frontend tests pass; 26 E2E tests pass
+- Renamed job status "paused" to "stopped" across the full stack: backend model constant `SampleJobStatusPaused` → `SampleJobStatusStopped`, Goa DSL enum, service Stop/Resume methods, frontend TypeScript type, Vue components, and all tests
+- `frontend/src/components/JobProgressPanel.vue`: Changed stopped status display from yellow (warning) to red (error) NTag for clearer visual signal that the job is not progressing
+- 538 backend tests pass; 622 frontend tests pass; 26 E2E tests pass
 
 ### B-025: Has Samples filter should default to checked
 - `frontend/src/components/TrainingRunSelector.vue`: Changed `hasSamplesFilter` default from `ref(false)` to `ref(true)` so the "Has Samples" checkbox is checked on initial load and the initial API call filters to training runs with samples

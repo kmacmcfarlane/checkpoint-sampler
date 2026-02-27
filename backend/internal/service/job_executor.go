@@ -1078,7 +1078,7 @@ func (e *JobExecutor) RequestStop(jobID string) error {
 	return nil
 }
 
-// RequestResume allows processing to continue for a paused job.
+// RequestResume allows processing to continue for a stopped job.
 // If the executor has already released its state for the job (e.g. after a stop),
 // this is a no-op — the executor loop will pick up the job automatically on the next tick.
 func (e *JobExecutor) RequestResume(jobID string) error {
