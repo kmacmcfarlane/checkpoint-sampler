@@ -229,6 +229,10 @@ stories:
     priority: 198
     status: uat
     requires: []
+    uat_feedback: |
+      Job still appears stuck in pending despite being the only job. ComfyUI is not showing
+      any workflow activity in its stdout logging. The auto-start mechanism does not appear
+      to be triggering.
     acceptance:
       - "BE: Job executor polls for jobs in pending status and auto-transitions them to running"
       - "BE: No explicit Start API call or UI button required — jobs start automatically after creation"
@@ -351,6 +355,56 @@ stories:
       .progress-line, .progress-details classes),
       frontend/src/components/SamplePresetEditor.vue (.total-images class).
     testing:
+      - "command: cd frontend && npx vitest run"
+
+  - id: S-072
+    title: "Replace independent sampler/scheduler lists with sampler-scheduler pairs in sample presets"
+    priority: 80
+    complexity: high
+    status: todo
+    requires: []
+    acceptance:
+      # Data model — replace lists with pairs
+      - "BE: DB migration replaces samplers (JSON array of strings) and schedulers (JSON array of strings) columns with sampler_scheduler_pairs (JSON array of {sampler, scheduler} objects)"
+      - "BE: Migration auto-converts existing presets: creates pairs from the cross-product of old samplers × schedulers lists"
+      - "BE: SamplePreset model replaces Samplers []string and Schedulers []string with SamplerSchedulerPairs []SamplerSchedulerPair"
+      - "BE: SamplerSchedulerPair is a struct with Sampler (string) and Scheduler (string) fields"
+      # API
+      - "BE: Goa DSL updated — sample preset create/update/show/list use sampler_scheduler_pairs array of {sampler, scheduler} objects"
+      - "BE: Validation: at least one pair required; each pair must have non-empty sampler and scheduler"
+      # Job expansion
+      - "BE: Job item expansion iterates over pairs directly instead of cross-producting samplers × schedulers"
+      - "BE: Images-per-checkpoint calculation updated: prompts × steps × cfgs × pairs × seeds (not prompts × steps × cfgs × samplers × schedulers × seeds)"
+      # Frontend
+      - "FE: SamplePresetEditor replaces separate sampler and scheduler tag inputs with a paired list"
+      - "FE: Each row has a sampler dropdown and a scheduler dropdown side by side"
+      - "FE: Add/remove pair buttons to manage the list"
+      - "FE: Sampler and scheduler dropdowns populated from ComfyUI's available options (existing behavior)"
+      - "FE: Total images per checkpoint calculation updated to reflect pairs instead of cross-product"
+      # Tests
+      - "BE: Unit tests for migration (cross-product conversion of existing presets)"
+      - "BE: Unit tests for job item expansion with pairs"
+      - "BE: Unit tests for images-per-checkpoint calculation"
+      - "FE: Unit tests for paired sampler/scheduler editor (add, remove, validation)"
+    notes: |
+      Currently samplers and schedulers are independent lists that create a cross-product during
+      job expansion. For example, 2 samplers × 2 schedulers = 4 combinations. The user wants
+      explicit pairs instead, so euler+normal and dpmpp_2m+sgm_uniform = 2 combinations.
+
+      This fully replaces the independent lists — no backward-compatible "both modes" toggle.
+      Existing presets are migrated by computing the cross-product of their current lists into
+      explicit pairs (preserving the same set of combinations).
+
+      Key files:
+      - backend/internal/store/migrations.go (new migration)
+      - backend/internal/model/sample_preset.go (SamplerSchedulerPair type, field changes)
+      - backend/internal/store/sample_preset.go (JSON serialization of pairs)
+      - backend/internal/api/design/sample_presets.go (Goa DSL)
+      - backend/internal/service/sample_job.go (item expansion logic)
+      - frontend/src/components/SamplePresetEditor.vue (paired editor UI)
+      - frontend/src/api/types.ts (type changes)
+    testing:
+      - "command: make test-backend"
       - "command: cd frontend && npx vitest run"
 
   - id: S-055
