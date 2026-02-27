@@ -147,10 +147,6 @@ stories:
     title: "Sample jobs stuck in pending — backend should auto-start and execute jobs"
     priority: 198
     status: uat
-    uat_feedback: |
-      I had a running job and a pending job when I started it up. I added a new job,
-      which went to pending, and I stopped the "running" job. Neither of the pending
-      jobs started.
     requires: []
     acceptance:
       - "BE: Job executor polls for jobs in pending status and auto-transitions them to running"

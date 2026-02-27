@@ -948,26 +948,124 @@ var _ = Describe("JobExecutor", func() {
 	})
 
 	Describe("Stop and Resume", func() {
-		It("sets stop flag when RequestStop is called", func() {
+		It("clears executor state when RequestStop is called", func() {
+			// AC: After RequestStop, executor state is cleared so pending jobs can be
+			// picked up on the next tick.
+			executor.mu.Lock()
 			executor.activeJobID = "job-1"
+			executor.activeItemID = "item-1"
+			executor.activePromptID = "prompt-1"
+			executor.stopRequested = false
+			executor.mu.Unlock()
+
 			err := executor.RequestStop("job-1")
 			Expect(err).ToNot(HaveOccurred())
-			Expect(executor.stopRequested).To(BeTrue())
+
+			// All active state must be cleared; stop flag must NOT be left set
+			executor.mu.Lock()
+			Expect(executor.activeJobID).To(BeEmpty())
+			Expect(executor.activeItemID).To(BeEmpty())
+			Expect(executor.activePromptID).To(BeEmpty())
+			Expect(executor.stopRequested).To(BeFalse())
+			executor.mu.Unlock()
 		})
 
-		It("clears stop flag when RequestResume is called", func() {
+		It("clears stop flag when RequestResume is called while activeJobID matches", func() {
+			executor.mu.Lock()
 			executor.activeJobID = "job-1"
 			executor.stopRequested = true
+			executor.mu.Unlock()
 
 			err := executor.RequestResume("job-1")
 			Expect(err).ToNot(HaveOccurred())
+
+			executor.mu.Lock()
 			Expect(executor.stopRequested).To(BeFalse())
+			executor.mu.Unlock()
+		})
+
+		It("returns no error from RequestResume when executor state is already cleared (job was stopped)", func() {
+			// After a stop, activeJobID is empty. Resume should succeed (no-op) so the
+			// executor loop can pick up the job on the next tick.
+			executor.mu.Lock()
+			executor.activeJobID = ""
+			executor.stopRequested = false
+			executor.mu.Unlock()
+
+			err := executor.RequestResume("job-1")
+			Expect(err).ToNot(HaveOccurred())
 		})
 
 		It("returns error when trying to stop non-running job", func() {
+			executor.mu.Lock()
 			executor.activeJobID = "job-2"
+			executor.mu.Unlock()
+
 			err := executor.RequestStop("job-1")
 			Expect(err).To(HaveOccurred())
+		})
+
+		It("pending jobs are picked up by the executor after a running job is stopped", func() {
+			// AC: BE: Job executor polls for jobs in pending status and auto-transitions them
+			// to running — this must work even after a previous job was stopped.
+			// This directly addresses the UAT feedback: "I stopped the running job.
+			// Neither of the pending jobs started."
+
+			// Set up: one running job (the one being stopped) and one pending job
+			runningJob := model.SampleJob{
+				ID:     "job-running",
+				Status: model.SampleJobStatusRunning,
+			}
+			pendingJob := model.SampleJob{
+				ID:     "job-pending",
+				Status: model.SampleJobStatusPending,
+			}
+			pendingItem := model.SampleJobItem{
+				ID:               "item-pending-1",
+				JobID:            pendingJob.ID,
+				Status:           model.SampleJobItemStatusPending,
+				ComfyUIModelPath: "models/test.safetensors",
+				SamplerName:      "euler",
+				Scheduler:        "normal",
+				Seed:             1,
+				Steps:            1,
+				CFG:              1.0,
+				Width:            64,
+				Height:           64,
+			}
+			mockStore.jobs[runningJob.ID] = runningJob
+			mockStore.jobs[pendingJob.ID] = pendingJob
+			mockStore.items[runningJob.ID] = []model.SampleJobItem{}
+			mockStore.items[pendingJob.ID] = []model.SampleJobItem{pendingItem}
+
+			// Mark the running job as active in the executor
+			executor.mu.Lock()
+			executor.connected = true
+			executor.activeJobID = runningJob.ID
+			executor.mu.Unlock()
+
+			// Stop the running job (simulates user clicking Stop)
+			// The service layer also transitions the DB job to paused, but for this unit test
+			// we only test executor state. We manually update the store to reflect paused.
+			err := executor.RequestStop(runningJob.ID)
+			Expect(err).ToNot(HaveOccurred())
+
+			// Update store to reflect the paused status (done by SampleJobService.Stop in production)
+			paused := mockStore.jobs[runningJob.ID]
+			paused.Status = model.SampleJobStatusPaused
+			mockStore.jobs[runningJob.ID] = paused
+
+			// Executor state must be fully cleared after stop
+			executor.mu.Lock()
+			Expect(executor.activeJobID).To(BeEmpty())
+			Expect(executor.stopRequested).To(BeFalse())
+			executor.mu.Unlock()
+
+			// Next tick: executor should pick up the pending job
+			executor.processNextItem()
+
+			// Pending job must now be running
+			Expect(mockStore.jobs[pendingJob.ID].Status).To(Equal(model.SampleJobStatusRunning))
 		})
 	})
 

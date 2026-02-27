@@ -22,9 +22,9 @@ All notable changes to this project will be documented in this file.
 - 622 frontend tests pass; 521 backend tests pass; 26 E2E tests pass
 
 ### B-029: Sample jobs stuck in pending — backend should auto-start and execute jobs (UAT rework)
-- `backend/internal/service/job_executor.go`: Rewrote `processNextItem()` to prevent job preemption — executor now tracks active job by ID and never switches to a different running job; added early `activeItemID` guard to prevent double-submission; auto-start logic only triggers when no job is currently tracked
-- `backend/internal/service/job_executor_test.go`: Added 3 new tests for non-preemption (tracked job not displaced by new pending job, no switch to different running job) and same-tick ComfyUI submission after auto-start
-- 622 frontend tests pass; 522 backend tests pass; 26 E2E tests pass
+- `backend/internal/service/job_executor.go`: Fixed `RequestStop` to clear all executor state (`activeJobID`, `activeItemID`, `activePromptID`, `stopRequested`) after stopping a job, so pending jobs are picked up on the next tick; updated `RequestResume` to succeed as a no-op when executor state was already cleared by a prior stop
+- `backend/internal/service/job_executor_test.go`: Updated Stop/Resume tests for new state-clearing behavior; added regression test directly covering the UAT scenario (pending jobs start after a running job is stopped)
+- 622 frontend tests pass; 538 backend tests pass; 26 E2E tests pass
 
 ### S-051: Workflows documentation (docs/workflows.md)
 - `docs/workflows.md`: New file documenting how to create and annotate ComfyUI workflow templates for use with checkpoint-sampler — covers the `cs_role` annotation system, complete role reference table with field substitutions, step-by-step instructions for adding a new workflow, annotated JSON example based on `qwen-image.json`, validation rules, and troubleshooting

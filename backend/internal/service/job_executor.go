@@ -1037,8 +1037,10 @@ func (e *JobExecutor) broadcastJobProgress(jobID string) {
 	e.logger.WithField("job_id", jobID).Debug("broadcasted job progress event")
 }
 
-// RequestStop requests the executor to stop after the current item completes.
-// If there is an active ComfyUI prompt, it will be canceled.
+// RequestStop requests the executor to stop the given job immediately.
+// If there is an active ComfyUI prompt, it is canceled.
+// After this call the executor state is cleared so that pending jobs can
+// be picked up on the next tick.
 func (e *JobExecutor) RequestStop(jobID string) error {
 	e.mu.Lock()
 
@@ -1048,8 +1050,6 @@ func (e *JobExecutor) RequestStop(jobID string) error {
 		e.mu.Unlock()
 		return fmt.Errorf("job %s is not currently running", jobID)
 	}
-
-	e.stopRequested = true
 
 	// Capture prompt ID under lock, then release before blocking call
 	promptID := e.activePromptID
@@ -1064,17 +1064,33 @@ func (e *JobExecutor) RequestStop(jobID string) error {
 		}
 	}
 
+	// Clear all active state so the executor can pick up pending jobs on the next tick.
+	// Any in-flight WebSocket event (e.g. execution_error) will see activePromptID == ""
+	// and be safely ignored.
+	e.mu.Lock()
+	e.activeJobID = ""
+	e.activeItemID = ""
+	e.activePromptID = ""
+	e.stopRequested = false
+	e.mu.Unlock()
+
+	e.logger.WithField("job_id", jobID).Info("job stop completed, executor state cleared")
 	return nil
 }
 
-// RequestResume clears the stop flag and allows processing to continue.
+// RequestResume allows processing to continue for a paused job.
+// If the executor has already released its state for the job (e.g. after a stop),
+// this is a no-op — the executor loop will pick up the job automatically on the next tick.
 func (e *JobExecutor) RequestResume(jobID string) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
 	e.logger.WithField("job_id", jobID).Info("resume requested for job")
 
-	if e.activeJobID != jobID {
+	// If activeJobID is empty or refers to a different job, the executor has already
+	// released its state (cleared by RequestStop). The executor loop will pick up the
+	// resumed job automatically on the next tick — nothing to do here.
+	if e.activeJobID != "" && e.activeJobID != jobID {
 		return fmt.Errorf("job %s is not currently active", jobID)
 	}
 

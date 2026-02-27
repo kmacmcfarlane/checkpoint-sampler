@@ -37,3 +37,9 @@ The `SampleJobService.Start()` method doesn't verify that no other job is alread
 * priority: medium
 * source: developer
 If the WebSocket connection drops mid-job (e.g. ComfyUI restarts), the executor never receives the completion event and the job stays stuck in running. A recovery mechanism that polls the ComfyUI history API after reconnect to detect already-completed prompts would make the system resilient to mid-job connection losses.
+
+### Atomic stop-and-transition in executor
+* status: needs_approval
+* priority: low
+* source: developer
+Currently `RequestStop` clears executor state but the DB update to `paused` happens in the service layer separately. The executor could own the DB status update after stop (like `completeJob` does), reducing the window where the DB and executor state diverge.
