@@ -37,6 +37,10 @@ type ComfyUIWS interface {
 	AddHandler(handler model.ComfyUIEventHandler)
 	Connect(ctx context.Context) error
 	Close() error
+	// GetClientID returns the unique client ID for this WebSocket session.
+	// It must be sent with every prompt submission so ComfyUI routes prompt-specific
+	// events (executing, executed, execution_error) back to this connection.
+	GetClientID() string
 }
 
 // WorkflowLoaderService defines the interface for loading workflow templates.
@@ -434,9 +438,11 @@ func (e *JobExecutor) processItem(job model.SampleJob, item model.SampleJobItem)
 		return
 	}
 
-	// Submit to ComfyUI
+	// Submit to ComfyUI with the WebSocket client_id so that ComfyUI routes
+	// prompt-specific events (executing, executed, execution_error) to our WS connection.
 	promptReq := model.PromptRequest{
-		Prompt: substituted,
+		Prompt:   substituted,
+		ClientID: e.comfyuiWS.GetClientID(),
 	}
 	promptResp, err := e.comfyuiClient.SubmitPrompt(e.ctx, promptReq)
 	if err != nil {

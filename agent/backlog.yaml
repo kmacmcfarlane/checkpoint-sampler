@@ -176,14 +176,6 @@ stories:
     title: "Job executor never receives ComfyUI completion events — jobs stuck in running"
     priority: 250
     status: uat
-    uat_feedback: |
-      Job still gets stuck in running. From a fresh dev container, submitted a generate
-      job. Logs show only progress_state events being received by the executor (nodes
-      transitioning through running→finished states), but no executed/execution_success/
-      execution_complete events ever arrive. All WS events are event_type=progress_state.
-      The job remains in running with completed_items=0. ComfyUI prompt_id was
-      a49919b5-9cf2-4ad9-8459-9ac43bcd5ac7. Use the phrase "ComfyUI API" to trigger the
-      new skill I made for you.
     requires: []
     complexity: high
     acceptance:

@@ -72,16 +72,18 @@ func (m *mockJobExecutorStore) ListSampleJobs() ([]model.SampleJob, error) {
 }
 
 type mockComfyUIClient struct {
-	submitErr       error
-	promptResponse  *model.PromptResponse
-	historyResponse model.HistoryResponse
-	historyErr      error
-	downloadData    []byte
-	downloadErr     error
-	cancelErr       error
+	submitErr         error
+	promptResponse    *model.PromptResponse
+	lastSubmittedReq  *model.PromptRequest
+	historyResponse   model.HistoryResponse
+	historyErr        error
+	downloadData      []byte
+	downloadErr       error
+	cancelErr         error
 }
 
 func (m *mockComfyUIClient) SubmitPrompt(ctx context.Context, req model.PromptRequest) (*model.PromptResponse, error) {
+	m.lastSubmittedReq = &req
 	if m.submitErr != nil {
 		return nil, m.submitErr
 	}
@@ -113,6 +115,7 @@ type mockComfyUIWS struct {
 	handlers   []model.ComfyUIEventHandler
 	connectErr error
 	closeErr   error
+	clientID   string
 }
 
 func (m *mockComfyUIWS) AddHandler(handler model.ComfyUIEventHandler) {
@@ -131,6 +134,10 @@ func (m *mockComfyUIWS) Close() error {
 		return m.closeErr
 	}
 	return nil
+}
+
+func (m *mockComfyUIWS) GetClientID() string {
+	return m.clientID
 }
 
 func (m *mockComfyUIWS) SendEvent(event model.ComfyUIEvent) {
@@ -241,7 +248,7 @@ var _ = Describe("JobExecutor", func() {
 			},
 			downloadData: []byte("fake-image-data"),
 		}
-		mockWS = &mockComfyUIWS{}
+		mockWS = &mockComfyUIWS{clientID: "test-client-id"}
 		mockLoader = &mockWorkflowLoader{
 			workflow: model.WorkflowTemplate{
 				Name: "test-workflow.json",
@@ -406,6 +413,38 @@ var _ = Describe("JobExecutor", func() {
 			Expect(items).To(HaveLen(1))
 			Expect(items[0].Status).To(Equal(model.SampleJobItemStatusRunning))
 			Expect(items[0].ComfyUIPromptID).To(Equal("test-prompt-id"))
+		})
+
+		// AC: BE: prompt submissions include the WebSocket client_id so ComfyUI routes
+		// prompt-specific events (executing, executed, execution_error) to the WS connection.
+		It("includes the WebSocket client_id in the ComfyUI prompt submission", func() {
+			job := model.SampleJob{
+				ID:           "job-clientid-check",
+				Status:       model.SampleJobStatusPending,
+				WorkflowName: "test-workflow.json",
+			}
+			item := model.SampleJobItem{
+				ID:               "item-clientid-1",
+				JobID:            job.ID,
+				Status:           model.SampleJobItemStatusPending,
+				ComfyUIModelPath: "models/test.safetensors",
+				SamplerName:      "euler",
+				Scheduler:        "normal",
+				Seed:             1,
+				Steps:            1,
+				CFG:              1.0,
+				Width:            64,
+				Height:           64,
+			}
+			mockStore.jobs[job.ID] = job
+			mockStore.items[job.ID] = []model.SampleJobItem{item}
+
+			executor.processNextItem()
+
+			// Verify the prompt was submitted with the WebSocket client_id.
+			// Without this, ComfyUI cannot route prompt-specific events back to our connection.
+			Expect(mockClient.lastSubmittedReq).NotTo(BeNil())
+			Expect(mockClient.lastSubmittedReq.ClientID).To(Equal("test-client-id"))
 		})
 
 		It("picks up a pending job after becoming connected", func() {

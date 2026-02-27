@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
 	"github.com/sirupsen/logrus"
@@ -15,8 +16,9 @@ import (
 
 // ComfyUIWSClient provides WebSocket connectivity to ComfyUI for real-time updates.
 type ComfyUIWSClient struct {
-	url    string
-	logger *logrus.Entry
+	url      string
+	clientID string
+	logger   *logrus.Entry
 
 	mu       sync.RWMutex
 	conn     *websocket.Conn
@@ -42,26 +44,45 @@ func toModelComfyUIEvent(entity comfyUIEventEntity) model.ComfyUIEvent {
 // NewComfyUIWSClient creates a new ComfyUI WebSocket client.
 // The baseURL should be the HTTP(S) URL (e.g., "http://localhost:8188" or "https://comfyui.example.com").
 // The WebSocket URL is derived by converting http -> ws and https -> wss, and appending /ws.
+// A unique client_id is generated at construction time and appended as a query parameter to the
+// WebSocket URL. The same client_id must be used in prompt submissions so that ComfyUI routes
+// prompt-specific events (executing, executed, execution_error) to this connection.
 func NewComfyUIWSClient(baseURL string, logger *logrus.Logger) *ComfyUIWSClient {
-	wsURL := DeriveWebSocketURL(baseURL)
+	clientID := uuid.New().String()
+	wsURL := DeriveWebSocketURL(baseURL, clientID)
 	return &ComfyUIWSClient{
 		url:      wsURL,
+		clientID: clientID,
 		logger:   logger.WithField("component", "comfyui_ws"),
 		handlers: []model.ComfyUIEventHandler{},
 		stopCh:   make(chan struct{}),
 	}
 }
 
-// DeriveWebSocketURL converts an HTTP(S) URL to a WebSocket URL.
-// http://host:port -> ws://host:port/ws
-// https://host:port -> wss://host:port/ws
-func DeriveWebSocketURL(httpURL string) string {
+// GetClientID returns the unique client ID associated with this WebSocket session.
+// This must be included in all ComfyUI prompt submissions so that ComfyUI routes
+// prompt-specific WebSocket events (executing, executed, execution_error) to this connection.
+func (c *ComfyUIWSClient) GetClientID() string {
+	return c.clientID
+}
+
+// DeriveWebSocketURL converts an HTTP(S) URL to a WebSocket URL with a client_id query parameter.
+// http://host:port -> ws://host:port/ws?clientId=<clientID>
+// https://host:port -> wss://host:port/ws?clientId=<clientID>
+//
+// The clientId parameter is required so that ComfyUI routes prompt-specific WebSocket events
+// (executing, executed, execution_error) to this connection. Without a matching clientId,
+// ComfyUI only sends general status events and not prompt-specific completion events.
+func DeriveWebSocketURL(httpURL string, clientID string) string {
 	// Parse the HTTP URL
 	parsed, err := url.Parse(httpURL)
 	if err != nil {
 		// Fallback to simple string replacement if parsing fails
 		wsURL := strings.Replace(httpURL, "http://", "ws://", 1)
 		wsURL = strings.Replace(wsURL, "https://", "wss://", 1)
+		if clientID != "" {
+			return wsURL + "/ws?clientId=" + url.QueryEscape(clientID)
+		}
 		return wsURL + "/ws"
 	}
 
@@ -71,11 +92,16 @@ func DeriveWebSocketURL(httpURL string) string {
 		scheme = "wss"
 	}
 
-	// Build WebSocket URL
+	// Build WebSocket URL with clientId query parameter
+	q := url.Values{}
+	if clientID != "" {
+		q.Set("clientId", clientID)
+	}
 	wsURL := &url.URL{
-		Scheme: scheme,
-		Host:   parsed.Host,
-		Path:   "/ws",
+		Scheme:   scheme,
+		Host:     parsed.Host,
+		Path:     "/ws",
+		RawQuery: q.Encode(),
 	}
 
 	return wsURL.String()
