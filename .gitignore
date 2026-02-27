@@ -9,6 +9,7 @@
 
 .ralph.stop
 .ralph-temp/
+agent/ralph-runlog.json
 
 # OS
 .DS_Store

@@ -25,7 +25,7 @@ Select work from /agent/backlog.yaml per the priority rules in AGENT_FLOW.md sec
 As soon as you select a story, emit an HTML comment so the user can identify the active story in the conversation:
 
 ```
-<!-- story: S-123 -->
+<!-- story: S-049 — My Story Title -->
 ```
 
 Use the actual story ID (e.g., `S-051`, `B-003`). Emit this before any subagent dispatch or status change.
