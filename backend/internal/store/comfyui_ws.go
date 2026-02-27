@@ -20,11 +20,12 @@ type ComfyUIWSClient struct {
 	clientID string
 	logger   *logrus.Entry
 
-	mu       sync.RWMutex
-	conn     *websocket.Conn
-	handlers []model.ComfyUIEventHandler
-	stopCh   chan struct{}
-	stopped  bool
+	mu                  sync.RWMutex
+	conn                *websocket.Conn
+	handlers            []model.ComfyUIEventHandler
+	disconnectHandler   func()
+	stopCh              chan struct{}
+	stopped             bool
 }
 
 // comfyUIEventEntity is the JSON-serializable store entity for WebSocket events.
@@ -114,6 +115,15 @@ func (c *ComfyUIWSClient) AddHandler(handler model.ComfyUIEventHandler) {
 	c.handlers = append(c.handlers, handler)
 }
 
+// SetDisconnectHandler registers a callback that is invoked when the WebSocket
+// connection is lost (readLoop exits due to a read error). This allows the
+// executor to mark itself as disconnected and trigger reconnection.
+func (c *ComfyUIWSClient) SetDisconnectHandler(handler func()) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.disconnectHandler = handler
+}
+
 // Connect establishes the WebSocket connection and starts listening for events.
 func (c *ComfyUIWSClient) Connect(ctx context.Context) error {
 	c.logger.WithField("url", c.url).Trace("entering Connect")
@@ -181,18 +191,29 @@ func (c *ComfyUIWSClient) Close() error {
 
 // readLoop continuously reads messages from the WebSocket.
 func (c *ComfyUIWSClient) readLoop() {
+	unexpectedExit := true // Track whether we exited due to an error (not a graceful stop)
+
 	defer func() {
 		c.mu.Lock()
 		if c.conn != nil {
 			c.conn.Close()
 			c.conn = nil
 		}
+		disconnectHandler := c.disconnectHandler
 		c.mu.Unlock()
+
+		// Notify the executor that the connection was lost so it can mark
+		// itself as disconnected and trigger reconnection on the next tick.
+		// Only fire on unexpected exits (read errors), not graceful shutdowns.
+		if unexpectedExit && disconnectHandler != nil {
+			disconnectHandler()
+		}
 	}()
 
 	for {
 		select {
 		case <-c.stopCh:
+			unexpectedExit = false
 			return
 		default:
 		}
@@ -202,6 +223,7 @@ func (c *ComfyUIWSClient) readLoop() {
 		c.mu.RUnlock()
 
 		if conn == nil {
+			unexpectedExit = false
 			return
 		}
 

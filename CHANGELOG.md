@@ -22,9 +22,10 @@ All notable changes to this project will be documented in this file.
 - 622 frontend tests pass; 521 backend tests pass; 26 E2E tests pass
 
 ### B-029: Sample jobs stuck in pending — backend should auto-start and execute jobs (UAT rework)
-- `backend/internal/service/job_executor.go`: Fixed `RequestStop` to clear all executor state (`activeJobID`, `activeItemID`, `activePromptID`, `stopRequested`) after stopping a job, so pending jobs are picked up on the next tick; updated `RequestResume` to succeed as a no-op when executor state was already cleared by a prior stop
-- `backend/internal/service/job_executor_test.go`: Updated Stop/Resume tests for new state-clearing behavior; added regression test directly covering the UAT scenario (pending jobs start after a running job is stopped)
-- 622 frontend tests pass; 538 backend tests pass; 26 E2E tests pass
+- `backend/internal/service/job_executor.go`: Added `SetDisconnectHandler` to `ComfyUIWS` interface; added `handleDisconnect` method that sets `connected = false` and clears stale active item/prompt state when the WebSocket connection drops unexpectedly; registered disconnect handler in `Start()`
+- `backend/internal/service/job_executor_test.go`: Added `SetDisconnectHandler` and `SimulateDisconnect` to mock; added 6 new tests in "WebSocket disconnect handling" block covering disconnect detection, stale state cleanup, idempotency, and reconnect-resume flows
+- `backend/internal/store/comfyui_ws.go`: Added `disconnectHandler` field to `ComfyUIWSClient`; implemented `SetDisconnectHandler` method; updated `readLoop` to track `unexpectedExit` and call disconnect handler when exiting due to a read error
+- 622 frontend tests pass; 544 backend tests pass; 26 E2E tests pass
 
 ### S-051: Workflows documentation (docs/workflows.md)
 - `docs/workflows.md`: New file documenting how to create and annotate ComfyUI workflow templates for use with checkpoint-sampler — covers the `cs_role` annotation system, complete role reference table with field substitutions, step-by-step instructions for adding a new workflow, annotated JSON example based on `qwen-image.json`, validation rules, and troubleshooting

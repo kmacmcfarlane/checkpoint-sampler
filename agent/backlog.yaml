@@ -229,10 +229,6 @@ stories:
     priority: 198
     status: uat
     requires: []
-    uat_feedback: |
-      Job still appears stuck in pending despite being the only job. ComfyUI is not showing
-      any workflow activity in its stdout logging. The auto-start mechanism does not appear
-      to be triggering.
     acceptance:
       - "BE: Job executor polls for jobs in pending status and auto-transitions them to running"
       - "BE: No explicit Start API call or UI button required — jobs start automatically after creation"

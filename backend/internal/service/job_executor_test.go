@@ -112,14 +112,19 @@ func (m *mockComfyUIClient) CancelPrompt(ctx context.Context, promptID string) e
 }
 
 type mockComfyUIWS struct {
-	handlers   []model.ComfyUIEventHandler
-	connectErr error
-	closeErr   error
-	clientID   string
+	handlers            []model.ComfyUIEventHandler
+	disconnectHandler   func()
+	connectErr          error
+	closeErr            error
+	clientID            string
 }
 
 func (m *mockComfyUIWS) AddHandler(handler model.ComfyUIEventHandler) {
 	m.handlers = append(m.handlers, handler)
+}
+
+func (m *mockComfyUIWS) SetDisconnectHandler(handler func()) {
+	m.disconnectHandler = handler
 }
 
 func (m *mockComfyUIWS) Connect(ctx context.Context) error {
@@ -143,6 +148,14 @@ func (m *mockComfyUIWS) GetClientID() string {
 func (m *mockComfyUIWS) SendEvent(event model.ComfyUIEvent) {
 	for _, h := range m.handlers {
 		h(event)
+	}
+}
+
+// SimulateDisconnect simulates a WebSocket disconnection by invoking the
+// registered disconnect handler (as the real readLoop would on a read error).
+func (m *mockComfyUIWS) SimulateDisconnect() {
+	if m.disconnectHandler != nil {
+		m.disconnectHandler()
 	}
 }
 
@@ -1420,6 +1433,164 @@ var _ = Describe("JobExecutor", func() {
 
 			// Clean up
 			executorWithVariableWS.Stop()
+		})
+	})
+
+	// AC: BE: If ComfyUI is unreachable when a job is created, the executor retries once
+	// ComfyUI becomes available — disconnect detection enables the reconnection ticker.
+	Describe("WebSocket disconnect handling", func() {
+		BeforeEach(func() {
+			executor.mu.Lock()
+			executor.connected = true
+			executor.mu.Unlock()
+		})
+
+		It("marks executor as disconnected when handleDisconnect is called", func() {
+			// Simulate a WebSocket disconnection
+			executor.handleDisconnect()
+
+			Expect(executor.IsConnected()).To(BeFalse())
+		})
+
+		It("clears stale in-flight item on disconnect", func() {
+			// Simulate an in-flight item (submitted to ComfyUI, waiting for WS event)
+			executor.mu.Lock()
+			executor.activeJobID = "job-1"
+			executor.activeItemID = "item-1"
+			executor.activePromptID = "prompt-1"
+			executor.mu.Unlock()
+
+			executor.handleDisconnect()
+
+			executor.mu.Lock()
+			// activeJobID should be preserved so the executor resumes the same job
+			Expect(executor.activeJobID).To(Equal("job-1"))
+			// activeItemID and activePromptID should be cleared
+			Expect(executor.activeItemID).To(BeEmpty())
+			Expect(executor.activePromptID).To(BeEmpty())
+			executor.mu.Unlock()
+		})
+
+		It("is a no-op when already disconnected", func() {
+			executor.mu.Lock()
+			executor.connected = false
+			executor.mu.Unlock()
+
+			// Should not panic
+			executor.handleDisconnect()
+			Expect(executor.IsConnected()).To(BeFalse())
+		})
+
+		It("allows reconnection and job resumption after disconnect", func() {
+			// AC: BE: If ComfyUI is unreachable, the executor retries once ComfyUI becomes available
+
+			job := model.SampleJob{
+				ID:           "job-disconnect-resume",
+				Status:       model.SampleJobStatusRunning,
+				WorkflowName: "test-workflow.json",
+			}
+			item := model.SampleJobItem{
+				ID:               "item-disconnect-1",
+				JobID:            job.ID,
+				Status:           model.SampleJobItemStatusPending,
+				ComfyUIModelPath: "models/test.safetensors",
+				SamplerName:      "euler",
+				Scheduler:        "normal",
+				Seed:             1,
+				Steps:            1,
+				CFG:              1.0,
+				Width:            64,
+				Height:           64,
+			}
+			mockStore.jobs[job.ID] = job
+			mockStore.items[job.ID] = []model.SampleJobItem{item}
+
+			// Simulate: executor was tracking the job and had an in-flight item
+			executor.mu.Lock()
+			executor.activeJobID = job.ID
+			executor.activeItemID = "item-disconnect-1"
+			executor.activePromptID = "some-prompt"
+			executor.mu.Unlock()
+
+			// WebSocket drops
+			executor.handleDisconnect()
+
+			// Executor is now disconnected and item is cleared
+			Expect(executor.IsConnected()).To(BeFalse())
+
+			// processNextItem should skip (not connected)
+			executor.processNextItem()
+			// Item should still be pending (not processed while disconnected)
+			items := mockStore.items[job.ID]
+			Expect(items[0].Status).To(Equal(model.SampleJobItemStatusPending))
+
+			// ComfyUI comes back — simulate reconnection
+			executor.mu.Lock()
+			executor.connected = true
+			executor.mu.Unlock()
+
+			// Next tick: executor should resume processing the same job
+			executor.processNextItem()
+			items = mockStore.items[job.ID]
+			Expect(items[0].Status).To(Equal(model.SampleJobItemStatusRunning))
+			Expect(items[0].ComfyUIPromptID).To(Equal("test-prompt-id"))
+		})
+
+		It("fires disconnect handler via mock SimulateDisconnect", func() {
+			// Verify the mock's SimulateDisconnect works with the registered handler
+			err := executor.Start()
+			Expect(err).ToNot(HaveOccurred())
+			defer executor.Stop()
+
+			Expect(executor.IsConnected()).To(BeTrue())
+
+			// Simulate WebSocket dropping
+			mockWS.SimulateDisconnect()
+
+			Expect(executor.IsConnected()).To(BeFalse())
+		})
+
+		It("allows pending job auto-start after disconnect and reconnect", func() {
+			// AC: BE: Job executor polls for pending jobs and auto-transitions them to running
+			// This test verifies the full cycle: connected -> disconnect -> reconnect -> auto-start
+
+			pendingJob := model.SampleJob{
+				ID:           "job-post-disconnect",
+				Status:       model.SampleJobStatusPending,
+				WorkflowName: "test-workflow.json",
+			}
+			pendingItem := model.SampleJobItem{
+				ID:               "item-post-disconnect-1",
+				JobID:            pendingJob.ID,
+				Status:           model.SampleJobItemStatusPending,
+				ComfyUIModelPath: "models/test.safetensors",
+				SamplerName:      "euler",
+				Scheduler:        "normal",
+				Seed:             1,
+				Steps:            1,
+				CFG:              1.0,
+				Width:            64,
+				Height:           64,
+			}
+			mockStore.jobs[pendingJob.ID] = pendingJob
+			mockStore.items[pendingJob.ID] = []model.SampleJobItem{pendingItem}
+
+			// Simulate disconnect
+			executor.handleDisconnect()
+			Expect(executor.IsConnected()).To(BeFalse())
+
+			// processNextItem should not auto-start while disconnected
+			executor.processNextItem()
+			Expect(mockStore.jobs[pendingJob.ID].Status).To(Equal(model.SampleJobStatusPending))
+
+			// Reconnect
+			executor.mu.Lock()
+			executor.connected = true
+			executor.mu.Unlock()
+
+			// Now processNextItem should auto-start the pending job
+			executor.processNextItem()
+			Expect(mockStore.jobs[pendingJob.ID].Status).To(Equal(model.SampleJobStatusRunning))
 		})
 	})
 

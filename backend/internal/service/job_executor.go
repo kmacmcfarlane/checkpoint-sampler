@@ -35,6 +35,11 @@ type ComfyUIClient interface {
 // ComfyUIWS defines the interface for ComfyUI WebSocket operations.
 type ComfyUIWS interface {
 	AddHandler(handler model.ComfyUIEventHandler)
+	// SetDisconnectHandler registers a callback that is invoked when the
+	// WebSocket connection is lost (e.g. readLoop exits due to a read error).
+	// The executor uses this to mark itself as disconnected and clear stale
+	// active state so the reconnection ticker can re-establish the connection.
+	SetDisconnectHandler(handler func())
 	Connect(ctx context.Context) error
 	Close() error
 	// GetClientID returns the unique client ID for this WebSocket session.
@@ -121,8 +126,9 @@ func (e *JobExecutor) Start() error {
 	e.started = true
 	e.mu.Unlock()
 
-	// Register WebSocket event handler (must be done before connection attempts)
+	// Register WebSocket event handler and disconnect handler (must be done before connection attempts)
 	e.comfyuiWS.AddHandler(e.handleComfyUIEvent)
+	e.comfyuiWS.SetDisconnectHandler(e.handleDisconnect)
 
 	// Attempt initial connection to ComfyUI WebSocket
 	if err := e.tryConnect(); err != nil {
@@ -157,6 +163,36 @@ func (e *JobExecutor) tryConnect() error {
 	e.mu.Unlock()
 	e.logger.Info("ComfyUI WebSocket connected")
 	return nil
+}
+
+// handleDisconnect is called by the WebSocket client when the connection drops.
+// It marks the executor as disconnected and clears stale active state so that
+// (a) the reconnection ticker will attempt to re-establish the connection, and
+// (b) the executor does not stay stuck waiting for WebSocket events that will
+// never arrive.
+func (e *JobExecutor) handleDisconnect() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	if !e.connected {
+		return
+	}
+
+	e.logger.Warn("ComfyUI WebSocket connection lost, marking as disconnected")
+	e.connected = false
+
+	// If an item was in-flight (submitted to ComfyUI, waiting for WS completion event),
+	// the event will never arrive. Clear the active prompt/item so the executor can
+	// retry on the next tick once reconnected. The job remains tracked (activeJobID is
+	// preserved) so the executor will resume from where it left off.
+	if e.activeItemID != "" {
+		e.logger.WithFields(logrus.Fields{
+			"active_job_id":  e.activeJobID,
+			"active_item_id": e.activeItemID,
+		}).Warn("clearing stale in-flight item due to disconnect")
+		e.activeItemID = ""
+		e.activePromptID = ""
+	}
 }
 
 // Stop gracefully shuts down the executor.
