@@ -125,6 +125,89 @@ stories:
     testing:
       - "command: make test-e2e"
 
+  # ─── User-reported issues (2026-02-27) ──────────────────────────────────────
+
+  - id: B-036
+    title: "Job status does not report failed items — add error reporting, completed_with_errors status, and failed-checkpoint regeneration flow"
+    priority: 190
+    complexity: high
+    status: todo
+    requires: [S-049]
+    acceptance:
+      # Backend — compute counts on-the-fly from item statuses
+      - "BE: SampleJobResponse includes failed_items count (computed from items with status=failed)"
+      - "BE: SampleJobResponse includes pending_items count (computed from items with status=pending)"
+      - "BE: Counts are computed on-the-fly from sample_job_items — no new DB columns or migration"
+      # Backend — new completed_with_errors status
+      - "BE: New SampleJobStatus value 'completed_with_errors' added to the model"
+      - "BE: When the executor finishes all items and at least one has status=failed, the job transitions to completed_with_errors instead of completed"
+      - "BE: A job with all items completed (none failed) transitions to completed as before"
+      - "BE: Goa DSL updated to include completed_with_errors in the status enum"
+      # Backend — inline failed item details in job response
+      - "BE: SampleJobResponse includes a failed_item_details array (inline, not a separate endpoint)"
+      - "BE: Each entry in failed_item_details contains: checkpoint_filename (string) and error_message (string)"
+      - "BE: A checkpoint is considered failed if ANY of its items have status=failed (partial failure = failed)"
+      - "BE: failed_item_details is populated only when the job has failed items; empty array otherwise"
+      # Frontend — display counts in job card
+      - "FE: JobProgressPanel shows completed, failed, and pending item counts (e.g., '100 completed, 50 failed, 390 pending')"
+      - "FE: Failed count is visually distinct (warning/red color)"
+      - "FE: Jobs with completed_with_errors status show a warning indicator (distinct from both completed and failed)"
+      # Frontend — grouped error display in job card
+      - "FE: When a job has failed items, an expandable error section appears in the job card"
+      - "FE: Errors are grouped by error message — each unique error shown once with a count and expandable list of affected checkpoint names"
+      - "FE: Example: 'read-only file system (12 checkpoints)' with expandable list showing each checkpoint filename"
+      # Frontend — Generate Samples dialog: failed checkpoint awareness
+      - "FE: When a completed_with_errors run is selected in the dialog, the checkpoint picker shows a red/warning status badge next to each failed checkpoint"
+      - "FE: Hovering the badge shows the error message in a tooltip"
+      - "FE: Default selection logic: if ANY checkpoints have failures, only the failed checkpoints are pre-selected; if no failures, all checkpoints are selected"
+      - "FE: Selecting zero checkpoints is invalid — the launch button is disabled with a validation message"
+      - "FE: When failed checkpoints are pre-selected, clear_existing is auto-enabled (user can toggle off)"
+      - "FE: Regenerating a failed checkpoint regenerates ALL items for that checkpoint (not just the specific failed items)"
+      # WebSocket — include counts in progress events
+      - "BE: Job progress WebSocket events include failed_items and pending_items counts"
+      - "FE: Real-time updates reflect failed item counts as they occur"
+      # Tests
+      - "BE: Unit tests for on-the-fly count computation (mixed item statuses)"
+      - "BE: Unit tests for completed_with_errors transition (all pass, some fail, all fail)"
+      - "BE: Unit tests for failed_item_details population and checkpoint-level failure aggregation"
+      - "FE: Unit tests for failed item count display and error grouping in job card"
+      - "FE: Unit tests for checkpoint picker failed-checkpoint pre-selection, badge display, and clear_existing auto-enable"
+    notes: |
+      Currently the job executor marks items as failed with per-item error messages (stored in
+      sample_job_items.error_message), but this information is never surfaced to the API or UI.
+      The job card only shows completed_items / total_items, so failed items silently disappear
+      into the gap between those numbers.
+
+      Root cause of the example failure: the sample directory was mounted read-only, so
+      mkdir for the checkpoint subdirectory failed. The error was logged server-side but the
+      UI showed no indication of failure.
+
+      Implementation approach:
+      - Counts (failed, pending) are computed on-the-fly by querying sample_job_items grouped
+        by status. No DB migration needed — scale is small (~500 items max per job).
+      - Failed item details are included inline in the SampleJobResponse (not a separate endpoint).
+        The array will be small in practice (usually one error type affecting multiple items).
+      - The frontend groups errors by message in the job card to avoid noise.
+      - The new completed_with_errors status is a distinct terminal state — UI shows a
+        warning badge distinct from both green (completed) and red (failed).
+      - The Generate Samples dialog (S-049) is extended: when a completed_with_errors run is
+        selected, failed checkpoints get a red badge + tooltip, are pre-selected by default,
+        and clear_existing is auto-enabled. A failed checkpoint means ANY items for that
+        checkpoint failed — regeneration redoes ALL items for the checkpoint (clearing first).
+
+      Key files:
+      - backend/internal/model/sample_job.go (new status constant, item count types)
+      - backend/internal/api/design/sample_jobs.go (Goa DSL — response fields, status enum)
+      - backend/internal/service/sample_job.go (GetProgress — compute counts, build failed details)
+      - backend/internal/service/job_executor.go (terminal status logic — completed vs completed_with_errors)
+      - backend/internal/store/sample_job.go (query for item counts by status)
+      - frontend/src/components/JobProgressPanel.vue (display counts, error grouping)
+      - frontend/src/components/JobLaunchDialog.vue (failed checkpoint badges, pre-selection, auto-clear)
+      - frontend/src/api/types.ts (new response fields)
+    testing:
+      - "command: make test-backend"
+      - "command: cd frontend && npx vitest run"
+
   # ─── User-reported issues (2026-02-26) ──────────────────────────────────────
 
   - id: W-001
