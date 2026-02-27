@@ -10,37 +10,14 @@ defaults:
   requires_field: "requires"
 
 stories:
-  # ─── User-reported issues (2026-02-26) ──────────────────────────────────────
-
-  - id: B-026
-    title: "WebSocket fails on remote LAN hosts (nginx missing upgrade headers)"
-    priority: 65
-    status: uat
-    requires: []
-    acceptance:
-      - "FE: nginx.conf /api/ location includes WebSocket upgrade headers (proxy_http_version 1.1, Upgrade, Connection)"
-      - "FE: WebSocket connection succeeds when accessing the application from a remote LAN host (not just localhost)"
-      - "FE: The live/disconnected status indicator in the header shows 'Live' when connected from a remote host"
-      - "FE: Existing WebSocket functionality (filesystem events, job progress) works correctly through nginx"
-    notes: |
-      The Vite dev proxy has ws: true so WebSocket works in dev mode. But the production
-      nginx.conf at frontend/nginx.conf is missing the WebSocket upgrade headers on the
-      /api/ location block. This causes 'WebSocket is closed before the connection is established'
-      when accessed from remote LAN hosts.
-      Fix: Add to /api/ location:
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-      Key file: frontend/nginx.conf (lines 11-16).
-    testing:
-      - "command: make up (verify WebSocket connects from remote host)"
-
   # ─── Enhancements (2026-02-26) ──────────────────────────────────────────────
 
   - id: S-049
     title: "Generate Samples dialog — own training run selector with status beads and regeneration support"
     priority: 55
     status: uat
+    uat_feedback: |
+      Make paused -> stopped, and make the bead color red for this status.
     requires: []
     acceptance:
       # Training run selector
@@ -170,6 +147,10 @@ stories:
     title: "Sample jobs stuck in pending — backend should auto-start and execute jobs"
     priority: 198
     status: uat
+    uat_feedback: |
+      I had a running job and a pending job when I started it up. I added a new job,
+      which went to pending, and I stopped the "running" job. Neither of the pending
+      jobs started.
     requires: []
     acceptance:
       - "BE: Job executor polls for jobs in pending status and auto-transitions them to running"
@@ -195,6 +176,13 @@ stories:
     title: "Job executor never receives ComfyUI completion events — jobs stuck in running"
     priority: 250
     status: uat
+    uat_feedback: |
+      Job still gets stuck in running. From a fresh dev container, submitted a generate
+      job. Logs show only progress_state events being received by the executor (nodes
+      transitioning through running→finished states), but no executed/execution_success/
+      execution_complete events ever arrive. All WS events are event_type=progress_state.
+      The job remains in running with completed_items=0. ComfyUI prompt_id was
+      a49919b5-9cf2-4ad9-8459-9ac43bcd5ac7.
     requires: []
     complexity: high
     acceptance:
@@ -404,43 +392,6 @@ stories:
       agent/TEST_PRACTICES.md.
     testing:
       - "command: make test-e2e"
-
-  - id: B-033
-    title: "Negative prompt not injected into workflow substitution"
-    priority: 80
-    status: uat
-    requires: []
-    acceptance:
-      - "BE: The negative_prompt cs_role injects the sample preset's negative prompt text into the workflow during job execution"
-      - "BE: When the workflow has a negative_prompt node and the preset has a negative prompt, the text is substituted"
-      - "BE: When the preset has no negative prompt (empty string), the node keeps its default value"
-      - "BE: Unit tests for negative prompt substitution (with text, empty text, missing role)"
-    notes: |
-      Source: new_features idea "Negative prompt injection" (low priority, but it's a bug).
-      The substituteNode() function for CSRoleNegativePrompt currently does not inject the
-      preset's negative prompt text — it keeps the default or sets empty. The positive_prompt
-      role correctly injects item.PromptText but negative_prompt does not.
-      Key files: backend/internal/service/job_executor.go (substituteNode, CSRoleNegativePrompt case).
-    testing:
-      - "command: ginkgo -r --cover --race ./internal/..."
-
-  - id: B-034
-    title: "High-severity npm audit vulnerabilities in frontend dependencies (rollup path traversal, minimatch ReDoS)"
-    priority: 55
-    status: uat
-    requires: []
-    acceptance:
-      - "Running npm audit in /frontend reports zero high-severity vulnerabilities"
-      - "All frontend tests continue to pass after the dependency updates"
-      - "The rollup upgrade does not break the Vite build (npm run build succeeds)"
-    notes: |
-      QA sweep finding from S-049. rollup 4.0.0-4.58.0 has arbitrary file write via path traversal
-      (GHSA-mw96-cpmx-2vgc). minimatch 9.0.0-9.0.6 (transitive via @vue/test-utils → js-beautify →
-      editorconfig) has three ReDoS CVEs. rollup fix available via npm audit fix (non-breaking);
-      minimatch chain requires evaluation of @vue/test-utils downgrade to 2.4.0 (possibly breaking).
-    testing:
-      - "command: cd frontend && npm audit"
-      - "command: cd frontend && npx vitest run"
 
   - id: S-058
     title: "Frontend lint rules — CSS variable linting and unused import detection"
