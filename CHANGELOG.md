@@ -60,10 +60,11 @@ All notable changes to this project will be documented in this file.
 - 565 frontend tests pass; 501 backend tests pass; 26 E2E tests pass
 - Token usage: 341164 input, 0 output
 
-### B-026: WebSocket fails on remote LAN hosts (nginx missing upgrade headers)
-- `frontend/nginx.conf`: Added `proxy_http_version 1.1`, `proxy_set_header Upgrade $http_upgrade`, and `proxy_set_header Connection "upgrade"` to the `/api/` location block to enable WebSocket protocol upgrade through the nginx reverse proxy, fixing "WebSocket is closed before the connection is established" when accessing from remote LAN hosts
-- 552 frontend tests pass; 501 backend tests pass; 26 E2E tests pass
-- Token usage: 94689 input, 0 output
+### B-026: WebSocket fails on remote LAN hosts (nginx missing upgrade headers) (UAT rework)
+- `frontend/nginx.conf`: Changed `server_name localhost` to `server_name _` to accept requests from any hostname; added dedicated `location = /api/ws` block with 1-hour read/send timeouts to keep long-lived WebSocket tunnels alive
+- `backend/internal/api/ws.go`: Added immediate `stream.Send()` with `Type: "connected"` to trigger Goa's deferred HTTP 101 WebSocket upgrade right when a client connects, preventing the Go HTTP server's WriteTimeout from closing the connection before any events fire
+- `backend/internal/api/ws_test.go`: New test file with 5 tests covering immediate upgrade, error propagation, hub registration/unregistration lifecycle, and event delivery
+- 622 frontend tests pass; 526 backend tests pass; 26 E2E tests pass
 
 ### B-024: Sample Preset Editor crashes when adding second prompt
 - `frontend/src/components/SamplePresetEditor.vue`: Added `createPromptItem()` function returning `{name: '', text: ''}` and wired it as `:on-create` handler on NDynamicInput; added null-guards (`p != null &&`) in `computedTotalImages`, `canSave`, and `savePreset()` to prevent TypeError on null prompt entries

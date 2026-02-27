@@ -19,3 +19,9 @@ Example:
 ```
 
 ## Ideas
+
+### WebSocket heartbeat/ping-pong mechanism
+* status: needs_approval
+* priority: medium
+* source: developer
+Implement periodic WebSocket ping frames from the backend (or nginx) to keep idle WebSocket tunnels alive beyond the proxy_read_timeout limit and prevent browser-side idle timeouts. This is a necessary follow-up to make the WebSocket robust for long sessions with no activity.
