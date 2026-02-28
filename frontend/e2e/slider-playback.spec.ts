@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
+import { resetDatabase } from './helpers'
 
 /**
  * E2E tests for the master slider and playback controls user journey:
@@ -88,6 +89,11 @@ async function setupSlider(page: Page): Promise<void> {
 }
 
 test.describe('slider and playback controls', () => {
+  // AC: Each E2E test is independent -- reset database before each test
+  test.beforeEach(async ({ request }) => {
+    await resetDatabase(request)
+  })
+
   test('assigning a dimension to Slider role makes the master slider appear', async ({ page }) => {
     await setupSlider(page)
 

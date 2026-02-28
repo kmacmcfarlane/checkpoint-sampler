@@ -196,6 +196,7 @@ func run() error {
 		SwaggerUIDir:           http.Dir(swaggerUIDir()),
 		Logger:                 logger,
 		Debug:                  true,
+		DBResetter:             st,
 	})
 
 	// Create HTTP server

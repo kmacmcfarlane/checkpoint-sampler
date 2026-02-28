@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test'
 import { AxeBuilder } from '@axe-core/playwright'
+import { resetDatabase } from './helpers'
 
 /**
  * Accessibility audit tests using axe-core.
@@ -43,6 +44,11 @@ async function closeDrawerIfOpen(page: Page): Promise<void> {
 }
 
 test.describe('accessibility audit', () => {
+  // AC: Each E2E test is independent -- reset database before each test
+  test.beforeEach(async ({ request }) => {
+    await resetDatabase(request)
+  })
+
   test('main app page has no critical or serious axe violations in light mode', async ({ page }) => {
     // AC: E2E: At least one Playwright test runs an axe accessibility scan on the main app page
     // AC: E2E: Accessibility violations at 'critical' and 'serious' impact levels fail the test

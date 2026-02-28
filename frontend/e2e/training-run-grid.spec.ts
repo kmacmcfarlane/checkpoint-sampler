@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
+import { resetDatabase } from './helpers'
 
 /**
  * E2E tests for the core user journey:
@@ -43,6 +44,11 @@ async function selectTrainingRun(page: Page, runName: string): Promise<void> {
 }
 
 test.describe('training run selection and XY grid display', () => {
+  // AC: Each E2E test is independent -- reset database before each test
+  test.beforeEach(async ({ request }) => {
+    await resetDatabase(request)
+  })
+
   test('selects a training run from the sidebar dropdown', async ({ page }) => {
     await page.goto('/')
 

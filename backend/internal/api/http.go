@@ -51,6 +51,11 @@ type HTTPHandlerConfig struct {
 	SwaggerUIDir           http.FileSystem
 	Logger                 *logrus.Logger
 	Debug                  bool
+
+	// DBResetter is an optional dependency for the test-only reset endpoint.
+	// When non-nil and ENABLE_TEST_ENDPOINTS=true, DELETE /api/test/reset is
+	// mounted to drop and recreate all tables.
+	DBResetter DBResetter
 }
 
 // NewHTTPHandler creates a fully wired http.Handler with all Goa services,
@@ -108,6 +113,11 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 	workflowsServer.Mount(mux)
 	imagesServer.Mount(mux)
 	wsServer.Mount(mux)
+
+	// Mount test-only endpoints (no-op unless ENABLE_TEST_ENDPOINTS=true)
+	if cfg.DBResetter != nil {
+		MountTestResetEndpoint(mux, cfg.DBResetter, cfg.Logger)
+	}
 
 	// Redirect /docs to /docs/ for the Swagger UI
 	mux.Handle("GET", "/docs", http.RedirectHandler("/docs/", http.StatusMovedPermanently).ServeHTTP)

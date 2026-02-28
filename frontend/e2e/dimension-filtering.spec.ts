@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
+import { resetDatabase } from './helpers'
 
 /**
  * E2E tests for dimension configuration and combo filter workflows:
@@ -79,6 +80,11 @@ async function expandDimensionFilter(page: Page, dimensionName: string): Promise
 }
 
 test.describe('dimension filtering and combo filters', () => {
+  // AC: Each E2E test is independent -- reset database before each test
+  test.beforeEach(async ({ request }) => {
+    await resetDatabase(request)
+  })
+
   test('opens dimension panel and changes X/Y axis assignments', async ({ page }) => {
     await page.goto('/')
 

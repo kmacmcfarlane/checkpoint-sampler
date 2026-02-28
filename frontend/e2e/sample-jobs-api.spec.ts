@@ -1,10 +1,16 @@
 import { test, expect } from '@playwright/test'
+import { resetDatabase } from './helpers'
 
 // AC: SampleJobsService methods return an empty result (or appropriate error)
 //     when the inner SampleJobService is nil (ComfyUI not configured)
 // AC: No panic occurs when /api/sample-jobs endpoints are called without ComfyUI configured
 
 test.describe('sample-jobs API without ComfyUI configured', () => {
+  // AC: Each E2E test is independent -- reset database before each test
+  test.beforeEach(async ({ request }) => {
+    await resetDatabase(request)
+  })
+
   test('GET /api/sample-jobs returns 200 with empty array', async ({ request }) => {
     const response = await request.get('/api/sample-jobs')
     expect(response.status()).toBe(200)

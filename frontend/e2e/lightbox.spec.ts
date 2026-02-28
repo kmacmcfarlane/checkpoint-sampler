@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
+import { resetDatabase } from './helpers'
 
 /**
  * E2E tests for the image lightbox user journey:
@@ -70,6 +71,11 @@ async function setupGridWithImages(page: Page): Promise<void> {
 }
 
 test.describe('image lightbox interaction', () => {
+  // AC: Each E2E test is independent -- reset database before each test
+  test.beforeEach(async ({ request }) => {
+    await resetDatabase(request)
+  })
+
   test('clicks an image cell to open the lightbox', async ({ page }) => {
     await setupGridWithImages(page)
 
@@ -257,6 +263,11 @@ async function setupGridWithSlider(page: Page): Promise<void> {
 }
 
 test.describe('lightbox keyboard navigation (Shift+Arrow)', () => {
+  // AC: Each E2E test is independent -- reset database before each test
+  test.beforeEach(async ({ request }) => {
+    await resetDatabase(request)
+  })
+
   // AC: Shift+ArrowLeft and Shift+ArrowRight navigate between images in the grid
   // while the lightbox is open
   test('Shift+ArrowRight navigates to the next grid image in the lightbox', async ({ page }) => {
@@ -356,6 +367,11 @@ test.describe('lightbox keyboard navigation (Shift+Arrow)', () => {
 })
 
 test.describe('lightbox slider dimension label', () => {
+  // AC: Each E2E test is independent -- reset database before each test
+  test.beforeEach(async ({ request }) => {
+    await resetDatabase(request)
+  })
+
   // AC: Lightbox slider label shows the actual dimension name (e.g., 'cfg', 'checkpoint')
   // instead of generic 'Slider'
   // AC: Dimension name passed through to the lightbox as a prop from the grid
