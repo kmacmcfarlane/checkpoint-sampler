@@ -6,10 +6,12 @@ All notable changes to this project will be documented in this file.
 
 ### S-063: MasterSlider keyboard conflict guard for multiple instances
 - `frontend/src/composables/useSliderKeyboardFocus.ts`: New global singleton module managing a stack of MasterSlider instance IDs; ensures only one instance captures document-level keyboard input at a time via `registerSlider`, `unregisterSlider`, `claimSliderFocus`, and `isSliderActive` exports
-- `frontend/src/components/MasterSlider.vue`: Integrated keyboard focus singleton — each instance registers/unregisters on mount/unmount, claims focus on click/focus events, and the document keydown handler gates on `isSliderActive()`
+- `frontend/src/components/MasterSlider.vue`: Integrated keyboard focus singleton — each instance registers/unregisters on mount/unmount, claims focus on click/focus events, and the document keydown handler gates on `isSliderActive()`; (UAT rework) changed from plain ArrowLeft/Right to Ctrl+ArrowLeft/Right to avoid conflict with zoom controls that use plain arrow keys
 - `frontend/src/composables/__tests__/useSliderKeyboardFocus.test.ts`: 14 new unit tests covering singleton registration, unregistration, focus claiming, active instance selection, and edge cases
-- `frontend/src/components/__tests__/MasterSlider.test.ts`: 7 new multi-instance keyboard conflict tests covering single-active-handler, focus transfer via click/tab, unmount fallback, and exactly-one-emission guard
-- 719 frontend tests pass; 564 backend tests pass; 35 E2E tests pass
+- `frontend/src/components/__tests__/MasterSlider.test.ts`: 7 new multi-instance keyboard conflict tests covering single-active-handler, focus transfer via click/tab, unmount fallback, and exactly-one-emission guard; (UAT rework) updated all keyboard tests to use Ctrl+Arrow, added tests verifying plain arrows are ignored
+- `frontend/e2e/slider-playback.spec.ts`: (UAT rework) Updated E2E keyboard stepping tests to use Ctrl+Arrow keys
+- `README.md`: (UAT rework) Added "Keyboard controls" section with table documenting all keyboard shortcuts for main view and lightbox
+- 726 frontend tests pass; 564 backend tests pass; 35 E2E tests pass
 
 ### S-062: Generate Samples dialog polish — bead indicator, preset auto-close, training run restore and refresh
 - `frontend/src/App.vue`: Colored bead indicator on Jobs header button reflecting sample/job status of the sidebar-selected training run (green=complete, blue=running, yellow=queued, gray=empty); `jobRefreshTrigger` counter that increments on WebSocket terminal job status transitions; `refreshTrigger` prop passed to `JobLaunchDialog`; (UAT rework) moved bead from "Generate Samples" button to "Jobs" button per user feedback, renamed `data-testid` to `jobs-bead`

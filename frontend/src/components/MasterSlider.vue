@@ -41,12 +41,14 @@ function onUpdate(idx: number) {
 function onKeydown(event: KeyboardEvent) {
   if (props.values.length === 0) return
   const idx = currentIndex.value
-  if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') {
+  // Use Ctrl+ArrowLeft/Ctrl+ArrowRight to avoid conflict with zoom controls
+  // which use plain arrow keys.
+  if ((event.key === 'ArrowLeft' || event.key === 'ArrowDown') && event.ctrlKey) {
     event.preventDefault()
     event.stopPropagation()
     const prevIdx = idx > 0 ? idx - 1 : props.values.length - 1
     emit('change', props.values[prevIdx])
-  } else if (event.key === 'ArrowRight' || event.key === 'ArrowUp') {
+  } else if ((event.key === 'ArrowRight' || event.key === 'ArrowUp') && event.ctrlKey) {
     event.preventDefault()
     event.stopPropagation()
     const nextIdx = idx < props.values.length - 1 ? idx + 1 : 0
@@ -132,8 +134,8 @@ watch(() => props.values, () => {
 })
 
 /**
- * Document-level keydown handler so arrow keys navigate the slider even when
- * focus is elsewhere (e.g. on the page body or after clicking the NSlider
+ * Document-level keydown handler so Ctrl+Arrow keys navigate the slider even
+ * when focus is elsewhere (e.g. on the page body or after clicking the NSlider
  * thumb). Skips when a text-input element has focus to avoid interfering with
  * typing. Also skips when this instance is not the active keyboard owner
  * (another MasterSlider has focus).

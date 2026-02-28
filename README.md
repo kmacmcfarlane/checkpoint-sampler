@@ -122,6 +122,17 @@ Checkpoint Sampler generates images by submitting parameterized ComfyUI workflow
 
 See [docs/workflows.md](docs/workflows.md) for the full reference: what annotations are required, what each role controls, and step-by-step instructions for creating a compatible workflow.
 
+## Keyboard controls
+
+| Context | Key | Action |
+|---|---|---|
+| Main view | `Ctrl+ArrowLeft` / `Ctrl+ArrowRight` | Step master slider backward / forward |
+| Main view | `Ctrl+ArrowDown` / `Ctrl+ArrowUp` | Step master slider backward / forward |
+| Lightbox | `ArrowLeft` / `ArrowRight` | Step lightbox slider backward / forward |
+| Lightbox | `Shift+ArrowLeft` / `Shift+ArrowRight` | Navigate to previous / next grid image |
+| Lightbox | `Escape` | Close lightbox |
+| Lightbox | Scroll wheel | Zoom in / out |
+
 ## API documentation
 
 The backend serves interactive Swagger UI at [http://localhost:8080/docs](http://localhost:8080/docs) with an OpenAPI 3.0 spec.

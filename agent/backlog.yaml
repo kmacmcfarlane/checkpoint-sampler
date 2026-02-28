@@ -181,10 +181,6 @@ stories:
     title: "MasterSlider keyboard conflict guard for multiple instances"
     priority: 60
     status: uat
-    uat_feedback: |
-      If Zoom control is focused, arrows move both the zoom and the master slider. Use ctrl+left/right
-      arrows to move the master horizontal slider controls instead of plain arrows. Also update the
-      README.md to include a keyboard controls table.
     requires: []
     acceptance:
       - "FE: If multiple MasterSlider components are mounted simultaneously, only one captures keyboard input"
