@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-064: E2E test data isolation per run
+- `backend/internal/store/store.go`: Added `ResetDB()` method that drops all application tables in FK dependency order and reruns migrations from scratch for a clean database state
+- `backend/internal/store/db_test.go`: 4 new Ginkgo tests for `ResetDB` covering data clearing, schema recreation, FK chain handling, and idempotency
+- `backend/internal/api/test_reset.go`: New file implementing `DBResetter` interface and `MountTestResetEndpoint` that conditionally registers `DELETE /api/test/reset` when `ENABLE_TEST_ENDPOINTS=true`
+- `backend/internal/api/test_reset_test.go`: 4 new Ginkgo tests for the test reset endpoint covering env var gating, successful reset, error handling, and non-true env var values
+- `backend/internal/api/http.go`: Added optional `DBResetter` field to `HTTPHandlerConfig` and call to `MountTestResetEndpoint` in `NewHTTPHandler`
+- `backend/cmd/server/main.go`: Wired the store as `DBResetter` in HTTP handler config
+- `docker-compose.e2e.yml`: Added `ENABLE_TEST_ENDPOINTS=true` environment variable for the backend service in E2E stack
+- `frontend/e2e/helpers.ts`: New file with `resetDatabase()` helper that calls `DELETE /api/test/reset` for E2E test isolation
+- `frontend/e2e/*.spec.ts`: All 9 E2E spec files updated with `resetDatabase(request)` in `beforeEach` hooks for test independence
+- 572 backend tests pass; 727 frontend tests pass; 38 E2E tests pass
+
 ### S-063: MasterSlider keyboard conflict guard for multiple instances
 - `frontend/src/composables/useSliderKeyboardFocus.ts`: New global singleton module managing a stack of MasterSlider instance IDs; ensures only one instance captures document-level keyboard input at a time via `registerSlider`, `unregisterSlider`, `claimSliderFocus`, and `isSliderActive` exports
 - `frontend/src/components/MasterSlider.vue`: Integrated keyboard focus singleton — each instance registers/unregisters on mount/unmount, claims focus on click/focus events, and the document keydown handler gates on `isSliderActive()`; (UAT rework) changed from plain ArrowLeft/Right to Ctrl+ArrowLeft/Right to avoid conflict with zoom controls that use plain arrow keys

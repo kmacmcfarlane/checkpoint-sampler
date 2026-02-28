@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { resetDatabase } from './helpers'
 
 /**
  * E2E tests for narrow-screen eager auto-select behavior (B-030).
@@ -14,6 +15,11 @@ import { test, expect } from '@playwright/test'
 
 test.describe('narrow screen eager auto-select', () => {
   test.use({ viewport: { width: 768, height: 1024 } })
+
+  // AC: Each E2E test is independent -- reset database before each test
+  test.beforeEach(async ({ request }) => {
+    await resetDatabase(request)
+  })
 
   test('header buttons appear on narrow screen when saved training run exists in localStorage', async ({ page, request }) => {
     // AC: On narrow screens (<1024px), the app eagerly loads the saved training

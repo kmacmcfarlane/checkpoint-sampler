@@ -194,7 +194,7 @@ stories:
   - id: S-064
     title: "E2E test data isolation per run"
     priority: 55
-    status: todo
+    status: uat
     requires: []
     acceptance:
       - "E2E: Tests have a mechanism to seed the database with known state before each test (e.g., API-based setup/teardown or test-only reset endpoint)"

@@ -458,6 +458,146 @@ var _ = Describe("Presets table migration", func() {
 	})
 })
 
+var _ = Describe("ResetDB", func() {
+	var (
+		s      *store.Store
+		tmpDir string
+	)
+
+	BeforeEach(func() {
+		var err error
+		tmpDir, err = os.MkdirTemp("", "reset-db-test-*")
+		Expect(err).NotTo(HaveOccurred())
+
+		dbPath := filepath.Join(tmpDir, "test.db")
+		db, err := store.OpenDB(dbPath)
+		Expect(err).NotTo(HaveOccurred())
+
+		logger := logrus.New()
+		logger.SetOutput(io.Discard)
+		s, err = store.New(db, logger)
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	AfterEach(func() {
+		if s != nil {
+			s.Close()
+		}
+		os.RemoveAll(tmpDir)
+	})
+
+	It("clears all data from application tables", func() {
+		// Insert data into the presets table
+		_, err := s.DB().Exec(
+			"INSERT INTO presets (id, name, mapping, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+			"test-id", "test-preset", `{"x":"cfg"}`, "2025-01-01T00:00:00Z", "2025-01-01T00:00:00Z",
+		)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Verify data exists
+		var count int
+		err = s.DB().QueryRow("SELECT COUNT(*) FROM presets").Scan(&count)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(count).To(Equal(1))
+
+		// Reset the database
+		err = s.ResetDB()
+		Expect(err).NotTo(HaveOccurred())
+
+		// Verify the table is empty after reset
+		err = s.DB().QueryRow("SELECT COUNT(*) FROM presets").Scan(&count)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(count).To(Equal(0))
+	})
+
+	It("recreates all tables with correct schema after reset", func() {
+		err := s.ResetDB()
+		Expect(err).NotTo(HaveOccurred())
+
+		// Verify all application tables exist
+		tables := []string{"presets", "sample_presets", "sample_jobs", "sample_job_items", "schema_migrations"}
+		for _, t := range tables {
+			var name string
+			err := s.DB().QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name=?", t).Scan(&name)
+			Expect(err).NotTo(HaveOccurred(), "expected table %s to exist", t)
+			Expect(name).To(Equal(t))
+		}
+
+		// Verify we can insert data after reset (schema is correct)
+		_, err = s.DB().Exec(
+			"INSERT INTO presets (id, name, mapping, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+			"new-id", "new-preset", `{}`, "2025-01-01T00:00:00Z", "2025-01-01T00:00:00Z",
+		)
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	It("clears data across all tables including foreign key chains", func() {
+		// Insert data across multiple tables with foreign key relationships
+		_, err := s.DB().Exec(`
+			INSERT INTO sample_presets (
+				id, name, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs,
+				seeds, width, height, created_at, updated_at
+			) VALUES (
+				'sp-1', 'Test Preset', '["prompt1"]', 'neg', '[20]', '[7.5]',
+				'[{"sampler":"euler","scheduler":"normal"}]', '[42]', 512, 512,
+				'2025-01-01T00:00:00Z', '2025-01-01T00:00:00Z'
+			)
+		`)
+		Expect(err).NotTo(HaveOccurred())
+
+		_, err = s.DB().Exec(`
+			INSERT INTO sample_jobs (
+				id, training_run_name, sample_preset_id, workflow_name, status,
+				total_items, created_at, updated_at
+			) VALUES (
+				'sj-1', 'test-run', 'sp-1', 'workflow.json', 'completed',
+				1, '2025-01-01T00:00:00Z', '2025-01-01T00:00:00Z'
+			)
+		`)
+		Expect(err).NotTo(HaveOccurred())
+
+		_, err = s.DB().Exec(`
+			INSERT INTO sample_job_items (
+				id, job_id, checkpoint_filename, comfyui_model_path,
+				prompt_name, prompt_text, steps, cfg, sampler_name, scheduler,
+				seed, status, width, height, negative_prompt, created_at, updated_at
+			) VALUES (
+				'sji-1', 'sj-1', 'model.safetensors', '/models/test',
+				'prompt1', 'test', 20, 7.5, 'euler', 'normal',
+				42, 'completed', 512, 512, '', '2025-01-01T00:00:00Z', '2025-01-01T00:00:00Z'
+			)
+		`)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Reset
+		err = s.ResetDB()
+		Expect(err).NotTo(HaveOccurred())
+
+		// Verify all tables are empty
+		for _, table := range []string{"presets", "sample_presets", "sample_jobs", "sample_job_items"} {
+			var count int
+			err := s.DB().QueryRow("SELECT COUNT(*) FROM " + table).Scan(&count)
+			Expect(err).NotTo(HaveOccurred(), "counting rows in %s", table)
+			Expect(count).To(Equal(0), "expected %s to be empty after reset", table)
+		}
+	})
+
+	It("is idempotent — can be called multiple times", func() {
+		err := s.ResetDB()
+		Expect(err).NotTo(HaveOccurred())
+
+		err = s.ResetDB()
+		Expect(err).NotTo(HaveOccurred())
+
+		// Verify schema is intact after double reset
+		_, err = s.DB().Exec(
+			"INSERT INTO presets (id, name, mapping, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+			"after-double-reset", "test", `{}`, "2025-01-01T00:00:00Z", "2025-01-01T00:00:00Z",
+		)
+		Expect(err).NotTo(HaveOccurred())
+	})
+})
+
 var _ = Describe("New", func() {
 	var tmpDir string
 

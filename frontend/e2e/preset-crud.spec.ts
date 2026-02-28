@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
+import { resetDatabase } from './helpers'
 
 /**
  * E2E tests for the sample preset CRUD lifecycle via the job launch dialog.
@@ -209,7 +210,9 @@ async function closeManagePresetsModal(page: Page): Promise<void> {
 }
 
 test.describe('sample preset CRUD via job launch dialog', () => {
-  test.beforeEach(async ({ page }) => {
+  // AC: Each E2E test is independent -- reset database before each test
+  test.beforeEach(async ({ page, request }) => {
+    await resetDatabase(request)
     await page.goto('/')
     // Select the fixture training run so the "Generate Samples" button appears
     await selectTrainingRun(page, 'test-run/my-model')

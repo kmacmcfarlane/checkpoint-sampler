@@ -61,3 +61,9 @@ A pass over `agent/AGENT_FLOW.md` and other `.claude/agents/` files (code-review
 * priority: low
 * source: developer
 A systematic check comparing nil-guard error types in API handler methods against each method's `Error(...)` declarations in the Goa DSL would catch mismatches automatically rather than relying on reviewer spot-checks. E.g., the `Show` method may still use `MakeServiceUnavailable` without declaring it in the DSL.
+
+### Auto-update ResetDB table list on new migrations
+* status: needs_approval
+* priority: low
+* source: developer
+When a new migration adds a table, the developer must remember to update the table list in `ResetDB()`. A code review checklist item or a linter rule could catch this automatically.
