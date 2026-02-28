@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### W-001: Update QA agent to write/modify E2E tests and file ideas for unrelated coverage
+- `.claude/agents/qa-expert.md`: Added `Write` and `Edit` tools to the agent frontmatter, enabling the QA agent to create and modify Playwright E2E test files during verification cycles
+- Changed default model from `sonnet` to `opus` to support complex E2E test authoring
+- Added "E2E test authoring (ENCOURAGED — story-scoped)" section with tiered model selection guidance (sonnet for simple additions, opus for complex authoring)
+- Added "Coverage gap ideas" section directing the QA agent to file unrelated coverage improvements as ideas rather than acting on them during the current cycle
+- Preserved existing autonomous empowerment for E2E helpers, fixtures, and config tweaks
+- 26 E2E tests pass
+
 ### B-032: Dark mode contrast issues in job cards and sample preset editor
 - Removed all hardcoded light-mode color fallbacks (`var(--variable, #hex)` → `var(--variable)`) across 14 component files: `JobProgressPanel.vue`, `SamplePresetEditor.vue`, `JobLaunchDialog.vue`, `ComboFilter.vue`, `DimensionFilter.vue`, `DimensionPanel.vue`, `ZoomControl.vue`, `PresetSelector.vue`, `ImageCell.vue`, `XYGrid.vue`, `MasterSlider.vue`, `SliderBar.vue`, `TrainingRunSelector.vue`, and `App.vue`
 - All CSS colors now use theme-aware CSS custom properties defined in `App.vue` for both light and dark modes, eliminating contrast issues in dark mode

@@ -213,7 +213,7 @@ stories:
   - id: W-001
     title: "Update QA agent to write/modify E2E tests and file ideas for unrelated coverage"
     priority: 200
-    status: todo
+    status: uat
     requires: []
     acceptance:
       - "AGENT: Add Write and Edit tools to the qa-expert agent definition (/.claude/agents/qa-expert.md)"
