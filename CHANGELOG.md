@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### W-002: E2E test result parsing — QA addresses failures and files bug tickets
+- `.claude/agents/qa-expert.md`: Updated E2E test execution from "non-blocking for non-E2E stories" to "active triage required" — QA must now investigate each E2E failure and classify as story-related (blocking) or pre-existing (non-blocking bug ticket)
+- Added structured "New E2E bug tickets" section to QA verdict template with fields for failing test, error output, root cause hypothesis, priority, and acceptance criteria
+- Story-related failures must be resolved before approval; pre-existing failures are filed as backlog entries by the orchestrator
+- `agent/AGENT_FLOW.md`: Added section 4.4.2 "Processing QA E2E failure bug tickets" defining orchestrator procedure for creating backlog entries from QA's E2E bug reports, recording E2E pass/fail counts in commit messages, and sending Discord notifications
+- 26 E2E tests pass
+
 ### W-001: Update QA agent to write/modify E2E tests and file ideas for unrelated coverage
 - `.claude/agents/qa-expert.md`: Added `Write` and `Edit` tools to the agent frontmatter, enabling the QA agent to create and modify Playwright E2E test files during verification cycles
 - Changed default model from `sonnet` to `opus` to support complex E2E test authoring

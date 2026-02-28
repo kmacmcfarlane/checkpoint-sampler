@@ -31,3 +31,9 @@ SamplePresetEditor.test.ts has 28 pre-existing vue-tsc errors (.vm and .props on
 * priority: low
 * source: qa
 PRD.md still references "paused" in the job state machine and database schema documentation. These should be updated to match the renamed "stopped" status after the S-049 terminology change.
+
+### Register E2E Discord notification format in AGENT_FLOW.md section 9.2
+* status: needs_approval
+* priority: low
+* source: qa
+The E2E failure notification format defined in AGENT_FLOW.md section 4.4.2 item 4 (`[project] QA E2E failures: filed <N> new ticket(s)...`) is not registered in section 9.2 "Status transition notifications" alongside the existing "QA sweep findings" notification. Listing it in 9.2 would maintain a single reference point for all notification templates.

@@ -291,12 +291,23 @@ The QA agent is empowered to make the following changes autonomously during any 
 
 These are operational improvements within the QA agent's domain. Only file ideas for changes that are outside QA scope (e.g., new Makefile targets, CI pipeline changes, agent workflow modifications).
 
-E2E test execution (REQUIRED — non-blocking for non-E2E stories):
+E2E test execution (REQUIRED — active triage required):
 Run the full Playwright E2E suite using the self-contained command:
 - `make test-e2e` — starts backend + frontend in an isolated stack (checkpoint-sampler-e2e), runs all Playwright tests, then tears down automatically. No separate `make up-dev` is needed.
 - Record the number of tests run, passed, and failed in the E2E Test Results section of your verdict.
-- If the story explicitly adds or modifies E2E tests, E2E failures ARE blocking (treat as a blocker issue).
-- For all other stories, E2E failures are non-blocking: record the results and note any failures, but do not reject the story solely because of E2E failures. Report E2E failures as improvement ideas or bug tickets as appropriate.
+
+When E2E tests fail, you MUST triage each failure before reporting:
+
+**Story-related failures** (the failing test covers a user journey touched by this story's changes):
+- Investigate the failure. Read the Playwright error output, inspect the relevant component or backend code, and determine whether the failure indicates a real bug introduced by this story or a broken/outdated test.
+- If it is a real bug introduced by this story: attempt to fix the underlying code. If the fix is beyond your scope, reject the story and describe the bug in the Issues section of your verdict.
+- If the test itself is outdated or needs updating to match new behavior: update the test (you have Write and Edit tools). The test must pass before you approve the story.
+- E2E failures that are story-related and unresolved ARE blocking: do not approve the story until they are resolved.
+
+**Pre-existing / unrelated failures** (the failing test covers a user journey NOT touched by this story):
+- Do not reject the story for these failures.
+- File each one as a structured bug ticket in the "New E2E bug tickets" section of your verdict (see format below). The orchestrator will create backlog entries from these.
+- Include: the failing test name and file, the error output (truncated to the key assertion failure), a root cause hypothesis, suggested priority, and suggested acceptance criteria.
 
 E2E test authoring (ENCOURAGED — story-scoped):
 When verifying a story, actively look for opportunities to write or modify Playwright E2E tests that directly cover the story's acceptance criteria:
@@ -369,7 +380,21 @@ When returning your verdict, use this structure. The orchestrator parses it to d
 - **Tests run**: <number>
 - **Tests passed**: <number>
 - **Tests failed**: <number>
-- **Notes**: <any relevant details — e.g., which tests failed, whether failures are pre-existing, whether this story added/modified E2E tests>
+- **Notes**: <any relevant details — e.g., which tests failed, triage outcome for each failure, whether this story added/modified E2E tests>
+
+### New E2E bug tickets (for orchestrator — pre-existing/unrelated failures only):
+- **Title**: <brief title including the failing test and component>
+  **Failing test**: `<spec file path> > <test name>`
+  **Error output**: `<key assertion failure line>`
+  **Root cause hypothesis**: <1-2 sentences>
+  **Suggested priority**: <number, default 70>
+  **Suggested acceptance criteria**:
+    - "<criterion 1>"
+    - "<criterion 2>"
+  **Suggested testing**:
+    - "command: make test-e2e"
+
+(Repeat for each pre-existing/unrelated failure, or "None" if all failures were story-related or there were no failures)
 
 ## Runtime Error Sweep
 
@@ -427,6 +452,6 @@ DO file:
 (Use "None" for empty categories)
 ```
 
-The orchestrator uses the "Result" field for the story status transition, the "E2E Test Results" section for tracking E2E health over time, the "Runtime Error Sweep" section for filing secondary tickets, the "What I did NOT check" section for audit transparency, and the "Process Improvements" section for updating agent/ideas/. Do not conflate story-specific issues with sweep findings or process improvements — they are independent.
+The orchestrator uses the "Result" field for the story status transition, the "E2E Test Results" section (including "New E2E bug tickets") for tracking E2E health over time and filing E2E-related backlog entries, the "Runtime Error Sweep" section for filing secondary tickets from runtime logs, the "What I did NOT check" section for audit transparency, and the "Process Improvements" section for updating agent/ideas/. Do not conflate story-specific issues with sweep findings, E2E bug tickets, or process improvements — they are independent.
 
 Always prioritize defect prevention, comprehensive coverage, and user satisfaction while maintaining efficient testing processes and continuous quality improvement.

@@ -438,7 +438,7 @@ stories:
   - id: W-002
     title: "E2E test result parsing — QA addresses failures and files bug tickets"
     priority: 197
-    status: todo
+    status: uat
     requires: [W-001]
     acceptance:
       - "AGENT: QA agent actively addresses failing E2E tests during the testing phase rather than just reporting them"

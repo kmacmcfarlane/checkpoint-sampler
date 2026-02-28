@@ -195,6 +195,7 @@ Based on the story's current status, invoke the appropriate subagent:
 4. If approved: set status to `uat` (finalization per section 4.5)
 5. If issues found: set status to `in_progress`, record feedback in `review_feedback`
 6. After the story status transition, process any sweep findings per section 4.4.1.
+7. After the story status transition, process any E2E failure bug tickets per section 4.4.2.
 
 ### 4.3.2 Change summary extraction and passthrough
 
@@ -260,6 +261,34 @@ When the QA expert's verdict includes a "Runtime Error Sweep" section with findi
 4. **Timing**: Process sweep findings after the story status transition and before the commit. This ensures new backlog entries are included in the story's commit. If the story was REJECTED, sweep findings are still processed — they are independent of the story result.
 
 5. **No sweep findings**: If sweep result is CLEAN or the section is absent, skip this step.
+
+### 4.4.2 Processing QA E2E failure bug tickets
+
+When the QA expert's verdict includes an "E2E Test Results" section with `Status: FAILED` and one or more bug tickets listed under "New E2E bug tickets", the orchestrator processes them **after** the story status transition:
+
+1. **Story-related E2E failures**: The QA expert is expected to have already attempted to fix or investigate these during its verification cycle. If they caused rejection, the story's `review_feedback` will describe the issue — no separate ticket is needed.
+
+2. **New E2E bug tickets**: For each unrelated (pre-existing) E2E failure reported by QA as a bug ticket (see /agent/BUG_REPORTING.md for quality requirements):
+   - Determine the next available `B-NNN` ID by scanning existing bug IDs in backlog.yaml.
+   - Add the ticket to the `stories` list in /agent/backlog.yaml with:
+     - `id`: Next sequential B-NNN
+     - `title`: From QA's suggested title
+     - `priority`: From QA's suggested priority (default: 70)
+     - `status: todo`
+     - `requires: []`
+     - `acceptance`: From QA's suggested acceptance criteria
+     - `testing`: From QA's suggested testing commands
+     - `notes`: Include the failing test name, error output, and root cause hypothesis from the QA report
+
+3. **E2E result tracking**: Record the E2E pass/fail counts from the QA verdict in the story's commit notes or as a comment in the commit message (e.g., `E2E: 42 passed, 0 failed`). This provides a regression baseline visible in git history.
+
+4. **Discord notification**: If any E2E bug tickets were filed, send a notification:
+   `[project] QA E2E failures: filed <N> new ticket(s): <B-NNN> (<title>), <B-NNN> (<title>). See backlog.yaml.`
+   - Sent immediately after the story status notification.
+
+5. **Timing**: Process E2E bug tickets after the story status transition and before the commit (same as sweep findings). E2E bug tickets are processed regardless of whether the story was approved or rejected.
+
+6. **No E2E failures**: If E2E Status is PASSED or SKIPPED, or the "New E2E bug tickets" list is absent or empty, skip this step.
 
 ### 4.5 Finalization on QA approval (orchestrator responsibility)
 
