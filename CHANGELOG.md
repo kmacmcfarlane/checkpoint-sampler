@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-057: Accessibility audit integration (axe-core)
+- `frontend/package.json`: Added `@axe-core/playwright` `^4.11.1` as a dev dependency for automated accessibility testing
+- `frontend/e2e/accessibility.spec.ts`: New Playwright E2E spec with two tests — light mode and dark mode accessibility scans using axe-core; fails on `critical` and `serious` impact violations (catches low-contrast issues like recurring dark mode bugs); moderate/minor issues logged but non-blocking
+- `agent/TEST_PRACTICES.md`: Added section 7 (Accessibility testing) documenting axe-core integration, enforcement policy, running instructions, and dark mode coverage rationale; renumbered previous section 7 to section 8
+- 30 E2E tests pass (28 pre-existing + 2 new); 664 frontend tests pass; 562 backend tests pass
+
 ### B-037: Backend panics with nil pointer dereference on /api/sample-jobs when ComfyUI is not configured
 - `backend/internal/api/sample_jobs.go`: Added `enabled bool` field to `SampleJobsService` struct and nil guards at all 7 handler methods — `List` returns empty slice, `Create` returns `invalid_payload`, `Show`/`Start`/`Resume` return `service_unavailable`, `Stop`/`Delete` return `internal_error` — preventing nil pointer dereference when ComfyUI is not configured
 - `backend/internal/api/sample_jobs_test.go`: Added 7 nil-guard unit tests covering all methods when `svc == nil`

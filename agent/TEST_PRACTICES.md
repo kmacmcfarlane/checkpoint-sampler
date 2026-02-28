@@ -389,7 +389,32 @@ NDrawer renders a mask overlay that intercepts pointer events on elements behind
 ### 6.10 Playback test timing
 For timing-sensitive E2E assertions (e.g., slider playback advancement), set playback speed to the minimum value and use generous timeouts (e.g., `{ timeout: 5000 }` for a 0.25s speed gives a 20x safety margin). Avoid `page.waitForTimeout()` except for hold-position verification where you need to assert the slider has NOT moved.
 
-## 7) Definition of Done (testing)
+## 7) Accessibility testing
+
+### 7.1 Overview
+Automated accessibility audits are run via `@axe-core/playwright` as part of the E2E test suite (`frontend/e2e/accessibility.spec.ts`). These tests catch WCAG violations — including color-contrast issues in both light and dark modes — before they reach UAT.
+
+### 7.2 Enforcement policy
+- **Blocking (fail the test)**: Violations at `critical` or `serious` impact levels.
+- **Non-blocking (logged only)**: Violations at `moderate` or `minor` impact levels are printed to the test output for awareness but do not fail the test.
+
+This policy targets the class of recurring dark mode contrast bugs (B-007, B-008, B-023, B-032), which axe classifies as `serious` color-contrast violations.
+
+### 7.3 How to run accessibility tests
+Accessibility tests run as part of the full E2E suite:
+```
+make test-e2e
+```
+
+They are in `frontend/e2e/accessibility.spec.ts` and run automatically alongside other Playwright tests.
+
+### 7.4 Adding new accessibility checks
+When adding new UI features, prefer existing WCAG-compliant patterns (sufficient color contrast, ARIA roles, labels on interactive elements). If a known violation must be temporarily accepted, document it with a comment in the spec file and file a bug ticket.
+
+### 7.5 Dark mode coverage
+The accessibility suite explicitly tests both light and dark modes. Dark mode has historically been the source of color-contrast regressions. Any new dark mode CSS variable additions in `App.vue` should be verified against WCAG AA contrast ratios (4.5:1 for normal text, 3:1 for large text).
+
+## 8) Definition of Done (testing)
 A story may be set to `status: uat` only when:
 - New/changed behavior is covered by tests following these practices.
 - Tests are deterministic and fast enough for watch workflows.

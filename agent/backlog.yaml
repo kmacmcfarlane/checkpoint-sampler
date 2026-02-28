@@ -496,7 +496,7 @@ stories:
   - id: S-057
     title: "Accessibility audit integration (axe-core)"
     priority: 85
-    status: todo
+    status: uat
     requires: []
     acceptance:
       - "FE: Add @axe-core/playwright or similar accessibility testing library as a dev dependency"

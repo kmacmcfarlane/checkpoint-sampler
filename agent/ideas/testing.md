@@ -37,3 +37,9 @@ During startup, the frontend Vite dev server briefly logs `Error: connect ECONNR
 * priority: medium
 * source: developer
 The QA agent currently searches E2E backend logs for panics manually. A lightweight shell script or Makefile target that exits non-zero when `panic:` appears in E2E logs would make panic-free criteria machine-verifiable and prevent regressions silently passing review.
+
+### Widen accessibility test coverage to include grid state
+* status: needs_approval
+* priority: low
+* source: developer
+Currently the accessibility audit runs only on the initial empty-state page. Adding a second scan after loading a training run and assigning axes (with real images rendered) would catch contrast violations inside grid cells, image captions, and axis labels.
