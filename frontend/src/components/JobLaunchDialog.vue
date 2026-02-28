@@ -21,7 +21,7 @@ import { useGenerateInputsPersistence } from '../composables/useGenerateInputsPe
 /** Status of a training run used to determine bead color. */
 type TrainingRunStatus = 'complete' | 'complete_with_errors' | 'running' | 'queued' | 'empty'
 
-const props = defineProps<{
+defineProps<{
   show: boolean
 }>()
 

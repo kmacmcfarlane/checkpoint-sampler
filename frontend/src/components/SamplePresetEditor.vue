@@ -40,10 +40,6 @@ const height = ref(1024)
 const availableSamplers = ref<string[]>([])
 const availableSchedulers = ref<string[]>([])
 
-const selectedPreset = computed(() =>
-  presets.value.find(p => p.id === selectedPresetId.value) ?? null
-)
-
 const selectOptions = computed(() =>
   presets.value.map((p) => ({
     label: p.name,
@@ -136,7 +132,7 @@ async function fetchSamplers() {
   try {
     const result = await apiClient.getComfyUIModels('sampler')
     availableSamplers.value = result.models
-  } catch (err: unknown) {
+  } catch {
     // Silently fail - ComfyUI might not be available
     availableSamplers.value = []
   }
@@ -146,7 +142,7 @@ async function fetchSchedulers() {
   try {
     const result = await apiClient.getComfyUIModels('scheduler')
     availableSchedulers.value = result.models
-  } catch (err: unknown) {
+  } catch {
     // Silently fail - ComfyUI might not be available
     availableSchedulers.value = []
   }

@@ -516,7 +516,7 @@ stories:
   - id: S-058
     title: "Frontend lint rules — CSS variable linting and unused import detection"
     priority: 75
-    status: todo
+    status: uat
     requires: []
     acceptance:
       - "FE: Add stylelint with a rule that warns when color/background-color properties use hardcoded values instead of CSS custom properties (--text-color, --bg-*)"

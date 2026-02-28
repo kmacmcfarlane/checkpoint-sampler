@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
-import { nextTick } from 'vue'
+import { nextTick, type VNode } from 'vue'
 import { NModal, NSelect, NInputNumber, NButton, NCheckbox } from 'naive-ui'
 import JobLaunchDialog from '../JobLaunchDialog.vue'
 import SamplePresetEditor from '../SamplePresetEditor.vue'
@@ -283,7 +283,6 @@ describe('JobLaunchDialog', () => {
     })
 
     it('renderLabel function returns a VNode containing both a bead span and label text', async () => {
-      const { h: vueH } = await import('vue')
       const wrapper = mount(JobLaunchDialog, {
         props: { show: true },
         global: { stubs: { Teleport: true } },
@@ -291,7 +290,7 @@ describe('JobLaunchDialog', () => {
       await flushPromises()
 
       const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
-      const renderLabel = runSelect.props('renderLabel') as (option: Record<string, unknown>) => ReturnType<typeof vueH>
+      const renderLabel = runSelect.props('renderLabel') as (option: Record<string, unknown>) => VNode
 
       const vnode = renderLabel({
         label: 'my-run',

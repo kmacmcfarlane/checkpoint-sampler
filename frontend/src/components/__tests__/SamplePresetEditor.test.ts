@@ -116,7 +116,7 @@ describe('SamplePresetEditor', () => {
   })
 
   it('fetches samplers and schedulers from ComfyUI API on mount', async () => {
-    const wrapper = mount(SamplePresetEditor)
+    mount(SamplePresetEditor)
     await flushPromises()
 
     expect(mockGetComfyUIModels).toHaveBeenCalledWith('sampler')

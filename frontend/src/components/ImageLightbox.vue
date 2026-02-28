@@ -415,6 +415,7 @@ onUnmounted(() => {
   overflow-y: auto;
   max-height: 50vh;
   width: 50vw;
+  /* stylelint-disable-next-line scale-unlimited/declaration-strict-value -- Intentional: lightbox overlay always has dark background regardless of theme */
   color: #e0e0e0;
   font-size: 0.8125rem;
 }
@@ -422,11 +423,13 @@ onUnmounted(() => {
 .metadata-loading,
 .metadata-error,
 .metadata-empty {
+  /* stylelint-disable-next-line scale-unlimited/declaration-strict-value -- Intentional: lightbox overlay always has dark background regardless of theme */
   color: #999;
   font-style: italic;
 }
 
 .metadata-error {
+  /* stylelint-disable-next-line scale-unlimited/declaration-strict-value -- Intentional: lightbox overlay always has dark background regardless of theme */
   color: #f44336;
 }
 
@@ -440,6 +443,7 @@ onUnmounted(() => {
 
 .metadata-key {
   font-weight: 600;
+  /* stylelint-disable-next-line scale-unlimited/declaration-strict-value -- Intentional: lightbox overlay always has dark background regardless of theme */
   color: #90caf9;
   margin-bottom: 0.25rem;
 }

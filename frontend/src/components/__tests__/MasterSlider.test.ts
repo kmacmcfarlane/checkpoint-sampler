@@ -401,8 +401,6 @@ describe('MasterSlider', () => {
       await wrapper.vm.$nextTick()
 
       // Should have stopped — no change emitted after last value with loop off
-      const emitted = wrapper.emitted('change') ?? []
-      // Filter emits — the only emits should be from the first play session
       const currentBtn = wrapper.findAllComponents(NButton).find((b) => b.text() === 'Play' || b.text() === 'Pause')!
       expect(currentBtn.text()).toBe('Play')
     })

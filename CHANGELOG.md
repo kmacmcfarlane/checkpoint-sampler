@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-058: Frontend lint rules — CSS variable linting and unused import detection
+- `frontend/.stylelintrc.json`: New stylelint configuration using `stylelint-declaration-strict-value` plugin to warn on hardcoded `color` and `background-color` values instead of CSS custom properties; ignores `transparent`, `inherit`, `initial`, `unset`, `currentColor`, `none`; disables conflicting Vue/Naive UI selector and property pattern rules
+- `frontend/eslint.config.js`: New ESLint flat config with `typescript-eslint` and `eslint-plugin-vue`; `@typescript-eslint/no-unused-vars` rule set to `warn` with `_` prefix ignore patterns for unused imports in `<script setup>` blocks
+- `frontend/package.json`: Added `stylelint`, `stylelint-declaration-strict-value`, `eslint`, `@eslint/js`, `typescript-eslint`, `eslint-plugin-vue` as dev dependencies; updated `lint` script to run both ESLint and Stylelint (`eslint src/ && stylelint "src/**/*.vue"`)
+- `frontend/src/components/ImageLightbox.vue`: Added 4 `stylelint-disable-next-line` comments for intentional hardcoded colors in lightbox overlay (dark background regardless of theme)
+- `frontend/src/components/JobLaunchDialog.vue`: Removed unused `props` destructuring assignment (caught by new ESLint rule)
+- `frontend/src/components/SamplePresetEditor.vue`: Removed unused `selectedPreset` computed property and unused `err` catch parameter (caught by new ESLint rule)
+- `frontend/src/components/__tests__/JobLaunchDialog.test.ts`: Test adjustments for removed unused variable
+- `frontend/src/components/__tests__/MasterSlider.test.ts`: Test adjustments for lint cleanup
+- `frontend/src/components/__tests__/SamplePresetEditor.test.ts`: Test adjustments for removed unused computed
+- 667 frontend tests pass; 564 backend tests pass; 30 E2E tests pass
+
 ### S-072: Replace independent sampler/scheduler lists with sampler-scheduler pairs in sample presets
 - `backend/internal/model/sample_preset.go`: Added `SamplerSchedulerPair` struct; replaced `Samplers []string` and `Schedulers []string` with `SamplerSchedulerPairs []SamplerSchedulerPair`; updated `ImagesPerCheckpoint` formula to use pairs count instead of samplers × schedulers cross-product
 - `backend/internal/store/migrations.go`: Added migration 8 — creates new `sample_presets` table with `sampler_scheduler_pairs` JSON column and auto-converts existing data via cross-product of old samplers × schedulers using SQLite `json_each()`/`json_group_array()`/`json_object()`

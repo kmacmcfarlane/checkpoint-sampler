@@ -1,0 +1,39 @@
+{
+  "extends": ["stylelint-config-standard"],
+  "plugins": ["stylelint-declaration-strict-value"],
+  "overrides": [
+    {
+      "files": ["**/*.vue"],
+      "customSyntax": "postcss-html"
+    }
+  ],
+  "rules": {
+    "scale-unlimited/declaration-strict-value": [
+      ["color", "background-color"],
+      {
+        "ignoreValues": [
+          "transparent",
+          "inherit",
+          "initial",
+          "unset",
+          "currentColor",
+          "none"
+        ],
+        "disableFix": true,
+        "message": "Use a CSS custom property (e.g. var(--text-color), var(--bg-color)) instead of a hardcoded color value for '${property}'. See DEVELOPMENT_PRACTICES.md section 4.8."
+      }
+    ],
+    "selector-class-pattern": null,
+    "custom-property-pattern": null,
+    "declaration-block-no-redundant-longhand-properties": null,
+    "alpha-value-notation": null,
+    "color-function-notation": null,
+    "color-function-alias-notation": null,
+    "no-descending-specificity": null,
+    "color-hex-length": null,
+    "media-feature-range-notation": null,
+    "shorthand-property-no-redundant-values": null,
+    "font-family-name-quotes": null,
+    "declaration-property-value-keyword-no-deprecated": null
+  }
+}
