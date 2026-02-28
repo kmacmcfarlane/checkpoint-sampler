@@ -22,13 +22,13 @@ All notable changes to this project will be documented in this file.
 - 698 frontend tests pass; 564 backend tests pass; 35 E2E tests pass
 
 ### S-061: Lightbox UX improvements — keyboard navigation and slider dimension label
-- `frontend/src/components/ImageLightbox.vue`: Added `sliderDimensionName`, `gridImages`, and `gridIndex` props; added `navigate` emit for grid navigation; added Shift+ArrowLeft/Right handling in `onKeyDown` with wrap-around; changed slider label from hardcoded "Slider" to use dimension name prop with fallback
+- `frontend/src/components/ImageLightbox.vue`: Added `sliderDimensionName`, `gridImages`, and `gridIndex` props; added `navigate` emit for grid navigation; added Shift+ArrowLeft/Right handling in `onKeyDown` with wrap-around; changed slider label from hardcoded "Slider" to use dimension name prop with fallback; (UAT rework) introduced `localSliderIndex` ref with immediate watch to fix regular arrow key "stuck" behavior on rapid key presses with non-uniform value intervals — ensures sequential advancement by tracking slider position synchronously instead of re-reading stale async props
 - `frontend/src/components/XYGrid.vue`: Added `GridNavItem` exported interface; extended `ImageClickContext` with `gridImages` and `gridIndex` fields; added `buildGridNavItems()` helper to build ordered list of all visible grid cells
 - `frontend/src/App.vue`: Added `onLightboxNavigate` handler; passed new `sliderDimensionName`, `gridImages`, `gridIndex` props and `@navigate` handler to `ImageLightbox`
-- `frontend/src/components/__tests__/ImageLightbox.test.ts`: Added 8 new tests for Shift+Arrow grid navigation and 3 new tests for slider dimension label display
+- `frontend/src/components/__tests__/ImageLightbox.test.ts`: Added 8 new tests for Shift+Arrow grid navigation, 3 new tests for slider dimension label display, and 4 new tests for rapid arrow key presses with non-uniform intervals (UAT rework)
 - `frontend/src/components/__tests__/MasterSlider.test.ts`: Updated ImageLightbox mount with new required props
 - `frontend/e2e/lightbox.spec.ts`: Added 5 new E2E tests covering Shift+Arrow navigation, wrapping, plain Arrow non-navigation, and slider dimension label
-- 678 frontend tests pass; 564 backend tests pass; 35 E2E tests pass
+- 723 frontend tests pass; 564 backend tests pass; 35 E2E tests pass
 
 ### S-058: Frontend lint rules — CSS variable linting and unused import detection
 - `frontend/.stylelintrc.json`: New stylelint configuration using `stylelint-declaration-strict-value` plugin to warn on hardcoded `color` and `background-color` values instead of CSS custom properties; ignores `transparent`, `inherit`, `initial`, `unset`, `currentColor`, `none`; disables conflicting Vue/Naive UI selector and property pattern rules

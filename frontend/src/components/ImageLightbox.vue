@@ -39,6 +39,15 @@ const dragStartY = ref(0)
 const dragStartTranslateX = ref(0)
 const dragStartTranslateY = ref(0)
 
+/**
+ * Local slider index that is updated immediately on key press, without waiting
+ * for the parent to re-render and update currentSliderValue. This ensures
+ * rapid/auto-repeat key presses advance correctly through non-uniform value
+ * intervals — each press advances from the previously emitted position rather
+ * than re-reading a stale prop.
+ */
+const localSliderIndex = ref(-1)
+
 const metadataLoading = ref(false)
 const metadataError = ref<string | null>(null)
 const metadata = ref<Record<string, string> | null>(null)
@@ -158,18 +167,29 @@ function onKeyDown(e: KeyboardEvent) {
 
   // Plain ArrowLeft/ArrowRight (without Shift) navigate the lightbox slider when it is visible
   if (!hasSlider.value || !props.cellKey) return
-  const idx = props.sliderValues.indexOf(props.currentSliderValue)
+  // Use localSliderIndex (updated immediately on each key press) rather than
+  // re-deriving the index from props.currentSliderValue every time. The prop
+  // update from the parent is asynchronous (Vue batches re-renders), so under
+  // rapid/auto-repeat key presses props.currentSliderValue may still reflect
+  // the old value. localSliderIndex is updated synchronously here before the
+  // emit, so each subsequent key press correctly advances from the previously
+  // emitted position — fixing the "stuck" behaviour on non-uniform intervals.
+  const idx = localSliderIndex.value
   if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
     e.preventDefault()
     e.stopImmediatePropagation()  // prevent MasterSlider document handler from also firing
     if (idx > 0) {
-      emit('slider-change', props.cellKey, props.sliderValues[idx - 1])
+      const newIdx = idx - 1
+      localSliderIndex.value = newIdx
+      emit('slider-change', props.cellKey, props.sliderValues[newIdx])
     }
   } else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
     e.preventDefault()
     e.stopImmediatePropagation()  // prevent MasterSlider document handler from also firing
     if (idx < props.sliderValues.length - 1) {
-      emit('slider-change', props.cellKey, props.sliderValues[idx + 1])
+      const newIdx = idx + 1
+      localSliderIndex.value = newIdx
+      emit('slider-change', props.cellKey, props.sliderValues[newIdx])
     }
   }
 }
@@ -227,6 +247,22 @@ function preloadAdjacentSliderImages(currentValue: string) {
     }
   }
 }
+
+// Keep localSliderIndex in sync with the slider prop.
+// This runs immediately (immediate: true) to initialise on mount, and also
+// fires whenever currentSliderValue or sliderValues change (e.g. the parent
+// updates after receiving a slider-change event, or the user navigates to a
+// different grid image with Shift+Arrow). The local index is the ground truth
+// used by onKeyDown so that rapid key presses advance sequentially even when
+// the parent re-render hasn't completed yet.
+watch(
+  [() => props.currentSliderValue, () => props.sliderValues],
+  ([newVal]) => {
+    const idx = props.sliderValues.indexOf(newVal)
+    localSliderIndex.value = idx >= 0 ? idx : 0
+  },
+  { immediate: true },
+)
 
 // Reset transform and fetch metadata when the image changes
 watch(() => props.imageUrl, () => {

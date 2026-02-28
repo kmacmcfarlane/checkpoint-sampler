@@ -44,6 +44,12 @@ The QA agent currently searches E2E backend logs for panics manually. A lightwei
 * source: developer
 Currently the accessibility audit runs only on the initial empty-state page. Adding a second scan after loading a training run and assigning axes (with real images rendered) would catch contrast violations inside grid cells, image captions, and axis labels.
 
+### E2E test for keyboard auto-repeat slider navigation
+* status: needs_approval
+* priority: low
+* source: developer
+Keyboard-driven slider behaviors (arrow navigation with auto-repeat) are difficult to test in JSDOM because the stale-prop race condition only manifests at real browser auto-repeat rates. A Playwright E2E test using `page.keyboard.down('ArrowRight')` with repeated presses and asserting correct slider progression would give higher confidence for this interaction pattern.
+
 ### App.test.ts window.innerWidth cleanup between tests
 * status: needs_approval
 * priority: low

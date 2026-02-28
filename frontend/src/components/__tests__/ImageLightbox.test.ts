@@ -733,6 +733,122 @@ describe('ImageLightbox', () => {
 
       wrapper.unmount()
     })
+
+    // AC: Regular ArrowLeft/ArrowRight advance sequentially even when the parent has not yet
+    // re-rendered to update currentSliderValue (rapid/auto-repeat key presses, non-uniform intervals).
+    it('advances sequentially on rapid ArrowRight presses without prop updates (non-uniform intervals)', async () => {
+      // Non-uniform checkpoint values: intervals are 1000, 2500 — different spacings.
+      const nonUniformProps = {
+        imageUrl: '/api/images/ckpt=1000.png',
+        cellKey: '42|500',
+        sliderValues: ['1000', '2000', '4500'],
+        currentSliderValue: '1000',
+        imagesBySliderValue: {
+          '1000': '/api/images/ckpt=1000.png',
+          '2000': '/api/images/ckpt=2000.png',
+          '4500': '/api/images/ckpt=4500.png',
+        },
+        sliderDimensionName: 'checkpoint',
+        gridImages: [],
+        gridIndex: 0,
+      }
+
+      const wrapper = mount(ImageLightbox, { props: nonUniformProps })
+      await flushPromises()
+
+      // Press ArrowRight once: 1000 → 2000 (index 0 → 1)
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }))
+      // Do NOT await nextTick or update props — simulate rapid second press before parent re-renders
+      // Press ArrowRight again: should advance from 2000 → 4500 (index 1 → 2),
+      // NOT re-emit 2000 due to stale props.currentSliderValue.
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }))
+      await wrapper.vm.$nextTick()
+
+      const emitted = wrapper.emitted('slider-change')
+      expect(emitted).toBeDefined()
+      expect(emitted).toHaveLength(2)
+      // First press: 1000 → 2000
+      expect(emitted![0]).toEqual(['42|500', '2000'])
+      // Second press: 2000 → 4500 (local index advanced, not stuck at 2000)
+      expect(emitted![1]).toEqual(['42|500', '4500'])
+
+      wrapper.unmount()
+    })
+
+    it('advances sequentially on rapid ArrowLeft presses without prop updates', async () => {
+      const nonUniformProps = {
+        imageUrl: '/api/images/ckpt=4500.png',
+        cellKey: '42|500',
+        sliderValues: ['1000', '2000', '4500'],
+        currentSliderValue: '4500',
+        imagesBySliderValue: {
+          '1000': '/api/images/ckpt=1000.png',
+          '2000': '/api/images/ckpt=2000.png',
+          '4500': '/api/images/ckpt=4500.png',
+        },
+        sliderDimensionName: 'checkpoint',
+        gridImages: [],
+        gridIndex: 0,
+      }
+
+      const wrapper = mount(ImageLightbox, { props: nonUniformProps })
+      await flushPromises()
+
+      // Press ArrowLeft twice rapidly without prop update in between
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true }))
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true }))
+      await wrapper.vm.$nextTick()
+
+      const emitted = wrapper.emitted('slider-change')
+      expect(emitted).toBeDefined()
+      expect(emitted).toHaveLength(2)
+      // First press: 4500 → 2000 (index 2 → 1)
+      expect(emitted![0]).toEqual(['42|500', '2000'])
+      // Second press: 2000 → 1000 (index 1 → 0), not stuck at 2000
+      expect(emitted![1]).toEqual(['42|500', '1000'])
+
+      wrapper.unmount()
+    })
+
+    it('does not overshoot past last value on rapid ArrowRight presses', async () => {
+      const wrapper = mount(ImageLightbox, {
+        props: { ...sliderProps, currentSliderValue: '7' },
+      })
+      await flushPromises()
+
+      // Press ArrowRight twice rapidly: first goes to '15' (last), second should not overshoot
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }))
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }))
+      await wrapper.vm.$nextTick()
+
+      const emitted = wrapper.emitted('slider-change')
+      expect(emitted).toBeDefined()
+      // Only one emission: first press advances to '15', second is clamped at boundary
+      expect(emitted).toHaveLength(1)
+      expect(emitted![0]).toEqual(['42|500', '15'])
+
+      wrapper.unmount()
+    })
+
+    it('resets local slider index when currentSliderValue prop changes externally', async () => {
+      const wrapper = mount(ImageLightbox, { props: sliderProps })
+      await flushPromises()
+
+      // Simulate external update (e.g. MasterSlider changes the value)
+      await wrapper.setProps({ currentSliderValue: '15' })
+      await wrapper.vm.$nextTick()
+
+      // ArrowLeft should now go back from '15' to '7' (index 2 → 1)
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true }))
+      await wrapper.vm.$nextTick()
+
+      const emitted = wrapper.emitted('slider-change')
+      expect(emitted).toBeDefined()
+      expect(emitted).toHaveLength(1)
+      expect(emitted![0]).toEqual(['42|500', '7'])
+
+      wrapper.unmount()
+    })
   })
 
   // --- Grid navigation tests (Shift+Arrow) ---

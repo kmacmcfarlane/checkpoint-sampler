@@ -134,10 +134,6 @@ stories:
     title: "Lightbox UX improvements — keyboard navigation and slider dimension label"
     priority: 70
     status: uat
-    uat_feedback: |
-      Shift-arrows work. Regular arrows get stuck moving to the next value sometimes — seems to
-      be when the interval between the previous two values is different than the next value along
-      the slider.
     requires: []
     acceptance:
       - "FE: Shift+ArrowLeft and Shift+ArrowRight navigate between images in the grid while the lightbox is open"
