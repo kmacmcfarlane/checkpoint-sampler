@@ -156,8 +156,6 @@ stories:
     title: "Generate Samples dialog polish — bead indicator, preset auto-close, training run restore and refresh"
     priority: 65
     status: uat
-    uat_feedback: |
-      Bead indicator should be on the "Jobs" nav item, not "Generate Samples".
     requires: []
     acceptance:
       - "FE: Generate Samples header button shows a colored bead indicating sample/job status of the current sidebar-selected training run"

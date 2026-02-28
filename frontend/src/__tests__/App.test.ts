@@ -596,9 +596,9 @@ describe('App', () => {
     })
   })
 
-  // AC1: Generate Samples header button shows a colored bead indicating sample/job status
+  // AC1: Jobs header button shows a colored bead indicating sample/job status
   describe('header bead status indicator (AC1)', () => {
-    it('shows a green bead on Generate Samples button when training run has_samples', async () => {
+    it('shows a green bead on Jobs button when training run has_samples', async () => {
       // mockTrainingRun has has_samples=true, listSampleJobs returns [] (no active jobs)
       // → status = 'complete', bead color = green (#18a058)
       // Ensure wide screen so drawer is open and TrainingRunSelector is rendered
@@ -613,13 +613,13 @@ describe('App', () => {
       selector.vm.$emit('select', mockTrainingRun)
       await flushPromises()
 
-      const bead = wrapper.find('[data-testid="generate-samples-bead"]')
+      const bead = wrapper.find('[data-testid="jobs-bead"]')
       expect(bead.exists()).toBe(true)
       expect(bead.attributes('title')).toBe('complete')
       expect(bead.attributes('style')).toContain('background-color: rgb(24, 160, 88)')
     })
 
-    it('shows a gray bead when training run has no samples and no jobs', async () => {
+    it('shows a gray bead on Jobs button when training run has no samples and no jobs', async () => {
       const emptyRun: TrainingRun = {
         id: 2,
         name: 'empty-run',
@@ -643,7 +643,7 @@ describe('App', () => {
       selector.vm.$emit('select', emptyRun)
       await flushPromises()
 
-      const bead = wrapper.find('[data-testid="generate-samples-bead"]')
+      const bead = wrapper.find('[data-testid="jobs-bead"]')
       expect(bead.exists()).toBe(true)
       expect(bead.attributes('title')).toBe('empty')
       // gray = #909090 → rgb(144, 144, 144)

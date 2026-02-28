@@ -564,13 +564,6 @@ const TERMINAL_STATUSES: Set<SampleJobStatus> = new Set(['completed', 'completed
             data-testid="generate-samples-button"
             @click="openJobLaunchDialog"
           >
-            <span
-              v-if="buttonBeadColor"
-              class="header-bead"
-              :style="{ backgroundColor: buttonBeadColor }"
-              :title="buttonBeadStatus ?? ''"
-              data-testid="generate-samples-bead"
-            ></span>
             Generate Samples
           </NButton>
           <NButton
@@ -578,7 +571,16 @@ const TERMINAL_STATUSES: Set<SampleJobStatus> = new Set(['completed', 'completed
             size="small"
             aria-label="Toggle sample jobs panel"
             @click="toggleJobProgressPanel"
-          >Jobs</NButton>
+          >
+            <span
+              v-if="buttonBeadColor"
+              class="header-bead"
+              :style="{ backgroundColor: buttonBeadColor }"
+              :title="buttonBeadStatus ?? ''"
+              data-testid="jobs-bead"
+            ></span>
+            Jobs
+          </NButton>
           <NButton
             v-if="selectedTrainingRun && !scanning && !scanError"
             size="small"
