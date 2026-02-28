@@ -583,7 +583,7 @@ stories:
   - id: S-063
     title: "MasterSlider keyboard conflict guard for multiple instances"
     priority: 60
-    status: todo
+    status: uat
     requires: []
     acceptance:
       - "FE: If multiple MasterSlider components are mounted simultaneously, only one captures keyboard input"

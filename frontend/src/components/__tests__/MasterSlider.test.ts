@@ -4,6 +4,7 @@ import { nextTick } from 'vue'
 import { NSlider, NButton, NCheckbox, NSelect } from 'naive-ui'
 import MasterSlider from '../MasterSlider.vue'
 import ImageLightbox from '../ImageLightbox.vue'
+import { _resetForTesting } from '../../composables/useSliderKeyboardFocus'
 
 // Mock the api client module (needed by ImageLightbox)
 vi.mock('../../api/client', () => ({
@@ -26,6 +27,10 @@ function mountMaster(overrides: Record<string, unknown> = {}) {
 }
 
 describe('MasterSlider', () => {
+  // Reset the keyboard focus singleton between tests to prevent cross-test contamination
+  beforeEach(() => {
+    _resetForTesting()
+  })
   it('renders a NSlider', () => {
     const wrapper = mountMaster()
     const slider = wrapper.findComponent(NSlider)
@@ -580,6 +585,156 @@ describe('MasterSlider', () => {
 
       await getPlayPauseBtn().trigger('click') // pause
       expect(wrapper.find('.master-slider__loop-controls').exists()).toBe(false)
+    })
+  })
+
+  // AC1, AC3, AC4: Multiple MasterSlider instances — only one captures keyboard input
+  describe('multiple instance keyboard conflict guard', () => {
+    let wrapper1: ReturnType<typeof mountMaster> | null = null
+    let wrapper2: ReturnType<typeof mountMaster> | null = null
+
+    afterEach(() => {
+      if (wrapper2) { wrapper2.unmount(); wrapper2 = null }
+      if (wrapper1) { wrapper1.unmount(); wrapper1 = null }
+    })
+
+    // AC1: Only one captures keyboard input
+    it('only the last-mounted slider handles document-level arrow keys', async () => {
+      wrapper1 = mountMaster({ currentValue: '500', dimensionName: 'step' })
+      wrapper2 = mountMaster({ currentValue: '100', dimensionName: 'cfg' })
+
+      const event = new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true })
+      document.dispatchEvent(event)
+      await nextTick()
+
+      // AC3: No duplicate key handling — wrapper1 (non-active) should NOT emit
+      expect(wrapper1.emitted('change')).toBeUndefined()
+
+      // wrapper2 (active, last mounted) should emit
+      const emitted = wrapper2.emitted('change')
+      expect(emitted).toBeDefined()
+      expect(emitted).toHaveLength(1)
+      expect(emitted![0]).toEqual(['500'])
+    })
+
+    // AC2: Priority system — clicking a slider claims focus
+    it('clicking a non-active slider transfers keyboard focus to it', async () => {
+      wrapper1 = mountMaster({ currentValue: '500', dimensionName: 'step' })
+      wrapper2 = mountMaster({ currentValue: '100', dimensionName: 'cfg' })
+
+      // Click on wrapper1 to claim focus
+      await wrapper1.find('.master-slider').trigger('click')
+
+      const event = new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true })
+      document.dispatchEvent(event)
+      await nextTick()
+
+      // wrapper1 should now be the active handler
+      const emitted1 = wrapper1.emitted('change')
+      expect(emitted1).toBeDefined()
+      expect(emitted1).toHaveLength(1)
+      expect(emitted1![0]).toEqual(['1000'])
+
+      // wrapper2 should NOT emit
+      expect(wrapper2.emitted('change')).toBeUndefined()
+    })
+
+    // AC2: Focus can switch back and forth
+    it('focus transfers between instances via click', async () => {
+      wrapper1 = mountMaster({ currentValue: '500', dimensionName: 'step' })
+      wrapper2 = mountMaster({ currentValue: '100', dimensionName: 'cfg' })
+
+      // Click wrapper1 to claim focus
+      await wrapper1.find('.master-slider').trigger('click')
+
+      // Click wrapper2 to claim focus back
+      await wrapper2.find('.master-slider').trigger('click')
+
+      const event = new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true })
+      document.dispatchEvent(event)
+      await nextTick()
+
+      // wrapper2 is now active again
+      expect(wrapper1.emitted('change')).toBeUndefined()
+      const emitted2 = wrapper2.emitted('change')
+      expect(emitted2).toBeDefined()
+      expect(emitted2).toHaveLength(1)
+    })
+
+    // AC1: When the active slider is unmounted, the remaining one becomes active
+    it('when the active slider unmounts, the remaining slider becomes active', async () => {
+      wrapper1 = mountMaster({ currentValue: '500', dimensionName: 'step' })
+      wrapper2 = mountMaster({ currentValue: '100', dimensionName: 'cfg' })
+
+      // wrapper2 is active (last mounted). Unmount it.
+      wrapper2.unmount()
+      wrapper2 = null
+
+      const event = new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true })
+      document.dispatchEvent(event)
+      await nextTick()
+
+      // wrapper1 should now be the active handler
+      const emitted = wrapper1.emitted('change')
+      expect(emitted).toBeDefined()
+      expect(emitted).toHaveLength(1)
+      expect(emitted![0]).toEqual(['1000'])
+    })
+
+    // AC3: No duplicate key handling — verify exactly one emission total
+    it('document arrow key fires exactly one change event across all instances', async () => {
+      wrapper1 = mountMaster({ currentValue: '500', dimensionName: 'step' })
+      wrapper2 = mountMaster({ currentValue: '100', dimensionName: 'cfg' })
+
+      const event = new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true })
+      document.dispatchEvent(event)
+      await nextTick()
+
+      const emissions1 = wrapper1.emitted('change') ?? []
+      const emissions2 = wrapper2.emitted('change') ?? []
+      const totalEmissions = emissions1.length + emissions2.length
+
+      // AC3: Exactly one slider should have handled the event
+      expect(totalEmissions).toBe(1)
+    })
+
+    // AC2: Focus claim via the focus event (tabbing to a slider)
+    it('focusing a slider via tab (focus event) claims keyboard ownership', async () => {
+      wrapper1 = mountMaster({ currentValue: '500', dimensionName: 'step' })
+      wrapper2 = mountMaster({ currentValue: '100', dimensionName: 'cfg' })
+
+      // Simulate focusing wrapper1 (e.g. via tab key)
+      await wrapper1.find('.master-slider').trigger('focus')
+
+      const event = new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true })
+      document.dispatchEvent(event)
+      await nextTick()
+
+      // wrapper1 is active after focus event
+      const emitted = wrapper1.emitted('change')
+      expect(emitted).toBeDefined()
+      expect(emitted).toHaveLength(1)
+
+      // wrapper2 did not emit
+      expect(wrapper2.emitted('change')).toBeUndefined()
+    })
+
+    // Verify direct keydown on the focused slider element still works regardless of singleton
+    it('direct keydown on the slider element bypasses the singleton guard', async () => {
+      wrapper1 = mountMaster({ currentValue: '500', dimensionName: 'step' })
+      wrapper2 = mountMaster({ currentValue: '100', dimensionName: 'cfg' })
+
+      // wrapper2 is active. Directly trigger keydown on wrapper1's container element.
+      // The @keydown handler on the div fires without the singleton check.
+      const container1 = wrapper1.find('.master-slider')
+      await container1.trigger('keydown', { key: 'ArrowRight' })
+
+      // This is the direct keydown handler (onKeydown), not onDocumentKeydown.
+      // It should still emit because direct interaction is always allowed.
+      const emitted = wrapper1.emitted('change')
+      expect(emitted).toBeDefined()
+      expect(emitted).toHaveLength(1)
+      expect(emitted![0]).toEqual(['1000'])
     })
   })
 })

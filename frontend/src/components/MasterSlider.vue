@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { NSlider, NButton, NCheckbox, NSelect } from 'naive-ui'
+import {
+  generateSliderId,
+  registerSlider,
+  unregisterSlider,
+  claimSliderFocus,
+  isSliderActive,
+} from '../composables/useSliderKeyboardFocus'
 
 const props = defineProps<{
   /** Ordered values to cycle through. */
@@ -11,9 +18,14 @@ const props = defineProps<{
   dimensionName: string
 }>()
 
+// change: Emitted when the slider value changes (arrow keys, slider drag, or playback tick).
+// Payload: the new string value from the values array.
 const emit = defineEmits<{
   change: [value: string]
 }>()
+
+/** Unique ID for this slider instance within the keyboard focus singleton. */
+const sliderId = generateSliderId()
 
 const currentIndex = computed(() => {
   const idx = props.values.indexOf(props.currentValue)
@@ -123,9 +135,13 @@ watch(() => props.values, () => {
  * Document-level keydown handler so arrow keys navigate the slider even when
  * focus is elsewhere (e.g. on the page body or after clicking the NSlider
  * thumb). Skips when a text-input element has focus to avoid interfering with
- * typing.
+ * typing. Also skips when this instance is not the active keyboard owner
+ * (another MasterSlider has focus).
  */
 function onDocumentKeydown(event: KeyboardEvent) {
+  // Only the active slider instance handles document-level keyboard events
+  if (!isSliderActive(sliderId)) return
+
   const tag = (document.activeElement?.tagName ?? '').toLowerCase()
   const isInputFocused = tag === 'input' || tag === 'textarea' || tag === 'select'
     || (document.activeElement?.isContentEditable ?? false)
@@ -133,18 +149,27 @@ function onDocumentKeydown(event: KeyboardEvent) {
   onKeydown(event)
 }
 
+/**
+ * Claim keyboard focus for this slider instance (e.g. on click or focus).
+ */
+function onSliderFocus() {
+  claimSliderFocus(sliderId)
+}
+
 onMounted(() => {
+  registerSlider(sliderId)
   document.addEventListener('keydown', onDocumentKeydown)
 })
 
 onBeforeUnmount(() => {
   clearTimer()
   document.removeEventListener('keydown', onDocumentKeydown)
+  unregisterSlider(sliderId)
 })
 </script>
 
 <template>
-  <div class="master-slider" role="group" :aria-label="`Master ${dimensionName} slider`" tabindex="0" @keydown="onKeydown">
+  <div class="master-slider" role="group" :aria-label="`Master ${dimensionName} slider`" tabindex="0" @keydown="onKeydown" @focus="onSliderFocus" @click="onSliderFocus">
     <div class="master-slider__main">
       <label class="master-slider__label">
         {{ dimensionName }}

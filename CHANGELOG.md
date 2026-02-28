@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-063: MasterSlider keyboard conflict guard for multiple instances
+- `frontend/src/composables/useSliderKeyboardFocus.ts`: New global singleton module managing a stack of MasterSlider instance IDs; ensures only one instance captures document-level keyboard input at a time via `registerSlider`, `unregisterSlider`, `claimSliderFocus`, and `isSliderActive` exports
+- `frontend/src/components/MasterSlider.vue`: Integrated keyboard focus singleton — each instance registers/unregisters on mount/unmount, claims focus on click/focus events, and the document keydown handler gates on `isSliderActive()`
+- `frontend/src/composables/__tests__/useSliderKeyboardFocus.test.ts`: 14 new unit tests covering singleton registration, unregistration, focus claiming, active instance selection, and edge cases
+- `frontend/src/components/__tests__/MasterSlider.test.ts`: 7 new multi-instance keyboard conflict tests covering single-active-handler, focus transfer via click/tab, unmount fallback, and exactly-one-emission guard
+- 719 frontend tests pass; 564 backend tests pass; 35 E2E tests pass
+
 ### S-062: Generate Samples dialog polish — bead indicator, preset auto-close, training run restore and refresh
 - `frontend/src/App.vue`: Added colored bead indicator on Generate Samples header button reflecting sample/job status of the sidebar-selected training run (green=complete, blue=running, yellow=queued, gray=empty); added `jobRefreshTrigger` counter that increments on WebSocket terminal job status transitions; passed `refreshTrigger` prop to `JobLaunchDialog`
 - `frontend/src/components/JobLaunchDialog.vue`: Added `refreshTrigger` prop with watcher to auto-refresh training runs and status beads on job completion; training run persistence via `saveTrainingRunId`/`getLastTrainingRunId`; auto-close preset editor sub-modal on save with preset auto-selection
