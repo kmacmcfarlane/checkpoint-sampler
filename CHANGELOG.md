@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### B-037: Backend panics with nil pointer dereference on /api/sample-jobs when ComfyUI is not configured
+- `backend/internal/api/sample_jobs.go`: Added `enabled bool` field to `SampleJobsService` struct and nil guards at all 7 handler methods — `List` returns empty slice, `Create` returns `invalid_payload`, `Show`/`Start`/`Resume` return `service_unavailable`, `Stop`/`Delete` return `internal_error` — preventing nil pointer dereference when ComfyUI is not configured
+- `backend/internal/api/sample_jobs_test.go`: Added 7 nil-guard unit tests covering all methods when `svc == nil`
+- `frontend/e2e/sample-jobs-api.spec.ts`: Added 2 new E2E tests verifying sample-jobs API returns correct responses (200 with empty array for GET, 4xx for POST) without ComfyUI
+- 562 backend tests pass; 28 E2E tests pass; zero panic lines in E2E backend logs
+
 ### S-056: E2E log capture before teardown
 - `Makefile`: Added `E2E_LOG_DIR` variable and log capture to `test-e2e` target — backend and frontend logs saved to `.ralph-temp/e2e-logs/` before teardown while preserving exit status; added new `test-e2e-logs` convenience target for manual log capture from a running stack
 - `CLAUDE.md`: Updated section 8 quick commands to document log capture in `make test-e2e` and new `make test-e2e-logs` target

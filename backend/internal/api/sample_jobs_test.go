@@ -223,4 +223,73 @@ var _ = Describe("SampleJobsService", func() {
 			Expect(serviceErr.ErrorName()).To(Equal("not_found"))
 		})
 	})
+
+	Describe("Nil guard when ComfyUI is not configured (svc == nil)", func() {
+		var disabledSvc *api.SampleJobsService
+
+		BeforeEach(func() {
+			// Construct SampleJobsService with nil inner service to simulate
+			// a deployment without ComfyUI configured.
+			disabledSvc = api.NewSampleJobsService(nil, discovery)
+		})
+
+		It("List returns an empty slice without error", func() {
+			result, err := disabledSvc.List(ctx)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result).NotTo(BeNil())
+			Expect(result).To(BeEmpty())
+		})
+
+		It("Show returns service_unavailable ServiceError", func() {
+			_, err := disabledSvc.Show(ctx, &gensamplejobs.ShowPayload{ID: "any-id"})
+			Expect(err).To(HaveOccurred())
+			serviceErr, ok := err.(errorNamer)
+			Expect(ok).To(BeTrue(), "error should implement ErrorNamer interface")
+			Expect(serviceErr.ErrorName()).To(Equal("service_unavailable"))
+		})
+
+		It("Create returns invalid_payload ServiceError", func() {
+			_, err := disabledSvc.Create(ctx, &gensamplejobs.CreateSampleJobPayload{
+				TrainingRunName: "run-1",
+				SamplePresetID:  "preset-1",
+				WorkflowName:    "wf.json",
+			})
+			Expect(err).To(HaveOccurred())
+			serviceErr, ok := err.(errorNamer)
+			Expect(ok).To(BeTrue(), "error should implement ErrorNamer interface")
+			Expect(serviceErr.ErrorName()).To(Equal("invalid_payload"))
+		})
+
+		It("Start returns service_unavailable ServiceError", func() {
+			_, err := disabledSvc.Start(ctx, &gensamplejobs.StartPayload{ID: "any-id"})
+			Expect(err).To(HaveOccurred())
+			serviceErr, ok := err.(errorNamer)
+			Expect(ok).To(BeTrue(), "error should implement ErrorNamer interface")
+			Expect(serviceErr.ErrorName()).To(Equal("service_unavailable"))
+		})
+
+		It("Stop returns internal_error ServiceError", func() {
+			_, err := disabledSvc.Stop(ctx, &gensamplejobs.StopPayload{ID: "any-id"})
+			Expect(err).To(HaveOccurred())
+			serviceErr, ok := err.(errorNamer)
+			Expect(ok).To(BeTrue(), "error should implement ErrorNamer interface")
+			Expect(serviceErr.ErrorName()).To(Equal("internal_error"))
+		})
+
+		It("Resume returns service_unavailable ServiceError", func() {
+			_, err := disabledSvc.Resume(ctx, &gensamplejobs.ResumePayload{ID: "any-id"})
+			Expect(err).To(HaveOccurred())
+			serviceErr, ok := err.(errorNamer)
+			Expect(ok).To(BeTrue(), "error should implement ErrorNamer interface")
+			Expect(serviceErr.ErrorName()).To(Equal("service_unavailable"))
+		})
+
+		It("Delete returns internal_error ServiceError", func() {
+			err := disabledSvc.Delete(ctx, &gensamplejobs.DeletePayload{ID: "any-id"})
+			Expect(err).To(HaveOccurred())
+			serviceErr, ok := err.(errorNamer)
+			Expect(ok).To(BeTrue(), "error should implement ErrorNamer interface")
+			Expect(serviceErr.ErrorName()).To(Equal("internal_error"))
+		})
+	})
 })

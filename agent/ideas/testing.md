@@ -31,3 +31,9 @@ The `_status`/`_color` metadata test covers empty/complete/running but does not 
 * priority: very-low
 * source: qa
 During startup, the frontend Vite dev server briefly logs `Error: connect ECONNREFUSED` for its WebSocket proxy before the backend is ready. This is a benign startup timing race and could be added to the allowlist to prevent future QA agents from investigating it.
+
+### Automated panic detection in E2E log scan
+* status: needs_approval
+* priority: medium
+* source: developer
+The QA agent currently searches E2E backend logs for panics manually. A lightweight shell script or Makefile target that exits non-zero when `panic:` appears in E2E logs would make panic-free criteria machine-verifiable and prevent regressions silently passing review.

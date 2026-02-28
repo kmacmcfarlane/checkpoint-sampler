@@ -838,7 +838,7 @@ stories:
   - id: B-037
     title: "Backend panics with nil pointer dereference on /api/sample-jobs when ComfyUI is not configured"
     priority: 75
-    status: todo
+    status: uat
     requires: []
     acceptance:
       - "BE: SampleJobsService methods return an empty result (or appropriate error) when the inner SampleJobService is nil (ComfyUI not configured)"

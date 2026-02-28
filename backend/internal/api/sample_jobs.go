@@ -15,18 +15,25 @@ import (
 type SampleJobsService struct {
 	svc       *service.SampleJobService
 	discovery *service.DiscoveryService
+	enabled   bool
 }
 
 // NewSampleJobsService returns a new SampleJobsService.
+// If svc is nil (ComfyUI not configured), all methods return empty results or
+// a service_unavailable error rather than panicking.
 func NewSampleJobsService(svc *service.SampleJobService, discovery *service.DiscoveryService) *SampleJobsService {
 	return &SampleJobsService{
 		svc:       svc,
 		discovery: discovery,
+		enabled:   svc != nil,
 	}
 }
 
 // List returns all sample jobs ordered by creation time (newest first).
 func (s *SampleJobsService) List(ctx context.Context) ([]*gensamplejobs.SampleJobResponse, error) {
+	if !s.enabled {
+		return []*gensamplejobs.SampleJobResponse{}, nil
+	}
 	jobs, err := s.svc.List()
 	if err != nil {
 		return nil, gensamplejobs.MakeInternalError(fmt.Errorf("listing sample jobs: %w", err))
@@ -47,6 +54,9 @@ func (s *SampleJobsService) List(ctx context.Context) ([]*gensamplejobs.SampleJo
 
 // Show returns a sample job by ID with progress metrics.
 func (s *SampleJobsService) Show(ctx context.Context, p *gensamplejobs.ShowPayload) (*gensamplejobs.SampleJobDetailResponse, error) {
+	if !s.enabled {
+		return nil, gensamplejobs.MakeServiceUnavailable(fmt.Errorf("sample jobs not available: ComfyUI is not configured"))
+	}
 	job, err := s.svc.Get(p.ID)
 	if err != nil {
 		if isNotFound(err) {
@@ -68,6 +78,9 @@ func (s *SampleJobsService) Show(ctx context.Context, p *gensamplejobs.ShowPaylo
 
 // Create creates a new sample job by expanding preset parameters across training run checkpoints.
 func (s *SampleJobsService) Create(ctx context.Context, p *gensamplejobs.CreateSampleJobPayload) (*gensamplejobs.SampleJobResponse, error) {
+	if !s.enabled {
+		return nil, gensamplejobs.MakeInvalidPayload(fmt.Errorf("sample jobs not available: ComfyUI is not configured"))
+	}
 	// Discover training runs to get checkpoints
 	runs, err := s.discovery.Discover()
 	if err != nil {
@@ -117,6 +130,9 @@ func (s *SampleJobsService) Create(ctx context.Context, p *gensamplejobs.CreateS
 
 // Start transitions a pending job to running status.
 func (s *SampleJobsService) Start(ctx context.Context, p *gensamplejobs.StartPayload) (*gensamplejobs.SampleJobResponse, error) {
+	if !s.enabled {
+		return nil, gensamplejobs.MakeServiceUnavailable(fmt.Errorf("sample jobs not available: ComfyUI is not configured"))
+	}
 	job, err := s.svc.Start(p.ID)
 	if err != nil {
 		if isNotFound(err) {
@@ -134,6 +150,9 @@ func (s *SampleJobsService) Start(ctx context.Context, p *gensamplejobs.StartPay
 
 // Stop stops a running sample job.
 func (s *SampleJobsService) Stop(ctx context.Context, p *gensamplejobs.StopPayload) (*gensamplejobs.SampleJobResponse, error) {
+	if !s.enabled {
+		return nil, gensamplejobs.MakeInternalError(fmt.Errorf("sample jobs not available: ComfyUI is not configured"))
+	}
 	job, err := s.svc.Stop(p.ID)
 	if err != nil {
 		if isNotFound(err) {
@@ -148,6 +167,9 @@ func (s *SampleJobsService) Stop(ctx context.Context, p *gensamplejobs.StopPaylo
 
 // Resume resumes a stopped sample job.
 func (s *SampleJobsService) Resume(ctx context.Context, p *gensamplejobs.ResumePayload) (*gensamplejobs.SampleJobResponse, error) {
+	if !s.enabled {
+		return nil, gensamplejobs.MakeServiceUnavailable(fmt.Errorf("sample jobs not available: ComfyUI is not configured"))
+	}
 	job, err := s.svc.Resume(p.ID)
 	if err != nil {
 		if isNotFound(err) {
@@ -165,6 +187,9 @@ func (s *SampleJobsService) Resume(ctx context.Context, p *gensamplejobs.ResumeP
 
 // Delete removes a sample job and all its items.
 func (s *SampleJobsService) Delete(ctx context.Context, p *gensamplejobs.DeletePayload) error {
+	if !s.enabled {
+		return gensamplejobs.MakeInternalError(fmt.Errorf("sample jobs not available: ComfyUI is not configured"))
+	}
 	err := s.svc.Delete(p.ID)
 	if err != nil {
 		if isNotFound(err) {

@@ -55,3 +55,9 @@ A CI step that validates agent prompt files (.claude/agents/*.md) for required s
 * priority: very-low
 * source: developer
 A pass over `agent/AGENT_FLOW.md` and other `.claude/agents/` files (code-reviewer.md, debugger.md) to confirm no remaining references to "manual curl" as a standard verification gate after the W-004 E2E-first standardization. Currently out of scope for W-004 but easy to miss.
+
+### Reviewer audit of nil-guard error types against Goa DSL declarations
+* status: needs_approval
+* priority: low
+* source: developer
+A systematic check comparing nil-guard error types in API handler methods against each method's `Error(...)` declarations in the Goa DSL would catch mismatches automatically rather than relying on reviewer spot-checks. E.g., the `Show` method may still use `MakeServiceUnavailable` without declaring it in the DSL.
