@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### B-031: Generate Samples dialog doesn't sync preset selection to manage presets sub-dialog
+- `frontend/src/components/JobLaunchDialog.vue`: Added `:initial-preset-id="selectedPreset"` prop binding to pass current preset selection to SamplePresetEditor sub-dialog
+- `frontend/src/components/SamplePresetEditor.vue`: Added `initialPresetId` prop with null default, emit contract comments, and auto-selection logic in `onMounted` that pre-selects the matching preset after loading
+- `frontend/src/components/__tests__/JobLaunchDialog.test.ts`: Added 4 new tests for preset selection sync between parent and sub-dialog
+- `frontend/src/components/__tests__/SamplePresetEditor.test.ts`: Added 5 new tests for initialPresetId prop pre-selection behavior
+- 655 frontend tests pass; 26 E2E tests pass
+
 ### B-030: Top nav elements unavailable on narrow screens until drawer opens
 - `frontend/src/App.vue`: Added `eagerAutoSelect()` function that eagerly loads saved training run from localStorage on mount (independent of drawer state), and added idempotency guard to `onTrainingRunSelect` to prevent redundant scans when the same run is re-selected
 - `frontend/src/__tests__/App.test.ts`: Added 8 new tests in "Eager auto-select on narrow screens" describe block covering eager loading, header button visibility, no-data fallback, stale data handling, drawer sync, idempotency, wide screen behavior, and API failure graceful handling

@@ -315,7 +315,7 @@ stories:
   - id: B-031
     title: "Generate Samples dialog doesn't sync preset selection to manage presets sub-dialog"
     priority: 40
-    status: todo
+    status: uat
     requires: []
     acceptance:
       - "FE: When opening the 'Manage Sample Presets' sub-dialog from the Generate Samples dialog, the currently selected sample preset in the parent dropdown is pre-selected in the SamplePresetEditor"

@@ -533,6 +533,7 @@ async function submit() {
       @update:show="presetEditorOpen = $event"
     >
       <SamplePresetEditor
+        :initial-preset-id="selectedPreset"
         @preset-saved="onPresetSaved"
         @preset-deleted="onPresetDeleted"
       />

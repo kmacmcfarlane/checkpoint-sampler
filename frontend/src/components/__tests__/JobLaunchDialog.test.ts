@@ -695,6 +695,113 @@ describe('JobLaunchDialog', () => {
     expect(refreshedOptions[0].label).toBe('Full Test')
   })
 
+  describe('preset selection sync between parent and sub-dialog', () => {
+    // AC: When opening the sub-dialog, the currently selected preset in the parent is pre-selected.
+    it('passes the currently selected preset ID as initialPresetId to SamplePresetEditor', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select a preset in the parent dialog
+      wrapper.find('[data-testid="preset-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
+      await nextTick()
+
+      // Open the manage presets sub-dialog
+      await wrapper.find('[data-testid="manage-presets-button"]').trigger('click')
+      await nextTick()
+
+      // The SamplePresetEditor should receive the currently selected preset ID
+      const editor = wrapper.findComponent(SamplePresetEditor)
+      expect(editor.props('initialPresetId')).toBe('preset-1')
+    })
+
+    // AC: If no preset is selected in the parent, SamplePresetEditor receives null.
+    it('passes null as initialPresetId when no preset is selected in the parent', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Do not select any preset — open the editor directly
+      await wrapper.find('[data-testid="manage-presets-button"]').trigger('click')
+      await nextTick()
+
+      const editor = wrapper.findComponent(SamplePresetEditor)
+      expect(editor.props('initialPresetId')).toBeNull()
+    })
+
+    // AC: initialPresetId updates when the parent's selected preset changes before opening.
+    it('passes the updated preset ID when a different preset is selected before opening', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select preset-1 first, then change to preset-2
+      wrapper.find('[data-testid="preset-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
+      await nextTick()
+      wrapper.find('[data-testid="preset-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-2')
+      await nextTick()
+
+      // Open the editor — should reflect the latest selection
+      await wrapper.find('[data-testid="manage-presets-button"]').trigger('click')
+      await nextTick()
+
+      const editor = wrapper.findComponent(SamplePresetEditor)
+      expect(editor.props('initialPresetId')).toBe('preset-2')
+    })
+
+    // AC: After saving a preset in the sub-dialog, parent dropdown reflects the change.
+    it('reflects new preset in parent dropdown after preset-saved from sub-dialog', async () => {
+      const newPreset: SamplePreset = {
+        id: 'preset-new',
+        name: 'Synced Preset',
+        prompts: [{ name: 'test', text: 'a test' }],
+        negative_prompt: '',
+        steps: [20],
+        cfgs: [7.0],
+        samplers: ['euler'],
+        schedulers: ['normal'],
+        seeds: [42],
+        width: 1024,
+        height: 1024,
+        images_per_checkpoint: 1,
+        created_at: '2025-01-01T00:00:00Z',
+        updated_at: '2025-01-01T00:00:00Z',
+      }
+
+      const updatedPresets = [...samplePresets, newPreset]
+      mockListSamplePresets
+        .mockResolvedValueOnce(samplePresets)  // initial dialog load
+        .mockResolvedValueOnce(samplePresets)  // SamplePresetEditor own mount load
+        .mockResolvedValueOnce(updatedPresets) // dialog refresh after preset-saved
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      await wrapper.find('[data-testid="manage-presets-button"]').trigger('click')
+      await flushPromises()
+
+      // Simulate the sub-dialog saving a new preset
+      const editor = wrapper.findComponent(SamplePresetEditor)
+      await editor.vm.$emit('preset-saved', newPreset)
+      await flushPromises()
+
+      // Parent preset dropdown should now contain the new preset and have it selected
+      const presetSelect = wrapper.find('[data-testid="preset-select"]').findComponent(NSelect)
+      const options = presetSelect.props('options') as Array<{ label: string; value: string }>
+      expect(options.some(o => o.label === 'Synced Preset')).toBe(true)
+      expect(presetSelect.props('value')).toBe('preset-new')
+    })
+  })
+
   describe('checkpoint picker for regeneration', () => {
     it('does not show checkpoint picker when empty run is selected', async () => {
       const wrapper = mount(JobLaunchDialog, {

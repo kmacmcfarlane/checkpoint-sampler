@@ -4,6 +4,16 @@ import { NInput, NInputNumber, NSelect, NButton, NDynamicInput, NDynamicTags, NC
 import type { SamplePreset, NamedPrompt, CreateSamplePresetPayload, UpdateSamplePresetPayload } from '../api/types'
 import { apiClient } from '../api/client'
 
+// initialPresetId: When provided, the preset with this ID is pre-selected after presets load.
+// If null or the ID is not found in the loaded presets, no preset is selected (default behavior).
+const props = withDefaults(defineProps<{
+  initialPresetId?: string | null
+}>(), {
+  initialPresetId: null,
+})
+
+// preset-saved: Emitted after a preset is created or updated. Payload: the saved SamplePreset.
+// preset-deleted: Emitted after a preset is deleted. Payload: the deleted preset's ID (string).
 const emit = defineEmits<{
   'preset-saved': [preset: SamplePreset]
   'preset-deleted': [presetId: string]
@@ -98,6 +108,14 @@ onMounted(async () => {
     fetchSamplers(),
     fetchSchedulers(),
   ])
+
+  // After presets are loaded, pre-select the preset from the parent dialog if one was provided.
+  if (props.initialPresetId !== null) {
+    const match = presets.value.find(p => p.id === props.initialPresetId)
+    if (match) {
+      onSelectPreset(match.id)
+    }
+  }
 })
 
 async function fetchPresets() {

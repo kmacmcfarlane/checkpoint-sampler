@@ -769,6 +769,72 @@ describe('SamplePresetEditor', () => {
     if (testid === 'seeds-tags') expect(vm.seeds).toEqual(expectedNumbers)
   })
 
+  describe('initialPresetId prop — pre-selection on open', () => {
+    // AC: When opening the sub-dialog from the parent, the currently selected preset is pre-selected.
+    it('pre-selects the preset matching initialPresetId on mount', async () => {
+      const wrapper = mount(SamplePresetEditor, {
+        props: { initialPresetId: 'preset-1' },
+      })
+      await flushPromises()
+
+      // The preset selector should show preset-1 as selected
+      const select = wrapper.findAllComponents(NSelect)[0]
+      expect(select.props('value')).toBe('preset-1')
+
+      // The form should be populated with preset-1's data
+      const nameInput = wrapper.findComponent('[data-testid="preset-name-input"]')
+      expect(nameInput.props('value')).toBe('Test Preset A')
+    })
+
+    // AC: If no preset is selected in the parent, the SamplePresetEditor opens with no preset selected.
+    it('opens with no preset selected when initialPresetId is null', async () => {
+      const wrapper = mount(SamplePresetEditor, {
+        props: { initialPresetId: null },
+      })
+      await flushPromises()
+
+      const select = wrapper.findAllComponents(NSelect)[0]
+      expect(select.props('value')).toBeNull()
+
+      // Form should be in default empty state
+      const nameInput = wrapper.findComponent('[data-testid="preset-name-input"]')
+      expect(nameInput.props('value')).toBe('')
+    })
+
+    // AC: If no preset is selected in the parent (prop omitted), opens with no preset selected.
+    it('opens with no preset selected when initialPresetId is not provided', async () => {
+      const wrapper = mount(SamplePresetEditor)
+      await flushPromises()
+
+      const select = wrapper.findAllComponents(NSelect)[0]
+      expect(select.props('value')).toBeNull()
+    })
+
+    // AC: If the initialPresetId does not match any loaded preset, no preset is selected.
+    it('does not pre-select when initialPresetId does not match any loaded preset', async () => {
+      const wrapper = mount(SamplePresetEditor, {
+        props: { initialPresetId: 'nonexistent-preset' },
+      })
+      await flushPromises()
+
+      const select = wrapper.findAllComponents(NSelect)[0]
+      expect(select.props('value')).toBeNull()
+    })
+
+    it('pre-selects a different preset when initialPresetId points to preset-2', async () => {
+      const wrapper = mount(SamplePresetEditor, {
+        props: { initialPresetId: 'preset-2' },
+      })
+      await flushPromises()
+
+      const select = wrapper.findAllComponents(NSelect)[0]
+      expect(select.props('value')).toBe('preset-2')
+
+      const nameInput = wrapper.findComponent('[data-testid="preset-name-input"]')
+      expect(nameInput.props('value')).toBe('Test Preset B')
+    })
+  })
+
   afterAll(() => {
     globalThis.confirm = originalConfirm
   })
