@@ -43,12 +43,14 @@ const samplePresets: SamplePreset[] = [
     negative_prompt: 'low quality',
     steps: [1, 4, 8],
     cfgs: [1.0, 3.0, 7.0],
-    samplers: ['euler', 'heun'],
-    schedulers: ['simple', 'normal'],
+    sampler_scheduler_pairs: [
+      { sampler: 'euler', scheduler: 'simple' },
+      { sampler: 'heun', scheduler: 'normal' },
+    ],
     seeds: [42, 420],
     width: 1024,
     height: 1024,
-    images_per_checkpoint: 144, // 2*3*3*2*2*2 = 144
+    images_per_checkpoint: 72, // 2*3*3*2*2 = 72
     created_at: '2025-01-01T00:00:00Z',
     updated_at: '2025-01-01T00:00:00Z',
   },
@@ -59,8 +61,9 @@ const samplePresets: SamplePreset[] = [
     negative_prompt: '',
     steps: [20],
     cfgs: [7.0],
-    samplers: ['euler'],
-    schedulers: ['normal'],
+    sampler_scheduler_pairs: [
+      { sampler: 'euler', scheduler: 'normal' },
+    ],
     seeds: [1337],
     width: 512,
     height: 512,
@@ -95,7 +98,8 @@ describe('SamplePresetEditor', () => {
     await flushPromises()
 
     expect(wrapper.findComponent(NInput).exists()).toBe(true)
-    expect(wrapper.findComponent(NDynamicInput).exists()).toBe(true)
+    // Two NDynamicInput: one for prompts, one for sampler/scheduler pairs
+    expect(wrapper.findAllComponents(NDynamicInput)).toHaveLength(2)
     expect(wrapper.findAllComponents(NDynamicTags)).toHaveLength(3)
   })
 
@@ -163,31 +167,22 @@ describe('SamplePresetEditor', () => {
     await nextTick()
 
     const totalDiv = wrapper.find('.total-images')
-    // When loading preset-1: 2 prompts * 3 steps * 3 cfgs * 2 samplers * 2 schedulers * 2 seeds = 144
-    expect(totalDiv.text()).toContain('144')
+    // When loading preset-1: 2 prompts * 3 steps * 3 cfgs * 2 pairs * 2 seeds = 72
+    expect(totalDiv.text()).toContain('72')
   })
 
   it('calculates total images correctly based on form inputs', async () => {
     const wrapper = mount(SamplePresetEditor)
     await flushPromises()
 
-    // Default state: 0 prompts (empty name/text) * 1 step * 1 cfg * 0 samplers * 0 schedulers * 1 seed = 0
+    // Default state: 0 prompts (empty name/text) * 1 step * 1 cfg * 0 pairs * 1 seed = 0
     const totalDiv = wrapper.find('.total-images')
-    expect(totalDiv.text()).toContain('0') // No samplers/schedulers selected and no valid prompts
+    expect(totalDiv.text()).toContain('0') // No pairs and no valid prompts
 
-    // Select samplers and schedulers
-    const selectComponents = wrapper.findAllComponents(NSelect)
-    const samplersSelect = selectComponents.find((s) => s.props('id') === 'samplers')
-    if (samplersSelect) {
-      samplersSelect.vm.$emit('update:value', ['euler', 'heun'])
-      await nextTick()
-    }
-
-    const schedulersSelect = selectComponents.find((s) => s.props('id') === 'schedulers')
-    if (schedulersSelect) {
-      schedulersSelect.vm.$emit('update:value', ['simple'])
-      await nextTick()
-    }
+    // Add a sampler/scheduler pair via the vm
+    const vm = wrapper.vm as unknown as { samplerSchedulerPairs: Array<{ sampler: string; scheduler: string }> }
+    vm.samplerSchedulerPairs = [{ sampler: 'euler', scheduler: 'simple' }]
+    await nextTick()
 
     // Still 0 because no valid prompts (name and text both required)
     expect(totalDiv.text()).toContain('0')
@@ -201,8 +196,7 @@ describe('SamplePresetEditor', () => {
       negative_prompt: '',
       steps: [30],
       cfgs: [7.0],
-      samplers: ['euler'],
-      schedulers: ['normal'],
+      sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
       seeds: [42],
       width: 1024,
       height: 1024,
@@ -232,12 +226,9 @@ describe('SamplePresetEditor', () => {
     )!
     promptTextInput.vm.$emit('update:value', 'test prompt')
 
-    // Select samplers and schedulers
-    const samplersSelect = wrapper.findComponent('[data-testid="samplers-select"]')
-    samplersSelect.vm.$emit('update:value', ['euler'])
-
-    const schedulersSelect = wrapper.findComponent('[data-testid="schedulers-select"]')
-    schedulersSelect.vm.$emit('update:value', ['normal'])
+    // Add a sampler/scheduler pair
+    const vm = wrapper.vm as unknown as { samplerSchedulerPairs: Array<{ sampler: string; scheduler: string }> }
+    vm.samplerSchedulerPairs = [{ sampler: 'euler', scheduler: 'normal' }]
 
     await nextTick()
 
@@ -253,8 +244,7 @@ describe('SamplePresetEditor', () => {
       negative_prompt: '',
       steps: [30],
       cfgs: [7.0],
-      samplers: ['euler'],
-      schedulers: ['normal'],
+      sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
       seeds: [42],
       width: 1024,
       height: 1024,
@@ -298,8 +288,10 @@ describe('SamplePresetEditor', () => {
       negative_prompt: 'low quality',
       steps: [1, 4, 8],
       cfgs: [1.0, 3.0, 7.0],
-      samplers: ['euler', 'heun'],
-      schedulers: ['simple', 'normal'],
+      sampler_scheduler_pairs: [
+        { sampler: 'euler', scheduler: 'simple' },
+        { sampler: 'heun', scheduler: 'normal' },
+      ],
       seeds: [42, 420],
       width: 1024,
       height: 1024,
@@ -415,7 +407,7 @@ describe('SamplePresetEditor', () => {
     stepsTags.vm.$emit('update:value', ['1', '4', '8', '20'])
     await nextTick()
 
-    // Verify by adding valid prompts + samplers/schedulers and checking total calculation
+    // Verify by adding valid prompts + sampler/scheduler pair and checking total calculation
     const promptInputs = wrapper.findAllComponents(NInput)
     const promptNameInput = promptInputs.find((input) =>
       input.props('placeholder')?.includes('Prompt name')
@@ -427,16 +419,13 @@ describe('SamplePresetEditor', () => {
     )!
     promptTextInput.vm.$emit('update:value', 'test prompt')
 
-    const samplersSelect = wrapper.findComponent('[data-testid="samplers-select"]')
-    samplersSelect.vm.$emit('update:value', ['euler'])
-
-    const schedulersSelect = wrapper.findComponent('[data-testid="schedulers-select"]')
-    schedulersSelect.vm.$emit('update:value', ['normal'])
+    const vm = wrapper.vm as unknown as { samplerSchedulerPairs: Array<{ sampler: string; scheduler: string }> }
+    vm.samplerSchedulerPairs = [{ sampler: 'euler', scheduler: 'normal' }]
 
     await nextTick()
 
     const totalDiv = wrapper.find('.total-images')
-    // 1 prompt * 4 steps * 1 cfg * 1 sampler * 1 scheduler * 1 seed = 4
+    // 1 prompt * 4 steps * 1 cfg * 1 pair * 1 seed = 4
     expect(totalDiv.text()).toContain('4')
   })
 
@@ -459,16 +448,13 @@ describe('SamplePresetEditor', () => {
     )!
     promptTextInput.vm.$emit('update:value', 'test prompt')
 
-    const samplersSelect = wrapper.findComponent('[data-testid="samplers-select"]')
-    samplersSelect.vm.$emit('update:value', ['euler'])
-
-    const schedulersSelect = wrapper.findComponent('[data-testid="schedulers-select"]')
-    schedulersSelect.vm.$emit('update:value', ['normal'])
+    const vm = wrapper.vm as unknown as { samplerSchedulerPairs: Array<{ sampler: string; scheduler: string }> }
+    vm.samplerSchedulerPairs = [{ sampler: 'euler', scheduler: 'normal' }]
 
     await nextTick()
 
     const totalDiv = wrapper.find('.total-images')
-    // 1 prompt * 1 step * 3 cfgs * 1 sampler * 1 scheduler * 1 seed = 3
+    // 1 prompt * 1 step * 3 cfgs * 1 pair * 1 seed = 3
     expect(totalDiv.text()).toContain('3')
   })
 
@@ -491,16 +477,13 @@ describe('SamplePresetEditor', () => {
     )!
     promptTextInput.vm.$emit('update:value', 'test prompt')
 
-    const samplersSelect = wrapper.findComponent('[data-testid="samplers-select"]')
-    samplersSelect.vm.$emit('update:value', ['euler'])
-
-    const schedulersSelect = wrapper.findComponent('[data-testid="schedulers-select"]')
-    schedulersSelect.vm.$emit('update:value', ['normal'])
+    const vm = wrapper.vm as unknown as { samplerSchedulerPairs: Array<{ sampler: string; scheduler: string }> }
+    vm.samplerSchedulerPairs = [{ sampler: 'euler', scheduler: 'normal' }]
 
     await nextTick()
 
     const totalDiv = wrapper.find('.total-images')
-    // 1 prompt * 1 step * 1 cfg * 1 sampler * 1 scheduler * 3 seeds = 3
+    // 1 prompt * 1 step * 1 cfg * 1 pair * 3 seeds = 3
     expect(totalDiv.text()).toContain('3')
   })
 
@@ -526,34 +509,6 @@ describe('SamplePresetEditor', () => {
 
     const select = wrapper.findAllComponents(NSelect)[0]
     expect(select.props('loading')).toBe(true)
-  })
-
-  it('allows manual entry of samplers not in ComfyUI list', async () => {
-    const wrapper = mount(SamplePresetEditor)
-    await flushPromises()
-
-    const selectComponents = wrapper.findAllComponents(NSelect)
-    const samplersSelect = selectComponents.find((s) => s.props('id') === 'samplers')
-
-    // Verify tag mode is enabled (allows manual entry)
-    if (samplersSelect) {
-      expect(samplersSelect.props('tag')).toBe(true)
-      expect(samplersSelect.props('filterable')).toBe(true)
-    }
-  })
-
-  it('allows manual entry of schedulers not in ComfyUI list', async () => {
-    const wrapper = mount(SamplePresetEditor)
-    await flushPromises()
-
-    const selectComponents = wrapper.findAllComponents(NSelect)
-    const schedulersSelect = selectComponents.find((s) => s.props('id') === 'schedulers')
-
-    // Verify tag mode is enabled (allows manual entry)
-    if (schedulersSelect) {
-      expect(schedulersSelect.props('tag')).toBe(true)
-      expect(schedulersSelect.props('filterable')).toBe(true)
-    }
   })
 
   it('NDynamicTags inputProps restricts entry to digits and "." only', async () => {
@@ -601,8 +556,7 @@ describe('SamplePresetEditor', () => {
       negative_prompt: '',
       steps: [30],
       cfgs: [7.0],
-      samplers: ['euler'],
-      schedulers: ['normal'],
+      sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
       seeds: [42],
       width: 1024,
       height: 1024,
@@ -630,11 +584,8 @@ describe('SamplePresetEditor', () => {
     )!
     promptTextInput.vm.$emit('update:value', 'valid prompt')
 
-    const samplersSelect = wrapper.findComponent('[data-testid="samplers-select"]')
-    samplersSelect.vm.$emit('update:value', ['euler'])
-
-    const schedulersSelect = wrapper.findComponent('[data-testid="schedulers-select"]')
-    schedulersSelect.vm.$emit('update:value', ['normal'])
+    const vm = wrapper.vm as unknown as { samplerSchedulerPairs: Array<{ sampler: string; scheduler: string }> }
+    vm.samplerSchedulerPairs = [{ sampler: 'euler', scheduler: 'normal' }]
 
     await nextTick()
 
@@ -649,18 +600,35 @@ describe('SamplePresetEditor', () => {
     expect(call.prompts[0]).toEqual({ name: 'valid', text: 'valid prompt' })
   })
 
-  it('NDynamicInput has onCreate prop that returns correct shape {name, text}', async () => {
+  it('NDynamicInput has onCreate prop that returns correct shape {name, text} for prompts', async () => {
     const wrapper = mount(SamplePresetEditor)
     await flushPromises()
 
-    const dynamicInput = wrapper.findComponent(NDynamicInput)
-    expect(dynamicInput.exists()).toBe(true)
+    // First NDynamicInput is prompts
+    const dynamicInputs = wrapper.findAllComponents(NDynamicInput)
+    const promptDynamicInput = dynamicInputs[0]
+    expect(promptDynamicInput.exists()).toBe(true)
 
     // The onCreate prop must be a function that returns {name: '', text: ''}
-    const onCreate = dynamicInput.props('onCreate') as (() => unknown) | undefined
+    const onCreate = promptDynamicInput.props('onCreate') as (() => unknown) | undefined
     expect(typeof onCreate).toBe('function')
     const newItem = onCreate!()
     expect(newItem).toEqual({ name: '', text: '' })
+  })
+
+  it('NDynamicInput has onCreate prop that returns correct shape {sampler, scheduler} for pairs', async () => {
+    const wrapper = mount(SamplePresetEditor)
+    await flushPromises()
+
+    // Second NDynamicInput is sampler/scheduler pairs
+    const dynamicInputs = wrapper.findAllComponents(NDynamicInput)
+    const pairsDynamicInput = dynamicInputs[1]
+    expect(pairsDynamicInput.exists()).toBe(true)
+
+    const onCreate = pairsDynamicInput.props('onCreate') as (() => unknown) | undefined
+    expect(typeof onCreate).toBe('function')
+    const newItem = onCreate!()
+    expect(newItem).toEqual({ sampler: '', scheduler: '' })
   })
 
   it('adding a second prompt via onCreate produces an item with correct shape and no console errors', async () => {
@@ -669,10 +637,10 @@ describe('SamplePresetEditor', () => {
     const wrapper = mount(SamplePresetEditor)
     await flushPromises()
 
-    // Simulate what NDynamicInput does when the user clicks "Add" —
+    // Simulate what NDynamicInput does when the user clicks "Add" --
     // call the onCreate handler and push the result into prompts
-    const dynamicInput = wrapper.findComponent(NDynamicInput)
-    const onCreate = dynamicInput.props('onCreate') as (index: number) => unknown
+    const dynamicInputs = wrapper.findAllComponents(NDynamicInput)
+    const onCreate = dynamicInputs[0].props('onCreate') as (index: number) => unknown
     const newItem = onCreate(1)
 
     // The item must be a properly shaped object (not null)
@@ -692,20 +660,20 @@ describe('SamplePresetEditor', () => {
     await flushPromises()
 
     // Set up one valid prompt plus one empty prompt (as created by onCreate)
-    const vm = wrapper.vm as unknown as { prompts: { name: string; text: string }[] }
+    const vm = wrapper.vm as unknown as {
+      prompts: { name: string; text: string }[]
+      samplerSchedulerPairs: Array<{ sampler: string; scheduler: string }>
+    }
     vm.prompts = [
       { name: 'valid', text: 'valid text' },
-      { name: '', text: '' }, // empty prompt created by onCreate — should be excluded
+      { name: '', text: '' }, // empty prompt created by onCreate -- should be excluded
     ]
+    vm.samplerSchedulerPairs = [{ sampler: 'euler', scheduler: 'normal' }]
 
-    const samplersSelect = wrapper.findComponent('[data-testid="samplers-select"]')
-    samplersSelect.vm.$emit('update:value', ['euler'])
-    const schedulersSelect = wrapper.findComponent('[data-testid="schedulers-select"]')
-    schedulersSelect.vm.$emit('update:value', ['normal'])
     await nextTick()
 
     const totalDiv = wrapper.find('.total-images')
-    // Only the 1 valid prompt counts: 1 * 1 step * 1 cfg * 1 sampler * 1 scheduler * 1 seed = 1
+    // Only the 1 valid prompt counts: 1 * 1 step * 1 cfg * 1 pair * 1 seed = 1
     expect(totalDiv.text()).toContain('1')
   })
 
@@ -713,17 +681,43 @@ describe('SamplePresetEditor', () => {
     const wrapper = mount(SamplePresetEditor)
     await flushPromises()
 
-    // Fill preset name and samplers/schedulers but leave prompts with only empty entries
+    // Fill preset name and add a pair but leave prompts with only empty entries
     const nameInput = wrapper.findComponent('[data-testid="preset-name-input"]')
     nameInput.vm.$emit('update:value', 'My Preset')
 
-    const samplersSelect = wrapper.findComponent('[data-testid="samplers-select"]')
-    samplersSelect.vm.$emit('update:value', ['euler'])
-    const schedulersSelect = wrapper.findComponent('[data-testid="schedulers-select"]')
-    schedulersSelect.vm.$emit('update:value', ['normal'])
+    const vm = wrapper.vm as unknown as { samplerSchedulerPairs: Array<{ sampler: string; scheduler: string }> }
+    vm.samplerSchedulerPairs = [{ sampler: 'euler', scheduler: 'normal' }]
     await nextTick()
 
-    // Default prompt is {name:'', text:''} — save must be disabled
+    // Default prompt is {name:'', text:''} -- save must be disabled
+    const saveButton = wrapper
+      .findAllComponents(NButton)
+      .find((b) => b.text().includes('Save Preset'))!
+    expect(saveButton.props('disabled')).toBe(true)
+  })
+
+  it('canSave returns false when pairs have empty sampler or scheduler', async () => {
+    const wrapper = mount(SamplePresetEditor)
+    await flushPromises()
+
+    const nameInput = wrapper.findComponent('[data-testid="preset-name-input"]')
+    nameInput.vm.$emit('update:value', 'My Preset')
+
+    const promptInputs = wrapper.findAllComponents(NInput)
+    const promptNameInput = promptInputs.find((input) =>
+      input.props('placeholder')?.includes('Prompt name')
+    )!
+    promptNameInput.vm.$emit('update:value', 'test')
+    const promptTextInput = promptInputs.find((input) =>
+      input.props('placeholder')?.includes('Prompt text')
+    )!
+    promptTextInput.vm.$emit('update:value', 'test prompt')
+
+    // Add a pair with empty sampler
+    const vm = wrapper.vm as unknown as { samplerSchedulerPairs: Array<{ sampler: string; scheduler: string }> }
+    vm.samplerSchedulerPairs = [{ sampler: '', scheduler: 'normal' }]
+    await nextTick()
+
     const saveButton = wrapper
       .findAllComponents(NButton)
       .find((b) => b.text().includes('Save Preset'))!
@@ -802,7 +796,7 @@ describe('SamplePresetEditor', () => {
     })
   })
 
-  describe('initialPresetId prop — pre-selection on open', () => {
+  describe('initialPresetId prop -- pre-selection on open', () => {
     // AC: When opening the sub-dialog from the parent, the currently selected preset is pre-selected.
     it('pre-selects the preset matching initialPresetId on mount', async () => {
       const wrapper = mount(SamplePresetEditor, {
@@ -865,6 +859,104 @@ describe('SamplePresetEditor', () => {
 
       const nameInput = wrapper.findComponent('[data-testid="preset-name-input"]')
       expect(nameInput.props('value')).toBe('Test Preset B')
+    })
+  })
+
+  describe('sampler/scheduler pairs management', () => {
+    it('loads pairs from preset when selected', async () => {
+      const wrapper = mount(SamplePresetEditor)
+      await flushPromises()
+
+      const select = wrapper.findAllComponents(NSelect)[0]
+      select.vm.$emit('update:value', 'preset-1')
+      await nextTick()
+
+      const vm = wrapper.vm as unknown as { samplerSchedulerPairs: Array<{ sampler: string; scheduler: string }> }
+      expect(vm.samplerSchedulerPairs).toHaveLength(2)
+      expect(vm.samplerSchedulerPairs[0]).toEqual({ sampler: 'euler', scheduler: 'simple' })
+      expect(vm.samplerSchedulerPairs[1]).toEqual({ sampler: 'heun', scheduler: 'normal' })
+    })
+
+    it('resets pairs to empty when New Preset is clicked', async () => {
+      const wrapper = mount(SamplePresetEditor)
+      await flushPromises()
+
+      // Select preset to populate pairs
+      const select = wrapper.findAllComponents(NSelect)[0]
+      select.vm.$emit('update:value', 'preset-1')
+      await nextTick()
+
+      // Click New Preset to reset
+      const newButton = wrapper
+        .findAllComponents(NButton)
+        .find((b) => b.text() === 'New Preset')!
+      await newButton.trigger('click')
+      await nextTick()
+
+      const vm = wrapper.vm as unknown as { samplerSchedulerPairs: Array<{ sampler: string; scheduler: string }> }
+      expect(vm.samplerSchedulerPairs).toHaveLength(0)
+    })
+
+    it('sends pairs in save payload', async () => {
+      const createdPreset: SamplePreset = {
+        id: 'new-id',
+        name: 'Multi Pair',
+        prompts: [{ name: 'test', text: 'test prompt' }],
+        negative_prompt: '',
+        steps: [30],
+        cfgs: [7.0],
+        sampler_scheduler_pairs: [
+          { sampler: 'euler', scheduler: 'simple' },
+          { sampler: 'heun', scheduler: 'karras' },
+        ],
+        seeds: [42],
+        width: 1024,
+        height: 1024,
+        images_per_checkpoint: 2,
+        created_at: '2025-01-03T00:00:00Z',
+        updated_at: '2025-01-03T00:00:00Z',
+      }
+      mockCreateSamplePreset.mockResolvedValue(createdPreset)
+
+      const wrapper = mount(SamplePresetEditor)
+      await flushPromises()
+
+      // Fill form
+      const nameInput = wrapper.findComponent('[data-testid="preset-name-input"]')
+      nameInput.vm.$emit('update:value', 'Multi Pair')
+
+      const promptInputs = wrapper.findAllComponents(NInput)
+      const promptNameInput = promptInputs.find((input) =>
+        input.props('placeholder')?.includes('Prompt name')
+      )!
+      promptNameInput.vm.$emit('update:value', 'test')
+      const promptTextInput = promptInputs.find((input) =>
+        input.props('placeholder')?.includes('Prompt text')
+      )!
+      promptTextInput.vm.$emit('update:value', 'test prompt')
+
+      const vm = wrapper.vm as unknown as { samplerSchedulerPairs: Array<{ sampler: string; scheduler: string }> }
+      vm.samplerSchedulerPairs = [
+        { sampler: 'euler', scheduler: 'simple' },
+        { sampler: 'heun', scheduler: 'karras' },
+      ]
+
+      await nextTick()
+
+      const saveButton = wrapper
+        .findAllComponents(NButton)
+        .find((b) => b.text().includes('Save Preset'))!
+      await saveButton.trigger('click')
+      await flushPromises()
+
+      expect(mockCreateSamplePreset).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sampler_scheduler_pairs: [
+            { sampler: 'euler', scheduler: 'simple' },
+            { sampler: 'heun', scheduler: 'karras' },
+          ],
+        }),
+      )
     })
   })
 

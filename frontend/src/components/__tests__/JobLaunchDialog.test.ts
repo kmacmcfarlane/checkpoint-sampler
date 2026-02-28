@@ -99,8 +99,7 @@ const samplePresets: SamplePreset[] = [
     negative_prompt: 'bad quality',
     steps: [20],
     cfgs: [7.0],
-    samplers: ['euler'],
-    schedulers: ['normal'],
+    sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
     seeds: [42],
     width: 1024,
     height: 1024,
@@ -118,12 +117,14 @@ const samplePresets: SamplePreset[] = [
     negative_prompt: '',
     steps: [1, 4, 8],
     cfgs: [1.0, 7.0],
-    samplers: ['euler', 'dpmpp_2m'],
-    schedulers: ['normal', 'karras'],
+    sampler_scheduler_pairs: [
+      { sampler: 'euler', scheduler: 'normal' },
+      { sampler: 'dpmpp_2m', scheduler: 'karras' },
+    ],
     seeds: [42, 420],
     width: 1024,
     height: 1024,
-    images_per_checkpoint: 96,
+    images_per_checkpoint: 48,
     created_at: '2025-01-01T00:00:00Z',
     updated_at: '2025-01-01T00:00:00Z',
   },
@@ -386,8 +387,8 @@ describe('JobLaunchDialog', () => {
     const summary = wrapper.find('[data-testid="job-summary"]')
     expect(summary.text()).toContain('Training Run: qwen/psai4rt-v0.3.0')
     expect(summary.text()).toContain('Checkpoints: 5')
-    expect(summary.text()).toContain('Images per checkpoint: 96')
-    expect(summary.text()).toContain('Total images: 480')
+    expect(summary.text()).toContain('Images per checkpoint: 48')
+    expect(summary.text()).toContain('Total images: 240')
   })
 
   it('disables submit button when required fields are missing', async () => {
@@ -629,8 +630,7 @@ describe('JobLaunchDialog', () => {
       negative_prompt: '',
       steps: [20],
       cfgs: [7.0],
-      samplers: ['euler'],
-      schedulers: ['normal'],
+      sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
       seeds: [42],
       width: 1024,
       height: 1024,
@@ -764,8 +764,7 @@ describe('JobLaunchDialog', () => {
         negative_prompt: '',
         steps: [20],
         cfgs: [7.0],
-        samplers: ['euler'],
-        schedulers: ['normal'],
+        sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
         seeds: [42],
         width: 1024,
         height: 1024,

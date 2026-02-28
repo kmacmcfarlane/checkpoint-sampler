@@ -91,5 +91,38 @@ func AllMigrations() []Migration {
 			Version: 7,
 			SQL:     `ALTER TABLE sample_job_items ADD COLUMN negative_prompt TEXT NOT NULL DEFAULT '';`,
 		},
+		{
+			// Replace independent samplers and schedulers columns with
+			// sampler_scheduler_pairs (JSON array of {sampler, scheduler} objects).
+			// Existing presets are migrated by computing the cross-product of their
+			// current samplers x schedulers lists into explicit pairs.
+			Version: 8,
+			SQL: `CREATE TABLE sample_presets_new (
+				id                       TEXT PRIMARY KEY,
+				name                     TEXT NOT NULL,
+				prompts                  TEXT NOT NULL,
+				negative_prompt          TEXT NOT NULL,
+				steps                    TEXT NOT NULL,
+				cfgs                     TEXT NOT NULL,
+				sampler_scheduler_pairs  TEXT NOT NULL,
+				seeds                    TEXT NOT NULL,
+				width                    INTEGER NOT NULL,
+				height                   INTEGER NOT NULL,
+				created_at               TEXT NOT NULL,
+				updated_at               TEXT NOT NULL
+			);
+			INSERT INTO sample_presets_new (id, name, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs, seeds, width, height, created_at, updated_at)
+			SELECT
+				sp.id, sp.name, sp.prompts, sp.negative_prompt, sp.steps, sp.cfgs,
+				COALESCE(
+					(SELECT json_group_array(json_object('sampler', s.value, 'scheduler', sc.value))
+					 FROM json_each(sp.samplers) AS s, json_each(sp.schedulers) AS sc),
+					'[]'
+				),
+				sp.seeds, sp.width, sp.height, sp.created_at, sp.updated_at
+			FROM sample_presets sp;
+			DROP TABLE sample_presets;
+			ALTER TABLE sample_presets_new RENAME TO sample_presets;`,
+		},
 	}
 }

@@ -119,6 +119,12 @@ export interface NamedPrompt {
   text: string
 }
 
+/** A sampler and scheduler combination. */
+export interface SamplerSchedulerPair {
+  sampler: string
+  scheduler: string
+}
+
 /** A saved sample setting preset. */
 export interface SamplePreset {
   id: string
@@ -127,8 +133,7 @@ export interface SamplePreset {
   negative_prompt: string
   steps: number[]
   cfgs: number[]
-  samplers: string[]
-  schedulers: string[]
+  sampler_scheduler_pairs: SamplerSchedulerPair[]
   seeds: number[]
   width: number
   height: number
@@ -144,8 +149,7 @@ export interface CreateSamplePresetPayload {
   negative_prompt: string
   steps: number[]
   cfgs: number[]
-  samplers: string[]
-  schedulers: string[]
+  sampler_scheduler_pairs: SamplerSchedulerPair[]
   seeds: number[]
   width: number
   height: number
@@ -159,8 +163,7 @@ export interface UpdateSamplePresetPayload {
   negative_prompt: string
   steps: number[]
   cfgs: number[]
-  samplers: string[]
-  schedulers: string[]
+  sampler_scheduler_pairs: SamplerSchedulerPair[]
   seeds: number[]
   width: number
   height: number

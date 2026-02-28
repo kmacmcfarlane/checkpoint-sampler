@@ -85,12 +85,7 @@ var SamplePresetResponse = Type("SamplePresetResponse", func() {
 	Attribute("cfgs", ArrayOf(Float64), "CFG scale values to iterate", func() {
 		Example([]float64{1.0, 3.0, 7.0})
 	})
-	Attribute("samplers", ArrayOf(String), "Sampler names to iterate", func() {
-		Example([]string{"euler", "res_multistep"})
-	})
-	Attribute("schedulers", ArrayOf(String), "Scheduler names to iterate", func() {
-		Example([]string{"simple", "normal"})
-	})
+	Attribute("sampler_scheduler_pairs", ArrayOf(SamplerSchedulerPair), "Sampler/scheduler pair combinations")
 	Attribute("seeds", ArrayOf(Int64), "Seed values to iterate", func() {
 		Example([]int64{420, 421, 422})
 	})
@@ -109,7 +104,7 @@ var SamplePresetResponse = Type("SamplePresetResponse", func() {
 	Attribute("updated_at", String, "Last update timestamp (RFC3339)", func() {
 		Example("2025-01-01T00:00:00Z")
 	})
-	Required("id", "name", "prompts", "negative_prompt", "steps", "cfgs", "samplers", "schedulers", "seeds", "width", "height", "images_per_checkpoint", "created_at", "updated_at")
+	Required("id", "name", "prompts", "negative_prompt", "steps", "cfgs", "sampler_scheduler_pairs", "seeds", "width", "height", "images_per_checkpoint", "created_at", "updated_at")
 })
 
 var NamedPrompt = Type("NamedPrompt", func() {
@@ -123,6 +118,19 @@ var NamedPrompt = Type("NamedPrompt", func() {
 		MinLength(1)
 	})
 	Required("name", "text")
+})
+
+var SamplerSchedulerPair = Type("SamplerSchedulerPair", func() {
+	Description("A specific sampler and scheduler combination")
+	Attribute("sampler", String, "Sampler name", func() {
+		Example("euler")
+		MinLength(1)
+	})
+	Attribute("scheduler", String, "Scheduler name", func() {
+		Example("normal")
+		MinLength(1)
+	})
+	Required("sampler", "scheduler")
 })
 
 var CreateSamplePresetPayload = Type("CreateSamplePresetPayload", func() {
@@ -146,12 +154,7 @@ var CreateSamplePresetPayload = Type("CreateSamplePresetPayload", func() {
 		Example([]float64{1.0, 3.0, 7.0})
 		MinLength(1)
 	})
-	Attribute("samplers", ArrayOf(String), "Sampler names to iterate", func() {
-		Example([]string{"euler", "res_multistep"})
-		MinLength(1)
-	})
-	Attribute("schedulers", ArrayOf(String), "Scheduler names to iterate", func() {
-		Example([]string{"simple", "normal"})
+	Attribute("sampler_scheduler_pairs", ArrayOf(SamplerSchedulerPair), "Sampler/scheduler pair combinations", func() {
 		MinLength(1)
 	})
 	Attribute("seeds", ArrayOf(Int64), "Seed values to iterate", func() {
@@ -166,7 +169,7 @@ var CreateSamplePresetPayload = Type("CreateSamplePresetPayload", func() {
 		Example(1344)
 		Minimum(1)
 	})
-	Required("name", "prompts", "negative_prompt", "steps", "cfgs", "samplers", "schedulers", "seeds", "width", "height")
+	Required("name", "prompts", "negative_prompt", "steps", "cfgs", "sampler_scheduler_pairs", "seeds", "width", "height")
 })
 
 var UpdateSamplePresetPayload = Type("UpdateSamplePresetPayload", func() {
@@ -193,12 +196,7 @@ var UpdateSamplePresetPayload = Type("UpdateSamplePresetPayload", func() {
 		Example([]float64{1.0, 3.0, 7.0})
 		MinLength(1)
 	})
-	Attribute("samplers", ArrayOf(String), "Sampler names to iterate", func() {
-		Example([]string{"euler", "res_multistep"})
-		MinLength(1)
-	})
-	Attribute("schedulers", ArrayOf(String), "Scheduler names to iterate", func() {
-		Example([]string{"simple", "normal"})
+	Attribute("sampler_scheduler_pairs", ArrayOf(SamplerSchedulerPair), "Sampler/scheduler pair combinations", func() {
 		MinLength(1)
 	})
 	Attribute("seeds", ArrayOf(Int64), "Seed values to iterate", func() {
@@ -213,5 +211,5 @@ var UpdateSamplePresetPayload = Type("UpdateSamplePresetPayload", func() {
 		Example(1344)
 		Minimum(1)
 	})
-	Required("id", "name", "prompts", "negative_prompt", "steps", "cfgs", "samplers", "schedulers", "seeds", "width", "height")
+	Required("id", "name", "prompts", "negative_prompt", "steps", "cfgs", "sampler_scheduler_pairs", "seeds", "width", "height")
 })

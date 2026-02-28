@@ -51,11 +51,11 @@ func (s *SamplePresetService) List() ([]model.SamplePreset, error) {
 }
 
 // Create validates and persists a new sample preset, returning the created preset.
-func (s *SamplePresetService) Create(name string, prompts []model.NamedPrompt, negativePrompt string, steps []int, cfgs []float64, samplers []string, schedulers []string, seeds []int64, width int, height int) (model.SamplePreset, error) {
+func (s *SamplePresetService) Create(name string, prompts []model.NamedPrompt, negativePrompt string, steps []int, cfgs []float64, pairs []model.SamplerSchedulerPair, seeds []int64, width int, height int) (model.SamplePreset, error) {
 	s.logger.WithField("sample_preset_name", name).Trace("entering Create")
 	defer s.logger.Trace("returning from Create")
 
-	if err := s.validate(name, prompts, steps, cfgs, samplers, schedulers, seeds, width, height); err != nil {
+	if err := s.validate(name, prompts, steps, cfgs, pairs, seeds, width, height); err != nil {
 		s.logger.WithFields(logrus.Fields{
 			"sample_preset_name": name,
 			"error":              err.Error(),
@@ -65,19 +65,18 @@ func (s *SamplePresetService) Create(name string, prompts []model.NamedPrompt, n
 
 	now := time.Now().UTC()
 	p := model.SamplePreset{
-		ID:             uuid.New().String(),
-		Name:           name,
-		Prompts:        prompts,
-		NegativePrompt: negativePrompt,
-		Steps:          steps,
-		CFGs:           cfgs,
-		Samplers:       samplers,
-		Schedulers:     schedulers,
-		Seeds:          seeds,
-		Width:          width,
-		Height:         height,
-		CreatedAt:      now,
-		UpdatedAt:      now,
+		ID:                    uuid.New().String(),
+		Name:                  name,
+		Prompts:               prompts,
+		NegativePrompt:        negativePrompt,
+		Steps:                 steps,
+		CFGs:                  cfgs,
+		SamplerSchedulerPairs: pairs,
+		Seeds:                 seeds,
+		Width:                 width,
+		Height:                height,
+		CreatedAt:             now,
+		UpdatedAt:             now,
 	}
 	if err := s.store.CreateSamplePreset(p); err != nil {
 		s.logger.WithFields(logrus.Fields{
@@ -88,22 +87,22 @@ func (s *SamplePresetService) Create(name string, prompts []model.NamedPrompt, n
 		return model.SamplePreset{}, fmt.Errorf("creating sample preset: %w", err)
 	}
 	s.logger.WithFields(logrus.Fields{
-		"sample_preset_id":       p.ID,
-		"sample_preset_name":     name,
-		"images_per_checkpoint":  p.ImagesPerCheckpoint(),
+		"sample_preset_id":      p.ID,
+		"sample_preset_name":    name,
+		"images_per_checkpoint": p.ImagesPerCheckpoint(),
 	}).Info("sample preset created")
 	return p, nil
 }
 
 // Update modifies an existing sample preset.
-func (s *SamplePresetService) Update(id string, name string, prompts []model.NamedPrompt, negativePrompt string, steps []int, cfgs []float64, samplers []string, schedulers []string, seeds []int64, width int, height int) (model.SamplePreset, error) {
+func (s *SamplePresetService) Update(id string, name string, prompts []model.NamedPrompt, negativePrompt string, steps []int, cfgs []float64, pairs []model.SamplerSchedulerPair, seeds []int64, width int, height int) (model.SamplePreset, error) {
 	s.logger.WithFields(logrus.Fields{
 		"sample_preset_id":   id,
 		"sample_preset_name": name,
 	}).Trace("entering Update")
 	defer s.logger.Trace("returning from Update")
 
-	if err := s.validate(name, prompts, steps, cfgs, samplers, schedulers, seeds, width, height); err != nil {
+	if err := s.validate(name, prompts, steps, cfgs, pairs, seeds, width, height); err != nil {
 		s.logger.WithFields(logrus.Fields{
 			"sample_preset_id": id,
 			"error":            err.Error(),
@@ -130,8 +129,7 @@ func (s *SamplePresetService) Update(id string, name string, prompts []model.Nam
 	existing.NegativePrompt = negativePrompt
 	existing.Steps = steps
 	existing.CFGs = cfgs
-	existing.Samplers = samplers
-	existing.Schedulers = schedulers
+	existing.SamplerSchedulerPairs = pairs
 	existing.Seeds = seeds
 	existing.Width = width
 	existing.Height = height
@@ -175,7 +173,7 @@ func (s *SamplePresetService) Delete(id string) error {
 }
 
 // validate checks that a sample preset's fields meet the requirements.
-func (s *SamplePresetService) validate(name string, prompts []model.NamedPrompt, steps []int, cfgs []float64, samplers []string, schedulers []string, seeds []int64, width int, height int) error {
+func (s *SamplePresetService) validate(name string, prompts []model.NamedPrompt, steps []int, cfgs []float64, pairs []model.SamplerSchedulerPair, seeds []int64, width int, height int) error {
 	if name == "" {
 		return fmt.Errorf("preset name must not be empty")
 	}
@@ -206,20 +204,15 @@ func (s *SamplePresetService) validate(name string, prompts []model.NamedPrompt,
 			return fmt.Errorf("CFG %d must be positive", i)
 		}
 	}
-	if len(samplers) == 0 {
-		return fmt.Errorf("at least one sampler is required")
+	if len(pairs) == 0 {
+		return fmt.Errorf("at least one sampler/scheduler pair is required")
 	}
-	for i, sampler := range samplers {
-		if sampler == "" {
-			return fmt.Errorf("sampler %d must not be empty", i)
+	for i, pair := range pairs {
+		if pair.Sampler == "" {
+			return fmt.Errorf("pair %d sampler must not be empty", i)
 		}
-	}
-	if len(schedulers) == 0 {
-		return fmt.Errorf("at least one scheduler is required")
-	}
-	for i, scheduler := range schedulers {
-		if scheduler == "" {
-			return fmt.Errorf("scheduler %d must not be empty", i)
+		if pair.Scheduler == "" {
+			return fmt.Errorf("pair %d scheduler must not be empty", i)
 		}
 	}
 	if len(seeds) == 0 {

@@ -230,9 +230,10 @@ var _ = Describe("SampleJobService", func() {
 				NegativePrompt: "bad",
 				Steps:          []int{1, 4},
 				CFGs:           []float64{1.0, 3.0},
-				Samplers:       []string{"euler"},
-				Schedulers:     []string{"simple"},
-				Seeds:          []int64{420},
+				SamplerSchedulerPairs: []model.SamplerSchedulerPair{
+					{Sampler: "euler", Scheduler: "simple"},
+				},
+				Seeds: []int64{420},
 			}
 			store.presets[samplePreset.ID] = samplePreset
 
@@ -259,7 +260,7 @@ var _ = Describe("SampleJobService", func() {
 			Expect(*job.Shift).To(Equal(1.5))
 			Expect(job.Status).To(Equal(model.SampleJobStatusPending))
 
-			// Total items = 2 checkpoints × (2 prompts × 2 steps × 2 cfgs × 1 sampler × 1 scheduler × 1 seed) = 2 × 8 = 16
+			// Total items = 2 checkpoints × (2 prompts × 2 steps × 2 cfgs × 1 pair × 1 seed) = 2 × 8 = 16
 			Expect(job.TotalItems).To(Equal(16))
 			Expect(job.CompletedItems).To(Equal(0))
 
@@ -278,7 +279,7 @@ var _ = Describe("SampleJobService", func() {
 			job, err := svc.Create("test-run", checkpoints, "preset-1", "workflow.json", "", "", nil, nil, false)
 			Expect(err).NotTo(HaveOccurred())
 
-			// 2 checkpoints × 2 prompts × 2 steps × 2 cfgs × 1 sampler × 1 scheduler × 1 seed = 16
+			// 2 checkpoints × 2 prompts × 2 steps × 2 cfgs × 1 pair × 1 seed = 16
 			Expect(job.TotalItems).To(Equal(16))
 		})
 
@@ -312,7 +313,7 @@ var _ = Describe("SampleJobService", func() {
 			func(filenames []string, expectedCount int) {
 				job, err := svc.Create("test-run", checkpoints, "preset-1", "workflow.json", "", "", nil, filenames, false)
 				Expect(err).NotTo(HaveOccurred())
-				// Each checkpoint produces 8 items (2 prompts × 2 steps × 2 cfgs × 1 sampler × 1 scheduler × 1 seed)
+				// Each checkpoint produces 8 items (2 prompts × 2 steps × 2 cfgs × 1 pair × 1 seed)
 				Expect(job.TotalItems).To(Equal(expectedCount * 8))
 				items := store.items[job.ID]
 				Expect(items).To(HaveLen(expectedCount * 8))

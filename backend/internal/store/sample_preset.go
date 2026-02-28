@@ -12,19 +12,18 @@ import (
 
 // samplePresetEntity is the persistence representation of a sample preset.
 type samplePresetEntity struct {
-	ID             string
-	Name           string
-	Prompts        string // JSON
-	NegativePrompt string
-	Steps          string // JSON
-	CFGs           string // JSON
-	Samplers       string // JSON
-	Schedulers     string // JSON
-	Seeds          string // JSON
-	Width          int
-	Height         int
-	CreatedAt      string // RFC3339
-	UpdatedAt      string // RFC3339
+	ID                    string
+	Name                  string
+	Prompts               string // JSON
+	NegativePrompt        string
+	Steps                 string // JSON
+	CFGs                  string // JSON
+	SamplerSchedulerPairs string // JSON
+	Seeds                 string // JSON
+	Width                 int
+	Height                int
+	CreatedAt             string // RFC3339
+	UpdatedAt             string // RFC3339
 }
 
 // promptJSON is the JSON shape for named prompts.
@@ -33,12 +32,18 @@ type promptJSON struct {
 	Text string `json:"text"`
 }
 
+// samplerSchedulerPairJSON is the JSON shape for sampler/scheduler pairs.
+type samplerSchedulerPairJSON struct {
+	Sampler   string `json:"sampler"`
+	Scheduler string `json:"scheduler"`
+}
+
 // ListSamplePresets returns all sample presets ordered by name.
 func (s *Store) ListSamplePresets() ([]model.SamplePreset, error) {
 	s.logger.Trace("entering ListSamplePresets")
 	defer s.logger.Trace("returning from ListSamplePresets")
 
-	rows, err := s.db.Query(`SELECT id, name, prompts, negative_prompt, steps, cfgs, samplers, schedulers, seeds, width, height, created_at, updated_at
+	rows, err := s.db.Query(`SELECT id, name, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs, seeds, width, height, created_at, updated_at
 		FROM sample_presets ORDER BY name`)
 	if err != nil {
 		s.logger.WithError(err).Error("failed to query sample presets")
@@ -49,7 +54,7 @@ func (s *Store) ListSamplePresets() ([]model.SamplePreset, error) {
 	var presets []model.SamplePreset
 	for rows.Next() {
 		var e samplePresetEntity
-		if err := rows.Scan(&e.ID, &e.Name, &e.Prompts, &e.NegativePrompt, &e.Steps, &e.CFGs, &e.Samplers, &e.Schedulers, &e.Seeds, &e.Width, &e.Height, &e.CreatedAt, &e.UpdatedAt); err != nil {
+		if err := rows.Scan(&e.ID, &e.Name, &e.Prompts, &e.NegativePrompt, &e.Steps, &e.CFGs, &e.SamplerSchedulerPairs, &e.Seeds, &e.Width, &e.Height, &e.CreatedAt, &e.UpdatedAt); err != nil {
 			s.logger.WithError(err).Error("failed to scan sample preset row")
 			return nil, fmt.Errorf("scanning sample preset row: %w", err)
 		}
@@ -75,9 +80,9 @@ func (s *Store) GetSamplePreset(id string) (model.SamplePreset, error) {
 
 	var e samplePresetEntity
 	err := s.db.QueryRow(
-		`SELECT id, name, prompts, negative_prompt, steps, cfgs, samplers, schedulers, seeds, width, height, created_at, updated_at
+		`SELECT id, name, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs, seeds, width, height, created_at, updated_at
 		FROM sample_presets WHERE id = ?`, id,
-	).Scan(&e.ID, &e.Name, &e.Prompts, &e.NegativePrompt, &e.Steps, &e.CFGs, &e.Samplers, &e.Schedulers, &e.Seeds, &e.Width, &e.Height, &e.CreatedAt, &e.UpdatedAt)
+	).Scan(&e.ID, &e.Name, &e.Prompts, &e.NegativePrompt, &e.Steps, &e.CFGs, &e.SamplerSchedulerPairs, &e.Seeds, &e.Width, &e.Height, &e.CreatedAt, &e.UpdatedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			s.logger.WithField("sample_preset_id", id).Debug("sample preset not found in database")
@@ -111,16 +116,15 @@ func (s *Store) CreateSamplePreset(p model.SamplePreset) error {
 	}
 
 	_, err = s.db.Exec(
-		`INSERT INTO sample_presets (id, name, prompts, negative_prompt, steps, cfgs, samplers, schedulers, seeds, width, height, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO sample_presets (id, name, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs, seeds, width, height, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		entity.ID,
 		entity.Name,
 		entity.Prompts,
 		entity.NegativePrompt,
 		entity.Steps,
 		entity.CFGs,
-		entity.Samplers,
-		entity.Schedulers,
+		entity.SamplerSchedulerPairs,
 		entity.Seeds,
 		entity.Width,
 		entity.Height,
@@ -161,15 +165,14 @@ func (s *Store) UpdateSamplePreset(p model.SamplePreset) error {
 	}
 
 	result, err := s.db.Exec(
-		`UPDATE sample_presets SET name = ?, prompts = ?, negative_prompt = ?, steps = ?, cfgs = ?, samplers = ?, schedulers = ?, seeds = ?, width = ?, height = ?, updated_at = ?
+		`UPDATE sample_presets SET name = ?, prompts = ?, negative_prompt = ?, steps = ?, cfgs = ?, sampler_scheduler_pairs = ?, seeds = ?, width = ?, height = ?, updated_at = ?
 		WHERE id = ?`,
 		entity.Name,
 		entity.Prompts,
 		entity.NegativePrompt,
 		entity.Steps,
 		entity.CFGs,
-		entity.Samplers,
-		entity.Schedulers,
+		entity.SamplerSchedulerPairs,
 		entity.Seeds,
 		entity.Width,
 		entity.Height,
@@ -249,14 +252,9 @@ func samplePresetEntityToModel(e samplePresetEntity) (model.SamplePreset, error)
 		return model.SamplePreset{}, fmt.Errorf("unmarshaling cfgs: %w", err)
 	}
 
-	var samplers []string
-	if err := json.Unmarshal([]byte(e.Samplers), &samplers); err != nil {
-		return model.SamplePreset{}, fmt.Errorf("unmarshaling samplers: %w", err)
-	}
-
-	var schedulers []string
-	if err := json.Unmarshal([]byte(e.Schedulers), &schedulers); err != nil {
-		return model.SamplePreset{}, fmt.Errorf("unmarshaling schedulers: %w", err)
+	var pairsJSON []samplerSchedulerPairJSON
+	if err := json.Unmarshal([]byte(e.SamplerSchedulerPairs), &pairsJSON); err != nil {
+		return model.SamplePreset{}, fmt.Errorf("unmarshaling sampler_scheduler_pairs: %w", err)
 	}
 
 	var seeds []int64
@@ -281,20 +279,27 @@ func samplePresetEntityToModel(e samplePresetEntity) (model.SamplePreset, error)
 		}
 	}
 
+	pairs := make([]model.SamplerSchedulerPair, len(pairsJSON))
+	for i, p := range pairsJSON {
+		pairs[i] = model.SamplerSchedulerPair{
+			Sampler:   p.Sampler,
+			Scheduler: p.Scheduler,
+		}
+	}
+
 	return model.SamplePreset{
-		ID:             e.ID,
-		Name:           e.Name,
-		Prompts:        namedPrompts,
-		NegativePrompt: e.NegativePrompt,
-		Steps:          steps,
-		CFGs:           cfgs,
-		Samplers:       samplers,
-		Schedulers:     schedulers,
-		Seeds:          seeds,
-		Width:          e.Width,
-		Height:         e.Height,
-		CreatedAt:      createdAt,
-		UpdatedAt:      updatedAt,
+		ID:                    e.ID,
+		Name:                  e.Name,
+		Prompts:               namedPrompts,
+		NegativePrompt:        e.NegativePrompt,
+		Steps:                 steps,
+		CFGs:                  cfgs,
+		SamplerSchedulerPairs: pairs,
+		Seeds:                 seeds,
+		Width:                 e.Width,
+		Height:                e.Height,
+		CreatedAt:             createdAt,
+		UpdatedAt:             updatedAt,
 	}, nil
 }
 
@@ -322,14 +327,16 @@ func samplePresetModelToEntity(p model.SamplePreset) (samplePresetEntity, error)
 		return samplePresetEntity{}, fmt.Errorf("marshaling cfgs: %w", err)
 	}
 
-	samplersBytes, err := json.Marshal(p.Samplers)
-	if err != nil {
-		return samplePresetEntity{}, fmt.Errorf("marshaling samplers: %w", err)
+	pairsJSON := make([]samplerSchedulerPairJSON, len(p.SamplerSchedulerPairs))
+	for i, pair := range p.SamplerSchedulerPairs {
+		pairsJSON[i] = samplerSchedulerPairJSON{
+			Sampler:   pair.Sampler,
+			Scheduler: pair.Scheduler,
+		}
 	}
-
-	schedulersBytes, err := json.Marshal(p.Schedulers)
+	pairsBytes, err := json.Marshal(pairsJSON)
 	if err != nil {
-		return samplePresetEntity{}, fmt.Errorf("marshaling schedulers: %w", err)
+		return samplePresetEntity{}, fmt.Errorf("marshaling sampler_scheduler_pairs: %w", err)
 	}
 
 	seedsBytes, err := json.Marshal(p.Seeds)
@@ -338,18 +345,17 @@ func samplePresetModelToEntity(p model.SamplePreset) (samplePresetEntity, error)
 	}
 
 	return samplePresetEntity{
-		ID:             p.ID,
-		Name:           p.Name,
-		Prompts:        string(promptsBytes),
-		NegativePrompt: p.NegativePrompt,
-		Steps:          string(stepsBytes),
-		CFGs:           string(cfgsBytes),
-		Samplers:       string(samplersBytes),
-		Schedulers:     string(schedulersBytes),
-		Seeds:          string(seedsBytes),
-		Width:          p.Width,
-		Height:         p.Height,
-		CreatedAt:      p.CreatedAt.UTC().Format(time.RFC3339),
-		UpdatedAt:      p.UpdatedAt.UTC().Format(time.RFC3339),
+		ID:                    p.ID,
+		Name:                  p.Name,
+		Prompts:               string(promptsBytes),
+		NegativePrompt:        p.NegativePrompt,
+		Steps:                 string(stepsBytes),
+		CFGs:                  string(cfgsBytes),
+		SamplerSchedulerPairs: string(pairsBytes),
+		Seeds:                 string(seedsBytes),
+		Width:                 p.Width,
+		Height:                p.Height,
+		CreatedAt:             p.CreatedAt.UTC().Format(time.RFC3339),
+		UpdatedAt:             p.UpdatedAt.UTC().Format(time.RFC3339),
 	}, nil
 }

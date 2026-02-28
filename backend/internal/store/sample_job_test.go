@@ -55,8 +55,9 @@ var _ = Describe("SampleJob Store", func() {
 			NegativePrompt: "negative",
 			Steps:          []int{4},
 			CFGs:           []float64{7.0},
-			Samplers:       []string{"euler"},
-			Schedulers:     []string{"simple"},
+			SamplerSchedulerPairs: []model.SamplerSchedulerPair{
+				{Sampler: "euler", Scheduler: "simple"},
+			},
 			Seeds:          []int64{42},
 			Width:          512,
 			Height:         512,

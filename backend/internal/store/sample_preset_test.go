@@ -56,13 +56,15 @@ var _ = Describe("SamplePreset Store", func() {
 				NegativePrompt: "negative test",
 				Steps:          []int{1, 4, 8},
 				CFGs:           []float64{1.0, 3.0, 7.0},
-				Samplers:       []string{"euler", "heun"},
-				Schedulers:     []string{"simple", "normal"},
-				Seeds:          []int64{42, 420},
-				Width:          1024,
-				Height:         768,
-				CreatedAt:      now,
-				UpdatedAt:      now,
+				SamplerSchedulerPairs: []model.SamplerSchedulerPair{
+					{Sampler: "euler", Scheduler: "simple"},
+					{Sampler: "heun", Scheduler: "normal"},
+				},
+				Seeds:     []int64{42, 420},
+				Width:     1024,
+				Height:    768,
+				CreatedAt: now,
+				UpdatedAt: now,
 			}
 
 			err := s.CreateSamplePreset(original)
@@ -78,8 +80,7 @@ var _ = Describe("SamplePreset Store", func() {
 			Expect(retrieved.NegativePrompt).To(Equal(original.NegativePrompt))
 			Expect(retrieved.Steps).To(Equal(original.Steps))
 			Expect(retrieved.CFGs).To(Equal(original.CFGs))
-			Expect(retrieved.Samplers).To(Equal(original.Samplers))
-			Expect(retrieved.Schedulers).To(Equal(original.Schedulers))
+			Expect(retrieved.SamplerSchedulerPairs).To(Equal(original.SamplerSchedulerPairs))
 			Expect(retrieved.Seeds).To(Equal(original.Seeds))
 			Expect(retrieved.Width).To(Equal(original.Width))
 			Expect(retrieved.Height).To(Equal(original.Height))
@@ -87,33 +88,105 @@ var _ = Describe("SamplePreset Store", func() {
 			Expect(retrieved.UpdatedAt.Unix()).To(Equal(original.UpdatedAt.Unix()))
 		})
 
-		It("handles empty slices correctly", func() {
+		It("handles single pair correctly", func() {
 			now := time.Now().UTC().Truncate(time.Second)
 			original := model.SamplePreset{
-				ID:             "empty-arrays",
-				Name:           "Empty Arrays",
+				ID:             "single-pair",
+				Name:           "Single Pair",
 				Prompts:        []model.NamedPrompt{{Name: "p1", Text: "t1"}},
 				NegativePrompt: "",
 				Steps:          []int{20},
 				CFGs:           []float64{7.0},
-				Samplers:       []string{"euler"},
-				Schedulers:     []string{"simple"},
-				Seeds:          []int64{42},
-				Width:          512,
-				Height:         512,
-				CreatedAt:      now,
-				UpdatedAt:      now,
+				SamplerSchedulerPairs: []model.SamplerSchedulerPair{
+					{Sampler: "euler", Scheduler: "simple"},
+				},
+				Seeds:     []int64{42},
+				Width:     512,
+				Height:    512,
+				CreatedAt: now,
+				UpdatedAt: now,
 			}
 
 			err := s.CreateSamplePreset(original)
 			Expect(err).NotTo(HaveOccurred())
 
-			retrieved, err := s.GetSamplePreset("empty-arrays")
+			retrieved, err := s.GetSamplePreset("single-pair")
 			Expect(err).NotTo(HaveOccurred())
 
-			Expect(retrieved.Prompts).To(HaveLen(1))
-			Expect(retrieved.Steps).To(Equal([]int{20}))
-			Expect(retrieved.CFGs).To(Equal([]float64{7.0}))
+			Expect(retrieved.SamplerSchedulerPairs).To(HaveLen(1))
+			Expect(retrieved.SamplerSchedulerPairs[0].Sampler).To(Equal("euler"))
+			Expect(retrieved.SamplerSchedulerPairs[0].Scheduler).To(Equal("simple"))
+		})
+	})
+
+	Describe("Migration: cross-product conversion of existing presets", func() {
+		It("converts independent samplers and schedulers to cross-product pairs during migration", func() {
+			// Create a database with old schema (migrations 1-7 only)
+			tmpDirMigration, err := os.MkdirTemp("", "migration-test-*")
+			Expect(err).NotTo(HaveOccurred())
+			defer os.RemoveAll(tmpDirMigration)
+
+			dbPath := filepath.Join(tmpDirMigration, "test.db")
+			db, err := store.OpenDB(dbPath)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Apply only first 7 migrations (old schema with separate samplers/schedulers)
+			allMigrations := store.AllMigrations()
+			oldMigrations := allMigrations[:7]
+			err = store.Migrate(db, oldMigrations)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Insert a preset using the old schema
+			_, err = db.Exec(`INSERT INTO sample_presets
+				(id, name, prompts, negative_prompt, steps, cfgs, samplers, schedulers, seeds, width, height, created_at, updated_at)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				"migration-test-id",
+				"Migration Test",
+				`[{"name":"p1","text":"t1"}]`,
+				"negative",
+				`[4,8]`,
+				`[1.0,3.0]`,
+				`["euler","dpmpp_2m"]`,
+				`["simple","sgm_uniform"]`,
+				`[42]`,
+				512, 512,
+				"2025-01-01T00:00:00Z",
+				"2025-01-01T00:00:00Z",
+			)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Now apply all migrations (including migration 8)
+			err = store.Migrate(db, allMigrations)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Create a store to read the migrated data
+			logger := logrus.New()
+			logger.SetOutput(io.Discard)
+			migratedStore, err := store.New(db, logger)
+			Expect(err).NotTo(HaveOccurred())
+			defer migratedStore.Close()
+
+			// Read the migrated preset
+			preset, err := migratedStore.GetSamplePreset("migration-test-id")
+			Expect(err).NotTo(HaveOccurred())
+
+			// Verify cross-product: 2 samplers x 2 schedulers = 4 pairs
+			Expect(preset.SamplerSchedulerPairs).To(HaveLen(4))
+
+			// Build a map for deterministic assertion
+			pairSet := make(map[string]bool)
+			for _, pair := range preset.SamplerSchedulerPairs {
+				pairSet[pair.Sampler+"+"+pair.Scheduler] = true
+			}
+			Expect(pairSet).To(HaveKey("euler+simple"))
+			Expect(pairSet).To(HaveKey("euler+sgm_uniform"))
+			Expect(pairSet).To(HaveKey("dpmpp_2m+simple"))
+			Expect(pairSet).To(HaveKey("dpmpp_2m+sgm_uniform"))
+
+			// Verify other fields are preserved
+			Expect(preset.Name).To(Equal("Migration Test"))
+			Expect(preset.Steps).To(Equal([]int{4, 8}))
+			Expect(preset.CFGs).To(Equal([]float64{1.0, 3.0}))
 		})
 	})
 
@@ -131,13 +204,14 @@ var _ = Describe("SamplePreset Store", func() {
 				NegativePrompt: "negative",
 				Steps:          []int{4, 8},
 				CFGs:           []float64{1.0, 7.0},
-				Samplers:       []string{"euler"},
-				Schedulers:     []string{"simple"},
-				Seeds:          []int64{420},
-				Width:          512,
-				Height:         512,
-				CreatedAt:      now,
-				UpdatedAt:      now,
+				SamplerSchedulerPairs: []model.SamplerSchedulerPair{
+					{Sampler: "euler", Scheduler: "simple"},
+				},
+				Seeds:     []int64{420},
+				Width:     512,
+				Height:    512,
+				CreatedAt: now,
+				UpdatedAt: now,
 			}
 		})
 
@@ -223,6 +297,9 @@ var _ = Describe("SamplePreset Store", func() {
 				updated.Name = "Updated Name"
 				updated.Width = 1024
 				updated.Height = 1024
+				updated.SamplerSchedulerPairs = []model.SamplerSchedulerPair{
+					{Sampler: "dpmpp_2m", Scheduler: "sgm_uniform"},
+				}
 				updated.UpdatedAt = time.Now().UTC()
 
 				err := s.UpdateSamplePreset(updated)
@@ -233,6 +310,9 @@ var _ = Describe("SamplePreset Store", func() {
 				Expect(retrieved.Name).To(Equal("Updated Name"))
 				Expect(retrieved.Width).To(Equal(1024))
 				Expect(retrieved.Height).To(Equal(1024))
+				Expect(retrieved.SamplerSchedulerPairs).To(HaveLen(1))
+				Expect(retrieved.SamplerSchedulerPairs[0].Sampler).To(Equal("dpmpp_2m"))
+				Expect(retrieved.SamplerSchedulerPairs[0].Scheduler).To(Equal("sgm_uniform"))
 				// CreatedAt should remain unchanged
 				Expect(retrieved.CreatedAt.Unix()).To(Equal(samplePreset.CreatedAt.Unix()))
 			})

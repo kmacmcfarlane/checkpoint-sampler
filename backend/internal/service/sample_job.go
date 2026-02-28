@@ -262,34 +262,32 @@ func (s *SampleJobService) expandJobItems(jobID string, checkpoints []model.Chec
 	now := time.Now().UTC()
 
 	for _, checkpoint := range checkpoints {
-		// Iterate over all parameter combinations
+		// Iterate over all parameter combinations using sampler/scheduler pairs
 		for _, prompt := range preset.Prompts {
 			for _, steps := range preset.Steps {
 				for _, cfg := range preset.CFGs {
-					for _, sampler := range preset.Samplers {
-						for _, scheduler := range preset.Schedulers {
-							for _, seed := range preset.Seeds {
-								item := model.SampleJobItem{
-									ID:                 uuid.New().String(),
-									JobID:              jobID,
-									CheckpointFilename: checkpoint.Filename,
-									ComfyUIModelPath:   "", // Will be filled by path matching
-									PromptName:         prompt.Name,
-									PromptText:         prompt.Text,
-									NegativePrompt:     preset.NegativePrompt,
-									Steps:              steps,
-									CFG:                cfg,
-									SamplerName:        sampler,
-									Scheduler:          scheduler,
-									Seed:               seed,
-									Width:              preset.Width,
-									Height:             preset.Height,
-									Status:             model.SampleJobItemStatusPending,
-									CreatedAt:          now,
-									UpdatedAt:          now,
-								}
-								items = append(items, item)
+					for _, pair := range preset.SamplerSchedulerPairs {
+						for _, seed := range preset.Seeds {
+							item := model.SampleJobItem{
+								ID:                 uuid.New().String(),
+								JobID:              jobID,
+								CheckpointFilename: checkpoint.Filename,
+								ComfyUIModelPath:   "", // Will be filled by path matching
+								PromptName:         prompt.Name,
+								PromptText:         prompt.Text,
+								NegativePrompt:     preset.NegativePrompt,
+								Steps:              steps,
+								CFG:                cfg,
+								SamplerName:        pair.Sampler,
+								Scheduler:          pair.Scheduler,
+								Seed:               seed,
+								Width:              preset.Width,
+								Height:             preset.Height,
+								Status:             model.SampleJobItemStatusPending,
+								CreatedAt:          now,
+								UpdatedAt:          now,
 							}
+							items = append(items, item)
 						}
 					}
 				}

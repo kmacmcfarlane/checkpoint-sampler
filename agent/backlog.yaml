@@ -357,7 +357,7 @@ stories:
     title: "Replace independent sampler/scheduler lists with sampler-scheduler pairs in sample presets"
     priority: 80
     complexity: high
-    status: todo
+    status: uat
     requires: []
     acceptance:
       # Data model — replace lists with pairs

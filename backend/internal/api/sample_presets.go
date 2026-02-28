@@ -43,14 +43,21 @@ func (s *SamplePresetsService) Create(ctx context.Context, p *gensamplepresets.C
 		}
 	}
 
+	pairs := make([]model.SamplerSchedulerPair, len(p.SamplerSchedulerPairs))
+	for i, pair := range p.SamplerSchedulerPairs {
+		pairs[i] = model.SamplerSchedulerPair{
+			Sampler:   pair.Sampler,
+			Scheduler: pair.Scheduler,
+		}
+	}
+
 	preset, err := s.svc.Create(
 		p.Name,
 		prompts,
 		p.NegativePrompt,
 		p.Steps,
 		p.Cfgs,
-		p.Samplers,
-		p.Schedulers,
+		pairs,
 		p.Seeds,
 		p.Width,
 		p.Height,
@@ -71,6 +78,14 @@ func (s *SamplePresetsService) Update(ctx context.Context, p *gensamplepresets.U
 		}
 	}
 
+	pairs := make([]model.SamplerSchedulerPair, len(p.SamplerSchedulerPairs))
+	for i, pair := range p.SamplerSchedulerPairs {
+		pairs[i] = model.SamplerSchedulerPair{
+			Sampler:   pair.Sampler,
+			Scheduler: pair.Scheduler,
+		}
+	}
+
 	preset, err := s.svc.Update(
 		p.ID,
 		p.Name,
@@ -78,8 +93,7 @@ func (s *SamplePresetsService) Update(ctx context.Context, p *gensamplepresets.U
 		p.NegativePrompt,
 		p.Steps,
 		p.Cfgs,
-		p.Samplers,
-		p.Schedulers,
+		pairs,
 		p.Seeds,
 		p.Width,
 		p.Height,
@@ -114,20 +128,27 @@ func samplePresetToResponse(p model.SamplePreset) *gensamplepresets.SamplePreset
 		}
 	}
 
+	pairs := make([]*gensamplepresets.SamplerSchedulerPair, len(p.SamplerSchedulerPairs))
+	for i, pair := range p.SamplerSchedulerPairs {
+		pairs[i] = &gensamplepresets.SamplerSchedulerPair{
+			Sampler:   pair.Sampler,
+			Scheduler: pair.Scheduler,
+		}
+	}
+
 	return &gensamplepresets.SamplePresetResponse{
-		ID:                  p.ID,
-		Name:                p.Name,
-		Prompts:             prompts,
-		NegativePrompt:      p.NegativePrompt,
-		Steps:               p.Steps,
-		Cfgs:                p.CFGs,
-		Samplers:            p.Samplers,
-		Schedulers:          p.Schedulers,
-		Seeds:               p.Seeds,
-		Width:               p.Width,
-		Height:              p.Height,
-		ImagesPerCheckpoint: p.ImagesPerCheckpoint(),
-		CreatedAt:           p.CreatedAt.UTC().Format(time.RFC3339),
-		UpdatedAt:           p.UpdatedAt.UTC().Format(time.RFC3339),
+		ID:                    p.ID,
+		Name:                  p.Name,
+		Prompts:               prompts,
+		NegativePrompt:        p.NegativePrompt,
+		Steps:                 p.Steps,
+		Cfgs:                  p.CFGs,
+		SamplerSchedulerPairs: pairs,
+		Seeds:                 p.Seeds,
+		Width:                 p.Width,
+		Height:                p.Height,
+		ImagesPerCheckpoint:   p.ImagesPerCheckpoint(),
+		CreatedAt:             p.CreatedAt.UTC().Format(time.RFC3339),
+		UpdatedAt:             p.UpdatedAt.UTC().Format(time.RFC3339),
 	}
 }

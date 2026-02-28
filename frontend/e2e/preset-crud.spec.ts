@@ -106,6 +106,52 @@ async function fillFirstPromptRow(page: Page, promptName: string, promptText: st
 }
 
 /**
+ * Adds a sampler/scheduler pair via the NDynamicInput for pairs.
+ * Clicks the "Add" button to create a new pair row, then fills in the
+ * sampler and scheduler NSelect inputs using tag mode.
+ *
+ * When the pairs list is empty (min=0), Naive UI renders a dashed "create"
+ * button instead of per-row action buttons. This helper handles both cases.
+ */
+async function addSamplerSchedulerPair(page: Page, sampler: string, scheduler: string): Promise<void> {
+  const pairsContainer = page.locator('[data-testid="sampler-scheduler-pairs"]')
+  await expect(pairsContainer).toBeVisible()
+
+  // Determine which add button to click:
+  // - Empty list: Naive UI renders a dashed button (n-button--dashed) as the "create first item" action
+  // - Non-empty list: each row has action buttons (.n-dynamic-input-item__action button)
+  const perRowAddButton = pairsContainer.locator('.n-dynamic-input-item__action button').last()
+  const emptyStateButton = pairsContainer.locator('button.n-button--dashed')
+
+  if (await perRowAddButton.isVisible().catch(() => false)) {
+    await perRowAddButton.click()
+  } else {
+    await emptyStateButton.click()
+  }
+
+  // Find the last pair-row (the one just added)
+  const pairRows = pairsContainer.locator('.pair-row')
+  const lastRow = pairRows.last()
+  await expect(lastRow).toBeVisible()
+
+  // Fill in the sampler select (first NSelect in the row)
+  const samplerSelect = lastRow.locator('.pair-select').first()
+  await samplerSelect.click()
+  const samplerInput = samplerSelect.locator('input')
+  await samplerInput.fill(sampler)
+  await samplerInput.press('Enter')
+  await expect(samplerSelect).toContainText(sampler)
+
+  // Fill in the scheduler select (second NSelect in the row)
+  const schedulerSelect = lastRow.locator('.pair-select').last()
+  await schedulerSelect.click()
+  const schedulerInput = schedulerSelect.locator('input')
+  await schedulerInput.fill(scheduler)
+  await schedulerInput.press('Enter')
+  await expect(schedulerSelect).toContainText(scheduler)
+}
+
+/**
  * Returns the Generate Samples dialog locator.
  * Naive UI NModal preset="card" renders an NCard with role="dialog" and aria-modal="true".
  */
@@ -220,11 +266,8 @@ test.describe('sample preset CRUD via job launch dialog', () => {
     // Steps, CFGs, and seeds default to [30], [7.0], [42] respectively via NDynamicTags.
     // The defaults are sufficient; no additional tags need to be added.
 
-    // Add a sampler via tag mode (ComfyUI may not be available; tag mode allows custom values)
-    await addTagToNaiveSelect(page, 'samplers-select', 'euler')
-
-    // Add a scheduler via tag mode
-    await addTagToNaiveSelect(page, 'schedulers-select', 'normal')
+    // Add a sampler/scheduler pair (ComfyUI may not be available; tag mode allows custom values)
+    await addSamplerSchedulerPair(page, 'euler', 'normal')
 
     // The Save Preset button should now be enabled
     const saveButton = page.locator('[data-testid="save-preset-button"]')
@@ -266,8 +309,7 @@ test.describe('sample preset CRUD via job launch dialog', () => {
     await fillPresetName(page, uniquePresetName)
     await fillFirstPromptRow(page, 'portrait', 'a dramatic portrait')
     // Steps, CFGs, and seeds default to [30], [7.0], [42] via NDynamicTags; use defaults.
-    await addTagToNaiveSelect(page, 'samplers-select', 'euler')
-    await addTagToNaiveSelect(page, 'schedulers-select', 'normal')
+    await addSamplerSchedulerPair(page, 'euler', 'normal')
 
     const saveButton = page.locator('[data-testid="save-preset-button"]')
     await expect(saveButton).not.toBeDisabled()
@@ -306,8 +348,7 @@ test.describe('sample preset CRUD via job launch dialog', () => {
     await fillPresetName(page, uniquePresetName)
     await fillFirstPromptRow(page, 'abstract', 'abstract art')
     // Steps, CFGs, and seeds default to [30], [7.0], [42] via NDynamicTags; use defaults.
-    await addTagToNaiveSelect(page, 'samplers-select', 'euler')
-    await addTagToNaiveSelect(page, 'schedulers-select', 'normal')
+    await addSamplerSchedulerPair(page, 'euler', 'normal')
 
     const saveButton = page.locator('[data-testid="save-preset-button"]')
     await expect(saveButton).not.toBeDisabled()

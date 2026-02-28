@@ -269,21 +269,22 @@ var _ = Describe("Migrate", func() {
 		err = store.Migrate(db, store.AllMigrations())
 		Expect(err).NotTo(HaveOccurred())
 
-		// Verify all 7 migrations are recorded
+		// Verify all 8 migrations are recorded
 		var count int
 		err = db.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&count)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(count).To(Equal(7))
+		Expect(count).To(Equal(8))
 
 		// Verify the table is functional with width and height columns
 		// First create a sample preset and job to satisfy foreign key constraints
+		// (after migration 8, sample_presets uses sampler_scheduler_pairs instead of samplers/schedulers)
 		_, err = db.Exec(`
 			INSERT INTO sample_presets (
-				id, name, prompts, negative_prompt, steps, cfgs, samplers, schedulers,
+				id, name, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs,
 				seeds, width, height, created_at, updated_at
 			) VALUES (
 				'test-preset', 'Test Preset', '["prompt1"]', 'neg', '[20]', '[7.5]',
-				'["euler"]', '["normal"]', '[12345]', 512, 512,
+				'[{"sampler":"euler","scheduler":"normal"}]', '[12345]', 512, 512,
 				'2025-01-01T00:00:00Z', '2025-01-01T00:00:00Z'
 			)
 		`)
@@ -325,7 +326,7 @@ var _ = Describe("Migrate", func() {
 var _ = Describe("AllMigrations", func() {
 	It("returns the presets table as migration 1", func() {
 		migrations := store.AllMigrations()
-		Expect(migrations).To(HaveLen(7))
+		Expect(migrations).To(HaveLen(8))
 		Expect(migrations[0].Version).To(Equal(1))
 		Expect(migrations[0].SQL).To(ContainSubstring("CREATE TABLE"))
 		Expect(migrations[0].SQL).To(ContainSubstring("presets"))
@@ -371,6 +372,12 @@ var _ = Describe("AllMigrations", func() {
 		Expect(migrations[6].Version).To(Equal(7))
 		Expect(migrations[6].SQL).To(ContainSubstring("ALTER TABLE"))
 		Expect(migrations[6].SQL).To(ContainSubstring("negative_prompt"))
+	})
+
+	It("returns the sampler_scheduler_pairs migration as migration 8", func() {
+		migrations := store.AllMigrations()
+		Expect(migrations[7].Version).To(Equal(8))
+		Expect(migrations[7].SQL).To(ContainSubstring("sampler_scheduler_pairs"))
 	})
 })
 

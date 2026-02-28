@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { NInput, NInputNumber, NSelect, NButton, NDynamicInput, NDynamicTags, NCard, NSpace, NAlert } from 'naive-ui'
-import type { SamplePreset, NamedPrompt, CreateSamplePresetPayload, UpdateSamplePresetPayload } from '../api/types'
+import type { SamplePreset, NamedPrompt, SamplerSchedulerPair, CreateSamplePresetPayload, UpdateSamplePresetPayload } from '../api/types'
 import { apiClient } from '../api/client'
 
 // initialPresetId: When provided, the preset with this ID is pre-selected after presets load.
@@ -31,8 +31,7 @@ const prompts = ref<NamedPrompt[]>([{ name: '', text: '' }])
 const negativePrompt = ref('')
 const steps = ref<number[]>([30])
 const cfgs = ref<number[]>([7.0])
-const samplers = ref<string[]>([])
-const schedulers = ref<string[]>([])
+const samplerSchedulerPairs = ref<SamplerSchedulerPair[]>([])
 const seeds = ref<number[]>([42])
 const width = ref(1024)
 const height = ref(1024)
@@ -82,8 +81,7 @@ const computedTotalImages = computed(() => {
     validPrompts.length *
     steps.value.length *
     cfgs.value.length *
-    samplers.value.length *
-    schedulers.value.length *
+    samplerSchedulerPairs.value.length *
     seeds.value.length
   )
 })
@@ -94,8 +92,8 @@ const canSave = computed(() => {
     prompts.value.some(p => p != null && p.name.trim() !== '' && p.text.trim() !== '') &&
     steps.value.length > 0 &&
     cfgs.value.length > 0 &&
-    samplers.value.length > 0 &&
-    schedulers.value.length > 0 &&
+    samplerSchedulerPairs.value.length > 0 &&
+    samplerSchedulerPairs.value.every(p => p.sampler.trim() !== '' && p.scheduler.trim() !== '') &&
     seeds.value.length > 0 &&
     width.value > 0 &&
     height.value > 0
@@ -172,8 +170,7 @@ function loadPreset(preset: SamplePreset) {
   negativePrompt.value = preset.negative_prompt
   steps.value = [...preset.steps]
   cfgs.value = [...preset.cfgs]
-  samplers.value = [...preset.samplers]
-  schedulers.value = [...preset.schedulers]
+  samplerSchedulerPairs.value = preset.sampler_scheduler_pairs.map(p => ({ ...p }))
   seeds.value = [...preset.seeds]
   width.value = preset.width
   height.value = preset.height
@@ -185,8 +182,7 @@ function resetForm() {
   negativePrompt.value = ''
   steps.value = [30]
   cfgs.value = [7.0]
-  samplers.value = []
-  schedulers.value = []
+  samplerSchedulerPairs.value = []
   seeds.value = [42]
   width.value = 1024
   height.value = 1024
@@ -214,8 +210,7 @@ async function savePreset() {
           negative_prompt: negativePrompt.value,
           steps: steps.value,
           cfgs: cfgs.value,
-          samplers: samplers.value,
-          schedulers: schedulers.value,
+          sampler_scheduler_pairs: samplerSchedulerPairs.value,
           seeds: seeds.value,
           width: width.value,
           height: height.value,
@@ -226,8 +221,7 @@ async function savePreset() {
           negative_prompt: negativePrompt.value,
           steps: steps.value,
           cfgs: cfgs.value,
-          samplers: samplers.value,
-          schedulers: schedulers.value,
+          sampler_scheduler_pairs: samplerSchedulerPairs.value,
           seeds: seeds.value,
           width: width.value,
           height: height.value,
@@ -284,6 +278,10 @@ async function deletePreset() {
 
 function createPromptItem(): NamedPrompt {
   return { name: '', text: '' }
+}
+
+function createPairItem(): SamplerSchedulerPair {
+  return { sampler: '', scheduler: '' }
 }
 
 function onUpdateSteps(tags: string[]) {
@@ -403,33 +401,39 @@ function onUpdateSeeds(tags: string[]) {
         </div>
 
         <div class="form-field">
-          <label for="samplers">Samplers</label>
-          <NSelect
-            id="samplers"
-            v-model:value="samplers"
-            :options="samplerOptions"
-            multiple
-            filterable
-            tag
-            placeholder="Select or type samplers"
-            size="medium"
-            data-testid="samplers-select"
-          />
-        </div>
-
-        <div class="form-field">
-          <label for="schedulers">Schedulers</label>
-          <NSelect
-            id="schedulers"
-            v-model:value="schedulers"
-            :options="schedulerOptions"
-            multiple
-            filterable
-            tag
-            placeholder="Select or type schedulers"
-            size="medium"
-            data-testid="schedulers-select"
-          />
+          <label>Sampler / Scheduler Pairs</label>
+          <NDynamicInput
+            v-model:value="samplerSchedulerPairs"
+            :min="0"
+            :on-create="createPairItem"
+            data-testid="sampler-scheduler-pairs"
+            #="{ index, value }"
+          >
+            <div class="pair-row">
+              <NSelect
+                :value="value.sampler"
+                :options="samplerOptions"
+                filterable
+                tag
+                placeholder="Sampler"
+                size="medium"
+                class="pair-select"
+                :data-testid="`pair-sampler-${index}`"
+                @update:value="(v: string) => { samplerSchedulerPairs[index].sampler = v }"
+              />
+              <NSelect
+                :value="value.scheduler"
+                :options="schedulerOptions"
+                filterable
+                tag
+                placeholder="Scheduler"
+                size="medium"
+                class="pair-select"
+                :data-testid="`pair-scheduler-${index}`"
+                @update:value="(v: string) => { samplerSchedulerPairs[index].scheduler = v }"
+              />
+            </div>
+          </NDynamicInput>
         </div>
 
         <div class="form-field">
@@ -537,6 +541,16 @@ function onUpdateSeeds(tags: string[]) {
   display: flex;
   gap: 0.5rem;
   width: 100%;
+}
+
+.pair-row {
+  display: flex;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.pair-select {
+  flex: 1;
 }
 
 .total-images {

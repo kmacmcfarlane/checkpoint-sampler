@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-072: Replace independent sampler/scheduler lists with sampler-scheduler pairs in sample presets
+- `backend/internal/model/sample_preset.go`: Added `SamplerSchedulerPair` struct; replaced `Samplers []string` and `Schedulers []string` with `SamplerSchedulerPairs []SamplerSchedulerPair`; updated `ImagesPerCheckpoint` formula to use pairs count instead of samplers × schedulers cross-product
+- `backend/internal/store/migrations.go`: Added migration 8 — creates new `sample_presets` table with `sampler_scheduler_pairs` JSON column and auto-converts existing data via cross-product of old samplers × schedulers using SQLite `json_each()`/`json_group_array()`/`json_object()`
+- `backend/internal/store/sample_preset.go`: Updated entity struct, serialization types, SQL queries, and model/entity conversion for pairs
+- `backend/internal/service/sample_preset.go`: Changed `Create`/`Update`/`validate` to accept `[]SamplerSchedulerPair` instead of separate sampler/scheduler lists; validation requires at least one pair with non-empty sampler and scheduler
+- `backend/internal/service/sample_job.go`: Updated `expandJobItems` to iterate pairs directly instead of nested sampler × scheduler loops, reducing loop depth
+- `backend/internal/api/design/sample_presets.go`: Added `SamplerSchedulerPair` Goa type; replaced `samplers`/`schedulers` attributes with `sampler_scheduler_pairs` in all create/update/show/list payloads
+- `backend/internal/api/sample_presets.go`: Updated Create/Update/response conversion between Goa-generated and model pair types
+- `frontend/src/api/types.ts`: Added `SamplerSchedulerPair` interface; replaced `samplers`/`schedulers` with `sampler_scheduler_pairs` in `SamplePreset` and payload types
+- `frontend/src/components/SamplePresetEditor.vue`: Replaced two separate multi-select `NSelect` components with `NDynamicInput` of paired rows (sampler + scheduler `NSelect` per row); updated form state, save payload, `canSave`, `computedTotalImages`, load/reset
+- `frontend/e2e/preset-crud.spec.ts`: Added `addSamplerSchedulerPair` E2E helper; updated CRUD tests for new paired UI
+- 564 backend tests pass; 667 frontend tests pass; 30 E2E tests pass
+
 ### S-057: Accessibility audit integration (axe-core)
 - `frontend/package.json`: Added `@axe-core/playwright` `^4.11.1` as a dev dependency for automated accessibility testing
 - `frontend/e2e/accessibility.spec.ts`: New Playwright E2E spec with two tests — light mode and dark mode accessibility scans using axe-core; fails on `critical` and `serious` impact violations (catches low-contrast issues like recurring dark mode bugs); moderate/minor issues logged but non-blocking
