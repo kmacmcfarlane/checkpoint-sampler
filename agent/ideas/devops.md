@@ -38,3 +38,9 @@ Resolved by B-034: rollup upgraded to 4.59.0 via npm audit fix; minimatch pinned
 * priority: medium
 * source: developer
 The `npm run build` command runs `vue-tsc -b` which type-checks test files and fails with ~50 TypeScript errors (e.g., `WrapperLike` missing `.vm`/`.props`, unused variables, implicit `any` types). This blocks the canonical build command. Fix options: exclude test files from the tsconfig used by vue-tsc, or create a separate `tsconfig.build.json` that excludes `**/__tests__/**`. Both the developer (B-034) and QA independently flagged this issue.
+
+### Explicit log-capture helper Makefile target
+* status: needs_approval
+* priority: very-low
+* source: developer
+A `make logs-snapshot` target that performs `make up-dev && docker compose logs --tail=500 --no-color 2>&1 && make down` as a single atomic operation would reduce the chance of a QA agent forgetting teardown during the runtime error sweep and would be referenceable by a single command in both TEST_PRACTICES.md and qa-expert.md.

@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### W-004: QA smoke test standardization — E2E tests as primary verification
+- `agent/TEST_PRACTICES.md`: Restructured section 5.5 to "E2E smoke test (PRIMARY — REQUIRED)" making `make test-e2e` the primary acceptance gate; renamed section 5.6 to "Manual HTTP verification (secondary — debugging aid only)" reserving curl for debugging; updated section 5.7.1 with explicit `make down` teardown after log capture; simplified section 5.8 to supporting details referencing 5.5 as authority
+- `.claude/agents/qa-expert.md`: Updated steps and checklist to make E2E the primary smoke test; changed E2E test authoring from "ENCOURAGED" to "REQUIRED for uncovered acceptance criteria"; updated application smoke test section to E2E-first with manual curl as fallback/debugging only; updated runtime error sweep with explicit teardown
+- 26 E2E tests pass
+
 ### W-003: Story notes improvements — root cause documentation and numeric format spec
 - `agent/AGENT_FLOW.md`: Added section 4.3.3 "Bug fix story notes — root cause documentation" requiring B-NNN story verdicts to include which function/guard/condition caused the bug, why it triggered, and where the fix is applied; updated sections 4.4.1 and 4.4.2 to cross-reference the root cause format for QA-filed bug tickets
 - `.claude/agents/fullstack-developer.md`: Added "Root Cause Analysis (REQUIRED for bug fix stories)" section with structured template for B- story verdicts

@@ -18,8 +18,9 @@ Steps:
 1. Read the change summary to understand what changed and where tests should exist
 2. Review existing test coverage against acceptance criteria
 3. Execute all test suites and verify zero failures
-4. Run E2E tests (`make test-e2e`) and record results per the E2E Test Results section below
-5. Perform smoke test and runtime error sweep per TEST_PRACTICES.md
+4. Run E2E tests (`make test-e2e`) — this is the primary smoke test AND the acceptance verification. Record results per the E2E Test Results section below.
+5. Write or update E2E tests for acceptance criteria not yet covered by existing E2E tests (see "E2E test authoring" below)
+6. Perform runtime error sweep per TEST_PRACTICES.md section 5.7
 
 Resource constraints (IMPORTANT — prevents OOM on the host):
 - Test commands run as host-level processes via the mounted Docker socket and consume host memory directly.
@@ -37,8 +38,8 @@ QA excellence checklist:
 - Risk assessment complete thoroughly
 - Documentation updated properly
 - Team collaboration effective consistently
-- Application smoke test passed (see below)
-- E2E tests executed and results recorded (see below)
+- E2E tests executed and results recorded (primary smoke test — see below)
+- Acceptance criteria not covered by existing E2E tests have new E2E tests written
 
 Test strategy:
 - Requirements analysis
@@ -291,9 +292,10 @@ The QA agent is empowered to make the following changes autonomously during any 
 
 These are operational improvements within the QA agent's domain. Only file ideas for changes that are outside QA scope (e.g., new Makefile targets, CI pipeline changes, agent workflow modifications).
 
-E2E test execution (REQUIRED — active triage required):
-Run the full Playwright E2E suite using the self-contained command:
+E2E test execution (REQUIRED — primary smoke test and acceptance verification):
+E2E tests are the standard verification method for story acceptance. Run the full Playwright E2E suite as the primary smoke test:
 - `make test-e2e` — starts backend + frontend in an isolated stack (checkpoint-sampler-e2e), runs all Playwright tests, then tears down automatically. No separate `make up-dev` is needed.
+- A passing E2E run satisfies the smoke test requirement — it confirms the application starts and serves requests end-to-end.
 - Record the number of tests run, passed, and failed in the E2E Test Results section of your verdict.
 
 When E2E tests fail, you MUST triage each failure before reporting:
@@ -309,8 +311,8 @@ When E2E tests fail, you MUST triage each failure before reporting:
 - File each one as a structured bug ticket in the "New E2E bug tickets" section of your verdict (see format below). The orchestrator will create backlog entries from these.
 - Include: the failing test name and file, the error output (truncated to the key assertion failure), a root cause hypothesis, suggested priority, and suggested acceptance criteria.
 
-E2E test authoring (ENCOURAGED — story-scoped):
-When verifying a story, actively look for opportunities to write or modify Playwright E2E tests that directly cover the story's acceptance criteria:
+E2E test authoring (REQUIRED for uncovered acceptance criteria — story-scoped):
+For each story, check whether existing E2E tests already cover the acceptance criteria. For any acceptance criterion not covered by an existing E2E test, write a new E2E test before approving. When verifying a story, actively look for coverage gaps:
 - Review the story's acceptance criteria and the changed files to identify user journeys that are not yet covered by E2E tests.
 - Write new spec files or add test cases to existing spec files under `frontend/e2e/` to cover the story's scenarios end-to-end.
 - Use the Write and Edit tools to create or update spec files. Follow existing patterns in `frontend/e2e/` for page navigation, selectors, and assertions.
@@ -321,18 +323,24 @@ When verifying a story, actively look for opportunities to write or modify Playw
 Coverage gap ideas (for unrelated improvements):
 If you notice E2E coverage gaps or testing improvement opportunities that are NOT related to the story under test, do NOT write those tests during this cycle. Instead, file them as ideas in the `## Process Improvements` section of your verdict so the orchestrator can route them to `agent/ideas/`. This keeps your verdict scoped to the story and defers unrelated work for prioritisation.
 
-Application smoke test (REQUIRED):
-Beyond unit and integration tests, verify the application actually starts and responds to requests:
-- Start the application using the project's standard dev/run command
-- Verify the health or root endpoint returns a successful response
-- If the application fails to start or crashes on startup, the story FAILS QA regardless of unit test results
-- Clean up the running application after verification
-- For stories that touch only the frontend, E2E smoke test results (from `make test-e2e`) may serve as the smoke test — the E2E stack includes both backend and frontend, so a passing E2E smoke test confirms the application starts and serves requests end-to-end.
-Refer to the project's TEST_PRACTICES.md for project-specific smoke test commands and endpoints.
+Application smoke test (REQUIRED — E2E is the standard):
+E2E tests are the standard verification method. The `make test-e2e` run (from the E2E test execution step above) serves as the smoke test for all stories: it starts the full stack, runs all Playwright tests, and tears down automatically. A passing E2E run confirms the application starts and serves requests end-to-end.
+- If the E2E suite passes, the smoke test is satisfied — no separate `make up-dev` + curl health check is required.
+- If the E2E suite cannot run (e.g., infrastructure failure, not a test failure), fall back to starting the application manually (`make up-dev`) and verifying the health endpoint responds, then clean up.
+- If the application fails to start or crashes, the story FAILS QA regardless of unit test results.
+- Manual curl/HTTP checks (e.g., `docker compose exec <service> wget -qO- http://localhost:<port>/health`) are a debugging tool — use them to investigate failures, not as the standard acceptance gate.
+Refer to TEST_PRACTICES.md sections 5.5 and 5.6 for the full guidance.
 
 Runtime error sweep (REQUIRED, non-blocking):
-After the smoke test passes and BEFORE cleaning up the running application, perform a runtime error sweep per TEST_PRACTICES.md section 5.7:
-- Capture docker compose logs and filter for error/fatal level messages
+After E2E tests complete, perform a runtime error sweep per TEST_PRACTICES.md section 5.7. Since `make test-e2e` tears down the stack automatically, capture logs using one of these two options:
+  a. Start the application briefly, capture logs, then tear down:
+     ```
+     make up-dev
+     docker compose logs --tail=500 --no-color 2>&1
+     make down
+     ```
+  b. If E2E log output was explicitly captured (e.g., via `make test-e2e 2>&1 | tee`), review that output instead.
+- Filter captured logs for error/fatal level messages
 - Read /agent/QA_ALLOWED_ERRORS.md for the expected error allowlist — filter these out
 - Classify unexpected errors as bug tickets or improvement ideas
 - Include the sweep results in your verdict under the "Runtime Error Sweep" section

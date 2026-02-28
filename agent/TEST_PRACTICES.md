@@ -242,38 +242,55 @@ The QA expert subagent (/.claude/agents/qa-expert.md) is the final gate before a
 - All pre-existing tests still pass
 - No functionality broken by the changes
 
-### 5.5 Application smoke test
-For any story that touches backend code, the QA expert must verify the application actually starts and responds:
-1. Start the application using the project's standard dev command (e.g. `make up-dev`)
-2. Wait for containers/processes to be healthy
-3. Verify the health endpoint returns HTTP 200 (via `curl` or equivalent)
-4. Clean up (e.g. `make down`)
+### 5.5 E2E smoke test (PRIMARY — REQUIRED)
 
-This catches fatal startup errors (crash loops, missing dependencies, broken wiring) that unit tests cannot detect. If the application is not reachable or returns non-200 on the health endpoint, the story fails QA.
+E2E tests are the standard verification method for story acceptance. The QA expert must run the full Playwright E2E suite as the primary smoke test mechanism for every story:
 
-Notes on sandbox connectivity:
-- When running inside the claude-sandbox, `localhost` ports mapped to the host are not directly reachable. Use `docker compose exec <service> wget -qO- http://localhost:<port>/health` or similar within-network commands for smoke tests.
+```
+make test-e2e
+```
+
+`make test-e2e` is self-contained: it starts backend + frontend using the E2E compose stack with `test-fixtures/` data, runs all Playwright tests, then tears down automatically. No separate `make up-dev` is required.
+
+This verifies that the application starts, serves requests, and that user-facing behavior is correct end-to-end. A passing E2E run confirms:
+- The application starts without fatal errors (crash loops, missing dependencies, broken wiring)
+- The backend health endpoint responds successfully
+- User journeys exercised by the test suite work correctly across the full stack
+
+**When E2E coverage is insufficient for the story's acceptance criteria**, the QA expert must write or update E2E tests to cover those criteria before approving. New or modified E2E tests must pass before the story is approved.
+
+Results (tests run, passed, failed) must be recorded in the "E2E Test Results" section of the QA verdict.
+
+### 5.6 Manual HTTP verification (secondary — debugging aid only)
+
+Manual curl/HTTP checks are a debugging tool, not a substitute for E2E tests. Use them only when:
+- Investigating a specific failure observed in E2E or unit tests
+- Authoring a new E2E test and needing to confirm raw API behavior first
+- Diagnosing a startup or connectivity issue before E2E tests can run
+
+If a story's acceptance criteria require API verification, write an E2E test or extend an existing one rather than relying on manual curl commands as the acceptance gate.
+
+Notes on sandbox connectivity (for debugging use):
+- When running inside the claude-sandbox, `localhost` ports mapped to the host are not directly reachable. Use `docker compose exec <service> wget -qO- http://localhost:<port>/health` or similar within-network commands.
 - The canonical health check path is `/health` (direct backend endpoint).
-
-### 5.6 API endpoint verification
-For stories that add or modify backend API endpoints, the QA expert must verify affected endpoints against the running application (started in 5.5):
-1. For each endpoint touched by the story, issue a basic request (via `curl` from within the docker network or from the host)
-2. Verify the response status code is correct (200 for success paths, appropriate 4xx/5xx for error paths)
-3. Verify the response body shape matches expectations (valid JSON, expected top-level fields present)
-4. This is not a substitute for unit tests — it validates that the full stack (routing, middleware, serialization, service wiring) works end-to-end
+- For API endpoints, issue requests via `curl` from within the docker network or use the Playwright `request` fixture in E2E tests.
 
 The QA expert may return a story to `in_progress` with specific issues recorded in the story's `review_feedback` field. The fullstack engineer must address all `blocker` and `important` severity issues before re-submitting.
 
 ### 5.7 Runtime error sweep (secondary findings)
 
-After completing sections 5.5 (smoke test) and 5.6 (API endpoint verification), the QA expert must perform a runtime error sweep on the application logs. This sweep is a **secondary check** — its results do NOT block the current story. If the story's acceptance criteria pass, the story is APPROVED regardless of sweep findings.
+After completing section 5.5 (E2E smoke test), the QA expert must perform a runtime error sweep on the application logs. This sweep is a **secondary check** — its results do NOT block the current story. If the story's acceptance criteria pass, the story is APPROVED regardless of sweep findings.
 
 #### 5.7.1 Procedure
 
-1. While the application is still running (started in 5.5), capture logs:
-   ```
-   docker compose logs --tail=500 --no-color 2>&1
-   ```
+1. Capture logs. Two options:
+   a. Start the application briefly, capture logs, then tear down:
+      ```
+      make up-dev
+      docker compose logs --tail=500 --no-color 2>&1
+      make down
+      ```
+   b. If E2E log output was explicitly captured (e.g., via `make test-e2e 2>&1 | tee`), review that output instead.
 2. Filter for error-level and fatal-level messages:
    ```
    grep -iE 'level=(error|fatal|panic)|FATAL|PANIC|panic:'
@@ -299,27 +316,19 @@ For each finding classified as **Bug**, the QA agent reports:
 
 Sweep findings never affect the story verdict. If the story's acceptance criteria pass, the story is **APPROVED** and sweep findings are filed as separate tickets by the orchestrator. This prevents infinite loops where every story bounces for pre-existing issues.
 
-### 5.8 E2E test execution (Playwright)
+### 5.8 E2E test execution details
 
-The QA expert must run the full Playwright E2E suite as part of every verification cycle:
-
-```
-make test-e2e
-```
+Section 5.5 establishes E2E tests as the primary smoke test. This section provides additional details on E2E execution and failure triage.
 
 Key facts:
 - `make test-e2e` is fully self-contained: it starts backend + frontend using `docker-compose.e2e.yml` with `test-fixtures/` data, runs all Playwright tests, and tears down automatically. No separate `make up-dev` is required.
 - The E2E compose project (`checkpoint-sampler-e2e`) is isolated from the dev environment — running `make test-e2e` does not interfere with an active `make up-dev` session.
-- Results (tests run, passed, failed) must be recorded in the "E2E Test Results" section of the QA verdict.
 
-**When E2E failures block the story:**
-- If the story explicitly adds or modifies E2E tests (i.e., it is an E2E story), failures are blocking and the story must be returned to `in_progress`.
+**Story-related E2E failures (blocking):**
+- If a failing test covers a user journey touched by this story's changes, the failure is blocking. Investigate, fix the code or update the test, and ensure it passes before approving the story.
 
-**When E2E failures are non-blocking:**
-- For all other stories, E2E failures are non-blocking. Record the results, note any failures and whether they appear pre-existing, but do not reject the story on E2E failures alone. Report unexpected failures as bug tickets via the runtime error sweep mechanism.
-
-**Frontend-only stories:**
-- For stories that touch only the frontend, the E2E smoke test results from `make test-e2e` may serve as the primary smoke test, replacing the manual `make up-dev` + curl health check approach. A passing E2E smoke test confirms the full stack starts and serves requests end-to-end.
+**Pre-existing / unrelated E2E failures (non-blocking):**
+- If a failing test covers a user journey NOT touched by this story, do not reject the story. Record the failure and file it as a bug ticket via the runtime error sweep mechanism.
 
 ## 6) End-to-End (E2E) testing practices — Playwright
 

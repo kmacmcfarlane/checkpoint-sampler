@@ -756,7 +756,7 @@ stories:
   - id: W-004
     title: "QA smoke test standardization — E2E tests as primary verification"
     priority: 195
-    status: todo
+    status: uat
     requires: [W-001]
     acceptance:
       - "AGENT: QA agent uses E2E tests as the standard verification method for story acceptance"

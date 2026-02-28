@@ -49,3 +49,9 @@ A lightweight lint step that scans acceptance criteria text for the words "CFG",
 * priority: very-low
 * source: developer
 A CI step that validates agent prompt files (.claude/agents/*.md) for required sections (e.g., "Change Summary", "Root Cause Analysis") to catch drift between AGENT_FLOW.md requirements and subagent definitions before it reaches the code review phase.
+
+### Audit other agent docs for stale smoke test references
+* status: needs_approval
+* priority: very-low
+* source: developer
+A pass over `agent/AGENT_FLOW.md` and other `.claude/agents/` files (code-reviewer.md, debugger.md) to confirm no remaining references to "manual curl" as a standard verification gate after the W-004 E2E-first standardization. Currently out of scope for W-004 but easy to miss.

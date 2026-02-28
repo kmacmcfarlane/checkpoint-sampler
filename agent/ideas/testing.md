@@ -25,3 +25,9 @@ Example:
 * priority: low
 * source: qa
 The `_status`/`_color` metadata test covers empty/complete/running but does not exercise the queued path (pending or paused job). Adding a `pendingJob` fixture for a training run with status `pending` and asserting `_status: 'queued'` and `_color: '#f0a020'` would complete the 4-of-4 coverage for the `beadColor()` function.
+
+### Add Vite ws proxy ECONNREFUSED to QA_ALLOWED_ERRORS.md
+* status: needs_approval
+* priority: very-low
+* source: qa
+During startup, the frontend Vite dev server briefly logs `Error: connect ECONNREFUSED` for its WebSocket proxy before the backend is ready. This is a benign startup timing race and could be added to the allowlist to prevent future QA agents from investigating it.
