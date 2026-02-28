@@ -594,6 +594,51 @@ describe('App', () => {
       // App should not crash; placeholder text may be shown
       expect(wrapper.find('h1').text()).toBe('Checkpoint Sampler')
     })
+
+    it('eagerly selects a saved training run even when has_samples is false', async () => {
+      // Root cause regression test: eagerAutoSelect previously called getTrainingRuns(true),
+      // which filtered out runs without samples. A run saved before samples were generated
+      // would never be found, leaving the top nav hidden. The fix passes no filter so all
+      // runs are returned.
+      Object.defineProperty(window, 'innerWidth', { value: 800, configurable: true })
+      vi.stubGlobal('matchMedia', createMatchMediaMock(false))
+
+      const runWithoutSamples: TrainingRun = {
+        id: 1,
+        name: 'test-run',
+        checkpoint_count: 1,
+        has_samples: false,
+        checkpoints: [
+          { filename: 'model.safetensors', step_number: 1000, has_samples: false },
+        ],
+      }
+      // Return a run with has_samples=false — previously would be missed by getTrainingRuns(true)
+      mockGetTrainingRuns.mockResolvedValue([runWithoutSamples])
+
+      setSavedPresetData(1, 'preset-abc')
+
+      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      await flushPromises()
+
+      // Scan should have been triggered — eagerAutoSelect found the run despite has_samples=false
+      expect(mockScanTrainingRun).toHaveBeenCalledWith(1)
+
+      // eagerAutoSelect must NOT pass hasSamples=true — it should call getTrainingRuns without
+      // the has_samples filter so runs without samples are included
+      const firstCall = mockGetTrainingRuns.mock.calls.find(
+        (call) => call[0] === true,
+      )
+      expect(firstCall).toBeUndefined()
+
+      // Header buttons should be visible after eager select
+      const generateBtn = wrapper.find('[data-testid="generate-samples-button"]')
+      expect(generateBtn.exists()).toBe(true) // visible when training run is selected
+
+      const jobsBtn = wrapper.findAllComponents(NButton).find(
+        (b) => b.attributes('aria-label') === 'Toggle sample jobs panel',
+      )
+      expect(jobsBtn).toBeDefined()
+    })
   })
 
   // AC1: Jobs header button shows a colored bead indicating sample/job status
