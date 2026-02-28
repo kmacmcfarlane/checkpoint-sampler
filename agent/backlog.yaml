@@ -12,64 +12,6 @@ defaults:
 stories:
   # ─── Enhancements (2026-02-26) ──────────────────────────────────────────────
 
-  - id: S-049
-    title: "Generate Samples dialog — own training run selector with status beads and regeneration support"
-    priority: 55
-    status: uat
-    requires: []
-    acceptance:
-      # Training run selector
-      - "FE: JobLaunchDialog has its own training run dropdown (separate from sidebar TrainingRunSelector)"
-      - "FE: The dialog's training run selector always starts empty (no pre-selection from sidebar)"
-      - "FE: Dropdown shows all training runs, with a colored status bead next to each option"
-      - "FE: Status bead colors: green = has samples (complete), blue = currently generating (running job), yellow = queued job, gray = no samples and no job"
-      - "FE: Job status for each training run is fetched from the jobs API to determine bead color"
-      - "BE: API provides sufficient data to determine job status per training run (existing endpoints may suffice, or a lightweight summary endpoint)"
-      - "FE: Selecting a training run in the dialog populates the checkpoint count and other summary fields"
-      # Default filter — only show runs without samples/jobs
-      - "FE: By default, the dropdown only shows training runs that have neither samples nor pending/running jobs (gray status)"
-      - "FE: A toggle/checkbox (default off) allows showing all training runs including those with existing samples"
-      # Checkpoint selection for regeneration
-      - "FE: When a training run with existing samples is selected (filter toggled on), a checkpoint picker appears"
-      - "FE: Checkpoint picker shows all checkpoints with select-all / deselect-all controls"
-      - "FE: Each checkpoint row indicates whether it already has samples"
-      - "FE: User can select all or individual checkpoints to regenerate samples for"
-      - "FE: When no specific checkpoints are selected (i.e. training run without samples), all checkpoints are included by default"
-      # Backend — checkpoint filtering
-      - "BE: CreateSampleJobPayload accepts an optional checkpoint_filenames field (list of strings)"
-      - "BE: When checkpoint_filenames is provided, only those checkpoints are included in the job (instead of all)"
-      - "BE: When checkpoint_filenames is omitted or empty, all checkpoints in the training run are included (existing behavior)"
-      # Backend — clearing existing samples before regeneration
-      - "BE: CreateSampleJobPayload accepts an optional clear_existing field (boolean, default false)"
-      - "BE: When clear_existing is true, the sample directory for each selected checkpoint is deleted before job items are created"
-      - "BE: Directory clearing happens per-checkpoint at <sample_dir>/<checkpoint_filename>/"
-      - "BE: Clearing only affects the selected checkpoints, not the entire training run"
-      - "FE: When regenerating (training run has samples), clear_existing is sent as true automatically"
-      # Tests
-      - "FE: Existing JobLaunchDialog tests updated for the new selector"
-      - "BE: Unit tests for checkpoint filtering in job creation"
-      - "BE: Unit tests for clear_existing directory removal"
-    notes: |
-      Currently JobLaunchDialog receives trainingRun as a prop from App.vue (sidebar selection).
-      Change to: (1) add an internal training run selector that fetches all runs, (2) add job
-      status lookup to color-code each option, (3) remove the trainingRun prop dependency.
-      May need a new or modified API endpoint to efficiently get job status per training run.
-
-      Backend changes needed:
-      - Goa DSL: Add optional checkpoint_filenames ([]string) and clear_existing (bool) to CreateSampleJobPayload
-      - API layer: Filter discovered checkpoints by checkpoint_filenames when provided
-      - Service layer: When clear_existing is true, call os.RemoveAll on each selected checkpoint's
-        sample directory (<sample_dir>/<checkpoint_filename>/) before creating job items
-      - The sample directory per checkpoint is: <sample_dir>/<checkpoint_filename_with_extension>/
-        (e.g., <sample_dir>/psai4rt-v0.3.0-no-reg-step00004500.safetensors/)
-
-      Key files: frontend/src/components/JobLaunchDialog.vue, frontend/src/App.vue,
-      backend/internal/api/design/sample_jobs.go, backend/internal/api/sample_jobs.go,
-      backend/internal/service/sample_job.go, backend/internal/service/job_executor.go.
-    testing:
-      - "command: cd frontend && npx vitest run"
-      - "command: make test-backend"
-
   # ─── Code quality alignment stories ──────────────────────────────────────────
 
   - id: S-052
@@ -127,172 +69,16 @@ stories:
 
   # ─── User-reported issues (2026-02-27) ──────────────────────────────────────
 
-  - id: B-036
-    title: "Job status does not report failed items — add error reporting, completed_with_errors status, and failed-checkpoint regeneration flow"
-    priority: 190
-    complexity: high
-    status: uat
-    requires: [S-049]
-    acceptance:
-      # Backend — compute counts on-the-fly from item statuses
-      - "BE: SampleJobResponse includes failed_items count (computed from items with status=failed)"
-      - "BE: SampleJobResponse includes pending_items count (computed from items with status=pending)"
-      - "BE: Counts are computed on-the-fly from sample_job_items — no new DB columns or migration"
-      # Backend — new completed_with_errors status
-      - "BE: New SampleJobStatus value 'completed_with_errors' added to the model"
-      - "BE: When the executor finishes all items and at least one has status=failed, the job transitions to completed_with_errors instead of completed"
-      - "BE: A job with all items completed (none failed) transitions to completed as before"
-      - "BE: Goa DSL updated to include completed_with_errors in the status enum"
-      # Backend — inline failed item details in job response
-      - "BE: SampleJobResponse includes a failed_item_details array (inline, not a separate endpoint)"
-      - "BE: Each entry in failed_item_details contains: checkpoint_filename (string) and error_message (string)"
-      - "BE: A checkpoint is considered failed if ANY of its items have status=failed (partial failure = failed)"
-      - "BE: failed_item_details is populated only when the job has failed items; empty array otherwise"
-      # Frontend — display counts in job card
-      - "FE: JobProgressPanel shows completed, failed, and pending item counts (e.g., '100 completed, 50 failed, 390 pending')"
-      - "FE: Failed count is visually distinct (warning/red color)"
-      - "FE: Jobs with completed_with_errors status show a warning indicator (distinct from both completed and failed)"
-      # Frontend — grouped error display in job card
-      - "FE: When a job has failed items, an expandable error section appears in the job card"
-      - "FE: Errors are grouped by error message — each unique error shown once with a count and expandable list of affected checkpoint names"
-      - "FE: Example: 'read-only file system (12 checkpoints)' with expandable list showing each checkpoint filename"
-      # Frontend — Generate Samples dialog: failed checkpoint awareness
-      - "FE: When a completed_with_errors run is selected in the dialog, the checkpoint picker shows a red/warning status badge next to each failed checkpoint"
-      - "FE: Hovering the badge shows the error message in a tooltip"
-      - "FE: Default selection logic: if ANY checkpoints have failures, only the failed checkpoints are pre-selected; if no failures, all checkpoints are selected"
-      - "FE: Selecting zero checkpoints is invalid — the launch button is disabled with a validation message"
-      - "FE: When failed checkpoints are pre-selected, clear_existing is auto-enabled (user can toggle off)"
-      - "FE: Regenerating a failed checkpoint regenerates ALL items for that checkpoint (not just the specific failed items)"
-      # WebSocket — include counts in progress events
-      - "BE: Job progress WebSocket events include failed_items and pending_items counts"
-      - "FE: Real-time updates reflect failed item counts as they occur"
-      # Tests
-      - "BE: Unit tests for on-the-fly count computation (mixed item statuses)"
-      - "BE: Unit tests for completed_with_errors transition (all pass, some fail, all fail)"
-      - "BE: Unit tests for failed_item_details population and checkpoint-level failure aggregation"
-      - "FE: Unit tests for failed item count display and error grouping in job card"
-      - "FE: Unit tests for checkpoint picker failed-checkpoint pre-selection, badge display, and clear_existing auto-enable"
-    notes: |
-      Currently the job executor marks items as failed with per-item error messages (stored in
-      sample_job_items.error_message), but this information is never surfaced to the API or UI.
-      The job card only shows completed_items / total_items, so failed items silently disappear
-      into the gap between those numbers.
-
-      Root cause of the example failure: the sample directory was mounted read-only, so
-      mkdir for the checkpoint subdirectory failed. The error was logged server-side but the
-      UI showed no indication of failure.
-
-      Implementation approach:
-      - Counts (failed, pending) are computed on-the-fly by querying sample_job_items grouped
-        by status. No DB migration needed — scale is small (~500 items max per job).
-      - Failed item details are included inline in the SampleJobResponse (not a separate endpoint).
-        The array will be small in practice (usually one error type affecting multiple items).
-      - The frontend groups errors by message in the job card to avoid noise.
-      - The new completed_with_errors status is a distinct terminal state — UI shows a
-        warning badge distinct from both green (completed) and red (failed).
-      - The Generate Samples dialog (S-049) is extended: when a completed_with_errors run is
-        selected, failed checkpoints get a red badge + tooltip, are pre-selected by default,
-        and clear_existing is auto-enabled. A failed checkpoint means ANY items for that
-        checkpoint failed — regeneration redoes ALL items for the checkpoint (clearing first).
-
-      Key files:
-      - backend/internal/model/sample_job.go (new status constant, item count types)
-      - backend/internal/api/design/sample_jobs.go (Goa DSL — response fields, status enum)
-      - backend/internal/service/sample_job.go (GetProgress — compute counts, build failed details)
-      - backend/internal/service/job_executor.go (terminal status logic — completed vs completed_with_errors)
-      - backend/internal/store/sample_job.go (query for item counts by status)
-      - frontend/src/components/JobProgressPanel.vue (display counts, error grouping)
-      - frontend/src/components/JobLaunchDialog.vue (failed checkpoint badges, pre-selection, auto-clear)
-      - frontend/src/api/types.ts (new response fields)
-    testing:
-      - "command: make test-backend"
-      - "command: cd frontend && npx vitest run"
-
   # ─── User-reported issues (2026-02-26) ──────────────────────────────────────
-
-  - id: W-001
-    title: "Update QA agent to write/modify E2E tests and file ideas for unrelated coverage"
-    priority: 200
-    status: uat
-    requires: []
-    acceptance:
-      - "AGENT: Add Write and Edit tools to the qa-expert agent definition (/.claude/agents/qa-expert.md)"
-      - "AGENT: Use tiered model selection: sonnet for simple E2E additions, opus for complex test authoring"
-      - "AGENT: QA agent instructions explicitly encourage writing or modifying Playwright E2E tests to enhance coverage of the story under test"
-      - "AGENT: Items not related to the story under test should be returned as ideas to add to agent/ideas/"
-      - "AGENT: QA agent retains autonomous empowerment for E2E helpers, fixtures, and config tweaks (no idea filing needed for those)"
-    testing:
-      - "command: (n/a) agent definition change only"
-
-  - id: B-029
-    title: "Sample jobs stuck in pending — backend should auto-start and execute jobs"
-    priority: 198
-    status: uat
-    requires: []
-    acceptance:
-      - "BE: Job executor polls for jobs in pending status and auto-transitions them to running"
-      - "BE: No explicit Start API call or UI button required — jobs start automatically after creation"
-      - "BE: Only one job runs at a time; additional pending jobs wait in queue"
-      - "BE: ComfyUI workflow submissions appear in ComfyUI stdout when a job is processing"
-      - "BE: Job executor correctly submits parameterized workflows to ComfyUI and monitors completion via WebSocket"
-      - "BE: If ComfyUI is unreachable when a job is created, the executor retries once ComfyUI becomes available"
-      - "BE: Unit tests for auto-start behavior (executor picks up pending jobs without explicit Start call)"
-    notes: |
-      Two issues merged: (1) Jobs are created as pending but there is no UI Start button and no
-      backend auto-start, so jobs never transition to running. (2) Even if started, ComfyUI
-      workflow submissions may not be reaching ComfyUI. Root cause is likely that processNextItem()
-      only looks for jobs with status=running, but nothing transitions pending→running.
-      The executor should poll for pending jobs and auto-start them.
-      Key files: backend/internal/service/job_executor.go (processNextItem, run loop),
-      backend/internal/service/sample_job.go (Create, Start methods),
-      backend/internal/api/sample_jobs.go.
-    testing:
-      - "command: ginkgo -r --cover --race ./internal/..."
-
-  - id: B-035
-    title: "Job executor never receives ComfyUI completion events — jobs stuck in running"
-    priority: 250
-    status: uat
-    requires: []
-    complexity: high
-    acceptance:
-      - "WORKFLOW: build yourself a comfyui-api skill using context7 for full understanding of the comfyui API structure (especially the websocket portion)"
-      - "BE: Job executor receives and processes ComfyUI 'executed' and 'execution_success' WebSocket events for submitted prompts"
-      - "BE: On completion, executor downloads/saves the generated image to the sample directory under the correct checkpoint subdirectory"
-      - "BE: Job item is marked completed and completed_items counter increments"
-      - "BE: After all items complete, job transitions from running to completed"
-      - "BE: Images appear in the expected output directory (sample_dir/<checkpoint_filename>/)"
-      - "BE: Unit tests for WS event handling of execution completion events"
-    notes: |
-      Observed 2026-02-27: A sample job was created and auto-started for checkpoint
-      psai4rt-v0.3.0-qwen-2512-1024-adafactor-cosine-2e-6-min-2-percent-steps-9000-timestep-qinglong_qwen-cap_drop-0.
-      The prompt was submitted to ComfyUI (prompt_id=9cd45b88-290b-411d-a78e-c386e51eb395) and ComfyUI
-      generated an image successfully (confirmed visually). However the backend WS listener only logged
-      status (13), progress_state (44), and progress (30) events — zero executed/execution_success/
-      execution_complete events were received. The job stayed stuck at running with 0/1 completed_items.
-      No image was saved to the sample directory.
-
-      Root cause: The ComfyUI WS client (comfyui_ws) logs all received events as generic
-      "received WebSocket event" with event_type, but the executor's completion listener appears to
-      either not subscribe to execution events, not match on prompt_id, or not handle the event types
-      that ComfyUI actually sends. The WS event processing pipeline needs to be traced from
-      comfyui_ws through to the executor's waitForCompletion logic.
-
-      Key log evidence:
-        07:13:22 job created (b559eaad), auto-started, prompt submitted (9cd45b88)
-        07:13:22–07:14:05 progress/progress_state events received (denoising)
-        07:14:05+ only status events — no completion event ever arrives
-        Job remains running with completed_items=0 indefinitely
-
-      Key files: backend/internal/service/job_executor.go (waitForCompletion, processJobItem),
-      backend/internal/store/comfyui_ws.go (WebSocket event parsing and dispatch).
-    testing:
-      - "command: ginkgo -r --cover --race ./internal/..."
 
   - id: B-030
     title: "Top nav elements unavailable on narrow screens until drawer opens"
     priority: 50
     status: uat
+    uat_feedback: |
+      Top nav is still waiting for the training run in the side-bar controls to load. These don't
+      depend on the selected sample set in the controls slide-out, so just load them immediately.
+      Also, the job status bead should be in the "Jobs" button, not the "Generate Samples" button.
     requires: []
     acceptance:
       - "FE: On narrow screens (<1024px), the app eagerly loads the saved training run from localStorage and triggers a scan on mount, regardless of drawer state"
@@ -310,97 +96,6 @@ stories:
       frontend/src/components/TrainingRunSelector.vue (auto-select logic),
       frontend/src/composables/usePresetPersistence.ts.
     testing:
-      - "command: cd frontend && npx vitest run"
-
-  - id: B-031
-    title: "Generate Samples dialog doesn't sync preset selection to manage presets sub-dialog"
-    priority: 40
-    status: uat
-    requires: []
-    acceptance:
-      - "FE: When opening the 'Manage Sample Presets' sub-dialog from the Generate Samples dialog, the currently selected sample preset in the parent dropdown is pre-selected in the SamplePresetEditor"
-      - "FE: If no preset is selected in the parent, the SamplePresetEditor opens with no preset selected (current behavior)"
-      - "FE: After saving or editing a preset in the sub-dialog, the parent dialog's preset dropdown reflects the changes"
-      - "FE: Unit tests for preset selection sync between parent and sub-dialog"
-    notes: |
-      Currently SamplePresetEditor always opens with no preset selected. JobLaunchDialog
-      passes @preset-saved and @preset-deleted events but not the currently selected preset ID.
-      Fix: pass selectedPresetId as a prop to SamplePresetEditor.
-      Key files: frontend/src/components/JobLaunchDialog.vue (lines 444-456),
-      frontend/src/components/SamplePresetEditor.vue.
-    testing:
-      - "command: cd frontend && npx vitest run"
-
-  - id: B-032
-    title: "Dark mode contrast issues in job cards and sample preset editor"
-    priority: 35
-    status: uat
-    requires: []
-    acceptance:
-      - "FE: Job card text in JobProgressPanel is readable in dark mode (uses theme-aware color tokens)"
-      - "FE: Job card background, metadata text, progress text, and progress labels all have sufficient contrast in dark mode"
-      - "FE: 'Total images per checkpoint' text in SamplePresetEditor is readable in dark mode"
-      - "FE: Audit all CSS custom property fallbacks in JobProgressPanel.vue and SamplePresetEditor.vue for dark mode compatibility"
-      - "FE: Any other components with similar hardcoded light-mode fallback colors are fixed"
-      - "FE: Unit tests verify text elements render with theme-aware styling"
-    notes: |
-      Same class of bug as B-023 (summary text) and B-007/B-008 (metadata panel). CSS custom
-      properties use light-mode fallbacks (e.g., --bg-surface: #f5f5f5, --text-secondary: #666666,
-      --accent-bg: #e3f2fd) that don't work in dark mode.
-      Key files: frontend/src/components/JobProgressPanel.vue (.job-item, .job-meta, .progress-text,
-      .progress-line, .progress-details classes),
-      frontend/src/components/SamplePresetEditor.vue (.total-images class).
-    testing:
-      - "command: cd frontend && npx vitest run"
-
-  - id: S-072
-    title: "Replace independent sampler/scheduler lists with sampler-scheduler pairs in sample presets"
-    priority: 80
-    complexity: high
-    status: uat
-    requires: []
-    acceptance:
-      # Data model — replace lists with pairs
-      - "BE: DB migration replaces samplers (JSON array of strings) and schedulers (JSON array of strings) columns with sampler_scheduler_pairs (JSON array of {sampler, scheduler} objects)"
-      - "BE: Migration auto-converts existing presets: creates pairs from the cross-product of old samplers × schedulers lists"
-      - "BE: SamplePreset model replaces Samplers []string and Schedulers []string with SamplerSchedulerPairs []SamplerSchedulerPair"
-      - "BE: SamplerSchedulerPair is a struct with Sampler (string) and Scheduler (string) fields"
-      # API
-      - "BE: Goa DSL updated — sample preset create/update/show/list use sampler_scheduler_pairs array of {sampler, scheduler} objects"
-      - "BE: Validation: at least one pair required; each pair must have non-empty sampler and scheduler"
-      # Job expansion
-      - "BE: Job item expansion iterates over pairs directly instead of cross-producting samplers × schedulers"
-      - "BE: Images-per-checkpoint calculation updated: prompts × steps × cfgs × pairs × seeds (not prompts × steps × cfgs × samplers × schedulers × seeds)"
-      # Frontend
-      - "FE: SamplePresetEditor replaces separate sampler and scheduler tag inputs with a paired list"
-      - "FE: Each row has a sampler dropdown and a scheduler dropdown side by side"
-      - "FE: Add/remove pair buttons to manage the list"
-      - "FE: Sampler and scheduler dropdowns populated from ComfyUI's available options (existing behavior)"
-      - "FE: Total images per checkpoint calculation updated to reflect pairs instead of cross-product"
-      # Tests
-      - "BE: Unit tests for migration (cross-product conversion of existing presets)"
-      - "BE: Unit tests for job item expansion with pairs"
-      - "BE: Unit tests for images-per-checkpoint calculation"
-      - "FE: Unit tests for paired sampler/scheduler editor (add, remove, validation)"
-    notes: |
-      Currently samplers and schedulers are independent lists that create a cross-product during
-      job expansion. For example, 2 samplers × 2 schedulers = 4 combinations. The user wants
-      explicit pairs instead, so euler+normal and dpmpp_2m+sgm_uniform = 2 combinations.
-
-      This fully replaces the independent lists — no backward-compatible "both modes" toggle.
-      Existing presets are migrated by computing the cross-product of their current lists into
-      explicit pairs (preserving the same set of combinations).
-
-      Key files:
-      - backend/internal/store/migrations.go (new migration)
-      - backend/internal/model/sample_preset.go (SamplerSchedulerPair type, field changes)
-      - backend/internal/store/sample_preset.go (JSON serialization of pairs)
-      - backend/internal/api/design/sample_presets.go (Goa DSL)
-      - backend/internal/service/sample_job.go (item expansion logic)
-      - frontend/src/components/SamplePresetEditor.vue (paired editor UI)
-      - frontend/src/api/types.ts (type changes)
-    testing:
-      - "command: make test-backend"
       - "command: cd frontend && npx vitest run"
 
   - id: S-055
@@ -435,108 +130,14 @@ stories:
 
   # ─── Approved ideas (2026-02-26) ────────────────────────────────────────────
 
-  - id: W-002
-    title: "E2E test result parsing — QA addresses failures and files bug tickets"
-    priority: 197
-    status: uat
-    requires: [W-001]
-    acceptance:
-      - "AGENT: QA agent actively addresses failing E2E tests during the testing phase rather than just reporting them"
-      - "AGENT: Any E2E test failures not directly caused by the story under test result in bug tickets added to the backlog"
-      - "AGENT: Orchestrator records E2E pass/fail results per story for regression tracking"
-      - "AGENT: AGENT_FLOW.md updated with E2E failure handling procedure"
-    notes: |
-      Source: agent_workflow idea "E2E test result parsing in orchestrator" (high priority).
-      The orchestrator currently has no structured mechanism to handle E2E failures beyond
-      reporting them. The QA agent should triage: fix story-related failures, file bugs for others.
-      Key files: agent/AGENT_FLOW.md, .claude/agents/qa-expert.md.
-    testing:
-      - "command: (n/a) agent workflow change"
-
-  - id: W-003
-    title: "Story notes improvements — root cause documentation and numeric format spec"
-    priority: 196
-    status: uat
-    requires: []
-    acceptance:
-      - "AGENT: Story notes for bug fixes include root cause analysis (e.g., which function/guard/condition caused the issue) so the developer can focus immediately"
-      - "AGENT: AGENT_FLOW.md or DEVELOPMENT_PRACTICES.md updated with root cause documentation expectations"
-      - "AGENT: Numeric format specification added to practices: CFG values are floating point, steps and seeds must be integers"
-      - "AGENT: Story acceptance criteria for numeric inputs specify the expected format explicitly"
-    notes: |
-      Combines two approved agent_workflow ideas:
-      1. "Root cause documentation in story notes" (high) — richer analysis in notes helps
-         developers focus on the correct fix immediately.
-      2. "Story notes numeric format spec" (low) — CFG should be floating point, steps and seeds
-         must be integers. Prevents ambiguity in acceptance criteria.
-      Key files: agent/AGENT_FLOW.md, agent/DEVELOPMENT_PRACTICES.md.
-    testing:
-      - "command: (n/a) agent workflow change"
-
-  - id: S-056
-    title: "E2E log capture before teardown"
-    priority: 90
-    status: uat
-    requires: []
-    acceptance:
-      - "OPS: Add a make test-e2e-logs target or integrate log capture into the existing make test-e2e flow"
-      - "OPS: Docker compose logs are saved to a file before the test stack is torn down"
-      - "OPS: Log file location is deterministic and documented (e.g., .ralph-temp/e2e-logs/ or similar)"
-      - "OPS: E2E logs will be reset before each ralph iteration by the claude-sandbox"
-      - "OPS: QA runtime error sweep can reference the captured logs even for self-contained E2E runs"
-      - "OPS: Existing make test-e2e behavior is preserved (tests still pass/fail correctly)"
-    notes: |
-      Source: devops idea "E2E log capture before teardown" (high priority).
-      Currently docker compose logs are lost when make test-e2e tears down the stack, making
-      the QA runtime error sweep impossible for E2E-only runs.
-      Key files: Makefile (test-e2e target), docker-compose.test.yml.
-    testing:
-      - "command: make test-e2e"
-
-  - id: S-057
-    title: "Accessibility audit integration (axe-core)"
-    priority: 85
-    status: uat
-    requires: []
-    acceptance:
-      - "FE: Add @axe-core/playwright or similar accessibility testing library as a dev dependency"
-      - "E2E: At least one Playwright test runs an axe accessibility scan on the main app page"
-      - "E2E: Accessibility violations at 'critical' and 'serious' impact levels fail the test"
-      - "E2E: Low-contrast issues (like the recurring dark mode bugs) are caught automatically"
-      - "DOC: TEST_PRACTICES.md updated with accessibility testing section"
-    notes: |
-      Source: devops idea "Accessibility audit tool" (high priority).
-      Recurring dark mode contrast bugs (B-007, B-008, B-023, B-032) suggest an automated
-      accessibility check would catch these before UAT.
-      Key files: frontend/package.json, frontend/e2e/accessibility.spec.ts (new),
-      agent/TEST_PRACTICES.md.
-    testing:
-      - "command: make test-e2e"
-
-  - id: S-058
-    title: "Frontend lint rules — CSS variable linting and unused import detection"
-    priority: 75
-    status: uat
-    requires: []
-    acceptance:
-      - "FE: Add stylelint with a rule that warns when color/background-color properties use hardcoded values instead of CSS custom properties (--text-color, --bg-*)"
-      - "FE: Add ESLint rule for Vue SFCs to detect unused imports in <script setup> blocks"
-      - "FE: Both rules integrated into npm run lint"
-      - "FE: Existing code passes or violations are documented as known exceptions"
-      - "FE: No false positives on intentional hardcoded colors (e.g., white text on error backgrounds)"
-    notes: |
-      Combines two approved devops ideas:
-      1. "CSS variable linting" (medium) — prevents dark mode contrast bugs at lint time.
-      2. "Unused import detection in Vue SFCs" (low) — TypeScript doesn't always catch these.
-      Key files: frontend/package.json, frontend/.stylelintrc (new), frontend/.eslintrc or
-      eslint.config.js.
-    testing:
-      - "command: cd frontend && npm run lint"
-
   - id: S-061
     title: "Lightbox UX improvements — keyboard navigation and slider dimension label"
     priority: 70
     status: uat
+    uat_feedback: |
+      Shift-arrows work. Regular arrows get stuck moving to the next value sometimes — seems to
+      be when the interval between the previous two values is different than the next value along
+      the slider.
     requires: []
     acceptance:
       - "FE: Shift+ArrowLeft and Shift+ArrowRight navigate between images in the grid while the lightbox is open"
@@ -559,6 +160,8 @@ stories:
     title: "Generate Samples dialog polish — bead indicator, preset auto-close, training run restore and refresh"
     priority: 65
     status: uat
+    uat_feedback: |
+      Bead indicator should be on the "Jobs" nav item, not "Generate Samples".
     requires: []
     acceptance:
       - "FE: Generate Samples header button shows a colored bead indicating sample/job status of the current sidebar-selected training run"
@@ -584,6 +187,10 @@ stories:
     title: "MasterSlider keyboard conflict guard for multiple instances"
     priority: 60
     status: uat
+    uat_feedback: |
+      If Zoom control is focused, arrows move both the zoom and the master slider. Use ctrl+left/right
+      arrows to move the master horizontal slider controls instead of plain arrows. Also update the
+      README.md to include a keyboard controls table.
     requires: []
     acceptance:
       - "FE: If multiple MasterSlider components are mounted simultaneously, only one captures keyboard input"
@@ -753,26 +360,6 @@ stories:
     testing:
       - "command: cd frontend && npx vitest run"
 
-  - id: W-004
-    title: "QA smoke test standardization — E2E tests as primary verification"
-    priority: 195
-    status: uat
-    requires: [W-001]
-    acceptance:
-      - "AGENT: QA agent uses E2E tests as the standard verification method for story acceptance"
-      - "AGENT: QA agent writes new E2E tests for acceptance criteria not already covered by existing E2E tests"
-      - "AGENT: Manual curl/HTTP checks are reserved for debugging activities during test authoring, not as a substitute for E2E tests"
-      - "AGENT: TEST_PRACTICES.md updated to reflect this standard: E2E tests are the primary smoke test mechanism"
-      - "AGENT: Remove or simplify the multiple smoke test approaches (manual curl, docker logs inspection, etc.) in favor of E2E-first"
-    notes: |
-      Source: agent_workflow idea "QA smoke test consolidation" (low priority).
-      User direction: E2E tests are the standard for verification. Manual curl calls and
-      similar are only for debugging while writing tests. This aligns with W-001 (QA writes
-      E2E tests) and W-002 (QA addresses failing E2E tests).
-      Key files: agent/TEST_PRACTICES.md, .claude/agents/qa-expert.md.
-    testing:
-      - "command: (n/a) agent workflow change"
-
   - id: R-004
     title: "Consolidate docker-compose.test.yml and docker-compose.e2e.yml"
     priority: 22
@@ -833,26 +420,3 @@ stories:
     testing:
       - "command: make up"
 
-  # ─── QA sweep findings (2026-02-28) ────────────────────────────────────────
-
-  - id: B-037
-    title: "Backend panics with nil pointer dereference on /api/sample-jobs when ComfyUI is not configured"
-    priority: 75
-    status: uat
-    requires: []
-    acceptance:
-      - "BE: SampleJobsService methods return an empty result (or appropriate error) when the inner SampleJobService is nil (ComfyUI not configured)"
-      - "BE: No panic occurs when /api/sample-jobs endpoints are called without ComfyUI configured"
-      - "BE: E2E backend logs contain zero panic lines after a full test run"
-    notes: |
-      Root cause: When ComfyUI is not configured (cfg.ComfyUI == nil), main.go creates
-      SampleJobsService with a nil inner *service.SampleJobService. The API layer at
-      api/sample_jobs.go calls s.svc.List() without checking for nil, causing a nil pointer
-      dereference panic on every /api/sample-jobs request. Frontend proxy errors (socket hang up,
-      25 occurrences in E2E logs) are a downstream symptom of the same panic.
-      Fix: add nil guard in SampleJobsService methods that returns empty result or "not configured"
-      error when s.svc is nil.
-      Key files: backend/internal/api/sample_jobs.go, backend/cmd/main.go.
-    testing:
-      - "command: make test-e2e"
-      - "command: make test-backend"

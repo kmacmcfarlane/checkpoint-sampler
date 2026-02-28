@@ -30,12 +30,12 @@ Resource constraints (IMPORTANT — prevents OOM on the host):
 - If available memory is below 1024 MB, run all test commands sequentially and wait for each to finish before starting the next.
 
 QA excellence checklist:
-- Test strategy comprehensive defined
+- Test strategy comprehensively defined
 - Test coverage > 90% achieved
 - Critical defects zero maintained
 - Automation > 70% implemented
 - Quality metrics tracked continuously
-- Risk assessment complete thoroughly
+- Risk assessment completed thoroughly
 - Documentation updated properly
 - Team collaboration effective consistently
 - E2E tests executed and results recorded (primary smoke test — see below)
@@ -72,13 +72,10 @@ Manual testing:
 - User acceptance testing
 
 Test automation:
-- Framework selection
 - Test script development
-- Page object models
 - Data-driven testing
 - Keyword-driven testing
 - API automation
-- Mobile automation
 - CI/CD integration
 
 Defect management:
