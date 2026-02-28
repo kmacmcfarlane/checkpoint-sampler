@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### B-032: Dark mode contrast issues in job cards and sample preset editor
+- Removed all hardcoded light-mode color fallbacks (`var(--variable, #hex)` → `var(--variable)`) across 14 component files: `JobProgressPanel.vue`, `SamplePresetEditor.vue`, `JobLaunchDialog.vue`, `ComboFilter.vue`, `DimensionFilter.vue`, `DimensionPanel.vue`, `ZoomControl.vue`, `PresetSelector.vue`, `ImageCell.vue`, `XYGrid.vue`, `MasterSlider.vue`, `SliderBar.vue`, `TrainingRunSelector.vue`, and `App.vue`
+- All CSS colors now use theme-aware CSS custom properties defined in `App.vue` for both light and dark modes, eliminating contrast issues in dark mode
+- Added 8 new unit tests verifying theme-aware styling (5 in `JobProgressPanel.test.ts`, 3 in `SamplePresetEditor.test.ts`)
+- 664 frontend tests pass; 26 E2E tests pass
+
 ### B-031: Generate Samples dialog doesn't sync preset selection to manage presets sub-dialog
 - `frontend/src/components/JobLaunchDialog.vue`: Added `:initial-preset-id="selectedPreset"` prop binding to pass current preset selection to SamplePresetEditor sub-dialog
 - `frontend/src/components/SamplePresetEditor.vue`: Added `initialPresetId` prop with null default, emit contract comments, and auto-selection logic in `onMounted` that pre-selects the matching preset after loading

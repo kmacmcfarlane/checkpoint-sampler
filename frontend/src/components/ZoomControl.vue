@@ -50,7 +50,7 @@ function onUpdate(value: number) {
   align-items: center;
   gap: 0.75rem;
   padding: 0.5rem 0;
-  border-bottom: 1px solid var(--border-color, #e0e0e0);
+  border-bottom: 1px solid var(--border-color);
   margin-bottom: 0.5rem;
   width: 100%;
 }
@@ -68,7 +68,7 @@ function onUpdate(value: number) {
 
 .zoom-control__value {
   font-size: 0.875rem;
-  color: var(--text-secondary, #666);
+  color: var(--text-secondary);
   white-space: nowrap;
   min-width: 50px;
   text-align: right;

@@ -90,7 +90,7 @@ function isFilterModeDisabled(dimensionName: string): boolean {
 <style scoped>
 .dimension-panel {
   padding: 0.5rem;
-  border: 1px solid var(--border-color, #e0e0e0);
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   margin-bottom: 1rem;
 }
@@ -133,7 +133,7 @@ function isFilterModeDisabled(dimensionName: string): boolean {
 }
 
 .dimension-values {
-  color: var(--text-secondary, #666);
+  color: var(--text-secondary);
   font-size: 0.75rem;
 }
 </style>

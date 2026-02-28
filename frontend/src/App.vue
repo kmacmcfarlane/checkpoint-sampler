@@ -719,7 +719,7 @@ const showProminentGenerateButton = computed(() => {
   cursor: pointer;
   user-select: none;
   padding: 0.5rem;
-  border: 1px solid var(--border-color, #e0e0e0);
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   background-color: var(--bg-surface);
   margin-bottom: 0.5rem;
@@ -785,7 +785,7 @@ const showProminentGenerateButton = computed(() => {
 .drawer-section {
   padding-bottom: 1rem;
   margin-bottom: 1rem;
-  border-bottom: 1px solid var(--border-color, #e0e0e0);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .drawer-section:last-child {

@@ -71,7 +71,7 @@ function onKeydown(event: KeyboardEvent) {
 
 .slider-bar__value {
   font-size: 0.75rem;
-  color: var(--text-secondary, #666);
+  color: var(--text-secondary);
   min-width: 3rem;
   text-align: right;
 }

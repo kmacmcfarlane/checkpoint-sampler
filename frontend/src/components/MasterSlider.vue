@@ -193,7 +193,7 @@ onBeforeUnmount(() => {
   flex-direction: column;
   gap: 0.5rem;
   padding: 0.5rem 0;
-  border-bottom: 1px solid var(--border-color, #e0e0e0);
+  border-bottom: 1px solid var(--border-color);
   margin-bottom: 0.5rem;
   width: 100%;
 }
@@ -218,7 +218,7 @@ onBeforeUnmount(() => {
 
 .master-slider__value {
   font-size: 0.875rem;
-  color: var(--text-secondary, #666);
+  color: var(--text-secondary);
   white-space: nowrap;
 }
 

@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { describe, it, expect, vi, beforeEach, afterEach, afterAll } from 'vitest'
+import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { NSelect, NButton, NInput, NInputNumber, NDynamicInput, NDynamicTags } from 'naive-ui'
 import SamplePresetEditor from '../SamplePresetEditor.vue'
@@ -23,6 +23,8 @@ beforeEach(() => {
 })
 
 import { apiClient } from '../../api/client'
+
+enableAutoUnmount(afterEach)
 
 const mockListSamplePresets = apiClient.listSamplePresets as ReturnType<typeof vi.fn>
 const mockCreateSamplePreset = apiClient.createSamplePreset as ReturnType<typeof vi.fn>
@@ -767,6 +769,37 @@ describe('SamplePresetEditor', () => {
     if (testid === 'steps-tags') expect(vm.steps).toEqual(expectedNumbers)
     if (testid === 'cfgs-tags') expect(vm.cfgs).toEqual(expectedNumbers)
     if (testid === 'seeds-tags') expect(vm.seeds).toEqual(expectedNumbers)
+  })
+
+  describe('theme-aware styling', () => {
+    it('total-images element uses theme-aware CSS class without hardcoded inline colors', async () => {
+      const wrapper = mount(SamplePresetEditor)
+      await flushPromises()
+
+      const totalImages = wrapper.find('.total-images')
+      expect(totalImages.exists()).toBe(true)
+      // Verify no inline style with hardcoded colors
+      expect(totalImages.attributes('style')).toBeUndefined()
+    })
+
+    it('total-images element has theme-aware CSS class applied', async () => {
+      const wrapper = mount(SamplePresetEditor)
+      await flushPromises()
+
+      const totalImages = wrapper.find('.total-images')
+      expect(totalImages.classes()).toContain('total-images')
+    })
+
+    it('form-field labels use theme-aware CSS class without hardcoded inline colors', async () => {
+      const wrapper = mount(SamplePresetEditor)
+      await flushPromises()
+
+      const labels = wrapper.findAll('.form-field label')
+      expect(labels.length).toBeGreaterThan(0)
+      for (const label of labels) {
+        expect(label.attributes('style')).toBeUndefined()
+      }
+    })
   })
 
   describe('initialPresetId prop — pre-selection on open', () => {

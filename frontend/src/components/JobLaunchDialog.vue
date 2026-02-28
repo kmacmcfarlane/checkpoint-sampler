@@ -780,7 +780,7 @@ async function submit() {
 
 .field-hint {
   font-size: 0.8125rem;
-  color: var(--text-secondary, #666666);
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -792,7 +792,7 @@ async function submit() {
 .checkpoint-list {
   max-height: 220px;
   overflow-y: auto;
-  border: 1px solid var(--border-color, #e0e0e0);
+  border: 1px solid var(--border-color);
   border-radius: 0.25rem;
   padding: 0.5rem;
   display: flex;
@@ -820,7 +820,7 @@ async function submit() {
 
 .field-error {
   font-size: 0.8125rem;
-  color: var(--error-color, #d32f2f);
+  color: var(--error-color);
   margin: 0;
   font-weight: 500;
 }
@@ -831,18 +831,18 @@ async function submit() {
 
 .summary {
   padding: 1rem;
-  background: var(--bg-surface, #f5f5f5);
+  background: var(--bg-surface);
   border-radius: 0.25rem;
 }
 
 .summary p {
   margin: 0.5rem 0;
-  color: var(--text-color, #333333);
+  color: var(--text-color);
 }
 
 .summary .total-images {
   font-size: 1.125rem;
-  color: var(--accent-color, #1976d2);
+  color: var(--accent-color);
 }
 
 .action-buttons {

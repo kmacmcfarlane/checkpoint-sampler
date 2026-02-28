@@ -67,7 +67,7 @@ function onKeydown(event: KeyboardEvent) {
 
 <style scoped>
 .image-cell {
-  border: 1px solid var(--border-color, #e0e0e0);
+  border: 1px solid var(--border-color);
   overflow: hidden;
   display: flex;
   align-items: center;
@@ -77,7 +77,7 @@ function onKeydown(event: KeyboardEvent) {
 }
 
 .image-cell:focus {
-  outline: 2px solid var(--accent-color, #1976d2);
+  outline: 2px solid var(--accent-color);
   outline-offset: -2px;
 }
 
@@ -89,11 +89,11 @@ function onKeydown(event: KeyboardEvent) {
 }
 
 .image-cell--empty {
-  background-color: var(--bg-surface, #f5f5f5);
+  background-color: var(--bg-surface);
 }
 
 .image-cell__placeholder {
-  color: var(--text-secondary, #999);
+  color: var(--text-secondary);
   font-size: 0.875rem;
   padding: 1rem;
   text-align: center;

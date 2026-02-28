@@ -334,7 +334,7 @@ stories:
   - id: B-032
     title: "Dark mode contrast issues in job cards and sample preset editor"
     priority: 35
-    status: todo
+    status: uat
     requires: []
     acceptance:
       - "FE: Job card text in JobProgressPanel is readable in dark mode (uses theme-aware color tokens)"

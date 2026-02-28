@@ -141,7 +141,7 @@ function onSingleChange(value: string | null) {
 
 <style scoped>
 .dimension-filter {
-  border: 1px solid var(--border-color, #e0e0e0);
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   padding: 0.5rem;
   min-width: 120px;
@@ -217,6 +217,6 @@ function onSingleChange(value: string | null) {
 
 .dimension-filter__value:hover {
   text-decoration: underline;
-  color: var(--accent-color, #1976d2);
+  color: var(--accent-color);
 }
 </style>

@@ -1,9 +1,11 @@
-import { describe, it, expect } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { describe, it, expect, afterEach } from 'vitest'
+import { mount, enableAutoUnmount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { NModal, NButton, NTag, NProgress, NEmpty } from 'naive-ui'
 import JobProgressPanel from '../JobProgressPanel.vue'
 import type { SampleJob } from '../../api/types'
+
+enableAutoUnmount(afterEach)
 
 const sampleJobs: SampleJob[] = [
   {
@@ -299,6 +301,132 @@ describe('JobProgressPanel', () => {
 
       const failedCount = wrapper.find('[data-testid="job-job-1-failed-count"]')
       expect(failedCount.exists()).toBe(false)
+    })
+  })
+
+  describe('theme-aware styling', () => {
+    it('job-item uses theme-aware CSS class without hardcoded inline colors', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: sampleJobs },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const jobItem = wrapper.find('.job-item')
+      expect(jobItem.exists()).toBe(true)
+      // No inline style overrides with hardcoded colors
+      expect(jobItem.attributes('style')).toBeUndefined()
+    })
+
+    it('job-meta element has the correct CSS class for theme-aware text color', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: sampleJobs },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const jobMeta = wrapper.find('[data-testid="job-job-1"] .job-meta')
+      expect(jobMeta.exists()).toBe(true)
+      expect(jobMeta.classes()).toContain('job-meta')
+      // Verify no hardcoded color inline style
+      expect(jobMeta.attributes('style')).toBeUndefined()
+    })
+
+    it('progress-text element has the correct CSS class for theme-aware text color', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: sampleJobs },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const progressText = wrapper.find('[data-testid="job-job-1"] .progress-text')
+      expect(progressText.exists()).toBe(true)
+      expect(progressText.classes()).toContain('progress-text')
+      expect(progressText.attributes('style')).toBeUndefined()
+    })
+
+    it('progress-line elements have the correct CSS class for theme-aware text color', () => {
+      const jobWithProgress: SampleJob = {
+        id: 'job-progress',
+        training_run_name: 'test/run',
+        sample_preset_id: 'preset-1',
+        workflow_name: 'test.json',
+        vae: 'ae.safetensors',
+        clip: 'clip.safetensors',
+        status: 'running',
+        total_items: 10,
+        completed_items: 3,
+        failed_items: 0,
+        pending_items: 7,
+        created_at: '2025-01-01T00:00:00Z',
+        updated_at: '2025-01-01T00:00:00Z',
+      }
+      const wrapper = mount(JobProgressPanel, {
+        props: {
+          show: true,
+          jobs: [jobWithProgress],
+          jobProgress: {
+            'job-progress': {
+              checkpoints_completed: 2,
+              total_checkpoints: 5,
+              current_checkpoint: 'ckpt-002.safetensors',
+            },
+          },
+        },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const progressLines = wrapper.findAll('.progress-line')
+      expect(progressLines.length).toBeGreaterThan(0)
+      for (const line of progressLines) {
+        expect(line.classes()).toContain('progress-line')
+        expect(line.attributes('style')).toBeUndefined()
+      }
+    })
+
+    it('item-counts element has the correct CSS class for theme-aware text color', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: sampleJobs },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const itemCounts = wrapper.find('[data-testid="job-job-1-counts"]')
+      expect(itemCounts.exists()).toBe(true)
+      expect(itemCounts.classes()).toContain('item-counts')
+      expect(itemCounts.attributes('style')).toBeUndefined()
+    })
+
+    it('progress-details container has the correct CSS class for theme-aware background', () => {
+      const jobWithProgress: SampleJob = {
+        id: 'job-prog2',
+        training_run_name: 'test/run2',
+        sample_preset_id: 'preset-1',
+        workflow_name: 'test.json',
+        vae: 'ae.safetensors',
+        clip: 'clip.safetensors',
+        status: 'running',
+        total_items: 10,
+        completed_items: 3,
+        failed_items: 0,
+        pending_items: 7,
+        created_at: '2025-01-01T00:00:00Z',
+        updated_at: '2025-01-01T00:00:00Z',
+      }
+      const wrapper = mount(JobProgressPanel, {
+        props: {
+          show: true,
+          jobs: [jobWithProgress],
+          jobProgress: {
+            'job-prog2': {
+              checkpoints_completed: 1,
+              total_checkpoints: 4,
+            },
+          },
+        },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const progressDetails = wrapper.find('.progress-details')
+      expect(progressDetails.exists()).toBe(true)
+      expect(progressDetails.classes()).toContain('progress-details')
+      expect(progressDetails.attributes('style')).toBeUndefined()
     })
   })
 

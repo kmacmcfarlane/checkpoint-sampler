@@ -476,8 +476,8 @@ onUnmounted(() => {
   right: 16px;
   width: 20px;
   height: 20px;
-  background-color: var(--accent-color, #1976d2);
-  border: 2px solid var(--bg-color, #ffffff);
+  background-color: var(--accent-color);
+  border: 2px solid var(--bg-color);
   border-radius: 4px;
   cursor: nwse-resize;
   z-index: 100;
@@ -487,21 +487,21 @@ onUnmounted(() => {
 
 .xy-grid__resize-handle:hover {
   transform: scale(1.2);
-  background-color: var(--accent-bg, #e3f2fd);
-  border-color: var(--accent-color, #1976d2);
+  background-color: var(--accent-bg);
+  border-color: var(--accent-color);
 }
 
 .xy-grid__resize-handle--dragging {
   transform: scale(1.3);
-  background-color: var(--accent-bg, #e3f2fd);
-  border-color: var(--accent-color, #1976d2);
+  background-color: var(--accent-bg);
+  border-color: var(--accent-color);
 }
 
 .xy-grid__resize-handle::before,
 .xy-grid__resize-handle::after {
   content: '';
   position: absolute;
-  background-color: var(--bg-color, #ffffff);
+  background-color: var(--bg-color);
 }
 
 .xy-grid__resize-handle::before {
@@ -525,8 +525,8 @@ onUnmounted(() => {
   font-weight: 600;
   text-align: center;
   font-size: 0.875rem;
-  background-color: var(--bg-surface, #f5f5f5);
-  border: 1px solid var(--border-color, #e0e0e0);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
   cursor: pointer;
   user-select: none;
   display: flex;
@@ -536,7 +536,7 @@ onUnmounted(() => {
 }
 
 .xy-grid__col-header:hover {
-  background-color: var(--accent-bg, #e3f2fd);
+  background-color: var(--accent-bg);
 }
 
 .xy-grid__row-header {
@@ -546,15 +546,15 @@ onUnmounted(() => {
   padding: 0.25rem 0.5rem;
   font-weight: 600;
   font-size: 0.875rem;
-  background-color: var(--bg-surface, #f5f5f5);
-  border: 1px solid var(--border-color, #e0e0e0);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
   cursor: pointer;
   user-select: none;
   overflow: hidden;
 }
 
 .xy-grid__row-header:hover {
-  background-color: var(--accent-bg, #e3f2fd);
+  background-color: var(--accent-bg);
 }
 
 .xy-grid__cell {
@@ -570,7 +570,7 @@ onUnmounted(() => {
 }
 
 .xy-grid-empty {
-  color: var(--text-secondary, #666);
+  color: var(--text-secondary);
   padding: 2rem;
   text-align: center;
 }

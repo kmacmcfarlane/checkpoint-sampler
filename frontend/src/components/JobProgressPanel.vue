@@ -293,9 +293,9 @@ function getGroupedErrors(job: SampleJob): Array<{ errorMessage: string; checkpo
 
 .job-item {
   padding: 1rem;
-  border: 1px solid var(--border-color, #e0e0e0);
+  border: 1px solid var(--border-color);
   border-radius: 0.25rem;
-  background: var(--bg-surface, #f5f5f5);
+  background: var(--bg-surface);
 }
 
 .job-header {
@@ -326,7 +326,7 @@ function getGroupedErrors(job: SampleJob): Array<{ errorMessage: string; checkpo
 .job-meta {
   margin: 0;
   font-size: 0.875rem;
-  color: var(--text-secondary, #666666);
+  color: var(--text-secondary);
   display: flex;
   flex-wrap: wrap;
   gap: 0.25rem;
@@ -348,14 +348,14 @@ function getGroupedErrors(job: SampleJob): Array<{ errorMessage: string; checkpo
   gap: 0.25rem;
   margin-bottom: 0.5rem;
   padding: 0.5rem;
-  background: var(--bg-color, #ffffff);
+  background: var(--bg-color);
   border-radius: 0.25rem;
 }
 
 .progress-line {
   margin: 0;
   font-size: 0.875rem;
-  color: var(--text-secondary, #666666);
+  color: var(--text-secondary);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -370,11 +370,11 @@ function getGroupedErrors(job: SampleJob): Array<{ errorMessage: string; checkpo
   display: flex;
   gap: 0.75rem;
   font-size: 0.875rem;
-  color: var(--text-secondary, #666666);
+  color: var(--text-secondary);
 }
 
 .failed-count {
-  color: var(--error-color, #d32f2f);
+  color: var(--error-color);
   font-weight: 600;
 }
 
@@ -382,7 +382,7 @@ function getGroupedErrors(job: SampleJob): Array<{ errorMessage: string; checkpo
   display: flex;
   justify-content: space-between;
   font-size: 0.875rem;
-  color: var(--text-secondary, #666666);
+  color: var(--text-secondary);
 }
 
 .error-section {
@@ -394,7 +394,7 @@ function getGroupedErrors(job: SampleJob): Array<{ errorMessage: string; checkpo
   border: none;
   padding: 0.25rem 0;
   font: inherit;
-  color: var(--error-color, #d32f2f);
+  color: var(--error-color);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -421,8 +421,8 @@ function getGroupedErrors(job: SampleJob): Array<{ errorMessage: string; checkpo
 .error-details {
   margin-top: 0.5rem;
   padding: 0.5rem;
-  background: var(--bg-color, #ffffff);
-  border: 1px solid var(--error-color, #d32f2f);
+  background: var(--bg-color);
+  border: 1px solid var(--error-color);
   border-radius: 0.25rem;
 }
 
@@ -438,7 +438,7 @@ function getGroupedErrors(job: SampleJob): Array<{ errorMessage: string; checkpo
   margin: 0 0 0.25rem;
   font-size: 0.8125rem;
   font-weight: 600;
-  color: var(--error-color, #d32f2f);
+  color: var(--error-color);
 }
 
 .error-group-checkpoints {
@@ -450,13 +450,13 @@ function getGroupedErrors(job: SampleJob): Array<{ errorMessage: string; checkpo
 .error-group-checkpoint {
   font-size: 0.8125rem;
   font-family: monospace;
-  color: var(--text-secondary, #666666);
+  color: var(--text-secondary);
 }
 
 .error-message {
   margin: 0;
   padding: 0.5rem;
-  background: var(--error-color, #d32f2f);
+  background: var(--error-color);
   color: var(--bg-color);
   border-radius: 0.25rem;
   font-size: 0.875rem;

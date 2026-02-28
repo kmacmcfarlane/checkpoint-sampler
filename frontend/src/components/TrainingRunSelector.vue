@@ -124,7 +124,7 @@ function onSelect(value: number | null) {
 }
 
 .training-run-selector .error {
-  color: var(--error-color, #d32f2f);
+  color: var(--error-color);
   font-size: 0.875rem;
   margin: 0;
 }

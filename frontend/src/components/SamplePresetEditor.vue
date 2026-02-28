@@ -541,7 +541,7 @@ function onUpdateSeeds(tags: string[]) {
 
 .total-images {
   padding: 1rem;
-  background: var(--accent-bg, #e3f2fd);
+  background: var(--accent-bg);
   border-radius: 0.25rem;
   text-align: center;
   font-size: 1.125rem;
