@@ -17,11 +17,13 @@ import { resetDatabase } from './helpers'
 /**
  * Opens a Naive UI NSelect dropdown identified by aria-label, waits for the
  * popup to appear, then clicks the option matching optionText.
+ *
+ * Note: .n-base-select-menu is a Naive UI portal element; no stable data-testid
+ * alternative exists. It is stable in practice as a functional class (not internal styling).
  */
 async function selectNaiveOption(page: Page, selectAriaLabel: string, optionText: string): Promise<void> {
   const select = page.locator(`[aria-label="${selectAriaLabel}"]`)
   await select.click()
-  // Naive UI renders the popup menu as .n-base-select-menu — wait for it to be visible
   const popupMenu = page.locator('.n-base-select-menu:visible')
   await expect(popupMenu).toBeVisible()
   await popupMenu.getByText(optionText, { exact: true }).click()
@@ -34,7 +36,7 @@ async function selectNaiveOption(page: Page, selectAriaLabel: string, optionText
  * Waits for the training runs to load and the option to appear.
  */
 async function selectTrainingRun(page: Page, runName: string): Promise<void> {
-  const selectTrigger = page.locator('.training-run-selector .n-select')
+  const selectTrigger = page.locator('[data-testid="training-run-select"]')
   await expect(selectTrigger).toBeVisible()
   await selectTrigger.click()
   const popupMenu = page.locator('.n-base-select-menu:visible')

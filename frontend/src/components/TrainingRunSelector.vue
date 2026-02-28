@@ -91,6 +91,7 @@ function onSelect(value: number | null) {
       :menu-props="{ style: 'min-width: 320px; max-width: min(600px, 100vw)' }"
       filterable
       class="training-run-select"
+      data-testid="training-run-select"
       size="small"
       @update:value="onSelect"
     />

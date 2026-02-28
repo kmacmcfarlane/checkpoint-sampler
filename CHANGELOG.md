@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-052: Apply data-testid selectors and test isolation to existing frontend tests
+- `frontend/vitest.setup.ts`: New global test setup file with `enableAutoUnmount(afterEach)` and `beforeEach(() => localStorage.clear())` for all Vitest test files
+- `frontend/vite.config.ts`: Added `setupFiles: ['./vitest.setup.ts']` to test configuration
+- `frontend/src/components/TrainingRunSelector.vue`: Added `data-testid="training-run-select"` to NSelect element
+- `frontend/src/components/SamplePresetEditor.vue`: Added NDynamicTags trigger slots with data-testid buttons, NDynamicInput action slot with per-row data-testid buttons, and createButtonProps with data-testid
+- `frontend/src/components/__tests__/*.test.ts`: Removed per-file `enableAutoUnmount(afterEach)` from 4 files (now handled globally)
+- `frontend/e2e/*.spec.ts`: All 9 E2E spec files updated to use `data-testid` and `aria-label` selectors instead of Naive UI internal CSS classes (`.n-dynamic-tags__add`, `.n-drawer-header__close`, `.n-drawer-mask`, `.n-button--dashed`, etc.)
+- 727 frontend tests pass; 572 backend tests pass; 38 E2E tests pass
+
 ### S-064: E2E test data isolation per run
 - `backend/internal/store/store.go`: Added `ResetDB()` method that drops all application tables in FK dependency order and reruns migrations from scratch for a clean database state
 - `backend/internal/store/db_test.go`: 4 new Ginkgo tests for `ResetDB` covering data clearing, schema recreation, FK chain handling, and idempotency

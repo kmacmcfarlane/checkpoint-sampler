@@ -1,12 +1,9 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { mount, flushPromises } from '@vue/test-utils'
 import ImageLightbox from '../ImageLightbox.vue'
 import SliderBar from '../SliderBar.vue'
 
-// Automatically unmount all wrappers after each test to prevent stale document
-// event listeners (especially the capture-phase keydown listener) from leaking
-// between tests and interfering with subsequent tests.
-enableAutoUnmount(afterEach)
+// enableAutoUnmount is configured globally in vitest.setup.ts
 
 // Mock the api client module
 vi.mock('../../api/client', () => ({

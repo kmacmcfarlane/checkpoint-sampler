@@ -32,14 +32,17 @@ function formatViolations(violations: Array<{ id: string; impact: string | null;
  * Closes the app drawer if it is open, so its mask does not intercept pointer events
  * on the header controls (e.g., the theme toggle button).
  *
- * Uses the close button in the drawer header. Safe to call even if the drawer is closed.
+ * Uses the close button in the drawer header (aria-label="close", set by NBaseClose).
+ * Safe to call even if the drawer is closed.
  * See TEST_PRACTICES.md §6.9 (NDrawer mask interaction).
  */
 async function closeDrawerIfOpen(page: Page): Promise<void> {
-  const drawerCloseButton = page.locator('.n-drawer-header__close')
+  const drawerCloseButton = page.locator('[aria-label="close"]').first()
   if (await drawerCloseButton.isVisible()) {
     await drawerCloseButton.click()
-    await expect(page.locator('.n-drawer-mask')).not.toBeVisible()
+    // Wait for the drawer to close (close button disappears)
+    await expect(drawerCloseButton).not.toBeVisible()
+    await page.waitForTimeout(300)
   }
 }
 

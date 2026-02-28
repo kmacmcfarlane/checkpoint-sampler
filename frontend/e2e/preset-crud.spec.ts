@@ -31,7 +31,7 @@ import { resetDatabase } from './helpers'
  * Selects a training run from the sidebar NSelect dropdown.
  */
 async function selectTrainingRun(page: Page, runName: string): Promise<void> {
-  const selectTrigger = page.locator('.training-run-selector .n-select')
+  const selectTrigger = page.locator('[data-testid="training-run-select"]')
   await expect(selectTrigger).toBeVisible()
   await selectTrigger.click()
   const popupMenu = page.locator('.n-base-select-menu:visible')
@@ -43,12 +43,15 @@ async function selectTrainingRun(page: Page, runName: string): Promise<void> {
 /**
  * Closes the sidebar drawer if it is open.
  * On wide screens the drawer opens automatically and its mask blocks header buttons.
+ * The close button has aria-label="close" (set by Naive UI's NBaseClose).
  */
 async function closeDrawer(page: Page): Promise<void> {
-  const drawerCloseButton = page.locator('.n-drawer-header__close')
+  const drawerCloseButton = page.locator('[aria-label="close"]').first()
   if (await drawerCloseButton.isVisible()) {
     await drawerCloseButton.click()
-    await expect(page.locator('.n-drawer-mask')).not.toBeVisible()
+    // Wait for the drawer to close (close button disappears)
+    await expect(drawerCloseButton).not.toBeVisible()
+    await page.waitForTimeout(300)
   }
 }
 
@@ -76,12 +79,13 @@ async function fillPresetName(page: Page, name: string): Promise<void> {
 
 /**
  * Adds a value as a tag in a Naive UI NDynamicTags component.
- * Clicks the "+" Add button to reveal the inline input, types the value, then presses Enter.
+ * Clicks the custom "+" add button (data-testid="{tagsTestId}-add") to reveal
+ * the inline input, types the value, then presses Enter.
  */
 async function addTagToNDynamicTags(page: Page, tagsTestId: string, value: string): Promise<void> {
   const container = page.locator(`[data-testid="${tagsTestId}"]`)
-  // Click the "+" add button to reveal the inline input
-  const addButton = container.locator('.n-dynamic-tags__add')
+  // Click the custom add button rendered by the trigger slot
+  const addButton = page.locator(`[data-testid="${tagsTestId}-add"]`)
   await addButton.click()
   // Type the value into the revealed input
   const input = container.locator('input')
@@ -108,24 +112,26 @@ async function fillFirstPromptRow(page: Page, promptName: string, promptText: st
 
 /**
  * Adds a sampler/scheduler pair via the NDynamicInput for pairs.
- * Clicks the "Add" button to create a new pair row, then fills in the
+ * Clicks the "+" button to create a new pair row, then fills in the
  * sampler and scheduler NSelect inputs using tag mode.
  *
- * When the pairs list is empty (min=0), Naive UI renders a dashed "create"
- * button instead of per-row action buttons. This helper handles both cases.
+ * When the pairs list is empty (min=0), NDynamicInput renders a dashed "create"
+ * button (data-testid="pairs-create-button"). When the list is non-empty, each row
+ * renders a per-row add button (data-testid="pair-row-add-{index}").
+ * Both are rendered via data-testid for test stability.
  */
 async function addSamplerSchedulerPair(page: Page, sampler: string, scheduler: string): Promise<void> {
   const pairsContainer = page.locator('[data-testid="sampler-scheduler-pairs"]')
   await expect(pairsContainer).toBeVisible()
 
   // Determine which add button to click:
-  // - Empty list: Naive UI renders a dashed button (n-button--dashed) as the "create first item" action
-  // - Non-empty list: each row has action buttons (.n-dynamic-input-item__action button)
-  const perRowAddButton = pairsContainer.locator('.n-dynamic-input-item__action button').last()
-  const emptyStateButton = pairsContainer.locator('button.n-button--dashed')
+  // - Empty list: "pairs-create-button" (dashed create button rendered by NDynamicInput)
+  // - Non-empty list: "pair-row-add-{last-index}" (per-row action button)
+  const perRowAddButtons = page.locator('[data-testid^="pair-row-add-"]')
+  const emptyStateButton = page.locator('[data-testid="pairs-create-button"]')
 
-  if (await perRowAddButton.isVisible().catch(() => false)) {
-    await perRowAddButton.click()
+  if (await perRowAddButtons.last().isVisible().catch(() => false)) {
+    await perRowAddButtons.last().click()
   } else {
     await emptyStateButton.click()
   }
@@ -198,12 +204,13 @@ async function openManagePresetsEditor(page: Page): Promise<void> {
 
 /**
  * Closes the Manage Presets modal by clicking its close button.
- * Naive UI NCard (preset="card") renders a close button in the card header.
+ * Naive UI NCard (preset="card") renders a close button in the card header
+ * with aria-label="close" (set by NBaseClose).
  */
 async function closeManagePresetsModal(page: Page): Promise<void> {
   const managePresetsDialog = getManagePresetsDialog(page)
-  // The close button in a Naive UI NCard header has class n-card-header__close
-  const closeButton = managePresetsDialog.locator('.n-card-header__close').first()
+  // The close button has aria-label="close" (set by Naive UI's NBaseClose)
+  const closeButton = managePresetsDialog.locator('[aria-label="close"]').first()
   await expect(closeButton).toBeVisible()
   await closeButton.click()
   await expect(managePresetsDialog).not.toBeVisible()

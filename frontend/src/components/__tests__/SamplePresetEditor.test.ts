@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach, afterAll } from 'vitest'
-import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
+import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest'
+import { mount, flushPromises } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { NSelect, NButton, NInput, NInputNumber, NDynamicInput, NDynamicTags } from 'naive-ui'
 import SamplePresetEditor from '../SamplePresetEditor.vue'
@@ -24,7 +24,7 @@ beforeEach(() => {
 
 import { apiClient } from '../../api/client'
 
-enableAutoUnmount(afterEach)
+// enableAutoUnmount is configured globally in vitest.setup.ts
 
 const mockListSamplePresets = apiClient.listSamplePresets as ReturnType<typeof vi.fn>
 const mockCreateSamplePreset = apiClient.createSamplePreset as ReturnType<typeof vi.fn>

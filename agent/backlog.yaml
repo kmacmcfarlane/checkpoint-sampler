@@ -17,7 +17,7 @@ stories:
   - id: S-052
     title: "Apply data-testid selectors and test isolation to existing frontend tests"
     priority: 45
-    status: todo
+    status: uat
     requires: []
     acceptance:
       - "FE: All E2E tests use data-testid selectors instead of Naive UI internal CSS classes (e.g., .n-dynamic-tags__add)"

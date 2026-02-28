@@ -17,7 +17,7 @@ import { resetDatabase } from './helpers'
  * Selects a training run from the sidebar NSelect dropdown.
  */
 async function selectTrainingRun(page: Page, runName: string): Promise<void> {
-  const selectTrigger = page.locator('.training-run-selector .n-select')
+  const selectTrigger = page.locator('[data-testid="training-run-select"]')
   await expect(selectTrigger).toBeVisible()
   await selectTrigger.click()
   const popupMenu = page.locator('.n-base-select-menu:visible')
@@ -29,6 +29,9 @@ async function selectTrainingRun(page: Page, runName: string): Promise<void> {
 /**
  * Opens a Naive UI NSelect dropdown identified by aria-label, waits for the
  * popup to appear, then clicks the option matching optionText.
+ *
+ * Note: .n-base-select-menu is a Naive UI portal element; no stable data-testid
+ * alternative exists. It is stable in practice as a functional class (not internal styling).
  */
 async function selectNaiveOption(page: Page, selectAriaLabel: string, optionText: string): Promise<void> {
   const select = page.locator(`[aria-label="${selectAriaLabel}"]`)
@@ -63,10 +66,13 @@ async function setupGridWithImages(page: Page): Promise<void> {
 
   // Close the drawer so its mask doesn't intercept clicks on grid cells.
   // NDrawer renders a mask overlay that blocks pointer events even on desktop.
-  const drawerCloseButton = page.locator('.n-drawer-header__close')
+  // The close button has aria-label="close" (set by Naive UI's NBaseClose).
+  const drawerCloseButton = page.locator('[aria-label="close"]').first()
   if (await drawerCloseButton.isVisible()) {
     await drawerCloseButton.click()
-    await expect(page.locator('.n-drawer-mask')).not.toBeVisible()
+    // Wait for the drawer to close (close button disappears)
+    await expect(drawerCloseButton).not.toBeVisible()
+    await page.waitForTimeout(300)
   }
 }
 
@@ -255,10 +261,13 @@ async function setupGridWithSlider(page: Page): Promise<void> {
   await expect(images.first()).toBeVisible()
 
   // Close the drawer so its mask doesn't intercept clicks on grid cells.
-  const drawerCloseButton = page.locator('.n-drawer-header__close')
+  // The close button has aria-label="close" (set by Naive UI's NBaseClose).
+  const drawerCloseButton = page.locator('[aria-label="close"]').first()
   if (await drawerCloseButton.isVisible()) {
     await drawerCloseButton.click()
-    await expect(page.locator('.n-drawer-mask')).not.toBeVisible()
+    // Wait for the drawer to close (close button disappears)
+    await expect(drawerCloseButton).not.toBeVisible()
+    await page.waitForTimeout(300)
   }
 }
 
