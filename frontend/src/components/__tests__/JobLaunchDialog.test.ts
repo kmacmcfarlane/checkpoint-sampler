@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { mount, flushPromises } from '@vue/test-utils'
 import { nextTick, type VNode } from 'vue'
 import { NModal, NSelect, NInputNumber, NButton, NCheckbox } from 'naive-ui'
 import JobLaunchDialog from '../JobLaunchDialog.vue'
@@ -151,7 +151,7 @@ const runningJob: SampleJob = {
 
 const allTrainingRuns = [runEmpty, runWithSamples, runRunning]
 
-enableAutoUnmount(afterEach)
+// enableAutoUnmount is configured globally in vitest.setup.ts
 
 describe('JobLaunchDialog', () => {
   beforeEach(() => {

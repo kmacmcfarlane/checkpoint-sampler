@@ -381,7 +381,19 @@ function onUpdateSeeds(tags: string[]) {
               size="medium"
               data-testid="steps-tags"
               @update:value="onUpdateSteps"
-            />
+            >
+              <template #trigger="{ activate, disabled }">
+                <NButton
+                  size="medium"
+                  dashed
+                  :disabled="disabled"
+                  data-testid="steps-tags-add"
+                  @click="activate"
+                >
+                  +
+                </NButton>
+              </template>
+            </NDynamicTags>
           </div>
 
           <div class="form-field">
@@ -392,7 +404,19 @@ function onUpdateSeeds(tags: string[]) {
               size="medium"
               data-testid="cfgs-tags"
               @update:value="onUpdateCfgs"
-            />
+            >
+              <template #trigger="{ activate, disabled }">
+                <NButton
+                  size="medium"
+                  dashed
+                  :disabled="disabled"
+                  data-testid="cfgs-tags-add"
+                  @click="activate"
+                >
+                  +
+                </NButton>
+              </template>
+            </NDynamicTags>
           </div>
         </div>
 
@@ -402,33 +426,55 @@ function onUpdateSeeds(tags: string[]) {
             v-model:value="samplerSchedulerPairs"
             :min="0"
             :on-create="createPairItem"
+            :create-button-props="{ 'data-testid': 'pairs-create-button' }"
             data-testid="sampler-scheduler-pairs"
-            #="{ index, value }"
           >
-            <div class="pair-row">
-              <NSelect
-                :value="value.sampler"
-                :options="samplerOptions"
-                filterable
-                tag
-                placeholder="Sampler"
-                size="medium"
-                class="pair-select"
-                :data-testid="`pair-sampler-${index}`"
-                @update:value="(v: string) => { samplerSchedulerPairs[index].sampler = v }"
-              />
-              <NSelect
-                :value="value.scheduler"
-                :options="schedulerOptions"
-                filterable
-                tag
-                placeholder="Scheduler"
-                size="medium"
-                class="pair-select"
-                :data-testid="`pair-scheduler-${index}`"
-                @update:value="(v: string) => { samplerSchedulerPairs[index].scheduler = v }"
-              />
-            </div>
+            <template #default="{ index, value }">
+              <div class="pair-row">
+                <NSelect
+                  :value="value.sampler"
+                  :options="samplerOptions"
+                  filterable
+                  tag
+                  placeholder="Sampler"
+                  size="medium"
+                  class="pair-select"
+                  :data-testid="`pair-sampler-${index}`"
+                  @update:value="(v: string) => { samplerSchedulerPairs[index].sampler = v }"
+                />
+                <NSelect
+                  :value="value.scheduler"
+                  :options="schedulerOptions"
+                  filterable
+                  tag
+                  placeholder="Scheduler"
+                  size="medium"
+                  class="pair-select"
+                  :data-testid="`pair-scheduler-${index}`"
+                  @update:value="(v: string) => { samplerSchedulerPairs[index].scheduler = v }"
+                />
+              </div>
+            </template>
+            <template #action="{ index: actionIndex, create, remove }">
+              <div class="pair-row-actions">
+                <NButton
+                  circle
+                  size="small"
+                  :data-testid="`pair-row-remove-${actionIndex}`"
+                  @click="remove(actionIndex)"
+                >
+                  -
+                </NButton>
+                <NButton
+                  circle
+                  size="small"
+                  :data-testid="`pair-row-add-${actionIndex}`"
+                  @click="create(actionIndex)"
+                >
+                  +
+                </NButton>
+              </div>
+            </template>
           </NDynamicInput>
         </div>
 
@@ -440,7 +486,19 @@ function onUpdateSeeds(tags: string[]) {
             size="medium"
             data-testid="seeds-tags"
             @update:value="onUpdateSeeds"
-          />
+          >
+            <template #trigger="{ activate, disabled }">
+              <NButton
+                size="medium"
+                dashed
+                :disabled="disabled"
+                data-testid="seeds-tags-add"
+                @click="activate"
+              >
+                +
+              </NButton>
+            </template>
+          </NDynamicTags>
         </div>
 
         <div class="form-row">
@@ -547,6 +605,13 @@ function onUpdateSeeds(tags: string[]) {
 
 .pair-select {
   flex: 1;
+}
+
+.pair-row-actions {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+  margin-left: 0.5rem;
 }
 
 .total-images {

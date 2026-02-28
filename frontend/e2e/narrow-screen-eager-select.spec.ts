@@ -103,7 +103,7 @@ test.describe('narrow screen eager auto-select', () => {
 
     // Step 5: Verify the training run selector in the drawer shows the correct run
     // The NSelect trigger should display the training run name
-    const selectTrigger = page.locator('.training-run-selector .n-select')
+    const selectTrigger = page.locator('[data-testid="training-run-select"]')
     await expect(selectTrigger).toBeVisible()
     await expect(selectTrigger).toContainText(trainingRunName)
   })

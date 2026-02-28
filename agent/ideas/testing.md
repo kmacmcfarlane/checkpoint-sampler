@@ -55,3 +55,9 @@ Keyboard-driven slider behaviors (arrow navigation with auto-repeat) are difficu
 * priority: low
 * source: developer
 The "Eager auto-select" tests in App.test.ts set `Object.defineProperty(window, 'innerWidth', ...)` which persists across tests since `vi.unstubAllGlobals()` only removes `vi.stubGlobal` stubs. Tests running after this section inherit the modified `innerWidth`. A shared `afterEach` that resets `innerWidth` to a known default would prevent ordering-dependent test failures.
+
+### Shared E2E helper functions across spec files
+* status: needs_approval
+* priority: low
+* source: developer
+Many E2E spec files duplicate `selectTrainingRun`, `selectNaiveOption`, and `closeDrawer` helper functions. Extracting these to `frontend/e2e/helpers.ts` (alongside the existing `resetDatabase` helper) would reduce duplication and make future selector changes a single-file edit.

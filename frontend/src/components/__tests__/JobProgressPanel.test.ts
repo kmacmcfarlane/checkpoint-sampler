@@ -1,11 +1,11 @@
-import { describe, it, expect, afterEach } from 'vitest'
-import { mount, enableAutoUnmount } from '@vue/test-utils'
+import { describe, it, expect } from 'vitest'
+import { mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { NModal, NButton, NTag, NProgress, NEmpty } from 'naive-ui'
 import JobProgressPanel from '../JobProgressPanel.vue'
 import type { SampleJob } from '../../api/types'
 
-enableAutoUnmount(afterEach)
+// enableAutoUnmount is configured globally in vitest.setup.ts
 
 const sampleJobs: SampleJob[] = [
   {
