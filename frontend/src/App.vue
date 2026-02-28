@@ -12,7 +12,7 @@ import AppDrawer from './components/AppDrawer.vue'
 import TrainingRunSelector from './components/TrainingRunSelector.vue'
 import DimensionPanel from './components/DimensionPanel.vue'
 import XYGrid from './components/XYGrid.vue'
-import type { ImageClickContext } from './components/XYGrid.vue'
+import type { ImageClickContext, GridNavItem } from './components/XYGrid.vue'
 import DimensionFilter from './components/DimensionFilter.vue'
 import MasterSlider from './components/MasterSlider.vue'
 import ZoomControl from './components/ZoomControl.vue'
@@ -108,6 +108,24 @@ function onLightboxSliderChange(cellKey: string, value: string) {
       lightboxImageUrl.value = newUrl
       lightboxContext.value = { ...lightboxContext.value, currentSliderValue: value, imageUrl: newUrl }
     }
+  }
+}
+
+function onLightboxNavigate(index: number) {
+  if (!lightboxContext.value) return
+  const gridImages = lightboxContext.value.gridImages
+  if (!gridImages || gridImages.length === 0) return
+  const clampedIndex = Math.max(0, Math.min(index, gridImages.length - 1))
+  const item: GridNavItem = gridImages[clampedIndex]
+  lightboxImageUrl.value = item.imageUrl
+  lightboxContext.value = {
+    ...lightboxContext.value,
+    imageUrl: item.imageUrl,
+    cellKey: item.cellKey ?? lightboxContext.value.cellKey,
+    sliderValues: item.sliderValues,
+    currentSliderValue: item.currentSliderValue,
+    imagesBySliderValue: item.imagesBySliderValue,
+    gridIndex: clampedIndex,
   }
 }
 
@@ -622,8 +640,12 @@ const showProminentGenerateButton = computed(() => {
         :slider-values="lightboxContext?.sliderValues ?? []"
         :current-slider-value="lightboxContext?.currentSliderValue ?? ''"
         :images-by-slider-value="lightboxContext?.imagesBySliderValue ?? {}"
+        :slider-dimension-name="sliderDimension?.name ?? ''"
+        :grid-images="lightboxContext?.gridImages ?? []"
+        :grid-index="lightboxContext?.gridIndex ?? 0"
         @close="onLightboxClose"
         @slider-change="onLightboxSliderChange"
+        @navigate="onLightboxNavigate"
       />
       <CheckpointMetadataPanel
         v-if="metadataPanelOpen && selectedTrainingRun"

@@ -536,7 +536,7 @@ stories:
   - id: S-061
     title: "Lightbox UX improvements — keyboard navigation and slider dimension label"
     priority: 70
-    status: todo
+    status: uat
     requires: []
     acceptance:
       - "FE: Shift+ArrowLeft and Shift+ArrowRight navigate between images in the grid while the lightbox is open"

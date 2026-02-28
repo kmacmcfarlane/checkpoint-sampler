@@ -224,3 +224,161 @@ test.describe('image lightbox interaction', () => {
     await expect(gridContainer).toBeVisible()
   })
 })
+
+/**
+ * Sets up the app with:
+ *   - "test-run/my-model" selected
+ *   - "checkpoint" assigned to X Axis
+ *   - "prompt_name" assigned to Slider
+ *   - Drawer closed
+ *
+ * This gives a 2-column grid (checkpoint 1000, 2000) with prompt_name as
+ * slider dimension. The slider panel inside the lightbox should show
+ * "prompt_name" as its label.
+ */
+async function setupGridWithSlider(page: Page): Promise<void> {
+  await page.goto('/')
+  await selectTrainingRun(page, 'test-run/my-model')
+  await expect(page.getByText('Dimensions')).toBeVisible()
+
+  await selectNaiveOption(page, 'Role for checkpoint', 'X Axis')
+  await selectNaiveOption(page, 'Role for prompt_name', 'Slider')
+
+  // Wait for at least one image in the grid
+  const images = page.locator('.xy-grid [role="gridcell"] img')
+  await expect(images.first()).toBeVisible()
+
+  // Close the drawer so its mask doesn't intercept clicks on grid cells.
+  const drawerCloseButton = page.locator('.n-drawer-header__close')
+  if (await drawerCloseButton.isVisible()) {
+    await drawerCloseButton.click()
+    await expect(page.locator('.n-drawer-mask')).not.toBeVisible()
+  }
+}
+
+test.describe('lightbox keyboard navigation (Shift+Arrow)', () => {
+  // AC: Shift+ArrowLeft and Shift+ArrowRight navigate between images in the grid
+  // while the lightbox is open
+  test('Shift+ArrowRight navigates to the next grid image in the lightbox', async ({ page }) => {
+    await setupGridWithImages(page)
+
+    // Open the lightbox by clicking the first image cell
+    const firstImage = page.locator('.xy-grid [role="gridcell"] img').first()
+    await firstImage.click()
+
+    const lightbox = page.locator('[role="dialog"][aria-label="Image lightbox"]')
+    await expect(lightbox).toBeVisible()
+
+    // Record the initial image src
+    const fullSizeImage = lightbox.locator('img[alt="Full-size image"]')
+    const initialSrc = await fullSizeImage.getAttribute('src')
+    expect(initialSrc).toContain('/api/images/')
+
+    // Press Shift+ArrowRight to navigate to the next image
+    await page.keyboard.press('Shift+ArrowRight')
+
+    // The image src should change to a different image
+    await expect(fullSizeImage).not.toHaveAttribute('src', initialSrc!)
+    const newSrc = await fullSizeImage.getAttribute('src')
+    expect(newSrc).toContain('/api/images/')
+    expect(newSrc).not.toBe(initialSrc)
+  })
+
+  test('Shift+ArrowLeft navigates to the previous grid image in the lightbox', async ({ page }) => {
+    await setupGridWithImages(page)
+
+    // Open the lightbox on the second image cell (not the first, so we can go back)
+    const secondImage = page.locator('.xy-grid [role="gridcell"] img').nth(1)
+    await secondImage.click()
+
+    const lightbox = page.locator('[role="dialog"][aria-label="Image lightbox"]')
+    await expect(lightbox).toBeVisible()
+
+    const fullSizeImage = lightbox.locator('img[alt="Full-size image"]')
+    const initialSrc = await fullSizeImage.getAttribute('src')
+
+    // Press Shift+ArrowLeft to navigate to the previous image
+    await page.keyboard.press('Shift+ArrowLeft')
+
+    // The image should change
+    await expect(fullSizeImage).not.toHaveAttribute('src', initialSrc!)
+  })
+
+  // AC: Navigation wraps around at grid boundaries
+  test('navigation wraps around at grid boundaries', async ({ page }) => {
+    await setupGridWithImages(page)
+
+    // Open lightbox on the first image cell
+    const firstImage = page.locator('.xy-grid [role="gridcell"] img').first()
+    await firstImage.click()
+
+    const lightbox = page.locator('[role="dialog"][aria-label="Image lightbox"]')
+    await expect(lightbox).toBeVisible()
+
+    const fullSizeImage = lightbox.locator('img[alt="Full-size image"]')
+    const firstSrc = await fullSizeImage.getAttribute('src')
+
+    // Press Shift+ArrowLeft on the first image — should wrap to the last image
+    await page.keyboard.press('Shift+ArrowLeft')
+
+    const wrappedSrc = await fullSizeImage.getAttribute('src')
+    expect(wrappedSrc).toContain('/api/images/')
+    expect(wrappedSrc).not.toBe(firstSrc)
+
+    // Press Shift+ArrowRight on the last image — should wrap back to the first image
+    await page.keyboard.press('Shift+ArrowRight')
+
+    const backToFirstSrc = await fullSizeImage.getAttribute('src')
+    expect(backToFirstSrc).toBe(firstSrc)
+  })
+
+  // AC: Regular ArrowLeft/ArrowRight continue to control the slider (existing behavior)
+  test('plain ArrowLeft/ArrowRight do not navigate grid images (no navigate event)', async ({ page }) => {
+    await setupGridWithImages(page)
+
+    // Open lightbox on the first image cell
+    const firstImage = page.locator('.xy-grid [role="gridcell"] img').first()
+    await firstImage.click()
+
+    const lightbox = page.locator('[role="dialog"][aria-label="Image lightbox"]')
+    await expect(lightbox).toBeVisible()
+
+    const fullSizeImage = lightbox.locator('img[alt="Full-size image"]')
+    const initialSrc = await fullSizeImage.getAttribute('src')
+
+    // Plain ArrowRight (no Shift) should NOT change the image (no slider in this config)
+    await page.keyboard.press('ArrowRight')
+
+    // Image should remain the same
+    const afterArrowSrc = await fullSizeImage.getAttribute('src')
+    expect(afterArrowSrc).toBe(initialSrc)
+  })
+})
+
+test.describe('lightbox slider dimension label', () => {
+  // AC: Lightbox slider label shows the actual dimension name (e.g., 'cfg', 'checkpoint')
+  // instead of generic 'Slider'
+  // AC: Dimension name passed through to the lightbox as a prop from the grid
+  test('lightbox slider shows the actual dimension name as label', async ({ page }) => {
+    await setupGridWithSlider(page)
+
+    // Open lightbox on the first image cell
+    const firstImage = page.locator('.xy-grid [role="gridcell"] img').first()
+    await firstImage.click()
+
+    const lightbox = page.locator('[role="dialog"][aria-label="Image lightbox"]')
+    await expect(lightbox).toBeVisible()
+
+    // The lightbox should show a slider panel with the dimension name "prompt_name"
+    // (not the generic "Slider" label)
+    const sliderPanel = lightbox.locator('.lightbox-slider-panel')
+    await expect(sliderPanel).toBeVisible()
+
+    // The SliderBar uses its label prop as the aria-label on the root .slider-bar div.
+    // Verify it shows the actual dimension name "prompt_name" instead of generic "Slider".
+    const sliderBar = sliderPanel.locator('.slider-bar')
+    await expect(sliderBar).toBeVisible()
+    const ariaLabel = await sliderBar.getAttribute('aria-label')
+    expect(ariaLabel).toBe('prompt_name')
+  })
+})

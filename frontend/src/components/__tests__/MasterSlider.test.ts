@@ -294,6 +294,9 @@ describe('MasterSlider', () => {
             '7': '/api/images/dir/b.png',
             '15': '/api/images/dir/c.png',
           },
+          sliderDimensionName: 'cfg',
+          gridImages: [],
+          gridIndex: 0,
         },
       })
 

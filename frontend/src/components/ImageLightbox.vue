@@ -3,6 +3,7 @@ import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
 import { NButton } from 'naive-ui'
 import { apiClient } from '../api/client'
 import SliderBar from './SliderBar.vue'
+import type { GridNavItem } from './XYGrid.vue'
 
 const props = defineProps<{
   imageUrl: string
@@ -14,11 +15,19 @@ const props = defineProps<{
   currentSliderValue: string
   /** Map from slider value → image URL for this cell. Empty object when no slider. */
   imagesBySliderValue: Record<string, string>
+  /** The actual dimension name for the slider (e.g. 'cfg', 'checkpoint'). Empty string when no slider. */
+  sliderDimensionName: string
+  /** Ordered list of all visible grid images, for Shift+Arrow navigation. */
+  gridImages: GridNavItem[]
+  /** Index of the currently displayed image in gridImages. */
+  gridIndex: number
 }>()
 
 const emit = defineEmits<{
   close: []
   'slider-change': [cellKey: string, value: string]
+  /** Emitted when the user navigates to a different grid image via Shift+Arrow. */
+  navigate: [index: number]
 }>()
 
 const scale = ref(1)
@@ -131,7 +140,23 @@ function onKeyDown(e: KeyboardEvent) {
     return
   }
 
-  // Arrow keys navigate the lightbox slider when it is visible
+  // Shift+ArrowLeft / Shift+ArrowRight navigate between grid images (wrapping)
+  if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && e.shiftKey) {
+    e.preventDefault()
+    e.stopImmediatePropagation()
+    const total = props.gridImages.length
+    if (total === 0) return
+    if (e.key === 'ArrowLeft') {
+      const newIndex = (props.gridIndex - 1 + total) % total
+      emit('navigate', newIndex)
+    } else {
+      const newIndex = (props.gridIndex + 1) % total
+      emit('navigate', newIndex)
+    }
+    return
+  }
+
+  // Plain ArrowLeft/ArrowRight (without Shift) navigate the lightbox slider when it is visible
   if (!hasSlider.value || !props.cellKey) return
   const idx = props.sliderValues.indexOf(props.currentSliderValue)
   if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
@@ -297,7 +322,7 @@ onUnmounted(() => {
       <SliderBar
         :values="sliderValues"
         :current-value="currentSliderValue"
-        label="Slider"
+        :label="sliderDimensionName || 'Slider'"
         @change="onLightboxSliderChange"
       />
     </div>

@@ -21,13 +21,22 @@ const props = withDefaults(defineProps<{
   maintainAspectRatio: true,
 })
 
-/** Context passed when a cell image is clicked. */
-export interface ImageClickContext {
+/** Minimal context for a single grid cell image, used for grid navigation. */
+export interface GridNavItem {
   imageUrl: string
-  cellKey: string
+  cellKey: string | null
   sliderValues: string[]
   currentSliderValue: string
   imagesBySliderValue: Record<string, string>
+}
+
+/** Context passed when a cell image is clicked. */
+export interface ImageClickContext extends GridNavItem {
+  cellKey: string
+  /** All visible grid images in order, for lightbox navigation. */
+  gridImages: GridNavItem[]
+  /** Index of this image in gridImages. */
+  gridIndex: number
 }
 
 const emit = defineEmits<{
@@ -147,18 +156,91 @@ function getImagesBySliderValue(xVal: string | undefined, yVal: string | undefin
   return result
 }
 
+/**
+ * Build the ordered list of all visible grid cells that have images,
+ * for lightbox grid navigation.
+ */
+function buildGridNavItems(): GridNavItem[] {
+  const items: GridNavItem[] = []
+  const sliderVals = props.sliderDimension?.values ?? []
+
+  if (hasNoAxes.value) {
+    // Flat mode: one synthetic cell
+    for (const img of flatImages.value) {
+      const url = `/api/images/${img.relative_path}`
+      items.push({
+        imageUrl: url,
+        cellKey: '|',
+        sliderValues: sliderVals,
+        currentSliderValue: getSliderValue(undefined, undefined),
+        imagesBySliderValue: getImagesBySliderValue(undefined, undefined),
+      })
+    }
+  } else if (props.xDimension && props.yDimension) {
+    // X+Y grid: row-major order (y outer, x inner)
+    for (const yVal of yValues.value) {
+      for (const xVal of xValues.value) {
+        const img = getImage(xVal, yVal)
+        if (!img) continue
+        const url = `/api/images/${img.relative_path}`
+        items.push({
+          imageUrl: url,
+          cellKey: imageKey(xVal, yVal),
+          sliderValues: sliderVals,
+          currentSliderValue: getSliderValue(xVal, yVal),
+          imagesBySliderValue: getImagesBySliderValue(xVal, yVal),
+        })
+      }
+    }
+  } else if (props.xDimension) {
+    // X-only
+    for (const xVal of xValues.value) {
+      const img = getImage(xVal, undefined)
+      if (!img) continue
+      const url = `/api/images/${img.relative_path}`
+      items.push({
+        imageUrl: url,
+        cellKey: imageKey(xVal, undefined),
+        sliderValues: sliderVals,
+        currentSliderValue: getSliderValue(xVal, undefined),
+        imagesBySliderValue: getImagesBySliderValue(xVal, undefined),
+      })
+    }
+  } else if (props.yDimension) {
+    // Y-only
+    for (const yVal of yValues.value) {
+      const img = getImage(undefined, yVal)
+      if (!img) continue
+      const url = `/api/images/${img.relative_path}`
+      items.push({
+        imageUrl: url,
+        cellKey: imageKey(undefined, yVal),
+        sliderValues: sliderVals,
+        currentSliderValue: getSliderValue(undefined, yVal),
+        imagesBySliderValue: getImagesBySliderValue(undefined, yVal),
+      })
+    }
+  }
+
+  return items
+}
+
 /** Emit an image:click event with full cell context. */
 function onImageClick(xVal: string | undefined, yVal: string | undefined, imageUrl: string) {
   const key = imageKey(xVal, yVal)
   const sliderVals = props.sliderDimension?.values ?? []
   const currentSliderVal = getSliderValue(xVal, yVal)
   const imagesBySliderValue = getImagesBySliderValue(xVal, yVal)
+  const gridImages = buildGridNavItems()
+  const gridIndex = gridImages.findIndex((item) => item.cellKey === key && item.imageUrl === imageUrl)
   emit('image:click', {
     imageUrl,
     cellKey: key,
     sliderValues: sliderVals,
     currentSliderValue: currentSliderVal,
     imagesBySliderValue,
+    gridImages,
+    gridIndex: gridIndex >= 0 ? gridIndex : 0,
   })
 }
 

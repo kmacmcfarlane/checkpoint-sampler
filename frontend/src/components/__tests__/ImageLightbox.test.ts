@@ -26,6 +26,9 @@ describe('ImageLightbox', () => {
     sliderValues: [],
     currentSliderValue: '',
     imagesBySliderValue: {},
+    sliderDimensionName: '',
+    gridImages: [],
+    gridIndex: 0,
   }
 
   beforeEach(() => {
@@ -538,6 +541,9 @@ describe('ImageLightbox', () => {
         '7': '/api/images/seed=42&step=500&cfg=7.png',
         '15': '/api/images/seed=42&step=500&cfg=15.png',
       },
+      sliderDimensionName: 'cfg',
+      gridImages: [],
+      gridIndex: 0,
     }
 
     it('renders a SliderBar when slider dimension values are provided', async () => {
@@ -724,6 +730,256 @@ describe('ImageLightbox', () => {
       await wrapper.vm.$nextTick()
 
       expect(wrapper.emitted('slider-change')).toBeUndefined()
+
+      wrapper.unmount()
+    })
+  })
+
+  // --- Grid navigation tests (Shift+Arrow) ---
+
+  describe('grid navigation', () => {
+    const gridImages = [
+      {
+        imageUrl: '/api/images/a.png',
+        cellKey: '42|500',
+        sliderValues: [],
+        currentSliderValue: '',
+        imagesBySliderValue: {},
+      },
+      {
+        imageUrl: '/api/images/b.png',
+        cellKey: '123|500',
+        sliderValues: [],
+        currentSliderValue: '',
+        imagesBySliderValue: {},
+      },
+      {
+        imageUrl: '/api/images/c.png',
+        cellKey: '42|1000',
+        sliderValues: [],
+        currentSliderValue: '',
+        imagesBySliderValue: {},
+      },
+    ]
+
+    const navProps = {
+      ...defaultProps,
+      imageUrl: '/api/images/b.png',
+      gridImages,
+      gridIndex: 1,
+    }
+
+    it('emits navigate with previous index on Shift+ArrowLeft', async () => {
+      const wrapper = mount(ImageLightbox, { props: navProps })
+      await flushPromises()
+
+      const event = new KeyboardEvent('keydown', { key: 'ArrowLeft', shiftKey: true, bubbles: true, cancelable: true })
+      document.dispatchEvent(event)
+      await wrapper.vm.$nextTick()
+
+      const emitted = wrapper.emitted('navigate')
+      expect(emitted).toBeDefined()
+      expect(emitted).toHaveLength(1)
+      expect(emitted![0]).toEqual([0])
+
+      wrapper.unmount()
+    })
+
+    it('emits navigate with next index on Shift+ArrowRight', async () => {
+      const wrapper = mount(ImageLightbox, { props: navProps })
+      await flushPromises()
+
+      const event = new KeyboardEvent('keydown', { key: 'ArrowRight', shiftKey: true, bubbles: true, cancelable: true })
+      document.dispatchEvent(event)
+      await wrapper.vm.$nextTick()
+
+      const emitted = wrapper.emitted('navigate')
+      expect(emitted).toBeDefined()
+      expect(emitted).toHaveLength(1)
+      expect(emitted![0]).toEqual([2])
+
+      wrapper.unmount()
+    })
+
+    it('wraps around to last image when Shift+ArrowLeft at first index', async () => {
+      const wrapper = mount(ImageLightbox, { props: { ...navProps, gridIndex: 0 } })
+      await flushPromises()
+
+      const event = new KeyboardEvent('keydown', { key: 'ArrowLeft', shiftKey: true, bubbles: true, cancelable: true })
+      document.dispatchEvent(event)
+      await wrapper.vm.$nextTick()
+
+      const emitted = wrapper.emitted('navigate')
+      expect(emitted).toBeDefined()
+      // Should wrap to last index (2)
+      expect(emitted![0]).toEqual([2])
+
+      wrapper.unmount()
+    })
+
+    it('wraps around to first image when Shift+ArrowRight at last index', async () => {
+      const wrapper = mount(ImageLightbox, { props: { ...navProps, gridIndex: 2 } })
+      await flushPromises()
+
+      const event = new KeyboardEvent('keydown', { key: 'ArrowRight', shiftKey: true, bubbles: true, cancelable: true })
+      document.dispatchEvent(event)
+      await wrapper.vm.$nextTick()
+
+      const emitted = wrapper.emitted('navigate')
+      expect(emitted).toBeDefined()
+      // Should wrap to index 0
+      expect(emitted![0]).toEqual([0])
+
+      wrapper.unmount()
+    })
+
+    it('does not emit navigate when gridImages is empty', async () => {
+      const wrapper = mount(ImageLightbox, { props: { ...navProps, gridImages: [], gridIndex: 0 } })
+      await flushPromises()
+
+      const event = new KeyboardEvent('keydown', { key: 'ArrowRight', shiftKey: true, bubbles: true, cancelable: true })
+      document.dispatchEvent(event)
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.emitted('navigate')).toBeUndefined()
+
+      wrapper.unmount()
+    })
+
+    it('does not emit navigate on plain ArrowLeft (without Shift)', async () => {
+      // Plain ArrowLeft should only affect the slider (or do nothing if no slider)
+      const wrapper = mount(ImageLightbox, { props: navProps })
+      await flushPromises()
+
+      const event = new KeyboardEvent('keydown', { key: 'ArrowLeft', shiftKey: false, bubbles: true, cancelable: true })
+      document.dispatchEvent(event)
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.emitted('navigate')).toBeUndefined()
+
+      wrapper.unmount()
+    })
+
+    it('does not emit navigate on plain ArrowRight (without Shift)', async () => {
+      const wrapper = mount(ImageLightbox, { props: navProps })
+      await flushPromises()
+
+      const event = new KeyboardEvent('keydown', { key: 'ArrowRight', shiftKey: false, bubbles: true, cancelable: true })
+      document.dispatchEvent(event)
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.emitted('navigate')).toBeUndefined()
+
+      wrapper.unmount()
+    })
+
+    it('Shift+ArrowLeft does not also emit slider-change', async () => {
+      // Even if slider is present, Shift+Arrow should only navigate grid, not also change slider
+      const sliderAndNavProps = {
+        imageUrl: '/api/images/b.png',
+        cellKey: '123|500',
+        sliderValues: ['3', '7', '15'],
+        currentSliderValue: '7',
+        imagesBySliderValue: {
+          '3': '/api/images/b-cfg3.png',
+          '7': '/api/images/b-cfg7.png',
+          '15': '/api/images/b-cfg15.png',
+        },
+        sliderDimensionName: 'cfg',
+        gridImages,
+        gridIndex: 1,
+      }
+      const wrapper = mount(ImageLightbox, { props: sliderAndNavProps })
+      await flushPromises()
+
+      const event = new KeyboardEvent('keydown', { key: 'ArrowLeft', shiftKey: true, bubbles: true, cancelable: true })
+      document.dispatchEvent(event)
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.emitted('navigate')).toBeDefined()
+      expect(wrapper.emitted('slider-change')).toBeUndefined()
+
+      wrapper.unmount()
+    })
+  })
+
+  // --- Slider dimension label tests ---
+
+  describe('slider dimension label', () => {
+    it('passes sliderDimensionName as label to SliderBar', async () => {
+      const wrapper = mount(ImageLightbox, {
+        props: {
+          imageUrl: '/api/images/seed=42&step=500&cfg=7.png',
+          cellKey: '42|500',
+          sliderValues: ['3', '7', '15'],
+          currentSliderValue: '7',
+          imagesBySliderValue: {
+            '3': '/api/images/seed=42&step=500&cfg=3.png',
+            '7': '/api/images/seed=42&step=500&cfg=7.png',
+            '15': '/api/images/seed=42&step=500&cfg=15.png',
+          },
+          sliderDimensionName: 'cfg',
+          gridImages: [],
+          gridIndex: 0,
+        },
+      })
+      await flushPromises()
+
+      const slider = wrapper.findComponent(SliderBar)
+      expect(slider.exists()).toBe(true)
+      expect(slider.props('label')).toBe('cfg')
+
+      wrapper.unmount()
+    })
+
+    it('passes checkpoint as slider label when sliderDimensionName is checkpoint', async () => {
+      const wrapper = mount(ImageLightbox, {
+        props: {
+          imageUrl: '/api/images/checkpoint=v1&seed=42.png',
+          cellKey: '42|',
+          sliderValues: ['v1', 'v2', 'v3'],
+          currentSliderValue: 'v2',
+          imagesBySliderValue: {
+            v1: '/api/images/checkpoint=v1&seed=42.png',
+            v2: '/api/images/checkpoint=v2&seed=42.png',
+            v3: '/api/images/checkpoint=v3&seed=42.png',
+          },
+          sliderDimensionName: 'checkpoint',
+          gridImages: [],
+          gridIndex: 0,
+        },
+      })
+      await flushPromises()
+
+      const slider = wrapper.findComponent(SliderBar)
+      expect(slider.exists()).toBe(true)
+      expect(slider.props('label')).toBe('checkpoint')
+
+      wrapper.unmount()
+    })
+
+    it('falls back to "Slider" label when sliderDimensionName is empty string', async () => {
+      const wrapper = mount(ImageLightbox, {
+        props: {
+          imageUrl: '/api/images/seed=42&step=500&cfg=7.png',
+          cellKey: '42|500',
+          sliderValues: ['3', '7', '15'],
+          currentSliderValue: '7',
+          imagesBySliderValue: {
+            '3': '/api/images/seed=42&step=500&cfg=3.png',
+            '7': '/api/images/seed=42&step=500&cfg=7.png',
+            '15': '/api/images/seed=42&step=500&cfg=15.png',
+          },
+          sliderDimensionName: '',
+          gridImages: [],
+          gridIndex: 0,
+        },
+      })
+      await flushPromises()
+
+      const slider = wrapper.findComponent(SliderBar)
+      expect(slider.exists()).toBe(true)
+      expect(slider.props('label')).toBe('Slider')
 
       wrapper.unmount()
     })

@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-061: Lightbox UX improvements — keyboard navigation and slider dimension label
+- `frontend/src/components/ImageLightbox.vue`: Added `sliderDimensionName`, `gridImages`, and `gridIndex` props; added `navigate` emit for grid navigation; added Shift+ArrowLeft/Right handling in `onKeyDown` with wrap-around; changed slider label from hardcoded "Slider" to use dimension name prop with fallback
+- `frontend/src/components/XYGrid.vue`: Added `GridNavItem` exported interface; extended `ImageClickContext` with `gridImages` and `gridIndex` fields; added `buildGridNavItems()` helper to build ordered list of all visible grid cells
+- `frontend/src/App.vue`: Added `onLightboxNavigate` handler; passed new `sliderDimensionName`, `gridImages`, `gridIndex` props and `@navigate` handler to `ImageLightbox`
+- `frontend/src/components/__tests__/ImageLightbox.test.ts`: Added 8 new tests for Shift+Arrow grid navigation and 3 new tests for slider dimension label display
+- `frontend/src/components/__tests__/MasterSlider.test.ts`: Updated ImageLightbox mount with new required props
+- `frontend/e2e/lightbox.spec.ts`: Added 5 new E2E tests covering Shift+Arrow navigation, wrapping, plain Arrow non-navigation, and slider dimension label
+- 678 frontend tests pass; 564 backend tests pass; 35 E2E tests pass
+
 ### S-058: Frontend lint rules — CSS variable linting and unused import detection
 - `frontend/.stylelintrc.json`: New stylelint configuration using `stylelint-declaration-strict-value` plugin to warn on hardcoded `color` and `background-color` values instead of CSS custom properties; ignores `transparent`, `inherit`, `initial`, `unset`, `currentColor`, `none`; disables conflicting Vue/Naive UI selector and property pattern rules
 - `frontend/eslint.config.js`: New ESLint flat config with `typescript-eslint` and `eslint-plugin-vue`; `@typescript-eslint/no-unused-vars` rule set to `warn` with `_` prefix ignore patterns for unused imports in `<script setup>` blocks

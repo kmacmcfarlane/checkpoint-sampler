@@ -49,3 +49,15 @@ Currently `RequestStop` clears executor state but the DB update to `stopped` hap
 * priority: very-low
 * source: qa
 Two agent idea files (`agent/ideas/enhancements.md` and `agent/ideas/testing.md`) still reference the old "paused" terminology. These should be updated to say "stopped" for consistency with the codebase after the S-049 rename.
+
+### Lightbox grid position indicator
+* status: needs_approval
+* priority: low
+* source: developer
+Show a "3 of 12" or thumbnail strip indicator in the lightbox so the user knows their position in the grid while navigating with Shift+Arrow keys.
+
+### Update gridImages on slider change in lightbox
+* status: needs_approval
+* priority: low
+* source: developer
+When the user changes the slider value in the lightbox, the gridImages snapshot could be refreshed so that navigating to adjacent cells shows the correct slider-matched image rather than the state captured at open time.
