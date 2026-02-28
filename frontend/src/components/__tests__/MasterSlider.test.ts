@@ -121,54 +121,71 @@ describe('MasterSlider', () => {
   })
 
   describe('keyboard navigation', () => {
-    it('emits change with next value on ArrowRight', async () => {
+    // MasterSlider uses Ctrl+Arrow to avoid conflict with zoom controls (plain arrows)
+    it('emits change with next value on Ctrl+ArrowRight', async () => {
+      const wrapper = mountMaster({ currentValue: '500' })
+      const container = wrapper.find('.master-slider')
+      await container.trigger('keydown', { key: 'ArrowRight', ctrlKey: true })
+
+      const emitted = wrapper.emitted('change')
+      expect(emitted).toBeDefined()
+      expect(emitted).toHaveLength(1)
+      expect(emitted![0]).toEqual(['1000'])
+    })
+
+    it('emits change with previous value on Ctrl+ArrowLeft', async () => {
+      const wrapper = mountMaster({ currentValue: '500' })
+      const container = wrapper.find('.master-slider')
+      await container.trigger('keydown', { key: 'ArrowLeft', ctrlKey: true })
+
+      const emitted = wrapper.emitted('change')
+      expect(emitted).toBeDefined()
+      expect(emitted).toHaveLength(1)
+      expect(emitted![0]).toEqual(['100'])
+    })
+
+    it('emits change with next value on Ctrl+ArrowUp', async () => {
+      const wrapper = mountMaster({ currentValue: '500' })
+      const container = wrapper.find('.master-slider')
+      await container.trigger('keydown', { key: 'ArrowUp', ctrlKey: true })
+
+      const emitted = wrapper.emitted('change')
+      expect(emitted).toBeDefined()
+      expect(emitted).toHaveLength(1)
+      expect(emitted![0]).toEqual(['1000'])
+    })
+
+    it('emits change with previous value on Ctrl+ArrowDown', async () => {
+      const wrapper = mountMaster({ currentValue: '500' })
+      const container = wrapper.find('.master-slider')
+      await container.trigger('keydown', { key: 'ArrowDown', ctrlKey: true })
+
+      const emitted = wrapper.emitted('change')
+      expect(emitted).toBeDefined()
+      expect(emitted).toHaveLength(1)
+      expect(emitted![0]).toEqual(['100'])
+    })
+
+    it('does not emit on plain ArrowRight (no Ctrl) — avoids conflict with zoom controls', async () => {
       const wrapper = mountMaster({ currentValue: '500' })
       const container = wrapper.find('.master-slider')
       await container.trigger('keydown', { key: 'ArrowRight' })
 
-      const emitted = wrapper.emitted('change')
-      expect(emitted).toBeDefined()
-      expect(emitted).toHaveLength(1)
-      expect(emitted![0]).toEqual(['1000'])
+      expect(wrapper.emitted('change')).toBeUndefined()
     })
 
-    it('emits change with previous value on ArrowLeft', async () => {
+    it('does not emit on plain ArrowLeft (no Ctrl) — avoids conflict with zoom controls', async () => {
       const wrapper = mountMaster({ currentValue: '500' })
       const container = wrapper.find('.master-slider')
       await container.trigger('keydown', { key: 'ArrowLeft' })
 
-      const emitted = wrapper.emitted('change')
-      expect(emitted).toBeDefined()
-      expect(emitted).toHaveLength(1)
-      expect(emitted![0]).toEqual(['100'])
+      expect(wrapper.emitted('change')).toBeUndefined()
     })
 
-    it('emits change with next value on ArrowUp', async () => {
-      const wrapper = mountMaster({ currentValue: '500' })
-      const container = wrapper.find('.master-slider')
-      await container.trigger('keydown', { key: 'ArrowUp' })
-
-      const emitted = wrapper.emitted('change')
-      expect(emitted).toBeDefined()
-      expect(emitted).toHaveLength(1)
-      expect(emitted![0]).toEqual(['1000'])
-    })
-
-    it('emits change with previous value on ArrowDown', async () => {
-      const wrapper = mountMaster({ currentValue: '500' })
-      const container = wrapper.find('.master-slider')
-      await container.trigger('keydown', { key: 'ArrowDown' })
-
-      const emitted = wrapper.emitted('change')
-      expect(emitted).toBeDefined()
-      expect(emitted).toHaveLength(1)
-      expect(emitted![0]).toEqual(['100'])
-    })
-
-    it('wraps forward: ArrowRight at last value emits first value', async () => {
+    it('wraps forward: Ctrl+ArrowRight at last value emits first value', async () => {
       const wrapper = mountMaster({ currentValue: '2000' })
       const container = wrapper.find('.master-slider')
-      await container.trigger('keydown', { key: 'ArrowRight' })
+      await container.trigger('keydown', { key: 'ArrowRight', ctrlKey: true })
 
       const emitted = wrapper.emitted('change')
       expect(emitted).toBeDefined()
@@ -176,10 +193,10 @@ describe('MasterSlider', () => {
       expect(emitted![0]).toEqual(['100'])
     })
 
-    it('wraps backward: ArrowLeft at first value emits last value', async () => {
+    it('wraps backward: Ctrl+ArrowLeft at first value emits last value', async () => {
       const wrapper = mountMaster({ currentValue: '100' })
       const container = wrapper.find('.master-slider')
-      await container.trigger('keydown', { key: 'ArrowLeft' })
+      await container.trigger('keydown', { key: 'ArrowLeft', ctrlKey: true })
 
       const emitted = wrapper.emitted('change')
       expect(emitted).toBeDefined()
@@ -212,10 +229,10 @@ describe('MasterSlider', () => {
       }
     })
 
-    it('emits change on ArrowRight via document keydown when wrapper is not focused', async () => {
+    it('emits change on Ctrl+ArrowRight via document keydown when wrapper is not focused', async () => {
       wrapper = mountMaster({ currentValue: '500' })
 
-      const event = new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true })
+      const event = new KeyboardEvent('keydown', { key: 'ArrowRight', ctrlKey: true, bubbles: true, cancelable: true })
       document.dispatchEvent(event)
       await nextTick()
 
@@ -225,10 +242,10 @@ describe('MasterSlider', () => {
       expect(emitted![0]).toEqual(['1000'])
     })
 
-    it('emits change on ArrowLeft via document keydown when wrapper is not focused', async () => {
+    it('emits change on Ctrl+ArrowLeft via document keydown when wrapper is not focused', async () => {
       wrapper = mountMaster({ currentValue: '500' })
 
-      const event = new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true })
+      const event = new KeyboardEvent('keydown', { key: 'ArrowLeft', ctrlKey: true, bubbles: true, cancelable: true })
       document.dispatchEvent(event)
       await nextTick()
 
@@ -238,6 +255,16 @@ describe('MasterSlider', () => {
       expect(emitted![0]).toEqual(['100'])
     })
 
+    it('does not emit on plain ArrowRight via document (no Ctrl — avoids zoom control conflict)', async () => {
+      wrapper = mountMaster({ currentValue: '500' })
+
+      const event = new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true })
+      document.dispatchEvent(event)
+      await nextTick()
+
+      expect(wrapper.emitted('change')).toBeUndefined()
+    })
+
     it('does not emit when an input element is focused', async () => {
       wrapper = mountMaster({ currentValue: '500' })
 
@@ -245,7 +272,7 @@ describe('MasterSlider', () => {
       document.body.appendChild(input)
       input.focus()
 
-      const event = new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true })
+      const event = new KeyboardEvent('keydown', { key: 'ArrowRight', ctrlKey: true, bubbles: true, cancelable: true })
       document.dispatchEvent(event)
       await nextTick()
 
@@ -261,7 +288,7 @@ describe('MasterSlider', () => {
       document.body.appendChild(textarea)
       textarea.focus()
 
-      const event = new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true })
+      const event = new KeyboardEvent('keydown', { key: 'ArrowLeft', ctrlKey: true, bubbles: true, cancelable: true })
       document.dispatchEvent(event)
       await nextTick()
 
@@ -283,7 +310,7 @@ describe('MasterSlider', () => {
       removeSpy.mockRestore()
     })
 
-    it('does not emit when ImageLightbox is open and consumes the arrow key via stopImmediatePropagation', async () => {
+    it('plain arrow keys are handled by ImageLightbox slider; MasterSlider requires Ctrl+Arrow', async () => {
       // Mount MasterSlider
       wrapper = mountMaster({ currentValue: '500' })
 
@@ -305,17 +332,16 @@ describe('MasterSlider', () => {
         },
       })
 
-      // ImageLightbox registers its keydown listener on mount.
-      // Because ImageLightbox calls stopImmediatePropagation() before MasterSlider's handler
-      // runs, MasterSlider should NOT emit 'change'.
+      // Plain ArrowRight (no Ctrl): ImageLightbox handles it via stopImmediatePropagation,
+      // and MasterSlider also ignores it because it requires Ctrl+Arrow.
       const event = new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true })
       document.dispatchEvent(event)
       await nextTick()
 
-      // Lightbox should have emitted slider-change
+      // Lightbox should have emitted slider-change (it handles plain arrows)
       expect(lightboxWrapper.emitted('slider-change')).toBeDefined()
 
-      // MasterSlider should NOT have emitted change (event was consumed by lightbox)
+      // MasterSlider should NOT have emitted change (requires Ctrl+Arrow, not plain arrow)
       expect(wrapper.emitted('change')).toBeUndefined()
 
       lightboxWrapper.unmount()
@@ -599,11 +625,11 @@ describe('MasterSlider', () => {
     })
 
     // AC1: Only one captures keyboard input
-    it('only the last-mounted slider handles document-level arrow keys', async () => {
+    it('only the last-mounted slider handles document-level Ctrl+Arrow keys', async () => {
       wrapper1 = mountMaster({ currentValue: '500', dimensionName: 'step' })
       wrapper2 = mountMaster({ currentValue: '100', dimensionName: 'cfg' })
 
-      const event = new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true })
+      const event = new KeyboardEvent('keydown', { key: 'ArrowRight', ctrlKey: true, bubbles: true, cancelable: true })
       document.dispatchEvent(event)
       await nextTick()
 
@@ -625,7 +651,7 @@ describe('MasterSlider', () => {
       // Click on wrapper1 to claim focus
       await wrapper1.find('.master-slider').trigger('click')
 
-      const event = new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true })
+      const event = new KeyboardEvent('keydown', { key: 'ArrowRight', ctrlKey: true, bubbles: true, cancelable: true })
       document.dispatchEvent(event)
       await nextTick()
 
@@ -650,7 +676,7 @@ describe('MasterSlider', () => {
       // Click wrapper2 to claim focus back
       await wrapper2.find('.master-slider').trigger('click')
 
-      const event = new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true })
+      const event = new KeyboardEvent('keydown', { key: 'ArrowRight', ctrlKey: true, bubbles: true, cancelable: true })
       document.dispatchEvent(event)
       await nextTick()
 
@@ -670,7 +696,7 @@ describe('MasterSlider', () => {
       wrapper2.unmount()
       wrapper2 = null
 
-      const event = new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true })
+      const event = new KeyboardEvent('keydown', { key: 'ArrowRight', ctrlKey: true, bubbles: true, cancelable: true })
       document.dispatchEvent(event)
       await nextTick()
 
@@ -682,11 +708,11 @@ describe('MasterSlider', () => {
     })
 
     // AC3: No duplicate key handling — verify exactly one emission total
-    it('document arrow key fires exactly one change event across all instances', async () => {
+    it('document Ctrl+Arrow key fires exactly one change event across all instances', async () => {
       wrapper1 = mountMaster({ currentValue: '500', dimensionName: 'step' })
       wrapper2 = mountMaster({ currentValue: '100', dimensionName: 'cfg' })
 
-      const event = new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true })
+      const event = new KeyboardEvent('keydown', { key: 'ArrowLeft', ctrlKey: true, bubbles: true, cancelable: true })
       document.dispatchEvent(event)
       await nextTick()
 
@@ -706,7 +732,7 @@ describe('MasterSlider', () => {
       // Simulate focusing wrapper1 (e.g. via tab key)
       await wrapper1.find('.master-slider').trigger('focus')
 
-      const event = new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true })
+      const event = new KeyboardEvent('keydown', { key: 'ArrowRight', ctrlKey: true, bubbles: true, cancelable: true })
       document.dispatchEvent(event)
       await nextTick()
 
@@ -719,15 +745,15 @@ describe('MasterSlider', () => {
       expect(wrapper2.emitted('change')).toBeUndefined()
     })
 
-    // Verify direct keydown on the focused slider element still works regardless of singleton
-    it('direct keydown on the slider element bypasses the singleton guard', async () => {
+    // Verify direct Ctrl+keydown on the focused slider element still works regardless of singleton
+    it('direct Ctrl+Arrow keydown on the slider element bypasses the singleton guard', async () => {
       wrapper1 = mountMaster({ currentValue: '500', dimensionName: 'step' })
       wrapper2 = mountMaster({ currentValue: '100', dimensionName: 'cfg' })
 
-      // wrapper2 is active. Directly trigger keydown on wrapper1's container element.
+      // wrapper2 is active. Directly trigger Ctrl+ArrowRight on wrapper1's container element.
       // The @keydown handler on the div fires without the singleton check.
       const container1 = wrapper1.find('.master-slider')
-      await container1.trigger('keydown', { key: 'ArrowRight' })
+      await container1.trigger('keydown', { key: 'ArrowRight', ctrlKey: true })
 
       // This is the direct keydown handler (onKeydown), not onDocumentKeydown.
       // It should still emit because direct interaction is always allowed.
