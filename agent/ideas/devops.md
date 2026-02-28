@@ -39,6 +39,12 @@ Resolved by B-034: rollup upgraded to 4.59.0 via npm audit fix; minimatch pinned
 * source: developer
 The `npm run build` command runs `vue-tsc -b` which type-checks test files and fails with ~50 TypeScript errors (e.g., `WrapperLike` missing `.vm`/`.props`, unused variables, implicit `any` types). This blocks the canonical build command. Fix options: exclude test files from the tsconfig used by vue-tsc, or create a separate `tsconfig.build.json` that excludes `**/__tests__/**`. Both the developer (B-034) and QA independently flagged this issue.
 
+### Add test-frontend and test-backend to Makefile .PHONY
+* status: needs_approval
+* priority: very-low
+* source: qa
+`test-frontend` and `test-backend` are Makefile targets but are not listed in the `.PHONY` declaration on line 1. While unlikely to cause issues (no files with those names exist), it is best practice to declare all non-file targets as phony.
+
 ### Explicit log-capture helper Makefile target
 * status: needs_approval
 * priority: very-low

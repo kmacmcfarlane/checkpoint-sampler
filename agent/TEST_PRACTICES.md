@@ -284,13 +284,16 @@ After completing section 5.5 (E2E smoke test), the QA expert must perform a runt
 #### 5.7.1 Procedure
 
 1. Capture logs. Two options:
-   a. Start the application briefly, capture logs, then tear down:
+   a. Use the E2E logs captured automatically by `make test-e2e`. After a run, logs are written to:
+      - `.ralph-temp/e2e-logs/backend.log`
+      - `.ralph-temp/e2e-logs/frontend.log`
+      Review these files directly. This is the preferred option when E2E tests have been run.
+   b. Start the application briefly, capture logs, then tear down:
       ```
       make up-dev
       docker compose logs --tail=500 --no-color 2>&1
       make down
       ```
-   b. If E2E log output was explicitly captured (e.g., via `make test-e2e 2>&1 | tee`), review that output instead.
 2. Filter for error-level and fatal-level messages:
    ```
    grep -iE 'level=(error|fatal|panic)|FATAL|PANIC|panic:'

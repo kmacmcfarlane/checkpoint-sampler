@@ -476,7 +476,7 @@ stories:
   - id: S-056
     title: "E2E log capture before teardown"
     priority: 90
-    status: todo
+    status: uat
     requires: []
     acceptance:
       - "OPS: Add a make test-e2e-logs target or integrate log capture into the existing make test-e2e flow"
@@ -832,3 +832,27 @@ stories:
       Key files: frontend/Dockerfile (build stage), frontend/nginx.conf, Makefile.
     testing:
       - "command: make up"
+
+  # ─── QA sweep findings (2026-02-28) ────────────────────────────────────────
+
+  - id: B-037
+    title: "Backend panics with nil pointer dereference on /api/sample-jobs when ComfyUI is not configured"
+    priority: 75
+    status: todo
+    requires: []
+    acceptance:
+      - "BE: SampleJobsService methods return an empty result (or appropriate error) when the inner SampleJobService is nil (ComfyUI not configured)"
+      - "BE: No panic occurs when /api/sample-jobs endpoints are called without ComfyUI configured"
+      - "BE: E2E backend logs contain zero panic lines after a full test run"
+    notes: |
+      Root cause: When ComfyUI is not configured (cfg.ComfyUI == nil), main.go creates
+      SampleJobsService with a nil inner *service.SampleJobService. The API layer at
+      api/sample_jobs.go calls s.svc.List() without checking for nil, causing a nil pointer
+      dereference panic on every /api/sample-jobs request. Frontend proxy errors (socket hang up,
+      25 occurrences in E2E logs) are a downstream symptom of the same panic.
+      Fix: add nil guard in SampleJobsService methods that returns empty result or "not configured"
+      error when s.svc is nil.
+      Key files: backend/internal/api/sample_jobs.go, backend/cmd/main.go.
+    testing:
+      - "command: make test-e2e"
+      - "command: make test-backend"

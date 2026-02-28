@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-056: E2E log capture before teardown
+- `Makefile`: Added `E2E_LOG_DIR` variable and log capture to `test-e2e` target — backend and frontend logs saved to `.ralph-temp/e2e-logs/` before teardown while preserving exit status; added new `test-e2e-logs` convenience target for manual log capture from a running stack
+- `CLAUDE.md`: Updated section 8 quick commands to document log capture in `make test-e2e` and new `make test-e2e-logs` target
+- `agent/TEST_PRACTICES.md`: Updated section 5.7.1 to list auto-captured E2E log files as preferred option for the runtime error sweep
+- 26 E2E tests pass
+
 ### W-004: QA smoke test standardization — E2E tests as primary verification
 - `agent/TEST_PRACTICES.md`: Restructured section 5.5 to "E2E smoke test (PRIMARY — REQUIRED)" making `make test-e2e` the primary acceptance gate; renamed section 5.6 to "Manual HTTP verification (secondary — debugging aid only)" reserving curl for debugging; updated section 5.7.1 with explicit `make down` teardown after log capture; simplified section 5.8 to supporting details referencing 5.5 as authority
 - `.claude/agents/qa-expert.md`: Updated steps and checklist to make E2E the primary smoke test; changed E2E test authoring from "ENCOURAGED" to "REQUIRED for uncovered acceptance criteria"; updated application smoke test section to E2E-first with manual curl as fallback/debugging only; updated runtime error sweep with explicit teardown

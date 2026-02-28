@@ -96,7 +96,8 @@ Root Makefile targets (work in both sandbox and host — preferred for agent use
 - `make up-dev`
 - `make test-backend` / `make test-backend-watch`
 - `make test-frontend` / `make test-frontend-watch`
-- `make test-e2e` (Playwright E2E tests; self-contained — starts backend+frontend with test-fixtures/, runs tests, tears down)
+- `make test-e2e` (Playwright E2E tests; self-contained — starts backend+frontend with test-fixtures/, runs tests, captures logs to `.ralph-temp/e2e-logs/`, tears down)
+- `make test-e2e-logs` (capture logs from a running E2E stack without tearing it down)
 - `make up-test` / `make down-test` (isolated test environment with separate volumes; independent from up-dev)
 
 Backend via compose (sandbox — when Go is not installed locally):
