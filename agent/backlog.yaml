@@ -75,10 +75,6 @@ stories:
     title: "Top nav elements unavailable on narrow screens until drawer opens"
     priority: 50
     status: uat
-    uat_feedback: |
-      Top nav is still waiting for the training run in the side-bar controls to load. These don't
-      depend on the selected sample set in the controls slide-out, so just load them immediately.
-      Also, the job status bead should be in the "Jobs" button, not the "Generate Samples" button.
     requires: []
     acceptance:
       - "FE: On narrow screens (<1024px), the app eagerly loads the saved training run from localStorage and triggers a scan on mount, regardless of drawer state"

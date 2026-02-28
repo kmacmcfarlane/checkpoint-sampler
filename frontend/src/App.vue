@@ -55,13 +55,16 @@ function onMediaChange(e: MediaQueryListEvent) {
  * Eagerly auto-select a saved training run on mount, regardless of drawer state.
  * On narrow screens the drawer (and TrainingRunSelector) may not mount immediately,
  * so this ensures header buttons and scan data are available right away.
+ *
+ * Fetches ALL training runs (no has_samples filter) so that runs without samples
+ * are found — a saved run might not yet have samples generated.
  */
 async function eagerAutoSelect() {
   const saved = savedData.value
   if (!saved) return
 
   try {
-    const runs = await apiClient.getTrainingRuns(true)
+    const runs = await apiClient.getTrainingRuns()
     const run = runs.find((r) => r.id === saved.trainingRunId)
     if (run) {
       await onTrainingRunSelect(run)
