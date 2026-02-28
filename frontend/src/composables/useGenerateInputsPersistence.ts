@@ -6,6 +6,7 @@
  * Shape:
  *   {
  *     lastWorkflowId: string | null,
+ *     lastTrainingRunId: number | null,
  *     byModelType: {
  *       [modelType: string]: { vae: string | null, clip: string | null, shift: number | null }
  *     }
@@ -28,6 +29,7 @@ export interface PersistedModelInputs {
 /** Full shape of the persisted generate-inputs state. */
 export interface GenerateInputsState {
   lastWorkflowId: string | null
+  lastTrainingRunId?: number | null
   byModelType: Record<string, PersistedModelInputs>
 }
 
@@ -45,7 +47,7 @@ function loadState(): GenerateInputsState {
 }
 
 function defaultState(): GenerateInputsState {
-  return { lastWorkflowId: null, byModelType: {} }
+  return { lastWorkflowId: null, lastTrainingRunId: null, byModelType: {} }
 }
 
 function isValidState(v: unknown): v is GenerateInputsState {
@@ -53,6 +55,8 @@ function isValidState(v: unknown): v is GenerateInputsState {
   const obj = v as Record<string, unknown>
   if (!('lastWorkflowId' in obj)) return false
   if (obj.lastWorkflowId !== null && typeof obj.lastWorkflowId !== 'string') return false
+  // lastTrainingRunId is optional (backward-compatible); if present it must be number or null
+  if ('lastTrainingRunId' in obj && obj.lastTrainingRunId !== null && obj.lastTrainingRunId !== undefined && typeof obj.lastTrainingRunId !== 'number') return false
   if (typeof obj.byModelType !== 'object' || obj.byModelType === null) return false
   for (const entry of Object.values(obj.byModelType as Record<string, unknown>)) {
     if (!isValidModelInputs(entry)) return false
@@ -94,6 +98,18 @@ export function useGenerateInputsPersistence() {
     saveState(state)
   }
 
+  /** Load the last remembered training run ID. */
+  function getLastTrainingRunId(): number | null {
+    return loadState().lastTrainingRunId ?? null
+  }
+
+  /** Persist the selected training run ID. Pass null to clear it. */
+  function saveTrainingRunId(trainingRunId: number | null): void {
+    const state = loadState()
+    state.lastTrainingRunId = trainingRunId
+    saveState(state)
+  }
+
   /** Load the remembered model-type-specific inputs for a given model type key. */
   function getModelInputs(modelType: string): PersistedModelInputs | null {
     const state = loadState()
@@ -110,6 +126,8 @@ export function useGenerateInputsPersistence() {
   return {
     getLastWorkflowId,
     saveWorkflowId,
+    getLastTrainingRunId,
+    saveTrainingRunId,
     getModelInputs,
     saveModelInputs,
   }

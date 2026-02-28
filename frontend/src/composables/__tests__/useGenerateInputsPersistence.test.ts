@@ -209,6 +209,74 @@ describe('useGenerateInputsPersistence', () => {
     })
   })
 
+  // ── getLastTrainingRunId (AC3) ──────────────────────────────────────────
+
+  describe('getLastTrainingRunId', () => {
+    it('returns null when storage is empty', () => {
+      const { getLastTrainingRunId } = useGenerateInputsPersistence()
+      expect(getLastTrainingRunId()).toBeNull()
+    })
+
+    it('returns the stored training run ID', () => {
+      const state: GenerateInputsState = { lastWorkflowId: null, lastTrainingRunId: 42, byModelType: {} }
+      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
+
+      const { getLastTrainingRunId } = useGenerateInputsPersistence()
+      expect(getLastTrainingRunId()).toBe(42)
+    })
+
+    it('returns null when lastTrainingRunId is missing (backward compat)', () => {
+      // Old state format without lastTrainingRunId
+      const state = { lastWorkflowId: 'wf.json', byModelType: {} }
+      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
+
+      const { getLastTrainingRunId } = useGenerateInputsPersistence()
+      expect(getLastTrainingRunId()).toBeNull()
+    })
+
+    it('returns null when lastTrainingRunId is null', () => {
+      const state: GenerateInputsState = { lastWorkflowId: null, lastTrainingRunId: null, byModelType: {} }
+      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
+
+      const { getLastTrainingRunId } = useGenerateInputsPersistence()
+      expect(getLastTrainingRunId()).toBeNull()
+    })
+  })
+
+  // ── saveTrainingRunId (AC3) ──────────────────────────────────────────────
+
+  describe('saveTrainingRunId', () => {
+    it('saves a training run ID to localStorage', () => {
+      const { saveTrainingRunId, getLastTrainingRunId } = useGenerateInputsPersistence()
+      saveTrainingRunId(7)
+      expect(getLastTrainingRunId()).toBe(7)
+    })
+
+    it('saves null as the training run ID', () => {
+      const { saveTrainingRunId, getLastTrainingRunId } = useGenerateInputsPersistence()
+      saveTrainingRunId(42)
+      saveTrainingRunId(null)
+      expect(getLastTrainingRunId()).toBeNull()
+    })
+
+    it('preserves other fields when saving a training run ID', () => {
+      const state: GenerateInputsState = {
+        lastWorkflowId: 'qwen-image.json',
+        lastTrainingRunId: null,
+        byModelType: {
+          qwen_image: { vae: 'ae.safetensors', clip: 'clip_l.safetensors', shift: null },
+        },
+      }
+      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
+
+      const { saveTrainingRunId, getLastWorkflowId, getModelInputs } = useGenerateInputsPersistence()
+      saveTrainingRunId(5)
+
+      expect(getLastWorkflowId()).toBe('qwen-image.json')
+      expect(getModelInputs('qwen_image')).toEqual({ vae: 'ae.safetensors', clip: 'clip_l.safetensors', shift: null })
+    })
+  })
+
   // ── validation / corruption handling ──────────────────────────────────────
 
   describe('invalid stored state', () => {
@@ -230,6 +298,14 @@ describe('useGenerateInputsPersistence', () => {
       const { getLastWorkflowId, getModelInputs } = useGenerateInputsPersistence()
       expect(getLastWorkflowId()).toBeNull()
       expect(getModelInputs('t')).toBeNull()
+    })
+
+    it('returns defaults when lastTrainingRunId is wrong type', () => {
+      const state = { lastWorkflowId: null, lastTrainingRunId: 'not-a-number', byModelType: {} }
+      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
+      const { getLastTrainingRunId } = useGenerateInputsPersistence()
+      // Should fall back to defaults because validation fails
+      expect(getLastTrainingRunId()).toBeNull()
     })
   })
 })

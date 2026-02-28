@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
 import { nextTick, type VNode } from 'vue'
 import { NModal, NSelect, NInputNumber, NButton, NCheckbox } from 'naive-ui'
 import JobLaunchDialog from '../JobLaunchDialog.vue'
@@ -150,6 +150,8 @@ const runningJob: SampleJob = {
 }
 
 const allTrainingRuns = [runEmpty, runWithSamples, runRunning]
+
+enableAutoUnmount(afterEach)
 
 describe('JobLaunchDialog', () => {
   beforeEach(() => {
@@ -1381,6 +1383,313 @@ describe('JobLaunchDialog', () => {
 
       const chkC = wrapper.find('[data-testid="checkpoint-row-chk-c.safetensors"]').findComponent(NCheckbox)
       expect(chkC.props('checked')).toBe(true)
+    })
+  })
+
+  // AC2: Saving a preset in the Manage Presets sub-modal auto-closes the sub-modal
+  // and returns focus to the job launch dialog.
+  describe('preset editor auto-close on save (AC2)', () => {
+    it('closes the preset editor sub-modal after a preset is saved', async () => {
+      const savedPreset: SamplePreset = {
+        id: 'preset-1',
+        name: 'Quick Test Updated',
+        prompts: [{ name: 'test', text: 'a photo' }],
+        negative_prompt: 'bad quality',
+        steps: [20],
+        cfgs: [7.0],
+        sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
+        seeds: [42],
+        width: 1024,
+        height: 1024,
+        images_per_checkpoint: 1,
+        created_at: '2025-01-01T00:00:00Z',
+        updated_at: '2025-01-01T00:00:00Z',
+      }
+
+      mockListSamplePresets
+        .mockResolvedValueOnce(samplePresets)  // initial dialog load
+        .mockResolvedValueOnce(samplePresets)  // SamplePresetEditor own mount load
+        .mockResolvedValueOnce(samplePresets)  // dialog refresh after preset-saved
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Open the preset editor
+      await wrapper.find('[data-testid="manage-presets-button"]').trigger('click')
+      await flushPromises()
+
+      // Verify the editor is open
+      const modals = wrapper.findAllComponents(NModal)
+      const editorModal = modals.find(m => m.props('title') === 'Manage Sample Presets')
+      expect(editorModal!.props('show')).toBe(true)
+
+      // Emit preset-saved from the editor
+      const editor = wrapper.findComponent(SamplePresetEditor)
+      await editor.vm.$emit('preset-saved', savedPreset)
+      await flushPromises()
+
+      // The editor modal should be closed
+      const updatedModals = wrapper.findAllComponents(NModal)
+      const closedEditorModal = updatedModals.find(m => m.props('title') === 'Manage Sample Presets')
+      expect(closedEditorModal!.props('show')).toBe(false)
+    })
+  })
+
+  // AC3: Dialog remembers and restores the last selected training run
+  describe('training run persistence (AC3)', () => {
+    it('persists the selected training run ID to localStorage', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select a training run
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      await nextTick()
+
+      // Check that it's persisted
+      const stored = JSON.parse(localStorage.getItem(GENERATE_INPUTS_STORAGE_KEY) ?? '{}') as GenerateInputsState
+      expect(stored.lastTrainingRunId).toBe(1)
+    })
+
+    it('restores the last training run on mount when it is still available', async () => {
+      // Pre-populate localStorage with a saved training run ID
+      const state: GenerateInputsState = {
+        lastWorkflowId: null,
+        lastTrainingRunId: 1,
+        byModelType: {},
+      }
+      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
+      expect(runSelect.props('value')).toBe(1)
+    })
+
+    it('does not restore training run ID when it is no longer available', async () => {
+      const state: GenerateInputsState = {
+        lastWorkflowId: null,
+        lastTrainingRunId: 999, // Non-existent ID
+        byModelType: {},
+      }
+      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
+      expect(runSelect.props('value')).toBeNull()
+    })
+
+    it('expands filter to show all runs when restored run is not empty', async () => {
+      // runWithSamples (id=2) has status 'complete' — not shown in default filter
+      const state: GenerateInputsState = {
+        lastWorkflowId: null,
+        lastTrainingRunId: 2,
+        byModelType: {},
+      }
+      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // The showAllRuns filter should be enabled so the run is visible in the dropdown
+      const checkbox = wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox)
+      expect(checkbox.props('checked')).toBe(true)
+
+      // And the run should be selected
+      const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
+      expect(runSelect.props('value')).toBe(2)
+    })
+
+    it('does not expand filter when restored run is empty (default filter)', async () => {
+      // runEmpty (id=1) has status 'empty' — shown in default filter
+      const state: GenerateInputsState = {
+        lastWorkflowId: null,
+        lastTrainingRunId: 1,
+        byModelType: {},
+      }
+      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // The showAllRuns filter should remain off
+      const checkbox = wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox)
+      expect(checkbox.props('checked')).toBe(false)
+
+      // And the run should still be selected
+      const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
+      expect(runSelect.props('value')).toBe(1)
+    })
+  })
+
+  // AC4: When a job completes via WebSocket while the dialog is open,
+  // training run options and status beads refresh automatically
+  describe('auto-refresh on job completion (AC4)', () => {
+    it('refetches training runs and jobs when refreshTrigger changes', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true, refreshTrigger: 0 },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Clear mock call counts from initial mount
+      mockGetTrainingRuns.mockClear()
+      mockListSampleJobs.mockClear()
+
+      // Simulate a job completion by changing refreshTrigger
+      await wrapper.setProps({ refreshTrigger: 1 })
+      await flushPromises()
+
+      // fetchTrainingRunsAndJobs should have been called again
+      expect(mockGetTrainingRuns).toHaveBeenCalledTimes(1)
+      expect(mockListSampleJobs).toHaveBeenCalledTimes(1)
+    })
+
+    it('updates training run bead status after data refresh', async () => {
+      // Initially, runRunning (id=3) has a running job
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true, refreshTrigger: 0 },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Show all runs to see all statuses
+      wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
+      await nextTick()
+
+      // Verify initial status
+      const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
+      let options = runSelect.props('options') as Array<{ value: number; _status: string }>
+      let runningOpt = options.find(o => o.value === 3)
+      expect(runningOpt?._status).toBe('running')
+
+      // Now simulate job completing: mock returns no running jobs
+      mockGetTrainingRuns.mockResolvedValue(allTrainingRuns)
+      mockListSampleJobs.mockResolvedValue([]) // No active jobs anymore
+
+      // Trigger refresh
+      await wrapper.setProps({ refreshTrigger: 1 })
+      await flushPromises()
+
+      // Re-check the options — runRunning should now be 'empty'
+      options = runSelect.props('options') as Array<{ value: number; _status: string }>
+      runningOpt = options.find(o => o.value === 3)
+      expect(runningOpt?._status).toBe('empty')
+    })
+  })
+
+  // AC5: After closing the Manage Presets modal, the preset that was last edited
+  // is shown as selected in the job dialog dropdown
+  describe('preset state persistence after editor close (AC5)', () => {
+    it('selects the newly created preset in the job dialog after preset-saved', async () => {
+      const newPreset: SamplePreset = {
+        id: 'preset-new',
+        name: 'Brand New Preset',
+        prompts: [{ name: 'test', text: 'a test' }],
+        negative_prompt: '',
+        steps: [20],
+        cfgs: [7.0],
+        sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
+        seeds: [42],
+        width: 1024,
+        height: 1024,
+        images_per_checkpoint: 1,
+        created_at: '2025-01-01T00:00:00Z',
+        updated_at: '2025-01-01T00:00:00Z',
+      }
+
+      const updatedPresets = [...samplePresets, newPreset]
+      mockListSamplePresets
+        .mockResolvedValueOnce(samplePresets)   // initial dialog load
+        .mockResolvedValueOnce(samplePresets)   // SamplePresetEditor own mount load
+        .mockResolvedValueOnce(updatedPresets)  // dialog refresh after preset-saved
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Initially, no preset is selected
+      const presetSelect = wrapper.find('[data-testid="preset-select"]').findComponent(NSelect)
+      expect(presetSelect.props('value')).toBeNull()
+
+      // Open the editor
+      await wrapper.find('[data-testid="manage-presets-button"]').trigger('click')
+      await flushPromises()
+
+      // Emit preset-saved from the editor
+      const editor = wrapper.findComponent(SamplePresetEditor)
+      await editor.vm.$emit('preset-saved', newPreset)
+      await flushPromises()
+
+      // AC5: The newly created preset should be selected in the job dialog dropdown
+      expect(presetSelect.props('value')).toBe('preset-new')
+
+      // AC2: The editor modal should be closed
+      const modals = wrapper.findAllComponents(NModal)
+      const editorModal = modals.find(m => m.props('title') === 'Manage Sample Presets')
+      expect(editorModal!.props('show')).toBe(false)
+    })
+
+    it('retains the updated preset selection after editing an existing preset', async () => {
+      const updatedPreset: SamplePreset = {
+        ...samplePresets[0],
+        name: 'Quick Test Updated',
+      }
+
+      mockListSamplePresets
+        .mockResolvedValueOnce(samplePresets)  // initial dialog load
+        .mockResolvedValueOnce(samplePresets)  // SamplePresetEditor own mount load
+        .mockResolvedValueOnce([updatedPreset, samplePresets[1]])  // dialog refresh
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select the preset first
+      const presetSelect = wrapper.find('[data-testid="preset-select"]').findComponent(NSelect)
+      presetSelect.vm.$emit('update:value', 'preset-1')
+      await nextTick()
+
+      // Open the editor
+      await wrapper.find('[data-testid="manage-presets-button"]').trigger('click')
+      await flushPromises()
+
+      // Save the existing preset (update)
+      const editor = wrapper.findComponent(SamplePresetEditor)
+      await editor.vm.$emit('preset-saved', updatedPreset)
+      await flushPromises()
+
+      // The same preset should remain selected
+      expect(presetSelect.props('value')).toBe('preset-1')
+
+      // The editor should be closed
+      const modals = wrapper.findAllComponents(NModal)
+      const editorModal = modals.find(m => m.props('title') === 'Manage Sample Presets')
+      expect(editorModal!.props('show')).toBe(false)
     })
   })
 })

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import { NConfigProvider, NButton, NTag } from 'naive-ui'
-import type { TrainingRun, DimensionRole, FilterMode, Preset, SampleJob, JobProgressMessage } from './api/types'
+import type { TrainingRun, DimensionRole, FilterMode, Preset, SampleJob, SampleJobStatus, JobProgressMessage } from './api/types'
 import { apiClient } from './api/client'
 import { useDimensionMapping } from './composables/useDimensionMapping'
 import { useImagePreloader } from './composables/useImagePreloader'
@@ -205,6 +205,7 @@ const jobProgress = reactive<Record<string, {
 function handleJobProgress(message: JobProgressMessage) {
   const jobIndex = sampleJobs.value.findIndex(j => j.id === message.job_id)
   if (jobIndex !== -1) {
+    const previousStatus = sampleJobs.value[jobIndex].status
     sampleJobs.value[jobIndex] = {
       ...sampleJobs.value[jobIndex],
       status: message.status,
@@ -225,6 +226,11 @@ function handleJobProgress(message: JobProgressMessage) {
       current_checkpoint_progress: message.current_checkpoint_progress,
       current_checkpoint_total: message.current_checkpoint_total,
       estimated_completion_time: existingEta,
+    }
+    // AC4: When a job transitions to a terminal status, increment the refresh trigger
+    // so the JobLaunchDialog can update its training run options and status beads.
+    if (TERMINAL_STATUSES.has(message.status) && !TERMINAL_STATUSES.has(previousStatus)) {
+      jobRefreshTrigger.value++
     }
   } else {
     // New job, fetch the full list
@@ -493,6 +499,45 @@ function toggleJobProgressPanel() {
 const showProminentGenerateButton = computed(() => {
   return selectedTrainingRun.value && !selectedTrainingRun.value.has_samples
 })
+
+/** AC1: Status of the current sidebar-selected training run for header bead. */
+type TrainingRunButtonStatus = 'complete' | 'complete_with_errors' | 'running' | 'queued' | 'empty'
+
+function getTrainingRunButtonStatus(run: TrainingRun): TrainingRunButtonStatus {
+  const runJobs = sampleJobs.value.filter(j => j.training_run_name === run.name)
+  const hasRunning = runJobs.some(j => j.status === 'running')
+  const hasQueued = runJobs.some(j => j.status === 'pending' || j.status === 'stopped')
+  const hasCompletedWithErrors = runJobs.some(j => j.status === 'completed_with_errors')
+  if (hasRunning) return 'running'
+  if (hasQueued) return 'queued'
+  if (hasCompletedWithErrors) return 'complete_with_errors'
+  if (run.has_samples) return 'complete'
+  return 'empty'
+}
+
+const buttonBeadStatus = computed((): TrainingRunButtonStatus | null => {
+  if (!selectedTrainingRun.value) return null
+  return getTrainingRunButtonStatus(selectedTrainingRun.value)
+})
+
+const buttonBeadColor = computed((): string | null => {
+  const status = buttonBeadStatus.value
+  if (!status) return null
+  const colorMap: Record<TrainingRunButtonStatus, string> = {
+    complete: '#18a058',
+    complete_with_errors: '#d03050',
+    running: '#2080f0',
+    queued: '#f0a020',
+    empty: '#909090',
+  }
+  return colorMap[status]
+})
+
+/** AC4: Counter incremented when a job completes via WebSocket to trigger dialog refresh. */
+const jobRefreshTrigger = ref(0)
+
+/** Terminal job statuses that indicate a job has finished. */
+const TERMINAL_STATUSES: Set<SampleJobStatus> = new Set(['completed', 'completed_with_errors', 'failed'])
 </script>
 
 <template>
@@ -518,7 +563,16 @@ const showProminentGenerateButton = computed(() => {
             aria-label="Generate samples"
             data-testid="generate-samples-button"
             @click="openJobLaunchDialog"
-          >Generate Samples</NButton>
+          >
+            <span
+              v-if="buttonBeadColor"
+              class="header-bead"
+              :style="{ backgroundColor: buttonBeadColor }"
+              :title="buttonBeadStatus ?? ''"
+              data-testid="generate-samples-bead"
+            ></span>
+            Generate Samples
+          </NButton>
           <NButton
             v-if="selectedTrainingRun && !scanning && !scanError"
             size="small"
@@ -654,6 +708,7 @@ const showProminentGenerateButton = computed(() => {
       />
       <JobLaunchDialog
         v-model:show="jobLaunchDialogOpen"
+        :refresh-trigger="jobRefreshTrigger"
         @success="onJobCreated"
       />
       <JobProgressPanel
@@ -802,6 +857,15 @@ const showProminentGenerateButton = computed(() => {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+}
+
+.header-bead {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 0.375rem;
+  flex-shrink: 0;
 }
 
 .drawer-section {

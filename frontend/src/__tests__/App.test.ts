@@ -25,6 +25,7 @@ vi.mock('../api/client', () => ({
         { name: 'cfg', values: ['7'] },
       ],
     }),
+    listSampleJobs: vi.fn().mockResolvedValue([]),
   },
 }))
 
@@ -592,6 +593,61 @@ describe('App', () => {
 
       // App should not crash; placeholder text may be shown
       expect(wrapper.find('h1').text()).toBe('Checkpoint Sampler')
+    })
+  })
+
+  // AC1: Generate Samples header button shows a colored bead indicating sample/job status
+  describe('header bead status indicator (AC1)', () => {
+    it('shows a green bead on Generate Samples button when training run has_samples', async () => {
+      // mockTrainingRun has has_samples=true, listSampleJobs returns [] (no active jobs)
+      // → status = 'complete', bead color = green (#18a058)
+      // Ensure wide screen so drawer is open and TrainingRunSelector is rendered
+      Object.defineProperty(window, 'innerWidth', { value: 1200, configurable: true })
+      vi.stubGlobal('matchMedia', createMatchMediaMock(true))
+
+      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      await flushPromises()
+
+      // Select a training run
+      const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
+      selector.vm.$emit('select', mockTrainingRun)
+      await flushPromises()
+
+      const bead = wrapper.find('[data-testid="generate-samples-bead"]')
+      expect(bead.exists()).toBe(true)
+      expect(bead.attributes('title')).toBe('complete')
+      expect(bead.attributes('style')).toContain('background-color: rgb(24, 160, 88)')
+    })
+
+    it('shows a gray bead when training run has no samples and no jobs', async () => {
+      const emptyRun: TrainingRun = {
+        id: 2,
+        name: 'empty-run',
+        checkpoint_count: 1,
+        has_samples: false,
+        checkpoints: [
+          { filename: 'model.safetensors', step_number: 1000, has_samples: false },
+        ],
+      }
+      mockGetTrainingRuns.mockResolvedValue([emptyRun])
+
+      // Ensure wide screen so drawer is open and TrainingRunSelector is rendered
+      Object.defineProperty(window, 'innerWidth', { value: 1200, configurable: true })
+      vi.stubGlobal('matchMedia', createMatchMediaMock(true))
+
+      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      await flushPromises()
+
+      // Select the empty training run
+      const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
+      selector.vm.$emit('select', emptyRun)
+      await flushPromises()
+
+      const bead = wrapper.find('[data-testid="generate-samples-bead"]')
+      expect(bead.exists()).toBe(true)
+      expect(bead.attributes('title')).toBe('empty')
+      // gray = #909090 → rgb(144, 144, 144)
+      expect(bead.attributes('style')).toContain('background-color: rgb(144, 144, 144)')
     })
   })
 })

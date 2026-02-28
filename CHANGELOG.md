@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-062: Generate Samples dialog polish — bead indicator, preset auto-close, training run restore and refresh
+- `frontend/src/App.vue`: Added colored bead indicator on Generate Samples header button reflecting sample/job status of the sidebar-selected training run (green=complete, blue=running, yellow=queued, gray=empty); added `jobRefreshTrigger` counter that increments on WebSocket terminal job status transitions; passed `refreshTrigger` prop to `JobLaunchDialog`
+- `frontend/src/components/JobLaunchDialog.vue`: Added `refreshTrigger` prop with watcher to auto-refresh training runs and status beads on job completion; training run persistence via `saveTrainingRunId`/`getLastTrainingRunId`; auto-close preset editor sub-modal on save with preset auto-selection
+- `frontend/src/composables/useGenerateInputsPersistence.ts`: Added `lastTrainingRunId` field to persisted state with `getLastTrainingRunId` and `saveTrainingRunId` methods; backward-compatible schema validation
+- `frontend/src/components/__tests__/JobLaunchDialog.test.ts`: 10 new tests covering preset auto-close (AC2), training run persistence (AC3), WebSocket refresh (AC4), and preset selection after editor close (AC5)
+- `frontend/src/composables/__tests__/useGenerateInputsPersistence.test.ts`: 8 new tests for training run ID persistence and validation
+- `frontend/src/__tests__/App.test.ts`: 2 new tests for header bead indicator (AC1)
+- `frontend/e2e/preset-crud.spec.ts`: Updated 3 E2E tests to account for preset auto-close behavior; added AC2/AC5 E2E verification
+- 698 frontend tests pass; 564 backend tests pass; 35 E2E tests pass
+
 ### S-061: Lightbox UX improvements — keyboard navigation and slider dimension label
 - `frontend/src/components/ImageLightbox.vue`: Added `sliderDimensionName`, `gridImages`, and `gridIndex` props; added `navigate` emit for grid navigation; added Shift+ArrowLeft/Right handling in `onKeyDown` with wrap-around; changed slider label from hardcoded "Slider" to use dimension name prop with fallback
 - `frontend/src/components/XYGrid.vue`: Added `GridNavItem` exported interface; extended `ImageClickContext` with `gridImages` and `gridIndex` fields; added `buildGridNavItems()` helper to build ordered list of all visible grid cells

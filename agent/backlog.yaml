@@ -558,7 +558,7 @@ stories:
   - id: S-062
     title: "Generate Samples dialog polish — bead indicator, preset auto-close, training run restore and refresh"
     priority: 65
-    status: todo
+    status: uat
     requires: []
     acceptance:
       - "FE: Generate Samples header button shows a colored bead indicating sample/job status of the current sidebar-selected training run"

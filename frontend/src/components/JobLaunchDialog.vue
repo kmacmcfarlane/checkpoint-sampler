@@ -21,8 +21,10 @@ import { useGenerateInputsPersistence } from '../composables/useGenerateInputsPe
 /** Status of a training run used to determine bead color. */
 type TrainingRunStatus = 'complete' | 'complete_with_errors' | 'running' | 'queued' | 'empty'
 
-defineProps<{
+const props = defineProps<{
   show: boolean
+  /** Incremented by the parent when a job completes via WebSocket, triggering a data refresh. */
+  refreshTrigger?: number
 }>()
 
 const emit = defineEmits<{
@@ -221,6 +223,13 @@ watch(selectedTrainingRunId, async () => {
   }
 })
 
+// Persist training run selection changes (AC3)
+watch(selectedTrainingRunId, (runId) => {
+  if (runId !== null) {
+    persistence.saveTrainingRunId(runId)
+  }
+})
+
 // Persist workflow selection changes
 watch(selectedWorkflow, (workflowId) => {
   persistence.saveWorkflowId(workflowId)
@@ -366,6 +375,11 @@ const canSubmit = computed(() => {
   )
 })
 
+// AC4: When refreshTrigger changes (job completed via WebSocket), refresh training run + job data
+watch(() => props.refreshTrigger, () => {
+  fetchTrainingRunsAndJobs()
+})
+
 onMounted(async () => {
   await Promise.all([
     fetchTrainingRunsAndJobs(),
@@ -383,6 +397,23 @@ onMounted(async () => {
     )
     if (isAvailable) {
       selectedWorkflow.value = lastWorkflowId
+    }
+  }
+
+  // AC3: Restore last used training run (only if it's still in the available list).
+  // The filter may need to be expanded to "show all" if the run is not in the default filter.
+  const lastTrainingRunId = persistence.getLastTrainingRunId()
+  if (lastTrainingRunId !== null) {
+    const runExists = trainingRuns.value.some(r => r.id === lastTrainingRunId)
+    if (runExists) {
+      // Check if the run is in the current filtered options; if not, expand the filter
+      const inDefaultFilter = trainingRuns.value.some(
+        r => r.id === lastTrainingRunId && getRunStatus(r) === 'empty'
+      )
+      if (!inDefaultFilter) {
+        showAllRuns.value = true
+      }
+      selectedTrainingRunId.value = lastTrainingRunId
     }
   }
 })
@@ -465,6 +496,8 @@ function closePresetEditor() {
 async function onPresetSaved(preset: SamplePreset) {
   await fetchSamplePresets()
   selectedPreset.value = preset.id
+  // AC2: Auto-close the preset editor sub-modal after saving
+  presetEditorOpen.value = false
 }
 
 async function onPresetDeleted(presetId: string) {

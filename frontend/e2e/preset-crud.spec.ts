@@ -247,6 +247,9 @@ test.describe('sample preset CRUD via job launch dialog', () => {
   })
 
   test('creates a new preset and verifies it appears in the preset selector', async ({ page }) => {
+    // AC2: After saving, the Manage Presets modal auto-closes and returns focus
+    // to the job launch dialog.
+    // AC5: The newly saved preset is auto-selected in the job dialog dropdown.
     const uniquePresetName = `E2E Test Preset ${Date.now()}`
 
     await openGenerateSamplesDialog(page)
@@ -276,28 +279,19 @@ test.describe('sample preset CRUD via job launch dialog', () => {
     // Save the preset
     await saveButton.click()
 
-    // After saving, the button label switches to "Update Preset"
-    await expect(saveButton).toContainText('Update Preset')
+    // AC2: The Manage Presets modal should auto-close after saving
+    const managePresetsDialog = getManagePresetsDialog(page)
+    await expect(managePresetsDialog).not.toBeVisible()
 
-    // The preset editor's preset selector should now display the new preset name
-    const editorPresetSelect = page.locator('[data-testid="preset-editor-select"]')
-    await expect(editorPresetSelect).toContainText(uniquePresetName)
-
-    // Close the Manage Presets modal
-    await closeManagePresetsModal(page)
-
-    // Back in the Generate Samples dialog, open the preset dropdown
+    // AC5: Back in the Generate Samples dialog, the newly saved preset should be
+    // auto-selected in the job dialog dropdown
     const jobDialogPresetSelect = page.locator('[data-testid="preset-select"]')
-    await jobDialogPresetSelect.click()
-    const popupMenu = page.locator('.n-base-select-menu:visible')
-    await expect(popupMenu).toBeVisible()
-    // The new preset should appear in the dropdown
-    await expect(popupMenu.getByText(uniquePresetName, { exact: true })).toBeVisible()
-    // Close the popup
-    await page.keyboard.press('Escape')
+    await expect(jobDialogPresetSelect).toContainText(uniquePresetName)
   })
 
   test('edits an existing preset and saves the update', async ({ page }) => {
+    // AC2: After each save, the Manage Presets modal auto-closes.
+    // To edit after creating, we must re-open the modal.
     const uniquePresetName = `E2E Edit Test ${Date.now()}`
     const updatedName = `${uniquePresetName} Updated`
 
@@ -314,22 +308,47 @@ test.describe('sample preset CRUD via job launch dialog', () => {
     const saveButton = page.locator('[data-testid="save-preset-button"]')
     await expect(saveButton).not.toBeDisabled()
     await saveButton.click()
-    // After initial save, button shows "Update Preset"
-    await expect(saveButton).toContainText('Update Preset')
+
+    // AC2: Modal auto-closes after save
+    await expect(getManagePresetsDialog(page)).not.toBeVisible()
+
+    // Re-open the Manage Presets modal to edit the preset
+    await openManagePresetsEditor(page)
+
+    // The previously saved preset should be loaded (AC5: it was auto-selected in
+    // the job dialog, and the editor receives it as initialPresetId).
+    // Select it in the editor if not already selected.
+    const editorPresetSelect = page.locator('[data-testid="preset-editor-select"]')
+    await editorPresetSelect.click()
+    const popupMenu = page.locator('.n-base-select-menu:visible')
+    await expect(popupMenu).toBeVisible()
+    await popupMenu.getByText(uniquePresetName, { exact: true }).click()
+    await expect(popupMenu).not.toBeVisible()
 
     // Edit the preset name
     const nameInput = page.locator('[data-testid="preset-name-input"] input')
     await nameInput.fill(updatedName)
 
     // Save the update
-    await saveButton.click()
-    await expect(saveButton).toContainText('Update Preset')
+    const updateButton = page.locator('[data-testid="save-preset-button"]')
+    await expect(updateButton).toContainText('Update Preset')
+    await updateButton.click()
 
-    // Verify the updated name appears in the preset editor selector
-    const editorPresetSelect = page.locator('[data-testid="preset-editor-select"]')
-    await expect(editorPresetSelect).toContainText(updatedName)
+    // AC2: Modal auto-closes again after update
+    await expect(getManagePresetsDialog(page)).not.toBeVisible()
 
-    // Clean up: accept the delete confirmation and delete the preset
+    // AC5: The updated preset should be auto-selected in the job dialog dropdown
+    const jobDialogPresetSelect = page.locator('[data-testid="preset-select"]')
+    await expect(jobDialogPresetSelect).toContainText(updatedName)
+
+    // Clean up: re-open the editor and delete the preset
+    await openManagePresetsEditor(page)
+    await editorPresetSelect.click()
+    const cleanupMenu = page.locator('.n-base-select-menu:visible')
+    await expect(cleanupMenu).toBeVisible()
+    await cleanupMenu.getByText(updatedName, { exact: true }).click()
+    await expect(cleanupMenu).not.toBeVisible()
+
     page.on('dialog', (dialog) => dialog.accept())
     await page.locator('[data-testid="delete-preset-button"]').click()
 
@@ -338,6 +357,7 @@ test.describe('sample preset CRUD via job launch dialog', () => {
   })
 
   test('deletes a preset and verifies it is removed from the dropdown', async ({ page }) => {
+    // AC2: After save, the modal auto-closes. We re-open it to delete the preset.
     const uniquePresetName = `E2E Delete Test ${Date.now()}`
 
     await openGenerateSamplesDialog(page)
@@ -353,10 +373,22 @@ test.describe('sample preset CRUD via job launch dialog', () => {
     const saveButton = page.locator('[data-testid="save-preset-button"]')
     await expect(saveButton).not.toBeDisabled()
     await saveButton.click()
-    await expect(saveButton).toContainText('Update Preset')
+
+    // AC2: Modal auto-closes after save
+    await expect(getManagePresetsDialog(page)).not.toBeVisible()
+
+    // Re-open the Manage Presets modal to delete the preset
+    await openManagePresetsEditor(page)
+
+    // Select the preset we just created in the editor
+    const editorPresetSelect = page.locator('[data-testid="preset-editor-select"]')
+    await editorPresetSelect.click()
+    const popupMenu = page.locator('.n-base-select-menu:visible')
+    await expect(popupMenu).toBeVisible()
+    await popupMenu.getByText(uniquePresetName, { exact: true }).click()
+    await expect(popupMenu).not.toBeVisible()
 
     // Verify preset exists in editor selector before deletion
-    const editorPresetSelect = page.locator('[data-testid="preset-editor-select"]')
     await expect(editorPresetSelect).toContainText(uniquePresetName)
 
     // Register handler to accept the window.confirm dialog that deletePreset() triggers
@@ -379,10 +411,10 @@ test.describe('sample preset CRUD via job launch dialog', () => {
     // Back in the Generate Samples dialog, open the preset dropdown
     const jobDialogPresetSelect = page.locator('[data-testid="preset-select"]')
     await jobDialogPresetSelect.click()
-    const popupMenu = page.locator('.n-base-select-menu:visible')
-    await expect(popupMenu).toBeVisible()
+    const presetPopup = page.locator('.n-base-select-menu:visible')
+    await expect(presetPopup).toBeVisible()
     // The deleted preset should NOT appear in the dropdown
-    await expect(popupMenu.getByText(uniquePresetName, { exact: true })).not.toBeVisible()
+    await expect(presetPopup.getByText(uniquePresetName, { exact: true })).not.toBeVisible()
     // Close the popup
     await page.keyboard.press('Escape')
   })

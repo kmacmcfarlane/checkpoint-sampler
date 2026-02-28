@@ -43,3 +43,9 @@ The QA agent currently searches E2E backend logs for panics manually. A lightwei
 * priority: low
 * source: developer
 Currently the accessibility audit runs only on the initial empty-state page. Adding a second scan after loading a training run and assigning axes (with real images rendered) would catch contrast violations inside grid cells, image captions, and axis labels.
+
+### App.test.ts window.innerWidth cleanup between tests
+* status: needs_approval
+* priority: low
+* source: developer
+The "Eager auto-select" tests in App.test.ts set `Object.defineProperty(window, 'innerWidth', ...)` which persists across tests since `vi.unstubAllGlobals()` only removes `vi.stubGlobal` stubs. Tests running after this section inherit the modified `innerWidth`. A shared `afterEach` that resets `innerWidth` to a known default would prevent ordering-dependent test failures.
