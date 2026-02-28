@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### W-003: Story notes improvements — root cause documentation and numeric format spec
+- `agent/AGENT_FLOW.md`: Added section 4.3.3 "Bug fix story notes — root cause documentation" requiring B-NNN story verdicts to include which function/guard/condition caused the bug, why it triggered, and where the fix is applied; updated sections 4.4.1 and 4.4.2 to cross-reference the root cause format for QA-filed bug tickets
+- `.claude/agents/fullstack-developer.md`: Added "Root Cause Analysis (REQUIRED for bug fix stories)" section with structured template for B- story verdicts
+- `agent/DEVELOPMENT_PRACTICES.md`: Added section 4.10 "Numeric field format specification" defining CFG as floating point, steps as integer, and seeds as non-negative integer, with a requirement that acceptance criteria explicitly state the expected format
+
 ### W-002: E2E test result parsing — QA addresses failures and files bug tickets
 - `.claude/agents/qa-expert.md`: Updated E2E test execution from "non-blocking for non-E2E stories" to "active triage required" — QA must now investigate each E2E failure and classify as story-related (blocking) or pre-existing (non-blocking bug ticket)
 - Added structured "New E2E bug tickets" section to QA verdict template with fields for failing test, error output, root cause hypothesis, priority, and acceptance criteria

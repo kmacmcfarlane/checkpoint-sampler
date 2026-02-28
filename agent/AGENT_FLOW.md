@@ -214,6 +214,17 @@ This helps downstream agents orient faster by knowing which files changed and wh
 
 If the fullstack engineer's response does not include a change summary (e.g., older prompt format), the orchestrator should fall back to `git diff --name-only main..HEAD` to generate a file list and pass that instead (without descriptions).
 
+### 4.3.3 Bug fix story notes — root cause documentation
+
+When the fullstack engineer implements a **bug fix story** (id starts with `B-`), the story's `notes` field in backlog.yaml (or the review verdict) must include a root cause analysis so that downstream agents (code reviewer, QA) can orient immediately without re-diagnosing the issue.
+
+Required root cause elements:
+- **Which function / guard / condition caused the bug** — e.g., "The `validatePreset` guard in `service/preset.go` accepted a zero-value seed as valid because the nil-check was missing."
+- **Why it triggered** — the specific state or input sequence that exposed the bug.
+- **Where the fix is applied** — the file(s) and the nature of the change (guard added, nil check, off-by-one corrected, etc.).
+
+The orchestrator passes this root cause analysis to the code reviewer and QA expert as part of their dispatch context (alongside the change summary). If the fullstack engineer's verdict does not include root cause analysis for a bug story, the orchestrator should note the gap in the review dispatch so the code reviewer can verify the fix targets the correct location.
+
 ### 4.4 Update artifacts (orchestrator responsibility)
 
 After each subagent completes, the **orchestrator** (not the subagent) performs these updates:
@@ -250,7 +261,7 @@ When the QA expert's verdict includes a "Runtime Error Sweep" section with findi
      - `requires: []`
      - `acceptance`: From QA's suggested acceptance criteria
      - `testing`: From QA's suggested testing commands
-     - `notes`: Include the log evidence and root cause hypothesis from the QA report
+     - `notes`: Include the log evidence and root cause hypothesis from the QA report. The root cause hypothesis must identify the specific function, guard, or condition suspected to be responsible (see section 4.3.3 for the expected format). This helps the fullstack engineer focus immediately on the correct fix.
 
 2. **Improvement ideas**: For each improvement idea reported by QA:
    - Route to the appropriate file under `/agent/ideas/` (see section 4.4 for routing rules). Include `* status: needs_approval`, `* priority: <value>` (using the priority suggested by QA), and `* source: qa`.
@@ -278,7 +289,7 @@ When the QA expert's verdict includes an "E2E Test Results" section with `Status
      - `requires: []`
      - `acceptance`: From QA's suggested acceptance criteria
      - `testing`: From QA's suggested testing commands
-     - `notes`: Include the failing test name, error output, and root cause hypothesis from the QA report
+     - `notes`: Include the failing test name, error output, and root cause hypothesis from the QA report. The root cause hypothesis must identify the specific function, guard, or condition suspected to be responsible (see section 4.3.3 for the expected format). This helps the fullstack engineer focus immediately on the correct fix.
 
 3. **E2E result tracking**: Record the E2E pass/fail counts from the QA verdict in the story's commit notes or as a comment in the commit message (e.g., `E2E: 42 passed, 0 failed`). This provides a regression baseline visible in git history.
 

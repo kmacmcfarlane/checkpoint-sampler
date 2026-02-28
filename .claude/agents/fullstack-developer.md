@@ -232,6 +232,25 @@ Integration with other agents:
 - Engage qa-expert on test strategies
 - Align with microservices-architect on boundaries
 
+## Root Cause Analysis (REQUIRED for bug fix stories)
+
+For bug fix stories (id starts with `B-`), the verdict must include a root cause analysis section with:
+- Which function, guard, or condition caused the bug
+- Why it triggered (the underlying reason, not just the symptom)
+- Where the fix is applied (file, function, or line range)
+
+Format:
+
+```
+## Root Cause Analysis
+
+- **Faulty location**: <function/guard/condition that caused the bug>
+- **Why it triggered**: <explanation of root cause>
+- **Fix applied**: <file and function/location where the fix was made>
+```
+
+This section is required for all `B-` stories. For feature stories, omit it.
+
 ## Change Summary (REQUIRED)
 
 Your verdict MUST include a structured "Change Summary" section listing every file you modified and a brief description of what changed. This is extracted by the orchestrator and passed to the code reviewer and QA expert so they can orient faster.

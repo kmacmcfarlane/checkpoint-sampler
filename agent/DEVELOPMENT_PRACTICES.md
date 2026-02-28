@@ -228,6 +228,22 @@ const emit = defineEmits<{
 }>()
 ```
 
+### 4.10 Numeric field format specification
+
+The following field-type conventions apply throughout the stack (backend model, API types, frontend form inputs, and acceptance criteria). Acceptance criteria for any story that involves these fields must state the expected format explicitly.
+
+| Field / concept | Expected format | Examples |
+|---|---|---|
+| CFG scale (guidance scale) | Floating point | `1.0`, `7.5`, `12.0` |
+| Steps (inference steps) | Integer | `20`, `30`, `50` |
+| Seed | Non-negative integer | `0`, `42`, `12345` |
+
+Rules:
+- **CFG** values must be represented as floating-point numbers in API payloads and model types (e.g., `float64` in Go, `number` in TypeScript). A whole-number CFG such as 7 is stored and transmitted as `7.0`.
+- **Steps** values must be integers (e.g., `int` in Go, integer-typed `number` in TypeScript). Fractional steps values are invalid and must be rejected by validation.
+- **Seeds** must be non-negative integers. Fractional or negative seeds are invalid.
+- Acceptance criteria that reference CFG, steps, or seed fields must explicitly call out the format (e.g., "CFG is stored as a float, steps as an integer") so that validation behavior is unambiguous for both the developer and reviewer.
+
 ## 5) Docker and dev workflow practices
 
 ### 5.0 Environment detection

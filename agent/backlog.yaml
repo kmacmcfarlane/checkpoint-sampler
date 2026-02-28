@@ -456,7 +456,7 @@ stories:
   - id: W-003
     title: "Story notes improvements — root cause documentation and numeric format spec"
     priority: 196
-    status: todo
+    status: uat
     requires: []
     acceptance:
       - "AGENT: Story notes for bug fixes include root cause analysis (e.g., which function/guard/condition caused the issue) so the developer can focus immediately"
