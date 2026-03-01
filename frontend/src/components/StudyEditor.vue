@@ -1,32 +1,32 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { NInput, NInputNumber, NSelect, NButton, NDynamicInput, NDynamicTags, NCard, NSpace, NAlert } from 'naive-ui'
-import type { SamplePreset, NamedPrompt, SamplerSchedulerPair, CreateSamplePresetPayload, UpdateSamplePresetPayload } from '../api/types'
+import type { Study, NamedPrompt, SamplerSchedulerPair, CreateStudyPayload, UpdateStudyPayload } from '../api/types'
 import { apiClient } from '../api/client'
 
-// initialPresetId: When provided, the preset with this ID is pre-selected after presets load.
-// If null or the ID is not found in the loaded presets, no preset is selected (default behavior).
+// initialStudyId: When provided, the study with this ID is pre-selected after studies load.
+// If null or the ID is not found in the loaded studies, no study is selected (default behavior).
 const props = withDefaults(defineProps<{
-  initialPresetId?: string | null
+  initialStudyId?: string | null
 }>(), {
-  initialPresetId: null,
+  initialStudyId: null,
 })
 
-// preset-saved: Emitted after a preset is created or updated. Payload: the saved SamplePreset.
-// preset-deleted: Emitted after a preset is deleted. Payload: the deleted preset's ID (string).
+// study-saved: Emitted after a study is created or updated. Payload: the saved Study.
+// study-deleted: Emitted after a study is deleted. Payload: the deleted study's ID (string).
 const emit = defineEmits<{
-  'preset-saved': [preset: SamplePreset]
-  'preset-deleted': [presetId: string]
+  'study-saved': [study: Study]
+  'study-deleted': [studyId: string]
 }>()
 
-const presets = ref<SamplePreset[]>([])
-const selectedPresetId = ref<string | null>(null)
+const studies = ref<Study[]>([])
+const selectedStudyId = ref<string | null>(null)
 const loading = ref(false)
 const saving = ref(false)
 const error = ref<string | null>(null)
 
 // Form fields
-const presetName = ref('')
+const studyName = ref('')
 const promptPrefix = ref('')
 const prompts = ref<NamedPrompt[]>([{ name: '', text: '' }])
 const negativePrompt = ref('')
@@ -42,7 +42,7 @@ const availableSamplers = ref<string[]>([])
 const availableSchedulers = ref<string[]>([])
 
 const selectOptions = computed(() =>
-  presets.value.map((p) => ({
+  studies.value.map((p) => ({
     label: p.name,
     value: p.id,
   }))
@@ -85,7 +85,7 @@ const computedTotalImages = computed(() => {
 
 const canSave = computed(() => {
   return (
-    presetName.value.trim() !== '' &&
+    studyName.value.trim() !== '' &&
     prompts.value.some(p => p != null && p.name.trim() !== '' && p.text.trim() !== '') &&
     steps.value.length > 0 &&
     cfgs.value.length > 0 &&
@@ -99,30 +99,30 @@ const canSave = computed(() => {
 
 onMounted(async () => {
   await Promise.all([
-    fetchPresets(),
+    fetchStudies(),
     fetchSamplers(),
     fetchSchedulers(),
   ])
 
-  // After presets are loaded, pre-select the preset from the parent dialog if one was provided.
-  if (props.initialPresetId !== null) {
-    const match = presets.value.find(p => p.id === props.initialPresetId)
+  // After studies are loaded, pre-select the study from the parent dialog if one was provided.
+  if (props.initialStudyId !== null) {
+    const match = studies.value.find(p => p.id === props.initialStudyId)
     if (match) {
-      onSelectPreset(match.id)
+      onSelectStudy(match.id)
     }
   }
 })
 
-async function fetchPresets() {
+async function fetchStudies() {
   loading.value = true
   error.value = null
   try {
-    presets.value = await apiClient.listSamplePresets()
+    studies.value = await apiClient.listStudies()
   } catch (err: unknown) {
     const message =
       err && typeof err === 'object' && 'message' in err
         ? String((err as { message: string }).message)
-        : 'Failed to load presets'
+        : 'Failed to load studies'
     error.value = message
   } finally {
     loading.value = false
@@ -149,33 +149,33 @@ async function fetchSchedulers() {
   }
 }
 
-function onSelectPreset(value: string | null) {
-  selectedPresetId.value = value
+function onSelectStudy(value: string | null) {
+  selectedStudyId.value = value
   if (!value) {
     resetForm()
     return
   }
-  const preset = presets.value.find(p => p.id === value)
-  if (preset) {
-    loadPreset(preset)
+  const study = studies.value.find(p => p.id === value)
+  if (study) {
+    loadStudy(study)
   }
 }
 
-function loadPreset(preset: SamplePreset) {
-  presetName.value = preset.name
-  promptPrefix.value = preset.prompt_prefix
-  prompts.value = [...preset.prompts]
-  negativePrompt.value = preset.negative_prompt
-  steps.value = [...preset.steps]
-  cfgs.value = [...preset.cfgs]
-  samplerSchedulerPairs.value = preset.sampler_scheduler_pairs.map(p => ({ ...p }))
-  seeds.value = [...preset.seeds]
-  width.value = preset.width
-  height.value = preset.height
+function loadStudy(study: Study) {
+  studyName.value = study.name
+  promptPrefix.value = study.prompt_prefix
+  prompts.value = [...study.prompts]
+  negativePrompt.value = study.negative_prompt
+  steps.value = [...study.steps]
+  cfgs.value = [...study.cfgs]
+  samplerSchedulerPairs.value = study.sampler_scheduler_pairs.map(p => ({ ...p }))
+  seeds.value = [...study.seeds]
+  width.value = study.width
+  height.value = study.height
 }
 
 function resetForm() {
-  presetName.value = ''
+  studyName.value = ''
   promptPrefix.value = ''
   prompts.value = [{ name: '', text: '' }]
   negativePrompt.value = ''
@@ -187,12 +187,12 @@ function resetForm() {
   height.value = 1024
 }
 
-function createNewPreset() {
-  selectedPresetId.value = null
+function createNewStudy() {
+  selectedStudyId.value = null
   resetForm()
 }
 
-async function savePreset() {
+async function saveStudy() {
   if (!canSave.value) return
 
   saving.value = true
@@ -201,10 +201,10 @@ async function savePreset() {
     // Filter out empty prompts
     const validPrompts = prompts.value.filter(p => p != null && p.name.trim() !== '' && p.text.trim() !== '')
 
-    const payload: CreateSamplePresetPayload | UpdateSamplePresetPayload = selectedPresetId.value
+    const payload: CreateStudyPayload | UpdateStudyPayload = selectedStudyId.value
       ? {
-          id: selectedPresetId.value,
-          name: presetName.value.trim(),
+          id: selectedStudyId.value,
+          name: studyName.value.trim(),
           prompt_prefix: promptPrefix.value,
           prompts: validPrompts,
           negative_prompt: negativePrompt.value,
@@ -216,7 +216,7 @@ async function savePreset() {
           height: height.value,
         }
       : {
-          name: presetName.value.trim(),
+          name: studyName.value.trim(),
           prompt_prefix: promptPrefix.value,
           prompts: validPrompts,
           negative_prompt: negativePrompt.value,
@@ -228,51 +228,51 @@ async function savePreset() {
           height: height.value,
         }
 
-    const result = selectedPresetId.value
-      ? await apiClient.updateSamplePreset(payload as UpdateSamplePresetPayload)
-      : await apiClient.createSamplePreset(payload as CreateSamplePresetPayload)
+    const result = selectedStudyId.value
+      ? await apiClient.updateStudy(payload as UpdateStudyPayload)
+      : await apiClient.createStudy(payload as CreateStudyPayload)
 
-    // Update presets list
-    if (selectedPresetId.value) {
-      const index = presets.value.findIndex(p => p.id === selectedPresetId.value)
+    // Update studies list
+    if (selectedStudyId.value) {
+      const index = studies.value.findIndex(p => p.id === selectedStudyId.value)
       if (index !== -1) {
-        presets.value[index] = result
+        studies.value[index] = result
       }
     } else {
-      presets.value.push(result)
-      selectedPresetId.value = result.id
+      studies.value.push(result)
+      selectedStudyId.value = result.id
     }
-    emit('preset-saved', result)
+    emit('study-saved', result)
   } catch (err: unknown) {
     const message =
       err && typeof err === 'object' && 'message' in err
         ? String((err as { message: string }).message)
-        : 'Failed to save preset'
+        : 'Failed to save study'
     error.value = message
   } finally {
     saving.value = false
   }
 }
 
-async function deletePreset() {
-  if (!selectedPresetId.value) return
+async function deleteStudy() {
+  if (!selectedStudyId.value) return
 
-  const confirmed = confirm(`Delete preset "${presetName.value}"?`)
+  const confirmed = confirm(`Delete study "${studyName.value}"?`)
   if (!confirmed) return
 
   error.value = null
   try {
-    const deletedId = selectedPresetId.value
-    await apiClient.deleteSamplePreset(selectedPresetId.value)
-    presets.value = presets.value.filter(p => p.id !== selectedPresetId.value)
+    const deletedId = selectedStudyId.value
+    await apiClient.deleteStudy(selectedStudyId.value)
+    studies.value = studies.value.filter(p => p.id !== selectedStudyId.value)
     resetForm()
-    selectedPresetId.value = null
-    emit('preset-deleted', deletedId)
+    selectedStudyId.value = null
+    emit('study-deleted', deletedId)
   } catch (err: unknown) {
     const message =
       err && typeof err === 'object' && 'message' in err
         ? String((err as { message: string }).message)
-        : 'Failed to delete preset'
+        : 'Failed to delete study'
     error.value = message
   }
 }
@@ -299,43 +299,43 @@ function onUpdateSeeds(tags: string[]) {
 </script>
 
 <template>
-  <div class="sample-preset-editor">
-    <NCard title="Sample Preset Editor">
+  <div class="study-editor">
+    <NCard title="Study Editor">
       <NSpace vertical :size="16">
         <NAlert v-if="error" type="error" closable @close="error = null">
           {{ error }}
         </NAlert>
 
-        <div class="preset-controls">
+        <div class="study-controls">
           <NSelect
-            :value="selectedPresetId"
+            :value="selectedStudyId"
             :options="selectOptions"
             :disabled="loading"
-            :placeholder="loading ? 'Loading...' : 'Select a preset'"
+            :placeholder="loading ? 'Loading...' : 'Select a study'"
             :loading="loading"
             clearable
-            class="preset-select"
+            class="study-select"
             size="medium"
-            data-testid="preset-editor-select"
-            @update:value="onSelectPreset"
+            data-testid="study-editor-select"
+            @update:value="onSelectStudy"
           />
           <NButton
             size="medium"
-            data-testid="new-preset-button"
-            @click="createNewPreset"
+            data-testid="new-study-button"
+            @click="createNewStudy"
           >
-            New Preset
+            New Study
           </NButton>
         </div>
 
         <div class="form-field">
-          <label for="preset-name">Preset Name</label>
+          <label for="study-name">Study Name</label>
           <NInput
-            id="preset-name"
-            v-model:value="presetName"
-            placeholder="My Sample Config"
+            id="study-name"
+            v-model:value="studyName"
+            placeholder="My Study Config"
             size="medium"
-            data-testid="preset-name-input"
+            data-testid="study-name-input"
           />
         </div>
 
@@ -553,19 +553,19 @@ function onUpdateSeeds(tags: string[]) {
             size="medium"
             :disabled="!canSave || saving"
             :loading="saving"
-            data-testid="save-preset-button"
-            @click="savePreset"
+            data-testid="save-study-button"
+            @click="saveStudy"
           >
-            {{ saving ? 'Saving...' : (selectedPresetId ? 'Update Preset' : 'Save Preset') }}
+            {{ saving ? 'Saving...' : (selectedStudyId ? 'Update Study' : 'Save Study') }}
           </NButton>
           <NButton
-            v-if="selectedPresetId"
+            v-if="selectedStudyId"
             type="error"
             size="medium"
-            data-testid="delete-preset-button"
-            @click="deletePreset"
+            data-testid="delete-study-button"
+            @click="deleteStudy"
           >
-            Delete Preset
+            Delete Study
           </NButton>
         </div>
       </NSpace>
@@ -574,18 +574,18 @@ function onUpdateSeeds(tags: string[]) {
 </template>
 
 <style scoped>
-.sample-preset-editor {
+.study-editor {
   max-width: 800px;
   margin: 0 auto;
 }
 
-.preset-controls {
+.study-controls {
   display: flex;
   gap: 0.75rem;
   align-items: center;
 }
 
-.preset-select {
+.study-select {
   flex: 1;
 }
 

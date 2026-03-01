@@ -17,7 +17,7 @@ import (
 type fakeSampleJobStore struct {
 	jobs          map[string]model.SampleJob
 	items         map[string][]model.SampleJobItem
-	presets       map[string]model.SamplePreset
+	studies       map[string]model.Study
 	listJobsErr   error
 	getJobErr     error
 	createJobErr  error
@@ -26,14 +26,14 @@ type fakeSampleJobStore struct {
 	listItemsErr  error
 	createItemErr error
 	updateItemErr error
-	getPresetErr  error
+	getStudyErr   error
 }
 
 func newFakeSampleJobStore() *fakeSampleJobStore {
 	return &fakeSampleJobStore{
 		jobs:    make(map[string]model.SampleJob),
 		items:   make(map[string][]model.SampleJobItem),
-		presets: make(map[string]model.SamplePreset),
+		studies: make(map[string]model.Study),
 	}
 }
 
@@ -120,15 +120,15 @@ func (f *fakeSampleJobStore) UpdateSampleJobItem(i model.SampleJobItem) error {
 	return sql.ErrNoRows
 }
 
-func (f *fakeSampleJobStore) GetSamplePreset(id string) (model.SamplePreset, error) {
-	if f.getPresetErr != nil {
-		return model.SamplePreset{}, f.getPresetErr
+func (f *fakeSampleJobStore) GetStudy(id string) (model.Study, error) {
+	if f.getStudyErr != nil {
+		return model.Study{}, f.getStudyErr
 	}
-	p, ok := f.presets[id]
+	s, ok := f.studies[id]
 	if !ok {
-		return model.SamplePreset{}, sql.ErrNoRows
+		return model.Study{}, sql.ErrNoRows
 	}
-	return p, nil
+	return s, nil
 }
 
 // fakePathMatcher is a test double for service.PathMatcher.
@@ -218,14 +218,14 @@ var _ = Describe("SampleJobService", func() {
 
 	Describe("Create", func() {
 		var (
-			samplePreset model.SamplePreset
-			checkpoints  []model.Checkpoint
+			study       model.Study
+			checkpoints []model.Checkpoint
 		)
 
 		BeforeEach(func() {
-			samplePreset = model.SamplePreset{
-				ID:             "preset-1",
-				Name:           "Test Preset",
+			study = model.Study{
+				ID:             "study-1",
+				Name:           "Test Study",
 				Prompts:        []model.NamedPrompt{{Name: "prompt1", Text: "text1"}, {Name: "prompt2", Text: "text2"}},
 				NegativePrompt: "bad",
 				Steps:          []int{1, 4},
@@ -235,7 +235,7 @@ var _ = Describe("SampleJobService", func() {
 				},
 				Seeds: []int64{420},
 			}
-			store.presets[samplePreset.ID] = samplePreset
+			store.studies[study.ID] = study
 
 			checkpoints = []model.Checkpoint{
 				{Filename: "checkpoint1.safetensors", StepNumber: 1000},
@@ -248,11 +248,11 @@ var _ = Describe("SampleJobService", func() {
 
 		It("creates a job and expands items correctly", func() {
 			shift := 1.5
-			job, err := svc.Create("test-run", checkpoints, "preset-1", "workflow.json", "vae.safetensors", "clip.safetensors", &shift, nil, false)
+			job, err := svc.Create("test-run", checkpoints, "study-1", "workflow.json", "vae.safetensors", "clip.safetensors", &shift, nil, false)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(job.ID).NotTo(BeEmpty())
 			Expect(job.TrainingRunName).To(Equal("test-run"))
-			Expect(job.SamplePresetID).To(Equal("preset-1"))
+			Expect(job.StudyID).To(Equal("study-1"))
 			Expect(job.WorkflowName).To(Equal("workflow.json"))
 			Expect(job.VAE).To(Equal("vae.safetensors"))
 			Expect(job.CLIP).To(Equal("clip.safetensors"))
@@ -276,14 +276,14 @@ var _ = Describe("SampleJobService", func() {
 		})
 
 		It("calculates total items correctly", func() {
-			job, err := svc.Create("test-run", checkpoints, "preset-1", "workflow.json", "", "", nil, nil, false)
+			job, err := svc.Create("test-run", checkpoints, "study-1", "workflow.json", "", "", nil, nil, false)
 			Expect(err).NotTo(HaveOccurred())
 
 			// 2 checkpoints × 2 prompts × 2 steps × 2 cfgs × 1 pair × 1 seed = 16
 			Expect(job.TotalItems).To(Equal(16))
 		})
 
-		It("returns error when preset not found", func() {
+		It("returns error when study not found", func() {
 			_, err := svc.Create("test-run", checkpoints, "nonexistent", "workflow.json", "", "", nil, nil, false)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("not found"))
@@ -292,7 +292,7 @@ var _ = Describe("SampleJobService", func() {
 		It("marks items as skipped when checkpoint path matching fails", func() {
 			pathMatcher.paths = make(map[string]string) // Clear paths to simulate no matches
 
-			job, err := svc.Create("test-run", checkpoints, "preset-1", "workflow.json", "", "", nil, nil, false)
+			job, err := svc.Create("test-run", checkpoints, "study-1", "workflow.json", "", "", nil, nil, false)
 			Expect(err).NotTo(HaveOccurred())
 
 			items := store.items[job.ID]
@@ -304,14 +304,14 @@ var _ = Describe("SampleJobService", func() {
 		})
 
 		It("handles nil shift parameter", func() {
-			job, err := svc.Create("test-run", checkpoints, "preset-1", "workflow.json", "", "", nil, nil, false)
+			job, err := svc.Create("test-run", checkpoints, "study-1", "workflow.json", "", "", nil, nil, false)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(job.Shift).To(BeNil())
 		})
 
 		DescribeTable("filters checkpoints by checkpoint_filenames when provided",
 			func(filenames []string, expectedCount int) {
-				job, err := svc.Create("test-run", checkpoints, "preset-1", "workflow.json", "", "", nil, filenames, false)
+				job, err := svc.Create("test-run", checkpoints, "study-1", "workflow.json", "", "", nil, filenames, false)
 				Expect(err).NotTo(HaveOccurred())
 				// Each checkpoint produces 8 items (2 prompts × 2 steps × 2 cfgs × 1 pair × 1 seed)
 				Expect(job.TotalItems).To(Equal(expectedCount * 8))
@@ -327,7 +327,7 @@ var _ = Describe("SampleJobService", func() {
 
 		It("clears existing sample directories when clear_existing is true", func() {
 			dirRemover.removed = nil
-			_, err := svc.Create("test-run", checkpoints, "preset-1", "workflow.json", "", "", nil, nil, true)
+			_, err := svc.Create("test-run", checkpoints, "study-1", "workflow.json", "", "", nil, nil, true)
 			Expect(err).NotTo(HaveOccurred())
 			// Both checkpoints should have been cleared
 			Expect(dirRemover.removed).To(ConsistOf("checkpoint1.safetensors", "checkpoint2.safetensors"))
@@ -335,7 +335,7 @@ var _ = Describe("SampleJobService", func() {
 
 		It("clears only the filtered checkpoints when both checkpoint_filenames and clear_existing are set", func() {
 			dirRemover.removed = nil
-			_, err := svc.Create("test-run", checkpoints, "preset-1", "workflow.json", "", "", nil, []string{"checkpoint1.safetensors"}, true)
+			_, err := svc.Create("test-run", checkpoints, "study-1", "workflow.json", "", "", nil, []string{"checkpoint1.safetensors"}, true)
 			Expect(err).NotTo(HaveOccurred())
 			// Only checkpoint1 should have been cleared
 			Expect(dirRemover.removed).To(ConsistOf("checkpoint1.safetensors"))
@@ -343,7 +343,7 @@ var _ = Describe("SampleJobService", func() {
 
 		It("does not clear directories when clear_existing is false", func() {
 			dirRemover.removed = nil
-			_, err := svc.Create("test-run", checkpoints, "preset-1", "workflow.json", "", "", nil, nil, false)
+			_, err := svc.Create("test-run", checkpoints, "study-1", "workflow.json", "", "", nil, nil, false)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(dirRemover.removed).To(BeEmpty())
 		})

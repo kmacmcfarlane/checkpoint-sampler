@@ -43,12 +43,12 @@ var _ = Describe("SampleJob Store", func() {
 		os.RemoveAll(tmpDir)
 	})
 
-	// Helper to create a sample preset (required for foreign key constraint)
-	createSamplePreset := func(id string) {
+	// Helper to create a study (required for foreign key constraint)
+	createStudy := func(id string) {
 		now := time.Now().UTC().Truncate(time.Second)
-		preset := model.SamplePreset{
+		study := model.Study{
 			ID:   id,
-			Name: "Test Preset",
+			Name: "Test Study",
 			Prompts: []model.NamedPrompt{
 				{Name: "test", Text: "test prompt"},
 			},
@@ -58,13 +58,13 @@ var _ = Describe("SampleJob Store", func() {
 			SamplerSchedulerPairs: []model.SamplerSchedulerPair{
 				{Sampler: "euler", Scheduler: "simple"},
 			},
-			Seeds:          []int64{42},
-			Width:          512,
-			Height:         512,
-			CreatedAt:      now,
-			UpdatedAt:      now,
+			Seeds:     []int64{42},
+			Width:     512,
+			Height:    512,
+			CreatedAt: now,
+			UpdatedAt: now,
 		}
-		err := s.CreateSamplePreset(preset)
+		err := s.CreateStudy(study)
 		Expect(err).NotTo(HaveOccurred())
 	}
 
@@ -72,15 +72,16 @@ var _ = Describe("SampleJob Store", func() {
 		var sampleJob model.SampleJob
 
 		BeforeEach(func() {
-			// Create prerequisite sample preset
-			createSamplePreset("preset-1")
+			// Create prerequisite study
+			createStudy("study-1")
 
 			now := time.Now().UTC().Truncate(time.Second)
 			shift := 1.5
 			sampleJob = model.SampleJob{
 				ID:              "job-1",
 				TrainingRunName: "test-run",
-				SamplePresetID:  "preset-1",
+				StudyID:         "study-1",
+				StudyName:       "Test Study",
 				WorkflowName:    "flux-dev",
 				VAE:             "vae-model",
 				CLIP:            "clip-model",
@@ -103,7 +104,7 @@ var _ = Describe("SampleJob Store", func() {
 				Expect(err).NotTo(HaveOccurred())
 				Expect(retrieved.ID).To(Equal(sampleJob.ID))
 				Expect(retrieved.TrainingRunName).To(Equal(sampleJob.TrainingRunName))
-				Expect(retrieved.SamplePresetID).To(Equal(sampleJob.SamplePresetID))
+				Expect(retrieved.StudyID).To(Equal(sampleJob.StudyID))
 				Expect(retrieved.WorkflowName).To(Equal(sampleJob.WorkflowName))
 				Expect(retrieved.VAE).To(Equal(sampleJob.VAE))
 				Expect(retrieved.CLIP).To(Equal(sampleJob.CLIP))
@@ -122,7 +123,8 @@ var _ = Describe("SampleJob Store", func() {
 				job := model.SampleJob{
 					ID:              "job-nullable",
 					TrainingRunName: "test-run",
-					SamplePresetID:  "preset-1",
+					StudyID:         "study-1",
+						StudyName:       "Test Study",
 					WorkflowName:    "flux-dev",
 					VAE:             "",
 					CLIP:            "",
@@ -155,12 +157,13 @@ var _ = Describe("SampleJob Store", func() {
 				Expect(err).To(HaveOccurred())
 			})
 
-			It("enforces foreign key constraint on sample_preset_id", func() {
+			It("enforces foreign key constraint on study_id", func() {
 				now := time.Now().UTC().Truncate(time.Second)
-				jobWithInvalidPreset := model.SampleJob{
+				jobWithInvalidStudy := model.SampleJob{
 					ID:              "job-invalid-fk",
 					TrainingRunName: "test-run",
-					SamplePresetID:  "nonexistent-preset",
+					StudyID:         "nonexistent-study",
+					StudyName:       "Nonexistent",
 					WorkflowName:    "flux-dev",
 					Status:          model.SampleJobStatusPending,
 					TotalItems:      5,
@@ -169,7 +172,7 @@ var _ = Describe("SampleJob Store", func() {
 					UpdatedAt:       now,
 				}
 
-				err := s.CreateSampleJob(jobWithInvalidPreset)
+				err := s.CreateSampleJob(jobWithInvalidStudy)
 				Expect(err).To(HaveOccurred())
 			})
 		})
@@ -340,14 +343,15 @@ var _ = Describe("SampleJob Store", func() {
 		var sampleJobItem model.SampleJobItem
 
 		BeforeEach(func() {
-			// Create prerequisite sample preset and job
-			createSamplePreset("preset-1")
+			// Create prerequisite study and job
+			createStudy("study-1")
 
 			now := time.Now().UTC().Truncate(time.Second)
 			sampleJob = model.SampleJob{
 				ID:              "job-1",
 				TrainingRunName: "test-run",
-				SamplePresetID:  "preset-1",
+				StudyID:         "study-1",
+				StudyName:       "Test Study",
 				WorkflowName:    "flux-dev",
 				Status:          model.SampleJobStatusPending,
 				TotalItems:      10,
@@ -574,7 +578,8 @@ var _ = Describe("SampleJob Store", func() {
 				job2 := model.SampleJob{
 					ID:              "job-2",
 					TrainingRunName: "test-run-2",
-					SamplePresetID:  "preset-1",
+					StudyID:         "study-1",
+					StudyName:       "Test Study",
 					WorkflowName:    "flux-dev",
 					Status:          model.SampleJobStatusPending,
 					TotalItems:      5,

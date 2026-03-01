@@ -108,7 +108,7 @@ func (s *SampleJobsService) Create(ctx context.Context, p *gensamplejobs.CreateS
 	job, err := s.svc.Create(
 		p.TrainingRunName,
 		trainingRun.Checkpoints,
-		p.SamplePresetID,
+		p.StudyID,
 		p.WorkflowName,
 		p.Vae,
 		p.Clip,
@@ -204,7 +204,8 @@ func sampleJobToResponse(j model.SampleJob, counts model.ItemStatusCounts, faile
 	resp := &gensamplejobs.SampleJobResponse{
 		ID:              j.ID,
 		TrainingRunName: j.TrainingRunName,
-		SamplePresetID:  j.SamplePresetID,
+		StudyID:         j.StudyID,
+		StudyName:       j.StudyName,
 		WorkflowName:    j.WorkflowName,
 		Status:          string(j.Status),
 		TotalItems:      j.TotalItems,

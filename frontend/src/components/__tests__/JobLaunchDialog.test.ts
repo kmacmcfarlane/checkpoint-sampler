@@ -3,8 +3,8 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { nextTick, type VNode } from 'vue'
 import { NModal, NSelect, NInputNumber, NButton, NCheckbox } from 'naive-ui'
 import JobLaunchDialog from '../JobLaunchDialog.vue'
-import SamplePresetEditor from '../SamplePresetEditor.vue'
-import type { TrainingRun, WorkflowSummary, SamplePreset, SampleJob } from '../../api/types'
+import StudyEditor from '../StudyEditor.vue'
+import type { TrainingRun, WorkflowSummary, Study, SampleJob } from '../../api/types'
 
 // Mock the api client module
 vi.mock('../../api/client', () => ({
@@ -12,12 +12,12 @@ vi.mock('../../api/client', () => ({
     getTrainingRuns: vi.fn(),
     listSampleJobs: vi.fn(),
     listWorkflows: vi.fn(),
-    listSamplePresets: vi.fn(),
+    listStudies: vi.fn(),
     getComfyUIModels: vi.fn(),
     createSampleJob: vi.fn(),
-    createSamplePreset: vi.fn(),
-    updateSamplePreset: vi.fn(),
-    deleteSamplePreset: vi.fn(),
+    createStudy: vi.fn(),
+    updateStudy: vi.fn(),
+    deleteStudy: vi.fn(),
     getCheckpointMetadata: vi.fn(),
   },
 }))
@@ -29,7 +29,7 @@ import type { GenerateInputsState } from '../../composables/useGenerateInputsPer
 const mockGetTrainingRuns = apiClient.getTrainingRuns as ReturnType<typeof vi.fn>
 const mockListSampleJobs = apiClient.listSampleJobs as ReturnType<typeof vi.fn>
 const mockListWorkflows = apiClient.listWorkflows as ReturnType<typeof vi.fn>
-const mockListSamplePresets = apiClient.listSamplePresets as ReturnType<typeof vi.fn>
+const mockListStudies = apiClient.listStudies as ReturnType<typeof vi.fn>
 const mockGetComfyUIModels = apiClient.getComfyUIModels as ReturnType<typeof vi.fn>
 const mockCreateSampleJob = apiClient.createSampleJob as ReturnType<typeof vi.fn>
 const mockGetCheckpointMetadata = apiClient.getCheckpointMetadata as ReturnType<typeof vi.fn>
@@ -91,7 +91,7 @@ const sampleWorkflows: WorkflowSummary[] = [
   },
 ]
 
-const samplePresets: SamplePreset[] = [
+const sampleStudies: Study[] = [
   {
     id: 'preset-1',
     name: 'Quick Test',
@@ -136,7 +136,7 @@ const clipModels = ['clip_l.safetensors', 't5xxl_fp16.safetensors']
 const runningJob: SampleJob = {
   id: 'job-running',
   training_run_name: 'qwen/psai4rt-v0.5.0',
-  sample_preset_id: 'preset-1',
+  study_id: 'preset-1', study_name: 'Quick Test',
   workflow_name: 'qwen-image.json',
   vae: 'ae.safetensors',
   clip: 'clip_l.safetensors',
@@ -160,7 +160,7 @@ describe('JobLaunchDialog', () => {
     mockGetTrainingRuns.mockResolvedValue(allTrainingRuns)
     mockListSampleJobs.mockResolvedValue([runningJob])
     mockListWorkflows.mockResolvedValue(sampleWorkflows)
-    mockListSamplePresets.mockResolvedValue(samplePresets)
+    mockListStudies.mockResolvedValue(sampleStudies)
     mockGetComfyUIModels.mockImplementation((type: string) => {
       if (type === 'vae') return Promise.resolve({ models: vaeModels })
       if (type === 'clip') return Promise.resolve({ models: clipModels })
@@ -182,7 +182,7 @@ describe('JobLaunchDialog', () => {
     expect(modal.props('title')).toBe('Generate Samples')
   })
 
-  it('fetches training runs, jobs, workflows, presets, and ComfyUI models on mount', async () => {
+  it('fetches training runs, jobs, workflows, studies, and ComfyUI models on mount', async () => {
     mount(JobLaunchDialog, {
       props: { show: true },
       global: { stubs: { Teleport: true } },
@@ -192,7 +192,7 @@ describe('JobLaunchDialog', () => {
     expect(mockGetTrainingRuns).toHaveBeenCalledTimes(1)
     expect(mockListSampleJobs).toHaveBeenCalledTimes(1)
     expect(mockListWorkflows).toHaveBeenCalledTimes(1)
-    expect(mockListSamplePresets).toHaveBeenCalledTimes(1)
+    expect(mockListStudies).toHaveBeenCalled()
     expect(mockGetComfyUIModels).toHaveBeenCalledWith('vae')
     expect(mockGetComfyUIModels).toHaveBeenCalledWith('clip')
   })
@@ -323,15 +323,15 @@ describe('JobLaunchDialog', () => {
     expect(options.map(o => o.value)).toEqual(['qwen-image.json', 'auraflow-image.json'])
   })
 
-  it('populates preset select with all presets', async () => {
+  it('populates study select with all studies', async () => {
     const wrapper = mount(JobLaunchDialog, {
       props: { show: true },
       global: { stubs: { Teleport: true } },
     })
     await flushPromises()
 
-    const presetSelect = wrapper.find('[data-testid="preset-select"]')
-    const select = presetSelect.findComponent(NSelect)
+    const studySelect = wrapper.find('[data-testid="study-select"]')
+    const select = studySelect.findComponent(NSelect)
     const options = select.props('options') as Array<{ label: string; value: string }>
     expect(options).toHaveLength(2)
     expect(options.map(o => o.label)).toEqual(['Quick Test', 'Full Test'])
@@ -368,7 +368,7 @@ describe('JobLaunchDialog', () => {
     expect(summary.text()).toContain('Training Run: N/A')
   })
 
-  it('displays confirmation summary with correct values when run and preset selected', async () => {
+  it('displays confirmation summary with correct values when run and study selected', async () => {
     const wrapper = mount(JobLaunchDialog, {
       props: { show: true },
       global: { stubs: { Teleport: true } },
@@ -382,7 +382,7 @@ describe('JobLaunchDialog', () => {
     wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
     await nextTick()
 
-    wrapper.find('[data-testid="preset-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-2')
+    wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-2')
     await nextTick()
 
     const summary = wrapper.find('[data-testid="job-summary"]')
@@ -418,7 +418,7 @@ describe('JobLaunchDialog', () => {
     wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect).vm.$emit('update:value', 'qwen-image.json')
     await nextTick()
 
-    wrapper.find('[data-testid="preset-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
+    wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
     await nextTick()
 
     wrapper.find('[data-testid="vae-select"]').findComponent(NSelect).vm.$emit('update:value', 'ae.safetensors')
@@ -436,7 +436,7 @@ describe('JobLaunchDialog', () => {
     const mockJob: SampleJob = {
       id: 'job-1',
       training_run_name: 'qwen/psai4rt-v0.3.0',
-      sample_preset_id: 'preset-1',
+      study_id: 'preset-1', study_name: 'Quick Test',
       workflow_name: 'qwen-image.json',
       vae: 'ae.safetensors',
       clip: 'clip_l.safetensors',
@@ -459,7 +459,7 @@ describe('JobLaunchDialog', () => {
     // Select empty run (only one shown by default)
     wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
     wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect).vm.$emit('update:value', 'qwen-image.json')
-    wrapper.find('[data-testid="preset-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
+    wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
     wrapper.find('[data-testid="vae-select"]').findComponent(NSelect).vm.$emit('update:value', 'ae.safetensors')
     wrapper.find('[data-testid="clip-select"]').findComponent(NSelect).vm.$emit('update:value', 'clip_l.safetensors')
     await nextTick()
@@ -471,7 +471,7 @@ describe('JobLaunchDialog', () => {
 
     expect(mockCreateSampleJob).toHaveBeenCalledWith({
       training_run_name: 'qwen/psai4rt-v0.3.0',
-      sample_preset_id: 'preset-1',
+      study_id: 'preset-1',
       workflow_name: 'qwen-image.json',
       vae: 'ae.safetensors',
       clip: 'clip_l.safetensors',
@@ -482,7 +482,7 @@ describe('JobLaunchDialog', () => {
     const mockJob: SampleJob = {
       id: 'job-1',
       training_run_name: 'qwen/psai4rt-v0.3.0',
-      sample_preset_id: 'preset-1',
+      study_id: 'preset-1', study_name: 'Quick Test',
       workflow_name: 'auraflow-image.json',
       vae: 'ae.safetensors',
       clip: 'clip_l.safetensors',
@@ -505,7 +505,7 @@ describe('JobLaunchDialog', () => {
 
     wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
     wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect).vm.$emit('update:value', 'auraflow-image.json')
-    wrapper.find('[data-testid="preset-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
+    wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
     wrapper.find('[data-testid="vae-select"]').findComponent(NSelect).vm.$emit('update:value', 'ae.safetensors')
     wrapper.find('[data-testid="clip-select"]').findComponent(NSelect).vm.$emit('update:value', 'clip_l.safetensors')
     await nextTick()
@@ -520,7 +520,7 @@ describe('JobLaunchDialog', () => {
 
     expect(mockCreateSampleJob).toHaveBeenCalledWith({
       training_run_name: 'qwen/psai4rt-v0.3.0',
-      sample_preset_id: 'preset-1',
+      study_id: 'preset-1',
       workflow_name: 'auraflow-image.json',
       vae: 'ae.safetensors',
       clip: 'clip_l.safetensors',
@@ -532,7 +532,7 @@ describe('JobLaunchDialog', () => {
     mockCreateSampleJob.mockResolvedValue({
       id: 'job-1',
       training_run_name: 'qwen/psai4rt-v0.3.0',
-      sample_preset_id: 'preset-1',
+      study_id: 'preset-1', study_name: 'Quick Test',
       workflow_name: 'qwen-image.json',
       status: 'running',
       total_items: 5,
@@ -551,7 +551,7 @@ describe('JobLaunchDialog', () => {
 
     wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
     wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect).vm.$emit('update:value', 'qwen-image.json')
-    wrapper.find('[data-testid="preset-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
+    wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
     wrapper.find('[data-testid="vae-select"]').findComponent(NSelect).vm.$emit('update:value', 'ae.safetensors')
     wrapper.find('[data-testid="clip-select"]').findComponent(NSelect).vm.$emit('update:value', 'clip_l.safetensors')
     await nextTick()
@@ -576,7 +576,7 @@ describe('JobLaunchDialog', () => {
 
     wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
     wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect).vm.$emit('update:value', 'qwen-image.json')
-    wrapper.find('[data-testid="preset-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
+    wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
     wrapper.find('[data-testid="vae-select"]').findComponent(NSelect).vm.$emit('update:value', 'ae.safetensors')
     wrapper.find('[data-testid="clip-select"]').findComponent(NSelect).vm.$emit('update:value', 'clip_l.safetensors')
     await nextTick()
@@ -589,42 +589,42 @@ describe('JobLaunchDialog', () => {
     expect(wrapper.text()).toContain('Failed to create job')
   })
 
-  it('renders a "Manage Presets" button next to the preset selector', async () => {
+  it('renders a "Manage Studies" button next to the study selector', async () => {
     const wrapper = mount(JobLaunchDialog, {
       props: { show: true },
       global: { stubs: { Teleport: true } },
     })
     await flushPromises()
 
-    const manageButton = wrapper.find('[data-testid="manage-presets-button"]')
+    const manageButton = wrapper.find('[data-testid="manage-studies-button"]')
     expect(manageButton.exists()).toBe(true)
-    expect(manageButton.text()).toBe('Manage Presets')
+    expect(manageButton.text()).toBe('Manage Studies')
   })
 
-  it('opens the preset editor modal when "Manage Presets" is clicked', async () => {
+  it('opens the study editor modal when "Manage Studies" is clicked', async () => {
     const wrapper = mount(JobLaunchDialog, {
       props: { show: true },
       global: { stubs: { Teleport: true } },
     })
     await flushPromises()
 
-    // The preset editor modal should be hidden initially
+    // The study editor modal should be hidden initially
     const modals = wrapper.findAllComponents(NModal)
-    const editorModal = modals.find(m => m.props('title') === 'Manage Sample Presets')
+    const editorModal = modals.find(m => m.props('title') === 'Manage Studies')
     expect(editorModal).toBeDefined()
     expect(editorModal!.props('show')).toBe(false)
 
-    // Click "Manage Presets"
-    await wrapper.find('[data-testid="manage-presets-button"]').trigger('click')
+    // Click "Manage Studies"
+    await wrapper.find('[data-testid="manage-studies-button"]').trigger('click')
     await nextTick()
 
     const updatedModals = wrapper.findAllComponents(NModal)
-    const openedEditorModal = updatedModals.find(m => m.props('title') === 'Manage Sample Presets')
+    const openedEditorModal = updatedModals.find(m => m.props('title') === 'Manage Studies')
     expect(openedEditorModal!.props('show')).toBe(true)
   })
 
-  it('refreshes preset list and auto-selects preset when preset-saved is emitted from editor', async () => {
-    const newPreset: SamplePreset = {
+  it('refreshes study list and auto-selects study when study-saved is emitted from editor', async () => {
+    const newStudy: Study = {
       id: 'preset-new',
       name: 'Newly Created',
       prompts: [{ name: 'test', text: 'a test' }],
@@ -640,11 +640,11 @@ describe('JobLaunchDialog', () => {
       updated_at: '2025-01-01T00:00:00Z',
     }
 
-    const updatedPresets = [...samplePresets, newPreset]
-    mockListSamplePresets
-      .mockResolvedValueOnce(samplePresets)  // initial dialog load
-      .mockResolvedValueOnce(samplePresets)  // SamplePresetEditor own mount load
-      .mockResolvedValueOnce(updatedPresets) // dialog refresh after preset-saved
+    const updatedStudies = [...sampleStudies, newStudy]
+    mockListStudies
+      .mockResolvedValueOnce(sampleStudies)  // initial dialog load
+      .mockResolvedValueOnce(sampleStudies)  // StudyEditor own mount load
+      .mockResolvedValueOnce(updatedStudies) // dialog refresh after study-saved
 
     const wrapper = mount(JobLaunchDialog, {
       props: { show: true },
@@ -652,90 +652,90 @@ describe('JobLaunchDialog', () => {
     })
     await flushPromises()
 
-    const presetSelect = wrapper.find('[data-testid="preset-select"]').findComponent(NSelect)
-    expect((presetSelect.props('options') as Array<{ label: string; value: string }>)).toHaveLength(2)
+    const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+    expect((studySelect.props('options') as Array<{ label: string; value: string }>)).toHaveLength(2)
 
-    await wrapper.find('[data-testid="manage-presets-button"]').trigger('click')
+    await wrapper.find('[data-testid="manage-studies-button"]').trigger('click')
     await flushPromises()
 
-    const editor = wrapper.findComponent(SamplePresetEditor)
-    await editor.vm.$emit('preset-saved', newPreset)
+    const editor = wrapper.findComponent(StudyEditor)
+    await editor.vm.$emit('study-saved', newStudy)
     await flushPromises()
 
-    const refreshedOptions = presetSelect.props('options') as Array<{ label: string; value: string }>
+    const refreshedOptions = studySelect.props('options') as Array<{ label: string; value: string }>
     expect(refreshedOptions).toHaveLength(3)
     expect(refreshedOptions[2].label).toBe('Newly Created')
-    expect(presetSelect.props('value')).toBe('preset-new')
+    expect(studySelect.props('value')).toBe('preset-new')
   })
 
-  it('clears selected preset when preset-deleted is emitted for the selected preset', async () => {
+  it('clears selected study when study-deleted is emitted for the selected study', async () => {
     const wrapper = mount(JobLaunchDialog, {
       props: { show: true },
       global: { stubs: { Teleport: true } },
     })
     await flushPromises()
 
-    const presetSelect = wrapper.find('[data-testid="preset-select"]').findComponent(NSelect)
-    presetSelect.vm.$emit('update:value', 'preset-1')
+    const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+    studySelect.vm.$emit('update:value', 'preset-1')
     await nextTick()
 
-    await wrapper.find('[data-testid="manage-presets-button"]').trigger('click')
+    await wrapper.find('[data-testid="manage-studies-button"]').trigger('click')
     await nextTick()
 
-    const presetsWithoutFirst = samplePresets.filter(p => p.id !== 'preset-1')
-    mockListSamplePresets.mockResolvedValueOnce(presetsWithoutFirst)
+    const studiesWithoutFirst = sampleStudies.filter(p => p.id !== 'preset-1')
+    mockListStudies.mockResolvedValueOnce(studiesWithoutFirst)
 
-    const editor = wrapper.findComponent(SamplePresetEditor)
-    await editor.vm.$emit('preset-deleted', 'preset-1')
+    const editor = wrapper.findComponent(StudyEditor)
+    await editor.vm.$emit('study-deleted', 'preset-1')
     await flushPromises()
 
-    expect(presetSelect.props('value')).toBeNull()
+    expect(studySelect.props('value')).toBeNull()
 
-    const refreshedOptions = presetSelect.props('options') as Array<{ label: string; value: string }>
+    const refreshedOptions = studySelect.props('options') as Array<{ label: string; value: string }>
     expect(refreshedOptions).toHaveLength(1)
     expect(refreshedOptions[0].label).toBe('Full Test')
   })
 
-  describe('preset selection sync between parent and sub-dialog', () => {
-    // AC: When opening the sub-dialog, the currently selected preset in the parent is pre-selected.
-    it('passes the currently selected preset ID as initialPresetId to SamplePresetEditor', async () => {
+  describe('study selection sync between parent and sub-dialog', () => {
+    // AC: When opening the sub-dialog, the currently selected study in the parent is pre-selected.
+    it('passes the currently selected study ID as initialStudyId to StudyEditor', async () => {
       const wrapper = mount(JobLaunchDialog, {
         props: { show: true },
         global: { stubs: { Teleport: true } },
       })
       await flushPromises()
 
-      // Select a preset in the parent dialog
-      wrapper.find('[data-testid="preset-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
+      // Select a study in the parent dialog
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await nextTick()
 
-      // Open the manage presets sub-dialog
-      await wrapper.find('[data-testid="manage-presets-button"]').trigger('click')
+      // Open the manage studies sub-dialog
+      await wrapper.find('[data-testid="manage-studies-button"]').trigger('click')
       await nextTick()
 
-      // The SamplePresetEditor should receive the currently selected preset ID
-      const editor = wrapper.findComponent(SamplePresetEditor)
-      expect(editor.props('initialPresetId')).toBe('preset-1')
+      // The StudyEditor should receive the currently selected study ID
+      const editor = wrapper.findComponent(StudyEditor)
+      expect(editor.props('initialStudyId')).toBe('preset-1')
     })
 
-    // AC: If no preset is selected in the parent, SamplePresetEditor receives null.
-    it('passes null as initialPresetId when no preset is selected in the parent', async () => {
+    // AC: If no study is selected in the parent, StudyEditor receives null.
+    it('passes null as initialStudyId when no study is selected in the parent', async () => {
       const wrapper = mount(JobLaunchDialog, {
         props: { show: true },
         global: { stubs: { Teleport: true } },
       })
       await flushPromises()
 
-      // Do not select any preset — open the editor directly
-      await wrapper.find('[data-testid="manage-presets-button"]').trigger('click')
+      // Do not select any study — open the editor directly
+      await wrapper.find('[data-testid="manage-studies-button"]').trigger('click')
       await nextTick()
 
-      const editor = wrapper.findComponent(SamplePresetEditor)
-      expect(editor.props('initialPresetId')).toBeNull()
+      const editor = wrapper.findComponent(StudyEditor)
+      expect(editor.props('initialStudyId')).toBeNull()
     })
 
-    // AC: initialPresetId updates when the parent's selected preset changes before opening.
-    it('passes the updated preset ID when a different preset is selected before opening', async () => {
+    // AC: initialStudyId updates when the parent's selected study changes before opening.
+    it('passes the updated study ID when a different study is selected before opening', async () => {
       const wrapper = mount(JobLaunchDialog, {
         props: { show: true },
         global: { stubs: { Teleport: true } },
@@ -743,22 +743,22 @@ describe('JobLaunchDialog', () => {
       await flushPromises()
 
       // Select preset-1 first, then change to preset-2
-      wrapper.find('[data-testid="preset-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await nextTick()
-      wrapper.find('[data-testid="preset-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-2')
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-2')
       await nextTick()
 
       // Open the editor — should reflect the latest selection
-      await wrapper.find('[data-testid="manage-presets-button"]').trigger('click')
+      await wrapper.find('[data-testid="manage-studies-button"]').trigger('click')
       await nextTick()
 
-      const editor = wrapper.findComponent(SamplePresetEditor)
-      expect(editor.props('initialPresetId')).toBe('preset-2')
+      const editor = wrapper.findComponent(StudyEditor)
+      expect(editor.props('initialStudyId')).toBe('preset-2')
     })
 
-    // AC: After saving a preset in the sub-dialog, parent dropdown reflects the change.
-    it('reflects new preset in parent dropdown after preset-saved from sub-dialog', async () => {
-      const newPreset: SamplePreset = {
+    // AC: After saving a study in the sub-dialog, parent dropdown reflects the change.
+    it('reflects new study in parent dropdown after study-saved from sub-dialog', async () => {
+      const newStudy: Study = {
         id: 'preset-new',
         name: 'Synced Preset',
         prompts: [{ name: 'test', text: 'a test' }],
@@ -774,11 +774,11 @@ describe('JobLaunchDialog', () => {
         updated_at: '2025-01-01T00:00:00Z',
       }
 
-      const updatedPresets = [...samplePresets, newPreset]
-      mockListSamplePresets
-        .mockResolvedValueOnce(samplePresets)  // initial dialog load
-        .mockResolvedValueOnce(samplePresets)  // SamplePresetEditor own mount load
-        .mockResolvedValueOnce(updatedPresets) // dialog refresh after preset-saved
+      const updatedStudies = [...sampleStudies, newStudy]
+      mockListStudies
+        .mockResolvedValueOnce(sampleStudies)  // initial dialog load
+        .mockResolvedValueOnce(sampleStudies)  // StudyEditor own mount load
+        .mockResolvedValueOnce(updatedStudies) // dialog refresh after study-saved
 
       const wrapper = mount(JobLaunchDialog, {
         props: { show: true },
@@ -786,19 +786,19 @@ describe('JobLaunchDialog', () => {
       })
       await flushPromises()
 
-      await wrapper.find('[data-testid="manage-presets-button"]').trigger('click')
+      await wrapper.find('[data-testid="manage-studies-button"]').trigger('click')
       await flushPromises()
 
-      // Simulate the sub-dialog saving a new preset
-      const editor = wrapper.findComponent(SamplePresetEditor)
-      await editor.vm.$emit('preset-saved', newPreset)
+      // Simulate the sub-dialog saving a new study
+      const editor = wrapper.findComponent(StudyEditor)
+      await editor.vm.$emit('study-saved', newStudy)
       await flushPromises()
 
-      // Parent preset dropdown should now contain the new preset and have it selected
-      const presetSelect = wrapper.find('[data-testid="preset-select"]').findComponent(NSelect)
-      const options = presetSelect.props('options') as Array<{ label: string; value: string }>
+      // Parent study dropdown should now contain the new study and have it selected
+      const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+      const options = studySelect.props('options') as Array<{ label: string; value: string }>
       expect(options.some(o => o.label === 'Synced Preset')).toBe(true)
-      expect(presetSelect.props('value')).toBe('preset-new')
+      expect(studySelect.props('value')).toBe('preset-new')
     })
   })
 
@@ -855,7 +855,7 @@ describe('JobLaunchDialog', () => {
       mockCreateSampleJob.mockResolvedValue({
         id: 'job-2',
         training_run_name: 'qwen/psai4rt-v0.4.0',
-        sample_preset_id: 'preset-1',
+        study_id: 'preset-1', study_name: 'Quick Test',
         workflow_name: 'qwen-image.json',
         status: 'pending',
         total_items: 3,
@@ -876,7 +876,7 @@ describe('JobLaunchDialog', () => {
       await nextTick()
       wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
       wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect).vm.$emit('update:value', 'qwen-image.json')
-      wrapper.find('[data-testid="preset-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       wrapper.find('[data-testid="vae-select"]').findComponent(NSelect).vm.$emit('update:value', 'ae.safetensors')
       wrapper.find('[data-testid="clip-select"]').findComponent(NSelect).vm.$emit('update:value', 'clip_l.safetensors')
       await nextTick()
@@ -1177,7 +1177,7 @@ describe('JobLaunchDialog', () => {
     const completedWithErrorsJob: SampleJob = {
       id: 'job-errors',
       training_run_name: 'qwen/psai4rt-v0.4.0',
-      sample_preset_id: 'preset-1',
+      study_id: 'preset-1', study_name: 'Quick Test',
       workflow_name: 'qwen-image.json',
       vae: 'ae.safetensors',
       clip: 'clip_l.safetensors',
@@ -1297,7 +1297,7 @@ describe('JobLaunchDialog', () => {
 
       // Fill other required fields
       wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect).vm.$emit('update:value', 'qwen-image.json')
-      wrapper.find('[data-testid="preset-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       wrapper.find('[data-testid="vae-select"]').findComponent(NSelect).vm.$emit('update:value', 'ae.safetensors')
       wrapper.find('[data-testid="clip-select"]').findComponent(NSelect).vm.$emit('update:value', 'clip_l.safetensors')
       await nextTick()
@@ -1320,7 +1320,7 @@ describe('JobLaunchDialog', () => {
       mockCreateSampleJob.mockResolvedValue({
         id: 'job-regen',
         training_run_name: 'qwen/psai4rt-v0.4.0',
-        sample_preset_id: 'preset-1',
+        study_id: 'preset-1', study_name: 'Quick Test',
         workflow_name: 'qwen-image.json',
         status: 'pending',
         total_items: 2,
@@ -1342,7 +1342,7 @@ describe('JobLaunchDialog', () => {
       wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
       await flushPromises()
       wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect).vm.$emit('update:value', 'qwen-image.json')
-      wrapper.find('[data-testid="preset-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       wrapper.find('[data-testid="vae-select"]').findComponent(NSelect).vm.$emit('update:value', 'ae.safetensors')
       wrapper.find('[data-testid="clip-select"]').findComponent(NSelect).vm.$emit('update:value', 'clip_l.safetensors')
       await nextTick()
@@ -1386,11 +1386,11 @@ describe('JobLaunchDialog', () => {
     })
   })
 
-  // AC2: Saving a preset in the Manage Presets sub-modal auto-closes the sub-modal
+  // AC2: Saving a study in the Manage Studies sub-modal auto-closes the sub-modal
   // and returns focus to the job launch dialog.
-  describe('preset editor auto-close on save (AC2)', () => {
-    it('closes the preset editor sub-modal after a preset is saved', async () => {
-      const savedPreset: SamplePreset = {
+  describe('study editor auto-close on save (AC2)', () => {
+    it('closes the study editor sub-modal after a study is saved', async () => {
+      const savedStudy: Study = {
         id: 'preset-1',
         name: 'Quick Test Updated',
         prompts: [{ name: 'test', text: 'a photo' }],
@@ -1406,10 +1406,10 @@ describe('JobLaunchDialog', () => {
         updated_at: '2025-01-01T00:00:00Z',
       }
 
-      mockListSamplePresets
-        .mockResolvedValueOnce(samplePresets)  // initial dialog load
-        .mockResolvedValueOnce(samplePresets)  // SamplePresetEditor own mount load
-        .mockResolvedValueOnce(samplePresets)  // dialog refresh after preset-saved
+      mockListStudies
+        .mockResolvedValueOnce(sampleStudies)  // initial dialog load
+        .mockResolvedValueOnce(sampleStudies)  // StudyEditor own mount load
+        .mockResolvedValueOnce(sampleStudies)  // dialog refresh after study-saved
 
       const wrapper = mount(JobLaunchDialog, {
         props: { show: true },
@@ -1417,23 +1417,23 @@ describe('JobLaunchDialog', () => {
       })
       await flushPromises()
 
-      // Open the preset editor
-      await wrapper.find('[data-testid="manage-presets-button"]').trigger('click')
+      // Open the study editor
+      await wrapper.find('[data-testid="manage-studies-button"]').trigger('click')
       await flushPromises()
 
       // Verify the editor is open
       const modals = wrapper.findAllComponents(NModal)
-      const editorModal = modals.find(m => m.props('title') === 'Manage Sample Presets')
+      const editorModal = modals.find(m => m.props('title') === 'Manage Studies')
       expect(editorModal!.props('show')).toBe(true)
 
-      // Emit preset-saved from the editor
-      const editor = wrapper.findComponent(SamplePresetEditor)
-      await editor.vm.$emit('preset-saved', savedPreset)
+      // Emit study-saved from the editor
+      const editor = wrapper.findComponent(StudyEditor)
+      await editor.vm.$emit('study-saved', savedStudy)
       await flushPromises()
 
       // The editor modal should be closed
       const updatedModals = wrapper.findAllComponents(NModal)
-      const closedEditorModal = updatedModals.find(m => m.props('title') === 'Manage Sample Presets')
+      const closedEditorModal = updatedModals.find(m => m.props('title') === 'Manage Studies')
       expect(closedEditorModal!.props('show')).toBe(false)
     })
   })
@@ -1598,11 +1598,11 @@ describe('JobLaunchDialog', () => {
     })
   })
 
-  // AC5: After closing the Manage Presets modal, the preset that was last edited
+  // AC5: After closing the Manage Studies modal, the study that was last edited
   // is shown as selected in the job dialog dropdown
-  describe('preset state persistence after editor close (AC5)', () => {
-    it('selects the newly created preset in the job dialog after preset-saved', async () => {
-      const newPreset: SamplePreset = {
+  describe('study state persistence after editor close (AC5)', () => {
+    it('selects the newly created study in the job dialog after study-saved', async () => {
+      const newStudy: Study = {
         id: 'preset-new',
         name: 'Brand New Preset',
         prompts: [{ name: 'test', text: 'a test' }],
@@ -1618,11 +1618,11 @@ describe('JobLaunchDialog', () => {
         updated_at: '2025-01-01T00:00:00Z',
       }
 
-      const updatedPresets = [...samplePresets, newPreset]
-      mockListSamplePresets
-        .mockResolvedValueOnce(samplePresets)   // initial dialog load
-        .mockResolvedValueOnce(samplePresets)   // SamplePresetEditor own mount load
-        .mockResolvedValueOnce(updatedPresets)  // dialog refresh after preset-saved
+      const updatedStudies = [...sampleStudies, newStudy]
+      mockListStudies
+        .mockResolvedValueOnce(sampleStudies)   // initial dialog load
+        .mockResolvedValueOnce(sampleStudies)   // StudyEditor own mount load
+        .mockResolvedValueOnce(updatedStudies)  // dialog refresh after study-saved
 
       const wrapper = mount(JobLaunchDialog, {
         props: { show: true },
@@ -1630,38 +1630,38 @@ describe('JobLaunchDialog', () => {
       })
       await flushPromises()
 
-      // Initially, no preset is selected
-      const presetSelect = wrapper.find('[data-testid="preset-select"]').findComponent(NSelect)
-      expect(presetSelect.props('value')).toBeNull()
+      // Initially, no study is selected
+      const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+      expect(studySelect.props('value')).toBeNull()
 
       // Open the editor
-      await wrapper.find('[data-testid="manage-presets-button"]').trigger('click')
+      await wrapper.find('[data-testid="manage-studies-button"]').trigger('click')
       await flushPromises()
 
-      // Emit preset-saved from the editor
-      const editor = wrapper.findComponent(SamplePresetEditor)
-      await editor.vm.$emit('preset-saved', newPreset)
+      // Emit study-saved from the editor
+      const editor = wrapper.findComponent(StudyEditor)
+      await editor.vm.$emit('study-saved', newStudy)
       await flushPromises()
 
-      // AC5: The newly created preset should be selected in the job dialog dropdown
-      expect(presetSelect.props('value')).toBe('preset-new')
+      // AC5: The newly created study should be selected in the job dialog dropdown
+      expect(studySelect.props('value')).toBe('preset-new')
 
       // AC2: The editor modal should be closed
       const modals = wrapper.findAllComponents(NModal)
-      const editorModal = modals.find(m => m.props('title') === 'Manage Sample Presets')
+      const editorModal = modals.find(m => m.props('title') === 'Manage Studies')
       expect(editorModal!.props('show')).toBe(false)
     })
 
-    it('retains the updated preset selection after editing an existing preset', async () => {
-      const updatedPreset: SamplePreset = {
-        ...samplePresets[0],
+    it('retains the updated study selection after editing an existing study', async () => {
+      const updatedStudy: Study = {
+        ...sampleStudies[0],
         name: 'Quick Test Updated',
       }
 
-      mockListSamplePresets
-        .mockResolvedValueOnce(samplePresets)  // initial dialog load
-        .mockResolvedValueOnce(samplePresets)  // SamplePresetEditor own mount load
-        .mockResolvedValueOnce([updatedPreset, samplePresets[1]])  // dialog refresh
+      mockListStudies
+        .mockResolvedValueOnce(sampleStudies)  // initial dialog load
+        .mockResolvedValueOnce(sampleStudies)  // StudyEditor own mount load
+        .mockResolvedValueOnce([updatedStudy, sampleStudies[1]])  // dialog refresh
 
       const wrapper = mount(JobLaunchDialog, {
         props: { show: true },
@@ -1669,26 +1669,26 @@ describe('JobLaunchDialog', () => {
       })
       await flushPromises()
 
-      // Select the preset first
-      const presetSelect = wrapper.find('[data-testid="preset-select"]').findComponent(NSelect)
-      presetSelect.vm.$emit('update:value', 'preset-1')
+      // Select the study first
+      const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+      studySelect.vm.$emit('update:value', 'preset-1')
       await nextTick()
 
       // Open the editor
-      await wrapper.find('[data-testid="manage-presets-button"]').trigger('click')
+      await wrapper.find('[data-testid="manage-studies-button"]').trigger('click')
       await flushPromises()
 
-      // Save the existing preset (update)
-      const editor = wrapper.findComponent(SamplePresetEditor)
-      await editor.vm.$emit('preset-saved', updatedPreset)
+      // Save the existing study (update)
+      const editor = wrapper.findComponent(StudyEditor)
+      await editor.vm.$emit('study-saved', updatedStudy)
       await flushPromises()
 
-      // The same preset should remain selected
-      expect(presetSelect.props('value')).toBe('preset-1')
+      // The same study should remain selected
+      expect(studySelect.props('value')).toBe('preset-1')
 
       // The editor should be closed
       const modals = wrapper.findAllComponents(NModal)
-      const editorModal = modals.find(m => m.props('title') === 'Manage Sample Presets')
+      const editorModal = modals.find(m => m.props('title') === 'Manage Studies')
       expect(editorModal!.props('show')).toBe(false)
     })
   })

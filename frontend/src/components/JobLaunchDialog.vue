@@ -13,9 +13,9 @@ import {
   NTooltip,
 } from 'naive-ui'
 import type { SelectRenderLabel } from 'naive-ui'
-import type { TrainingRun, SamplePreset, WorkflowSummary, CreateSampleJobPayload, SampleJob } from '../api/types'
+import type { TrainingRun, Study, WorkflowSummary, CreateSampleJobPayload, SampleJob } from '../api/types'
 import { apiClient } from '../api/client'
-import SamplePresetEditor from './SamplePresetEditor.vue'
+import StudyEditor from './StudyEditor.vue'
 import { useGenerateInputsPersistence } from '../composables/useGenerateInputsPersistence'
 
 /** Status of a training run used to determine bead color. */
@@ -41,12 +41,12 @@ const error = ref<string | null>(null)
 const trainingRuns = ref<TrainingRun[]>([])
 const sampleJobs = ref<SampleJob[]>([])
 const workflows = ref<WorkflowSummary[]>([])
-const samplePresets = ref<SamplePreset[]>([])
+const studies = ref<Study[]>([])
 const vaeModels = ref<string[]>([])
 const clipModels = ref<string[]>([])
 
-// Preset editor sub-dialog
-const presetEditorOpen = ref(false)
+// Study editor sub-dialog
+const studyEditorOpen = ref(false)
 
 // Training run filter: when false, show only gray (empty) runs
 const showAllRuns = ref(false)
@@ -54,7 +54,7 @@ const showAllRuns = ref(false)
 // Form selections
 const selectedTrainingRunId = ref<number | null>(null)
 const selectedWorkflow = ref<string | null>(null)
-const selectedPreset = ref<string | null>(null)
+const selectedStudy = ref<string | null>(null)
 const selectedVAE = ref<string | null>(null)
 const selectedCLIP = ref<string | null>(null)
 const shiftValue = ref<number | null>(null)
@@ -237,6 +237,11 @@ watch(selectedWorkflow, (workflowId) => {
   persistence.saveWorkflowId(workflowId)
 })
 
+// Persist study selection changes
+watch(selectedStudy, (studyId) => {
+  persistence.saveStudyId(studyId)
+})
+
 // Persist model-type-specific input changes
 watch([selectedVAE, selectedCLIP, shiftValue], () => {
   if (!currentModelType.value) return
@@ -300,8 +305,8 @@ const workflowOptions = computed(() =>
     }))
 )
 
-const presetOptions = computed(() =>
-  samplePresets.value.map(p => ({
+const studyOptions = computed(() =>
+  studies.value.map(p => ({
     label: p.name,
     value: p.id,
   }))
@@ -331,8 +336,8 @@ const hasShiftRole = computed(() => {
   return 'shift' in workflow.roles
 })
 
-const selectedPresetDetail = computed(() =>
-  samplePresets.value.find(p => p.id === selectedPreset.value)
+const selectedStudyDetail = computed(() =>
+  studies.value.find(p => p.id === selectedStudy.value)
 )
 
 // Effective checkpoints to use: when picker is shown, always use explicit selection
@@ -352,7 +357,7 @@ const targetedCheckpointCount = computed(() => {
 const totalCheckpoints = computed(() => selectedTrainingRun.value?.checkpoint_count ?? 0)
 
 const imagesPerCheckpoint = computed(() =>
-  selectedPresetDetail.value?.images_per_checkpoint ?? 0
+  selectedStudyDetail.value?.images_per_checkpoint ?? 0
 )
 
 const totalImages = computed(() => targetedCheckpointCount.value * imagesPerCheckpoint.value)
@@ -369,7 +374,7 @@ const canSubmit = computed(() => {
   return (
     selectedTrainingRunId.value !== null &&
     selectedWorkflow.value !== null &&
-    selectedPreset.value !== null &&
+    selectedStudy.value !== null &&
     selectedVAE.value !== null &&
     selectedCLIP.value !== null &&
     (!hasShiftRole.value || shiftValue.value !== null) &&
@@ -386,7 +391,7 @@ onMounted(async () => {
   await Promise.all([
     fetchTrainingRunsAndJobs(),
     fetchWorkflows(),
-    fetchSamplePresets(),
+    fetchStudies(),
     fetchVAEModels(),
     fetchCLIPModels(),
   ])
@@ -399,6 +404,20 @@ onMounted(async () => {
     )
     if (isAvailable) {
       selectedWorkflow.value = lastWorkflowId
+    }
+  }
+
+  // Restore last used study (only if it's still in the available list).
+  // If only one study exists, auto-select it regardless of persisted state.
+  if (studies.value.length === 1) {
+    selectedStudy.value = studies.value[0].id
+  } else {
+    const lastStudyId = persistence.getLastStudyId()
+    if (lastStudyId !== null) {
+      const studyExists = studies.value.some(s => s.id === lastStudyId)
+      if (studyExists) {
+        selectedStudy.value = lastStudyId
+      }
     }
   }
 
@@ -442,11 +461,11 @@ async function fetchWorkflows() {
   }
 }
 
-async function fetchSamplePresets() {
+async function fetchStudies() {
   try {
-    samplePresets.value = await apiClient.listSamplePresets()
+    studies.value = await apiClient.listStudies()
   } catch {
-    samplePresets.value = []
+    studies.value = []
   }
 }
 
@@ -476,7 +495,7 @@ function close() {
 function resetForm() {
   selectedTrainingRunId.value = null
   selectedWorkflow.value = null
-  selectedPreset.value = null
+  selectedStudy.value = null
   selectedVAE.value = null
   selectedCLIP.value = null
   shiftValue.value = null
@@ -487,26 +506,26 @@ function resetForm() {
   error.value = null
 }
 
-function openPresetEditor() {
-  presetEditorOpen.value = true
+function openStudyEditor() {
+  studyEditorOpen.value = true
 }
 
-function closePresetEditor() {
-  presetEditorOpen.value = false
+function closeStudyEditor() {
+  studyEditorOpen.value = false
 }
 
-async function onPresetSaved(preset: SamplePreset) {
-  await fetchSamplePresets()
-  selectedPreset.value = preset.id
-  // AC2: Auto-close the preset editor sub-modal after saving
-  presetEditorOpen.value = false
+async function onStudySaved(study: Study) {
+  await fetchStudies()
+  selectedStudy.value = study.id
+  // AC2: Auto-close the study editor sub-modal after saving
+  studyEditorOpen.value = false
 }
 
-async function onPresetDeleted(presetId: string) {
-  if (selectedPreset.value === presetId) {
-    selectedPreset.value = null
+async function onStudyDeleted(studyId: string) {
+  if (selectedStudy.value === studyId) {
+    selectedStudy.value = null
   }
-  await fetchSamplePresets()
+  await fetchStudies()
 }
 
 async function submit() {
@@ -518,7 +537,7 @@ async function submit() {
   try {
     const payload: CreateSampleJobPayload = {
       training_run_name: selectedTrainingRun.value.name,
-      sample_preset_id: selectedPreset.value!,
+      study_id: selectedStudy.value!,
       workflow_name: selectedWorkflow.value!,
       vae: selectedVAE.value ?? '',
       clip: selectedCLIP.value ?? '',
@@ -560,17 +579,17 @@ async function submit() {
     @update:show="emit('update:show', $event)"
   >
     <NModal
-      :show="presetEditorOpen"
+      :show="studyEditorOpen"
       preset="card"
-      title="Manage Sample Presets"
+      title="Manage Studies"
       style="max-width: 860px;"
-      :on-close="closePresetEditor"
-      @update:show="presetEditorOpen = $event"
+      :on-close="closeStudyEditor"
+      @update:show="studyEditorOpen = $event"
     >
-      <SamplePresetEditor
-        :initial-preset-id="selectedPreset"
-        @preset-saved="onPresetSaved"
-        @preset-deleted="onPresetDeleted"
+      <StudyEditor
+        :initial-study-id="selectedStudy"
+        @study-saved="onStudySaved"
+        @study-deleted="onStudyDeleted"
       />
     </NModal>
 
@@ -693,23 +712,23 @@ async function submit() {
       </div>
 
       <div class="form-field">
-        <label for="preset-select">Sample Preset</label>
-        <div class="preset-field-row">
+        <label for="study-select">Study</label>
+        <div class="study-field-row">
           <NSelect
-            id="preset-select"
-            v-model:value="selectedPreset"
-            :options="presetOptions"
-            placeholder="Select a sample preset"
+            id="study-select"
+            v-model:value="selectedStudy"
+            :options="studyOptions"
+            placeholder="Select a study"
             clearable
-            data-testid="preset-select"
-            class="preset-select"
+            data-testid="study-select"
+            class="study-select"
           />
           <NButton
             size="medium"
-            data-testid="manage-presets-button"
-            @click="openPresetEditor"
+            data-testid="manage-studies-button"
+            @click="openStudyEditor"
           >
-            Manage Presets
+            Manage Studies
           </NButton>
         </div>
       </div>
@@ -797,13 +816,13 @@ async function submit() {
   gap: 0.5rem;
 }
 
-.preset-field-row {
+.study-field-row {
   display: flex;
   gap: 0.5rem;
   align-items: center;
 }
 
-.preset-select {
+.study-select {
   flex: 1;
 }
 

@@ -11,8 +11,11 @@ type SamplerSchedulerPair struct {
 	Scheduler string
 }
 
-// SamplePreset represents a saved set of sampling parameters for image generation.
-type SamplePreset struct {
+// Study represents a saved set of sampling parameters for image generation.
+// A study defines a set of generation parameters and outputs into its own
+// subdirectory under the sample directory, enabling multiple studies per
+// training run with different parameter sets.
+type Study struct {
 	ID                    string
 	Name                  string
 	PromptPrefix          string
@@ -35,9 +38,9 @@ type NamedPrompt struct {
 }
 
 // ImagesPerCheckpoint calculates the total number of images that will be generated
-// per checkpoint using this preset.
-func (sp SamplePreset) ImagesPerCheckpoint() int {
-	return len(sp.Prompts) * len(sp.Steps) * len(sp.CFGs) * len(sp.SamplerSchedulerPairs) * len(sp.Seeds)
+// per checkpoint using this study.
+func (s Study) ImagesPerCheckpoint() int {
+	return len(s.Prompts) * len(s.Steps) * len(s.CFGs) * len(s.SamplerSchedulerPairs) * len(s.Seeds)
 }
 
 // JoinPromptPrefix prepends the prompt prefix to the given prompt text using

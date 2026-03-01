@@ -19,6 +19,7 @@ var batchPattern = regexp.MustCompile(`_(\d+)_$`)
 // ScannerFileSystem defines the operations the scanner needs from the filesystem.
 type ScannerFileSystem interface {
 	ListPNGFiles(dir string) ([]string, error)
+	DirectoryExists(path string) bool
 }
 
 // Scanner scans sample directories for a training run's checkpoints and discovers
@@ -40,8 +41,13 @@ func NewScanner(fs ScannerFileSystem, sampleDir string, logger *logrus.Logger) *
 
 // ScanTrainingRun discovers images and dimensions for a training run by scanning
 // the sample directories for each checkpoint that has samples.
-func (s *Scanner) ScanTrainingRun(tr model.TrainingRun) (*model.ScanResult, error) {
-	s.logger.WithField("training_run", tr.Name).Trace("entering ScanTrainingRun")
+// When studyName is non-empty, images are scanned from {sampleDir}/{studyName}/{checkpoint}/;
+// when empty, the legacy path {sampleDir}/{checkpoint}/ is scanned for backward compatibility.
+func (s *Scanner) ScanTrainingRun(tr model.TrainingRun, studyName string) (*model.ScanResult, error) {
+	s.logger.WithFields(logrus.Fields{
+		"training_run": tr.Name,
+		"study_name":   studyName,
+	}).Trace("entering ScanTrainingRun")
 	defer s.logger.Trace("returning from ScanTrainingRun")
 
 	// Track unique dimension values: dimName → set of values
@@ -73,7 +79,12 @@ func (s *Scanner) ScanTrainingRun(tr model.TrainingRun) (*model.ScanResult, erro
 		dimValues["checkpoint"][checkpointValue] = struct{}{}
 
 		// Scan the sample directory for this checkpoint
-		sampleDirPath := filepath.Join(s.sampleDir, cp.Filename)
+		var sampleDirPath string
+		if studyName != "" {
+			sampleDirPath = filepath.Join(s.sampleDir, studyName, cp.Filename)
+		} else {
+			sampleDirPath = filepath.Join(s.sampleDir, cp.Filename)
+		}
 		s.logger.WithFields(logrus.Fields{
 			"checkpoint": cp.Filename,
 			"path":       sampleDirPath,

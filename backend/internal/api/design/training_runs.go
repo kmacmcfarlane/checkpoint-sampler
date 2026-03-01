@@ -30,6 +30,9 @@ var _ = Service("training_runs", func() {
 			Attribute("id", Int, "Training run index (zero-based)", func() {
 				Minimum(0)
 			})
+			Attribute("study_name", String, "Study name to scope the scan to a study subdirectory", func() {
+				Default("")
+			})
 			Required("id")
 		})
 		Result(ScanResultResponse)
@@ -37,6 +40,7 @@ var _ = Service("training_runs", func() {
 		Error("scan_failed", ErrorResult, "Scan operation failed")
 		HTTP(func() {
 			GET("/api/training-runs/{id}/scan")
+			Param("study_name")
 			Response(StatusOK)
 			Response("not_found", StatusNotFound)
 			Response("scan_failed", StatusInternalServerError)

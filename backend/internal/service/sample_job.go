@@ -22,7 +22,7 @@ type SampleJobStore interface {
 	ListSampleJobItems(jobID string) ([]model.SampleJobItem, error)
 	CreateSampleJobItem(i model.SampleJobItem) error
 	UpdateSampleJobItem(i model.SampleJobItem) error
-	GetSamplePreset(id string) (model.SamplePreset, error)
+	GetStudy(id string) (model.Study, error)
 }
 
 // PathMatcher defines the interface for matching checkpoint filenames to ComfyUI model paths.
@@ -107,13 +107,13 @@ func (s *SampleJobService) Get(id string) (model.SampleJob, error) {
 	return job, nil
 }
 
-// Create creates a new sample job by expanding preset parameters across training run checkpoints.
+// Create creates a new sample job by expanding study parameters across training run checkpoints.
 // checkpointFilenames is an optional filter: when non-empty, only the listed checkpoints are included.
 // clearExisting: when true, the sample directory for each selected checkpoint is removed before creating job items.
-func (s *SampleJobService) Create(trainingRunName string, checkpoints []model.Checkpoint, samplePresetID string, workflowName string, vae string, clip string, shift *float64, checkpointFilenames []string, clearExisting bool) (model.SampleJob, error) {
+func (s *SampleJobService) Create(trainingRunName string, checkpoints []model.Checkpoint, studyID string, workflowName string, vae string, clip string, shift *float64, checkpointFilenames []string, clearExisting bool) (model.SampleJob, error) {
 	s.logger.WithFields(logrus.Fields{
 		"training_run_name":     trainingRunName,
-		"sample_preset_id":      samplePresetID,
+		"study_id":              studyID,
 		"workflow_name":         workflowName,
 		"checkpoint_filter_len": len(checkpointFilenames),
 		"clear_existing":        clearExisting,
@@ -156,23 +156,23 @@ func (s *SampleJobService) Create(trainingRunName string, checkpoints []model.Ch
 		}
 	}
 
-	// Fetch the sample preset
-	preset, err := s.store.GetSamplePreset(samplePresetID)
+	// Fetch the study
+	study, err := s.store.GetStudy(studyID)
 	if err == sql.ErrNoRows {
-		s.logger.WithField("sample_preset_id", samplePresetID).Debug("sample preset not found")
-		return model.SampleJob{}, fmt.Errorf("sample preset %s not found", samplePresetID)
+		s.logger.WithField("study_id", studyID).Debug("study not found")
+		return model.SampleJob{}, fmt.Errorf("study %s not found", studyID)
 	}
 	if err != nil {
 		s.logger.WithFields(logrus.Fields{
-			"sample_preset_id": samplePresetID,
-			"error":            err.Error(),
-		}).Error("failed to fetch sample preset")
-		return model.SampleJob{}, fmt.Errorf("fetching sample preset: %w", err)
+			"study_id": studyID,
+			"error":    err.Error(),
+		}).Error("failed to fetch study")
+		return model.SampleJob{}, fmt.Errorf("fetching study: %w", err)
 	}
-	s.logger.WithField("sample_preset_id", samplePresetID).Debug("fetched sample preset from store")
+	s.logger.WithField("study_id", studyID).Debug("fetched study from store")
 
 	// Calculate total items: checkpoints × images per checkpoint
-	imagesPerCheckpoint := preset.ImagesPerCheckpoint()
+	imagesPerCheckpoint := study.ImagesPerCheckpoint()
 	totalItems := len(checkpoints) * imagesPerCheckpoint
 
 	// Create the job
@@ -181,7 +181,8 @@ func (s *SampleJobService) Create(trainingRunName string, checkpoints []model.Ch
 	job := model.SampleJob{
 		ID:              jobID,
 		TrainingRunName: trainingRunName,
-		SamplePresetID:  samplePresetID,
+		StudyID:         studyID,
+		StudyName:       study.Name,
 		WorkflowName:    workflowName,
 		VAE:             vae,
 		CLIP:            clip,
@@ -208,7 +209,7 @@ func (s *SampleJobService) Create(trainingRunName string, checkpoints []model.Ch
 	}).Info("sample job created")
 
 	// Expand items: for each checkpoint, iterate over all parameter combinations
-	items := s.expandJobItems(jobID, checkpoints, preset)
+	items := s.expandJobItems(jobID, checkpoints, study)
 	s.logger.WithFields(logrus.Fields{
 		"sample_job_id": jobID,
 		"item_count":    len(items),
@@ -256,20 +257,20 @@ func (s *SampleJobService) Create(trainingRunName string, checkpoints []model.Ch
 	return job, nil
 }
 
-// expandJobItems generates all work items for a job by expanding the preset parameters across checkpoints.
-func (s *SampleJobService) expandJobItems(jobID string, checkpoints []model.Checkpoint, preset model.SamplePreset) []model.SampleJobItem {
+// expandJobItems generates all work items for a job by expanding the study parameters across checkpoints.
+func (s *SampleJobService) expandJobItems(jobID string, checkpoints []model.Checkpoint, study model.Study) []model.SampleJobItem {
 	var items []model.SampleJobItem
 	now := time.Now().UTC()
 
 	for _, checkpoint := range checkpoints {
 		// Iterate over all parameter combinations using sampler/scheduler pairs
-		for _, prompt := range preset.Prompts {
+		for _, prompt := range study.Prompts {
 			// Apply prompt prefix using smart separator logic
-			promptText := model.JoinPromptPrefix(preset.PromptPrefix, prompt.Text)
-			for _, steps := range preset.Steps {
-				for _, cfg := range preset.CFGs {
-					for _, pair := range preset.SamplerSchedulerPairs {
-						for _, seed := range preset.Seeds {
+			promptText := model.JoinPromptPrefix(study.PromptPrefix, prompt.Text)
+			for _, steps := range study.Steps {
+				for _, cfg := range study.CFGs {
+					for _, pair := range study.SamplerSchedulerPairs {
+						for _, seed := range study.Seeds {
 							item := model.SampleJobItem{
 								ID:                 uuid.New().String(),
 								JobID:              jobID,
@@ -277,14 +278,14 @@ func (s *SampleJobService) expandJobItems(jobID string, checkpoints []model.Chec
 								ComfyUIModelPath:   "", // Will be filled by path matching
 								PromptName:         prompt.Name,
 								PromptText:         promptText,
-								NegativePrompt:     preset.NegativePrompt,
+								NegativePrompt:     study.NegativePrompt,
 								Steps:              steps,
 								CFG:                cfg,
 								SamplerName:        pair.Sampler,
 								Scheduler:          pair.Scheduler,
 								Seed:               seed,
-								Width:              preset.Width,
-								Height:             preset.Height,
+								Width:              study.Width,
+								Height:             study.Height,
 								Status:             model.SampleJobItemStatusPending,
 								CreatedAt:          now,
 								UpdatedAt:          now,

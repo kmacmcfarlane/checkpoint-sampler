@@ -41,7 +41,7 @@ var _ = Service("sample_jobs", func() {
 		Description("Create and start a new sample job")
 		Payload(CreateSampleJobPayload)
 		Result(SampleJobResponse)
-		Error("not_found", ErrorResult, "Training run or sample preset not found")
+		Error("not_found", ErrorResult, "Training run or study not found")
 		Error("invalid_payload", ErrorResult, "Invalid sample job data")
 		HTTP(func() {
 			POST("/api/sample-jobs")
@@ -139,8 +139,11 @@ var SampleJobResponse = Type("SampleJobResponse", func() {
 	Attribute("training_run_name", String, "Training run identifier", func() {
 		Example("qwen/psai4rt-v0.3.0-no-reg")
 	})
-	Attribute("sample_preset_id", String, "Sample preset ID (UUID)", func() {
+	Attribute("study_id", String, "Study ID (UUID)", func() {
 		Example("550e8400-e29b-41d4-a716-446655440000")
+	})
+	Attribute("study_name", String, "Study display name (denormalized)", func() {
+		Example("My Study")
 	})
 	Attribute("workflow_name", String, "Workflow template filename", func() {
 		Example("qwen-image.json")
@@ -176,7 +179,7 @@ var SampleJobResponse = Type("SampleJobResponse", func() {
 	Attribute("updated_at", String, "Last update timestamp (RFC3339)", func() {
 		Example("2025-01-01T00:00:00Z")
 	})
-	Required("id", "training_run_name", "sample_preset_id", "workflow_name", "status", "total_items", "completed_items", "failed_items", "pending_items", "created_at", "updated_at")
+	Required("id", "training_run_name", "study_id", "study_name", "workflow_name", "status", "total_items", "completed_items", "failed_items", "pending_items", "created_at", "updated_at")
 })
 
 var FailedItemDetailResponse = Type("FailedItemDetailResponse", func() {
@@ -224,7 +227,7 @@ var CreateSampleJobPayload = Type("CreateSampleJobPayload", func() {
 		Example("qwen/psai4rt-v0.3.0-no-reg")
 		MinLength(1)
 	})
-	Attribute("sample_preset_id", String, "Sample preset ID (UUID)", func() {
+	Attribute("study_id", String, "Study ID (UUID)", func() {
 		Example("550e8400-e29b-41d4-a716-446655440000")
 	})
 	Attribute("workflow_name", String, "Workflow template filename", func() {
@@ -246,5 +249,5 @@ var CreateSampleJobPayload = Type("CreateSampleJobPayload", func() {
 	Attribute("clear_existing", Boolean, "When true, delete existing sample directories for selected checkpoints before creating job items", func() {
 		Default(false)
 	})
-	Required("training_run_name", "sample_preset_id", "workflow_name")
+	Required("training_run_name", "study_id", "workflow_name")
 })

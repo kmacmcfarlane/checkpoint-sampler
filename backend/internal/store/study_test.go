@@ -15,7 +15,7 @@ import (
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/store"
 )
 
-var _ = Describe("SamplePreset Store", func() {
+var _ = Describe("Study Store", func() {
 	var (
 		s      *store.Store
 		tmpDir string
@@ -23,7 +23,7 @@ var _ = Describe("SamplePreset Store", func() {
 
 	BeforeEach(func() {
 		var err error
-		tmpDir, err = os.MkdirTemp("", "sample-preset-test-*")
+		tmpDir, err = os.MkdirTemp("", "study-test-*")
 		Expect(err).NotTo(HaveOccurred())
 
 		dbPath := filepath.Join(tmpDir, "test.db")
@@ -46,9 +46,9 @@ var _ = Describe("SamplePreset Store", func() {
 	Describe("JSON marshaling/unmarshaling round-trips", func() {
 		It("preserves all fields through entity conversion", func() {
 			now := time.Now().UTC().Truncate(time.Second)
-			original := model.SamplePreset{
+			original := model.Study{
 				ID:   "test-id",
-				Name: "Test Preset",
+				Name: "Test Study",
 				Prompts: []model.NamedPrompt{
 					{Name: "prompt1", Text: "text1"},
 					{Name: "prompt2", Text: "text2"},
@@ -67,10 +67,10 @@ var _ = Describe("SamplePreset Store", func() {
 				UpdatedAt: now,
 			}
 
-			err := s.CreateSamplePreset(original)
+			err := s.CreateStudy(original)
 			Expect(err).NotTo(HaveOccurred())
 
-			retrieved, err := s.GetSamplePreset("test-id")
+			retrieved, err := s.GetStudy("test-id")
 			Expect(err).NotTo(HaveOccurred())
 
 			// Verify all fields match
@@ -90,7 +90,7 @@ var _ = Describe("SamplePreset Store", func() {
 
 		It("handles single pair correctly", func() {
 			now := time.Now().UTC().Truncate(time.Second)
-			original := model.SamplePreset{
+			original := model.Study{
 				ID:             "single-pair",
 				Name:           "Single Pair",
 				Prompts:        []model.NamedPrompt{{Name: "p1", Text: "t1"}},
@@ -107,10 +107,10 @@ var _ = Describe("SamplePreset Store", func() {
 				UpdatedAt: now,
 			}
 
-			err := s.CreateSamplePreset(original)
+			err := s.CreateStudy(original)
 			Expect(err).NotTo(HaveOccurred())
 
-			retrieved, err := s.GetSamplePreset("single-pair")
+			retrieved, err := s.GetStudy("single-pair")
 			Expect(err).NotTo(HaveOccurred())
 
 			Expect(retrieved.SamplerSchedulerPairs).To(HaveLen(1))
@@ -155,7 +155,7 @@ var _ = Describe("SamplePreset Store", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			// Now apply all migrations (including migration 8)
+			// Now apply all migrations (including migration 8 and 10 which renames to studies)
 			err = store.Migrate(db, allMigrations)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -166,16 +166,16 @@ var _ = Describe("SamplePreset Store", func() {
 			Expect(err).NotTo(HaveOccurred())
 			defer migratedStore.Close()
 
-			// Read the migrated preset
-			preset, err := migratedStore.GetSamplePreset("migration-test-id")
+			// Read the migrated study (was preset)
+			study, err := migratedStore.GetStudy("migration-test-id")
 			Expect(err).NotTo(HaveOccurred())
 
 			// Verify cross-product: 2 samplers x 2 schedulers = 4 pairs
-			Expect(preset.SamplerSchedulerPairs).To(HaveLen(4))
+			Expect(study.SamplerSchedulerPairs).To(HaveLen(4))
 
 			// Build a map for deterministic assertion
 			pairSet := make(map[string]bool)
-			for _, pair := range preset.SamplerSchedulerPairs {
+			for _, pair := range study.SamplerSchedulerPairs {
 				pairSet[pair.Sampler+"+"+pair.Scheduler] = true
 			}
 			Expect(pairSet).To(HaveKey("euler+simple"))
@@ -184,20 +184,20 @@ var _ = Describe("SamplePreset Store", func() {
 			Expect(pairSet).To(HaveKey("dpmpp_2m+sgm_uniform"))
 
 			// Verify other fields are preserved
-			Expect(preset.Name).To(Equal("Migration Test"))
-			Expect(preset.Steps).To(Equal([]int{4, 8}))
-			Expect(preset.CFGs).To(Equal([]float64{1.0, 3.0}))
+			Expect(study.Name).To(Equal("Migration Test"))
+			Expect(study.Steps).To(Equal([]int{4, 8}))
+			Expect(study.CFGs).To(Equal([]float64{1.0, 3.0}))
 		})
 	})
 
 	Describe("CRUD operations", func() {
-		var samplePreset model.SamplePreset
+		var study model.Study
 
 		BeforeEach(func() {
 			now := time.Now().UTC().Truncate(time.Second)
-			samplePreset = model.SamplePreset{
-				ID:   "preset-1",
-				Name: "Sample Preset",
+			study = model.Study{
+				ID:   "study-1",
+				Name: "Test Study",
 				Prompts: []model.NamedPrompt{
 					{Name: "test", Text: "test prompt"},
 				},
@@ -215,50 +215,50 @@ var _ = Describe("SamplePreset Store", func() {
 			}
 		})
 
-		Describe("CreateSamplePreset", func() {
-			It("creates a new sample preset", func() {
-				err := s.CreateSamplePreset(samplePreset)
+		Describe("CreateStudy", func() {
+			It("creates a new study", func() {
+				err := s.CreateStudy(study)
 				Expect(err).NotTo(HaveOccurred())
 
-				retrieved, err := s.GetSamplePreset(samplePreset.ID)
+				retrieved, err := s.GetStudy(study.ID)
 				Expect(err).NotTo(HaveOccurred())
-				Expect(retrieved.ID).To(Equal(samplePreset.ID))
-				Expect(retrieved.Name).To(Equal(samplePreset.Name))
+				Expect(retrieved.ID).To(Equal(study.ID))
+				Expect(retrieved.Name).To(Equal(study.Name))
 			})
 
 			It("rejects duplicate ID", func() {
-				err := s.CreateSamplePreset(samplePreset)
+				err := s.CreateStudy(study)
 				Expect(err).NotTo(HaveOccurred())
 
 				// Try to create again with same ID
-				err = s.CreateSamplePreset(samplePreset)
+				err = s.CreateStudy(study)
 				Expect(err).To(HaveOccurred())
 			})
 		})
 
-		Describe("ListSamplePresets", func() {
-			It("returns empty slice when no presets exist", func() {
-				result, err := s.ListSamplePresets()
+		Describe("ListStudies", func() {
+			It("returns empty slice when no studies exist", func() {
+				result, err := s.ListStudies()
 				Expect(err).NotTo(HaveOccurred())
 				Expect(result).To(HaveLen(0))
 			})
 
-			It("returns all sample presets ordered by name", func() {
-				preset1 := samplePreset
-				preset1.ID = "id-1"
-				preset1.Name = "Zebra"
+			It("returns all studies ordered by name", func() {
+				study1 := study
+				study1.ID = "id-1"
+				study1.Name = "Zebra"
 
-				preset2 := samplePreset
-				preset2.ID = "id-2"
-				preset2.Name = "Apple"
+				study2 := study
+				study2.ID = "id-2"
+				study2.Name = "Apple"
 
-				err := s.CreateSamplePreset(preset1)
+				err := s.CreateStudy(study1)
 				Expect(err).NotTo(HaveOccurred())
 
-				err = s.CreateSamplePreset(preset2)
+				err = s.CreateStudy(study2)
 				Expect(err).NotTo(HaveOccurred())
 
-				result, err := s.ListSamplePresets()
+				result, err := s.ListStudies()
 				Expect(err).NotTo(HaveOccurred())
 				Expect(result).To(HaveLen(2))
 				// Should be ordered by name: Apple, Zebra
@@ -267,33 +267,33 @@ var _ = Describe("SamplePreset Store", func() {
 			})
 		})
 
-		Describe("GetSamplePreset", func() {
+		Describe("GetStudy", func() {
 			BeforeEach(func() {
-				err := s.CreateSamplePreset(samplePreset)
+				err := s.CreateStudy(study)
 				Expect(err).NotTo(HaveOccurred())
 			})
 
-			It("retrieves a sample preset by ID", func() {
-				result, err := s.GetSamplePreset(samplePreset.ID)
+			It("retrieves a study by ID", func() {
+				result, err := s.GetStudy(study.ID)
 				Expect(err).NotTo(HaveOccurred())
-				Expect(result.ID).To(Equal(samplePreset.ID))
-				Expect(result.Name).To(Equal(samplePreset.Name))
+				Expect(result.ID).To(Equal(study.ID))
+				Expect(result.Name).To(Equal(study.Name))
 			})
 
 			It("returns sql.ErrNoRows for non-existent ID", func() {
-				_, err := s.GetSamplePreset("nonexistent")
+				_, err := s.GetStudy("nonexistent")
 				Expect(err).To(Equal(sql.ErrNoRows))
 			})
 		})
 
-		Describe("UpdateSamplePreset", func() {
+		Describe("UpdateStudy", func() {
 			BeforeEach(func() {
-				err := s.CreateSamplePreset(samplePreset)
+				err := s.CreateStudy(study)
 				Expect(err).NotTo(HaveOccurred())
 			})
 
-			It("updates an existing sample preset", func() {
-				updated := samplePreset
+			It("updates an existing study", func() {
+				updated := study
 				updated.Name = "Updated Name"
 				updated.Width = 1024
 				updated.Height = 1024
@@ -302,10 +302,10 @@ var _ = Describe("SamplePreset Store", func() {
 				}
 				updated.UpdatedAt = time.Now().UTC()
 
-				err := s.UpdateSamplePreset(updated)
+				err := s.UpdateStudy(updated)
 				Expect(err).NotTo(HaveOccurred())
 
-				retrieved, err := s.GetSamplePreset(updated.ID)
+				retrieved, err := s.GetStudy(updated.ID)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(retrieved.Name).To(Equal("Updated Name"))
 				Expect(retrieved.Width).To(Equal(1024))
@@ -314,34 +314,34 @@ var _ = Describe("SamplePreset Store", func() {
 				Expect(retrieved.SamplerSchedulerPairs[0].Sampler).To(Equal("dpmpp_2m"))
 				Expect(retrieved.SamplerSchedulerPairs[0].Scheduler).To(Equal("sgm_uniform"))
 				// CreatedAt should remain unchanged
-				Expect(retrieved.CreatedAt.Unix()).To(Equal(samplePreset.CreatedAt.Unix()))
+				Expect(retrieved.CreatedAt.Unix()).To(Equal(study.CreatedAt.Unix()))
 			})
 
 			It("returns sql.ErrNoRows for non-existent ID", func() {
-				nonExistent := samplePreset
+				nonExistent := study
 				nonExistent.ID = "nonexistent"
-				err := s.UpdateSamplePreset(nonExistent)
+				err := s.UpdateStudy(nonExistent)
 				Expect(err).To(Equal(sql.ErrNoRows))
 			})
 		})
 
-		Describe("DeleteSamplePreset", func() {
+		Describe("DeleteStudy", func() {
 			BeforeEach(func() {
-				err := s.CreateSamplePreset(samplePreset)
+				err := s.CreateStudy(study)
 				Expect(err).NotTo(HaveOccurred())
 			})
 
-			It("deletes an existing sample preset", func() {
-				err := s.DeleteSamplePreset(samplePreset.ID)
+			It("deletes an existing study", func() {
+				err := s.DeleteStudy(study.ID)
 				Expect(err).NotTo(HaveOccurred())
 
 				// Verify it's gone
-				_, err = s.GetSamplePreset(samplePreset.ID)
+				_, err = s.GetStudy(study.ID)
 				Expect(err).To(Equal(sql.ErrNoRows))
 			})
 
 			It("returns sql.ErrNoRows for non-existent ID", func() {
-				err := s.DeleteSamplePreset("nonexistent")
+				err := s.DeleteStudy("nonexistent")
 				Expect(err).To(Equal(sql.ErrNoRows))
 			})
 		})

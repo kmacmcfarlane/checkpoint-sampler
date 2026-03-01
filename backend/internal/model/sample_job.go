@@ -4,19 +4,20 @@ import "time"
 
 // SampleJob represents a job that generates sample images for a training run.
 type SampleJob struct {
-	ID               string
-	TrainingRunName  string
-	SamplePresetID   string
-	WorkflowName     string
-	VAE              string
-	CLIP             string
-	Shift            *float64 // nullable for workflows without shift role
-	Status           SampleJobStatus
-	TotalItems       int
-	CompletedItems   int
-	ErrorMessage     string
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
+	ID              string
+	TrainingRunName string
+	StudyID         string
+	StudyName       string // denormalized for display and directory naming
+	WorkflowName    string
+	VAE             string
+	CLIP            string
+	Shift           *float64 // nullable for workflows without shift role
+	Status          SampleJobStatus
+	TotalItems      int
+	CompletedItems  int
+	ErrorMessage    string
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 // SampleJobStatus represents the state of a sample job.

@@ -128,5 +128,37 @@ func AllMigrations() []Migration {
 			Version: 9,
 			SQL:     `ALTER TABLE sample_presets ADD COLUMN prompt_prefix TEXT NOT NULL DEFAULT '';`,
 		},
+		{
+			// Rename sample_presets table to studies.
+			// Rename sample_preset_id column in sample_jobs to study_id.
+			// Add study_name column to sample_jobs (denormalized for display/directory naming).
+			Version: 10,
+			SQL: `ALTER TABLE sample_presets RENAME TO studies;
+
+			CREATE TABLE sample_jobs_new (
+				id                 TEXT PRIMARY KEY,
+				training_run_name  TEXT NOT NULL,
+				study_id           TEXT NOT NULL,
+				study_name         TEXT NOT NULL DEFAULT '',
+				workflow_name      TEXT NOT NULL,
+				vae                TEXT,
+				clip               TEXT,
+				shift              REAL,
+				status             TEXT NOT NULL,
+				total_items        INTEGER NOT NULL,
+				completed_items    INTEGER NOT NULL DEFAULT 0,
+				error_message      TEXT,
+				created_at         TEXT NOT NULL,
+				updated_at         TEXT NOT NULL,
+				FOREIGN KEY (study_id) REFERENCES studies(id)
+			);
+			INSERT INTO sample_jobs_new (id, training_run_name, study_id, study_name, workflow_name, vae, clip, shift, status, total_items, completed_items, error_message, created_at, updated_at)
+			SELECT sj.id, sj.training_run_name, sj.sample_preset_id,
+				COALESCE((SELECT s.name FROM studies s WHERE s.id = sj.sample_preset_id), ''),
+				sj.workflow_name, sj.vae, sj.clip, sj.shift, sj.status, sj.total_items, sj.completed_items, sj.error_message, sj.created_at, sj.updated_at
+			FROM sample_jobs sj;
+			DROP TABLE sample_jobs;
+			ALTER TABLE sample_jobs_new RENAME TO sample_jobs;`,
+		},
 	}
 }

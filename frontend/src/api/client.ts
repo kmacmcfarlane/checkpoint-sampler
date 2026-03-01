@@ -1,4 +1,4 @@
-import type { ApiError, ApiErrorResponse, CheckpointMetadata, ComfyUIModelType, ComfyUIModels, ComfyUIStatus, CreateSampleJobPayload, CreateSamplePresetPayload, HealthStatus, ImageMetadata, Preset, PresetMapping, SampleJob, SampleJobDetail, SamplePreset, ScanResult, TrainingRun, UpdateSamplePresetPayload, WorkflowSummary } from './types'
+import type { ApiError, ApiErrorResponse, CheckpointMetadata, ComfyUIModelType, ComfyUIModels, ComfyUIStatus, CreateSampleJobPayload, CreateStudyPayload, HealthStatus, ImageMetadata, Preset, PresetMapping, SampleJob, SampleJobDetail, Study, ScanResult, TrainingRun, UpdateStudyPayload, WorkflowSummary } from './types'
 
 const DEFAULT_BASE_URL = '/api'
 
@@ -157,32 +157,32 @@ export class ApiClient {
     return this.request<ComfyUIModels>(`/comfyui/models?type=${type}`)
   }
 
-  /** GET /api/sample-presets — list all sample presets. */
-  async listSamplePresets(): Promise<SamplePreset[]> {
-    return this.request<SamplePreset[]>('/sample-presets')
+  /** GET /api/studies — list all studies. */
+  async listStudies(): Promise<Study[]> {
+    return this.request<Study[]>('/studies')
   }
 
-  /** POST /api/sample-presets — create a new sample preset. */
-  async createSamplePreset(payload: CreateSamplePresetPayload): Promise<SamplePreset> {
-    return this.request<SamplePreset>('/sample-presets', {
+  /** POST /api/studies — create a new study. */
+  async createStudy(payload: CreateStudyPayload): Promise<Study> {
+    return this.request<Study>('/studies', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     })
   }
 
-  /** PUT /api/sample-presets/{id} — update an existing sample preset. */
-  async updateSamplePreset(payload: UpdateSamplePresetPayload): Promise<SamplePreset> {
-    return this.request<SamplePreset>(`/sample-presets/${payload.id}`, {
+  /** PUT /api/studies/{id} — update an existing study. */
+  async updateStudy(payload: UpdateStudyPayload): Promise<Study> {
+    return this.request<Study>(`/studies/${payload.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     })
   }
 
-  /** DELETE /api/sample-presets/{id} — delete a sample preset. */
-  async deleteSamplePreset(id: string): Promise<void> {
-    const url = `${this.baseUrl}/sample-presets/${id}`
+  /** DELETE /api/studies/{id} — delete a study. */
+  async deleteStudy(id: string): Promise<void> {
+    const url = `${this.baseUrl}/studies/${id}`
     let response: Response
     try {
       response = await fetch(url, { method: 'DELETE' })

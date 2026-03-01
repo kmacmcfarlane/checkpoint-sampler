@@ -2,16 +2,16 @@ import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { NSelect, NButton, NInput, NInputNumber, NDynamicInput, NDynamicTags } from 'naive-ui'
-import SamplePresetEditor from '../SamplePresetEditor.vue'
-import type { SamplePreset, ComfyUIModels } from '../../api/types'
+import StudyEditor from '../StudyEditor.vue'
+import type { Study, ComfyUIModels } from '../../api/types'
 
 // Mock the api client module
 vi.mock('../../api/client', () => ({
   apiClient: {
-    listSamplePresets: vi.fn(),
-    createSamplePreset: vi.fn(),
-    updateSamplePreset: vi.fn(),
-    deleteSamplePreset: vi.fn(),
+    listStudies: vi.fn(),
+    createStudy: vi.fn(),
+    updateStudy: vi.fn(),
+    deleteStudy: vi.fn(),
     getComfyUIModels: vi.fn(),
   },
 }))
@@ -26,13 +26,13 @@ import { apiClient } from '../../api/client'
 
 // enableAutoUnmount is configured globally in vitest.setup.ts
 
-const mockListSamplePresets = apiClient.listSamplePresets as ReturnType<typeof vi.fn>
-const mockCreateSamplePreset = apiClient.createSamplePreset as ReturnType<typeof vi.fn>
-const mockUpdateSamplePreset = apiClient.updateSamplePreset as ReturnType<typeof vi.fn>
-const mockDeleteSamplePreset = apiClient.deleteSamplePreset as ReturnType<typeof vi.fn>
+const mockListStudies = apiClient.listStudies as ReturnType<typeof vi.fn>
+const mockCreateStudy = apiClient.createStudy as ReturnType<typeof vi.fn>
+const mockUpdateStudy = apiClient.updateStudy as ReturnType<typeof vi.fn>
+const mockDeleteStudy = apiClient.deleteStudy as ReturnType<typeof vi.fn>
 const mockGetComfyUIModels = apiClient.getComfyUIModels as ReturnType<typeof vi.fn>
 
-const samplePresets: SamplePreset[] = [
+const studies: Study[] = [
   {
     id: 'preset-1',
     name: 'Test Preset A',
@@ -83,11 +83,11 @@ const mockSchedulers: ComfyUIModels = {
   models: ['simple', 'normal', 'karras', 'exponential'],
 }
 
-describe('SamplePresetEditor', () => {
+describe('StudyEditor', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     // Return a fresh copy of presets for each test to avoid mutation issues
-    mockListSamplePresets.mockResolvedValue(JSON.parse(JSON.stringify(samplePresets)))
+    mockListStudies.mockResolvedValue(JSON.parse(JSON.stringify(studies)))
     mockGetComfyUIModels.mockImplementation((type: string) => {
       if (type === 'sampler') return Promise.resolve(mockSamplers)
       if (type === 'scheduler') return Promise.resolve(mockSchedulers)
@@ -96,7 +96,7 @@ describe('SamplePresetEditor', () => {
   })
 
   it('renders with default form state', async () => {
-    const wrapper = mount(SamplePresetEditor)
+    const wrapper = mount(StudyEditor)
     await flushPromises()
 
     expect(wrapper.findComponent(NInput).exists()).toBe(true)
@@ -106,10 +106,10 @@ describe('SamplePresetEditor', () => {
   })
 
   it('fetches presets on mount', async () => {
-    const wrapper = mount(SamplePresetEditor)
+    const wrapper = mount(StudyEditor)
     await flushPromises()
 
-    expect(mockListSamplePresets).toHaveBeenCalled()
+    expect(mockListStudies).toHaveBeenCalled()
     const select = wrapper.findComponent(NSelect)
     const options = select.props('options') as Array<{ label: string; value: string }>
     expect(options).toHaveLength(2)
@@ -118,7 +118,7 @@ describe('SamplePresetEditor', () => {
   })
 
   it('fetches samplers and schedulers from ComfyUI API on mount', async () => {
-    mount(SamplePresetEditor)
+    mount(StudyEditor)
     await flushPromises()
 
     expect(mockGetComfyUIModels).toHaveBeenCalledWith('sampler')
@@ -126,14 +126,14 @@ describe('SamplePresetEditor', () => {
   })
 
   it('loads preset data when preset is selected', async () => {
-    const wrapper = mount(SamplePresetEditor)
+    const wrapper = mount(StudyEditor)
     await flushPromises()
 
     const select = wrapper.findAllComponents(NSelect)[0] // First select is the preset selector
     select.vm.$emit('update:value', 'preset-1')
     await nextTick()
 
-    const nameInput = wrapper.findComponent('[data-testid="preset-name-input"]')
+    const nameInput = wrapper.findComponent('[data-testid="study-name-input"]')
     expect(nameInput.props('value')).toBe('Test Preset A')
 
     const negativeInput = wrapper.findComponent('[data-testid="negative-prompt-input"]')
@@ -147,7 +147,7 @@ describe('SamplePresetEditor', () => {
   })
 
   it('loads steps, cfgs and seeds into NDynamicTags when preset is selected', async () => {
-    const wrapper = mount(SamplePresetEditor)
+    const wrapper = mount(StudyEditor)
     await flushPromises()
 
     const select = wrapper.findAllComponents(NSelect)[0]
@@ -161,7 +161,7 @@ describe('SamplePresetEditor', () => {
   })
 
   it('displays computed total images per checkpoint', async () => {
-    const wrapper = mount(SamplePresetEditor)
+    const wrapper = mount(StudyEditor)
     await flushPromises()
 
     const select = wrapper.findAllComponents(NSelect)[0]
@@ -174,7 +174,7 @@ describe('SamplePresetEditor', () => {
   })
 
   it('calculates total images correctly based on form inputs', async () => {
-    const wrapper = mount(SamplePresetEditor)
+    const wrapper = mount(StudyEditor)
     await flushPromises()
 
     // Default state: 0 prompts (empty name/text) * 1 step * 1 cfg * 0 pairs * 1 seed = 0
@@ -191,9 +191,9 @@ describe('SamplePresetEditor', () => {
   })
 
   it('saves new preset when Save button is clicked', async () => {
-    const createdPreset: SamplePreset = {
+    const createdPreset: Study = {
       id: 'new-preset-id',
-      name: 'New Preset',
+      name: 'New Study',
       prompt_prefix: '',
       prompts: [{ name: 'test', text: 'test prompt' }],
       negative_prompt: '',
@@ -207,14 +207,14 @@ describe('SamplePresetEditor', () => {
       created_at: '2025-01-03T00:00:00Z',
       updated_at: '2025-01-03T00:00:00Z',
     }
-    mockCreateSamplePreset.mockResolvedValue(createdPreset)
+    mockCreateStudy.mockResolvedValue(createdPreset)
 
-    const wrapper = mount(SamplePresetEditor)
+    const wrapper = mount(StudyEditor)
     await flushPromises()
 
     // Fill in form using component events
-    const nameInput = wrapper.findComponent('[data-testid="preset-name-input"]')
-    nameInput.vm.$emit('update:value', 'New Preset')
+    const nameInput = wrapper.findComponent('[data-testid="study-name-input"]')
+    nameInput.vm.$emit('update:value', 'New Study')
     await nextTick()
 
     // Set prompts via NDynamicInput components
@@ -237,12 +237,12 @@ describe('SamplePresetEditor', () => {
 
     const saveButton = wrapper
       .findAllComponents(NButton)
-      .find((b) => b.text().includes('Save Preset'))!
+      .find((b) => b.text().includes('Save Study'))!
     await saveButton.trigger('click')
     await flushPromises()
 
-    expect(mockCreateSamplePreset).toHaveBeenCalledWith({
-      name: 'New Preset',
+    expect(mockCreateStudy).toHaveBeenCalledWith({
+      name: 'New Study',
       prompt_prefix: '',
       prompts: [{ name: 'test', text: 'test prompt' }],
       negative_prompt: '',
@@ -256,14 +256,14 @@ describe('SamplePresetEditor', () => {
   })
 
   it('updates existing preset when Update button is clicked', async () => {
-    const updatedPreset: SamplePreset = {
-      ...samplePresets[0],
+    const updatedPreset: Study = {
+      ...studies[0],
       name: 'Updated Preset A',
       updated_at: '2025-01-03T00:00:00Z',
     }
-    mockUpdateSamplePreset.mockResolvedValue(updatedPreset)
+    mockUpdateStudy.mockResolvedValue(updatedPreset)
 
-    const wrapper = mount(SamplePresetEditor)
+    const wrapper = mount(StudyEditor)
     await flushPromises()
 
     // Select preset
@@ -272,17 +272,17 @@ describe('SamplePresetEditor', () => {
     await nextTick()
 
     // Update name
-    const nameInput = wrapper.findComponent('[data-testid="preset-name-input"]')
+    const nameInput = wrapper.findComponent('[data-testid="study-name-input"]')
     nameInput.vm.$emit('update:value', 'Updated Preset A')
     await nextTick()
 
     const saveButton = wrapper
       .findAllComponents(NButton)
-      .find((b) => b.text().includes('Update Preset'))!
+      .find((b) => b.text().includes('Update Study'))!
     await saveButton.trigger('click')
     await flushPromises()
 
-    expect(mockUpdateSamplePreset).toHaveBeenCalledWith({
+    expect(mockUpdateStudy).toHaveBeenCalledWith({
       id: 'preset-1',
       name: 'Updated Preset A',
       prompt_prefix: 'photo of a person, ',
@@ -305,9 +305,9 @@ describe('SamplePresetEditor', () => {
 
   it('deletes preset when Delete button is clicked and confirmed', async () => {
     ;(globalThis.confirm as ReturnType<typeof vi.fn>).mockReturnValue(true)
-    mockDeleteSamplePreset.mockResolvedValue(undefined)
+    mockDeleteStudy.mockResolvedValue(undefined)
 
-    const wrapper = mount(SamplePresetEditor)
+    const wrapper = mount(StudyEditor)
     await flushPromises()
 
     // Select preset
@@ -317,17 +317,17 @@ describe('SamplePresetEditor', () => {
 
     const deleteButton = wrapper
       .findAllComponents(NButton)
-      .find((b) => b.text().includes('Delete Preset'))!
+      .find((b) => b.text().includes('Delete Study'))!
     await deleteButton.trigger('click')
     await flushPromises()
 
-    expect(mockDeleteSamplePreset).toHaveBeenCalledWith('preset-1')
+    expect(mockDeleteStudy).toHaveBeenCalledWith('preset-1')
   })
 
   it('does not delete preset when deletion is cancelled', async () => {
     ;(globalThis.confirm as ReturnType<typeof vi.fn>).mockReturnValue(false)
 
-    const wrapper = mount(SamplePresetEditor)
+    const wrapper = mount(StudyEditor)
     await flushPromises()
 
     // Select preset
@@ -337,23 +337,23 @@ describe('SamplePresetEditor', () => {
 
     const deleteButton = wrapper
       .findAllComponents(NButton)
-      .find((b) => b.text().includes('Delete Preset'))!
+      .find((b) => b.text().includes('Delete Study'))!
     await deleteButton.trigger('click')
     await flushPromises()
 
-    expect(mockDeleteSamplePreset).not.toHaveBeenCalled()
+    expect(mockDeleteStudy).not.toHaveBeenCalled()
   })
 
   it('resets form when New Preset button is clicked', async () => {
     // Use fresh mocks to avoid contamination from previous tests
-    mockListSamplePresets.mockResolvedValue(samplePresets)
+    mockListStudies.mockResolvedValue(studies)
     mockGetComfyUIModels.mockImplementation((type: string) => {
       if (type === 'sampler') return Promise.resolve(mockSamplers)
       if (type === 'scheduler') return Promise.resolve(mockSchedulers)
       return Promise.resolve({ models: [] })
     })
 
-    const wrapper = mount(SamplePresetEditor)
+    const wrapper = mount(StudyEditor)
     await flushPromises()
 
     // Select preset
@@ -361,13 +361,13 @@ describe('SamplePresetEditor', () => {
     select.vm.$emit('update:value', 'preset-1')
     await nextTick()
 
-    const nameInput = wrapper.findComponent('[data-testid="preset-name-input"]')
+    const nameInput = wrapper.findComponent('[data-testid="study-name-input"]')
     expect(nameInput.props('value')).toBe('Test Preset A')
 
     // Click New Preset
     const newButton = wrapper
       .findAllComponents(NButton)
-      .find((b) => b.text() === 'New Preset')!
+      .find((b) => b.text() === 'New Study')!
     await newButton.trigger('click')
     await nextTick()
 
@@ -375,7 +375,7 @@ describe('SamplePresetEditor', () => {
   })
 
   it('resets steps to default [30] when New Preset is clicked', async () => {
-    const wrapper = mount(SamplePresetEditor)
+    const wrapper = mount(StudyEditor)
     await flushPromises()
 
     // Select preset to change steps
@@ -386,7 +386,7 @@ describe('SamplePresetEditor', () => {
     // Click New Preset to reset
     const newButton = wrapper
       .findAllComponents(NButton)
-      .find((b) => b.text() === 'New Preset')!
+      .find((b) => b.text() === 'New Study')!
     await newButton.trigger('click')
     await nextTick()
 
@@ -395,17 +395,17 @@ describe('SamplePresetEditor', () => {
   })
 
   it('disables save button when required fields are empty', async () => {
-    const wrapper = mount(SamplePresetEditor)
+    const wrapper = mount(StudyEditor)
     await flushPromises()
 
     const saveButton = wrapper
       .findAllComponents(NButton)
-      .find((b) => b.text().includes('Save Preset'))!
+      .find((b) => b.text().includes('Save Study'))!
     expect(saveButton.props('disabled')).toBe(true)
   })
 
   it('NDynamicTags for steps updates steps state when tags are changed', async () => {
-    const wrapper = mount(SamplePresetEditor)
+    const wrapper = mount(StudyEditor)
     await flushPromises()
 
     const stepsTags = wrapper.findComponent('[data-testid="steps-tags"]')
@@ -435,7 +435,7 @@ describe('SamplePresetEditor', () => {
   })
 
   it('NDynamicTags for cfgs updates cfgs state when tags are changed', async () => {
-    const wrapper = mount(SamplePresetEditor)
+    const wrapper = mount(StudyEditor)
     await flushPromises()
 
     const cfgsTags = wrapper.findComponent('[data-testid="cfgs-tags"]')
@@ -464,7 +464,7 @@ describe('SamplePresetEditor', () => {
   })
 
   it('NDynamicTags for seeds updates seeds state when tags are changed', async () => {
-    const wrapper = mount(SamplePresetEditor)
+    const wrapper = mount(StudyEditor)
     await flushPromises()
 
     const seedsTags = wrapper.findComponent('[data-testid="seeds-tags"]')
@@ -493,12 +493,12 @@ describe('SamplePresetEditor', () => {
   })
 
   it('displays error message when API call fails', async () => {
-    mockListSamplePresets.mockRejectedValue({
+    mockListStudies.mockRejectedValue({
       code: 'NETWORK_ERROR',
       message: 'Connection lost',
     })
 
-    const wrapper = mount(SamplePresetEditor)
+    const wrapper = mount(StudyEditor)
     await flushPromises()
 
     const alert = wrapper.find('[role="alert"]')
@@ -507,9 +507,9 @@ describe('SamplePresetEditor', () => {
   })
 
   it('shows loading state while fetching presets', async () => {
-    mockListSamplePresets.mockReturnValue(new Promise(() => {})) // never resolves
+    mockListStudies.mockReturnValue(new Promise(() => {})) // never resolves
 
-    const wrapper = mount(SamplePresetEditor)
+    const wrapper = mount(StudyEditor)
     await nextTick()
 
     const select = wrapper.findAllComponents(NSelect)[0]
@@ -517,7 +517,7 @@ describe('SamplePresetEditor', () => {
   })
 
   it('NDynamicTags inputProps restricts entry to digits and "." only', async () => {
-    const wrapper = mount(SamplePresetEditor)
+    const wrapper = mount(StudyEditor)
     await flushPromises()
 
     const [stepsTags] = wrapper.findAllComponents(NDynamicTags)
@@ -538,7 +538,7 @@ describe('SamplePresetEditor', () => {
   })
 
   it('NDynamicTags inputProps is shared across all numeric tag inputs', async () => {
-    const wrapper = mount(SamplePresetEditor)
+    const wrapper = mount(StudyEditor)
     await flushPromises()
 
     const tagComponents = wrapper.findAllComponents(NDynamicTags)
@@ -554,7 +554,7 @@ describe('SamplePresetEditor', () => {
   })
 
   it('filters out empty prompts when saving', async () => {
-    const createdPreset: SamplePreset = {
+    const createdPreset: Study = {
       id: 'new-preset-id',
       name: 'Test',
       prompt_prefix: '',
@@ -570,13 +570,13 @@ describe('SamplePresetEditor', () => {
       created_at: '2025-01-03T00:00:00Z',
       updated_at: '2025-01-03T00:00:00Z',
     }
-    mockCreateSamplePreset.mockResolvedValue(createdPreset)
+    mockCreateStudy.mockResolvedValue(createdPreset)
 
-    const wrapper = mount(SamplePresetEditor)
+    const wrapper = mount(StudyEditor)
     await flushPromises()
 
     // Fill form with one valid prompt
-    const nameInput = wrapper.findComponent('[data-testid="preset-name-input"]')
+    const nameInput = wrapper.findComponent('[data-testid="study-name-input"]')
     nameInput.vm.$emit('update:value', 'Test')
 
     const promptInputs = wrapper.findAllComponents(NInput)
@@ -597,17 +597,17 @@ describe('SamplePresetEditor', () => {
 
     const saveButton = wrapper
       .findAllComponents(NButton)
-      .find((b) => b.text().includes('Save Preset'))!
+      .find((b) => b.text().includes('Save Study'))!
     await saveButton.trigger('click')
     await flushPromises()
 
-    const call = mockCreateSamplePreset.mock.calls[0][0]
+    const call = mockCreateStudy.mock.calls[0][0]
     expect(call.prompts).toHaveLength(1)
     expect(call.prompts[0]).toEqual({ name: 'valid', text: 'valid prompt' })
   })
 
   it('NDynamicInput has onCreate prop that returns correct shape {name, text} for prompts', async () => {
-    const wrapper = mount(SamplePresetEditor)
+    const wrapper = mount(StudyEditor)
     await flushPromises()
 
     // First NDynamicInput is prompts
@@ -623,7 +623,7 @@ describe('SamplePresetEditor', () => {
   })
 
   it('NDynamicInput has onCreate prop that returns correct shape {sampler, scheduler} for pairs', async () => {
-    const wrapper = mount(SamplePresetEditor)
+    const wrapper = mount(StudyEditor)
     await flushPromises()
 
     // Second NDynamicInput is sampler/scheduler pairs
@@ -640,7 +640,7 @@ describe('SamplePresetEditor', () => {
   it('adding a second prompt via onCreate produces an item with correct shape and no console errors', async () => {
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
-    const wrapper = mount(SamplePresetEditor)
+    const wrapper = mount(StudyEditor)
     await flushPromises()
 
     // Simulate what NDynamicInput does when the user clicks "Add" --
@@ -662,7 +662,7 @@ describe('SamplePresetEditor', () => {
   })
 
   it('computedTotalImages counts only fully-filled prompt entries', async () => {
-    const wrapper = mount(SamplePresetEditor)
+    const wrapper = mount(StudyEditor)
     await flushPromises()
 
     // Set up one valid prompt plus one empty prompt (as created by onCreate)
@@ -684,11 +684,11 @@ describe('SamplePresetEditor', () => {
   })
 
   it('canSave returns false when all prompts are empty (as after onCreate)', async () => {
-    const wrapper = mount(SamplePresetEditor)
+    const wrapper = mount(StudyEditor)
     await flushPromises()
 
     // Fill preset name and add a pair but leave prompts with only empty entries
-    const nameInput = wrapper.findComponent('[data-testid="preset-name-input"]')
+    const nameInput = wrapper.findComponent('[data-testid="study-name-input"]')
     nameInput.vm.$emit('update:value', 'My Preset')
 
     const vm = wrapper.vm as unknown as { samplerSchedulerPairs: Array<{ sampler: string; scheduler: string }> }
@@ -698,15 +698,15 @@ describe('SamplePresetEditor', () => {
     // Default prompt is {name:'', text:''} -- save must be disabled
     const saveButton = wrapper
       .findAllComponents(NButton)
-      .find((b) => b.text().includes('Save Preset'))!
+      .find((b) => b.text().includes('Save Study'))!
     expect(saveButton.props('disabled')).toBe(true)
   })
 
   it('canSave returns false when pairs have empty sampler or scheduler', async () => {
-    const wrapper = mount(SamplePresetEditor)
+    const wrapper = mount(StudyEditor)
     await flushPromises()
 
-    const nameInput = wrapper.findComponent('[data-testid="preset-name-input"]')
+    const nameInput = wrapper.findComponent('[data-testid="study-name-input"]')
     nameInput.vm.$emit('update:value', 'My Preset')
 
     const promptInputs = wrapper.findAllComponents(NInput)
@@ -726,7 +726,7 @@ describe('SamplePresetEditor', () => {
 
     const saveButton = wrapper
       .findAllComponents(NButton)
-      .find((b) => b.text().includes('Save Preset'))!
+      .find((b) => b.text().includes('Save Study'))!
     expect(saveButton.props('disabled')).toBe(true)
   })
 
@@ -754,7 +754,7 @@ describe('SamplePresetEditor', () => {
       expectedStrings: ['42', '420'],
     },
   ])('NDynamicTags $field round-trips numeric values correctly', async ({ testid, tags, expectedNumbers, expectedStrings }) => {
-    const wrapper = mount(SamplePresetEditor)
+    const wrapper = mount(StudyEditor)
     await flushPromises()
 
     const tagsComponent = wrapper.findComponent(`[data-testid="${testid}"]`)
@@ -773,7 +773,7 @@ describe('SamplePresetEditor', () => {
 
   describe('theme-aware styling', () => {
     it('total-images element uses theme-aware CSS class without hardcoded inline colors', async () => {
-      const wrapper = mount(SamplePresetEditor)
+      const wrapper = mount(StudyEditor)
       await flushPromises()
 
       const totalImages = wrapper.find('.total-images')
@@ -783,7 +783,7 @@ describe('SamplePresetEditor', () => {
     })
 
     it('total-images element has theme-aware CSS class applied', async () => {
-      const wrapper = mount(SamplePresetEditor)
+      const wrapper = mount(StudyEditor)
       await flushPromises()
 
       const totalImages = wrapper.find('.total-images')
@@ -791,7 +791,7 @@ describe('SamplePresetEditor', () => {
     })
 
     it('form-field labels use theme-aware CSS class without hardcoded inline colors', async () => {
-      const wrapper = mount(SamplePresetEditor)
+      const wrapper = mount(StudyEditor)
       await flushPromises()
 
       const labels = wrapper.findAll('.form-field label')
@@ -802,27 +802,27 @@ describe('SamplePresetEditor', () => {
     })
   })
 
-  describe('initialPresetId prop -- pre-selection on open', () => {
-    // AC: When opening the sub-dialog from the parent, the currently selected preset is pre-selected.
-    it('pre-selects the preset matching initialPresetId on mount', async () => {
-      const wrapper = mount(SamplePresetEditor, {
-        props: { initialPresetId: 'preset-1' },
+  describe('initialStudyId prop -- pre-selection on open', () => {
+    // AC: When opening the sub-dialog from the parent, the currently selected study is pre-selected.
+    it('pre-selects the study matching initialStudyId on mount', async () => {
+      const wrapper = mount(StudyEditor, {
+        props: { initialStudyId: 'preset-1' },
       })
       await flushPromises()
 
-      // The preset selector should show preset-1 as selected
+      // The study selector should show preset-1 as selected
       const select = wrapper.findAllComponents(NSelect)[0]
       expect(select.props('value')).toBe('preset-1')
 
       // The form should be populated with preset-1's data
-      const nameInput = wrapper.findComponent('[data-testid="preset-name-input"]')
+      const nameInput = wrapper.findComponent('[data-testid="study-name-input"]')
       expect(nameInput.props('value')).toBe('Test Preset A')
     })
 
-    // AC: If no preset is selected in the parent, the SamplePresetEditor opens with no preset selected.
-    it('opens with no preset selected when initialPresetId is null', async () => {
-      const wrapper = mount(SamplePresetEditor, {
-        props: { initialPresetId: null },
+    // AC: If no study is selected in the parent, the StudyEditor opens with no study selected.
+    it('opens with no study selected when initialStudyId is null', async () => {
+      const wrapper = mount(StudyEditor, {
+        props: { initialStudyId: null },
       })
       await flushPromises()
 
@@ -830,23 +830,23 @@ describe('SamplePresetEditor', () => {
       expect(select.props('value')).toBeNull()
 
       // Form should be in default empty state
-      const nameInput = wrapper.findComponent('[data-testid="preset-name-input"]')
+      const nameInput = wrapper.findComponent('[data-testid="study-name-input"]')
       expect(nameInput.props('value')).toBe('')
     })
 
-    // AC: If no preset is selected in the parent (prop omitted), opens with no preset selected.
-    it('opens with no preset selected when initialPresetId is not provided', async () => {
-      const wrapper = mount(SamplePresetEditor)
+    // AC: If no study is selected in the parent (prop omitted), opens with no study selected.
+    it('opens with no study selected when initialStudyId is not provided', async () => {
+      const wrapper = mount(StudyEditor)
       await flushPromises()
 
       const select = wrapper.findAllComponents(NSelect)[0]
       expect(select.props('value')).toBeNull()
     })
 
-    // AC: If the initialPresetId does not match any loaded preset, no preset is selected.
-    it('does not pre-select when initialPresetId does not match any loaded preset', async () => {
-      const wrapper = mount(SamplePresetEditor, {
-        props: { initialPresetId: 'nonexistent-preset' },
+    // AC: If the initialStudyId does not match any loaded study, no study is selected.
+    it('does not pre-select when initialStudyId does not match any loaded study', async () => {
+      const wrapper = mount(StudyEditor, {
+        props: { initialStudyId: 'nonexistent-preset' },
       })
       await flushPromises()
 
@@ -854,23 +854,23 @@ describe('SamplePresetEditor', () => {
       expect(select.props('value')).toBeNull()
     })
 
-    it('pre-selects a different preset when initialPresetId points to preset-2', async () => {
-      const wrapper = mount(SamplePresetEditor, {
-        props: { initialPresetId: 'preset-2' },
+    it('pre-selects a different study when initialStudyId points to preset-2', async () => {
+      const wrapper = mount(StudyEditor, {
+        props: { initialStudyId: 'preset-2' },
       })
       await flushPromises()
 
       const select = wrapper.findAllComponents(NSelect)[0]
       expect(select.props('value')).toBe('preset-2')
 
-      const nameInput = wrapper.findComponent('[data-testid="preset-name-input"]')
+      const nameInput = wrapper.findComponent('[data-testid="study-name-input"]')
       expect(nameInput.props('value')).toBe('Test Preset B')
     })
   })
 
   describe('sampler/scheduler pairs management', () => {
     it('loads pairs from preset when selected', async () => {
-      const wrapper = mount(SamplePresetEditor)
+      const wrapper = mount(StudyEditor)
       await flushPromises()
 
       const select = wrapper.findAllComponents(NSelect)[0]
@@ -884,7 +884,7 @@ describe('SamplePresetEditor', () => {
     })
 
     it('resets pairs to empty when New Preset is clicked', async () => {
-      const wrapper = mount(SamplePresetEditor)
+      const wrapper = mount(StudyEditor)
       await flushPromises()
 
       // Select preset to populate pairs
@@ -895,7 +895,7 @@ describe('SamplePresetEditor', () => {
       // Click New Preset to reset
       const newButton = wrapper
         .findAllComponents(NButton)
-        .find((b) => b.text() === 'New Preset')!
+        .find((b) => b.text() === 'New Study')!
       await newButton.trigger('click')
       await nextTick()
 
@@ -904,7 +904,7 @@ describe('SamplePresetEditor', () => {
     })
 
     it('sends pairs in save payload', async () => {
-      const createdPreset: SamplePreset = {
+      const createdPreset: Study = {
         id: 'new-id',
         name: 'Multi Pair',
         prompt_prefix: '',
@@ -923,13 +923,13 @@ describe('SamplePresetEditor', () => {
         created_at: '2025-01-03T00:00:00Z',
         updated_at: '2025-01-03T00:00:00Z',
       }
-      mockCreateSamplePreset.mockResolvedValue(createdPreset)
+      mockCreateStudy.mockResolvedValue(createdPreset)
 
-      const wrapper = mount(SamplePresetEditor)
+      const wrapper = mount(StudyEditor)
       await flushPromises()
 
       // Fill form
-      const nameInput = wrapper.findComponent('[data-testid="preset-name-input"]')
+      const nameInput = wrapper.findComponent('[data-testid="study-name-input"]')
       nameInput.vm.$emit('update:value', 'Multi Pair')
 
       const promptInputs = wrapper.findAllComponents(NInput)
@@ -952,11 +952,11 @@ describe('SamplePresetEditor', () => {
 
       const saveButton = wrapper
         .findAllComponents(NButton)
-        .find((b) => b.text().includes('Save Preset'))!
+        .find((b) => b.text().includes('Save Study'))!
       await saveButton.trigger('click')
       await flushPromises()
 
-      expect(mockCreateSamplePreset).toHaveBeenCalledWith(
+      expect(mockCreateStudy).toHaveBeenCalledWith(
         expect.objectContaining({
           sampler_scheduler_pairs: [
             { sampler: 'euler', scheduler: 'simple' },
@@ -969,7 +969,7 @@ describe('SamplePresetEditor', () => {
 
   describe('prompt prefix field', () => {
     it('renders prompt prefix input', async () => {
-      const wrapper = mount(SamplePresetEditor)
+      const wrapper = mount(StudyEditor)
       await flushPromises()
 
       const prefixInput = wrapper.findComponent('[data-testid="prompt-prefix-input"]')
@@ -978,7 +978,7 @@ describe('SamplePresetEditor', () => {
     })
 
     it('loads prompt prefix from preset when selected', async () => {
-      const wrapper = mount(SamplePresetEditor)
+      const wrapper = mount(StudyEditor)
       await flushPromises()
 
       const select = wrapper.findAllComponents(NSelect)[0]
@@ -990,7 +990,7 @@ describe('SamplePresetEditor', () => {
     })
 
     it('loads empty prompt prefix from preset without prefix', async () => {
-      const wrapper = mount(SamplePresetEditor)
+      const wrapper = mount(StudyEditor)
       await flushPromises()
 
       const select = wrapper.findAllComponents(NSelect)[0]
@@ -1002,7 +1002,7 @@ describe('SamplePresetEditor', () => {
     })
 
     it('resets prompt prefix when New Preset is clicked', async () => {
-      const wrapper = mount(SamplePresetEditor)
+      const wrapper = mount(StudyEditor)
       await flushPromises()
 
       // Select a preset with a prefix
@@ -1016,7 +1016,7 @@ describe('SamplePresetEditor', () => {
       // Click New Preset
       const newButton = wrapper
         .findAllComponents(NButton)
-        .find((b) => b.text() === 'New Preset')!
+        .find((b) => b.text() === 'New Study')!
       await newButton.trigger('click')
       await nextTick()
 
@@ -1024,7 +1024,7 @@ describe('SamplePresetEditor', () => {
     })
 
     it('includes prompt prefix in create payload', async () => {
-      const createdPreset: SamplePreset = {
+      const createdPreset: Study = {
         id: 'prefix-preset-id',
         name: 'Prefix Test',
         prompt_prefix: 'artistic photo, ',
@@ -1040,13 +1040,13 @@ describe('SamplePresetEditor', () => {
         created_at: '2025-01-03T00:00:00Z',
         updated_at: '2025-01-03T00:00:00Z',
       }
-      mockCreateSamplePreset.mockResolvedValue(createdPreset)
+      mockCreateStudy.mockResolvedValue(createdPreset)
 
-      const wrapper = mount(SamplePresetEditor)
+      const wrapper = mount(StudyEditor)
       await flushPromises()
 
       // Fill in form
-      const nameInput = wrapper.findComponent('[data-testid="preset-name-input"]')
+      const nameInput = wrapper.findComponent('[data-testid="study-name-input"]')
       nameInput.vm.$emit('update:value', 'Prefix Test')
 
       const prefixInput = wrapper.findComponent('[data-testid="prompt-prefix-input"]')
@@ -1069,11 +1069,11 @@ describe('SamplePresetEditor', () => {
 
       const saveButton = wrapper
         .findAllComponents(NButton)
-        .find((b) => b.text().includes('Save Preset'))!
+        .find((b) => b.text().includes('Save Study'))!
       await saveButton.trigger('click')
       await flushPromises()
 
-      expect(mockCreateSamplePreset).toHaveBeenCalledWith(
+      expect(mockCreateStudy).toHaveBeenCalledWith(
         expect.objectContaining({
           prompt_prefix: 'artistic photo, ',
         }),
@@ -1081,14 +1081,14 @@ describe('SamplePresetEditor', () => {
     })
 
     it('includes prompt prefix in update payload', async () => {
-      const updatedPreset: SamplePreset = {
-        ...samplePresets[0],
+      const updatedPreset: Study = {
+        ...studies[0],
         prompt_prefix: 'updated prefix. ',
         updated_at: '2025-01-03T00:00:00Z',
       }
-      mockUpdateSamplePreset.mockResolvedValue(updatedPreset)
+      mockUpdateStudy.mockResolvedValue(updatedPreset)
 
-      const wrapper = mount(SamplePresetEditor)
+      const wrapper = mount(StudyEditor)
       await flushPromises()
 
       // Select preset
@@ -1103,11 +1103,11 @@ describe('SamplePresetEditor', () => {
 
       const saveButton = wrapper
         .findAllComponents(NButton)
-        .find((b) => b.text().includes('Update Preset'))!
+        .find((b) => b.text().includes('Update Study'))!
       await saveButton.trigger('click')
       await flushPromises()
 
-      expect(mockUpdateSamplePreset).toHaveBeenCalledWith(
+      expect(mockUpdateStudy).toHaveBeenCalledWith(
         expect.objectContaining({
           prompt_prefix: 'updated prefix. ',
         }),
