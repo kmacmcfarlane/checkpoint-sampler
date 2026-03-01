@@ -20,7 +20,7 @@ import (
 	genimages "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/images"
 	genpresets "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/presets"
 	gensamplejobs "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/sample_jobs"
-	gensamplepresets "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/sample_presets"
+	genstudies "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/studies"
 	gentrainingruns "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/training_runs"
 	genworkflows "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/workflows"
 	genws "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/ws"
@@ -135,8 +135,8 @@ func run() error {
 	trainingRunsSvc := api.NewTrainingRunsService(discovery, scanner, watcher)
 	presetSvc := service.NewPresetService(st, logger)
 	presetsSvc := api.NewPresetsService(presetSvc)
-	samplePresetSvc := service.NewSamplePresetService(st, logger)
-	samplePresetsSvc := api.NewSamplePresetsService(samplePresetSvc)
+	studySvc := service.NewStudyService(st, logger)
+	studiesSvc := api.NewStudiesService(studySvc)
 	checkpointMetadataSvc := service.NewCheckpointMetadataService(fs, cfg.CheckpointDirs, logger)
 	checkpointsSvc := api.NewCheckpointsService(checkpointMetadataSvc)
 	imageMetadataSvc := service.NewImageMetadataService(fs, cfg.SampleDir, logger)
@@ -172,7 +172,7 @@ func run() error {
 	docsEndpoints := gendocs.NewEndpoints(docsSvc)
 	trainingRunsEndpoints := gentrainingruns.NewEndpoints(trainingRunsSvc)
 	presetsEndpoints := genpresets.NewEndpoints(presetsSvc)
-	samplePresetsEndpoints := gensamplepresets.NewEndpoints(samplePresetsSvc)
+	studiesEndpoints := genstudies.NewEndpoints(studiesSvc)
 	sampleJobsEndpoints := gensamplejobs.NewEndpoints(sampleJobsSvc)
 	checkpointsEndpoints := gencheckpoints.NewEndpoints(checkpointsSvc)
 	comfyuiEndpoints := gencomfyui.NewEndpoints(comfyuiSvc)
@@ -186,7 +186,7 @@ func run() error {
 		DocsEndpoints:          docsEndpoints,
 		TrainingRunEndpoints:   trainingRunsEndpoints,
 		PresetsEndpoints:       presetsEndpoints,
-		SamplePresetsEndpoints: samplePresetsEndpoints,
+		StudiesEndpoints:       studiesEndpoints,
 		SampleJobsEndpoints:    sampleJobsEndpoints,
 		CheckpointsEndpoints:   checkpointsEndpoints,
 		ComfyUIEndpoints:       comfyuiEndpoints,

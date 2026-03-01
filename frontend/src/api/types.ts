@@ -125,8 +125,8 @@ export interface SamplerSchedulerPair {
   scheduler: string
 }
 
-/** A saved sample setting preset. */
-export interface SamplePreset {
+/** A saved study (generation parameter set). */
+export interface Study {
   id: string
   name: string
   prompt_prefix: string
@@ -143,8 +143,8 @@ export interface SamplePreset {
   updated_at: string
 }
 
-/** Payload for creating a new sample preset. */
-export interface CreateSamplePresetPayload {
+/** Payload for creating a new study. */
+export interface CreateStudyPayload {
   name: string
   prompt_prefix: string
   prompts: NamedPrompt[]
@@ -157,8 +157,8 @@ export interface CreateSamplePresetPayload {
   height: number
 }
 
-/** Payload for updating a sample preset. */
-export interface UpdateSamplePresetPayload {
+/** Payload for updating a study. */
+export interface UpdateStudyPayload {
   id: string
   name: string
   prompt_prefix: string
@@ -185,7 +185,8 @@ export interface FailedItemDetail {
 export interface SampleJob {
   id: string
   training_run_name: string
-  sample_preset_id: string
+  study_id: string
+  study_name: string
   workflow_name: string
   vae: string
   clip: string
@@ -220,7 +221,7 @@ export interface SampleJobDetail {
 /** Payload for creating a new sample job. */
 export interface CreateSampleJobPayload {
   training_run_name: string
-  sample_preset_id: string
+  study_id: string
   workflow_name: string
   vae?: string
   clip?: string

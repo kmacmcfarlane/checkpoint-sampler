@@ -273,17 +273,17 @@ var _ = Describe("Migrate", func() {
 		var count int
 		err = db.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&count)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(count).To(Equal(9))
+		Expect(count).To(Equal(10))
 
 		// Verify the table is functional with width and height columns
-		// First create a sample preset and job to satisfy foreign key constraints
-		// (after migration 8, sample_presets uses sampler_scheduler_pairs instead of samplers/schedulers)
+		// First create a study and job to satisfy foreign key constraints
+		// (after migration 10, sample_presets is renamed to studies)
 		_, err = db.Exec(`
-			INSERT INTO sample_presets (
+			INSERT INTO studies (
 				id, name, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs,
 				seeds, width, height, created_at, updated_at
 			) VALUES (
-				'test-preset', 'Test Preset', '["prompt1"]', 'neg', '[20]', '[7.5]',
+				'test-study', 'Test Study', '["prompt1"]', 'neg', '[20]', '[7.5]',
 				'[{"sampler":"euler","scheduler":"normal"}]', '[12345]', 512, 512,
 				'2025-01-01T00:00:00Z', '2025-01-01T00:00:00Z'
 			)
@@ -292,10 +292,10 @@ var _ = Describe("Migrate", func() {
 
 		_, err = db.Exec(`
 			INSERT INTO sample_jobs (
-				id, training_run_name, sample_preset_id, workflow_name, status,
+				id, training_run_name, study_id, study_name, workflow_name, status,
 				total_items, created_at, updated_at
 			) VALUES (
-				'test-job', 'test-run', 'test-preset', 'workflow', 'pending',
+				'test-job', 'test-run', 'test-study', 'Test Study', 'workflow', 'pending',
 				1, '2025-01-01T00:00:00Z', '2025-01-01T00:00:00Z'
 			)
 		`)
@@ -326,7 +326,7 @@ var _ = Describe("Migrate", func() {
 var _ = Describe("AllMigrations", func() {
 	It("returns the presets table as migration 1", func() {
 		migrations := store.AllMigrations()
-		Expect(migrations).To(HaveLen(9))
+		Expect(migrations).To(HaveLen(10))
 		Expect(migrations[0].Version).To(Equal(1))
 		Expect(migrations[0].SQL).To(ContainSubstring("CREATE TABLE"))
 		Expect(migrations[0].SQL).To(ContainSubstring("presets"))
@@ -515,7 +515,7 @@ var _ = Describe("ResetDB", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		// Verify all application tables exist
-		tables := []string{"presets", "sample_presets", "sample_jobs", "sample_job_items", "schema_migrations"}
+		tables := []string{"presets", "studies", "sample_jobs", "sample_job_items", "schema_migrations"}
 		for _, t := range tables {
 			var name string
 			err := s.DB().QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name=?", t).Scan(&name)
@@ -534,11 +534,11 @@ var _ = Describe("ResetDB", func() {
 	It("clears data across all tables including foreign key chains", func() {
 		// Insert data across multiple tables with foreign key relationships
 		_, err := s.DB().Exec(`
-			INSERT INTO sample_presets (
+			INSERT INTO studies (
 				id, name, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs,
 				seeds, width, height, created_at, updated_at
 			) VALUES (
-				'sp-1', 'Test Preset', '["prompt1"]', 'neg', '[20]', '[7.5]',
+				'sp-1', 'Test Study', '["prompt1"]', 'neg', '[20]', '[7.5]',
 				'[{"sampler":"euler","scheduler":"normal"}]', '[42]', 512, 512,
 				'2025-01-01T00:00:00Z', '2025-01-01T00:00:00Z'
 			)
@@ -547,10 +547,10 @@ var _ = Describe("ResetDB", func() {
 
 		_, err = s.DB().Exec(`
 			INSERT INTO sample_jobs (
-				id, training_run_name, sample_preset_id, workflow_name, status,
+				id, training_run_name, study_id, study_name, workflow_name, status,
 				total_items, created_at, updated_at
 			) VALUES (
-				'sj-1', 'test-run', 'sp-1', 'workflow.json', 'completed',
+				'sj-1', 'test-run', 'sp-1', 'Test Study', 'workflow.json', 'completed',
 				1, '2025-01-01T00:00:00Z', '2025-01-01T00:00:00Z'
 			)
 		`)
@@ -574,7 +574,7 @@ var _ = Describe("ResetDB", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		// Verify all tables are empty
-		for _, table := range []string{"presets", "sample_presets", "sample_jobs", "sample_job_items"} {
+		for _, table := range []string{"presets", "studies", "sample_jobs", "sample_job_items"} {
 			var count int
 			err := s.DB().QueryRow("SELECT COUNT(*) FROM " + table).Scan(&count)
 			Expect(err).NotTo(HaveOccurred(), "counting rows in %s", table)

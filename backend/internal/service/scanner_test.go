@@ -25,6 +25,11 @@ func newFakeScannerFS() *fakeScannerFS {
 	}
 }
 
+func (f *fakeScannerFS) DirectoryExists(path string) bool {
+	_, ok := f.files[path]
+	return ok
+}
+
 func (f *fakeScannerFS) ListPNGFiles(dir string) ([]string, error) {
 	if err, ok := f.errs[dir]; ok {
 		return nil, err
@@ -61,7 +66,7 @@ var _ = Describe("Scanner", func() {
 					"index=5&prompt_name=portal_hub&seed=422&cfg=3&_00001_.png",
 				}
 
-				result, err := scanner.ScanTrainingRun(tr)
+				result, err := scanner.ScanTrainingRun(tr, "")
 
 				Expect(err).NotTo(HaveOccurred())
 				Expect(result.Images).To(HaveLen(1))
@@ -88,7 +93,7 @@ var _ = Describe("Scanner", func() {
 					"seed=1&cfg=3&_00001_.png",
 				}
 
-				result, err := scanner.ScanTrainingRun(tr)
+				result, err := scanner.ScanTrainingRun(tr, "")
 
 				Expect(err).NotTo(HaveOccurred())
 				Expect(result.Images).To(HaveLen(2))
@@ -117,7 +122,7 @@ var _ = Describe("Scanner", func() {
 					"seed=1&_00001_.png",
 				}
 
-				result, err := scanner.ScanTrainingRun(tr)
+				result, err := scanner.ScanTrainingRun(tr, "")
 
 				Expect(err).NotTo(HaveOccurred())
 				Expect(result.Images).To(HaveLen(1))
@@ -139,7 +144,7 @@ var _ = Describe("Scanner", func() {
 					},
 				}
 
-				result, err := scanner.ScanTrainingRun(tr)
+				result, err := scanner.ScanTrainingRun(tr, "")
 
 				Expect(err).NotTo(HaveOccurred())
 				Expect(result.Images).To(BeEmpty())
@@ -161,7 +166,7 @@ var _ = Describe("Scanner", func() {
 					"seed=1&cfg=3&_00002_.png",
 				}
 
-				result, err := scanner.ScanTrainingRun(tr)
+				result, err := scanner.ScanTrainingRun(tr, "")
 
 				Expect(err).NotTo(HaveOccurred())
 				Expect(result.Images).To(HaveLen(1))
@@ -180,7 +185,7 @@ var _ = Describe("Scanner", func() {
 					"seed=2&cfg=3&_00001_.png",
 				}
 
-				result, err := scanner.ScanTrainingRun(tr)
+				result, err := scanner.ScanTrainingRun(tr, "")
 
 				Expect(err).NotTo(HaveOccurred())
 				Expect(result.Images).To(HaveLen(2))
@@ -199,7 +204,7 @@ var _ = Describe("Scanner", func() {
 					"seed=42&prompt_name=test&_00001_.png",
 				}
 
-				result, err := scanner.ScanTrainingRun(tr)
+				result, err := scanner.ScanTrainingRun(tr, "")
 
 				Expect(err).NotTo(HaveOccurred())
 
@@ -228,7 +233,7 @@ var _ = Describe("Scanner", func() {
 					"step=3&_00001_.png",
 				}
 
-				result, err := scanner.ScanTrainingRun(tr)
+				result, err := scanner.ScanTrainingRun(tr, "")
 
 				Expect(err).NotTo(HaveOccurred())
 
@@ -253,7 +258,7 @@ var _ = Describe("Scanner", func() {
 					"prompt=bravo&_00001_.png",
 				}
 
-				result, err := scanner.ScanTrainingRun(tr)
+				result, err := scanner.ScanTrainingRun(tr, "")
 
 				Expect(err).NotTo(HaveOccurred())
 
@@ -276,7 +281,7 @@ var _ = Describe("Scanner", func() {
 				}
 				fs.errs["/samples/model-step00001000.safetensors"] = fmt.Errorf("permission denied")
 
-				_, err := scanner.ScanTrainingRun(tr)
+				_, err := scanner.ScanTrainingRun(tr, "")
 
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("permission denied"))
@@ -300,7 +305,7 @@ var _ = Describe("Scanner", func() {
 					"seed=1&cfg=3&_00001_.json",
 				}
 
-				result, err := scanner.ScanTrainingRun(tr)
+				result, err := scanner.ScanTrainingRun(tr, "")
 
 				Expect(err).NotTo(HaveOccurred())
 				// Only the .png image should be discovered; the .json sidecar is ignored
@@ -320,7 +325,7 @@ var _ = Describe("Scanner", func() {
 					"seed=2&cfg=3&_00001_.png",
 				}
 
-				result, err := scanner.ScanTrainingRun(tr)
+				result, err := scanner.ScanTrainingRun(tr, "")
 
 				Expect(err).NotTo(HaveOccurred())
 				Expect(result.Images).To(HaveLen(2))
@@ -342,7 +347,7 @@ var _ = Describe("Scanner", func() {
 					"seed=1&cfg=3.png",
 				}
 
-				result, err := scanner.ScanTrainingRun(tr)
+				result, err := scanner.ScanTrainingRun(tr, "")
 
 				Expect(err).NotTo(HaveOccurred())
 				Expect(result.Images).To(HaveLen(1))
@@ -363,7 +368,7 @@ var _ = Describe("Scanner", func() {
 					"seed=2&_00001_.png",
 				}
 
-				result, err := scanner.ScanTrainingRun(tr)
+				result, err := scanner.ScanTrainingRun(tr, "")
 
 				Expect(err).NotTo(HaveOccurred())
 				Expect(result.Images).To(HaveLen(3))
@@ -383,7 +388,7 @@ var _ = Describe("Scanner", func() {
 					"zebra=1&alpha=2&middle=3&_00001_.png",
 				}
 
-				result, err := scanner.ScanTrainingRun(tr)
+				result, err := scanner.ScanTrainingRun(tr, "")
 
 				Expect(err).NotTo(HaveOccurred())
 				// checkpoint + alpha + middle + zebra = 4 dimensions
@@ -405,7 +410,7 @@ var _ = Describe("Scanner", func() {
 					"seed=1&_00001_.png",
 				}
 
-				result, err := scanner.ScanTrainingRun(tr)
+				result, err := scanner.ScanTrainingRun(tr, "")
 
 				Expect(err).NotTo(HaveOccurred())
 				Expect(result.Images[0].RelativePath).To(Equal("model-step00001000.safetensors/seed=1&_00001_.png"))

@@ -13,9 +13,9 @@ import (
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
 )
 
-// fakeSamplePresetStore is an in-memory test double for service.SamplePresetStore.
-type fakeSamplePresetStore struct {
-	presets   map[string]model.SamplePreset
+// fakeStudyStore is an in-memory test double for service.StudyStore.
+type fakeStudyStore struct {
+	studies   map[string]model.Study
 	listErr   error
 	getErr    error
 	createErr error
@@ -23,86 +23,86 @@ type fakeSamplePresetStore struct {
 	deleteErr error
 }
 
-func newFakeSamplePresetStore() *fakeSamplePresetStore {
-	return &fakeSamplePresetStore{presets: make(map[string]model.SamplePreset)}
+func newFakeStudyStore() *fakeStudyStore {
+	return &fakeStudyStore{studies: make(map[string]model.Study)}
 }
 
-func (f *fakeSamplePresetStore) ListSamplePresets() ([]model.SamplePreset, error) {
+func (f *fakeStudyStore) ListStudies() ([]model.Study, error) {
 	if f.listErr != nil {
 		return nil, f.listErr
 	}
-	var result []model.SamplePreset
-	for _, p := range f.presets {
+	var result []model.Study
+	for _, p := range f.studies {
 		result = append(result, p)
 	}
 	return result, nil
 }
 
-func (f *fakeSamplePresetStore) GetSamplePreset(id string) (model.SamplePreset, error) {
+func (f *fakeStudyStore) GetStudy(id string) (model.Study, error) {
 	if f.getErr != nil {
-		return model.SamplePreset{}, f.getErr
+		return model.Study{}, f.getErr
 	}
-	p, ok := f.presets[id]
+	p, ok := f.studies[id]
 	if !ok {
-		return model.SamplePreset{}, sql.ErrNoRows
+		return model.Study{}, sql.ErrNoRows
 	}
 	return p, nil
 }
 
-func (f *fakeSamplePresetStore) CreateSamplePreset(p model.SamplePreset) error {
+func (f *fakeStudyStore) CreateStudy(p model.Study) error {
 	if f.createErr != nil {
 		return f.createErr
 	}
-	f.presets[p.ID] = p
+	f.studies[p.ID] = p
 	return nil
 }
 
-func (f *fakeSamplePresetStore) UpdateSamplePreset(p model.SamplePreset) error {
+func (f *fakeStudyStore) UpdateStudy(p model.Study) error {
 	if f.updateErr != nil {
 		return f.updateErr
 	}
-	if _, ok := f.presets[p.ID]; !ok {
+	if _, ok := f.studies[p.ID]; !ok {
 		return sql.ErrNoRows
 	}
-	f.presets[p.ID] = p
+	f.studies[p.ID] = p
 	return nil
 }
 
-func (f *fakeSamplePresetStore) DeleteSamplePreset(id string) error {
+func (f *fakeStudyStore) DeleteStudy(id string) error {
 	if f.deleteErr != nil {
 		return f.deleteErr
 	}
-	if _, ok := f.presets[id]; !ok {
+	if _, ok := f.studies[id]; !ok {
 		return sql.ErrNoRows
 	}
-	delete(f.presets, id)
+	delete(f.studies, id)
 	return nil
 }
 
-var _ = Describe("SamplePresetService", func() {
+var _ = Describe("StudyService", func() {
 	var (
-		store  *fakeSamplePresetStore
-		svc    *service.SamplePresetService
+		store  *fakeStudyStore
+		svc    *service.StudyService
 		logger *logrus.Logger
 	)
 
 	BeforeEach(func() {
-		store = newFakeSamplePresetStore()
+		store = newFakeStudyStore()
 		logger = logrus.New()
 		logger.SetOutput(io.Discard) // Silence logs in tests
-		svc = service.NewSamplePresetService(store, logger)
+		svc = service.NewStudyService(store, logger)
 	})
 
 	Describe("List", func() {
-		It("returns empty slice when no presets exist", func() {
+		It("returns empty slice when no studies exist", func() {
 			result, err := svc.List()
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result).To(HaveLen(0))
 		})
 
-		It("returns all sample presets from the store", func() {
-			store.presets["p1"] = model.SamplePreset{ID: "p1", Name: "One"}
-			store.presets["p2"] = model.SamplePreset{ID: "p2", Name: "Two"}
+		It("returns all studies from the store", func() {
+			store.studies["p1"] = model.Study{ID: "p1", Name: "One"}
+			store.studies["p2"] = model.Study{ID: "p2", Name: "Two"}
 
 			result, err := svc.List()
 			Expect(err).NotTo(HaveOccurred())
@@ -136,7 +136,7 @@ var _ = Describe("SamplePresetService", func() {
 			validSeeds = []int64{420}
 		})
 
-		It("creates a sample preset with valid inputs", func() {
+		It("creates a study with valid inputs", func() {
 			result, err := svc.Create("Test", "", validPrompts, "negative", validSteps, validCFGs, validPairs, validSeeds, 1344, 1344)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.ID).NotTo(BeEmpty())
@@ -153,10 +153,10 @@ var _ = Describe("SamplePresetService", func() {
 			Expect(result.UpdatedAt).NotTo(BeZero())
 		})
 
-		It("persists the preset in the store", func() {
+		It("persists the study in the store", func() {
 			_, err := svc.Create("Stored", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(store.presets).To(HaveLen(1))
+			Expect(store.studies).To(HaveLen(1))
 		})
 
 		It("rejects empty name", func() {
@@ -429,7 +429,7 @@ var _ = Describe("SamplePresetService", func() {
 			}
 			validSeeds = []int64{420}
 
-			store.presets["existing"] = model.SamplePreset{
+			store.studies["existing"] = model.Study{
 				ID:             "existing",
 				Name:           "Original",
 				Prompts:        validPrompts,
@@ -464,7 +464,7 @@ var _ = Describe("SamplePresetService", func() {
 			Expect(result.Height).To(Equal(1344))
 		})
 
-		It("returns error for non-existent preset", func() {
+		It("returns error for non-existent study", func() {
 			_, err := svc.Update("missing", "Name", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("not found"))
@@ -479,16 +479,16 @@ var _ = Describe("SamplePresetService", func() {
 
 	Describe("Delete", func() {
 		BeforeEach(func() {
-			store.presets["to-delete"] = model.SamplePreset{ID: "to-delete", Name: "Remove Me"}
+			store.studies["to-delete"] = model.Study{ID: "to-delete", Name: "Remove Me"}
 		})
 
-		It("deletes an existing preset", func() {
+		It("deletes an existing study", func() {
 			err := svc.Delete("to-delete")
 			Expect(err).NotTo(HaveOccurred())
-			Expect(store.presets).NotTo(HaveKey("to-delete"))
+			Expect(store.studies).NotTo(HaveKey("to-delete"))
 		})
 
-		It("returns error for non-existent preset", func() {
+		It("returns error for non-existent study", func() {
 			err := svc.Delete("nonexistent")
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("not found"))

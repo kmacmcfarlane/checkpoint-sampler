@@ -511,7 +511,7 @@ stories:
   - id: S-074
     title: "Rename 'sample presets' to 'studies' with study-scoped output directories"
     priority: 55
-    status: todo
+    status: uat
     requires: []
     acceptance:
       - "BE: Database migration renames sample_presets table to studies (or adds alias); all references updated"

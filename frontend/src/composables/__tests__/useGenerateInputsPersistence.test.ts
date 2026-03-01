@@ -277,6 +277,76 @@ describe('useGenerateInputsPersistence', () => {
     })
   })
 
+  // ── getLastStudyId ──────────────────────────────────────────────────────
+
+  describe('getLastStudyId', () => {
+    it('returns null when storage is empty', () => {
+      const { getLastStudyId } = useGenerateInputsPersistence()
+      expect(getLastStudyId()).toBeNull()
+    })
+
+    it('returns the stored study ID', () => {
+      const state: GenerateInputsState = { lastWorkflowId: null, lastStudyId: 'study-abc', byModelType: {} }
+      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
+
+      const { getLastStudyId } = useGenerateInputsPersistence()
+      expect(getLastStudyId()).toBe('study-abc')
+    })
+
+    it('returns null when lastStudyId is missing (backward compat)', () => {
+      // Old state format without lastStudyId
+      const state = { lastWorkflowId: 'wf.json', byModelType: {} }
+      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
+
+      const { getLastStudyId } = useGenerateInputsPersistence()
+      expect(getLastStudyId()).toBeNull()
+    })
+
+    it('returns null when lastStudyId is null', () => {
+      const state: GenerateInputsState = { lastWorkflowId: null, lastStudyId: null, byModelType: {} }
+      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
+
+      const { getLastStudyId } = useGenerateInputsPersistence()
+      expect(getLastStudyId()).toBeNull()
+    })
+  })
+
+  // ── saveStudyId ──────────────────────────────────────────────────────────
+
+  describe('saveStudyId', () => {
+    it('saves a study ID to localStorage', () => {
+      const { saveStudyId, getLastStudyId } = useGenerateInputsPersistence()
+      saveStudyId('study-xyz')
+      expect(getLastStudyId()).toBe('study-xyz')
+    })
+
+    it('saves null as the study ID', () => {
+      const { saveStudyId, getLastStudyId } = useGenerateInputsPersistence()
+      saveStudyId('study-abc')
+      saveStudyId(null)
+      expect(getLastStudyId()).toBeNull()
+    })
+
+    it('preserves other fields when saving a study ID', () => {
+      const state: GenerateInputsState = {
+        lastWorkflowId: 'qwen-image.json',
+        lastTrainingRunId: 5,
+        lastStudyId: null,
+        byModelType: {
+          qwen_image: { vae: 'ae.safetensors', clip: 'clip_l.safetensors', shift: null },
+        },
+      }
+      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
+
+      const { saveStudyId, getLastWorkflowId, getLastTrainingRunId, getModelInputs } = useGenerateInputsPersistence()
+      saveStudyId('study-new')
+
+      expect(getLastWorkflowId()).toBe('qwen-image.json')
+      expect(getLastTrainingRunId()).toBe(5)
+      expect(getModelInputs('qwen_image')).toEqual({ vae: 'ae.safetensors', clip: 'clip_l.safetensors', shift: null })
+    })
+  })
+
   // ── validation / corruption handling ──────────────────────────────────────
 
   describe('invalid stored state', () => {
@@ -306,6 +376,14 @@ describe('useGenerateInputsPersistence', () => {
       const { getLastTrainingRunId } = useGenerateInputsPersistence()
       // Should fall back to defaults because validation fails
       expect(getLastTrainingRunId()).toBeNull()
+    })
+
+    it('returns defaults when lastStudyId is wrong type', () => {
+      const state = { lastWorkflowId: null, lastStudyId: 42, byModelType: {} }
+      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
+      const { getLastStudyId } = useGenerateInputsPersistence()
+      // Should fall back to defaults because validation fails
+      expect(getLastStudyId()).toBeNull()
     })
   })
 })

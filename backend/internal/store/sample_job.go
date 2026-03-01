@@ -11,19 +11,20 @@ import (
 
 // sampleJobEntity is the persistence representation of a sample job.
 type sampleJobEntity struct {
-	ID               string
-	TrainingRunName  string
-	SamplePresetID   string
-	WorkflowName     string
-	VAE              sql.NullString
-	CLIP             sql.NullString
-	Shift            sql.NullFloat64
-	Status           string
-	TotalItems       int
-	CompletedItems   int
-	ErrorMessage     sql.NullString
-	CreatedAt        string // RFC3339
-	UpdatedAt        string // RFC3339
+	ID              string
+	TrainingRunName string
+	StudyID         string
+	StudyName       string
+	WorkflowName    string
+	VAE             sql.NullString
+	CLIP            sql.NullString
+	Shift           sql.NullFloat64
+	Status          string
+	TotalItems      int
+	CompletedItems  int
+	ErrorMessage    sql.NullString
+	CreatedAt       string // RFC3339
+	UpdatedAt       string // RFC3339
 }
 
 // sampleJobItemEntity is the persistence representation of a sample job item.
@@ -55,7 +56,7 @@ func (s *Store) ListSampleJobs() ([]model.SampleJob, error) {
 	s.logger.Trace("entering ListSampleJobs")
 	defer s.logger.Trace("returning from ListSampleJobs")
 
-	rows, err := s.db.Query(`SELECT id, training_run_name, sample_preset_id, workflow_name, vae, clip, shift, status, total_items, completed_items, error_message, created_at, updated_at
+	rows, err := s.db.Query(`SELECT id, training_run_name, study_id, study_name, workflow_name, vae, clip, shift, status, total_items, completed_items, error_message, created_at, updated_at
 		FROM sample_jobs ORDER BY created_at DESC`)
 	if err != nil {
 		s.logger.WithError(err).Error("failed to query sample jobs")
@@ -66,7 +67,7 @@ func (s *Store) ListSampleJobs() ([]model.SampleJob, error) {
 	var jobs []model.SampleJob
 	for rows.Next() {
 		var e sampleJobEntity
-		if err := rows.Scan(&e.ID, &e.TrainingRunName, &e.SamplePresetID, &e.WorkflowName, &e.VAE, &e.CLIP, &e.Shift, &e.Status, &e.TotalItems, &e.CompletedItems, &e.ErrorMessage, &e.CreatedAt, &e.UpdatedAt); err != nil {
+		if err := rows.Scan(&e.ID, &e.TrainingRunName, &e.StudyID, &e.StudyName, &e.WorkflowName, &e.VAE, &e.CLIP, &e.Shift, &e.Status, &e.TotalItems, &e.CompletedItems, &e.ErrorMessage, &e.CreatedAt, &e.UpdatedAt); err != nil {
 			s.logger.WithError(err).Error("failed to scan sample job row")
 			return nil, fmt.Errorf("scanning sample job row: %w", err)
 		}
@@ -92,9 +93,9 @@ func (s *Store) GetSampleJob(id string) (model.SampleJob, error) {
 
 	var e sampleJobEntity
 	err := s.db.QueryRow(
-		`SELECT id, training_run_name, sample_preset_id, workflow_name, vae, clip, shift, status, total_items, completed_items, error_message, created_at, updated_at
+		`SELECT id, training_run_name, study_id, study_name, workflow_name, vae, clip, shift, status, total_items, completed_items, error_message, created_at, updated_at
 		FROM sample_jobs WHERE id = ?`, id,
-	).Scan(&e.ID, &e.TrainingRunName, &e.SamplePresetID, &e.WorkflowName, &e.VAE, &e.CLIP, &e.Shift, &e.Status, &e.TotalItems, &e.CompletedItems, &e.ErrorMessage, &e.CreatedAt, &e.UpdatedAt)
+	).Scan(&e.ID, &e.TrainingRunName, &e.StudyID, &e.StudyName, &e.WorkflowName, &e.VAE, &e.CLIP, &e.Shift, &e.Status, &e.TotalItems, &e.CompletedItems, &e.ErrorMessage, &e.CreatedAt, &e.UpdatedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			s.logger.WithField("sample_job_id", id).Debug("sample job not found in database")
@@ -121,11 +122,12 @@ func (s *Store) CreateSampleJob(j model.SampleJob) error {
 	entity := sampleJobModelToEntity(j)
 
 	_, err := s.db.Exec(
-		`INSERT INTO sample_jobs (id, training_run_name, sample_preset_id, workflow_name, vae, clip, shift, status, total_items, completed_items, error_message, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO sample_jobs (id, training_run_name, study_id, study_name, workflow_name, vae, clip, shift, status, total_items, completed_items, error_message, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		entity.ID,
 		entity.TrainingRunName,
-		entity.SamplePresetID,
+		entity.StudyID,
+		entity.StudyName,
 		entity.WorkflowName,
 		entity.VAE,
 		entity.CLIP,
@@ -163,10 +165,11 @@ func (s *Store) UpdateSampleJob(j model.SampleJob) error {
 	entity := sampleJobModelToEntity(j)
 
 	result, err := s.db.Exec(
-		`UPDATE sample_jobs SET training_run_name = ?, sample_preset_id = ?, workflow_name = ?, vae = ?, clip = ?, shift = ?, status = ?, total_items = ?, completed_items = ?, error_message = ?, updated_at = ?
+		`UPDATE sample_jobs SET training_run_name = ?, study_id = ?, study_name = ?, workflow_name = ?, vae = ?, clip = ?, shift = ?, status = ?, total_items = ?, completed_items = ?, error_message = ?, updated_at = ?
 		WHERE id = ?`,
 		entity.TrainingRunName,
-		entity.SamplePresetID,
+		entity.StudyID,
+		entity.StudyName,
 		entity.WorkflowName,
 		entity.VAE,
 		entity.CLIP,
@@ -402,7 +405,8 @@ func sampleJobEntityToModel(e sampleJobEntity) (model.SampleJob, error) {
 	return model.SampleJob{
 		ID:              e.ID,
 		TrainingRunName: e.TrainingRunName,
-		SamplePresetID:  e.SamplePresetID,
+		StudyID:         e.StudyID,
+		StudyName:       e.StudyName,
 		WorkflowName:    e.WorkflowName,
 		VAE:             e.VAE.String,
 		CLIP:            e.CLIP.String,
@@ -428,7 +432,8 @@ func sampleJobModelToEntity(j model.SampleJob) sampleJobEntity {
 	return sampleJobEntity{
 		ID:              j.ID,
 		TrainingRunName: j.TrainingRunName,
-		SamplePresetID:  j.SamplePresetID,
+		StudyID:         j.StudyID,
+		StudyName:       j.StudyName,
 		WorkflowName:    j.WorkflowName,
 		VAE:             vae,
 		CLIP:            clip,

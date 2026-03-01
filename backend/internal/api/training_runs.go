@@ -71,7 +71,7 @@ func (s *TrainingRunsService) Scan(ctx context.Context, p *gentrainingruns.ScanP
 	}
 
 	tr := runs[p.ID]
-	scanResult, err := s.scanner.ScanTrainingRun(tr)
+	scanResult, err := s.scanner.ScanTrainingRun(tr, p.StudyName)
 	if err != nil {
 		return nil, gentrainingruns.MakeScanFailed(fmt.Errorf("scanning training run %q: %w", tr.Name, err))
 	}

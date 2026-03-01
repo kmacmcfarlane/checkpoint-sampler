@@ -23,7 +23,7 @@ test.describe('sample-jobs API without ComfyUI configured', () => {
     const response = await request.post('/api/sample-jobs', {
       data: {
         training_run_name: 'nonexistent',
-        sample_preset_id: 'nonexistent',
+        study_id: 'nonexistent',
         workflow_name: 'test.json',
       },
     })

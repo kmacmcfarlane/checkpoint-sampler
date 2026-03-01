@@ -11,7 +11,7 @@ const sampleJobs: SampleJob[] = [
   {
     id: 'job-1',
     training_run_name: 'qwen/psai4rt-v0.3.0',
-    sample_preset_id: 'preset-1',
+    study_id: 'preset-1', study_name: 'Quick Test',
     workflow_name: 'qwen-image.json',
     vae: 'ae.safetensors',
     clip: 'clip_l.safetensors',
@@ -26,7 +26,7 @@ const sampleJobs: SampleJob[] = [
   {
     id: 'job-2',
     training_run_name: 'sdxl/finetune',
-    sample_preset_id: 'preset-2',
+    study_id: 'preset-2', study_name: 'Full Test',
     workflow_name: 'sdxl-image.json',
     vae: 'vae.safetensors',
     clip: 'clip.safetensors',
@@ -41,7 +41,7 @@ const sampleJobs: SampleJob[] = [
   {
     id: 'job-3',
     training_run_name: 'flux/test',
-    sample_preset_id: 'preset-1',
+    study_id: 'preset-1', study_name: 'Quick Test',
     workflow_name: 'flux-image.json',
     vae: 'ae.safetensors',
     clip: 't5.safetensors',
@@ -56,7 +56,7 @@ const sampleJobs: SampleJob[] = [
   {
     id: 'job-4',
     training_run_name: 'test/failed',
-    sample_preset_id: 'preset-1',
+    study_id: 'preset-1', study_name: 'Quick Test',
     workflow_name: 'test.json',
     vae: 'ae.safetensors',
     clip: 'clip.safetensors',
@@ -346,7 +346,7 @@ describe('JobProgressPanel', () => {
       const jobWithProgress: SampleJob = {
         id: 'job-progress',
         training_run_name: 'test/run',
-        sample_preset_id: 'preset-1',
+        study_id: 'preset-1', study_name: 'Quick Test',
         workflow_name: 'test.json',
         vae: 'ae.safetensors',
         clip: 'clip.safetensors',
@@ -397,7 +397,7 @@ describe('JobProgressPanel', () => {
       const jobWithProgress: SampleJob = {
         id: 'job-prog2',
         training_run_name: 'test/run2',
-        sample_preset_id: 'preset-1',
+        study_id: 'preset-1', study_name: 'Quick Test',
         workflow_name: 'test.json',
         vae: 'ae.safetensors',
         clip: 'clip.safetensors',
@@ -434,7 +434,7 @@ describe('JobProgressPanel', () => {
     const jobWithErrors: SampleJob = {
       id: 'job-errors',
       training_run_name: 'test/partial',
-      sample_preset_id: 'preset-1',
+      study_id: 'preset-1', study_name: 'Quick Test',
       workflow_name: 'test.json',
       vae: 'ae.safetensors',
       clip: 'clip.safetensors',

@@ -18,14 +18,14 @@ import (
 	genimagessvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/images/server"
 	genpresetssvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/presets/server"
 	gensamplejobssvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/sample_jobs/server"
-	gensamplepresetssvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/sample_presets/server"
+	genstudiessvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/studies/server"
 	gentrainingrunssvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/training_runs/server"
 	genworkflowssvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/workflows/server"
 	genwssvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/ws/server"
 	genimages "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/images"
 	genpresets "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/presets"
 	gensamplejobs "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/sample_jobs"
-	gensamplepresets "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/sample_presets"
+	genstudies "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/studies"
 	gentrainingruns "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/training_runs"
 	genworkflows "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/workflows"
 	genws "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/ws"
@@ -41,7 +41,7 @@ type HTTPHandlerConfig struct {
 	DocsEndpoints          *gendocs.Endpoints
 	TrainingRunEndpoints   *gentrainingruns.Endpoints
 	PresetsEndpoints       *genpresets.Endpoints
-	SamplePresetsEndpoints *gensamplepresets.Endpoints
+	StudiesEndpoints *genstudies.Endpoints
 	SampleJobsEndpoints    *gensamplejobs.Endpoints
 	CheckpointsEndpoints   *gencheckpoints.Endpoints
 	ComfyUIEndpoints       *gencomfyui.Endpoints
@@ -74,7 +74,7 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 	docsServer := gendocssvr.New(cfg.DocsEndpoints, mux, dec, enc, eh, nil, cfg.SwaggerUIDir)
 	trainingRunsServer := gentrainingrunssvr.New(cfg.TrainingRunEndpoints, mux, dec, enc, eh, nil)
 	presetsServer := genpresetssvr.New(cfg.PresetsEndpoints, mux, dec, enc, eh, nil)
-	samplePresetsServer := gensamplepresetssvr.New(cfg.SamplePresetsEndpoints, mux, dec, enc, eh, nil)
+	studiesServer := genstudiessvr.New(cfg.StudiesEndpoints, mux, dec, enc, eh, nil)
 	sampleJobsServer := gensamplejobssvr.New(cfg.SampleJobsEndpoints, mux, dec, enc, eh, nil)
 	checkpointsServer := gencheckpointssvr.New(cfg.CheckpointsEndpoints, mux, dec, enc, eh, nil)
 	comfyuiServer := gencomfyuisvr.New(cfg.ComfyUIEndpoints, mux, dec, enc, eh, nil)
@@ -93,7 +93,7 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 		docsServer.Use(goahttpmiddleware.Debug(mux, os.Stdout))
 		trainingRunsServer.Use(goahttpmiddleware.Debug(mux, os.Stdout))
 		presetsServer.Use(goahttpmiddleware.Debug(mux, os.Stdout))
-		samplePresetsServer.Use(goahttpmiddleware.Debug(mux, os.Stdout))
+		studiesServer.Use(goahttpmiddleware.Debug(mux, os.Stdout))
 		sampleJobsServer.Use(goahttpmiddleware.Debug(mux, os.Stdout))
 		checkpointsServer.Use(goahttpmiddleware.Debug(mux, os.Stdout))
 		comfyuiServer.Use(goahttpmiddleware.Debug(mux, os.Stdout))
@@ -106,7 +106,7 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 	docsServer.Mount(mux)
 	trainingRunsServer.Mount(mux)
 	presetsServer.Mount(mux)
-	samplePresetsServer.Mount(mux)
+	studiesServer.Mount(mux)
 	sampleJobsServer.Mount(mux)
 	checkpointsServer.Mount(mux)
 	comfyuiServer.Mount(mux)
@@ -152,7 +152,7 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 				"pattern": m.Pattern,
 			}).Debug("HTTP endpoint mounted")
 		}
-		for _, m := range samplePresetsServer.Mounts {
+		for _, m := range studiesServer.Mounts {
 			cfg.Logger.WithFields(logrus.Fields{
 				"method":  m.Method,
 				"verb":    m.Verb,

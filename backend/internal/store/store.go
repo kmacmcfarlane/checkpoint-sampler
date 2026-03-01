@@ -52,6 +52,7 @@ func (s *Store) ResetDB() error {
 	tables := []string{
 		"sample_job_items",
 		"sample_jobs",
+		"studies",
 		"sample_presets",
 		"presets",
 		"schema_migrations",

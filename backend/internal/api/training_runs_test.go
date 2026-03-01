@@ -55,6 +55,11 @@ func (f *fakeScanFS) ListPNGFiles(dir string) ([]string, error) {
 	return f.files[dir], nil
 }
 
+func (f *fakeScanFS) DirectoryExists(path string) bool {
+	_, ok := f.files[path]
+	return ok
+}
+
 var _ = Describe("TrainingRunsService", func() {
 	var (
 		discoveryFS *fakeDiscoveryFS

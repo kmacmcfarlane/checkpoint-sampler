@@ -17,7 +17,7 @@ import (
 type mockJobExecutorStore struct {
 	jobs            map[string]model.SampleJob
 	items           map[string][]model.SampleJobItem
-	presets         map[string]model.SamplePreset
+	studies         map[string]model.Study
 	updateJobError  error
 }
 
@@ -25,7 +25,7 @@ func newMockJobExecutorStore() *mockJobExecutorStore {
 	return &mockJobExecutorStore{
 		jobs:    make(map[string]model.SampleJob),
 		items:   make(map[string][]model.SampleJobItem),
-		presets: make(map[string]model.SamplePreset),
+		studies: make(map[string]model.Study),
 	}
 }
 
@@ -73,12 +73,12 @@ func (m *mockJobExecutorStore) ListSampleJobs() ([]model.SampleJob, error) {
 	return result, nil
 }
 
-func (m *mockJobExecutorStore) GetSamplePreset(id string) (model.SamplePreset, error) {
-	preset, ok := m.presets[id]
+func (m *mockJobExecutorStore) GetStudy(id string) (model.Study, error) {
+	s, ok := m.studies[id]
 	if !ok {
-		return model.SamplePreset{}, errors.New("preset not found")
+		return model.Study{}, errors.New("study not found")
 	}
-	return preset, nil
+	return s, nil
 }
 
 type mockComfyUIClient struct {
@@ -892,14 +892,14 @@ var _ = Describe("JobExecutor", func() {
 	})
 
 	Describe("getOutputPath", func() {
-		It("constructs the correct output path", func() {
-			path, err := executor.getOutputPath("checkpoint.safetensors", "test.png")
+		It("constructs the correct output path with study name", func() {
+			path, err := executor.getOutputPath("Test Study", "checkpoint.safetensors", "test.png")
 			Expect(err).ToNot(HaveOccurred())
-			Expect(path).To(Equal("/test/samples/checkpoint.safetensors/test.png"))
+			Expect(path).To(Equal("/test/samples/Test Study/checkpoint.safetensors/test.png"))
 		})
 
 		It("detects path traversal attempts", func() {
-			_, err := executor.getOutputPath("../../../etc", "passwd")
+			_, err := executor.getOutputPath("study", "../../../etc", "passwd")
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("path traversal detected"))
 		})
@@ -1717,16 +1717,17 @@ var _ = Describe("JobExecutor", func() {
 		BeforeEach(func() {
 			shift = 3.5
 			job = model.SampleJob{
-				ID:             "job-sidecar-1",
-				SamplePresetID: "preset-sidecar-1",
-				WorkflowName:   "flux_dev.json",
-				VAE:            "ae.safetensors",
-				CLIP:           "clip_l.safetensors",
-				Shift:          &shift,
+				ID:           "job-sidecar-1",
+				StudyID:      "study-sidecar-1",
+				StudyName:    "Test Study",
+				WorkflowName: "flux_dev.json",
+				VAE:          "ae.safetensors",
+				CLIP:         "clip_l.safetensors",
+				Shift:        &shift,
 			}
-			// Add a preset with a prompt_prefix so the sidecar can look it up
-			mockStore.presets["preset-sidecar-1"] = model.SamplePreset{
-				ID:           "preset-sidecar-1",
+			// Add a study with a prompt_prefix so the sidecar can look it up
+			mockStore.studies["study-sidecar-1"] = model.Study{
+				ID:           "study-sidecar-1",
 				PromptPrefix: "test prefix",
 			}
 			item = model.SampleJobItem{
@@ -1835,12 +1836,13 @@ var _ = Describe("JobExecutor", func() {
 
 		BeforeEach(func() {
 			job = model.SampleJob{
-				ID:             "job-1",
-				SamplePresetID: "preset-completion-1",
-				Status:         model.SampleJobStatusRunning,
-				WorkflowName:   "flux_dev.json",
-				VAE:            "ae.safetensors",
-				TotalItems:     1,
+				ID:           "job-1",
+				StudyID:      "study-completion-1",
+				StudyName:    "Test Study",
+				Status:       model.SampleJobStatusRunning,
+				WorkflowName: "flux_dev.json",
+				VAE:          "ae.safetensors",
+				TotalItems:   1,
 				CompletedItems: 0,
 			}
 			item = model.SampleJobItem{
@@ -1862,8 +1864,8 @@ var _ = Describe("JobExecutor", func() {
 
 			mockStore.jobs[job.ID] = job
 			mockStore.items[job.ID] = []model.SampleJobItem{item}
-			mockStore.presets["preset-completion-1"] = model.SamplePreset{
-				ID: "preset-completion-1",
+			mockStore.studies["study-completion-1"] = model.Study{
+				ID: "study-completion-1",
 			}
 		})
 

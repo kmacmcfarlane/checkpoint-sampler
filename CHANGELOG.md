@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-074: Rename 'sample presets' to 'studies' with study-scoped output directories
+- **Backend**: Database migration 10 renames `sample_presets` table to `studies`, renames `sample_preset_id` column to `study_id`, adds `study_name` column to `sample_jobs`
+- **Backend**: API endpoints changed from `/api/sample-presets` to `/api/studies`; Goa DSL, model (`Study`), service (`StudyService`), and store (`StudyStore`) all updated to use study terminology
+- **Backend**: Sample job output directories now use study-scoped paths: `{sample_dir}/{study_name}/{checkpoint_filename}/` (backward-compatible with empty study name)
+- **Backend**: Scanner updated to scan study-scoped directories; `DirectoryExists` method added to filesystem interface
+- **Backend**: Study name denormalized on `SampleJob` for historical accuracy
+- **Frontend**: `SamplePresetEditor.vue` replaced by `StudyEditor.vue`; all UI labels, types, and variable names updated from 'sample preset' to 'study'
+- **Frontend**: Study selector in Generate Samples dialog with auto-select (single study) and localStorage persistence
+- **Frontend**: Job cards in JobProgressPanel display study name
+- 580 backend specs pass; 782 frontend tests pass; 55 E2E tests pass
+
 ### B-033: Lightbox closes on mouse-up after slider drag
 - `frontend/src/components/ImageLightbox.vue`: Added `backdropMouseDownOnSelf` and `contentMouseDownOnSelf` refs to track mousedown origin; updated `onBackdropClick` and `onContentClick` to only emit close when both mousedown and click target the background element directly; prevents slider drag-release from triggering lightbox close
 - `frontend/src/components/__tests__/ImageLightbox.test.ts`: Updated 2 existing click tests to include mousedown step; added 6 new tests in `mousedown origin guard` block covering child-to-backdrop drag, child-to-content drag, slider drag, normal clicks, and state reset

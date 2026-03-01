@@ -207,6 +207,8 @@ function getGroupedErrors(job: SampleJob): Array<{ errorMessage: string; checkpo
 
           <div class="job-details">
             <p class="job-meta">
+              <span>Study: {{ job.study_name }}</span>
+              <span class="separator">•</span>
               <span>Workflow: {{ job.workflow_name }}</span>
               <span class="separator">•</span>
               <span>Created: {{ formatTimestamp(job.created_at) }}</span>

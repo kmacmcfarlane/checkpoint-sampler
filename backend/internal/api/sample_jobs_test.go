@@ -20,7 +20,7 @@ import (
 type fakeSampleJobStore struct {
 	jobs       map[string]model.SampleJob
 	items      map[string][]model.SampleJobItem
-	presets    map[string]model.SamplePreset
+	studies    map[string]model.Study
 	listErr    error
 	getErr     error
 	createErr  error
@@ -32,7 +32,7 @@ func newFakeSampleJobStore() *fakeSampleJobStore {
 	return &fakeSampleJobStore{
 		jobs:    make(map[string]model.SampleJob),
 		items:   make(map[string][]model.SampleJobItem),
-		presets: make(map[string]model.SamplePreset),
+		studies: make(map[string]model.Study),
 	}
 }
 
@@ -106,12 +106,12 @@ func (f *fakeSampleJobStore) UpdateSampleJobItem(item model.SampleJobItem) error
 	return nil
 }
 
-func (f *fakeSampleJobStore) GetSamplePreset(id string) (model.SamplePreset, error) {
-	p, ok := f.presets[id]
+func (f *fakeSampleJobStore) GetStudy(id string) (model.Study, error) {
+	s, ok := f.studies[id]
 	if !ok {
-		return model.SamplePreset{}, sql.ErrNoRows
+		return model.Study{}, sql.ErrNoRows
 	}
-	return p, nil
+	return s, nil
 }
 
 // fakePathMatcher is a test double for service.PathMatcher.
@@ -251,7 +251,7 @@ var _ = Describe("SampleJobsService", func() {
 		It("Create returns invalid_payload ServiceError", func() {
 			_, err := disabledSvc.Create(ctx, &gensamplejobs.CreateSampleJobPayload{
 				TrainingRunName: "run-1",
-				SamplePresetID:  "preset-1",
+				StudyID:  "study-1",
 				WorkflowName:    "wf.json",
 			})
 			Expect(err).To(HaveOccurred())

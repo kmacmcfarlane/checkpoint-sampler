@@ -22,7 +22,7 @@ type JobExecutorStore interface {
 	ListSampleJobItems(jobID string) ([]model.SampleJobItem, error)
 	UpdateSampleJobItem(i model.SampleJobItem) error
 	ListSampleJobs() ([]model.SampleJob, error)
-	GetSamplePreset(id string) (model.SamplePreset, error)
+	GetStudy(id string) (model.Study, error)
 }
 
 // ComfyUIClient defines the interface for ComfyUI HTTP operations.
@@ -635,9 +635,17 @@ func (e *JobExecutor) handleItemCompletionAsync(jobID, itemID, promptID string) 
 		return
 	}
 
+	// Fetch the job to get study name for the output path
+	job, err := e.store.GetSampleJob(jobID)
+	if err != nil {
+		e.logger.WithError(err).Error("failed to fetch job for output path")
+		e.failItem(itemID, fmt.Sprintf("failed to fetch job: %v", err))
+		return
+	}
+
 	// Generate output filename
 	filename := e.generateOutputFilename(*item)
-	outputPath, err := e.getOutputPath(item.CheckpointFilename, filename)
+	outputPath, err := e.getOutputPath(job.StudyName, item.CheckpointFilename, filename)
 	if err != nil {
 		e.logger.WithError(err).Error("invalid output path")
 		e.failItem(itemID, fmt.Sprintf("invalid output path: %v", err))
@@ -653,15 +661,9 @@ func (e *JobExecutor) handleItemCompletionAsync(jobID, itemID, promptID string) 
 
 	e.logger.WithField("output_path", outputPath).Info("image saved successfully")
 
-	// Fetch the job to get job-level metadata for the sidecar
-	job, err := e.store.GetSampleJob(jobID)
-	if err != nil {
-		e.logger.WithError(err).Warn("failed to fetch job for sidecar metadata, continuing without sidecar")
-	} else {
-		// Write sidecar JSON alongside the image (non-fatal if it fails)
-		if sidecarErr := e.writeSidecar(outputPath, job, *item); sidecarErr != nil {
-			e.logger.WithError(sidecarErr).Warn("failed to write sidecar, image saved but metadata sidecar missing")
-		}
+	// Write sidecar JSON alongside the image (non-fatal if it fails)
+	if sidecarErr := e.writeSidecar(outputPath, job, *item); sidecarErr != nil {
+		e.logger.WithError(sidecarErr).Warn("failed to write sidecar, image saved but metadata sidecar missing")
 	}
 
 	// Update item status to completed
@@ -790,9 +792,10 @@ func (e *JobExecutor) generateOutputFilename(item model.SampleJobItem) string {
 }
 
 // getOutputPath constructs the full output path for an image.
+// The path is: {sampleDir}/{studyName}/{checkpointFilename}/{filename}
 // Returns an error if the path would escape the sample directory (path traversal protection).
-func (e *JobExecutor) getOutputPath(checkpointFilename string, filename string) (string, error) {
-	checkpointDir := filepath.Join(e.sampleDir, checkpointFilename)
+func (e *JobExecutor) getOutputPath(studyName string, checkpointFilename string, filename string) (string, error) {
+	checkpointDir := filepath.Join(e.sampleDir, studyName, checkpointFilename)
 	outputPath := filepath.Join(checkpointDir, filename)
 
 	// Path traversal protection
@@ -899,15 +902,15 @@ func (e *JobExecutor) writeSidecar(imagePath string, job model.SampleJob, item m
 	dir := filepath.Dir(imagePath)
 	tempPath := sidecarPath + ".tmp"
 
-	// Look up the prompt_prefix from the preset (best-effort; empty on error)
+	// Look up the prompt_prefix from the study (best-effort; empty on error)
 	var promptPrefix string
-	if preset, err := e.store.GetSamplePreset(job.SamplePresetID); err == nil {
-		promptPrefix = preset.PromptPrefix
+	if study, err := e.store.GetStudy(job.StudyID); err == nil {
+		promptPrefix = study.PromptPrefix
 	} else {
 		e.logger.WithFields(logrus.Fields{
-			"sample_preset_id": job.SamplePresetID,
-			"error":            err.Error(),
-		}).Warn("failed to fetch preset for sidecar prompt_prefix, continuing without it")
+			"study_id": job.StudyID,
+			"error":    err.Error(),
+		}).Warn("failed to fetch study for sidecar prompt_prefix, continuing without it")
 	}
 
 	meta := fileformat.SidecarMetadata{

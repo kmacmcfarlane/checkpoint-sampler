@@ -11,117 +11,117 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api"
-	gensamplepresets "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/sample_presets"
+	genstudies "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/studies"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
 )
 
-// fakeSamplePresetStore is an in-memory test double for service.SamplePresetStore.
-type fakeSamplePresetStore struct {
-	presets   map[string]model.SamplePreset
+// fakeStudyStoreAPI is an in-memory test double for service.StudyStore.
+type fakeStudyStoreAPI struct {
+	studies   map[string]model.Study
 	listErr   error
 	createErr error
 	updateErr error
 	deleteErr error
 }
 
-func newFakeSamplePresetStore() *fakeSamplePresetStore {
-	return &fakeSamplePresetStore{presets: make(map[string]model.SamplePreset)}
+func newFakeStudyStoreAPI() *fakeStudyStoreAPI {
+	return &fakeStudyStoreAPI{studies: make(map[string]model.Study)}
 }
 
-func (f *fakeSamplePresetStore) ListSamplePresets() ([]model.SamplePreset, error) {
+func (f *fakeStudyStoreAPI) ListStudies() ([]model.Study, error) {
 	if f.listErr != nil {
 		return nil, f.listErr
 	}
-	var result []model.SamplePreset
-	for _, p := range f.presets {
+	var result []model.Study
+	for _, p := range f.studies {
 		result = append(result, p)
 	}
 	return result, nil
 }
 
-func (f *fakeSamplePresetStore) GetSamplePreset(id string) (model.SamplePreset, error) {
-	p, ok := f.presets[id]
+func (f *fakeStudyStoreAPI) GetStudy(id string) (model.Study, error) {
+	p, ok := f.studies[id]
 	if !ok {
-		return model.SamplePreset{}, sql.ErrNoRows
+		return model.Study{}, sql.ErrNoRows
 	}
 	return p, nil
 }
 
-func (f *fakeSamplePresetStore) CreateSamplePreset(p model.SamplePreset) error {
+func (f *fakeStudyStoreAPI) CreateStudy(p model.Study) error {
 	if f.createErr != nil {
 		return f.createErr
 	}
-	f.presets[p.ID] = p
+	f.studies[p.ID] = p
 	return nil
 }
 
-func (f *fakeSamplePresetStore) UpdateSamplePreset(p model.SamplePreset) error {
+func (f *fakeStudyStoreAPI) UpdateStudy(p model.Study) error {
 	if f.updateErr != nil {
 		return f.updateErr
 	}
-	if _, ok := f.presets[p.ID]; !ok {
+	if _, ok := f.studies[p.ID]; !ok {
 		return sql.ErrNoRows
 	}
-	f.presets[p.ID] = p
+	f.studies[p.ID] = p
 	return nil
 }
 
-func (f *fakeSamplePresetStore) DeleteSamplePreset(id string) error {
+func (f *fakeStudyStoreAPI) DeleteStudy(id string) error {
 	if f.deleteErr != nil {
 		return f.deleteErr
 	}
-	if _, ok := f.presets[id]; !ok {
+	if _, ok := f.studies[id]; !ok {
 		return sql.ErrNoRows
 	}
-	delete(f.presets, id)
+	delete(f.studies, id)
 	return nil
 }
 
-var _ = Describe("SamplePresetsService", func() {
+var _ = Describe("StudiesService", func() {
 	var (
-		store          *fakeSamplePresetStore
-		samplePresets  *api.SamplePresetsService
-		ctx            context.Context
-		logger         *logrus.Logger
+		store   *fakeStudyStoreAPI
+		studies *api.StudiesService
+		ctx     context.Context
+		logger  *logrus.Logger
 	)
 
 	BeforeEach(func() {
 		ctx = context.Background()
-		store = newFakeSamplePresetStore()
+		store = newFakeStudyStoreAPI()
 		logger = logrus.New()
 		logger.SetOutput(io.Discard) // Silence logs in tests
-		samplePresetSvc := service.NewSamplePresetService(store, logger)
-		samplePresets = api.NewSamplePresetsService(samplePresetSvc)
+		studySvc := service.NewStudyService(store, logger)
+		studies = api.NewStudiesService(studySvc)
 	})
 
 	Describe("Error responses include Goa ServiceError structure", func() {
 		It("List returns ServiceError with proper fields on store failure", func() {
 			store.listErr = errors.New("database connection failed")
-			_, err := samplePresets.List(ctx)
+			_, err := studies.List(ctx)
 			Expect(err).To(HaveOccurred())
 
 			// Verify it's a Goa ServiceError with proper structure
 			serviceErr, ok := err.(errorNamer)
 			Expect(ok).To(BeTrue(), "error should implement ErrorNamer interface")
 			Expect(serviceErr.ErrorName()).To(Equal("internal_error"))
-			Expect(err.Error()).To(ContainSubstring("listing sample presets"))
+			Expect(err.Error()).To(ContainSubstring("listing studies"))
 		})
 
 		It("Delete returns ServiceError with proper fields on internal error", func() {
 			store.deleteErr = errors.New("database write failed")
-			err := samplePresets.Delete(ctx, &gensamplepresets.DeletePayload{ID: "test-id"})
+			err := studies.Delete(ctx, &genstudies.DeletePayload{ID: "test-id"})
 			Expect(err).To(HaveOccurred())
 
 			// Verify it's a Goa ServiceError with proper structure
 			serviceErr, ok := err.(errorNamer)
 			Expect(ok).To(BeTrue(), "error should implement ErrorNamer interface")
 			Expect(serviceErr.ErrorName()).To(Equal("internal_error"))
-			Expect(err.Error()).To(ContainSubstring("deleting sample preset"))
+			Expect(err.Error()).To(ContainSubstring("deleting study"))
 		})
 
 		It("Delete returns not_found ServiceError with proper fields", func() {
-			err := samplePresets.Delete(ctx, &gensamplepresets.DeletePayload{ID: "nonexistent"})
+			err := studies.Delete(ctx, &genstudies.DeletePayload{ID: "nonexistent"})
 			Expect(err).To(HaveOccurred())
 
 			// Verify it's a Goa ServiceError with proper structure

@@ -4,28 +4,28 @@ import (
 	. "goa.design/goa/v3/dsl"
 )
 
-var _ = Service("sample_presets", func() {
-	Description("Sample setting preset management service")
+var _ = Service("studies", func() {
+	Description("Study management service")
 
 	Method("list", func() {
-		Description("List all saved sample presets")
-		Result(ArrayOf(SamplePresetResponse))
+		Description("List all saved studies")
+		Result(ArrayOf(StudyResponse))
 		Error("internal_error", ErrorResult, "Internal server error")
 		HTTP(func() {
-			GET("/api/sample-presets")
+			GET("/api/studies")
 			Response(StatusOK)
 			Response("internal_error", StatusInternalServerError)
 		})
 	})
 
 	Method("create", func() {
-		Description("Create a new sample preset")
-		Payload(CreateSamplePresetPayload)
-		Result(SamplePresetResponse)
-		Error("invalid_payload", ErrorResult, "Invalid sample preset data")
+		Description("Create a new study")
+		Payload(CreateStudyPayload)
+		Result(StudyResponse)
+		Error("invalid_payload", ErrorResult, "Invalid study data")
 		Error("internal_error", ErrorResult, "Internal server error")
 		HTTP(func() {
-			POST("/api/sample-presets")
+			POST("/api/studies")
 			Response(StatusCreated)
 			Response("invalid_payload", StatusBadRequest)
 			Response("internal_error", StatusInternalServerError)
@@ -33,14 +33,14 @@ var _ = Service("sample_presets", func() {
 	})
 
 	Method("update", func() {
-		Description("Update an existing sample preset")
-		Payload(UpdateSamplePresetPayload)
-		Result(SamplePresetResponse)
-		Error("not_found", ErrorResult, "Sample preset not found")
-		Error("invalid_payload", ErrorResult, "Invalid sample preset data")
+		Description("Update an existing study")
+		Payload(UpdateStudyPayload)
+		Result(StudyResponse)
+		Error("not_found", ErrorResult, "Study not found")
+		Error("invalid_payload", ErrorResult, "Invalid study data")
 		Error("internal_error", ErrorResult, "Internal server error")
 		HTTP(func() {
-			PUT("/api/sample-presets/{id}")
+			PUT("/api/studies/{id}")
 			Response(StatusOK)
 			Response("not_found", StatusNotFound)
 			Response("invalid_payload", StatusBadRequest)
@@ -49,17 +49,17 @@ var _ = Service("sample_presets", func() {
 	})
 
 	Method("delete", func() {
-		Description("Delete a sample preset")
+		Description("Delete a study")
 		Payload(func() {
-			Attribute("id", String, "Sample preset ID", func() {
+			Attribute("id", String, "Study ID", func() {
 				Example("550e8400-e29b-41d4-a716-446655440000")
 			})
 			Required("id")
 		})
-		Error("not_found", ErrorResult, "Sample preset not found")
+		Error("not_found", ErrorResult, "Study not found")
 		Error("internal_error", ErrorResult, "Internal server error")
 		HTTP(func() {
-			DELETE("/api/sample-presets/{id}")
+			DELETE("/api/studies/{id}")
 			Response(StatusNoContent)
 			Response("not_found", StatusNotFound)
 			Response("internal_error", StatusInternalServerError)
@@ -67,13 +67,13 @@ var _ = Service("sample_presets", func() {
 	})
 })
 
-var SamplePresetResponse = Type("SamplePresetResponse", func() {
-	Description("A saved sample setting preset")
-	Attribute("id", String, "Preset ID (UUID)", func() {
+var StudyResponse = Type("StudyResponse", func() {
+	Description("A saved study")
+	Attribute("id", String, "Study ID (UUID)", func() {
 		Example("550e8400-e29b-41d4-a716-446655440000")
 	})
-	Attribute("name", String, "Preset display name", func() {
-		Example("My Sample Config")
+	Attribute("name", String, "Study display name", func() {
+		Example("My Study")
 	})
 	Attribute("prompt_prefix", String, "Text prepended to each prompt at generation time", func() {
 		Example("photo of a person, ")
@@ -110,36 +110,10 @@ var SamplePresetResponse = Type("SamplePresetResponse", func() {
 	Required("id", "name", "prompt_prefix", "prompts", "negative_prompt", "steps", "cfgs", "sampler_scheduler_pairs", "seeds", "width", "height", "images_per_checkpoint", "created_at", "updated_at")
 })
 
-var NamedPrompt = Type("NamedPrompt", func() {
-	Description("A prompt with a name and text")
-	Attribute("name", String, "Prompt name (used in filename)", func() {
-		Example("forest_portals")
-		MinLength(1)
-	})
-	Attribute("text", String, "Prompt text", func() {
-		Example("a mystical forest with glowing portals")
-		MinLength(1)
-	})
-	Required("name", "text")
-})
-
-var SamplerSchedulerPair = Type("SamplerSchedulerPair", func() {
-	Description("A specific sampler and scheduler combination")
-	Attribute("sampler", String, "Sampler name", func() {
-		Example("euler")
-		MinLength(1)
-	})
-	Attribute("scheduler", String, "Scheduler name", func() {
-		Example("normal")
-		MinLength(1)
-	})
-	Required("sampler", "scheduler")
-})
-
-var CreateSamplePresetPayload = Type("CreateSamplePresetPayload", func() {
-	Description("Payload for creating a new sample preset")
-	Attribute("name", String, "Preset display name", func() {
-		Example("My Sample Config")
+var CreateStudyPayload = Type("CreateStudyPayload", func() {
+	Description("Payload for creating a new study")
+	Attribute("name", String, "Study display name", func() {
+		Example("My Study")
 		MinLength(1)
 	})
 	Attribute("prompt_prefix", String, "Text prepended to each prompt at generation time", func() {
@@ -179,13 +153,13 @@ var CreateSamplePresetPayload = Type("CreateSamplePresetPayload", func() {
 	Required("name", "prompt_prefix", "prompts", "negative_prompt", "steps", "cfgs", "sampler_scheduler_pairs", "seeds", "width", "height")
 })
 
-var UpdateSamplePresetPayload = Type("UpdateSamplePresetPayload", func() {
-	Description("Payload for updating a sample preset")
-	Attribute("id", String, "Sample preset ID", func() {
+var UpdateStudyPayload = Type("UpdateStudyPayload", func() {
+	Description("Payload for updating a study")
+	Attribute("id", String, "Study ID", func() {
 		Example("550e8400-e29b-41d4-a716-446655440000")
 	})
-	Attribute("name", String, "Preset display name", func() {
-		Example("My Sample Config")
+	Attribute("name", String, "Study display name", func() {
+		Example("My Study")
 		MinLength(1)
 	})
 	Attribute("prompt_prefix", String, "Text prepended to each prompt at generation time", func() {
@@ -223,4 +197,30 @@ var UpdateSamplePresetPayload = Type("UpdateSamplePresetPayload", func() {
 		Minimum(1)
 	})
 	Required("id", "name", "prompt_prefix", "prompts", "negative_prompt", "steps", "cfgs", "sampler_scheduler_pairs", "seeds", "width", "height")
+})
+
+var NamedPrompt = Type("NamedPrompt", func() {
+	Description("A prompt with a name and text")
+	Attribute("name", String, "Prompt name (used in filename)", func() {
+		Example("forest_portals")
+		MinLength(1)
+	})
+	Attribute("text", String, "Prompt text", func() {
+		Example("a mystical forest with glowing portals")
+		MinLength(1)
+	})
+	Required("name", "text")
+})
+
+var SamplerSchedulerPair = Type("SamplerSchedulerPair", func() {
+	Description("A specific sampler and scheduler combination")
+	Attribute("sampler", String, "Sampler name", func() {
+		Example("euler")
+		MinLength(1)
+	})
+	Attribute("scheduler", String, "Scheduler name", func() {
+		Example("normal")
+		MinLength(1)
+	})
+	Required("sampler", "scheduler")
 })
