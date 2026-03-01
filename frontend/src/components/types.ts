@@ -20,3 +20,17 @@ export interface ImageClickContext extends GridNavItem {
   /** Index of this image in gridImages. */
   gridIndex: number
 }
+
+/** Debug info for a single grid cell, showing the filtering parameters that selected its image. */
+export interface DebugCellInfo {
+  /** X dimension value for this cell (undefined if no X axis). */
+  xValue?: string
+  /** Y dimension value for this cell (undefined if no Y axis). */
+  yValue?: string
+  /** Current slider dimension value applied to this cell. */
+  sliderValue?: string
+  /** Slider dimension name (if assigned). */
+  sliderDimensionName?: string
+  /** Active combo filter selections relevant to this cell. */
+  comboSelections: Record<string, string[]>
+}
