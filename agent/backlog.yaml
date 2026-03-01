@@ -411,7 +411,7 @@ stories:
   - id: B-031
     title: "Dimension preset selector missing New/Save/Delete workflow"
     priority: 42
-    status: todo
+    status: uat
     requires: []
     acceptance:
       - "FE: A 'New' button is always visible in PresetSelector, positioned where the Save button currently is"

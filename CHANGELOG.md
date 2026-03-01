@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### B-031: Dimension preset selector missing New/Save/Delete workflow
+- `frontend/src/components/PresetSelector.vue`: Added dirty tracking (assignment snapshot, isDirty computed, pendingSnapshot watcher), New button with onNew handler, restructured layout to two rows (top: label/select/New, actions: Save/Delete), Save disabled until dirty, added `new` emit event
+- `frontend/src/App.vue`: Added `onPresetNew` handler that resets all dimension assignments to `'none'`, clears preset warnings and persistence; wired `@new="onPresetNew"` on PresetSelector
+- `frontend/src/components/__tests__/PresetSelector.test.ts`: Expanded from 14 to 26 tests — added tests for New button visibility, clearing selection, dirty tracking after load/save/new/delete, save disabled when not dirty, layout structure
+- `frontend/e2e/sidebar-preset-selector.spec.ts`: 7 new E2E tests covering New button visibility, Save disabled initially, Save enabled after dirty change, full New/Save/Load/Delete round-trip
+- 768 frontend tests pass; 580 backend tests pass; 53 E2E tests pass
+
 ### B-032: X/Y grid display glitches — add debug mode overlay
 - `frontend/src/components/types.ts`: Added `DebugCellInfo` interface for debug overlay data
 - `frontend/src/components/DebugOverlay.vue`: New component rendering a semi-transparent overlay showing x value, y value, slider value, and combo selections per grid cell

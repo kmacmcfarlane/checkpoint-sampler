@@ -3,7 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { NSelect, NButton } from 'naive-ui'
 import PresetSelector from '../PresetSelector.vue'
-import type { Preset } from '../../api/types'
+import type { Preset, DimensionRole } from '../../api/types'
 
 // Mock the api client module
 vi.mock('../../api/client', () => ({
@@ -50,6 +50,11 @@ const defaultProps = {
     ['seed', 'none' as const],
   ]),
   dimensionNames: ['cfg', 'prompt', 'seed'],
+}
+
+/** Helper to find an NButton by its aria-label attribute. */
+function findButton(wrapper: ReturnType<typeof mount>, ariaLabel: string) {
+  return wrapper.findAllComponents(NButton).find((b) => b.attributes('aria-label') === ariaLabel)
 }
 
 describe('PresetSelector', () => {
@@ -136,7 +141,8 @@ describe('PresetSelector', () => {
     expect(emitted![0][1]).toContain('also_missing')
   })
 
-  it('save button calls createPreset and emits save event', async () => {
+  // AC: Save button calls createPreset and emits save event when dirty
+  it('save button calls createPreset and emits save event when dirty', async () => {
     mockGetPresets.mockResolvedValue([])
     const createdPreset: Preset = {
       id: 'new-id',
@@ -151,8 +157,26 @@ describe('PresetSelector', () => {
     const wrapper = mount(PresetSelector, { props: defaultProps })
     await flushPromises()
 
-    const buttons = wrapper.findAllComponents(NButton)
-    const saveBtn = buttons.find((b) => b.attributes('aria-label') === 'Save preset')!
+    // Click New to establish a snapshot, then change assignments to make dirty
+    const newBtn = findButton(wrapper, 'New preset')!
+    await newBtn.trigger('click')
+    await nextTick()
+
+    // Simulate parent resetting assignments (pendingSnapshot captures this)
+    const emptyAssignments = new Map<string, DimensionRole>([
+      ['cfg', 'none'],
+      ['prompt', 'none'],
+      ['seed', 'none'],
+    ])
+    await wrapper.setProps({ assignments: emptyAssignments })
+    await nextTick()
+
+    // Now modify assignments to make it dirty
+    await wrapper.setProps({ assignments: defaultProps.assignments })
+    await nextTick()
+
+    const saveBtn = findButton(wrapper, 'Save preset')!
+    expect(saveBtn.props('disabled')).toBe(false)
     await saveBtn.trigger('click')
     await flushPromises()
 
@@ -173,24 +197,86 @@ describe('PresetSelector', () => {
     const wrapper = mount(PresetSelector, { props: defaultProps })
     await flushPromises()
 
-    const buttons = wrapper.findAllComponents(NButton)
-    const saveBtn = buttons.find((b) => b.attributes('aria-label') === 'Save preset')!
+    // Click New then modify to make dirty
+    const newBtn = findButton(wrapper, 'New preset')!
+    await newBtn.trigger('click')
+    await nextTick()
+    const emptyAssignments = new Map<string, DimensionRole>([
+      ['cfg', 'none'],
+      ['prompt', 'none'],
+      ['seed', 'none'],
+    ])
+    await wrapper.setProps({ assignments: emptyAssignments })
+    await nextTick()
+    await wrapper.setProps({ assignments: defaultProps.assignments })
+    await nextTick()
+
+    const saveBtn = findButton(wrapper, 'Save preset')!
     await saveBtn.trigger('click')
     await flushPromises()
 
     expect(mockCreatePreset).not.toHaveBeenCalled()
   })
 
-  it('save button is disabled when no assignments', async () => {
+  // AC: Save button is disabled until the user has modified at least one field (dirty tracking)
+  it('save button is disabled when not dirty (no snapshot established)', async () => {
     mockGetPresets.mockResolvedValue([])
     const wrapper = mount(PresetSelector, {
-      props: { ...defaultProps, assignments: new Map() },
+      props: defaultProps,
     })
     await flushPromises()
 
-    const buttons = wrapper.findAllComponents(NButton)
-    const saveBtn = buttons.find((b) => b.attributes('aria-label') === 'Save preset')!
+    const saveBtn = findButton(wrapper, 'Save preset')!
+    // No snapshot has been established, so isDirty is false
     expect(saveBtn.props('disabled')).toBe(true)
+  })
+
+  // AC: Save button is disabled after loading a preset (clean state)
+  it('save button is disabled after loading a preset', async () => {
+    mockGetPresets.mockResolvedValue(samplePresets)
+    const wrapper = mount(PresetSelector, { props: defaultProps })
+    await flushPromises()
+
+    // Select a preset
+    const select = wrapper.findComponent(NSelect)
+    select.vm.$emit('update:value', 'p1')
+    await nextTick()
+
+    // Simulate parent applying the preset mapping (same assignments as default)
+    await wrapper.setProps({ assignments: new Map(defaultProps.assignments) })
+    await nextTick()
+
+    const saveBtn = findButton(wrapper, 'Save preset')!
+    expect(saveBtn.props('disabled')).toBe(true)
+  })
+
+  // AC: Save button enables when dimension assignments are touched (dirty tracking)
+  it('save button enables when assignments change after loading a preset', async () => {
+    mockGetPresets.mockResolvedValue(samplePresets)
+    const wrapper = mount(PresetSelector, { props: defaultProps })
+    await flushPromises()
+
+    // Select a preset (triggers pendingSnapshot)
+    const select = wrapper.findComponent(NSelect)
+    select.vm.$emit('update:value', 'p1')
+    await nextTick()
+
+    // Simulate parent applying the preset mapping
+    await wrapper.setProps({ assignments: new Map(defaultProps.assignments) })
+    await nextTick()
+
+    // Save should still be disabled (clean)
+    let saveBtn = findButton(wrapper, 'Save preset')!
+    expect(saveBtn.props('disabled')).toBe(true)
+
+    // Now change an assignment to make it dirty
+    const modifiedAssignments = new Map(defaultProps.assignments)
+    modifiedAssignments.set('cfg', 'y')
+    await wrapper.setProps({ assignments: modifiedAssignments })
+    await nextTick()
+
+    saveBtn = findButton(wrapper, 'Save preset')!
+    expect(saveBtn.props('disabled')).toBe(false)
   })
 
   it('delete button appears when a preset is selected and calls deletePreset', async () => {
@@ -200,8 +286,7 @@ describe('PresetSelector', () => {
     await flushPromises()
 
     // No delete button initially
-    const deleteButtons = wrapper.findAllComponents(NButton).filter((b) => b.attributes('aria-label') === 'Delete preset')
-    expect(deleteButtons).toHaveLength(0)
+    expect(findButton(wrapper, 'Delete preset')).toBeUndefined()
 
     // Select a preset
     const select = wrapper.findComponent(NSelect)
@@ -209,8 +294,8 @@ describe('PresetSelector', () => {
     await nextTick()
 
     // Delete button appears
-    const deleteBtn = wrapper.findAllComponents(NButton).find((b) => b.attributes('aria-label') === 'Delete preset')!
-    expect(deleteBtn.exists()).toBe(true)
+    const deleteBtn = findButton(wrapper, 'Delete preset')!
+    expect(deleteBtn).toBeDefined()
 
     await deleteBtn.trigger('click')
     await flushPromises()
@@ -226,17 +311,16 @@ describe('PresetSelector', () => {
     const wrapper = mount(PresetSelector, { props: defaultProps })
     await flushPromises()
 
-    const buttons = wrapper.findAllComponents(NButton)
-    const saveBtn = buttons.find((b) => b.attributes('aria-label') === 'Save preset')
-    expect(saveBtn).toBeDefined()
+    // AC: New button is always visible
+    expect(findButton(wrapper, 'New preset')).toBeDefined()
+    expect(findButton(wrapper, 'Save preset')).toBeDefined()
 
     // Select a preset to show delete button
     const select = wrapper.findComponent(NSelect)
     select.vm.$emit('update:value', 'p1')
     await nextTick()
 
-    const deleteBtn = wrapper.findAllComponents(NButton).find((b) => b.attributes('aria-label') === 'Delete preset')
-    expect(deleteBtn).toBeDefined()
+    expect(findButton(wrapper, 'Delete preset')).toBeDefined()
   })
 
   it('auto-loads preset when autoLoadPresetId is provided and preset exists', async () => {
@@ -307,6 +391,210 @@ describe('PresetSelector', () => {
 
     // Auto-load should not trigger again
     expect(wrapper.emitted('load')).toHaveLength(1)
+  })
+
+  // AC: A 'New' button is always visible in PresetSelector
+  describe('New button', () => {
+    it('is always visible', async () => {
+      mockGetPresets.mockResolvedValue([])
+      const wrapper = mount(PresetSelector, { props: defaultProps })
+      await flushPromises()
+
+      const newBtn = findButton(wrapper, 'New preset')
+      expect(newBtn).toBeDefined()
+    })
+
+    // AC: Clicking 'New' clears the current preset selection and resets dimension assignments
+    it('clears selection and emits new event when clicked', async () => {
+      mockGetPresets.mockResolvedValue(samplePresets)
+      const wrapper = mount(PresetSelector, { props: defaultProps })
+      await flushPromises()
+
+      // First select a preset
+      const select = wrapper.findComponent(NSelect)
+      select.vm.$emit('update:value', 'p1')
+      await nextTick()
+
+      // Verify a preset is selected
+      expect(select.props('value')).toBe('p1')
+
+      // Click New
+      const newBtn = findButton(wrapper, 'New preset')!
+      await newBtn.trigger('click')
+      await nextTick()
+
+      // Selection should be cleared
+      expect(wrapper.findComponent(NSelect).props('value')).toBeNull()
+
+      // 'new' event should be emitted
+      const emitted = wrapper.emitted('new')
+      expect(emitted).toBeDefined()
+      expect(emitted).toHaveLength(1)
+    })
+
+    it('enables save after clicking New and then modifying assignments', async () => {
+      mockGetPresets.mockResolvedValue([])
+      const wrapper = mount(PresetSelector, { props: defaultProps })
+      await flushPromises()
+
+      // Save is disabled initially (no snapshot)
+      let saveBtn = findButton(wrapper, 'Save preset')!
+      expect(saveBtn.props('disabled')).toBe(true)
+
+      // Click New to establish a snapshot
+      const newBtn = findButton(wrapper, 'New preset')!
+      await newBtn.trigger('click')
+      await nextTick()
+
+      // Simulate parent resetting all assignments to 'none' (the New handler in App.vue)
+      const resetAssignments = new Map<string, DimensionRole>([
+        ['cfg', 'none'],
+        ['prompt', 'none'],
+        ['seed', 'none'],
+      ])
+      await wrapper.setProps({ assignments: resetAssignments })
+      await nextTick()
+
+      // Save is still disabled (snapshot matches current state)
+      saveBtn = findButton(wrapper, 'Save preset')!
+      expect(saveBtn.props('disabled')).toBe(true)
+
+      // Now modify an assignment
+      const modifiedAssignments = new Map<string, DimensionRole>([
+        ['cfg', 'x'],
+        ['prompt', 'none'],
+        ['seed', 'none'],
+      ])
+      await wrapper.setProps({ assignments: modifiedAssignments })
+      await nextTick()
+
+      // Save should now be enabled (dirty)
+      saveBtn = findButton(wrapper, 'Save preset')!
+      expect(saveBtn.props('disabled')).toBe(false)
+    })
+  })
+
+  describe('dirty tracking', () => {
+    // AC: Save button is disabled until the user has modified at least one field on a new or existing preset
+    it('save is disabled after saving a preset (snapshot updated)', async () => {
+      mockGetPresets.mockResolvedValue([])
+      const createdPreset: Preset = {
+        id: 'new-id',
+        name: 'My Preset',
+        mapping: { x: 'cfg', y: 'prompt', combos: ['seed'] },
+        created_at: '2025-01-01T00:00:00Z',
+        updated_at: '2025-01-01T00:00:00Z',
+      }
+      mockCreatePreset.mockResolvedValue(createdPreset)
+      ;(globalThis.prompt as ReturnType<typeof vi.fn>).mockReturnValue('My Preset')
+
+      const wrapper = mount(PresetSelector, { props: defaultProps })
+      await flushPromises()
+
+      // Click New and modify to make dirty
+      const newBtn = findButton(wrapper, 'New preset')!
+      await newBtn.trigger('click')
+      await nextTick()
+      const emptyAssignments = new Map<string, DimensionRole>([
+        ['cfg', 'none'],
+        ['prompt', 'none'],
+        ['seed', 'none'],
+      ])
+      await wrapper.setProps({ assignments: emptyAssignments })
+      await nextTick()
+      await wrapper.setProps({ assignments: defaultProps.assignments })
+      await nextTick()
+
+      // Save should be enabled (dirty)
+      let saveBtn = findButton(wrapper, 'Save preset')!
+      expect(saveBtn.props('disabled')).toBe(false)
+
+      // Save the preset
+      await saveBtn.trigger('click')
+      await flushPromises()
+
+      // After saving, snapshot is updated to current assignments; save should be disabled again
+      saveBtn = findButton(wrapper, 'Save preset')!
+      expect(saveBtn.props('disabled')).toBe(true)
+    })
+
+    it('delete clears snapshot so save is disabled', async () => {
+      mockGetPresets.mockResolvedValue(samplePresets)
+      mockDeletePreset.mockResolvedValue(undefined)
+      const wrapper = mount(PresetSelector, { props: defaultProps })
+      await flushPromises()
+
+      // Select a preset (triggers pendingSnapshot)
+      const select = wrapper.findComponent(NSelect)
+      select.vm.$emit('update:value', 'p1')
+      await nextTick()
+      // Simulate parent applying mapping
+      await wrapper.setProps({ assignments: new Map(defaultProps.assignments) })
+      await nextTick()
+
+      // Delete the selected preset
+      const deleteBtn = findButton(wrapper, 'Delete preset')!
+      await deleteBtn.trigger('click')
+      await flushPromises()
+
+      // Snapshot should be cleared, save disabled
+      const saveBtn = findButton(wrapper, 'Save preset')!
+      expect(saveBtn.props('disabled')).toBe(true)
+    })
+
+    it('auto-load establishes snapshot so save is disabled after parent applies mapping', async () => {
+      mockGetPresets.mockResolvedValue(samplePresets)
+      const wrapper = mount(PresetSelector, {
+        props: { ...defaultProps, autoLoadPresetId: 'p1' },
+      })
+      await flushPromises()
+
+      // Auto-load triggers pendingSnapshot; simulate parent applying the preset mapping
+      await wrapper.setProps({ assignments: new Map(defaultProps.assignments) })
+      await nextTick()
+
+      const saveBtn = findButton(wrapper, 'Save preset')!
+      expect(saveBtn.props('disabled')).toBe(true)
+    })
+  })
+
+  // AC: Save and Delete buttons appear below the preset selector dropdown
+  describe('layout', () => {
+    it('renders Save and Delete in the actions row below the dropdown', async () => {
+      mockGetPresets.mockResolvedValue(samplePresets)
+      const wrapper = mount(PresetSelector, { props: defaultProps })
+      await flushPromises()
+
+      // Select a preset so Delete appears
+      const select = wrapper.findComponent(NSelect)
+      select.vm.$emit('update:value', 'p1')
+      await nextTick()
+
+      // Top row contains label, select, and New button
+      const topRow = wrapper.find('.preset-selector__top')
+      expect(topRow.exists()).toBe(true)
+      expect(topRow.find('label').text()).toBe('Preset')
+      expect(topRow.findComponent(NSelect).exists()).toBe(true)
+
+      // Actions row contains Save and Delete
+      const actionsRow = wrapper.find('.preset-selector__actions')
+      expect(actionsRow.exists()).toBe(true)
+      const actionButtons = actionsRow.findAllComponents(NButton)
+      const ariaLabels = actionButtons.map((b) => b.attributes('aria-label'))
+      expect(ariaLabels).toContain('Save preset')
+      expect(ariaLabels).toContain('Delete preset')
+    })
+
+    it('New button is in the top row next to the dropdown', async () => {
+      mockGetPresets.mockResolvedValue([])
+      const wrapper = mount(PresetSelector, { props: defaultProps })
+      await flushPromises()
+
+      const topRow = wrapper.find('.preset-selector__top')
+      const topButtons = topRow.findAllComponents(NButton)
+      const ariaLabels = topButtons.map((b) => b.attributes('aria-label'))
+      expect(ariaLabels).toContain('New preset')
+    })
   })
 
   afterAll(() => {

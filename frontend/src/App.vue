@@ -429,6 +429,18 @@ function onPresetLoad(preset: Preset, warnings: string[]) {
   }
 }
 
+/** Reset dimension assignments when the user clicks New to configure a fresh preset. */
+function onPresetNew() {
+  presetWarnings.value = []
+  selectedPresetId.value = null
+  clearPresetSelection()
+
+  // Reset all dimension assignments to 'none'
+  for (const dim of dimensions.value) {
+    assignRole(dim.name, 'none')
+  }
+}
+
 function onPresetSave(preset: Preset) {
   presetWarnings.value = []
   selectedPresetId.value = preset.id
@@ -626,6 +638,7 @@ const TERMINAL_STATUSES: Set<SampleJobStatus> = new Set(['completed', 'completed
               @load="onPresetLoad"
               @save="onPresetSave"
               @delete="onPresetDelete"
+              @new="onPresetNew"
             />
             <p v-if="presetWarnings.length > 0" class="warning" role="status">
               Unmatched dimensions from preset: {{ presetWarnings.join(', ') }}
