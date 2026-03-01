@@ -406,3 +406,298 @@ stories:
     testing:
       - "command: make up"
 
+  # ─── User-reported issues and features (2026-03-01) ──────────────────────────
+
+  - id: B-031
+    title: "Dimension preset selector missing New/Save/Delete workflow"
+    priority: 42
+    status: todo
+    requires: []
+    acceptance:
+      - "FE: A 'New' button is always visible in PresetSelector, positioned where the Save button currently is"
+      - "FE: Clicking 'New' clears the current preset selection and resets dimension assignments so the user can configure a fresh preset"
+      - "FE: Save and Delete buttons appear below the preset selector dropdown"
+      - "FE: Save button is disabled until the user has modified at least one field on a new or existing preset"
+      - "FE: Save button enables when dimension assignments are touched (dirty tracking)"
+      - "FE: Existing preset load/delete behavior is preserved"
+      - "FE: Unit tests for dirty tracking and New button behavior"
+    notes: |
+      Bug: once a dimension preset is selected, there's no way to start configuring a new one.
+      The current Save button creates a new preset but is always enabled when assignments exist.
+      Need dirty tracking to distinguish "loaded preset" from "user modified preset".
+      Key files: frontend/src/components/PresetSelector.vue, frontend/src/components/DimensionPanel.vue.
+    testing:
+      - "command: cd frontend && npx vitest run"
+
+  - id: B-032
+    title: "X/Y grid display glitches — add debug mode overlay"
+    priority: 48
+    status: todo
+    requires: []
+    acceptance:
+      - "FE: A 'Debug' toggle button appears in the top navigation bar"
+      - "FE: When debug mode is active, each grid cell overlays a readable panel showing the filtering parameters used to select that cell's image (x value, y value, slider value, combo selections)"
+      - "FE: Debug overlay is semi-transparent and does not interfere with image click/lightbox interaction"
+      - "FE: Debug overlay text is easy to read (high contrast, appropriate font size)"
+      - "FE: Debug mode state does not persist across page reloads (session-only)"
+      - "FE: Unit tests for debug overlay rendering"
+    notes: |
+      User reports weird behavior in the X/Y grid. Debug mode will help diagnose glitches
+      by showing exactly which parameters were used to filter/select each cell's image.
+      Key files: frontend/src/components/XYGrid.vue, frontend/src/components/ImageCell.vue,
+      frontend/src/App.vue (debug toggle in nav bar).
+    testing:
+      - "command: cd frontend && npx vitest run"
+
+  - id: B-033
+    title: "Lightbox closes on mouse-up after slider drag"
+    priority: 9
+    status: todo
+    requires: []
+    acceptance:
+      - "FE: Lightbox only closes on background click if the mouse-down also originated on the background"
+      - "FE: Dragging the slider and releasing (mouse-up) over the lightbox background does NOT close the lightbox"
+      - "FE: Normal background click-to-close still works (mouse-down + mouse-up both on background)"
+      - "FE: Escape key and X button close behavior unchanged"
+      - "FE: Unit tests for the mouse-down/mouse-up origin check"
+    notes: |
+      Bug: scrolling/dragging the slider and releasing over the lightbox background triggers close.
+      Fix: track mouse-down target and only close if both mouse-down and mouse-up are on the background.
+      Key files: frontend/src/components/ImageLightbox.vue.
+    testing:
+      - "command: cd frontend && npx vitest run"
+
+  - id: S-072
+    title: "Regenerate button for completed sample jobs"
+    priority: 38
+    status: todo
+    requires: []
+    acceptance:
+      - "FE: Completed and completed-with-errors job cards in JobProgressPanel show a 'Regenerate' button"
+      - "FE: Clicking Regenerate opens JobLaunchDialog pre-populated with the original job's settings (training run, workflow, preset, VAE, CLIP, shift)"
+      - "FE: For completed-with-errors jobs, failed checkpoints are pre-selected in the checkpoint picker"
+      - "FE: The regenerated job is a new job (not an edit of the original)"
+      - "FE: Unit tests for Regenerate button visibility and pre-population"
+    notes: |
+      Currently users must manually re-enter all settings to regenerate. This adds a shortcut
+      that carries forward the original job configuration.
+      Key files: frontend/src/components/JobProgressPanel.vue, frontend/src/components/JobLaunchDialog.vue.
+    testing:
+      - "command: cd frontend && npx vitest run"
+
+  - id: S-073
+    title: "Per-sample inference progress bar"
+    priority: 15
+    status: todo
+    requires: []
+    acceptance:
+      - "BE: ComfyUI executor forwards per-node progress events (value/max) through the backend WebSocket to frontend clients"
+      - "BE: WebSocket message type for inference progress includes prompt_id, current_value, max_value"
+      - "FE: JobProgressPanel shows a secondary progress bar for the currently-generating sample within the checkpoint progress section"
+      - "FE: Progress bar updates in real-time as ComfyUI processes nodes"
+      - "FE: Progress bar resets between samples"
+      - "BE: Unit tests for progress event forwarding"
+      - "FE: Unit tests for secondary progress bar rendering"
+    notes: |
+      Currently only checkpoint-level and image-count-level progress is shown. This adds
+      node-level inference progress from ComfyUI's WebSocket progress events.
+      Key files: backend/internal/service/comfyui_executor.go (progress event forwarding),
+      backend/internal/service/websocket.go (new message type),
+      frontend/src/components/JobProgressPanel.vue (secondary progress bar).
+    testing:
+      - "command: make test-backend"
+      - "command: cd frontend && npx vitest run"
+
+  - id: S-074
+    title: "Rename 'sample presets' to 'studies' with study-scoped output directories"
+    priority: 55
+    status: todo
+    requires: []
+    acceptance:
+      - "BE: Database migration renames sample_presets table to studies (or adds alias); all references updated"
+      - "BE: API endpoints renamed from /api/sample-presets to /api/studies (with backward-compatible redirects or clean rename)"
+      - "BE: Goa DSL, model, service, and store updated to use 'study' terminology throughout"
+      - "BE: Sample job output directory changes from {sample_dir}/{checkpoint_filename}/ to {sample_dir}/{study_name}/{checkpoint_filename}/"
+      - "BE: Scanner updated to scan study-scoped output directories"
+      - "BE: Sample jobs reference study_id (renamed from sample_preset_id)"
+      - "FE: All UI labels, component names, and variable names updated from 'sample preset' to 'study'"
+      - "FE: Study selector appears at the top of the Generate Samples dialog"
+      - "FE: Once a study is selected, training run selector beads reflect sample status for that study"
+      - "FE: If only one study exists, it is auto-selected; otherwise the last-used study is restored from localStorage"
+      - "FE: Job cards in JobProgressPanel include the study name"
+      - "FE: SamplePresetEditor renamed to StudyEditor (or equivalent) with all references updated"
+      - "BE: Unit tests for study-scoped directory output and scanner"
+      - "FE: Unit tests for study selector, auto-select, and localStorage persistence"
+    notes: |
+      Large cross-cutting change. The core concept: a "study" defines a set of generation parameters
+      and outputs into its own subdirectory, enabling multiple studies per training run with different
+      parameter sets. This is the renamed and enhanced version of "sample presets".
+      Key files: All backend sample_preset files (model, store, service, API design),
+      backend/internal/service/sample_job.go (output directory logic),
+      backend/internal/service/scanner.go (scan study-scoped dirs),
+      backend/internal/store/filesystem.go,
+      frontend/src/components/SamplePresetEditor.vue → StudyEditor.vue,
+      frontend/src/components/JobLaunchDialog.vue,
+      frontend/src/components/JobProgressPanel.vue,
+      frontend/src/composables/useGenerateInputsPersistence.ts.
+    testing:
+      - "command: make test-backend"
+      - "command: cd frontend && npx vitest run"
+
+  - id: S-075
+    title: "Completeness check for generated sample datasets"
+    priority: 52
+    status: todo
+    requires: []
+    acceptance:
+      - "BE: After each checkpoint's samples are generated, validate that all expected images exist on disk"
+      - "BE: Compare expected items (from job item expansion) against actual files in the checkpoint's sample directory"
+      - "BE: Missing files are reported as warnings on the job (not failures — the images may have been generated but failed to download)"
+      - "BE: Completeness status included in job progress WebSocket events"
+      - "FE: JobProgressPanel shows completeness status per checkpoint (e.g., '24/24 verified' or '23/24 — 1 missing')"
+      - "BE: Unit tests for completeness validation logic"
+      - "FE: Unit tests for completeness display"
+    notes: |
+      Validates that the expected cartesian product of images was actually created on disk.
+      Runs after each checkpoint's batch completes during job execution.
+      Key files: backend/internal/service/sample_job.go (validation after checkpoint batch),
+      backend/internal/store/filesystem.go (file listing for verification),
+      frontend/src/components/JobProgressPanel.vue.
+    testing:
+      - "command: make test-backend"
+      - "command: cd frontend && npx vitest run"
+
+  - id: S-076
+    title: "Auto-select single workflow template in Generate Samples dialog"
+    priority: 35
+    status: todo
+    requires: []
+    acceptance:
+      - "FE: If there is exactly one valid workflow template, auto-select it in the JobLaunchDialog"
+      - "FE: If multiple valid workflows exist, restore the last-used workflow from localStorage (existing behavior via useGenerateInputsPersistence)"
+      - "FE: Auto-selection does not override user's explicit selection"
+      - "FE: Unit tests for auto-selection logic"
+    notes: |
+      Small UX improvement. The useGenerateInputsPersistence composable already handles
+      last-used workflow restoration; this adds the single-workflow auto-select case.
+      Key files: frontend/src/components/JobLaunchDialog.vue,
+      frontend/src/composables/useGenerateInputsPersistence.ts.
+    testing:
+      - "command: cd frontend && npx vitest run"
+
+  - id: S-077
+    title: "'Show all' training runs checked by default in Generate Samples dialog"
+    priority: 33
+    status: todo
+    requires: []
+    acceptance:
+      - "FE: The 'Show all' checkbox in JobLaunchDialog defaults to checked (showing all training runs, not just empty ones)"
+      - "FE: User can still uncheck to filter to only empty training runs"
+      - "FE: Unit tests for default state"
+    notes: |
+      Currently the Generate Samples dialog defaults to showing only "empty" training runs
+      (those without samples). User wants to see all training runs by default.
+      Key files: frontend/src/components/JobLaunchDialog.vue.
+    testing:
+      - "command: cd frontend && npx vitest run"
+
+  - id: S-078
+    title: "Demo sampleset and dimension preset"
+    priority: 12
+    status: todo
+    requires: [S-074]
+    acceptance:
+      - "BE: Application ships with a bundled demo dataset (small set of pre-generated sample images)"
+      - "BE: Demo dimension preset is seeded into the database on first run"
+      - "FE: Demo dataset is visible and browsable out of the box"
+      - "FE: Demo dataset is deletable from the UI"
+      - "FE: A settings dialog allows re-adding the demo dataset after deletion"
+      - "FE: Unit tests for demo dataset management"
+    notes: |
+      Depends on S-074 (Studies) since demo data should use the study-scoped directory structure.
+      Needs design work on: how to bundle demo images (baked into Docker image or downloaded on first run),
+      how to seed the dimension preset, and the settings dialog for re-adding.
+      Key files: TBD — new settings component, seed data mechanism, demo image assets.
+    testing:
+      - "command: make test-backend"
+      - "command: cd frontend && npx vitest run"
+
+  - id: S-079
+    title: "Sample preset (study) import/export to JSON"
+    priority: 16
+    status: todo
+    requires: []
+    acceptance:
+      - "FE: Export button in SamplePresetEditor downloads the current preset as a JSON file"
+      - "FE: Import button in SamplePresetEditor allows uploading a JSON file to create a new preset"
+      - "FE: Imported presets are validated before creation (required fields, value types)"
+      - "FE: Import errors are shown to the user with clear messages"
+      - "FE: Unit tests for import validation and export format"
+    notes: |
+      Enables sharing presets between instances or backing them up. JSON format should match
+      the API response shape for sample presets (or studies, post S-074).
+      Key files: frontend/src/components/SamplePresetEditor.vue (or StudyEditor post S-074).
+    testing:
+      - "command: cd frontend && npx vitest run"
+
+  - id: S-080
+    title: "Disable and sort single-value dimensions to bottom"
+    priority: 14
+    status: todo
+    requires: []
+    acceptance:
+      - "FE: Dimensions with only one unique value are sorted to the bottom of the DimensionPanel list"
+      - "FE: Single-value dimensions are visually disabled (greyed out) and cannot be assigned to X, Y, or Slider roles"
+      - "FE: Single-value dimensions can still have filter mode set but it has no practical effect"
+      - "FE: Sorting updates dynamically when dimensions change (e.g., after switching training runs)"
+      - "FE: Unit tests for sorting and disabled state"
+    notes: |
+      Single-value dimensions provide no variation so assigning them to axes is pointless.
+      Key files: frontend/src/components/DimensionPanel.vue.
+    testing:
+      - "command: cd frontend && npx vitest run"
+
+  - id: S-081
+    title: "Viewer driven by sample output directories instead of checkpoints"
+    priority: 32
+    status: todo
+    requires: [S-074]
+    acceptance:
+      - "BE: Scanner discovers viewable content from sample output directories rather than checkpoint files"
+      - "BE: Training runs for the viewer are derived from the directory structure under sample_dir (study/checkpoint dirs)"
+      - "FE: The 'Has Samples' filter on the main controls slideout is removed (all listed runs have samples by definition)"
+      - "FE: Existing grid, slider, and filter functionality works with directory-driven discovery"
+      - "BE: Unit tests for directory-driven scanner"
+      - "FE: Unit tests for updated training run selector"
+    notes: |
+      Depends on S-074 (Studies) for the study-scoped directory structure.
+      Decouples the viewer from checkpoint file discovery. The viewer shows what's been generated,
+      not what could be generated. This also enables viewing demo datasets (S-078) and externally
+      generated samples.
+      Key files: backend/internal/service/scanner.go, frontend/src/components/TrainingRunSelector.vue,
+      frontend/src/App.vue.
+    testing:
+      - "command: make test-backend"
+      - "command: cd frontend && npx vitest run"
+
+  - id: S-082
+    title: "Make more room in UI — filters slideout, slider/zoom relocation"
+    priority: 10
+    status: todo
+    requires: []
+    acceptance:
+      - "FE: Individual dimension filters are no longer independently collapsible — clicking the filters button shows all filters in a right-side slideout"
+      - "FE: The master slider moves to the top bar area where the filters menu currently resides"
+      - "FE: The zoom slider moves up into the top nav bar alongside menu/generate samples/jobs buttons"
+      - "FE: All existing filter, slider, and zoom functionality is preserved"
+      - "FE: Layout is responsive and works on narrow screens"
+      - "FE: Unit tests for new layout"
+    notes: |
+      UI layout restructuring to maximize grid viewing area. Three sub-changes:
+      1. Filters become a right-side slideout (no individual collapse/expand)
+      2. Master slider moves to top bar
+      3. Zoom slider moves to top nav
+      Key files: frontend/src/App.vue, frontend/src/components/DimensionFilter.vue,
+      frontend/src/components/MasterSlider.vue.
+    testing:
+      - "command: cd frontend && npx vitest run"
