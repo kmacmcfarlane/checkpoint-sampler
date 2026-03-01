@@ -547,7 +547,7 @@ stories:
   - id: S-075
     title: "Completeness check for generated sample datasets"
     priority: 52
-    status: todo
+    status: uat
     requires: []
     acceptance:
       - "BE: After each checkpoint's samples are generated, validate that all expected images exist on disk"

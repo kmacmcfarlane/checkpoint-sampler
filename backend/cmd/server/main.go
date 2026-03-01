@@ -121,7 +121,7 @@ func run() error {
 
 		// Create job executor
 		fsWriter := &service.RealFileSystemWriter{}
-		jobExecutor = service.NewJobExecutor(st, httpClient, wsClient, workflowLoader, hub, cfg.SampleDir, fsWriter, logger)
+		jobExecutor = service.NewJobExecutor(st, httpClient, wsClient, workflowLoader, hub, cfg.SampleDir, fsWriter, fs, logger)
 	} else {
 		// Create disabled service when ComfyUI is not configured
 		comfyuiSvc = api.NewComfyUIService(nil, nil)

@@ -102,6 +102,19 @@ func (c *streamClient) writePump() {
 				resp.CurrentCheckpointProgress = &d.CurrentCheckpointProgress
 				resp.CurrentCheckpointTotal = &d.CurrentCheckpointTotal
 			}
+			// Map checkpoint completeness data
+			if len(d.CheckpointCompleteness) > 0 {
+				completeness := make([]*genws.CheckpointCompletenessInfo, len(d.CheckpointCompleteness))
+				for i, info := range d.CheckpointCompleteness {
+					completeness[i] = &genws.CheckpointCompletenessInfo{
+						Checkpoint: info.Checkpoint,
+						Expected:   info.Expected,
+						Verified:   info.Verified,
+						Missing:    info.Missing,
+					}
+				}
+				resp.CheckpointCompleteness = completeness
+			}
 		}
 
 		if err := c.stream.Send(resp); err != nil {

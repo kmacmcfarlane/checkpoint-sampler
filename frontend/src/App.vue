@@ -204,6 +204,7 @@ const jobProgress = reactive<Record<string, {
   current_checkpoint_progress?: number
   current_checkpoint_total?: number
   estimated_completion_time?: string
+  checkpoint_completeness?: Array<{ checkpoint: string; expected: number; verified: number; missing: number }>
 }>>({})
 
 /** Handle job progress updates from WebSocket. */
@@ -231,6 +232,7 @@ function handleJobProgress(message: JobProgressMessage) {
       current_checkpoint_progress: message.current_checkpoint_progress,
       current_checkpoint_total: message.current_checkpoint_total,
       estimated_completion_time: existingEta,
+      checkpoint_completeness: message.checkpoint_completeness,
     }
     // AC4: When a job transitions to a terminal status, increment the refresh trigger
     // so the JobLaunchDialog can update its training run options and status beads.

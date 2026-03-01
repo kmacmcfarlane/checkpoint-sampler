@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-075: Completeness check for generated sample datasets
+- **Backend**: Added `CheckpointCompletenessInfo` model type and `CheckpointCompleteness` field to `JobProgressEventData` for per-checkpoint verified/missing counts
+- **Backend**: New `FileSystemReader` interface in service layer; `verifyCheckpointCompleteness()` method in `JobExecutor` validates expected images exist on disk after each checkpoint batch completes
+- **Backend**: Missing files logged as warnings (not failures); completeness data included in WebSocket job progress events
+- **Backend**: Goa DSL extended with `CheckpointCompletenessInfo` type and `checkpoint_completeness` attribute on `FSEventResponse`
+- **Frontend**: `JobProgressPanel` displays per-checkpoint completeness status (e.g., '24/24 verified' or '23/24 -- 1 missing') with visual styling for missing entries
+- **Frontend**: `App.vue` passes `checkpoint_completeness` from WebSocket events through to `JobProgressPanel`
+- 589 backend specs pass; 787 frontend tests pass; 55 E2E tests pass
+
 ### S-074: Rename 'sample presets' to 'studies' with study-scoped output directories
 - **Backend**: Database migration 10 renames `sample_presets` table to `studies`, renames `sample_preset_id` column to `study_id`, adds `study_name` column to `sample_jobs`
 - **Backend**: API endpoints changed from `/api/sample-presets` to `/api/studies`; Goa DSL, model (`Study`), service (`StudyService`), and store (`StudyStore`) all updated to use study terminology
