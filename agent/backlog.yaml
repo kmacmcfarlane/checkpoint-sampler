@@ -432,7 +432,7 @@ stories:
   - id: B-032
     title: "X/Y grid display glitches — add debug mode overlay"
     priority: 48
-    status: todo
+    status: uat
     requires: []
     acceptance:
       - "FE: A 'Debug' toggle button appears in the top navigation bar"

@@ -608,6 +608,119 @@ describe('XYGrid', () => {
     })
   })
 
+  describe('debug mode', () => {
+    // AC2: Debug overlay shows filtering parameters when debug mode is active
+    it('renders debug overlays on cells when debugMode is true', () => {
+      const wrapper = mountGrid({ debugMode: true })
+
+      const overlays = wrapper.findAll('[data-testid="debug-overlay"]')
+      // 2x2 grid = 4 cells, each should have a debug overlay
+      expect(overlays).toHaveLength(4)
+    })
+
+    it('does not render debug overlays when debugMode is false', () => {
+      const wrapper = mountGrid({ debugMode: false })
+
+      const overlays = wrapper.findAll('[data-testid="debug-overlay"]')
+      expect(overlays).toHaveLength(0)
+    })
+
+    it('does not render debug overlays when debugMode is not specified (defaults false)', () => {
+      const wrapper = mountGrid()
+
+      const overlays = wrapper.findAll('[data-testid="debug-overlay"]')
+      expect(overlays).toHaveLength(0)
+    })
+
+    it('shows x and y values in debug overlay', () => {
+      const wrapper = mountGrid({ debugMode: true })
+
+      // First cell should show x=42, y=500
+      const firstOverlay = wrapper.findAll('[data-testid="debug-overlay"]')[0]
+      expect(firstOverlay.text()).toContain('42')
+      expect(firstOverlay.text()).toContain('500')
+    })
+
+    it('shows slider value in debug overlay when slider dimension is assigned', () => {
+      const wrapper = mountGrid({
+        debugMode: true,
+        sliderDimension,
+        sliderValues: {},
+        defaultSliderValue: '3',
+      })
+
+      const firstOverlay = wrapper.findAll('[data-testid="debug-overlay"]')[0]
+      expect(firstOverlay.text()).toContain('cfg:')
+      expect(firstOverlay.text()).toContain('3')
+    })
+
+    it('shows combo selections in debug overlay (excluding x, y, and slider dimensions)', () => {
+      const wrapper = mountGrid({
+        debugMode: true,
+        comboSelections: {
+          cfg: new Set(['3', '7']),
+        },
+      })
+
+      // cfg is not x, y, or slider, so it should appear in combo selections
+      const firstOverlay = wrapper.findAll('[data-testid="debug-overlay"]')[0]
+      expect(firstOverlay.text()).toContain('cfg:')
+    })
+
+    it('excludes x and y dimension names from combo selections in debug overlay', () => {
+      const wrapper = mountGrid({
+        debugMode: true,
+        comboSelections: {
+          seed: new Set(['42', '123']),   // seed is X dimension, should be excluded from combos
+          step: new Set(['500', '1000']), // step is Y dimension, should be excluded from combos
+          cfg: new Set(['3']),            // cfg is not assigned, should appear
+        },
+      })
+
+      const firstOverlay = wrapper.findAll('[data-testid="debug-overlay"]')[0]
+      const comboRows = firstOverlay.findAll('[data-testid="debug-combo-value"]')
+      // Only cfg should appear (seed and step are X/Y axes)
+      expect(comboRows).toHaveLength(1)
+      expect(comboRows[0].text()).toContain('cfg:')
+    })
+
+    it('renders debug overlays in X-only grid', () => {
+      const wrapper = mountGrid({ yDimension: null, debugMode: true })
+
+      const overlays = wrapper.findAll('[data-testid="debug-overlay"]')
+      // X-only: 2 cells
+      expect(overlays).toHaveLength(2)
+      // Should show X value but no Y value
+      const firstOverlay = overlays[0]
+      expect(firstOverlay.find('[data-testid="debug-x-value"]').exists()).toBe(true)
+      expect(firstOverlay.find('[data-testid="debug-y-value"]').exists()).toBe(false)
+    })
+
+    it('renders debug overlays in Y-only grid', () => {
+      const wrapper = mountGrid({ xDimension: null, debugMode: true })
+
+      const overlays = wrapper.findAll('[data-testid="debug-overlay"]')
+      // Y-only: 2 cells
+      expect(overlays).toHaveLength(2)
+      // Should show Y value but no X value
+      const firstOverlay = overlays[0]
+      expect(firstOverlay.find('[data-testid="debug-x-value"]').exists()).toBe(false)
+      expect(firstOverlay.find('[data-testid="debug-y-value"]').exists()).toBe(true)
+    })
+
+    it('renders debug overlays in flat mode', () => {
+      const wrapper = mountGrid({ xDimension: null, yDimension: null, debugMode: true })
+
+      const overlays = wrapper.findAll('[data-testid="debug-overlay"]')
+      // Flat mode should have overlays on all visible cells
+      expect(overlays.length).toBeGreaterThan(0)
+      // No X or Y values in flat mode
+      const firstOverlay = overlays[0]
+      expect(firstOverlay.find('[data-testid="debug-x-value"]').exists()).toBe(false)
+      expect(firstOverlay.find('[data-testid="debug-y-value"]').exists()).toBe(false)
+    })
+  })
+
   describe('corner-based cell resizing', () => {
     it('renders resize handle when grid has axes', () => {
       const wrapper = mountGrid()

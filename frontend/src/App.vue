@@ -36,6 +36,8 @@ const metadataPanelOpen = ref(false)
 const drawerOpen = ref(false)
 const jobLaunchDialogOpen = ref(false)
 const jobProgressPanelOpen = ref(false)
+/** AC5: Debug mode is session-only (ref, not persisted to localStorage). */
+const debugMode = ref(false)
 const sampleJobs = ref<SampleJob[]>([])
 const jobsLoading = ref(false)
 
@@ -597,6 +599,13 @@ const TERMINAL_STATUSES: Set<SampleJobStatus> = new Set(['completed', 'completed
             :title="wsConnected ? 'Live updates connected' : 'Live updates disconnected'"
             role="status"
           >{{ wsConnected ? 'Live' : 'Disconnected' }}</NTag>
+          <NButton
+            size="small"
+            :type="debugMode ? 'warning' : 'default'"
+            aria-label="Toggle debug mode"
+            data-testid="debug-toggle"
+            @click="debugMode = !debugMode"
+          >Debug</NButton>
           <ComfyUIStatus />
           <ThemeToggle :is-dark="isDark" @toggle="toggleTheme" />
         </div>
@@ -684,6 +693,7 @@ const TERMINAL_STATUSES: Set<SampleJobStatus> = new Set(['completed', 'completed
               :slider-values="sliderValues"
               :default-slider-value="defaultSliderValue"
               :cell-size="cellSize"
+              :debug-mode="debugMode"
               @update:slider-value="onSliderValueUpdate"
               @update:cell-size="cellSize = $event"
               @image:click="onImageClick"

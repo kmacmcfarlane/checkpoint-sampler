@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### B-032: X/Y grid display glitches — add debug mode overlay
+- `frontend/src/components/types.ts`: Added `DebugCellInfo` interface for debug overlay data
+- `frontend/src/components/DebugOverlay.vue`: New component rendering a semi-transparent overlay showing x value, y value, slider value, and combo selections per grid cell
+- `frontend/src/components/ImageCell.vue`: Added `debugInfo` prop and conditional `DebugOverlay` rendering with `position: relative` for overlay positioning
+- `frontend/src/components/XYGrid.vue`: Added `debugMode` prop, `getDebugInfo()` helper to build per-cell debug info, passes debug data to all ImageCell instances across grid configurations
+- `frontend/src/App.vue`: Added session-only `debugMode` ref, Debug toggle button in header controls, passes `debugMode` to XYGrid
+- `frontend/src/components/__tests__/DebugOverlay.test.ts`: 11 unit tests covering all overlay rendering scenarios
+- `frontend/src/components/__tests__/ImageCell.test.ts`: 4 new tests for debug overlay rendering and click passthrough
+- `frontend/src/components/__tests__/XYGrid.test.ts`: 10 new tests for debug mode across all grid configurations (X+Y, X-only, Y-only, flat)
+- `frontend/e2e/debug-mode.spec.ts`: 7 new E2E tests covering toggle visibility, overlay rendering, click-through to lightbox, and no-persistence after reload
+- 758 frontend tests pass; 46 E2E tests pass
+
 ### S-055: Prompt prefix field in sample presets
 - `backend/internal/store/migrations.go`: Migration v9 adds `prompt_prefix TEXT NOT NULL DEFAULT ''` column to `sample_presets` table
 - `backend/internal/model/sample_preset.go`: Added `PromptPrefix` field to `SamplePreset` model and `JoinPromptPrefix` helper with smart separator logic (appends '. ' unless prefix already ends with '. ' or ', ')

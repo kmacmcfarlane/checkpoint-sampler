@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import type { DebugCellInfo } from './types'
+import DebugOverlay from './DebugOverlay.vue'
 
 const props = defineProps<{
   relativePath: string | null
@@ -7,6 +9,8 @@ const props = defineProps<{
   sliderValues?: string[]
   /** Currently active slider value for this cell. */
   currentSliderValue?: string
+  /** When provided, renders a debug info overlay on the cell. */
+  debugInfo?: DebugCellInfo
 }>()
 
 // click: Emitted when the image is clicked. Payload: the full image URL string.
@@ -64,11 +68,13 @@ function onKeydown(event: KeyboardEvent) {
     <div v-else class="image-cell__placeholder">
       No image
     </div>
+    <DebugOverlay v-if="debugInfo" :info="debugInfo" />
   </div>
 </template>
 
 <style scoped>
 .image-cell {
+  position: relative;
   border: 1px solid var(--border-color);
   overflow: hidden;
   display: flex;

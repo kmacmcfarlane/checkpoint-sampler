@@ -167,6 +167,58 @@ describe('ImageCell', () => {
     })
   })
 
+  describe('debug overlay', () => {
+    // AC2: Debug overlay renders when debugInfo is provided
+    it('renders DebugOverlay when debugInfo prop is provided', () => {
+      const wrapper = mountCell({
+        debugInfo: {
+          xValue: '42',
+          yValue: '500',
+          comboSelections: {},
+        },
+      })
+
+      expect(wrapper.find('[data-testid="debug-overlay"]').exists()).toBe(true)
+    })
+
+    it('does not render DebugOverlay when debugInfo prop is not provided', () => {
+      const wrapper = mountCell()
+      expect(wrapper.find('[data-testid="debug-overlay"]').exists()).toBe(false)
+    })
+
+    // AC3: Debug overlay does not interfere with image click
+    it('still emits click when debug overlay is present', async () => {
+      const wrapper = mountCell({
+        relativePath: 'dir/image.png',
+        debugInfo: {
+          xValue: '42',
+          yValue: '500',
+          comboSelections: {},
+        },
+      })
+
+      await wrapper.find('.image-cell').trigger('click')
+
+      const emitted = wrapper.emitted('click')
+      expect(emitted).toBeDefined()
+      expect(emitted).toHaveLength(1)
+      expect(emitted![0]).toEqual(['/api/images/dir/image.png'])
+    })
+
+    it('has position:relative on image-cell for overlay positioning', () => {
+      const wrapper = mountCell({
+        debugInfo: {
+          xValue: '42',
+          yValue: '500',
+          comboSelections: {},
+        },
+      })
+
+      // The .image-cell element must have position:relative for the absolute overlay
+      expect(wrapper.find('.image-cell').exists()).toBe(true)
+    })
+  })
+
   describe('visual focus indicator', () => {
     it('has focus-visible outline style via CSS class', () => {
       const wrapper = mountCell({

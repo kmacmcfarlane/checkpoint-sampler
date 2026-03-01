@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, onUnmounted } from 'vue'
 import type { ScanDimension, ScanImage } from '../api/types'
-import type { GridNavItem, ImageClickContext } from './types'
+import type { DebugCellInfo, GridNavItem, ImageClickContext } from './types'
 import ImageCell from './ImageCell.vue'
 import SliderBar from './SliderBar.vue'
 
@@ -18,8 +18,11 @@ const props = withDefaults(defineProps<{
   cellSize: number
   /** Whether to maintain aspect ratio during corner resize (default: true). */
   maintainAspectRatio?: boolean
+  /** When true, each cell renders a debug overlay showing filtering parameters. */
+  debugMode?: boolean
 }>(), {
   maintainAspectRatio: true,
+  debugMode: false,
 })
 
 // update:sliderValue: Emitted when a cell's slider changes. Payload: the cell key and new slider value.
@@ -116,6 +119,28 @@ function getImage(xVal: string | undefined, yVal: string | undefined): ScanImage
 function getSliderValue(xVal: string | undefined, yVal: string | undefined): string {
   const key = imageKey(xVal, yVal)
   return props.sliderValues[key] ?? props.defaultSliderValue
+}
+
+/** Build debug info for a cell when debug mode is active. */
+function getDebugInfo(xVal: string | undefined, yVal: string | undefined): DebugCellInfo | undefined {
+  if (!props.debugMode) return undefined
+  const comboEntries: Record<string, string[]> = {}
+  for (const [dimName, selected] of Object.entries(props.comboSelections)) {
+    // Exclude X and Y dimensions from combo display (already shown separately)
+    if (dimName === props.xDimension?.name || dimName === props.yDimension?.name) continue
+    // Exclude slider dimension (already shown separately)
+    if (dimName === props.sliderDimension?.name) continue
+    if (selected.size > 0) {
+      comboEntries[dimName] = Array.from(selected)
+    }
+  }
+  return {
+    xValue: xVal,
+    yValue: yVal,
+    sliderValue: props.sliderDimension ? getSliderValue(xVal, yVal) : undefined,
+    sliderDimensionName: props.sliderDimension?.name,
+    comboSelections: comboEntries,
+  }
 }
 
 /** Handle slider change for a cell. */
@@ -427,6 +452,7 @@ onUnmounted(() => {
                 :relative-path="getImage(xVal, yVal)?.relative_path ?? null"
                 :slider-values="sliderDimension?.values"
                 :current-slider-value="getSliderValue(xVal, yVal)"
+                :debug-info="getDebugInfo(xVal, yVal)"
                 @click="(url: string) => onImageClick(xVal, yVal, url)"
                 @slider:change="(v: string) => onSliderChange(xVal, yVal, v)"
               />
@@ -451,6 +477,7 @@ onUnmounted(() => {
               :relative-path="getImage(undefined, yVal)?.relative_path ?? null"
               :slider-values="sliderDimension?.values"
               :current-slider-value="getSliderValue(undefined, yVal)"
+              :debug-info="getDebugInfo(undefined, yVal)"
               @click="(url: string) => onImageClick(undefined, yVal, url)"
               @slider:change="(v: string) => onSliderChange(undefined, yVal, v)"
             />
@@ -478,6 +505,7 @@ onUnmounted(() => {
             :relative-path="getImage(xVal, undefined)?.relative_path ?? null"
             :slider-values="sliderDimension?.values"
             :current-slider-value="getSliderValue(xVal, undefined)"
+            :debug-info="getDebugInfo(xVal, undefined)"
             @click="(url: string) => onImageClick(xVal, undefined, url)"
             @slider:change="(v: string) => onSliderChange(xVal, undefined, v)"
           />
@@ -506,6 +534,7 @@ onUnmounted(() => {
           :relative-path="img.relative_path"
           :slider-values="sliderDimension?.values"
           :current-slider-value="getSliderValue(undefined, undefined)"
+          :debug-info="getDebugInfo(undefined, undefined)"
           @click="(url: string) => onImageClick(undefined, undefined, url)"
           @slider:change="(v: string) => onSliderChange(undefined, undefined, v)"
         />
