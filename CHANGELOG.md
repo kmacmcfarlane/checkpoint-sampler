@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-053: Frontend lint enforcement and component type hygiene
+- `frontend/package.json`: Changed `test` script to `npm run lint && vitest run` so lint runs before tests in the pipeline (lint failure = pipeline failure)
+- `frontend/src/components/types.ts`: New file containing exported `GridNavItem` and `ImageClickContext` interfaces, moved from `XYGrid.vue`
+- `frontend/src/components/XYGrid.vue`: Removed exported interface declarations; added import from `./types`; added `defineEmits` contract comments
+- `frontend/src/App.vue`: Updated import of `ImageClickContext` and `GridNavItem` to use `./components/types` instead of `./components/XYGrid.vue`
+- `frontend/src/components/ImageLightbox.vue`: Updated import of `GridNavItem` to use `./types`; standardized `defineEmits` contract comments
+- `frontend/src/components/*.vue`: Added `defineEmits` contract comments to all 17 components with emit declarations per DEVELOPMENT_PRACTICES 4.9
+- 727 frontend tests pass; 572 backend tests pass; 38 E2E tests pass
+
 ### S-052: Apply data-testid selectors and test isolation to existing frontend tests
 - `frontend/vitest.setup.ts`: New global test setup file with `enableAutoUnmount(afterEach)` and `beforeEach(() => localStorage.clear())` for all Vitest test files
 - `frontend/vite.config.ts`: Added `setupFiles: ['./vitest.setup.ts']` to test configuration

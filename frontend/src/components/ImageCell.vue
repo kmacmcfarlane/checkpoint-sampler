@@ -9,6 +9,8 @@ const props = defineProps<{
   currentSliderValue?: string
 }>()
 
+// click: Emitted when the image is clicked. Payload: the full image URL string.
+// slider:change: Emitted when the user presses an arrow key to step through slider values. Payload: the new slider value string.
 const emit = defineEmits<{
   click: [imageUrl: string]
   'slider:change': [value: string]

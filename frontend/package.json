@@ -10,7 +10,7 @@
     "lint": "eslint src/ && stylelint \"src/**/*.vue\"",
     "lint:eslint": "eslint src/",
     "lint:stylelint": "stylelint \"src/**/*.vue\"",
-    "test": "vitest run",
+    "test": "npm run lint && vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test"
   },

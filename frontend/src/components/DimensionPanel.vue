@@ -8,6 +8,8 @@ const props = defineProps<{
   filterModes: Map<string, FilterMode>
 }>()
 
+// assign: Emitted when the user changes a dimension's role (X Axis, Y Axis, Slider, or None). Payload: dimension name and new DimensionRole.
+// update:filterMode: Emitted when the user changes a dimension's filter mode (hide, single, or multi). Payload: dimension name and new FilterMode.
 const emit = defineEmits<{
   assign: [dimensionName: string, role: DimensionRole]
   'update:filterMode': [dimensionName: string, mode: FilterMode]

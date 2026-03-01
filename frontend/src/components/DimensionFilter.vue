@@ -10,6 +10,7 @@ const props = defineProps<{
   filterMode: FilterMode
 }>()
 
+// update: Emitted when the filter selection changes (checkbox toggle, solo, select-all, select-none, or single dropdown). Payload: dimension name and the new selected Set.
 const emit = defineEmits<{
   update: [dimensionName: string, selected: Set<string>]
 }>()

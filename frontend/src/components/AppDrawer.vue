@@ -6,6 +6,7 @@ defineProps<{
   show: boolean
 }>()
 
+// update:show: Emitted when the drawer is opened or closed. Payload: boolean visibility state.
 const emit = defineEmits<{
   'update:show': [value: boolean]
 }>()

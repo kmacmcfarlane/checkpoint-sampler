@@ -11,6 +11,7 @@ const props = defineProps<{
   label: string
 }>()
 
+// change: Emitted when the slider position changes (drag or arrow key). Payload: the new value string from the values array.
 const emit = defineEmits<{
   change: [value: string]
 }>()

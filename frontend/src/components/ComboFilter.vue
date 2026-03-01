@@ -8,6 +8,7 @@ const props = defineProps<{
   selected: Set<string>
 }>()
 
+// update: Emitted when the selection changes (checkbox toggle, select-all, or select-none). Payload: dimension name and the new selected Set.
 const emit = defineEmits<{
   update: [dimensionName: string, selected: Set<string>]
 }>()

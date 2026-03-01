@@ -16,6 +16,7 @@ const error = ref<string | null>(null)
 const hasSamplesFilter = ref(true)
 const attemptedAutoSelect = ref(false)
 
+// select: Emitted when the user selects a training run from the dropdown, or on auto-select restore. Payload: the selected TrainingRun object.
 const emit = defineEmits<{
   select: [trainingRun: TrainingRun]
 }>()

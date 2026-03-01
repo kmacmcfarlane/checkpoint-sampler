@@ -27,6 +27,8 @@ const props = defineProps<{
   refreshTrigger?: number
 }>()
 
+// update:show: Emitted when the dialog is opened or closed. Payload: boolean visibility state.
+// success: Emitted after a sample job is successfully created. No payload.
 const emit = defineEmits<{
   'update:show': [value: boolean]
   success: []

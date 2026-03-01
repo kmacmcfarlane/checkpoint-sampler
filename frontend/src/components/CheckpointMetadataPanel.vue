@@ -8,6 +8,7 @@ const props = defineProps<{
   checkpoints: CheckpointInfo[]
 }>()
 
+// close: Emitted when the drawer is dismissed (close button or backdrop click). No payload.
 const emit = defineEmits<{
   close: []
 }>()

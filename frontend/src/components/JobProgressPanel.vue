@@ -17,6 +17,10 @@ const props = defineProps<{
   loading?: boolean
 }>()
 
+// stop: Emitted when the user clicks Stop on a running job. Payload: the job ID string.
+// resume: Emitted when the user clicks Resume on a stopped job. Payload: the job ID string.
+// refresh: Emitted when the user clicks the Refresh button. No payload.
+// close: Emitted when the modal is dismissed. No payload.
 const emit = defineEmits<{
   stop: [jobId: string]
   resume: [jobId: string]
