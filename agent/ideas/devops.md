@@ -50,3 +50,9 @@ The `npm run build` command runs `vue-tsc -b` which type-checks test files and f
 * priority: very-low
 * source: developer
 A `make logs-snapshot` target that performs `make up-dev && docker compose logs --tail=500 --no-color 2>&1 && make down` as a single atomic operation would reduce the chance of a QA agent forgetting teardown during the runtime error sweep and would be referenceable by a single command in both TEST_PRACTICES.md and qa-expert.md.
+
+### Gitignore Playwright HTML report directory
+* status: needs_approval
+* priority: low
+* source: developer
+The HTML reporter (added in S-054) writes output to `frontend/playwright-report/` by default. Confirm this path is in `.gitignore` to avoid accidental commits of generated artifacts.

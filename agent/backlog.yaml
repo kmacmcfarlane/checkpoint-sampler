@@ -54,7 +54,7 @@ stories:
   - id: S-054
     title: "Playwright config hardening (HTML reporter, screenshot on failure, explicit timeout)"
     priority: 38
-    status: todo
+    status: uat
     requires: []
     acceptance:
       - "E2E: playwright.config.ts uses reporter: [['list'], ['html', { open: 'never' }]] for dual reporting"

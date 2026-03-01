@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-054: Playwright config hardening (HTML reporter, screenshot on failure, explicit timeout)
+- `frontend/playwright.config.ts`: Changed reporter from single `'list'` to dual `[['list'], ['html', { open: 'never' }]]` for persistent HTML reports alongside console output
+- `frontend/playwright.config.ts`: Added explicit `timeout: 15000` (15s per-test timeout) instead of relying on Playwright defaults
+- `frontend/playwright.config.ts`: Added `screenshot: 'only-on-failure'` in the `use` block for automatic failure screenshots
+- 727 frontend tests pass; 572 backend tests pass; 38 E2E tests pass
+
 ### S-053: Frontend lint enforcement and component type hygiene
 - `frontend/package.json`: Changed `test` script to `npm run lint && vitest run` so lint runs before tests in the pipeline (lint failure = pipeline failure)
 - `frontend/src/components/types.ts`: New file containing exported `GridNavItem` and `ImageClickContext` interfaces, moved from `XYGrid.vue`
