@@ -53,6 +53,7 @@ func (s *SamplePresetsService) Create(ctx context.Context, p *gensamplepresets.C
 
 	preset, err := s.svc.Create(
 		p.Name,
+		p.PromptPrefix,
 		prompts,
 		p.NegativePrompt,
 		p.Steps,
@@ -89,6 +90,7 @@ func (s *SamplePresetsService) Update(ctx context.Context, p *gensamplepresets.U
 	preset, err := s.svc.Update(
 		p.ID,
 		p.Name,
+		p.PromptPrefix,
 		prompts,
 		p.NegativePrompt,
 		p.Steps,
@@ -139,6 +141,7 @@ func samplePresetToResponse(p model.SamplePreset) *gensamplepresets.SamplePreset
 	return &gensamplepresets.SamplePresetResponse{
 		ID:                    p.ID,
 		Name:                  p.Name,
+		PromptPrefix:          p.PromptPrefix,
 		Prompts:               prompts,
 		NegativePrompt:        p.NegativePrompt,
 		Steps:                 p.Steps,

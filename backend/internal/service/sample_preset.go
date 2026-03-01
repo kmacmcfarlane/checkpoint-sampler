@@ -51,7 +51,7 @@ func (s *SamplePresetService) List() ([]model.SamplePreset, error) {
 }
 
 // Create validates and persists a new sample preset, returning the created preset.
-func (s *SamplePresetService) Create(name string, prompts []model.NamedPrompt, negativePrompt string, steps []int, cfgs []float64, pairs []model.SamplerSchedulerPair, seeds []int64, width int, height int) (model.SamplePreset, error) {
+func (s *SamplePresetService) Create(name string, promptPrefix string, prompts []model.NamedPrompt, negativePrompt string, steps []int, cfgs []float64, pairs []model.SamplerSchedulerPair, seeds []int64, width int, height int) (model.SamplePreset, error) {
 	s.logger.WithField("sample_preset_name", name).Trace("entering Create")
 	defer s.logger.Trace("returning from Create")
 
@@ -67,6 +67,7 @@ func (s *SamplePresetService) Create(name string, prompts []model.NamedPrompt, n
 	p := model.SamplePreset{
 		ID:                    uuid.New().String(),
 		Name:                  name,
+		PromptPrefix:          promptPrefix,
 		Prompts:               prompts,
 		NegativePrompt:        negativePrompt,
 		Steps:                 steps,
@@ -95,7 +96,7 @@ func (s *SamplePresetService) Create(name string, prompts []model.NamedPrompt, n
 }
 
 // Update modifies an existing sample preset.
-func (s *SamplePresetService) Update(id string, name string, prompts []model.NamedPrompt, negativePrompt string, steps []int, cfgs []float64, pairs []model.SamplerSchedulerPair, seeds []int64, width int, height int) (model.SamplePreset, error) {
+func (s *SamplePresetService) Update(id string, name string, promptPrefix string, prompts []model.NamedPrompt, negativePrompt string, steps []int, cfgs []float64, pairs []model.SamplerSchedulerPair, seeds []int64, width int, height int) (model.SamplePreset, error) {
 	s.logger.WithFields(logrus.Fields{
 		"sample_preset_id":   id,
 		"sample_preset_name": name,
@@ -125,6 +126,7 @@ func (s *SamplePresetService) Update(id string, name string, prompts []model.Nam
 	s.logger.WithField("sample_preset_id", id).Debug("fetched existing sample preset from store")
 
 	existing.Name = name
+	existing.PromptPrefix = promptPrefix
 	existing.Prompts = prompts
 	existing.NegativePrompt = negativePrompt
 	existing.Steps = steps

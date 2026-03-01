@@ -129,6 +129,7 @@ export interface SamplerSchedulerPair {
 export interface SamplePreset {
   id: string
   name: string
+  prompt_prefix: string
   prompts: NamedPrompt[]
   negative_prompt: string
   steps: number[]
@@ -145,6 +146,7 @@ export interface SamplePreset {
 /** Payload for creating a new sample preset. */
 export interface CreateSamplePresetPayload {
   name: string
+  prompt_prefix: string
   prompts: NamedPrompt[]
   negative_prompt: string
   steps: number[]
@@ -159,6 +161,7 @@ export interface CreateSamplePresetPayload {
 export interface UpdateSamplePresetPayload {
   id: string
   name: string
+  prompt_prefix: string
   prompts: NamedPrompt[]
   negative_prompt: string
   steps: number[]

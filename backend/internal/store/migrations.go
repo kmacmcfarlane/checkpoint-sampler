@@ -124,5 +124,9 @@ func AllMigrations() []Migration {
 			DROP TABLE sample_presets;
 			ALTER TABLE sample_presets_new RENAME TO sample_presets;`,
 		},
+		{
+			Version: 9,
+			SQL:     `ALTER TABLE sample_presets ADD COLUMN prompt_prefix TEXT NOT NULL DEFAULT '';`,
+		},
 	}
 }

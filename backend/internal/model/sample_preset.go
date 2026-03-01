@@ -1,6 +1,9 @@
 package model
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 // SamplerSchedulerPair represents a specific sampler and scheduler combination.
 type SamplerSchedulerPair struct {
@@ -12,6 +15,7 @@ type SamplerSchedulerPair struct {
 type SamplePreset struct {
 	ID                    string
 	Name                  string
+	PromptPrefix          string
 	Prompts               []NamedPrompt
 	NegativePrompt        string
 	Steps                 []int
@@ -34,4 +38,18 @@ type NamedPrompt struct {
 // per checkpoint using this preset.
 func (sp SamplePreset) ImagesPerCheckpoint() int {
 	return len(sp.Prompts) * len(sp.Steps) * len(sp.CFGs) * len(sp.SamplerSchedulerPairs) * len(sp.Seeds)
+}
+
+// JoinPromptPrefix prepends the prompt prefix to the given prompt text using
+// smart separator logic. If prefix is empty, promptText is returned unchanged.
+// If prefix already ends with ". " or ", ", concatenate directly; otherwise
+// append ". " between the prefix and prompt text.
+func JoinPromptPrefix(prefix, promptText string) string {
+	if prefix == "" {
+		return promptText
+	}
+	if strings.HasSuffix(prefix, ". ") || strings.HasSuffix(prefix, ", ") {
+		return prefix + promptText
+	}
+	return prefix + ". " + promptText
 }

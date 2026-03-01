@@ -137,7 +137,7 @@ var _ = Describe("SamplePresetService", func() {
 		})
 
 		It("creates a sample preset with valid inputs", func() {
-			result, err := svc.Create("Test", validPrompts, "negative", validSteps, validCFGs, validPairs, validSeeds, 1344, 1344)
+			result, err := svc.Create("Test", "", validPrompts, "negative", validSteps, validCFGs, validPairs, validSeeds, 1344, 1344)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.ID).NotTo(BeEmpty())
 			Expect(result.Name).To(Equal("Test"))
@@ -154,20 +154,20 @@ var _ = Describe("SamplePresetService", func() {
 		})
 
 		It("persists the preset in the store", func() {
-			_, err := svc.Create("Stored", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512)
+			_, err := svc.Create("Stored", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(store.presets).To(HaveLen(1))
 		})
 
 		It("rejects empty name", func() {
-			_, err := svc.Create("", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512)
+			_, err := svc.Create("", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("name must not be empty"))
 		})
 
 		It("returns error when store fails", func() {
 			store.createErr = errors.New("insert failed")
-			_, err := svc.Create("Test", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512)
+			_, err := svc.Create("Test", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("insert failed"))
 		})
@@ -188,7 +188,7 @@ var _ = Describe("SamplePresetService", func() {
 
 		DescribeTable("validates required fields and constraints",
 			func(tc validationTestCase) {
-				_, err := svc.Create(tc.name, tc.prompts, "", tc.steps, tc.cfgs, tc.pairs, tc.seeds, tc.width, tc.height)
+				_, err := svc.Create(tc.name, "", tc.prompts, "", tc.steps, tc.cfgs, tc.pairs, tc.seeds, tc.width, tc.height)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring(tc.expectedError))
 			},
@@ -452,7 +452,7 @@ var _ = Describe("SamplePresetService", func() {
 			newPairs := []model.SamplerSchedulerPair{
 				{Sampler: "dpmpp_2m", Scheduler: "sgm_uniform"},
 			}
-			result, err := svc.Update("existing", "Renamed", newPrompts, "new negative", validSteps, validCFGs, newPairs, validSeeds, 1344, 1344)
+			result, err := svc.Update("existing", "Renamed", "", newPrompts, "new negative", validSteps, validCFGs, newPairs, validSeeds, 1344, 1344)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.Name).To(Equal("Renamed"))
 			Expect(result.Prompts).To(Equal(newPrompts))
@@ -465,13 +465,13 @@ var _ = Describe("SamplePresetService", func() {
 		})
 
 		It("returns error for non-existent preset", func() {
-			_, err := svc.Update("missing", "Name", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512)
+			_, err := svc.Update("missing", "Name", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("not found"))
 		})
 
 		It("rejects invalid inputs during update", func() {
-			_, err := svc.Update("existing", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512)
+			_, err := svc.Update("existing", "", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("name must not be empty"))
 		})
@@ -511,7 +511,7 @@ var _ = Describe("SamplePresetService", func() {
 			}
 			seeds := []int64{420, 421}
 
-			result, err := svc.Create("Test", prompts, "", steps, cfgs, pairs, seeds, 512, 512)
+			result, err := svc.Create("Test", "", prompts, "", steps, cfgs, pairs, seeds, 512, 512)
 			Expect(err).NotTo(HaveOccurred())
 			// 2 prompts * 2 steps * 2 cfgs * 2 pairs * 2 seeds = 32
 			Expect(result.ImagesPerCheckpoint()).To(Equal(32))
@@ -528,7 +528,7 @@ var _ = Describe("SamplePresetService", func() {
 			}
 			seeds := []int64{420}
 
-			result, err := svc.Create("Test", prompts, "", steps, cfgs, pairs, seeds, 512, 512)
+			result, err := svc.Create("Test", "", prompts, "", steps, cfgs, pairs, seeds, 512, 512)
 			Expect(err).NotTo(HaveOccurred())
 			// 1 prompt * 1 step * 1 cfg * 1 pair * 1 seed = 1
 			Expect(result.ImagesPerCheckpoint()).To(Equal(1))

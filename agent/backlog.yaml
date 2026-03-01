@@ -97,7 +97,7 @@ stories:
   - id: S-055
     title: "Prompt prefix field in sample presets"
     priority: 30
-    status: todo
+    status: uat
     requires: [S-032]
     acceptance:
       - "BE: DB migration adds prompt_prefix column (text, default empty string) to sample_presets table"

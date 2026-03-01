@@ -14,6 +14,7 @@ import (
 type samplePresetEntity struct {
 	ID                    string
 	Name                  string
+	PromptPrefix          string
 	Prompts               string // JSON
 	NegativePrompt        string
 	Steps                 string // JSON
@@ -43,7 +44,7 @@ func (s *Store) ListSamplePresets() ([]model.SamplePreset, error) {
 	s.logger.Trace("entering ListSamplePresets")
 	defer s.logger.Trace("returning from ListSamplePresets")
 
-	rows, err := s.db.Query(`SELECT id, name, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs, seeds, width, height, created_at, updated_at
+	rows, err := s.db.Query(`SELECT id, name, prompt_prefix, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs, seeds, width, height, created_at, updated_at
 		FROM sample_presets ORDER BY name`)
 	if err != nil {
 		s.logger.WithError(err).Error("failed to query sample presets")
@@ -54,7 +55,7 @@ func (s *Store) ListSamplePresets() ([]model.SamplePreset, error) {
 	var presets []model.SamplePreset
 	for rows.Next() {
 		var e samplePresetEntity
-		if err := rows.Scan(&e.ID, &e.Name, &e.Prompts, &e.NegativePrompt, &e.Steps, &e.CFGs, &e.SamplerSchedulerPairs, &e.Seeds, &e.Width, &e.Height, &e.CreatedAt, &e.UpdatedAt); err != nil {
+		if err := rows.Scan(&e.ID, &e.Name, &e.PromptPrefix, &e.Prompts, &e.NegativePrompt, &e.Steps, &e.CFGs, &e.SamplerSchedulerPairs, &e.Seeds, &e.Width, &e.Height, &e.CreatedAt, &e.UpdatedAt); err != nil {
 			s.logger.WithError(err).Error("failed to scan sample preset row")
 			return nil, fmt.Errorf("scanning sample preset row: %w", err)
 		}
@@ -80,9 +81,9 @@ func (s *Store) GetSamplePreset(id string) (model.SamplePreset, error) {
 
 	var e samplePresetEntity
 	err := s.db.QueryRow(
-		`SELECT id, name, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs, seeds, width, height, created_at, updated_at
+		`SELECT id, name, prompt_prefix, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs, seeds, width, height, created_at, updated_at
 		FROM sample_presets WHERE id = ?`, id,
-	).Scan(&e.ID, &e.Name, &e.Prompts, &e.NegativePrompt, &e.Steps, &e.CFGs, &e.SamplerSchedulerPairs, &e.Seeds, &e.Width, &e.Height, &e.CreatedAt, &e.UpdatedAt)
+	).Scan(&e.ID, &e.Name, &e.PromptPrefix, &e.Prompts, &e.NegativePrompt, &e.Steps, &e.CFGs, &e.SamplerSchedulerPairs, &e.Seeds, &e.Width, &e.Height, &e.CreatedAt, &e.UpdatedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			s.logger.WithField("sample_preset_id", id).Debug("sample preset not found in database")
@@ -116,10 +117,11 @@ func (s *Store) CreateSamplePreset(p model.SamplePreset) error {
 	}
 
 	_, err = s.db.Exec(
-		`INSERT INTO sample_presets (id, name, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs, seeds, width, height, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO sample_presets (id, name, prompt_prefix, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs, seeds, width, height, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		entity.ID,
 		entity.Name,
+		entity.PromptPrefix,
 		entity.Prompts,
 		entity.NegativePrompt,
 		entity.Steps,
@@ -165,9 +167,10 @@ func (s *Store) UpdateSamplePreset(p model.SamplePreset) error {
 	}
 
 	result, err := s.db.Exec(
-		`UPDATE sample_presets SET name = ?, prompts = ?, negative_prompt = ?, steps = ?, cfgs = ?, sampler_scheduler_pairs = ?, seeds = ?, width = ?, height = ?, updated_at = ?
+		`UPDATE sample_presets SET name = ?, prompt_prefix = ?, prompts = ?, negative_prompt = ?, steps = ?, cfgs = ?, sampler_scheduler_pairs = ?, seeds = ?, width = ?, height = ?, updated_at = ?
 		WHERE id = ?`,
 		entity.Name,
+		entity.PromptPrefix,
 		entity.Prompts,
 		entity.NegativePrompt,
 		entity.Steps,
@@ -290,6 +293,7 @@ func samplePresetEntityToModel(e samplePresetEntity) (model.SamplePreset, error)
 	return model.SamplePreset{
 		ID:                    e.ID,
 		Name:                  e.Name,
+		PromptPrefix:          e.PromptPrefix,
 		Prompts:               namedPrompts,
 		NegativePrompt:        e.NegativePrompt,
 		Steps:                 steps,
@@ -347,6 +351,7 @@ func samplePresetModelToEntity(p model.SamplePreset) (samplePresetEntity, error)
 	return samplePresetEntity{
 		ID:                    p.ID,
 		Name:                  p.Name,
+		PromptPrefix:          p.PromptPrefix,
 		Prompts:               string(promptsBytes),
 		NegativePrompt:        p.NegativePrompt,
 		Steps:                 string(stepsBytes),

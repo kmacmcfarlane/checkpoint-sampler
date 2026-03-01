@@ -27,6 +27,7 @@ const error = ref<string | null>(null)
 
 // Form fields
 const presetName = ref('')
+const promptPrefix = ref('')
 const prompts = ref<NamedPrompt[]>([{ name: '', text: '' }])
 const negativePrompt = ref('')
 const steps = ref<number[]>([30])
@@ -162,6 +163,7 @@ function onSelectPreset(value: string | null) {
 
 function loadPreset(preset: SamplePreset) {
   presetName.value = preset.name
+  promptPrefix.value = preset.prompt_prefix
   prompts.value = [...preset.prompts]
   negativePrompt.value = preset.negative_prompt
   steps.value = [...preset.steps]
@@ -174,6 +176,7 @@ function loadPreset(preset: SamplePreset) {
 
 function resetForm() {
   presetName.value = ''
+  promptPrefix.value = ''
   prompts.value = [{ name: '', text: '' }]
   negativePrompt.value = ''
   steps.value = [30]
@@ -202,6 +205,7 @@ async function savePreset() {
       ? {
           id: selectedPresetId.value,
           name: presetName.value.trim(),
+          prompt_prefix: promptPrefix.value,
           prompts: validPrompts,
           negative_prompt: negativePrompt.value,
           steps: steps.value,
@@ -213,6 +217,7 @@ async function savePreset() {
         }
       : {
           name: presetName.value.trim(),
+          prompt_prefix: promptPrefix.value,
           prompts: validPrompts,
           negative_prompt: negativePrompt.value,
           steps: steps.value,
@@ -331,6 +336,17 @@ function onUpdateSeeds(tags: string[]) {
             placeholder="My Sample Config"
             size="medium"
             data-testid="preset-name-input"
+          />
+        </div>
+
+        <div class="form-field">
+          <label for="prompt-prefix">Prompt Prefix</label>
+          <NInput
+            id="prompt-prefix"
+            v-model:value="promptPrefix"
+            placeholder="Text prepended to each prompt (e.g. 'photo of a person, ')"
+            size="medium"
+            data-testid="prompt-prefix-input"
           />
         </div>
 

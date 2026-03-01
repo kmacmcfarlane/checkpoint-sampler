@@ -264,6 +264,8 @@ func (s *SampleJobService) expandJobItems(jobID string, checkpoints []model.Chec
 	for _, checkpoint := range checkpoints {
 		// Iterate over all parameter combinations using sampler/scheduler pairs
 		for _, prompt := range preset.Prompts {
+			// Apply prompt prefix using smart separator logic
+			promptText := model.JoinPromptPrefix(preset.PromptPrefix, prompt.Text)
 			for _, steps := range preset.Steps {
 				for _, cfg := range preset.CFGs {
 					for _, pair := range preset.SamplerSchedulerPairs {
@@ -274,7 +276,7 @@ func (s *SampleJobService) expandJobItems(jobID string, checkpoints []model.Chec
 								CheckpointFilename: checkpoint.Filename,
 								ComfyUIModelPath:   "", // Will be filled by path matching
 								PromptName:         prompt.Name,
-								PromptText:         prompt.Text,
+								PromptText:         promptText,
 								NegativePrompt:     preset.NegativePrompt,
 								Steps:              steps,
 								CFG:                cfg,
