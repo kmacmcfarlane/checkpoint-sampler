@@ -1692,4 +1692,240 @@ describe('JobLaunchDialog', () => {
       expect(editorModal!.props('show')).toBe(false)
     })
   })
+
+  // AC: Clicking Regenerate opens JobLaunchDialog pre-populated with the original job's settings
+  describe('regenerate pre-population (prefillJob prop)', () => {
+    const completedJob: SampleJob = {
+      id: 'job-completed',
+      training_run_name: 'qwen/psai4rt-v0.4.0',
+      study_id: 'preset-2',
+      study_name: 'Full Test',
+      workflow_name: 'auraflow-image.json',
+      vae: 'ae.safetensors',
+      clip: 't5xxl_fp16.safetensors',
+      shift: 3.0,
+      status: 'completed',
+      total_items: 100,
+      completed_items: 100,
+      failed_items: 0,
+      pending_items: 0,
+      created_at: '2025-01-02T00:00:00Z',
+      updated_at: '2025-01-02T00:00:00Z',
+    }
+
+    const completedWithErrorsJob: SampleJob = {
+      id: 'job-errors-prefill',
+      training_run_name: 'qwen/psai4rt-v0.4.0',
+      study_id: 'preset-1',
+      study_name: 'Quick Test',
+      workflow_name: 'qwen-image.json',
+      vae: 'ae.safetensors',
+      clip: 'clip_l.safetensors',
+      status: 'completed_with_errors',
+      total_items: 3,
+      completed_items: 1,
+      failed_items: 2,
+      pending_items: 0,
+      failed_item_details: [
+        { checkpoint_filename: 'chk-a.safetensors', error_message: 'VRAM overflow' },
+        { checkpoint_filename: 'chk-c.safetensors', error_message: 'timeout expired' },
+      ],
+      created_at: '2025-01-02T00:00:00Z',
+      updated_at: '2025-01-02T00:00:00Z',
+    }
+
+    // AC: Dialog is pre-populated with training run from the job
+    it('pre-selects the training run matching the job', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true, prefillJob: completedJob },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
+      // runWithSamples (id=2) has name 'qwen/psai4rt-v0.4.0'
+      expect(runSelect.props('value')).toBe(2)
+    })
+
+    // AC: Dialog is pre-populated with workflow from the job
+    it('pre-selects the workflow from the job', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true, prefillJob: completedJob },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const workflowSelect = wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect)
+      expect(workflowSelect.props('value')).toBe('auraflow-image.json')
+    })
+
+    // AC: Dialog is pre-populated with study from the job
+    it('pre-selects the study from the job', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true, prefillJob: completedJob },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+      expect(studySelect.props('value')).toBe('preset-2')
+    })
+
+    // AC: Dialog is pre-populated with VAE from the job
+    it('pre-selects the VAE from the job', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true, prefillJob: completedJob },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const vaeSelect = wrapper.find('[data-testid="vae-select"]').findComponent(NSelect)
+      expect(vaeSelect.props('value')).toBe('ae.safetensors')
+    })
+
+    // AC: Dialog is pre-populated with CLIP from the job
+    it('pre-selects the CLIP from the job', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true, prefillJob: completedJob },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const clipSelect = wrapper.find('[data-testid="clip-select"]').findComponent(NSelect)
+      expect(clipSelect.props('value')).toBe('t5xxl_fp16.safetensors')
+    })
+
+    // AC: Dialog is pre-populated with shift from the job
+    it('pre-selects the shift value from the job', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true, prefillJob: completedJob },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const shiftInput = wrapper.find('[data-testid="shift-input"]').findComponent(NInputNumber)
+      expect(shiftInput.props('value')).toBe(3.0)
+    })
+
+    // AC: Expands the "show all" filter when the training run is not in the default filter
+    it('expands the show-all filter for runs with samples', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true, prefillJob: completedJob },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const checkbox = wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox)
+      expect(checkbox.props('checked')).toBe(true)
+    })
+
+    // AC: For completed_with_errors jobs, failed checkpoints are pre-selected
+    it('pre-selects only failed checkpoints for completed_with_errors jobs', async () => {
+      mockListSampleJobs.mockResolvedValue([completedWithErrorsJob])
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true, prefillJob: completedWithErrorsJob },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // chk-a and chk-c failed, chk-b did not
+      const chkA = wrapper.find('[data-testid="checkpoint-row-chk-a.safetensors"]').findComponent(NCheckbox)
+      expect(chkA.props('checked')).toBe(true)
+
+      const chkB = wrapper.find('[data-testid="checkpoint-row-chk-b.safetensors"]').findComponent(NCheckbox)
+      expect(chkB.props('checked')).toBe(false)
+
+      const chkC = wrapper.find('[data-testid="checkpoint-row-chk-c.safetensors"]').findComponent(NCheckbox)
+      expect(chkC.props('checked')).toBe(true)
+    })
+
+    // AC: For completed jobs, all checkpoints are pre-selected
+    it('pre-selects all checkpoints for completed jobs', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true, prefillJob: completedJob },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const chkA = wrapper.find('[data-testid="checkpoint-row-chk-a.safetensors"]').findComponent(NCheckbox)
+      expect(chkA.props('checked')).toBe(true)
+
+      const chkB = wrapper.find('[data-testid="checkpoint-row-chk-b.safetensors"]').findComponent(NCheckbox)
+      expect(chkB.props('checked')).toBe(true)
+
+      const chkC = wrapper.find('[data-testid="checkpoint-row-chk-c.safetensors"]').findComponent(NCheckbox)
+      expect(chkC.props('checked')).toBe(true)
+    })
+
+    // AC: The regenerated job is a new job (uses standard create flow)
+    it('submits a new job using the standard createSampleJob API', async () => {
+      mockCreateSampleJob.mockResolvedValue({
+        id: 'job-new',
+        training_run_name: 'qwen/psai4rt-v0.4.0',
+        study_id: 'preset-2', study_name: 'Full Test',
+        workflow_name: 'auraflow-image.json',
+        status: 'pending',
+        total_items: 3,
+        completed_items: 0,
+        failed_items: 0,
+        pending_items: 3,
+        created_at: '2025-01-03T00:00:00Z',
+        updated_at: '2025-01-03T00:00:00Z',
+      })
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true, prefillJob: completedJob },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // All fields should be pre-filled, so submit should be enabled
+      const buttons = wrapper.findAllComponents(NButton)
+      const submitButton = buttons.find(b => b.text() === 'Regenerate Samples')
+      expect(submitButton).toBeDefined()
+      expect(submitButton!.props('disabled')).toBe(false)
+
+      await submitButton!.trigger('click')
+      await flushPromises()
+
+      // Verify the standard createSampleJob API was called
+      expect(mockCreateSampleJob).toHaveBeenCalledTimes(1)
+      const call = mockCreateSampleJob.mock.calls[0][0]
+      expect(call.training_run_name).toBe('qwen/psai4rt-v0.4.0')
+      expect(call.study_id).toBe('preset-2')
+      expect(call.workflow_name).toBe('auraflow-image.json')
+      expect(call.vae).toBe('ae.safetensors')
+      expect(call.clip).toBe('t5xxl_fp16.safetensors')
+      expect(call.shift).toBe(3.0)
+    })
+
+    // AC: Prefill skips persistence restoration (does not use localStorage values)
+    it('uses prefill values instead of localStorage persistence', async () => {
+      // Set up localStorage with different values
+      const state: GenerateInputsState = {
+        lastWorkflowId: 'qwen-image.json',
+        lastTrainingRunId: 1,
+        lastStudyId: 'preset-1',
+        byModelType: {},
+      }
+      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true, prefillJob: completedJob },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Should use prefill values, not localStorage values
+      const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
+      expect(runSelect.props('value')).toBe(2) // Not 1 from localStorage
+
+      const workflowSelect = wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect)
+      expect(workflowSelect.props('value')).toBe('auraflow-image.json') // Not 'qwen-image.json' from localStorage
+
+      const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+      expect(studySelect.props('value')).toBe('preset-2') // Not 'preset-1' from localStorage
+    })
+  })
 })

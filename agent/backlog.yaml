@@ -470,7 +470,7 @@ stories:
   - id: S-072
     title: "Regenerate button for completed sample jobs"
     priority: 38
-    status: todo
+    status: uat
     requires: []
     acceptance:
       - "FE: Completed and completed-with-errors job cards in JobProgressPanel show a 'Regenerate' button"

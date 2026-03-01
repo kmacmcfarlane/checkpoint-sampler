@@ -680,4 +680,96 @@ describe('JobProgressPanel', () => {
       expect(okLine!.classes()).not.toContain('completeness-line--missing')
     })
   })
+
+  // AC: FE: Completed and completed-with-errors job cards show a 'Regenerate' button
+  describe('regenerate button', () => {
+    const completedJob: SampleJob = {
+      id: 'job-completed',
+      training_run_name: 'flux/test',
+      study_id: 'preset-1', study_name: 'Quick Test',
+      workflow_name: 'flux-image.json',
+      vae: 'ae.safetensors',
+      clip: 't5.safetensors',
+      status: 'completed',
+      total_items: 200,
+      completed_items: 200,
+      failed_items: 0,
+      pending_items: 0,
+      created_at: '2025-01-01T02:00:00Z',
+      updated_at: '2025-01-01T02:00:00Z',
+    }
+
+    const completedWithErrorsJob: SampleJob = {
+      id: 'job-with-errors',
+      training_run_name: 'test/partial',
+      study_id: 'preset-1', study_name: 'Quick Test',
+      workflow_name: 'test.json',
+      vae: 'ae.safetensors',
+      clip: 'clip.safetensors',
+      status: 'completed_with_errors',
+      total_items: 10,
+      completed_items: 7,
+      failed_items: 3,
+      pending_items: 0,
+      failed_item_details: [
+        { checkpoint_filename: 'chk-a.safetensors', error_message: 'VRAM overflow' },
+      ],
+      created_at: '2025-01-01T04:00:00Z',
+      updated_at: '2025-01-01T04:00:00Z',
+    }
+
+    // AC: Regenerate button is visible on completed jobs
+    it('shows regenerate button for completed jobs', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: [completedJob] },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const regenerateButton = wrapper.find('[data-testid="job-job-completed-regenerate"]')
+      expect(regenerateButton.exists()).toBe(true)
+      expect(regenerateButton.text()).toBe('Regenerate')
+    })
+
+    // AC: Regenerate button is visible on completed_with_errors jobs
+    it('shows regenerate button for completed_with_errors jobs', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: [completedWithErrorsJob] },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const regenerateButton = wrapper.find('[data-testid="job-job-with-errors-regenerate"]')
+      expect(regenerateButton.exists()).toBe(true)
+    })
+
+    // AC: Regenerate button is NOT shown on running, stopped, pending, or failed jobs
+    it('does not show regenerate button for running jobs', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: sampleJobs },
+        global: { stubs: { Teleport: true } },
+      })
+
+      // job-1 is running
+      expect(wrapper.find('[data-testid="job-job-1-regenerate"]').exists()).toBe(false)
+      // job-2 is stopped
+      expect(wrapper.find('[data-testid="job-job-2-regenerate"]').exists()).toBe(false)
+      // job-4 is failed
+      expect(wrapper.find('[data-testid="job-job-4-regenerate"]').exists()).toBe(false)
+    })
+
+    // AC: Clicking Regenerate emits regenerate event with the full job object
+    it('emits regenerate event with the job when clicked', async () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: [completedJob] },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const regenerateButton = wrapper.find('[data-testid="job-job-completed-regenerate"]').findComponent(NButton)
+      await regenerateButton.trigger('click')
+
+      const emitted = wrapper.emitted('regenerate')
+      expect(emitted).toBeDefined()
+      expect(emitted).toHaveLength(1)
+      expect(emitted![0]).toEqual([completedJob])
+    })
+  })
 })

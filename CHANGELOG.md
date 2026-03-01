@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-072: Regenerate button for completed sample jobs
+- **Frontend**: `JobProgressPanel.vue` adds Regenerate button on completed and completed-with-errors job cards via `canRegenerate()` guard; emits `regenerate` event with full job object
+- **Frontend**: `JobLaunchDialog.vue` adds `prefillJob` prop and `applyPrefill()` method to pre-populate training run, workflow, study, VAE, CLIP, and shift from original job settings; uses `prefillActive` flag to prevent watcher override
+- **Frontend**: For completed-with-errors jobs, `applyPrefill()` pre-selects only failed checkpoints from `failed_item_details`
+- **Frontend**: `App.vue` wires `handleRegenerate` to close progress panel, set prefill job, and open dialog
+- **Frontend**: 17 new unit tests across JobLaunchDialog and JobProgressPanel covering button visibility, pre-population, failed checkpoint selection, and new job submission
+- 802 frontend tests pass; 55 E2E tests pass
+
 ### S-075: Completeness check for generated sample datasets
 - **Backend**: Added `CheckpointCompletenessInfo` model type and `CheckpointCompleteness` field to `JobProgressEventData` for per-checkpoint verified/missing counts
 - **Backend**: New `FileSystemReader` interface in service layer; `verifyCheckpointCompleteness()` method in `JobExecutor` validates expected images exist on disk after each checkpoint batch completes

@@ -25,6 +25,8 @@ const props = defineProps<{
   show: boolean
   /** Incremented by the parent when a job completes via WebSocket, triggering a data refresh. */
   refreshTrigger?: number
+  /** When set, pre-populates the dialog with the given job's settings for regeneration. */
+  prefillJob?: SampleJob | null
 }>()
 
 // update:show: Emitted when the dialog is opened or closed. Payload: boolean visibility state.
@@ -64,6 +66,10 @@ const selectedCheckpoints = ref<Set<string>>(new Set())
 
 // Whether to clear existing sample directories for selected checkpoints
 const clearExisting = ref(false)
+
+// When true, the training run watcher skips checkpoint auto-selection to allow
+// applyPrefill to control checkpoint selection instead.
+const prefillActive = ref(false)
 
 // Current model type derived from the first checkpoint's ss_base_model_version metadata
 const currentModelType = ref<string | null>(null)
@@ -189,25 +195,34 @@ const failedCheckpointMap = computed((): Map<string, string> => {
 
 // Initialize checkpoint selections and restore persisted inputs when the training run changes
 watch(selectedTrainingRunId, async () => {
-  selectedCheckpoints.value = new Set()
-  clearExisting.value = false
+  const skipAutoSelection = prefillActive.value
+  prefillActive.value = false
+
+  // When prefill is active, skip all automatic state changes — the caller
+  // (applyPrefill) has already set checkpoints, clearExisting, and form values.
+  if (!skipAutoSelection) {
+    selectedCheckpoints.value = new Set()
+    clearExisting.value = false
+  }
   currentModelType.value = null
 
   const run = selectedTrainingRun.value
   if (!run || run.checkpoints.length === 0) return
 
-  // Auto-select failed checkpoints if any exist for this training run,
-  // otherwise select all checkpoints by default for regeneration
-  const failedCps = failedCheckpointMap.value
-  if (failedCps.size > 0) {
-    selectedCheckpoints.value = new Set(failedCps.keys())
-  } else if (selectedRunHasSamples.value) {
-    selectedCheckpoints.value = new Set(run.checkpoints.map(c => c.filename))
-  }
+  if (!skipAutoSelection) {
+    // Auto-select failed checkpoints if any exist for this training run,
+    // otherwise select all checkpoints by default for regeneration
+    const failedCps = failedCheckpointMap.value
+    if (failedCps.size > 0) {
+      selectedCheckpoints.value = new Set(failedCps.keys())
+    } else if (selectedRunHasSamples.value) {
+      selectedCheckpoints.value = new Set(run.checkpoints.map(c => c.filename))
+    }
 
-  // Auto-enable clear_existing when run has existing samples
-  if (selectedRunHasSamples.value) {
-    clearExisting.value = true
+    // Auto-enable clear_existing when run has existing samples
+    if (selectedRunHasSamples.value) {
+      clearExisting.value = true
+    }
   }
 
   // Fetch metadata for the first checkpoint to determine the model type
@@ -217,7 +232,7 @@ watch(selectedTrainingRunId, async () => {
     const modelType = metadataResult.metadata['ss_base_model_version'] ?? null
     currentModelType.value = modelType
 
-    if (modelType) {
+    if (modelType && !skipAutoSelection) {
       restoreModelInputs(modelType)
     }
   } catch {
@@ -387,6 +402,23 @@ watch(() => props.refreshTrigger, () => {
   fetchTrainingRunsAndJobs()
 })
 
+// When the dialog opens with a prefillJob, re-fetch data and apply prefill settings.
+// This handles the case where the dialog was already mounted from a previous open.
+watch(() => props.show, async (newShow) => {
+  if (!newShow || !props.prefillJob) return
+
+  // Re-fetch data to ensure latest state
+  await Promise.all([
+    fetchTrainingRunsAndJobs(),
+    fetchWorkflows(),
+    fetchStudies(),
+    fetchVAEModels(),
+    fetchCLIPModels(),
+  ])
+
+  applyPrefill(props.prefillJob)
+})
+
 onMounted(async () => {
   await Promise.all([
     fetchTrainingRunsAndJobs(),
@@ -395,6 +427,12 @@ onMounted(async () => {
     fetchVAEModels(),
     fetchCLIPModels(),
   ])
+
+  // If a prefill job is provided, apply its settings instead of restoring from persistence
+  if (props.prefillJob) {
+    applyPrefill(props.prefillJob)
+    return
+  }
 
   // Restore last used workflow (only if it's still available as a valid workflow)
   const lastWorkflowId = persistence.getLastWorkflowId()
@@ -503,7 +541,56 @@ function resetForm() {
   clearExisting.value = false
   currentModelType.value = null
   showAllRuns.value = false
+  prefillActive.value = false
   error.value = null
+}
+
+/**
+ * Apply pre-fill settings from a completed job. Finds the training run by name,
+ * expands the filter if needed, and sets all form fields from the job.
+ *
+ * Sets prefillActive=true so the training run watcher skips its automatic
+ * checkpoint selection and persistence restoration, allowing this function
+ * to control all form values.
+ */
+function applyPrefill(job: SampleJob) {
+  // Find the training run by name
+  const run = trainingRuns.value.find(r => r.name === job.training_run_name)
+  if (!run) return
+
+  // Expand filter if the run is not in the default (empty) filter
+  const runStatus = getRunStatus(run)
+  if (runStatus !== 'empty') {
+    showAllRuns.value = true
+  }
+
+  // Set prefillActive so the training run watcher skips auto-selection
+  prefillActive.value = true
+
+  // Set training run (this triggers the watch, but it will skip checkpoint auto-selection)
+  selectedTrainingRunId.value = run.id
+
+  // Set workflow, study, VAE, CLIP, shift from the job
+  selectedWorkflow.value = job.workflow_name
+  selectedStudy.value = job.study_id
+  selectedVAE.value = job.vae || null
+  selectedCLIP.value = job.clip || null
+  shiftValue.value = job.shift ?? null
+
+  // Handle checkpoint selection based on job status
+  if (job.status === 'completed_with_errors' && job.failed_item_details && job.failed_item_details.length > 0) {
+    // For completed_with_errors jobs, pre-select only failed checkpoints
+    const failedFilenames = new Set(job.failed_item_details.map(d => d.checkpoint_filename))
+    selectedCheckpoints.value = failedFilenames
+  } else if (run.has_samples) {
+    // For completed jobs, select all checkpoints
+    selectedCheckpoints.value = new Set(run.checkpoints.map(c => c.filename))
+  }
+
+  // Auto-enable clear_existing for runs with existing samples
+  if (run.has_samples) {
+    clearExisting.value = true
+  }
 }
 
 function openStudyEditor() {
@@ -736,6 +823,7 @@ async function submit() {
       <div class="form-field">
         <label for="vae-select">VAE</label>
         <NSelect
+          key="vae-select"
           id="vae-select"
           v-model:value="selectedVAE"
           :options="vaeOptions"
@@ -749,6 +837,7 @@ async function submit() {
       <div class="form-field">
         <label for="clip-select">CLIP / Text Encoder</label>
         <NSelect
+          key="clip-select"
           id="clip-select"
           v-model:value="selectedCLIP"
           :options="clipOptions"

@@ -28,11 +28,13 @@ const props = defineProps<{
 
 // stop: Emitted when the user clicks Stop on a running job. Payload: the job ID string.
 // resume: Emitted when the user clicks Resume on a stopped job. Payload: the job ID string.
+// regenerate: Emitted when the user clicks Regenerate on a completed or completed_with_errors job. Payload: the full SampleJob object.
 // refresh: Emitted when the user clicks the Refresh button. No payload.
 // close: Emitted when the modal is dismissed. No payload.
 const emit = defineEmits<{
   stop: [jobId: string]
   resume: [jobId: string]
+  regenerate: [job: SampleJob]
   refresh: []
   close: []
 }>()
@@ -99,12 +101,20 @@ function canResume(job: SampleJob): boolean {
   return job.status === 'stopped'
 }
 
+function canRegenerate(job: SampleJob): boolean {
+  return job.status === 'completed' || job.status === 'completed_with_errors'
+}
+
 function handleStop(jobId: string) {
   emit('stop', jobId)
 }
 
 function handleResume(jobId: string) {
   emit('resume', jobId)
+}
+
+function handleRegenerate(job: SampleJob) {
+  emit('regenerate', job)
 }
 
 function formatTimestamp(timestamp: string): string {
@@ -227,6 +237,15 @@ function getGroupedErrors(job: SampleJob): Array<{ errorMessage: string; checkpo
                 @click="handleResume(job.id)"
               >
                 Resume
+              </NButton>
+              <NButton
+                v-if="canRegenerate(job)"
+                size="tiny"
+                type="info"
+                :data-testid="`job-${job.id}-regenerate`"
+                @click="handleRegenerate(job)"
+              >
+                Regenerate
               </NButton>
             </div>
           </div>

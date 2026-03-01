@@ -36,6 +36,8 @@ const metadataPanelOpen = ref(false)
 const drawerOpen = ref(false)
 const jobLaunchDialogOpen = ref(false)
 const jobProgressPanelOpen = ref(false)
+/** Job to prefill into the JobLaunchDialog when regenerating. */
+const prefillJob = ref<SampleJob | null>(null)
 /** AC5: Debug mode is session-only (ref, not persisted to localStorage). */
 const debugMode = ref(false)
 const sampleJobs = ref<SampleJob[]>([])
@@ -478,6 +480,14 @@ async function fetchSampleJobs() {
 
 /** Open the job launch dialog. */
 function openJobLaunchDialog() {
+  prefillJob.value = null
+  jobLaunchDialogOpen.value = true
+}
+
+/** Open the job launch dialog pre-populated with settings from a completed job. */
+function handleRegenerate(job: SampleJob) {
+  jobProgressPanelOpen.value = false
+  prefillJob.value = job
   jobLaunchDialogOpen.value = true
 }
 
@@ -739,6 +749,7 @@ const TERMINAL_STATUSES: Set<SampleJobStatus> = new Set(['completed', 'completed
       <JobLaunchDialog
         v-model:show="jobLaunchDialogOpen"
         :refresh-trigger="jobRefreshTrigger"
+        :prefill-job="prefillJob"
         @success="onJobCreated"
       />
       <JobProgressPanel
@@ -748,6 +759,7 @@ const TERMINAL_STATUSES: Set<SampleJobStatus> = new Set(['completed', 'completed
         :loading="jobsLoading"
         @stop="stopJob"
         @resume="resumeJob"
+        @regenerate="handleRegenerate"
         @refresh="fetchSampleJobs"
         @close="jobProgressPanelOpen = false"
       />

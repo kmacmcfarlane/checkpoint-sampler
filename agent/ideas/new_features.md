@@ -26,6 +26,12 @@ Example:
 * source: developer
 Currently the regeneration flow for failed items requires launching a new job. A "retry failed" button on the JobProgressPanel that directly re-queues only failed items in the same job would be more streamlined for users dealing with partial failures.
 
+### Test seed endpoint for sample jobs
+* status: needs_approval
+* priority: medium
+* source: qa
+The E2E environment cannot create sample jobs because ComfyUI is not configured. A test-only seed endpoint (similar to the existing `/api/test/reset`) that can create sample jobs with specified statuses would enable E2E testing of job-related UI features like the Regenerate button, job progress panel, and status beads.
+
 ### WebSocket heartbeat/ping-pong mechanism
 * status: needs_approval
 * priority: medium
