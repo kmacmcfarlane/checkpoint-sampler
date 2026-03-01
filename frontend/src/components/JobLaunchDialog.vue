@@ -434,14 +434,20 @@ onMounted(async () => {
     return
   }
 
-  // Restore last used workflow (only if it's still available as a valid workflow)
-  const lastWorkflowId = persistence.getLastWorkflowId()
-  if (lastWorkflowId !== null) {
-    const isAvailable = workflows.value.some(
-      w => w.name === lastWorkflowId && w.validation_state === 'valid'
-    )
-    if (isAvailable) {
-      selectedWorkflow.value = lastWorkflowId
+  // AC1: If exactly one valid workflow exists, auto-select it.
+  // AC2: If multiple valid workflows exist, restore from localStorage (last-used).
+  const validWorkflows = workflows.value.filter(w => w.validation_state === 'valid')
+  if (validWorkflows.length === 1) {
+    selectedWorkflow.value = validWorkflows[0].name
+  } else {
+    const lastWorkflowId = persistence.getLastWorkflowId()
+    if (lastWorkflowId !== null) {
+      const isAvailable = workflows.value.some(
+        w => w.name === lastWorkflowId && w.validation_state === 'valid'
+      )
+      if (isAvailable) {
+        selectedWorkflow.value = lastWorkflowId
+      }
     }
   }
 

@@ -570,7 +570,7 @@ stories:
   - id: S-076
     title: "Auto-select single workflow template in Generate Samples dialog"
     priority: 35
-    status: todo
+    status: uat
     requires: []
     acceptance:
       - "FE: If there is exactly one valid workflow template, auto-select it in the JobLaunchDialog"

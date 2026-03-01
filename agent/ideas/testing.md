@@ -61,3 +61,9 @@ The "Eager auto-select" tests in App.test.ts set `Object.defineProperty(window, 
 * priority: low
 * source: developer
 Many E2E spec files duplicate `selectTrainingRun`, `selectNaiveOption`, and `closeDrawer` helper functions. Extracting these to `frontend/e2e/helpers.ts` (alongside the existing `resetDatabase` helper) would reduce duplication and make future selector changes a single-file edit.
+
+### Add workflow fixtures to E2E test environment
+* status: needs_approval
+* priority: medium
+* source: qa
+Adding sample workflow JSON files to `test-fixtures/` and configuring `test-fixtures/config.yaml` with a `workflow_dir` would enable E2E testing of workflow-related features (auto-selection, workflow filtering, shift role detection). This requires changes to `docker-compose.e2e.yml` to mount the workflow directory.

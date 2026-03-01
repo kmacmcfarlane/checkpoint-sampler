@@ -1900,6 +1900,31 @@ describe('JobLaunchDialog', () => {
       expect(call.shift).toBe(3.0)
     })
 
+    // AC: Prefill skips auto-selection (does not use auto-selected single workflow)
+    it('uses prefill workflow instead of auto-selected single workflow', async () => {
+      // Only one valid workflow remains: qwen-image.json
+      // But prefill job uses auraflow-image.json — prefill must win
+      const singleValidWorkflows: WorkflowSummary[] = [
+        {
+          name: 'auraflow-image.json',
+          validation_state: 'valid',
+          roles: { save_image: ['9'], unet_loader: ['4'], shift: ['3'] },
+          warnings: [],
+        },
+      ]
+      mockListWorkflows.mockResolvedValue(singleValidWorkflows)
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true, prefillJob: completedJob },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const workflowSelect = wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect)
+      // Prefill sets workflow from the job, not from auto-selection logic
+      expect(workflowSelect.props('value')).toBe('auraflow-image.json')
+    })
+
     // AC: Prefill skips persistence restoration (does not use localStorage values)
     it('uses prefill values instead of localStorage persistence', async () => {
       // Set up localStorage with different values
@@ -1926,6 +1951,179 @@ describe('JobLaunchDialog', () => {
 
       const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
       expect(studySelect.props('value')).toBe('preset-2') // Not 'preset-1' from localStorage
+    })
+  })
+
+  // AC1 + AC2 + AC3: Single-workflow auto-selection
+  describe('single-workflow auto-selection (AC1/AC2/AC3)', () => {
+    // AC1: When exactly one valid workflow exists, it is auto-selected on mount.
+    it('auto-selects the workflow when exactly one valid workflow is available', async () => {
+      const singleWorkflow: WorkflowSummary[] = [
+        {
+          name: 'qwen-image.json',
+          validation_state: 'valid',
+          roles: { save_image: ['9'], unet_loader: ['4'] },
+          warnings: [],
+        },
+      ]
+      mockListWorkflows.mockResolvedValue(singleWorkflow)
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // AC1: The sole valid workflow should be auto-selected
+      const workflowSelect = wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect)
+      expect(workflowSelect.props('value')).toBe('qwen-image.json')
+    })
+
+    // AC1: Only valid workflows count — invalid workflows are excluded from the single-workflow check.
+    it('auto-selects the single valid workflow even when invalid workflows are present', async () => {
+      const mixedWorkflows: WorkflowSummary[] = [
+        {
+          name: 'valid-only.json',
+          validation_state: 'valid',
+          roles: { save_image: ['9'], unet_loader: ['4'] },
+          warnings: [],
+        },
+        {
+          name: 'broken.json',
+          validation_state: 'invalid',
+          roles: {},
+          warnings: ['Missing required roles'],
+        },
+      ]
+      mockListWorkflows.mockResolvedValue(mixedWorkflows)
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // AC1: 'valid-only.json' is the sole valid workflow and should be auto-selected
+      const workflowSelect = wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect)
+      expect(workflowSelect.props('value')).toBe('valid-only.json')
+    })
+
+    // AC2: When multiple valid workflows exist, the last-used workflow is restored from localStorage.
+    it('restores last-used workflow from localStorage when multiple valid workflows exist', async () => {
+      // sampleWorkflows has two valid workflows: qwen-image.json and auraflow-image.json
+      // (default mock already sets this up)
+      const state: GenerateInputsState = {
+        lastWorkflowId: 'auraflow-image.json',
+        byModelType: {},
+      }
+      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // AC2: Last-used workflow from localStorage should be restored
+      const workflowSelect = wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect)
+      expect(workflowSelect.props('value')).toBe('auraflow-image.json')
+    })
+
+    // AC2: When multiple valid workflows exist and no localStorage value, no workflow is pre-selected.
+    it('does not auto-select any workflow when multiple valid workflows exist and no localStorage value', async () => {
+      // sampleWorkflows has two valid workflows and localStorage is empty
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // AC2: No auto-selection when multiple valid workflows exist
+      const workflowSelect = wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect)
+      expect(workflowSelect.props('value')).toBeNull()
+    })
+
+    // AC3: Auto-selection does not override an explicit user selection made after mount.
+    it('does not override a user-selected workflow when only one valid workflow was auto-selected', async () => {
+      // Start with one valid workflow so auto-selection fires
+      const singleWorkflow: WorkflowSummary[] = [
+        {
+          name: 'qwen-image.json',
+          validation_state: 'valid',
+          roles: { save_image: ['9'], unet_loader: ['4'] },
+          warnings: [],
+        },
+      ]
+      mockListWorkflows.mockResolvedValue(singleWorkflow)
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Auto-selected on mount
+      const workflowSelect = wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect)
+      expect(workflowSelect.props('value')).toBe('qwen-image.json')
+
+      // AC3: User explicitly clears the selection — this should stick
+      workflowSelect.vm.$emit('update:value', null)
+      await nextTick()
+
+      expect(workflowSelect.props('value')).toBeNull()
+    })
+
+    // AC1: When zero valid workflows exist, no auto-selection occurs.
+    it('does not auto-select when no valid workflows are available', async () => {
+      mockListWorkflows.mockResolvedValue([
+        {
+          name: 'broken.json',
+          validation_state: 'invalid' as const,
+          roles: {},
+          warnings: ['Missing required roles'],
+        },
+      ])
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const workflowSelect = wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect)
+      expect(workflowSelect.props('value')).toBeNull()
+    })
+
+    // AC3: Auto-selection does not override a restored localStorage value in the single-workflow case.
+    // When localStorage holds the same workflow name, the result is identical (no conflict).
+    // When localStorage holds a different name that is no longer valid, single-workflow auto-select fires.
+    it('auto-selects single workflow even when localStorage has a stale (now invalid) workflow', async () => {
+      const singleWorkflow: WorkflowSummary[] = [
+        {
+          name: 'new-workflow.json',
+          validation_state: 'valid',
+          roles: { save_image: ['9'], unet_loader: ['4'] },
+          warnings: [],
+        },
+      ]
+      mockListWorkflows.mockResolvedValue(singleWorkflow)
+
+      // localStorage has a stale workflow that is no longer available
+      const state: GenerateInputsState = {
+        lastWorkflowId: 'old-deleted-workflow.json',
+        byModelType: {},
+      }
+      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // AC1: Single-workflow auto-select should fire since only one valid workflow exists
+      const workflowSelect = wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect)
+      expect(workflowSelect.props('value')).toBe('new-workflow.json')
     })
   })
 })

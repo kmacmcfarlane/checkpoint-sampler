@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-076: Auto-select single workflow template in Generate Samples dialog
+- **Frontend**: `JobLaunchDialog.vue` onMounted logic auto-selects the workflow when exactly one valid workflow template exists; falls back to localStorage restoration when multiple valid workflows are available
+- **Frontend**: 8 new unit tests covering single-workflow auto-selection, multi-workflow localStorage restore, prefill priority, stale localStorage handling, and user override behavior
+- 810 frontend tests pass; 55 E2E tests pass
+
 ### S-072: Regenerate button for completed sample jobs
 - **Frontend**: `JobProgressPanel.vue` adds Regenerate button on completed and completed-with-errors job cards via `canRegenerate()` guard; emits `regenerate` event with full job object
 - **Frontend**: `JobLaunchDialog.vue` adds `prefillJob` prop and `applyPrefill()` method to pre-populate training run, workflow, study, VAE, CLIP, and shift from original job settings; uses `prefillActive` flag to prevent watcher override
