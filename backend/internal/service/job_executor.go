@@ -22,6 +22,7 @@ type JobExecutorStore interface {
 	ListSampleJobItems(jobID string) ([]model.SampleJobItem, error)
 	UpdateSampleJobItem(i model.SampleJobItem) error
 	ListSampleJobs() ([]model.SampleJob, error)
+	GetSamplePreset(id string) (model.SamplePreset, error)
 }
 
 // ComfyUIClient defines the interface for ComfyUI HTTP operations.
@@ -898,8 +899,20 @@ func (e *JobExecutor) writeSidecar(imagePath string, job model.SampleJob, item m
 	dir := filepath.Dir(imagePath)
 	tempPath := sidecarPath + ".tmp"
 
+	// Look up the prompt_prefix from the preset (best-effort; empty on error)
+	var promptPrefix string
+	if preset, err := e.store.GetSamplePreset(job.SamplePresetID); err == nil {
+		promptPrefix = preset.PromptPrefix
+	} else {
+		e.logger.WithFields(logrus.Fields{
+			"sample_preset_id": job.SamplePresetID,
+			"error":            err.Error(),
+		}).Warn("failed to fetch preset for sidecar prompt_prefix, continuing without it")
+	}
+
 	meta := fileformat.SidecarMetadata{
 		Checkpoint:     item.CheckpointFilename,
+		PromptPrefix:   promptPrefix,
 		PromptName:     item.PromptName,
 		PromptText:     item.PromptText,
 		Seed:           item.Seed,

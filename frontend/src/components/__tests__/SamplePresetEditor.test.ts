@@ -36,6 +36,7 @@ const samplePresets: SamplePreset[] = [
   {
     id: 'preset-1',
     name: 'Test Preset A',
+    prompt_prefix: 'photo of a person, ',
     prompts: [
       { name: 'forest', text: 'a mystical forest' },
       { name: 'city', text: 'a futuristic city' },
@@ -57,6 +58,7 @@ const samplePresets: SamplePreset[] = [
   {
     id: 'preset-2',
     name: 'Test Preset B',
+    prompt_prefix: '',
     prompts: [{ name: 'cat', text: 'a cute cat' }],
     negative_prompt: '',
     steps: [20],
@@ -192,6 +194,7 @@ describe('SamplePresetEditor', () => {
     const createdPreset: SamplePreset = {
       id: 'new-preset-id',
       name: 'New Preset',
+      prompt_prefix: '',
       prompts: [{ name: 'test', text: 'test prompt' }],
       negative_prompt: '',
       steps: [30],
@@ -240,6 +243,7 @@ describe('SamplePresetEditor', () => {
 
     expect(mockCreateSamplePreset).toHaveBeenCalledWith({
       name: 'New Preset',
+      prompt_prefix: '',
       prompts: [{ name: 'test', text: 'test prompt' }],
       negative_prompt: '',
       steps: [30],
@@ -281,6 +285,7 @@ describe('SamplePresetEditor', () => {
     expect(mockUpdateSamplePreset).toHaveBeenCalledWith({
       id: 'preset-1',
       name: 'Updated Preset A',
+      prompt_prefix: 'photo of a person, ',
       prompts: [
         { name: 'forest', text: 'a mystical forest' },
         { name: 'city', text: 'a futuristic city' },
@@ -552,6 +557,7 @@ describe('SamplePresetEditor', () => {
     const createdPreset: SamplePreset = {
       id: 'new-preset-id',
       name: 'Test',
+      prompt_prefix: '',
       prompts: [{ name: 'valid', text: 'valid prompt' }],
       negative_prompt: '',
       steps: [30],
@@ -901,6 +907,7 @@ describe('SamplePresetEditor', () => {
       const createdPreset: SamplePreset = {
         id: 'new-id',
         name: 'Multi Pair',
+        prompt_prefix: '',
         prompts: [{ name: 'test', text: 'test prompt' }],
         negative_prompt: '',
         steps: [30],
@@ -955,6 +962,154 @@ describe('SamplePresetEditor', () => {
             { sampler: 'euler', scheduler: 'simple' },
             { sampler: 'heun', scheduler: 'karras' },
           ],
+        }),
+      )
+    })
+  })
+
+  describe('prompt prefix field', () => {
+    it('renders prompt prefix input', async () => {
+      const wrapper = mount(SamplePresetEditor)
+      await flushPromises()
+
+      const prefixInput = wrapper.findComponent('[data-testid="prompt-prefix-input"]')
+      expect(prefixInput.exists()).toBe(true)
+      expect(prefixInput.props('value')).toBe('')
+    })
+
+    it('loads prompt prefix from preset when selected', async () => {
+      const wrapper = mount(SamplePresetEditor)
+      await flushPromises()
+
+      const select = wrapper.findAllComponents(NSelect)[0]
+      select.vm.$emit('update:value', 'preset-1')
+      await nextTick()
+
+      const prefixInput = wrapper.findComponent('[data-testid="prompt-prefix-input"]')
+      expect(prefixInput.props('value')).toBe('photo of a person, ')
+    })
+
+    it('loads empty prompt prefix from preset without prefix', async () => {
+      const wrapper = mount(SamplePresetEditor)
+      await flushPromises()
+
+      const select = wrapper.findAllComponents(NSelect)[0]
+      select.vm.$emit('update:value', 'preset-2')
+      await nextTick()
+
+      const prefixInput = wrapper.findComponent('[data-testid="prompt-prefix-input"]')
+      expect(prefixInput.props('value')).toBe('')
+    })
+
+    it('resets prompt prefix when New Preset is clicked', async () => {
+      const wrapper = mount(SamplePresetEditor)
+      await flushPromises()
+
+      // Select a preset with a prefix
+      const select = wrapper.findAllComponents(NSelect)[0]
+      select.vm.$emit('update:value', 'preset-1')
+      await nextTick()
+
+      const prefixInput = wrapper.findComponent('[data-testid="prompt-prefix-input"]')
+      expect(prefixInput.props('value')).toBe('photo of a person, ')
+
+      // Click New Preset
+      const newButton = wrapper
+        .findAllComponents(NButton)
+        .find((b) => b.text() === 'New Preset')!
+      await newButton.trigger('click')
+      await nextTick()
+
+      expect(prefixInput.props('value')).toBe('')
+    })
+
+    it('includes prompt prefix in create payload', async () => {
+      const createdPreset: SamplePreset = {
+        id: 'prefix-preset-id',
+        name: 'Prefix Test',
+        prompt_prefix: 'artistic photo, ',
+        prompts: [{ name: 'test', text: 'test prompt' }],
+        negative_prompt: '',
+        steps: [30],
+        cfgs: [7.0],
+        sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
+        seeds: [42],
+        width: 1024,
+        height: 1024,
+        images_per_checkpoint: 1,
+        created_at: '2025-01-03T00:00:00Z',
+        updated_at: '2025-01-03T00:00:00Z',
+      }
+      mockCreateSamplePreset.mockResolvedValue(createdPreset)
+
+      const wrapper = mount(SamplePresetEditor)
+      await flushPromises()
+
+      // Fill in form
+      const nameInput = wrapper.findComponent('[data-testid="preset-name-input"]')
+      nameInput.vm.$emit('update:value', 'Prefix Test')
+
+      const prefixInput = wrapper.findComponent('[data-testid="prompt-prefix-input"]')
+      prefixInput.vm.$emit('update:value', 'artistic photo, ')
+
+      const promptInputs = wrapper.findAllComponents(NInput)
+      const promptNameInput = promptInputs.find((input) =>
+        input.props('placeholder')?.includes('Prompt name')
+      )!
+      promptNameInput.vm.$emit('update:value', 'test')
+      const promptTextInput = promptInputs.find((input) =>
+        input.props('placeholder')?.includes('Prompt text')
+      )!
+      promptTextInput.vm.$emit('update:value', 'test prompt')
+
+      const vm = wrapper.vm as unknown as { samplerSchedulerPairs: Array<{ sampler: string; scheduler: string }> }
+      vm.samplerSchedulerPairs = [{ sampler: 'euler', scheduler: 'normal' }]
+
+      await nextTick()
+
+      const saveButton = wrapper
+        .findAllComponents(NButton)
+        .find((b) => b.text().includes('Save Preset'))!
+      await saveButton.trigger('click')
+      await flushPromises()
+
+      expect(mockCreateSamplePreset).toHaveBeenCalledWith(
+        expect.objectContaining({
+          prompt_prefix: 'artistic photo, ',
+        }),
+      )
+    })
+
+    it('includes prompt prefix in update payload', async () => {
+      const updatedPreset: SamplePreset = {
+        ...samplePresets[0],
+        prompt_prefix: 'updated prefix. ',
+        updated_at: '2025-01-03T00:00:00Z',
+      }
+      mockUpdateSamplePreset.mockResolvedValue(updatedPreset)
+
+      const wrapper = mount(SamplePresetEditor)
+      await flushPromises()
+
+      // Select preset
+      const select = wrapper.findAllComponents(NSelect)[0]
+      select.vm.$emit('update:value', 'preset-1')
+      await nextTick()
+
+      // Change the prompt prefix
+      const prefixInput = wrapper.findComponent('[data-testid="prompt-prefix-input"]')
+      prefixInput.vm.$emit('update:value', 'updated prefix. ')
+      await nextTick()
+
+      const saveButton = wrapper
+        .findAllComponents(NButton)
+        .find((b) => b.text().includes('Update Preset'))!
+      await saveButton.trigger('click')
+      await flushPromises()
+
+      expect(mockUpdateSamplePreset).toHaveBeenCalledWith(
+        expect.objectContaining({
+          prompt_prefix: 'updated prefix. ',
         }),
       )
     })

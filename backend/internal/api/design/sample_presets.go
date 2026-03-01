@@ -75,6 +75,9 @@ var SamplePresetResponse = Type("SamplePresetResponse", func() {
 	Attribute("name", String, "Preset display name", func() {
 		Example("My Sample Config")
 	})
+	Attribute("prompt_prefix", String, "Text prepended to each prompt at generation time", func() {
+		Example("photo of a person, ")
+	})
 	Attribute("prompts", ArrayOf(NamedPrompt), "List of named prompts")
 	Attribute("negative_prompt", String, "Negative prompt text", func() {
 		Example("low quality, blurry")
@@ -104,7 +107,7 @@ var SamplePresetResponse = Type("SamplePresetResponse", func() {
 	Attribute("updated_at", String, "Last update timestamp (RFC3339)", func() {
 		Example("2025-01-01T00:00:00Z")
 	})
-	Required("id", "name", "prompts", "negative_prompt", "steps", "cfgs", "sampler_scheduler_pairs", "seeds", "width", "height", "images_per_checkpoint", "created_at", "updated_at")
+	Required("id", "name", "prompt_prefix", "prompts", "negative_prompt", "steps", "cfgs", "sampler_scheduler_pairs", "seeds", "width", "height", "images_per_checkpoint", "created_at", "updated_at")
 })
 
 var NamedPrompt = Type("NamedPrompt", func() {
@@ -139,6 +142,10 @@ var CreateSamplePresetPayload = Type("CreateSamplePresetPayload", func() {
 		Example("My Sample Config")
 		MinLength(1)
 	})
+	Attribute("prompt_prefix", String, "Text prepended to each prompt at generation time", func() {
+		Example("photo of a person, ")
+		Default("")
+	})
 	Attribute("prompts", ArrayOf(NamedPrompt), "List of named prompts", func() {
 		MinLength(1)
 	})
@@ -169,7 +176,7 @@ var CreateSamplePresetPayload = Type("CreateSamplePresetPayload", func() {
 		Example(1344)
 		Minimum(1)
 	})
-	Required("name", "prompts", "negative_prompt", "steps", "cfgs", "sampler_scheduler_pairs", "seeds", "width", "height")
+	Required("name", "prompt_prefix", "prompts", "negative_prompt", "steps", "cfgs", "sampler_scheduler_pairs", "seeds", "width", "height")
 })
 
 var UpdateSamplePresetPayload = Type("UpdateSamplePresetPayload", func() {
@@ -181,6 +188,10 @@ var UpdateSamplePresetPayload = Type("UpdateSamplePresetPayload", func() {
 		Example("My Sample Config")
 		MinLength(1)
 	})
+	Attribute("prompt_prefix", String, "Text prepended to each prompt at generation time", func() {
+		Example("photo of a person, ")
+		Default("")
+	})
 	Attribute("prompts", ArrayOf(NamedPrompt), "List of named prompts", func() {
 		MinLength(1)
 	})
@@ -211,5 +222,5 @@ var UpdateSamplePresetPayload = Type("UpdateSamplePresetPayload", func() {
 		Example(1344)
 		Minimum(1)
 	})
-	Required("id", "name", "prompts", "negative_prompt", "steps", "cfgs", "sampler_scheduler_pairs", "seeds", "width", "height")
+	Required("id", "name", "prompt_prefix", "prompts", "negative_prompt", "steps", "cfgs", "sampler_scheduler_pairs", "seeds", "width", "height")
 })

@@ -10,6 +10,7 @@ package fileformat
 // storage from PNG-embedded chunks.
 type SidecarMetadata struct {
 	Checkpoint     string  `json:"checkpoint"`
+	PromptPrefix   string  `json:"prompt_prefix,omitempty"`
 	PromptName     string  `json:"prompt_name"`
 	PromptText     string  `json:"prompt_text"`
 	Seed           int64   `json:"seed"`

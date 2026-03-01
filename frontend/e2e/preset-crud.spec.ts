@@ -428,4 +428,61 @@ test.describe('sample preset CRUD via job launch dialog', () => {
     // Close the popup
     await page.keyboard.press('Escape')
   })
+
+  test('creates a preset with prompt prefix and verifies it round-trips', async ({ page }) => {
+    // AC 8: SamplePresetEditor has a 'Prompt Prefix' text input field above the prompts list
+    // AC 9: Prompt prefix is saved/loaded with the preset
+    const uniquePresetName = `E2E Prefix Test ${Date.now()}`
+    const promptPrefixValue = 'photo of a person, '
+
+    await openGenerateSamplesDialog(page)
+    await openManagePresetsEditor(page)
+
+    // Click "New Preset" to ensure the form is in create mode
+    await page.locator('[data-testid="new-preset-button"]').click()
+
+    // AC 8: Verify the prompt prefix input is visible
+    const prefixInput = page.locator('[data-testid="prompt-prefix-input"] input')
+    await expect(prefixInput).toBeVisible()
+
+    // Fill in preset name
+    await fillPresetName(page, uniquePresetName)
+
+    // Fill in the prompt prefix
+    await prefixInput.fill(promptPrefixValue)
+
+    // Fill in a prompt (required for saving)
+    await fillFirstPromptRow(page, 'landscape', 'a beautiful landscape')
+
+    // Add a sampler/scheduler pair
+    await addSamplerSchedulerPair(page, 'euler', 'normal')
+
+    // Save the preset
+    const saveButton = page.locator('[data-testid="save-preset-button"]')
+    await expect(saveButton).not.toBeDisabled()
+    await saveButton.click()
+
+    // Modal auto-closes after save
+    await expect(getManagePresetsDialog(page)).not.toBeVisible()
+
+    // AC 9: Re-open the editor and verify the prompt prefix round-trips
+    await openManagePresetsEditor(page)
+
+    // Select the preset we just created in the editor
+    const editorPresetSelect = page.locator('[data-testid="preset-editor-select"]')
+    await editorPresetSelect.click()
+    const popupMenu = page.locator('.n-base-select-menu:visible')
+    await expect(popupMenu).toBeVisible()
+    await popupMenu.getByText(uniquePresetName, { exact: true }).click()
+    await expect(popupMenu).not.toBeVisible()
+
+    // Verify the prompt prefix was loaded correctly from the backend
+    const loadedPrefixInput = page.locator('[data-testid="prompt-prefix-input"] input')
+    await expect(loadedPrefixInput).toHaveValue(promptPrefixValue)
+
+    // Clean up: delete the preset
+    page.on('dialog', (dialog) => dialog.accept())
+    await page.locator('[data-testid="delete-preset-button"]').click()
+    await expect(page.locator('[data-testid="delete-preset-button"]')).not.toBeVisible()
+  })
 })

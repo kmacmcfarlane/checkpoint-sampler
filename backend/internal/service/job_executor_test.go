@@ -17,13 +17,15 @@ import (
 type mockJobExecutorStore struct {
 	jobs            map[string]model.SampleJob
 	items           map[string][]model.SampleJobItem
+	presets         map[string]model.SamplePreset
 	updateJobError  error
 }
 
 func newMockJobExecutorStore() *mockJobExecutorStore {
 	return &mockJobExecutorStore{
-		jobs:  make(map[string]model.SampleJob),
-		items: make(map[string][]model.SampleJobItem),
+		jobs:    make(map[string]model.SampleJob),
+		items:   make(map[string][]model.SampleJobItem),
+		presets: make(map[string]model.SamplePreset),
 	}
 }
 
@@ -69,6 +71,14 @@ func (m *mockJobExecutorStore) ListSampleJobs() ([]model.SampleJob, error) {
 		result = append(result, j)
 	}
 	return result, nil
+}
+
+func (m *mockJobExecutorStore) GetSamplePreset(id string) (model.SamplePreset, error) {
+	preset, ok := m.presets[id]
+	if !ok {
+		return model.SamplePreset{}, errors.New("preset not found")
+	}
+	return preset, nil
 }
 
 type mockComfyUIClient struct {
@@ -1707,11 +1717,17 @@ var _ = Describe("JobExecutor", func() {
 		BeforeEach(func() {
 			shift = 3.5
 			job = model.SampleJob{
-				ID:           "job-sidecar-1",
-				WorkflowName: "flux_dev.json",
-				VAE:          "ae.safetensors",
-				CLIP:         "clip_l.safetensors",
-				Shift:        &shift,
+				ID:             "job-sidecar-1",
+				SamplePresetID: "preset-sidecar-1",
+				WorkflowName:   "flux_dev.json",
+				VAE:            "ae.safetensors",
+				CLIP:           "clip_l.safetensors",
+				Shift:          &shift,
+			}
+			// Add a preset with a prompt_prefix so the sidecar can look it up
+			mockStore.presets["preset-sidecar-1"] = model.SamplePreset{
+				ID:           "preset-sidecar-1",
+				PromptPrefix: "test prefix",
 			}
 			item = model.SampleJobItem{
 				ID:                 "item-sidecar-1",
@@ -1751,6 +1767,7 @@ var _ = Describe("JobExecutor", func() {
 			Expect(json.Unmarshal(data, &meta)).To(Succeed())
 
 			Expect(meta.Checkpoint).To(Equal("model-step00001000.safetensors"))
+			Expect(meta.PromptPrefix).To(Equal("test prefix"))
 			Expect(meta.PromptName).To(Equal("forest"))
 			Expect(meta.PromptText).To(Equal("a dense forest at dawn"))
 			Expect(meta.NegativePrompt).To(Equal("blurry, artifacts"))
@@ -1819,6 +1836,7 @@ var _ = Describe("JobExecutor", func() {
 		BeforeEach(func() {
 			job = model.SampleJob{
 				ID:             "job-1",
+				SamplePresetID: "preset-completion-1",
 				Status:         model.SampleJobStatusRunning,
 				WorkflowName:   "flux_dev.json",
 				VAE:            "ae.safetensors",
@@ -1844,6 +1862,9 @@ var _ = Describe("JobExecutor", func() {
 
 			mockStore.jobs[job.ID] = job
 			mockStore.items[job.ID] = []model.SampleJobItem{item}
+			mockStore.presets["preset-completion-1"] = model.SamplePreset{
+				ID: "preset-completion-1",
+			}
 		})
 
 		It("writes sidecar alongside image when item completes", func() {

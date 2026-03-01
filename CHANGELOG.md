@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### S-055: Prompt prefix field in sample presets
+- `backend/internal/store/migrations.go`: Migration v9 adds `prompt_prefix TEXT NOT NULL DEFAULT ''` column to `sample_presets` table
+- `backend/internal/model/sample_preset.go`: Added `PromptPrefix` field to `SamplePreset` model and `JoinPromptPrefix` helper with smart separator logic (appends '. ' unless prefix already ends with '. ' or ', ')
+- `backend/internal/model/sample_preset_test.go`: 8 data-driven tests for `JoinPromptPrefix` covering empty prefix, trailing delimiters, and edge cases
+- `backend/internal/service/sample_preset.go`: Updated `Create` and `Update` to accept and pass through `promptPrefix`
+- `backend/internal/service/job_executor.go`: Prepends prompt prefix at generation time via `JoinPromptPrefix` in `expandJobItems`
+- `backend/internal/service/sample_job.go`: Added `PromptPrefix` to `SampleJobItem` for sidecar metadata
+- `backend/internal/fileformat/sidecar.go`: Added `PromptPrefix` field to sidecar JSON metadata
+- `backend/internal/api/design/sample_presets.go`: Updated Goa DSL with `prompt_prefix` in create/update/show/list types
+- `backend/internal/api/sample_presets.go`: Wired `PromptPrefix` through API result builder and handlers
+- `backend/internal/store/sample_preset.go`: Updated store CRUD and entity mapping for `prompt_prefix` column
+- `frontend/src/api/types.ts`: Added `prompt_prefix` to `SamplePreset` and related API types
+- `frontend/src/components/SamplePresetEditor.vue`: Added 'Prompt Prefix' text input field above the prompts list
+- `frontend/src/components/__tests__/SamplePresetEditor.test.ts`: 6 unit tests for prompt prefix field (render, load, reset, create/update payloads)
+- `frontend/e2e/preset-crud.spec.ts`: New E2E test verifying prompt prefix round-trip (create with prefix, re-open, verify loaded value)
+- 733 frontend tests pass; 572 backend tests pass; 39 E2E tests pass
+
 ### S-054: Playwright config hardening (HTML reporter, screenshot on failure, explicit timeout)
 - `frontend/playwright.config.ts`: Changed reporter from single `'list'` to dual `[['list'], ['html', { open: 'never' }]]` for persistent HTML reports alongside console output
 - `frontend/playwright.config.ts`: Added explicit `timeout: 15000` (15s per-test timeout) instead of relying on Playwright defaults
