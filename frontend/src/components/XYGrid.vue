@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, onUnmounted } from 'vue'
 import type { ScanDimension, ScanImage } from '../api/types'
+import type { GridNavItem, ImageClickContext } from './types'
 import ImageCell from './ImageCell.vue'
 import SliderBar from './SliderBar.vue'
 
@@ -21,24 +22,10 @@ const props = withDefaults(defineProps<{
   maintainAspectRatio: true,
 })
 
-/** Minimal context for a single grid cell image, used for grid navigation. */
-export interface GridNavItem {
-  imageUrl: string
-  cellKey: string | null
-  sliderValues: string[]
-  currentSliderValue: string
-  imagesBySliderValue: Record<string, string>
-}
-
-/** Context passed when a cell image is clicked. */
-export interface ImageClickContext extends GridNavItem {
-  cellKey: string
-  /** All visible grid images in order, for lightbox navigation. */
-  gridImages: GridNavItem[]
-  /** Index of this image in gridImages. */
-  gridIndex: number
-}
-
+// update:sliderValue: Emitted when a cell's slider changes. Payload: the cell key and new slider value.
+// image:click: Emitted when a cell image is clicked. Payload: full click context including grid navigation info.
+// header:click: Emitted when a row or column header is clicked. Payload: dimension name and value.
+// update:cellSize: Emitted when the user drags the resize handle. Payload: new cell size in pixels.
 const emit = defineEmits<{
   'update:sliderValue': [cellKey: string, value: string]
   'image:click': [context: ImageClickContext]

@@ -7,6 +7,7 @@ const props = defineProps<{
   cellSize: number
 }>()
 
+// update:cellSize: Emitted when the zoom slider is dragged. Payload: new cell size in pixels (100–600).
 const emit = defineEmits<{
   'update:cellSize': [size: number]
 }>()

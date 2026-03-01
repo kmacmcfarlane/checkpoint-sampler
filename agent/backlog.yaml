@@ -37,7 +37,7 @@ stories:
   - id: S-053
     title: "Frontend lint enforcement and component type hygiene"
     priority: 40
-    status: todo
+    status: uat
     requires: []
     acceptance:
       - "FE: make test-frontend runs npm run lint before tests (lint failure = pipeline failure)"

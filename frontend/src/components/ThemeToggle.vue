@@ -5,6 +5,7 @@ defineProps<{
   isDark: boolean
 }>()
 
+// toggle: Emitted when the user clicks the theme toggle button to switch between light and dark. No payload.
 const emit = defineEmits<{
   toggle: []
 }>()

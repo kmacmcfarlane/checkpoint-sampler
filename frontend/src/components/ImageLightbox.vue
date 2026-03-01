@@ -3,7 +3,7 @@ import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
 import { NButton } from 'naive-ui'
 import { apiClient } from '../api/client'
 import SliderBar from './SliderBar.vue'
-import type { GridNavItem } from './XYGrid.vue'
+import type { GridNavItem } from './types'
 
 const props = defineProps<{
   imageUrl: string
@@ -23,10 +23,12 @@ const props = defineProps<{
   gridIndex: number
 }>()
 
+// close: Emitted when the lightbox is dismissed (Escape key, backdrop click, or close button). No payload.
+// slider-change: Emitted when the in-lightbox slider changes value. Payload: cell key and new slider value.
+// navigate: Emitted when the user navigates to a different grid image via Shift+Arrow. Payload: new grid index.
 const emit = defineEmits<{
   close: []
   'slider-change': [cellKey: string, value: string]
-  /** Emitted when the user navigates to a different grid image via Shift+Arrow. */
   navigate: [index: number]
 }>()
 

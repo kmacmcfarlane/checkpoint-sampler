@@ -13,6 +13,9 @@ const props = defineProps<{
   autoLoadPresetId?: string | null
 }>()
 
+// load: Emitted when a preset is selected or auto-loaded. Payload: the loaded Preset and an array of missing dimension name warnings.
+// save: Emitted after a new preset is successfully created. Payload: the newly created Preset.
+// delete: Emitted after a preset is deleted, or when an auto-load preset is stale and not found. Payload: the preset ID string.
 const emit = defineEmits<{
   load: [preset: Preset, warnings: string[]]
   save: [preset: Preset]
