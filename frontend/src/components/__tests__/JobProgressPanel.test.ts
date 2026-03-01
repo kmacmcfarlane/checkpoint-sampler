@@ -537,4 +537,147 @@ describe('JobProgressPanel', () => {
       expect(errorSection.exists()).toBe(false)
     })
   })
+
+  // AC: FE: JobProgressPanel shows completeness status per checkpoint
+  describe('completeness status display', () => {
+    const jobWithCompleteness: SampleJob = {
+      id: 'job-complete',
+      training_run_name: 'test/completeness',
+      study_id: 'preset-1', study_name: 'Quick Test',
+      workflow_name: 'test.json',
+      vae: 'ae.safetensors',
+      clip: 'clip.safetensors',
+      status: 'running',
+      total_items: 6,
+      completed_items: 4,
+      failed_items: 0,
+      pending_items: 2,
+      created_at: '2025-01-01T00:00:00Z',
+      updated_at: '2025-01-01T00:00:00Z',
+    }
+
+    // AC: FE: Shows '24/24 verified' for fully verified checkpoints
+    it('displays completeness status when all images are verified', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: {
+          show: true,
+          jobs: [jobWithCompleteness],
+          jobProgress: {
+            'job-complete': {
+              checkpoints_completed: 1,
+              total_checkpoints: 2,
+              checkpoint_completeness: [
+                { checkpoint: 'ckpt1.safetensors', expected: 4, verified: 4, missing: 0 },
+              ],
+            },
+          },
+        },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const completeness = wrapper.find('[data-testid="job-job-complete-completeness"]')
+      expect(completeness.exists()).toBe(true)
+      expect(completeness.text()).toContain('4/4 verified')
+      expect(completeness.text()).toContain('ckpt1.safetensors')
+    })
+
+    // AC: FE: Shows '23/24 -- 1 missing' for checkpoints with missing files
+    it('displays missing count when some images are missing', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: {
+          show: true,
+          jobs: [jobWithCompleteness],
+          jobProgress: {
+            'job-complete': {
+              checkpoints_completed: 1,
+              total_checkpoints: 2,
+              checkpoint_completeness: [
+                { checkpoint: 'ckpt1.safetensors', expected: 24, verified: 23, missing: 1 },
+              ],
+            },
+          },
+        },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const completeness = wrapper.find('[data-testid="job-job-complete-completeness"]')
+      expect(completeness.exists()).toBe(true)
+      expect(completeness.text()).toContain('23/24 -- 1 missing')
+    })
+
+    it('does not show completeness section when no completeness data is available', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: {
+          show: true,
+          jobs: [jobWithCompleteness],
+          jobProgress: {
+            'job-complete': {
+              checkpoints_completed: 1,
+              total_checkpoints: 2,
+            },
+          },
+        },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const completeness = wrapper.find('[data-testid="job-job-complete-completeness"]')
+      expect(completeness.exists()).toBe(false)
+    })
+
+    it('sorts completeness entries by checkpoint name', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: {
+          show: true,
+          jobs: [jobWithCompleteness],
+          jobProgress: {
+            'job-complete': {
+              checkpoints_completed: 2,
+              total_checkpoints: 2,
+              checkpoint_completeness: [
+                { checkpoint: 'ckpt-b.safetensors', expected: 2, verified: 2, missing: 0 },
+                { checkpoint: 'ckpt-a.safetensors', expected: 2, verified: 2, missing: 0 },
+              ],
+            },
+          },
+        },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const lines = wrapper.findAll('.completeness-line')
+      expect(lines).toHaveLength(2)
+      // First entry should be ckpt-a (alphabetically first)
+      expect(lines[0].text()).toContain('ckpt-a.safetensors')
+      expect(lines[1].text()).toContain('ckpt-b.safetensors')
+    })
+
+    it('applies missing CSS class to entries with missing files', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: {
+          show: true,
+          jobs: [jobWithCompleteness],
+          jobProgress: {
+            'job-complete': {
+              checkpoints_completed: 2,
+              total_checkpoints: 2,
+              checkpoint_completeness: [
+                { checkpoint: 'ckpt-ok.safetensors', expected: 4, verified: 4, missing: 0 },
+                { checkpoint: 'ckpt-missing.safetensors', expected: 4, verified: 3, missing: 1 },
+              ],
+            },
+          },
+        },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const lines = wrapper.findAll('.completeness-line')
+      // ckpt-missing should have the --missing class (sorted first: ckpt-missing, then ckpt-ok)
+      const missingLine = lines.find(l => l.text().includes('ckpt-missing.safetensors'))
+      expect(missingLine).toBeDefined()
+      expect(missingLine!.classes()).toContain('completeness-line--missing')
+
+      const okLine = lines.find(l => l.text().includes('ckpt-ok.safetensors'))
+      expect(okLine).toBeDefined()
+      expect(okLine!.classes()).not.toContain('completeness-line--missing')
+    })
+  })
 })

@@ -68,19 +68,21 @@ type JobExecutor struct {
 	hub            EventHub
 	sampleDir      string
 	fsWriter       FileSystemWriter
+	fsReader       FileSystemReader
 	logger         *logrus.Entry
 
-	mu               sync.Mutex
-	activeJobID      string
-	activeItemID     string
-	activePromptID   string
-	stopRequested    bool
-	connected        bool
-	ctx              context.Context
-	cancel           context.CancelFunc
-	shutdownCh       chan struct{}
-	shutdownComplete chan struct{}
-	started          bool
+	mu                       sync.Mutex
+	activeJobID              string
+	activeItemID             string
+	activePromptID           string
+	stopRequested            bool
+	connected                bool
+	checkpointCompleteness   map[string]model.CheckpointCompletenessInfo
+	ctx                      context.Context
+	cancel                   context.CancelFunc
+	shutdownCh               chan struct{}
+	shutdownComplete         chan struct{}
+	started                  bool
 }
 
 // NewJobExecutor creates a new job executor.
@@ -92,22 +94,25 @@ func NewJobExecutor(
 	hub EventHub,
 	sampleDir string,
 	fsWriter FileSystemWriter,
+	fsReader FileSystemReader,
 	logger *logrus.Logger,
 ) *JobExecutor {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &JobExecutor{
-		store:            store,
-		comfyuiClient:    comfyuiClient,
-		comfyuiWS:        comfyuiWS,
-		workflowLoader:   workflowLoader,
-		hub:              hub,
-		sampleDir:        sampleDir,
-		fsWriter:         fsWriter,
-		logger:           logger.WithField("component", "job_executor"),
-		ctx:              ctx,
-		cancel:           cancel,
-		shutdownCh:       make(chan struct{}),
-		shutdownComplete: make(chan struct{}),
+		store:                    store,
+		comfyuiClient:            comfyuiClient,
+		comfyuiWS:                comfyuiWS,
+		workflowLoader:           workflowLoader,
+		hub:                      hub,
+		sampleDir:                sampleDir,
+		fsWriter:                 fsWriter,
+		fsReader:                 fsReader,
+		logger:                   logger.WithField("component", "job_executor"),
+		checkpointCompleteness:   make(map[string]model.CheckpointCompletenessInfo),
+		ctx:                      ctx,
+		cancel:                   cancel,
+		shutdownCh:               make(chan struct{}),
+		shutdownComplete:         make(chan struct{}),
 	}
 }
 
@@ -1090,11 +1095,12 @@ func (e *JobExecutor) completeJob(jobID string) {
 	// Broadcast completion event
 	e.broadcastJobProgress(jobID)
 
-	// Clear active state
+	// Clear active state and completeness data for the finished job
 	e.mu.Lock()
 	e.activeJobID = ""
 	e.activeItemID = ""
 	e.activePromptID = ""
+	e.checkpointCompleteness = make(map[string]model.CheckpointCompletenessInfo)
 	e.mu.Unlock()
 
 	e.logger.WithFields(logrus.Fields{
@@ -1103,9 +1109,122 @@ func (e *JobExecutor) completeJob(jobID string) {
 	}).Info("job completed")
 }
 
+// verifyCheckpointCompleteness validates that all expected images exist on disk for a completed checkpoint.
+// It compares expected filenames (derived from the completed items) against actual PNG files in the checkpoint's
+// sample directory. Results are stored in e.checkpointCompleteness and reported as warnings (not failures).
+func (e *JobExecutor) verifyCheckpointCompleteness(jobID string, studyName string, checkpoint string, items []model.SampleJobItem) {
+	e.logger.WithFields(logrus.Fields{
+		"job_id":     jobID,
+		"checkpoint": checkpoint,
+	}).Trace("entering verifyCheckpointCompleteness")
+	defer e.logger.Trace("returning from verifyCheckpointCompleteness")
+
+	// Build set of expected filenames from completed items for this checkpoint
+	var expectedFiles []string
+	for _, item := range items {
+		if item.CheckpointFilename == checkpoint && item.Status == model.SampleJobItemStatusCompleted {
+			filename := e.generateOutputFilename(item)
+			expectedFiles = append(expectedFiles, filename)
+		}
+	}
+
+	expected := len(expectedFiles)
+	if expected == 0 {
+		// No completed items for this checkpoint — nothing to verify
+		return
+	}
+
+	// Check the checkpoint's sample directory on disk
+	checkpointDir := filepath.Join(e.sampleDir, studyName, checkpoint)
+	if !e.fsReader.DirectoryExists(checkpointDir) {
+		e.logger.WithFields(logrus.Fields{
+			"job_id":         jobID,
+			"checkpoint":     checkpoint,
+			"checkpoint_dir": checkpointDir,
+		}).Warn("checkpoint sample directory does not exist during completeness check")
+
+		e.mu.Lock()
+		e.checkpointCompleteness[checkpoint] = model.CheckpointCompletenessInfo{
+			Checkpoint: checkpoint,
+			Expected:   expected,
+			Verified:   0,
+			Missing:    expected,
+		}
+		e.mu.Unlock()
+		return
+	}
+
+	actualFiles, err := e.fsReader.ListPNGFiles(checkpointDir)
+	if err != nil {
+		e.logger.WithFields(logrus.Fields{
+			"job_id":         jobID,
+			"checkpoint":     checkpoint,
+			"checkpoint_dir": checkpointDir,
+			"error":          err.Error(),
+		}).Warn("failed to list PNG files during completeness check")
+
+		e.mu.Lock()
+		e.checkpointCompleteness[checkpoint] = model.CheckpointCompletenessInfo{
+			Checkpoint: checkpoint,
+			Expected:   expected,
+			Verified:   0,
+			Missing:    expected,
+		}
+		e.mu.Unlock()
+		return
+	}
+
+	// Build a set of actual files on disk for O(1) lookup
+	actualSet := make(map[string]struct{}, len(actualFiles))
+	for _, f := range actualFiles {
+		actualSet[f] = struct{}{}
+	}
+
+	// Count how many expected files are present on disk
+	verified := 0
+	var missingFiles []string
+	for _, expectedFile := range expectedFiles {
+		if _, found := actualSet[expectedFile]; found {
+			verified++
+		} else {
+			missingFiles = append(missingFiles, expectedFile)
+		}
+	}
+
+	missing := expected - verified
+
+	if missing > 0 {
+		e.logger.WithFields(logrus.Fields{
+			"job_id":        jobID,
+			"checkpoint":    checkpoint,
+			"expected":      expected,
+			"verified":      verified,
+			"missing":       missing,
+			"missing_files": missingFiles,
+		}).Warn("completeness check found missing files")
+	} else {
+		e.logger.WithFields(logrus.Fields{
+			"job_id":     jobID,
+			"checkpoint": checkpoint,
+			"expected":   expected,
+			"verified":   verified,
+		}).Info("completeness check passed — all expected files present")
+	}
+
+	e.mu.Lock()
+	e.checkpointCompleteness[checkpoint] = model.CheckpointCompletenessInfo{
+		Checkpoint: checkpoint,
+		Expected:   expected,
+		Verified:   verified,
+		Missing:    missing,
+	}
+	e.mu.Unlock()
+}
+
 // broadcastJobProgress broadcasts a job progress event to WebSocket clients.
 // It computes the current item counts and checkpoint progress and sends them
-// as a structured job_progress event.
+// as a structured job_progress event. When a checkpoint batch completes,
+// it also runs a completeness check to verify expected images exist on disk.
 func (e *JobExecutor) broadcastJobProgress(jobID string) {
 	job, err := e.store.GetSampleJob(jobID)
 	if err != nil {
@@ -1141,7 +1260,7 @@ func (e *JobExecutor) broadcastJobProgress(jobID string) {
 		checkpointStats[item.CheckpointFilename] = stats
 	}
 
-	// Count fully completed checkpoints and find current
+	// Count fully completed checkpoints, find current, and run completeness checks
 	checkpointsCompleted := 0
 	totalCheckpoints := len(checkpointStats)
 	var currentCheckpoint string
@@ -1150,12 +1269,29 @@ func (e *JobExecutor) broadcastJobProgress(jobID string) {
 	for checkpoint, stats := range checkpointStats {
 		if stats.completed == stats.total {
 			checkpointsCompleted++
+
+			// AC: After each checkpoint's samples are generated, validate completeness
+			e.mu.Lock()
+			_, alreadyChecked := e.checkpointCompleteness[checkpoint]
+			e.mu.Unlock()
+
+			if !alreadyChecked {
+				e.verifyCheckpointCompleteness(jobID, job.StudyName, checkpoint, items)
+			}
 		} else if currentCheckpoint == "" {
 			currentCheckpoint = checkpoint
 			currentCheckpointProgress = stats.completed
 			currentCheckpointTotal = stats.total
 		}
 	}
+
+	// Collect completeness info for the broadcast
+	e.mu.Lock()
+	var completeness []model.CheckpointCompletenessInfo
+	for _, info := range e.checkpointCompleteness {
+		completeness = append(completeness, info)
+	}
+	e.mu.Unlock()
 
 	event := model.FSEvent{
 		Type: model.EventJobProgress,
@@ -1172,6 +1308,7 @@ func (e *JobExecutor) broadcastJobProgress(jobID string) {
 			CurrentCheckpoint:         currentCheckpoint,
 			CurrentCheckpointProgress: currentCheckpointProgress,
 			CurrentCheckpointTotal:    currentCheckpointTotal,
+			CheckpointCompleteness:    completeness,
 		},
 	}
 	e.hub.Broadcast(event)

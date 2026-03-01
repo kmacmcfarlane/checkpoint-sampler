@@ -249,6 +249,14 @@ export interface WorkflowDetail {
   workflow: unknown
 }
 
+/** Result of verifying expected images exist on disk for a completed checkpoint. */
+export interface CheckpointCompletenessInfo {
+  checkpoint: string
+  expected: number
+  verified: number
+  missing: number
+}
+
 /** WebSocket job progress event. */
 export interface JobProgressMessage {
   type: 'job_progress'
@@ -263,4 +271,5 @@ export interface JobProgressMessage {
   current_checkpoint?: string
   current_checkpoint_progress?: number
   current_checkpoint_total?: number
+  checkpoint_completeness?: CheckpointCompletenessInfo[]
 }

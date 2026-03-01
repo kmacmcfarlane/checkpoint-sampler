@@ -33,4 +33,14 @@ type JobProgressEventData struct {
 	CurrentCheckpoint          string
 	CurrentCheckpointProgress  int
 	CurrentCheckpointTotal     int
+	CheckpointCompleteness     []CheckpointCompletenessInfo
+}
+
+// CheckpointCompletenessInfo holds the result of verifying that expected images
+// exist on disk for a completed checkpoint.
+type CheckpointCompletenessInfo struct {
+	Checkpoint string
+	Expected   int
+	Verified   int
+	Missing    int
 }

@@ -17,6 +17,12 @@ type FileSystemWriter interface {
 	RenameFile(oldPath, newPath string) error
 }
 
+// FileSystemReader defines the interface for reading filesystem state (used for completeness checks).
+type FileSystemReader interface {
+	ListPNGFiles(dir string) ([]string, error)
+	DirectoryExists(path string) bool
+}
+
 // RealFileSystemWriter provides real filesystem operations.
 type RealFileSystemWriter struct{}
 

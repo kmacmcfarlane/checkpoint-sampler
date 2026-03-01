@@ -17,6 +17,15 @@ var _ = Service("ws", func() {
 	})
 })
 
+var CheckpointCompletenessInfo = Type("CheckpointCompletenessInfo", func() {
+	Description("Result of verifying expected images exist on disk for a completed checkpoint")
+	Attribute("checkpoint", String, "Checkpoint filename")
+	Attribute("expected", Int, "Number of expected images")
+	Attribute("verified", Int, "Number of images verified on disk")
+	Attribute("missing", Int, "Number of missing images")
+	Required("checkpoint", "expected", "verified", "missing")
+})
+
 var FSEventResponse = Type("FSEventResponse", func() {
 	Description("A filesystem change event or job progress update pushed to WebSocket clients")
 	Attribute("type", String, "Event type", func() {
@@ -38,5 +47,6 @@ var FSEventResponse = Type("FSEventResponse", func() {
 	Attribute("current_checkpoint", String, "Current checkpoint being processed (only for job_progress events)")
 	Attribute("current_checkpoint_progress", Int, "Items completed in current checkpoint (only for job_progress events)")
 	Attribute("current_checkpoint_total", Int, "Total items in current checkpoint (only for job_progress events)")
+	Attribute("checkpoint_completeness", ArrayOf(CheckpointCompletenessInfo), "Per-checkpoint completeness verification results (only for job_progress events)")
 	Required("type", "path")
 })

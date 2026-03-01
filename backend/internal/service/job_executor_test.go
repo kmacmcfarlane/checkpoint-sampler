@@ -236,16 +236,46 @@ func (m *mockFileSystemWriter) RenameFile(oldPath, newPath string) error {
 	return nil
 }
 
+type mockFileSystemReader struct {
+	// files maps directory paths to lists of PNG filenames in that directory
+	files       map[string][]string
+	dirs        map[string]bool
+	listErr     error
+}
+
+func newMockFileSystemReader() *mockFileSystemReader {
+	return &mockFileSystemReader{
+		files: make(map[string][]string),
+		dirs:  make(map[string]bool),
+	}
+}
+
+func (m *mockFileSystemReader) ListPNGFiles(dir string) ([]string, error) {
+	if m.listErr != nil {
+		return nil, m.listErr
+	}
+	files, ok := m.files[dir]
+	if !ok {
+		return []string{}, nil
+	}
+	return files, nil
+}
+
+func (m *mockFileSystemReader) DirectoryExists(path string) bool {
+	return m.dirs[path]
+}
+
 var _ = Describe("JobExecutor", func() {
 	var (
-		executor   *JobExecutor
-		mockStore  *mockJobExecutorStore
-		mockClient *mockComfyUIClient
-		mockWS     *mockComfyUIWS
-		mockLoader *mockWorkflowLoader
-		mockHub    *mockEventHub
-		mockFS     *mockFileSystemWriter
-		logger     *logrus.Logger
+		executor    *JobExecutor
+		mockStore   *mockJobExecutorStore
+		mockClient  *mockComfyUIClient
+		mockWS      *mockComfyUIWS
+		mockLoader  *mockWorkflowLoader
+		mockHub     *mockEventHub
+		mockFS      *mockFileSystemWriter
+		mockFSRead  *mockFileSystemReader
+		logger      *logrus.Logger
 	)
 
 	BeforeEach(func() {
@@ -304,6 +334,7 @@ var _ = Describe("JobExecutor", func() {
 		}
 		mockHub = &mockEventHub{}
 		mockFS = newMockFileSystemWriter()
+		mockFSRead = newMockFileSystemReader()
 		logger = logrus.New()
 		logger.SetOutput(GinkgoWriter)
 
@@ -315,6 +346,7 @@ var _ = Describe("JobExecutor", func() {
 			mockHub,
 			"/test/samples",
 			mockFS,
+			mockFSRead,
 			logger,
 		)
 	})
@@ -1303,6 +1335,7 @@ var _ = Describe("JobExecutor", func() {
 				mockHub,
 				"/test/samples",
 				mockFS,
+				mockFSRead,
 				logger,
 			)
 
@@ -1341,6 +1374,7 @@ var _ = Describe("JobExecutor", func() {
 				mockHub,
 				"/test/samples",
 				mockFS,
+				mockFSRead,
 				logger,
 			)
 
@@ -1383,6 +1417,7 @@ var _ = Describe("JobExecutor", func() {
 				mockHub,
 				"/test/samples",
 				mockFS,
+				mockFSRead,
 				logger,
 			)
 
@@ -1402,6 +1437,7 @@ var _ = Describe("JobExecutor", func() {
 				mockHub,
 				"/test/samples",
 				mockFS,
+				mockFSRead,
 				logger,
 			)
 
@@ -1425,6 +1461,7 @@ var _ = Describe("JobExecutor", func() {
 				mockHub,
 				"/test/samples",
 				mockFS,
+				mockFSRead,
 				logger,
 			)
 
@@ -1893,6 +1930,320 @@ var _ = Describe("JobExecutor", func() {
 			Expect(meta.PromptName).To(Equal("test-prompt"))
 			Expect(meta.JobID).To(Equal("job-1"))
 			Expect(meta.WorkflowName).To(Equal("flux_dev.json"))
+		})
+	})
+
+	// AC: S-075 — Completeness check for generated sample datasets
+	Describe("verifyCheckpointCompleteness", func() {
+		var job model.SampleJob
+
+		BeforeEach(func() {
+			job = model.SampleJob{
+				ID:        "job-completeness",
+				StudyName: "TestStudy",
+				Status:    model.SampleJobStatusRunning,
+			}
+			mockStore.jobs[job.ID] = job
+		})
+
+		// AC: After each checkpoint's samples are generated, validate that all expected images exist on disk
+		It("reports all files verified when all expected images exist on disk", func() {
+			items := []model.SampleJobItem{
+				{
+					ID: "i1", JobID: job.ID, CheckpointFilename: "ckpt1.safetensors",
+					Status: model.SampleJobItemStatusCompleted,
+					PromptName: "forest", Steps: 20, CFG: 7.5,
+					SamplerName: "euler", Scheduler: "normal", Seed: 42,
+				},
+				{
+					ID: "i2", JobID: job.ID, CheckpointFilename: "ckpt1.safetensors",
+					Status: model.SampleJobItemStatusCompleted,
+					PromptName: "city", Steps: 20, CFG: 7.5,
+					SamplerName: "euler", Scheduler: "normal", Seed: 42,
+				},
+			}
+
+			// Build the expected filenames
+			file1 := executor.generateOutputFilename(items[0])
+			file2 := executor.generateOutputFilename(items[1])
+
+			checkpointDir := "/test/samples/TestStudy/ckpt1.safetensors"
+			mockFSRead.dirs[checkpointDir] = true
+			mockFSRead.files[checkpointDir] = []string{file1, file2}
+
+			executor.verifyCheckpointCompleteness(job.ID, job.StudyName, "ckpt1.safetensors", items)
+
+			executor.mu.Lock()
+			info, ok := executor.checkpointCompleteness["ckpt1.safetensors"]
+			executor.mu.Unlock()
+
+			Expect(ok).To(BeTrue())
+			Expect(info.Expected).To(Equal(2))
+			Expect(info.Verified).To(Equal(2))
+			Expect(info.Missing).To(Equal(0))
+			Expect(info.Checkpoint).To(Equal("ckpt1.safetensors"))
+		})
+
+		// AC: Missing files are reported as warnings on the job (not failures)
+		It("reports missing files when some expected images are absent", func() {
+			items := []model.SampleJobItem{
+				{
+					ID: "i1", JobID: job.ID, CheckpointFilename: "ckpt1.safetensors",
+					Status: model.SampleJobItemStatusCompleted,
+					PromptName: "forest", Steps: 20, CFG: 7.5,
+					SamplerName: "euler", Scheduler: "normal", Seed: 42,
+				},
+				{
+					ID: "i2", JobID: job.ID, CheckpointFilename: "ckpt1.safetensors",
+					Status: model.SampleJobItemStatusCompleted,
+					PromptName: "city", Steps: 20, CFG: 7.5,
+					SamplerName: "euler", Scheduler: "normal", Seed: 42,
+				},
+			}
+
+			// Only the first file exists on disk
+			file1 := executor.generateOutputFilename(items[0])
+
+			checkpointDir := "/test/samples/TestStudy/ckpt1.safetensors"
+			mockFSRead.dirs[checkpointDir] = true
+			mockFSRead.files[checkpointDir] = []string{file1}
+
+			executor.verifyCheckpointCompleteness(job.ID, job.StudyName, "ckpt1.safetensors", items)
+
+			executor.mu.Lock()
+			info := executor.checkpointCompleteness["ckpt1.safetensors"]
+			executor.mu.Unlock()
+
+			Expect(info.Expected).To(Equal(2))
+			Expect(info.Verified).To(Equal(1))
+			Expect(info.Missing).To(Equal(1))
+		})
+
+		// AC: Compare expected items against actual files in the checkpoint's sample directory
+		It("handles non-existent checkpoint directory", func() {
+			items := []model.SampleJobItem{
+				{
+					ID: "i1", JobID: job.ID, CheckpointFilename: "ckpt-missing.safetensors",
+					Status: model.SampleJobItemStatusCompleted,
+					PromptName: "forest", Steps: 20, CFG: 7.5,
+					SamplerName: "euler", Scheduler: "normal", Seed: 42,
+				},
+			}
+
+			// Directory does not exist (not in mockFSRead.dirs)
+			executor.verifyCheckpointCompleteness(job.ID, job.StudyName, "ckpt-missing.safetensors", items)
+
+			executor.mu.Lock()
+			info := executor.checkpointCompleteness["ckpt-missing.safetensors"]
+			executor.mu.Unlock()
+
+			Expect(info.Expected).To(Equal(1))
+			Expect(info.Verified).To(Equal(0))
+			Expect(info.Missing).To(Equal(1))
+		})
+
+		It("skips verification for checkpoints with no completed items", func() {
+			items := []model.SampleJobItem{
+				{
+					ID: "i1", JobID: job.ID, CheckpointFilename: "ckpt1.safetensors",
+					Status: model.SampleJobItemStatusFailed,
+				},
+			}
+
+			executor.verifyCheckpointCompleteness(job.ID, job.StudyName, "ckpt1.safetensors", items)
+
+			executor.mu.Lock()
+			_, ok := executor.checkpointCompleteness["ckpt1.safetensors"]
+			executor.mu.Unlock()
+
+			// No entry because there are no completed items to verify
+			Expect(ok).To(BeFalse())
+		})
+
+		It("handles ListPNGFiles error gracefully", func() {
+			items := []model.SampleJobItem{
+				{
+					ID: "i1", JobID: job.ID, CheckpointFilename: "ckpt-err.safetensors",
+					Status: model.SampleJobItemStatusCompleted,
+					PromptName: "forest", Steps: 20, CFG: 7.5,
+					SamplerName: "euler", Scheduler: "normal", Seed: 42,
+				},
+			}
+
+			checkpointDir := "/test/samples/TestStudy/ckpt-err.safetensors"
+			mockFSRead.dirs[checkpointDir] = true
+			mockFSRead.listErr = errors.New("permission denied")
+
+			executor.verifyCheckpointCompleteness(job.ID, job.StudyName, "ckpt-err.safetensors", items)
+
+			executor.mu.Lock()
+			info := executor.checkpointCompleteness["ckpt-err.safetensors"]
+			executor.mu.Unlock()
+
+			// Errors result in 0 verified, all missing (graceful degradation)
+			Expect(info.Expected).To(Equal(1))
+			Expect(info.Verified).To(Equal(0))
+			Expect(info.Missing).To(Equal(1))
+
+			// Restore for other tests
+			mockFSRead.listErr = nil
+		})
+
+		It("only counts items for the specified checkpoint", func() {
+			items := []model.SampleJobItem{
+				{
+					ID: "i1", JobID: job.ID, CheckpointFilename: "ckpt1.safetensors",
+					Status: model.SampleJobItemStatusCompleted,
+					PromptName: "forest", Steps: 20, CFG: 7.5,
+					SamplerName: "euler", Scheduler: "normal", Seed: 42,
+				},
+				{
+					ID: "i2", JobID: job.ID, CheckpointFilename: "ckpt2.safetensors",
+					Status: model.SampleJobItemStatusCompleted,
+					PromptName: "city", Steps: 20, CFG: 7.5,
+					SamplerName: "euler", Scheduler: "normal", Seed: 42,
+				},
+			}
+
+			file1 := executor.generateOutputFilename(items[0])
+			checkpointDir := "/test/samples/TestStudy/ckpt1.safetensors"
+			mockFSRead.dirs[checkpointDir] = true
+			mockFSRead.files[checkpointDir] = []string{file1}
+
+			executor.verifyCheckpointCompleteness(job.ID, job.StudyName, "ckpt1.safetensors", items)
+
+			executor.mu.Lock()
+			info := executor.checkpointCompleteness["ckpt1.safetensors"]
+			executor.mu.Unlock()
+
+			// Only 1 expected (ckpt1 items), not 2
+			Expect(info.Expected).To(Equal(1))
+			Expect(info.Verified).To(Equal(1))
+			Expect(info.Missing).To(Equal(0))
+		})
+	})
+
+	// AC: Completeness status included in job progress WebSocket events
+	Describe("broadcastJobProgress includes completeness data", func() {
+		BeforeEach(func() {
+			executor.mu.Lock()
+			executor.connected = true
+			executor.mu.Unlock()
+		})
+
+		It("includes completeness data in broadcast when checkpoint is fully completed", func() {
+			job := model.SampleJob{
+				ID:         "job-completeness-broadcast",
+				StudyName:  "TestStudy",
+				Status:     model.SampleJobStatusRunning,
+				TotalItems: 2,
+			}
+			mockStore.jobs[job.ID] = job
+			items := []model.SampleJobItem{
+				{
+					ID: "i1", JobID: job.ID, CheckpointFilename: "ckpt1.safetensors",
+					Status: model.SampleJobItemStatusCompleted,
+					PromptName: "forest", Steps: 20, CFG: 7.5,
+					SamplerName: "euler", Scheduler: "normal", Seed: 42,
+				},
+				{
+					ID: "i2", JobID: job.ID, CheckpointFilename: "ckpt1.safetensors",
+					Status: model.SampleJobItemStatusCompleted,
+					PromptName: "city", Steps: 20, CFG: 7.5,
+					SamplerName: "euler", Scheduler: "normal", Seed: 42,
+				},
+			}
+			mockStore.items[job.ID] = items
+
+			// Set up filesystem mock so completeness check succeeds
+			file1 := executor.generateOutputFilename(items[0])
+			file2 := executor.generateOutputFilename(items[1])
+			checkpointDir := "/test/samples/TestStudy/ckpt1.safetensors"
+			mockFSRead.dirs[checkpointDir] = true
+			mockFSRead.files[checkpointDir] = []string{file1, file2}
+
+			executor.broadcastJobProgress(job.ID)
+
+			Expect(mockHub.events).To(HaveLen(1))
+			event := mockHub.events[0]
+			Expect(event.JobProgressData).NotTo(BeNil())
+			Expect(event.JobProgressData.CheckpointCompleteness).NotTo(BeEmpty())
+
+			// Find our checkpoint in the completeness data
+			var found bool
+			for _, info := range event.JobProgressData.CheckpointCompleteness {
+				if info.Checkpoint == "ckpt1.safetensors" {
+					Expect(info.Expected).To(Equal(2))
+					Expect(info.Verified).To(Equal(2))
+					Expect(info.Missing).To(Equal(0))
+					found = true
+				}
+			}
+			Expect(found).To(BeTrue(), "expected completeness info for ckpt1.safetensors")
+		})
+
+		It("does not run completeness check for incomplete checkpoints", func() {
+			job := model.SampleJob{
+				ID:         "job-incomplete-ckpt",
+				StudyName:  "TestStudy",
+				Status:     model.SampleJobStatusRunning,
+				TotalItems: 2,
+			}
+			mockStore.jobs[job.ID] = job
+			mockStore.items[job.ID] = []model.SampleJobItem{
+				{
+					ID: "i1", JobID: job.ID, CheckpointFilename: "ckpt1.safetensors",
+					Status: model.SampleJobItemStatusCompleted,
+				},
+				{
+					ID: "i2", JobID: job.ID, CheckpointFilename: "ckpt1.safetensors",
+					Status: model.SampleJobItemStatusPending,
+				},
+			}
+
+			executor.broadcastJobProgress(job.ID)
+
+			// No completeness data since the checkpoint is not fully completed
+			Expect(mockHub.events).To(HaveLen(1))
+			event := mockHub.events[0]
+			Expect(event.JobProgressData.CheckpointCompleteness).To(BeEmpty())
+		})
+
+		It("does not re-run completeness check for already-verified checkpoints", func() {
+			job := model.SampleJob{
+				ID:         "job-no-recheck",
+				StudyName:  "TestStudy",
+				Status:     model.SampleJobStatusRunning,
+				TotalItems: 1,
+			}
+			mockStore.jobs[job.ID] = job
+			mockStore.items[job.ID] = []model.SampleJobItem{
+				{
+					ID: "i1", JobID: job.ID, CheckpointFilename: "ckpt1.safetensors",
+					Status: model.SampleJobItemStatusCompleted,
+					PromptName: "forest", Steps: 20, CFG: 7.5,
+					SamplerName: "euler", Scheduler: "normal", Seed: 42,
+				},
+			}
+
+			// Pre-populate completeness data (simulating a prior check)
+			executor.mu.Lock()
+			executor.checkpointCompleteness["ckpt1.safetensors"] = model.CheckpointCompletenessInfo{
+				Checkpoint: "ckpt1.safetensors",
+				Expected:   1,
+				Verified:   1,
+				Missing:    0,
+			}
+			executor.mu.Unlock()
+
+			// Even though no filesystem mock is set up, this should NOT error
+			// because the checkpoint was already verified and won't be re-checked.
+			executor.broadcastJobProgress(job.ID)
+
+			Expect(mockHub.events).To(HaveLen(1))
+			event := mockHub.events[0]
+			Expect(event.JobProgressData.CheckpointCompleteness).To(HaveLen(1))
+			Expect(event.JobProgressData.CheckpointCompleteness[0].Verified).To(Equal(1))
 		})
 	})
 })

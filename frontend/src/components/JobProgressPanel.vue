@@ -3,6 +3,14 @@ import { computed, ref } from 'vue'
 import { NModal, NButton, NTag, NProgress, NSpace, NEmpty, NSpin } from 'naive-ui'
 import type { SampleJob, SampleJobStatus } from '../api/types'
 
+/** Completeness verification result for a single checkpoint. */
+interface CompletenessEntry {
+  checkpoint: string
+  expected: number
+  verified: number
+  missing: number
+}
+
 const props = defineProps<{
   show: boolean
   jobs: SampleJob[]
@@ -13,6 +21,7 @@ const props = defineProps<{
     current_checkpoint_progress?: number
     current_checkpoint_total?: number
     estimated_completion_time?: string
+    checkpoint_completeness?: CompletenessEntry[]
   }>
   loading?: boolean
 }>()
@@ -110,6 +119,23 @@ function getJobProgress(jobId: string) {
 function hasCheckpointProgress(jobId: string): boolean {
   const progress = getJobProgress(jobId)
   return progress !== undefined && progress.total_checkpoints > 0
+}
+
+/** Get completeness entries for a job, sorted by checkpoint name. */
+function getCompletenessEntries(jobId: string): CompletenessEntry[] {
+  const progress = getJobProgress(jobId)
+  if (!progress?.checkpoint_completeness || progress.checkpoint_completeness.length === 0) {
+    return []
+  }
+  return [...progress.checkpoint_completeness].sort((a, b) => a.checkpoint.localeCompare(b.checkpoint))
+}
+
+/** Format a completeness entry for display, e.g. '24/24 verified' or '23/24 -- 1 missing'. */
+function formatCompleteness(entry: CompletenessEntry): string {
+  if (entry.missing === 0) {
+    return `${entry.verified}/${entry.expected} verified`
+  }
+  return `${entry.verified}/${entry.expected} -- ${entry.missing} missing`
 }
 
 /** Whether a job has any failed items. */
@@ -232,6 +258,23 @@ function getGroupedErrors(job: SampleJob): Array<{ errorMessage: string; checkpo
                   <span class="progress-label">Estimated completion:</span>
                   <span>{{ formatTimestamp(getJobProgress(job.id)!.estimated_completion_time!) }}</span>
                 </p>
+                <!-- AC: Completeness status per checkpoint -->
+                <div
+                  v-if="getCompletenessEntries(job.id).length > 0"
+                  class="completeness-section"
+                  :data-testid="`job-${job.id}-completeness`"
+                >
+                  <p class="completeness-heading">Completeness:</p>
+                  <p
+                    v-for="entry in getCompletenessEntries(job.id)"
+                    :key="entry.checkpoint"
+                    class="completeness-line"
+                    :class="{ 'completeness-line--missing': entry.missing > 0 }"
+                  >
+                    <span class="completeness-checkpoint">{{ entry.checkpoint }}</span>
+                    <span>{{ formatCompleteness(entry) }}</span>
+                  </p>
+                </div>
               </div>
 
               <!-- Item counts: completed, failed, pending -->
@@ -466,5 +509,40 @@ function getGroupedErrors(job: SampleJob): Array<{ errorMessage: string; checkpo
   color: var(--bg-color);
   border-radius: 0.25rem;
   font-size: 0.875rem;
+}
+
+.completeness-section {
+  margin-top: 0.25rem;
+  padding-top: 0.25rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.completeness-heading {
+  margin: 0 0 0.25rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.completeness-line {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.completeness-line--missing {
+  color: var(--error-color);
+  font-weight: 500;
+}
+
+.completeness-checkpoint {
+  font-family: monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-right: 0.5rem;
 }
 </style>
