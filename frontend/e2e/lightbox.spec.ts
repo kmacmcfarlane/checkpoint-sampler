@@ -375,6 +375,76 @@ test.describe('lightbox keyboard navigation (Shift+Arrow)', () => {
   })
 })
 
+test.describe('lightbox mousedown origin guard (B-033)', () => {
+  // AC: Each E2E test is independent -- reset database before each test
+  test.beforeEach(async ({ request }) => {
+    await resetDatabase(request)
+  })
+
+  // AC: B-033 AC#2 — Dragging the slider and releasing (mouse-up) over the lightbox
+  // background does NOT close the lightbox
+  test('slider drag ending on backdrop does not close the lightbox', async ({ page }) => {
+    await setupGridWithSlider(page)
+
+    // Open the lightbox
+    const firstImage = page.locator('.xy-grid [role="gridcell"] img').first()
+    await firstImage.click()
+
+    const lightbox = page.locator('[role="dialog"][aria-label="Image lightbox"]')
+    await expect(lightbox).toBeVisible()
+
+    // The slider panel should be visible at the bottom
+    const sliderPanel = lightbox.locator('.lightbox-slider-panel')
+    await expect(sliderPanel).toBeVisible()
+
+    // Simulate a drag gesture: mousedown on the slider panel, then mouseup on the backdrop.
+    // This is the exact scenario that caused the bug — releasing the mouse after dragging
+    // the slider should NOT close the lightbox.
+    const sliderBox = await sliderPanel.boundingBox()
+    expect(sliderBox).not.toBeNull()
+
+    const backdropBox = await lightbox.boundingBox()
+    expect(backdropBox).not.toBeNull()
+
+    // mousedown on the slider panel center
+    await page.mouse.move(sliderBox!.x + sliderBox!.width / 2, sliderBox!.y + sliderBox!.height / 2)
+    await page.mouse.down()
+
+    // mouseup on the backdrop (top-right corner area — far from any interactive element)
+    await page.mouse.move(backdropBox!.x + backdropBox!.width - 20, backdropBox!.y + 20)
+    await page.mouse.up()
+
+    // The lightbox should still be visible (not closed by the drag release)
+    await expect(lightbox).toBeVisible()
+  })
+
+  // AC: B-033 AC#3 — Normal background click-to-close still works (mouse-down + mouse-up
+  // both on backdrop)
+  test('normal background click still closes the lightbox', async ({ page }) => {
+    await setupGridWithSlider(page)
+
+    // Open the lightbox
+    const firstImage = page.locator('.xy-grid [role="gridcell"] img').first()
+    await firstImage.click()
+
+    const lightbox = page.locator('[role="dialog"][aria-label="Image lightbox"]')
+    await expect(lightbox).toBeVisible()
+
+    // Click on the backdrop background (top-right corner, away from controls and slider).
+    // A normal click has mousedown + mouseup at the same position on the backdrop, which
+    // should close the lightbox.
+    const backdropBox = await lightbox.boundingBox()
+    expect(backdropBox).not.toBeNull()
+
+    // Use a position in the top-right area of the backdrop, away from the close button
+    // (top-left) and zoom controls
+    await page.mouse.click(backdropBox!.x + backdropBox!.width - 20, backdropBox!.y + 20)
+
+    // The lightbox should be closed
+    await expect(lightbox).not.toBeVisible()
+  })
+})
+
 test.describe('lightbox slider dimension label', () => {
   // AC: Each E2E test is independent -- reset database before each test
   test.beforeEach(async ({ request }) => {

@@ -49,7 +49,8 @@ describe('ImageLightbox', () => {
     await flushPromises()
 
     const backdrop = wrapper.find('.lightbox-backdrop')
-    // Simulate clicking the backdrop itself (not a child)
+    // Full click: mousedown then click both on the backdrop itself
+    await backdrop.trigger('mousedown')
     await backdrop.trigger('click')
     expect(wrapper.emitted('close')).toBeTruthy()
   })
@@ -59,7 +60,8 @@ describe('ImageLightbox', () => {
     await flushPromises()
 
     const content = wrapper.find('.lightbox-content')
-    // Simulate clicking the content div itself (not the img child)
+    // Full click: mousedown then click both on the content background
+    await content.trigger('mousedown', { button: 0 })
     await content.trigger('click')
     expect(wrapper.emitted('close')).toBeTruthy()
   })
@@ -523,6 +525,115 @@ describe('ImageLightbox', () => {
 
     const value = wrapper.find('.metadata-value')
     expect(value.text()).toBe('plain text value')
+  })
+
+  // --- Mouse-down origin tracking (B-033: slider drag release should not close) ---
+
+  describe('mousedown origin guard', () => {
+    it('does not close when mousedown is on a child element and mouseup is on the backdrop', async () => {
+      const wrapper = mount(ImageLightbox, { props: defaultProps })
+      await flushPromises()
+
+      const backdrop = wrapper.find('.lightbox-backdrop')
+      const closeBtn = wrapper.find('.lightbox-close')
+
+      // Simulate a drag: mousedown starts on the close button (a child), but click fires on the backdrop
+      // (This happens when the user releases the mouse over the backdrop after dragging from inside)
+      await closeBtn.trigger('mousedown')
+      // The backdrop receives the click event from the browser when mouseup lands on it
+      await backdrop.trigger('click')
+
+      expect(wrapper.emitted('close')).toBeFalsy()
+    })
+
+    it('does not close when mousedown is on a child element and click fires on the content background', async () => {
+      const wrapper = mount(ImageLightbox, { props: defaultProps })
+      await flushPromises()
+
+      const content = wrapper.find('.lightbox-content')
+      const img = wrapper.find('.lightbox-image')
+
+      // Mousedown on the image (child), then click fires on the content background
+      // (simulates releasing the mouse over the content area after dragging from the image)
+      await img.trigger('mousedown', { button: 0 })
+      await content.trigger('click')
+
+      expect(wrapper.emitted('close')).toBeFalsy()
+    })
+
+    it('does not close when mousedown originates outside the backdrop (e.g. slider drag)', async () => {
+      const sliderProps = {
+        imageUrl: '/api/images/seed=42&step=500&cfg=3.png',
+        cellKey: '42|500',
+        sliderValues: ['3', '7', '15'],
+        currentSliderValue: '7',
+        imagesBySliderValue: {
+          '3': '/api/images/seed=42&step=500&cfg=3.png',
+          '7': '/api/images/seed=42&step=500&cfg=7.png',
+          '15': '/api/images/seed=42&step=500&cfg=15.png',
+        },
+        sliderDimensionName: 'cfg',
+        gridImages: [],
+        gridIndex: 0,
+      }
+      const wrapper = mount(ImageLightbox, { props: sliderProps })
+      await flushPromises()
+
+      const backdrop = wrapper.find('.lightbox-backdrop')
+      const sliderPanel = wrapper.find('.lightbox-slider-panel')
+
+      // Mousedown starts on the slider panel (outside the backdrop's own target check),
+      // then the browser fires click on the backdrop when mouse is released there.
+      await sliderPanel.trigger('mousedown')
+      // No mousedown was recorded on the backdrop itself, so click should NOT close.
+      await backdrop.trigger('click')
+
+      expect(wrapper.emitted('close')).toBeFalsy()
+    })
+
+    it('still closes on normal background click (mousedown + click both on backdrop)', async () => {
+      const wrapper = mount(ImageLightbox, { props: defaultProps })
+      await flushPromises()
+
+      const backdrop = wrapper.find('.lightbox-backdrop')
+
+      // Normal click: both mousedown and click originate on the backdrop itself
+      await backdrop.trigger('mousedown')
+      await backdrop.trigger('click')
+
+      expect(wrapper.emitted('close')).toBeTruthy()
+    })
+
+    it('still closes on normal content background click (mousedown + click both on content)', async () => {
+      const wrapper = mount(ImageLightbox, { props: defaultProps })
+      await flushPromises()
+
+      const content = wrapper.find('.lightbox-content')
+
+      // Normal click: both mousedown and click originate on the content background
+      await content.trigger('mousedown', { button: 0 })
+      await content.trigger('click')
+
+      expect(wrapper.emitted('close')).toBeTruthy()
+    })
+
+    it('clears mousedown target after each click so subsequent interactions start fresh', async () => {
+      const wrapper = mount(ImageLightbox, { props: defaultProps })
+      await flushPromises()
+
+      const backdrop = wrapper.find('.lightbox-backdrop')
+
+      // First: a drag that should NOT close (mousedown on child, click on backdrop)
+      const closeBtn = wrapper.find('.lightbox-close')
+      await closeBtn.trigger('mousedown')
+      await backdrop.trigger('click')
+      expect(wrapper.emitted('close')).toBeFalsy()
+
+      // Second: a real click that SHOULD close (mousedown + click both on backdrop)
+      await backdrop.trigger('mousedown')
+      await backdrop.trigger('click')
+      expect(wrapper.emitted('close')).toBeTruthy()
+    })
   })
 
   // --- Lightbox slider tests ---

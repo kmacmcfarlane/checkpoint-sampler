@@ -452,7 +452,7 @@ stories:
   - id: B-033
     title: "Lightbox closes on mouse-up after slider drag"
     priority: 9
-    status: todo
+    status: uat
     requires: []
     acceptance:
       - "FE: Lightbox only closes on background click if the mouse-down also originated on the background"

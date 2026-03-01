@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### B-033: Lightbox closes on mouse-up after slider drag
+- `frontend/src/components/ImageLightbox.vue`: Added `backdropMouseDownOnSelf` and `contentMouseDownOnSelf` refs to track mousedown origin; updated `onBackdropClick` and `onContentClick` to only emit close when both mousedown and click target the background element directly; prevents slider drag-release from triggering lightbox close
+- `frontend/src/components/__tests__/ImageLightbox.test.ts`: Updated 2 existing click tests to include mousedown step; added 6 new tests in `mousedown origin guard` block covering child-to-backdrop drag, child-to-content drag, slider drag, normal clicks, and state reset
+- `frontend/e2e/lightbox.spec.ts`: Added 2 new E2E tests verifying slider drag does not close lightbox and normal background click still closes it
+- 774 frontend tests pass; 55 E2E tests pass
+
 ### B-031: Dimension preset selector missing New/Save/Delete workflow
 - `frontend/src/components/PresetSelector.vue`: Added dirty tracking (assignment snapshot, isDirty computed, pendingSnapshot watcher), New button with onNew handler, restructured layout to two rows (top: label/select/New, actions: Save/Delete), Save disabled until dirty, added `new` emit event
 - `frontend/src/App.vue`: Added `onPresetNew` handler that resets all dimension assignments to `'none'`, clears preset warnings and persistence; wired `@new="onPresetNew"` on PresetSelector

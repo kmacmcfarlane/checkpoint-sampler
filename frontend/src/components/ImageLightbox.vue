@@ -42,6 +42,22 @@ const dragStartTranslateX = ref(0)
 const dragStartTranslateY = ref(0)
 
 /**
+ * Tracks whether the most recent mousedown on the backdrop element targeted
+ * the backdrop itself (not a bubbled event from a child). Used to guard
+ * onBackdropClick so it only closes the lightbox when the full click gesture
+ * (mousedown + mouseup) originated on the backdrop background — not when the
+ * user drags a slider and releases the mouse there.
+ */
+const backdropMouseDownOnSelf = ref(false)
+
+/**
+ * Tracks whether the most recent mousedown on the content element targeted
+ * the content element itself (not a bubbled event from the image child). Used
+ * to guard onContentClick for the same reason.
+ */
+const contentMouseDownOnSelf = ref(false)
+
+/**
  * Local slider index that is updated immediately on key press, without waiting
  * for the parent to re-render and update currentSliderValue. This ensures
  * rapid/auto-repeat key presses advance correctly through non-uniform value
@@ -132,17 +148,34 @@ function onMouseUp() {
   isDragging.value = false
 }
 
+function onBackdropMouseDown(e: MouseEvent) {
+  // Only record a self-targeted mousedown on the backdrop itself. Bubbled events
+  // from children do not count — those must not reset the content flag either,
+  // so each flag is independent and only set/cleared by its own element.
+  backdropMouseDownOnSelf.value = e.target === e.currentTarget
+}
+
 function onBackdropClick(e: MouseEvent) {
-  if (e.target === e.currentTarget) {
+  if (e.target === e.currentTarget && backdropMouseDownOnSelf.value) {
     emit('close')
   }
+  backdropMouseDownOnSelf.value = false
+}
+
+function onContentMouseDown(e: MouseEvent) {
+  // Track whether the mousedown targeted the content background directly.
+  contentMouseDownOnSelf.value = e.target === e.currentTarget
+  // Delegate to the pan handler as well.
+  onMouseDown(e)
 }
 
 function onContentClick(e: MouseEvent) {
-  // Close when clicking the content area background (not the image itself)
-  if (e.target === e.currentTarget) {
+  // Close when clicking the content area background (not the image itself),
+  // and only if the mousedown also originated on the content background.
+  if (e.target === e.currentTarget && contentMouseDownOnSelf.value) {
     emit('close')
   }
+  contentMouseDownOnSelf.value = false
 }
 
 function onKeyDown(e: KeyboardEvent) {
@@ -304,6 +337,7 @@ onUnmounted(() => {
     class="lightbox-backdrop"
     role="dialog"
     aria-label="Image lightbox"
+    @mousedown="onBackdropMouseDown"
     @click="onBackdropClick"
   >
     <NButton
@@ -342,7 +376,7 @@ onUnmounted(() => {
     <div
       class="lightbox-content"
       @wheel="onWheel"
-      @mousedown="onMouseDown"
+      @mousedown="onContentMouseDown"
       @click="onContentClick"
     >
       <img
