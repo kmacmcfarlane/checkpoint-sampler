@@ -71,7 +71,7 @@ Claude Code may run inside a Docker container (the `claude-sandbox`) or directly
 ### 7.1 Inside the sandbox (/.dockerenv exists)
 The agent is already inside a Docker container with the project mounted. Key facts:
 - **Base image**: Debian bookworm-slim
-- **Installed**: Node.js 22, Docker CLI + compose plugin, git, make, jq, curl
+- **Installed**: Node.js 22, Python 3 + venv (`/opt/claude-sandbox/venv` with ruamel.yaml), Docker CLI + compose plugin, git, make, jq, curl
 - **NOT installed**: Go, ginkgo, or any Go toolchain
 - **Docker access**: Host Docker socket is mounted — `docker compose` commands work and talk to the host daemon. ONLY use this to bring up and down the application (e.g. for testing), do not run other docker containers on the host system under any circumstances.
 - **Project mount**: The repo is mounted at its real host path (not `/workspace`), so docker compose volume paths resolve correctly on the host
@@ -123,9 +123,19 @@ Frontend (MUST run from /frontend, not the project root):
 - `cd frontend && npm run lint`
 - `cd frontend && npm run test:watch`  (Vitest)
 
+Backlog CLI (preferred over direct YAML editing):
+- `python3 scripts/backlog/backlog.py query --status todo --fields id,title,priority`
+- `python3 scripts/backlog/backlog.py get <id>`
+- `python3 scripts/backlog/backlog.py set <id> status <value>`
+- `python3 scripts/backlog/backlog.py next-id <S|B|R|W>`
+- `cat story.yaml | python3 scripts/backlog/backlog.py add`
+- `python3 scripts/backlog/backlog.py validate [--strict]`
+- See AGENT_FLOW.md section 0 for the full command reference.
+
 ### Agent workflow (preferred sequence)
 Agents should use one-shot commands, not watch mode. Watch mode is a long-running process designed for human developers — agents need discrete pass/fail results per invocation.
 
+- **Backlog operations**: Always use `python3 scripts/backlog/backlog.py` — never edit backlog.yaml directly
 - **After Goa DSL edits**: run codegen (`make gen` via compose or direct), then `make test-backend` to verify
 - **Backend verification**: `make test-backend` (one-shot, returns exit code)
 - **Frontend verification**: `make test-frontend` or `cd frontend && npx vitest run`
@@ -151,5 +161,6 @@ Stories progress through a multi-agent pipeline: fullstack-developer → code-re
 ## 11) When blocked
 If acceptance criteria cannot be met:
 - Do not mark the story done.
-- Set `status: blocked` and record a concrete `blocked_reason` in /agent/backlog.yaml.
+- `python3 scripts/backlog/backlog.py set <id> status blocked`
+- `echo "<concrete reason>" | python3 scripts/backlog/backlog.py set-text <id> blocked_reason`
 - Stop work on that story until the backlog/PRD resolves the blocker.

@@ -15,6 +15,23 @@ At the start of every cycle, read:
 Rules:
 - /agent/backlog.yaml is the only source of "what to do next". Completed stories are archived in /agent/backlog_done.yaml (read-only reference; do not modify).
 - /agent/backlog.yaml, /agent/QUESTIONS.md, and files under /agent/ideas/ are the only files in /agent that the agent should modify. The user is responsible for edits to the other files. If you would like to suggest an edit to these files, do so in the appropriate file under /agent/ideas/ or /agent/QUESTIONS.md
+
+### Backlog CLI tool (`backlog.py`)
+
+All backlog reads and writes MUST use `python3 scripts/backlog/backlog.py` instead of direct YAML editing. This ensures round-trip YAML preservation (comments, ordering, formatting), schema validation, and atomic writes.
+
+Key commands:
+- **Query**: `python3 scripts/backlog/backlog.py query --status todo --fields id,title,priority`
+- **Get story**: `python3 scripts/backlog/backlog.py get <id>`
+- **Next ID**: `python3 scripts/backlog/backlog.py next-id <prefix>` (scans both files)
+- **Set field**: `python3 scripts/backlog/backlog.py set <id> <field> <value>`
+- **Set text**: `echo "feedback text" | python3 scripts/backlog/backlog.py set-text <id> <field>`
+- **Clear field**: `python3 scripts/backlog/backlog.py clear <id> <field>`
+- **Add stories**: `cat story.yaml | python3 scripts/backlog/backlog.py add`
+- **Archive**: `python3 scripts/backlog/backlog.py archive <id>`
+- **Validate**: `python3 scripts/backlog/backlog.py validate [--strict]`
+
+Output format: `--format yaml` (default) or `--format json`. Exit codes: 0=success, 1=validation error, 2=not found, 3=file error.
 - /agent/PRD.md defines product requirements and scope.
 - /agent/TEST_PRACTICES.md and /agent/DEVELOPMENT_PRACTICES.md define standards.
 
@@ -131,17 +148,22 @@ The orchestrator must process stories in this priority order:
 
 ### 3.1 Priority: finish in-flight work first
 
-1. **Review queue**: Find stories with `status: review`. Process the highest priority one by invoking the code reviewer.
-2. **Testing queue**: Find stories with `status: testing`. Process the highest priority one by invoking the QA expert.
-3. **UAT feedback queue**: Find stories with `status: uat` AND a non-empty `uat_feedback`. For the highest priority one: copy `uat_feedback` into `review_feedback`, clear `uat_feedback`, set `status: in_progress`, create a new feature branch from `main`, and then invoke the fullstack engineer to address the feedback.
-4. **In-progress stories with feedback**: Find stories with `status: in_progress` AND a non-empty `review_feedback`. Process the highest priority one by invoking the fullstack engineer to address the feedback.
+1. **Review queue**: `backlog.py query --status review --fields id,title,priority`. Process the highest priority one by invoking the code reviewer.
+2. **Testing queue**: `backlog.py query --status testing --fields id,title,priority`. Process the highest priority one by invoking the QA expert.
+3. **UAT feedback queue**: `backlog.py query --status uat --has-field uat_feedback --fields id,title,priority`. For the highest priority one:
+   - Read the uat_feedback: `backlog.py get <id>`
+   - Copy to review_feedback: `backlog.py get <id> --format json | jq -r '.uat_feedback' | backlog.py set-text <id> review_feedback`
+   - Clear uat_feedback: `backlog.py clear <id> uat_feedback`
+   - Set status: `backlog.py set <id> status in_progress`
+   - Create a new feature branch from `main`, then invoke the fullstack engineer.
+4. **In-progress stories with feedback**: `backlog.py query --status in_progress --has-field review_feedback --fields id,title,priority`. Process the highest priority one by invoking the fullstack engineer.
 5. **New work**: Select a new story using the algorithm below.
 
 ### 3.2 New work selection algorithm (deterministic)
 
-1) Filter stories with `status: todo`.
+1) Query candidates: `backlog.py query --status todo --format json`
 2) Exclude stories that are `blocked` (blocked=true or blocked_reason present).
-3) Exclude stories whose `requires` list contains any story that does not have `status: done` or `status: uat`.
+3) Use `backlog.py list-ids --source both` to check `requires` dependencies — exclude stories whose `requires` list contains any story that does not have `status: done` or `status: uat`.
 4) **Bugs first**: Partition eligible stories into bugs (id starts with `B-`) and non-bugs. If any bugs are eligible, select from bugs only.
 5) Within the selected partition, choose the highest priority story (higher number = higher priority).
 6) Tie-breaker: lowest id lexicographically.
@@ -168,32 +190,40 @@ The orchestrator performs these steps each cycle:
 Based on the story's current status, invoke the appropriate subagent:
 
 #### Story status: `todo` or `in_progress`
-1. Set status to `in_progress` in backlog.yaml if currently `todo`
+1. If currently `todo`: `backlog.py set <id> status in_progress`
 2. Invoke the **fullstack engineer** subagent with:
-   - Story ID, title, and acceptance criteria
+   - Story ID, title, and acceptance criteria (from `backlog.py get <id>`)
    - Any `review_feedback` (if returning from review/QA)
    - Branch name
-3. On success: extract the **Change Summary** from the fullstack engineer's verdict (see section 4.3.2). Set status to `review`, clear `review_feedback`.
-4. On failure/blocked: set status to `blocked` with `blocked_reason`
+3. On success: extract the **Change Summary** from the fullstack engineer's verdict (see section 4.3.2). Then:
+   - `backlog.py set <id> status review`
+   - `backlog.py clear <id> review_feedback`
+4. On failure/blocked:
+   - `backlog.py set <id> status blocked`
+   - `echo "<reason>" | backlog.py set-text <id> blocked_reason`
 
 #### Story status: `review`
 1. Invoke the **code reviewer** subagent with:
-   - Story ID, title, and acceptance criteria
+   - Story ID, title, and acceptance criteria (from `backlog.py get <id>`)
    - Branch name (diff against main)
    - **Change summary** extracted from the fullstack engineer's verdict (see section 4.3.2)
-2. If approved: set status to `testing`
-3. If changes requested: set status to `in_progress`, record feedback in `review_feedback`
+2. If approved: `backlog.py set <id> status testing`
+3. If changes requested:
+   - `backlog.py set <id> status in_progress`
+   - `echo "<feedback>" | backlog.py set-text <id> review_feedback`
 
 #### Story status: `testing`
 1. Invoke the **QA expert** subagent with:
-   - Story ID, title, and acceptance criteria
+   - Story ID, title, and acceptance criteria (from `backlog.py get <id>`)
    - Branch name
    - Code reviewer's approval notes (if any)
    - **Change summary** extracted from the fullstack engineer's verdict (see section 4.3.2)
 2. The QA expert will run `make test-e2e` as part of its verification. This command is self-contained — it starts an isolated backend + frontend stack (`checkpoint-sampler-e2e`), runs all Playwright tests, and tears down automatically. The orchestrator does NOT need to ensure `make up-dev` is running before dispatching to QA for E2E tests.
 3. Parse the QA verdict for the story result, E2E test results, and runtime error sweep findings.
-4. If approved: set status to `uat` (finalization per section 4.5)
-5. If issues found: set status to `in_progress`, record feedback in `review_feedback`
+4. If approved: `backlog.py set <id> status uat` (finalization per section 4.5)
+5. If issues found:
+   - `backlog.py set <id> status in_progress`
+   - `echo "<feedback>" | backlog.py set-text <id> review_feedback`
 6. After the story status transition, process any sweep findings per section 4.4.1.
 7. After the story status transition, process any E2E failure bug tickets per section 4.4.2.
 
@@ -228,7 +258,7 @@ The orchestrator passes this root cause analysis to the code reviewer and QA exp
 ### 4.4 Update artifacts (orchestrator responsibility)
 
 After each subagent completes, the **orchestrator** (not the subagent) performs these updates:
-- Update /agent/backlog.yaml with the new status and any feedback
+- Update backlog via `backlog.py set` / `backlog.py set-text` / `backlog.py clear` (see section 4.3 for specific commands per transition)
 - Are there questions that could help decide next steps? Update /agent/QUESTIONS.md and trigger a discord notification via the MCP tool. Also indicate questions in the chat output.
 - **Process improvement ideas**: If the subagent's response includes a "Process Improvements" section, route each idea to the appropriate file under `/agent/ideas/`:
   - `Features` → `agent/ideas/new_features.md` (net-new capabilities) or `agent/ideas/enhancements.md` (improvements to existing features)
@@ -252,16 +282,25 @@ After each subagent completes, the **orchestrator** (not the subagent) performs 
 When the QA expert's verdict includes a "Runtime Error Sweep" section with findings (sweep result: FINDINGS), the orchestrator processes them **after** the story status transition:
 
 1. **New bug tickets**: For each bug ticket reported by QA (see /agent/BUG_REPORTING.md for quality requirements):
-   - Determine the next available `B-NNN` ID by scanning existing bug IDs in backlog.yaml.
-   - Add the ticket to the `stories` list in /agent/backlog.yaml with:
-     - `id`: Next sequential B-NNN
-     - `title`: From QA's suggested title
-     - `priority`: From QA's suggested priority (default: 70)
-     - `status: todo`
-     - `requires: []`
-     - `acceptance`: From QA's suggested acceptance criteria
-     - `testing`: From QA's suggested testing commands
-     - `notes`: Include the log evidence and root cause hypothesis from the QA report. The root cause hypothesis must identify the specific function, guard, or condition suspected to be responsible (see section 4.3.3 for the expected format). This helps the fullstack engineer focus immediately on the correct fix.
+   - Get the next available ID: `python3 scripts/backlog/backlog.py next-id B`
+   - Create the ticket YAML and pipe to `backlog.py add`:
+     ```bash
+     cat <<'EOF' | python3 scripts/backlog/backlog.py add
+     - id: <next B-NNN>
+       title: "<QA's suggested title>"
+       priority: <QA's suggested priority, default 70>
+       status: todo
+       requires: []
+       acceptance:
+         - "<QA's suggested criterion 1>"
+         - "<QA's suggested criterion 2>"
+       testing:
+         - "command: <QA's suggested test command>"
+       notes: |
+         <log evidence and root cause hypothesis from QA report>
+     EOF
+     ```
+   - The root cause hypothesis must identify the specific function, guard, or condition suspected to be responsible (see section 4.3.3 for the expected format).
 
 2. **Improvement ideas**: For each improvement idea reported by QA:
    - Route to the appropriate file under `/agent/ideas/` (see section 4.4 for routing rules). Include `* status: needs_approval`, `* priority: <value>` (using the priority suggested by QA), and `* source: qa`.
@@ -280,16 +319,9 @@ When the QA expert's verdict includes an "E2E Test Results" section with `Status
 1. **Story-related E2E failures**: The QA expert is expected to have already attempted to fix or investigate these during its verification cycle. If they caused rejection, the story's `review_feedback` will describe the issue — no separate ticket is needed.
 
 2. **New E2E bug tickets**: For each unrelated (pre-existing) E2E failure reported by QA as a bug ticket (see /agent/BUG_REPORTING.md for quality requirements):
-   - Determine the next available `B-NNN` ID by scanning existing bug IDs in backlog.yaml.
-   - Add the ticket to the `stories` list in /agent/backlog.yaml with:
-     - `id`: Next sequential B-NNN
-     - `title`: From QA's suggested title
-     - `priority`: From QA's suggested priority (default: 70)
-     - `status: todo`
-     - `requires: []`
-     - `acceptance`: From QA's suggested acceptance criteria
-     - `testing`: From QA's suggested testing commands
-     - `notes`: Include the failing test name, error output, and root cause hypothesis from the QA report. The root cause hypothesis must identify the specific function, guard, or condition suspected to be responsible (see section 4.3.3 for the expected format). This helps the fullstack engineer focus immediately on the correct fix.
+   - Get the next available ID: `python3 scripts/backlog/backlog.py next-id B`
+   - Create the ticket YAML and pipe to `backlog.py add` (same pattern as section 4.4.1).
+   - `notes` must include the failing test name, error output, and root cause hypothesis (see section 4.3.3 for format).
 
 3. **E2E result tracking**: Record the E2E pass/fail counts from the QA verdict in the story's commit notes or as a comment in the commit message (e.g., `E2E: 42 passed, 0 failed`). This provides a regression baseline visible in git history.
 
@@ -330,7 +362,7 @@ When the QA expert reports **APPROVED**, the orchestrator performs these steps i
      ```
    - **Periodic compaction**: When the changelog exceeds ~150 lines, the orchestrator should move entries older than the most recent ~15 stories to the "Earlier changes" section (title-only one-liners). Full history is always available in git.
 
-2. **Update backlog**: Set `status: uat` in /agent/backlog.yaml.
+2. **Update backlog**: `python3 scripts/backlog/backlog.py set <id> status uat`
 3. **Commit**: Create the commit (per commit rules below).
 4. **Merge**: Merge the feature branch into `main` (per the commit/merge policy in PROMPT.md).
 
@@ -375,7 +407,7 @@ A story may be set to `status: uat` only if all are true:
 
 ### 5.2 Entry to `done` (user-driven)
 
-The user manually sets `status: done` in backlog.yaml after reviewing the deployed functionality during `uat`. Agents never set `status: done` directly.
+The user moves stories from `uat` to `done` via the `/uat-review` skill or `backlog.py set <id> status done`. Agents never set `status: done` directly.
 
 ## 6) Blocking rules
 
@@ -384,13 +416,13 @@ A story is BLOCKED when:
 - Progress cannot continue without inventing requirements or violating PRD.
 
 When blocked:
-- Set `status: blocked`.
-- Record blocked_reason with:
+- `backlog.py set <id> status blocked`
+- Record blocked_reason: `echo "<reason>" | backlog.py set-text <id> blocked_reason` including:
     - what is blocked
     - why it is blocked
     - what decision/input is needed
 - Update the appropriate file under /agent/ideas/ with ideas for features that could enhance the application
-- Update /agent/backlog.yaml if stories now require each other in a new way
+- If stories now require each other in a new way, update via `backlog.py` (not direct YAML editing)
 
 ## 7) Safety gates
 

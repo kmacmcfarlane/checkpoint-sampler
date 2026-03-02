@@ -13,12 +13,12 @@ Follow /agent/AGENT_FLOW.md exactly.
 
 ## Work selection
 
-Select work from /agent/backlog.yaml per the priority rules in AGENT_FLOW.md section 3:
-1. First: stories in `review` status → invoke code-reviewer subagent
-2. Second: stories in `testing` status → invoke qa-expert subagent
-3. Third: stories in `uat` with non-empty `uat_feedback` → copy `uat_feedback` to `review_feedback`, clear `uat_feedback`, set `status: in_progress`, create new branch from main, then invoke fullstack-developer subagent
-4. Fourth: stories in `in_progress` with `review_feedback` → invoke fullstack-developer subagent
-5. Fifth: highest priority `todo` story → invoke fullstack-developer subagent
+Use `python3 scripts/backlog/backlog.py` (aliased below as `backlog.py`) to query and update the backlog. Select work per AGENT_FLOW.md section 3:
+1. First: `backlog.py query --status review` → invoke code-reviewer subagent
+2. Second: `backlog.py query --status testing` → invoke qa-expert subagent
+3. Third: `backlog.py query --status uat --has-field uat_feedback` → copy uat_feedback to review_feedback via `backlog.py`, clear uat_feedback, set status to in_progress, create new branch from main, then invoke fullstack-developer subagent
+4. Fourth: `backlog.py query --status in_progress --has-field review_feedback` → invoke fullstack-developer subagent
+5. Fifth: `backlog.py query --status todo` → select highest priority (bugs first), invoke fullstack-developer subagent
 
 ## Story marker
 
@@ -54,12 +54,12 @@ This helps downstream agents orient faster. If the fullstack engineer's response
 
 ## Status management
 
-After each subagent completes, update /agent/backlog.yaml:
-- Fullstack engineer success → set `status: review`, clear `review_feedback`
-- Code reviewer approved → set `status: testing`
-- Code reviewer rejected → set `status: in_progress`, record `review_feedback`
-- QA expert approved → set `status: uat`, then process sweep findings (see below)
-- QA expert rejected → set `status: in_progress`, record `review_feedback`, then process sweep findings (see below)
+After each subagent completes, update backlog via `backlog.py`:
+- Fullstack engineer success → `backlog.py set <id> status review` + `backlog.py clear <id> review_feedback`
+- Code reviewer approved → `backlog.py set <id> status testing`
+- Code reviewer rejected → `backlog.py set <id> status in_progress` + `echo "<feedback>" | backlog.py set-text <id> review_feedback`
+- QA expert approved → `backlog.py set <id> status uat`, then process sweep findings (see below)
+- QA expert rejected → `backlog.py set <id> status in_progress` + `echo "<feedback>" | backlog.py set-text <id> review_feedback`, then process sweep findings (see below)
 
 Note: Agents never set `status: done`. The user manually moves stories from `uat` to `done` after acceptance.
 
@@ -68,7 +68,7 @@ Note: Agents never set `status: done`. The user manually moves stories from `uat
 After handling the QA story verdict (approved or rejected), check the QA verdict for a "Runtime Error Sweep" section:
 
 1. If sweep result is `FINDINGS`:
-   - For each "New bug ticket": determine next `B-NNN` ID (scan backlog.yaml for highest B- number and increment), add to backlog.yaml with QA-suggested fields (title, priority, acceptance, testing, notes with log evidence).
+   - For each "New bug ticket": get next ID via `backlog.py next-id B`, then pipe the ticket YAML to `backlog.py add` (see AGENT_FLOW.md section 4.4.1 for the template).
    - For each "Improvement idea": route to the appropriate file under `/agent/ideas/` (see "Processing process improvement ideas" below for routing rules). Include `* status: needs_approval`, `* priority: <value>` (using the priority suggested by QA), and `* source: qa`, then send a discord notification:
      `[project] New ideas from qa-expert sweep: <title> — <brief description>, <title> — <brief description>.`
    - If any bug tickets were filed, send a discord notification:
@@ -100,7 +100,7 @@ Every addition to agent/ideas/ (whether from process improvements, QA sweep find
 - Code review passed (code-reviewer approved)
 - QA testing passed (qa-expert approved)
 - /CHANGELOG.md updated (orchestrator responsibility at finalization — see AGENT_FLOW 4.5)
-- /agent/backlog.yaml updated (`status: uat` when all gates pass)
+- Backlog updated via `backlog.py set <id> status uat` when all gates pass
 - Committed and merged to main with message format: story(<id>): <title> (unless AGENT_FLOW/backlog explicitly overrides)
 
 Note: `uat` → `done` is a user action. Agents never set `status: done`.
@@ -113,7 +113,7 @@ Note: `uat` → `done` is a user action. Agents never set `status: done`.
 ## Stop conditions
 
 - If no eligible stories remain across any queue, make no changes, touch the stop file and exit. Note: `uat` stories without `uat_feedback` are not eligible work — they are waiting for user acceptance.
-- If blocked, record a concrete blocked_reason in /agent/backlog.yaml and exit.
+- If blocked, record via `backlog.py set <id> status blocked` + `echo "<reason>" | backlog.py set-text <id> blocked_reason` and exit.
 
 How to stop:
 - Touch `.ralph.stop` to signal stopping the ralph loop (only if no eligible stories remain).
