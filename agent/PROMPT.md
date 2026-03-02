@@ -14,11 +14,19 @@ Follow /agent/AGENT_FLOW.md exactly.
 ## Work selection
 
 Use `python3 scripts/backlog/backlog.py` (aliased below as `backlog.py`) to query and update the backlog. Select work per AGENT_FLOW.md section 3:
-1. First: `backlog.py query --status review` → invoke code-reviewer subagent
-2. Second: `backlog.py query --status testing` → invoke qa-expert subagent
-3. Third: `backlog.py query --status uat --has-field uat_feedback` → copy uat_feedback to review_feedback via `backlog.py`, clear uat_feedback, set status to in_progress, create new branch from main, then invoke fullstack-developer subagent
-4. Fourth: `backlog.py query --status in_progress --has-field review_feedback` → invoke fullstack-developer subagent
-5. Fifth: `backlog.py query --status todo` → select highest priority (bugs first), invoke fullstack-developer subagent
+
+```bash
+backlog.py next-work --format json
+```
+
+This returns the selected story with a `queue` field. Dispatch based on the queue value:
+- `review` → invoke code-reviewer subagent
+- `testing` → invoke qa-expert subagent
+- `uat_feedback` → copy uat_feedback to review_feedback, clear uat_feedback, set in_progress, create new branch from main, invoke fullstack-developer subagent
+- `in_progress_feedback` → invoke fullstack-developer subagent
+- `todo` → set status to in_progress, invoke fullstack-developer subagent
+
+Exit code 2 means no eligible work — touch `.ralph.stop` and exit.
 
 ## Story marker
 

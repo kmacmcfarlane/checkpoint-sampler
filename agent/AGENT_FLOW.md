@@ -12,6 +12,8 @@ At the start of every cycle, read:
 - /agent/DEVELOPMENT_PRACTICES.md
 - /CHANGELOG.md
 
+**Performance note:** Read these files in parallel to minimize round-trips.
+
 Rules:
 - /agent/backlog.yaml is the only source of "what to do next". Completed stories are archived in /agent/backlog_done.yaml (read-only reference; do not modify).
 - /agent/backlog.yaml, /agent/QUESTIONS.md, and files under /agent/ideas/ are the only files in /agent that the agent should modify. The user is responsible for edits to the other files. If you would like to suggest an edit to these files, do so in the appropriate file under /agent/ideas/ or /agent/QUESTIONS.md
@@ -31,7 +33,7 @@ Key commands:
 - **Archive**: `python3 scripts/backlog/backlog.py archive <id>`
 - **Validate**: `python3 scripts/backlog/backlog.py validate [--strict]`
 
-Output format: `--format yaml` (default) or `--format json`. Exit codes: 0=success, 1=validation error, 2=not found, 3=file error.
+Output format: `--format yaml` (default) or `--format json`. `--format` works in both global position (before subcommand) and subcommand position (after subcommand). Exit codes: 0=success, 1=validation error, 2=not found, 3=file error.
 - /agent/PRD.md defines product requirements and scope.
 - /agent/TEST_PRACTICES.md and /agent/DEVELOPMENT_PRACTICES.md define standards.
 
@@ -148,22 +150,37 @@ The orchestrator must process stories in this priority order:
 
 ### 3.1 Priority: finish in-flight work first
 
-1. **Review queue**: `backlog.py query --status review --fields id,title,priority`. Process the highest priority one by invoking the code reviewer.
-2. **Testing queue**: `backlog.py query --status testing --fields id,title,priority`. Process the highest priority one by invoking the QA expert.
-3. **UAT feedback queue**: `backlog.py query --status uat --has-field uat_feedback --fields id,title,priority`. For the highest priority one:
-   - Read the uat_feedback: `backlog.py get <id>`
-   - Copy to review_feedback: `backlog.py get <id> --format json | jq -r '.uat_feedback' | backlog.py set-text <id> review_feedback`
-   - Clear uat_feedback: `backlog.py clear <id> uat_feedback`
-   - Set status: `backlog.py set <id> status in_progress`
-   - Create a new feature branch from `main`, then invoke the fullstack engineer.
-4. **In-progress stories with feedback**: `backlog.py query --status in_progress --has-field review_feedback --fields id,title,priority`. Process the highest priority one by invoking the fullstack engineer.
+**Primary method (single call):**
+
+```bash
+backlog.py next-work --format json
+```
+
+This encodes the full work-selection algorithm and returns the selected story with a `queue` field indicating which queue it came from. Exit code 2 if no eligible work exists.
+
+| Queue value | Meaning | Dispatch to |
+|---|---|---|
+| `review` | Code review pending | Code reviewer |
+| `testing` | QA testing pending | QA expert |
+| `uat_feedback` | UAT rework needed | Fullstack engineer (after copying uat_feedback to review_feedback, clearing uat_feedback, setting in_progress, creating new branch from main) |
+| `in_progress_feedback` | Review/QA feedback to address | Fullstack engineer |
+| `todo` | New work (bugs prioritized, requires satisfied) | Fullstack engineer (after setting in_progress) |
+
+**Algorithm reference** (implemented by `next-work`):
+
+1. **Review queue**: stories with `status: review`, highest priority first.
+2. **Testing queue**: stories with `status: testing`, highest priority first.
+3. **UAT feedback queue**: stories with `status: uat` AND `uat_feedback` non-empty, highest priority first.
+4. **In-progress with feedback**: stories with `status: in_progress` AND `review_feedback` non-empty, highest priority first.
 5. **New work**: Select a new story using the algorithm below.
 
 ### 3.2 New work selection algorithm (deterministic)
 
-1) Query candidates: `backlog.py query --status todo --format json`
+> **Note:** This algorithm is implemented by `backlog.py next-work`. The manual steps below document the algorithm for reference.
+
+1) Query candidates: `backlog.py query --status todo --check-requires --format json`
 2) Exclude stories that are `blocked` (blocked=true or blocked_reason present).
-3) Use `backlog.py list-ids --source both` to check `requires` dependencies — exclude stories whose `requires` list contains any story that does not have `status: done` or `status: uat`.
+3) Exclude stories whose `requires` dependencies are not all satisfied (`status: done` or `status: uat`). The `--check-requires` flag on `query` handles this automatically. For manual checking, use `backlog.py list-ids --source both`.
 4) **Bugs first**: Partition eligible stories into bugs (id starts with `B-`) and non-bugs. If any bugs are eligible, select from bugs only.
 5) Within the selected partition, choose the highest priority story (higher number = higher priority).
 6) Tie-breaker: lowest id lexicographically.

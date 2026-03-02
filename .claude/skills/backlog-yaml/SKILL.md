@@ -19,6 +19,9 @@ See `references/cli-reference.md` for the full command reference with examples.
 # Query stories by status
 python3 scripts/backlog/backlog.py query --status todo --fields id,title,priority
 
+# Select next eligible work (deterministic algorithm)
+python3 scripts/backlog/backlog.py next-work --format json
+
 # Get a single story
 python3 scripts/backlog/backlog.py get S-052
 

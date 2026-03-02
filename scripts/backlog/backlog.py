@@ -192,6 +192,64 @@ def output_stories(stories: list, fmt: str, fields: list[str] | None = None) -> 
         yaml.dump(to_plain(stories), sys.stdout)
 
 
+# ── Work selection helpers ───────────────────────────────────────────────────
+
+
+def _get_all_stories(backlog_path: Path, done_path: Path) -> list[CommentedMap]:
+    """Load all stories from both active and done backlogs."""
+    all_stories: list[CommentedMap] = []
+    for path in (backlog_path, done_path):
+        data, _ = load_yaml(path)
+        stories = data.get("stories") or []
+        all_stories.extend(stories)
+    return all_stories
+
+
+def _requires_satisfied(story: CommentedMap, all_stories: list[CommentedMap]) -> bool:
+    """Check if all requires dependencies are satisfied (status: done or uat).
+
+    Handles transitive dependencies: if A requires B, and B requires C,
+    then A is only satisfied if both B and C are done/uat.
+    Circular dependencies are treated as unsatisfied.
+    """
+    requires = story.get("requires")
+    if not isinstance(requires, list) or len(requires) == 0:
+        return True
+
+    status_map = {s.get("id"): s.get("status") for s in all_stories if s.get("id")}
+    requires_map: dict[str, list] = {}
+    for s in all_stories:
+        sid = s.get("id")
+        if sid:
+            reqs = s.get("requires")
+            requires_map[sid] = reqs if isinstance(reqs, list) else []
+
+    satisfied_statuses = frozenset({"done", "uat"})
+
+    def _check(story_id: str, visited: set[str]) -> bool:
+        if story_id in visited:
+            return False  # Circular dependency
+        visited.add(story_id)
+        if status_map.get(story_id) not in satisfied_statuses:
+            return False
+        for dep_id in requires_map.get(story_id, []):
+            if not _check(dep_id, visited):
+                return False
+        return True
+
+    for req_id in requires:
+        if not _check(req_id, set()):
+            return False
+    return True
+
+
+def _select_highest_priority(stories: list[CommentedMap]) -> CommentedMap | None:
+    """Select highest priority story. Tie-break: lowest ID lexicographically."""
+    if not stories:
+        return None
+    return sorted(stories, key=lambda s: (-s.get("priority", 0), s.get("id", "Z-999")))[0]
+
+
 # ── Validation ───────────────────────────────────────────────────────────────
 
 
@@ -363,6 +421,10 @@ def cmd_query(args) -> int:
                     continue
             results.append(story)
 
+    if args.check_requires:
+        all_stories = _get_all_stories(backlog_path, done_path)
+        results = [s for s in results if _requires_satisfied(s, all_stories)]
+
     fields = [f.strip() for f in args.fields.split(",")] if args.fields else None
     output_stories(results, args.format, fields)
     return 0
@@ -417,6 +479,91 @@ def cmd_list_ids(args) -> int:
     entries.sort(key=lambda e: e[0])
     for sid, status, title in entries:
         print(f"{sid}\t{status}\t{title}")
+    return 0
+
+
+def _output_next_work(
+    story: CommentedMap, queue: str, fmt: str, fields: list[str] | None
+) -> None:
+    """Output a single story with an additional 'queue' field."""
+    result = CommentedMap()
+    result["queue"] = queue
+    for key, value in story.items():
+        result[key] = value
+    if fields and "queue" not in fields:
+        fields = ["queue"] + fields
+    output_stories([result], fmt, fields)
+
+
+def cmd_next_work(args) -> int:
+    """Select the next eligible story using the deterministic work-selection algorithm.
+
+    Priority order (AGENT_FLOW.md section 3.1):
+    1. Review queue: status=review
+    2. Testing queue: status=testing
+    3. UAT feedback: status=uat with uat_feedback present
+    4. In-progress with feedback: status=in_progress with review_feedback present
+    5. New work: status=todo, not blocked, requires satisfied, bugs first
+    """
+    backlog_path, done_path = args.backlog, args.done
+    bl_data, _ = load_yaml(backlog_path)
+    active_stories = bl_data.get("stories") or []
+
+    fields = [f.strip() for f in args.fields.split(",")] if args.fields else None
+
+    # Queue 1: review
+    review = [s for s in active_stories if s.get("status") == "review"]
+    if review:
+        selected = _select_highest_priority(review)
+        _output_next_work(selected, "review", args.format, fields)
+        return 0
+
+    # Queue 2: testing
+    testing = [s for s in active_stories if s.get("status") == "testing"]
+    if testing:
+        selected = _select_highest_priority(testing)
+        _output_next_work(selected, "testing", args.format, fields)
+        return 0
+
+    # Queue 3: UAT feedback
+    uat_feedback = [
+        s for s in active_stories
+        if s.get("status") == "uat" and s.get("uat_feedback")
+    ]
+    if uat_feedback:
+        selected = _select_highest_priority(uat_feedback)
+        _output_next_work(selected, "uat_feedback", args.format, fields)
+        return 0
+
+    # Queue 4: in-progress with review feedback
+    ip_feedback = [
+        s for s in active_stories
+        if s.get("status") == "in_progress" and s.get("review_feedback")
+    ]
+    if ip_feedback:
+        selected = _select_highest_priority(ip_feedback)
+        _output_next_work(selected, "in_progress_feedback", args.format, fields)
+        return 0
+
+    # Queue 5: new work (todo)
+    todo = [s for s in active_stories if s.get("status") == "todo"]
+    todo = [s for s in todo if not s.get("blocked_reason")]
+
+    all_stories = _get_all_stories(backlog_path, done_path)
+    todo = [s for s in todo if _requires_satisfied(s, all_stories)]
+
+    if not todo:
+        print("No eligible work found.", file=sys.stderr)
+        return 2
+
+    # Bugs first
+    bugs = [s for s in todo if str(s.get("id", "")).startswith("B-")]
+    if bugs:
+        selected = _select_highest_priority(bugs)
+    else:
+        selected = _select_highest_priority(todo)
+
+    _output_next_work(selected, "todo", args.format, fields)
     return 0
 
 
@@ -731,10 +878,28 @@ def build_parser() -> argparse.ArgumentParser:
         help="Which file(s) to search",
     )
     p.add_argument("--fields", help="Comma-separated fields to include in output")
+    p.add_argument(
+        "--format",
+        choices=["yaml", "json"],
+        default=argparse.SUPPRESS,
+        help="Output format (overrides global --format)",
+    )
+    p.add_argument(
+        "--check-requires",
+        action="store_true",
+        default=False,
+        help="Exclude stories whose requires dependencies are not satisfied (done/uat)",
+    )
 
     # get
     p = sub.add_parser("get", help="Get a single story by ID")
     p.add_argument("id", help="Story ID (e.g. S-052)")
+    p.add_argument(
+        "--format",
+        choices=["yaml", "json"],
+        default=argparse.SUPPRESS,
+        help="Output format (overrides global --format)",
+    )
 
     # next-id
     p = sub.add_parser("next-id", help="Get next available ID for a prefix")
@@ -747,6 +912,18 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["active", "done", "both"],
         default="both",
         help="Which file(s) to scan",
+    )
+
+    # next-work
+    p = sub.add_parser(
+        "next-work", help="Select next eligible story using work-selection algorithm"
+    )
+    p.add_argument("--fields", help="Comma-separated fields to include in output")
+    p.add_argument(
+        "--format",
+        choices=["yaml", "json"],
+        default=argparse.SUPPRESS,
+        help="Output format (overrides global --format)",
     )
 
     # add
@@ -800,6 +977,7 @@ def main() -> int:
         "get": cmd_get,
         "next-id": cmd_next_id,
         "list-ids": cmd_list_ids,
+        "next-work": cmd_next_work,
         "add": cmd_add,
         "set": cmd_set,
         "set-text": cmd_set_text,

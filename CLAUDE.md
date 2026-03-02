@@ -124,6 +124,7 @@ Frontend (MUST run from /frontend, not the project root):
 - `cd frontend && npm run test:watch`  (Vitest)
 
 Backlog CLI (preferred over direct YAML editing):
+- `python3 scripts/backlog/backlog.py next-work [--format json] [--fields ...]`
 - `python3 scripts/backlog/backlog.py query --status todo --fields id,title,priority`
 - `python3 scripts/backlog/backlog.py get <id>`
 - `python3 scripts/backlog/backlog.py set <id> status <value>`

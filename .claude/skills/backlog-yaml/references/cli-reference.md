@@ -14,6 +14,8 @@ python3 scripts/backlog/backlog.py [--backlog PATH] [--done PATH] [--format yaml
 | `--done` | `<git-root>/agent/backlog_done.yaml` | Path to done/archive file |
 | `--format` | `yaml` | Output format for read operations |
 
+> **Note:** `--format` also works after read subcommands (`query`, `get`, `next-work`). The subcommand position takes precedence if both are specified.
+
 ---
 
 ## Read Commands
@@ -26,8 +28,10 @@ backlog.py query [--status STATUS[,STATUS,...]]
                  [--id-prefix PREFIX]
                  [--complexity COMPLEXITY[,COMPLEXITY,...]]
                  [--has-field FIELD]
+                 [--check-requires]
                  [--source active|done|both]
                  [--fields FIELD[,FIELD,...]]
+                 [--format yaml|json]
 ```
 
 | Flag | Description |
@@ -38,6 +42,7 @@ backlog.py query [--status STATUS[,STATUS,...]]
 | `--id-prefix` | Filter by ID prefix (S, B, R, W) |
 | `--complexity` | Comma-separated complexity filter (low, medium, high) |
 | `--has-field` | Only stories with this field non-empty |
+| `--check-requires` | Exclude stories whose `requires` dependencies are not satisfied (done/uat) |
 | `--source` | Which file(s) to search. Default: `active` |
 | `--fields` | Comma-separated fields to include in output |
 
@@ -58,6 +63,9 @@ backlog.py query --status todo --format json | jq '.[0].id'
 
 # UAT stories with feedback (for orchestrator work selection)
 backlog.py query --status uat --has-field uat_feedback --fields id,title,priority
+
+# Todo stories with all dependencies satisfied
+backlog.py query --status todo --check-requires --fields id,title,priority
 ```
 
 ### `get` — Get a single story
@@ -103,6 +111,43 @@ Outputs tab-separated: `<id>\t<status>\t<title>`, one line per story, sorted by 
 ```bash
 backlog.py list-ids --source active
 backlog.py list-ids --source both | grep "^S-"
+```
+
+### `next-work` — Select next eligible story
+
+```
+backlog.py next-work [--fields FIELD[,FIELD,...]] [--format yaml|json]
+```
+
+Implements the deterministic work-selection algorithm from AGENT_FLOW.md section 3.1 in a single call. Returns the selected story with an additional `queue` field indicating which queue it came from.
+
+| Flag | Description |
+|------|-------------|
+| `--fields` | Comma-separated fields to include in output (`queue` is always included) |
+
+**Queue values:**
+
+| Queue | Meaning | Story status |
+|-------|---------|--------------|
+| `review` | Code review pending | `status: review` |
+| `testing` | QA testing pending | `status: testing` |
+| `uat_feedback` | UAT rework needed | `status: uat` with `uat_feedback` |
+| `in_progress_feedback` | Review/QA feedback to address | `status: in_progress` with `review_feedback` |
+| `todo` | New work (bugs prioritized, requires satisfied) | `status: todo` |
+
+**Exit codes:** 0 = story selected, 2 = no eligible work found.
+
+**Examples:**
+
+```bash
+# Default (YAML output)
+backlog.py next-work
+
+# JSON output for piping
+backlog.py next-work --format json
+
+# Compact view
+backlog.py next-work --fields id,title,priority,queue
 ```
 
 ---
@@ -345,20 +390,18 @@ backlog.py validate --source both      # Validate both files
 ### Work selection (AGENT_FLOW.md section 3)
 
 ```bash
-# 1. Review queue
+# Single-call work selection (recommended)
+backlog.py next-work --format json
+```
+
+For manual queue inspection (reference only):
+
+```bash
 backlog.py query --status review --fields id,title,priority
-
-# 2. Testing queue
 backlog.py query --status testing --fields id,title,priority
-
-# 3. UAT feedback queue
 backlog.py query --status uat --has-field uat_feedback --fields id,title,priority
-
-# 4. In-progress with feedback
 backlog.py query --status in_progress --has-field review_feedback --fields id,title,priority
-
-# 5. New work candidates
-backlog.py query --status todo --format json
+backlog.py query --status todo --check-requires --format json
 ```
 
 ### Status transitions
