@@ -306,7 +306,7 @@ Watch mode (`test-backend-watch`, `test-frontend-watch`) is designed for human d
 - **Security Auditor** (on demand): Reviews security-sensitive changes against section 1.5 and CLAUDE.md safety rules.
 
 ### 6.3 Handoff standards
-- When the fullstack engineer sets a story to `review`, all tests must be passing and CHANGELOG.md must be updated.
+- When the fullstack engineer sets a story to `review`, all tests must be passing.
 - When the code reviewer approves, the review checklist in `code-reviewer.md` must be fully satisfied.
 - When the QA expert approves, all acceptance criteria must be traced to passing tests or verified code paths.
 - Feedback (when returning a story to `in_progress`) must be specific and actionable — recorded in the story's `review_feedback` field.
@@ -321,8 +321,9 @@ Watch mode (`test-backend-watch`, `test-frontend-watch`) is designed for human d
 - /.claude/agents/ contains subagent definitions.
 
 ### 7.2 Changelog
-- /CHANGELOG.md updated per completed story.
-- Keep entries concise and user-visible.
+- /CHANGELOG.md updated per completed story (orchestrator responsibility — see AGENT_FLOW.md section 4.5).
+- Entries: 1–4 bullet points focusing on architectural decisions, breaking changes, and user-visible behavior. No per-file lists, test counts, or function signatures.
+- Periodically compact older entries to title-only one-liners when the file exceeds ~150 lines. Full history lives in git.
 
 ### 7.3 README
 - /README.md is the public-facing project overview and quick-start guide.

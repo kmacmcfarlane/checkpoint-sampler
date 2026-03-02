@@ -97,9 +97,9 @@ Every addition to agent/ideas/ (whether from process improvements, QA sweep find
 
 - All acceptance criteria satisfied
 - Tests required by the story are added/updated and pass locally
-- /CHANGELOG.md updated
 - Code review passed (code-reviewer approved)
 - QA testing passed (qa-expert approved)
+- /CHANGELOG.md updated (orchestrator responsibility at finalization — see AGENT_FLOW 4.5)
 - /agent/backlog.yaml updated (`status: uat` when all gates pass)
 - Committed and merged to main with message format: story(<id>): <title> (unless AGENT_FLOW/backlog explicitly overrides)
 

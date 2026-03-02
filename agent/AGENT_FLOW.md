@@ -305,7 +305,31 @@ When the QA expert's verdict includes an "E2E Test Results" section with `Status
 
 When the QA expert reports **APPROVED**, the orchestrator performs these steps in order:
 
-1. **Update CHANGELOG**: Add an entry to /CHANGELOG.md for the completed story. If a CHANGELOG entry already exists for this story (e.g., from a prior UAT rework cycle), replace it rather than adding a duplicate.
+1. **Update CHANGELOG**: Add an entry to /CHANGELOG.md for the completed story under the `## Unreleased` heading. If a CHANGELOG entry already exists for this story (e.g., from a prior UAT rework cycle), replace it rather than adding a duplicate.
+
+   **Changelog entry format** — entries must be concise and decision-oriented:
+   - **Heading**: `### <story-id>: <title>`
+   - **Body**: 1–4 bullet points maximum. Focus on:
+     - Architectural decisions and trade-offs (e.g., "output directories now study-scoped: `{sample_dir}/{study_name}/{checkpoint_filename}/`")
+     - Breaking changes, new API endpoints, or DB migrations
+     - Key behavioral changes visible to users or other developers
+   - **Do NOT include**:
+     - Per-file change lists (the agent reads actual code, not changelog)
+     - Test counts (the agent runs tests itself)
+     - Detailed field/column names or function signatures (the agent reads the schema/code)
+     - Test file names or test descriptions
+   - **Compact examples**:
+     ```
+     ### S-074: Rename 'sample presets' to 'studies' with study-scoped output directories
+     - DB migration renames `sample_presets` → `studies`; API endpoints `/api/sample-presets` → `/api/studies`
+     - Output directories now study-scoped: `{sample_dir}/{study_name}/{checkpoint_filename}/`
+     - Study name denormalized on SampleJob for historical accuracy
+
+     ### B-033: Lightbox closes on mouse-up after slider drag
+     - Track mousedown origin to prevent slider drag-release from closing lightbox
+     ```
+   - **Periodic compaction**: When the changelog exceeds ~150 lines, the orchestrator should move entries older than the most recent ~15 stories to the "Earlier changes" section (title-only one-liners). Full history is always available in git.
+
 2. **Update backlog**: Set `status: uat` in /agent/backlog.yaml.
 3. **Commit**: Create the commit (per commit rules below).
 4. **Merge**: Merge the feature branch into `main` (per the commit/merge policy in PROMPT.md).
