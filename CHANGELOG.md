@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-059: Build tooling quality-of-life improvements
+- `.air.toml`: deprecated `build.bin` → `build.entrypoint`; `make test-backend` uses `run --rm` (no running stack needed); E2E `--remove-orphans`; root-level `make gen` target
+
 ### S-081: Viewer driven by sample output directories instead of checkpoints
 - Viewer now discovers training runs from sample output directories instead of checkpoint files
 - "Has Samples" filter removed from training run selector (all listed runs have samples by definition)

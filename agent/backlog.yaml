@@ -220,7 +220,7 @@ stories:
   - id: S-059
     title: "Build tooling quality-of-life improvements"
     priority: 29
-    status: todo
+    status: uat
     requires: []
     acceptance:
       - "OPS: Update .air.toml from deprecated build.bin to build.entrypoint to silence startup warning"

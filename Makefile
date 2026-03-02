@@ -1,4 +1,4 @@
-.PHONY: claude claude-resume ralph ralph-resume ralph-auto ralph-auto-resume capture-runtime-context up down logs up-dev down-dev logs-dev test-frontend-watch test-backend-watch up-test down-test test-e2e test-e2e-logs down-e2e
+.PHONY: claude claude-resume ralph ralph-resume ralph-auto ralph-auto-resume capture-runtime-context up down logs up-dev down-dev logs-dev gen test-frontend-watch test-backend-watch up-test down-test test-e2e test-e2e-logs down-e2e
 
 COMPOSE_DEV = docker compose -p checkpoint-sampler-dev -f docker-compose.yml -f docker-compose.dev.yml
 COMPOSE_TEST = docker compose -p checkpoint-sampler-test -f docker-compose.yml -f docker-compose.test.yml
@@ -37,6 +37,10 @@ ralph-auto-resume-once:
 capture-runtime-context:
 	./scripts/capture-runtime-context.sh
 
+# Run Goa codegen inside the backend dev container (does not require make up-dev)
+gen:
+	$(COMPOSE_DEV) run --rm -w /app/backend backend make gen
+
 up:
 	docker compose up -d --build
 
@@ -62,7 +66,7 @@ test-frontend-watch:
 	$(COMPOSE_DEV) exec frontend npm run test:watch
 
 test-backend:
-	$(COMPOSE_DEV) exec -w /app/backend backend ginkgo -r --cover --race ./internal/... ./cmd/...
+	$(COMPOSE_DEV) run --rm -w /app/backend backend ginkgo -r --cover --race ./internal/... ./cmd/...
 
 test-backend-watch:
 	$(COMPOSE_DEV) exec -w /app/backend backend ginkgo watch -r --cover --race ./internal/... ./cmd/...
@@ -81,8 +85,8 @@ E2E_LOG_DIR = .ralph-temp/e2e-logs
 # playwright, then captures logs to .ralph-temp/e2e-logs/ and tears down.
 # Does not require make up-dev to be running.
 test-e2e:
-	$(COMPOSE_E2E) up -d --build --wait backend frontend && \
-	$(COMPOSE_E2E) run --rm playwright sh -c "npm ci && npx playwright test"; \
+	$(COMPOSE_E2E) up -d --build --wait --remove-orphans backend frontend && \
+	$(COMPOSE_E2E) run --rm --remove-orphans playwright sh -c "npm ci && npx playwright test"; \
 	STATUS=$$?; \
 	mkdir -p $(E2E_LOG_DIR) && \
 	$(COMPOSE_E2E) logs --no-color backend > $(E2E_LOG_DIR)/backend.log 2>&1; \
