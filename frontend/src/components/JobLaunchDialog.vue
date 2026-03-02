@@ -50,8 +50,8 @@ const clipModels = ref<string[]>([])
 // Study editor sub-dialog
 const studyEditorOpen = ref(false)
 
-// Training run filter: when false, show only gray (empty) runs
-const showAllRuns = ref(false)
+// Training run filter: when true, show all runs; when false, show only gray (empty) runs
+const showAllRuns = ref(true)
 
 // Form selections
 const selectedTrainingRunId = ref<number | null>(null)
@@ -466,18 +466,11 @@ onMounted(async () => {
   }
 
   // AC3: Restore last used training run (only if it's still in the available list).
-  // The filter may need to be expanded to "show all" if the run is not in the default filter.
+  // Since showAllRuns defaults to true, all runs are visible without filter expansion.
   const lastTrainingRunId = persistence.getLastTrainingRunId()
   if (lastTrainingRunId !== null) {
     const runExists = trainingRuns.value.some(r => r.id === lastTrainingRunId)
     if (runExists) {
-      // Check if the run is in the current filtered options; if not, expand the filter
-      const inDefaultFilter = trainingRuns.value.some(
-        r => r.id === lastTrainingRunId && getRunStatus(r) === 'empty'
-      )
-      if (!inDefaultFilter) {
-        showAllRuns.value = true
-      }
       selectedTrainingRunId.value = lastTrainingRunId
     }
   }
@@ -546,7 +539,7 @@ function resetForm() {
   selectedCheckpoints.value = new Set()
   clearExisting.value = false
   currentModelType.value = null
-  showAllRuns.value = false
+  showAllRuns.value = true
   prefillActive.value = false
   error.value = null
 }
