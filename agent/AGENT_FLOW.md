@@ -450,8 +450,8 @@ At all times:
 
 ## 8) Stopping conditions
 
-End the cycle when any occurs:
-- The selected story reaches `uat` and is committed/merged to main.
+End the cycle when any occurs — do NOT continue to the next story:
+- The selected story reaches `uat` and is committed/merged to main. Exit immediately; do not call `next-work` again.
 - The selected story becomes `blocked` and backlog.yaml is updated accordingly.
 - No eligible stories remain across any queue (note: `uat` stories without `uat_feedback` are NOT eligible work).
 - A hard failure prevents continuing safely (e.g., irreconcilable test failures); record a blocker note and stop.
@@ -503,7 +503,7 @@ The agent must assume:
 - Context is cleared between cycles.
 - The only persisted state is the repository content and git history.
 - Therefore, always re-read the input files in section 0 before acting.
-- A single cycle may advance a story through multiple status transitions (e.g., `todo` → `in_progress` → `review` → `testing` → `uat`) if all subagents complete successfully within the cycle. The `uat` → `done` transition is always a manual user action.
+- A single cycle processes exactly ONE story. That story may advance through multiple status transitions within the cycle (e.g., `todo` → `in_progress` → `review` → `testing` → `uat`) if all subagents complete successfully. After a story reaches `uat` (or `blocked`), the cycle ends — the orchestrator does not select additional stories. The `uat` → `done` transition is always a manual user action.
 
 ### 10.1 Per-iteration temp directory (`.ralph-temp/`)
 

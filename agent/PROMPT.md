@@ -120,6 +120,7 @@ Note: `uat` → `done` is a user action. Agents never set `status: done`.
 
 ## Stop conditions
 
+- After a story reaches `uat` and is committed/merged to main, exit immediately. Do NOT call `next-work` again — each iteration handles exactly one story. Ralph will start a fresh iteration for the next story.
 - If no eligible stories remain across any queue, make no changes, touch the stop file and exit. Note: `uat` stories without `uat_feedback` are not eligible work — they are waiting for user acceptance.
 - If blocked, record via `backlog.py set <id> status blocked` + `echo "<reason>" | backlog.py set-text <id> blocked_reason` and exit.
 
