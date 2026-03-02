@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { nextTick } from 'vue'
-import { NSelect, NCheckbox } from 'naive-ui'
+import { NSelect } from 'naive-ui'
 import TrainingRunSelector from '../TrainingRunSelector.vue'
 import type { TrainingRun } from '../../api/types'
 
@@ -139,87 +139,21 @@ describe('TrainingRunSelector', () => {
     expect(menuProps.style).toContain('max-width')
   })
 
-  describe('has-samples filter', () => {
-    it('renders a has-samples NCheckbox that is checked by default', async () => {
-      mockGetTrainingRuns.mockResolvedValue(sampleRuns)
-      const wrapper = mount(TrainingRunSelector)
-      await flushPromises()
+  it('calls getTrainingRuns without arguments on initial load', async () => {
+    mockGetTrainingRuns.mockResolvedValue(sampleRuns)
+    mount(TrainingRunSelector)
+    await flushPromises()
 
-      const checkbox = wrapper.findComponent(NCheckbox)
-      expect(checkbox.exists()).toBe(true)
-      expect(checkbox.props('checked')).toBe(true)
-    })
+    expect(mockGetTrainingRuns).toHaveBeenCalledWith()
+  })
 
-    it('calls getTrainingRuns with has_samples=true on initial load', async () => {
-      mockGetTrainingRuns.mockResolvedValue(sampleRuns)
-      mount(TrainingRunSelector)
-      await flushPromises()
+  it('does not render a has-samples checkbox (all listed runs have samples)', async () => {
+    mockGetTrainingRuns.mockResolvedValue(sampleRuns)
+    const wrapper = mount(TrainingRunSelector)
+    await flushPromises()
 
-      expect(mockGetTrainingRuns).toHaveBeenCalledWith(true)
-    })
-
-    it('re-fetches with has_samples=true when checkbox is checked', async () => {
-      mockGetTrainingRuns.mockResolvedValue(sampleRuns)
-      const wrapper = mount(TrainingRunSelector)
-      await flushPromises()
-
-      const checkbox = wrapper.findComponent(NCheckbox)
-
-      // Uncheck first (default is true), then re-check to verify has_samples=true triggers a fetch
-      mockGetTrainingRuns.mockClear()
-      mockGetTrainingRuns.mockResolvedValue([])
-      checkbox.vm.$emit('update:checked', false)
-      await flushPromises()
-
-      mockGetTrainingRuns.mockClear()
-      mockGetTrainingRuns.mockResolvedValue(sampleRuns)
-      checkbox.vm.$emit('update:checked', true)
-      await flushPromises()
-
-      expect(mockGetTrainingRuns).toHaveBeenCalledWith(true)
-    })
-
-    it('re-fetches with has_samples=false when checkbox is unchecked again', async () => {
-      mockGetTrainingRuns.mockResolvedValue(sampleRuns)
-      const wrapper = mount(TrainingRunSelector)
-      await flushPromises()
-
-      // Check
-      const checkbox = wrapper.findComponent(NCheckbox)
-      mockGetTrainingRuns.mockClear()
-      mockGetTrainingRuns.mockResolvedValue([])
-      checkbox.vm.$emit('update:checked', true)
-      await flushPromises()
-
-      // Uncheck
-      mockGetTrainingRuns.mockClear()
-      mockGetTrainingRuns.mockResolvedValue(sampleRuns)
-      checkbox.vm.$emit('update:checked', false)
-      await flushPromises()
-
-      expect(mockGetTrainingRuns).toHaveBeenCalledWith(false)
-    })
-
-    it('resets selection when filter changes', async () => {
-      mockGetTrainingRuns.mockResolvedValue(sampleRuns)
-      const wrapper = mount(TrainingRunSelector)
-      await flushPromises()
-
-      // Select a run
-      const select = wrapper.findComponent(NSelect)
-      select.vm.$emit('update:value', 0)
-      await nextTick()
-      expect(wrapper.emitted('select')).toHaveLength(1)
-
-      // Toggle filter (uncheck from default true to false to trigger a change)
-      mockGetTrainingRuns.mockResolvedValue([])
-      const checkbox = wrapper.findComponent(NCheckbox)
-      checkbox.vm.$emit('update:checked', false)
-      await flushPromises()
-
-      // Select value should be reset to null
-      expect(select.props('value')).toBeNull()
-    })
+    const checkbox = wrapper.find('[data-testid="has-samples-checkbox"]')
+    expect(checkbox.exists()).toBe(false)
   })
 
   describe('auto-select behavior', () => {
@@ -269,7 +203,7 @@ describe('TrainingRunSelector', () => {
       expect(emitted).toBeUndefined()
     })
 
-    it('auto-selects only once even if training runs list changes', async () => {
+    it('auto-selects only once on initial load', async () => {
       mockGetTrainingRuns.mockResolvedValue(sampleRuns)
       const wrapper = mount(TrainingRunSelector, {
         props: { autoSelectRunId: 0 },
@@ -279,15 +213,8 @@ describe('TrainingRunSelector', () => {
       // First auto-select should happen
       expect(wrapper.emitted('select')).toHaveLength(1)
 
-      // Change the filter to trigger a refetch
-      mockGetTrainingRuns.mockClear()
-      mockGetTrainingRuns.mockResolvedValue(sampleRuns)
-      const checkbox = wrapper.findComponent(NCheckbox)
-      checkbox.vm.$emit('update:checked', true)
-      await flushPromises()
-
-      // Auto-select should not trigger again
-      expect(wrapper.emitted('select')).toHaveLength(1)
+      // getTrainingRuns was called once on mount; auto-select should not repeat
+      expect(mockGetTrainingRuns).toHaveBeenCalledTimes(1)
     })
   })
 })

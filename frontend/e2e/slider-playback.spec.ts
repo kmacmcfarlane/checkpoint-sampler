@@ -9,7 +9,7 @@ import { resetDatabase } from './helpers'
  *   - Stop playback and verify the slider holds its position
  *
  * Test fixture data:
- *   - Training run: "test-run/my-model"
+ *   - Training run: "my-model"
  *   - Checkpoints: step 1000, step 2000
  *   - Images per checkpoint: prompt_name=landscape, prompt_name=portrait (seed=42, cfg=7)
  *   - Dimensions: cfg, checkpoint, prompt_name, seed
@@ -67,7 +67,7 @@ async function closeDrawer(page: Page): Promise<void> {
 
 /**
  * Sets up the app with:
- *   - "test-run/my-model" selected
+ *   - "my-model" selected
  *   - "checkpoint" assigned to X Axis
  *   - "prompt_name" assigned to Slider
  *   - Drawer closed so the main area is fully accessible
@@ -79,7 +79,7 @@ async function setupSlider(page: Page): Promise<void> {
   await page.goto('/')
 
   // Select the fixture training run
-  await selectTrainingRun(page, 'test-run/my-model')
+  await selectTrainingRun(page, 'my-model')
 
   // Wait for dimension panel to appear (scan complete)
   await expect(page.getByText('Dimensions')).toBeVisible()

@@ -14,25 +14,29 @@ import (
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
 )
 
-// fakeDiscoveryFS implements service.CheckpointFileSystem for testing.
-type fakeDiscoveryFS struct {
-	files map[string][]string // root → list of relative file paths
-	dirs  map[string]bool     // path → exists
+// fakeViewerDiscoveryFS implements service.ViewerFileSystem for testing.
+type fakeViewerDiscoveryFS struct {
+	subdirs map[string][]string // dir path → list of subdirectory names
+	errs    map[string]error    // dir path → error to return
 }
 
-func newFakeDiscoveryFS() *fakeDiscoveryFS {
-	return &fakeDiscoveryFS{
-		files: make(map[string][]string),
-		dirs:  make(map[string]bool),
+func newFakeViewerDiscoveryFS() *fakeViewerDiscoveryFS {
+	return &fakeViewerDiscoveryFS{
+		subdirs: make(map[string][]string),
+		errs:    make(map[string]error),
 	}
 }
 
-func (f *fakeDiscoveryFS) ListSafetensorsFiles(root string) ([]string, error) {
-	return f.files[root], nil
+func (f *fakeViewerDiscoveryFS) ListSubdirectories(root string) ([]string, error) {
+	if err, ok := f.errs[root]; ok {
+		return nil, err
+	}
+	return f.subdirs[root], nil
 }
 
-func (f *fakeDiscoveryFS) DirectoryExists(path string) bool {
-	return f.dirs[path]
+func (f *fakeViewerDiscoveryFS) DirectoryExists(path string) bool {
+	_, ok := f.subdirs[path]
+	return ok
 }
 
 // fakeScanFS implements service.ScannerFileSystem for testing.
@@ -62,28 +66,29 @@ func (f *fakeScanFS) DirectoryExists(path string) bool {
 
 var _ = Describe("TrainingRunsService", func() {
 	var (
-		discoveryFS *fakeDiscoveryFS
-		scanFS      *fakeScanFS
-		discovery   *service.DiscoveryService
-		scanner     *service.Scanner
-		sampleDir   string
-		logger      *logrus.Logger
+		viewerFS        *fakeViewerDiscoveryFS
+		scanFS          *fakeScanFS
+		viewerDiscovery *service.ViewerDiscoveryService
+		scanner         *service.Scanner
+		sampleDir       string
+		logger          *logrus.Logger
 	)
 
 	BeforeEach(func() {
 		sampleDir = "/samples"
-		discoveryFS = newFakeDiscoveryFS()
+		viewerFS = newFakeViewerDiscoveryFS()
 		scanFS = newFakeScanFS()
 		logger = logrus.New()
 		logger.SetOutput(io.Discard)
 	})
 
 	Describe("List", func() {
-		It("returns empty slice when no safetensors files found", func() {
-			discoveryFS.files["/checkpoints"] = []string{}
-			discovery = service.NewDiscoveryService(discoveryFS, []string{"/checkpoints"}, sampleDir, logger)
+		// AC1: Scanner discovers viewable content from sample output directories
+		It("returns empty slice when no sample directories found", func() {
+			viewerFS.subdirs[sampleDir] = []string{}
+			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
-			svc := api.NewTrainingRunsService(discovery, scanner, nil)
+			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, nil)
 
 			result, err := svc.List(context.Background(), &gentrainingruns.ListPayload{HasSamples: false})
 
@@ -91,15 +96,15 @@ var _ = Describe("TrainingRunsService", func() {
 			Expect(result).To(HaveLen(0))
 		})
 
-		It("returns auto-discovered training runs", func() {
-			discoveryFS.files["/checkpoints"] = []string{
+		It("returns training runs discovered from sample output directories", func() {
+			viewerFS.subdirs[sampleDir] = []string{
 				"model-a.safetensors",
 				"model-a-step00001000.safetensors",
 				"model-b.safetensors",
 			}
-			discovery = service.NewDiscoveryService(discoveryFS, []string{"/checkpoints"}, sampleDir, logger)
+			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
-			svc := api.NewTrainingRunsService(discovery, scanner, nil)
+			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, nil)
 
 			result, err := svc.List(context.Background(), &gentrainingruns.ListPayload{HasSamples: false})
 
@@ -113,14 +118,13 @@ var _ = Describe("TrainingRunsService", func() {
 		})
 
 		It("includes checkpoint details in response", func() {
-			discoveryFS.files["/checkpoints"] = []string{
+			viewerFS.subdirs[sampleDir] = []string{
 				"model-step00001000.safetensors",
 				"model-step00002000.safetensors",
 			}
-			discoveryFS.dirs["/samples/model-step00001000.safetensors"] = true
-			discovery = service.NewDiscoveryService(discoveryFS, []string{"/checkpoints"}, sampleDir, logger)
+			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
-			svc := api.NewTrainingRunsService(discovery, scanner, nil)
+			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, nil)
 
 			result, err := svc.List(context.Background(), &gentrainingruns.ListPayload{HasSamples: false})
 
@@ -129,54 +133,59 @@ var _ = Describe("TrainingRunsService", func() {
 			Expect(result[0].Checkpoints).To(HaveLen(2))
 			Expect(result[0].Checkpoints[0].Filename).To(Equal("model-step00001000.safetensors"))
 			Expect(result[0].Checkpoints[0].StepNumber).To(Equal(1000))
+			// All viewer-discovered checkpoints have samples
 			Expect(result[0].Checkpoints[0].HasSamples).To(BeTrue())
 			Expect(result[0].Checkpoints[1].Filename).To(Equal("model-step00002000.safetensors"))
-			Expect(result[0].Checkpoints[1].HasSamples).To(BeFalse())
+			Expect(result[0].Checkpoints[1].HasSamples).To(BeTrue())
 		})
 
-		It("filters by has_samples when requested", func() {
-			discoveryFS.files["/checkpoints"] = []string{
+		// AC1: All listed runs have samples by definition
+		It("returns all runs regardless of has_samples parameter", func() {
+			viewerFS.subdirs[sampleDir] = []string{
 				"model-a.safetensors",
 				"model-b.safetensors",
 			}
-			discoveryFS.dirs["/samples/model-a.safetensors"] = true
-			// model-b has no samples
-			discovery = service.NewDiscoveryService(discoveryFS, []string{"/checkpoints"}, sampleDir, logger)
+			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
-			svc := api.NewTrainingRunsService(discovery, scanner, nil)
+			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, nil)
 
+			// has_samples=true should not filter anything — all runs have samples
 			result, err := svc.List(context.Background(), &gentrainingruns.ListPayload{HasSamples: true})
 
 			Expect(err).NotTo(HaveOccurred())
-			Expect(result).To(HaveLen(1))
-			Expect(result[0].Name).To(Equal("model-a"))
+			Expect(result).To(HaveLen(2))
+			Expect(result[0].HasSamples).To(BeTrue())
+			Expect(result[1].HasSamples).To(BeTrue())
 		})
 
-		It("returns all runs when has_samples is false", func() {
-			discoveryFS.files["/checkpoints"] = []string{
-				"model-a.safetensors",
-				"model-b.safetensors",
+		// AC2: Training runs derived from study directory structure
+		It("discovers study-scoped training runs", func() {
+			viewerFS.subdirs[sampleDir] = []string{"my-study"}
+			viewerFS.subdirs[sampleDir+"/my-study"] = []string{
+				"model-step00001000.safetensors",
+				"model-step00002000.safetensors",
 			}
-			discoveryFS.dirs["/samples/model-a.safetensors"] = true
-			discovery = service.NewDiscoveryService(discoveryFS, []string{"/checkpoints"}, sampleDir, logger)
+			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
-			svc := api.NewTrainingRunsService(discovery, scanner, nil)
+			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, nil)
 
 			result, err := svc.List(context.Background(), &gentrainingruns.ListPayload{HasSamples: false})
 
 			Expect(err).NotTo(HaveOccurred())
-			Expect(result).To(HaveLen(2))
+			Expect(result).To(HaveLen(1))
+			Expect(result[0].Name).To(Equal("my-study/model"))
+			Expect(result[0].CheckpointCount).To(Equal(2))
 		})
 	})
 
 	Describe("Scan", func() {
 		It("returns not_found for invalid training run ID", func() {
-			discoveryFS.files["/checkpoints"] = []string{
+			viewerFS.subdirs[sampleDir] = []string{
 				"model.safetensors",
 			}
-			discovery = service.NewDiscoveryService(discoveryFS, []string{"/checkpoints"}, sampleDir, logger)
+			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
-			svc := api.NewTrainingRunsService(discovery, scanner, nil)
+			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, nil)
 
 			_, err := svc.Scan(context.Background(), &gentrainingruns.ScanPayload{ID: 5})
 
@@ -185,28 +194,27 @@ var _ = Describe("TrainingRunsService", func() {
 		})
 
 		It("returns not_found for negative ID", func() {
-			discoveryFS.files["/checkpoints"] = []string{
+			viewerFS.subdirs[sampleDir] = []string{
 				"model.safetensors",
 			}
-			discovery = service.NewDiscoveryService(discoveryFS, []string{"/checkpoints"}, sampleDir, logger)
+			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
-			svc := api.NewTrainingRunsService(discovery, scanner, nil)
+			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, nil)
 
 			_, err := svc.Scan(context.Background(), &gentrainingruns.ScanPayload{ID: -1})
 
 			Expect(err).To(HaveOccurred())
 		})
 
-		It("returns scan results with images and dimensions", func() {
-			discoveryFS.files["/checkpoints"] = []string{
+		It("returns scan results with images and dimensions (legacy)", func() {
+			viewerFS.subdirs[sampleDir] = []string{
 				"model-step00001000.safetensors",
 			}
-			discoveryFS.dirs["/samples/model-step00001000.safetensors"] = true
-			discovery = service.NewDiscoveryService(discoveryFS, []string{"/checkpoints"}, sampleDir, logger)
+			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
-			svc := api.NewTrainingRunsService(discovery, scanner, nil)
+			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, nil)
 
-			scanFS.files["/samples/model-step00001000.safetensors"] = []string{
+			scanFS.files[sampleDir+"/model-step00001000.safetensors"] = []string{
 				"seed=1&cfg=3&_00001_.png",
 				"seed=2&cfg=7&_00001_.png",
 			}
@@ -218,16 +226,35 @@ var _ = Describe("TrainingRunsService", func() {
 			Expect(result.Dimensions).NotTo(BeEmpty())
 		})
 
-		It("returns scan_failed when scanner encounters an error", func() {
-			discoveryFS.files["/checkpoints"] = []string{
+		It("auto-derives study name for study-scoped runs", func() {
+			viewerFS.subdirs[sampleDir] = []string{"my-study"}
+			viewerFS.subdirs[sampleDir+"/my-study"] = []string{
 				"model-step00001000.safetensors",
 			}
-			discoveryFS.dirs["/samples/model-step00001000.safetensors"] = true
-			discovery = service.NewDiscoveryService(discoveryFS, []string{"/checkpoints"}, sampleDir, logger)
+			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
-			svc := api.NewTrainingRunsService(discovery, scanner, nil)
+			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, nil)
 
-			scanFS.errs["/samples/model-step00001000.safetensors"] = fmt.Errorf("disk error")
+			// The scanner should look at /samples/my-study/model-step00001000.safetensors/
+			scanFS.files[sampleDir+"/my-study/model-step00001000.safetensors"] = []string{
+				"seed=42&_00001_.png",
+			}
+
+			result, err := svc.Scan(context.Background(), &gentrainingruns.ScanPayload{ID: 0})
+
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Images).To(HaveLen(1))
+		})
+
+		It("returns scan_failed when scanner encounters an error", func() {
+			viewerFS.subdirs[sampleDir] = []string{
+				"model-step00001000.safetensors",
+			}
+			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
+			scanner = service.NewScanner(scanFS, sampleDir, logger)
+			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, nil)
+
+			scanFS.errs[sampleDir+"/model-step00001000.safetensors"] = fmt.Errorf("disk error")
 
 			_, err := svc.Scan(context.Background(), &gentrainingruns.ScanPayload{ID: 0})
 
@@ -236,20 +263,18 @@ var _ = Describe("TrainingRunsService", func() {
 		})
 
 		It("maps model types to API response types correctly", func() {
-			discoveryFS.files["/checkpoints"] = []string{
+			viewerFS.subdirs[sampleDir] = []string{
 				"model-step00001000.safetensors",
 				"model-step00002000.safetensors",
 			}
-			discoveryFS.dirs["/samples/model-step00001000.safetensors"] = true
-			discoveryFS.dirs["/samples/model-step00002000.safetensors"] = true
-			discovery = service.NewDiscoveryService(discoveryFS, []string{"/checkpoints"}, sampleDir, logger)
+			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
-			svc := api.NewTrainingRunsService(discovery, scanner, nil)
+			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, nil)
 
-			scanFS.files["/samples/model-step00001000.safetensors"] = []string{
+			scanFS.files[sampleDir+"/model-step00001000.safetensors"] = []string{
 				"seed=42&_00001_.png",
 			}
-			scanFS.files["/samples/model-step00002000.safetensors"] = []string{
+			scanFS.files[sampleDir+"/model-step00002000.safetensors"] = []string{
 				"seed=42&_00001_.png",
 			}
 

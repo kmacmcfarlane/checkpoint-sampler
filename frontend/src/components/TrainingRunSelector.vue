@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
-import { NSelect, NCheckbox } from 'naive-ui'
+import { ref, computed, onMounted } from 'vue'
+import { NSelect } from 'naive-ui'
 import type { TrainingRun } from '../api/types'
 import { apiClient } from '../api/client'
 
@@ -13,7 +13,6 @@ const trainingRuns = ref<TrainingRun[]>([])
 const selectedId = ref<number | null>(null)
 const loading = ref(false)
 const error = ref<string | null>(null)
-const hasSamplesFilter = ref(true)
 const attemptedAutoSelect = ref(false)
 
 // select: Emitted when the user selects a training run from the dropdown, or on auto-select restore. Payload: the selected TrainingRun object.
@@ -33,7 +32,7 @@ async function fetchTrainingRuns() {
   error.value = null
   selectedId.value = null
   try {
-    trainingRuns.value = await apiClient.getTrainingRuns(hasSamplesFilter.value)
+    trainingRuns.value = await apiClient.getTrainingRuns()
     attemptAutoSelect()
   } catch (err: unknown) {
     const message = err && typeof err === 'object' && 'message' in err
@@ -63,8 +62,6 @@ function attemptAutoSelect() {
 }
 
 onMounted(fetchTrainingRuns)
-
-watch(hasSamplesFilter, fetchTrainingRuns)
 
 function onSelect(value: number | null) {
   if (value === null) {
@@ -96,13 +93,6 @@ function onSelect(value: number | null) {
       size="small"
       @update:value="onSelect"
     />
-    <NCheckbox
-      :checked="hasSamplesFilter"
-      data-testid="has-samples-checkbox"
-      @update:checked="hasSamplesFilter = $event"
-    >
-      Has samples
-    </NCheckbox>
     <p v-if="error" class="error" role="alert">{{ error }}</p>
   </div>
 </template>

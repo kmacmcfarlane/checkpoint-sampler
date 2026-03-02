@@ -9,7 +9,7 @@ import { resetDatabase } from './helpers'
  *   - Clear the filter and verify grid returns to full state
  *
  * Test fixture data:
- *   - Training run: "test-run/my-model"
+ *   - Training run: "my-model"
  *   - Checkpoints: step 1000, step 2000
  *   - Images per checkpoint: prompt_name=landscape, prompt_name=portrait (seed=42, cfg=7)
  *   - Dimensions: cfg, checkpoint, prompt_name, seed
@@ -95,7 +95,7 @@ test.describe('dimension filtering and combo filters', () => {
     await page.goto('/')
 
     // Select the fixture training run
-    await selectTrainingRun(page, 'test-run/my-model')
+    await selectTrainingRun(page, 'my-model')
 
     // Wait for dimension panel to appear (scan complete)
     await expect(page.getByText('Dimensions')).toBeVisible()
@@ -121,7 +121,7 @@ test.describe('dimension filtering and combo filters', () => {
     await page.goto('/')
 
     // Select the fixture training run
-    await selectTrainingRun(page, 'test-run/my-model')
+    await selectTrainingRun(page, 'my-model')
 
     // Wait for dimension panel to appear (scan complete)
     await expect(page.getByText('Dimensions')).toBeVisible()
@@ -162,7 +162,7 @@ test.describe('dimension filtering and combo filters', () => {
     await page.goto('/')
 
     // Select the fixture training run
-    await selectTrainingRun(page, 'test-run/my-model')
+    await selectTrainingRun(page, 'my-model')
 
     // Wait for dimension panel to appear
     await expect(page.getByText('Dimensions')).toBeVisible()
@@ -204,7 +204,7 @@ test.describe('dimension filtering and combo filters', () => {
     await page.goto('/')
 
     // Select the fixture training run
-    await selectTrainingRun(page, 'test-run/my-model')
+    await selectTrainingRun(page, 'my-model')
 
     // Wait for dimension panel to appear
     await expect(page.getByText('Dimensions')).toBeVisible()

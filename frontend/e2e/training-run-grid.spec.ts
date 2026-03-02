@@ -9,7 +9,7 @@ import { resetDatabase } from './helpers'
  * which mounts test-fixtures/ as the checkpoint and sample data sources.
  *
  * Expected test fixture data:
- *   - Training run: "test-run/my-model" with 2 checkpoints (step 1000, step 2000)
+ *   - Training run: "my-model" with 2 checkpoints (step 1000, step 2000)
  *   - Each checkpoint has 2 sample images: prompt_name=landscape and prompt_name=portrait
  *   - Dimensions: cfg, checkpoint, prompt_name, seed
  */
@@ -59,7 +59,7 @@ test.describe('training run selection and XY grid display', () => {
     await expect(page.getByText('Training Run', { exact: true })).toBeVisible()
 
     // Select the fixture training run
-    await selectTrainingRun(page, 'test-run/my-model')
+    await selectTrainingRun(page, 'my-model')
 
     // After selection, the main content should no longer show the "get started" prompt
     await expect(page.getByText('Select a training run to get started.')).not.toBeVisible()
@@ -72,7 +72,7 @@ test.describe('training run selection and XY grid display', () => {
     await page.goto('/')
 
     // Select the training run
-    await selectTrainingRun(page, 'test-run/my-model')
+    await selectTrainingRun(page, 'my-model')
 
     // Wait for dimension panel to appear (scan complete)
     await expect(page.getByText('Dimensions')).toBeVisible()
@@ -100,7 +100,7 @@ test.describe('training run selection and XY grid display', () => {
     await page.goto('/')
 
     // Select the training run
-    await selectTrainingRun(page, 'test-run/my-model')
+    await selectTrainingRun(page, 'my-model')
 
     // Wait for scan to complete
     await expect(page.getByText('Dimensions')).toBeVisible()
@@ -123,7 +123,7 @@ test.describe('training run selection and XY grid display', () => {
     await page.goto('/')
 
     // Select the training run
-    await selectTrainingRun(page, 'test-run/my-model')
+    await selectTrainingRun(page, 'my-model')
 
     // Wait for scan to complete
     await expect(page.getByText('Dimensions')).toBeVisible()

@@ -89,6 +89,7 @@ func run() error {
 	// Create filesystem, discovery, and scanner services
 	fs := store.NewFileSystem(logger)
 	discovery := service.NewDiscoveryService(fs, cfg.CheckpointDirs, cfg.SampleDir, logger)
+	viewerDiscovery := service.NewViewerDiscoveryService(fs, cfg.SampleDir, logger)
 	scanner := service.NewScanner(fs, cfg.SampleDir, logger)
 
 	// Create WebSocket hub and filesystem watcher
@@ -132,7 +133,7 @@ func run() error {
 	// Create service implementations
 	healthSvc := api.NewHealthService()
 	docsSvc := api.NewDocsService(spec)
-	trainingRunsSvc := api.NewTrainingRunsService(discovery, scanner, watcher)
+	trainingRunsSvc := api.NewTrainingRunsService(viewerDiscovery, scanner, watcher)
 	presetSvc := service.NewPresetService(st, logger)
 	presetsSvc := api.NewPresetsService(presetSvc)
 	studySvc := service.NewStudyService(st, logger)

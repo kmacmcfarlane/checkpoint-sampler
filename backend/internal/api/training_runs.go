@@ -11,29 +11,27 @@ import (
 
 // TrainingRunsService implements the generated training_runs service interface.
 type TrainingRunsService struct {
-	discovery *service.DiscoveryService
-	scanner   *service.Scanner
-	watcher   *service.Watcher
+	viewerDiscovery *service.ViewerDiscoveryService
+	scanner         *service.Scanner
+	watcher         *service.Watcher
 }
 
 // NewTrainingRunsService returns a new TrainingRunsService.
-func NewTrainingRunsService(discovery *service.DiscoveryService, scanner *service.Scanner, watcher *service.Watcher) *TrainingRunsService {
-	return &TrainingRunsService{discovery: discovery, scanner: scanner, watcher: watcher}
+func NewTrainingRunsService(viewerDiscovery *service.ViewerDiscoveryService, scanner *service.Scanner, watcher *service.Watcher) *TrainingRunsService {
+	return &TrainingRunsService{viewerDiscovery: viewerDiscovery, scanner: scanner, watcher: watcher}
 }
 
-// List returns auto-discovered training runs, optionally filtered by has_samples.
+// List returns training runs discovered from sample output directories.
+// The has_samples parameter is accepted for API compatibility but has no effect —
+// all viewer-discovered runs have samples by definition.
 func (s *TrainingRunsService) List(ctx context.Context, p *gentrainingruns.ListPayload) ([]*gentrainingruns.TrainingRunResponse, error) {
-	runs, err := s.discovery.Discover()
+	runs, err := s.viewerDiscovery.DiscoverViewable()
 	if err != nil {
-		return nil, gentrainingruns.MakeDiscoveryFailed(fmt.Errorf("discovering training runs: %w", err))
+		return nil, gentrainingruns.MakeDiscoveryFailed(fmt.Errorf("discovering viewable training runs: %w", err))
 	}
 
 	var result []*gentrainingruns.TrainingRunResponse
 	for i, tr := range runs {
-		if p.HasSamples && !tr.HasSamples {
-			continue
-		}
-
 		checkpoints := make([]*gentrainingruns.CheckpointResponse, len(tr.Checkpoints))
 		for j, cp := range tr.Checkpoints {
 			checkpoints[j] = &gentrainingruns.CheckpointResponse{
@@ -59,11 +57,12 @@ func (s *TrainingRunsService) List(ctx context.Context, p *gentrainingruns.ListP
 }
 
 // Scan scans a training run's sample directories and returns image metadata with
-// discovered dimensions.
+// discovered dimensions. The study name is auto-derived from the training run name
+// (viewer-discovered runs include the study prefix in their name).
 func (s *TrainingRunsService) Scan(ctx context.Context, p *gentrainingruns.ScanPayload) (*gentrainingruns.ScanResultResponse, error) {
-	runs, err := s.discovery.Discover()
+	runs, err := s.viewerDiscovery.DiscoverViewable()
 	if err != nil {
-		return nil, gentrainingruns.MakeScanFailed(fmt.Errorf("discovering training runs: %w", err))
+		return nil, gentrainingruns.MakeScanFailed(fmt.Errorf("discovering viewable training runs: %w", err))
 	}
 
 	if p.ID < 0 || p.ID >= len(runs) {
@@ -71,7 +70,16 @@ func (s *TrainingRunsService) Scan(ctx context.Context, p *gentrainingruns.ScanP
 	}
 
 	tr := runs[p.ID]
-	scanResult, err := s.scanner.ScanTrainingRun(tr, p.StudyName)
+
+	// Derive the study name from the training run name. For viewer-discovered runs,
+	// the study prefix is embedded in the run name (e.g., "study_name/model_base").
+	// Use the explicit study_name parameter if provided; otherwise auto-derive.
+	studyName := p.StudyName
+	if studyName == "" {
+		studyName = service.StudyNameForRun(tr.Name)
+	}
+
+	scanResult, err := s.scanner.ScanTrainingRun(tr, studyName)
 	if err != nil {
 		return nil, gentrainingruns.MakeScanFailed(fmt.Errorf("scanning training run %q: %w", tr.Name, err))
 	}

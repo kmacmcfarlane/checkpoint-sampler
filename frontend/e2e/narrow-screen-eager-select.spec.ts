@@ -10,7 +10,7 @@ import { resetDatabase } from './helpers'
  * immediately without requiring the user to open the drawer first.
  *
  * Test fixture data:
- *   - Training run: "test-run/my-model" with 2 checkpoints (step 1000, step 2000)
+ *   - Training run: "my-model" with 2 checkpoints (step 1000, step 2000)
  */
 
 test.describe('narrow screen eager auto-select', () => {

@@ -61,3 +61,9 @@ Show a "3 of 12" or thumbnail strip indicator in the lightbox so the user knows 
 * priority: low
 * source: developer
 When the user changes the slider value in the lightbox, the gridImages snapshot could be refreshed so that navigating to adjacent cells shows the correct slider-matched image rather than the state captured at open time.
+
+### Deprecate `has_samples` query parameter from Goa DSL
+* status: needs_approval
+* priority: very-low
+* source: developer
+The `has_samples` query parameter on `GET /api/training-runs` is now ignored by the backend after S-081 switched the viewer to directory-driven discovery. A future story could remove it from the Goa DSL to keep the API spec clean, though this requires a codegen cycle and frontend client update.

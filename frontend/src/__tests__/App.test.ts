@@ -595,44 +595,28 @@ describe('App', () => {
       expect(wrapper.find('h1').text()).toBe('Checkpoint Sampler')
     })
 
-    it('eagerly selects a saved training run even when has_samples is false', async () => {
-      // Root cause regression test: eagerAutoSelect previously called getTrainingRuns(true),
-      // which filtered out runs without samples. A run saved before samples were generated
-      // would never be found, leaving the top nav hidden. The fix passes no filter so all
-      // runs are returned.
+    it('calls getTrainingRuns without filter arguments during eager auto-select', async () => {
+      // Verify eagerAutoSelect calls getTrainingRuns() without any has_samples filter.
+      // All viewer-discovered runs have samples by definition.
       Object.defineProperty(window, 'innerWidth', { value: 800, configurable: true })
       vi.stubGlobal('matchMedia', createMatchMediaMock(false))
-
-      const runWithoutSamples: TrainingRun = {
-        id: 1,
-        name: 'test-run',
-        checkpoint_count: 1,
-        has_samples: false,
-        checkpoints: [
-          { filename: 'model.safetensors', step_number: 1000, has_samples: false },
-        ],
-      }
-      // Return a run with has_samples=false — previously would be missed by getTrainingRuns(true)
-      mockGetTrainingRuns.mockResolvedValue([runWithoutSamples])
 
       setSavedPresetData(1, 'preset-abc')
 
       const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
       await flushPromises()
 
-      // Scan should have been triggered — eagerAutoSelect found the run despite has_samples=false
+      // Scan should have been triggered
       expect(mockScanTrainingRun).toHaveBeenCalledWith(1)
 
-      // eagerAutoSelect must NOT pass hasSamples=true — it should call getTrainingRuns without
-      // the has_samples filter so runs without samples are included
-      const firstCall = mockGetTrainingRuns.mock.calls.find(
-        (call) => call[0] === true,
-      )
-      expect(firstCall).toBeUndefined()
+      // getTrainingRuns should be called without arguments (no has_samples filter)
+      for (const call of mockGetTrainingRuns.mock.calls) {
+        expect(call).toHaveLength(0)
+      }
 
       // Header buttons should be visible after eager select
       const generateBtn = wrapper.find('[data-testid="generate-samples-button"]')
-      expect(generateBtn.exists()).toBe(true) // visible when training run is selected
+      expect(generateBtn.exists()).toBe(true)
 
       const jobsBtn = wrapper.findAllComponents(NButton).find(
         (b) => b.attributes('aria-label') === 'Toggle sample jobs panel',
@@ -643,9 +627,9 @@ describe('App', () => {
 
   // AC1: Jobs header button shows a colored bead indicating sample/job status
   describe('header bead status indicator (AC1)', () => {
-    it('shows a green bead on Jobs button when training run has_samples', async () => {
-      // mockTrainingRun has has_samples=true, listSampleJobs returns [] (no active jobs)
-      // → status = 'complete', bead color = green (#18a058)
+    it('shows a green bead on Jobs button when training run has samples (default for viewer runs)', async () => {
+      // mockTrainingRun has has_samples=true (all viewer-discovered runs do),
+      // listSampleJobs returns [] (no active jobs) → status = 'complete', bead color = green
       // Ensure wide screen so drawer is open and TrainingRunSelector is rendered
       Object.defineProperty(window, 'innerWidth', { value: 1200, configurable: true })
       vi.stubGlobal('matchMedia', createMatchMediaMock(true))

@@ -5,6 +5,11 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-081: Viewer driven by sample output directories instead of checkpoints
+- Viewer now discovers training runs from sample output directories instead of checkpoint files
+- "Has Samples" filter removed from training run selector (all listed runs have samples by definition)
+- Supports both legacy root-level and study-scoped sample directory structures
+
 ### S-077: 'Show all' training runs checked by default in Generate Samples dialog
 - "Show all" checkbox now defaults to checked, showing all training runs (not just empty ones)
 

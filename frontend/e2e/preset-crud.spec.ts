@@ -14,7 +14,7 @@ import { resetDatabase } from './helpers'
  *   6. Delete the study and verify it is removed from the dropdown.
  *
  * Test fixture data:
- *   - Training run: "test-run/my-model" (required to show the "Generate Samples" button)
+ *   - Training run: "my-model" (required to show the "Generate Samples" button)
  *
  * Note: On wide screens (>= 1024px) the sidebar drawer opens automatically.
  * Its mask intercepts pointer events on the rest of the page, so we close the
@@ -231,7 +231,7 @@ test.describe('study CRUD via job launch dialog', () => {
     await resetDatabase(request)
     await page.goto('/')
     // Select the fixture training run so the "Generate Samples" button appears
-    await selectTrainingRun(page, 'test-run/my-model')
+    await selectTrainingRun(page, 'my-model')
     // Wait for scan to complete (Dimensions panel appears in the drawer)
     await expect(page.getByText('Dimensions')).toBeVisible()
   })

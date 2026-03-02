@@ -59,9 +59,6 @@ function onMediaChange(e: MediaQueryListEvent) {
  * Eagerly auto-select a saved training run on mount, regardless of drawer state.
  * On narrow screens the drawer (and TrainingRunSelector) may not mount immediately,
  * so this ensures header buttons and scan data are available right away.
- *
- * Fetches ALL training runs (no has_samples filter) so that runs without samples
- * are found — a saved run might not yet have samples generated.
  */
 async function eagerAutoSelect() {
   const saved = savedData.value
@@ -524,7 +521,11 @@ function toggleJobProgressPanel() {
   }
 }
 
-/** Compute whether the "Generate Samples" button should be prominent. */
+/**
+ * Compute whether the "Generate Samples" button should be prominent (primary style).
+ * All viewer-discovered training runs have samples by definition, so this is always false.
+ * Kept for potential future use when generation-only runs without samples are visible.
+ */
 const showProminentGenerateButton = computed(() => {
   return selectedTrainingRun.value && !selectedTrainingRun.value.has_samples
 })

@@ -27,19 +27,40 @@ import (
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
 )
 
+// fakeCheckpointFS implements service.CheckpointFileSystem for testing.
+type fakeCheckpointFS struct {
+	files map[string][]string // root → list of relative file paths
+	dirs  map[string]bool     // path → exists
+}
+
+func newFakeCheckpointFS() *fakeCheckpointFS {
+	return &fakeCheckpointFS{
+		files: make(map[string][]string),
+		dirs:  make(map[string]bool),
+	}
+}
+
+func (f *fakeCheckpointFS) ListSafetensorsFiles(root string) ([]string, error) {
+	return f.files[root], nil
+}
+
+func (f *fakeCheckpointFS) DirectoryExists(path string) bool {
+	return f.dirs[path]
+}
+
 var _ = Describe("NewHTTPHandler", func() {
 	var (
-		logger      *logrus.Logger
-		discoveryFS *fakeDiscoveryFS
-		scanFS      *fakeScanFS
-		sampleDir   string
-		specJSON    []byte
+		logger    *logrus.Logger
+		viewerFS  *fakeViewerDiscoveryFS
+		scanFS    *fakeScanFS
+		sampleDir string
+		specJSON  []byte
 	)
 
 	BeforeEach(func() {
 		logger = logrus.New()
 		logger.SetOutput(io.Discard)
-		discoveryFS = newFakeDiscoveryFS()
+		viewerFS = newFakeViewerDiscoveryFS()
 		scanFS = newFakeScanFS()
 		sampleDir = "/samples"
 		specJSON = []byte(`{"openapi":"3.0.0"}`)
@@ -60,7 +81,8 @@ var _ = Describe("NewHTTPHandler", func() {
 		*genws.Endpoints,
 	) {
 		// Service layer services
-		discoverySvc := service.NewDiscoveryService(discoveryFS, []string{"/checkpoints"}, sampleDir, logger)
+		viewerDiscoverySvc := service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
+		discoverySvc := service.NewDiscoveryService(newFakeCheckpointFS(), []string{"/checkpoints"}, sampleDir, logger)
 		scannerSvc := service.NewScanner(scanFS, sampleDir, logger)
 		presetSvc := service.NewPresetService(newFakePresetStore(), logger)
 		studySvc := service.NewStudyService(newFakeStudyStoreAPI(), logger)
@@ -72,7 +94,7 @@ var _ = Describe("NewHTTPHandler", func() {
 		// API layer services
 		healthAPISvc := api.NewHealthService()
 		docsAPISvc := api.NewDocsService(specJSON)
-		trainingRunsAPISvc := api.NewTrainingRunsService(discoverySvc, scannerSvc, nil)
+		trainingRunsAPISvc := api.NewTrainingRunsService(viewerDiscoverySvc, scannerSvc, nil)
 		presetsAPISvc := api.NewPresetsService(presetSvc)
 		studiesAPISvc := api.NewStudiesService(studySvc)
 		sampleJobsAPISvc := api.NewSampleJobsService(sampleJobSvc, discoverySvc)

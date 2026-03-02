@@ -71,9 +71,8 @@ export class ApiClient {
   }
 
   /** GET /api/training-runs — list auto-discovered training runs. */
-  async getTrainingRuns(hasSamples?: boolean): Promise<TrainingRun[]> {
-    const params = hasSamples !== undefined ? `?has_samples=${hasSamples}` : ''
-    return this.request<TrainingRun[]>(`/training-runs${params}`)
+  async getTrainingRuns(): Promise<TrainingRun[]> {
+    return this.request<TrainingRun[]>('/training-runs')
   }
 
   /** GET /api/training-runs/{id}/scan — scan directories and return image metadata. */

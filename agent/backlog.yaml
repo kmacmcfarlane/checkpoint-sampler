@@ -680,7 +680,7 @@ stories:
   - id: S-081
     title: "Viewer driven by sample output directories instead of checkpoints"
     priority: 32
-    status: todo
+    status: uat
     requires: [S-074]
     acceptance:
       - "BE: Scanner discovers viewable content from sample output directories rather than checkpoint files"

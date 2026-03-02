@@ -11,7 +11,7 @@ import { resetDatabase } from './helpers'
  * - AC5: Debug mode state does not persist across page reloads
  *
  * Test fixture data (from test-fixtures/):
- *   - Training run: "test-run/my-model" with 2 checkpoints (step 1000, step 2000)
+ *   - Training run: "my-model" with 2 checkpoints (step 1000, step 2000)
  *   - Each checkpoint has 2 sample images: prompt_name=landscape and prompt_name=portrait
  *   - Dimensions: cfg, checkpoint, prompt_name, seed
  */
@@ -64,7 +64,7 @@ async function closeDrawer(page: Page): Promise<void> {
  */
 async function setupGridWithAxes(page: Page): Promise<void> {
   await page.goto('/')
-  await selectTrainingRun(page, 'test-run/my-model')
+  await selectTrainingRun(page, 'my-model')
   await expect(page.getByText('Dimensions')).toBeVisible()
 
   // Assign checkpoint -> X axis, prompt_name -> Y axis
@@ -140,7 +140,7 @@ test.describe('debug mode overlay', () => {
   // AC2: Debug overlay shows slider value when slider dimension is assigned
   test('debug overlay shows slider value when slider dimension is assigned', async ({ page }) => {
     await page.goto('/')
-    await selectTrainingRun(page, 'test-run/my-model')
+    await selectTrainingRun(page, 'my-model')
     await expect(page.getByText('Dimensions')).toBeVisible()
 
     // Assign axes with a slider dimension

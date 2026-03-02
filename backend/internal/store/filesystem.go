@@ -101,6 +101,39 @@ func (fs *FileSystem) ListPNGFiles(dir string) ([]string, error) {
 	return files, nil
 }
 
+// ListSubdirectories returns the names of immediate subdirectories under the given root.
+// Only directories are returned; files are skipped. Returns an empty slice (not an error)
+// if the root directory does not exist.
+func (fs *FileSystem) ListSubdirectories(root string) ([]string, error) {
+	fs.logger.WithField("root", root).Trace("entering ListSubdirectories")
+	defer fs.logger.Trace("returning from ListSubdirectories")
+
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		if os.IsNotExist(err) {
+			fs.logger.WithField("root", root).Debug("directory does not exist, returning empty list")
+			return []string{}, nil
+		}
+		fs.logger.WithFields(logrus.Fields{
+			"root":  root,
+			"error": err.Error(),
+		}).Error("failed to read directory")
+		return nil, fmt.Errorf("reading directory %s: %w", root, err)
+	}
+
+	var dirs []string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			dirs = append(dirs, entry.Name())
+		}
+	}
+	fs.logger.WithFields(logrus.Fields{
+		"root":      root,
+		"dir_count": len(dirs),
+	}).Debug("subdirectories listed")
+	return dirs, nil
+}
+
 // RemoveSampleDir removes the sample directory for a given checkpoint filename.
 // The directory is located at sampleDir/checkpointFilename/.
 // If the directory does not exist, this is a no-op (not an error).

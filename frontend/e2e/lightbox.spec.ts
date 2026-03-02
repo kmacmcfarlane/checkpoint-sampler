@@ -9,7 +9,7 @@ import { resetDatabase } from './helpers'
  * and verifies images are visible before interacting with the lightbox.
  *
  * Test fixture data:
- *   - Training run: "test-run/my-model" with 2 checkpoints (step 1000, step 2000)
+ *   - Training run: "my-model" with 2 checkpoints (step 1000, step 2000)
  *   - Each checkpoint has 2 sample images: prompt_name=landscape and prompt_name=portrait
  */
 
@@ -51,7 +51,7 @@ async function setupGridWithImages(page: Page): Promise<void> {
   await page.goto('/')
 
   // Select the fixture training run
-  await selectTrainingRun(page, 'test-run/my-model')
+  await selectTrainingRun(page, 'my-model')
 
   // Wait for dimension panel to appear (scan complete)
   await expect(page.getByText('Dimensions')).toBeVisible()
@@ -239,7 +239,7 @@ test.describe('image lightbox interaction', () => {
 
 /**
  * Sets up the app with:
- *   - "test-run/my-model" selected
+ *   - "my-model" selected
  *   - "checkpoint" assigned to X Axis
  *   - "prompt_name" assigned to Slider
  *   - Drawer closed
@@ -250,7 +250,7 @@ test.describe('image lightbox interaction', () => {
  */
 async function setupGridWithSlider(page: Page): Promise<void> {
   await page.goto('/')
-  await selectTrainingRun(page, 'test-run/my-model')
+  await selectTrainingRun(page, 'my-model')
   await expect(page.getByText('Dimensions')).toBeVisible()
 
   await selectNaiveOption(page, 'Role for checkpoint', 'X Axis')

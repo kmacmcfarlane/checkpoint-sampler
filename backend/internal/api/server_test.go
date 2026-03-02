@@ -25,35 +25,34 @@ import (
 
 var _ = Describe("Server integration", func() {
 	var (
-		server      *httptest.Server
-		client      *http.Client
-		discoveryFS *fakeDiscoveryFS
-		scanFS      *fakeScanFS
-		sampleDir   string
-		logger      *logrus.Logger
+		server    *httptest.Server
+		client    *http.Client
+		viewerFS  *fakeViewerDiscoveryFS
+		scanFS    *fakeScanFS
+		sampleDir string
+		logger    *logrus.Logger
 	)
 
 	specJSON := []byte(`{"openapi":"3.0.0","info":{"title":"Checkpoint Sampler","version":"0.1.0"}}`)
 
 	BeforeEach(func() {
 		sampleDir = "/samples"
-		discoveryFS = newFakeDiscoveryFS()
+		viewerFS = newFakeViewerDiscoveryFS()
 		scanFS = newFakeScanFS()
 		logger = logrus.New()
 		logger.SetOutput(io.Discard)
 
-		// Set up a default training run for integration tests
-		discoveryFS.files["/checkpoints"] = []string{
+		// Set up a default training run for integration tests (viewer-driven)
+		viewerFS.subdirs[sampleDir] = []string{
 			"test-run-step00001000.safetensors",
 		}
-		discoveryFS.dirs["/samples/test-run-step00001000.safetensors"] = true
 
-		discovery := service.NewDiscoveryService(discoveryFS, []string{"/checkpoints"}, sampleDir, logger)
+		viewerDiscovery := service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
 		scanner := service.NewScanner(scanFS, sampleDir, logger)
 
 		healthSvc := api.NewHealthService()
 		docsSvc := api.NewDocsService(specJSON)
-		trainingRunsSvc := api.NewTrainingRunsService(discovery, scanner, nil)
+		trainingRunsSvc := api.NewTrainingRunsService(viewerDiscovery, scanner, nil)
 
 		healthEndpoints := genhealth.NewEndpoints(healthSvc)
 		docsEndpoints := gendocs.NewEndpoints(docsSvc)

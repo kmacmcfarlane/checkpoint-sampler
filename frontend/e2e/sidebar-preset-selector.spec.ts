@@ -21,7 +21,7 @@ import { resetDatabase } from './helpers'
  *   - AC: Existing preset load/delete behavior is preserved
  *
  * Test fixture data:
- *   - Training run: "test-run/my-model"
+ *   - Training run: "my-model"
  *   - Dimensions: cfg, checkpoint, prompt_name, seed
  */
 
@@ -65,7 +65,7 @@ test.describe('sidebar PresetSelector New/Save/Delete workflow', () => {
     await resetDatabase(request)
     await page.goto('/')
     // Select the fixture training run so the PresetSelector appears in the drawer
-    await selectTrainingRun(page, 'test-run/my-model')
+    await selectTrainingRun(page, 'my-model')
     // Wait for scan to complete (Dimensions panel appears in the drawer)
     await expect(page.getByText('Dimensions')).toBeVisible()
   })
