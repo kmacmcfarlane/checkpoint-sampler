@@ -77,8 +77,10 @@ stories:
     status: uat
     requires: []
     acceptance:
-      - "FE: On narrow screens (<1024px), the app eagerly loads the saved training run from localStorage and triggers a scan on mount, regardless of drawer state"
-      - "FE: Header buttons (Generate Samples, Jobs, Metadata, Live indicator) appear immediately after app load when a saved training run exists"
+      - "FE: On narrow screens (<1024px), the app eagerly loads the saved training run from localStorage and triggers a scan
+        on mount, regardless of drawer state"
+      - "FE: Header buttons (Generate Samples, Jobs, Metadata, Live indicator) appear immediately after app load when a saved
+        training run exists"
       - "FE: The drawer's TrainingRunSelector still reflects the auto-selected training run when opened"
       - "FE: On wide screens (>=1024px), behavior is unchanged (drawer auto-opens, training run auto-selects)"
       - "FE: If no saved training run exists in localStorage, the app shows 'Select a training run to get started' as before"
@@ -103,10 +105,12 @@ stories:
       - "BE: DB migration adds prompt_prefix column (text, default empty string) to sample_presets table"
       - "BE: Sample preset model, service, and store updated to include prompt_prefix field"
       - "BE: Goa DSL updated for sample presets to include prompt_prefix in create/update/show/list"
-      - "BE: At generation time, prompt_prefix is prepended to each prompt's text with smart separator: append '. ' unless prefix already ends with '. ' or ', '"
+      - "BE: At generation time, prompt_prefix is prepended to each prompt's text with smart separator: append '. ' unless
+        prefix already ends with '. ' or ', '"
       - "BE: prompt_prefix is NOT included in output filenames (same as other single-value settings)"
       - "BE: prompt_prefix is included in the JSON sidecar metadata for each generated image"
-      - "BE: Unit tests for prefix joining logic (empty prefix, prefix with trailing period+space, prefix with trailing comma+space, prefix without trailing delimiter)"
+      - "BE: Unit tests for prefix joining logic (empty prefix, prefix with trailing period+space, prefix with trailing comma+space,
+        prefix without trailing delimiter)"
       - "FE: SamplePresetEditor has a 'Prompt Prefix' text input field above the prompts list"
       - "FE: Prompt prefix is saved/loaded with the preset"
       - "FE: Unit tests for prompt prefix field in the editor"
@@ -154,11 +158,14 @@ stories:
     status: uat
     requires: []
     acceptance:
-      - "FE: Generate Samples header button shows a colored bead indicating sample/job status of the current sidebar-selected training run"
-      - "FE: Saving a preset in the Manage Presets sub-modal auto-closes the sub-modal and returns focus to the job launch dialog"
+      - "FE: Generate Samples header button shows a colored bead indicating sample/job status of the current sidebar-selected
+        training run"
+      - "FE: Saving a preset in the Manage Presets sub-modal auto-closes the sub-modal and returns focus to the job launch
+        dialog"
       - "FE: Dialog remembers and restores the last selected training run (in addition to existing workflow/model-type persistence)"
       - "FE: When a job completes via WebSocket while the dialog is open, training run options and status beads refresh automatically"
-      - "FE: After closing the Manage Presets modal, the preset that was last edited is shown as selected in the job dialog dropdown"
+      - "FE: After closing the Manage Presets modal, the preset that was last edited is shown as selected in the job dialog
+        dropdown"
       - "FE: Unit tests for each behavior"
     notes: |
       Bundles five approved enhancement ideas for the Generate Samples dialog:
@@ -197,7 +204,8 @@ stories:
     status: uat
     requires: []
     acceptance:
-      - "E2E: Tests have a mechanism to seed the database with known state before each test (e.g., API-based setup/teardown or test-only reset endpoint)"
+      - "E2E: Tests have a mechanism to seed the database with known state before each test (e.g., API-based setup/teardown
+        or test-only reset endpoint)"
       - "E2E: Each E2E test is independent — no test depends on state left by a previous test"
       - "E2E: Database state is predictable at the start of each test file or describe block"
       - "E2E: Existing E2E tests updated to use the isolation mechanism"
@@ -256,7 +264,8 @@ stories:
     requires: []
     acceptance:
       - "E2E: Add Playwright test for DimensionFilter solo click interaction (click value text to solo, click again to unsolo)"
-      - "FE: Add unit test asserting the shape of XYGrid's image:click emit payload (ImageClickContext with cellKey, sliderValues, currentSliderValue, imagesBySliderValue)"
+      - "FE: Add unit test asserting the shape of XYGrid's image:click emit payload (ImageClickContext with cellKey, sliderValues,
+        currentSliderValue, imagesBySliderValue)"
       - "E2E/FE: All existing tests still pass"
     notes: |
       Combines two approved low-priority test ideas:
@@ -274,7 +283,8 @@ stories:
     requires: []
     acceptance:
       - "DOC: /docs/api.md updated with WebSocket endpoint documentation listing /api/ws"
-      - "DOC: New section in /docs/ or DEVELOPMENT_PRACTICES.md documenting the capture-phase keyboard event handler ordering pattern used in ImageLightbox/MasterSlider"
+      - "DOC: New section in /docs/ or DEVELOPMENT_PRACTICES.md documenting the capture-phase keyboard event handler ordering
+        pattern used in ImageLightbox/MasterSlider"
       - "DOC: Pattern explanation covers why capture-phase + stopImmediatePropagation prevents double-firing"
     notes: |
       Combines two approved documentation ideas:
@@ -315,7 +325,8 @@ stories:
     status: todo
     requires: []
     acceptance:
-      - "BE: ListPNGFiles and ListSafetensorsFiles log directory-not-found at debug level instead of error (expected miss pattern)"
+      - "BE: ListPNGFiles and ListSafetensorsFiles log directory-not-found at debug level instead of error (expected miss
+        pattern)"
       - "BE: parseSidecarJSON returns typed fields (numeric for seed, steps, cfg; string for others) instead of all strings"
       - "BE: API response type for image metadata differentiates string vs numeric fields for richer frontend display"
       - "BE: Unit tests for log level changes and typed metadata fields"
@@ -334,7 +345,8 @@ stories:
     status: todo
     requires: []
     acceptance:
-      - "FE: The NDrawer auto-collapses when the user starts interacting with the grid (e.g., clicking an image cell, using keyboard navigation)"
+      - "FE: The NDrawer auto-collapses when the user starts interacting with the grid (e.g., clicking an image cell, using
+        keyboard navigation)"
       - "FE: Auto-collapse only triggers on narrow/medium screens where the drawer overlays content"
       - "FE: On wide screens the drawer remains open (current behavior)"
       - "FE: Manual drawer toggle still works regardless of auto-collapse"
@@ -373,9 +385,11 @@ stories:
     status: todo
     requires: [B-029]
     acceptance:
-      - "E2E: Playwright test exercises the full generation flow: select training run, configure preset, launch job, verify job starts"
+      - "E2E: Playwright test exercises the full generation flow: select training run, configure preset, launch job, verify
+        job starts"
       - "E2E: Test uses a mock or lightweight ComfyUI stub that accepts workflow submissions and returns a test image"
-      - "E2E: Test verifies the job progresses from pending through running (at minimum — full completion if mock supports it)"
+      - "E2E: Test verifies the job progresses from pending through running (at minimum — full completion if mock supports
+        it)"
       - "E2E: Test is tagged or in a separate spec file so it can be run independently from the main E2E suite"
       - "E2E: Design documented for how ComfyUI is mocked in the test environment"
     notes: |
@@ -394,7 +408,8 @@ stories:
     requires: []
     acceptance:
       - "OPS: Add nginx -t syntax check to the frontend Dockerfile build stage or a Makefile target"
-      - "OPS: Add a check (grep or lint step) that verifies nginx.conf contains required WebSocket headers (proxy_http_version 1.1, Upgrade, Connection)"
+      - "OPS: Add a check (grep or lint step) that verifies nginx.conf contains required WebSocket headers (proxy_http_version
+        1.1, Upgrade, Connection)"
       - "OPS: Both checks run as part of the build or a make lint-nginx target"
       - "OPS: Build fails if nginx config is syntactically invalid or missing WebSocket headers"
       - "OPS: Existing builds pass with the current nginx.conf"
@@ -415,7 +430,8 @@ stories:
     requires: []
     acceptance:
       - "FE: A 'New' button is always visible in PresetSelector, positioned where the Save button currently is"
-      - "FE: Clicking 'New' clears the current preset selection and resets dimension assignments so the user can configure a fresh preset"
+      - "FE: Clicking 'New' clears the current preset selection and resets dimension assignments so the user can configure
+        a fresh preset"
       - "FE: Save and Delete buttons appear below the preset selector dropdown"
       - "FE: Save button is disabled until the user has modified at least one field on a new or existing preset"
       - "FE: Save button enables when dimension assignments are touched (dirty tracking)"
@@ -436,7 +452,8 @@ stories:
     requires: []
     acceptance:
       - "FE: A 'Debug' toggle button appears in the top navigation bar"
-      - "FE: When debug mode is active, each grid cell overlays a readable panel showing the filtering parameters used to select that cell's image (x value, y value, slider value, combo selections)"
+      - "FE: When debug mode is active, each grid cell overlays a readable panel showing the filtering parameters used to
+        select that cell's image (x value, y value, slider value, combo selections)"
       - "FE: Debug overlay is semi-transparent and does not interfere with image click/lightbox interaction"
       - "FE: Debug overlay text is easy to read (high contrast, appropriate font size)"
       - "FE: Debug mode state does not persist across page reloads (session-only)"
@@ -474,7 +491,8 @@ stories:
     requires: []
     acceptance:
       - "FE: Completed and completed-with-errors job cards in JobProgressPanel show a 'Regenerate' button"
-      - "FE: Clicking Regenerate opens JobLaunchDialog pre-populated with the original job's settings (training run, workflow, preset, VAE, CLIP, shift)"
+      - "FE: Clicking Regenerate opens JobLaunchDialog pre-populated with the original job's settings (training run, workflow,
+        preset, VAE, CLIP, shift)"
       - "FE: For completed-with-errors jobs, failed checkpoints are pre-selected in the checkpoint picker"
       - "FE: The regenerated job is a new job (not an edit of the original)"
       - "FE: Unit tests for Regenerate button visibility and pre-population"
@@ -493,7 +511,8 @@ stories:
     acceptance:
       - "BE: ComfyUI executor forwards per-node progress events (value/max) through the backend WebSocket to frontend clients"
       - "BE: WebSocket message type for inference progress includes prompt_id, current_value, max_value"
-      - "FE: JobProgressPanel shows a secondary progress bar for the currently-generating sample within the checkpoint progress section"
+      - "FE: JobProgressPanel shows a secondary progress bar for the currently-generating sample within the checkpoint progress
+        section"
       - "FE: Progress bar updates in real-time as ComfyUI processes nodes"
       - "FE: Progress bar resets between samples"
       - "BE: Unit tests for progress event forwarding"
@@ -552,7 +571,8 @@ stories:
     acceptance:
       - "BE: After each checkpoint's samples are generated, validate that all expected images exist on disk"
       - "BE: Compare expected items (from job item expansion) against actual files in the checkpoint's sample directory"
-      - "BE: Missing files are reported as warnings on the job (not failures — the images may have been generated but failed to download)"
+      - "BE: Missing files are reported as warnings on the job (not failures — the images may have been generated but failed
+        to download)"
       - "BE: Completeness status included in job progress WebSocket events"
       - "FE: JobProgressPanel shows completeness status per checkpoint (e.g., '24/24 verified' or '23/24 — 1 missing')"
       - "BE: Unit tests for completeness validation logic"
@@ -588,7 +608,7 @@ stories:
   - id: S-077
     title: "'Show all' training runs checked by default in Generate Samples dialog"
     priority: 33
-    status: todo
+    status: uat
     requires: []
     acceptance:
       - "FE: The 'Show all' checkbox in JobLaunchDialog defaults to checked (showing all training runs, not just empty ones)"
@@ -686,7 +706,8 @@ stories:
     status: todo
     requires: []
     acceptance:
-      - "FE: Individual dimension filters are no longer independently collapsible — clicking the filters button shows all filters in a right-side slideout"
+      - "FE: Individual dimension filters are no longer independently collapsible — clicking the filters button shows all
+        filters in a right-side slideout"
       - "FE: The master slider moves to the top bar area where the filters menu currently resides"
       - "FE: The zoom slider moves up into the top nav bar alongside menu/generate samples/jobs buttons"
       - "FE: All existing filter, slider, and zoom functionality is preserved"

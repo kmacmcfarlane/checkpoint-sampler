@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-077: 'Show all' training runs checked by default in Generate Samples dialog
+- "Show all" checkbox now defaults to checked, showing all training runs (not just empty ones)
+
 ### S-076: Auto-select single workflow template in Generate Samples dialog
 - Auto-selects the workflow when exactly one valid workflow template exists; falls back to localStorage when multiple are available
 

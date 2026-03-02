@@ -208,24 +208,8 @@ describe('JobLaunchDialog', () => {
     expect(runSelect.props('value')).toBeNull()
   })
 
-  describe('default filter (only empty runs)', () => {
-    it('shows only runs without samples or active jobs by default', async () => {
-      const wrapper = mount(JobLaunchDialog, {
-        props: { show: true },
-        global: { stubs: { Teleport: true } },
-      })
-      await flushPromises()
-
-      const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
-      const options = runSelect.props('options') as Array<{ label: string; value: number }>
-      // runEmpty (id=1) is gray (no samples, no jobs) — should appear
-      // runWithSamples (id=2) is green (has_samples) — hidden by default
-      // runRunning (id=3) has a running job — hidden by default
-      expect(options).toHaveLength(1)
-      expect(options[0].value).toBe(1)
-    })
-
-    it('shows all runs when "show all" checkbox is checked', async () => {
+  describe('training run filter (show all / show empty)', () => {
+    it('"Show all" checkbox is checked by default', async () => {
       const wrapper = mount(JobLaunchDialog, {
         props: { show: true },
         global: { stubs: { Teleport: true } },
@@ -233,12 +217,40 @@ describe('JobLaunchDialog', () => {
       await flushPromises()
 
       const checkbox = wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox)
-      checkbox.vm.$emit('update:checked', true)
+      expect(checkbox.props('checked')).toBe(true)
+    })
+
+    it('shows all runs by default (show all is checked)', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
+      const options = runSelect.props('options') as Array<{ label: string; value: number }>
+      // All three runs are visible when showAllRuns is true (the default)
+      expect(options).toHaveLength(3)
+    })
+
+    it('shows only empty runs when "show all" checkbox is unchecked', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const checkbox = wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox)
+      checkbox.vm.$emit('update:checked', false)
       await nextTick()
 
       const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
       const options = runSelect.props('options') as Array<{ label: string; value: number }>
-      expect(options).toHaveLength(3)
+      // runEmpty (id=1) is gray (no samples, no jobs) — should appear
+      // runWithSamples (id=2) is green (has_samples) — hidden when showAllRuns=false
+      // runRunning (id=3) has a running job — hidden when showAllRuns=false
+      expect(options).toHaveLength(1)
+      expect(options[0].value).toBe(1)
     })
   })
 
@@ -1493,8 +1505,8 @@ describe('JobLaunchDialog', () => {
       expect(runSelect.props('value')).toBeNull()
     })
 
-    it('expands filter to show all runs when restored run is not empty', async () => {
-      // runWithSamples (id=2) has status 'complete' — not shown in default filter
+    it('restores a non-empty run with show-all enabled (the default)', async () => {
+      // runWithSamples (id=2) has status 'complete' — visible because showAllRuns defaults to true
       const state: GenerateInputsState = {
         lastWorkflowId: null,
         lastTrainingRunId: 2,
@@ -1508,7 +1520,7 @@ describe('JobLaunchDialog', () => {
       })
       await flushPromises()
 
-      // The showAllRuns filter should be enabled so the run is visible in the dropdown
+      // The showAllRuns filter defaults to true so the run is visible in the dropdown
       const checkbox = wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox)
       expect(checkbox.props('checked')).toBe(true)
 
@@ -1517,8 +1529,8 @@ describe('JobLaunchDialog', () => {
       expect(runSelect.props('value')).toBe(2)
     })
 
-    it('does not expand filter when restored run is empty (default filter)', async () => {
-      // runEmpty (id=1) has status 'empty' — shown in default filter
+    it('restores an empty run with show-all enabled (the default)', async () => {
+      // runEmpty (id=1) has status 'empty' — visible in default filter since showAllRuns defaults to true
       const state: GenerateInputsState = {
         lastWorkflowId: null,
         lastTrainingRunId: 1,
@@ -1532,11 +1544,11 @@ describe('JobLaunchDialog', () => {
       })
       await flushPromises()
 
-      // The showAllRuns filter should remain off
+      // The showAllRuns filter defaults to true
       const checkbox = wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox)
-      expect(checkbox.props('checked')).toBe(false)
+      expect(checkbox.props('checked')).toBe(true)
 
-      // And the run should still be selected
+      // And the run should be selected
       const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
       expect(runSelect.props('value')).toBe(1)
     })
