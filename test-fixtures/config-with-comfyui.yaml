@@ -1,0 +1,17 @@
+# E2E test fixture configuration with ComfyUI mock enabled.
+# Used by docker-compose.test.yml when running the sample generation E2E test.
+# Points to the comfyui-mock service which provides a lightweight HTTP+WS stub.
+
+checkpoint_dirs:
+  - /data/checkpoints
+
+sample_dir: /data/samples
+
+port: 8080
+ip_address: "0.0.0.0"
+
+db_path: ./data/checkpoint-sampler.db
+
+comfyui:
+  url: http://comfyui-mock:8188
+  workflow_dir: /data/workflows

@@ -382,7 +382,7 @@ stories:
   - id: S-070
     title: "E2E test for full sample generation flow"
     priority: 21
-    status: todo
+    status: uat
     requires: [B-029]
     acceptance:
       - "E2E: Playwright test exercises the full generation flow: select training run, configure preset, launch job, verify

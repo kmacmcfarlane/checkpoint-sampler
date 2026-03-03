@@ -1,0 +1,98 @@
+{
+  "1": {
+    "inputs": {
+      "unet_name": "placeholder.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model",
+      "cs_role": "unet_loader"
+    }
+  },
+  "2": {
+    "inputs": {
+      "clip_name": "test-clip.safetensors",
+      "type": "flux"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP",
+      "cs_role": "clip_loader"
+    }
+  },
+  "3": {
+    "inputs": {
+      "vae_name": "test-vae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE",
+      "cs_role": "vae_loader"
+    }
+  },
+  "4": {
+    "inputs": {
+      "text": "a test prompt",
+      "clip": ["2", 0]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "Positive Prompt",
+      "cs_role": "positive_prompt"
+    }
+  },
+  "5": {
+    "inputs": {
+      "text": "",
+      "clip": ["2", 0]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "Negative Prompt",
+      "cs_role": "negative_prompt"
+    }
+  },
+  "6": {
+    "inputs": {
+      "width": 512,
+      "height": 512,
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "Empty Latent Image",
+      "cs_role": "latent_image"
+    }
+  },
+  "7": {
+    "inputs": {
+      "seed": 42,
+      "steps": 1,
+      "cfg": 1.0,
+      "sampler_name": "euler",
+      "scheduler": "normal",
+      "denoise": 1.0,
+      "model": ["1", 0],
+      "positive": ["4", 0],
+      "negative": ["5", 0],
+      "latent_image": ["6", 0]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler",
+      "cs_role": "sampler"
+    }
+  },
+  "8": {
+    "inputs": {
+      "filename_prefix": "sample_test",
+      "images": ["7", 0]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image",
+      "cs_role": "save_image"
+    }
+  }
+}

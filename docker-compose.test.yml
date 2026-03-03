@@ -1,4 +1,34 @@
 services:
+  comfyui-mock:
+    build:
+      context: ./comfyui-mock
+      dockerfile: Dockerfile
+    environment:
+      - PORT=8188
+      # Checkpoint filenames from test-fixtures/samples (used in UNETLoader object_info
+      # so CheckpointPathMatcher can match them to ComfyUI model paths)
+      - CHECKPOINT_FILENAMES=my-model-step00001000.safetensors,my-model-step00002000.safetensors
+    healthcheck:
+      test: ["CMD", "sh", "-c", "wget -qO- http://127.0.0.1:8188/system_stats || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # Copies test-fixture sample images into the writable test_samples_data volume
+  # and sets permissions so the backend user (UID 1000) can write generated images.
+  # The backend and viewer tests need pre-seeded images in sample_dir, while the
+  # job executor also needs write access to that dir to save generated images.
+  # Using a named volume + init container avoids polluting the host bind-mounted
+  # test-fixtures/samples directory with generated test output.
+  samples-init:
+    image: busybox
+    command: sh -c "cp -a /fixtures/. /data/samples/ && chmod -R 777 /data/samples/"
+    volumes:
+      - ./test-fixtures/samples:/fixtures:ro
+      - test_samples_data:/data/samples
+    restart: no
+
   backend:
     build:
       context: ./backend
@@ -7,9 +37,10 @@ services:
     volumes:
       - ./backend:/app/backend
       - test_backend_data:/app/data
-      - ./test-fixtures/config.yaml:/app/config.yaml:ro
+      - ./test-fixtures/config-with-comfyui.yaml:/app/config.yaml:ro
       - ./test-fixtures/checkpoints:/data/checkpoints:ro
-      - ./test-fixtures/samples:/data/samples:ro
+      - test_samples_data:/data/samples
+      - ./test-fixtures/workflows:/data/workflows:ro
       - test_go_cache:/home/gouser/.cache/go-build
       - test_go_mod_cache:/home/gouser/go/pkg/mod
     environment:
@@ -20,6 +51,11 @@ services:
       - GOPATH=/home/gouser/go
       - GOCACHE=/home/gouser/.cache/go-build
       - GOMODCACHE=/home/gouser/go/pkg/mod
+    depends_on:
+      comfyui-mock:
+        condition: service_healthy
+      samples-init:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "sh", "-c", "wget -qO- http://127.0.0.1:8080/health || exit 1"]
       interval: 5s
@@ -60,6 +96,7 @@ services:
 
 volumes:
   test_backend_data:
+  test_samples_data:
   test_frontend_node_modules:
   test_go_cache:
   test_go_mod_cache:

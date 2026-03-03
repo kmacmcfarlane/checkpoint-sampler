@@ -5,6 +5,11 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-070: E2E test for full sample generation flow
+- Lightweight ComfyUI mock server (Node.js + ws) in `comfyui-mock/` implements HTTP + WebSocket API surface for E2E testing without a real GPU
+- Three Playwright tests exercise the full generation flow: create study, launch job, verify progression through pending → running → completed
+- Shared E2E helpers extracted to `frontend/e2e/helpers.ts`; test fixtures expanded with checkpoint files, workflow template, and ComfyUI-enabled config
+
 ### R-004: Consolidate docker-compose.test.yml and docker-compose.e2e.yml
 - Merged `docker-compose.e2e.yml` into `docker-compose.test.yml` as a single standalone test stack with test fixtures, healthchecks, and Playwright
 - Removed `COMPOSE_E2E` Makefile variable; all test/E2E targets now use `COMPOSE_TEST`

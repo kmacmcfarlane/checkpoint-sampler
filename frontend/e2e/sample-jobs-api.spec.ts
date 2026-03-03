@@ -2,10 +2,13 @@ import { test, expect } from '@playwright/test'
 import { resetDatabase } from './helpers'
 
 // AC: SampleJobsService methods return an empty result (or appropriate error)
-//     when the inner SampleJobService is nil (ComfyUI not configured)
-// AC: No panic occurs when /api/sample-jobs endpoints are called without ComfyUI configured
+//     when no jobs exist
+// AC: No panic occurs when /api/sample-jobs endpoints are called
+// Note: docker-compose.test.yml uses config-with-comfyui.yaml, so ComfyUI IS
+//       configured in the test environment. These tests verify API behaviour
+//       for empty/invalid requests, not the "no ComfyUI" code path.
 
-test.describe('sample-jobs API without ComfyUI configured', () => {
+test.describe('sample-jobs API (ComfyUI configured in test environment)', () => {
   // AC: Each E2E test is independent -- reset database before each test
   test.beforeEach(async ({ request }) => {
     await resetDatabase(request)

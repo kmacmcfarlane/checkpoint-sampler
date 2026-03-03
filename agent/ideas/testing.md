@@ -57,13 +57,19 @@ Keyboard-driven slider behaviors (arrow navigation with auto-repeat) are difficu
 The "Eager auto-select" tests in App.test.ts set `Object.defineProperty(window, 'innerWidth', ...)` which persists across tests since `vi.unstubAllGlobals()` only removes `vi.stubGlobal` stubs. Tests running after this section inherit the modified `innerWidth`. A shared `afterEach` that resets `innerWidth` to a known default would prevent ordering-dependent test failures.
 
 ### Shared E2E helper functions across spec files
-* status: needs_approval
+* status: done
 * priority: low
 * source: developer
-Many E2E spec files duplicate `selectTrainingRun`, `selectNaiveOption`, and `closeDrawer` helper functions. Extracting these to `frontend/e2e/helpers.ts` (alongside the existing `resetDatabase` helper) would reduce duplication and make future selector changes a single-file edit.
+Implemented in S-070: helpers extracted to `frontend/e2e/helpers.ts`.
 
 ### Add workflow fixtures to E2E test environment
-* status: needs_approval
+* status: done
 * priority: medium
 * source: qa
-Adding sample workflow JSON files to `test-fixtures/` and configuring `test-fixtures/config.yaml` with a `workflow_dir` would enable E2E testing of workflow-related features (auto-selection, workflow filtering, shift role detection). This requires changes to `docker-compose.test.yml` to mount the workflow directory.
+Implemented in S-070: `test-fixtures/workflows/test-workflow.json` added, mounted in `docker-compose.test.yml`.
+
+### Expand QA_ALLOWED_ERRORS.md with test environment artifacts
+* status: needs_approval
+* priority: low
+* source: qa
+Three categories of expected errors in test logs are not yet in the allowlist: (1) database reset race conditions ("no such table/column" during test reset), (2) safetensors metadata parse failures for empty test fixture checkpoint files, (3) Vite ws proxy EPIPE/ECONNREFUSED errors during E2E teardown. Adding these would reduce re-triage overhead for QA agents.
