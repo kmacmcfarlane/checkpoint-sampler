@@ -645,7 +645,7 @@ stories:
   - id: S-079
     title: "Sample preset (study) import/export to JSON"
     priority: 16
-    status: todo
+    status: uat
     requires: []
     acceptance:
       - "FE: Export button in SamplePresetEditor downloads the current preset as a JSON file"

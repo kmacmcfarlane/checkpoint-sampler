@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { NInput, NInputNumber, NSelect, NButton, NDynamicInput, NDynamicTags, NCard, NSpace, NAlert } from 'naive-ui'
 import type { Study, NamedPrompt, SamplerSchedulerPair, CreateStudyPayload, UpdateStudyPayload } from '../api/types'
 import { apiClient } from '../api/client'
+import { validateStudyImport } from './studyImportValidation'
 
 // initialStudyId: When provided, the study with this ID is pre-selected after studies load.
 // If null or the ID is not found in the loaded studies, no study is selected (default behavior).
@@ -284,6 +285,66 @@ async function deleteStudy() {
         : 'Failed to delete study'
     error.value = message
   }
+}
+
+function exportStudy() {
+  const payload: CreateStudyPayload = {
+    name: studyName.value.trim(),
+    prompt_prefix: promptPrefix.value,
+    prompts: prompts.value.filter(p => p != null && p.name.trim() !== '' && p.text.trim() !== ''),
+    negative_prompt: negativePrompt.value,
+    steps: steps.value,
+    cfgs: cfgs.value,
+    sampler_scheduler_pairs: samplerSchedulerPairs.value,
+    seeds: seeds.value,
+    width: width.value,
+    height: height.value,
+  }
+  const json = JSON.stringify(payload, null, 2)
+  const blob = new Blob([json], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const filename = (studyName.value.trim() || 'study').replace(/[^a-z0-9_\-. ]/gi, '_') + '.json'
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = filename
+  anchor.click()
+  URL.revokeObjectURL(url)
+}
+
+function triggerImport() {
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = '.json,application/json'
+  input.onchange = async (event: Event) => {
+    const file = (event.target as HTMLInputElement).files?.[0]
+    if (!file) return
+    try {
+      const text = await file.text()
+      const raw = JSON.parse(text)
+      const result = validateStudyImport(raw)
+      if (!result.ok) {
+        error.value = `Import error: ${result.error}`
+        return
+      }
+      // Deselect any existing study so this creates a new one
+      selectedStudyId.value = null
+      // Populate form fields from imported data
+      studyName.value = result.data.name
+      promptPrefix.value = result.data.prompt_prefix
+      prompts.value = result.data.prompts.length > 0 ? [...result.data.prompts] : [{ name: '', text: '' }]
+      negativePrompt.value = result.data.negative_prompt
+      steps.value = [...result.data.steps]
+      cfgs.value = [...result.data.cfgs]
+      samplerSchedulerPairs.value = result.data.sampler_scheduler_pairs.map(p => ({ ...p }))
+      seeds.value = [...result.data.seeds]
+      width.value = result.data.width
+      height.value = result.data.height
+      error.value = null
+    } catch {
+      error.value = 'Import error: Invalid JSON file'
+    }
+  }
+  input.click()
 }
 
 function createPromptItem(): NamedPrompt {
@@ -575,6 +636,21 @@ function onUpdateSeeds(tags: string[]) {
             @click="deleteStudy"
           >
             Delete Study
+          </NButton>
+          <NButton
+            size="medium"
+            :disabled="!canSave"
+            data-testid="export-study-button"
+            @click="exportStudy"
+          >
+            Export
+          </NButton>
+          <NButton
+            size="medium"
+            data-testid="import-study-button"
+            @click="triggerImport"
+          >
+            Import
           </NButton>
         </div>
       </NSpace>
