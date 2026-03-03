@@ -260,7 +260,7 @@ stories:
   - id: S-065
     title: "E2E test coverage additions — combo solo click and XYGrid emit test"
     priority: 27
-    status: todo
+    status: uat
     requires: []
     acceptance:
       - "E2E: Add Playwright test for DimensionFilter solo click interaction (click value text to solo, click again to unsolo)"

@@ -2,7 +2,9 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import XYGrid from '../XYGrid.vue'
 import SliderBar from '../SliderBar.vue'
+import ImageCell from '../ImageCell.vue'
 import type { ScanDimension, ScanImage } from '../../api/types'
+import type { ImageClickContext } from '../types'
 
 const xDimension: ScanDimension = {
   name: 'seed',
@@ -930,6 +932,100 @@ describe('XYGrid', () => {
       const wrapper = mountGrid({ xDimension: null, yDimension: null })
       const handle = wrapper.find('.xy-grid__resize-handle')
       expect(handle.exists()).toBe(false)
+    })
+  })
+
+  describe('image:click emit payload shape', () => {
+    // AC2: XYGrid image:click emit payload has cellKey, sliderValues, currentSliderValue,
+    // imagesBySliderValue as defined by ImageClickContext
+    it('emits image:click with correct ImageClickContext shape when a cell image is clicked', async () => {
+      // Arrange: mount with X+Y dimensions and a slider dimension so all payload fields are populated
+      const wrapper = mountGrid({
+        sliderDimension,
+        sliderValues: {},
+        defaultSliderValue: '3',
+      })
+
+      // Act: trigger click on the first ImageCell (seed=42, step=500)
+      const imageCells = wrapper.findAllComponents(ImageCell)
+      expect(imageCells.length).toBeGreaterThan(0)
+      // ImageCell emits 'click' with the imageUrl; XYGrid handles it via onImageClick
+      imageCells[0].vm.$emit('click', '/api/images/a/seed=42&step=500&cfg=3.png')
+      await wrapper.vm.$nextTick()
+
+      // Assert: image:click was emitted
+      const emitted = wrapper.emitted('image:click')
+      expect(emitted).toBeDefined()
+      expect(emitted!.length).toBe(1)
+
+      // Assert: payload conforms to ImageClickContext shape
+      const payload = emitted![0][0] as ImageClickContext
+
+      // cellKey: identifies the grid cell as "xVal|yVal"
+      expect(payload).toHaveProperty('cellKey')
+      expect(typeof payload.cellKey).toBe('string')
+      expect(payload.cellKey).toBe('42|500')
+
+      // sliderValues: ordered array of slider dimension values
+      expect(payload).toHaveProperty('sliderValues')
+      expect(Array.isArray(payload.sliderValues)).toBe(true)
+      expect(payload.sliderValues).toEqual(['3', '7'])
+
+      // currentSliderValue: the active slider value for this cell
+      expect(payload).toHaveProperty('currentSliderValue')
+      expect(typeof payload.currentSliderValue).toBe('string')
+      expect(payload.currentSliderValue).toBe('3')
+
+      // imagesBySliderValue: map from slider value → image URL for all slider positions in this cell
+      expect(payload).toHaveProperty('imagesBySliderValue')
+      expect(typeof payload.imagesBySliderValue).toBe('object')
+      // Both cfg=3 and cfg=7 images exist for seed=42, step=500
+      expect(payload.imagesBySliderValue).toHaveProperty('3')
+      expect(payload.imagesBySliderValue).toHaveProperty('7')
+      expect(payload.imagesBySliderValue['3']).toBe('/api/images/a/seed=42&step=500&cfg=3.png')
+      expect(payload.imagesBySliderValue['7']).toBe('/api/images/a/seed=42&step=500&cfg=7.png')
+
+      // imageUrl: the clicked image's full URL
+      expect(payload).toHaveProperty('imageUrl')
+      expect(payload.imageUrl).toBe('/api/images/a/seed=42&step=500&cfg=3.png')
+
+      // gridImages: ordered list of all visible grid cells with images
+      expect(payload).toHaveProperty('gridImages')
+      expect(Array.isArray(payload.gridImages)).toBe(true)
+
+      // gridIndex: index of this cell in gridImages
+      expect(payload).toHaveProperty('gridIndex')
+      expect(typeof payload.gridIndex).toBe('number')
+    })
+
+    it('emits image:click with empty sliderValues and imagesBySliderValue when no slider dimension', async () => {
+      // AC2: Verify payload shape when slider dimension is not assigned
+      const wrapper = mountGrid({
+        sliderDimension: null,
+        sliderValues: {},
+        defaultSliderValue: '',
+      })
+
+      const imageCells = wrapper.findAllComponents(ImageCell)
+      expect(imageCells.length).toBeGreaterThan(0)
+      imageCells[0].vm.$emit('click', '/api/images/a/seed=42&step=500&cfg=3.png')
+      await wrapper.vm.$nextTick()
+
+      const emitted = wrapper.emitted('image:click')
+      expect(emitted).toBeDefined()
+      const payload = emitted![0][0] as ImageClickContext
+
+      // cellKey is still a string
+      expect(typeof payload.cellKey).toBe('string')
+      expect(payload.cellKey).toBe('42|500')
+
+      // sliderValues is empty array (no slider dimension)
+      expect(Array.isArray(payload.sliderValues)).toBe(true)
+      expect(payload.sliderValues).toHaveLength(0)
+
+      // imagesBySliderValue is empty object (no slider dimension)
+      expect(typeof payload.imagesBySliderValue).toBe('object')
+      expect(Object.keys(payload.imagesBySliderValue)).toHaveLength(0)
     })
   })
 })

@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-065: E2E test coverage additions — combo solo click and XYGrid emit test
+- E2E test for DimensionFilter solo click (solo to filter, unsolo to restore all values)
+- Unit test asserting XYGrid `image:click` emit payload shape (`ImageClickContext`)
+
 ### S-060: Playwright browser pre-warming via custom Docker image
 - Custom Dockerfile bakes `npm ci` into the Playwright image, eliminating ~5-10s overhead per E2E test run
 - New `make build-playwright` target; `make test-e2e` no longer runs `npm ci` at runtime
