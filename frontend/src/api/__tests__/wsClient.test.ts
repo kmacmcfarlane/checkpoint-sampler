@@ -485,6 +485,145 @@ describe('WSClient', () => {
     })
   })
 
+  // AC: FE: Unit tests for inference progress event dispatching
+  describe('inference progress event dispatching', () => {
+    it('dispatches valid inference progress messages to inference listeners', () => {
+      const client = createClient()
+      const listener = vi.fn()
+      client.onInferenceProgress(listener)
+      client.connect()
+      mockInstances[0].simulateOpen()
+
+      mockInstances[0].simulateMessage(
+        JSON.stringify({
+          type: 'inference_progress',
+          prompt_id: 'prompt-abc',
+          current_value: 5,
+          max_value: 20,
+        }),
+      )
+
+      expect(listener).toHaveBeenCalledWith({
+        type: 'inference_progress',
+        prompt_id: 'prompt-abc',
+        current_value: 5,
+        max_value: 20,
+      })
+    })
+
+    it('does not dispatch inference progress to FS event listeners', () => {
+      const client = createClient()
+      const fsListener = vi.fn()
+      client.onEvent(fsListener)
+      client.connect()
+      mockInstances[0].simulateOpen()
+
+      mockInstances[0].simulateMessage(
+        JSON.stringify({
+          type: 'inference_progress',
+          prompt_id: 'prompt-abc',
+          current_value: 5,
+          max_value: 20,
+        }),
+      )
+
+      expect(fsListener).not.toHaveBeenCalled()
+    })
+
+    it('does not dispatch inference progress to job progress listeners', () => {
+      const client = createClient()
+      const jobListener = vi.fn()
+      client.onJobProgress(jobListener)
+      client.connect()
+      mockInstances[0].simulateOpen()
+
+      mockInstances[0].simulateMessage(
+        JSON.stringify({
+          type: 'inference_progress',
+          prompt_id: 'prompt-abc',
+          current_value: 5,
+          max_value: 20,
+        }),
+      )
+
+      expect(jobListener).not.toHaveBeenCalled()
+    })
+
+    it('ignores inference progress messages missing prompt_id', () => {
+      const client = createClient()
+      const listener = vi.fn()
+      client.onInferenceProgress(listener)
+      client.connect()
+      mockInstances[0].simulateOpen()
+
+      mockInstances[0].simulateMessage(
+        JSON.stringify({
+          type: 'inference_progress',
+          current_value: 5,
+          max_value: 20,
+        }),
+      )
+
+      expect(listener).not.toHaveBeenCalled()
+    })
+
+    it('ignores inference progress messages missing current_value', () => {
+      const client = createClient()
+      const listener = vi.fn()
+      client.onInferenceProgress(listener)
+      client.connect()
+      mockInstances[0].simulateOpen()
+
+      mockInstances[0].simulateMessage(
+        JSON.stringify({
+          type: 'inference_progress',
+          prompt_id: 'prompt-abc',
+          max_value: 20,
+        }),
+      )
+
+      expect(listener).not.toHaveBeenCalled()
+    })
+
+    it('ignores inference progress messages missing max_value', () => {
+      const client = createClient()
+      const listener = vi.fn()
+      client.onInferenceProgress(listener)
+      client.connect()
+      mockInstances[0].simulateOpen()
+
+      mockInstances[0].simulateMessage(
+        JSON.stringify({
+          type: 'inference_progress',
+          prompt_id: 'prompt-abc',
+          current_value: 5,
+        }),
+      )
+
+      expect(listener).not.toHaveBeenCalled()
+    })
+
+    it('removes inference progress listener with offInferenceProgress', () => {
+      const client = createClient()
+      const listener = vi.fn()
+      client.onInferenceProgress(listener)
+      client.offInferenceProgress(listener)
+      client.connect()
+      mockInstances[0].simulateOpen()
+
+      mockInstances[0].simulateMessage(
+        JSON.stringify({
+          type: 'inference_progress',
+          prompt_id: 'prompt-abc',
+          current_value: 5,
+          max_value: 20,
+        }),
+      )
+
+      expect(listener).not.toHaveBeenCalled()
+    })
+  })
+
   describe('auto-reconnect', () => {
     it('reconnects after connection close with initial delay', () => {
       const client = createClient()

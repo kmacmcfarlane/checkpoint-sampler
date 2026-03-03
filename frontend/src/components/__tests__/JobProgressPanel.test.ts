@@ -681,6 +681,169 @@ describe('JobProgressPanel', () => {
     })
   })
 
+  // AC: FE: JobProgressPanel shows a secondary progress bar for the currently-generating sample
+  describe('inference progress bar', () => {
+    const runningJob: SampleJob = {
+      id: 'job-running',
+      training_run_name: 'test/inference',
+      study_id: 'preset-1', study_name: 'Quick Test',
+      workflow_name: 'test.json',
+      vae: 'ae.safetensors',
+      clip: 'clip.safetensors',
+      status: 'running',
+      total_items: 10,
+      completed_items: 3,
+      failed_items: 0,
+      pending_items: 7,
+      created_at: '2025-01-01T00:00:00Z',
+      updated_at: '2025-01-01T00:00:00Z',
+    }
+
+    // AC: FE: Progress bar updates in real-time as ComfyUI processes nodes
+    it('shows inference progress bar when inference progress data is present', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: {
+          show: true,
+          jobs: [runningJob],
+          jobProgress: {
+            'job-running': {
+              checkpoints_completed: 1,
+              total_checkpoints: 3,
+              current_checkpoint: 'ckpt.safetensors',
+              current_checkpoint_progress: 1,
+              current_checkpoint_total: 5,
+            },
+          },
+          inferenceProgress: {
+            'job-running': { current_value: 5, max_value: 20 },
+          },
+        },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const inferenceSection = wrapper.find('[data-testid="job-job-running-inference-progress"]')
+      expect(inferenceSection.exists()).toBe(true)
+      expect(inferenceSection.text()).toContain('5 / 20 steps')
+    })
+
+    it('shows correct percentage on inference progress bar', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: {
+          show: true,
+          jobs: [runningJob],
+          jobProgress: {
+            'job-running': {
+              checkpoints_completed: 0,
+              total_checkpoints: 3,
+            },
+          },
+          inferenceProgress: {
+            'job-running': { current_value: 10, max_value: 20 },
+          },
+        },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const inferenceSection = wrapper.find('[data-testid="job-job-running-inference-progress"]')
+      expect(inferenceSection.exists()).toBe(true)
+      const progress = inferenceSection.findComponent(NProgress)
+      expect(progress.exists()).toBe(true)
+      expect(progress.props('percentage')).toBe(50)
+    })
+
+    // AC: FE: Progress bar does not show when no inference progress data is present
+    it('does not show inference progress bar when no inference progress data is present', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: {
+          show: true,
+          jobs: [runningJob],
+          jobProgress: {
+            'job-running': {
+              checkpoints_completed: 0,
+              total_checkpoints: 3,
+            },
+          },
+        },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const inferenceSection = wrapper.find('[data-testid="job-job-running-inference-progress"]')
+      expect(inferenceSection.exists()).toBe(false)
+    })
+
+    // AC: FE: Progress bar resets between samples (not shown when max_value is 0)
+    it('does not show inference progress bar when max_value is zero', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: {
+          show: true,
+          jobs: [runningJob],
+          jobProgress: {
+            'job-running': {
+              checkpoints_completed: 0,
+              total_checkpoints: 3,
+            },
+          },
+          inferenceProgress: {
+            'job-running': { current_value: 0, max_value: 0 },
+          },
+        },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const inferenceSection = wrapper.find('[data-testid="job-job-running-inference-progress"]')
+      expect(inferenceSection.exists()).toBe(false)
+    })
+
+    it('does not show inference progress bar for completed jobs', () => {
+      const completedJob: SampleJob = {
+        ...runningJob,
+        id: 'job-done',
+        status: 'completed',
+        completed_items: 10,
+        pending_items: 0,
+      }
+      const wrapper = mount(JobProgressPanel, {
+        props: {
+          show: true,
+          jobs: [completedJob],
+          inferenceProgress: {
+            'job-done': { current_value: 5, max_value: 20 },
+          },
+        },
+        global: { stubs: { Teleport: true } },
+      })
+
+      // Even if inferenceProgress data exists, the progress-details section won't show
+      // since there's no checkpoint progress, so the inference progress bar won't appear.
+      const inferenceSection = wrapper.find('[data-testid="job-job-done-inference-progress"]')
+      expect(inferenceSection.exists()).toBe(false)
+    })
+
+    it('shows inference progress at 100% when current equals max', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: {
+          show: true,
+          jobs: [runningJob],
+          jobProgress: {
+            'job-running': {
+              checkpoints_completed: 0,
+              total_checkpoints: 3,
+            },
+          },
+          inferenceProgress: {
+            'job-running': { current_value: 20, max_value: 20 },
+          },
+        },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const inferenceSection = wrapper.find('[data-testid="job-job-running-inference-progress"]')
+      expect(inferenceSection.exists()).toBe(true)
+      const progress = inferenceSection.findComponent(NProgress)
+      expect(progress.props('percentage')).toBe(100)
+    })
+  })
+
   // AC: FE: Completed and completed-with-errors job cards show a 'Regenerate' button
   describe('regenerate button', () => {
     const completedJob: SampleJob = {

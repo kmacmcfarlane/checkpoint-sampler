@@ -24,7 +24,9 @@
  *   WS /ws?clientId=<id>           → accepts WS connections; receives prompt_id via
  *                                    POST /prompt and sends:
  *                                    1. {"type":"executing", "data":{"prompt_id","node":"1"}}
- *                                    2. {"type":"executing", "data":{"prompt_id","node":null}}
+ *                                    2. {"type":"progress", "data":{"prompt_id","value":N,"max":3}}
+ *                                       (3 progress steps simulating sampler inference, S-073)
+ *                                    3. {"type":"executing", "data":{"prompt_id","node":null}}
  *                                    (null node signals execution complete to the executor)
  *
  * ## Checkpoint model names
@@ -109,7 +111,23 @@ function sendExecutionCompleteAsync(clientId, promptId) {
       data: { prompt_id: promptId, node: '1' },
     }));
 
-    // Step 2: "executing" with node=null (signals completion)
+    // Step 2: Send per-node inference progress events (simulates sampler steps).
+    // ComfyUI sends "progress" events with value/max as each sampler step completes.
+    // We send 3 progress steps (1/3, 2/3, 3/3) to exercise the inference progress
+    // bar in E2E tests (S-073).
+    const PROGRESS_STEPS = 3;
+    for (let step = 1; step <= PROGRESS_STEPS; step++) {
+      setTimeout(() => {
+        if (ws.readyState !== 1) return;
+        ws.send(JSON.stringify({
+          type: 'progress',
+          data: { prompt_id: promptId, value: step, max: PROGRESS_STEPS },
+        }));
+        console.log(`[comfyui-mock] Sent progress ${step}/${PROGRESS_STEPS} for prompt_id=${promptId}`);
+      }, step * 10);
+    }
+
+    // Step 3: "executing" with node=null (signals completion)
     setTimeout(() => {
       if (ws.readyState !== 1) return;
       ws.send(JSON.stringify({
@@ -117,7 +135,7 @@ function sendExecutionCompleteAsync(clientId, promptId) {
         data: { prompt_id: promptId, node: null },
       }));
       console.log(`[comfyui-mock] Sent execution complete for prompt_id=${promptId}`);
-    }, 50);
+    }, (PROGRESS_STEPS + 1) * 10 + 20);
   }, 100);
 }
 

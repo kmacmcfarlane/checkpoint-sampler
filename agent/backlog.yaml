@@ -506,7 +506,7 @@ stories:
   - id: S-073
     title: "Per-sample inference progress bar"
     priority: 15
-    status: todo
+    status: uat
     requires: []
     acceptance:
       - "BE: ComfyUI executor forwards per-node progress events (value/max) through the backend WebSocket to frontend clients"
@@ -777,3 +777,30 @@ stories:
       metadata parser attempts to read it, it encounters an unexpected EOF and logs
       at error level. Fix: either generate a minimal valid safetensors header in the
       fixture or downgrade the log level for expected parse failures on test fixtures.
+  - id: S-083
+    title: "On-demand dataset validation from viewer controls"
+    priority: 50
+    status: todo
+    complexity: medium
+    requires:
+      - S-075
+      - S-081
+    acceptance:
+      - "FE: Rename the 'Training Run' selector to 'Sample Set' in the main controls slide-out"
+      - "FE: Add a 'Validate' button directly beneath the Sample Set selector"
+      - "BE: API endpoint to trigger validation of a selected sample set on demand"
+      - "BE: Validation reuses the completeness-check logic from S-075 against the selected sample set directory"
+      - "BE: Validation results returned to the frontend (per-checkpoint completeness counts)"
+      - "FE: Display validation results inline (e.g., per-checkpoint pass/warning status)"
+      - "BE: Unit tests for the on-demand validation endpoint and logic"
+      - "FE: Unit tests for the Validate button and results display"
+    notes: |
+      Adds user-initiated validation of a generated sample dataset from the viewer controls.
+      The Sample Set selector (renamed from Training Run per S-081) selects a sample output directory.
+      The Validate button triggers a completeness check (reusing S-075 logic) against that directory.
+      Related: S-075 (completeness check logic), S-081 (sample-directory-driven viewer).
+      Key files: frontend/src/components/TrainingRunSelector.vue (rename + button),
+      frontend/src/App.vue, backend/internal/api/ (new endpoint), backend/internal/service/.
+    testing:
+      - "command: make test-backend"
+      - "command: cd frontend && npx vitest run"

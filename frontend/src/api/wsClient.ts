@@ -1,4 +1,4 @@
-import type { FSEventMessage, JobProgressMessage } from './types'
+import type { FSEventMessage, JobProgressMessage, InferenceProgressMessage } from './types'
 
 /** Options for creating a WebSocket client. */
 export interface WSClientOptions {
@@ -19,6 +19,9 @@ export type FSEventListener = (event: FSEventMessage) => void
 
 /** Listener callback for job progress events. */
 export type JobProgressListener = (event: JobProgressMessage) => void
+
+/** Listener callback for inference progress events. */
+export type InferenceProgressListener = (event: InferenceProgressMessage) => void
 
 /** Listener for connection state changes. */
 export type ConnectionStateListener = (connected: boolean) => void
@@ -52,6 +55,7 @@ export class WSClient {
   private intentionallyClosed = false
   private listeners: FSEventListener[] = []
   private jobListeners: JobProgressListener[] = []
+  private inferenceListeners: InferenceProgressListener[] = []
   private connectionListeners: ConnectionStateListener[] = []
 
   constructor(options: WSClientOptions = {}) {
@@ -81,6 +85,16 @@ export class WSClient {
   /** Remove a job progress listener. */
   offJobProgress(listener: JobProgressListener): void {
     this.jobListeners = this.jobListeners.filter((l) => l !== listener)
+  }
+
+  /** Register a listener for inference progress events. */
+  onInferenceProgress(listener: InferenceProgressListener): void {
+    this.inferenceListeners.push(listener)
+  }
+
+  /** Remove an inference progress listener. */
+  offInferenceProgress(listener: InferenceProgressListener): void {
+    this.inferenceListeners = this.inferenceListeners.filter((l) => l !== listener)
   }
 
   /** Register a listener for connection state changes. */
@@ -159,6 +173,11 @@ export class WSClient {
       for (const listener of this.jobListeners) {
         listener(event)
       }
+    } else if (isValidInferenceProgressEvent(parsed)) {
+      const event = parsed as InferenceProgressMessage
+      for (const listener of this.inferenceListeners) {
+        listener(event)
+      }
     }
   }
 
@@ -212,6 +231,18 @@ function isValidJobProgressEvent(data: unknown): data is JobProgressMessage {
     typeof msg.pending_items === 'number' &&
     typeof msg.checkpoints_completed === 'number' &&
     typeof msg.total_checkpoints === 'number'
+  )
+}
+
+function isValidInferenceProgressEvent(data: unknown): data is InferenceProgressMessage {
+  const msg = data as InferenceProgressMessage
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    msg.type === 'inference_progress' &&
+    typeof msg.prompt_id === 'string' &&
+    typeof msg.current_value === 'number' &&
+    typeof msg.max_value === 'number'
   )
 }
 

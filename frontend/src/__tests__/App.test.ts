@@ -3,7 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { NButton, NTag } from 'naive-ui'
 import App from '../App.vue'
 import TrainingRunSelector from '../components/TrainingRunSelector.vue'
-import type { TrainingRun } from '../api/types'
+import type { TrainingRun, SampleJob } from '../api/types'
 
 vi.mock('../api/client', () => ({
   apiClient: {
@@ -33,6 +33,7 @@ import { apiClient } from '../api/client'
 
 const mockGetTrainingRuns = apiClient.getTrainingRuns as ReturnType<typeof vi.fn>
 const mockScanTrainingRun = apiClient.scanTrainingRun as ReturnType<typeof vi.fn>
+const mockListSampleJobs = apiClient.listSampleJobs as ReturnType<typeof vi.fn>
 
 const mockTrainingRun: TrainingRun = {
   id: 1,
@@ -109,6 +110,7 @@ describe('App', () => {
     localStorage.clear()
     mockGetTrainingRuns.mockClear()
     mockScanTrainingRun.mockClear()
+    mockListSampleJobs.mockClear()
     vi.stubGlobal('matchMedia', createMatchMediaMock(false))
     mockWebSocketInstances = []
   })
@@ -853,6 +855,144 @@ describe('App', () => {
       expect(bead.attributes('title')).toBe('empty')
       // gray = #909090 → rgb(144, 144, 144)
       expect(bead.attributes('style')).toContain('background-color: rgb(144, 144, 144)')
+    })
+  })
+
+  // S-073: Per-sample inference progress bar reset behavior
+  describe('handleJobProgress: inference progress reset between samples', () => {
+    const runningJob: SampleJob = {
+      id: 'job-abc',
+      training_run_name: 'test-run',
+      study_id: 'study-1',
+      study_name: 'Test Study',
+      workflow_name: 'default',
+      vae: '',
+      clip: '',
+      status: 'running',
+      total_items: 10,
+      completed_items: 2,
+      failed_items: 0,
+      pending_items: 8,
+      created_at: '2024-01-01T00:00:00Z',
+      updated_at: '2024-01-01T00:00:00Z',
+    }
+
+    /**
+     * Mount the App with a running job pre-loaded, WebSocket open and connected.
+     * Opens the job progress panel to trigger fetchSampleJobs so sampleJobs is populated.
+     * Returns the wrapper and the mock WebSocket instance.
+     */
+    async function mountWithRunningJob() {
+      mockListSampleJobs.mockResolvedValue([runningJob])
+
+      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      await flushPromises()
+
+      // Select a training run to start the WebSocket
+      const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
+      selector.vm.$emit('select', mockTrainingRun)
+      await flushPromises()
+
+      // Open the WebSocket connection
+      expect(mockWebSocketInstances.length).toBeGreaterThan(0)
+      const ws = mockWebSocketInstances[0]
+      ws.simulateOpen()
+      await flushPromises()
+
+      // Open the job progress panel to trigger fetchSampleJobs, populating sampleJobs
+      // so that handleInferenceProgress can find the running job by status.
+      const jobsBtn = wrapper.findAllComponents(NButton).find(
+        (b) => b.attributes('aria-label') === 'Toggle sample jobs panel',
+      )
+      expect(jobsBtn).toBeDefined()
+      await jobsBtn!.trigger('click')
+      await flushPromises()
+
+      return { wrapper, ws }
+    }
+
+    it('resets inference progress when completed_items increases (new sample starts)', async () => {
+      const { wrapper, ws } = await mountWithRunningJob()
+
+      // Simulate inference progress arriving for the running job
+      ws.onmessage?.(new MessageEvent('message', {
+        data: JSON.stringify({
+          type: 'inference_progress',
+          prompt_id: 'prompt-1',
+          current_value: 15,
+          max_value: 20,
+        }),
+      }))
+      await flushPromises()
+
+      // Verify inference progress was recorded
+      const panelBefore = wrapper.findComponent({ name: 'JobProgressPanel' })
+      expect(panelBefore.props('inferenceProgress')).toEqual({
+        'job-abc': { current_value: 15, max_value: 20 },
+      })
+
+      // Simulate a job_progress message: completed_items increments from 2 → 3
+      ws.onmessage?.(new MessageEvent('message', {
+        data: JSON.stringify({
+          type: 'job_progress',
+          job_id: 'job-abc',
+          status: 'running',
+          total_items: 10,
+          completed_items: 3,
+          failed_items: 0,
+          pending_items: 7,
+          checkpoints_completed: 0,
+          total_checkpoints: 10,
+        }),
+      }))
+      await flushPromises()
+
+      // Inference progress for the job should be cleared because completed_items changed
+      const panelAfter = wrapper.findComponent({ name: 'JobProgressPanel' })
+      expect(panelAfter.props('inferenceProgress')).not.toHaveProperty('job-abc')
+    })
+
+    it('does NOT reset inference progress when completed_items is unchanged', async () => {
+      const { wrapper, ws } = await mountWithRunningJob()
+
+      // Simulate inference progress arriving for the running job
+      ws.onmessage?.(new MessageEvent('message', {
+        data: JSON.stringify({
+          type: 'inference_progress',
+          prompt_id: 'prompt-1',
+          current_value: 8,
+          max_value: 20,
+        }),
+      }))
+      await flushPromises()
+
+      // Verify inference progress was recorded
+      const panelBefore = wrapper.findComponent({ name: 'JobProgressPanel' })
+      expect(panelBefore.props('inferenceProgress')).toEqual({
+        'job-abc': { current_value: 8, max_value: 20 },
+      })
+
+      // Simulate a job_progress message with the SAME completed_items (2 → 2)
+      ws.onmessage?.(new MessageEvent('message', {
+        data: JSON.stringify({
+          type: 'job_progress',
+          job_id: 'job-abc',
+          status: 'running',
+          total_items: 10,
+          completed_items: 2,
+          failed_items: 0,
+          pending_items: 8,
+          checkpoints_completed: 0,
+          total_checkpoints: 10,
+        }),
+      }))
+      await flushPromises()
+
+      // Inference progress should NOT be cleared because completed_items did not change
+      const panelAfter = wrapper.findComponent({ name: 'JobProgressPanel' })
+      expect(panelAfter.props('inferenceProgress')).toEqual({
+        'job-abc': { current_value: 8, max_value: 20 },
+      })
     })
   })
 })

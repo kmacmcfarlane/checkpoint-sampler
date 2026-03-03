@@ -260,6 +260,14 @@ export interface CheckpointCompletenessInfo {
   missing: number
 }
 
+/** WebSocket inference progress event (per-node progress from ComfyUI). */
+export interface InferenceProgressMessage {
+  type: 'inference_progress'
+  prompt_id: string
+  current_value: number
+  max_value: number
+}
+
 /** WebSocket job progress event. */
 export interface JobProgressMessage {
   type: 'job_progress'

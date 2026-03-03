@@ -1319,6 +1319,106 @@ var _ = Describe("JobExecutor", func() {
 			items := mockStore.items["job-1"]
 			Expect(items[0].Status).To(Equal(model.SampleJobItemStatusFailed))
 		})
+
+		// AC: BE: ComfyUI executor forwards per-node progress events through the backend WebSocket
+		It("forwards progress events to the hub as inference_progress events", func() {
+			event := model.ComfyUIEvent{
+				Type: "progress",
+				Data: map[string]interface{}{
+					"prompt_id": "test-prompt-id",
+					"value":     float64(5),
+					"max":       float64(20),
+				},
+			}
+
+			executor.handleComfyUIEvent(event)
+
+			// Verify an inference_progress event was broadcast to the hub
+			Expect(mockHub.events).To(HaveLen(1))
+			broadcasted := mockHub.events[0]
+			Expect(broadcasted.Type).To(Equal(model.EventInferenceProgress))
+			Expect(broadcasted.InferenceProgressData).NotTo(BeNil())
+			Expect(broadcasted.InferenceProgressData.PromptID).To(Equal("test-prompt-id"))
+			Expect(broadcasted.InferenceProgressData.CurrentValue).To(Equal(5))
+			Expect(broadcasted.InferenceProgressData.MaxValue).To(Equal(20))
+		})
+
+		// AC: BE: WebSocket message type for inference progress includes prompt_id, current_value, max_value
+		It("includes prompt_id, current_value, max_value in inference progress event", func() {
+			event := model.ComfyUIEvent{
+				Type: "progress",
+				Data: map[string]interface{}{
+					"prompt_id": "test-prompt-id",
+					"value":     float64(10),
+					"max":       float64(30),
+				},
+			}
+
+			executor.handleComfyUIEvent(event)
+
+			Expect(mockHub.events).To(HaveLen(1))
+			data := mockHub.events[0].InferenceProgressData
+			Expect(data.PromptID).To(Equal("test-prompt-id"))
+			Expect(data.CurrentValue).To(Equal(10))
+			Expect(data.MaxValue).To(Equal(30))
+		})
+
+		// AC: BE: Progress event uses active prompt ID when prompt_id is absent from event data
+		It("uses active prompt ID when progress event data lacks prompt_id", func() {
+			event := model.ComfyUIEvent{
+				Type: "progress",
+				Data: map[string]interface{}{
+					"value": float64(3),
+					"max":   float64(15),
+				},
+			}
+
+			executor.handleComfyUIEvent(event)
+
+			Expect(mockHub.events).To(HaveLen(1))
+			data := mockHub.events[0].InferenceProgressData
+			Expect(data.PromptID).To(Equal("test-prompt-id"))
+			Expect(data.CurrentValue).To(Equal(3))
+			Expect(data.MaxValue).To(Equal(15))
+		})
+
+		// AC: BE: Progress events are ignored when no active prompt is set
+		It("ignores progress events when no active prompt is set", func() {
+			executor.mu.Lock()
+			executor.activePromptID = ""
+			executor.mu.Unlock()
+
+			event := model.ComfyUIEvent{
+				Type: "progress",
+				Data: map[string]interface{}{
+					"prompt_id": "test-prompt-id",
+					"value":     float64(1),
+					"max":       float64(10),
+				},
+			}
+
+			executor.handleComfyUIEvent(event)
+
+			// No events should be broadcast
+			Expect(mockHub.events).To(BeEmpty())
+		})
+
+		// AC: BE: Progress events with missing value/max are not forwarded
+		It("does not forward progress events with missing value or max", func() {
+			event := model.ComfyUIEvent{
+				Type: "progress",
+				Data: map[string]interface{}{
+					"prompt_id": "test-prompt-id",
+					"value":     float64(5),
+					// "max" is missing
+				},
+			}
+
+			executor.handleComfyUIEvent(event)
+
+			// Should not be broadcast (missing max)
+			Expect(mockHub.events).To(BeEmpty())
+		})
 	})
 
 	Describe("Resilient startup", func() {
@@ -2324,6 +2424,37 @@ var _ = Describe("JobExecutor", func() {
 			// Should not process while paused
 			executor.processNextItem()
 			Expect(mockStore.jobs["job1"].Status).To(Equal(model.SampleJobStatusPending))
+		})
+	})
+
+	// AC: BE: Unit tests for toInt helper used by progress event parsing
+	Describe("toInt", func() {
+		It("extracts int from float64 (JSON number)", func() {
+			v, ok := toInt(float64(42))
+			Expect(ok).To(BeTrue())
+			Expect(v).To(Equal(42))
+		})
+
+		It("extracts int from int", func() {
+			v, ok := toInt(int(7))
+			Expect(ok).To(BeTrue())
+			Expect(v).To(Equal(7))
+		})
+
+		It("extracts int from int64", func() {
+			v, ok := toInt(int64(100))
+			Expect(ok).To(BeTrue())
+			Expect(v).To(Equal(100))
+		})
+
+		It("returns false for string", func() {
+			_, ok := toInt("not a number")
+			Expect(ok).To(BeFalse())
+		})
+
+		It("returns false for nil", func() {
+			_, ok := toInt(nil)
+			Expect(ok).To(BeFalse())
 		})
 	})
 })

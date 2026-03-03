@@ -575,6 +575,43 @@ func (e *JobExecutor) handleComfyUIEvent(event model.ComfyUIEvent) {
 		return
 	}
 
+	// Forward per-node inference progress events to WebSocket clients.
+	// ComfyUI sends "progress" events with value/max as sampler steps complete.
+	if event.Type == "progress" {
+		data := event.Data
+		promptID, _ := data["prompt_id"].(string)
+		if promptID == "" {
+			// Some ComfyUI versions nest prompt_id under a "prompt_id" key,
+			// but it may also be absent; use the active prompt ID in that case.
+			promptID = e.activePromptID
+		}
+
+		value, valueOK := toInt(data["value"])
+		max, maxOK := toInt(data["max"])
+
+		if valueOK && maxOK {
+			e.mu.Unlock()
+
+			progressEvent := model.FSEvent{
+				Type: model.EventInferenceProgress,
+				Path: fmt.Sprintf("inference_progress/%s", promptID),
+				InferenceProgressData: &model.InferenceProgressEventData{
+					PromptID:     promptID,
+					CurrentValue: value,
+					MaxValue:     max,
+				},
+			}
+			e.hub.Broadcast(progressEvent)
+			e.logger.WithFields(logrus.Fields{
+				"prompt_id": promptID,
+				"value":     value,
+				"max":       max,
+			}).Trace("forwarded inference progress event")
+			return
+		}
+		// If value/max are not present, fall through to other handlers
+	}
+
 	// Check for execution completion via "executing" event with null node.
 	// ComfyUI sends this event for each node that begins executing; when node is
 	// null (or absent), it signals that the entire prompt has finished.
@@ -1442,6 +1479,22 @@ func deepCloneWorkflow(workflow map[string]interface{}) (map[string]interface{},
 		return nil, fmt.Errorf("unmarshaling cloned workflow: %w", err)
 	}
 	return cloned, nil
+}
+
+// toInt extracts an integer value from a JSON-decoded interface{}.
+// JSON numbers are decoded as float64 by encoding/json; this function
+// handles both float64 and direct int/int64 types.
+func toInt(v interface{}) (int, bool) {
+	switch n := v.(type) {
+	case float64:
+		return int(n), true
+	case int:
+		return n, true
+	case int64:
+		return int(n), true
+	default:
+		return 0, false
+	}
 }
 
 // isConnectionError detects if an error is a connection-related failure.

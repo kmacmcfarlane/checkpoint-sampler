@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import { NConfigProvider, NButton, NTag } from 'naive-ui'
-import type { TrainingRun, DimensionRole, FilterMode, Preset, SampleJob, SampleJobStatus, JobProgressMessage } from './api/types'
+import type { TrainingRun, DimensionRole, FilterMode, Preset, SampleJob, SampleJobStatus, JobProgressMessage, InferenceProgressMessage } from './api/types'
 import { apiClient } from './api/client'
 import { useDimensionMapping } from './composables/useDimensionMapping'
 import { useImagePreloader } from './composables/useImagePreloader'
@@ -237,11 +237,36 @@ const jobProgress = reactive<Record<string, {
   checkpoint_completeness?: Array<{ checkpoint: string; expected: number; verified: number; missing: number }>
 }>>({})
 
+/** Per-sample inference progress keyed by job ID. */
+const inferenceProgress = reactive<Record<string, { current_value: number; max_value: number }>>({})
+
+/**
+ * Track the previous current_checkpoint_progress per job so we can detect
+ * when a new sample starts and reset the inference progress bar.
+ */
+const prevCheckpointProgress = reactive<Record<string, number>>({})
+
+/** Handle inference progress updates from ComfyUI via WebSocket. */
+function handleInferenceProgress(message: InferenceProgressMessage) {
+  // Find which job this prompt belongs to by matching against running jobs
+  // Since there is only one active prompt at a time, we apply inference progress
+  // to the currently running job.
+  const runningJob = sampleJobs.value.find(j => j.status === 'running')
+  if (runningJob) {
+    inferenceProgress[runningJob.id] = {
+      current_value: message.current_value,
+      max_value: message.max_value,
+    }
+  }
+}
+
 /** Handle job progress updates from WebSocket. */
 function handleJobProgress(message: JobProgressMessage) {
   const jobIndex = sampleJobs.value.findIndex(j => j.id === message.job_id)
   if (jobIndex !== -1) {
     const previousStatus = sampleJobs.value[jobIndex].status
+    // AC: Capture prevCompleted BEFORE the spread assignment so the comparison below is valid.
+    const prevCompleted = sampleJobs.value[jobIndex].completed_items
     sampleJobs.value[jobIndex] = {
       ...sampleJobs.value[jobIndex],
       status: message.status,
@@ -251,6 +276,21 @@ function handleJobProgress(message: JobProgressMessage) {
       pending_items: message.pending_items,
       updated_at: new Date().toISOString(),
     }
+    // AC: Reset inference progress between samples.
+    // When completed_items changes, a sample has just finished and a new one is starting.
+    if (message.completed_items !== prevCompleted) {
+      delete inferenceProgress[message.job_id]
+    }
+
+    // Also reset when the current checkpoint progress changes (new sample within a checkpoint)
+    const prevCpProgress = prevCheckpointProgress[message.job_id]
+    if (message.current_checkpoint_progress !== undefined && message.current_checkpoint_progress !== prevCpProgress) {
+      delete inferenceProgress[message.job_id]
+    }
+    if (message.current_checkpoint_progress !== undefined) {
+      prevCheckpointProgress[message.job_id] = message.current_checkpoint_progress
+    }
+
     // Store checkpoint-level progress separately
     // Estimated completion time would need to be calculated or fetched separately
     // For now, preserve existing value if available
@@ -268,6 +308,9 @@ function handleJobProgress(message: JobProgressMessage) {
     // so the JobLaunchDialog can update its training run options and status beads.
     if (TERMINAL_STATUSES.has(message.status) && !TERMINAL_STATUSES.has(previousStatus)) {
       jobRefreshTrigger.value++
+      // Clear inference progress for completed jobs
+      delete inferenceProgress[message.job_id]
+      delete prevCheckpointProgress[message.job_id]
     }
   } else {
     // New job, fetch the full list
@@ -275,13 +318,15 @@ function handleJobProgress(message: JobProgressMessage) {
   }
 }
 
-// Register job progress listener
+// Register job progress and inference progress listeners
 onMounted(() => {
   wsClient.onJobProgress(handleJobProgress)
+  wsClient.onInferenceProgress(handleInferenceProgress)
 })
 
 onUnmounted(() => {
   wsClient.offJobProgress(handleJobProgress)
+  wsClient.offInferenceProgress(handleInferenceProgress)
 })
 
 async function onTrainingRunSelect(run: TrainingRun) {
@@ -789,6 +834,7 @@ const TERMINAL_STATUSES: Set<SampleJobStatus> = new Set(['completed', 'completed
         :show="jobProgressPanelOpen"
         :jobs="sampleJobs"
         :job-progress="jobProgress"
+        :inference-progress="inferenceProgress"
         :loading="jobsLoading"
         @stop="stopJob"
         @resume="resumeJob"

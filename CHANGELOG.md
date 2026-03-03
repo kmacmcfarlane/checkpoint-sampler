@@ -5,6 +5,11 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-073: Per-sample inference progress bar
+- Backend forwards ComfyUI per-node progress events (value/max) through the WebSocket as `inference_progress` messages
+- JobProgressPanel shows a secondary NProgress bar for the currently-generating sample within checkpoint progress
+- Progress bar resets between samples (on completed_items change, checkpoint progress change, or job completion)
+
 ### S-079: Sample preset (study) import/export to JSON
 - Export button downloads the current study form as a JSON file (CreateStudyPayload shape, excludes id/timestamps)
 - Import button uploads and validates a JSON file, populating the form for a new study with clear error messages on validation failure

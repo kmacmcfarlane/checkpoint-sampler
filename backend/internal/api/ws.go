@@ -84,6 +84,14 @@ func (c *streamClient) writePump() {
 			Path: event.Path,
 		}
 
+		// Include inference progress data when present
+		if event.InferenceProgressData != nil {
+			d := event.InferenceProgressData
+			resp.PromptID = &d.PromptID
+			resp.CurrentValue = &d.CurrentValue
+			resp.MaxValue = &d.MaxValue
+		}
+
 		// Include job progress data when present
 		if event.JobProgressData != nil {
 			d := event.JobProgressData

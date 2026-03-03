@@ -4,10 +4,11 @@ package model
 type EventType string
 
 const (
-	EventImageAdded      EventType = "image_added"
-	EventImageRemoved    EventType = "image_removed"
-	EventDirectoryAdded  EventType = "directory_added"
-	EventJobProgress     EventType = "job_progress"
+	EventImageAdded         EventType = "image_added"
+	EventImageRemoved       EventType = "image_removed"
+	EventDirectoryAdded     EventType = "directory_added"
+	EventJobProgress        EventType = "job_progress"
+	EventInferenceProgress  EventType = "inference_progress"
 )
 
 // FSEvent represents a filesystem change event for a training run.
@@ -18,6 +19,9 @@ type FSEvent struct {
 	Path string
 	// JobProgressData contains optional job progress data (only for job_progress events).
 	JobProgressData *JobProgressEventData
+	// InferenceProgressData contains optional per-node inference progress data
+	// (only for inference_progress events).
+	InferenceProgressData *InferenceProgressEventData
 }
 
 // JobProgressEventData contains the data sent with a job_progress event.
@@ -34,6 +38,14 @@ type JobProgressEventData struct {
 	CurrentCheckpointProgress  int
 	CurrentCheckpointTotal     int
 	CheckpointCompleteness     []CheckpointCompletenessInfo
+}
+
+// InferenceProgressEventData contains per-node inference progress from ComfyUI.
+// ComfyUI sends "progress" events with value/max as each sampler step completes.
+type InferenceProgressEventData struct {
+	PromptID     string
+	CurrentValue int
+	MaxValue     int
 }
 
 // CheckpointCompletenessInfo holds the result of verifying that expected images

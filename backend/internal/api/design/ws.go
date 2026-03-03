@@ -29,7 +29,7 @@ var CheckpointCompletenessInfo = Type("CheckpointCompletenessInfo", func() {
 var FSEventResponse = Type("FSEventResponse", func() {
 	Description("A filesystem change event or job progress update pushed to WebSocket clients")
 	Attribute("type", String, "Event type", func() {
-		Enum("image_added", "image_removed", "directory_added", "job_progress")
+		Enum("image_added", "image_removed", "directory_added", "job_progress", "inference_progress")
 		Example("image_added")
 	})
 	Attribute("path", String, "Path relative to the sample directory", func() {
@@ -48,5 +48,9 @@ var FSEventResponse = Type("FSEventResponse", func() {
 	Attribute("current_checkpoint_progress", Int, "Items completed in current checkpoint (only for job_progress events)")
 	Attribute("current_checkpoint_total", Int, "Total items in current checkpoint (only for job_progress events)")
 	Attribute("checkpoint_completeness", ArrayOf(CheckpointCompletenessInfo), "Per-checkpoint completeness verification results (only for job_progress events)")
+	// Inference progress fields (only present when type=inference_progress)
+	Attribute("prompt_id", String, "ComfyUI prompt ID (only for inference_progress events)")
+	Attribute("current_value", Int, "Current inference step (only for inference_progress events)")
+	Attribute("max_value", Int, "Total inference steps (only for inference_progress events)")
 	Required("type", "path")
 })

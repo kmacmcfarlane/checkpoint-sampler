@@ -11,6 +11,12 @@ interface CompletenessEntry {
   missing: number
 }
 
+/** Per-sample inference progress from ComfyUI node-level events. */
+interface InferenceProgress {
+  current_value: number
+  max_value: number
+}
+
 const props = defineProps<{
   show: boolean
   jobs: SampleJob[]
@@ -23,6 +29,8 @@ const props = defineProps<{
     estimated_completion_time?: string
     checkpoint_completeness?: CompletenessEntry[]
   }>
+  /** Per-sample inference progress keyed by job ID. Reset between samples. */
+  inferenceProgress?: Record<string, InferenceProgress>
   loading?: boolean
 }>()
 
@@ -124,6 +132,21 @@ function formatTimestamp(timestamp: string): string {
 
 function getJobProgress(jobId: string) {
   return props.jobProgress?.[jobId]
+}
+
+function getInferenceProgress(jobId: string): InferenceProgress | undefined {
+  return props.inferenceProgress?.[jobId]
+}
+
+function hasInferenceProgress(jobId: string): boolean {
+  const progress = getInferenceProgress(jobId)
+  return progress !== undefined && progress.max_value > 0
+}
+
+function getInferencePercentage(jobId: string): number {
+  const progress = getInferenceProgress(jobId)
+  if (!progress || progress.max_value === 0) return 0
+  return Math.round((progress.current_value / progress.max_value) * 100)
 }
 
 function hasCheckpointProgress(jobId: string): boolean {
@@ -273,6 +296,24 @@ function getGroupedErrors(job: SampleJob): Array<{ errorMessage: string; checkpo
                   <span class="progress-label">Current progress:</span>
                   <span>{{ getJobProgress(job.id)?.current_checkpoint_progress }} / {{ getJobProgress(job.id)?.current_checkpoint_total }} images</span>
                 </p>
+                <!-- AC: FE: Secondary progress bar for per-sample inference progress -->
+                <div
+                  v-if="hasInferenceProgress(job.id)"
+                  class="inference-progress"
+                  :data-testid="`job-${job.id}-inference-progress`"
+                >
+                  <p class="progress-line">
+                    <span class="progress-label">Inference:</span>
+                    <span>{{ getInferenceProgress(job.id)?.current_value }} / {{ getInferenceProgress(job.id)?.max_value }} steps</span>
+                  </p>
+                  <NProgress
+                    type="line"
+                    :percentage="getInferencePercentage(job.id)"
+                    :show-indicator="false"
+                    status="default"
+                    :height="6"
+                  />
+                </div>
                 <p v-if="getJobProgress(job.id)?.estimated_completion_time" class="progress-line">
                   <span class="progress-label">Estimated completion:</span>
                   <span>{{ formatTimestamp(getJobProgress(job.id)!.estimated_completion_time!) }}</span>
@@ -432,6 +473,13 @@ function getGroupedErrors(job: SampleJob): Array<{ errorMessage: string; checkpo
 .progress-label {
   font-weight: 500;
   margin-right: 0.5rem;
+}
+
+.inference-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  margin-top: 0.25rem;
 }
 
 .item-counts {
