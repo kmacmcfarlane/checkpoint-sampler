@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { NSelect, NCheckbox } from 'naive-ui'
-import type { TrainingRun } from '../api/types'
+import { NSelect, NCheckbox, NButton } from 'naive-ui'
+import type { TrainingRun, CheckpointCompletenessInfo } from '../api/types'
 import { apiClient } from '../api/client'
 import { useGenerateInputsPersistence } from '../composables/useGenerateInputsPersistence'
 
@@ -15,6 +15,11 @@ const selectedId = ref<number | null>(null)
 const loading = ref(false)
 const error = ref<string | null>(null)
 const attemptedAutoSelect = ref(false)
+
+// AC2: Validate button state
+const validating = ref(false)
+const validationError = ref<string | null>(null)
+const validationResults = ref<CheckpointCompletenessInfo[] | null>(null)
 
 const persistence = useGenerateInputsPersistence()
 
@@ -88,6 +93,9 @@ function onSelect(value: number | null) {
     return
   }
   selectedId.value = value
+  // Clear previous validation results when switching sample sets
+  validationResults.value = null
+  validationError.value = null
   const run = trainingRuns.value.find((r) => r.id === value)
   if (run) {
     emit('select', run)
@@ -99,11 +107,41 @@ function onHasSamplesFilterChange(value: boolean) {
   hasSamplesFilter.value = value
   persistence.saveHasSamplesFilter(value)
 }
+
+// AC2: Validate button triggers completeness check against the selected sample set
+async function onValidate() {
+  if (selectedId.value === null) return
+
+  validating.value = true
+  validationError.value = null
+  validationResults.value = null
+
+  try {
+    const result = await apiClient.validateTrainingRun(selectedId.value)
+    validationResults.value = result.checkpoints
+  } catch (err: unknown) {
+    const message = err && typeof err === 'object' && 'message' in err
+      ? String((err as { message: string }).message)
+      : 'Validation failed'
+    validationError.value = message
+  } finally {
+    validating.value = false
+  }
+}
+
+/**
+ * AC6: Determine validation status for a checkpoint.
+ * Returns 'pass' if missing === 0, 'warning' if missing > 0.
+ */
+function checkpointStatus(cp: CheckpointCompletenessInfo): 'pass' | 'warning' {
+  return cp.missing === 0 ? 'pass' : 'warning'
+}
 </script>
 
 <template>
   <div class="training-run-selector">
-    <label for="training-run-select">Training Run</label>
+    <!-- AC1: Rename "Training Run" to "Sample Set" -->
+    <label for="training-run-select">Sample Set</label>
     <NCheckbox
       v-if="hasRunsWithoutSamples"
       :checked="hasSamplesFilter"
@@ -116,7 +154,7 @@ function onHasSamplesFilterChange(value: boolean) {
       :value="selectedId"
       :options="selectOptions"
       :disabled="loading || trainingRuns.length === 0"
-      :placeholder="loading ? 'Loading...' : 'Select a training run'"
+      :placeholder="loading ? 'Loading...' : 'Select a sample set'"
       :loading="loading"
       :consistent-menu-width="false"
       :menu-props="{ style: 'min-width: 320px; max-width: min(600px, 100vw)' }"
@@ -127,6 +165,45 @@ function onHasSamplesFilterChange(value: boolean) {
       @update:value="onSelect"
     />
     <p v-if="error" class="error" role="alert">{{ error }}</p>
+  </div>
+  <!-- AC2: Validate button beneath the Sample Set selector -->
+  <div v-if="selectedId !== null" class="validate-section">
+    <NButton
+      size="small"
+      :loading="validating"
+      :disabled="validating"
+      data-testid="validate-button"
+      @click="onValidate"
+    >
+      Validate
+    </NButton>
+    <p v-if="validationError" class="error" role="alert" data-testid="validation-error">
+      {{ validationError }}
+    </p>
+    <!-- AC6: Display validation results inline (per-checkpoint pass/warning status) -->
+    <div v-if="validationResults" class="validation-results" data-testid="validation-results">
+      <div
+        v-for="cp in validationResults"
+        :key="cp.checkpoint"
+        class="validation-checkpoint"
+        :class="{ 'validation-checkpoint--warning': checkpointStatus(cp) === 'warning' }"
+        :data-testid="`validation-cp-${cp.checkpoint}`"
+      >
+        <span
+          class="validation-status-icon"
+          :style="{ color: checkpointStatus(cp) === 'pass' ? '#18a058' : undefined }"
+          :class="{
+            'validation-status-icon--warning': checkpointStatus(cp) === 'warning',
+          }"
+        >
+          {{ checkpointStatus(cp) === 'pass' ? '\u2713' : '\u26A0' }}
+        </span>
+        <span class="validation-checkpoint-name">{{ cp.checkpoint }}</span>
+        <span class="validation-checkpoint-counts">
+          {{ cp.verified }}/{{ cp.expected }}
+        </span>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -152,5 +229,53 @@ function onHasSamplesFilterChange(value: boolean) {
   color: var(--error-color);
   font-size: 0.875rem;
   margin: 0;
+}
+
+.validate-section {
+  margin-top: 0.5rem;
+}
+
+.validate-section .error {
+  color: var(--error-color);
+  font-size: 0.875rem;
+  margin: 0.25rem 0 0 0;
+}
+
+.validation-results {
+  margin-top: 0.5rem;
+  font-size: 0.8125rem;
+}
+
+.validation-checkpoint {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.125rem 0;
+}
+
+.validation-checkpoint--warning {
+  color: var(--warning-color);
+}
+
+.validation-status-icon {
+  flex-shrink: 0;
+  width: 1.25em;
+  text-align: center;
+}
+
+.validation-status-icon--warning {
+  color: var(--warning-color);
+}
+
+.validation-checkpoint-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.validation-checkpoint-counts {
+  flex-shrink: 0;
+  color: var(--text-secondary);
 }
 </style>

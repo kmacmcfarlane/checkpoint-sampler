@@ -13,12 +13,13 @@ import (
 type TrainingRunsService struct {
 	viewerDiscovery *service.ViewerDiscoveryService
 	scanner         *service.Scanner
+	validator       *service.ValidationService
 	watcher         *service.Watcher
 }
 
 // NewTrainingRunsService returns a new TrainingRunsService.
-func NewTrainingRunsService(viewerDiscovery *service.ViewerDiscoveryService, scanner *service.Scanner, watcher *service.Watcher) *TrainingRunsService {
-	return &TrainingRunsService{viewerDiscovery: viewerDiscovery, scanner: scanner, watcher: watcher}
+func NewTrainingRunsService(viewerDiscovery *service.ViewerDiscoveryService, scanner *service.Scanner, validator *service.ValidationService, watcher *service.Watcher) *TrainingRunsService {
+	return &TrainingRunsService{viewerDiscovery: viewerDiscovery, scanner: scanner, validator: validator, watcher: watcher}
 }
 
 // List returns training runs discovered from sample output directories.
@@ -54,6 +55,42 @@ func (s *TrainingRunsService) List(ctx context.Context, p *gentrainingruns.ListP
 		result = []*gentrainingruns.TrainingRunResponse{}
 	}
 	return result, nil
+}
+
+// Validate checks the completeness of sample images for a training run.
+// It counts PNG files per checkpoint and compares against the maximum count.
+func (s *TrainingRunsService) Validate(ctx context.Context, p *gentrainingruns.ValidatePayload) (*gentrainingruns.ValidationResultResponse, error) {
+	runs, err := s.viewerDiscovery.DiscoverViewable()
+	if err != nil {
+		return nil, gentrainingruns.MakeValidationFailed(fmt.Errorf("discovering viewable training runs: %w", err))
+	}
+
+	if p.ID < 0 || p.ID >= len(runs) {
+		return nil, gentrainingruns.MakeNotFound(fmt.Errorf("training run %d not found", p.ID))
+	}
+
+	tr := runs[p.ID]
+	studyName := service.StudyNameForRun(tr.Name)
+
+	result, err := s.validator.ValidateTrainingRun(tr, studyName)
+	if err != nil {
+		return nil, gentrainingruns.MakeValidationFailed(fmt.Errorf("validating training run %q: %w", tr.Name, err))
+	}
+
+	// Map model types to API response types
+	checkpoints := make([]*gentrainingruns.CheckpointCompletenessResponse, len(result.Checkpoints))
+	for i, cp := range result.Checkpoints {
+		checkpoints[i] = &gentrainingruns.CheckpointCompletenessResponse{
+			Checkpoint: cp.Checkpoint,
+			Expected:   cp.Expected,
+			Verified:   cp.Verified,
+			Missing:    cp.Missing,
+		}
+	}
+
+	return &gentrainingruns.ValidationResultResponse{
+		Checkpoints: checkpoints,
+	}, nil
 }
 
 // Scan scans a training run's sample directories and returns image metadata with

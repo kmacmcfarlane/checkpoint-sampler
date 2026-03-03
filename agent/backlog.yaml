@@ -780,7 +780,7 @@ stories:
   - id: S-083
     title: "On-demand dataset validation from viewer controls"
     priority: 50
-    status: todo
+    status: uat
     complexity: medium
     requires:
       - S-075
@@ -804,3 +804,30 @@ stories:
     testing:
       - "command: make test-backend"
       - "command: cd frontend && npx vitest run"
+  - id: B-041
+    title: "ComfyUI mock E2E tests fail intermittently due to WebSocket timing and job executor 'item not found' errors"
+    priority: 60
+    status: todo
+    complexity: medium
+    requires: []
+    acceptance:
+      - "E2E test 'inference progress events are forwarded via WebSocket during job execution (S-073)' passes reliably across
+        multiple runs"
+      - "E2E test 'job completes via ComfyUI mock WebSocket events' passes reliably across multiple runs"
+      - "Job executor handles missing items at warn level (not error level) when the absence is a known race condition"
+      - "No error-level log messages from job_executor during normal E2E test runs with the ComfyUI mock"
+    testing:
+      - "command: make test-e2e"
+    notes: |
+      Two ComfyUI mock E2E tests in sample-generation.spec.ts fail intermittently:
+      1. 'inference progress events are forwarded via WebSocket during job execution (S-073)' - job list poll returns null after timeout
+      2. 'job completes via ComfyUI mock WebSocket events' - final job list poll returns null after 30s timeout
+
+      Root cause hypothesis: The ComfyUI mock WebSocket event delivery is timing-dependent.
+      The job executor logs error-level 'item not found' messages (item_id=...) during E2E runs,
+      suggesting a race condition between the ComfyUI WebSocket event handling and the database
+      state. The job may not transition to a pollable state within the test timeout window.
+
+      Fix should address:
+      - Race condition in job executor item lookup (log at warn instead of error for expected races)
+      - Possible timing improvements in the ComfyUI mock WebSocket handshake

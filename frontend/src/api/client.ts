@@ -1,4 +1,4 @@
-import type { ApiError, ApiErrorResponse, CheckpointMetadata, ComfyUIModelType, ComfyUIModels, ComfyUIStatus, CreateSampleJobPayload, CreateStudyPayload, HealthStatus, ImageMetadata, Preset, PresetMapping, SampleJob, SampleJobDetail, Study, ScanResult, TrainingRun, UpdateStudyPayload, WorkflowSummary } from './types'
+import type { ApiError, ApiErrorResponse, CheckpointMetadata, ComfyUIModelType, ComfyUIModels, ComfyUIStatus, CreateSampleJobPayload, CreateStudyPayload, HealthStatus, ImageMetadata, Preset, PresetMapping, SampleJob, SampleJobDetail, Study, ScanResult, TrainingRun, UpdateStudyPayload, ValidationResult, WorkflowSummary } from './types'
 
 const DEFAULT_BASE_URL = '/api'
 
@@ -78,6 +78,13 @@ export class ApiClient {
   /** GET /api/training-runs/{id}/scan — scan directories and return image metadata. */
   async scanTrainingRun(id: number): Promise<ScanResult> {
     return this.request<ScanResult>(`/training-runs/${id}/scan`)
+  }
+
+  /** POST /api/training-runs/{id}/validate — validate sample set completeness. */
+  async validateTrainingRun(id: number): Promise<ValidationResult> {
+    return this.request<ValidationResult>(`/training-runs/${id}/validate`, {
+      method: 'POST',
+    })
   }
 
   /** GET /api/presets — list all saved presets. */

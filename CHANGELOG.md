@@ -5,6 +5,11 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-083: On-demand dataset validation from viewer controls
+- "Training Run" selector renamed to "Sample Set" in the controls slide-out
+- New `POST /api/training-runs/{id}/validate` endpoint reuses S-075 completeness-check logic to report per-checkpoint verified/expected/missing counts
+- Validate button in the sidebar triggers on-demand validation with inline pass/warning results per checkpoint
+
 ### S-073: Per-sample inference progress bar
 - Backend forwards ComfyUI per-node progress events (value/max) through the WebSocket as `inference_progress` messages
 - JobProgressPanel shows a secondary NProgress bar for the currently-generating sample within checkpoint progress
