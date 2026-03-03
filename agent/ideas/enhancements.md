@@ -73,3 +73,9 @@ Currently, `restoreModelInputs` is called when the training run changes (after m
 * priority: very-low
 * source: developer
 The `has_samples` query parameter on `GET /api/training-runs` is now ignored by the backend after S-081 switched the viewer to directory-driven discovery. A future story could remove it from the Goa DSL to keep the API spec clean, though this requires a codegen cycle and frontend client update.
+
+### Expose more sidecar fields as numeric in metadata API
+* status: needs_approval
+* priority: very-low
+* source: developer
+Currently only seed, steps, and cfg are routed to NumericFields in the sidecar metadata parser. Fields like width, height, and index are also numeric in practice but are returned as strings. A future story could expand the numericSidecarFields set based on observed sidecar field conventions.

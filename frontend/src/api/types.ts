@@ -88,9 +88,12 @@ export interface CheckpointMetadata {
   metadata: Record<string, string>
 }
 
-/** Image metadata response from PNG tEXt chunk parsing. */
+/** Image metadata response with string and numeric fields differentiated. */
 export interface ImageMetadata {
-  metadata: Record<string, string>
+  /** Text-valued metadata fields (e.g. prompt_name, sampler_name, workflow_name). */
+  string_metadata: Record<string, string>
+  /** Quantitative metadata fields (seed, steps, cfg) represented as numbers. */
+  numeric_metadata: Record<string, number>
 }
 
 /** A filesystem change event received over WebSocket. */

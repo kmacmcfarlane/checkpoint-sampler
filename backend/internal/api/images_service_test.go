@@ -191,7 +191,7 @@ var _ = Describe("ImagesService", func() {
 	})
 
 	Describe("Metadata", func() {
-		It("returns metadata from PNG tEXt chunks", func() {
+		It("returns string metadata from PNG tEXt chunks", func() {
 			// Create a PNG with tEXt chunks
 			subDir := filepath.Join(sampleDir, "checkpoint.safetensors")
 			Expect(os.MkdirAll(subDir, 0755)).To(Succeed())
@@ -209,9 +209,10 @@ var _ = Describe("ImagesService", func() {
 
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result).NotTo(BeNil())
-			Expect(result.Metadata).To(HaveLen(2))
-			Expect(result.Metadata["prompt"]).To(Equal(`{"3": {"class_type": "KSampler"}}`))
-			Expect(result.Metadata["workflow"]).To(Equal(`{"nodes": []}`))
+			Expect(result.StringMetadata).To(HaveLen(2))
+			Expect(result.NumericMetadata).To(BeEmpty())
+			Expect(result.StringMetadata["prompt"]).To(Equal(`{"3": {"class_type": "KSampler"}}`))
+			Expect(result.StringMetadata["workflow"]).To(Equal(`{"nodes": []}`))
 		})
 
 		It("returns empty metadata for PNG without tEXt chunks", func() {
@@ -224,7 +225,8 @@ var _ = Describe("ImagesService", func() {
 			})
 
 			Expect(err).NotTo(HaveOccurred())
-			Expect(result.Metadata).To(BeEmpty())
+			Expect(result.StringMetadata).To(BeEmpty())
+			Expect(result.NumericMetadata).To(BeEmpty())
 		})
 
 		It("returns not_found error for nonexistent image", func() {

@@ -49,10 +49,15 @@ func (fs *FileSystem) ListSafetensorsFiles(root string) ([]string, error) {
 		return nil
 	})
 	if err != nil {
-		fs.logger.WithFields(logrus.Fields{
+		fields := logrus.Fields{
 			"root":  root,
 			"error": err.Error(),
-		}).Error("failed to scan for safetensors files")
+		}
+		if os.IsNotExist(err) {
+			fs.logger.WithFields(fields).Debug("directory not found, no safetensors files")
+		} else {
+			fs.logger.WithFields(fields).Error("failed to scan for safetensors files")
+		}
 		return nil, fmt.Errorf("scanning for safetensors files: %w", err)
 	}
 
@@ -78,10 +83,15 @@ func (fs *FileSystem) ListPNGFiles(dir string) ([]string, error) {
 	fs.logger.WithField("directory", dir).Debug("reading directory for PNG files")
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		fs.logger.WithFields(logrus.Fields{
+		fields := logrus.Fields{
 			"directory": dir,
 			"error":     err.Error(),
-		}).Error("failed to read directory")
+		}
+		if os.IsNotExist(err) {
+			fs.logger.WithFields(fields).Debug("directory not found, no PNG files")
+		} else {
+			fs.logger.WithFields(fields).Error("failed to read directory")
+		}
 		return nil, fmt.Errorf("reading directory %s: %w", dir, err)
 	}
 

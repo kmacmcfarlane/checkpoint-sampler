@@ -190,6 +190,65 @@ test.describe('image lightbox interaction', () => {
     expect(hasEntries || hasEmpty || hasLoading || hasError).toBe(true)
   })
 
+  test('metadata panel shows typed fields from sidecar JSON (S-068)', async ({ page }) => {
+    await setupGridWithImages(page)
+
+    // The grid has checkpoint on X (step-1000, step-2000) and prompt_name on Y
+    // (landscape, portrait). The first image in DOM order is the landscape image
+    // for step-1000, which has a JSON sidecar with both string and numeric fields.
+    // We need to click the image whose src contains "step00001000" and "landscape"
+    // to open the sidecar-backed metadata.
+    const targetImage = page.locator(
+      '.xy-grid [role="gridcell"] img[src*="step00001000"][src*="landscape"]',
+    )
+    // Fall back to first image if the specific selector doesn't match (grid ordering)
+    const imageToClick = (await targetImage.count()) > 0
+      ? targetImage.first()
+      : page.locator('.xy-grid [role="gridcell"] img').first()
+    await imageToClick.click()
+
+    const lightbox = page.locator('[role="dialog"][aria-label="Image lightbox"]')
+    await expect(lightbox).toBeVisible()
+
+    // Open the metadata panel
+    const metadataToggle = page.getByRole('button', { name: 'Toggle metadata' })
+    await metadataToggle.click()
+
+    // Wait for metadata entries to appear (sidecar is available)
+    const metadataEntries = page.locator('.metadata-entries')
+    await expect(metadataEntries).toBeVisible({ timeout: 5000 })
+
+    // Verify string fields are displayed
+    const allKeys = metadataEntries.locator('.metadata-key')
+    const keyTexts = await allKeys.allTextContents()
+
+    // The sidecar has: prompt_name, sampler_name, workflow_name (string),
+    // seed, steps, cfg (numeric)
+    expect(keyTexts).toContain('prompt_name')
+    expect(keyTexts).toContain('seed')
+    expect(keyTexts).toContain('cfg')
+    expect(keyTexts).toContain('steps')
+
+    // Verify numeric values are rendered correctly (seed=42, steps=20, cfg=7.5)
+    // Find the metadata-value <pre> elements that follow numeric keys
+    const seedEntry = metadataEntries.locator('.metadata-entry').filter({ hasText: 'seed' })
+    const seedValue = seedEntry.locator('.metadata-value')
+    await expect(seedValue).toContainText('42')
+
+    const stepsEntry = metadataEntries.locator('.metadata-entry').filter({ hasText: 'steps' })
+    const stepsValue = stepsEntry.locator('.metadata-value')
+    await expect(stepsValue).toContainText('20')
+
+    const cfgEntry = metadataEntries.locator('.metadata-entry').filter({ hasText: 'cfg' })
+    const cfgValue = cfgEntry.locator('.metadata-value')
+    await expect(cfgValue).toContainText('7.5')
+
+    // Verify string values are present
+    const promptNameEntry = metadataEntries.locator('.metadata-entry').filter({ hasText: 'prompt_name' })
+    const promptNameValue = promptNameEntry.locator('.metadata-value')
+    await expect(promptNameValue).toContainText('landscape')
+  })
+
   test('closes the lightbox and returns to the grid view', async ({ page }) => {
     await setupGridWithImages(page)
 

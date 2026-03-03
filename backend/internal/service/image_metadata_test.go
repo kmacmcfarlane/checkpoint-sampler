@@ -83,7 +83,7 @@ var _ = Describe("ImageMetadataService", func() {
 
 	Describe("GetMetadata", func() {
 		Context("with valid PNG files containing tEXt chunks", func() {
-			It("extracts prompt and workflow metadata from tEXt chunks", func() {
+			It("extracts prompt and workflow metadata from tEXt chunks into string fields", func() {
 				subDir := filepath.Join(tmpDir, "checkpoint.safetensors")
 				Expect(os.MkdirAll(subDir, 0755)).To(Succeed())
 
@@ -97,12 +97,13 @@ var _ = Describe("ImageMetadataService", func() {
 				result, err := svc.GetMetadata("checkpoint.safetensors/image.png")
 
 				Expect(err).NotTo(HaveOccurred())
-				Expect(result).To(HaveLen(2))
-				Expect(result["prompt"]).To(Equal(`{"3": {"class_type": "KSampler"}}`))
-				Expect(result["workflow"]).To(Equal(`{"nodes": []}`))
+				Expect(result.StringFields).To(HaveLen(2))
+				Expect(result.NumericFields).To(BeEmpty())
+				Expect(result.StringFields["prompt"]).To(Equal(`{"3": {"class_type": "KSampler"}}`))
+				Expect(result.StringFields["workflow"]).To(Equal(`{"nodes": []}`))
 			})
 
-			It("returns empty map when PNG has no tEXt chunks", func() {
+			It("returns empty fields when PNG has no tEXt chunks", func() {
 				subDir := filepath.Join(tmpDir, "checkpoint.safetensors")
 				Expect(os.MkdirAll(subDir, 0755)).To(Succeed())
 
@@ -113,10 +114,11 @@ var _ = Describe("ImageMetadataService", func() {
 				result, err := svc.GetMetadata("checkpoint.safetensors/image.png")
 
 				Expect(err).NotTo(HaveOccurred())
-				Expect(result).To(BeEmpty())
+				Expect(result.StringFields).To(BeEmpty())
+				Expect(result.NumericFields).To(BeEmpty())
 			})
 
-			It("extracts all tEXt chunk keys, not just prompt/workflow", func() {
+			It("extracts all tEXt chunk keys into string fields", func() {
 				subDir := filepath.Join(tmpDir, "checkpoint.safetensors")
 				Expect(os.MkdirAll(subDir, 0755)).To(Succeed())
 
@@ -131,10 +133,11 @@ var _ = Describe("ImageMetadataService", func() {
 				result, err := svc.GetMetadata("checkpoint.safetensors/image.png")
 
 				Expect(err).NotTo(HaveOccurred())
-				Expect(result).To(HaveLen(3))
-				Expect(result).To(HaveKey("prompt"))
-				Expect(result).To(HaveKey("workflow"))
-				Expect(result).To(HaveKey("Comment"))
+				Expect(result.StringFields).To(HaveLen(3))
+				Expect(result.StringFields).To(HaveKey("prompt"))
+				Expect(result.StringFields).To(HaveKey("workflow"))
+				Expect(result.StringFields).To(HaveKey("Comment"))
+				Expect(result.NumericFields).To(BeEmpty())
 			})
 
 			It("handles PNG with only a prompt chunk", func() {
@@ -150,8 +153,9 @@ var _ = Describe("ImageMetadataService", func() {
 				result, err := svc.GetMetadata("checkpoint.safetensors/image.png")
 
 				Expect(err).NotTo(HaveOccurred())
-				Expect(result).To(HaveLen(1))
-				Expect(result["prompt"]).To(Equal(`{"sampler": "euler"}`))
+				Expect(result.StringFields).To(HaveLen(1))
+				Expect(result.StringFields["prompt"]).To(Equal(`{"sampler": "euler"}`))
+				Expect(result.NumericFields).To(BeEmpty())
 			})
 		})
 
@@ -224,7 +228,8 @@ var _ = Describe("ImageMetadataService", func() {
 
 				// A truncated PNG after signature should return empty metadata (no chunks found)
 				Expect(err).NotTo(HaveOccurred())
-				Expect(result).To(BeEmpty())
+				Expect(result.StringFields).To(BeEmpty())
+				Expect(result.NumericFields).To(BeEmpty())
 			})
 		})
 
@@ -264,13 +269,17 @@ var _ = Describe("ImageMetadataService", func() {
 				result, err := svc.GetMetadata("checkpoint.safetensors/image.png")
 
 				Expect(err).NotTo(HaveOccurred())
-				// Sidecar data should be returned, not the PNG tEXt chunk
-				Expect(result).To(HaveKeyWithValue("prompt_name", "forest"))
-				Expect(result).To(HaveKeyWithValue("prompt_text", "a dense forest at dawn"))
-				Expect(result).To(HaveKeyWithValue("negative_prompt", "blurry"))
-				Expect(result).To(HaveKeyWithValue("workflow_name", "flux_dev.json"))
+				// String fields from sidecar
+				Expect(result.StringFields).To(HaveKeyWithValue("prompt_name", "forest"))
+				Expect(result.StringFields).To(HaveKeyWithValue("prompt_text", "a dense forest at dawn"))
+				Expect(result.StringFields).To(HaveKeyWithValue("negative_prompt", "blurry"))
+				Expect(result.StringFields).To(HaveKeyWithValue("workflow_name", "flux_dev.json"))
+				// Numeric fields: seed, steps, cfg
+				Expect(result.NumericFields).To(HaveKey("seed"))
+				Expect(result.NumericFields).To(HaveKey("steps"))
+				Expect(result.NumericFields).To(HaveKey("cfg"))
 				// PNG tEXt "prompt" key should NOT appear (we read sidecar, not PNG)
-				Expect(result).NotTo(HaveKey("prompt"))
+				Expect(result.StringFields).NotTo(HaveKey("prompt"))
 			})
 
 			It("falls back to PNG tEXt chunks when no sidecar exists", func() {
@@ -288,12 +297,13 @@ var _ = Describe("ImageMetadataService", func() {
 				result, err := svc.GetMetadata("checkpoint.safetensors/image.png")
 
 				Expect(err).NotTo(HaveOccurred())
-				// Should return PNG tEXt metadata when sidecar is absent
-				Expect(result).To(HaveKey("prompt"))
-				Expect(result).To(HaveKey("workflow"))
+				// Should return PNG tEXt metadata in string fields when sidecar is absent
+				Expect(result.StringFields).To(HaveKey("prompt"))
+				Expect(result.StringFields).To(HaveKey("workflow"))
+				Expect(result.NumericFields).To(BeEmpty())
 			})
 
-			It("returns sidecar data including numeric and omitempty fields as strings", func() {
+			It("returns typed numeric fields for seed, steps, cfg and string fields for others", func() {
 				subDir := filepath.Join(tmpDir, "checkpoint.safetensors")
 				Expect(os.MkdirAll(subDir, 0755)).To(Succeed())
 
@@ -301,11 +311,11 @@ var _ = Describe("ImageMetadataService", func() {
 				pngData := buildMinimalPNG()
 				Expect(os.WriteFile(filepath.Join(subDir, "image.png"), pngData, 0644)).To(Succeed())
 
-				// Write sidecar with numeric values and no shift (omitempty)
+				// Write sidecar with numeric values
 				sidecar := map[string]interface{}{
-					"seed":  int64(12345),
-					"steps": 20,
-					"cfg":   7.5,
+					"seed":   int64(12345),
+					"steps":  20,
+					"cfg":    7.5,
 					"job_id": "job-42",
 				}
 				sidecarData, err := json.Marshal(sidecar)
@@ -316,14 +326,15 @@ var _ = Describe("ImageMetadataService", func() {
 				result, err := svc.GetMetadata("checkpoint.safetensors/image.png")
 
 				Expect(err).NotTo(HaveOccurred())
-				// Numeric values are returned as JSON-serialized strings
-				Expect(result).To(HaveKey("seed"))
-				Expect(result).To(HaveKey("steps"))
-				Expect(result).To(HaveKey("cfg"))
-				Expect(result).To(HaveKeyWithValue("job_id", "job-42"))
+				// seed, steps, cfg go into NumericFields as float64
+				Expect(result.NumericFields).To(HaveKeyWithValue("seed", BeNumerically("==", 12345)))
+				Expect(result.NumericFields).To(HaveKeyWithValue("steps", BeNumerically("==", 20)))
+				Expect(result.NumericFields).To(HaveKeyWithValue("cfg", BeNumerically("~", 7.5, 0.001)))
+				// job_id goes into StringFields
+				Expect(result.StringFields).To(HaveKeyWithValue("job_id", "job-42"))
 			})
 
-			It("returns empty map when sidecar is empty JSON object", func() {
+			It("returns empty fields when sidecar is empty JSON object", func() {
 				subDir := filepath.Join(tmpDir, "checkpoint.safetensors")
 				Expect(os.MkdirAll(subDir, 0755)).To(Succeed())
 
@@ -336,8 +347,47 @@ var _ = Describe("ImageMetadataService", func() {
 				result, err := svc.GetMetadata("checkpoint.safetensors/image.png")
 
 				Expect(err).NotTo(HaveOccurred())
-				Expect(result).To(BeEmpty())
+				Expect(result.StringFields).To(BeEmpty())
+				Expect(result.NumericFields).To(BeEmpty())
 			})
 		})
 	})
+
+	// DescribeTable for sidecar field type routing: verifies that each known
+	// numeric field (seed, steps, cfg) is routed to NumericFields and that
+	// an unknown field is routed to StringFields.
+	DescribeTable("sidecar field type routing",
+		func(fieldName string, jsonValue interface{}, expectNumeric bool, expectedFloat float64, expectedString string) {
+			subDir := filepath.Join(tmpDir, "checkpoint.safetensors")
+			Expect(os.MkdirAll(subDir, 0755)).To(Succeed())
+
+			pngData := buildMinimalPNG()
+			Expect(os.WriteFile(filepath.Join(subDir, "image.png"), pngData, 0644)).To(Succeed())
+
+			sidecar := map[string]interface{}{fieldName: jsonValue}
+			data, err := json.Marshal(sidecar)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(os.WriteFile(filepath.Join(subDir, "image.json"), data, 0644)).To(Succeed())
+
+			svcLocal := service.NewImageMetadataService(&realFileOpener{}, tmpDir, logger)
+			result, err := svcLocal.GetMetadata("checkpoint.safetensors/image.png")
+
+			Expect(err).NotTo(HaveOccurred())
+			if expectNumeric {
+				Expect(result.NumericFields).To(HaveKey(fieldName))
+				Expect(result.NumericFields[fieldName]).To(BeNumerically("~", expectedFloat, 0.001))
+				Expect(result.StringFields).NotTo(HaveKey(fieldName))
+			} else {
+				Expect(result.StringFields).To(HaveKeyWithValue(fieldName, expectedString))
+				Expect(result.NumericFields).NotTo(HaveKey(fieldName))
+			}
+		},
+		Entry("seed is numeric", "seed", 42, true, 42.0, ""),
+		Entry("steps is numeric", "steps", 20, true, 20.0, ""),
+		Entry("cfg is numeric", "cfg", 7.5, true, 7.5, ""),
+		Entry("prompt_name is string", "prompt_name", "forest", false, 0.0, "forest"),
+		Entry("sampler_name is string", "sampler_name", "euler", false, 0.0, "euler"),
+		Entry("workflow_name is string", "workflow_name", "flux.json", false, 0.0, "flux.json"),
+		Entry("job_id is string", "job_id", "job-99", false, 0.0, "job-99"),
+	)
 })

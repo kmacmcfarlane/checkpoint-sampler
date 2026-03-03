@@ -68,7 +68,8 @@ const localSliderIndex = ref(-1)
 
 const metadataLoading = ref(false)
 const metadataError = ref<string | null>(null)
-const metadata = ref<Record<string, string> | null>(null)
+const stringMetadata = ref<Record<string, string> | null>(null)
+const numericMetadata = ref<Record<string, number> | null>(null)
 const metadataOpen = ref(false)
 
 const MIN_SCALE = 0.1
@@ -90,11 +91,13 @@ async function fetchMetadata() {
 
   metadataLoading.value = true
   metadataError.value = null
-  metadata.value = null
+  stringMetadata.value = null
+  numericMetadata.value = null
 
   try {
     const result = await apiClient.getImageMetadata(filepath)
-    metadata.value = result.metadata
+    stringMetadata.value = result.string_metadata
+    numericMetadata.value = result.numeric_metadata
   } catch (err: unknown) {
     const message =
       err && typeof err === 'object' && 'message' in err
@@ -304,7 +307,8 @@ watch(() => props.imageUrl, () => {
   scale.value = 1
   translateX.value = 0
   translateY.value = 0
-  metadata.value = null
+  stringMetadata.value = null
+  numericMetadata.value = null
   metadataError.value = null
   metadataOpen.value = false
   fetchMetadata()
@@ -410,13 +414,14 @@ onUnmounted(() => {
       <div v-if="metadataOpen" class="metadata-content">
         <div v-if="metadataLoading" class="metadata-loading">Loading metadata...</div>
         <div v-else-if="metadataError" class="metadata-error">{{ metadataError }}</div>
-        <div v-else-if="metadata && Object.keys(metadata).length === 0" class="metadata-empty">
+        <div v-else-if="stringMetadata && numericMetadata && Object.keys(stringMetadata).length === 0 && Object.keys(numericMetadata).length === 0" class="metadata-empty">
           No metadata available
         </div>
-        <div v-else-if="metadata" class="metadata-entries">
-          <div v-for="key in Object.keys(metadata).sort()" :key="key" class="metadata-entry">
+        <div v-else-if="stringMetadata && numericMetadata" class="metadata-entries">
+          <div v-for="key in [...Object.keys(stringMetadata), ...Object.keys(numericMetadata)].sort()" :key="key" class="metadata-entry">
             <div class="metadata-key">{{ key }}</div>
-            <pre class="metadata-value">{{ formatJSON(metadata[key]) }}</pre>
+            <pre v-if="key in numericMetadata" class="metadata-value">{{ numericMetadata[key] }}</pre>
+            <pre v-else class="metadata-value">{{ formatJSON(stringMetadata[key]) }}</pre>
           </div>
         </div>
       </div>

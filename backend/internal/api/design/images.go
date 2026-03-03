@@ -69,12 +69,19 @@ var ImageDownloadResult = Type("ImageDownloadResult", func() {
 })
 
 var ImageMetadataResponse = Type("ImageMetadataResponse", func() {
-	Description("PNG metadata extracted from tEXt chunks")
-	Attribute("metadata", MapOf(String, String), "Key-value pairs from PNG tEXt chunks", func() {
+	Description("Image metadata with string and numeric fields differentiated for richer frontend display")
+	Attribute("string_metadata", MapOf(String, String), "Text-valued metadata fields (e.g. prompt_name, sampler_name, workflow_name)", func() {
 		Example(map[string]string{
-			"prompt":   `{"3": {"class_type": "KSampler"}}`,
-			"workflow": `{"nodes": []}`,
+			"prompt_name":  "forest",
+			"sampler_name": "euler",
 		})
 	})
-	Required("metadata")
+	Attribute("numeric_metadata", MapOf(String, Float64), "Quantitative metadata fields (seed, steps, cfg)", func() {
+		Example(map[string]float64{
+			"seed":  420,
+			"steps": 20,
+			"cfg":   7.5,
+		})
+	})
+	Required("string_metadata", "numeric_metadata")
 })

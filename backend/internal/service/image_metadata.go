@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
 	"github.com/sirupsen/logrus"
 )
 
@@ -38,9 +39,10 @@ func NewImageMetadataService(reader ImageMetadataReader, sampleDir string, logge
 
 // GetMetadata reads metadata for the image at the given relative path (within sampleDir).
 // It first checks for a JSON sidecar file (same base name, .json extension). If found,
-// the sidecar is parsed and returned. If no sidecar exists, it falls back to parsing
-// PNG tEXt chunks. Returns an empty map (not error) when no metadata is available.
-func (s *ImageMetadataService) GetMetadata(relPath string) (map[string]string, error) {
+// the sidecar is parsed and returned with typed fields. If no sidecar exists, it falls
+// back to parsing PNG tEXt chunks (all values are strings in that case).
+// Returns an empty ImageMetadataValues (not error) when no metadata is available.
+func (s *ImageMetadataService) GetMetadata(relPath string) (*model.ImageMetadataValues, error) {
 	s.logger.WithField("relative_path", relPath).Trace("entering GetMetadata")
 	defer s.logger.Trace("returning from GetMetadata")
 
@@ -72,9 +74,10 @@ func (s *ImageMetadataService) GetMetadata(relPath string) (map[string]string, e
 	sidecarMeta, err := parseSidecarJSON(s.reader, sidecarPath)
 	if err == nil {
 		s.logger.WithFields(logrus.Fields{
-			"relative_path":  relPath,
-			"sidecar_path":   sidecarPath,
-			"metadata_count": len(sidecarMeta),
+			"relative_path":        relPath,
+			"sidecar_path":         sidecarPath,
+			"string_field_count":   len(sidecarMeta.StringFields),
+			"numeric_field_count":  len(sidecarMeta.NumericFields),
 		}).Debug("metadata read from sidecar")
 		return sidecarMeta, nil
 	}
@@ -89,7 +92,7 @@ func (s *ImageMetadataService) GetMetadata(relPath string) (map[string]string, e
 		s.logger.WithField("sidecar_path", sidecarPath).Debug("no sidecar found, reading PNG metadata")
 	}
 
-	metadata, err := parsePNGTextChunks(s.reader, absPath)
+	pngFields, err := parsePNGTextChunks(s.reader, absPath)
 	if err != nil {
 		s.logger.WithFields(logrus.Fields{
 			"relative_path": relPath,
@@ -99,15 +102,28 @@ func (s *ImageMetadataService) GetMetadata(relPath string) (map[string]string, e
 	}
 	s.logger.WithFields(logrus.Fields{
 		"relative_path":  relPath,
-		"metadata_count": len(metadata),
+		"metadata_count": len(pngFields),
 	}).Debug("PNG metadata extracted")
 
-	return metadata, nil
+	return &model.ImageMetadataValues{
+		StringFields:  pngFields,
+		NumericFields: map[string]float64{},
+	}, nil
 }
 
-// parseSidecarJSON reads a JSON sidecar file and returns its contents as a flat
-// string map. Returns os.ErrNotExist (wrapped) when the file does not exist.
-func parseSidecarJSON(reader ImageMetadataReader, path string) (map[string]string, error) {
+// numericSidecarFields is the set of sidecar JSON keys that are treated as
+// numeric (float64) values. All other keys are treated as strings.
+var numericSidecarFields = map[string]bool{
+	"seed":  true,
+	"steps": true,
+	"cfg":   true,
+}
+
+// parseSidecarJSON reads a JSON sidecar file and returns its contents with
+// typed fields. Known numeric fields (seed, steps, cfg) are placed in
+// NumericFields as float64 values; all other fields are placed in StringFields.
+// Returns os.ErrNotExist (wrapped) when the file does not exist.
+func parseSidecarJSON(reader ImageMetadataReader, path string) (*model.ImageMetadataValues, error) {
 	f, err := reader.OpenFile(path)
 	if err != nil {
 		return nil, err
@@ -125,21 +141,43 @@ func parseSidecarJSON(reader ImageMetadataReader, path string) (map[string]strin
 		return nil, fmt.Errorf("unmarshaling sidecar JSON: %w", err)
 	}
 
-	// Convert all values to strings for a uniform flat key-value response
-	result := make(map[string]string, len(raw))
+	result := &model.ImageMetadataValues{
+		StringFields:  make(map[string]string),
+		NumericFields: make(map[string]float64),
+	}
+
 	for k, v := range raw {
-		switch val := v.(type) {
-		case string:
-			result[k] = val
-		case nil:
-			result[k] = ""
-		default:
-			// Numbers, booleans, nested objects — marshal back to compact JSON string
-			b, err := json.Marshal(val)
-			if err != nil {
-				result[k] = fmt.Sprintf("%v", val)
-			} else {
-				result[k] = string(b)
+		if numericSidecarFields[k] {
+			// Numeric field: JSON numbers decode as float64 in Go
+			switch val := v.(type) {
+			case float64:
+				result.NumericFields[k] = val
+			case nil:
+				// omit nil numeric fields
+			default:
+				// Non-numeric value in a numeric slot: best-effort as string
+				b, err := json.Marshal(val)
+				if err != nil {
+					result.StringFields[k] = fmt.Sprintf("%v", val)
+				} else {
+					result.StringFields[k] = string(b)
+				}
+			}
+		} else {
+			// String field
+			switch val := v.(type) {
+			case string:
+				result.StringFields[k] = val
+			case nil:
+				result.StringFields[k] = ""
+			default:
+				// Nested objects, booleans, unexpected numbers — marshal to compact JSON
+				b, err := json.Marshal(val)
+				if err != nil {
+					result.StringFields[k] = fmt.Sprintf("%v", val)
+				} else {
+					result.StringFields[k] = string(b)
+				}
 			}
 		}
 	}

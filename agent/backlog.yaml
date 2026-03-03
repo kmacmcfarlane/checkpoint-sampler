@@ -322,7 +322,7 @@ stories:
   - id: S-068
     title: "Backend quality — log-level tuning and sidecar typed metadata"
     priority: 24
-    status: todo
+    status: uat
     requires: []
     acceptance:
       - "BE: ListPNGFiles and ListSafetensorsFiles log directory-not-found at debug level instead of error (expected miss

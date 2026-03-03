@@ -110,11 +110,13 @@ func (s *ImagesService) Download(ctx context.Context, p *genimages.DownloadPaylo
 	return result, file, nil
 }
 
-// Metadata returns PNG tEXt chunk metadata from an image file.
+// Metadata returns image metadata from a JSON sidecar or PNG tEXt chunks.
+// Numeric fields (seed, steps, cfg) are returned in NumericMetadata; all
+// other fields are returned in StringMetadata.
 func (s *ImagesService) Metadata(ctx context.Context, p *genimages.MetadataPayload) (*genimages.ImageMetadataResponse, error) {
 	s.logger.WithField("filepath", p.Filepath).Debug("metadata request")
 
-	metadata, err := s.metadataSvc.GetMetadata(p.Filepath)
+	values, err := s.metadataSvc.GetMetadata(p.Filepath)
 	if err != nil {
 		errMsg := err.Error()
 		if strings.Contains(errMsg, "invalid path") {
@@ -126,12 +128,18 @@ func (s *ImagesService) Metadata(ctx context.Context, p *genimages.MetadataPaylo
 		return nil, genimages.MakeNotFound(fmt.Errorf("image not found"))
 	}
 
-	if metadata == nil {
-		metadata = map[string]string{}
+	stringMeta := values.StringFields
+	if stringMeta == nil {
+		stringMeta = map[string]string{}
+	}
+	numericMeta := values.NumericFields
+	if numericMeta == nil {
+		numericMeta = map[string]float64{}
 	}
 
 	return &genimages.ImageMetadataResponse{
-		Metadata: metadata,
+		StringMetadata:  stringMeta,
+		NumericMetadata: numericMeta,
 	}, nil
 }
 

@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-068: Backend quality — log-level tuning and sidecar typed metadata
+- ListPNGFiles and ListSafetensorsFiles now log directory-not-found at debug level instead of error (expected miss pattern)
+- Image metadata API splits fields into `string_metadata` and `numeric_metadata` maps; seed/steps/cfg returned as numbers for richer frontend display
+
 ### S-067: Persistence and display polish — Has Samples filter, CFG trailing-zero, workflow preference, slider wrap-around
 - Has Samples filter checkbox persisted to localStorage; conditionally rendered only when runs without samples exist
 - CFG tag display preserves trailing zero for whole numbers (7.0 not 7) per DEVELOPMENT_PRACTICES numeric format spec

@@ -379,7 +379,10 @@ describe('ApiClient', () => {
   describe('getImageMetadata', () => {
     it('fetches metadata from /api/images/{filepath}/metadata', async () => {
       const client = new ApiClient({ baseUrl: 'http://localhost:8080/api' })
-      const metadata = { metadata: { prompt: '{"nodes": []}', workflow: '{"links": []}' } }
+      const metadata = {
+        string_metadata: { prompt: '{"nodes": []}', workflow: '{"links": []}' },
+        numeric_metadata: { seed: 42, steps: 20, cfg: 7.5 },
+      }
       mockFetch({ json: () => Promise.resolve(metadata) })
 
       const result = await client.getImageMetadata('checkpoint.safetensors/image.png')

@@ -69,6 +69,73 @@ var _ = Describe("FileSystem", func() {
 			_, err := fs.ListPNGFiles(filepath.Join(tmpDir, "nonexistent"))
 			Expect(err).To(HaveOccurred())
 		})
+
+		Context("log level for directory-not-found", func() {
+			var (
+				hookLogger *logrus.Logger
+				hook       *test.Hook
+				fsHook     *store.FileSystem
+			)
+
+			BeforeEach(func() {
+				hookLogger, hook = test.NewNullLogger()
+				hookLogger.SetLevel(logrus.DebugLevel)
+				fsHook = store.NewFileSystem(hookLogger)
+			})
+
+			It("logs at debug level (not error) when directory does not exist", func() {
+				hook.Reset()
+				_, _ = fsHook.ListPNGFiles(filepath.Join(tmpDir, "nonexistent"))
+
+				errorEntries := filterByLevel(hook.AllEntries(), logrus.ErrorLevel)
+				Expect(errorEntries).To(BeEmpty(), "expected no error-level log entries for a missing directory")
+
+				debugEntries := filterByLevel(hook.AllEntries(), logrus.DebugLevel)
+				Expect(debugEntries).NotTo(BeEmpty(), "expected at least one debug-level log entry for a missing directory")
+			})
+		})
+	})
+
+	Describe("ListSafetensorsFiles", func() {
+		Context("log level for directory-not-found", func() {
+			var (
+				hookLogger *logrus.Logger
+				hook       *test.Hook
+				fsHook     *store.FileSystem
+			)
+
+			BeforeEach(func() {
+				hookLogger, hook = test.NewNullLogger()
+				hookLogger.SetLevel(logrus.DebugLevel)
+				fsHook = store.NewFileSystem(hookLogger)
+			})
+
+			It("returns error when root directory does not exist", func() {
+				_, err := fsHook.ListSafetensorsFiles(filepath.Join(tmpDir, "nonexistent"))
+				Expect(err).To(HaveOccurred())
+			})
+
+			It("logs at debug level (not error) when root directory does not exist", func() {
+				hook.Reset()
+				_, _ = fsHook.ListSafetensorsFiles(filepath.Join(tmpDir, "nonexistent"))
+
+				errorEntries := filterByLevel(hook.AllEntries(), logrus.ErrorLevel)
+				Expect(errorEntries).To(BeEmpty(), "expected no error-level log entries for a missing directory")
+
+				debugEntries := filterByLevel(hook.AllEntries(), logrus.DebugLevel)
+				Expect(debugEntries).NotTo(BeEmpty(), "expected at least one debug-level log entry for a missing directory")
+			})
+
+			It("lists .safetensors files in an existing directory", func() {
+				Expect(os.WriteFile(filepath.Join(tmpDir, "model.safetensors"), []byte("data"), 0644)).To(Succeed())
+				Expect(os.WriteFile(filepath.Join(tmpDir, "other.txt"), []byte("data"), 0644)).To(Succeed())
+
+				files, err := fsHook.ListSafetensorsFiles(tmpDir)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(files).To(HaveLen(1))
+				Expect(files[0]).To(Equal("model.safetensors"))
+			})
+		})
 	})
 
 	Describe("OpenFile", func() {

@@ -30,7 +30,7 @@ describe('ImageLightbox', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    mockGetImageMetadata.mockResolvedValue({ metadata: {} })
+    mockGetImageMetadata.mockResolvedValue({ string_metadata: {}, numeric_metadata: {} })
   })
 
   it('renders a dialog overlay with the image', async () => {
@@ -333,7 +333,7 @@ describe('ImageLightbox', () => {
   // --- Metadata tests ---
 
   it('fetches metadata on mount', async () => {
-    mockGetImageMetadata.mockResolvedValue({ metadata: { prompt: '{}' } })
+    mockGetImageMetadata.mockResolvedValue({ string_metadata: { prompt: '{}' }, numeric_metadata: {} })
 
     mount(ImageLightbox, { props: defaultProps })
     await flushPromises()
@@ -352,7 +352,8 @@ describe('ImageLightbox', () => {
 
   it('shows metadata content when toggle is clicked', async () => {
     mockGetImageMetadata.mockResolvedValue({
-      metadata: { prompt: '{"nodes": []}', workflow: '{"links": []}' },
+      string_metadata: { prompt: '{"nodes": []}', workflow: '{"links": []}' },
+      numeric_metadata: {},
     })
 
     const wrapper = mount(ImageLightbox, { props: defaultProps })
@@ -370,7 +371,8 @@ describe('ImageLightbox', () => {
 
   it('displays metadata keys in sorted order', async () => {
     mockGetImageMetadata.mockResolvedValue({
-      metadata: { workflow: '{}', prompt: '{}' },
+      string_metadata: { workflow: '{}', prompt: '{}' },
+      numeric_metadata: {},
     })
 
     const wrapper = mount(ImageLightbox, { props: defaultProps })
@@ -385,7 +387,8 @@ describe('ImageLightbox', () => {
 
   it('formats JSON values in metadata', async () => {
     mockGetImageMetadata.mockResolvedValue({
-      metadata: { prompt: '{"key":"value"}' },
+      string_metadata: { prompt: '{"key":"value"}' },
+      numeric_metadata: {},
     })
 
     const wrapper = mount(ImageLightbox, { props: defaultProps })
@@ -400,7 +403,7 @@ describe('ImageLightbox', () => {
   })
 
   it('shows "No metadata available" when metadata is empty', async () => {
-    mockGetImageMetadata.mockResolvedValue({ metadata: {} })
+    mockGetImageMetadata.mockResolvedValue({ string_metadata: {}, numeric_metadata: {} })
 
     const wrapper = mount(ImageLightbox, { props: defaultProps })
     await flushPromises()
@@ -426,7 +429,7 @@ describe('ImageLightbox', () => {
     expect(wrapper.find('.metadata-loading').exists()).toBe(true)
     expect(wrapper.find('.metadata-loading').text()).toBe('Loading metadata...')
 
-    resolveMetadata!({ metadata: {} })
+    resolveMetadata!({ string_metadata: {}, numeric_metadata: {} })
     await flushPromises()
 
     expect(wrapper.find('.metadata-loading').exists()).toBe(false)
@@ -445,7 +448,7 @@ describe('ImageLightbox', () => {
   })
 
   it('re-fetches metadata when imageUrl changes', async () => {
-    mockGetImageMetadata.mockResolvedValue({ metadata: { prompt: '{}' } })
+    mockGetImageMetadata.mockResolvedValue({ string_metadata: { prompt: '{}' }, numeric_metadata: {} })
 
     const wrapper = mount(ImageLightbox, { props: defaultProps })
     await flushPromises()
@@ -461,7 +464,7 @@ describe('ImageLightbox', () => {
   })
 
   it('does not interfere with zoom/pan when metadata panel is open', async () => {
-    mockGetImageMetadata.mockResolvedValue({ metadata: { prompt: '{}' } })
+    mockGetImageMetadata.mockResolvedValue({ string_metadata: { prompt: '{}' }, numeric_metadata: {} })
 
     const wrapper = mount(ImageLightbox, { props: defaultProps })
     await flushPromises()
@@ -499,7 +502,7 @@ describe('ImageLightbox', () => {
   })
 
   it('metadata panel click does not close lightbox', async () => {
-    mockGetImageMetadata.mockResolvedValue({ metadata: { prompt: '{}' } })
+    mockGetImageMetadata.mockResolvedValue({ string_metadata: { prompt: '{}' }, numeric_metadata: {} })
 
     const wrapper = mount(ImageLightbox, { props: defaultProps })
     await flushPromises()
@@ -515,7 +518,8 @@ describe('ImageLightbox', () => {
 
   it('displays non-JSON values without formatting', async () => {
     mockGetImageMetadata.mockResolvedValue({
-      metadata: { Comment: 'plain text value' },
+      string_metadata: { Comment: 'plain text value' },
+      numeric_metadata: {},
     })
 
     const wrapper = mount(ImageLightbox, { props: defaultProps })
@@ -525,6 +529,29 @@ describe('ImageLightbox', () => {
 
     const value = wrapper.find('.metadata-value')
     expect(value.text()).toBe('plain text value')
+  })
+
+  it('displays numeric metadata fields (seed, steps, cfg) as numbers', async () => {
+    mockGetImageMetadata.mockResolvedValue({
+      string_metadata: { sampler_name: 'euler' },
+      numeric_metadata: { seed: 42, steps: 20, cfg: 7.5 },
+    })
+
+    const wrapper = mount(ImageLightbox, { props: defaultProps })
+    await flushPromises()
+
+    await wrapper.find('.metadata-toggle').trigger('click')
+
+    const entries = wrapper.findAll('.metadata-entry')
+    // 1 string field + 3 numeric fields = 4 total
+    expect(entries).toHaveLength(4)
+
+    // Find the cfg entry and verify it displays numerically
+    const keys = wrapper.findAll('.metadata-key')
+    const values = wrapper.findAll('.metadata-value')
+    const cfgIdx = Array.from(keys).findIndex((k) => k.text() === 'cfg')
+    expect(cfgIdx).toBeGreaterThanOrEqual(0)
+    expect(values[cfgIdx].text()).toBe('7.5')
   })
 
   // --- Mouse-down origin tracking (B-033: slider drag release should not close) ---
@@ -726,7 +753,7 @@ describe('ImageLightbox', () => {
     })
 
     it('metadata panel still works when slider is present', async () => {
-      mockGetImageMetadata.mockResolvedValue({ metadata: { prompt: '{}' } })
+      mockGetImageMetadata.mockResolvedValue({ string_metadata: { prompt: '{}' }, numeric_metadata: {} })
 
       const wrapper = mount(ImageLightbox, { props: sliderProps })
       await flushPromises()
