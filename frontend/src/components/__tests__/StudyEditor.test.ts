@@ -156,7 +156,8 @@ describe('StudyEditor', () => {
 
     const [stepsTags, cfgsTags, seedsTags] = wrapper.findAllComponents(NDynamicTags)
     expect(stepsTags.props('value')).toEqual(['1', '4', '8'])
-    expect(cfgsTags.props('value')).toEqual(['1', '3', '7'])
+    // AC2 (S-067): CFG whole-number values preserve trailing zero → '1.0', '3.0', '7.0'
+    expect(cfgsTags.props('value')).toEqual(['1.0', '3.0', '7.0'])
     expect(seedsTags.props('value')).toEqual(['42', '420'])
   })
 
@@ -463,6 +464,41 @@ describe('StudyEditor', () => {
     expect(totalDiv.text()).toContain('3')
   })
 
+  // AC2 (S-067): CFG trailing-zero display
+  it('cfgsAsStrings preserves trailing zero for whole-number CFG values', async () => {
+    const wrapper = mount(StudyEditor)
+    await flushPromises()
+
+    const cfgsTags = wrapper.findComponent('[data-testid="cfgs-tags"]')
+
+    // Default value is [7.0]; formatCfg(7) should produce '7.0', not '7'
+    expect(cfgsTags.props('value')).toEqual(['7.0'])
+  })
+
+  it('cfgsAsStrings preserves fractional CFG values unchanged', async () => {
+    const wrapper = mount(StudyEditor)
+    await flushPromises()
+
+    const cfgsTags = wrapper.findComponent('[data-testid="cfgs-tags"]')
+    cfgsTags.vm.$emit('update:value', ['1.5', '3.75', '7.25'])
+    await nextTick()
+
+    // Fractional values are not integers — formatCfg returns them as-is
+    expect(cfgsTags.props('value')).toEqual(['1.5', '3.75', '7.25'])
+  })
+
+  it('cfgsAsStrings formats mixed whole and fractional CFG values correctly', async () => {
+    const wrapper = mount(StudyEditor)
+    await flushPromises()
+
+    const cfgsTags = wrapper.findComponent('[data-testid="cfgs-tags"]')
+    cfgsTags.vm.$emit('update:value', ['1.0', '3.5', '7.0', '12.0'])
+    await nextTick()
+
+    // Whole numbers get '.0' suffix; fractional values stay as-is
+    expect(cfgsTags.props('value')).toEqual(['1.0', '3.5', '7.0', '12.0'])
+  })
+
   it('NDynamicTags for seeds updates seeds state when tags are changed', async () => {
     const wrapper = mount(StudyEditor)
     await flushPromises()
@@ -741,10 +777,12 @@ describe('StudyEditor', () => {
     {
       field: 'cfgs',
       testid: 'cfgs-tags',
-      // parseFloat normalises trailing zeros: '1.0' -> 1 -> '1', '3.5' stays '3.5'
+      // AC2 (S-067): CFG values preserve trailing zero for whole numbers.
+      // parseFloat('1.0') = 1 (integer), so formatCfg(1) = '1.0'.
+      // parseFloat('3.5') = 3.5 (non-integer), so formatCfg(3.5) = '3.5'.
       tags: ['1.0', '3.5', '7.0'],
       expectedNumbers: [1.0, 3.5, 7.0],
-      expectedStrings: ['1', '3.5', '7'],
+      expectedStrings: ['1.0', '3.5', '7.0'],
     },
     {
       field: 'seeds',

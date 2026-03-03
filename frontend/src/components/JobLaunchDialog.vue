@@ -247,9 +247,14 @@ watch(selectedTrainingRunId, (runId) => {
   }
 })
 
-// Persist workflow selection changes
+// Persist workflow selection changes (AC3: per model type when model type is known, global fallback otherwise)
 watch(selectedWorkflow, (workflowId) => {
-  persistence.saveWorkflowId(workflowId)
+  if (currentModelType.value) {
+    persistence.saveWorkflowIdForModelType(currentModelType.value, workflowId)
+  } else {
+    // No model type known yet — save globally as fallback
+    persistence.saveWorkflowId(workflowId)
+  }
 })
 
 // Persist study selection changes
@@ -270,27 +275,43 @@ watch([selectedVAE, selectedCLIP, shiftValue], () => {
 /**
  * Restore model-type-specific inputs from persistence, filtering any values
  * that are no longer available in the current model/clip lists.
+ * Also restores the per-model-type workflow preference (AC3).
  */
 function restoreModelInputs(modelType: string) {
   const saved = persistence.getModelInputs(modelType)
-  if (!saved) return
+  if (saved) {
+    // Restore VAE only if still available
+    if (saved.vae !== null && vaeModels.value.includes(saved.vae)) {
+      selectedVAE.value = saved.vae
+    } else {
+      selectedVAE.value = null
+    }
 
-  // Restore VAE only if still available
-  if (saved.vae !== null && vaeModels.value.includes(saved.vae)) {
-    selectedVAE.value = saved.vae
-  } else {
-    selectedVAE.value = null
+    // Restore CLIP only if still available
+    if (saved.clip !== null && clipModels.value.includes(saved.clip)) {
+      selectedCLIP.value = saved.clip
+    } else {
+      selectedCLIP.value = null
+    }
+
+    // Restore shift value (no availability check needed — it's a free numeric value)
+    shiftValue.value = saved.shift
   }
 
-  // Restore CLIP only if still available
-  if (saved.clip !== null && clipModels.value.includes(saved.clip)) {
-    selectedCLIP.value = saved.clip
-  } else {
-    selectedCLIP.value = null
+  // AC3: Restore per-model-type workflow preference, if not already set by the single-workflow auto-select
+  const validWorkflows = workflows.value.filter(w => w.validation_state === 'valid')
+  if (validWorkflows.length !== 1) {
+    // Only override workflow if it was not already auto-selected (single workflow)
+    const modelWorkflowId = persistence.getWorkflowIdForModelType(modelType)
+    if (modelWorkflowId !== null) {
+      const isAvailable = workflows.value.some(
+        w => w.name === modelWorkflowId && w.validation_state === 'valid'
+      )
+      if (isAvailable) {
+        selectedWorkflow.value = modelWorkflowId
+      }
+    }
   }
-
-  // Restore shift value (no availability check needed — it's a free numeric value)
-  shiftValue.value = saved.shift
 }
 
 function selectAllCheckpoints() {
@@ -435,12 +456,18 @@ onMounted(async () => {
   }
 
   // AC1: If exactly one valid workflow exists, auto-select it.
-  // AC2: If multiple valid workflows exist, restore from localStorage (last-used).
+  // AC3/AC2: If multiple valid workflows exist, restore from localStorage.
+  //   - Prefer the per-model-type workflow when a model type is already known.
+  //   - Fall back to the global lastWorkflowId (legacy / no model type yet).
   const validWorkflows = workflows.value.filter(w => w.validation_state === 'valid')
   if (validWorkflows.length === 1) {
     selectedWorkflow.value = validWorkflows[0].name
   } else {
-    const lastWorkflowId = persistence.getLastWorkflowId()
+    // Try per-model-type first (will be null if no model type is determined yet at mount)
+    const modelTypeWorkflowId = currentModelType.value
+      ? persistence.getWorkflowIdForModelType(currentModelType.value)
+      : null
+    const lastWorkflowId = modelTypeWorkflowId ?? persistence.getLastWorkflowId()
     if (lastWorkflowId !== null) {
       const isAvailable = workflows.value.some(
         w => w.name === lastWorkflowId && w.validation_state === 'valid'

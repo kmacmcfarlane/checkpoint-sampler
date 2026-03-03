@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { nextTick } from 'vue'
-import { NSelect } from 'naive-ui'
+import { NSelect, NCheckbox } from 'naive-ui'
 import TrainingRunSelector from '../TrainingRunSelector.vue'
 import type { TrainingRun } from '../../api/types'
+import { GENERATE_INPUTS_STORAGE_KEY } from '../../composables/useGenerateInputsPersistence'
 
 // Mock the api client module
 vi.mock('../../api/client', () => ({
@@ -35,6 +36,28 @@ const sampleRuns: TrainingRun[] = [
     has_samples: true,
     checkpoints: [
       { filename: 'sdxl-finetune.safetensors', step_number: -1, has_samples: true },
+    ],
+  },
+]
+
+/** Mixed runs: one with samples, one without. Used to test hasSamplesFilter visibility. */
+const mixedRuns: TrainingRun[] = [
+  {
+    id: 10,
+    name: 'run-with-samples',
+    checkpoint_count: 1,
+    has_samples: true,
+    checkpoints: [
+      { filename: 'run-with-samples.safetensors', step_number: 1000, has_samples: true },
+    ],
+  },
+  {
+    id: 11,
+    name: 'run-without-samples',
+    checkpoint_count: 1,
+    has_samples: false,
+    checkpoints: [
+      { filename: 'run-without-samples.safetensors', step_number: 1000, has_samples: false },
     ],
   },
 ]
@@ -154,6 +177,115 @@ describe('TrainingRunSelector', () => {
 
     const checkbox = wrapper.find('[data-testid="has-samples-checkbox"]')
     expect(checkbox.exists()).toBe(false)
+  })
+
+  // AC1 (S-067): hasSamplesFilter persistence
+  describe('hasSamplesFilter', () => {
+    it('renders has-samples checkbox when some runs have no samples', async () => {
+      mockGetTrainingRuns.mockResolvedValue(mixedRuns)
+      const wrapper = mount(TrainingRunSelector)
+      await flushPromises()
+
+      const checkbox = wrapper.find('[data-testid="has-samples-checkbox"]')
+      expect(checkbox.exists()).toBe(true)
+    })
+
+    it('defaults hasSamplesFilter to true when no preference is stored', async () => {
+      mockGetTrainingRuns.mockResolvedValue(mixedRuns)
+      const wrapper = mount(TrainingRunSelector)
+      await flushPromises()
+
+      const checkbox = wrapper.findComponent(NCheckbox)
+      expect(checkbox.props('checked')).toBe(true)
+    })
+
+    it('restores hasSamplesFilter=false from localStorage on mount', async () => {
+      // Pre-set the preference in localStorage (as if the user previously unchecked it)
+      localStorage.setItem(
+        GENERATE_INPUTS_STORAGE_KEY,
+        JSON.stringify({ lastWorkflowId: null, hasSamplesFilter: false, byModelType: {} })
+      )
+
+      mockGetTrainingRuns.mockResolvedValue(mixedRuns)
+      const wrapper = mount(TrainingRunSelector)
+      await flushPromises()
+
+      const checkbox = wrapper.findComponent(NCheckbox)
+      expect(checkbox.props('checked')).toBe(false)
+    })
+
+    it('restores hasSamplesFilter=true from localStorage on mount', async () => {
+      localStorage.setItem(
+        GENERATE_INPUTS_STORAGE_KEY,
+        JSON.stringify({ lastWorkflowId: null, hasSamplesFilter: true, byModelType: {} })
+      )
+
+      mockGetTrainingRuns.mockResolvedValue(mixedRuns)
+      const wrapper = mount(TrainingRunSelector)
+      await flushPromises()
+
+      const checkbox = wrapper.findComponent(NCheckbox)
+      expect(checkbox.props('checked')).toBe(true)
+    })
+
+    it('filters out runs without samples when hasSamplesFilter=true', async () => {
+      mockGetTrainingRuns.mockResolvedValue(mixedRuns)
+      const wrapper = mount(TrainingRunSelector)
+      await flushPromises()
+
+      const select = wrapper.findComponent(NSelect)
+      const options = select.props('options') as Array<{ label: string; value: number }>
+      // Only the run with samples should appear
+      expect(options).toHaveLength(1)
+      expect(options[0].label).toBe('run-with-samples')
+    })
+
+    it('shows all runs when hasSamplesFilter=false', async () => {
+      localStorage.setItem(
+        GENERATE_INPUTS_STORAGE_KEY,
+        JSON.stringify({ lastWorkflowId: null, hasSamplesFilter: false, byModelType: {} })
+      )
+
+      mockGetTrainingRuns.mockResolvedValue(mixedRuns)
+      const wrapper = mount(TrainingRunSelector)
+      await flushPromises()
+
+      const select = wrapper.findComponent(NSelect)
+      const options = select.props('options') as Array<{ label: string; value: number }>
+      expect(options).toHaveLength(2)
+    })
+
+    it('saves hasSamplesFilter preference to localStorage when toggled', async () => {
+      mockGetTrainingRuns.mockResolvedValue(mixedRuns)
+      const wrapper = mount(TrainingRunSelector)
+      await flushPromises()
+
+      const checkbox = wrapper.findComponent(NCheckbox)
+      // Toggle the checkbox to false
+      checkbox.vm.$emit('update:checked', false)
+      await nextTick()
+
+      const stored = JSON.parse(localStorage.getItem(GENERATE_INPUTS_STORAGE_KEY) ?? '{}')
+      expect(stored.hasSamplesFilter).toBe(false)
+    })
+
+    it('updates filter state immediately when toggled', async () => {
+      mockGetTrainingRuns.mockResolvedValue(mixedRuns)
+      const wrapper = mount(TrainingRunSelector)
+      await flushPromises()
+
+      // Initially filtered (only 1 run)
+      let options = wrapper.findComponent(NSelect).props('options') as Array<{ label: string }>
+      expect(options).toHaveLength(1)
+
+      // Toggle to show all
+      const checkbox = wrapper.findComponent(NCheckbox)
+      checkbox.vm.$emit('update:checked', false)
+      await nextTick()
+
+      options = wrapper.findComponent(NSelect).props('options') as Array<{ label: string }>
+      expect(options).toHaveLength(2)
+    })
   })
 
   describe('auto-select behavior', () => {

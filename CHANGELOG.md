@@ -5,6 +5,12 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-067: Persistence and display polish — Has Samples filter, CFG trailing-zero, workflow preference, slider wrap-around
+- Has Samples filter checkbox persisted to localStorage; conditionally rendered only when runs without samples exist
+- CFG tag display preserves trailing zero for whole numbers (7.0 not 7) per DEVELOPMENT_PRACTICES numeric format spec
+- Workflow selection scoped per model type instead of global; three-tier fallback: auto-select single → per-model-type → global
+- SliderBar optional `wrapAround` prop for boundary wrap-around consistent with ImageCell keyboard navigation
+
 ### S-066: Documentation — WebSocket path and capture-phase handler ordering
 - Comprehensive WebSocket protocol documentation in docs/api.md: connection lifecycle, message types, field tables, reconnection behavior
 - New DEVELOPMENT_PRACTICES.md section 4.10 documenting the capture-phase + stopImmediatePropagation pattern for keyboard event handling conflicts
