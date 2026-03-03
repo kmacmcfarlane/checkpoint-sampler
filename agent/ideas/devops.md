@@ -80,3 +80,9 @@ The build runs `vue-tsc -b` but only for `tsconfig.app.json`, excluding test fil
 * priority: low
 * source: qa
 The `frontend/dist/assets/` directory is owned by root from a prior Docker-based build, preventing `npm run build` from completing outside Docker. This should be addressed by either adding `dist/` to `.gitignore` cleanup or fixing the Dockerfile to use the correct UID.
+
+### Fixture validation script for test safetensors files
+* status: needs_approval
+* priority: low
+* source: developer
+Add a CI check or Makefile target that validates all `test-fixtures/**/*.safetensors` files are parseable (non-zero, valid header), preventing silent introduction of corrupt fixture files in the future.
