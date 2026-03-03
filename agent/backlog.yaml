@@ -807,7 +807,7 @@ stories:
   - id: B-041
     title: "ComfyUI mock E2E tests fail intermittently due to WebSocket timing and job executor 'item not found' errors"
     priority: 60
-    status: todo
+    status: uat
     complexity: medium
     requires: []
     acceptance:
