@@ -625,6 +625,182 @@ describe('App', () => {
     })
   })
 
+  // S-069: Drawer auto-collapse on image grid interaction
+  describe('drawer auto-collapse on grid interaction', () => {
+    // The outer beforeEach already stubs matchMedia(false) (narrow). Each test only
+    // needs to set innerWidth; wide-screen tests re-stub matchMedia to return matches=true.
+    function setNarrowScreen() {
+      Object.defineProperty(window, 'innerWidth', { value: 800, configurable: true })
+      // matchMedia already mocked with matches=false by outer beforeEach
+    }
+
+    function setWideScreen() {
+      Object.defineProperty(window, 'innerWidth', { value: 1200, configurable: true })
+      vi.stubGlobal('matchMedia', createMatchMediaMock(true))
+    }
+
+    /**
+     * Mount App with a training run selected. On narrow screens the drawer starts
+     * closed, so we open it first to render TrainingRunSelector, emit the select
+     * event, then allow tests to control drawer state from there.
+     */
+    async function mountAndSelectRun() {
+      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      await flushPromises()
+
+      // Ensure the drawer is open so TrainingRunSelector is rendered (NDrawer hides
+      // slot content when show=false; on narrow screens the drawer starts closed).
+      const appDrawer = wrapper.findComponent({ name: 'AppDrawer' })
+      if (!appDrawer.props('show')) {
+        const toggleBtn = wrapper.findAllComponents(NButton).find(
+          (b) => b.attributes('aria-label') === 'Toggle controls drawer',
+        )
+        await toggleBtn!.trigger('click')
+        await flushPromises()
+      }
+
+      const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
+      selector.vm.$emit('select', mockTrainingRun)
+      await flushPromises()
+      return wrapper
+    }
+
+    it('AC2: auto-collapses drawer when XYGrid emits image:click on narrow screen', async () => {
+      // AC1: image click triggers auto-collapse; AC2: only on narrow screens.
+      // mountAndSelectRun opens the drawer to render TrainingRunSelector, so the
+      // drawer is already open when we reach the assertion.
+      setNarrowScreen()
+      const wrapper = await mountAndSelectRun()
+
+      const appDrawer = wrapper.findComponent({ name: 'AppDrawer' })
+      // Drawer is open (mountAndSelectRun opened it to reach TrainingRunSelector)
+      expect(appDrawer.props('show')).toBe(true)
+
+      // Simulate XYGrid image:click
+      const xyGrid = wrapper.findComponent({ name: 'XYGrid' })
+      xyGrid.vm.$emit('image:click', {
+        imageUrl: '/api/images/test.png',
+        cellKey: 'a|b',
+        sliderValues: [],
+        currentSliderValue: '',
+        imagesBySliderValue: {},
+        gridImages: [],
+        gridIndex: 0,
+      })
+      await flushPromises()
+
+      // Drawer should now be collapsed
+      expect(appDrawer.props('show')).toBe(false)
+    })
+
+    it('AC2: auto-collapses drawer when XYGrid emits header:click on narrow screen', async () => {
+      // AC1: header click triggers auto-collapse; AC2: only on narrow screens.
+      setNarrowScreen()
+      const wrapper = await mountAndSelectRun()
+
+      const appDrawer = wrapper.findComponent({ name: 'AppDrawer' })
+      expect(appDrawer.props('show')).toBe(true)
+
+      // Simulate XYGrid header:click
+      const xyGrid = wrapper.findComponent({ name: 'XYGrid' })
+      xyGrid.vm.$emit('header:click', 'seed', '42')
+      await flushPromises()
+
+      // Drawer should now be collapsed
+      expect(appDrawer.props('show')).toBe(false)
+    })
+
+    it('AC2: auto-collapses drawer on Ctrl+Arrow keyboard navigation on narrow screen', async () => {
+      // AC1: keyboard navigation triggers auto-collapse; AC2: only on narrow screens.
+      setNarrowScreen()
+      const wrapper = await mountAndSelectRun()
+
+      const appDrawer = wrapper.findComponent({ name: 'AppDrawer' })
+      expect(appDrawer.props('show')).toBe(true)
+
+      // Simulate Ctrl+ArrowRight keyboard navigation (slider nav key)
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', ctrlKey: true, bubbles: true }))
+      await flushPromises()
+
+      // Drawer should now be collapsed
+      expect(appDrawer.props('show')).toBe(false)
+    })
+
+    it('AC3: drawer does NOT auto-collapse on image:click on wide screen', async () => {
+      // AC3: on wide screens drawer remains open (drawer does not overlay the grid)
+      setWideScreen()
+      const wrapper = await mountAndSelectRun()
+
+      const appDrawer = wrapper.findComponent({ name: 'AppDrawer' })
+      // Drawer starts open on wide screens
+      expect(appDrawer.props('show')).toBe(true)
+
+      // Simulate XYGrid image:click
+      const xyGrid = wrapper.findComponent({ name: 'XYGrid' })
+      xyGrid.vm.$emit('image:click', {
+        imageUrl: '/api/images/test.png',
+        cellKey: 'a|b',
+        sliderValues: [],
+        currentSliderValue: '',
+        imagesBySliderValue: {},
+        gridImages: [],
+        gridIndex: 0,
+      })
+      await flushPromises()
+
+      // Drawer should remain open on wide screens
+      expect(appDrawer.props('show')).toBe(true)
+    })
+
+    it('AC3: drawer does NOT auto-collapse on Ctrl+Arrow keyboard nav on wide screen', async () => {
+      // AC3: on wide screens keyboard navigation does not close the drawer
+      setWideScreen()
+      const wrapper = await mountAndSelectRun()
+
+      const appDrawer = wrapper.findComponent({ name: 'AppDrawer' })
+      expect(appDrawer.props('show')).toBe(true)
+
+      // Simulate Ctrl+ArrowLeft keyboard navigation
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', ctrlKey: true, bubbles: true }))
+      await flushPromises()
+
+      // Drawer should remain open on wide screens
+      expect(appDrawer.props('show')).toBe(true)
+    })
+
+    it('AC4: manual toggle works after auto-collapse on narrow screen', async () => {
+      // AC4: manual drawer toggle still works regardless of auto-collapse.
+      setNarrowScreen()
+      const wrapper = await mountAndSelectRun()
+
+      const appDrawer = wrapper.findComponent({ name: 'AppDrawer' })
+      // Drawer is open after mountAndSelectRun
+      expect(appDrawer.props('show')).toBe(true)
+
+      // Auto-collapse via image click
+      const xyGrid = wrapper.findComponent({ name: 'XYGrid' })
+      xyGrid.vm.$emit('image:click', {
+        imageUrl: '/api/images/test.png',
+        cellKey: 'a|b',
+        sliderValues: [],
+        currentSliderValue: '',
+        imagesBySliderValue: {},
+        gridImages: [],
+        gridIndex: 0,
+      })
+      await flushPromises()
+      expect(appDrawer.props('show')).toBe(false)
+
+      // Re-open manually — toggle must still work after auto-collapse
+      const toggleBtn = wrapper.findAllComponents(NButton).find(
+        (b) => b.attributes('aria-label') === 'Toggle controls drawer',
+      )
+      await toggleBtn!.trigger('click')
+      await flushPromises()
+      expect(appDrawer.props('show')).toBe(true)
+    })
+  })
+
   // AC1: Jobs header button shows a colored bead indicating sample/job status
   describe('header bead status indicator (AC1)', () => {
     it('shows a green bead on Jobs button when training run has samples (default for viewer runs)', async () => {

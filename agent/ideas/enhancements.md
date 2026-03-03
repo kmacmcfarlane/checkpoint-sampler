@@ -79,3 +79,9 @@ The `has_samples` query parameter on `GET /api/training-runs` is now ignored by 
 * priority: very-low
 * source: developer
 Currently only seed, steps, and cfg are routed to NumericFields in the sidecar metadata parser. Fields like width, height, and index are also numeric in practice but are returned as strings. A future story could expand the numericSidecarFields set based on observed sidecar field conventions.
+
+### Drawer swipe-to-close gesture on mobile
+* status: needs_approval
+* priority: low
+* source: developer
+On narrow/mobile screens, add a swipe-left gesture on the drawer to close it, improving touch UX. This requires detecting touch events on the drawer element and emitting update:show=false.

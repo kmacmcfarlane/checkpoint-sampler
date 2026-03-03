@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-069: Drawer auto-collapse on image grid interaction
+- Drawer auto-collapses on narrow/medium screens when user clicks an image, clicks a grid header, or uses Ctrl+Arrow keyboard navigation
+- Wide screens (≥1024px) unaffected; manual drawer toggle continues to work after auto-collapse
+
 ### S-068: Backend quality — log-level tuning and sidecar typed metadata
 - ListPNGFiles and ListSafetensorsFiles now log directory-not-found at debug level instead of error (expected miss pattern)
 - Image metadata API splits fields into `string_metadata` and `numeric_metadata` maps; seed/steps/cfg returned as numbers for richer frontend display

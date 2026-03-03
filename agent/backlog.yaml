@@ -342,7 +342,7 @@ stories:
   - id: S-069
     title: "Drawer auto-collapse on image grid interaction"
     priority: 23
-    status: todo
+    status: uat
     requires: []
     acceptance:
       - "FE: The NDrawer auto-collapses when the user starts interacting with the grid (e.g., clicking an image cell, using

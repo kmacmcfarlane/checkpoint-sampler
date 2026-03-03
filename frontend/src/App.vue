@@ -45,14 +45,29 @@ const jobsLoading = ref(false)
 
 const WIDE_BREAKPOINT = 1024
 
+/** True when the viewport is wide enough that the drawer does not overlay content. */
+const isWideScreen = ref(false)
+
 function initDrawerState() {
-  drawerOpen.value = window.innerWidth >= WIDE_BREAKPOINT
+  isWideScreen.value = window.innerWidth >= WIDE_BREAKPOINT
+  drawerOpen.value = isWideScreen.value
 }
 
 let mediaQuery: MediaQueryList | null = null
 
 function onMediaChange(e: MediaQueryListEvent) {
+  isWideScreen.value = e.matches
   drawerOpen.value = e.matches
+}
+
+/**
+ * Collapse the drawer if we are on a narrow/medium screen where the drawer overlays
+ * content. On wide screens the drawer runs side-by-side with the grid, so we leave it open.
+ */
+function collapseDrawerIfNarrow() {
+  if (!isWideScreen.value) {
+    drawerOpen.value = false
+  }
 }
 
 /**
@@ -75,10 +90,24 @@ async function eagerAutoSelect() {
   }
 }
 
+/**
+ * Collapse the drawer when the user uses keyboard navigation keys (Ctrl+Arrow) to
+ * cycle through the slider dimension. This allows the user to navigate the grid
+ * with the keyboard even when the drawer is open on a narrow screen.
+ */
+function onGridKeyboardNav(event: KeyboardEvent) {
+  const isSliderNav = (event.key === 'ArrowLeft' || event.key === 'ArrowRight'
+    || event.key === 'ArrowUp' || event.key === 'ArrowDown') && event.ctrlKey
+  if (isSliderNav) {
+    collapseDrawerIfNarrow()
+  }
+}
+
 onMounted(() => {
   initDrawerState()
   mediaQuery = window.matchMedia(`(min-width: ${WIDE_BREAKPOINT}px)`)
   mediaQuery.addEventListener('change', onMediaChange)
+  document.addEventListener('keydown', onGridKeyboardNav)
   eagerAutoSelect()
 })
 
@@ -86,6 +115,7 @@ onUnmounted(() => {
   if (mediaQuery) {
     mediaQuery.removeEventListener('change', onMediaChange)
   }
+  document.removeEventListener('keydown', onGridKeyboardNav)
 })
 
 function toggleDrawer() {
@@ -93,6 +123,7 @@ function toggleDrawer() {
 }
 
 function onImageClick(context: ImageClickContext) {
+  collapseDrawerIfNarrow()
   lightboxImageUrl.value = context.imageUrl
   lightboxContext.value = context
 }
@@ -339,6 +370,7 @@ function onFilterUpdate(dimensionName: string, selected: Set<string>) {
 
 /** Handle header click from XYGrid: solo/unsolo a value in the dimension's filter. */
 function onHeaderClick(dimensionName: string, value: string) {
+  collapseDrawerIfNarrow()
   const dim = dimensions.value.find((d) => d.name === dimensionName)
   if (!dim) return
   const current = comboSelections[dimensionName]
