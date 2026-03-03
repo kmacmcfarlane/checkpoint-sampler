@@ -1,4 +1,4 @@
-.PHONY: claude claude-resume ralph ralph-resume ralph-auto ralph-auto-resume capture-runtime-context up down logs up-dev down-dev logs-dev gen test-frontend-watch test-backend-watch up-test down-test test-e2e test-e2e-logs down-e2e
+.PHONY: claude claude-resume ralph ralph-resume ralph-auto ralph-auto-resume capture-runtime-context up down logs up-dev down-dev logs-dev gen test-frontend-watch test-backend-watch up-test down-test build-playwright test-e2e test-e2e-logs down-e2e
 
 COMPOSE_DEV = docker compose -p checkpoint-sampler-dev -f docker-compose.yml -f docker-compose.dev.yml
 COMPOSE_TEST = docker compose -p checkpoint-sampler-test -f docker-compose.yml -f docker-compose.test.yml
@@ -80,13 +80,18 @@ down-test:
 
 E2E_LOG_DIR = .ralph-temp/e2e-logs
 
+# Build the custom Playwright Docker image with npm dependencies pre-installed.
+# Run this once (or after package.json changes) to avoid npm ci overhead on each test run.
+build-playwright:
+	$(COMPOSE_E2E) build playwright
+
 # Run Playwright E2E tests against a self-contained stack with test fixture data.
 # Starts backend + frontend with test-fixtures/ data, waits until healthy, runs
 # playwright, then captures logs to .ralph-temp/e2e-logs/ and tears down.
 # Does not require make up-dev to be running.
 test-e2e:
 	$(COMPOSE_E2E) up -d --build --wait --remove-orphans backend frontend && \
-	$(COMPOSE_E2E) run --rm --remove-orphans playwright sh -c "npm ci && npx playwright test"; \
+	$(COMPOSE_E2E) run --rm --remove-orphans playwright sh -c "npx playwright test"; \
 	STATUS=$$?; \
 	mkdir -p $(E2E_LOG_DIR) && \
 	$(COMPOSE_E2E) logs --no-color backend > $(E2E_LOG_DIR)/backend.log 2>&1; \

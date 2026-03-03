@@ -56,3 +56,9 @@ A `make logs-snapshot` target that performs `make up-dev && docker compose logs 
 * priority: low
 * source: developer
 The HTML reporter (added in S-054) writes output to `frontend/playwright-report/` by default. Confirm this path is in `.gitignore` to avoid accidental commits of generated artifacts.
+
+### .dockerignore for Playwright build context
+* status: needs_approval
+* priority: low
+* source: developer
+The `./frontend` directory is large (~44 MB sent to Docker daemon per build). Adding a `.dockerignore` (or `frontend/.dockerignore`) to exclude `node_modules`, `dist`, `e2e/test-results`, and other non-essential files from the build context would significantly reduce image build time for all frontend-based images.

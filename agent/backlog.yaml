@@ -242,7 +242,7 @@ stories:
   - id: S-060
     title: "Playwright browser pre-warming via custom Docker image"
     priority: 28
-    status: todo
+    status: uat
     requires: []
     acceptance:
       - "OPS: Custom Playwright Docker image built FROM mcr.microsoft.com/playwright with npm ci baked in"

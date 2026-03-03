@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-060: Playwright browser pre-warming via custom Docker image
+- Custom Dockerfile bakes `npm ci` into the Playwright image, eliminating ~5-10s overhead per E2E test run
+- New `make build-playwright` target; `make test-e2e` no longer runs `npm ci` at runtime
+
 ### S-059: Build tooling quality-of-life improvements
 - `.air.toml`: deprecated `build.bin` → `build.entrypoint`; `make test-backend` uses `run --rm` (no running stack needed); E2E `--remove-orphans`; root-level `make gen` target
 
