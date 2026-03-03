@@ -13,6 +13,8 @@ When invoked, you will receive:
 - Branch name
 - Code reviewer's approval notes (if any)
 - **Change summary**: A list of files modified by the fullstack engineer with brief descriptions. Use this to orient quickly — focus your test verification on the listed files and their test counterparts. The change summary does NOT replace your own investigation — always verify coverage yourself.
+- **Full diff**: The `git diff` output showing all changes. Use this to understand what changed without needing to run git diff commands yourself.
+- **Governance docs**: Contents of PRD.md, TEST_PRACTICES.md, and DEVELOPMENT_PRACTICES.md are included in the dispatch prompt. Use these directly — do NOT re-read them from disk.
 
 Steps:
 1. Read the change summary to understand what changed and where tests should exist

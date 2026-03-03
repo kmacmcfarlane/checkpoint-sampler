@@ -212,37 +212,43 @@ Based on the story's current status, invoke the appropriate subagent:
    - Story ID, title, and acceptance criteria (from `backlog.py get <id>`)
    - Any `review_feedback` (if returning from review/QA)
    - Branch name
-3. On success: extract the **Change Summary** from the fullstack engineer's verdict (see section 4.3.2). Then:
+3. The developer writes and runs unit/integration tests (`make test-backend`, `make test-frontend`). E2E tests are the QA agent's responsibility — the developer does NOT run `make test-e2e`.
+4. On success: extract the **Change Summary** from the fullstack engineer's verdict (see section 4.3.2). Then:
    - `backlog.py set <id> status review`
    - `backlog.py clear <id> review_feedback`
-4. On failure/blocked:
+5. On failure/blocked:
    - `backlog.py set <id> status blocked`
    - `echo "<reason>" | backlog.py set-text <id> blocked_reason`
 
 #### Story status: `review`
-1. Invoke the **code reviewer** subagent with:
+1. Assemble the **context bundle** (see section 4.3.4) — diff, change summary, and governance doc contents.
+2. Invoke the **code reviewer** subagent with:
+   - The context bundle
    - Story ID, title, and acceptance criteria (from `backlog.py get <id>`)
    - Branch name (diff against main)
    - **Change summary** extracted from the fullstack engineer's verdict (see section 4.3.2)
-2. If approved: `backlog.py set <id> status testing`
-3. If changes requested:
+3. The reviewer verifies unit/integration tests pass (`make test-backend`, `make test-frontend`). It does NOT run E2E tests — those are the QA agent's responsibility.
+4. If approved: `backlog.py set <id> status testing`
+5. If changes requested:
    - `backlog.py set <id> status in_progress`
    - `echo "<feedback>" | backlog.py set-text <id> review_feedback`
 
 #### Story status: `testing`
-1. Invoke the **QA expert** subagent with:
+1. Assemble the **context bundle** (see section 4.3.4) — diff, change summary, and governance doc contents.
+2. Invoke the **QA expert** subagent with:
+   - The context bundle
    - Story ID, title, and acceptance criteria (from `backlog.py get <id>`)
    - Branch name
    - Code reviewer's approval notes (if any)
    - **Change summary** extracted from the fullstack engineer's verdict (see section 4.3.2)
-2. The QA expert will run `make test-e2e` as part of its verification. This command is self-contained — it starts an isolated backend + frontend stack (`checkpoint-sampler-e2e`), runs all Playwright tests, and tears down automatically. The orchestrator does NOT need to ensure `make up-dev` is running before dispatching to QA for E2E tests.
-3. Parse the QA verdict for the story result, E2E test results, and runtime error sweep findings.
-4. If approved: `backlog.py set <id> status uat` (finalization per section 4.5)
-5. If issues found:
+3. The QA expert is the sole owner of E2E tests. It will run `make test-e2e` as part of its verification. This command is self-contained — it starts an isolated backend + frontend stack (`checkpoint-sampler-e2e`), runs all Playwright tests, and tears down automatically. The orchestrator does NOT need to ensure `make up-dev` is running before dispatching to QA for E2E tests.
+4. Parse the QA verdict for the story result, E2E test results, and runtime error sweep findings.
+5. If approved: `backlog.py set <id> status uat` (finalization per section 4.5)
+6. If issues found:
    - `backlog.py set <id> status in_progress`
    - `echo "<feedback>" | backlog.py set-text <id> review_feedback`
-6. After the story status transition, process any sweep findings per section 4.4.1.
-7. After the story status transition, process any E2E failure bug tickets per section 4.4.2.
+7. After the story status transition, process any sweep findings per section 4.4.1.
+8. After the story status transition, process any E2E failure bug tickets per section 4.4.2.
 
 ### 4.3.2 Change summary extraction and passthrough
 
@@ -271,6 +277,48 @@ Required root cause elements:
 - **Where the fix is applied** — the file(s) and the nature of the change (guard added, nil check, off-by-one corrected, etc.).
 
 The orchestrator passes this root cause analysis to the code reviewer and QA expert as part of their dispatch context (alongside the change summary). If the fullstack engineer's verdict does not include root cause analysis for a bug story, the orchestrator should note the gap in the review dispatch so the code reviewer can verify the fix targets the correct location.
+
+### 4.3.4 Context bundle for downstream agents
+
+Before dispatching the code-reviewer or qa-expert, the orchestrator assembles a **context bundle** and includes it in the Agent prompt text. This eliminates redundant file reads by subagents — the orchestrator already reads these files at startup, so it passes the content it already has.
+
+The context bundle includes:
+
+1. **Diff output**: `git diff main` (includes staged and unstaged changes). If the branch has commits ahead of main, use `git diff main..HEAD` instead.
+2. **Change summary**: Extracted from the fullstack engineer's verdict (see section 4.3.2).
+3. **Governance doc contents**: Full text of `/agent/PRD.md`, `/agent/TEST_PRACTICES.md`, and `/agent/DEVELOPMENT_PRACTICES.md`.
+
+Format in the Agent prompt:
+
+```
+--- BEGIN PRD.md ---
+<contents>
+--- END PRD.md ---
+
+--- BEGIN TEST_PRACTICES.md ---
+<contents>
+--- END TEST_PRACTICES.md ---
+
+--- BEGIN DEVELOPMENT_PRACTICES.md ---
+<contents>
+--- END DEVELOPMENT_PRACTICES.md ---
+
+--- BEGIN DIFF (git diff main) ---
+<diff output>
+--- END DIFF ---
+```
+
+Subagents receiving the context bundle should use these contents directly and NOT re-read the files from disk.
+
+### 4.3.5 Test responsibility boundaries
+
+| Agent | Unit/Integration tests | E2E tests |
+|-------|----------------------|-----------|
+| fullstack-developer | Writes and runs (`make test-backend`, `make test-frontend`) | Does not run or write |
+| code-reviewer | Verifies pass (`make test-backend`, `make test-frontend`) | Does not run — defers to QA |
+| qa-expert | Verifies pass | Sole owner: runs, writes, maintains (`make test-e2e`) |
+
+This separation ensures E2E tests (which involve Docker compose up/down and are the most expensive operation) run exactly once per story — during QA verification.
 
 ### 4.4 Update artifacts (orchestrator responsibility)
 

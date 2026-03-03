@@ -42,11 +42,52 @@ Emit this before any subagent dispatch or status change.
 ## Subagent dispatch
 
 Read the subagent prompt from `/.claude/agents/<name>.md` and invoke via the Task tool:
-- **fullstack-developer**: For `todo` and `in_progress` stories. Pass story ID, acceptance criteria, branch name, and any review_feedback. On success, extract the "Change Summary" section from the verdict and store it for downstream dispatch.
-- **code-reviewer**: For `review` stories. Pass story ID, acceptance criteria, branch name, and the **change summary** from the fullstack engineer. If no change summary is available, generate one from `git diff --name-only main..HEAD`. Extract the **complexity** field from the fullstack engineer's verdict and select the model accordingly: use `sonnet` for `low` complexity, `opus` for `medium` or `high` complexity. Default to `opus` if complexity is not reported.
-- **qa-expert**: For `testing` stories. Pass story ID, acceptance criteria, branch name, path to /agent/QA_ALLOWED_ERRORS.md, and the **change summary** from the fullstack engineer.
+- **fullstack-developer**: For `todo` and `in_progress` stories. Pass story ID, acceptance criteria, branch name, and any review_feedback. On success, extract the "Change Summary" section from the verdict and store it for downstream dispatch. The developer writes and runs unit/integration tests only (`make test-backend`, `make test-frontend`). E2E tests are the QA agent's responsibility.
+- **code-reviewer**: For `review` stories. Pass the **context bundle** (see below), story ID, acceptance criteria, branch name, and the **change summary** from the fullstack engineer. If no change summary is available, generate one from `git diff --name-only main..HEAD`. Extract the **complexity** field from the fullstack engineer's verdict and select the model accordingly: use `sonnet` for `low` complexity, `opus` for `medium` or `high` complexity. Default to `opus` if complexity is not reported. The reviewer verifies unit/integration tests pass. It does NOT run E2E tests.
+- **qa-expert**: For `testing` stories. Pass the **context bundle** (see below), story ID, acceptance criteria, branch name, path to /agent/QA_ALLOWED_ERRORS.md, and the **change summary** from the fullstack engineer. The QA agent is the sole owner of E2E tests — running, authoring, and maintaining them.
 - **debugger**: Invoke on demand when test failures or bugs are encountered.
 - **security-auditor**: Invoke on demand for security-sensitive stories.
+
+### Test responsibility boundaries
+
+| Agent | Unit/Integration tests | E2E tests |
+|-------|----------------------|-----------|
+| fullstack-developer | Writes and runs | Does not run or write |
+| code-reviewer | Verifies pass (`make test-backend` + `make test-frontend`) | Does not run |
+| qa-expert | Verifies pass | Sole owner: runs, writes, maintains |
+
+### Context bundle for downstream agents
+
+Before dispatching the code-reviewer or qa-expert, the orchestrator assembles a **context bundle** and includes it in the Agent prompt. This eliminates redundant file reads by subagents:
+
+1. **Diff output**: Run `git diff main` (includes both staged and unstaged changes). If the branch has commits ahead of main, use `git diff main..HEAD` instead. Include the full output in the prompt.
+2. **Change summary**: Extracted from the fullstack engineer's verdict (see section below). Format as a bullet list of file paths with descriptions.
+3. **Governance docs**: Include the full contents of:
+   - `/agent/PRD.md`
+   - `/agent/TEST_PRACTICES.md`
+   - `/agent/DEVELOPMENT_PRACTICES.md`
+
+Wrap each governance doc in a labeled section so the subagent can reference it:
+
+```
+--- BEGIN PRD.md ---
+<contents>
+--- END PRD.md ---
+
+--- BEGIN TEST_PRACTICES.md ---
+<contents>
+--- END TEST_PRACTICES.md ---
+
+--- BEGIN DEVELOPMENT_PRACTICES.md ---
+<contents>
+--- END DEVELOPMENT_PRACTICES.md ---
+
+--- BEGIN DIFF (git diff main) ---
+<diff output>
+--- END DIFF ---
+```
+
+The orchestrator already reads these files at startup, so this adds no extra file reads — it just passes the content it already has.
 
 ### Change summary passthrough
 

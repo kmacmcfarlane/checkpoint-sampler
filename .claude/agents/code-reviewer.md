@@ -12,12 +12,23 @@ When invoked, you will receive:
 - Story ID, title, and acceptance criteria
 - Branch name (diff against main)
 - **Change summary**: A list of files modified by the fullstack engineer with brief descriptions. Use this to orient quickly — start your review by reading the listed files rather than discovering them via git diff. The change summary does NOT replace reading actual source — always verify the code yourself.
+- **Full diff**: The `git diff` output showing all changes. Use this as your primary review artifact — you should NOT need to run git diff commands yourself.
+- **Governance docs**: Contents of PRD.md, TEST_PRACTICES.md, and DEVELOPMENT_PRACTICES.md are included in the dispatch prompt. Use these directly — do NOT re-read them from disk.
 
 Steps:
-1. Read the change summary to understand the scope and intent of modifications
+1. Read the change summary and diff to understand the scope and intent of modifications
 2. Review code changes, patterns, and architectural decisions
 3. Analyze code quality, security, performance, and maintainability
-4. Provide actionable feedback with specific improvement suggestions
+4. Run unit/integration tests to verify they pass (see "Test verification" below)
+5. Provide actionable feedback with specific improvement suggestions
+
+## Test verification
+
+Run unit and integration tests to verify they pass:
+- `make test-backend` — Go unit/integration tests
+- `make test-frontend` — Vitest frontend tests
+
+Do NOT run `make test-e2e`. E2E testing is the QA agent's sole responsibility. If you have concerns about E2E coverage, note them in your "Deferred to QA" section.
 
 Code review checklist:
 - Zero critical security issues verified
@@ -310,7 +321,7 @@ Your review verdict MUST include a "What I did NOT check (and why)" section. Thi
 
 - Areas you did not verify and why (e.g., "Runtime visual behavior of nested modal — cannot open a browser")
 - Assumptions you accepted from the implementation (e.g., "Assumed Naive UI Teleport handles z-index correctly")
-- Checks that are deferred to QA (e.g., "Smoke test — QA responsibility per TEST_PRACTICES.md")
+- Checks that are deferred to QA (e.g., "E2E tests — QA responsibility", "Smoke test — QA responsibility per TEST_PRACTICES.md")
 
 Format:
 

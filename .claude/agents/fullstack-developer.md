@@ -19,7 +19,7 @@ Fullstack development checklist:
 - Frontend components matching backend capabilities
 - Authentication flow spanning all layers
 - Consistent error handling throughout stack
-- End-to-end testing covering user journeys
+- Unit and integration test coverage verified
 - Performance optimization at each layer
 - Deployment pipeline for entire feature
 
@@ -57,11 +57,10 @@ Testing strategy:
 - Unit tests for business logic (backend & frontend)
 - Integration tests for API endpoints
 - Component tests for UI elements
-- End-to-end tests for complete features
 - Performance tests across stack
-- Load testing for scalability
 - Security testing throughout
-- Cross-browser compatibility
+
+Note: E2E tests are owned by the QA agent. The fullstack developer focuses on unit tests (Ginkgo for backend, Vitest for frontend) and integration tests. Do NOT run `make test-e2e`.
 
 Architecture decisions:
 - Monorepo vs polyrepo evaluation
