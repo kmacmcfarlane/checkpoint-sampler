@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-040: Test fixture safetensors file triggers EOF parse errors in backend logs
+- Replaced 4 empty (0-byte) test fixture `.safetensors` files with valid 10-byte minimal headers, eliminating EOF parse errors in backend logs during E2E tests
+
 ### B-039: Race condition during test reset causes 'no such column' SQL error
 - Job executor Pause/Resume synchronization prevents SQL errors when test reset endpoint drops and recreates tables
 - BackgroundPauser interface allows test reset to coordinate with any background polling process

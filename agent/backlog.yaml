@@ -762,7 +762,7 @@ stories:
   - id: B-040
     title: "Test fixture safetensors file triggers EOF parse errors in backend logs"
     priority: 40
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:
