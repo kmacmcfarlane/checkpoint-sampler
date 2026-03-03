@@ -62,9 +62,18 @@ const schedulerOptions = computed(() =>
   }))
 )
 
+/**
+ * Format a CFG value as a string, preserving one decimal place for whole numbers.
+ * e.g. 7.0 → '7.0', 7.5 → '7.5', 12 → '12.0'
+ * This matches the floating-point format defined in DEVELOPMENT_PRACTICES section 4.11.
+ */
+function formatCfg(n: number): string {
+  return Number.isInteger(n) ? n.toFixed(1) : String(n)
+}
+
 // String representations for NDynamicTags
 const stepsAsStrings = computed(() => steps.value.map(String))
-const cfgsAsStrings = computed(() => cfgs.value.map(String))
+const cfgsAsStrings = computed(() => cfgs.value.map(formatCfg))
 const seedsAsStrings = computed(() => seeds.value.map(String))
 
 // Input props to restrict entry to digits and '.' only

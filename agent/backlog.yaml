@@ -298,7 +298,7 @@ stories:
   - id: S-067
     title: "Persistence and display polish — Has Samples filter, CFG trailing-zero, workflow preference, slider wrap-around"
     priority: 25
-    status: todo
+    status: uat
     requires: []
     acceptance:
       - "FE: Persist hasSamplesFilter preference in localStorage so it survives page reloads"

@@ -169,4 +169,75 @@ describe('SliderBar', () => {
       expect(slider.props('keyboard')).toBe(false)
     })
   })
+
+  // AC4 (S-067): wrap-around behaviour
+  describe('wrap-around (wrapAround prop)', () => {
+    it('wraps from last to first value on ArrowRight when wrapAround=true', async () => {
+      const wrapper = mountSlider({ currentValue: '2000', wrapAround: true })
+      const container = wrapper.find('.slider-bar')
+      await container.trigger('keydown', { key: 'ArrowRight' })
+
+      const emitted = wrapper.emitted('change')
+      expect(emitted).toBeDefined()
+      expect(emitted).toHaveLength(1)
+      expect(emitted![0]).toEqual(['100'])
+    })
+
+    it('wraps from first to last value on ArrowLeft when wrapAround=true', async () => {
+      const wrapper = mountSlider({ currentValue: '100', wrapAround: true })
+      const container = wrapper.find('.slider-bar')
+      await container.trigger('keydown', { key: 'ArrowLeft' })
+
+      const emitted = wrapper.emitted('change')
+      expect(emitted).toBeDefined()
+      expect(emitted).toHaveLength(1)
+      expect(emitted![0]).toEqual(['2000'])
+    })
+
+    it('wraps from last to first value on ArrowUp when wrapAround=true', async () => {
+      const wrapper = mountSlider({ currentValue: '2000', wrapAround: true })
+      const container = wrapper.find('.slider-bar')
+      await container.trigger('keydown', { key: 'ArrowUp' })
+
+      const emitted = wrapper.emitted('change')
+      expect(emitted).toBeDefined()
+      expect(emitted![0]).toEqual(['100'])
+    })
+
+    it('wraps from first to last value on ArrowDown when wrapAround=true', async () => {
+      const wrapper = mountSlider({ currentValue: '100', wrapAround: true })
+      const container = wrapper.find('.slider-bar')
+      await container.trigger('keydown', { key: 'ArrowDown' })
+
+      const emitted = wrapper.emitted('change')
+      expect(emitted).toBeDefined()
+      expect(emitted![0]).toEqual(['2000'])
+    })
+
+    it('does not wrap when wrapAround is false (default)', async () => {
+      const wrapper = mountSlider({ currentValue: '2000', wrapAround: false })
+      const container = wrapper.find('.slider-bar')
+      await container.trigger('keydown', { key: 'ArrowRight' })
+
+      expect(wrapper.emitted('change')).toBeUndefined()
+    })
+
+    it('does not wrap when wrapAround prop is omitted', async () => {
+      const wrapper = mountSlider({ currentValue: '2000' })
+      const container = wrapper.find('.slider-bar')
+      await container.trigger('keydown', { key: 'ArrowRight' })
+
+      expect(wrapper.emitted('change')).toBeUndefined()
+    })
+
+    it('still navigates middle values normally when wrapAround=true', async () => {
+      const wrapper = mountSlider({ currentValue: '500', wrapAround: true })
+      const container = wrapper.find('.slider-bar')
+      await container.trigger('keydown', { key: 'ArrowRight' })
+
+      const emitted = wrapper.emitted('change')
+      expect(emitted).toBeDefined()
+      expect(emitted![0]).toEqual(['1000'])
+    })
+  })
 })

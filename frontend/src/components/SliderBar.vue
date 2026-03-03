@@ -9,6 +9,11 @@ const props = defineProps<{
   currentValue: string
   /** Label for accessibility (e.g. dimension name). */
   label: string
+  /**
+   * AC4: When true, arrow keys at the boundary wrap around (last → first, first → last).
+   * Matches ImageCell's keyboard navigation behaviour. Defaults to false.
+   */
+  wrapAround?: boolean
 }>()
 
 // change: Emitted when the slider position changes (drag or arrow key). Payload: the new value string from the values array.
@@ -35,12 +40,18 @@ function onKeydown(event: KeyboardEvent) {
     event.stopPropagation()
     if (idx > 0) {
       emit('change', props.values[idx - 1])
+    } else if (props.wrapAround) {
+      // AC4: Wrap around to last value when at the beginning
+      emit('change', props.values[props.values.length - 1])
     }
   } else if (event.key === 'ArrowRight' || event.key === 'ArrowUp') {
     event.preventDefault()
     event.stopPropagation()
     if (idx < props.values.length - 1) {
       emit('change', props.values[idx + 1])
+    } else if (props.wrapAround) {
+      // AC4: Wrap around to first value when at the end
+      emit('change', props.values[0])
     }
   }
 }

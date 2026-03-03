@@ -207,6 +207,18 @@ describe('useGenerateInputsPersistence', () => {
       saveModelInputs('qwen_image', { vae: null, clip: null, shift: null })
       expect(getModelInputs('qwen_image')).toEqual({ vae: null, clip: null, shift: null })
     })
+
+    it('preserves an existing workflowId when saving vae/clip/shift inputs', () => {
+      // Simulate: user picks workflow first (saves workflowId), then changes VAE (saves model inputs).
+      // The workflowId must survive the second save.
+      const { saveWorkflowIdForModelType, saveModelInputs, getWorkflowIdForModelType } =
+        useGenerateInputsPersistence()
+
+      saveWorkflowIdForModelType('qwen_image', 'qwen-image.json')
+      saveModelInputs('qwen_image', { vae: 'ae.safetensors', clip: null, shift: null })
+
+      expect(getWorkflowIdForModelType('qwen_image')).toBe('qwen-image.json')
+    })
   })
 
   // ── getLastTrainingRunId (AC3) ──────────────────────────────────────────
@@ -347,6 +359,186 @@ describe('useGenerateInputsPersistence', () => {
     })
   })
 
+  // ── getHasSamplesFilter (AC1) ───────────────────────────────────────────
+
+  describe('getHasSamplesFilter', () => {
+    it('returns null when storage is empty', () => {
+      const { getHasSamplesFilter } = useGenerateInputsPersistence()
+      expect(getHasSamplesFilter()).toBeNull()
+    })
+
+    it('returns true when stored as true', () => {
+      const state: GenerateInputsState = { lastWorkflowId: null, hasSamplesFilter: true, byModelType: {} }
+      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
+      const { getHasSamplesFilter } = useGenerateInputsPersistence()
+      expect(getHasSamplesFilter()).toBe(true)
+    })
+
+    it('returns false when stored as false', () => {
+      const state: GenerateInputsState = { lastWorkflowId: null, hasSamplesFilter: false, byModelType: {} }
+      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
+      const { getHasSamplesFilter } = useGenerateInputsPersistence()
+      expect(getHasSamplesFilter()).toBe(false)
+    })
+
+    it('returns null when hasSamplesFilter is absent (backward compat)', () => {
+      const state = { lastWorkflowId: null, byModelType: {} }
+      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
+      const { getHasSamplesFilter } = useGenerateInputsPersistence()
+      expect(getHasSamplesFilter()).toBeNull()
+    })
+  })
+
+  // ── saveHasSamplesFilter (AC1) ──────────────────────────────────────────
+
+  describe('saveHasSamplesFilter', () => {
+    it('saves true to localStorage', () => {
+      const { saveHasSamplesFilter, getHasSamplesFilter } = useGenerateInputsPersistence()
+      saveHasSamplesFilter(true)
+      expect(getHasSamplesFilter()).toBe(true)
+    })
+
+    it('saves false to localStorage', () => {
+      const { saveHasSamplesFilter, getHasSamplesFilter } = useGenerateInputsPersistence()
+      saveHasSamplesFilter(false)
+      expect(getHasSamplesFilter()).toBe(false)
+    })
+
+    it('saves null to localStorage', () => {
+      const { saveHasSamplesFilter, getHasSamplesFilter } = useGenerateInputsPersistence()
+      saveHasSamplesFilter(true)
+      saveHasSamplesFilter(null)
+      expect(getHasSamplesFilter()).toBeNull()
+    })
+
+    it('preserves other fields when saving hasSamplesFilter', () => {
+      const state: GenerateInputsState = {
+        lastWorkflowId: 'qwen-image.json',
+        lastTrainingRunId: 5,
+        byModelType: {
+          qwen_image: { vae: 'ae.safetensors', clip: 'clip_l.safetensors', shift: null },
+        },
+      }
+      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
+
+      const { saveHasSamplesFilter, getLastWorkflowId, getLastTrainingRunId } = useGenerateInputsPersistence()
+      saveHasSamplesFilter(true)
+
+      expect(getLastWorkflowId()).toBe('qwen-image.json')
+      expect(getLastTrainingRunId()).toBe(5)
+    })
+  })
+
+  // ── getWorkflowIdForModelType (AC3) ───────────────────────────────────────
+
+  describe('getWorkflowIdForModelType', () => {
+    it('returns null when no entry exists for the given model type', () => {
+      const { getWorkflowIdForModelType } = useGenerateInputsPersistence()
+      expect(getWorkflowIdForModelType('qwen_image')).toBeNull()
+    })
+
+    it('returns null when model type exists but has no workflowId', () => {
+      const state: GenerateInputsState = {
+        lastWorkflowId: null,
+        byModelType: {
+          qwen_image: { vae: 'ae.safetensors', clip: 'clip_l.safetensors', shift: null },
+        },
+      }
+      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
+      const { getWorkflowIdForModelType } = useGenerateInputsPersistence()
+      expect(getWorkflowIdForModelType('qwen_image')).toBeNull()
+    })
+
+    it('returns the stored workflowId for a model type', () => {
+      const state: GenerateInputsState = {
+        lastWorkflowId: null,
+        byModelType: {
+          qwen_image: { vae: 'ae.safetensors', clip: 'clip_l.safetensors', shift: null, workflowId: 'qwen-image.json' },
+        },
+      }
+      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
+      const { getWorkflowIdForModelType } = useGenerateInputsPersistence()
+      expect(getWorkflowIdForModelType('qwen_image')).toBe('qwen-image.json')
+    })
+
+    it('returns null for a different model type', () => {
+      const state: GenerateInputsState = {
+        lastWorkflowId: null,
+        byModelType: {
+          qwen_image: { vae: null, clip: null, shift: null, workflowId: 'qwen-image.json' },
+        },
+      }
+      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
+      const { getWorkflowIdForModelType } = useGenerateInputsPersistence()
+      expect(getWorkflowIdForModelType('aura_flow')).toBeNull()
+    })
+  })
+
+  // ── saveWorkflowIdForModelType (AC3) ────────────────────────────────────────
+
+  describe('saveWorkflowIdForModelType', () => {
+    it('saves a workflow ID for a model type', () => {
+      const { saveWorkflowIdForModelType, getWorkflowIdForModelType } = useGenerateInputsPersistence()
+      saveWorkflowIdForModelType('qwen_image', 'qwen-image.json')
+      expect(getWorkflowIdForModelType('qwen_image')).toBe('qwen-image.json')
+    })
+
+    it('saves null workflow ID for a model type', () => {
+      const { saveWorkflowIdForModelType, getWorkflowIdForModelType } = useGenerateInputsPersistence()
+      saveWorkflowIdForModelType('qwen_image', 'qwen-image.json')
+      saveWorkflowIdForModelType('qwen_image', null)
+      expect(getWorkflowIdForModelType('qwen_image')).toBeNull()
+    })
+
+    it('saves independent workflow IDs for different model types', () => {
+      const { saveWorkflowIdForModelType, getWorkflowIdForModelType } = useGenerateInputsPersistence()
+      saveWorkflowIdForModelType('qwen_image', 'qwen-image.json')
+      saveWorkflowIdForModelType('aura_flow', 'auraflow.json')
+
+      expect(getWorkflowIdForModelType('qwen_image')).toBe('qwen-image.json')
+      expect(getWorkflowIdForModelType('aura_flow')).toBe('auraflow.json')
+    })
+
+    it('preserves existing vae/clip/shift when saving workflow for a model type', () => {
+      const state: GenerateInputsState = {
+        lastWorkflowId: null,
+        byModelType: {
+          qwen_image: { vae: 'ae.safetensors', clip: 'clip_l.safetensors', shift: null },
+        },
+      }
+      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
+
+      const { saveWorkflowIdForModelType, getModelInputs } = useGenerateInputsPersistence()
+      saveWorkflowIdForModelType('qwen_image', 'qwen-image.json')
+
+      const inputs = getModelInputs('qwen_image')
+      expect(inputs?.vae).toBe('ae.safetensors')
+      expect(inputs?.clip).toBe('clip_l.safetensors')
+      expect(inputs?.shift).toBeNull()
+    })
+
+    it('creates a new model type entry when saving workflow for a new model type', () => {
+      const { saveWorkflowIdForModelType, getWorkflowIdForModelType, getModelInputs } = useGenerateInputsPersistence()
+      saveWorkflowIdForModelType('new_model', 'new-workflow.json')
+
+      expect(getWorkflowIdForModelType('new_model')).toBe('new-workflow.json')
+      const inputs = getModelInputs('new_model')
+      expect(inputs?.vae).toBeNull()
+      expect(inputs?.clip).toBeNull()
+      expect(inputs?.shift).toBeNull()
+    })
+
+    it('preserves lastWorkflowId when saving model-type workflow', () => {
+      const state: GenerateInputsState = { lastWorkflowId: 'global.json', byModelType: {} }
+      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
+
+      const { saveWorkflowIdForModelType, getLastWorkflowId } = useGenerateInputsPersistence()
+      saveWorkflowIdForModelType('qwen_image', 'qwen-image.json')
+
+      expect(getLastWorkflowId()).toBe('global.json')
+    })
+  })
+
   // ── validation / corruption handling ──────────────────────────────────────
 
   describe('invalid stored state', () => {
@@ -384,6 +576,27 @@ describe('useGenerateInputsPersistence', () => {
       const { getLastStudyId } = useGenerateInputsPersistence()
       // Should fall back to defaults because validation fails
       expect(getLastStudyId()).toBeNull()
+    })
+
+    it('returns defaults when hasSamplesFilter is wrong type', () => {
+      const state = { lastWorkflowId: null, hasSamplesFilter: 'not-a-boolean', byModelType: {} }
+      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
+      const { getHasSamplesFilter } = useGenerateInputsPersistence()
+      // Should fall back to defaults because validation fails
+      expect(getHasSamplesFilter()).toBeNull()
+    })
+
+    it('returns defaults when byModelType entry has workflowId of wrong type', () => {
+      const state = {
+        lastWorkflowId: null,
+        byModelType: {
+          qwen_image: { vae: null, clip: null, shift: null, workflowId: 42 },
+        },
+      }
+      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
+      const { getWorkflowIdForModelType } = useGenerateInputsPersistence()
+      // Should fall back to defaults because validation fails
+      expect(getWorkflowIdForModelType('qwen_image')).toBeNull()
     })
   })
 })

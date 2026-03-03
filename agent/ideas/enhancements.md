@@ -62,6 +62,12 @@ Show a "3 of 12" or thumbnail strip indicator in the lightbox so the user knows 
 * source: developer
 When the user changes the slider value in the lightbox, the gridImages snapshot could be refreshed so that navigating to adjacent cells shows the correct slider-matched image rather than the state captured at open time.
 
+### Per-model-type workflow restore on training run change
+* status: needs_approval
+* priority: low
+* source: developer
+Currently, `restoreModelInputs` is called when the training run changes (after metadata fetch). If the user opens the dialog and the training run is already known (from restore), the per-model-type workflow won't be applied until after the metadata loads. A future improvement could speculatively apply the per-model-type workflow earlier if the model type is already cached from a previous session.
+
 ### Deprecate `has_samples` query parameter from Goa DSL
 * status: needs_approval
 * priority: very-low

@@ -5,10 +5,17 @@
  *
  * Shape:
  *   {
- *     lastWorkflowId: string | null,
+ *     lastWorkflowId: string | null,      — global fallback; superseded by byModelType[t].workflowId when present
  *     lastTrainingRunId: number | null,
+ *     lastStudyId: string | null,
+ *     hasSamplesFilter: boolean | null,   — optional; null means "not set" (defaults to true in UI)
  *     byModelType: {
- *       [modelType: string]: { vae: string | null, clip: string | null, shift: number | null }
+ *       [modelType: string]: {
+ *         vae: string | null,
+ *         clip: string | null,
+ *         shift: number | null,
+ *         workflowId: string | null,      — per-model-type workflow preference (AC3)
+ *       }
  *     }
  *   }
  *
@@ -24,6 +31,8 @@ export interface PersistedModelInputs {
   vae: string | null
   clip: string | null
   shift: number | null
+  /** Per-model-type workflow preference (AC3). Optional for backward compatibility. */
+  workflowId?: string | null
 }
 
 /** Full shape of the persisted generate-inputs state. */
@@ -31,6 +40,13 @@ export interface GenerateInputsState {
   lastWorkflowId: string | null
   lastTrainingRunId?: number | null
   lastStudyId?: string | null
+  /**
+   * Has-samples filter preference for TrainingRunSelector (AC1).
+   * true = show only runs with samples (default behaviour).
+   * false = show all runs.
+   * null / absent = not set; UI defaults to true.
+   */
+  hasSamplesFilter?: boolean | null
   byModelType: Record<string, PersistedModelInputs>
 }
 
@@ -48,7 +64,7 @@ function loadState(): GenerateInputsState {
 }
 
 function defaultState(): GenerateInputsState {
-  return { lastWorkflowId: null, lastTrainingRunId: null, lastStudyId: null, byModelType: {} }
+  return { lastWorkflowId: null, lastTrainingRunId: null, lastStudyId: null, hasSamplesFilter: null, byModelType: {} }
 }
 
 function isValidState(v: unknown): v is GenerateInputsState {
@@ -60,6 +76,8 @@ function isValidState(v: unknown): v is GenerateInputsState {
   if ('lastTrainingRunId' in obj && obj.lastTrainingRunId !== null && obj.lastTrainingRunId !== undefined && typeof obj.lastTrainingRunId !== 'number') return false
   // lastStudyId is optional (backward-compatible); if present it must be string or null
   if ('lastStudyId' in obj && obj.lastStudyId !== null && obj.lastStudyId !== undefined && typeof obj.lastStudyId !== 'string') return false
+  // hasSamplesFilter is optional (backward-compatible); if present it must be boolean or null
+  if ('hasSamplesFilter' in obj && obj.hasSamplesFilter !== null && obj.hasSamplesFilter !== undefined && typeof obj.hasSamplesFilter !== 'boolean') return false
   if (typeof obj.byModelType !== 'object' || obj.byModelType === null) return false
   for (const entry of Object.values(obj.byModelType as Record<string, unknown>)) {
     if (!isValidModelInputs(entry)) return false
@@ -74,6 +92,8 @@ function isValidModelInputs(v: unknown): v is PersistedModelInputs {
   if (obj.vae !== null && typeof obj.vae !== 'string') return false
   if (obj.clip !== null && typeof obj.clip !== 'string') return false
   if (obj.shift !== null && typeof obj.shift !== 'number') return false
+  // workflowId is optional (backward-compatible); if present it must be string or null
+  if ('workflowId' in obj && obj.workflowId !== null && obj.workflowId !== undefined && typeof obj.workflowId !== 'string') return false
   return true
 }
 
@@ -125,16 +145,61 @@ export function useGenerateInputsPersistence() {
     saveState(state)
   }
 
+  /**
+   * Load the has-samples filter preference (AC1).
+   * Returns null when not set (caller should default to true).
+   */
+  function getHasSamplesFilter(): boolean | null {
+    const state = loadState()
+    return state.hasSamplesFilter ?? null
+  }
+
+  /**
+   * Persist the has-samples filter preference (AC1).
+   * Pass null to clear it (revert to default behaviour).
+   */
+  function saveHasSamplesFilter(value: boolean | null): void {
+    const state = loadState()
+    state.hasSamplesFilter = value
+    saveState(state)
+  }
+
   /** Load the remembered model-type-specific inputs for a given model type key. */
   function getModelInputs(modelType: string): PersistedModelInputs | null {
     const state = loadState()
     return state.byModelType[modelType] ?? null
   }
 
-  /** Persist model-type-specific inputs keyed by model type. */
+  /** Persist model-type-specific inputs keyed by model type.
+   * Merges into the existing entry so that fields not included in `inputs`
+   * (e.g. workflowId saved by a separate call) are preserved.
+   */
   function saveModelInputs(modelType: string, inputs: PersistedModelInputs): void {
     const state = loadState()
-    state.byModelType[modelType] = inputs
+    state.byModelType[modelType] = { ...state.byModelType[modelType], ...inputs }
+    saveState(state)
+  }
+
+  /**
+   * Load the per-model-type workflow preference (AC3).
+   * Returns null when not set for the given model type.
+   */
+  function getWorkflowIdForModelType(modelType: string): string | null {
+    const state = loadState()
+    return state.byModelType[modelType]?.workflowId ?? null
+  }
+
+  /**
+   * Persist the workflow preference for a specific model type (AC3).
+   * Pass null to clear it for that model type.
+   */
+  function saveWorkflowIdForModelType(modelType: string, workflowId: string | null): void {
+    const state = loadState()
+    if (!state.byModelType[modelType]) {
+      state.byModelType[modelType] = { vae: null, clip: null, shift: null, workflowId }
+    } else {
+      state.byModelType[modelType] = { ...state.byModelType[modelType], workflowId }
+    }
     saveState(state)
   }
 
@@ -145,7 +210,11 @@ export function useGenerateInputsPersistence() {
     saveTrainingRunId,
     getLastStudyId,
     saveStudyId,
+    getHasSamplesFilter,
+    saveHasSamplesFilter,
     getModelInputs,
     saveModelInputs,
+    getWorkflowIdForModelType,
+    saveWorkflowIdForModelType,
   }
 }
