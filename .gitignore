@@ -62,3 +62,6 @@ config.yaml
 
 # Claude sandbox local mounts (gitignored; use .claude-sandbox.example.yaml as template)
 .claude-sandbox.yaml
+
+# Backlog tool uses python
+scripts/backlog/__pycache__/
