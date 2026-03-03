@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { mount, flushPromises, type VueWrapper } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { NSelect, NButton } from 'naive-ui'
 import PresetSelector from '../PresetSelector.vue'
@@ -580,7 +580,7 @@ describe('PresetSelector', () => {
       const actionsRow = wrapper.find('.preset-selector__actions')
       expect(actionsRow.exists()).toBe(true)
       const actionButtons = actionsRow.findAllComponents(NButton)
-      const ariaLabels = actionButtons.map((b) => b.attributes('aria-label'))
+      const ariaLabels = actionButtons.map((b: VueWrapper) => b.attributes('aria-label'))
       expect(ariaLabels).toContain('Save preset')
       expect(ariaLabels).toContain('Delete preset')
     })
@@ -592,7 +592,7 @@ describe('PresetSelector', () => {
 
       const topRow = wrapper.find('.preset-selector__top')
       const topButtons = topRow.findAllComponents(NButton)
-      const ariaLabels = topButtons.map((b) => b.attributes('aria-label'))
+      const ariaLabels = topButtons.map((b: VueWrapper) => b.attributes('aria-label'))
       expect(ariaLabels).toContain('New preset')
     })
   })

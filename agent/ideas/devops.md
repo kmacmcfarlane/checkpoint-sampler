@@ -68,3 +68,15 @@ The HTML reporter (added in S-054) writes output to `frontend/playwright-report/
 * priority: low
 * source: developer
 The `./frontend` directory is large (~44 MB sent to Docker daemon per build). Adding a `.dockerignore` (or `frontend/.dockerignore`) to exclude `node_modules`, `dist`, `e2e/test-results`, and other non-essential files from the build context would significantly reduce image build time for all frontend-based images.
+
+### Add vue-tsc --noEmit to CI pre-build step for full type coverage
+* status: needs_approval
+* priority: medium
+* source: developer
+The build runs `vue-tsc -b` but only for `tsconfig.app.json`, excluding test files. Adding a separate CI step that runs `npx vue-tsc --noEmit` (covering all files) would catch type errors in test files on each PR rather than accumulating across stories.
+
+### Fix root-owned dist/assets directory blocking host-side npm run build
+* status: needs_approval
+* priority: low
+* source: qa
+The `frontend/dist/assets/` directory is owned by root from a prior Docker-based build, preventing `npm run build` from completing outside Docker. This should be addressed by either adding `dist/` to `.gitignore` cleanup or fixing the Dockerfile to use the correct UID.

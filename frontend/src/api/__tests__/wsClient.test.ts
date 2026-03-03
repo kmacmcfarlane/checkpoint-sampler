@@ -49,7 +49,7 @@ Object.defineProperty(globalThis, 'WebSocket', {
 
 describe('WSClient', () => {
   let mockInstances: MockWebSocket[]
-  let createWebSocket: (url: string) => MockWebSocket
+  let createWebSocket: (url: string) => WebSocket
 
   beforeEach(() => {
     vi.useFakeTimers()

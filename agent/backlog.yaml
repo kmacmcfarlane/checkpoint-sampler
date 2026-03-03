@@ -725,7 +725,7 @@ stories:
   - id: B-038
     title: "Frontend npm run build fails due to TypeScript type errors in test files"
     priority: 70
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:

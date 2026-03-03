@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-038: Frontend npm run build fails due to TypeScript type errors in test files
+- Fixed ~50 TypeScript errors across 9 frontend files (test files and 2 source components) that caused `vue-tsc` to fail during `npm run build`
+- Added `asVue()` helper in StudyEditor tests for type-safe `findComponent('[data-testid="..."]')` access
+
 ### S-071: nginx config validation and WebSocket header checks in build pipeline
 - Dockerfile nginx stage validates config syntax (`nginx -t`) and required WebSocket proxy headers at build time
 - Standalone `make lint-nginx` target runs the same checks without a running stack

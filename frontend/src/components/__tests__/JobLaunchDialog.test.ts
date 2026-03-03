@@ -95,6 +95,7 @@ const sampleStudies: Study[] = [
   {
     id: 'preset-1',
     name: 'Quick Test',
+    prompt_prefix: '',
     prompts: [{ name: 'test', text: 'a photo' }],
     negative_prompt: 'bad quality',
     steps: [20],
@@ -110,6 +111,7 @@ const sampleStudies: Study[] = [
   {
     id: 'preset-2',
     name: 'Full Test',
+    prompt_prefix: '',
     prompts: [
       { name: 'test1', text: 'a photo' },
       { name: 'test2', text: 'another photo' },
@@ -639,6 +641,7 @@ describe('JobLaunchDialog', () => {
     const newStudy: Study = {
       id: 'preset-new',
       name: 'Newly Created',
+      prompt_prefix: '',
       prompts: [{ name: 'test', text: 'a test' }],
       negative_prompt: '',
       steps: [20],
@@ -773,6 +776,7 @@ describe('JobLaunchDialog', () => {
       const newStudy: Study = {
         id: 'preset-new',
         name: 'Synced Preset',
+        prompt_prefix: '',
         prompts: [{ name: 'test', text: 'a test' }],
         negative_prompt: '',
         steps: [20],
@@ -1405,6 +1409,7 @@ describe('JobLaunchDialog', () => {
       const savedStudy: Study = {
         id: 'preset-1',
         name: 'Quick Test Updated',
+        prompt_prefix: '',
         prompts: [{ name: 'test', text: 'a photo' }],
         negative_prompt: 'bad quality',
         steps: [20],
@@ -1617,6 +1622,7 @@ describe('JobLaunchDialog', () => {
       const newStudy: Study = {
         id: 'preset-new',
         name: 'Brand New Preset',
+        prompt_prefix: '',
         prompts: [{ name: 'test', text: 'a test' }],
         negative_prompt: '',
         steps: [20],

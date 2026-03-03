@@ -777,7 +777,7 @@ describe('ImageLightbox', () => {
     })
 
     it('preloads adjacent slider images on mount', async () => {
-      const imageSpy = vi.spyOn(global, 'Image').mockImplementation(() => {
+      const imageSpy = vi.spyOn(globalThis, 'Image').mockImplementation(() => {
         return { src: '' } as HTMLImageElement
       })
 
@@ -785,7 +785,7 @@ describe('ImageLightbox', () => {
       await flushPromises()
 
       // Current value is '7' (index 1), so adjacent are '3' (index 0) and '15' (index 2)
-      const createdImages = imageSpy.mock.results.map((r) => r.value.src)
+      const createdImages = imageSpy.mock.results.map((r) => (r.value as { src: string }).src)
       expect(createdImages).toContain('/api/images/seed=42&step=500&cfg=3.png')
       expect(createdImages).toContain('/api/images/seed=42&step=500&cfg=15.png')
 

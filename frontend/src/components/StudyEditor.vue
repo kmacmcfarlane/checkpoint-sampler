@@ -365,7 +365,7 @@ function onUpdateSeeds(tags: string[]) {
             v-model:value="prompts"
             :min="1"
             :on-create="createPromptItem"
-            #="{ index, value }"
+            #="{ value }"
           >
             <div class="prompt-row">
               <NInput
@@ -451,7 +451,7 @@ function onUpdateSeeds(tags: string[]) {
             v-model:value="samplerSchedulerPairs"
             :min="0"
             :on-create="createPairItem"
-            :create-button-props="{ 'data-testid': 'pairs-create-button' }"
+            :create-button-props="({ 'data-testid': 'pairs-create-button' } as object)"
             data-testid="sampler-scheduler-pairs"
           >
             <template #default="{ index, value }">
