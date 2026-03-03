@@ -10,12 +10,14 @@ import { GENERATE_INPUTS_STORAGE_KEY } from '../../composables/useGenerateInputs
 vi.mock('../../api/client', () => ({
   apiClient: {
     getTrainingRuns: vi.fn(),
+    validateTrainingRun: vi.fn(),
   },
 }))
 
 import { apiClient } from '../../api/client'
 
 const mockGetTrainingRuns = apiClient.getTrainingRuns as ReturnType<typeof vi.fn>
+const mockValidateTrainingRun = apiClient.validateTrainingRun as ReturnType<typeof vi.fn>
 
 const sampleRuns: TrainingRun[] = [
   {
@@ -67,12 +69,13 @@ describe('TrainingRunSelector', () => {
     vi.clearAllMocks()
   })
 
-  it('renders a label and NSelect component', async () => {
+  // AC1: Renamed label from "Training Run" to "Sample Set"
+  it('renders label "Sample Set" and NSelect component', async () => {
     mockGetTrainingRuns.mockResolvedValue(sampleRuns)
     const wrapper = mount(TrainingRunSelector)
     await flushPromises()
 
-    expect(wrapper.find('label').text()).toBe('Training Run')
+    expect(wrapper.find('label').text()).toBe('Sample Set')
     expect(wrapper.findComponent(NSelect).exists()).toBe(true)
   })
 
@@ -347,6 +350,178 @@ describe('TrainingRunSelector', () => {
 
       // getTrainingRuns was called once on mount; auto-select should not repeat
       expect(mockGetTrainingRuns).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  // AC2: Validate button beneath the Sample Set selector
+  describe('Validate button', () => {
+    it('does not show Validate button when no sample set is selected', async () => {
+      mockGetTrainingRuns.mockResolvedValue(sampleRuns)
+      const wrapper = mount(TrainingRunSelector)
+      await flushPromises()
+
+      const btn = wrapper.find('[data-testid="validate-button"]')
+      expect(btn.exists()).toBe(false)
+    })
+
+    it('shows Validate button when a sample set is selected', async () => {
+      mockGetTrainingRuns.mockResolvedValue(sampleRuns)
+      const wrapper = mount(TrainingRunSelector)
+      await flushPromises()
+
+      // Select a training run
+      const select = wrapper.findComponent(NSelect)
+      select.vm.$emit('update:value', 0)
+      await nextTick()
+
+      const btn = wrapper.find('[data-testid="validate-button"]')
+      expect(btn.exists()).toBe(true)
+    })
+
+    // AC3: Validate triggers the backend validation endpoint
+    it('calls validateTrainingRun API when Validate button is clicked', async () => {
+      mockGetTrainingRuns.mockResolvedValue(sampleRuns)
+      mockValidateTrainingRun.mockResolvedValue({
+        checkpoints: [
+          { checkpoint: 'ckpt1.safetensors', expected: 2, verified: 2, missing: 0 },
+        ],
+      })
+
+      const wrapper = mount(TrainingRunSelector)
+      await flushPromises()
+
+      // Select a training run
+      const select = wrapper.findComponent(NSelect)
+      select.vm.$emit('update:value', 0)
+      await nextTick()
+
+      // Click validate
+      const btn = wrapper.find('[data-testid="validate-button"]')
+      await btn.trigger('click')
+      await flushPromises()
+
+      expect(mockValidateTrainingRun).toHaveBeenCalledWith(0)
+    })
+
+    // AC6: Display validation results inline (per-checkpoint pass/warning status)
+    it('displays validation results with pass status', async () => {
+      mockGetTrainingRuns.mockResolvedValue(sampleRuns)
+      mockValidateTrainingRun.mockResolvedValue({
+        checkpoints: [
+          { checkpoint: 'model-step00001000.safetensors', expected: 3, verified: 3, missing: 0 },
+          { checkpoint: 'model-step00002000.safetensors', expected: 3, verified: 3, missing: 0 },
+        ],
+      })
+
+      const wrapper = mount(TrainingRunSelector)
+      await flushPromises()
+
+      const select = wrapper.findComponent(NSelect)
+      select.vm.$emit('update:value', 0)
+      await nextTick()
+
+      const btn = wrapper.find('[data-testid="validate-button"]')
+      await btn.trigger('click')
+      await flushPromises()
+
+      const results = wrapper.find('[data-testid="validation-results"]')
+      expect(results.exists()).toBe(true)
+
+      // Both checkpoints should show pass (checkmark)
+      const checkpoints = results.findAll('.validation-checkpoint')
+      expect(checkpoints).toHaveLength(2)
+
+      // Check the first checkpoint shows pass icon (green inline style) and count
+      const firstCp = checkpoints[0]
+      const passIcon = firstCp.find('.validation-status-icon')
+      expect(passIcon.attributes('style')).toContain('color')
+      expect(firstCp.find('.validation-checkpoint-counts').text()).toBe('3/3')
+    })
+
+    it('displays validation results with warning status for missing files', async () => {
+      mockGetTrainingRuns.mockResolvedValue(sampleRuns)
+      mockValidateTrainingRun.mockResolvedValue({
+        checkpoints: [
+          { checkpoint: 'model-step00001000.safetensors', expected: 3, verified: 3, missing: 0 },
+          { checkpoint: 'model-step00002000.safetensors', expected: 3, verified: 1, missing: 2 },
+        ],
+      })
+
+      const wrapper = mount(TrainingRunSelector)
+      await flushPromises()
+
+      const select = wrapper.findComponent(NSelect)
+      select.vm.$emit('update:value', 0)
+      await nextTick()
+
+      const btn = wrapper.find('[data-testid="validate-button"]')
+      await btn.trigger('click')
+      await flushPromises()
+
+      const results = wrapper.find('[data-testid="validation-results"]')
+      expect(results.exists()).toBe(true)
+
+      const checkpoints = results.findAll('.validation-checkpoint')
+      expect(checkpoints).toHaveLength(2)
+
+      // First checkpoint: pass (green inline style)
+      const passIcon = checkpoints[0].find('.validation-status-icon')
+      expect(passIcon.attributes('style')).toContain('color')
+
+      // Second checkpoint: warning
+      expect(checkpoints[1].find('.validation-status-icon--warning').exists()).toBe(true)
+      expect(checkpoints[1].find('.validation-checkpoint-counts').text()).toBe('1/3')
+      expect(checkpoints[1].classes()).toContain('validation-checkpoint--warning')
+    })
+
+    it('displays validation error when API call fails', async () => {
+      mockGetTrainingRuns.mockResolvedValue(sampleRuns)
+      mockValidateTrainingRun.mockRejectedValue({ code: 'VALIDATION_FAILED', message: 'Disk error' })
+
+      const wrapper = mount(TrainingRunSelector)
+      await flushPromises()
+
+      const select = wrapper.findComponent(NSelect)
+      select.vm.$emit('update:value', 0)
+      await nextTick()
+
+      const btn = wrapper.find('[data-testid="validate-button"]')
+      await btn.trigger('click')
+      await flushPromises()
+
+      const errorEl = wrapper.find('[data-testid="validation-error"]')
+      expect(errorEl.exists()).toBe(true)
+      expect(errorEl.text()).toBe('Disk error')
+    })
+
+    it('clears validation results when a different sample set is selected', async () => {
+      mockGetTrainingRuns.mockResolvedValue(sampleRuns)
+      mockValidateTrainingRun.mockResolvedValue({
+        checkpoints: [
+          { checkpoint: 'ckpt.safetensors', expected: 1, verified: 1, missing: 0 },
+        ],
+      })
+
+      const wrapper = mount(TrainingRunSelector)
+      await flushPromises()
+
+      // Select first run and validate
+      const select = wrapper.findComponent(NSelect)
+      select.vm.$emit('update:value', 0)
+      await nextTick()
+
+      const btn = wrapper.find('[data-testid="validate-button"]')
+      await btn.trigger('click')
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="validation-results"]').exists()).toBe(true)
+
+      // Switch to a different run
+      select.vm.$emit('update:value', 1)
+      await nextTick()
+
+      // Results should be cleared
+      expect(wrapper.find('[data-testid="validation-results"]').exists()).toBe(false)
     })
   })
 })

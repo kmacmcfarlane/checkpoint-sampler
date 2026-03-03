@@ -135,7 +135,8 @@ func run() error {
 	// Create service implementations
 	healthSvc := api.NewHealthService()
 	docsSvc := api.NewDocsService(spec)
-	trainingRunsSvc := api.NewTrainingRunsService(viewerDiscovery, scanner, watcher)
+	validationSvc := service.NewValidationService(fs, cfg.SampleDir, logger)
+	trainingRunsSvc := api.NewTrainingRunsService(viewerDiscovery, scanner, validationSvc, watcher)
 	presetSvc := service.NewPresetService(st, logger)
 	presetsSvc := api.NewPresetsService(presetSvc)
 	studySvc := service.NewStudyService(st, logger)

@@ -55,8 +55,8 @@ test.describe('training run selection and XY grid display', () => {
     await page.goto('/')
 
     // The drawer opens automatically on wide screens (>= 1024px).
-    // Ensure the Training Run label is visible in the drawer.
-    await expect(page.getByText('Training Run', { exact: true })).toBeVisible()
+    // Ensure the Sample Set label is visible in the drawer (renamed from "Training Run" in S-083).
+    await expect(page.getByText('Sample Set', { exact: true })).toBeVisible()
 
     // Select the fixture training run
     await selectTrainingRun(page, 'my-model')

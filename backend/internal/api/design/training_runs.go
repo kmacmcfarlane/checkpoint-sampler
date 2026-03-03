@@ -24,6 +24,25 @@ var _ = Service("training_runs", func() {
 		})
 	})
 
+	Method("validate", func() {
+		Description("Validate sample set completeness for a training run by comparing PNG file counts per checkpoint")
+		Payload(func() {
+			Attribute("id", Int, "Training run index (zero-based)", func() {
+				Minimum(0)
+			})
+			Required("id")
+		})
+		Result(ValidationResultResponse)
+		Error("not_found", ErrorResult, "Training run not found")
+		Error("validation_failed", ErrorResult, "Validation operation failed")
+		HTTP(func() {
+			POST("/api/training-runs/{id}/validate")
+			Response(StatusOK)
+			Response("not_found", StatusNotFound)
+			Response("validation_failed", StatusInternalServerError)
+		})
+	})
+
 	Method("scan", func() {
 		Description("Scan a training run's sample directories and return image metadata with discovered dimensions")
 		Payload(func() {
@@ -111,4 +130,27 @@ var DimensionResponse = Type("DimensionResponse", func() {
 		Example([]string{"4500", "4750", "5000"})
 	})
 	Required("name", "type", "values")
+})
+
+var ValidationResultResponse = Type("ValidationResultResponse", func() {
+	Description("Result of validating sample set completeness for a training run")
+	Attribute("checkpoints", ArrayOf(CheckpointCompletenessResponse), "Per-checkpoint completeness counts")
+	Required("checkpoints")
+})
+
+var CheckpointCompletenessResponse = Type("CheckpointCompletenessResponse", func() {
+	Description("Completeness info for a single checkpoint's sample directory")
+	Attribute("checkpoint", String, "Checkpoint filename", func() {
+		Example("model-step00001000.safetensors")
+	})
+	Attribute("expected", Int, "Expected number of sample images (max count across all checkpoints)", func() {
+		Example(54)
+	})
+	Attribute("verified", Int, "Number of sample images found on disk", func() {
+		Example(54)
+	})
+	Attribute("missing", Int, "Number of missing sample images (expected - verified)", func() {
+		Example(0)
+	})
+	Required("checkpoint", "expected", "verified", "missing")
 })

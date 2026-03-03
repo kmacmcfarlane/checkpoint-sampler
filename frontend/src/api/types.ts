@@ -260,6 +260,11 @@ export interface CheckpointCompletenessInfo {
   missing: number
 }
 
+/** Result of validating sample set completeness for a training run. */
+export interface ValidationResult {
+  checkpoints: CheckpointCompletenessInfo[]
+}
+
 /** WebSocket inference progress event (per-node progress from ComfyUI). */
 export interface InferenceProgressMessage {
   type: 'inference_progress'

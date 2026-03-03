@@ -88,7 +88,7 @@ var _ = Describe("TrainingRunsService", func() {
 			viewerFS.subdirs[sampleDir] = []string{}
 			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
-			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, nil)
+			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, nil, nil)
 
 			result, err := svc.List(context.Background(), &gentrainingruns.ListPayload{HasSamples: false})
 
@@ -104,7 +104,7 @@ var _ = Describe("TrainingRunsService", func() {
 			}
 			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
-			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, nil)
+			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, nil, nil)
 
 			result, err := svc.List(context.Background(), &gentrainingruns.ListPayload{HasSamples: false})
 
@@ -124,7 +124,7 @@ var _ = Describe("TrainingRunsService", func() {
 			}
 			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
-			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, nil)
+			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, nil, nil)
 
 			result, err := svc.List(context.Background(), &gentrainingruns.ListPayload{HasSamples: false})
 
@@ -147,7 +147,7 @@ var _ = Describe("TrainingRunsService", func() {
 			}
 			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
-			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, nil)
+			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, nil, nil)
 
 			// has_samples=true should not filter anything — all runs have samples
 			result, err := svc.List(context.Background(), &gentrainingruns.ListPayload{HasSamples: true})
@@ -167,7 +167,7 @@ var _ = Describe("TrainingRunsService", func() {
 			}
 			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
-			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, nil)
+			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, nil, nil)
 
 			result, err := svc.List(context.Background(), &gentrainingruns.ListPayload{HasSamples: false})
 
@@ -185,7 +185,7 @@ var _ = Describe("TrainingRunsService", func() {
 			}
 			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
-			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, nil)
+			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, nil, nil)
 
 			_, err := svc.Scan(context.Background(), &gentrainingruns.ScanPayload{ID: 5})
 
@@ -199,7 +199,7 @@ var _ = Describe("TrainingRunsService", func() {
 			}
 			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
-			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, nil)
+			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, nil, nil)
 
 			_, err := svc.Scan(context.Background(), &gentrainingruns.ScanPayload{ID: -1})
 
@@ -212,7 +212,7 @@ var _ = Describe("TrainingRunsService", func() {
 			}
 			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
-			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, nil)
+			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, nil, nil)
 
 			scanFS.files[sampleDir+"/model-step00001000.safetensors"] = []string{
 				"seed=1&cfg=3&_00001_.png",
@@ -233,7 +233,7 @@ var _ = Describe("TrainingRunsService", func() {
 			}
 			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
-			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, nil)
+			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, nil, nil)
 
 			// The scanner should look at /samples/my-study/model-step00001000.safetensors/
 			scanFS.files[sampleDir+"/my-study/model-step00001000.safetensors"] = []string{
@@ -252,7 +252,7 @@ var _ = Describe("TrainingRunsService", func() {
 			}
 			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
-			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, nil)
+			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, nil, nil)
 
 			scanFS.errs[sampleDir+"/model-step00001000.safetensors"] = fmt.Errorf("disk error")
 
@@ -269,7 +269,7 @@ var _ = Describe("TrainingRunsService", func() {
 			}
 			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
-			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, nil)
+			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, nil, nil)
 
 			scanFS.files[sampleDir+"/model-step00001000.safetensors"] = []string{
 				"seed=42&_00001_.png",
@@ -290,6 +290,105 @@ var _ = Describe("TrainingRunsService", func() {
 			Expect(dimMap["checkpoint"].Type).To(Equal("int"))
 			Expect(dimMap["checkpoint"].Values).To(Equal([]string{"1000", "2000"}))
 			Expect(dimMap["seed"].Type).To(Equal("int"))
+		})
+	})
+
+	Describe("Validate", func() {
+		// AC3: API endpoint to trigger validation of a selected sample set on demand
+		It("returns not_found for invalid training run ID", func() {
+			viewerFS.subdirs[sampleDir] = []string{
+				"model.safetensors",
+			}
+			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
+			scanner = service.NewScanner(scanFS, sampleDir, logger)
+			validator := service.NewValidationService(scanFS, sampleDir, logger)
+			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, validator, nil)
+
+			_, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{ID: 5})
+
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("not found"))
+		})
+
+		// AC4: Validation reuses completeness-check logic against the selected sample set directory
+		// AC5: Validation results returned to the frontend (per-checkpoint completeness counts)
+		It("returns per-checkpoint completeness when all are complete", func() {
+			viewerFS.subdirs[sampleDir] = []string{
+				"model-step00001000.safetensors",
+				"model-step00002000.safetensors",
+			}
+			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
+			scanner = service.NewScanner(scanFS, sampleDir, logger)
+			validator := service.NewValidationService(scanFS, sampleDir, logger)
+			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, validator, nil)
+
+			scanFS.files[sampleDir+"/model-step00001000.safetensors"] = []string{
+				"seed=42&_00001_.png",
+				"seed=43&_00001_.png",
+			}
+			scanFS.files[sampleDir+"/model-step00002000.safetensors"] = []string{
+				"seed=42&_00001_.png",
+				"seed=43&_00001_.png",
+			}
+
+			result, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{ID: 0})
+
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Checkpoints).To(HaveLen(2))
+			Expect(result.Checkpoints[0].Expected).To(Equal(2))
+			Expect(result.Checkpoints[0].Verified).To(Equal(2))
+			Expect(result.Checkpoints[0].Missing).To(Equal(0))
+			Expect(result.Checkpoints[1].Missing).To(Equal(0))
+		})
+
+		It("returns per-checkpoint completeness with missing files", func() {
+			viewerFS.subdirs[sampleDir] = []string{
+				"model-step00001000.safetensors",
+				"model-step00002000.safetensors",
+			}
+			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
+			scanner = service.NewScanner(scanFS, sampleDir, logger)
+			validator := service.NewValidationService(scanFS, sampleDir, logger)
+			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, validator, nil)
+
+			scanFS.files[sampleDir+"/model-step00001000.safetensors"] = []string{
+				"seed=42&_00001_.png",
+				"seed=43&_00001_.png",
+			}
+			// Second checkpoint has fewer files
+			scanFS.files[sampleDir+"/model-step00002000.safetensors"] = []string{
+				"seed=42&_00001_.png",
+			}
+
+			result, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{ID: 0})
+
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Checkpoints).To(HaveLen(2))
+			Expect(result.Checkpoints[0].Missing).To(Equal(0))
+			Expect(result.Checkpoints[1].Missing).To(Equal(1))
+		})
+
+		It("auto-derives study name for study-scoped runs", func() {
+			viewerFS.subdirs[sampleDir] = []string{"my-study"}
+			viewerFS.subdirs[sampleDir+"/my-study"] = []string{
+				"model-step00001000.safetensors",
+			}
+			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
+			scanner = service.NewScanner(scanFS, sampleDir, logger)
+			validator := service.NewValidationService(scanFS, sampleDir, logger)
+			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, validator, nil)
+
+			scanFS.files[sampleDir+"/my-study/model-step00001000.safetensors"] = []string{
+				"seed=42&_00001_.png",
+			}
+
+			result, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{ID: 0})
+
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Checkpoints).To(HaveLen(1))
+			Expect(result.Checkpoints[0].Expected).To(Equal(1))
+			Expect(result.Checkpoints[0].Verified).To(Equal(1))
+			Expect(result.Checkpoints[0].Missing).To(Equal(0))
 		})
 	})
 })

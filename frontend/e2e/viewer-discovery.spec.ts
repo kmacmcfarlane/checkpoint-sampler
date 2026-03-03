@@ -47,8 +47,8 @@ test.describe('viewer-driven discovery (S-081)', () => {
   test('no has-samples checkbox exists in the training run selector', async ({ page }) => {
     await page.goto('/')
 
-    // Wait for the drawer to be visible with the training run selector
-    await expect(page.getByText('Training Run', { exact: true })).toBeVisible()
+    // Wait for the drawer to be visible with the sample set selector (renamed from "Training Run" in S-083)
+    await expect(page.getByText('Sample Set', { exact: true })).toBeVisible()
 
     // There should be no checkbox with "Has Samples" text or a has-samples data-testid
     await expect(page.locator('[data-testid="has-samples-checkbox"]')).toHaveCount(0)
