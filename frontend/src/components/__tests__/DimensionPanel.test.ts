@@ -11,24 +11,45 @@ const sampleDimensions: ScanDimension[] = [
   { name: 'prompt_name', type: 'string', values: ['landscape', 'portrait'] },
 ]
 
-function makeAssignments(
+/** A mixed set where 'cfg' has only one value — it should be sorted to the bottom. */
+const dimensionsWithSingleValue: ScanDimension[] = [
+  { name: 'step', type: 'int', values: ['500', '1000', '1500'] },
+  { name: 'cfg', type: 'int', values: ['7'] },
+  { name: 'seed', type: 'int', values: ['42', '123'] },
+]
+
+function makeAssignmentsFor(
+  dims: ScanDimension[],
   overrides: Record<string, DimensionRole> = {}
 ): Map<string, DimensionRole> {
   const map = new Map<string, DimensionRole>()
-  for (const dim of sampleDimensions) {
+  for (const dim of dims) {
     map.set(dim.name, overrides[dim.name] ?? 'none')
   }
   return map
 }
 
-function makeFilterModes(
+function makeFilterModesFor(
+  dims: ScanDimension[],
   overrides: Record<string, FilterMode> = {}
 ): Map<string, FilterMode> {
   const map = new Map<string, FilterMode>()
-  for (const dim of sampleDimensions) {
+  for (const dim of dims) {
     map.set(dim.name, overrides[dim.name] ?? 'hide')
   }
   return map
+}
+
+function makeAssignments(
+  overrides: Record<string, DimensionRole> = {}
+): Map<string, DimensionRole> {
+  return makeAssignmentsFor(sampleDimensions, overrides)
+}
+
+function makeFilterModes(
+  overrides: Record<string, FilterMode> = {}
+): Map<string, FilterMode> {
+  return makeFilterModesFor(sampleDimensions, overrides)
 }
 
 describe('DimensionPanel', () => {
@@ -215,5 +236,134 @@ describe('DimensionPanel', () => {
     const selects = wrapper.findAllComponents(NSelect)
     expect(selects[1].attributes('aria-label')).toBe('Filter mode for step')
     expect(selects[3].attributes('aria-label')).toBe('Filter mode for seed')
+  })
+
+  describe('single-value dimension behavior', () => {
+    it('sorts single-value dimensions to the bottom of the list', () => {
+      const wrapper = mount(DimensionPanel, {
+        props: {
+          dimensions: dimensionsWithSingleValue,
+          assignments: makeAssignmentsFor(dimensionsWithSingleValue),
+          filterModes: makeFilterModesFor(dimensionsWithSingleValue),
+        },
+      })
+
+      // Input order: step (multi), cfg (single), seed (multi)
+      // Expected sorted order: step, seed (multi-value first), then cfg (single-value last)
+      const names = wrapper.findAll('.dimension-name')
+      expect(names[0].text()).toBe('step')
+      expect(names[1].text()).toBe('seed')
+      expect(names[2].text()).toBe('cfg')
+    })
+
+    it('applies dimension-row--disabled class to single-value dimensions', () => {
+      const wrapper = mount(DimensionPanel, {
+        props: {
+          dimensions: dimensionsWithSingleValue,
+          assignments: makeAssignmentsFor(dimensionsWithSingleValue),
+          filterModes: makeFilterModesFor(dimensionsWithSingleValue),
+        },
+      })
+
+      const rows = wrapper.findAll('.dimension-row')
+      // After sorting: step (index 0), seed (index 1) are multi-value; cfg (index 2) is single-value
+      expect(rows[0].classes()).not.toContain('dimension-row--disabled')
+      expect(rows[1].classes()).not.toContain('dimension-row--disabled')
+      expect(rows[2].classes()).toContain('dimension-row--disabled')
+    })
+
+    it('disables the role select for single-value dimensions', () => {
+      const wrapper = mount(DimensionPanel, {
+        props: {
+          dimensions: dimensionsWithSingleValue,
+          assignments: makeAssignmentsFor(dimensionsWithSingleValue),
+          filterModes: makeFilterModesFor(dimensionsWithSingleValue),
+        },
+      })
+
+      const selects = wrapper.findAllComponents(NSelect)
+      // After sorting: step (role=0, filter=1), seed (role=2, filter=3), cfg (role=4, filter=5)
+      expect(selects[0].props('disabled')).toBe(false) // step role — multi-value, enabled
+      expect(selects[2].props('disabled')).toBe(false) // seed role — multi-value, enabled
+      expect(selects[4].props('disabled')).toBe(true)  // cfg role — single-value, disabled
+    })
+
+    it('does not disable the filter mode select for single-value dimensions', () => {
+      const wrapper = mount(DimensionPanel, {
+        props: {
+          dimensions: dimensionsWithSingleValue,
+          assignments: makeAssignmentsFor(dimensionsWithSingleValue),
+          filterModes: makeFilterModesFor(dimensionsWithSingleValue),
+        },
+      })
+
+      const selects = wrapper.findAllComponents(NSelect)
+      // After sorting: cfg is at index 2, its filter mode select is at index 5
+      // cfg has a single value but its role is 'none' so filter mode should NOT be disabled
+      expect(selects[5].props('disabled')).toBe(false)
+    })
+
+    it('preserves multi-value dimension order relative to each other', () => {
+      const dims: ScanDimension[] = [
+        { name: 'prompt', type: 'string', values: ['a', 'b'] },
+        { name: 'fixed_lora', type: 'string', values: ['v1'] },
+        { name: 'step', type: 'int', values: ['500', '1000'] },
+        { name: 'fixed_cfg', type: 'int', values: ['7'] },
+        { name: 'seed', type: 'int', values: ['42', '99'] },
+      ]
+      const wrapper = mount(DimensionPanel, {
+        props: {
+          dimensions: dims,
+          assignments: makeAssignmentsFor(dims),
+          filterModes: makeFilterModesFor(dims),
+        },
+      })
+
+      const names = wrapper.findAll('.dimension-name')
+      // Multi-value first (original relative order): prompt, step, seed
+      // Single-value last (original relative order): fixed_lora, fixed_cfg
+      expect(names[0].text()).toBe('prompt')
+      expect(names[1].text()).toBe('step')
+      expect(names[2].text()).toBe('seed')
+      expect(names[3].text()).toBe('fixed_lora')
+      expect(names[4].text()).toBe('fixed_cfg')
+    })
+
+    it('sorts dynamically when dimensions prop changes', async () => {
+      const initialDims: ScanDimension[] = [
+        { name: 'step', type: 'int', values: ['500', '1000'] },
+        { name: 'cfg', type: 'int', values: ['7'] },
+      ]
+      const wrapper = mount(DimensionPanel, {
+        props: {
+          dimensions: initialDims,
+          assignments: makeAssignmentsFor(initialDims),
+          filterModes: makeFilterModesFor(initialDims),
+        },
+      })
+
+      // Initially cfg is single-value (1 value) → sorted to bottom
+      let names = wrapper.findAll('.dimension-name')
+      expect(names[0].text()).toBe('step')
+      expect(names[1].text()).toBe('cfg')
+
+      // Update: cfg gains a second value → now multi-value → reverts to original order
+      const updatedDims: ScanDimension[] = [
+        { name: 'step', type: 'int', values: ['500', '1000'] },
+        { name: 'cfg', type: 'int', values: ['7', '3.5'] },
+      ]
+      await wrapper.setProps({
+        dimensions: updatedDims,
+        assignments: makeAssignmentsFor(updatedDims),
+        filterModes: makeFilterModesFor(updatedDims),
+      })
+      await nextTick()
+
+      names = wrapper.findAll('.dimension-name')
+      // Both are multi-value now; original order is step, cfg
+      expect(names[0].text()).toBe('step')
+      expect(names[1].text()).toBe('cfg')
+      expect(wrapper.findAll('.dimension-row--disabled')).toHaveLength(0)
+    })
   })
 })

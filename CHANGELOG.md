@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-080: Disable and sort single-value dimensions to bottom
+- Dimensions with only one unique value are sorted to the bottom of DimensionPanel and visually greyed out with disabled role assignment
+- Filter mode remains settable on single-value dimensions; sorting updates reactively on training run change
+
 ### B-041: ComfyUI mock E2E tests fail intermittently due to WebSocket timing and job executor 'item not found' errors
 - Job executor Pause() now clears active state (job/item/prompt IDs) to prevent stale DB references after test reset
 - WebSocket event handler discards events while paused; item-not-found logged at warn level instead of error

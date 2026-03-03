@@ -22,7 +22,10 @@ import { resetDatabase } from './helpers'
  *
  * Test fixture data:
  *   - Training run: "my-model"
- *   - Dimensions: cfg, checkpoint, prompt_name, seed
+ *   - Dimensions: cfg (single-value, disabled), checkpoint (multi-value),
+ *     prompt_name (multi-value), seed (single-value, disabled)
+ *   - S-080: single-value dimensions have their role select disabled,
+ *     so tests must use multi-value dimensions (checkpoint, prompt_name)
  */
 
 /**
@@ -104,8 +107,9 @@ test.describe('sidebar PresetSelector New/Save/Delete workflow', () => {
     const saveButton = page.locator('[aria-label="Save preset"]')
     await expect(saveButton).toBeDisabled()
 
-    // Assign a dimension to X axis (this modifies assignments, making it dirty)
-    await assignDimensionRole(page, 'cfg', 'X Axis')
+    // Assign a multi-value dimension to X axis (this modifies assignments, making it dirty)
+    // Note: cfg and seed are single-value dimensions and have their role select disabled (S-080)
+    await assignDimensionRole(page, 'checkpoint', 'X Axis')
 
     // Save should now be enabled (dirty)
     await expect(saveButton).toBeEnabled()
@@ -120,8 +124,8 @@ test.describe('sidebar PresetSelector New/Save/Delete workflow', () => {
     const newButton = page.locator('[aria-label="New preset"]')
     await newButton.click()
 
-    // Assign dimensions to make it dirty
-    await assignDimensionRole(page, 'cfg', 'X Axis')
+    // Assign multi-value dimensions to make it dirty (S-080: single-value dims are disabled)
+    await assignDimensionRole(page, 'checkpoint', 'X Axis')
     await assignDimensionRole(page, 'prompt_name', 'Y Axis')
 
     // Save should be enabled
@@ -162,10 +166,10 @@ test.describe('sidebar PresetSelector New/Save/Delete workflow', () => {
   test('deletes a selected preset', async ({ page }) => {
     const presetName = `E2E Delete Sidebar ${Date.now()}`
 
-    // Create a preset first
+    // Create a preset first (use multi-value dimension; S-080 disables single-value role selects)
     const newButton = page.locator('[aria-label="New preset"]')
     await newButton.click()
-    await assignDimensionRole(page, 'cfg', 'X Axis')
+    await assignDimensionRole(page, 'checkpoint', 'X Axis')
 
     page.on('dialog', async (dialog) => {
       if (dialog.type() === 'prompt') {
@@ -203,10 +207,10 @@ test.describe('sidebar PresetSelector New/Save/Delete workflow', () => {
   test('clicking New clears the current preset selection', async ({ page }) => {
     const presetName = `E2E Clear Selection ${Date.now()}`
 
-    // Create and save a preset
+    // Create and save a preset (use multi-value dimension; S-080 disables single-value role selects)
     const newButton = page.locator('[aria-label="New preset"]')
     await newButton.click()
-    await assignDimensionRole(page, 'cfg', 'X Axis')
+    await assignDimensionRole(page, 'checkpoint', 'X Axis')
 
     page.on('dialog', async (dialog) => {
       if (dialog.type() === 'prompt') {

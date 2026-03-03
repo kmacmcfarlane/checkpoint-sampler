@@ -138,15 +138,17 @@ test.describe('debug mode overlay', () => {
   })
 
   // AC2: Debug overlay shows slider value when slider dimension is assigned
+  // Note: S-080 disables role assignment for single-value dimensions (cfg, seed).
+  // Use prompt_name as Slider since it has multiple values.
   test('debug overlay shows slider value when slider dimension is assigned', async ({ page }) => {
     await page.goto('/')
     await selectTrainingRun(page, 'my-model')
     await expect(page.getByText('Dimensions')).toBeVisible()
 
-    // Assign axes with a slider dimension
+    // Assign axes: checkpoint -> X, prompt_name -> Slider (both multi-value)
+    // S-080: cfg and seed are single-value and have disabled role selects
     await selectNaiveOption(page, 'Role for checkpoint', 'X Axis')
-    await selectNaiveOption(page, 'Role for prompt_name', 'Y Axis')
-    await selectNaiveOption(page, 'Role for cfg', 'Slider')
+    await selectNaiveOption(page, 'Role for prompt_name', 'Slider')
 
     // Wait for grid
     await expect(page.locator('.xy-grid [role="gridcell"]').first()).toBeVisible()
@@ -163,7 +165,7 @@ test.describe('debug mode overlay', () => {
 
     const sliderValue = firstOverlay.locator('[data-testid="debug-slider-value"]')
     await expect(sliderValue).toBeVisible()
-    await expect(sliderValue).toContainText('cfg:')
+    await expect(sliderValue).toContainText('prompt_name:')
   })
 
   // AC3: Debug overlay does not interfere with image click/lightbox interaction

@@ -663,7 +663,7 @@ stories:
   - id: S-080
     title: "Disable and sort single-value dimensions to bottom"
     priority: 14
-    status: todo
+    status: uat
     requires: []
     acceptance:
       - "FE: Dimensions with only one unique value are sorted to the bottom of the DimensionPanel list"

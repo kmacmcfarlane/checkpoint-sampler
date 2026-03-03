@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { NSelect } from 'naive-ui'
 import type { DimensionRole, FilterMode, ScanDimension } from '../api/types'
 
@@ -27,6 +28,21 @@ const filterModeOptions = [
   { value: 'single', label: 'Single' },
   { value: 'multi', label: 'Multi' },
 ]
+
+/** Returns true when the dimension has only one unique value and therefore
+ *  provides no variation. Single-value dimensions are sorted to the bottom
+ *  of the list and their role selects are disabled. */
+function isSingleValue(dim: ScanDimension): boolean {
+  return dim.values.length <= 1
+}
+
+/** Dimensions sorted so that single-value dimensions appear at the bottom.
+ *  Within each group the original order from the backend is preserved. */
+const sortedDimensions = computed<ScanDimension[]>(() => {
+  const multi = props.dimensions.filter((d) => !isSingleValue(d))
+  const single = props.dimensions.filter((d) => isSingleValue(d))
+  return [...multi, ...single]
+})
 
 function onRoleChange(dimensionName: string, value: string | null) {
   if (value !== null) {
@@ -61,14 +77,17 @@ function isFilterModeDisabled(dimensionName: string): boolean {
     <h3>Dimensions</h3>
     <div class="dimension-list">
       <div
-        v-for="dim in dimensions"
+        v-for="dim in sortedDimensions"
         :key="dim.name"
         class="dimension-row"
+        :class="{ 'dimension-row--disabled': isSingleValue(dim) }"
+        :data-testid="`dimension-row-${dim.name}`"
       >
         <span class="dimension-name">{{ dim.name }}</span>
         <NSelect
           :value="getRole(dim.name)"
           :options="roleOptions"
+          :disabled="isSingleValue(dim)"
           size="small"
           class="dimension-role-select"
           :aria-label="`Role for ${dim.name}`"
@@ -137,5 +156,13 @@ function isFilterModeDisabled(dimensionName: string): boolean {
 .dimension-values {
   color: var(--text-secondary);
   font-size: 0.75rem;
+}
+
+.dimension-row--disabled {
+  opacity: 0.45;
+}
+
+.dimension-row--disabled .dimension-name {
+  color: var(--text-secondary);
 }
 </style>
