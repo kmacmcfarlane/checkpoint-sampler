@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-041: ComfyUI mock E2E tests fail intermittently due to WebSocket timing and job executor 'item not found' errors
+- Job executor Pause() now clears active state (job/item/prompt IDs) to prevent stale DB references after test reset
+- WebSocket event handler discards events while paused; item-not-found logged at warn level instead of error
+
 ### S-083: On-demand dataset validation from viewer controls
 - "Training Run" selector renamed to "Sample Set" in the controls slide-out
 - New `POST /api/training-runs/{id}/validate` endpoint reuses S-075 completeness-check logic to report per-checkpoint verified/expected/missing counts

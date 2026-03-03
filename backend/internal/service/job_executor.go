@@ -232,8 +232,13 @@ func (e *JobExecutor) Stop() {
 
 // Pause temporarily suspends the executor's database polling loop.
 // While paused, processNextItem returns immediately without querying the
-// database. This is used by the test reset endpoint to prevent SQL errors
-// during table drop/recreate.
+// database. WebSocket event handling also skips completion processing while
+// paused to prevent stale references to dropped database rows.
+//
+// This is used by the test reset endpoint to prevent SQL errors during table
+// drop/recreate. Active state (job ID, item ID, prompt ID) is cleared so the
+// executor does not get stuck referencing rows that no longer exist after the
+// database is reset.
 func (e *JobExecutor) Pause() {
 	e.logger.Trace("entering Pause")
 	defer e.logger.Trace("returning from Pause")
@@ -246,6 +251,22 @@ func (e *JobExecutor) Pause() {
 		return
 	}
 	e.paused = true
+
+	// Clear active state so the executor does not hold stale references to
+	// database rows that will be dropped during the reset. Without this, the
+	// executor could remain stuck waiting for WS events for a prompt that no
+	// longer exists, or attempt to look up items in empty tables.
+	if e.activeJobID != "" || e.activeItemID != "" {
+		e.logger.WithFields(logrus.Fields{
+			"active_job_id":  e.activeJobID,
+			"active_item_id": e.activeItemID,
+		}).Debug("clearing active state on pause")
+	}
+	e.activeJobID = ""
+	e.activeItemID = ""
+	e.activePromptID = ""
+	e.checkpointCompleteness = make(map[string]model.CheckpointCompletenessInfo)
+
 	e.logger.Info("job executor paused")
 }
 
@@ -569,6 +590,13 @@ func (e *JobExecutor) handleComfyUIEvent(event model.ComfyUIEvent) {
 
 	e.mu.Lock()
 
+	// While paused (e.g. during a database reset), discard all events to avoid
+	// acting on stale prompt/item IDs that reference rows in the old database.
+	if e.paused {
+		e.mu.Unlock()
+		return
+	}
+
 	// Only handle events for the active prompt
 	if e.activePromptID == "" {
 		e.mu.Unlock()
@@ -708,7 +736,18 @@ func (e *JobExecutor) handleItemCompletionAsync(jobID, itemID, promptID string) 
 	}
 
 	if item == nil {
-		e.logger.WithField("item_id", itemID).Error("item not found")
+		// This can happen during a database reset (e.g. E2E test isolation) when
+		// the executor holds a stale item ID from a previous test cycle. The WS
+		// completion event arrives after the tables have been dropped and recreated,
+		// so the item no longer exists. Log at warn level because this is a known,
+		// benign race condition -- not a data integrity error.
+		e.logger.WithField("item_id", itemID).Warn("item not found (likely cleared by database reset)")
+
+		// Clear active state so the executor is free to pick up new work.
+		e.mu.Lock()
+		e.activeItemID = ""
+		e.activePromptID = ""
+		e.mu.Unlock()
 		return
 	}
 
