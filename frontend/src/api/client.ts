@@ -1,4 +1,4 @@
-import type { ApiError, ApiErrorResponse, CheckpointMetadata, ComfyUIModelType, ComfyUIModels, ComfyUIStatus, CreateSampleJobPayload, CreateStudyPayload, HealthStatus, ImageMetadata, Preset, PresetMapping, SampleJob, SampleJobDetail, Study, ScanResult, TrainingRun, UpdateStudyPayload, ValidationResult, WorkflowSummary } from './types'
+import type { ApiError, ApiErrorResponse, CheckpointMetadata, ComfyUIModelType, ComfyUIModels, ComfyUIStatus, CreateSampleJobPayload, CreateStudyPayload, DemoStatus, HealthStatus, ImageMetadata, Preset, PresetMapping, SampleJob, SampleJobDetail, Study, ScanResult, TrainingRun, UpdateStudyPayload, ValidationResult, WorkflowSummary } from './types'
 
 const DEFAULT_BASE_URL = '/api'
 
@@ -237,6 +237,34 @@ export class ApiClient {
     return this.request<SampleJob>(`/sample-jobs/${id}/resume`, {
       method: 'POST',
     })
+  }
+
+  /** GET /api/demo/status — check whether the demo dataset is installed. */
+  async getDemoStatus(): Promise<DemoStatus> {
+    return this.request<DemoStatus>('/demo/status')
+  }
+
+  /** POST /api/demo/install — install the demo dataset and seed the demo preset. */
+  async installDemo(): Promise<DemoStatus> {
+    return this.request<DemoStatus>('/demo/install', {
+      method: 'POST',
+    })
+  }
+
+  /** DELETE /api/demo — remove the demo dataset and demo preset. */
+  async uninstallDemo(): Promise<DemoStatus> {
+    const url = `${this.baseUrl}/demo`
+    let response: Response
+    try {
+      response = await fetch(url, { method: 'DELETE' })
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Network error'
+      throw { code: 'NETWORK_ERROR', message } satisfies ApiError
+    }
+    if (!response.ok) {
+      throw await normalizeError(response)
+    }
+    return (await response.json()) as DemoStatus
   }
 
   /** DELETE /api/sample-jobs/{id} — delete a sample job. */

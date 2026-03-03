@@ -9,10 +9,12 @@ import (
 	"github.com/gorilla/websocket"
 	gencheckpoints "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/checkpoints"
 	gencomfyui "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/comfyui"
+	gendemo "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/demo"
 	gendocs "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/docs"
 	genhealth "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/health"
 	gencheckpointssvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/checkpoints/server"
 	gencomfyuisvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/comfyui/server"
+	gendemosvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/demo/server"
 	gendocssvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/docs/server"
 	genhealthsvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/health/server"
 	genimagessvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/images/server"
@@ -41,13 +43,14 @@ type HTTPHandlerConfig struct {
 	DocsEndpoints          *gendocs.Endpoints
 	TrainingRunEndpoints   *gentrainingruns.Endpoints
 	PresetsEndpoints       *genpresets.Endpoints
-	StudiesEndpoints *genstudies.Endpoints
+	StudiesEndpoints       *genstudies.Endpoints
 	SampleJobsEndpoints    *gensamplejobs.Endpoints
 	CheckpointsEndpoints   *gencheckpoints.Endpoints
 	ComfyUIEndpoints       *gencomfyui.Endpoints
 	WorkflowsEndpoints     *genworkflows.Endpoints
 	ImagesEndpoints        *genimages.Endpoints
 	WSEndpoints            *genws.Endpoints
+	DemoEndpoints          *gendemo.Endpoints
 	SwaggerUIDir           http.FileSystem
 	Logger                 *logrus.Logger
 	Debug                  bool
@@ -86,6 +89,7 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 	comfyuiServer := gencomfyuisvr.New(cfg.ComfyUIEndpoints, mux, dec, enc, eh, nil)
 	workflowsServer := genworkflowssvr.New(cfg.WorkflowsEndpoints, mux, dec, enc, eh, nil)
 	imagesServer := genimagessvr.New(cfg.ImagesEndpoints, mux, dec, enc, eh, nil)
+	demoServer := gendemosvr.New(cfg.DemoEndpoints, mux, dec, enc, eh, nil)
 
 	// WebSocket upgrader with permissive origin check for local/LAN use
 	upgrader := &websocket.Upgrader{
@@ -106,6 +110,7 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 		workflowsServer.Use(goahttpmiddleware.Debug(mux, os.Stdout))
 		// DO NOT LOG BINARY IMAGE DATA, IT'S ANNOYING imagesServer.Use(goahttpmiddleware.Debug(mux, os.Stdout))
 		wsServer.Use(goahttpmiddleware.Debug(mux, os.Stdout))
+		demoServer.Use(goahttpmiddleware.Debug(mux, os.Stdout))
 	}
 
 	healthServer.Mount(mux)
@@ -118,6 +123,7 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 	comfyuiServer.Mount(mux)
 	workflowsServer.Mount(mux)
 	imagesServer.Mount(mux)
+	demoServer.Mount(mux)
 	wsServer.Mount(mux)
 
 	// Mount test-only endpoints (no-op unless ENABLE_TEST_ENDPOINTS=true)
@@ -194,6 +200,13 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 			}).Debug("HTTP endpoint mounted")
 		}
 		for _, m := range imagesServer.Mounts {
+			cfg.Logger.WithFields(logrus.Fields{
+				"method":  m.Method,
+				"verb":    m.Verb,
+				"pattern": m.Pattern,
+			}).Debug("HTTP endpoint mounted")
+		}
+		for _, m := range demoServer.Mounts {
 			cfg.Logger.WithFields(logrus.Fields{
 				"method":  m.Method,
 				"verb":    m.Verb,

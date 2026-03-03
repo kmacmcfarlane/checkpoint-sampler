@@ -15,6 +15,7 @@ import (
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api"
 	gencheckpoints "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/checkpoints"
 	gencomfyui "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/comfyui"
+	gendemo "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/demo"
 	gendocs "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/docs"
 	genhealth "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/health"
 	genimages "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/images"
@@ -79,6 +80,7 @@ var _ = Describe("NewHTTPHandler", func() {
 		*genworkflows.Endpoints,
 		*genimages.Endpoints,
 		*genws.Endpoints,
+		*gendemo.Endpoints,
 	) {
 		// Service layer services
 		viewerDiscoverySvc := service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
@@ -90,6 +92,9 @@ var _ = Describe("NewHTTPHandler", func() {
 		checkpointMetadataSvc := service.NewCheckpointMetadataService(newFakeMetadataReader(), []string{"/checkpoints"}, logger)
 		imageMetadataSvc := service.NewImageMetadataService(&realFileReader{}, sampleDir, logger)
 		hub := service.NewHub(logger)
+		demoFS := newFakeViewerDiscoveryFS()
+		fakePS := newFakePresetStore()
+		demoSvc := service.NewDemoService(demoFS, fakePS, sampleDir, logger)
 
 		// API layer services
 		healthAPISvc := api.NewHealthService()
@@ -103,6 +108,7 @@ var _ = Describe("NewHTTPHandler", func() {
 		workflowsAPISvc := api.NewWorkflowService(nil)
 		imagesAPISvc := api.NewImagesService(sampleDir, imageMetadataSvc, logger)
 		wsAPISvc := api.NewWSService(hub)
+		demoAPISvc := api.NewDemoAPIService(demoSvc)
 
 		return genhealth.NewEndpoints(healthAPISvc),
 			gendocs.NewEndpoints(docsAPISvc),
@@ -114,14 +120,16 @@ var _ = Describe("NewHTTPHandler", func() {
 			gencomfyui.NewEndpoints(comfyuiAPISvc),
 			genworkflows.NewEndpoints(workflowsAPISvc),
 			genimages.NewEndpoints(imagesAPISvc),
-			genws.NewEndpoints(wsAPISvc)
+			genws.NewEndpoints(wsAPISvc),
+			gendemo.NewEndpoints(demoAPISvc)
 	}
 
 	Describe("Debug middleware", func() {
 		It("logs full request/response when debug is enabled", func() {
 			healthEndpoints, docsEndpoints, trainingRunsEndpoints, presetsEndpoints,
 				studiesEndpoints, sampleJobsEndpoints, checkpointsEndpoints,
-				comfyuiEndpoints, workflowsEndpoints, imagesEndpoints, wsEndpoints := createAllEndpoints()
+				comfyuiEndpoints, workflowsEndpoints, imagesEndpoints, wsEndpoints,
+				demoEndpoints := createAllEndpoints()
 
 			cfg := api.HTTPHandlerConfig{
 				HealthEndpoints:        healthEndpoints,
@@ -135,6 +143,7 @@ var _ = Describe("NewHTTPHandler", func() {
 				WorkflowsEndpoints:     workflowsEndpoints,
 				ImagesEndpoints:        imagesEndpoints,
 				WSEndpoints:            wsEndpoints,
+				DemoEndpoints:          demoEndpoints,
 				SwaggerUIDir:           nil,
 				Logger:                 logger,
 				Debug:                  true,
@@ -156,7 +165,8 @@ var _ = Describe("NewHTTPHandler", func() {
 		It("does not log debug info when debug is disabled", func() {
 			healthEndpoints, docsEndpoints, trainingRunsEndpoints, presetsEndpoints,
 				studiesEndpoints, sampleJobsEndpoints, checkpointsEndpoints,
-				comfyuiEndpoints, workflowsEndpoints, imagesEndpoints, wsEndpoints := createAllEndpoints()
+				comfyuiEndpoints, workflowsEndpoints, imagesEndpoints, wsEndpoints,
+				demoEndpoints := createAllEndpoints()
 
 			cfg := api.HTTPHandlerConfig{
 				HealthEndpoints:        healthEndpoints,
@@ -170,6 +180,7 @@ var _ = Describe("NewHTTPHandler", func() {
 				WorkflowsEndpoints:     workflowsEndpoints,
 				ImagesEndpoints:        imagesEndpoints,
 				WSEndpoints:            wsEndpoints,
+				DemoEndpoints:          demoEndpoints,
 				SwaggerUIDir:           nil,
 				Logger:                 logger,
 				Debug:                  false,
@@ -208,7 +219,8 @@ var _ = Describe("NewHTTPHandler", func() {
 			// Create services and endpoints
 			healthEndpoints, docsEndpoints, trainingRunsEndpoints, presetsEndpoints,
 				studiesEndpoints, sampleJobsEndpoints, checkpointsEndpoints,
-				comfyuiEndpoints, workflowsEndpoints, _, wsEndpoints := createAllEndpoints()
+				comfyuiEndpoints, workflowsEndpoints, _, wsEndpoints,
+				demoEndpoints := createAllEndpoints()
 
 			// Create images service with the test directory
 			fs := &realFileReader{}
@@ -228,6 +240,7 @@ var _ = Describe("NewHTTPHandler", func() {
 				WorkflowsEndpoints:     workflowsEndpoints,
 				ImagesEndpoints:        imagesEndpoints,
 				WSEndpoints:            wsEndpoints,
+				DemoEndpoints:          demoEndpoints,
 				SwaggerUIDir:           nil,
 				Logger:                 logger,
 				Debug:                  false,

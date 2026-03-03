@@ -265,6 +265,11 @@ export interface ValidationResult {
   checkpoints: CheckpointCompletenessInfo[]
 }
 
+/** Demo dataset status response. */
+export interface DemoStatus {
+  installed: boolean
+}
+
 /** WebSocket inference progress event (per-node progress from ComfyUI). */
 export interface InferenceProgressMessage {
   type: 'inference_progress'

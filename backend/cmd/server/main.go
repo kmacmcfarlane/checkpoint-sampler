@@ -15,6 +15,7 @@ import (
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api"
 	gencheckpoints "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/checkpoints"
 	gencomfyui "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/comfyui"
+	gendemo "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/demo"
 	gendocs "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/docs"
 	genhealth "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/health"
 	genimages "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/images"
@@ -141,6 +142,17 @@ func run() error {
 	presetsSvc := api.NewPresetsService(presetSvc)
 	studySvc := service.NewStudyService(st, logger)
 	studiesSvc := api.NewStudiesService(studySvc)
+	demoSvc := service.NewDemoService(fs, st, cfg.SampleDir, logger)
+	demoAPISvc := api.NewDemoAPIService(demoSvc)
+
+	// Auto-install demo dataset on first run if not already present
+	if !demoSvc.Status().Installed {
+		if err := demoSvc.Install(); err != nil {
+			logger.WithError(err).Warn("failed to auto-install demo dataset on first run")
+		} else {
+			logger.Info("demo dataset auto-installed on first run")
+		}
+	}
 	checkpointMetadataSvc := service.NewCheckpointMetadataService(fs, cfg.CheckpointDirs, logger)
 	checkpointsSvc := api.NewCheckpointsService(checkpointMetadataSvc)
 	imageMetadataSvc := service.NewImageMetadataService(fs, cfg.SampleDir, logger)
@@ -180,6 +192,7 @@ func run() error {
 	sampleJobsEndpoints := gensamplejobs.NewEndpoints(sampleJobsSvc)
 	checkpointsEndpoints := gencheckpoints.NewEndpoints(checkpointsSvc)
 	comfyuiEndpoints := gencomfyui.NewEndpoints(comfyuiSvc)
+	demoEndpoints := gendemo.NewEndpoints(demoAPISvc)
 	workflowsEndpoints := genworkflows.NewEndpoints(workflowsSvc)
 	imagesEndpoints := genimages.NewEndpoints(imagesSvc)
 	wsEndpoints := genws.NewEndpoints(wsSvc)
@@ -197,6 +210,7 @@ func run() error {
 		WorkflowsEndpoints:     workflowsEndpoints,
 		ImagesEndpoints:        imagesEndpoints,
 		WSEndpoints:            wsEndpoints,
+		DemoEndpoints:          demoEndpoints,
 		SwaggerUIDir:           http.Dir(swaggerUIDir()),
 		Logger:                 logger,
 		Debug:                  true,

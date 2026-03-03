@@ -23,6 +23,7 @@ import ThemeToggle from './components/ThemeToggle.vue'
 import ComfyUIStatus from './components/ComfyUIStatus.vue'
 import JobLaunchDialog from './components/JobLaunchDialog.vue'
 import JobProgressPanel from './components/JobProgressPanel.vue'
+import SettingsDialog from './components/SettingsDialog.vue'
 
 const { theme, isDark, toggle: toggleTheme } = useTheme()
 const { savedData, savePresetSelection, clearPresetSelection } = usePresetPersistence()
@@ -36,6 +37,7 @@ const metadataPanelOpen = ref(false)
 const drawerOpen = ref(false)
 const jobLaunchDialogOpen = ref(false)
 const jobProgressPanelOpen = ref(false)
+const settingsDialogOpen = ref(false)
 /** Job to prefill into the JobLaunchDialog when regenerating. */
 const prefillJob = ref<SampleJob | null>(null)
 /** AC5: Debug mode is session-only (ref, not persisted to localStorage). */
@@ -703,6 +705,12 @@ const TERMINAL_STATUSES: Set<SampleJobStatus> = new Set(['completed', 'completed
           >{{ wsConnected ? 'Live' : 'Disconnected' }}</NTag>
           <NButton
             size="small"
+            aria-label="Open settings"
+            data-testid="settings-button"
+            @click="settingsDialogOpen = true"
+          >Settings</NButton>
+          <NButton
+            size="small"
             :type="debugMode ? 'warning' : 'default'"
             aria-label="Toggle debug mode"
             data-testid="debug-toggle"
@@ -841,6 +849,9 @@ const TERMINAL_STATUSES: Set<SampleJobStatus> = new Set(['completed', 'completed
         @regenerate="handleRegenerate"
         @refresh="fetchSampleJobs"
         @close="jobProgressPanelOpen = false"
+      />
+      <SettingsDialog
+        v-model:show="settingsDialogOpen"
       />
     </div>
   </NConfigProvider>

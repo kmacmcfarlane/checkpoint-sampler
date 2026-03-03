@@ -624,7 +624,7 @@ stories:
   - id: S-078
     title: "Demo sampleset and dimension preset"
     priority: 12
-    status: todo
+    status: uat
     requires: [S-074]
     acceptance:
       - "BE: Application ships with a bundled demo dataset (small set of pre-generated sample images)"
@@ -831,3 +831,22 @@ stories:
       Fix should address:
       - Race condition in job executor item lookup (log at warn instead of error for expected races)
       - Possible timing improvements in the ComfyUI mock WebSocket handshake
+  - id: B-042
+    title: "Watcher fails to watch demo training run checkpoint directories due to nested study path"
+    priority: 60
+    status: todo
+    complexity: medium
+    requires: []
+    acceptance:
+      - "Selecting the demo training run does not produce 'failed to watch directory' errors in the backend logs"
+      - "File watcher correctly resolves nested study directory paths for checkpoint watch directories"
+    testing:
+      - "command: make test-e2e"
+    notes: |
+      The watcher constructs checkpoint watch paths as filepath.Join(sampleDir, checkpoint.Filename),
+      but the demo dataset places checkpoints under a nested study directory
+      (sample_dir/demo-study/checkpoint.safetensors/). The viewer discovery service reports the
+      training run name as demo-study/demo-model but the watcher does not account for the study
+      directory prefix when constructing watch paths. This causes 'no such file or directory' errors
+      for all demo checkpoint directories (~15 occurrences per training run selection).
+      Root cause: watcher path construction assumes checkpoints are at the top level of sample_dir.
