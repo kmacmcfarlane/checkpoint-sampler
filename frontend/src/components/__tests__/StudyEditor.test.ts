@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { mount, flushPromises, type VueWrapper } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { NSelect, NButton, NInput, NInputNumber, NDynamicInput, NDynamicTags } from 'naive-ui'
 import StudyEditor from '../StudyEditor.vue'
@@ -83,6 +83,13 @@ const mockSchedulers: ComfyUIModels = {
   models: ['simple', 'normal', 'karras', 'exponential'],
 }
 
+/** Cast a WrapperLike result from findComponent to VueWrapper so .props() and .vm are accessible. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function asVue(w: ReturnType<ReturnType<typeof mount>['findComponent']>): VueWrapper<any> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return w as VueWrapper<any>
+}
+
 describe('StudyEditor', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -133,10 +140,10 @@ describe('StudyEditor', () => {
     select.vm.$emit('update:value', 'preset-1')
     await nextTick()
 
-    const nameInput = wrapper.findComponent('[data-testid="study-name-input"]')
+    const nameInput = asVue(wrapper.findComponent('[data-testid="study-name-input"]'))
     expect(nameInput.props('value')).toBe('Test Preset A')
 
-    const negativeInput = wrapper.findComponent('[data-testid="negative-prompt-input"]')
+    const negativeInput = asVue(wrapper.findComponent('[data-testid="negative-prompt-input"]'))
     expect(negativeInput.props('value')).toBe('low quality')
 
     const widthInput = wrapper.findAllComponents(NInputNumber)[0]
@@ -214,7 +221,7 @@ describe('StudyEditor', () => {
     await flushPromises()
 
     // Fill in form using component events
-    const nameInput = wrapper.findComponent('[data-testid="study-name-input"]')
+    const nameInput = asVue(wrapper.findComponent('[data-testid="study-name-input"]'))
     nameInput.vm.$emit('update:value', 'New Study')
     await nextTick()
 
@@ -273,7 +280,7 @@ describe('StudyEditor', () => {
     await nextTick()
 
     // Update name
-    const nameInput = wrapper.findComponent('[data-testid="study-name-input"]')
+    const nameInput = asVue(wrapper.findComponent('[data-testid="study-name-input"]'))
     nameInput.vm.$emit('update:value', 'Updated Preset A')
     await nextTick()
 
@@ -362,7 +369,7 @@ describe('StudyEditor', () => {
     select.vm.$emit('update:value', 'preset-1')
     await nextTick()
 
-    const nameInput = wrapper.findComponent('[data-testid="study-name-input"]')
+    const nameInput = asVue(wrapper.findComponent('[data-testid="study-name-input"]'))
     expect(nameInput.props('value')).toBe('Test Preset A')
 
     // Click New Preset
@@ -391,7 +398,7 @@ describe('StudyEditor', () => {
     await newButton.trigger('click')
     await nextTick()
 
-    const stepsTags = wrapper.findComponent('[data-testid="steps-tags"]')
+    const stepsTags = asVue(wrapper.findComponent('[data-testid="steps-tags"]'))
     expect(stepsTags.props('value')).toEqual(['30'])
   })
 
@@ -409,7 +416,7 @@ describe('StudyEditor', () => {
     const wrapper = mount(StudyEditor)
     await flushPromises()
 
-    const stepsTags = wrapper.findComponent('[data-testid="steps-tags"]')
+    const stepsTags = asVue(wrapper.findComponent('[data-testid="steps-tags"]'))
     stepsTags.vm.$emit('update:value', ['1', '4', '8', '20'])
     await nextTick()
 
@@ -439,7 +446,7 @@ describe('StudyEditor', () => {
     const wrapper = mount(StudyEditor)
     await flushPromises()
 
-    const cfgsTags = wrapper.findComponent('[data-testid="cfgs-tags"]')
+    const cfgsTags = asVue(wrapper.findComponent('[data-testid="cfgs-tags"]'))
     cfgsTags.vm.$emit('update:value', ['1.0', '3.0', '7.0'])
     await nextTick()
 
@@ -469,7 +476,7 @@ describe('StudyEditor', () => {
     const wrapper = mount(StudyEditor)
     await flushPromises()
 
-    const cfgsTags = wrapper.findComponent('[data-testid="cfgs-tags"]')
+    const cfgsTags = asVue(wrapper.findComponent('[data-testid="cfgs-tags"]'))
 
     // Default value is [7.0]; formatCfg(7) should produce '7.0', not '7'
     expect(cfgsTags.props('value')).toEqual(['7.0'])
@@ -479,7 +486,7 @@ describe('StudyEditor', () => {
     const wrapper = mount(StudyEditor)
     await flushPromises()
 
-    const cfgsTags = wrapper.findComponent('[data-testid="cfgs-tags"]')
+    const cfgsTags = asVue(wrapper.findComponent('[data-testid="cfgs-tags"]'))
     cfgsTags.vm.$emit('update:value', ['1.5', '3.75', '7.25'])
     await nextTick()
 
@@ -491,7 +498,7 @@ describe('StudyEditor', () => {
     const wrapper = mount(StudyEditor)
     await flushPromises()
 
-    const cfgsTags = wrapper.findComponent('[data-testid="cfgs-tags"]')
+    const cfgsTags = asVue(wrapper.findComponent('[data-testid="cfgs-tags"]'))
     cfgsTags.vm.$emit('update:value', ['1.0', '3.5', '7.0', '12.0'])
     await nextTick()
 
@@ -503,7 +510,7 @@ describe('StudyEditor', () => {
     const wrapper = mount(StudyEditor)
     await flushPromises()
 
-    const seedsTags = wrapper.findComponent('[data-testid="seeds-tags"]')
+    const seedsTags = asVue(wrapper.findComponent('[data-testid="seeds-tags"]'))
     seedsTags.vm.$emit('update:value', ['42', '420', '1337'])
     await nextTick()
 
@@ -612,7 +619,7 @@ describe('StudyEditor', () => {
     await flushPromises()
 
     // Fill form with one valid prompt
-    const nameInput = wrapper.findComponent('[data-testid="study-name-input"]')
+    const nameInput = asVue(wrapper.findComponent('[data-testid="study-name-input"]'))
     nameInput.vm.$emit('update:value', 'Test')
 
     const promptInputs = wrapper.findAllComponents(NInput)
@@ -724,7 +731,7 @@ describe('StudyEditor', () => {
     await flushPromises()
 
     // Fill preset name and add a pair but leave prompts with only empty entries
-    const nameInput = wrapper.findComponent('[data-testid="study-name-input"]')
+    const nameInput = asVue(wrapper.findComponent('[data-testid="study-name-input"]'))
     nameInput.vm.$emit('update:value', 'My Preset')
 
     const vm = wrapper.vm as unknown as { samplerSchedulerPairs: Array<{ sampler: string; scheduler: string }> }
@@ -742,7 +749,7 @@ describe('StudyEditor', () => {
     const wrapper = mount(StudyEditor)
     await flushPromises()
 
-    const nameInput = wrapper.findComponent('[data-testid="study-name-input"]')
+    const nameInput = asVue(wrapper.findComponent('[data-testid="study-name-input"]'))
     nameInput.vm.$emit('update:value', 'My Preset')
 
     const promptInputs = wrapper.findAllComponents(NInput)
@@ -795,7 +802,7 @@ describe('StudyEditor', () => {
     const wrapper = mount(StudyEditor)
     await flushPromises()
 
-    const tagsComponent = wrapper.findComponent(`[data-testid="${testid}"]`)
+    const tagsComponent = asVue(wrapper.findComponent(`[data-testid="${testid}"]`))
     tagsComponent.vm.$emit('update:value', tags)
     await nextTick()
 
@@ -853,7 +860,7 @@ describe('StudyEditor', () => {
       expect(select.props('value')).toBe('preset-1')
 
       // The form should be populated with preset-1's data
-      const nameInput = wrapper.findComponent('[data-testid="study-name-input"]')
+      const nameInput = asVue(wrapper.findComponent('[data-testid="study-name-input"]'))
       expect(nameInput.props('value')).toBe('Test Preset A')
     })
 
@@ -868,7 +875,7 @@ describe('StudyEditor', () => {
       expect(select.props('value')).toBeNull()
 
       // Form should be in default empty state
-      const nameInput = wrapper.findComponent('[data-testid="study-name-input"]')
+      const nameInput = asVue(wrapper.findComponent('[data-testid="study-name-input"]'))
       expect(nameInput.props('value')).toBe('')
     })
 
@@ -901,7 +908,7 @@ describe('StudyEditor', () => {
       const select = wrapper.findAllComponents(NSelect)[0]
       expect(select.props('value')).toBe('preset-2')
 
-      const nameInput = wrapper.findComponent('[data-testid="study-name-input"]')
+      const nameInput = asVue(wrapper.findComponent('[data-testid="study-name-input"]'))
       expect(nameInput.props('value')).toBe('Test Preset B')
     })
   })
@@ -967,7 +974,7 @@ describe('StudyEditor', () => {
       await flushPromises()
 
       // Fill form
-      const nameInput = wrapper.findComponent('[data-testid="study-name-input"]')
+      const nameInput = asVue(wrapper.findComponent('[data-testid="study-name-input"]'))
       nameInput.vm.$emit('update:value', 'Multi Pair')
 
       const promptInputs = wrapper.findAllComponents(NInput)
@@ -1010,7 +1017,7 @@ describe('StudyEditor', () => {
       const wrapper = mount(StudyEditor)
       await flushPromises()
 
-      const prefixInput = wrapper.findComponent('[data-testid="prompt-prefix-input"]')
+      const prefixInput = asVue(wrapper.findComponent('[data-testid="prompt-prefix-input"]'))
       expect(prefixInput.exists()).toBe(true)
       expect(prefixInput.props('value')).toBe('')
     })
@@ -1023,7 +1030,7 @@ describe('StudyEditor', () => {
       select.vm.$emit('update:value', 'preset-1')
       await nextTick()
 
-      const prefixInput = wrapper.findComponent('[data-testid="prompt-prefix-input"]')
+      const prefixInput = asVue(wrapper.findComponent('[data-testid="prompt-prefix-input"]'))
       expect(prefixInput.props('value')).toBe('photo of a person, ')
     })
 
@@ -1035,7 +1042,7 @@ describe('StudyEditor', () => {
       select.vm.$emit('update:value', 'preset-2')
       await nextTick()
 
-      const prefixInput = wrapper.findComponent('[data-testid="prompt-prefix-input"]')
+      const prefixInput = asVue(wrapper.findComponent('[data-testid="prompt-prefix-input"]'))
       expect(prefixInput.props('value')).toBe('')
     })
 
@@ -1048,7 +1055,7 @@ describe('StudyEditor', () => {
       select.vm.$emit('update:value', 'preset-1')
       await nextTick()
 
-      const prefixInput = wrapper.findComponent('[data-testid="prompt-prefix-input"]')
+      const prefixInput = asVue(wrapper.findComponent('[data-testid="prompt-prefix-input"]'))
       expect(prefixInput.props('value')).toBe('photo of a person, ')
 
       // Click New Preset
@@ -1084,10 +1091,10 @@ describe('StudyEditor', () => {
       await flushPromises()
 
       // Fill in form
-      const nameInput = wrapper.findComponent('[data-testid="study-name-input"]')
+      const nameInput = asVue(wrapper.findComponent('[data-testid="study-name-input"]'))
       nameInput.vm.$emit('update:value', 'Prefix Test')
 
-      const prefixInput = wrapper.findComponent('[data-testid="prompt-prefix-input"]')
+      const prefixInput = asVue(wrapper.findComponent('[data-testid="prompt-prefix-input"]'))
       prefixInput.vm.$emit('update:value', 'artistic photo, ')
 
       const promptInputs = wrapper.findAllComponents(NInput)
@@ -1135,7 +1142,7 @@ describe('StudyEditor', () => {
       await nextTick()
 
       // Change the prompt prefix
-      const prefixInput = wrapper.findComponent('[data-testid="prompt-prefix-input"]')
+      const prefixInput = asVue(wrapper.findComponent('[data-testid="prompt-prefix-input"]'))
       prefixInput.vm.$emit('update:value', 'updated prefix. ')
       await nextTick()
 

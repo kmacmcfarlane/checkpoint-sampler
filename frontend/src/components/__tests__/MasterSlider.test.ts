@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { mount, type VueWrapper } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { NSlider, NButton, NCheckbox, NSelect } from 'naive-ui'
 import MasterSlider from '../MasterSlider.vue'
@@ -116,7 +116,7 @@ describe('MasterSlider', () => {
     const wrapper = mountMaster()
     const main = wrapper.find('.master-slider__main')
     const buttons = main.findAllComponents(NButton)
-    const playBtn = buttons.find((b) => b.text() === 'Play')
+    const playBtn = buttons.find((b: VueWrapper) => b.text() === 'Play')
     expect(playBtn).toBeDefined()
   })
 

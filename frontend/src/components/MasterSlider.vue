@@ -146,7 +146,7 @@ function onDocumentKeydown(event: KeyboardEvent) {
 
   const tag = (document.activeElement?.tagName ?? '').toLowerCase()
   const isInputFocused = tag === 'input' || tag === 'textarea' || tag === 'select'
-    || (document.activeElement?.isContentEditable ?? false)
+    || ((document.activeElement as HTMLElement | null)?.isContentEditable ?? false)
   if (isInputFocused) return
   onKeydown(event)
 }

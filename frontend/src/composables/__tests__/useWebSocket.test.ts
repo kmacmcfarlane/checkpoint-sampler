@@ -179,7 +179,7 @@ describe('useWebSocket', () => {
 
     // Flush microtasks to allow the watch to complete and connection to open
     await vi.runAllTimersAsync()
-    await new Promise(resolve => queueMicrotask(resolve))
+    await new Promise<void>(resolve => queueMicrotask(resolve))
 
     // After the connection opens, connected should be true
     expect(connected.value).toBe(true)
