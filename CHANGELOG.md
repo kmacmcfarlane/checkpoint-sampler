@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-066: Documentation — WebSocket path and capture-phase handler ordering
+- Comprehensive WebSocket protocol documentation in docs/api.md: connection lifecycle, message types, field tables, reconnection behavior
+- New DEVELOPMENT_PRACTICES.md section 4.10 documenting the capture-phase + stopImmediatePropagation pattern for keyboard event handling conflicts
+
 ### S-065: E2E test coverage additions — combo solo click and XYGrid emit test
 - E2E test for DimensionFilter solo click (solo to filter, unsolo to restore all values)
 - Unit test asserting XYGrid `image:click` emit payload shape (`ImageClickContext`)

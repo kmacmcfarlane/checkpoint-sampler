@@ -116,7 +116,94 @@ Goa maps service errors to HTTP status codes in the design DSL. General conventi
 
 ### 6.4 WebSocket
 
-- `GET /api/ws` — Upgrade to WebSocket. The backend pushes JSON messages when filesystem changes are detected in the active training run's directories. Message types: `image_added`, `image_removed`, `directory_added`.
+**Endpoint**: `GET /api/ws`
+
+Upgrades the HTTP connection to WebSocket. The backend pushes JSON messages to all connected clients when filesystem changes are detected in monitored directories, or when a sample job emits progress updates.
+
+#### Connection lifecycle
+
+1. Client sends a standard WebSocket upgrade request to `ws://<host>/api/ws` (or `wss://` over TLS).
+2. The server immediately sends a `connected` event to trigger the HTTP 101 upgrade handshake before any filesystem events occur. This avoids write-timeout races on idle connections (no events in flight) — particularly important for LAN clients behind nginx.
+3. The client ignores unknown event types (including `connected`), so this handshake event is safe to dispatch.
+4. The connection stays open until either the client closes it or the server shuts down.
+5. On disconnect the frontend client reconnects automatically with exponential backoff (initial: 1 s, max: 30 s, multiplier: 2×). Backoff delay resets to the initial value on successful reconnect.
+
+#### Message format
+
+All messages are JSON objects with a `type` field. Additional fields depend on the type.
+
+#### Filesystem events
+
+Sent when the monitored sample directory changes.
+
+| Type | Description |
+|---|---|
+| `image_added` | A new image file was detected in a checkpoint's sample directory. |
+| `image_removed` | An existing image file was removed. |
+| `directory_added` | A new directory was created; the frontend should trigger a full rescan. |
+
+**Fields** (all filesystem events):
+
+| Field | Type | Description |
+|---|---|---|
+| `type` | string | One of `image_added`, `image_removed`, `directory_added`. |
+| `path` | string | File path relative to the configured sample directory root. |
+
+**Example**:
+```json
+{
+  "type": "image_added",
+  "path": "checkpoint.safetensors/index=0&prompt_name=forest&seed=420&cfg=1&_00001_.png"
+}
+```
+
+#### Job progress events
+
+Sent by the backend job executor as a sample job processes each checkpoint.
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `type` | string | yes | Always `job_progress`. |
+| `path` | string | yes | Empty string (not applicable to job events). |
+| `job_id` | string | yes | Unique job identifier. |
+| `status` | string | yes | Current job status: `pending`, `running`, `stopped`, `completed`, `completed_with_errors`, `failed`. |
+| `total_items` | number | yes | Total work items across all checkpoints. |
+| `completed_items` | number | yes | Items finished successfully. |
+| `failed_items` | number | yes | Items that failed. |
+| `pending_items` | number | yes | Items not yet started. |
+| `checkpoints_completed` | number | yes | Fully completed checkpoints. |
+| `total_checkpoints` | number | yes | Total checkpoints in the job. |
+| `current_checkpoint` | string | no | Filename of the checkpoint currently being processed. |
+| `current_checkpoint_progress` | number | no | Items completed within the current checkpoint. |
+| `current_checkpoint_total` | number | no | Total items within the current checkpoint. |
+| `checkpoint_completeness` | array | no | Per-checkpoint verification results (present when checkpoints have completed). Each entry has `checkpoint` (string), `expected` (number), `verified` (number), and `missing` (number). |
+
+**Example**:
+```json
+{
+  "type": "job_progress",
+  "path": "",
+  "job_id": "abc123",
+  "status": "running",
+  "total_items": 50,
+  "completed_items": 10,
+  "failed_items": 0,
+  "pending_items": 40,
+  "checkpoints_completed": 1,
+  "total_checkpoints": 5,
+  "current_checkpoint": "model-000002.safetensors",
+  "current_checkpoint_progress": 3,
+  "current_checkpoint_total": 10
+}
+```
+
+#### Frontend client behavior
+
+- The `WSClient` class (`frontend/src/api/wsClient.ts`) manages the connection lifecycle.
+- `FSEventMessage` listeners receive `image_added`, `image_removed`, and `directory_added` events.
+- `JobProgressMessage` listeners receive `job_progress` events.
+- The `connected` handshake event and any other unknown types are silently discarded.
+- The `useWebSocket` composable connects/disconnects automatically when the selected training run changes.
 
 ## 7) Request/response patterns
 
