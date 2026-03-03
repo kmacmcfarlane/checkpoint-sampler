@@ -72,4 +72,4 @@ Implemented in S-070: `test-fixtures/workflows/test-workflow.json` added, mounte
 * status: needs_approval
 * priority: low
 * source: qa
-Three categories of expected errors in test logs are not yet in the allowlist: (1) database reset race conditions ("no such table/column" during test reset), (2) safetensors metadata parse failures for empty test fixture checkpoint files, (3) Vite ws proxy EPIPE/ECONNREFUSED errors during E2E teardown. Adding these would reduce re-triage overhead for QA agents.
+Three categories of expected errors in test logs are not yet in the allowlist: (1) database reset race conditions ("no such table/column" during test reset), (2) safetensors metadata parse failures for empty test fixture checkpoint files, (3) Vite ws proxy EPIPE/ECONNREFUSED errors during E2E teardown. Adding these would reduce re-triage overhead for QA agents. EPIPE specifically triggered by Playwright rapid connect/disconnect — confirmed by QA sweep on S-071.

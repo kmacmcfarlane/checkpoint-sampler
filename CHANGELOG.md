@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-071: nginx config validation and WebSocket header checks in build pipeline
+- Dockerfile nginx stage validates config syntax (`nginx -t`) and required WebSocket proxy headers at build time
+- Standalone `make lint-nginx` target runs the same checks without a running stack
+
 ### S-070: E2E test for full sample generation flow
 - Lightweight ComfyUI mock server (Node.js + ws) in `comfyui-mock/` implements HTTP + WebSocket API surface for E2E testing without a real GPU
 - Three Playwright tests exercise the full generation flow: create study, launch job, verify progression through pending → running → completed

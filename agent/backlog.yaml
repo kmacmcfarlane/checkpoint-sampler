@@ -404,7 +404,7 @@ stories:
   - id: S-071
     title: "nginx config validation and WebSocket header checks in build pipeline"
     priority: 20
-    status: todo
+    status: uat
     requires: []
     acceptance:
       - "OPS: Add nginx -t syntax check to the frontend Dockerfile build stage or a Makefile target"
@@ -722,3 +722,58 @@ stories:
       frontend/src/components/MasterSlider.vue.
     testing:
       - "command: cd frontend && npx vitest run"
+  - id: B-038
+    title: "Frontend npm run build fails due to TypeScript type errors in test files"
+    priority: 70
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "npm run build completes successfully without TypeScript errors"
+      - "All existing Vitest tests continue to pass"
+    testing:
+      - "command: cd frontend && npm run build"
+      - "command: make test-frontend"
+    notes: |
+      Pre-existing TypeScript errors in test files cause `npm run build` to fail.
+      Affected files:
+      - StudyEditor.test.ts: `.props` and `.vm` not available on `WrapperLike` type (need to cast via `findComponent()` instead of `findAllComponents()` or use proper generic typing)
+      - useWebSocket.test.ts: callback signature mismatch — `(value: unknown) => void` not assignable to `VoidFunction`
+      Build fails at the TypeScript compilation step in the Dockerfile builder stage.
+      The tests themselves pass via Vitest (which doesn't type-check), but `npm run build` (which runs `vue-tsc`) catches these type errors.
+  - id: B-039
+    title: "Race condition during test reset causes 'no such column' SQL error"
+    priority: 50
+    status: todo
+    complexity: medium
+    requires: []
+    acceptance:
+      - "The test reset endpoint pauses or synchronizes with the job executor to prevent SQL errors during table recreation"
+      - "No SQL errors appear in backend logs after calling DELETE /api/test/reset"
+    testing:
+      - "command: make test-e2e"
+    notes: |
+      The test reset endpoint (DELETE /api/test/reset) drops and recreates all tables.
+      The job executor's background query loop runs concurrently and hits the database
+      during the brief window when tables have been dropped but not yet recreated,
+      causing "no such column: study_id" SQL errors.
+      Root cause: lack of synchronization between the test reset handler and the job
+      executor's polling loop.
+  - id: B-040
+    title: "Test fixture safetensors file triggers EOF parse errors in backend logs"
+    priority: 40
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "Test fixture safetensors files either contain valid headers or the metadata parser handles empty/dummy files without
+        logging errors"
+      - "No safetensors metadata parse errors appear in backend logs during E2E tests"
+    testing:
+      - "command: make test-e2e"
+    notes: |
+      The test fixture file my-model-step00001000.safetensors is a dummy/empty file
+      that does not contain valid safetensors binary headers. When the checkpoint
+      metadata parser attempts to read it, it encounters an unexpected EOF and logs
+      at error level. Fix: either generate a minimal valid safetensors header in the
+      fixture or downgrade the log level for expected parse failures on test fixtures.

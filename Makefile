@@ -1,4 +1,4 @@
-.PHONY: claude claude-resume ralph ralph-resume ralph-auto ralph-auto-resume capture-runtime-context up down logs up-dev down-dev logs-dev gen test-frontend-watch test-backend-watch up-test down-test build-playwright test-e2e test-e2e-logs down-e2e
+.PHONY: claude claude-resume ralph ralph-resume ralph-auto ralph-auto-resume capture-runtime-context up down logs up-dev down-dev logs-dev gen test-frontend-watch test-backend-watch lint-nginx up-test down-test build-playwright test-e2e test-e2e-logs down-e2e
 
 COMPOSE_DEV = docker compose -p checkpoint-sampler-dev -f docker-compose.yml -f docker-compose.dev.yml
 COMPOSE_TEST = docker compose -p checkpoint-sampler-test -f docker-compose.test.yml
@@ -69,6 +69,16 @@ test-backend:
 
 test-backend-watch:
 	$(COMPOSE_DEV) exec -w /app/backend backend ginkgo watch -r --cover --race ./internal/... ./cmd/...
+
+# Validate nginx config syntax and verify required WebSocket proxy headers are present.
+# Uses a temporary nginx:alpine container so no running stack is needed.
+lint-nginx:
+	docker run --rm -v "$(CURDIR)/frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro" nginx:alpine sh -c \
+		"nginx -t && \
+		grep -q 'proxy_http_version 1\\.1' /etc/nginx/conf.d/default.conf && \
+		grep -q 'proxy_set_header Upgrade' /etc/nginx/conf.d/default.conf && \
+		grep -qE 'proxy_set_header Connection \"upgrade\"' /etc/nginx/conf.d/default.conf && \
+		echo 'nginx config validation passed'"
 
 # Test environment: self-contained stack with test-fixtures/ data, healthchecks, and Playwright.
 # Use make down-test to wipe without affecting up-dev.
