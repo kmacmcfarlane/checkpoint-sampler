@@ -744,7 +744,7 @@ stories:
   - id: B-039
     title: "Race condition during test reset causes 'no such column' SQL error"
     priority: 50
-    status: todo
+    status: uat
     complexity: medium
     requires: []
     acceptance:

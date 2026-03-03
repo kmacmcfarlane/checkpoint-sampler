@@ -26,6 +26,34 @@ func (f *fakeDBResetter) ResetDB() error {
 	return f.err
 }
 
+// fakePauser is a test double for the BackgroundPauser interface.
+type fakePauser struct {
+	pauseCalled  bool
+	resumeCalled bool
+	// pauseOrder and resumeOrder record when each was called relative to
+	// the resetter, allowing tests to verify correct ordering.
+	pauseOrder  int
+	resumeOrder int
+	callCounter *int
+}
+
+func newFakePauser() *fakePauser {
+	counter := 0
+	return &fakePauser{callCounter: &counter}
+}
+
+func (f *fakePauser) Pause() {
+	f.pauseCalled = true
+	*f.callCounter++
+	f.pauseOrder = *f.callCounter
+}
+
+func (f *fakePauser) Resume() {
+	f.resumeCalled = true
+	*f.callCounter++
+	f.resumeOrder = *f.callCounter
+}
+
 var _ = Describe("MountTestResetEndpoint", func() {
 	var (
 		mux      goahttp.Muxer
@@ -46,7 +74,7 @@ var _ = Describe("MountTestResetEndpoint", func() {
 		})
 
 		It("does not mount the endpoint", func() {
-			api.MountTestResetEndpoint(mux, resetter, logger)
+			api.MountTestResetEndpoint(mux, resetter, nil, logger)
 
 			server := httptest.NewServer(mux)
 			defer server.Close()
@@ -74,7 +102,7 @@ var _ = Describe("MountTestResetEndpoint", func() {
 		})
 
 		It("mounts the endpoint and calls ResetDB on DELETE", func() {
-			api.MountTestResetEndpoint(mux, resetter, logger)
+			api.MountTestResetEndpoint(mux, resetter, nil, logger)
 
 			server := httptest.NewServer(mux)
 			defer server.Close()
@@ -96,7 +124,7 @@ var _ = Describe("MountTestResetEndpoint", func() {
 
 		It("returns 500 when ResetDB fails", func() {
 			resetter.err = fmt.Errorf("db error")
-			api.MountTestResetEndpoint(mux, resetter, logger)
+			api.MountTestResetEndpoint(mux, resetter, nil, logger)
 
 			server := httptest.NewServer(mux)
 			defer server.Close()
@@ -110,6 +138,67 @@ var _ = Describe("MountTestResetEndpoint", func() {
 
 			Expect(resp.StatusCode).To(Equal(http.StatusInternalServerError))
 		})
+
+		// AC: The test reset endpoint pauses or synchronizes with the job
+		// executor to prevent SQL errors during table recreation.
+		It("pauses and resumes the background pauser during reset", func() {
+			pauser := newFakePauser()
+			api.MountTestResetEndpoint(mux, resetter, pauser, logger)
+
+			server := httptest.NewServer(mux)
+			defer server.Close()
+
+			req, err := http.NewRequest(http.MethodDelete, server.URL+"/api/test/reset", nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			resp, err := http.DefaultClient.Do(req)
+			Expect(err).NotTo(HaveOccurred())
+			defer resp.Body.Close()
+
+			Expect(resp.StatusCode).To(Equal(http.StatusOK))
+			Expect(pauser.pauseCalled).To(BeTrue())
+			Expect(pauser.resumeCalled).To(BeTrue())
+			// Pause must be called before Resume
+			Expect(pauser.pauseOrder).To(BeNumerically("<", pauser.resumeOrder))
+		})
+
+		It("resumes the pauser even when ResetDB fails", func() {
+			resetter.err = fmt.Errorf("db error")
+			pauser := newFakePauser()
+			api.MountTestResetEndpoint(mux, resetter, pauser, logger)
+
+			server := httptest.NewServer(mux)
+			defer server.Close()
+
+			req, err := http.NewRequest(http.MethodDelete, server.URL+"/api/test/reset", nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			resp, err := http.DefaultClient.Do(req)
+			Expect(err).NotTo(HaveOccurred())
+			defer resp.Body.Close()
+
+			Expect(resp.StatusCode).To(Equal(http.StatusInternalServerError))
+			// Even on failure, Resume must be called (via defer)
+			Expect(pauser.pauseCalled).To(BeTrue())
+			Expect(pauser.resumeCalled).To(BeTrue())
+		})
+
+		It("works without a pauser (nil pauser)", func() {
+			api.MountTestResetEndpoint(mux, resetter, nil, logger)
+
+			server := httptest.NewServer(mux)
+			defer server.Close()
+
+			req, err := http.NewRequest(http.MethodDelete, server.URL+"/api/test/reset", nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			resp, err := http.DefaultClient.Do(req)
+			Expect(err).NotTo(HaveOccurred())
+			defer resp.Body.Close()
+
+			Expect(resp.StatusCode).To(Equal(http.StatusOK))
+			Expect(resetter.called).To(BeTrue())
+		})
 	})
 
 	Context("when ENABLE_TEST_ENDPOINTS is set to a non-true value", func() {
@@ -122,7 +211,7 @@ var _ = Describe("MountTestResetEndpoint", func() {
 		})
 
 		It("does not mount the endpoint", func() {
-			api.MountTestResetEndpoint(mux, resetter, logger)
+			api.MountTestResetEndpoint(mux, resetter, nil, logger)
 
 			server := httptest.NewServer(mux)
 			defer server.Close()

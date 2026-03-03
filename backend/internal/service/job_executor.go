@@ -77,6 +77,7 @@ type JobExecutor struct {
 	activePromptID           string
 	stopRequested            bool
 	connected                bool
+	paused                   bool
 	checkpointCompleteness   map[string]model.CheckpointCompletenessInfo
 	ctx                      context.Context
 	cancel                   context.CancelFunc
@@ -229,6 +230,41 @@ func (e *JobExecutor) Stop() {
 	e.logger.Info("job executor stopped")
 }
 
+// Pause temporarily suspends the executor's database polling loop.
+// While paused, processNextItem returns immediately without querying the
+// database. This is used by the test reset endpoint to prevent SQL errors
+// during table drop/recreate.
+func (e *JobExecutor) Pause() {
+	e.logger.Trace("entering Pause")
+	defer e.logger.Trace("returning from Pause")
+
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	if e.paused {
+		e.logger.Debug("job executor already paused")
+		return
+	}
+	e.paused = true
+	e.logger.Info("job executor paused")
+}
+
+// Resume restores the executor's database polling loop after a Pause.
+func (e *JobExecutor) Resume() {
+	e.logger.Trace("entering Resume")
+	defer e.logger.Trace("returning from Resume")
+
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	if !e.paused {
+		e.logger.Debug("job executor not paused, nothing to resume")
+		return
+	}
+	e.paused = false
+	e.logger.Info("job executor resumed")
+}
+
 // resumeRunningJobs logs any jobs in 'running' state on startup.
 // The executor loop will automatically pick them up.
 func (e *JobExecutor) resumeRunningJobs() error {
@@ -334,6 +370,13 @@ func (e *JobExecutor) processNextItem() {
 	if e.stopRequested {
 		e.mu.Unlock()
 		e.logger.Debug("stop requested, skipping item processing")
+		return
+	}
+
+	// If paused (e.g. during database reset), skip processing to avoid
+	// querying tables that may be dropped and not yet recreated.
+	if e.paused {
+		e.mu.Unlock()
 		return
 	}
 

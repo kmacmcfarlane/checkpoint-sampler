@@ -56,6 +56,12 @@ type HTTPHandlerConfig struct {
 	// When non-nil and ENABLE_TEST_ENDPOINTS=true, DELETE /api/test/reset is
 	// mounted to drop and recreate all tables.
 	DBResetter DBResetter
+
+	// BackgroundPauser is an optional dependency for pausing background
+	// processes (e.g. the job executor) during database reset. When non-nil,
+	// the test reset endpoint calls Pause() before dropping tables and
+	// Resume() after recreating them to prevent SQL race conditions.
+	BackgroundPauser BackgroundPauser
 }
 
 // NewHTTPHandler creates a fully wired http.Handler with all Goa services,
@@ -116,7 +122,7 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 
 	// Mount test-only endpoints (no-op unless ENABLE_TEST_ENDPOINTS=true)
 	if cfg.DBResetter != nil {
-		MountTestResetEndpoint(mux, cfg.DBResetter, cfg.Logger)
+		MountTestResetEndpoint(mux, cfg.DBResetter, cfg.BackgroundPauser, cfg.Logger)
 	}
 
 	// Redirect /docs to /docs/ for the Swagger UI

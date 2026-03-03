@@ -2246,4 +2246,84 @@ var _ = Describe("JobExecutor", func() {
 			Expect(event.JobProgressData.CheckpointCompleteness[0].Verified).To(Equal(1))
 		})
 	})
+
+	// AC: The test reset endpoint pauses or synchronizes with the job executor
+	// to prevent SQL errors during table recreation.
+	Describe("Pause and Resume", func() {
+		BeforeEach(func() {
+			// Mark executor as connected so it would normally process items
+			executor.mu.Lock()
+			executor.connected = true
+			executor.mu.Unlock()
+		})
+
+		It("skips processNextItem when paused", func() {
+			// Add a pending job that would normally be auto-started
+			mockStore.jobs["job1"] = model.SampleJob{
+				ID:     "job1",
+				Status: model.SampleJobStatusPending,
+			}
+
+			// Pause the executor
+			executor.Pause()
+
+			// processNextItem should return immediately without querying the store
+			executor.processNextItem()
+
+			// The job should still be pending (not auto-started)
+			Expect(mockStore.jobs["job1"].Status).To(Equal(model.SampleJobStatusPending))
+		})
+
+		It("resumes processing after Resume is called", func() {
+			// Add a pending job
+			mockStore.jobs["job1"] = model.SampleJob{
+				ID:     "job1",
+				Status: model.SampleJobStatusPending,
+			}
+
+			// Pause, then resume
+			executor.Pause()
+			executor.Resume()
+
+			// processNextItem should work normally now — it should auto-start the
+			// pending job. With no items the job goes pending -> running -> completed
+			// in a single tick, so we verify it is no longer pending.
+			executor.processNextItem()
+
+			Expect(mockStore.jobs["job1"].Status).NotTo(Equal(model.SampleJobStatusPending))
+		})
+
+		It("is idempotent for Pause", func() {
+			executor.Pause()
+			executor.Pause() // second call should not panic or change state
+
+			executor.mu.Lock()
+			Expect(executor.paused).To(BeTrue())
+			executor.mu.Unlock()
+		})
+
+		It("is idempotent for Resume", func() {
+			executor.Resume() // resume without prior pause should not panic
+
+			executor.mu.Lock()
+			Expect(executor.paused).To(BeFalse())
+			executor.mu.Unlock()
+		})
+
+		It("Pause followed by Resume followed by Pause works correctly", func() {
+			executor.Pause()
+			executor.Resume()
+			executor.Pause()
+
+			// Add a pending job
+			mockStore.jobs["job1"] = model.SampleJob{
+				ID:     "job1",
+				Status: model.SampleJobStatusPending,
+			}
+
+			// Should not process while paused
+			executor.processNextItem()
+			Expect(mockStore.jobs["job1"].Status).To(Equal(model.SampleJobStatusPending))
+		})
+	})
 })

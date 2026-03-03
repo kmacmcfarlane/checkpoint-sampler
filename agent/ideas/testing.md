@@ -73,3 +73,9 @@ Implemented in S-070: `test-fixtures/workflows/test-workflow.json` added, mounte
 * priority: low
 * source: qa
 Three categories of expected errors in test logs are not yet in the allowlist: (1) database reset race conditions ("no such table/column" during test reset), (2) safetensors metadata parse failures for empty test fixture checkpoint files, (3) Vite ws proxy EPIPE/ECONNREFUSED errors during E2E teardown. Adding these would reduce re-triage overhead for QA agents. EPIPE specifically triggered by Playwright rapid connect/disconnect — confirmed by QA sweep on S-071.
+
+### Populate safetensors test fixtures with minimal valid headers
+* status: needs_approval
+* priority: very-low
+* source: qa
+The 0-byte `.safetensors` files in `test-fixtures/` cause "reading header length: EOF" errors on every checkpoint metadata scan. Adding a minimal valid safetensors header (8-byte length prefix + empty JSON object) would eliminate these log errors and provide more realistic test data.

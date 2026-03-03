@@ -107,6 +107,7 @@ func run() error {
 	var workflowsSvc *api.WorkflowService
 	var modelDiscovery *service.ComfyUIModelDiscovery
 	var jobExecutor *service.JobExecutor
+	var bgPauser api.BackgroundPauser // remains nil (interface nil) when ComfyUI is not configured
 	if cfg.ComfyUI != nil {
 		httpClient := store.NewComfyUIHTTPClient(cfg.ComfyUI.URL, logger)
 		wsClient := store.NewComfyUIWSClient(cfg.ComfyUI.URL, logger)
@@ -123,6 +124,7 @@ func run() error {
 		// Create job executor
 		fsWriter := &service.RealFileSystemWriter{}
 		jobExecutor = service.NewJobExecutor(st, httpClient, wsClient, workflowLoader, hub, cfg.SampleDir, fsWriter, fs, logger)
+		bgPauser = jobExecutor
 	} else {
 		// Create disabled service when ComfyUI is not configured
 		comfyuiSvc = api.NewComfyUIService(nil, nil)
@@ -198,6 +200,7 @@ func run() error {
 		Logger:                 logger,
 		Debug:                  true,
 		DBResetter:             st,
+		BackgroundPauser:       bgPauser,
 	})
 
 	// Create HTTP server

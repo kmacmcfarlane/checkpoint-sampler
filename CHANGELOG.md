@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-039: Race condition during test reset causes 'no such column' SQL error
+- Job executor Pause/Resume synchronization prevents SQL errors when test reset endpoint drops and recreates tables
+- BackgroundPauser interface allows test reset to coordinate with any background polling process
+
 ### B-038: Frontend npm run build fails due to TypeScript type errors in test files
 - Fixed ~50 TypeScript errors across 9 frontend files (test files and 2 source components) that caused `vue-tsc` to fail during `npm run build`
 - Added `asVue()` helper in StudyEditor tests for type-safe `findComponent('[data-testid="..."]')` access
