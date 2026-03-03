@@ -5,6 +5,11 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-079: Sample preset (study) import/export to JSON
+- Export button downloads the current study form as a JSON file (CreateStudyPayload shape, excludes id/timestamps)
+- Import button uploads and validates a JSON file, populating the form for a new study with clear error messages on validation failure
+- Validation enforces DEVELOPMENT_PRACTICES 4.11 numeric constraints: steps as positive integers, seeds as non-negative integers, cfgs as finite numbers
+
 ### B-040: Test fixture safetensors file triggers EOF parse errors in backend logs
 - Replaced 4 empty (0-byte) test fixture `.safetensors` files with valid 10-byte minimal headers, eliminating EOF parse errors in backend logs during E2E tests
 

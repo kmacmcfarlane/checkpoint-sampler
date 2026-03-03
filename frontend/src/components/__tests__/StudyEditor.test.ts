@@ -3,6 +3,7 @@ import { mount, flushPromises, type VueWrapper } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { NSelect, NButton, NInput, NInputNumber, NDynamicInput, NDynamicTags } from 'naive-ui'
 import StudyEditor from '../StudyEditor.vue'
+import { validateStudyImport } from '../studyImportValidation'
 import type { Study, ComfyUIModels } from '../../api/types'
 
 // Mock the api client module
@@ -1157,6 +1158,479 @@ describe('StudyEditor', () => {
           prompt_prefix: 'updated prefix. ',
         }),
       )
+    })
+  })
+
+  describe('import/export', () => {
+    describe('validateStudyImport (unit)', () => {
+      const validPayload = {
+        name: 'My Study',
+        prompt_prefix: 'photo, ',
+        prompts: [{ name: 'forest', text: 'a forest' }],
+        negative_prompt: 'blurry',
+        steps: [20, 30],
+        cfgs: [7.0],
+        sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'simple' }],
+        seeds: [42],
+        width: 512,
+        height: 512,
+      }
+
+      it('accepts a valid payload and returns ok with data', () => {
+        const result = validateStudyImport(validPayload)
+        expect(result.ok).toBe(true)
+        if (result.ok) {
+          expect(result.data.name).toBe('My Study')
+          expect(result.data.steps).toEqual([20, 30])
+          expect(result.data.width).toBe(512)
+        }
+      })
+
+      it('trims the name field', () => {
+        const result = validateStudyImport({ ...validPayload, name: '  Trimmed  ' })
+        expect(result.ok).toBe(true)
+        if (result.ok) expect(result.data.name).toBe('Trimmed')
+      })
+
+      it('defaults prompt_prefix to empty string when absent', () => {
+        const { prompt_prefix: _pp, ...rest } = validPayload
+        const result = validateStudyImport(rest)
+        expect(result.ok).toBe(true)
+        if (result.ok) expect(result.data.prompt_prefix).toBe('')
+      })
+
+      it('defaults negative_prompt to empty string when absent', () => {
+        const { negative_prompt: _np, ...rest } = validPayload
+        const result = validateStudyImport(rest)
+        expect(result.ok).toBe(true)
+        if (result.ok) expect(result.data.negative_prompt).toBe('')
+      })
+
+      it('returns error when input is not an object', () => {
+        const result = validateStudyImport('not an object')
+        expect(result.ok).toBe(false)
+        if (!result.ok) expect(result.error).toContain('expected an object')
+      })
+
+      it('returns error when input is an array', () => {
+        const result = validateStudyImport([])
+        expect(result.ok).toBe(false)
+        if (!result.ok) expect(result.error).toContain('expected an object')
+      })
+
+      it('returns error when name is missing', () => {
+        const { name: _n, ...rest } = validPayload
+        const result = validateStudyImport(rest)
+        expect(result.ok).toBe(false)
+        if (!result.ok) expect(result.error).toContain('"name"')
+      })
+
+      it('returns error when name is an empty string', () => {
+        const result = validateStudyImport({ ...validPayload, name: '' })
+        expect(result.ok).toBe(false)
+        if (!result.ok) expect(result.error).toContain('"name"')
+      })
+
+      it('returns error when name is not a string', () => {
+        const result = validateStudyImport({ ...validPayload, name: 42 })
+        expect(result.ok).toBe(false)
+        if (!result.ok) expect(result.error).toContain('"name"')
+      })
+
+      it('returns error when prompts is missing', () => {
+        const { prompts: _p, ...rest } = validPayload
+        const result = validateStudyImport(rest)
+        expect(result.ok).toBe(false)
+        if (!result.ok) expect(result.error).toContain('"prompts"')
+      })
+
+      it('returns error when prompts is not an array', () => {
+        const result = validateStudyImport({ ...validPayload, prompts: 'not-array' })
+        expect(result.ok).toBe(false)
+        if (!result.ok) expect(result.error).toContain('"prompts"')
+      })
+
+      it('returns error when prompts is empty', () => {
+        const result = validateStudyImport({ ...validPayload, prompts: [] })
+        expect(result.ok).toBe(false)
+        if (!result.ok) expect(result.error).toContain('"prompts"')
+      })
+
+      it('returns error when a prompt entry is missing name', () => {
+        const result = validateStudyImport({ ...validPayload, prompts: [{ text: 'some text' }] })
+        expect(result.ok).toBe(false)
+        if (!result.ok) expect(result.error).toContain('prompts[0].name')
+      })
+
+      it('returns error when a prompt entry is missing text', () => {
+        const result = validateStudyImport({ ...validPayload, prompts: [{ name: 'n' }] })
+        expect(result.ok).toBe(false)
+        if (!result.ok) expect(result.error).toContain('prompts[0].text')
+      })
+
+      it('returns error when steps is missing', () => {
+        const { steps: _s, ...rest } = validPayload
+        const result = validateStudyImport(rest)
+        expect(result.ok).toBe(false)
+        if (!result.ok) expect(result.error).toContain('"steps"')
+      })
+
+      it('returns error when steps contains non-numbers', () => {
+        const result = validateStudyImport({ ...validPayload, steps: ['20', 30] })
+        expect(result.ok).toBe(false)
+        if (!result.ok) expect(result.error).toContain('steps[0]')
+      })
+
+      it('returns error when steps contains a float (non-integer)', () => {
+        const result = validateStudyImport({ ...validPayload, steps: [3.7] })
+        expect(result.ok).toBe(false)
+        if (!result.ok) expect(result.error).toContain('steps[0]')
+      })
+
+      it('returns error when steps contains zero', () => {
+        const result = validateStudyImport({ ...validPayload, steps: [0] })
+        expect(result.ok).toBe(false)
+        if (!result.ok) expect(result.error).toContain('steps[0]')
+      })
+
+      it('returns error when steps contains a negative integer', () => {
+        const result = validateStudyImport({ ...validPayload, steps: [-1] })
+        expect(result.ok).toBe(false)
+        if (!result.ok) expect(result.error).toContain('steps[0]')
+      })
+
+      it('returns error when steps contains NaN', () => {
+        const result = validateStudyImport({ ...validPayload, steps: [NaN] })
+        expect(result.ok).toBe(false)
+        if (!result.ok) expect(result.error).toContain('steps[0]')
+      })
+
+      it('returns error when cfgs is missing', () => {
+        const { cfgs: _c, ...rest } = validPayload
+        const result = validateStudyImport(rest)
+        expect(result.ok).toBe(false)
+        if (!result.ok) expect(result.error).toContain('"cfgs"')
+      })
+
+      it('returns error when sampler_scheduler_pairs is missing', () => {
+        const { sampler_scheduler_pairs: _ssp, ...rest } = validPayload
+        const result = validateStudyImport(rest)
+        expect(result.ok).toBe(false)
+        if (!result.ok) expect(result.error).toContain('"sampler_scheduler_pairs"')
+      })
+
+      it('returns error when sampler_scheduler_pairs is empty', () => {
+        const result = validateStudyImport({ ...validPayload, sampler_scheduler_pairs: [] })
+        expect(result.ok).toBe(false)
+        if (!result.ok) expect(result.error).toContain('"sampler_scheduler_pairs"')
+      })
+
+      it('returns error when a pair entry is missing sampler', () => {
+        const result = validateStudyImport({
+          ...validPayload,
+          sampler_scheduler_pairs: [{ scheduler: 'simple' }],
+        })
+        expect(result.ok).toBe(false)
+        if (!result.ok) expect(result.error).toContain('sampler_scheduler_pairs[0].sampler')
+      })
+
+      it('returns error when seeds is missing', () => {
+        const { seeds: _s, ...rest } = validPayload
+        const result = validateStudyImport(rest)
+        expect(result.ok).toBe(false)
+        if (!result.ok) expect(result.error).toContain('"seeds"')
+      })
+
+      it('returns error when seeds contains non-numbers', () => {
+        const result = validateStudyImport({ ...validPayload, seeds: ['42'] })
+        expect(result.ok).toBe(false)
+        if (!result.ok) expect(result.error).toContain('seeds[0]')
+      })
+
+      it('returns error when seeds contains a negative value', () => {
+        const result = validateStudyImport({ ...validPayload, seeds: [-5] })
+        expect(result.ok).toBe(false)
+        if (!result.ok) expect(result.error).toContain('seeds[0]')
+      })
+
+      it('returns error when seeds contains a float (non-integer)', () => {
+        const result = validateStudyImport({ ...validPayload, seeds: [0.5] })
+        expect(result.ok).toBe(false)
+        if (!result.ok) expect(result.error).toContain('seeds[0]')
+      })
+
+      it('returns error when seeds contains NaN', () => {
+        const result = validateStudyImport({ ...validPayload, seeds: [NaN] })
+        expect(result.ok).toBe(false)
+        if (!result.ok) expect(result.error).toContain('seeds[0]')
+      })
+
+      it('accepts seeds containing zero (non-negative integer)', () => {
+        const result = validateStudyImport({ ...validPayload, seeds: [0, 42] })
+        expect(result.ok).toBe(true)
+      })
+
+      it('returns error when cfgs contains NaN', () => {
+        const result = validateStudyImport({ ...validPayload, cfgs: [NaN] })
+        expect(result.ok).toBe(false)
+        if (!result.ok) expect(result.error).toContain('cfgs[0]')
+      })
+
+      it('returns error when width is NaN', () => {
+        const result = validateStudyImport({ ...validPayload, width: NaN })
+        expect(result.ok).toBe(false)
+        if (!result.ok) expect(result.error).toContain('"width"')
+      })
+
+      it('returns error when height is NaN', () => {
+        const result = validateStudyImport({ ...validPayload, height: NaN })
+        expect(result.ok).toBe(false)
+        if (!result.ok) expect(result.error).toContain('"height"')
+      })
+
+      it('returns error when width is missing', () => {
+        const { width: _w, ...rest } = validPayload
+        const result = validateStudyImport(rest)
+        expect(result.ok).toBe(false)
+        if (!result.ok) expect(result.error).toContain('"width"')
+      })
+
+      it('returns error when width is not a number', () => {
+        const result = validateStudyImport({ ...validPayload, width: '512' })
+        expect(result.ok).toBe(false)
+        if (!result.ok) expect(result.error).toContain('"width"')
+      })
+
+      it('returns error when width is zero or negative', () => {
+        const result = validateStudyImport({ ...validPayload, width: 0 })
+        expect(result.ok).toBe(false)
+        if (!result.ok) expect(result.error).toContain('"width"')
+      })
+
+      it('returns error when height is missing', () => {
+        const { height: _h, ...rest } = validPayload
+        const result = validateStudyImport(rest)
+        expect(result.ok).toBe(false)
+        if (!result.ok) expect(result.error).toContain('"height"')
+      })
+
+      it('returns error when height is negative', () => {
+        const result = validateStudyImport({ ...validPayload, height: -1 })
+        expect(result.ok).toBe(false)
+        if (!result.ok) expect(result.error).toContain('"height"')
+      })
+    })
+
+    describe('export button', () => {
+      it('export button is rendered in the action-buttons area', async () => {
+        const wrapper = mount(StudyEditor)
+        await flushPromises()
+
+        const exportButton = wrapper.findComponent('[data-testid="export-study-button"]')
+        expect(exportButton.exists()).toBe(true)
+      })
+
+      it('export button is disabled when canSave is false (empty form)', async () => {
+        const wrapper = mount(StudyEditor)
+        await flushPromises()
+
+        const exportButton = asVue(wrapper.findComponent('[data-testid="export-study-button"]'))
+        expect(exportButton.props('disabled')).toBe(true)
+      })
+
+      it('export button is enabled when form is filled (canSave is true)', async () => {
+        const wrapper = mount(StudyEditor)
+        await flushPromises()
+
+        // Load a study so canSave is true
+        const select = wrapper.findAllComponents(NSelect)[0]
+        select.vm.$emit('update:value', 'preset-1')
+        await nextTick()
+
+        const exportButton = asVue(wrapper.findComponent('[data-testid="export-study-button"]'))
+        expect(exportButton.props('disabled')).toBe(false)
+      })
+
+      it('export button triggers download with correct JSON shape excluding id and timestamps', async () => {
+        // Capture the Blob passed to createObjectURL
+        let capturedBlob: Blob | undefined
+        const createObjectURL = vi.fn((blob: Blob) => {
+          capturedBlob = blob
+          return 'blob:mock-url'
+        })
+        const revokeObjectURL = vi.fn()
+        const mockClick = vi.fn()
+        const mockAnchor = { href: '', download: '', click: mockClick }
+
+        // Store originals to avoid infinite recursion when spying
+        const origCreateObjectURL = URL.createObjectURL?.bind(URL)
+        const origRevokeObjectURL = URL.revokeObjectURL?.bind(URL)
+        Object.defineProperty(URL, 'createObjectURL', { value: createObjectURL, configurable: true, writable: true })
+        Object.defineProperty(URL, 'revokeObjectURL', { value: revokeObjectURL, configurable: true, writable: true })
+
+        const origCreateElement = document.createElement.bind(document)
+        const createElementSpy = vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
+          if (tag === 'a') return mockAnchor as unknown as HTMLElement
+          // Use the bound original to avoid infinite recursion
+          return origCreateElement(tag)
+        })
+
+        try {
+          const wrapper = mount(StudyEditor)
+          await flushPromises()
+
+          // Load preset-1
+          const select = wrapper.findAllComponents(NSelect)[0]
+          select.vm.$emit('update:value', 'preset-1')
+          await nextTick()
+
+          const exportButton = asVue(wrapper.findComponent('[data-testid="export-study-button"]'))
+          await exportButton.trigger('click')
+
+          expect(mockClick).toHaveBeenCalled()
+          expect(capturedBlob).toBeDefined()
+
+          // Parse the exported JSON
+          const text = await capturedBlob!.text()
+          const parsed = JSON.parse(text)
+
+          // Must have all CreateStudyPayload fields
+          expect(parsed.name).toBe('Test Preset A')
+          expect(parsed.prompt_prefix).toBe('photo of a person, ')
+          expect(parsed.prompts).toEqual([
+            { name: 'forest', text: 'a mystical forest' },
+            { name: 'city', text: 'a futuristic city' },
+          ])
+          expect(parsed.negative_prompt).toBe('low quality')
+          expect(parsed.steps).toEqual([1, 4, 8])
+          expect(parsed.cfgs).toEqual([1.0, 3.0, 7.0])
+          expect(parsed.sampler_scheduler_pairs).toEqual([
+            { sampler: 'euler', scheduler: 'simple' },
+            { sampler: 'heun', scheduler: 'normal' },
+          ])
+          expect(parsed.seeds).toEqual([42, 420])
+          expect(parsed.width).toBe(1024)
+          expect(parsed.height).toBe(1024)
+
+          // Must NOT have id, created_at, updated_at, images_per_checkpoint
+          expect(parsed).not.toHaveProperty('id')
+          expect(parsed).not.toHaveProperty('created_at')
+          expect(parsed).not.toHaveProperty('updated_at')
+          expect(parsed).not.toHaveProperty('images_per_checkpoint')
+
+          // Download filename should use study name
+          expect(mockAnchor.download).toBe('Test Preset A.json')
+        } finally {
+          createElementSpy.mockRestore()
+          if (origCreateObjectURL) {
+            Object.defineProperty(URL, 'createObjectURL', { value: origCreateObjectURL, configurable: true, writable: true })
+          }
+          if (origRevokeObjectURL) {
+            Object.defineProperty(URL, 'revokeObjectURL', { value: origRevokeObjectURL, configurable: true, writable: true })
+          }
+        }
+      })
+    })
+
+    describe('import button', () => {
+      it('import button is always rendered (not gated on canSave)', async () => {
+        const wrapper = mount(StudyEditor)
+        await flushPromises()
+
+        const importButton = wrapper.findComponent('[data-testid="import-study-button"]')
+        expect(importButton.exists()).toBe(true)
+      })
+
+      it('populates form fields from a valid JSON file and clears selected study', async () => {
+        const importedData = {
+          name: 'Imported Study',
+          prompt_prefix: '',
+          prompts: [{ name: 'space', text: 'outer space scene' }],
+          negative_prompt: '',
+          steps: [25],
+          cfgs: [6.5],
+          sampler_scheduler_pairs: [{ sampler: 'dpm_2', scheduler: 'karras' }],
+          seeds: [100],
+          width: 768,
+          height: 768,
+        }
+
+        // Mount first so Vue can create all its DOM elements without interference
+        const wrapper = mount(StudyEditor)
+        await flushPromises()
+
+        // First select a study so we can verify it is cleared after import
+        const select = wrapper.findAllComponents(NSelect)[0]
+        select.vm.$emit('update:value', 'preset-1')
+        await nextTick()
+
+        let nameInput = asVue(wrapper.findComponent('[data-testid="study-name-input"]'))
+        expect(nameInput.props('value')).toBe('Test Preset A')
+
+        // Set up the createElement spy — after mount so Vue's initial render is complete.
+        // We intercept 'input' creation only long enough to capture the onchange handler.
+        const mockInputEl = {
+          type: '',
+          accept: '',
+          onchange: null as ((event: Event) => void) | null,
+          click: vi.fn(),
+        }
+        const origCreateElement = document.createElement.bind(document)
+        const createElementSpy = vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
+          if (tag === 'input') {
+            return mockInputEl as unknown as HTMLElement
+          }
+          return origCreateElement(tag)
+        })
+
+        // Click the import button — this calls triggerImport which calls
+        // document.createElement('input') and registers input.onchange
+        const importButton = asVue(wrapper.findComponent('[data-testid="import-study-button"]'))
+        await importButton.trigger('click')
+
+        // Restore the spy immediately so Vue can use real elements during re-render
+        createElementSpy.mockRestore()
+
+        // Verify triggerImport ran and captured the handler
+        const capturedOnchange = mockInputEl.onchange
+        expect(capturedOnchange).not.toBeNull()
+        expect(mockInputEl.click).toHaveBeenCalled()
+
+        // Build a File from the JSON payload and construct a synthetic change event
+        const blob = new Blob([JSON.stringify(importedData)], { type: 'application/json' })
+        const file = new File([blob], 'study.json', { type: 'application/json' })
+        const fakeEvent = {
+          target: { files: [file] },
+        } as unknown as Event
+
+        // Invoke the captured handler and wait for async file.text() + state flush
+        await capturedOnchange!(fakeEvent)
+        await flushPromises()
+        await nextTick()
+
+        nameInput = asVue(wrapper.findComponent('[data-testid="study-name-input"]'))
+        expect(nameInput.props('value')).toBe('Imported Study')
+
+        // selected study should be null (new study mode)
+        expect(select.props('value')).toBeNull()
+
+        // Width/height updated
+        const widthInput = wrapper.findAllComponents(NInputNumber)[0]
+        expect(widthInput.props('value')).toBe(768)
+      })
+
+      it('shows error when JSON file is invalid', async () => {
+        const wrapper = mount(StudyEditor)
+        await flushPromises()
+
+        const vm = wrapper.vm as unknown as { error: string | null }
+        vm.error = 'Import error: Missing or invalid field: "name" must be a non-empty string'
+        await nextTick()
+
+        const alert = wrapper.find('[role="alert"]')
+        expect(alert.exists()).toBe(true)
+        expect(alert.text()).toContain('Import error')
+      })
     })
   })
 
