@@ -293,7 +293,7 @@ These are operational improvements within the QA agent's domain. Only file ideas
 
 E2E test execution (REQUIRED — primary smoke test and acceptance verification):
 E2E tests are the standard verification method for story acceptance. Run the full Playwright E2E suite as the primary smoke test:
-- `make test-e2e` — starts backend + frontend in an isolated stack (checkpoint-sampler-e2e), runs all Playwright tests, then tears down automatically. No separate `make up-dev` is needed.
+- `make test-e2e` — starts backend + frontend in an isolated stack (checkpoint-sampler-test), runs all Playwright tests, then tears down automatically. No separate `make up-dev` is needed.
 - A passing E2E run satisfies the smoke test requirement — it confirms the application starts and serves requests end-to-end.
 - Record the number of tests run, passed, and failed in the E2E Test Results section of your verdict.
 

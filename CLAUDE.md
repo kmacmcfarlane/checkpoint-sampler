@@ -98,7 +98,7 @@ Root Makefile targets (work in both sandbox and host — preferred for agent use
 - `make test-frontend` / `make test-frontend-watch`
 - `make test-e2e` (Playwright E2E tests; self-contained — starts backend+frontend with test-fixtures/, runs tests, captures logs to `.ralph-temp/e2e-logs/`, tears down)
 - `make test-e2e-logs` (capture logs from a running E2E stack without tearing it down)
-- `make up-test` / `make down-test` (isolated test environment with separate volumes; independent from up-dev)
+- `make up-test` / `make down-test` (start/stop the test stack manually; same stack as test-e2e but without auto-teardown)
 
 Backend via compose (sandbox — when Go is not installed locally):
 - Codegen: `docker compose -p checkpoint-sampler-dev -f docker-compose.yml -f docker-compose.dev.yml run --rm -w /app/backend backend make gen`

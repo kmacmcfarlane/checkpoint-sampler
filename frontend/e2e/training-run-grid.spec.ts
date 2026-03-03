@@ -5,7 +5,7 @@ import { resetDatabase } from './helpers'
  * E2E tests for the core user journey:
  * open app → select training run → configure axes → see XY grid with images.
  *
- * These tests run against the self-contained E2E stack (docker-compose.e2e.yml)
+ * These tests run against the self-contained test stack (docker-compose.test.yml)
  * which mounts test-fixtures/ as the checkpoint and sample data sources.
  *
  * Expected test fixture data:

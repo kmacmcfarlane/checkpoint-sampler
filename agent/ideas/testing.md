@@ -66,4 +66,4 @@ Many E2E spec files duplicate `selectTrainingRun`, `selectNaiveOption`, and `clo
 * status: needs_approval
 * priority: medium
 * source: qa
-Adding sample workflow JSON files to `test-fixtures/` and configuring `test-fixtures/config.yaml` with a `workflow_dir` would enable E2E testing of workflow-related features (auto-selection, workflow filtering, shift role detection). This requires changes to `docker-compose.e2e.yml` to mount the workflow directory.
+Adding sample workflow JSON files to `test-fixtures/` and configuring `test-fixtures/config.yaml` with a `workflow_dir` would enable E2E testing of workflow-related features (auto-selection, workflow filtering, shift role detection). This requires changes to `docker-compose.test.yml` to mount the workflow directory.

@@ -1,5 +1,5 @@
 # E2E test fixture configuration
-# Used by docker-compose.e2e.yml to provide deterministic test data.
+# Used by docker-compose.test.yml to provide deterministic test data.
 
 checkpoint_dirs:
   - /data/checkpoints

@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### R-004: Consolidate docker-compose.test.yml and docker-compose.e2e.yml
+- Merged `docker-compose.e2e.yml` into `docker-compose.test.yml` as a single standalone test stack with test fixtures, healthchecks, and Playwright
+- Removed `COMPOSE_E2E` Makefile variable; all test/E2E targets now use `COMPOSE_TEST`
+
 ### S-069: Drawer auto-collapse on image grid interaction
 - Drawer auto-collapses on narrow/medium screens when user clicks an image, clicks a grid header, or uses Ctrl+Arrow keyboard navigation
 - Wide screens (≥1024px) unaffected; manual drawer toggle continues to work after auto-collapse

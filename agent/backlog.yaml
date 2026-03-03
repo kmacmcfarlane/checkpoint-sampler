@@ -361,7 +361,7 @@ stories:
   - id: R-004
     title: "Consolidate docker-compose.test.yml and docker-compose.e2e.yml"
     priority: 22
-    status: todo
+    status: uat
     requires: []
     acceptance:
       - "OPS: Merge docker-compose.e2e.yml into docker-compose.test.yml (test fixtures, healthchecks, Playwright container)"

@@ -241,7 +241,7 @@ Based on the story's current status, invoke the appropriate subagent:
    - Branch name
    - Code reviewer's approval notes (if any)
    - **Change summary** extracted from the fullstack engineer's verdict (see section 4.3.2)
-3. The QA expert is the sole owner of E2E tests. It will run `make test-e2e` as part of its verification. This command is self-contained — it starts an isolated backend + frontend stack (`checkpoint-sampler-e2e`), runs all Playwright tests, and tears down automatically. The orchestrator does NOT need to ensure `make up-dev` is running before dispatching to QA for E2E tests.
+3. The QA expert is the sole owner of E2E tests. It will run `make test-e2e` as part of its verification. This command is self-contained — it starts an isolated backend + frontend stack (`checkpoint-sampler-test`), runs all Playwright tests, and tears down automatically. The orchestrator does NOT need to ensure `make up-dev` is running before dispatching to QA for E2E tests.
 4. Parse the QA verdict for the story result, E2E test results, and runtime error sweep findings.
 5. If approved: `backlog.py set <id> status uat` (finalization per section 4.5)
 6. If issues found:

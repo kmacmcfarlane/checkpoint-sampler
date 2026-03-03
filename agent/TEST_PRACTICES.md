@@ -324,8 +324,8 @@ Sweep findings never affect the story verdict. If the story's acceptance criteri
 Section 5.5 establishes E2E tests as the primary smoke test. This section provides additional details on E2E execution and failure triage.
 
 Key facts:
-- `make test-e2e` is fully self-contained: it starts backend + frontend using `docker-compose.e2e.yml` with `test-fixtures/` data, runs all Playwright tests, and tears down automatically. No separate `make up-dev` is required.
-- The E2E compose project (`checkpoint-sampler-e2e`) is isolated from the dev environment — running `make test-e2e` does not interfere with an active `make up-dev` session.
+- `make test-e2e` is fully self-contained: it starts backend + frontend using `docker-compose.test.yml` with `test-fixtures/` data, runs all Playwright tests, and tears down automatically. No separate `make up-dev` is required.
+- The E2E compose project (`checkpoint-sampler-test`) is isolated from the dev environment — running `make test-e2e` does not interfere with an active `make up-dev` session.
 
 **Story-related E2E failures (blocking):**
 - If a failing test covers a user journey touched by this story's changes, the failure is blocking. Investigate, fix the code or update the test, and ensure it passes before approving the story.
@@ -344,9 +344,9 @@ Key facts:
 ### 6.2 Environment
 - Base URL: `http://frontend:3000` (Vite dev server inside the E2E compose stack).
 - Use headless Chromium. In the claude-sandbox, `chromiumSandbox: false` and `--no-sandbox` args are required.
-- `make test-e2e` is self-contained: it starts backend + frontend using `docker-compose.e2e.yml` with
+- `make test-e2e` is self-contained: it starts backend + frontend using `docker-compose.test.yml` with
   `test-fixtures/` data, runs Playwright, then tears down. No separate `make up-dev` needed.
-- The E2E compose project is named `checkpoint-sampler-e2e` — isolated from `make up-dev`.
+- The E2E compose project is named `checkpoint-sampler-test` — isolated from `make up-dev`.
 - Test fixture data lives in `test-fixtures/`: deterministic checkpoint and sample data for reproducible E2E tests.
 - Use `make up-test` / `make down-test` for an isolated test stack with separate Docker volumes and a
   separate project name (`checkpoint-sampler-test`). Resetting with `make down-test` does not affect
