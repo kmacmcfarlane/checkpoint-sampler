@@ -279,7 +279,7 @@ stories:
   - id: S-066
     title: "Documentation — WebSocket path and capture-phase handler ordering"
     priority: 26
-    status: todo
+    status: uat
     requires: []
     acceptance:
       - "DOC: /docs/api.md updated with WebSocket endpoint documentation listing /api/ws"

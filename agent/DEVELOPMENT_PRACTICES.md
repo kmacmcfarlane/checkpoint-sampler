@@ -228,7 +228,70 @@ const emit = defineEmits<{
 }>()
 ```
 
-### 4.10 Numeric field format specification
+### 4.10 Capture-phase keyboard event handlers
+
+When two components both attach `document.addEventListener('keydown', ...)` and the inner component must intercept the same key before the outer one fires, use capture-phase registration combined with `stopImmediatePropagation`.
+
+#### How the DOM event phases work
+
+The browser dispatches every keyboard event in two passes:
+1. **Capture phase** (top → target): listeners registered with `{ capture: true }` (or the third argument `true`) fire first, from the outermost ancestor inward.
+2. **Bubble phase** (target → top): listeners registered without `capture` (the default) fire second.
+
+Because `document` is the outermost node, a capture-phase listener on `document` fires before any bubble-phase listener also on `document`. `stopImmediatePropagation()` cancels all remaining listeners for the same event, including both capture and bubble listeners that have not yet run.
+
+#### The pattern
+
+```typescript
+// Inner component (e.g. ImageLightbox) — fires first
+onMounted(() => {
+  document.addEventListener('keydown', onKeyDown, true)  // capture phase
+})
+onUnmounted(() => {
+  document.removeEventListener('keydown', onKeyDown, true)
+})
+
+function onKeyDown(e: KeyboardEvent) {
+  if (e.key === 'ArrowLeft') {
+    e.preventDefault()
+    e.stopImmediatePropagation()  // prevents outer component from also handling this event
+    // ... handle the key ...
+  }
+}
+
+// Outer component (e.g. MasterSlider) — fires second (bubble phase, default)
+onMounted(() => {
+  document.addEventListener('keydown', onDocumentKeydown)  // bubble phase (default)
+})
+
+function onDocumentKeydown(e: KeyboardEvent) {
+  // This handler is never reached for ArrowLeft when ImageLightbox is open,
+  // because stopImmediatePropagation() cancelled propagation in the capture phase.
+  onKeydown(e)
+}
+```
+
+#### Why this is needed
+
+Without capture-phase registration, both document-level listeners execute for every keydown event. If `ImageLightbox` and `MasterSlider` both respond to `ArrowLeft`, the slider position changes twice — once from each handler. Using `stopImmediatePropagation()` from within the capture phase prevents the bubble-phase listener from firing at all.
+
+#### When to use this pattern
+
+Use capture-phase + `stopImmediatePropagation` when:
+- A foreground overlay (modal, lightbox, drawer) must exclusively own certain keyboard shortcuts while it is open.
+- A background component also listens for the same keys at document level.
+- You want the overlay to win unconditionally without requiring the background component to check for an "open overlay" flag.
+
+Do not use this pattern for:
+- Simple single-component keyboard handling — attach a regular listener or use Vue `@keydown` template bindings.
+- Cases where multiple components should share a key simultaneously.
+- Element-scoped listeners (e.g. `@keydown` on a specific element); those naturally scope to that element's subtree.
+
+#### Current usage in this codebase
+
+`ImageLightbox.vue` registers its `keydown` handler in capture phase so that arrow-key presses (plain `ArrowLeft`/`ArrowRight` for the in-lightbox slider, `Shift+ArrowLeft`/`Shift+ArrowRight` for grid navigation) are fully consumed before `MasterSlider.vue`'s document-level bubble-phase handler (`onDocumentKeydown`) can also act on them. Both components call `e.stopImmediatePropagation()` on the keys they handle.
+
+### 4.11 Numeric field format specification
 
 The following field-type conventions apply throughout the stack (backend model, API types, frontend form inputs, and acceptance criteria). Acceptance criteria for any story that involves these fields must state the expected format explicitly.
 
