@@ -123,8 +123,8 @@ Older entries are condensed to titles only — see git history for full details.
 ### B-033: Lightbox closes on mouse-up after slider drag
 - Track mousedown origin to prevent slider drag-release from closing lightbox
 
-### B-031: Dimension preset selector missing New/Save/Delete workflow
-- Added dirty tracking, New button, and restructured PresetSelector layout
+### B-031: Dimension preset selector missing New/Save/Delete workflow (UAT rework)
+- Added "Update" button to save changes to an existing preset in place; "Save" now acts as "Save As" for creating new presets
 
 ### B-032: X/Y grid display glitches — add debug mode overlay
 - Debug overlay showing per-cell dimension values, slider value, and combo selections

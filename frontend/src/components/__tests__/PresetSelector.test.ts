@@ -10,6 +10,7 @@ vi.mock('../../api/client', () => ({
   apiClient: {
     getPresets: vi.fn(),
     createPreset: vi.fn(),
+    updatePreset: vi.fn(),
     deletePreset: vi.fn(),
   },
 }))
@@ -24,6 +25,7 @@ import { apiClient } from '../../api/client'
 
 const mockGetPresets = apiClient.getPresets as ReturnType<typeof vi.fn>
 const mockCreatePreset = apiClient.createPreset as ReturnType<typeof vi.fn>
+const mockUpdatePreset = apiClient.updatePreset as ReturnType<typeof vi.fn>
 const mockDeletePreset = apiClient.deletePreset as ReturnType<typeof vi.fn>
 
 const samplePresets: Preset[] = [
@@ -594,6 +596,169 @@ describe('PresetSelector', () => {
       const topButtons = topRow.findAllComponents(NButton)
       const ariaLabels = topButtons.map((b: VueWrapper) => b.attributes('aria-label'))
       expect(ariaLabels).toContain('New preset')
+    })
+  })
+
+  // Update button tests (UAT rework B-031)
+  describe('Update button', () => {
+    /** Helper: select p1, then simulate parent applying its mapping to make dirty. */
+    async function loadPresetAndMakeDirty(wrapper: ReturnType<typeof mount>) {
+      const select = wrapper.findComponent(NSelect)
+      select.vm.$emit('update:value', 'p1')
+      await nextTick()
+      // Simulate parent applying preset mapping (clean state)
+      await wrapper.setProps({ assignments: new Map(defaultProps.assignments) })
+      await nextTick()
+      // Now change an assignment to make dirty
+      const modifiedAssignments = new Map(defaultProps.assignments)
+      modifiedAssignments.set('cfg', 'y')
+      await wrapper.setProps({ assignments: modifiedAssignments })
+      await nextTick()
+    }
+
+    it('Update button appears when a preset is selected and dirty', async () => {
+      mockGetPresets.mockResolvedValue(samplePresets)
+      const wrapper = mount(PresetSelector, { props: defaultProps })
+      await flushPromises()
+
+      // Not visible before selection
+      expect(findButton(wrapper, 'Update preset')).toBeUndefined()
+
+      await loadPresetAndMakeDirty(wrapper)
+
+      expect(findButton(wrapper, 'Update preset')).toBeDefined()
+    })
+
+    it('Update button is hidden when no preset is selected', async () => {
+      mockGetPresets.mockResolvedValue(samplePresets)
+      const wrapper = mount(PresetSelector, { props: defaultProps })
+      await flushPromises()
+
+      // No preset selected — button should not be present
+      expect(findButton(wrapper, 'Update preset')).toBeUndefined()
+    })
+
+    it('Update button is hidden when preset is selected but assignments are clean', async () => {
+      mockGetPresets.mockResolvedValue(samplePresets)
+      const wrapper = mount(PresetSelector, { props: defaultProps })
+      await flushPromises()
+
+      const select = wrapper.findComponent(NSelect)
+      select.vm.$emit('update:value', 'p1')
+      await nextTick()
+      // Simulate parent applying preset mapping (clean state)
+      await wrapper.setProps({ assignments: new Map(defaultProps.assignments) })
+      await nextTick()
+
+      // Clean state: Update button should not be visible
+      expect(findButton(wrapper, 'Update preset')).toBeUndefined()
+    })
+
+    it('Update button calls apiClient.updatePreset with correct arguments', async () => {
+      mockGetPresets.mockResolvedValue(samplePresets)
+      const updatedPreset: Preset = {
+        ...samplePresets[0],
+        mapping: { x: 'prompt', y: 'cfg', combos: ['seed'] },
+        updated_at: '2025-06-01T00:00:00Z',
+      }
+      mockUpdatePreset.mockResolvedValue(updatedPreset)
+
+      const wrapper = mount(PresetSelector, { props: defaultProps })
+      await flushPromises()
+
+      await loadPresetAndMakeDirty(wrapper)
+
+      const updateBtn = findButton(wrapper, 'Update preset')!
+      await updateBtn.trigger('click')
+      await flushPromises()
+
+      // Should call updatePreset with preset id, preset name, and current mapping
+      expect(mockUpdatePreset).toHaveBeenCalledWith(
+        'p1',
+        'Config A',
+        expect.objectContaining({ combos: expect.any(Array) }),
+      )
+    })
+
+    it('Update button emits save event with the updated preset', async () => {
+      mockGetPresets.mockResolvedValue(samplePresets)
+      const updatedPreset: Preset = {
+        ...samplePresets[0],
+        mapping: { x: 'prompt', y: 'cfg', combos: ['seed'] },
+        updated_at: '2025-06-01T00:00:00Z',
+      }
+      mockUpdatePreset.mockResolvedValue(updatedPreset)
+
+      const wrapper = mount(PresetSelector, { props: defaultProps })
+      await flushPromises()
+
+      await loadPresetAndMakeDirty(wrapper)
+
+      const updateBtn = findButton(wrapper, 'Update preset')!
+      await updateBtn.trigger('click')
+      await flushPromises()
+
+      const emitted = wrapper.emitted('save')
+      expect(emitted).toBeDefined()
+      expect(emitted![0][0]).toEqual(updatedPreset)
+    })
+
+    it('Update button disables after successful update (snapshot updated)', async () => {
+      mockGetPresets.mockResolvedValue(samplePresets)
+      const modifiedAssignments = new Map(defaultProps.assignments)
+      modifiedAssignments.set('cfg', 'y')
+      const updatedPreset: Preset = {
+        ...samplePresets[0],
+        mapping: { y: 'cfg', x: 'prompt', combos: ['seed'] },
+        updated_at: '2025-06-01T00:00:00Z',
+      }
+      mockUpdatePreset.mockResolvedValue(updatedPreset)
+
+      const wrapper = mount(PresetSelector, { props: defaultProps })
+      await flushPromises()
+
+      await loadPresetAndMakeDirty(wrapper)
+
+      // Update is visible (dirty)
+      expect(findButton(wrapper, 'Update preset')).toBeDefined()
+
+      const updateBtn = findButton(wrapper, 'Update preset')!
+      await updateBtn.trigger('click')
+      await flushPromises()
+
+      // After update, snapshot matches current assignments: Update button should hide
+      expect(findButton(wrapper, 'Update preset')).toBeUndefined()
+    })
+
+    it('Save button still creates a new preset even when an existing preset is selected', async () => {
+      mockGetPresets.mockResolvedValue(samplePresets)
+      const createdPreset: Preset = {
+        id: 'new-id',
+        name: 'New Preset',
+        mapping: { x: 'prompt', y: 'cfg', combos: ['seed'] },
+        created_at: '2025-06-01T00:00:00Z',
+        updated_at: '2025-06-01T00:00:00Z',
+      }
+      mockCreatePreset.mockResolvedValue(createdPreset)
+      ;(globalThis.prompt as ReturnType<typeof vi.fn>).mockReturnValue('New Preset')
+
+      const wrapper = mount(PresetSelector, { props: defaultProps })
+      await flushPromises()
+
+      await loadPresetAndMakeDirty(wrapper)
+
+      const saveBtn = findButton(wrapper, 'Save preset')!
+      expect(saveBtn.props('disabled')).toBe(false)
+      await saveBtn.trigger('click')
+      await flushPromises()
+
+      // Should call createPreset, not updatePreset
+      expect(mockCreatePreset).toHaveBeenCalledWith('New Preset', expect.objectContaining({ combos: expect.any(Array) }))
+      expect(mockUpdatePreset).not.toHaveBeenCalled()
+
+      const emitted = wrapper.emitted('save')
+      expect(emitted).toBeDefined()
+      expect(emitted![0][0]).toEqual(createdPreset)
     })
   })
 

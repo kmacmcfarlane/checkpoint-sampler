@@ -203,6 +203,60 @@ test.describe('sidebar PresetSelector New/Save/Delete workflow', () => {
     }
   })
 
+  // AC (UAT rework B-031): Update button appears when an existing preset is loaded and assignments are modified
+  test('Update button appears after modifying a loaded preset and updates it in-place', async ({ page }) => {
+    const presetName = `E2E Update Preset ${Date.now()}`
+
+    // Create a preset first (use multi-value dimension; S-080 disables single-value role selects)
+    const newButton = page.locator('[aria-label="New preset"]')
+    await newButton.click()
+    await assignDimensionRole(page, 'checkpoint', 'X Axis')
+
+    page.on('dialog', async (dialog) => {
+      if (dialog.type() === 'prompt') {
+        await dialog.accept(presetName)
+      }
+    })
+
+    const saveButton = page.locator('[aria-label="Save preset"]')
+    await expect(saveButton).toBeEnabled()
+    await saveButton.click()
+    await expect(saveButton).toBeDisabled()
+
+    // Update button should NOT be visible (assignments are clean after save)
+    const updateButton = page.locator('[aria-label="Update preset"]')
+    await expect(updateButton).not.toBeVisible()
+
+    // Modify a dimension assignment to make dirty
+    await assignDimensionRole(page, 'prompt_name', 'Y Axis')
+
+    // Update button should now appear (preset selected + dirty)
+    await expect(updateButton).toBeVisible()
+
+    // Click Update
+    await updateButton.click()
+
+    // After update, the button should disappear (snapshot refreshed, no longer dirty)
+    await expect(updateButton).not.toBeVisible()
+
+    // Save button should also be disabled (clean state)
+    await expect(saveButton).toBeDisabled()
+
+    // Verify the preset was updated: click New to clear, then re-load the preset
+    await newButton.click()
+    const presetSelect = page.locator('.preset-select')
+    await presetSelect.click()
+    const popupMenu = page.locator('.n-base-select-menu:visible')
+    await expect(popupMenu).toBeVisible()
+    await popupMenu.getByText(presetName, { exact: true }).click()
+    await expect(popupMenu).not.toBeVisible()
+
+    // The preset should still exist (it was updated, not duplicated)
+    // Delete button should appear (preset is selected)
+    const deleteButton = page.locator('[aria-label="Delete preset"]')
+    await expect(deleteButton).toBeVisible()
+  })
+
   // AC: Clicking New clears the current preset selection
   test('clicking New clears the current preset selection', async ({ page }) => {
     const presetName = `E2E Clear Selection ${Date.now()}`

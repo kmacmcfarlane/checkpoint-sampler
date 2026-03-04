@@ -91,3 +91,9 @@ On narrow/mobile screens, add a swipe-left gesture on the drawer to close it, im
 * priority: very-low
 * source: developer
 The FiltersDrawer has a fixed 320px width. For users with many dimensions or long dimension values, an auto-sizing or resizable drawer (like the metadata panel) would be more ergonomic.
+
+### Rename preset inline
+* status: needs_approval
+* priority: very-low
+* source: developer
+The Update button updates the mapping but reuses the existing name. A small "Rename" affordance (inline edit on the name field) would let users change names without the Save-As prompt.

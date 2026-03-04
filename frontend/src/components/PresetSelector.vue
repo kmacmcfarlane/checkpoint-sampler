@@ -14,7 +14,7 @@ const props = defineProps<{
 }>()
 
 // load: Emitted when a preset is selected or auto-loaded. Payload: the loaded Preset and an array of missing dimension name warnings.
-// save: Emitted after a new preset is successfully created. Payload: the newly created Preset.
+// save: Emitted after a preset is successfully created or updated. Payload: the saved Preset.
 // delete: Emitted after a preset is deleted, or when an auto-load preset is stale and not found. Payload: the preset ID string.
 // new: Emitted when the user clicks New to start a fresh preset configuration. No payload.
 const emit = defineEmits<{
@@ -201,6 +201,41 @@ async function onSave() {
   }
 }
 
+const updating = ref(false)
+
+/**
+ * Whether the Update button should be available.
+ * True only when an existing preset is selected AND assignments are dirty.
+ */
+const canUpdate = computed(() => !!selectedId.value && isDirty.value)
+
+async function onUpdate() {
+  if (!selectedId.value) return
+
+  const existingPreset = presets.value.find((p) => p.id === selectedId.value)
+  if (!existingPreset) return
+
+  updating.value = true
+  error.value = null
+  try {
+    const mapping = assignmentsToMapping()
+    const preset = await apiClient.updatePreset(existingPreset.id, existingPreset.name, mapping)
+    // Replace updated preset in local list
+    const idx = presets.value.findIndex((p) => p.id === preset.id)
+    if (idx !== -1) presets.value[idx] = preset
+    snapshotAssignments()
+    emit('save', preset)
+  } catch (err: unknown) {
+    const message =
+      err && typeof err === 'object' && 'message' in err
+        ? String((err as { message: string }).message)
+        : 'Failed to update preset'
+    error.value = message
+  } finally {
+    updating.value = false
+  }
+}
+
 async function onDelete(id: string) {
   error.value = null
   try {
@@ -266,6 +301,17 @@ function assignmentsToMapping(): PresetMapping {
       </NButton>
     </div>
     <div class="preset-selector__actions">
+      <NButton
+        v-if="canUpdate"
+        size="small"
+        type="primary"
+        :disabled="updating"
+        :loading="updating"
+        aria-label="Update preset"
+        @click="onUpdate"
+      >
+        {{ updating ? 'Updating...' : 'Update' }}
+      </NButton>
       <NButton
         size="small"
         :disabled="saving || !isDirty"

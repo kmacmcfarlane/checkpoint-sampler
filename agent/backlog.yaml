@@ -289,8 +289,6 @@ stories:
     testing:
       - "command: cd frontend && npx vitest run"
 
-    uat_feedback: 'With an existing preset loaded, Save button offers to save as a new preset. Need an Update button to save
-      the existing preset. Delete works as expected. Priority: low.'
   - id: S-072
     title: "Regenerate button for completed sample jobs"
     priority: 38
