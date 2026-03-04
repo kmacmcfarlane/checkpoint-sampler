@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -62,6 +63,10 @@ func (f *fakeScanFS) ListPNGFiles(dir string) ([]string, error) {
 func (f *fakeScanFS) DirectoryExists(path string) bool {
 	_, ok := f.files[path]
 	return ok
+}
+
+func (f *fakeScanFS) ReadFile(path string) ([]byte, error) {
+	return nil, os.ErrNotExist
 }
 
 // fakeCheckpointDiscoveryFS implements service.CheckpointFileSystem for testing.

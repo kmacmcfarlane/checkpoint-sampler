@@ -1097,6 +1097,67 @@ func (e *JobExecutor) writeSidecar(imagePath string, job model.SampleJob, item m
 	return nil
 }
 
+// writeManifest writes a JSON manifest file to the study version directory.
+// It captures the complete study configuration and job parameters that produced
+// the samples. The manifest is written atomically (temp file + rename).
+//
+// AC1: Each generation job outputs a JSON manifest file containing all job params.
+func (e *JobExecutor) writeManifest(job model.SampleJob, items []model.SampleJobItem) error {
+	e.logger.WithField("job_id", job.ID).Trace("entering writeManifest")
+	defer e.logger.Trace("returning from writeManifest")
+
+	// Fetch the study for the full config snapshot
+	study, err := e.store.GetStudy(job.StudyID)
+	if err != nil {
+		return fmt.Errorf("fetching study for manifest: %w", err)
+	}
+
+	// Extract unique checkpoint filenames from the job items (preserving order)
+	seen := make(map[string]struct{})
+	var checkpoints []string
+	for _, item := range items {
+		if _, ok := seen[item.CheckpointFilename]; !ok {
+			seen[item.CheckpointFilename] = struct{}{}
+			checkpoints = append(checkpoints, item.CheckpointFilename)
+		}
+	}
+
+	// Build the manifest
+	manifest := fileformat.NewJobManifest(job, study, checkpoints)
+
+	data, err := fileformat.MarshalManifest(manifest)
+	if err != nil {
+		return fmt.Errorf("marshaling manifest: %w", err)
+	}
+
+	// Write to study version directory: {sampleDir}/{StudyName}/v{Version}/manifest.json
+	studyOutputDir := study.OutputDirName()
+	dir := filepath.Join(e.sampleDir, studyOutputDir)
+	manifestPath := filepath.Join(dir, fileformat.ManifestFilename)
+	tempPath := manifestPath + ".tmp"
+
+	// Ensure directory exists
+	if err := e.ensureDir(dir); err != nil {
+		return fmt.Errorf("ensuring manifest directory: %w", err)
+	}
+
+	// Write to temp file first
+	if err := e.fsWriter.WriteFile(tempPath, data, 0644); err != nil {
+		return fmt.Errorf("writing manifest temp file: %w", err)
+	}
+
+	// Atomically rename temp file to final destination
+	if err := e.fsWriter.RenameFile(tempPath, manifestPath); err != nil {
+		return fmt.Errorf("renaming manifest file: %w", err)
+	}
+
+	e.logger.WithFields(logrus.Fields{
+		"job_id":        job.ID,
+		"manifest_path": manifestPath,
+	}).Info("manifest file written")
+	return nil
+}
+
 // ensureDir creates a directory if it doesn't exist.
 func (e *JobExecutor) ensureDir(path string) error {
 	info, err := e.fsWriter.Stat(path)
@@ -1222,6 +1283,14 @@ func (e *JobExecutor) completeJob(jobID string) {
 	if err := e.store.UpdateSampleJob(job); err != nil {
 		e.logger.WithError(err).Error("failed to mark job as completed")
 		return
+	}
+
+	// Write manifest file (non-fatal if it fails)
+	if manifestErr := e.writeManifest(job, items); manifestErr != nil {
+		e.logger.WithFields(logrus.Fields{
+			"job_id": jobID,
+			"error":  manifestErr.Error(),
+		}).Warn("failed to write manifest, job completed but manifest missing")
 	}
 
 	// Broadcast completion event
