@@ -344,6 +344,158 @@ var _ = Describe("Study Store", func() {
 				err := s.DeleteStudy("nonexistent")
 				Expect(err).To(Equal(sql.ErrNoRows))
 			})
+
+			It("cascades delete to sample_jobs referencing the study", func() {
+				now := time.Now().UTC().Truncate(time.Second)
+				job := model.SampleJob{
+					ID:              "job-for-study",
+					TrainingRunName: "test-run",
+					StudyID:         study.ID,
+					StudyName:       study.Name,
+					WorkflowName:    "flux-dev",
+					Status:          model.SampleJobStatusPending,
+					TotalItems:      1,
+					CompletedItems:  0,
+					CreatedAt:       now,
+					UpdatedAt:       now,
+				}
+				err := s.CreateSampleJob(job)
+				Expect(err).NotTo(HaveOccurred())
+
+				// Verify the job exists
+				_, err = s.GetSampleJob(job.ID)
+				Expect(err).NotTo(HaveOccurred())
+
+				// Delete the study
+				err = s.DeleteStudy(study.ID)
+				Expect(err).NotTo(HaveOccurred())
+
+				// Verify the job is also deleted via cascade
+				_, err = s.GetSampleJob(job.ID)
+				Expect(err).To(Equal(sql.ErrNoRows))
+			})
+
+			It("cascades delete through to sample_job_items", func() {
+				now := time.Now().UTC().Truncate(time.Second)
+				job := model.SampleJob{
+					ID:              "job-with-items",
+					TrainingRunName: "test-run",
+					StudyID:         study.ID,
+					StudyName:       study.Name,
+					WorkflowName:    "flux-dev",
+					Status:          model.SampleJobStatusPending,
+					TotalItems:      1,
+					CompletedItems:  0,
+					CreatedAt:       now,
+					UpdatedAt:       now,
+				}
+				err := s.CreateSampleJob(job)
+				Expect(err).NotTo(HaveOccurred())
+
+				item := model.SampleJobItem{
+					ID:                 "item-for-study",
+					JobID:              job.ID,
+					CheckpointFilename: "checkpoint.safetensors",
+					ComfyUIModelPath:   "/models/checkpoint.safetensors",
+					PromptName:         "test",
+					PromptText:         "test prompt",
+					Steps:              4,
+					CFG:                7.0,
+					SamplerName:        "euler",
+					Scheduler:          "simple",
+					Seed:               42,
+					Width:              512,
+					Height:             512,
+					Status:             model.SampleJobItemStatusPending,
+					CreatedAt:          now,
+					UpdatedAt:          now,
+				}
+				err = s.CreateSampleJobItem(item)
+				Expect(err).NotTo(HaveOccurred())
+
+				// Verify the item exists
+				items, err := s.ListSampleJobItems(job.ID)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(items).To(HaveLen(1))
+
+				// Delete the study — should cascade to jobs and items
+				err = s.DeleteStudy(study.ID)
+				Expect(err).NotTo(HaveOccurred())
+
+				// Verify the job and item are gone
+				_, err = s.GetSampleJob(job.ID)
+				Expect(err).To(Equal(sql.ErrNoRows))
+
+				items, err = s.ListSampleJobItems(job.ID)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(items).To(HaveLen(0))
+			})
+
+			It("deletes study with multiple jobs and items", func() {
+				now := time.Now().UTC().Truncate(time.Second)
+
+				// Create two jobs for the same study
+				for _, jobID := range []string{"job-a", "job-b"} {
+					job := model.SampleJob{
+						ID:              jobID,
+						TrainingRunName: "test-run",
+						StudyID:         study.ID,
+						StudyName:       study.Name,
+						WorkflowName:    "flux-dev",
+						Status:          model.SampleJobStatusPending,
+						TotalItems:      2,
+						CompletedItems:  0,
+						CreatedAt:       now,
+						UpdatedAt:       now,
+					}
+					err := s.CreateSampleJob(job)
+					Expect(err).NotTo(HaveOccurred())
+
+					// Create items for each job
+					for i, itemID := range []string{jobID + "-item-1", jobID + "-item-2"} {
+						item := model.SampleJobItem{
+							ID:                 itemID,
+							JobID:              jobID,
+							CheckpointFilename: "checkpoint.safetensors",
+							ComfyUIModelPath:   "/models/checkpoint.safetensors",
+							PromptName:         "test",
+							PromptText:         "test prompt",
+							Steps:              4,
+							CFG:                7.0,
+							SamplerName:        "euler",
+							Scheduler:          "simple",
+							Seed:               int64(42 + i),
+							Width:              512,
+							Height:             512,
+							Status:             model.SampleJobItemStatusPending,
+							CreatedAt:          now,
+							UpdatedAt:          now,
+						}
+						err = s.CreateSampleJobItem(item)
+						Expect(err).NotTo(HaveOccurred())
+					}
+				}
+
+				// Verify jobs and items exist
+				jobs, err := s.ListSampleJobs()
+				Expect(err).NotTo(HaveOccurred())
+				Expect(jobs).To(HaveLen(2))
+
+				// Delete the study
+				err = s.DeleteStudy(study.ID)
+				Expect(err).NotTo(HaveOccurred())
+
+				// All jobs and items should be gone
+				jobs, err = s.ListSampleJobs()
+				Expect(err).NotTo(HaveOccurred())
+				Expect(jobs).To(HaveLen(0))
+
+				for _, jobID := range []string{"job-a", "job-b"} {
+					items, err := s.ListSampleJobItems(jobID)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(items).To(HaveLen(0))
+				}
+			})
 		})
 	})
 })

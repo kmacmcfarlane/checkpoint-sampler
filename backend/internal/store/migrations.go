@@ -160,5 +160,33 @@ func AllMigrations() []Migration {
 			DROP TABLE sample_jobs;
 			ALTER TABLE sample_jobs_new RENAME TO sample_jobs;`,
 		},
+		{
+			// Add ON DELETE CASCADE to the study_id foreign key on sample_jobs.
+			// Without this, deleting a study that has associated sample_jobs
+			// fails with FOREIGN KEY constraint error (787).
+			Version: 11,
+			SQL: `CREATE TABLE sample_jobs_v2 (
+				id                 TEXT PRIMARY KEY,
+				training_run_name  TEXT NOT NULL,
+				study_id           TEXT NOT NULL,
+				study_name         TEXT NOT NULL DEFAULT '',
+				workflow_name      TEXT NOT NULL,
+				vae                TEXT,
+				clip               TEXT,
+				shift              REAL,
+				status             TEXT NOT NULL,
+				total_items        INTEGER NOT NULL,
+				completed_items    INTEGER NOT NULL DEFAULT 0,
+				error_message      TEXT,
+				created_at         TEXT NOT NULL,
+				updated_at         TEXT NOT NULL,
+				FOREIGN KEY (study_id) REFERENCES studies(id) ON DELETE CASCADE
+			);
+			INSERT INTO sample_jobs_v2 (id, training_run_name, study_id, study_name, workflow_name, vae, clip, shift, status, total_items, completed_items, error_message, created_at, updated_at)
+			SELECT id, training_run_name, study_id, study_name, workflow_name, vae, clip, shift, status, total_items, completed_items, error_message, created_at, updated_at
+			FROM sample_jobs;
+			DROP TABLE sample_jobs;
+			ALTER TABLE sample_jobs_v2 RENAME TO sample_jobs;`,
+		},
 	}
 }

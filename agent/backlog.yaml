@@ -124,8 +124,6 @@ stories:
     testing:
       - "command: cd frontend && npx vitest run"
 
-    uat_feedback: "Foreign key error when deleting a study: 'constraint failed: FOREIGN KEY constraint failed (787)'. DELETE
-      /api/studies/{id} returns 500. Needs proper E2E test coverage for study deletion. Priority: high."
   - id: S-064
     title: "E2E test data isolation per run"
     priority: 55
@@ -532,3 +530,22 @@ stories:
       Source: UAT new feature request (Study Sample Job Manifest breakdown 3/3).
     testing:
       - "command: make test-backend"
+  - id: B-044
+    title: "SQLite PRAGMA foreign_keys=ON not enforced across connection pool"
+    priority: 70
+    status: todo
+    complexity: medium
+    requires: []
+    acceptance:
+      - "PRAGMA foreign_keys=ON is enforced on every database connection, not just the first"
+      - "E2E test for cascade deletion verifies that sample_jobs are actually removed (not just that the study delete returns
+        204)"
+    testing:
+      - "command: make test-backend"
+      - "command: make test-e2e"
+    notes: |
+      OpenDB() sets PRAGMA foreign_keys=ON via db.Exec(), which only applies to one connection
+      in Go's database/sql pool. New connections from the pool do not inherit the pragma, so FK
+      constraints (including ON DELETE CASCADE) may not be enforced on those connections. The fix
+      is to use a connection hook or DSN parameter to set the pragma per-connection.
+      Found during QA sweep for S-062.

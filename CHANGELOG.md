@@ -147,6 +147,7 @@ Older entries are condensed to titles only — see git history for full details.
 
 ### S-062: Generate Samples dialog polish — bead indicator, preset auto-close, training run restore and refresh
 - Colored bead indicator on Jobs button reflecting job status; auto-close preset editor on save; training run persistence
+- DB migration adds ON DELETE CASCADE to `sample_jobs.study_id` FK, fixing 500 error on study deletion when jobs exist
 
 ### S-061: Lightbox UX improvements — keyboard navigation and slider dimension label
 - Shift+Arrow grid navigation with wrap-around; slider label shows dimension name; local slider index for rapid key presses
