@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-042: Watcher fails to watch demo training run checkpoint directories due to nested study path
+- WatchTrainingRun now derives study name from run.Name and includes it when constructing checkpoint watch paths and parent directory watch target
+
 ### S-082: Make more room in UI — filters slideout, slider/zoom relocation
 - Dimension filters moved from inline collapsible section to a right-side slideout drawer (always expanded, no individual collapse)
 - Master slider relocated to the header center area; zoom control moved to the top nav bar alongside action buttons
