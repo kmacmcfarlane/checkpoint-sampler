@@ -60,6 +60,95 @@ var _ = Describe("OpenDB", func() {
 		_, err = os.Stat(filepath.Dir(dbPath))
 		Expect(err).NotTo(HaveOccurred())
 	})
+
+	// AC: PRAGMA foreign_keys=ON is enforced on every database connection, not just the first
+	It("enforces foreign_keys on every connection in the pool, not just the first", func() {
+		dbPath := filepath.Join(tmpDir, "pool-test.db")
+		db, err := store.OpenDB(dbPath)
+		Expect(err).NotTo(HaveOccurred())
+		defer db.Close()
+
+		// Allow multiple connections in the pool
+		db.SetMaxOpenConns(5)
+
+		// Create a parent/child table pair with a foreign key
+		_, err = db.Exec(`CREATE TABLE parent (id TEXT PRIMARY KEY)`)
+		Expect(err).NotTo(HaveOccurred())
+		_, err = db.Exec(`CREATE TABLE child (
+			id        TEXT PRIMARY KEY,
+			parent_id TEXT NOT NULL,
+			FOREIGN KEY (parent_id) REFERENCES parent(id)
+		)`)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Hold the first connection open with a transaction so that subsequent
+		// queries are forced to use a different pool connection.
+		tx, err := db.Begin()
+		Expect(err).NotTo(HaveOccurred())
+		defer tx.Rollback()
+
+		// Keep the first connection busy inside the transaction.
+		_, err = tx.Exec("INSERT INTO parent (id) VALUES ('p1')")
+		Expect(err).NotTo(HaveOccurred())
+
+		// This query runs on a second connection from the pool. If pragmas
+		// are only set on the first connection, foreign_keys would be OFF here
+		// and the insert below would succeed — which would be the bug.
+		var fkEnabled int
+		err = db.QueryRow("PRAGMA foreign_keys").Scan(&fkEnabled)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(fkEnabled).To(Equal(1), "foreign_keys should be ON on every pool connection")
+
+		// Attempt to insert a child with a non-existent parent on the second
+		// connection. With foreign_keys properly enabled, this must fail.
+		_, err = db.Exec("INSERT INTO child (id, parent_id) VALUES ('c1', 'nonexistent')")
+		Expect(err).To(HaveOccurred(), "FK violation should be rejected on all pool connections")
+
+		tx.Rollback()
+	})
+
+	It("enforces ON DELETE CASCADE on every pool connection", func() {
+		dbPath := filepath.Join(tmpDir, "cascade-pool-test.db")
+		db, err := store.OpenDB(dbPath)
+		Expect(err).NotTo(HaveOccurred())
+		defer db.Close()
+
+		db.SetMaxOpenConns(5)
+
+		// Set up schema with cascade
+		_, err = db.Exec(`CREATE TABLE parent (id TEXT PRIMARY KEY)`)
+		Expect(err).NotTo(HaveOccurred())
+		_, err = db.Exec(`CREATE TABLE child (
+			id        TEXT PRIMARY KEY,
+			parent_id TEXT NOT NULL,
+			FOREIGN KEY (parent_id) REFERENCES parent(id) ON DELETE CASCADE
+		)`)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Insert parent and child
+		_, err = db.Exec("INSERT INTO parent (id) VALUES ('p1')")
+		Expect(err).NotTo(HaveOccurred())
+		_, err = db.Exec("INSERT INTO child (id, parent_id) VALUES ('c1', 'p1')")
+		Expect(err).NotTo(HaveOccurred())
+
+		// Hold first connection busy so delete runs on a different one
+		tx, err := db.Begin()
+		Expect(err).NotTo(HaveOccurred())
+		_, err = tx.Exec("SELECT 1")
+		Expect(err).NotTo(HaveOccurred())
+
+		// Delete parent on a second pool connection — cascade should remove child
+		_, err = db.Exec("DELETE FROM parent WHERE id = 'p1'")
+		Expect(err).NotTo(HaveOccurred())
+
+		tx.Rollback()
+
+		// Verify child was cascade-deleted
+		var count int
+		err = db.QueryRow("SELECT COUNT(*) FROM child").Scan(&count)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(count).To(Equal(0), "child should be cascade-deleted when parent is removed")
+	})
 })
 
 var _ = Describe("Migrate", func() {

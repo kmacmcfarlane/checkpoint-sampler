@@ -13,27 +13,35 @@ import (
 
 // OpenDB opens a SQLite database at the given path and configures WAL mode,
 // busy timeout, and foreign keys. It creates the parent directory if needed.
+//
+// Pragmas are set via DSN _pragma parameters so that every connection opened
+// by Go's database/sql pool inherits them. A plain db.Exec("PRAGMA ...")
+// only applies to the single connection that executes the statement; other
+// pool connections would not have foreign_keys enabled.
 func OpenDB(dbPath string) (*sql.DB, error) {
 	dir := filepath.Dir(dbPath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return nil, fmt.Errorf("creating database directory: %w", err)
 	}
 
-	db, err := sql.Open("sqlite", dbPath)
+	dsn := fmt.Sprintf("file:%s?_pragma=journal_mode%%28WAL%%29&_pragma=busy_timeout%%285000%%29&_pragma=foreign_keys%%281%%29",
+		dbPath,
+	)
+
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("opening database: %w", err)
 	}
 
-	pragmas := []string{
-		"PRAGMA journal_mode=WAL",
-		"PRAGMA busy_timeout=5000",
-		"PRAGMA foreign_keys=ON",
+	// Verify that pragmas were applied correctly on the connection.
+	var fkEnabled int
+	if err := db.QueryRow("PRAGMA foreign_keys").Scan(&fkEnabled); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("verifying foreign_keys pragma: %w", err)
 	}
-	for _, p := range pragmas {
-		if _, err := db.Exec(p); err != nil {
-			db.Close()
-			return nil, fmt.Errorf("executing %s: %w", p, err)
-		}
+	if fkEnabled != 1 {
+		db.Close()
+		return nil, fmt.Errorf("foreign_keys pragma not enabled (got %d)", fkEnabled)
 	}
 
 	return db, nil

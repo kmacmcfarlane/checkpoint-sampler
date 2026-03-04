@@ -87,4 +87,56 @@ test.describe('sample-jobs API (ComfyUI configured in test environment)', () => 
     const studies = await studiesResp.json()
     expect(studies.every((s: { id: string }) => s.id !== study.id)).toBe(true)
   })
+
+  // B-044 AC2: Verify that cascade deletion actually removes associated sample_jobs,
+  // not just that the study delete returns 204. The previous test confirmed the HTTP
+  // response code; this test confirms the database-level cascade behavior end-to-end.
+  test('DELETE /api/studies/{id} cascade-deletes associated sample_jobs', async ({ request }) => {
+    // Step 1: Create a study
+    const studyPayload = {
+      name: 'Cascade Verify Study',
+      prompt_prefix: '',
+      prompts: [{ name: 'cascade-test', text: 'cascade deletion test prompt' }],
+      negative_prompt: '',
+      steps: [20],
+      cfgs: [7.0],
+      sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
+      seeds: [123],
+      width: 512,
+      height: 512,
+    }
+    const createStudyResp = await request.post('/api/studies', { data: studyPayload })
+    expect(createStudyResp.status()).toBe(201)
+    const study = await createStudyResp.json()
+    expect(study.id).toBeTruthy()
+
+    // Step 2: Create a sample job referencing this study
+    const jobResp = await request.post('/api/sample-jobs', {
+      data: {
+        training_run_name: 'my-model',
+        study_id: study.id,
+        workflow_name: 'test-workflow.json',
+      },
+    })
+    expect(jobResp.status()).toBe(201)
+    const job = await jobResp.json()
+    expect(job.id).toBeTruthy()
+
+    // Step 3: Confirm the job exists in the jobs list
+    const jobsBeforeResp = await request.get('/api/sample-jobs')
+    expect(jobsBeforeResp.status()).toBe(200)
+    const jobsBefore = await jobsBeforeResp.json()
+    expect(jobsBefore.some((j: { id: string }) => j.id === job.id)).toBe(true)
+
+    // Step 4: Delete the study
+    const deleteResp = await request.delete(`/api/studies/${study.id}`)
+    expect(deleteResp.status()).toBe(204)
+
+    // Step 5: Verify the sample_jobs referencing this study are actually gone
+    // (not just that the delete succeeded). This is the key assertion for B-044 AC2.
+    const jobsAfterResp = await request.get('/api/sample-jobs')
+    expect(jobsAfterResp.status()).toBe(200)
+    const jobsAfter = await jobsAfterResp.json()
+    expect(jobsAfter.every((j: { id: string }) => j.id !== job.id)).toBe(true)
+  })
 })

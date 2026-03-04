@@ -529,7 +529,7 @@ stories:
   - id: B-044
     title: "SQLite PRAGMA foreign_keys=ON not enforced across connection pool"
     priority: 70
-    status: todo
+    status: uat
     complexity: medium
     requires: []
     acceptance:

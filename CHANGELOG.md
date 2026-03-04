@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-044: SQLite PRAGMA foreign_keys=ON not enforced across connection pool
+- Pragmas (foreign_keys, WAL, busy_timeout) now set via DSN `_pragma` parameters instead of `db.Exec()`, ensuring enforcement on every pool connection
+- E2E test verifies cascade deletion actually removes sample_jobs when a study is deleted
+
 ### B-030: Top nav elements unavailable on narrow screens until drawer opens (UAT rework)
 - Standalone `useLastTrainingRun` composable persists training run ID to localStorage independently of preset selection
 - `eagerAutoSelect` now falls back to standalone key when no preset is saved, fixing auto-load on page refresh
