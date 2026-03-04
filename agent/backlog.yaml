@@ -487,7 +487,7 @@ stories:
   - id: S-086
     title: "Study version selector UX and sample availability beads"
     priority: 45
-    status: todo
+    status: in_progress
     complexity: medium
     requires:
       - S-085
@@ -509,7 +509,7 @@ stories:
   - id: S-087
     title: "JSON sample job manifest per generation job"
     priority: 45
-    status: todo
+    status: uat
     complexity: medium
     requires:
       - S-085

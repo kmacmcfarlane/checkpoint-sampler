@@ -2,8 +2,10 @@ package service
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/fileformat"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
 	"github.com/sirupsen/logrus"
 )
@@ -12,6 +14,7 @@ import (
 type ValidationFileSystem interface {
 	ListPNGFiles(dir string) ([]string, error)
 	DirectoryExists(path string) bool
+	ReadFile(path string) ([]byte, error)
 }
 
 // ValidationService validates sample set completeness for a training run.
@@ -221,4 +224,144 @@ func (v *ValidationService) ValidateTrainingRunWithStudy(tr model.TrainingRun, s
 	}).Info("study validation completed")
 
 	return result, nil
+}
+
+// ValidateTrainingRunWithManifest checks completeness using a manifest file as the
+// source of truth for expected outputs, rather than the live study config. The manifest
+// is read from {sampleDir}/{studyOutputDir}/manifest.json.
+//
+// AC4: Validating a sample set uses the manifest as the source of truth for expected outputs.
+func (v *ValidationService) ValidateTrainingRunWithManifest(tr model.TrainingRun, studyOutputDir string) (*model.ValidationResult, error) {
+	v.logger.WithFields(logrus.Fields{
+		"training_run":     tr.Name,
+		"study_output_dir": studyOutputDir,
+	}).Trace("entering ValidateTrainingRunWithManifest")
+	defer v.logger.Trace("returning from ValidateTrainingRunWithManifest")
+
+	// Read the manifest from disk
+	manifestPath := filepath.Join(v.sampleDir, studyOutputDir, fileformat.ManifestFilename)
+	data, err := v.fs.ReadFile(manifestPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			v.logger.WithField("manifest_path", manifestPath).Debug("manifest not found")
+			return nil, fmt.Errorf("manifest not found at %s", manifestPath)
+		}
+		v.logger.WithFields(logrus.Fields{
+			"manifest_path": manifestPath,
+			"error":         err.Error(),
+		}).Error("failed to read manifest file")
+		return nil, fmt.Errorf("reading manifest: %w", err)
+	}
+
+	manifest, err := fileformat.UnmarshalManifest(data)
+	if err != nil {
+		v.logger.WithFields(logrus.Fields{
+			"manifest_path": manifestPath,
+			"error":         err.Error(),
+		}).Error("failed to parse manifest file")
+		return nil, fmt.Errorf("parsing manifest: %w", err)
+	}
+
+	expectedPerCheckpoint := manifest.ImagesPerCheckpoint
+	totalExpected := expectedPerCheckpoint * len(tr.Checkpoints)
+	totalVerified := 0
+
+	result := &model.ValidationResult{
+		Checkpoints:           make([]model.CheckpointCompletenessInfo, 0, len(tr.Checkpoints)),
+		ExpectedPerCheckpoint: expectedPerCheckpoint,
+		TotalExpected:         totalExpected,
+	}
+
+	for _, cp := range tr.Checkpoints {
+		verified := 0
+
+		if cp.HasSamples {
+			sampleDirPath := filepath.Join(v.sampleDir, studyOutputDir, cp.Filename)
+
+			if v.fs.DirectoryExists(sampleDirPath) {
+				files, err := v.fs.ListPNGFiles(sampleDirPath)
+				if err != nil {
+					v.logger.WithFields(logrus.Fields{
+						"checkpoint":     cp.Filename,
+						"checkpoint_dir": sampleDirPath,
+						"error":          err.Error(),
+					}).Error("failed to list PNG files during manifest validation")
+					return nil, fmt.Errorf("listing PNG files for checkpoint %q: %w", cp.Filename, err)
+				}
+				verified = len(files)
+			} else {
+				v.logger.WithFields(logrus.Fields{
+					"checkpoint":     cp.Filename,
+					"checkpoint_dir": sampleDirPath,
+				}).Warn("checkpoint sample directory does not exist during manifest validation")
+			}
+		}
+
+		missing := expectedPerCheckpoint - verified
+		if missing < 0 {
+			missing = 0
+		}
+
+		totalVerified += verified
+
+		result.Checkpoints = append(result.Checkpoints, model.CheckpointCompletenessInfo{
+			Checkpoint: cp.Filename,
+			Expected:   expectedPerCheckpoint,
+			Verified:   verified,
+			Missing:    missing,
+		})
+
+		if missing > 0 {
+			v.logger.WithFields(logrus.Fields{
+				"checkpoint": cp.Filename,
+				"expected":   expectedPerCheckpoint,
+				"verified":   verified,
+				"missing":    missing,
+			}).Warn("manifest validation found missing files")
+		}
+	}
+
+	result.TotalVerified = totalVerified
+
+	v.logger.WithFields(logrus.Fields{
+		"training_run":     tr.Name,
+		"checkpoint_count": len(tr.Checkpoints),
+		"expected_per_cp":  expectedPerCheckpoint,
+		"total_expected":   totalExpected,
+		"total_verified":   totalVerified,
+	}).Info("manifest validation completed")
+
+	return result, nil
+}
+
+// ReadManifest reads and parses a manifest from the study output directory.
+// Returns the parsed manifest or an error if the file doesn't exist or can't be parsed.
+//
+// AC3: Regenerating a sample set reads the manifest to determine what to generate.
+func (v *ValidationService) ReadManifest(studyOutputDir string) (fileformat.JobManifest, error) {
+	v.logger.WithField("study_output_dir", studyOutputDir).Trace("entering ReadManifest")
+	defer v.logger.Trace("returning from ReadManifest")
+
+	manifestPath := filepath.Join(v.sampleDir, studyOutputDir, fileformat.ManifestFilename)
+	data, err := v.fs.ReadFile(manifestPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			v.logger.WithField("manifest_path", manifestPath).Debug("manifest not found")
+			return fileformat.JobManifest{}, fmt.Errorf("manifest not found at %s", manifestPath)
+		}
+		return fileformat.JobManifest{}, fmt.Errorf("reading manifest: %w", err)
+	}
+
+	manifest, err := fileformat.UnmarshalManifest(data)
+	if err != nil {
+		return fileformat.JobManifest{}, fmt.Errorf("parsing manifest: %w", err)
+	}
+
+	v.logger.WithFields(logrus.Fields{
+		"manifest_path": manifestPath,
+		"job_id":        manifest.JobID,
+		"study_version": manifest.StudyVersion,
+	}).Debug("manifest read successfully")
+
+	return manifest, nil
 }

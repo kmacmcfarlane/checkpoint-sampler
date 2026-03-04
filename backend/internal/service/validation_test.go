@@ -3,25 +3,31 @@ package service_test
 import (
 	"fmt"
 	"io"
+	"os"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/sirupsen/logrus"
 
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/fileformat"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
 )
 
 // fakeValidationFS implements service.ValidationFileSystem for testing.
 type fakeValidationFS struct {
-	files map[string][]string
-	errs  map[string]error
+	files     map[string][]string
+	errs      map[string]error
+	fileData  map[string][]byte
+	readErrs  map[string]error
 }
 
 func newFakeValidationFS() *fakeValidationFS {
 	return &fakeValidationFS{
-		files: make(map[string][]string),
-		errs:  make(map[string]error),
+		files:    make(map[string][]string),
+		errs:     make(map[string]error),
+		fileData: make(map[string][]byte),
+		readErrs: make(map[string]error),
 	}
 }
 
@@ -35,6 +41,17 @@ func (f *fakeValidationFS) ListPNGFiles(dir string) ([]string, error) {
 func (f *fakeValidationFS) DirectoryExists(path string) bool {
 	_, ok := f.files[path]
 	return ok
+}
+
+func (f *fakeValidationFS) ReadFile(path string) ([]byte, error) {
+	if err, ok := f.readErrs[path]; ok {
+		return nil, err
+	}
+	data, ok := f.fileData[path]
+	if !ok {
+		return nil, os.ErrNotExist
+	}
+	return data, nil
 }
 
 var _ = Describe("ValidationService", func() {
@@ -422,6 +439,201 @@ var _ = Describe("ValidationService", func() {
 			Expect(result.TotalExpected).To(Equal(0))
 			Expect(result.TotalVerified).To(Equal(0))
 			Expect(result.ExpectedPerCheckpoint).To(Equal(2))
+		})
+	})
+
+	// AC4: Validating a sample set uses the manifest as the source of truth for expected outputs
+	// AC5: Unit tests for manifest validation against manifest
+	Describe("ValidateTrainingRunWithManifest", func() {
+		var manifestData []byte
+
+		BeforeEach(func() {
+			// Create a manifest with 2 images per checkpoint
+			manifest := fileformat.JobManifest{
+				JobID:           "job-manifest-1",
+				TrainingRunName: "model",
+				StudyName:       "Test Study",
+				StudyVersion:    1,
+				Prompts: []fileformat.ManifestNamedPrompt{
+					{Name: "prompt1", Text: "text1"},
+					{Name: "prompt2", Text: "text2"},
+				},
+				Steps:                 []int{20},
+				CFGs:                  []float64{7.0},
+				SamplerSchedulerPairs: []fileformat.ManifestSamplerSchedulerPair{
+					{Sampler: "euler", Scheduler: "normal"},
+				},
+				Seeds:               []int64{42},
+				Width:               1024,
+				Height:              768,
+				ImagesPerCheckpoint: 2,
+				Checkpoints: []string{
+					"cp1.safetensors",
+					"cp2.safetensors",
+				},
+			}
+			var err error
+			manifestData, err = fileformat.MarshalManifest(manifest)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("uses manifest images-per-checkpoint as expected count", func() {
+			fs.fileData["/samples/Test Study/v1/manifest.json"] = manifestData
+			fs.files["/samples/Test Study/v1/cp1.safetensors"] = []string{"a.png", "b.png"}
+			fs.files["/samples/Test Study/v1/cp2.safetensors"] = []string{"a.png"}
+
+			tr := model.TrainingRun{
+				Name: "model",
+				Checkpoints: []model.Checkpoint{
+					{Filename: "cp1.safetensors", StepNumber: 1000, HasSamples: true},
+					{Filename: "cp2.safetensors", StepNumber: 2000, HasSamples: true},
+				},
+				HasSamples: true,
+			}
+
+			result, err := svc.ValidateTrainingRunWithManifest(tr, "Test Study/v1")
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(result.ExpectedPerCheckpoint).To(Equal(2))
+			Expect(result.TotalExpected).To(Equal(4))
+			Expect(result.TotalVerified).To(Equal(3))
+
+			Expect(result.Checkpoints).To(HaveLen(2))
+			Expect(result.Checkpoints[0].Expected).To(Equal(2))
+			Expect(result.Checkpoints[0].Verified).To(Equal(2))
+			Expect(result.Checkpoints[0].Missing).To(Equal(0))
+			Expect(result.Checkpoints[1].Expected).To(Equal(2))
+			Expect(result.Checkpoints[1].Verified).To(Equal(1))
+			Expect(result.Checkpoints[1].Missing).To(Equal(1))
+		})
+
+		It("returns error when manifest file does not exist", func() {
+			tr := model.TrainingRun{
+				Name: "model",
+				Checkpoints: []model.Checkpoint{
+					{Filename: "cp1.safetensors", StepNumber: 1000, HasSamples: true},
+				},
+				HasSamples: true,
+			}
+
+			_, err := svc.ValidateTrainingRunWithManifest(tr, "Test Study/v1")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("manifest not found"))
+		})
+
+		It("returns error when manifest file is invalid JSON", func() {
+			fs.fileData["/samples/Test Study/v1/manifest.json"] = []byte("not-json")
+
+			tr := model.TrainingRun{
+				Name: "model",
+				Checkpoints: []model.Checkpoint{
+					{Filename: "cp1.safetensors", StepNumber: 1000, HasSamples: true},
+				},
+				HasSamples: true,
+			}
+
+			_, err := svc.ValidateTrainingRunWithManifest(tr, "Test Study/v1")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("parsing manifest"))
+		})
+
+		It("handles checkpoints with more files than expected (no negative missing)", func() {
+			fs.fileData["/samples/Test Study/v1/manifest.json"] = manifestData
+			fs.files["/samples/Test Study/v1/cp1.safetensors"] = []string{"a.png", "b.png", "c.png", "d.png", "e.png"}
+
+			tr := model.TrainingRun{
+				Name: "model",
+				Checkpoints: []model.Checkpoint{
+					{Filename: "cp1.safetensors", StepNumber: 1000, HasSamples: true},
+				},
+				HasSamples: true,
+			}
+
+			result, err := svc.ValidateTrainingRunWithManifest(tr, "Test Study/v1")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Checkpoints[0].Expected).To(Equal(2))
+			Expect(result.Checkpoints[0].Verified).To(Equal(5))
+			Expect(result.Checkpoints[0].Missing).To(Equal(0))
+		})
+
+		It("handles checkpoints without samples (HasSamples=false)", func() {
+			fs.fileData["/samples/Test Study/v1/manifest.json"] = manifestData
+
+			tr := model.TrainingRun{
+				Name: "model",
+				Checkpoints: []model.Checkpoint{
+					{Filename: "cp1.safetensors", StepNumber: 1000, HasSamples: true},
+					{Filename: "cp-final.safetensors", StepNumber: -1, HasSamples: false},
+				},
+				HasSamples: true,
+			}
+
+			fs.files["/samples/Test Study/v1/cp1.safetensors"] = []string{"a.png", "b.png"}
+
+			result, err := svc.ValidateTrainingRunWithManifest(tr, "Test Study/v1")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Checkpoints).To(HaveLen(2))
+			Expect(result.Checkpoints[0].Verified).To(Equal(2))
+			Expect(result.Checkpoints[0].Missing).To(Equal(0))
+			Expect(result.Checkpoints[1].Verified).To(Equal(0))
+			Expect(result.Checkpoints[1].Missing).To(Equal(2))
+		})
+
+		It("returns error when ReadFile has a non-not-found error", func() {
+			fs.readErrs["/samples/Test Study/v1/manifest.json"] = fmt.Errorf("disk read error")
+
+			tr := model.TrainingRun{
+				Name: "model",
+				Checkpoints: []model.Checkpoint{
+					{Filename: "cp1.safetensors", StepNumber: 1000, HasSamples: true},
+				},
+				HasSamples: true,
+			}
+
+			_, err := svc.ValidateTrainingRunWithManifest(tr, "Test Study/v1")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("reading manifest"))
+		})
+	})
+
+	// AC3: Regenerating a sample set reads the manifest to determine what to generate
+	// AC5: Unit tests for manifest read
+	Describe("ReadManifest", func() {
+		It("reads and parses a manifest from the study output directory", func() {
+			manifest := fileformat.JobManifest{
+				JobID:           "job-read-1",
+				TrainingRunName: "model",
+				StudyName:       "My Study",
+				StudyVersion:    3,
+				ImagesPerCheckpoint: 4,
+				Checkpoints:     []string{"cp1.safetensors"},
+			}
+			data, err := fileformat.MarshalManifest(manifest)
+			Expect(err).NotTo(HaveOccurred())
+
+			fs.fileData["/samples/My Study/v3/manifest.json"] = data
+
+			result, err := svc.ReadManifest("My Study/v3")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.JobID).To(Equal("job-read-1"))
+			Expect(result.StudyName).To(Equal("My Study"))
+			Expect(result.StudyVersion).To(Equal(3))
+			Expect(result.ImagesPerCheckpoint).To(Equal(4))
+			Expect(result.Checkpoints).To(Equal([]string{"cp1.safetensors"}))
+		})
+
+		It("returns error when manifest does not exist", func() {
+			_, err := svc.ReadManifest("Nonexistent Study/v1")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("manifest not found"))
+		})
+
+		It("returns error when manifest is invalid JSON", func() {
+			fs.fileData["/samples/Bad Study/v1/manifest.json"] = []byte("{invalid}")
+
+			_, err := svc.ReadManifest("Bad Study/v1")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("parsing manifest"))
 		})
 	})
 })

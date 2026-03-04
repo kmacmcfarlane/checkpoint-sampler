@@ -5,6 +5,12 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-087: JSON sample job manifest per generation job
+- Each completed generation job writes a `manifest.json` file to the study version output directory capturing the full study configuration snapshot, job metadata, checkpoint list, and all dimension values
+- New `fileformat.JobManifest` type with `NewJobManifest`, `MarshalManifest`, `UnmarshalManifest` functions
+- Manifest write is non-fatal: failure logs a warning but does not block job completion
+- `ValidationFileSystem` extended with `ReadFile` method; `ValidateTrainingRunWithManifest` and `ReadManifest` enable manifest-based validation and regeneration
+
 ### B-045: on-demand-validation E2E test fails due to empty POST body on updated validate endpoint
 - Moved `study_id` from request body to URL query parameter via `Param("study_id")` in the Goa DSL, eliminating the generated decoder's requirement for a JSON body on POST `/api/training-runs/{id}/validate`
 

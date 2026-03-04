@@ -183,6 +183,27 @@ func (r *CheckpointSampleDirRemover) RemoveSampleDir(checkpointFilename string) 
 	return r.fs.RemoveSampleDir(r.sampleDir, checkpointFilename)
 }
 
+// ReadFile reads the entire contents of a file and returns it as a byte slice.
+func (fs *FileSystem) ReadFile(path string) ([]byte, error) {
+	fs.logger.WithField("path", path).Trace("entering ReadFile")
+	defer fs.logger.Trace("returning from ReadFile")
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		fields := logrus.Fields{
+			"path":  path,
+			"error": err.Error(),
+		}
+		if os.IsNotExist(err) {
+			fs.logger.WithFields(fields).Debug("file not found")
+		} else {
+			fs.logger.WithFields(fields).Error("failed to read file")
+		}
+		return nil, err
+	}
+	return data, nil
+}
+
 // OpenFile opens a file for reading. Implements service.CheckpointMetadataReader.
 func (fs *FileSystem) OpenFile(path string) (io.ReadCloser, error) {
 	fs.logger.WithField("path", path).Trace("entering OpenFile")

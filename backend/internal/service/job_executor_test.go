@@ -2555,4 +2555,254 @@ var _ = Describe("JobExecutor", func() {
 			Expect(ok).To(BeFalse())
 		})
 	})
+
+	// AC1: Each generation job outputs a JSON manifest file containing all job params
+	// AC5: Unit tests for manifest write
+	Describe("writeManifest", func() {
+		var job model.SampleJob
+		var items []model.SampleJobItem
+		var shift float64
+
+		BeforeEach(func() {
+			shift = 3.0
+			job = model.SampleJob{
+				ID:              "job-manifest-1",
+				TrainingRunName: "my-model",
+				StudyID:         "study-manifest-1",
+				StudyName:       "Manifest Study",
+				WorkflowName:    "flux_dev.json",
+				VAE:             "ae.safetensors",
+				CLIP:            "clip_l.safetensors",
+				Shift:           &shift,
+				Status:          model.SampleJobStatusCompleted,
+			}
+			mockStore.studies["study-manifest-1"] = model.Study{
+				ID:      "study-manifest-1",
+				Name:    "Manifest Study",
+				Version: 2,
+				Prompts: []model.NamedPrompt{
+					{Name: "forest", Text: "a dense forest"},
+				},
+				Steps: []int{20},
+				CFGs:  []float64{7.0},
+				SamplerSchedulerPairs: []model.SamplerSchedulerPair{
+					{Sampler: "euler", Scheduler: "normal"},
+				},
+				Seeds:  []int64{42},
+				Width:  1024,
+				Height: 768,
+			}
+			items = []model.SampleJobItem{
+				{
+					ID: "item-m1", JobID: job.ID,
+					CheckpointFilename: "cp1.safetensors",
+					Status:             model.SampleJobItemStatusCompleted,
+				},
+				{
+					ID: "item-m2", JobID: job.ID,
+					CheckpointFilename: "cp2.safetensors",
+					Status:             model.SampleJobItemStatusCompleted,
+				},
+				{
+					ID: "item-m3", JobID: job.ID,
+					CheckpointFilename: "cp1.safetensors",
+					Status:             model.SampleJobItemStatusCompleted,
+				},
+			}
+		})
+
+		It("writes manifest to the study version directory", func() {
+			err := executor.writeManifest(job, items)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Manifest should be at {sampleDir}/{StudyName}/v{Version}/manifest.json
+			manifestPath := "/test/samples/Manifest Study/v2/manifest.json"
+			Expect(mockFS.writtenFiles).To(HaveKey(manifestPath))
+		})
+
+		// AC2: Manifest includes study config, version, training run, checkpoint list
+		It("writes manifest with correct content", func() {
+			err := executor.writeManifest(job, items)
+			Expect(err).NotTo(HaveOccurred())
+
+			manifestPath := "/test/samples/Manifest Study/v2/manifest.json"
+			data, ok := mockFS.writtenFiles[manifestPath]
+			Expect(ok).To(BeTrue())
+
+			var manifest fileformat.JobManifest
+			Expect(json.Unmarshal(data, &manifest)).To(Succeed())
+
+			// Job metadata
+			Expect(manifest.JobID).To(Equal("job-manifest-1"))
+			Expect(manifest.TrainingRunName).To(Equal("my-model"))
+			Expect(manifest.WorkflowName).To(Equal("flux_dev.json"))
+			Expect(manifest.VAE).To(Equal("ae.safetensors"))
+			Expect(manifest.CLIP).To(Equal("clip_l.safetensors"))
+			Expect(manifest.Shift).To(Equal(&shift))
+
+			// Study config snapshot
+			Expect(manifest.StudyID).To(Equal("study-manifest-1"))
+			Expect(manifest.StudyName).To(Equal("Manifest Study"))
+			Expect(manifest.StudyVersion).To(Equal(2))
+			Expect(manifest.Width).To(Equal(1024))
+			Expect(manifest.Height).To(Equal(768))
+
+			// Dimension values
+			Expect(manifest.Prompts).To(HaveLen(1))
+			Expect(manifest.Prompts[0].Name).To(Equal("forest"))
+			Expect(manifest.Steps).To(Equal([]int{20}))
+			Expect(manifest.CFGs).To(Equal([]float64{7.0}))
+			Expect(manifest.Seeds).To(Equal([]int64{42}))
+			Expect(manifest.SamplerSchedulerPairs).To(HaveLen(1))
+
+			// Checkpoint list (deduplicated, preserving order)
+			Expect(manifest.Checkpoints).To(Equal([]string{
+				"cp1.safetensors",
+				"cp2.safetensors",
+			}))
+
+			// Derived count
+			Expect(manifest.ImagesPerCheckpoint).To(Equal(1))
+		})
+
+		It("uses atomic write: writes to temp file first then renames", func() {
+			err := executor.writeManifest(job, items)
+			Expect(err).NotTo(HaveOccurred())
+
+			manifestPath := "/test/samples/Manifest Study/v2/manifest.json"
+			tempPath := manifestPath + ".tmp"
+
+			// Temp file should not exist after rename
+			Expect(mockFS.writtenFiles).NotTo(HaveKey(tempPath))
+			// Final manifest file should exist
+			Expect(mockFS.writtenFiles).To(HaveKey(manifestPath))
+		})
+
+		It("returns error when study not found", func() {
+			job.StudyID = "nonexistent-study"
+			err := executor.writeManifest(job, items)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("fetching study for manifest"))
+		})
+
+		It("returns error when rename fails", func() {
+			mockFS.renameErr = errors.New("rename failed")
+			err := executor.writeManifest(job, items)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("renaming manifest file"))
+			mockFS.renameErr = nil // reset
+		})
+
+		It("deduplicates checkpoint filenames preserving order", func() {
+			// Items with repeated checkpoint filenames
+			items = []model.SampleJobItem{
+				{ID: "i1", JobID: job.ID, CheckpointFilename: "cpB.safetensors"},
+				{ID: "i2", JobID: job.ID, CheckpointFilename: "cpA.safetensors"},
+				{ID: "i3", JobID: job.ID, CheckpointFilename: "cpB.safetensors"},
+				{ID: "i4", JobID: job.ID, CheckpointFilename: "cpC.safetensors"},
+				{ID: "i5", JobID: job.ID, CheckpointFilename: "cpA.safetensors"},
+			}
+
+			err := executor.writeManifest(job, items)
+			Expect(err).NotTo(HaveOccurred())
+
+			manifestPath := "/test/samples/Manifest Study/v2/manifest.json"
+			data := mockFS.writtenFiles[manifestPath]
+
+			var manifest fileformat.JobManifest
+			Expect(json.Unmarshal(data, &manifest)).To(Succeed())
+
+			// Order should match first occurrence
+			Expect(manifest.Checkpoints).To(Equal([]string{
+				"cpB.safetensors",
+				"cpA.safetensors",
+				"cpC.safetensors",
+			}))
+		})
+	})
+
+	// AC1: Manifest is written during job completion
+	Describe("completeJob writes manifest", func() {
+		BeforeEach(func() {
+			executor.mu.Lock()
+			executor.connected = true
+			executor.mu.Unlock()
+		})
+
+		It("writes manifest file when job completes successfully", func() {
+			job := model.SampleJob{
+				ID:         "job-complete-manifest",
+				StudyID:    "study-complete-manifest",
+				StudyName:  "Complete Study",
+				Status:     model.SampleJobStatusRunning,
+				TotalItems: 2,
+			}
+			mockStore.jobs[job.ID] = job
+			mockStore.items[job.ID] = []model.SampleJobItem{
+				{ID: "i1", JobID: job.ID, CheckpointFilename: "chk1.safetensors", Status: model.SampleJobItemStatusCompleted},
+				{ID: "i2", JobID: job.ID, CheckpointFilename: "chk1.safetensors", Status: model.SampleJobItemStatusCompleted},
+			}
+			mockStore.studies["study-complete-manifest"] = model.Study{
+				ID:      "study-complete-manifest",
+				Name:    "Complete Study",
+				Version: 1,
+				Prompts: []model.NamedPrompt{{Name: "p1", Text: "t1"}},
+				Steps:   []int{20},
+				CFGs:    []float64{7.0},
+				SamplerSchedulerPairs: []model.SamplerSchedulerPair{
+					{Sampler: "euler", Scheduler: "normal"},
+				},
+				Seeds:  []int64{42},
+				Width:  512,
+				Height: 512,
+			}
+
+			executor.mu.Lock()
+			executor.activeJobID = job.ID
+			executor.mu.Unlock()
+
+			// processNextItem should find no pending items and call completeJob
+			executor.processNextItem()
+
+			// Verify manifest was written
+			manifestPath := "/test/samples/Complete Study/v1/manifest.json"
+			Expect(mockFS.writtenFiles).To(HaveKey(manifestPath))
+
+			// Verify manifest content
+			data := mockFS.writtenFiles[manifestPath]
+			var manifest fileformat.JobManifest
+			Expect(json.Unmarshal(data, &manifest)).To(Succeed())
+			Expect(manifest.JobID).To(Equal("job-complete-manifest"))
+			Expect(manifest.StudyName).To(Equal("Complete Study"))
+			Expect(manifest.Checkpoints).To(Equal([]string{"chk1.safetensors"}))
+		})
+
+		It("still completes the job when manifest write fails (non-fatal)", func() {
+			job := model.SampleJob{
+				ID:         "job-manifest-fail",
+				StudyID:    "nonexistent-study", // study not in store -> manifest write will fail
+				StudyName:  "No Study",
+				Status:     model.SampleJobStatusRunning,
+				TotalItems: 1,
+			}
+			mockStore.jobs[job.ID] = job
+			mockStore.items[job.ID] = []model.SampleJobItem{
+				{ID: "i1", JobID: job.ID, CheckpointFilename: "chk1.safetensors", Status: model.SampleJobItemStatusCompleted},
+			}
+
+			executor.mu.Lock()
+			executor.activeJobID = job.ID
+			executor.mu.Unlock()
+
+			executor.processNextItem()
+
+			// Job should still be completed despite manifest write failure
+			updatedJob := mockStore.jobs[job.ID]
+			Expect(updatedJob.Status).To(Equal(model.SampleJobStatusCompleted))
+
+			// No manifest should be written (study fetch fails)
+			manifestPath := "/test/samples/No Study/v1/manifest.json"
+			Expect(mockFS.writtenFiles).NotTo(HaveKey(manifestPath))
+		})
+	})
 })
