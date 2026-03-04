@@ -96,8 +96,6 @@ stories:
     testing:
       - "command: cd frontend && npx vitest run"
 
-    uat_feedback: 'Still broken: top nav elements are not available until a dataset is selected, regardless of screen width.
-      Priority: very high.'
   - id: S-062
     title: "Generate Samples dialog polish — bead indicator, preset auto-close, training run restore and refresh"
     priority: 65

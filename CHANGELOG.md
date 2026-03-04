@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-030: Top nav elements unavailable on narrow screens until drawer opens (UAT rework)
+- Standalone `useLastTrainingRun` composable persists training run ID to localStorage independently of preset selection
+- `eagerAutoSelect` now falls back to standalone key when no preset is saved, fixing auto-load on page refresh
+
 ### B-042: Watcher fails to watch demo training run checkpoint directories due to nested study path
 - WatchTrainingRun now derives study name from run.Name and includes it when constructing checkpoint watch paths and parent directory watch target
 

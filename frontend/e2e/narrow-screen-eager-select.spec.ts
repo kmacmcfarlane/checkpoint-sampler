@@ -107,4 +107,95 @@ test.describe('narrow screen eager auto-select', () => {
     await expect(selectTrigger).toBeVisible()
     await expect(selectTrigger).toContainText(trainingRunName)
   })
+
+  test('header buttons appear when only standalone training run key is in localStorage (no preset)', async ({ page, request }) => {
+    // B-030 core fix: eagerAutoSelect falls back to the standalone
+    // checkpoint-sampler-last-training-run key when no preset data exists.
+    // This is the exact scenario the bug reported: user selects a training run
+    // without ever saving a preset, then reloads on a narrow screen.
+
+    // Step 1: Discover the training run ID from the API
+    const response = await request.get('/api/training-runs')
+    expect(response.ok()).toBeTruthy()
+    const runs = await response.json()
+    expect(runs.length).toBeGreaterThan(0)
+    const trainingRunId = runs[0].id
+
+    // Step 2: Set ONLY the standalone key -- no preset key at all
+    await page.addInitScript((runId: number) => {
+      localStorage.setItem('checkpoint-sampler-last-training-run', String(runId))
+    }, trainingRunId)
+
+    // Step 3: Navigate to the app at narrow viewport
+    await page.goto('/')
+
+    // Step 4: Verify header buttons appear without opening the drawer
+    await expect(page.locator('[data-testid="generate-samples-button"]')).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('button', { name: 'Toggle sample jobs panel' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Toggle checkpoint metadata panel' })).toBeVisible()
+
+    // Live/Disconnected status indicator
+    const statusTag = page.locator('header').getByText(/^(Live|Disconnected)$/)
+    await expect(statusTag).toBeVisible()
+  })
+
+  test('selecting a training run writes the standalone localStorage key', async ({ page, request }) => {
+    // Verify that onTrainingRunSelect persists the training run ID to the
+    // standalone key so the next page load can eagerly restore it.
+
+    // Step 1: Discover the training run name from the API
+    const response = await request.get('/api/training-runs')
+    const runs = await response.json()
+    const trainingRunName = runs[0].name
+    const trainingRunId = runs[0].id
+
+    // Step 2: Navigate with no localStorage data
+    await page.goto('/')
+
+    // Step 3: Open the drawer and select a training run
+    await page.getByRole('button', { name: 'Toggle controls drawer' }).click()
+    const selectTrigger = page.locator('[data-testid="training-run-select"]')
+    await expect(selectTrigger).toBeVisible()
+    await selectTrigger.click()
+    const popupMenu = page.locator('.n-base-select-menu:visible')
+    await expect(popupMenu).toBeVisible()
+    await popupMenu.getByText(trainingRunName, { exact: true }).click()
+
+    // Step 4: Wait for scan to complete (header buttons appear)
+    await expect(page.locator('[data-testid="generate-samples-button"]')).toBeVisible({ timeout: 10000 })
+
+    // Step 5: Verify the standalone key was written to localStorage
+    const storedId = await page.evaluate(() =>
+      localStorage.getItem('checkpoint-sampler-last-training-run'),
+    )
+    expect(storedId).toBe(String(trainingRunId))
+  })
+
+  test('drawer reflects auto-selected run from standalone key when opened', async ({ page, request }) => {
+    // AC3: When the standalone key (not preset) triggers eager load,
+    // the drawer's TrainingRunSelector still shows the correct run.
+
+    // Step 1: Discover the training run from the API
+    const response = await request.get('/api/training-runs')
+    const runs = await response.json()
+    const trainingRunId = runs[0].id
+    const trainingRunName = runs[0].name
+
+    // Step 2: Set ONLY the standalone key
+    await page.addInitScript((runId: number) => {
+      localStorage.setItem('checkpoint-sampler-last-training-run', String(runId))
+    }, trainingRunId)
+
+    // Step 3: Navigate
+    await page.goto('/')
+
+    // Step 4: Wait for eager auto-select
+    await expect(page.locator('[data-testid="generate-samples-button"]')).toBeVisible({ timeout: 10000 })
+
+    // Step 5: Open drawer and verify the selector shows the correct run
+    await page.getByRole('button', { name: 'Toggle controls drawer' }).click()
+    const selectTrigger = page.locator('[data-testid="training-run-select"]')
+    await expect(selectTrigger).toBeVisible()
+    await expect(selectTrigger).toContainText(trainingRunName)
+  })
 })

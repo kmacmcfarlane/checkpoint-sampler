@@ -465,6 +465,11 @@ describe('App', () => {
       )
     }
 
+    function setSavedTrainingRunId(trainingRunId: number) {
+      // Set only the standalone last-training-run key (no preset saved)
+      localStorage.setItem('checkpoint-sampler-last-training-run', String(trainingRunId))
+    }
+
     it('eagerly selects saved training run on narrow screen when localStorage has data', async () => {
       // AC 1: On narrow screens (<1024px), the app eagerly loads the saved training run
       // from localStorage and triggers a scan on mount, regardless of drawer state.
@@ -671,6 +676,108 @@ describe('App', () => {
         (b) => b.attributes('aria-label') === 'Toggle sample jobs panel',
       )
       expect(jobsBtn).toBeDefined()
+    })
+
+    describe('standalone training run persistence (no preset required)', () => {
+      // AC1/AC2: Eager loading works when only the training run ID is saved —
+      // i.e., the user selected a training run but never saved a preset.
+
+      it('eagerly selects saved training run when only lastTrainingRunId is stored (no preset)', async () => {
+        // Core bug fix: eagerAutoSelect must work without a saved preset.
+        Object.defineProperty(window, 'innerWidth', { value: 800, configurable: true })
+        vi.stubGlobal('matchMedia', createMatchMediaMock(false))
+
+        // Set ONLY the standalone training run key — no preset key
+        setSavedTrainingRunId(1)
+
+        mount(App, { global: { stubs: { Teleport: true } } })
+        await flushPromises()
+
+        // eagerAutoSelect should have triggered a scan even without a preset
+        expect(mockScanTrainingRun).toHaveBeenCalledWith(1)
+      })
+
+      it('shows header buttons after eager auto-select with standalone training run ID only', async () => {
+        // AC2: Header buttons appear when restored from standalone key (no preset).
+        Object.defineProperty(window, 'innerWidth', { value: 800, configurable: true })
+        vi.stubGlobal('matchMedia', createMatchMediaMock(false))
+
+        setSavedTrainingRunId(1)
+
+        const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+        await flushPromises()
+
+        // Header buttons must be visible without a preset saved
+        const generateBtn = wrapper.find('[data-testid="generate-samples-button"]')
+        expect(generateBtn.exists()).toBe(true)
+
+        const statusTag = wrapper.findAllComponents(NTag).find(
+          (tag) => tag.text() === 'Live' || tag.text() === 'Disconnected',
+        )
+        expect(statusTag).toBeDefined()
+      })
+
+      it('does not eagerly select when standalone key references a stale training run ID', async () => {
+        // Stale ID (not in the API response) should be silently ignored.
+        Object.defineProperty(window, 'innerWidth', { value: 800, configurable: true })
+        vi.stubGlobal('matchMedia', createMatchMediaMock(false))
+
+        setSavedTrainingRunId(999) // doesn't exist in mock (which returns id: 1)
+
+        const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+        await flushPromises()
+
+        expect(mockScanTrainingRun).not.toHaveBeenCalled()
+        expect(wrapper.find('main').text()).toContain('Select a training run to get started.')
+      })
+
+      it('persists training run ID to standalone key when user selects a run', async () => {
+        // Verify onTrainingRunSelect writes to the standalone localStorage key.
+        Object.defineProperty(window, 'innerWidth', { value: 800, configurable: true })
+        vi.stubGlobal('matchMedia', createMatchMediaMock(false))
+
+        const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+        await flushPromises()
+
+        // Open drawer so TrainingRunSelector is accessible
+        const toggleBtn = wrapper.findAllComponents(NButton).find(
+          (b) => b.attributes('aria-label') === 'Toggle controls drawer',
+        )
+        await toggleBtn!.trigger('click')
+        await flushPromises()
+
+        // Simulate training run selection
+        const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
+        selector.vm.$emit('select', mockTrainingRun)
+        await flushPromises()
+
+        // Standalone key should be written with the selected run's ID
+        expect(localStorage.getItem('checkpoint-sampler-last-training-run')).toBe('1')
+      })
+
+      it('TrainingRunSelector autoSelectRunId falls back to standalone key when no preset data', async () => {
+        // AC3: The drawer's TrainingRunSelector reflects the saved run when only
+        // the standalone key is present (no preset saved).
+        Object.defineProperty(window, 'innerWidth', { value: 800, configurable: true })
+        vi.stubGlobal('matchMedia', createMatchMediaMock(false))
+
+        setSavedTrainingRunId(1)
+
+        const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+        await flushPromises()
+
+        // Open the drawer
+        const toggleBtn = wrapper.findAllComponents(NButton).find(
+          (b) => b.attributes('aria-label') === 'Toggle controls drawer',
+        )
+        await toggleBtn!.trigger('click')
+        await flushPromises()
+
+        const selector = wrapper.findComponent(TrainingRunSelector)
+        expect(selector.exists()).toBe(true)
+        // autoSelectRunId should be the standalone stored ID
+        expect(selector.props('autoSelectRunId')).toBe(1)
+      })
     })
   })
 
