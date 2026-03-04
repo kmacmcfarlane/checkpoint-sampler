@@ -499,10 +499,10 @@ def cmd_next_work(args) -> int:
     """Select the next eligible story using the deterministic work-selection algorithm.
 
     Priority order (AGENT_FLOW.md section 3.1):
-    1. Review queue: status=review
-    2. Testing queue: status=testing
-    3. UAT feedback: status=uat with uat_feedback present
-    4. In-progress with feedback: status=in_progress with review_feedback present
+    1. Testing queue: status=testing
+    2. Review queue: status=review
+    3. In-progress: status=in_progress (with or without review_feedback)
+    4. UAT feedback: status=uat with uat_feedback present
     5. New work: status=todo, not blocked, requires satisfied, bugs first
     """
     backlog_path, done_path = args.backlog, args.done
@@ -511,21 +511,28 @@ def cmd_next_work(args) -> int:
 
     fields = [f.strip() for f in args.fields.split(",")] if args.fields else None
 
-    # Queue 1: review
-    review = [s for s in active_stories if s.get("status") == "review"]
-    if review:
-        selected = _select_highest_priority(review)
-        _output_next_work(selected, "review", args.format, fields)
-        return 0
-
-    # Queue 2: testing
+    # Queue 1: testing
     testing = [s for s in active_stories if s.get("status") == "testing"]
     if testing:
         selected = _select_highest_priority(testing)
         _output_next_work(selected, "testing", args.format, fields)
         return 0
 
-    # Queue 3: UAT feedback
+    # Queue 2: review
+    review = [s for s in active_stories if s.get("status") == "review"]
+    if review:
+        selected = _select_highest_priority(review)
+        _output_next_work(selected, "review", args.format, fields)
+        return 0
+
+    # Queue 3: in-progress (all, sorted by priority)
+    in_progress = [s for s in active_stories if s.get("status") == "in_progress"]
+    if in_progress:
+        selected = _select_highest_priority(in_progress)
+        _output_next_work(selected, "in_progress", args.format, fields)
+        return 0
+
+    # Queue 4: UAT feedback
     uat_feedback = [
         s for s in active_stories
         if s.get("status") == "uat" and s.get("uat_feedback")
@@ -533,16 +540,6 @@ def cmd_next_work(args) -> int:
     if uat_feedback:
         selected = _select_highest_priority(uat_feedback)
         _output_next_work(selected, "uat_feedback", args.format, fields)
-        return 0
-
-    # Queue 4: in-progress with review feedback
-    ip_feedback = [
-        s for s in active_stories
-        if s.get("status") == "in_progress" and s.get("review_feedback")
-    ]
-    if ip_feedback:
-        selected = _select_highest_priority(ip_feedback)
-        _output_next_work(selected, "in_progress_feedback", args.format, fields)
         return 0
 
     # Queue 5: new work (todo)

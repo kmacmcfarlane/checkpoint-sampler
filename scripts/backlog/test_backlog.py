@@ -197,13 +197,13 @@ class TestNextWorkCLI(unittest.TestCase):
             },
         )
 
-    def test_review_beats_testing(self):
+    def test_testing_beats_review(self):
         self._make_backlog(
             [
                 {
                     "id": "S-001",
                     "title": "Testing story",
-                    "priority": 90,
+                    "priority": 10,
                     "status": "testing",
                     "requires": [],
                     "acceptance": ["FE: Test"],
@@ -212,7 +212,7 @@ class TestNextWorkCLI(unittest.TestCase):
                 {
                     "id": "S-002",
                     "title": "Review story",
-                    "priority": 10,
+                    "priority": 90,
                     "status": "review",
                     "requires": [],
                     "acceptance": ["FE: Test"],
@@ -223,8 +223,8 @@ class TestNextWorkCLI(unittest.TestCase):
         result = self._run()
         self.assertEqual(result.returncode, 0)
         data = json.loads(result.stdout)
-        self.assertEqual(data[0]["queue"], "review")
-        self.assertEqual(data[0]["id"], "S-002")
+        self.assertEqual(data[0]["queue"], "testing")
+        self.assertEqual(data[0]["id"], "S-001")
 
     def test_testing_beats_uat_feedback(self):
         self._make_backlog(
@@ -362,7 +362,7 @@ class TestNextWorkCLI(unittest.TestCase):
                     "id": "S-001",
                     "title": "Dependency",
                     "priority": 50,
-                    "status": "in_progress",
+                    "status": "review",
                     "requires": [],
                     "acceptance": ["FE: Test"],
                     "testing": ["command: echo ok"],
@@ -389,7 +389,9 @@ class TestNextWorkCLI(unittest.TestCase):
         )
         result = self._run()
         data = json.loads(result.stdout)
-        self.assertEqual(data[0]["id"], "S-003")
+        # S-001 is in review queue (higher priority than todo), so it's selected first
+        self.assertEqual(data[0]["id"], "S-001")
+        self.assertEqual(data[0]["queue"], "review")
 
     def test_fields_filter(self):
         self._make_backlog(
@@ -411,6 +413,114 @@ class TestNextWorkCLI(unittest.TestCase):
         self.assertIn("id", data[0])
         self.assertIn("priority", data[0])
         self.assertNotIn("title", data[0])
+
+    def test_in_progress_is_eligible(self):
+        self._make_backlog(
+            [
+                {
+                    "id": "S-001",
+                    "title": "In progress story",
+                    "priority": 50,
+                    "status": "in_progress",
+                    "requires": [],
+                    "acceptance": ["FE: Test"],
+                    "testing": ["command: echo ok"],
+                },
+            ]
+        )
+        result = self._run()
+        self.assertEqual(result.returncode, 0)
+        data = json.loads(result.stdout)
+        self.assertEqual(data[0]["queue"], "in_progress")
+        self.assertEqual(data[0]["id"], "S-001")
+
+    def test_in_progress_with_feedback_same_queue(self):
+        """In-progress stories with and without review_feedback are the same queue."""
+        self._make_backlog(
+            [
+                {
+                    "id": "S-001",
+                    "title": "No feedback",
+                    "priority": 90,
+                    "status": "in_progress",
+                    "requires": [],
+                    "acceptance": ["FE: Test"],
+                    "testing": ["command: echo ok"],
+                },
+                {
+                    "id": "S-002",
+                    "title": "Has feedback",
+                    "priority": 10,
+                    "status": "in_progress",
+                    "review_feedback": "Fix the thing",
+                    "requires": [],
+                    "acceptance": ["FE: Test"],
+                    "testing": ["command: echo ok"],
+                },
+            ]
+        )
+        result = self._run()
+        data = json.loads(result.stdout)
+        self.assertEqual(data[0]["queue"], "in_progress")
+        # Highest priority wins regardless of feedback presence
+        self.assertEqual(data[0]["id"], "S-001")
+
+    def test_review_beats_in_progress(self):
+        self._make_backlog(
+            [
+                {
+                    "id": "S-001",
+                    "title": "In progress story",
+                    "priority": 90,
+                    "status": "in_progress",
+                    "requires": [],
+                    "acceptance": ["FE: Test"],
+                    "testing": ["command: echo ok"],
+                },
+                {
+                    "id": "S-002",
+                    "title": "Review story",
+                    "priority": 10,
+                    "status": "review",
+                    "requires": [],
+                    "acceptance": ["FE: Test"],
+                    "testing": ["command: echo ok"],
+                },
+            ]
+        )
+        result = self._run()
+        data = json.loads(result.stdout)
+        self.assertEqual(data[0]["queue"], "review")
+        self.assertEqual(data[0]["id"], "S-002")
+
+    def test_in_progress_beats_uat_feedback(self):
+        self._make_backlog(
+            [
+                {
+                    "id": "S-001",
+                    "title": "UAT with feedback",
+                    "priority": 90,
+                    "status": "uat",
+                    "uat_feedback": "Please fix",
+                    "requires": [],
+                    "acceptance": ["FE: Test"],
+                    "testing": ["command: echo ok"],
+                },
+                {
+                    "id": "S-002",
+                    "title": "In progress story",
+                    "priority": 10,
+                    "status": "in_progress",
+                    "requires": [],
+                    "acceptance": ["FE: Test"],
+                    "testing": ["command: echo ok"],
+                },
+            ]
+        )
+        result = self._run()
+        data = json.loads(result.stdout)
+        self.assertEqual(data[0]["queue"], "in_progress")
+        self.assertEqual(data[0]["id"], "S-002")
 
     def test_highest_priority_within_queue(self):
         self._make_backlog(

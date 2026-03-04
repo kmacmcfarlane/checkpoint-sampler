@@ -160,18 +160,18 @@ This encodes the full work-selection algorithm and returns the selected story wi
 
 | Queue value | Meaning | Dispatch to |
 |---|---|---|
-| `review` | Code review pending | Code reviewer |
 | `testing` | QA testing pending | QA expert |
+| `review` | Code review pending | Code reviewer |
+| `in_progress` | Implementation in progress (with or without feedback) | Fullstack engineer |
 | `uat_feedback` | UAT rework needed | Fullstack engineer (after copying uat_feedback to review_feedback, clearing uat_feedback, setting in_progress, creating new branch from main) |
-| `in_progress_feedback` | Review/QA feedback to address | Fullstack engineer |
 | `todo` | New work (bugs prioritized, requires satisfied) | Fullstack engineer (after setting in_progress) |
 
 **Algorithm reference** (implemented by `next-work`):
 
-1. **Review queue**: stories with `status: review`, highest priority first.
-2. **Testing queue**: stories with `status: testing`, highest priority first.
-3. **UAT feedback queue**: stories with `status: uat` AND `uat_feedback` non-empty, highest priority first.
-4. **In-progress with feedback**: stories with `status: in_progress` AND `review_feedback` non-empty, highest priority first.
+1. **Testing queue**: stories with `status: testing`, highest priority first.
+2. **Review queue**: stories with `status: review`, highest priority first.
+3. **In-progress queue**: stories with `status: in_progress`, highest priority first. Includes stories with or without `review_feedback` — they are a single flat queue sorted by priority.
+4. **UAT feedback queue**: stories with `status: uat` AND `uat_feedback` non-empty, highest priority first.
 5. **New work**: Select a new story using the algorithm below.
 
 ### 3.2 New work selection algorithm (deterministic)
