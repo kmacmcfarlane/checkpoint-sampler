@@ -87,6 +87,8 @@ func (w *Watcher) SetIsDirFunc(fn IsDirFunc) {
 
 // WatchTrainingRun starts watching directories belonging to the given training run.
 // Any previously watched directories are cleared first.
+// The study name is derived from run.Name — for study-scoped runs like "study/model",
+// checkpoint directories are resolved under sample_dir/study/ rather than sample_dir/.
 func (w *Watcher) WatchTrainingRun(run model.TrainingRun) error {
 	w.logger.WithField("run_name", run.Name).Trace("entering WatchTrainingRun")
 	defer w.logger.Trace("returning from WatchTrainingRun")
@@ -97,18 +99,33 @@ func (w *Watcher) WatchTrainingRun(run model.TrainingRun) error {
 	// Stop any existing watching
 	w.stopLocked()
 
+	// Derive the study name from the training run name. For study-scoped runs
+	// like "demo-study/demo-model", checkpoint sample directories live under
+	// sample_dir/demo-study/ rather than directly under sample_dir/.
+	studyName := StudyNameForRun(run.Name)
+
 	// Build the list of directories to watch.
 	// For each checkpoint with samples, watch its sample directory.
 	dirs := make([]string, 0)
 	for _, cp := range run.Checkpoints {
 		if cp.HasSamples {
-			dir := filepath.Join(w.sampleDir, cp.Filename)
+			var dir string
+			if studyName != "" {
+				dir = filepath.Join(w.sampleDir, studyName, cp.Filename)
+			} else {
+				dir = filepath.Join(w.sampleDir, cp.Filename)
+			}
 			dirs = append(dirs, dir)
 		}
 	}
 
-	// Also watch the sample_dir root for new checkpoint directories.
-	dirs = append(dirs, w.sampleDir)
+	// Watch the directory where new checkpoint directories would appear.
+	// For study-scoped runs, this is the study directory; for legacy runs, the sample_dir root.
+	if studyName != "" {
+		dirs = append(dirs, filepath.Join(w.sampleDir, studyName))
+	} else {
+		dirs = append(dirs, w.sampleDir)
+	}
 
 	w.logger.WithFields(logrus.Fields{
 		"run_name":  run.Name,

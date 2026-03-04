@@ -167,6 +167,43 @@ var _ = Describe("Watcher", func() {
 			Expect(added[0]).To(Equal("/samples"))
 		})
 
+		// AC: File watcher correctly resolves nested study directory paths for checkpoint watch directories
+		It("watches study-scoped sample directories for checkpoints with samples", func() {
+			run := model.TrainingRun{
+				Name: "demo-study/demo-model",
+				Checkpoints: []model.Checkpoint{
+					{Filename: "demo-model-step00001000.safetensors", HasSamples: true},
+					{Filename: "demo-model-step00002000.safetensors", HasSamples: true},
+					{Filename: "demo-model-step00003000.safetensors", HasSamples: false},
+				},
+			}
+
+			err := watcher.WatchTrainingRun(run)
+			Expect(err).NotTo(HaveOccurred())
+
+			added := notifier.getAdded()
+			// Should watch: 2 checkpoint sample dirs under study + study dir
+			Expect(added).To(HaveLen(3))
+			Expect(added).To(ContainElement("/samples/demo-study/demo-model-step00001000.safetensors"))
+			Expect(added).To(ContainElement("/samples/demo-study/demo-model-step00002000.safetensors"))
+			Expect(added).To(ContainElement("/samples/demo-study"))
+		})
+
+		// AC: Selecting the demo training run does not produce 'failed to watch directory' errors
+		It("watches the study directory (not sample_dir root) for study-scoped runs with no checkpoints", func() {
+			run := model.TrainingRun{
+				Name:        "my-study/empty-model",
+				Checkpoints: []model.Checkpoint{},
+			}
+
+			err := watcher.WatchTrainingRun(run)
+			Expect(err).NotTo(HaveOccurred())
+
+			added := notifier.getAdded()
+			Expect(added).To(HaveLen(1))
+			Expect(added[0]).To(Equal("/samples/my-study"))
+		})
+
 		It("stops previous watching when called again", func() {
 			run1 := model.TrainingRun{
 				Name:        "run1",

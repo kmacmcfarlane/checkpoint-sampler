@@ -834,7 +834,7 @@ stories:
   - id: B-042
     title: "Watcher fails to watch demo training run checkpoint directories due to nested study path"
     priority: 60
-    status: todo
+    status: uat
     complexity: medium
     requires: []
     acceptance:
