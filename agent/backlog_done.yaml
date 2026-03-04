@@ -32,7 +32,9 @@ stories:
     requires: []
     acceptance:
       - "Backend reads config.toml at startup (path overridable via CONFIG_PATH env var)"
-      - "Config struct covers: root (no files below this dir should be accessed, validation error if it does not exist), port (webUI), ip_address (default 127.0.0.1 but can be set to 0.0.0.0 for external access), db_path (default to ./data/), training_runs (regex path patterns that match below the root)"
+      - "Config struct covers: root (no files below this dir should be accessed, validation error if it does not exist), port
+        (webUI), ip_address (default 127.0.0.1 but can be set to 0.0.0.0 for external access), db_path (default to ./data/),
+        training_runs (regex path patterns that match below the root)"
       - "Validation rejects missing root, invalid regex patterns, invalid port, invalid ip address, or db_path"
       - "Unit tests cover valid config, missing fields, invalid regex"
     testing:
@@ -205,17 +207,26 @@ stories:
     status: done
     requires: [S-007, S-008]
     acceptance:
-      - "BE: Switch config from TOML to YAML (config.yaml); remove [[training_runs]] and [[training_runs.dimensions]] from config parsing"
-      - "BE: Create a config.yaml.example with generic values, but create a config.yaml (gitignored) that has values for me (/home/rt/ai/models-training/stable-diffusion/checkpoints for the models dir and /home/rt/ai/outputs/stable-diffusion/comfyui/checkpoint-sampler for the samples dir)"
+      - "BE: Switch config from TOML to YAML (config.yaml); remove [[training_runs]] and [[training_runs.dimensions]] from
+        config parsing"
+      - "BE: Create a config.yaml.example with generic values, but create a config.yaml (gitignored) that has values for me
+        (/home/rt/ai/models-training/stable-diffusion/checkpoints for the models dir and /home/rt/ai/outputs/stable-diffusion/comfyui/checkpoint-sampler
+        for the samples dir)"
       - "BE: Config struct has checkpoint_dirs (list of strings), sample_dir (string), port, db_path"
       - "BE: Validation rejects missing checkpoint_dirs, missing sample_dir, non-existent directories"
       - "BE: Discovery service recursively scans all checkpoint_dirs for .safetensors files"
-      - "BE: Group checkpoint files into training runs by stripping suffixes: .safetensors extension, -step<NNNNN> suffix, -<NNNNNN> epoch suffix"
-      - "BE: For each checkpoint file, look up matching sample directory under sample_dir (exact filename match); set has_samples flag"
-      - "BE: Auto-extract checkpoint step/epoch number as a 'checkpoint' dimension (sorted numerically); final checkpoint (no suffix) assigned max step value if detectable, otherwise sorted last"
-      - "BE: GET /api/training-runs returns auto-discovered training runs with checkpoint counts and has_samples info; supports ?has_samples=true filter"
-      - "BE: GET /api/training-runs/{id}/scan scans sample directories for the training run's checkpoints, producing filename dimensions plus the auto-extracted checkpoint dimension"
-      - "BE: Unit tests for config YAML parsing, directory scanning, suffix stripping, grouping, sample correlation, checkpoint dimension extraction"
+      - "BE: Group checkpoint files into training runs by stripping suffixes: .safetensors extension, -step<NNNNN> suffix,
+        -<NNNNNN> epoch suffix"
+      - "BE: For each checkpoint file, look up matching sample directory under sample_dir (exact filename match); set has_samples
+        flag"
+      - "BE: Auto-extract checkpoint step/epoch number as a 'checkpoint' dimension (sorted numerically); final checkpoint
+        (no suffix) assigned max step value if detectable, otherwise sorted last"
+      - "BE: GET /api/training-runs returns auto-discovered training runs with checkpoint counts and has_samples info; supports
+        ?has_samples=true filter"
+      - "BE: GET /api/training-runs/{id}/scan scans sample directories for the training run's checkpoints, producing filename
+        dimensions plus the auto-extracted checkpoint dimension"
+      - "BE: Unit tests for config YAML parsing, directory scanning, suffix stripping, grouping, sample correlation, checkpoint
+        dimension extraction"
       - "FE: TrainingRunSelector shows auto-discovered runs with a default-checked 'Has samples' filter checkbox"
       - "FE: Unit tests for the has-samples filter behavior"
     testing:
@@ -239,7 +250,9 @@ stories:
     status: done
     requires: [S-003]
     acceptance:
-      - "BE: Create a config.yaml.example with generic values, but create a config.yaml (gitignored) that has values for me (/home/rt/ai/models-training/stable-diffusion/checkpoints for the models dir and /home/rt/ai/outputs/stable-diffusion/comfyui/checkpoint-sampler for the samples dir)"
+      - "BE: Create a config.yaml.example with generic values, but create a config.yaml (gitignored) that has values for me
+        (/home/rt/ai/models-training/stable-diffusion/checkpoints for the models dir and /home/rt/ai/outputs/stable-diffusion/comfyui/checkpoint-sampler
+        for the samples dir)"
       - "Updated README.md so other people know to copy and customize the config.yaml"
     testing:
       - "command: make up-dev (verify backend starts without error)"
@@ -250,10 +263,12 @@ stories:
     status: done
     requires: [S-003]
     acceptance:
-      - "FE: When a dimension in a combo box, you can select which values are enabled. If you disable a value, then change that dimension to be the X/Y/Slider, then you lose the ability to see those images."
+      - "FE: When a dimension in a combo box, you can select which values are enabled. If you disable a value, then change
+        that dimension to be the X/Y/Slider, then you lose the ability to see those images."
       - "FE: Always show the combo selectors even when the dimension is assigned to X/Y/Slider"
       - "FE: Change label from 'combo filter' to 'none' since we always show combos"
-      - "BE: Make sure the value for the formerly 'combo filter' selection still makes sense as 'none' (it should have a null value to show it's unassigned I imagine)"
+      - "BE: Make sure the value for the formerly 'combo filter' selection still makes sense as 'none' (it should have a null
+        value to show it's unassigned I imagine)"
     testing:
       - "command: make up-dev (verify backend starts without error)"
 
@@ -351,7 +366,8 @@ stories:
     status: done
     requires: [S-018]
     acceptance:
-      - "BE: Parse safetensors file headers to extract ss_* metadata fields (output_name, total_steps, epochs, optimizer, dataset, base_model, etc.)"
+      - "BE: Parse safetensors file headers to extract ss_* metadata fields (output_name, total_steps, epochs, optimizer,
+        dataset, base_model, etc.)"
       - "BE: GET /api/checkpoints/{filename}/metadata returns parsed metadata as JSON; filename is resolved against checkpoint_dirs"
       - "BE: Validate filename stays within checkpoint_dirs (path traversal protection)"
       - "BE: Return empty metadata object (not error) when no ss_* fields present"
@@ -645,7 +661,8 @@ stories:
     requires: [S-015]
     acceptance:
       - "FE: WebSocket connection status indicator shows 'connected' when actually connected"
-      - "FE: Investigate and fix why the status always shows 'disconnected' (connection failure, incorrect status tracking, or display bug)"
+      - "FE: Investigate and fix why the status always shows 'disconnected' (connection failure, incorrect status tracking,
+        or display bug)"
       - "FE: Status indicator accurately reflects the real connection state at all times"
       - "FE: Unit tests for connection status display accuracy"
     testing:
@@ -672,11 +689,13 @@ stories:
     status: done
     requires: [S-002]
     acceptance:
-      - "BE: Add comfyui.host (default localhost), comfyui.port (default 8188), and workflow_dir (default ./workflows) to config.yaml schema"
+      - "BE: Add comfyui.host (default localhost), comfyui.port (default 8188), and workflow_dir (default ./workflows) to
+        config.yaml schema"
       - "BE: Config validation: comfyui section is optional; if present, host and port must be valid"
       - "BE: ComfyUI HTTP client: health check, submit prompt, get history, get queue status"
       - "BE: ComfyUI WebSocket client: connect and receive progress/execution events"
-      - "BE: Model discovery: query /object_info/{node_type} for available VAEs (VAELoader), CLIPs (CLIPLoader), UNETs (UNETLoader), samplers, and schedulers"
+      - "BE: Model discovery: query /object_info/{node_type} for available VAEs (VAELoader), CLIPs (CLIPLoader), UNETs (UNETLoader),
+        samplers, and schedulers"
       - "BE: Goa DSL: comfyui service with status and models endpoints"
       - "BE: API: GET /api/comfyui/status returns connection status"
       - "BE: API: GET /api/comfyui/models?type={vae|clip|unet|sampler|scheduler} returns available model names"
@@ -700,15 +719,21 @@ stories:
       - "BE: In dev mode (make up-dev), set LOG_LEVEL=trace in docker-compose.dev.yml; production (make up) uses LOG_LEVEL=info"
       - "BE: Use proper log levels throughout the backend codebase:"
       - "  - trace: function entry/exit (e.g. 'entering FunctionName', 'returning from FunctionName')"
-      - "  - debug: intermediate values inside functions, e.g. values returned from store/service calls (logged inside the callee, not at the call site)"
+      - "  - debug: intermediate values inside functions, e.g. values returned from store/service calls (logged inside the
+        callee, not at the call site)"
       - "  - info: data writes to stores, files, or external systems"
       - "  - error: when an error occurs"
-      - "BE: All log messages use logrus WithField()/WithFields() builder pattern for contextual information (e.g. request ID, training run name, checkpoint filename, etc.)"
+      - "BE: All log messages use logrus WithField()/WithFields() builder pattern for contextual information (e.g. request
+        ID, training run name, checkpoint filename, etc.)"
       - "BE: Instrument existing service, store, and API layers with logging at the appropriate levels"
-      - "BE: Ensure no secrets (tokens, passwords, auth headers) appear in log output per DEVELOPMENT_PRACTICES.md section 1.5"
+      - "BE: Ensure no secrets (tokens, passwords, auth headers) appear in log output per DEVELOPMENT_PRACTICES.md section
+        1.5"
       - "BE: Unit tests verify logger is called at appropriate levels (mock logrus or use test hooks)"
-      - "DOC: Add a 'Logging' section to /agent/DEVELOPMENT_PRACTICES.md documenting: logrus usage, log level definitions (trace/debug/info/error), WithField() pattern, LOG_LEVEL env var, and the rule about logging inside callees not at call sites"
-      - "DOC: Add the same 'Logging' section to /home/rt/work/src/github.com/kmacmcfarlane/claude-templates/local-web-app/agent/DEVELOPMENT_PRACTICES.md to keep the template up-to-date"
+      - "DOC: Add a 'Logging' section to /agent/DEVELOPMENT_PRACTICES.md documenting: logrus usage, log level definitions
+        (trace/debug/info/error), WithField() pattern, LOG_LEVEL env var, and the rule about logging inside callees not at
+        call sites"
+      - "DOC: Add the same 'Logging' section to /home/rt/work/src/github.com/kmacmcfarlane/claude-templates/local-web-app/agent/DEVELOPMENT_PRACTICES.md
+        to keep the template up-to-date"
     testing:
       - "command: ginkgo -r --cover --race ./internal/..."
 
@@ -733,7 +758,8 @@ stories:
     requires: [S-030]
     acceptance:
       - "BE: Load workflow JSON files from configured workflow_dir on startup"
-      - "BE: Validate cs_role tags in _meta objects (required: save_image; known roles: unet_loader, clip_loader, vae_loader, sampler, positive_prompt, negative_prompt, shift, latent_image, save_image)"
+      - "BE: Validate cs_role tags in _meta objects (required: save_image; known roles: unet_loader, clip_loader, vae_loader,
+        sampler, positive_prompt, negative_prompt, shift, latent_image, save_image)"
       - "BE: Reject workflows missing save_image role; flag unknown cs_role values as warnings"
       - "BE: Extract role summary per workflow (which roles are present, which node IDs they map to)"
       - "BE: Goa DSL: workflows service with list and show methods"
@@ -750,7 +776,8 @@ stories:
     status: done
     requires: [S-030, S-003]
     acceptance:
-      - "BE: DB migration: create sample_presets table (id, name, prompts JSON, negative_prompt, steps JSON, cfgs JSON, samplers JSON, schedulers JSON, seeds JSON, width, height, created_at, updated_at)"
+      - "BE: DB migration: create sample_presets table (id, name, prompts JSON, negative_prompt, steps JSON, cfgs JSON, samplers
+        JSON, schedulers JSON, seeds JSON, width, height, created_at, updated_at)"
       - "BE: Sample preset service and store with CRUD operations"
       - "BE: Validation: at least one prompt, step, cfg, sampler, scheduler, and seed required; width/height must be positive"
       - "BE: Computed field images_per_checkpoint returned with each preset"
@@ -774,8 +801,11 @@ stories:
     status: done
     requires: [S-031, S-032]
     acceptance:
-      - "BE: DB migration: create sample_jobs table (id, training_run_name, sample_preset_id, workflow_name, vae, clip, shift, status, total_items, completed_items, error_message, created_at, updated_at)"
-      - "BE: DB migration: create sample_job_items table (id, job_id, checkpoint_filename, comfyui_model_path, prompt_name, prompt_text, steps, cfg, sampler_name, scheduler, seed, status, comfyui_prompt_id, output_path, error_message, created_at, updated_at)"
+      - "BE: DB migration: create sample_jobs table (id, training_run_name, sample_preset_id, workflow_name, vae, clip, shift,
+        status, total_items, completed_items, error_message, created_at, updated_at)"
+      - "BE: DB migration: create sample_job_items table (id, job_id, checkpoint_filename, comfyui_model_path, prompt_name,
+        prompt_text, steps, cfg, sampler_name, scheduler, seed, status, comfyui_prompt_id, output_path, error_message, created_at,
+        updated_at)"
       - "BE: Job creation: expand sample preset parameters × training run checkpoints into individual work items"
       - "BE: Checkpoint-to-ComfyUI path matching: query ComfyUI for available UNETs, match by checkpoint filename"
       - "BE: Job state machine: pending → running → completed|failed|paused"
@@ -793,7 +823,8 @@ stories:
     requires: [S-033]
     acceptance:
       - "BE: Background job executor goroutine processes work items sequentially"
-      - "BE: For each item: clone workflow template, substitute tagged node values (unet_loader, clip_loader, vae_loader, sampler params, prompts, shift, latent_image dimensions, save_image prefix)"
+      - "BE: For each item: clone workflow template, substitute tagged node values (unet_loader, clip_loader, vae_loader,
+        sampler params, prompts, shift, latent_image dimensions, save_image prefix)"
       - "BE: Submit parameterized workflow to ComfyUI via POST /prompt"
       - "BE: Monitor completion via ComfyUI WebSocket progress events"
       - "BE: On completion: download output image via ComfyUI /view API"
@@ -823,7 +854,8 @@ stories:
       - "FE: JobLaunchDialog: shift value input (hidden if workflow has no shift role)"
       - "FE: JobLaunchDialog: confirmation summary showing number of checkpoints, images per checkpoint, total images"
       - "FE: JobProgressPanel: list of active and recent jobs"
-      - "FE: JobProgressPanel: per-job display — status badge, checkpoints completed/total, current checkpoint images completed/total, estimated completion time"
+      - "FE: JobProgressPanel: per-job display — status badge, checkpoints completed/total, current checkpoint images completed/total,
+        estimated completion time"
       - "FE: JobProgressPanel: stop button for running jobs, resume button for paused jobs"
       - "FE: Real-time progress updates via WebSocket"
       - "FE: As images complete, they appear in the grid via the existing filesystem watcher / live update mechanism"
@@ -837,7 +869,8 @@ stories:
     status: done
     requires: []
     acceptance:
-      - "BE: Migration 6 does not fail with 'duplicate column name: height' when run against an existing database that already has the column"
+      - "BE: Migration 6 does not fail with 'duplicate column name: height' when run against an existing database that already
+        has the column"
       - "BE: Migration is idempotent — safe to run on both fresh and pre-existing databases"
       - "BE: Application starts successfully with an existing database"
       - "BE: Unit tests cover migration 6 idempotency"
@@ -850,10 +883,14 @@ stories:
     status: done
     requires: []
     acceptance:
-      - "BE: All API service methods return Goa ServiceError types (via Make*() constructors) for every error path — no plain fmt.Errorf() or errors.New() escaping to the transport layer"
-      - "BE: Audit all API implementation files (training_runs.go, presets.go, sample_presets.go, sample_jobs.go, checkpoints.go, workflows.go, comfyui.go) for error paths that return plain Go errors"
-      - "BE: Known gaps: PresetsService.List (line 28) and PresetsService.Delete (line 67) return plain fmt.Errorf; other services likely have similar issues"
-      - "BE: Every 500 response includes a JSON body with name, message, id, temporary, timeout, fault fields (standard Goa error format)"
+      - "BE: All API service methods return Goa ServiceError types (via Make*() constructors) for every error path — no plain
+        fmt.Errorf() or errors.New() escaping to the transport layer"
+      - "BE: Audit all API implementation files (training_runs.go, presets.go, sample_presets.go, sample_jobs.go, checkpoints.go,
+        workflows.go, comfyui.go) for error paths that return plain Go errors"
+      - "BE: Known gaps: PresetsService.List (line 28) and PresetsService.Delete (line 67) return plain fmt.Errorf; other
+        services likely have similar issues"
+      - "BE: Every 500 response includes a JSON body with name, message, id, temporary, timeout, fault fields (standard Goa
+        error format)"
       - "BE: Unit tests verify that error responses from each endpoint include a JSON body with the expected fields"
     testing:
       - "command: ginkgo -r --cover --race ./internal/..."
@@ -864,8 +901,10 @@ stories:
     status: done
     requires: []
     acceptance:
-      - "BE: When an API endpoint returns an error (4xx or 5xx), the error message is logged to stdout with request ID for correlation"
-      - "BE: The current errorHandler in http.go only fires on encoding failures, not service errors — fix or supplement it so service errors are also logged"
+      - "BE: When an API endpoint returns an error (4xx or 5xx), the error message is logged to stdout with request ID for
+        correlation"
+      - "BE: The current errorHandler in http.go only fires on encoding failures, not service errors — fix or supplement it
+        so service errors are also logged"
       - "BE: Error log entries include: request ID, HTTP method, path, status code, and error message"
       - "BE: Use logrus at error level for 5xx and warn level for 4xx"
       - "BE: docker logs for the backend container show meaningful error details when API calls fail"
@@ -879,14 +918,19 @@ stories:
     status: done
     requires: []
     acceptance:
-      - "FE: Fix ApiErrorResponse type to match Goa's actual JSON field names (lowercase 'name' and 'message', not uppercase 'Code' and 'Message')"
+      - "FE: Fix ApiErrorResponse type to match Goa's actual JSON field names (lowercase 'name' and 'message', not uppercase
+        'Code' and 'Message')"
       - "FE: normalizeError() maps Goa's 'name' field to ApiError.code and 'message' field to ApiError.message"
       - "FE: Update isApiErrorResponse() type guard to check for the correct lowercase field names"
-      - "FE: Error messages from the backend are now visible in the UI (e.g. 'listing training runs: database error' instead of generic 'Request failed with status 500')"
+      - "FE: Error messages from the backend are now visible in the UI (e.g. 'listing training runs: database error' instead
+        of generic 'Request failed with status 500')"
       - "FE: If an error is unknown, include the body in the `Request failed with status` message for debugging purposes"
-      - "FE: Unit tests for normalizeError() updated to use Goa's actual error JSON shape ({ name: '...', message: '...', id: '...', temporary: false, timeout: false, fault: true })"
-      - "BE: Enable Goa Debug middleware (httpmdlwr.Debug) on all servers when cfg.Debug is true, per the Goa HTTP Handler Wireup pattern — logs full HTTP request/response headers and bodies to stdout for development"
-      - "BE: Debug middleware must be applied via servers.Use(httpmdlwr.Debug(mux, os.Stdout)) BEFORE mounting servers on the mux"
+      - "FE: Unit tests for normalizeError() updated to use Goa's actual error JSON shape ({ name: '...', message: '...',
+        id: '...', temporary: false, timeout: false, fault: true })"
+      - "BE: Enable Goa Debug middleware (httpmdlwr.Debug) on all servers when cfg.Debug is true, per the Goa HTTP Handler
+        Wireup pattern — logs full HTTP request/response headers and bodies to stdout for development"
+      - "BE: Debug middleware must be applied via servers.Use(httpmdlwr.Debug(mux, os.Stdout)) BEFORE mounting servers on
+        the mux"
       - "BE: Debug middleware only active in dev mode (controlled by existing Debug config flag)"
       - "BE: Unit tests verify debug middleware is wired when debug=true"
     testing:
@@ -901,8 +945,10 @@ stories:
     acceptance:
       - "BE: Backend HTTP server starts and serves API requests even when ComfyUI is unreachable"
       - "BE: jobExecutor.Start() failure in main.go (line 156) must not be fatal — log the error and continue server startup"
-      - "BE: When ComfyUI is unavailable, sample job endpoints return a clear error (e.g. 'ComfyUI not connected') rather than the entire server crashing"
-      - "BE: Non-ComfyUI endpoints (health, training runs, presets, checkpoints, images, docs) work normally regardless of ComfyUI state"
+      - "BE: When ComfyUI is unavailable, sample job endpoints return a clear error (e.g. 'ComfyUI not connected') rather
+        than the entire server crashing"
+      - "BE: Non-ComfyUI endpoints (health, training runs, presets, checkpoints, images, docs) work normally regardless of
+        ComfyUI state"
       - "BE: When ComfyUI becomes available later, the job executor can still be used (lazy connect or background retry)"
       - "BE: docker logs show a warning about ComfyUI being unreachable, not a fatal exit"
       - "BE: Unit tests verify server starts successfully when ComfyUI WebSocket connection fails"
@@ -917,20 +963,26 @@ stories:
     requires: []
     acceptance:
       - "BE: Define an 'images' Goa service in internal/api/design/images.go with a 'download' method"
-      - "BE: download method uses SkipResponseBodyEncodeDecode() so Goa skips body encoding and the service returns (result, io.ReadCloser, error)"
+      - "BE: download method uses SkipResponseBodyEncodeDecode() so Goa skips body encoding and the service returns (result,
+        io.ReadCloser, error)"
       - "BE: Response headers defined in DSL: Content-Type, Content-Length, Cache-Control"
       - "BE: Goa design declares not_found and bad_request error responses for the download method"
-      - "BE: Service implementation opens the image file, detects content type, seeks back to start, and returns the *os.File as the io.ReadCloser body — Goa closes it after streaming"
+      - "BE: Service implementation opens the image file, detects content type, seeks back to start, and returns the *os.File
+        as the io.ReadCloser body — Goa closes it after streaming"
       - "BE: Path traversal protection preserved in service layer (reject '..', absolute paths, paths outside sample_dir)"
       - "BE: Cache-Control header set to 'max-age=31536000, immutable' via the result struct"
-      - "BE: Define image metadata as a separate Goa method (GET /api/images/{*filepath}/metadata) using standard Goa JSON encoding (no SkipResponseBodyEncodeDecode)"
+      - "BE: Define image metadata as a separate Goa method (GET /api/images/{*filepath}/metadata) using standard Goa JSON
+        encoding (no SkipResponseBodyEncodeDecode)"
       - "BE: Image metadata method returns the same JSON shape as today ({ metadata: { ... } })"
-      - "BE: Remove the custom ImageHandler and ImageMetadataHandler structs and their raw http.Handler implementations (images.go, image_metadata.go)"
-      - "BE: Remove the manual mux.Handle('GET', '/api/images/{*filepath}', ...) call from http.go; the Goa-generated server mount replaces it"
+      - "BE: Remove the custom ImageHandler and ImageMetadataHandler structs and their raw http.Handler implementations (images.go,
+        image_metadata.go)"
+      - "BE: Remove the manual mux.Handle('GET', '/api/images/{*filepath}', ...) call from http.go; the Goa-generated server
+        mount replaces it"
       - "BE: Both endpoints appear in the generated OpenAPI 3.0 spec and are visible in Swagger UI at /docs"
       - "BE: Run codegen (make gen) after DSL changes and verify generated code compiles"
       - "BE: All existing image serving and metadata tests pass or are updated to use the new Goa service interface"
-      - "BE: Unit tests for the new Goa service: successful download, not_found, bad_request (path traversal), metadata retrieval, empty metadata"
+      - "BE: Unit tests for the new Goa service: successful download, not_found, bad_request (path traversal), metadata retrieval,
+        empty metadata"
       - "FE: No frontend changes required — the API contract (paths, response shapes, headers) remains identical"
     testing:
       - "command: ginkgo -r --cover --race ./internal/..."
@@ -945,7 +997,8 @@ stories:
     requires: []
     acceptance:
       - "FE: let's switch to an input I can filter by typing in and select the training run I want"
-      - "FE: dropdown popover in TrainingRunSelector is wide enough to display training run names up to 128+ characters without truncation"
+      - "FE: dropdown popover in TrainingRunSelector is wide enough to display training run names up to 128+ characters without
+        truncation"
       - "FE: The closed (collapsed) selector may still ellipsize, but the open dropdown list shows full names"
       - "FE: Dropdown width does not exceed viewport width on small screens"
       - "FE: Existing TrainingRunSelector tests still pass"
@@ -967,7 +1020,8 @@ stories:
     acceptance:
       - "OPS: config.yaml.example shows workflow_dir nested under comfyui: section (not top-level)"
       - "OPS: docker-compose.yml and docker-compose.dev.yml mount ./workflows into the backend container"
-      - "BE: When workflow_dir is correctly configured and mounted, GET /api/workflows returns the workflow templates from the directory"
+      - "BE: When workflow_dir is correctly configured and mounted, GET /api/workflows returns the workflow templates from
+        the directory"
       - "BE: Existing workflow loader tests still pass"
     notes: |
       Two root causes found:
@@ -988,7 +1042,8 @@ stories:
     status: done
     requires: []
     acceptance:
-      - "FE: The SamplePresetEditor (with New Preset button, form fields, save/delete) is visible and accessible from the Generate Samples / Job Launch flow"
+      - "FE: The SamplePresetEditor (with New Preset button, form fields, save/delete) is visible and accessible from the
+        Generate Samples / Job Launch flow"
       - "FE: User can create, edit, and delete sample presets without navigating away from the job launch dialog"
       - "FE: After creating a preset, it appears in the preset selector dropdown"
       - "FE: Existing SamplePresetEditor and JobLaunchDialog tests still pass"
@@ -1009,7 +1064,8 @@ stories:
     status: done
     requires: []
     acceptance:
-      - "BE: ComfyUI config accepts a single `url` field (e.g. 'https://comfyui.lucy.mcfacehead.com') instead of separate host and port"
+      - "BE: ComfyUI config accepts a single `url` field (e.g. 'https://comfyui.lucy.mcfacehead.com') instead of separate
+        host and port"
       - "BE: HTTP client uses the URL scheme (http:// or https://) from the configured url"
       - "BE: WebSocket client derives ws:// or wss:// from the configured url scheme"
       - "BE: Config validation rejects invalid URLs and URLs without a scheme"
@@ -1033,9 +1089,12 @@ stories:
     status: done
     requires: []
     acceptance:
-      - "WORKFLOW: The orchestrator extracts a structured change summary from the fullstack-developer verdict (files changed, brief description of each change)"
-      - "WORKFLOW: The change summary is passed to the code-reviewer and qa-expert subagents as additional context alongside the story dispatch"
-      - "WORKFLOW: Subagent prompts (code-reviewer.md, qa-expert.md) document the change summary as an expected input and instruct agents to use it for faster orientation"
+      - "WORKFLOW: The orchestrator extracts a structured change summary from the fullstack-developer verdict (files changed,
+        brief description of each change)"
+      - "WORKFLOW: The change summary is passed to the code-reviewer and qa-expert subagents as additional context alongside
+        the story dispatch"
+      - "WORKFLOW: Subagent prompts (code-reviewer.md, qa-expert.md) document the change summary as an expected input and
+        instruct agents to use it for faster orientation"
       - "WORKFLOW: AGENT_FLOW.md section 4.3 updated to document the change summary extraction and passthrough"
       - "WORKFLOW: The change summary does NOT replace reading actual source files — it supplements them for faster focus"
     notes: |
@@ -1058,12 +1117,14 @@ stories:
     status: done
     requires: []
     acceptance:
-      - "DEVOPS: Set up a new makefile target up-test; it should have separate docker named volume(s) such that test runs can do `make down-test` to reset storage without affecting my environment using make up-dev"
+      - "DEVOPS: Set up a new makefile target up-test; it should have separate docker named volume(s) such that test runs
+        can do `make down-test` to reset storage without affecting my environment using make up-dev"
       - "DEVOPS: @playwright/test installed as a dev dependency in /frontend"
       - "DEVOPS: playwright.config.ts created with baseURL http://localhost:3000, headless Chromium, list reporter"
       - "DEVOPS: E2E test directory created at frontend/e2e/"
       - "DEVOPS: Root Makefile target 'make test-e2e' runs Playwright tests (assumes make up-dev is already running)"
-      - "DEVOPS: A minimal smoke E2E test exists in frontend/e2e/smoke.spec.ts that verifies the app loads and the health endpoint returns 200 through the frontend proxy"
+      - "DEVOPS: A minimal smoke E2E test exists in frontend/e2e/smoke.spec.ts that verifies the app loads and the health
+        endpoint returns 200 through the frontend proxy"
       - "DEVOPS: CLAUDE.md section 8 updated with the new make test-e2e target"
       - "DEVOPS: TEST_PRACTICES.md updated with a new section for E2E testing practices"
       - "DEVOPS: Playwright works in the claude-sandbox (headless Chromium, chromiumSandbox: false if needed)"
@@ -1175,8 +1236,10 @@ stories:
     acceptance:
       - "WORKFLOW: QA subagent prompt (qa-expert.md) updated to run 'make test-e2e' as part of its verification steps"
       - "WORKFLOW: TEST_PRACTICES.md section 5 updated to include E2E test execution as a QA gate"
-      - "WORKFLOW: For frontend-only stories, QA uses Playwright smoke test results instead of curl-based health checks for frontend verification"
-      - "WORKFLOW: AGENT_FLOW.md updated to document that the orchestrator ensures make up-dev is running before dispatching to QA when E2E tests are required"
+      - "WORKFLOW: For frontend-only stories, QA uses Playwright smoke test results instead of curl-based health checks for
+        frontend verification"
+      - "WORKFLOW: AGENT_FLOW.md updated to document that the orchestrator ensures make up-dev is running before dispatching
+        to QA when E2E tests are required"
       - "WORKFLOW: QA verdict format updated to include E2E test results section"
     notes: |
       Closes the gap where QA could only curl /health for frontend stories. After this,
@@ -1194,17 +1257,24 @@ stories:
     status: done
     requires: []
     acceptance:
-      - "FE: When the lightbox is open, a SliderBar is shown below the image allowing the user to step through values of the slider-assigned dimension"
-      - "FE: The lightbox slider displays the same ordered values and current value as the cell's individual slider that was clicked to open the lightbox"
-      - "FE: Moving the lightbox slider swaps the displayed image in the lightbox to the image matching the new slider value (same x/y cell, different slider position)"
-      - "FE: Moving the lightbox slider updates that cell's per-cell slider override (sliderValues[cellKey]) so the grid reflects the change when the lightbox is closed"
+      - "FE: When the lightbox is open, a SliderBar is shown below the image allowing the user to step through values of the
+        slider-assigned dimension"
+      - "FE: The lightbox slider displays the same ordered values and current value as the cell's individual slider that was
+        clicked to open the lightbox"
+      - "FE: Moving the lightbox slider swaps the displayed image in the lightbox to the image matching the new slider value
+        (same x/y cell, different slider position)"
+      - "FE: Moving the lightbox slider updates that cell's per-cell slider override (sliderValues[cellKey]) so the grid reflects
+        the change when the lightbox is closed"
       - "FE: The lightbox slider does NOT affect other cells — only the cell that opened the lightbox"
-      - "FE: When the master slider is next moved (after the lightbox changed a single cell), all cells sync together as usual (master clears per-cell overrides)"
-      - "FE: The lightbox must receive enough context to know which cell (x/y values) it belongs to, the slider dimension values, and the current slider value for that cell"
+      - "FE: When the master slider is next moved (after the lightbox changed a single cell), all cells sync together as usual
+        (master clears per-cell overrides)"
+      - "FE: The lightbox must receive enough context to know which cell (x/y values) it belongs to, the slider dimension
+        values, and the current slider value for that cell"
       - "FE: If no slider dimension is assigned, no slider is shown in the lightbox"
       - "FE: Zoom/pan and metadata panel continue to work alongside the slider"
       - "FE: Image preloading: adjacent slider positions are prefetched so lightbox slider feels instant"
-      - "FE: Unit tests for lightbox slider rendering, value changes updating the displayed image, per-cell override propagation, and no-slider-dimension case"
+      - "FE: Unit tests for lightbox slider rendering, value changes updating the displayed image, per-cell override propagation,
+        and no-slider-dimension case"
     notes: |
       Currently the lightbox shows a single static image. Adding a slider lets users flip
       through the slider dimension (e.g. checkpoints) without closing the lightbox, which is
@@ -1223,8 +1293,10 @@ stories:
     status: done
     requires: []
     acceptance:
-      - "FE: When an ImageCell is focused (clicked or tabbed to), left/right arrow keys step the cell's slider backward/forward by one value"
-      - "FE: When the MasterSlider area is focused, left/right arrow keys step all sliders in sync (same behavior as dragging the master slider)"
+      - "FE: When an ImageCell is focused (clicked or tabbed to), left/right arrow keys step the cell's slider backward/forward
+        by one value"
+      - "FE: When the MasterSlider area is focused, left/right arrow keys step all sliders in sync (same behavior as dragging
+        the master slider)"
       - "FE: Arrow key steps wrap around if the slider is at the first or last value (consistent with playback loop behavior)"
       - "FE: Visual focus indicator on the active cell so the user knows which cell will respond to arrow keys"
       - "FE: Arrow key navigation does not interfere with normal page scrolling when no cell or slider is focused"
@@ -1246,11 +1318,16 @@ stories:
     status: done
     requires: [S-034]
     acceptance:
-      - "BE: When the job executor saves a generated image to sample_dir, it also writes a .json sidecar file alongside it with the same base name (e.g. prompt_name=forest&seed=420&cfg=1.png → prompt_name=forest&seed=420&cfg=1.json)"
-      - "BE: Sidecar JSON contains flat key-value generation metadata: checkpoint (filename), prompt_name, prompt_text, seed, cfg, steps, sampler_name, scheduler, width, height, negative_prompt, vae, clip, shift (if applicable), workflow_name, job_id, timestamp"
+      - "BE: When the job executor saves a generated image to sample_dir, it also writes a .json sidecar file alongside it
+        with the same base name (e.g. prompt_name=forest&seed=420&cfg=1.png → prompt_name=forest&seed=420&cfg=1.json)"
+      - "BE: Sidecar JSON contains flat key-value generation metadata: checkpoint (filename), prompt_name, prompt_text, seed,
+        cfg, steps, sampler_name, scheduler, width, height, negative_prompt, vae, clip, shift (if applicable), workflow_name,
+        job_id, timestamp"
       - "BE: Sidecar is written atomically (write to temp file then rename) to avoid partial reads"
-      - "BE: Image metadata endpoint (/api/images/{*filepath}/metadata) reads from the .json sidecar if it exists, falling back to PNG embedded metadata if no sidecar is found"
-      - "BE: Sidecar metadata is returned in the same API response shape as PNG-embedded metadata so the frontend needs no changes for basic display"
+      - "BE: Image metadata endpoint (/api/images/{*filepath}/metadata) reads from the .json sidecar if it exists, falling
+        back to PNG embedded metadata if no sidecar is found"
+      - "BE: Sidecar metadata is returned in the same API response shape as PNG-embedded metadata so the frontend needs no
+        changes for basic display"
       - "BE: Filesystem scanner ignores .json files when discovering images (only .png files are treated as images)"
       - "BE: Unit tests for sidecar writing (correct path, correct content, atomic write)"
       - "BE: Unit tests for metadata endpoint sidecar-first fallback logic"
@@ -1273,7 +1350,8 @@ stories:
     requires: []
     acceptance:
       - "When OpenFile is called for a path that does not exist, the log entry is emitted at debug level, not error level"
-      - "When OpenFile fails for a reason other than file-not-found (e.g., permission denied), the log entry remains at error level"
+      - "When OpenFile fails for a reason other than file-not-found (e.g., permission denied), the log entry remains at error
+        level"
     notes: |
       store.FileSystem.OpenFile() logs at level=error unconditionally on any os.Open failure.
       For sidecar lookups, a file-not-found result is expected for all pre-existing images
@@ -1290,9 +1368,11 @@ stories:
     requires: []
     acceptance:
       - "AGENT: Investigate why tokens_out is always 0 in CHANGELOG entries and backlog.yaml metrics"
-      - "AGENT: Root cause identified — either /cost output parsing is wrong, snapshot delta computation has a bug, or /cost doesn't report output tokens"
+      - "AGENT: Root cause identified — either /cost output parsing is wrong, snapshot delta computation has a bug, or /cost
+        doesn't report output tokens"
       - "AGENT: Fix applied so tokens_out reflects actual output token usage"
-      - "AGENT: If /cost genuinely doesn't provide output tokens, document this limitation and update AGENT_FLOW.md section 10.2 accordingly"
+      - "AGENT: If /cost genuinely doesn't provide output tokens, document this limitation and update AGENT_FLOW.md section
+        10.2 accordingly"
     notes: |
       Resolved: In-orchestrator metrics and token tracking removed entirely. Metrics are now
       handled externally by claude-sandbox via ~/.claude/projects jsonl files.
@@ -1305,7 +1385,8 @@ stories:
     status: done
     requires: []
     acceptance:
-      - "FE: The summary section at the bottom of JobLaunchDialog (training run name, checkpoint count, images per checkpoint) has sufficient text contrast in both dark and light themes"
+      - "FE: The summary section at the bottom of JobLaunchDialog (training run name, checkpoint count, images per checkpoint)
+        has sufficient text contrast in both dark and light themes"
       - "FE: Text color uses a theme-aware variable that ensures readability against the summary background in both themes"
       - "FE: Existing JobLaunchDialog tests still pass"
     notes: |
@@ -1386,7 +1467,8 @@ stories:
     status: done
     requires: [B-024]
     acceptance:
-      - "FE: Steps, CFG, and Seeds fields in SamplePresetEditor use multi-value tag-style inputs (NDynamicTags or similar) instead of comma-separated text inputs"
+      - "FE: Steps, CFG, and Seeds fields in SamplePresetEditor use multi-value tag-style inputs (NDynamicTags or similar)
+        instead of comma-separated text inputs"
       - "FE: Input is restricted to digits and '.' characters only (no letters, special chars)"
       - "FE: Invalid non-numeric values are rejected on entry"
       - "FE: Default value for steps is 30 when creating a new preset"
@@ -1410,7 +1492,8 @@ stories:
       - "FE: Last selected workflow ID is persisted to localStorage and restored when dialog opens"
       - "FE: Last used VAE, Text Encoder, Shift, and other model-type-specific inputs are persisted to localStorage"
       - "FE: Persisted inputs are keyed by model type (derived from ss_base_model_version of the first checkpoint's metadata)"
-      - "FE: When switching to a training run with a different model type, the remembered inputs for that model type are restored (if available)"
+      - "FE: When switching to a training run with a different model type, the remembered inputs for that model type are restored
+        (if available)"
       - "FE: If a remembered value is no longer available (e.g., VAE was deleted), the field falls back to empty/default"
       - "BE: Checkpoint metadata includes ss_base_model_version (already available from safetensors header parsing)"
       - "FE: Existing JobLaunchDialog tests updated for persistence behavior"
@@ -1510,9 +1593,11 @@ stories:
       - "FE: JobLaunchDialog has its own training run dropdown (separate from sidebar TrainingRunSelector)"
       - "FE: The dialog's training run selector always starts empty (no pre-selection from sidebar)"
       - "FE: Dropdown shows all training runs, with a colored status bead next to each option"
-      - "FE: Status bead colors: green = has samples (complete), blue = currently generating (running job), yellow = queued job, gray = no samples and no job"
+      - "FE: Status bead colors: green = has samples (complete), blue = currently generating (running job), yellow = queued
+        job, gray = no samples and no job"
       - "FE: Job status for each training run is fetched from the jobs API to determine bead color"
-      - "BE: API provides sufficient data to determine job status per training run (existing endpoints may suffice, or a lightweight summary endpoint)"
+      - "BE: API provides sufficient data to determine job status per training run (existing endpoints may suffice, or a lightweight
+        summary endpoint)"
       - "FE: Selecting a training run in the dialog populates the checkpoint count and other summary fields"
       # Default filter — only show runs without samples/jobs
       - "FE: By default, the dropdown only shows training runs that have neither samples nor pending/running jobs (gray status)"
@@ -1522,14 +1607,16 @@ stories:
       - "FE: Checkpoint picker shows all checkpoints with select-all / deselect-all controls"
       - "FE: Each checkpoint row indicates whether it already has samples"
       - "FE: User can select all or individual checkpoints to regenerate samples for"
-      - "FE: When no specific checkpoints are selected (i.e. training run without samples), all checkpoints are included by default"
+      - "FE: When no specific checkpoints are selected (i.e. training run without samples), all checkpoints are included by
+        default"
       # Backend — checkpoint filtering
       - "BE: CreateSampleJobPayload accepts an optional checkpoint_filenames field (list of strings)"
       - "BE: When checkpoint_filenames is provided, only those checkpoints are included in the job (instead of all)"
       - "BE: When checkpoint_filenames is omitted or empty, all checkpoints in the training run are included (existing behavior)"
       # Backend — clearing existing samples before regeneration
       - "BE: CreateSampleJobPayload accepts an optional clear_existing field (boolean, default false)"
-      - "BE: When clear_existing is true, the sample directory for each selected checkpoint is deleted before job items are created"
+      - "BE: When clear_existing is true, the sample directory for each selected checkpoint is deleted before job items are
+        created"
       - "BE: Directory clearing happens per-checkpoint at <sample_dir>/<checkpoint_filename>/"
       - "BE: Clearing only affects the selected checkpoints, not the entire training run"
       - "FE: When regenerating (training run has samples), clear_existing is sent as true automatically"
@@ -1559,7 +1646,8 @@ stories:
       - "command: make test-backend"
 
   - id: B-036
-    title: "Job status does not report failed items — add error reporting, completed_with_errors status, and failed-checkpoint regeneration flow"
+    title: "Job status does not report failed items — add error reporting, completed_with_errors status, and failed-checkpoint
+      regeneration flow"
     priority: 190
     complexity: high
     status: done
@@ -1571,7 +1659,8 @@ stories:
       - "BE: Counts are computed on-the-fly from sample_job_items — no new DB columns or migration"
       # Backend — new completed_with_errors status
       - "BE: New SampleJobStatus value 'completed_with_errors' added to the model"
-      - "BE: When the executor finishes all items and at least one has status=failed, the job transitions to completed_with_errors instead of completed"
+      - "BE: When the executor finishes all items and at least one has status=failed, the job transitions to completed_with_errors
+        instead of completed"
       - "BE: A job with all items completed (none failed) transitions to completed as before"
       - "BE: Goa DSL updated to include completed_with_errors in the status enum"
       # Backend — inline failed item details in job response
@@ -1585,12 +1674,15 @@ stories:
       - "FE: Jobs with completed_with_errors status show a warning indicator (distinct from both completed and failed)"
       # Frontend — grouped error display in job card
       - "FE: When a job has failed items, an expandable error section appears in the job card"
-      - "FE: Errors are grouped by error message — each unique error shown once with a count and expandable list of affected checkpoint names"
+      - "FE: Errors are grouped by error message — each unique error shown once with a count and expandable list of affected
+        checkpoint names"
       - "FE: Example: 'read-only file system (12 checkpoints)' with expandable list showing each checkpoint filename"
       # Frontend — Generate Samples dialog: failed checkpoint awareness
-      - "FE: When a completed_with_errors run is selected in the dialog, the checkpoint picker shows a red/warning status badge next to each failed checkpoint"
+      - "FE: When a completed_with_errors run is selected in the dialog, the checkpoint picker shows a red/warning status
+        badge next to each failed checkpoint"
       - "FE: Hovering the badge shows the error message in a tooltip"
-      - "FE: Default selection logic: if ANY checkpoints have failures, only the failed checkpoints are pre-selected; if no failures, all checkpoints are selected"
+      - "FE: Default selection logic: if ANY checkpoints have failures, only the failed checkpoints are pre-selected; if no
+        failures, all checkpoints are selected"
       - "FE: Selecting zero checkpoints is invalid — the launch button is disabled with a validation message"
       - "FE: When failed checkpoints are pre-selected, clear_existing is auto-enabled (user can toggle off)"
       - "FE: Regenerating a failed checkpoint regenerates ALL items for that checkpoint (not just the specific failed items)"
@@ -1647,9 +1739,11 @@ stories:
     acceptance:
       - "AGENT: Add Write and Edit tools to the qa-expert agent definition (/.claude/agents/qa-expert.md)"
       - "AGENT: Use tiered model selection: sonnet for simple E2E additions, opus for complex test authoring"
-      - "AGENT: QA agent instructions explicitly encourage writing or modifying Playwright E2E tests to enhance coverage of the story under test"
+      - "AGENT: QA agent instructions explicitly encourage writing or modifying Playwright E2E tests to enhance coverage of
+        the story under test"
       - "AGENT: Items not related to the story under test should be returned as ideas to add to agent/ideas/"
-      - "AGENT: QA agent retains autonomous empowerment for E2E helpers, fixtures, and config tweaks (no idea filing needed for those)"
+      - "AGENT: QA agent retains autonomous empowerment for E2E helpers, fixtures, and config tweaks (no idea filing needed
+        for those)"
     testing:
       - "command: (n/a) agent definition change only"
 
@@ -1685,9 +1779,12 @@ stories:
     requires: []
     complexity: high
     acceptance:
-      - "WORKFLOW: build yourself a comfyui-api skill using context7 for full understanding of the comfyui API structure (especially the websocket portion)"
-      - "BE: Job executor receives and processes ComfyUI 'executed' and 'execution_success' WebSocket events for submitted prompts"
-      - "BE: On completion, executor downloads/saves the generated image to the sample directory under the correct checkpoint subdirectory"
+      - "WORKFLOW: build yourself a comfyui-api skill using context7 for full understanding of the comfyui API structure (especially
+        the websocket portion)"
+      - "BE: Job executor receives and processes ComfyUI 'executed' and 'execution_success' WebSocket events for submitted
+        prompts"
+      - "BE: On completion, executor downloads/saves the generated image to the sample directory under the correct checkpoint
+        subdirectory"
       - "BE: Job item is marked completed and completed_items counter increments"
       - "BE: After all items complete, job transitions from running to completed"
       - "BE: Images appear in the expected output directory (sample_dir/<checkpoint_filename>/)"
@@ -1724,7 +1821,8 @@ stories:
     status: done
     requires: []
     acceptance:
-      - "FE: When opening the 'Manage Sample Presets' sub-dialog from the Generate Samples dialog, the currently selected sample preset in the parent dropdown is pre-selected in the SamplePresetEditor"
+      - "FE: When opening the 'Manage Sample Presets' sub-dialog from the Generate Samples dialog, the currently selected
+        sample preset in the parent dropdown is pre-selected in the SamplePresetEditor"
       - "FE: If no preset is selected in the parent, the SamplePresetEditor opens with no preset selected (current behavior)"
       - "FE: After saving or editing a preset in the sub-dialog, the parent dialog's preset dropdown reflects the changes"
       - "FE: Unit tests for preset selection sync between parent and sub-dialog"
@@ -1767,16 +1865,19 @@ stories:
     requires: []
     acceptance:
       # Data model — replace lists with pairs
-      - "BE: DB migration replaces samplers (JSON array of strings) and schedulers (JSON array of strings) columns with sampler_scheduler_pairs (JSON array of {sampler, scheduler} objects)"
+      - "BE: DB migration replaces samplers (JSON array of strings) and schedulers (JSON array of strings) columns with sampler_scheduler_pairs
+        (JSON array of {sampler, scheduler} objects)"
       - "BE: Migration auto-converts existing presets: creates pairs from the cross-product of old samplers × schedulers lists"
       - "BE: SamplePreset model replaces Samplers []string and Schedulers []string with SamplerSchedulerPairs []SamplerSchedulerPair"
       - "BE: SamplerSchedulerPair is a struct with Sampler (string) and Scheduler (string) fields"
       # API
-      - "BE: Goa DSL updated — sample preset create/update/show/list use sampler_scheduler_pairs array of {sampler, scheduler} objects"
+      - "BE: Goa DSL updated — sample preset create/update/show/list use sampler_scheduler_pairs array of {sampler, scheduler}
+        objects"
       - "BE: Validation: at least one pair required; each pair must have non-empty sampler and scheduler"
       # Job expansion
       - "BE: Job item expansion iterates over pairs directly instead of cross-producting samplers × schedulers"
-      - "BE: Images-per-checkpoint calculation updated: prompts × steps × cfgs × pairs × seeds (not prompts × steps × cfgs × samplers × schedulers × seeds)"
+      - "BE: Images-per-checkpoint calculation updated: prompts × steps × cfgs × pairs × seeds (not prompts × steps × cfgs
+        × samplers × schedulers × seeds)"
       # Frontend
       - "FE: SamplePresetEditor replaces separate sampler and scheduler tag inputs with a paired list"
       - "FE: Each row has a sampler dropdown and a scheduler dropdown side by side"
@@ -1833,7 +1934,8 @@ stories:
     status: done
     requires: []
     acceptance:
-      - "AGENT: Story notes for bug fixes include root cause analysis (e.g., which function/guard/condition caused the issue) so the developer can focus immediately"
+      - "AGENT: Story notes for bug fixes include root cause analysis (e.g., which function/guard/condition caused the issue)
+        so the developer can focus immediately"
       - "AGENT: AGENT_FLOW.md or DEVELOPMENT_PRACTICES.md updated with root cause documentation expectations"
       - "AGENT: Numeric format specification added to practices: CFG values are floating point, steps and seeds must be integers"
       - "AGENT: Story acceptance criteria for numeric inputs specify the expected format explicitly"
@@ -1893,7 +1995,8 @@ stories:
     status: done
     requires: []
     acceptance:
-      - "FE: Add stylelint with a rule that warns when color/background-color properties use hardcoded values instead of CSS custom properties (--text-color, --bg-*)"
+      - "FE: Add stylelint with a rule that warns when color/background-color properties use hardcoded values instead of CSS
+        custom properties (--text-color, --bg-*)"
       - "FE: Add ESLint rule for Vue SFCs to detect unused imports in <script setup> blocks"
       - "FE: Both rules integrated into npm run lint"
       - "FE: Existing code passes or violations are documented as known exceptions"
@@ -1915,9 +2018,11 @@ stories:
     acceptance:
       - "AGENT: QA agent uses E2E tests as the standard verification method for story acceptance"
       - "AGENT: QA agent writes new E2E tests for acceptance criteria not already covered by existing E2E tests"
-      - "AGENT: Manual curl/HTTP checks are reserved for debugging activities during test authoring, not as a substitute for E2E tests"
+      - "AGENT: Manual curl/HTTP checks are reserved for debugging activities during test authoring, not as a substitute for
+        E2E tests"
       - "AGENT: TEST_PRACTICES.md updated to reflect this standard: E2E tests are the primary smoke test mechanism"
-      - "AGENT: Remove or simplify the multiple smoke test approaches (manual curl, docker logs inspection, etc.) in favor of E2E-first"
+      - "AGENT: Remove or simplify the multiple smoke test approaches (manual curl, docker logs inspection, etc.) in favor
+        of E2E-first"
     notes: |
       Source: agent_workflow idea "QA smoke test consolidation" (low priority).
       User direction: E2E tests are the standard for verification. Manual curl calls and
@@ -1933,7 +2038,8 @@ stories:
     status: done
     requires: []
     acceptance:
-      - "BE: SampleJobsService methods return an empty result (or appropriate error) when the inner SampleJobService is nil (ComfyUI not configured)"
+      - "BE: SampleJobsService methods return an empty result (or appropriate error) when the inner SampleJobService is nil
+        (ComfyUI not configured)"
       - "BE: No panic occurs when /api/sample-jobs endpoints are called without ComfyUI configured"
       - "BE: E2E backend logs contain zero panic lines after a full test run"
     notes: |
@@ -1947,4 +2053,436 @@ stories:
       Key files: backend/internal/api/sample_jobs.go, backend/cmd/main.go.
     testing:
       - "command: make test-e2e"
+      - "command: cd frontend && npx vitest run"
+  - id: B-032
+    title: "X/Y grid display glitches — add debug mode overlay"
+    priority: 48
+    status: done
+    requires: []
+    acceptance:
+      - "FE: A 'Debug' toggle button appears in the top navigation bar"
+      - "FE: When debug mode is active, each grid cell overlays a readable panel showing the filtering parameters used to
+        select that cell's image (x value, y value, slider value, combo selections)"
+      - "FE: Debug overlay is semi-transparent and does not interfere with image click/lightbox interaction"
+      - "FE: Debug overlay text is easy to read (high contrast, appropriate font size)"
+      - "FE: Debug mode state does not persist across page reloads (session-only)"
+      - "FE: Unit tests for debug overlay rendering"
+    notes: |
+      User reports weird behavior in the X/Y grid. Debug mode will help diagnose glitches
+      by showing exactly which parameters were used to filter/select each cell's image.
+      Key files: frontend/src/components/XYGrid.vue, frontend/src/components/ImageCell.vue,
+      frontend/src/App.vue (debug toggle in nav bar).
+    testing:
+      - "command: cd frontend && npx vitest run"
+
+  - id: B-033
+    title: "Lightbox closes on mouse-up after slider drag"
+    priority: 9
+    status: done
+    requires: []
+    acceptance:
+      - "FE: Lightbox only closes on background click if the mouse-down also originated on the background"
+      - "FE: Dragging the slider and releasing (mouse-up) over the lightbox background does NOT close the lightbox"
+      - "FE: Normal background click-to-close still works (mouse-down + mouse-up both on background)"
+      - "FE: Escape key and X button close behavior unchanged"
+      - "FE: Unit tests for the mouse-down/mouse-up origin check"
+    notes: |
+      Bug: scrolling/dragging the slider and releasing over the lightbox background triggers close.
+      Fix: track mouse-down target and only close if both mouse-down and mouse-up are on the background.
+      Key files: frontend/src/components/ImageLightbox.vue.
+    testing:
+      - "command: cd frontend && npx vitest run"
+
+  - id: B-038
+    title: "Frontend npm run build fails due to TypeScript type errors in test files"
+    priority: 70
+    status: done
+    complexity: low
+    requires: []
+    acceptance:
+      - "npm run build completes successfully without TypeScript errors"
+      - "All existing Vitest tests continue to pass"
+    testing:
+      - "command: cd frontend && npm run build"
+      - "command: make test-frontend"
+    notes: |
+      Pre-existing TypeScript errors in test files cause `npm run build` to fail.
+      Affected files:
+      - StudyEditor.test.ts: `.props` and `.vm` not available on `WrapperLike` type (need to cast via `findComponent()` instead of `findAllComponents()` or use proper generic typing)
+      - useWebSocket.test.ts: callback signature mismatch — `(value: unknown) => void` not assignable to `VoidFunction`
+      Build fails at the TypeScript compilation step in the Dockerfile builder stage.
+      The tests themselves pass via Vitest (which doesn't type-check), but `npm run build` (which runs `vue-tsc`) catches these type errors.
+  - id: B-039
+    title: "Race condition during test reset causes 'no such column' SQL error"
+    priority: 50
+    status: done
+    complexity: medium
+    requires: []
+    acceptance:
+      - "The test reset endpoint pauses or synchronizes with the job executor to prevent SQL errors during table recreation"
+      - "No SQL errors appear in backend logs after calling DELETE /api/test/reset"
+    testing:
+      - "command: make test-e2e"
+    notes: |
+      The test reset endpoint (DELETE /api/test/reset) drops and recreates all tables.
+      The job executor's background query loop runs concurrently and hits the database
+      during the brief window when tables have been dropped but not yet recreated,
+      causing "no such column: study_id" SQL errors.
+      Root cause: lack of synchronization between the test reset handler and the job
+      executor's polling loop.
+  - id: B-040
+    title: "Test fixture safetensors file triggers EOF parse errors in backend logs"
+    priority: 40
+    status: done
+    complexity: low
+    requires: []
+    acceptance:
+      - "Test fixture safetensors files either contain valid headers or the metadata parser handles empty/dummy files without
+        logging errors"
+      - "No safetensors metadata parse errors appear in backend logs during E2E tests"
+    testing:
+      - "command: make test-e2e"
+    notes: |
+      The test fixture file my-model-step00001000.safetensors is a dummy/empty file
+      that does not contain valid safetensors binary headers. When the checkpoint
+      metadata parser attempts to read it, it encounters an unexpected EOF and logs
+      at error level. Fix: either generate a minimal valid safetensors header in the
+      fixture or downgrade the log level for expected parse failures on test fixtures.
+  - id: B-041
+    title: "ComfyUI mock E2E tests fail intermittently due to WebSocket timing and job executor 'item not found' errors"
+    priority: 60
+    status: done
+    complexity: medium
+    requires: []
+    acceptance:
+      - "E2E test 'inference progress events are forwarded via WebSocket during job execution (S-073)' passes reliably across
+        multiple runs"
+      - "E2E test 'job completes via ComfyUI mock WebSocket events' passes reliably across multiple runs"
+      - "Job executor handles missing items at warn level (not error level) when the absence is a known race condition"
+      - "No error-level log messages from job_executor during normal E2E test runs with the ComfyUI mock"
+    testing:
+      - "command: make test-e2e"
+    notes: |
+      Two ComfyUI mock E2E tests in sample-generation.spec.ts fail intermittently:
+      1. 'inference progress events are forwarded via WebSocket during job execution (S-073)' - job list poll returns null after timeout
+      2. 'job completes via ComfyUI mock WebSocket events' - final job list poll returns null after 30s timeout
+
+      Root cause hypothesis: The ComfyUI mock WebSocket event delivery is timing-dependent.
+      The job executor logs error-level 'item not found' messages (item_id=...) during E2E runs,
+      suggesting a race condition between the ComfyUI WebSocket event handling and the database
+      state. The job may not transition to a pollable state within the test timeout window.
+
+      Fix should address:
+      - Race condition in job executor item lookup (log at warn instead of error for expected races)
+      - Possible timing improvements in the ComfyUI mock WebSocket handshake
+  - id: B-042
+    title: "Watcher fails to watch demo training run checkpoint directories due to nested study path"
+    priority: 60
+    status: done
+    complexity: medium
+    requires: []
+    acceptance:
+      - "Selecting the demo training run does not produce 'failed to watch directory' errors in the backend logs"
+      - "File watcher correctly resolves nested study directory paths for checkpoint watch directories"
+    testing:
+      - "command: make test-e2e"
+    notes: |
+      The watcher constructs checkpoint watch paths as filepath.Join(sampleDir, checkpoint.Filename),
+      but the demo dataset places checkpoints under a nested study directory
+      (sample_dir/demo-study/checkpoint.safetensors/). The viewer discovery service reports the
+      training run name as demo-study/demo-model but the watcher does not account for the study
+      directory prefix when constructing watch paths. This causes 'no such file or directory' errors
+      for all demo checkpoint directories (~15 occurrences per training run selection).
+      Root cause: watcher path construction assumes checkpoints are at the top level of sample_dir.
+  - id: S-055
+    title: "Prompt prefix field in sample presets"
+    priority: 30
+    status: done
+    requires: [S-032]
+    acceptance:
+      - "BE: DB migration adds prompt_prefix column (text, default empty string) to sample_presets table"
+      - "BE: Sample preset model, service, and store updated to include prompt_prefix field"
+      - "BE: Goa DSL updated for sample presets to include prompt_prefix in create/update/show/list"
+      - "BE: At generation time, prompt_prefix is prepended to each prompt's text with smart separator: append '. ' unless
+        prefix already ends with '. ' or ', '"
+      - "BE: prompt_prefix is NOT included in output filenames (same as other single-value settings)"
+      - "BE: prompt_prefix is included in the JSON sidecar metadata for each generated image"
+      - "BE: Unit tests for prefix joining logic (empty prefix, prefix with trailing period+space, prefix with trailing comma+space,
+        prefix without trailing delimiter)"
+      - "FE: SamplePresetEditor has a 'Prompt Prefix' text input field above the prompts list"
+      - "FE: Prompt prefix is saved/loaded with the preset"
+      - "FE: Unit tests for prompt prefix field in the editor"
+    notes: |
+      The prompt prefix is stored as part of the sample preset in the database and applied at
+      generation time, so individual prompt texts remain clean in the editor. The join logic:
+      if prefix ends with '. ' or ', ', concatenate directly; otherwise append '. ' between
+      prefix and prompt text. Empty prefix means no prepending.
+      Key files: backend/internal/store/migrations.go (new migration),
+      backend/internal/model/sample_preset.go, backend/internal/service/sample_preset.go,
+      backend/internal/store/sample_preset.go, backend/internal/api/design/sample_presets.go,
+      backend/internal/service/sample_job.go (prefix application during item expansion),
+      frontend/src/components/SamplePresetEditor.vue, frontend/src/api/types.ts.
+    testing:
+      - "command: ginkgo -r --cover --race ./internal/..."
+      - "command: cd frontend && npx vitest run"
+
+  # ─── Approved ideas (2026-02-26) ────────────────────────────────────────────
+
+  - id: S-061
+    title: "Lightbox UX improvements — keyboard navigation and slider dimension label"
+    priority: 70
+    status: done
+    requires: []
+    acceptance:
+      - "FE: Shift+ArrowLeft and Shift+ArrowRight navigate between images in the grid while the lightbox is open"
+      - "FE: Regular ArrowLeft/ArrowRight continue to control the slider (existing behavior)"
+      - "FE: Navigation wraps around at grid boundaries"
+      - "FE: Lightbox slider label shows the actual dimension name (e.g., 'cfg', 'checkpoint') instead of generic 'Slider'"
+      - "FE: Dimension name passed through to the lightbox as a prop from the grid"
+      - "FE: Unit tests for shift+arrow navigation and dimension label display"
+    notes: |
+      Combines two approved ideas:
+      1. "Lightbox keyboard navigation" (medium) — shift+arrows navigate images since regular
+         arrows already control the slider.
+      2. "Lightbox slider with dimension label" (medium) — shows actual dimension name.
+      Key files: frontend/src/components/ImageLightbox.vue, frontend/src/components/XYGrid.vue,
+      frontend/src/App.vue (prop passing).
+    testing:
+      - "command: cd frontend && npx vitest run"
+
+  - id: S-063
+    title: "MasterSlider keyboard conflict guard for multiple instances"
+    priority: 60
+    status: done
+    requires: []
+    acceptance:
+      - "FE: If multiple MasterSlider components are mounted simultaneously, only one captures keyboard input"
+      - "FE: Global singleton or priority system determines which slider is active"
+      - "FE: No duplicate key handling when multiple sliders exist"
+      - "FE: Unit tests for conflict-free operation with multiple mounted instances"
+    notes: |
+      Source: enhancements idea "Multiple MasterSlider keyboard conflict guard" (medium).
+      Currently each MasterSlider registers its own document-level keydown listener. If multiple
+      instances exist, both handle the same arrow key press.
+      Key files: frontend/src/components/MasterSlider.vue.
+    testing:
+      - "command: cd frontend && npx vitest run"
+
+  - id: S-066
+    title: "Documentation — WebSocket path and capture-phase handler ordering"
+    priority: 26
+    status: done
+    requires: []
+    acceptance:
+      - "DOC: /docs/api.md updated with WebSocket endpoint documentation listing /api/ws"
+      - "DOC: New section in /docs/ or DEVELOPMENT_PRACTICES.md documenting the capture-phase keyboard event handler ordering
+        pattern used in ImageLightbox/MasterSlider"
+      - "DOC: Pattern explanation covers why capture-phase + stopImmediatePropagation prevents double-firing"
+    notes: |
+      Combines two approved documentation ideas:
+      1. "WebSocket path documentation" (medium) — no documented contract for WS URLs.
+      2. "Capture-phase handler ordering documentation" (low) — the ImageLightbox pattern
+         is well-commented but not documented project-wide.
+      Key files: docs/api.md, agent/DEVELOPMENT_PRACTICES.md or docs/keyboard-events.md.
+    testing:
+      - "command: (n/a) documentation only"
+
+  - id: S-067
+    title: "Persistence and display polish — Has Samples filter, CFG trailing-zero, workflow preference, slider wrap-around"
+    priority: 25
+    status: done
+    requires: []
+    acceptance:
+      - "FE: Persist hasSamplesFilter preference in localStorage so it survives page reloads"
+      - "FE: CFG tag input preserves one decimal place (e.g., 7.0 displays as '7.0' not '7')"
+      - "FE: Workflow selection in Generate Samples dialog scoped per model type rather than global"
+      - "FE: SliderBar supports optional wrap-around behavior (configurable prop) consistent with ImageCell keyboard navigation"
+      - "FE: Unit tests for each behavior"
+    notes: |
+      Bundles four approved low-priority enhancement ideas:
+      1. "Persist Has Samples filter preference" — resets every session.
+      2. "CFG trailing-zero display" — parseFloat normalization loses .0.
+      3. "Per-model-type workflow preference" — different workflows per model type.
+      4. "SliderBar wrap-around consistency" — boundary behavior differs from ImageCell.
+      Key files: frontend/src/components/TrainingRunSelector.vue,
+      frontend/src/components/SamplePresetEditor.vue,
+      frontend/src/composables/useGenerateInputsPersistence.ts,
+      frontend/src/components/SliderBar.vue.
+    testing:
+      - "command: cd frontend && npx vitest run"
+
+  - id: S-068
+    title: "Backend quality — log-level tuning and sidecar typed metadata"
+    priority: 24
+    status: done
+    requires: []
+    acceptance:
+      - "BE: ListPNGFiles and ListSafetensorsFiles log directory-not-found at debug level instead of error (expected miss
+        pattern)"
+      - "BE: parseSidecarJSON returns typed fields (numeric for seed, steps, cfg; string for others) instead of all strings"
+      - "BE: API response type for image metadata differentiates string vs numeric fields for richer frontend display"
+      - "BE: Unit tests for log level changes and typed metadata fields"
+    notes: |
+      Combines two approved low-priority backend ideas:
+      1. "Log-level tuning for other expected miss paths" — same pattern as B-022 applied
+         to ListPNGFiles and ListSafetensorsFiles.
+      2. "Sidecar reader for metadata display" — numeric fields come back as strings.
+      Key files: backend/internal/store/filesystem.go, backend/internal/service/image_metadata.go.
+    testing:
+      - "command: ginkgo -r --cover --race ./internal/..."
+
+  - id: S-069
+    title: "Drawer auto-collapse on image grid interaction"
+    priority: 23
+    status: done
+    requires: []
+    acceptance:
+      - "FE: The NDrawer auto-collapses when the user starts interacting with the grid (e.g., clicking an image cell, using
+        keyboard navigation)"
+      - "FE: Auto-collapse only triggers on narrow/medium screens where the drawer overlays content"
+      - "FE: On wide screens the drawer remains open (current behavior)"
+      - "FE: Manual drawer toggle still works regardless of auto-collapse"
+      - "FE: Unit tests for auto-collapse behavior"
+    notes: |
+      Source: enhancements idea "Drawer auto-collapse on image grid interaction" (low priority).
+      The NDrawer mask blocks pointer events on grid cells when open, creating friction.
+      Key files: frontend/src/App.vue, frontend/src/components/AppDrawer.vue.
+    testing:
+      - "command: cd frontend && npx vitest run"
+
+  - id: S-074
+    title: "Rename 'sample presets' to 'studies' with study-scoped output directories"
+    priority: 55
+    status: done
+    requires: []
+    acceptance:
+      - "BE: Database migration renames sample_presets table to studies (or adds alias); all references updated"
+      - "BE: API endpoints renamed from /api/sample-presets to /api/studies (with backward-compatible redirects or clean rename)"
+      - "BE: Goa DSL, model, service, and store updated to use 'study' terminology throughout"
+      - "BE: Sample job output directory changes from {sample_dir}/{checkpoint_filename}/ to {sample_dir}/{study_name}/{checkpoint_filename}/"
+      - "BE: Scanner updated to scan study-scoped output directories"
+      - "BE: Sample jobs reference study_id (renamed from sample_preset_id)"
+      - "FE: All UI labels, component names, and variable names updated from 'sample preset' to 'study'"
+      - "FE: Study selector appears at the top of the Generate Samples dialog"
+      - "FE: Once a study is selected, training run selector beads reflect sample status for that study"
+      - "FE: If only one study exists, it is auto-selected; otherwise the last-used study is restored from localStorage"
+      - "FE: Job cards in JobProgressPanel include the study name"
+      - "FE: SamplePresetEditor renamed to StudyEditor (or equivalent) with all references updated"
+      - "BE: Unit tests for study-scoped directory output and scanner"
+      - "FE: Unit tests for study selector, auto-select, and localStorage persistence"
+    notes: |
+      Large cross-cutting change. The core concept: a "study" defines a set of generation parameters
+      and outputs into its own subdirectory, enabling multiple studies per training run with different
+      parameter sets. This is the renamed and enhanced version of "sample presets".
+      Key files: All backend sample_preset files (model, store, service, API design),
+      backend/internal/service/sample_job.go (output directory logic),
+      backend/internal/service/scanner.go (scan study-scoped dirs),
+      backend/internal/store/filesystem.go,
+      frontend/src/components/SamplePresetEditor.vue → StudyEditor.vue,
+      frontend/src/components/JobLaunchDialog.vue,
+      frontend/src/components/JobProgressPanel.vue,
+      frontend/src/composables/useGenerateInputsPersistence.ts.
+    testing:
+      - "command: make test-backend"
+      - "command: cd frontend && npx vitest run"
+
+  - id: S-077
+    title: "'Show all' training runs checked by default in Generate Samples dialog"
+    priority: 33
+    status: done
+    requires: []
+    acceptance:
+      - "FE: The 'Show all' checkbox in JobLaunchDialog defaults to checked (showing all training runs, not just empty ones)"
+      - "FE: User can still uncheck to filter to only empty training runs"
+      - "FE: Unit tests for default state"
+    notes: |
+      Currently the Generate Samples dialog defaults to showing only "empty" training runs
+      (those without samples). User wants to see all training runs by default.
+      Key files: frontend/src/components/JobLaunchDialog.vue.
+    testing:
+      - "command: cd frontend && npx vitest run"
+
+  - id: S-079
+    title: "Sample preset (study) import/export to JSON"
+    priority: 16
+    status: done
+    requires: []
+    acceptance:
+      - "FE: Export button in SamplePresetEditor downloads the current preset as a JSON file"
+      - "FE: Import button in SamplePresetEditor allows uploading a JSON file to create a new preset"
+      - "FE: Imported presets are validated before creation (required fields, value types)"
+      - "FE: Import errors are shown to the user with clear messages"
+      - "FE: Unit tests for import validation and export format"
+    notes: |
+      Enables sharing presets between instances or backing them up. JSON format should match
+      the API response shape for sample presets (or studies, post S-074).
+      Key files: frontend/src/components/SamplePresetEditor.vue (or StudyEditor post S-074).
+    testing:
+      - "command: cd frontend && npx vitest run"
+
+  - id: S-080
+    title: "Disable and sort single-value dimensions to bottom"
+    priority: 14
+    status: done
+    requires: []
+    acceptance:
+      - "FE: Dimensions with only one unique value are sorted to the bottom of the DimensionPanel list"
+      - "FE: Single-value dimensions are visually disabled (greyed out) and cannot be assigned to X, Y, or Slider roles"
+      - "FE: Single-value dimensions can still have filter mode set but it has no practical effect"
+      - "FE: Sorting updates dynamically when dimensions change (e.g., after switching training runs)"
+      - "FE: Unit tests for sorting and disabled state"
+    notes: |
+      Single-value dimensions provide no variation so assigning them to axes is pointless.
+      Key files: frontend/src/components/DimensionPanel.vue.
+    testing:
+      - "command: cd frontend && npx vitest run"
+
+  - id: S-082
+    title: "Make more room in UI — filters slideout, slider/zoom relocation"
+    priority: 10
+    status: done
+    requires: []
+    acceptance:
+      - "FE: Individual dimension filters are no longer independently collapsible — clicking the filters button shows all
+        filters in a right-side slideout"
+      - "FE: The master slider moves to the top bar area where the filters menu currently resides"
+      - "FE: The zoom slider moves up into the top nav bar alongside menu/generate samples/jobs buttons"
+      - "FE: All existing filter, slider, and zoom functionality is preserved"
+      - "FE: Layout is responsive and works on narrow screens"
+      - "FE: Unit tests for new layout"
+    notes: |
+      UI layout restructuring to maximize grid viewing area. Three sub-changes:
+      1. Filters become a right-side slideout (no individual collapse/expand)
+      2. Master slider moves to top bar
+      3. Zoom slider moves to top nav
+      Key files: frontend/src/App.vue, frontend/src/components/DimensionFilter.vue,
+      frontend/src/components/MasterSlider.vue.
+    testing:
+      - "command: cd frontend && npx vitest run"
+  - id: S-083
+    title: "On-demand dataset validation from viewer controls"
+    priority: 50
+    status: done
+    complexity: medium
+    requires:
+      - S-075
+      - S-081
+    acceptance:
+      - "FE: Rename the 'Training Run' selector to 'Sample Set' in the main controls slide-out"
+      - "FE: Add a 'Validate' button directly beneath the Sample Set selector"
+      - "BE: API endpoint to trigger validation of a selected sample set on demand"
+      - "BE: Validation reuses the completeness-check logic from S-075 against the selected sample set directory"
+      - "BE: Validation results returned to the frontend (per-checkpoint completeness counts)"
+      - "FE: Display validation results inline (e.g., per-checkpoint pass/warning status)"
+      - "BE: Unit tests for the on-demand validation endpoint and logic"
+      - "FE: Unit tests for the Validate button and results display"
+    notes: |
+      Adds user-initiated validation of a generated sample dataset from the viewer controls.
+      The Sample Set selector (renamed from Training Run per S-081) selects a sample output directory.
+      The Validate button triggers a completeness check (reusing S-075 logic) against that directory.
+      Related: S-075 (completeness check logic), S-081 (sample-directory-driven viewer).
+      Key files: frontend/src/components/TrainingRunSelector.vue (rename + button),
+      frontend/src/App.vue, backend/internal/api/ (new endpoint), backend/internal/service/.
+    testing:
+      - "command: make test-backend"
       - "command: cd frontend && npx vitest run"

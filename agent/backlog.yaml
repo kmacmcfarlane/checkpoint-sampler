@@ -96,62 +96,8 @@ stories:
     testing:
       - "command: cd frontend && npx vitest run"
 
-  - id: S-055
-    title: "Prompt prefix field in sample presets"
-    priority: 30
-    status: uat
-    requires: [S-032]
-    acceptance:
-      - "BE: DB migration adds prompt_prefix column (text, default empty string) to sample_presets table"
-      - "BE: Sample preset model, service, and store updated to include prompt_prefix field"
-      - "BE: Goa DSL updated for sample presets to include prompt_prefix in create/update/show/list"
-      - "BE: At generation time, prompt_prefix is prepended to each prompt's text with smart separator: append '. ' unless
-        prefix already ends with '. ' or ', '"
-      - "BE: prompt_prefix is NOT included in output filenames (same as other single-value settings)"
-      - "BE: prompt_prefix is included in the JSON sidecar metadata for each generated image"
-      - "BE: Unit tests for prefix joining logic (empty prefix, prefix with trailing period+space, prefix with trailing comma+space,
-        prefix without trailing delimiter)"
-      - "FE: SamplePresetEditor has a 'Prompt Prefix' text input field above the prompts list"
-      - "FE: Prompt prefix is saved/loaded with the preset"
-      - "FE: Unit tests for prompt prefix field in the editor"
-    notes: |
-      The prompt prefix is stored as part of the sample preset in the database and applied at
-      generation time, so individual prompt texts remain clean in the editor. The join logic:
-      if prefix ends with '. ' or ', ', concatenate directly; otherwise append '. ' between
-      prefix and prompt text. Empty prefix means no prepending.
-      Key files: backend/internal/store/migrations.go (new migration),
-      backend/internal/model/sample_preset.go, backend/internal/service/sample_preset.go,
-      backend/internal/store/sample_preset.go, backend/internal/api/design/sample_presets.go,
-      backend/internal/service/sample_job.go (prefix application during item expansion),
-      frontend/src/components/SamplePresetEditor.vue, frontend/src/api/types.ts.
-    testing:
-      - "command: ginkgo -r --cover --race ./internal/..."
-      - "command: cd frontend && npx vitest run"
-
-  # ─── Approved ideas (2026-02-26) ────────────────────────────────────────────
-
-  - id: S-061
-    title: "Lightbox UX improvements — keyboard navigation and slider dimension label"
-    priority: 70
-    status: uat
-    requires: []
-    acceptance:
-      - "FE: Shift+ArrowLeft and Shift+ArrowRight navigate between images in the grid while the lightbox is open"
-      - "FE: Regular ArrowLeft/ArrowRight continue to control the slider (existing behavior)"
-      - "FE: Navigation wraps around at grid boundaries"
-      - "FE: Lightbox slider label shows the actual dimension name (e.g., 'cfg', 'checkpoint') instead of generic 'Slider'"
-      - "FE: Dimension name passed through to the lightbox as a prop from the grid"
-      - "FE: Unit tests for shift+arrow navigation and dimension label display"
-    notes: |
-      Combines two approved ideas:
-      1. "Lightbox keyboard navigation" (medium) — shift+arrows navigate images since regular
-         arrows already control the slider.
-      2. "Lightbox slider with dimension label" (medium) — shows actual dimension name.
-      Key files: frontend/src/components/ImageLightbox.vue, frontend/src/components/XYGrid.vue,
-      frontend/src/App.vue (prop passing).
-    testing:
-      - "command: cd frontend && npx vitest run"
-
+    uat_feedback: 'Still broken: top nav elements are not available until a dataset is selected, regardless of screen width.
+      Priority: very high.'
   - id: S-062
     title: "Generate Samples dialog polish — bead indicator, preset auto-close, training run restore and refresh"
     priority: 65
@@ -180,24 +126,8 @@ stories:
     testing:
       - "command: cd frontend && npx vitest run"
 
-  - id: S-063
-    title: "MasterSlider keyboard conflict guard for multiple instances"
-    priority: 60
-    status: uat
-    requires: []
-    acceptance:
-      - "FE: If multiple MasterSlider components are mounted simultaneously, only one captures keyboard input"
-      - "FE: Global singleton or priority system determines which slider is active"
-      - "FE: No duplicate key handling when multiple sliders exist"
-      - "FE: Unit tests for conflict-free operation with multiple mounted instances"
-    notes: |
-      Source: enhancements idea "Multiple MasterSlider keyboard conflict guard" (medium).
-      Currently each MasterSlider registers its own document-level keydown listener. If multiple
-      instances exist, both handle the same arrow key press.
-      Key files: frontend/src/components/MasterSlider.vue.
-    testing:
-      - "command: cd frontend && npx vitest run"
-
+    uat_feedback: "Foreign key error when deleting a study: 'constraint failed: FOREIGN KEY constraint failed (787)'. DELETE
+      /api/studies/{id} returns 500. Needs proper E2E test coverage for study deletion. Priority: high."
   - id: S-064
     title: "E2E test data isolation per run"
     priority: 55
@@ -274,88 +204,6 @@ stories:
       Key files: frontend/e2e/ (new spec), frontend/src/components/__tests__/XYGrid.test.ts.
     testing:
       - "command: make test-e2e"
-      - "command: cd frontend && npx vitest run"
-
-  - id: S-066
-    title: "Documentation — WebSocket path and capture-phase handler ordering"
-    priority: 26
-    status: uat
-    requires: []
-    acceptance:
-      - "DOC: /docs/api.md updated with WebSocket endpoint documentation listing /api/ws"
-      - "DOC: New section in /docs/ or DEVELOPMENT_PRACTICES.md documenting the capture-phase keyboard event handler ordering
-        pattern used in ImageLightbox/MasterSlider"
-      - "DOC: Pattern explanation covers why capture-phase + stopImmediatePropagation prevents double-firing"
-    notes: |
-      Combines two approved documentation ideas:
-      1. "WebSocket path documentation" (medium) — no documented contract for WS URLs.
-      2. "Capture-phase handler ordering documentation" (low) — the ImageLightbox pattern
-         is well-commented but not documented project-wide.
-      Key files: docs/api.md, agent/DEVELOPMENT_PRACTICES.md or docs/keyboard-events.md.
-    testing:
-      - "command: (n/a) documentation only"
-
-  - id: S-067
-    title: "Persistence and display polish — Has Samples filter, CFG trailing-zero, workflow preference, slider wrap-around"
-    priority: 25
-    status: uat
-    requires: []
-    acceptance:
-      - "FE: Persist hasSamplesFilter preference in localStorage so it survives page reloads"
-      - "FE: CFG tag input preserves one decimal place (e.g., 7.0 displays as '7.0' not '7')"
-      - "FE: Workflow selection in Generate Samples dialog scoped per model type rather than global"
-      - "FE: SliderBar supports optional wrap-around behavior (configurable prop) consistent with ImageCell keyboard navigation"
-      - "FE: Unit tests for each behavior"
-    notes: |
-      Bundles four approved low-priority enhancement ideas:
-      1. "Persist Has Samples filter preference" — resets every session.
-      2. "CFG trailing-zero display" — parseFloat normalization loses .0.
-      3. "Per-model-type workflow preference" — different workflows per model type.
-      4. "SliderBar wrap-around consistency" — boundary behavior differs from ImageCell.
-      Key files: frontend/src/components/TrainingRunSelector.vue,
-      frontend/src/components/SamplePresetEditor.vue,
-      frontend/src/composables/useGenerateInputsPersistence.ts,
-      frontend/src/components/SliderBar.vue.
-    testing:
-      - "command: cd frontend && npx vitest run"
-
-  - id: S-068
-    title: "Backend quality — log-level tuning and sidecar typed metadata"
-    priority: 24
-    status: uat
-    requires: []
-    acceptance:
-      - "BE: ListPNGFiles and ListSafetensorsFiles log directory-not-found at debug level instead of error (expected miss
-        pattern)"
-      - "BE: parseSidecarJSON returns typed fields (numeric for seed, steps, cfg; string for others) instead of all strings"
-      - "BE: API response type for image metadata differentiates string vs numeric fields for richer frontend display"
-      - "BE: Unit tests for log level changes and typed metadata fields"
-    notes: |
-      Combines two approved low-priority backend ideas:
-      1. "Log-level tuning for other expected miss paths" — same pattern as B-022 applied
-         to ListPNGFiles and ListSafetensorsFiles.
-      2. "Sidecar reader for metadata display" — numeric fields come back as strings.
-      Key files: backend/internal/store/filesystem.go, backend/internal/service/image_metadata.go.
-    testing:
-      - "command: ginkgo -r --cover --race ./internal/..."
-
-  - id: S-069
-    title: "Drawer auto-collapse on image grid interaction"
-    priority: 23
-    status: uat
-    requires: []
-    acceptance:
-      - "FE: The NDrawer auto-collapses when the user starts interacting with the grid (e.g., clicking an image cell, using
-        keyboard navigation)"
-      - "FE: Auto-collapse only triggers on narrow/medium screens where the drawer overlays content"
-      - "FE: On wide screens the drawer remains open (current behavior)"
-      - "FE: Manual drawer toggle still works regardless of auto-collapse"
-      - "FE: Unit tests for auto-collapse behavior"
-    notes: |
-      Source: enhancements idea "Drawer auto-collapse on image grid interaction" (low priority).
-      The NDrawer mask blocks pointer events on grid cells when open, creating friction.
-      Key files: frontend/src/App.vue, frontend/src/components/AppDrawer.vue.
-    testing:
       - "command: cd frontend && npx vitest run"
 
   - id: R-004
@@ -445,45 +293,8 @@ stories:
     testing:
       - "command: cd frontend && npx vitest run"
 
-  - id: B-032
-    title: "X/Y grid display glitches — add debug mode overlay"
-    priority: 48
-    status: uat
-    requires: []
-    acceptance:
-      - "FE: A 'Debug' toggle button appears in the top navigation bar"
-      - "FE: When debug mode is active, each grid cell overlays a readable panel showing the filtering parameters used to
-        select that cell's image (x value, y value, slider value, combo selections)"
-      - "FE: Debug overlay is semi-transparent and does not interfere with image click/lightbox interaction"
-      - "FE: Debug overlay text is easy to read (high contrast, appropriate font size)"
-      - "FE: Debug mode state does not persist across page reloads (session-only)"
-      - "FE: Unit tests for debug overlay rendering"
-    notes: |
-      User reports weird behavior in the X/Y grid. Debug mode will help diagnose glitches
-      by showing exactly which parameters were used to filter/select each cell's image.
-      Key files: frontend/src/components/XYGrid.vue, frontend/src/components/ImageCell.vue,
-      frontend/src/App.vue (debug toggle in nav bar).
-    testing:
-      - "command: cd frontend && npx vitest run"
-
-  - id: B-033
-    title: "Lightbox closes on mouse-up after slider drag"
-    priority: 9
-    status: uat
-    requires: []
-    acceptance:
-      - "FE: Lightbox only closes on background click if the mouse-down also originated on the background"
-      - "FE: Dragging the slider and releasing (mouse-up) over the lightbox background does NOT close the lightbox"
-      - "FE: Normal background click-to-close still works (mouse-down + mouse-up both on background)"
-      - "FE: Escape key and X button close behavior unchanged"
-      - "FE: Unit tests for the mouse-down/mouse-up origin check"
-    notes: |
-      Bug: scrolling/dragging the slider and releasing over the lightbox background triggers close.
-      Fix: track mouse-down target and only close if both mouse-down and mouse-up are on the background.
-      Key files: frontend/src/components/ImageLightbox.vue.
-    testing:
-      - "command: cd frontend && npx vitest run"
-
+    uat_feedback: 'With an existing preset loaded, Save button offers to save as a new preset. Need an Update button to save
+      the existing preset. Delete works as expected. Priority: low.'
   - id: S-072
     title: "Regenerate button for completed sample jobs"
     priority: 38
@@ -523,42 +334,6 @@ stories:
       Key files: backend/internal/service/comfyui_executor.go (progress event forwarding),
       backend/internal/service/websocket.go (new message type),
       frontend/src/components/JobProgressPanel.vue (secondary progress bar).
-    testing:
-      - "command: make test-backend"
-      - "command: cd frontend && npx vitest run"
-
-  - id: S-074
-    title: "Rename 'sample presets' to 'studies' with study-scoped output directories"
-    priority: 55
-    status: uat
-    requires: []
-    acceptance:
-      - "BE: Database migration renames sample_presets table to studies (or adds alias); all references updated"
-      - "BE: API endpoints renamed from /api/sample-presets to /api/studies (with backward-compatible redirects or clean rename)"
-      - "BE: Goa DSL, model, service, and store updated to use 'study' terminology throughout"
-      - "BE: Sample job output directory changes from {sample_dir}/{checkpoint_filename}/ to {sample_dir}/{study_name}/{checkpoint_filename}/"
-      - "BE: Scanner updated to scan study-scoped output directories"
-      - "BE: Sample jobs reference study_id (renamed from sample_preset_id)"
-      - "FE: All UI labels, component names, and variable names updated from 'sample preset' to 'study'"
-      - "FE: Study selector appears at the top of the Generate Samples dialog"
-      - "FE: Once a study is selected, training run selector beads reflect sample status for that study"
-      - "FE: If only one study exists, it is auto-selected; otherwise the last-used study is restored from localStorage"
-      - "FE: Job cards in JobProgressPanel include the study name"
-      - "FE: SamplePresetEditor renamed to StudyEditor (or equivalent) with all references updated"
-      - "BE: Unit tests for study-scoped directory output and scanner"
-      - "FE: Unit tests for study selector, auto-select, and localStorage persistence"
-    notes: |
-      Large cross-cutting change. The core concept: a "study" defines a set of generation parameters
-      and outputs into its own subdirectory, enabling multiple studies per training run with different
-      parameter sets. This is the renamed and enhanced version of "sample presets".
-      Key files: All backend sample_preset files (model, store, service, API design),
-      backend/internal/service/sample_job.go (output directory logic),
-      backend/internal/service/scanner.go (scan study-scoped dirs),
-      backend/internal/store/filesystem.go,
-      frontend/src/components/SamplePresetEditor.vue → StudyEditor.vue,
-      frontend/src/components/JobLaunchDialog.vue,
-      frontend/src/components/JobProgressPanel.vue,
-      frontend/src/composables/useGenerateInputsPersistence.ts.
     testing:
       - "command: make test-backend"
       - "command: cd frontend && npx vitest run"
@@ -605,22 +380,6 @@ stories:
     testing:
       - "command: cd frontend && npx vitest run"
 
-  - id: S-077
-    title: "'Show all' training runs checked by default in Generate Samples dialog"
-    priority: 33
-    status: uat
-    requires: []
-    acceptance:
-      - "FE: The 'Show all' checkbox in JobLaunchDialog defaults to checked (showing all training runs, not just empty ones)"
-      - "FE: User can still uncheck to filter to only empty training runs"
-      - "FE: Unit tests for default state"
-    notes: |
-      Currently the Generate Samples dialog defaults to showing only "empty" training runs
-      (those without samples). User wants to see all training runs by default.
-      Key files: frontend/src/components/JobLaunchDialog.vue.
-    testing:
-      - "command: cd frontend && npx vitest run"
-
   - id: S-078
     title: "Demo sampleset and dimension preset"
     priority: 12
@@ -642,41 +401,8 @@ stories:
       - "command: make test-backend"
       - "command: cd frontend && npx vitest run"
 
-  - id: S-079
-    title: "Sample preset (study) import/export to JSON"
-    priority: 16
-    status: uat
-    requires: []
-    acceptance:
-      - "FE: Export button in SamplePresetEditor downloads the current preset as a JSON file"
-      - "FE: Import button in SamplePresetEditor allows uploading a JSON file to create a new preset"
-      - "FE: Imported presets are validated before creation (required fields, value types)"
-      - "FE: Import errors are shown to the user with clear messages"
-      - "FE: Unit tests for import validation and export format"
-    notes: |
-      Enables sharing presets between instances or backing them up. JSON format should match
-      the API response shape for sample presets (or studies, post S-074).
-      Key files: frontend/src/components/SamplePresetEditor.vue (or StudyEditor post S-074).
-    testing:
-      - "command: cd frontend && npx vitest run"
-
-  - id: S-080
-    title: "Disable and sort single-value dimensions to bottom"
-    priority: 14
-    status: uat
-    requires: []
-    acceptance:
-      - "FE: Dimensions with only one unique value are sorted to the bottom of the DimensionPanel list"
-      - "FE: Single-value dimensions are visually disabled (greyed out) and cannot be assigned to X, Y, or Slider roles"
-      - "FE: Single-value dimensions can still have filter mode set but it has no practical effect"
-      - "FE: Sorting updates dynamically when dimensions change (e.g., after switching training runs)"
-      - "FE: Unit tests for sorting and disabled state"
-    notes: |
-      Single-value dimensions provide no variation so assigning them to axes is pointless.
-      Key files: frontend/src/components/DimensionPanel.vue.
-    testing:
-      - "command: cd frontend && npx vitest run"
-
+    uat_feedback: 'Images show as broken when viewing the demo sample set (with or without selecting the demo dimension preset).
+      Priority: medium.'
   - id: S-081
     title: "Viewer driven by sample output directories instead of checkpoints"
     priority: 32
@@ -700,153 +426,116 @@ stories:
       - "command: make test-backend"
       - "command: cd frontend && npx vitest run"
 
-  - id: S-082
-    title: "Make more room in UI — filters slideout, slider/zoom relocation"
-    priority: 10
-    status: uat
-    requires: []
-    acceptance:
-      - "FE: Individual dimension filters are no longer independently collapsible — clicking the filters button shows all
-        filters in a right-side slideout"
-      - "FE: The master slider moves to the top bar area where the filters menu currently resides"
-      - "FE: The zoom slider moves up into the top nav bar alongside menu/generate samples/jobs buttons"
-      - "FE: All existing filter, slider, and zoom functionality is preserved"
-      - "FE: Layout is responsive and works on narrow screens"
-      - "FE: Unit tests for new layout"
-    notes: |
-      UI layout restructuring to maximize grid viewing area. Three sub-changes:
-      1. Filters become a right-side slideout (no individual collapse/expand)
-      2. Master slider moves to top bar
-      3. Zoom slider moves to top nav
-      Key files: frontend/src/App.vue, frontend/src/components/DimensionFilter.vue,
-      frontend/src/components/MasterSlider.vue.
-    testing:
-      - "command: cd frontend && npx vitest run"
-  - id: B-038
-    title: "Frontend npm run build fails due to TypeScript type errors in test files"
+    uat_feedback: "Training run selector in Generate Samples dialog shows existing sample sets instead of training runs from
+      checkpoints, even with 'Show All' selected. The sample set selector in main controls slideout should work off samples
+      data (works now). The training runs in generate samples dialog should work off checkpoint data. Also causes 404 errors
+      when creating sample jobs (e.g., training run 'psai4rt-v0.3.0-qwen-2512-1024-adafactor-constant-2e-6-steps-9000-timestep-qinglong_qwen-cap_drop-0'
+      not found). This blocks further testing of sample generation. Priority: very high."
+  - id: B-043
+    title: "Study editor allows duplicate dimension values"
     priority: 70
-    status: uat
+    status: todo
     complexity: low
-    requires: []
+    requires:
+      - S-074
     acceptance:
-      - "npm run build completes successfully without TypeScript errors"
-      - "All existing Vitest tests continue to pass"
+      - "BE: Reject duplicate values for Steps, CFG, Sampler/Scheduler, Seeds, and Prompt slugs with a validation error"
+      - "FE: Display validation error when user enters duplicate dimension values"
+      - "BE: Reject duplicate study names with a validation error"
+      - "FE: Display validation error when user enters a study name that already exists"
+      - "BE: Unit tests for duplicate dimension value validation"
+      - "FE: Unit tests for duplicate value error display"
+    notes: |
+      Bug: the study editor currently accepts duplicate values for dimension fields (Steps, CFG,
+      Sampler/Scheduler, Seeds, Prompt slugs) and allows duplicate study names. Duplicates should
+      be rejected with a validation error.
+      Source: UAT feedback on S-074 study editor.
     testing:
-      - "command: cd frontend && npm run build"
+      - "command: make test-backend"
       - "command: make test-frontend"
-    notes: |
-      Pre-existing TypeScript errors in test files cause `npm run build` to fail.
-      Affected files:
-      - StudyEditor.test.ts: `.props` and `.vm` not available on `WrapperLike` type (need to cast via `findComponent()` instead of `findAllComponents()` or use proper generic typing)
-      - useWebSocket.test.ts: callback signature mismatch — `(value: unknown) => void` not assignable to `VoidFunction`
-      Build fails at the TypeScript compilation step in the Dockerfile builder stage.
-      The tests themselves pass via Vitest (which doesn't type-check), but `npm run build` (which runs `vue-tsc`) catches these type errors.
-  - id: B-039
-    title: "Race condition during test reset causes 'no such column' SQL error"
-    priority: 50
-    status: uat
-    complexity: medium
-    requires: []
-    acceptance:
-      - "The test reset endpoint pauses or synchronizes with the job executor to prevent SQL errors during table recreation"
-      - "No SQL errors appear in backend logs after calling DELETE /api/test/reset"
-    testing:
-      - "command: make test-e2e"
-    notes: |
-      The test reset endpoint (DELETE /api/test/reset) drops and recreates all tables.
-      The job executor's background query loop runs concurrently and hits the database
-      during the brief window when tables have been dropped but not yet recreated,
-      causing "no such column: study_id" SQL errors.
-      Root cause: lack of synchronization between the test reset handler and the job
-      executor's polling loop.
-  - id: B-040
-    title: "Test fixture safetensors file triggers EOF parse errors in backend logs"
-    priority: 40
-    status: uat
-    complexity: low
-    requires: []
-    acceptance:
-      - "Test fixture safetensors files either contain valid headers or the metadata parser handles empty/dummy files without
-        logging errors"
-      - "No safetensors metadata parse errors appear in backend logs during E2E tests"
-    testing:
-      - "command: make test-e2e"
-    notes: |
-      The test fixture file my-model-step00001000.safetensors is a dummy/empty file
-      that does not contain valid safetensors binary headers. When the checkpoint
-      metadata parser attempts to read it, it encounters an unexpected EOF and logs
-      at error level. Fix: either generate a minimal valid safetensors header in the
-      fixture or downgrade the log level for expected parse failures on test fixtures.
-  - id: S-083
-    title: "On-demand dataset validation from viewer controls"
-    priority: 50
-    status: uat
+  - id: S-084
+    title: "Sample count preview and missing-sample generation from Generate Samples dialog"
+    priority: 55
+    status: todo
     complexity: medium
     requires:
       - S-075
-      - S-081
     acceptance:
-      - "FE: Rename the 'Training Run' selector to 'Sample Set' in the main controls slide-out"
-      - "FE: Add a 'Validate' button directly beneath the Sample Set selector"
-      - "BE: API endpoint to trigger validation of a selected sample set on demand"
-      - "BE: Validation reuses the completeness-check logic from S-075 against the selected sample set directory"
-      - "BE: Validation results returned to the frontend (per-checkpoint completeness counts)"
-      - "FE: Display validation results inline (e.g., per-checkpoint pass/warning status)"
-      - "BE: Unit tests for the on-demand validation endpoint and logic"
-      - "FE: Unit tests for the Validate button and results display"
+      - "FE: Generate Samples dialog runs validation and displays the expected sample count before generation starts"
+      - "FE: Main controls side-panel shows a way to generate missing samples when validation fails"
+      - "BE: API support for returning expected vs actual sample counts from validation"
+      - "BE: API support for generating only missing samples from a failed validation"
+      - "BE: Unit tests for missing-sample generation logic"
+      - "FE: Unit tests for sample count preview display"
     notes: |
-      Adds user-initiated validation of a generated sample dataset from the viewer controls.
-      The Sample Set selector (renamed from Training Run per S-081) selects a sample output directory.
-      The Validate button triggers a completeness check (reusing S-075 logic) against that directory.
-      Related: S-075 (completeness check logic), S-081 (sample-directory-driven viewer).
-      Key files: frontend/src/components/TrainingRunSelector.vue (rename + button),
-      frontend/src/App.vue, backend/internal/api/ (new endpoint), backend/internal/service/.
+      Extends the validation concept (S-075 completeness check, S-083 on-demand validation) into the
+      Generate Samples dialog. The dialog should show the expected sample count from the validation,
+      and there should be a way to generate only missing samples if validation fails.
+      Source: UAT new feature request.
     testing:
       - "command: make test-backend"
-      - "command: cd frontend && npx vitest run"
-  - id: B-041
-    title: "ComfyUI mock E2E tests fail intermittently due to WebSocket timing and job executor 'item not found' errors"
-    priority: 60
-    status: uat
+      - "command: make test-frontend"
+  - id: S-085
+    title: "Study versioning and version-scoped output directories"
+    priority: 50
+    status: todo
     complexity: medium
-    requires: []
+    requires:
+      - S-074
     acceptance:
-      - "E2E test 'inference progress events are forwarded via WebSocket during job execution (S-073)' passes reliably across
-        multiple runs"
-      - "E2E test 'job completes via ComfyUI mock WebSocket events' passes reliably across multiple runs"
-      - "Job executor handles missing items at warn level (not error level) when the absence is a known race condition"
-      - "No error-level log messages from job_executor during normal E2E test runs with the ComfyUI mock"
-    testing:
-      - "command: make test-e2e"
+      - "BE: Studies have a version number field (integer, starting at 1)"
+      - "BE: Updating a study's configuration increments the version number"
+      - "BE: Study output directory includes the version number in the dir name"
+      - "BE: Future sample generations use the new version directory"
+      - "BE: Existing sample outputs in prior version directories remain untouched"
+      - "BE: Unit tests for version increment logic and directory naming"
+      - "DB: Migration adds version column to studies table"
     notes: |
-      Two ComfyUI mock E2E tests in sample-generation.spec.ts fail intermittently:
-      1. 'inference progress events are forwarded via WebSocket during job execution (S-073)' - job list poll returns null after timeout
-      2. 'job completes via ComfyUI mock WebSocket events' - final job list poll returns null after 30s timeout
-
-      Root cause hypothesis: The ComfyUI mock WebSocket event delivery is timing-dependent.
-      The job executor logs error-level 'item not found' messages (item_id=...) during E2E runs,
-      suggesting a race condition between the ComfyUI WebSocket event handling and the database
-      state. The job may not transition to a pollable state within the test timeout window.
-
-      Fix should address:
-      - Race condition in job executor item lookup (log at warn instead of error for expected races)
-      - Possible timing improvements in the ComfyUI mock WebSocket handshake
-  - id: B-042
-    title: "Watcher fails to watch demo training run checkpoint directories due to nested study path"
-    priority: 60
-    status: uat
+      Studies are versioned so that re-generating with different params produces output in a separate
+      directory. Version is an integer starting at 1, incremented on config updates. The version
+      number is included in the study directory name.
+      Source: UAT new feature request (Study Sample Job Manifest breakdown 1/3).
+    testing:
+      - "command: make test-backend"
+  - id: S-086
+    title: "Study version selector UX and sample availability beads"
+    priority: 45
+    status: todo
     complexity: medium
-    requires: []
+    requires:
+      - S-085
     acceptance:
-      - "Selecting the demo training run does not produce 'failed to watch directory' errors in the backend logs"
-      - "File watcher correctly resolves nested study directory paths for checkpoint watch directories"
-    testing:
-      - "command: make test-e2e"
+      - "FE: Selecting a study is required before displaying checkpoints to regenerate in Generate Samples dialog"
+      - "FE: Green bead indicator shown for studies that have samples for the selected training run"
+      - "FE: Different versions of a study are selectable from the study selector dropdown"
+      - "FE: Unit tests for version selector and bead display"
+      - "BE: API returns version list and per-version sample availability for studies"
+      - "BE: Unit tests for version list and availability endpoints"
     notes: |
-      The watcher constructs checkpoint watch paths as filepath.Join(sampleDir, checkpoint.Filename),
-      but the demo dataset places checkpoints under a nested study directory
-      (sample_dir/demo-study/checkpoint.safetensors/). The viewer discovery service reports the
-      training run name as demo-study/demo-model but the watcher does not account for the study
-      directory prefix when constructing watch paths. This causes 'no such file or directory' errors
-      for all demo checkpoint directories (~15 occurrences per training run selection).
-      Root cause: watcher path construction assumes checkpoints are at the top level of sample_dir.
+      UX for study versioning. The study selector shows available versions and indicates which
+      have samples for the selected training run (green bead). Study selection is required before
+      the checkpoint list is displayed.
+      Source: UAT new feature request (Study Sample Job Manifest breakdown 2/3).
+    testing:
+      - "command: make test-backend"
+      - "command: make test-frontend"
+  - id: S-087
+    title: "JSON sample job manifest per generation job"
+    priority: 45
+    status: todo
+    complexity: medium
+    requires:
+      - S-085
+    acceptance:
+      - "BE: Each generation job outputs a JSON manifest file in the study directory containing all job params"
+      - "BE: Manifest includes study config, version, training run, checkpoint list, and all dimension values used"
+      - "BE: Regenerating a sample set reads the manifest to determine what to generate"
+      - "BE: Validating a sample set uses the manifest as the source of truth for expected outputs"
+      - "BE: Unit tests for manifest write, read, and validation against manifest"
+    notes: |
+      Output a JSON manifest per generation job so it is clear what study configuration produced
+      the samples in each directory. Regeneration and validation use the manifest as the source
+      of truth rather than the current study config.
+      Source: UAT new feature request (Study Sample Job Manifest breakdown 3/3).
+    testing:
+      - "command: make test-backend"
