@@ -98,9 +98,9 @@ Older entries are condensed to titles only — see git history for full details.
 ### S-059: Build tooling quality-of-life improvements
 - `.air.toml`: deprecated `build.bin` → `build.entrypoint`; `make test-backend` uses `run --rm` (no running stack needed); E2E `--remove-orphans`; root-level `make gen` target
 
-### S-081: Viewer driven by sample output directories instead of checkpoints
-- Viewer now discovers training runs from sample output directories instead of checkpoint files
-- "Has Samples" filter removed from training run selector (all listed runs have samples by definition)
+### S-081: Viewer driven by sample output directories instead of checkpoints (UAT rework)
+- Viewer discovers training runs from sample output directories; Generate Samples dialog uses checkpoint-based discovery via `?source=checkpoints` query parameter
+- "Has Samples" filter removed from viewer's training run selector (all listed runs have samples by definition)
 - Supports both legacy root-level and study-scoped sample directory structures
 
 ### S-077: 'Show all' training runs checked by default in Generate Samples dialog

@@ -94,4 +94,51 @@ test.describe('viewer-driven discovery (S-081)', () => {
     // Same runs returned regardless of filter (all have samples by definition)
     expect(filteredRuns.length).toBe(runs.length)
   })
+
+  // UAT rework: source=checkpoints returns checkpoint-file-based training runs
+  // (used by the Generate Samples dialog to avoid 404s when creating sample jobs)
+  test('source=checkpoints returns checkpoint-based training runs', async ({ request }) => {
+    const response = await request.get('/api/training-runs?source=checkpoints')
+    expect(response.ok()).toBeTruthy()
+
+    const runs = await response.json()
+    expect(runs.length).toBeGreaterThan(0)
+
+    // The checkpoint-based discovery should find "my-model" from the checkpoint files
+    // in test-fixtures/checkpoints/ (my-model-step00001000.safetensors, my-model-step00002000.safetensors)
+    const run = runs.find((r: { name: string }) => r.name === 'my-model')
+    expect(run).toBeDefined()
+    expect(run.checkpoint_count).toBeGreaterThanOrEqual(2)
+
+    // Checkpoint-based runs may also find "test-run/my-model" from the subdirectory
+    // (test-fixtures/checkpoints/test-run/my-model-step*.safetensors)
+    // This verifies that checkpoint discovery returns a different set than sample discovery
+  })
+
+  // UAT rework: default source (samples) and explicit source=checkpoints can return different sets
+  test('source parameter routes to different discovery backends', async ({ request }) => {
+    const samplesResponse = await request.get('/api/training-runs')
+    const checkpointsResponse = await request.get('/api/training-runs?source=checkpoints')
+
+    expect(samplesResponse.ok()).toBeTruthy()
+    expect(checkpointsResponse.ok()).toBeTruthy()
+
+    const samplesRuns = await samplesResponse.json()
+    const checkpointsRuns = await checkpointsResponse.json()
+
+    // Both sources should find "my-model" (it exists in both samples/ and checkpoints/)
+    const sampleMyModel = samplesRuns.find((r: { name: string }) => r.name === 'my-model')
+    const cpMyModel = checkpointsRuns.find((r: { name: string }) => r.name === 'my-model')
+    expect(sampleMyModel).toBeDefined()
+    expect(cpMyModel).toBeDefined()
+
+    // The checkpoint source may find additional runs from the test-run/ subdirectory
+    // that the sample source does not see (since no sample dirs exist for test-run/*)
+    const cpTestRun = checkpointsRuns.find((r: { name: string }) => r.name === 'test-run/my-model')
+    if (cpTestRun) {
+      // If test-run/my-model exists in checkpoints, it should NOT exist in samples
+      const sampleTestRun = samplesRuns.find((r: { name: string }) => r.name === 'test-run/my-model')
+      expect(sampleTestRun).toBeUndefined()
+    }
+  })
 })

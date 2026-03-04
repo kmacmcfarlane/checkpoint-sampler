@@ -13,12 +13,17 @@ var _ = Service("training_runs", func() {
 			Attribute("has_samples", Boolean, "Filter to only training runs with at least one checkpoint that has samples", func() {
 				Default(false)
 			})
+			Attribute("source", String, "Discovery source: 'samples' discovers from sample output directories (viewer), 'checkpoints' discovers from checkpoint files (job creation)", func() {
+				Default("samples")
+				Enum("samples", "checkpoints")
+			})
 		})
 		Result(ArrayOf(TrainingRunResponse))
 		Error("discovery_failed", ErrorResult, "Discovery operation failed")
 		HTTP(func() {
 			GET("/api/training-runs")
 			Param("has_samples")
+			Param("source")
 			Response(StatusOK)
 			Response("discovery_failed", StatusInternalServerError)
 		})

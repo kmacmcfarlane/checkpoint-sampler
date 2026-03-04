@@ -137,7 +137,7 @@ func run() error {
 	healthSvc := api.NewHealthService()
 	docsSvc := api.NewDocsService(spec)
 	validationSvc := service.NewValidationService(fs, cfg.SampleDir, logger)
-	trainingRunsSvc := api.NewTrainingRunsService(viewerDiscovery, scanner, validationSvc, watcher)
+	trainingRunsSvc := api.NewTrainingRunsService(viewerDiscovery, discovery, scanner, validationSvc, watcher)
 	presetSvc := service.NewPresetService(st, logger)
 	presetsSvc := api.NewPresetsService(presetSvc)
 	studySvc := service.NewStudyService(st, logger)

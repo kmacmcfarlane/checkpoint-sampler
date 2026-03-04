@@ -10,6 +10,7 @@ import type { TrainingRun, WorkflowSummary, Study, SampleJob } from '../../api/t
 vi.mock('../../api/client', () => ({
   apiClient: {
     getTrainingRuns: vi.fn(),
+    getCheckpointTrainingRuns: vi.fn(),
     listSampleJobs: vi.fn(),
     listWorkflows: vi.fn(),
     listStudies: vi.fn(),
@@ -26,7 +27,7 @@ import { apiClient } from '../../api/client'
 import { GENERATE_INPUTS_STORAGE_KEY } from '../../composables/useGenerateInputsPersistence'
 import type { GenerateInputsState } from '../../composables/useGenerateInputsPersistence'
 
-const mockGetTrainingRuns = apiClient.getTrainingRuns as ReturnType<typeof vi.fn>
+const mockGetCheckpointTrainingRuns = apiClient.getCheckpointTrainingRuns as ReturnType<typeof vi.fn>
 const mockListSampleJobs = apiClient.listSampleJobs as ReturnType<typeof vi.fn>
 const mockListWorkflows = apiClient.listWorkflows as ReturnType<typeof vi.fn>
 const mockListStudies = apiClient.listStudies as ReturnType<typeof vi.fn>
@@ -159,7 +160,7 @@ describe('JobLaunchDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     localStorage.clear()
-    mockGetTrainingRuns.mockResolvedValue(allTrainingRuns)
+    mockGetCheckpointTrainingRuns.mockResolvedValue(allTrainingRuns)
     mockListSampleJobs.mockResolvedValue([runningJob])
     mockListWorkflows.mockResolvedValue(sampleWorkflows)
     mockListStudies.mockResolvedValue(sampleStudies)
@@ -191,7 +192,7 @@ describe('JobLaunchDialog', () => {
     })
     await flushPromises()
 
-    expect(mockGetTrainingRuns).toHaveBeenCalledTimes(1)
+    expect(mockGetCheckpointTrainingRuns).toHaveBeenCalledTimes(1)
     expect(mockListSampleJobs).toHaveBeenCalledTimes(1)
     expect(mockListWorkflows).toHaveBeenCalledTimes(1)
     expect(mockListStudies).toHaveBeenCalled()
@@ -1570,7 +1571,7 @@ describe('JobLaunchDialog', () => {
       await flushPromises()
 
       // Clear mock call counts from initial mount
-      mockGetTrainingRuns.mockClear()
+      mockGetCheckpointTrainingRuns.mockClear()
       mockListSampleJobs.mockClear()
 
       // Simulate a job completion by changing refreshTrigger
@@ -1578,7 +1579,7 @@ describe('JobLaunchDialog', () => {
       await flushPromises()
 
       // fetchTrainingRunsAndJobs should have been called again
-      expect(mockGetTrainingRuns).toHaveBeenCalledTimes(1)
+      expect(mockGetCheckpointTrainingRuns).toHaveBeenCalledTimes(1)
       expect(mockListSampleJobs).toHaveBeenCalledTimes(1)
     })
 
@@ -1601,7 +1602,7 @@ describe('JobLaunchDialog', () => {
       expect(runningOpt?._status).toBe('running')
 
       // Now simulate job completing: mock returns no running jobs
-      mockGetTrainingRuns.mockResolvedValue(allTrainingRuns)
+      mockGetCheckpointTrainingRuns.mockResolvedValue(allTrainingRuns)
       mockListSampleJobs.mockResolvedValue([]) // No active jobs anymore
 
       // Trigger refresh

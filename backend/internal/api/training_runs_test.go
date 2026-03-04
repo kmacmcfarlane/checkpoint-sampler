@@ -64,11 +64,34 @@ func (f *fakeScanFS) DirectoryExists(path string) bool {
 	return ok
 }
 
+// fakeCheckpointDiscoveryFS implements service.CheckpointFileSystem for testing.
+type fakeCheckpointDiscoveryFS struct {
+	safetensors map[string][]string // root → relative file paths
+	dirs        map[string]bool     // path → exists?
+}
+
+func newFakeCheckpointDiscoveryFS() *fakeCheckpointDiscoveryFS {
+	return &fakeCheckpointDiscoveryFS{
+		safetensors: make(map[string][]string),
+		dirs:        make(map[string]bool),
+	}
+}
+
+func (f *fakeCheckpointDiscoveryFS) ListSafetensorsFiles(root string) ([]string, error) {
+	return f.safetensors[root], nil
+}
+
+func (f *fakeCheckpointDiscoveryFS) DirectoryExists(path string) bool {
+	return f.dirs[path]
+}
+
 var _ = Describe("TrainingRunsService", func() {
 	var (
 		viewerFS        *fakeViewerDiscoveryFS
 		scanFS          *fakeScanFS
+		cpFS            *fakeCheckpointDiscoveryFS
 		viewerDiscovery *service.ViewerDiscoveryService
+		cpDiscovery     *service.DiscoveryService
 		scanner         *service.Scanner
 		sampleDir       string
 		logger          *logrus.Logger
@@ -78,19 +101,26 @@ var _ = Describe("TrainingRunsService", func() {
 		sampleDir = "/samples"
 		viewerFS = newFakeViewerDiscoveryFS()
 		scanFS = newFakeScanFS()
+		cpFS = newFakeCheckpointDiscoveryFS()
 		logger = logrus.New()
 		logger.SetOutput(io.Discard)
 	})
+
+	// Helper to create a TrainingRunsService with all dependencies
+	makeSvc := func(validator *service.ValidationService, watcher *service.Watcher) *api.TrainingRunsService {
+		return api.NewTrainingRunsService(viewerDiscovery, cpDiscovery, scanner, validator, watcher)
+	}
 
 	Describe("List", func() {
 		// AC1: Scanner discovers viewable content from sample output directories
 		It("returns empty slice when no sample directories found", func() {
 			viewerFS.subdirs[sampleDir] = []string{}
 			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
+			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
-			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, nil, nil)
+			svc := makeSvc(nil, nil)
 
-			result, err := svc.List(context.Background(), &gentrainingruns.ListPayload{HasSamples: false})
+			result, err := svc.List(context.Background(), &gentrainingruns.ListPayload{HasSamples: false, Source: "samples"})
 
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result).To(HaveLen(0))
@@ -103,10 +133,11 @@ var _ = Describe("TrainingRunsService", func() {
 				"model-b.safetensors",
 			}
 			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
+			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
-			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, nil, nil)
+			svc := makeSvc(nil, nil)
 
-			result, err := svc.List(context.Background(), &gentrainingruns.ListPayload{HasSamples: false})
+			result, err := svc.List(context.Background(), &gentrainingruns.ListPayload{HasSamples: false, Source: "samples"})
 
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result).To(HaveLen(2))
@@ -123,10 +154,11 @@ var _ = Describe("TrainingRunsService", func() {
 				"model-step00002000.safetensors",
 			}
 			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
+			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
-			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, nil, nil)
+			svc := makeSvc(nil, nil)
 
-			result, err := svc.List(context.Background(), &gentrainingruns.ListPayload{HasSamples: false})
+			result, err := svc.List(context.Background(), &gentrainingruns.ListPayload{HasSamples: false, Source: "samples"})
 
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result).To(HaveLen(1))
@@ -146,11 +178,12 @@ var _ = Describe("TrainingRunsService", func() {
 				"model-b.safetensors",
 			}
 			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
+			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
-			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, nil, nil)
+			svc := makeSvc(nil, nil)
 
 			// has_samples=true should not filter anything — all runs have samples
-			result, err := svc.List(context.Background(), &gentrainingruns.ListPayload{HasSamples: true})
+			result, err := svc.List(context.Background(), &gentrainingruns.ListPayload{HasSamples: true, Source: "samples"})
 
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result).To(HaveLen(2))
@@ -166,15 +199,76 @@ var _ = Describe("TrainingRunsService", func() {
 				"model-step00002000.safetensors",
 			}
 			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
+			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
-			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, nil, nil)
+			svc := makeSvc(nil, nil)
 
-			result, err := svc.List(context.Background(), &gentrainingruns.ListPayload{HasSamples: false})
+			result, err := svc.List(context.Background(), &gentrainingruns.ListPayload{HasSamples: false, Source: "samples"})
 
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result).To(HaveLen(1))
 			Expect(result[0].Name).To(Equal("my-study/model"))
 			Expect(result[0].CheckpointCount).To(Equal(2))
+		})
+
+		// source=checkpoints returns checkpoint-based training runs
+		It("returns checkpoint-based training runs when source=checkpoints", func() {
+			cpFS.safetensors["/checkpoints"] = []string{
+				"qwen/psai4rt-v0.3.0-step00001000.safetensors",
+				"qwen/psai4rt-v0.3.0-step00002000.safetensors",
+				"qwen/psai4rt-v0.3.0.safetensors",
+			}
+			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
+			cpDiscovery = service.NewDiscoveryService(cpFS, []string{"/checkpoints"}, sampleDir, logger)
+			scanner = service.NewScanner(scanFS, sampleDir, logger)
+			svc := makeSvc(nil, nil)
+
+			result, err := svc.List(context.Background(), &gentrainingruns.ListPayload{HasSamples: false, Source: "checkpoints"})
+
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result).To(HaveLen(1))
+			Expect(result[0].Name).To(Equal("qwen/psai4rt-v0.3.0"))
+			Expect(result[0].CheckpointCount).To(Equal(3))
+		})
+
+		It("returns checkpoint-based runs with correct has_samples flag", func() {
+			cpFS.safetensors["/checkpoints"] = []string{
+				"model-a.safetensors",
+				"model-b.safetensors",
+			}
+			// model-a has a sample directory, model-b does not
+			cpFS.dirs[sampleDir+"/model-a.safetensors"] = true
+			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
+			cpDiscovery = service.NewDiscoveryService(cpFS, []string{"/checkpoints"}, sampleDir, logger)
+			scanner = service.NewScanner(scanFS, sampleDir, logger)
+			svc := makeSvc(nil, nil)
+
+			result, err := svc.List(context.Background(), &gentrainingruns.ListPayload{HasSamples: false, Source: "checkpoints"})
+
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result).To(HaveLen(2))
+			// Sorted by name: model-a, model-b
+			Expect(result[0].Name).To(Equal("model-a"))
+			Expect(result[0].HasSamples).To(BeTrue())
+			Expect(result[1].Name).To(Equal("model-b"))
+			Expect(result[1].HasSamples).To(BeFalse())
+		})
+
+		It("defaults to samples source when source parameter is empty", func() {
+			viewerFS.subdirs[sampleDir] = []string{
+				"viewer-model.safetensors",
+			}
+			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
+			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, sampleDir, logger)
+			scanner = service.NewScanner(scanFS, sampleDir, logger)
+			svc := makeSvc(nil, nil)
+
+			// Source defaults to "samples" via Goa Default() — pass it explicitly
+			result, err := svc.List(context.Background(), &gentrainingruns.ListPayload{HasSamples: false, Source: "samples"})
+
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result).To(HaveLen(1))
+			Expect(result[0].Name).To(Equal("viewer-model"))
 		})
 	})
 
@@ -184,8 +278,9 @@ var _ = Describe("TrainingRunsService", func() {
 				"model.safetensors",
 			}
 			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
+			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
-			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, nil, nil)
+			svc := makeSvc(nil, nil)
 
 			_, err := svc.Scan(context.Background(), &gentrainingruns.ScanPayload{ID: 5})
 
@@ -198,8 +293,9 @@ var _ = Describe("TrainingRunsService", func() {
 				"model.safetensors",
 			}
 			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
+			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
-			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, nil, nil)
+			svc := makeSvc(nil, nil)
 
 			_, err := svc.Scan(context.Background(), &gentrainingruns.ScanPayload{ID: -1})
 
@@ -211,8 +307,9 @@ var _ = Describe("TrainingRunsService", func() {
 				"model-step00001000.safetensors",
 			}
 			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
+			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
-			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, nil, nil)
+			svc := makeSvc(nil, nil)
 
 			scanFS.files[sampleDir+"/model-step00001000.safetensors"] = []string{
 				"seed=1&cfg=3&_00001_.png",
@@ -232,8 +329,9 @@ var _ = Describe("TrainingRunsService", func() {
 				"model-step00001000.safetensors",
 			}
 			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
+			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
-			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, nil, nil)
+			svc := makeSvc(nil, nil)
 
 			// The scanner should look at /samples/my-study/model-step00001000.safetensors/
 			scanFS.files[sampleDir+"/my-study/model-step00001000.safetensors"] = []string{
@@ -251,8 +349,9 @@ var _ = Describe("TrainingRunsService", func() {
 				"model-step00001000.safetensors",
 			}
 			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
+			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
-			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, nil, nil)
+			svc := makeSvc(nil, nil)
 
 			scanFS.errs[sampleDir+"/model-step00001000.safetensors"] = fmt.Errorf("disk error")
 
@@ -268,8 +367,9 @@ var _ = Describe("TrainingRunsService", func() {
 				"model-step00002000.safetensors",
 			}
 			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
+			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
-			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, nil, nil)
+			svc := makeSvc(nil, nil)
 
 			scanFS.files[sampleDir+"/model-step00001000.safetensors"] = []string{
 				"seed=42&_00001_.png",
@@ -300,9 +400,10 @@ var _ = Describe("TrainingRunsService", func() {
 				"model.safetensors",
 			}
 			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
+			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
 			validator := service.NewValidationService(scanFS, sampleDir, logger)
-			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, validator, nil)
+			svc := api.NewTrainingRunsService(viewerDiscovery, cpDiscovery, scanner, validator, nil)
 
 			_, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{ID: 5})
 
@@ -318,9 +419,10 @@ var _ = Describe("TrainingRunsService", func() {
 				"model-step00002000.safetensors",
 			}
 			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
+			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
 			validator := service.NewValidationService(scanFS, sampleDir, logger)
-			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, validator, nil)
+			svc := api.NewTrainingRunsService(viewerDiscovery, cpDiscovery, scanner, validator, nil)
 
 			scanFS.files[sampleDir+"/model-step00001000.safetensors"] = []string{
 				"seed=42&_00001_.png",
@@ -347,9 +449,10 @@ var _ = Describe("TrainingRunsService", func() {
 				"model-step00002000.safetensors",
 			}
 			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
+			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
 			validator := service.NewValidationService(scanFS, sampleDir, logger)
-			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, validator, nil)
+			svc := api.NewTrainingRunsService(viewerDiscovery, cpDiscovery, scanner, validator, nil)
 
 			scanFS.files[sampleDir+"/model-step00001000.safetensors"] = []string{
 				"seed=42&_00001_.png",
@@ -374,9 +477,10 @@ var _ = Describe("TrainingRunsService", func() {
 				"model-step00001000.safetensors",
 			}
 			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
+			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
 			validator := service.NewValidationService(scanFS, sampleDir, logger)
-			svc := api.NewTrainingRunsService(viewerDiscovery, scanner, validator, nil)
+			svc := api.NewTrainingRunsService(viewerDiscovery, cpDiscovery, scanner, validator, nil)
 
 			scanFS.files[sampleDir+"/my-study/model-step00001000.safetensors"] = []string{
 				"seed=42&_00001_.png",

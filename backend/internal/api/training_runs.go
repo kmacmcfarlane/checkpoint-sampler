@@ -4,31 +4,42 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
-
 	gentrainingruns "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/training_runs"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
 )
 
 // TrainingRunsService implements the generated training_runs service interface.
 type TrainingRunsService struct {
-	viewerDiscovery *service.ViewerDiscoveryService
-	scanner         *service.Scanner
-	validator       *service.ValidationService
-	watcher         *service.Watcher
+	viewerDiscovery      *service.ViewerDiscoveryService
+	checkpointDiscovery  *service.DiscoveryService
+	scanner              *service.Scanner
+	validator            *service.ValidationService
+	watcher              *service.Watcher
 }
 
 // NewTrainingRunsService returns a new TrainingRunsService.
-func NewTrainingRunsService(viewerDiscovery *service.ViewerDiscoveryService, scanner *service.Scanner, validator *service.ValidationService, watcher *service.Watcher) *TrainingRunsService {
-	return &TrainingRunsService{viewerDiscovery: viewerDiscovery, scanner: scanner, validator: validator, watcher: watcher}
+func NewTrainingRunsService(viewerDiscovery *service.ViewerDiscoveryService, checkpointDiscovery *service.DiscoveryService, scanner *service.Scanner, validator *service.ValidationService, watcher *service.Watcher) *TrainingRunsService {
+	return &TrainingRunsService{viewerDiscovery: viewerDiscovery, checkpointDiscovery: checkpointDiscovery, scanner: scanner, validator: validator, watcher: watcher}
 }
 
-// List returns training runs discovered from sample output directories.
-// The has_samples parameter is accepted for API compatibility but has no effect —
-// all viewer-discovered runs have samples by definition.
+// List returns training runs discovered from either sample output directories
+// (source=samples, the default for the viewer) or checkpoint files
+// (source=checkpoints, for the Generate Samples dialog).
 func (s *TrainingRunsService) List(ctx context.Context, p *gentrainingruns.ListPayload) ([]*gentrainingruns.TrainingRunResponse, error) {
-	runs, err := s.viewerDiscovery.DiscoverViewable()
-	if err != nil {
-		return nil, gentrainingruns.MakeDiscoveryFailed(fmt.Errorf("discovering viewable training runs: %w", err))
+	var runs []model.TrainingRun
+	var err error
+
+	if p.Source == "checkpoints" {
+		runs, err = s.checkpointDiscovery.Discover()
+		if err != nil {
+			return nil, gentrainingruns.MakeDiscoveryFailed(fmt.Errorf("discovering checkpoint training runs: %w", err))
+		}
+	} else {
+		runs, err = s.viewerDiscovery.DiscoverViewable()
+		if err != nil {
+			return nil, gentrainingruns.MakeDiscoveryFailed(fmt.Errorf("discovering viewable training runs: %w", err))
+		}
 	}
 
 	var result []*gentrainingruns.TrainingRunResponse

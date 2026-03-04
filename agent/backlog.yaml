@@ -424,11 +424,6 @@ stories:
       - "command: make test-backend"
       - "command: cd frontend && npx vitest run"
 
-    uat_feedback: "Training run selector in Generate Samples dialog shows existing sample sets instead of training runs from
-      checkpoints, even with 'Show All' selected. The sample set selector in main controls slideout should work off samples
-      data (works now). The training runs in generate samples dialog should work off checkpoint data. Also causes 404 errors
-      when creating sample jobs (e.g., training run 'psai4rt-v0.3.0-qwen-2512-1024-adafactor-constant-2e-6-steps-9000-timestep-qinglong_qwen-cap_drop-0'
-      not found). This blocks further testing of sample generation. Priority: very high."
   - id: B-043
     title: "Study editor allows duplicate dimension values"
     priority: 25

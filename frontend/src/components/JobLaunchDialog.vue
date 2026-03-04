@@ -506,7 +506,7 @@ onMounted(async () => {
 async function fetchTrainingRunsAndJobs() {
   try {
     const [runs, jobs] = await Promise.all([
-      apiClient.getTrainingRuns(),
+      apiClient.getCheckpointTrainingRuns(),
       apiClient.listSampleJobs(),
     ])
     trainingRuns.value = runs

@@ -70,9 +70,14 @@ export class ApiClient {
     return (await response.json()) as T
   }
 
-  /** GET /api/training-runs — list auto-discovered training runs. */
+  /** GET /api/training-runs — list auto-discovered training runs (viewer: sample-directory-based). */
   async getTrainingRuns(): Promise<TrainingRun[]> {
     return this.request<TrainingRun[]>('/training-runs')
+  }
+
+  /** GET /api/training-runs?source=checkpoints — list checkpoint-file-based training runs (for Generate Samples). */
+  async getCheckpointTrainingRuns(): Promise<TrainingRun[]> {
+    return this.request<TrainingRun[]>('/training-runs?source=checkpoints')
   }
 
   /** GET /api/training-runs/{id}/scan — scan directories and return image metadata. */
