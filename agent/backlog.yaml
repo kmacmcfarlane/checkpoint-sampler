@@ -73,7 +73,7 @@ stories:
 
   - id: B-030
     title: "Top nav elements unavailable on narrow screens until drawer opens"
-    priority: 50
+    priority: 92
     status: uat
     requires: []
     acceptance:
@@ -273,7 +273,7 @@ stories:
 
   - id: B-031
     title: "Dimension preset selector missing New/Save/Delete workflow"
-    priority: 42
+    priority: 24
     status: uat
     requires: []
     acceptance:
@@ -382,7 +382,7 @@ stories:
 
   - id: S-078
     title: "Demo sampleset and dimension preset"
-    priority: 12
+    priority: 50
     status: uat
     requires: [S-074]
     acceptance:
@@ -405,7 +405,7 @@ stories:
       Priority: medium.'
   - id: S-081
     title: "Viewer driven by sample output directories instead of checkpoints"
-    priority: 32
+    priority: 90
     status: uat
     requires: [S-074]
     acceptance:
@@ -433,7 +433,7 @@ stories:
       not found). This blocks further testing of sample generation. Priority: very high."
   - id: B-043
     title: "Study editor allows duplicate dimension values"
-    priority: 70
+    priority: 25
     status: todo
     complexity: low
     requires:
