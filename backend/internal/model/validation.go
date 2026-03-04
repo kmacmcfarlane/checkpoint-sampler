@@ -18,4 +18,8 @@ type ValidationResult struct {
 	TotalExpected int
 	// TotalVerified is the aggregate verified count across all checkpoints.
 	TotalVerified int
+	// TotalActual is the aggregate actual file count across all checkpoints.
+	TotalActual int
+	// TotalMissing is the aggregate missing count across all checkpoints (TotalExpected - TotalActual).
+	TotalMissing int
 }

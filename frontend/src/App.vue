@@ -572,6 +572,12 @@ function openJobLaunchDialog() {
   jobLaunchDialogOpen.value = true
 }
 
+/** AC2 (S-084): Open the job launch dialog from the sidebar "Generate Missing" button. */
+function handleGenerateMissing() {
+  prefillJob.value = null
+  jobLaunchDialogOpen.value = true
+}
+
 /** Open the job launch dialog pre-populated with settings from a completed job. */
 function handleRegenerate(job: SampleJob) {
   jobProgressPanelOpen.value = false
@@ -760,6 +766,7 @@ const TERMINAL_STATUSES: Set<SampleJobStatus> = new Set(['completed', 'completed
           <TrainingRunSelector
             :auto-select-run-id="savedData?.trainingRunId ?? lastTrainingRunId ?? null"
             @select="onTrainingRunSelect"
+            @generate-missing="handleGenerateMissing"
           />
         </div>
         <template v-if="selectedTrainingRun && !scanning && !scanError">

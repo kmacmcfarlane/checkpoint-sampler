@@ -166,6 +166,19 @@ func (f *fakeSampleDirRemover) RemoveSampleDir(checkpointFilename string) error 
 	return nil
 }
 
+// fakeOutputFileChecker is a test double for service.OutputFileChecker.
+type fakeOutputFileChecker struct {
+	existingFiles map[string]bool
+}
+
+func newFakeOutputFileChecker() *fakeOutputFileChecker {
+	return &fakeOutputFileChecker{existingFiles: make(map[string]bool)}
+}
+
+func (f *fakeOutputFileChecker) FileExists(path string) bool {
+	return f.existingFiles[path]
+}
+
 // fakeSampleJobExecutor is a test double for service.SampleJobExecutor.
 type fakeSampleJobExecutor struct {
 	stopCalled   bool
@@ -194,6 +207,35 @@ func (f *fakeSampleJobExecutor) RequestResume(jobID string) error {
 func (f *fakeSampleJobExecutor) IsConnected() bool {
 	return f.connected
 }
+
+var _ = Describe("GenerateOutputFilename", func() {
+	It("produces a consistent query-encoded filename", func() {
+		item := model.SampleJobItem{
+			PromptName:  "forest",
+			Steps:       20,
+			CFG:         7.0,
+			SamplerName: "euler",
+			Scheduler:   "simple",
+			Seed:        420,
+		}
+		result := service.GenerateOutputFilename(item)
+		// url.Values.Encode() sorts by key alphabetically
+		Expect(result).To(Equal("cfg=7.0&prompt=forest&sampler=euler&scheduler=simple&seed=420&steps=20.png"))
+	})
+
+	It("handles floating-point CFG values", func() {
+		item := model.SampleJobItem{
+			PromptName:  "test",
+			Steps:       1,
+			CFG:         3.5,
+			SamplerName: "euler",
+			Scheduler:   "normal",
+			Seed:        0,
+		}
+		result := service.GenerateOutputFilename(item)
+		Expect(result).To(ContainSubstring("cfg=3.5"))
+	})
+})
 
 var _ = Describe("SampleJobService", func() {
 	var (
@@ -248,7 +290,7 @@ var _ = Describe("SampleJobService", func() {
 
 		It("creates a job and expands items correctly", func() {
 			shift := 1.5
-			job, err := svc.Create("test-run", checkpoints, "study-1", "workflow.json", "vae.safetensors", "clip.safetensors", &shift, nil, false)
+			job, err := svc.Create("test-run", checkpoints, "study-1", "workflow.json", "vae.safetensors", "clip.safetensors", &shift, nil, false, false)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(job.ID).NotTo(BeEmpty())
 			Expect(job.TrainingRunName).To(Equal("test-run"))
@@ -276,7 +318,7 @@ var _ = Describe("SampleJobService", func() {
 		})
 
 		It("calculates total items correctly", func() {
-			job, err := svc.Create("test-run", checkpoints, "study-1", "workflow.json", "", "", nil, nil, false)
+			job, err := svc.Create("test-run", checkpoints, "study-1", "workflow.json", "", "", nil, nil, false, false)
 			Expect(err).NotTo(HaveOccurred())
 
 			// 2 checkpoints × 2 prompts × 2 steps × 2 cfgs × 1 pair × 1 seed = 16
@@ -284,7 +326,7 @@ var _ = Describe("SampleJobService", func() {
 		})
 
 		It("returns error when study not found", func() {
-			_, err := svc.Create("test-run", checkpoints, "nonexistent", "workflow.json", "", "", nil, nil, false)
+			_, err := svc.Create("test-run", checkpoints, "nonexistent", "workflow.json", "", "", nil, nil, false, false)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("not found"))
 		})
@@ -292,7 +334,7 @@ var _ = Describe("SampleJobService", func() {
 		It("marks items as skipped when checkpoint path matching fails", func() {
 			pathMatcher.paths = make(map[string]string) // Clear paths to simulate no matches
 
-			job, err := svc.Create("test-run", checkpoints, "study-1", "workflow.json", "", "", nil, nil, false)
+			job, err := svc.Create("test-run", checkpoints, "study-1", "workflow.json", "", "", nil, nil, false, false)
 			Expect(err).NotTo(HaveOccurred())
 
 			items := store.items[job.ID]
@@ -304,14 +346,14 @@ var _ = Describe("SampleJobService", func() {
 		})
 
 		It("handles nil shift parameter", func() {
-			job, err := svc.Create("test-run", checkpoints, "study-1", "workflow.json", "", "", nil, nil, false)
+			job, err := svc.Create("test-run", checkpoints, "study-1", "workflow.json", "", "", nil, nil, false, false)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(job.Shift).To(BeNil())
 		})
 
 		DescribeTable("filters checkpoints by checkpoint_filenames when provided",
 			func(filenames []string, expectedCount int) {
-				job, err := svc.Create("test-run", checkpoints, "study-1", "workflow.json", "", "", nil, filenames, false)
+				job, err := svc.Create("test-run", checkpoints, "study-1", "workflow.json", "", "", nil, filenames, false, false)
 				Expect(err).NotTo(HaveOccurred())
 				// Each checkpoint produces 8 items (2 prompts × 2 steps × 2 cfgs × 1 pair × 1 seed)
 				Expect(job.TotalItems).To(Equal(expectedCount * 8))
@@ -327,7 +369,7 @@ var _ = Describe("SampleJobService", func() {
 
 		It("clears existing sample directories when clear_existing is true", func() {
 			dirRemover.removed = nil
-			_, err := svc.Create("test-run", checkpoints, "study-1", "workflow.json", "", "", nil, nil, true)
+			_, err := svc.Create("test-run", checkpoints, "study-1", "workflow.json", "", "", nil, nil, true, false)
 			Expect(err).NotTo(HaveOccurred())
 			// Both checkpoints should have been cleared
 			Expect(dirRemover.removed).To(ConsistOf("checkpoint1.safetensors", "checkpoint2.safetensors"))
@@ -335,7 +377,7 @@ var _ = Describe("SampleJobService", func() {
 
 		It("clears only the filtered checkpoints when both checkpoint_filenames and clear_existing are set", func() {
 			dirRemover.removed = nil
-			_, err := svc.Create("test-run", checkpoints, "study-1", "workflow.json", "", "", nil, []string{"checkpoint1.safetensors"}, true)
+			_, err := svc.Create("test-run", checkpoints, "study-1", "workflow.json", "", "", nil, []string{"checkpoint1.safetensors"}, true, false)
 			Expect(err).NotTo(HaveOccurred())
 			// Only checkpoint1 should have been cleared
 			Expect(dirRemover.removed).To(ConsistOf("checkpoint1.safetensors"))
@@ -343,9 +385,93 @@ var _ = Describe("SampleJobService", func() {
 
 		It("does not clear directories when clear_existing is false", func() {
 			dirRemover.removed = nil
-			_, err := svc.Create("test-run", checkpoints, "study-1", "workflow.json", "", "", nil, nil, false)
+			_, err := svc.Create("test-run", checkpoints, "study-1", "workflow.json", "", "", nil, nil, false, false)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(dirRemover.removed).To(BeEmpty())
+		})
+
+		// AC5: missing-only generation logic
+		Context("with missing_only=true", func() {
+			var fileChecker *fakeOutputFileChecker
+
+			BeforeEach(func() {
+				fileChecker = newFakeOutputFileChecker()
+				svc.SetFileChecker(fileChecker)
+			})
+
+			It("skips items whose output file already exists on disk", func() {
+				// Study name is "Test Study", so output path is /samples/Test Study/{checkpoint}/{filename}
+				// Generate the expected filename for one of the items (prompt1, steps=1, cfg=1.0, euler/simple, seed=420)
+				expectedFilename := service.GenerateOutputFilename(model.SampleJobItem{
+					PromptName:  "prompt1",
+					Steps:       1,
+					CFG:         1.0,
+					SamplerName: "euler",
+					Scheduler:   "simple",
+					Seed:        420,
+				})
+
+				// Mark this file as existing for checkpoint1 only
+				fileChecker.existingFiles["/samples/Test Study/checkpoint1.safetensors/"+expectedFilename] = true
+
+				job, err := svc.Create("test-run", checkpoints, "study-1", "workflow.json", "", "", nil, nil, false, true)
+				Expect(err).NotTo(HaveOccurred())
+
+				// Total items should be 16 - 1 = 15 (one item skipped)
+				Expect(job.TotalItems).To(Equal(15))
+				items := store.items[job.ID]
+				Expect(items).To(HaveLen(15))
+			})
+
+			It("creates all items when no output files exist", func() {
+				// No files marked as existing
+				job, err := svc.Create("test-run", checkpoints, "study-1", "workflow.json", "", "", nil, nil, false, true)
+				Expect(err).NotTo(HaveOccurred())
+
+				// All 16 items should be created
+				Expect(job.TotalItems).To(Equal(16))
+				items := store.items[job.ID]
+				Expect(items).To(HaveLen(16))
+			})
+
+			It("creates zero items when all output files exist", func() {
+				// Mark all expected files as existing
+				for _, cp := range checkpoints {
+					for _, prompt := range study.Prompts {
+						for _, steps := range study.Steps {
+							for _, cfg := range study.CFGs {
+								for _, pair := range study.SamplerSchedulerPairs {
+									for _, seed := range study.Seeds {
+										fn := service.GenerateOutputFilename(model.SampleJobItem{
+											PromptName:  prompt.Name,
+											Steps:       steps,
+											CFG:         cfg,
+											SamplerName: pair.Sampler,
+											Scheduler:   pair.Scheduler,
+											Seed:        seed,
+										})
+										fileChecker.existingFiles["/samples/Test Study/"+cp.Filename+"/"+fn] = true
+									}
+								}
+							}
+						}
+					}
+				}
+
+				job, err := svc.Create("test-run", checkpoints, "study-1", "workflow.json", "", "", nil, nil, false, true)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(job.TotalItems).To(Equal(0))
+			})
+
+			It("does not filter when fileChecker is nil", func() {
+				svc.SetFileChecker(nil)
+
+				job, err := svc.Create("test-run", checkpoints, "study-1", "workflow.json", "", "", nil, nil, false, true)
+				Expect(err).NotTo(HaveOccurred())
+
+				// All items should be created since no file checker is set
+				Expect(job.TotalItems).To(Equal(16))
+			})
 		})
 	})
 

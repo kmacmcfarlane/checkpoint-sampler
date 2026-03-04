@@ -101,6 +101,10 @@ var _ = Describe("ValidationService", func() {
 			Expect(result.Checkpoints[1].Expected).To(Equal(2))
 			Expect(result.Checkpoints[1].Verified).To(Equal(2))
 			Expect(result.Checkpoints[1].Missing).To(Equal(0))
+			// AC3: Totals across all checkpoints
+			Expect(result.TotalExpected).To(Equal(4))
+			Expect(result.TotalActual).To(Equal(4))
+			Expect(result.TotalMissing).To(Equal(0))
 		})
 
 		It("flags checkpoints with fewer files than the maximum as having missing samples", func() {
@@ -132,6 +136,10 @@ var _ = Describe("ValidationService", func() {
 			Expect(result.Checkpoints[1].Expected).To(Equal(3))
 			Expect(result.Checkpoints[1].Verified).To(Equal(1))
 			Expect(result.Checkpoints[1].Missing).To(Equal(2))
+			// AC3: Totals when checkpoints have missing files
+			Expect(result.TotalExpected).To(Equal(6)) // 3 per checkpoint × 2 checkpoints
+			Expect(result.TotalActual).To(Equal(4))   // 3 + 1
+			Expect(result.TotalMissing).To(Equal(2))  // 6 - 4
 		})
 
 		It("handles checkpoints without samples (HasSamples=false)", func() {

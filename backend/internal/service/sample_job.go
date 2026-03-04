@@ -3,6 +3,7 @@ package service
 import (
 	"database/sql"
 	"fmt"
+	"net/url"
 	"path/filepath"
 	"sort"
 	"time"
@@ -42,11 +43,17 @@ type SampleJobExecutor interface {
 	IsConnected() bool
 }
 
+// OutputFileChecker defines the interface for checking if a sample output file exists on disk.
+type OutputFileChecker interface {
+	FileExists(path string) bool
+}
+
 // SampleJobService manages sample job creation, state transitions, and progress tracking.
 type SampleJobService struct {
 	store       SampleJobStore
 	pathMatcher PathMatcher
 	dirRemover  SampleDirRemover
+	fileChecker OutputFileChecker
 	sampleDir   string
 	executor    SampleJobExecutor
 	logger      *logrus.Entry
@@ -62,6 +69,11 @@ func NewSampleJobService(store SampleJobStore, pathMatcher PathMatcher, dirRemov
 		executor:    nil, // Set later via SetExecutor
 		logger:      logger.WithField("component", "sample_job"),
 	}
+}
+
+// SetFileChecker sets the output file checker (used for missing-only job creation).
+func (s *SampleJobService) SetFileChecker(checker OutputFileChecker) {
+	s.fileChecker = checker
 }
 
 // SetExecutor sets the job executor (called after construction to avoid circular dependencies).
@@ -110,13 +122,15 @@ func (s *SampleJobService) Get(id string) (model.SampleJob, error) {
 // Create creates a new sample job by expanding study parameters across training run checkpoints.
 // checkpointFilenames is an optional filter: when non-empty, only the listed checkpoints are included.
 // clearExisting: when true, the sample directory for each selected checkpoint is removed before creating job items.
-func (s *SampleJobService) Create(trainingRunName string, checkpoints []model.Checkpoint, studyID string, workflowName string, vae string, clip string, shift *float64, checkpointFilenames []string, clearExisting bool) (model.SampleJob, error) {
+// missingOnly: when true, only items whose output file does not already exist on disk are included.
+func (s *SampleJobService) Create(trainingRunName string, checkpoints []model.Checkpoint, studyID string, workflowName string, vae string, clip string, shift *float64, checkpointFilenames []string, clearExisting bool, missingOnly bool) (model.SampleJob, error) {
 	s.logger.WithFields(logrus.Fields{
 		"training_run_name":     trainingRunName,
 		"study_id":              studyID,
 		"workflow_name":         workflowName,
 		"checkpoint_filter_len": len(checkpointFilenames),
 		"clear_existing":        clearExisting,
+		"missing_only":          missingOnly,
 	}).Trace("entering Create")
 	defer s.logger.Trace("returning from Create")
 
@@ -214,6 +228,39 @@ func (s *SampleJobService) Create(trainingRunName string, checkpoints []model.Ch
 		"sample_job_id": jobID,
 		"item_count":    len(items),
 	}).Debug("expanded job items")
+
+	// When missingOnly is true, filter out items whose output file already exists on disk
+	if missingOnly && s.fileChecker != nil {
+		var filtered []model.SampleJobItem
+		skipped := 0
+		for _, item := range items {
+			outputFilename := GenerateOutputFilename(item)
+			outputPath := filepath.Join(s.sampleDir, study.Name, item.CheckpointFilename, outputFilename)
+			if s.fileChecker.FileExists(outputPath) {
+				skipped++
+				continue
+			}
+			filtered = append(filtered, item)
+		}
+		s.logger.WithFields(logrus.Fields{
+			"sample_job_id":    jobID,
+			"total_expanded":   len(items),
+			"skipped_existing": skipped,
+			"remaining":        len(filtered),
+		}).Info("filtered items for missing-only job")
+		items = filtered
+		// Update total items on the job to reflect the filtered count
+		totalItems = len(items)
+		job.TotalItems = totalItems
+		if err := s.store.UpdateSampleJob(job); err != nil {
+			s.logger.WithFields(logrus.Fields{
+				"sample_job_id": jobID,
+				"error":         err.Error(),
+			}).Error("failed to update sample job total items")
+			_ = s.store.DeleteSampleJob(jobID)
+			return model.SampleJob{}, fmt.Errorf("updating sample job total items: %w", err)
+		}
+	}
 
 	// Match checkpoint filenames to ComfyUI model paths and create job items
 	for _, item := range items {
@@ -657,4 +704,18 @@ func (s *SampleJobService) GetProgress(id string) (model.JobProgress, error) {
 	}).Debug("computed job progress")
 
 	return progress, nil
+}
+
+// GenerateOutputFilename generates the query-encoded output filename for a sample job item.
+// This is the canonical filename format used both during job execution and for
+// missing-sample detection. The format matches what the job executor writes to disk.
+func GenerateOutputFilename(item model.SampleJobItem) string {
+	params := url.Values{}
+	params.Set("prompt", item.PromptName)
+	params.Set("steps", fmt.Sprintf("%d", item.Steps))
+	params.Set("cfg", fmt.Sprintf("%.1f", item.CFG))
+	params.Set("sampler", item.SamplerName)
+	params.Set("scheduler", item.Scheduler)
+	params.Set("seed", fmt.Sprintf("%d", item.Seed))
+	return fmt.Sprintf("%s.png", params.Encode())
 }

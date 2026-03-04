@@ -249,5 +249,8 @@ var CreateSampleJobPayload = Type("CreateSampleJobPayload", func() {
 	Attribute("clear_existing", Boolean, "When true, delete existing sample directories for selected checkpoints before creating job items", func() {
 		Default(false)
 	})
+	Attribute("missing_only", Boolean, "When true, only generate samples that are missing on disk (skips items whose output file already exists)", func() {
+		Default(false)
+	})
 	Required("training_run_name", "study_id", "workflow_name")
 })

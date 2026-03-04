@@ -234,6 +234,8 @@ export interface CreateSampleJobPayload {
   checkpoint_filenames?: string[]
   /** When true, delete existing sample directories for selected checkpoints before creating job items. */
   clear_existing?: boolean
+  /** When true, only generate samples that are missing on disk (skips items whose output file already exists). */
+  missing_only?: boolean
 }
 
 /** Workflow template summary. */
@@ -270,6 +272,10 @@ export interface ValidationResult {
   total_expected: number
   /** Total verified images across all checkpoints. */
   total_verified: number
+  /** Total sample images found on disk across all checkpoints. */
+  total_actual: number
+  /** Total missing sample images across all checkpoints (total_expected - total_actual). */
+  total_missing: number
 }
 
 /** Demo dataset status response. */

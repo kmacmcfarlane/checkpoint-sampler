@@ -20,6 +20,7 @@ const attemptedAutoSelect = ref(false)
 const validating = ref(false)
 const validationError = ref<string | null>(null)
 const validationResults = ref<CheckpointCompletenessInfo[] | null>(null)
+const validationTotals = ref<{ total_expected: number; total_actual: number; total_missing: number } | null>(null)
 
 const persistence = useGenerateInputsPersistence()
 
@@ -32,8 +33,10 @@ const persistence = useGenerateInputsPersistence()
 const hasSamplesFilter = ref<boolean>(persistence.getHasSamplesFilter() ?? true)
 
 // select: Emitted when the user selects a training run from the dropdown, or on auto-select restore. Payload: the selected TrainingRun object.
+// generate-missing: Emitted when the user clicks "Generate Missing" after validation reveals missing samples.
 const emit = defineEmits<{
   select: [trainingRun: TrainingRun]
+  'generate-missing': []
 }>()
 
 /** True when at least one loaded run has no samples, making the filter checkbox relevant. */
@@ -96,6 +99,7 @@ function onSelect(value: number | null) {
   // Clear previous validation results when switching sample sets
   validationResults.value = null
   validationError.value = null
+  validationTotals.value = null
   const run = trainingRuns.value.find((r) => r.id === value)
   if (run) {
     emit('select', run)
@@ -115,10 +119,16 @@ async function onValidate() {
   validating.value = true
   validationError.value = null
   validationResults.value = null
+  validationTotals.value = null
 
   try {
     const result = await apiClient.validateTrainingRun(selectedId.value)
     validationResults.value = result.checkpoints
+    validationTotals.value = {
+      total_expected: result.total_expected,
+      total_actual: result.total_actual,
+      total_missing: result.total_missing,
+    }
   } catch (err: unknown) {
     const message = err && typeof err === 'object' && 'message' in err
       ? String((err as { message: string }).message)
@@ -180,6 +190,24 @@ function checkpointStatus(cp: CheckpointCompletenessInfo): 'pass' | 'warning' {
     <p v-if="validationError" class="error" role="alert" data-testid="validation-error">
       {{ validationError }}
     </p>
+    <!-- AC (S-084): Validation totals summary and Generate Missing button -->
+    <div v-if="validationTotals" class="validation-totals" data-testid="validation-totals">
+      <p class="validation-totals-text">
+        {{ validationTotals.total_actual }} / {{ validationTotals.total_expected }} samples
+        <span v-if="validationTotals.total_missing > 0" class="validation-missing-text">
+          ({{ validationTotals.total_missing }} missing)
+        </span>
+      </p>
+      <NButton
+        v-if="validationTotals.total_missing > 0"
+        size="small"
+        type="warning"
+        data-testid="generate-missing-button"
+        @click="emit('generate-missing')"
+      >
+        Generate Missing
+      </NButton>
+    </div>
     <!-- AC6: Display validation results inline (per-checkpoint pass/warning status) -->
     <div v-if="validationResults" class="validation-results" data-testid="validation-results">
       <div
@@ -277,5 +305,24 @@ function checkpointStatus(cp: CheckpointCompletenessInfo): 'pass' | 'warning' {
 .validation-checkpoint-counts {
   flex-shrink: 0;
   color: var(--text-secondary);
+}
+
+.validation-totals {
+  margin-top: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.validation-totals-text {
+  font-size: 0.8125rem;
+  color: var(--text-color);
+  margin: 0;
+}
+
+.validation-missing-text {
+  color: var(--warning-color);
+  font-weight: 600;
 }
 </style>

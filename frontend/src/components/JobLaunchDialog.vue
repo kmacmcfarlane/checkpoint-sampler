@@ -67,6 +67,9 @@ const selectedCheckpoints = ref<Set<string>>(new Set())
 // Whether to clear existing sample directories for selected checkpoints
 const clearExisting = ref(false)
 
+// Whether to generate only missing samples (skip existing output files)
+const missingOnly = ref(false)
+
 // Validation preview state
 const validationResult = ref<ValidationResult | null>(null)
 const validating = ref(false)
@@ -207,8 +210,11 @@ watch(selectedTrainingRunId, async () => {
   if (!skipAutoSelection) {
     selectedCheckpoints.value = new Set()
     clearExisting.value = false
+    missingOnly.value = false
   }
   currentModelType.value = null
+  validationResult.value = null
+
 
   const run = selectedTrainingRun.value
   if (!run || run.checkpoints.length === 0) return
@@ -242,7 +248,9 @@ watch(selectedTrainingRunId, async () => {
   } catch {
     // Metadata fetch failure is non-fatal; proceed without model-type restoration
   }
+
 })
+
 
 // Trigger validation when training run + study are both selected
 watch([selectedTrainingRunId, selectedStudy], async () => {
@@ -607,12 +615,15 @@ function resetForm() {
   shiftValue.value = null
   selectedCheckpoints.value = new Set()
   clearExisting.value = false
+  missingOnly.value = false
   currentModelType.value = null
   showAllRuns.value = true
   prefillActive.value = false
   validationResult.value = null
   validating.value = false
   error.value = null
+  validationResult.value = null
+
 }
 
 /**
@@ -705,7 +716,12 @@ async function submit() {
     }
 
     if (selectedRunHasSamples.value) {
-      payload.clear_existing = clearExisting.value
+      // When missing_only is set, clear_existing is mutually exclusive
+      if (missingOnly.value) {
+        payload.missing_only = true
+      } else {
+        payload.clear_existing = clearExisting.value
+      }
       if (effectiveCheckpointFilenames.value && effectiveCheckpointFilenames.value.length > 0) {
         payload.checkpoint_filenames = effectiveCheckpointFilenames.value
       }
@@ -848,11 +864,20 @@ async function submit() {
         </div>
         <NCheckbox
           :checked="clearExisting"
+          :disabled="missingOnly"
           data-testid="clear-existing-checkbox"
           class="clear-existing-checkbox"
           @update:checked="clearExisting = $event"
         >
           Clear existing samples for selected checkpoints
+        </NCheckbox>
+        <NCheckbox
+          :checked="missingOnly"
+          data-testid="missing-only-checkbox"
+          class="missing-only-checkbox"
+          @update:checked="missingOnly = $event; if ($event) clearExisting = false"
+        >
+          Generate missing samples only (skip existing)
         </NCheckbox>
       </div>
 
@@ -933,9 +958,9 @@ async function submit() {
 
       <NDivider />
 
-      <!-- Validation preview (shown when both training run and study are selected) -->
+      <!-- Validation preview (S-084: shown when training run is selected) -->
       <div
-        v-if="validating || validationResult"
+        v-if="validating || (validationResult && selectedTrainingRunId !== null)"
         class="validation-preview"
         data-testid="validation-preview"
       >
@@ -944,7 +969,7 @@ async function submit() {
           <div class="validation-header">
             <strong>Sample Completeness</strong>
             <NTag
-              v-if="validationResult.total_verified >= validationResult.total_expected && validationResult.total_expected > 0"
+              v-if="validationResult.total_actual >= validationResult.total_expected && validationResult.total_expected > 0"
               size="small"
               type="success"
               data-testid="validation-status-pass"
@@ -961,16 +986,11 @@ async function submit() {
             </NTag>
           </div>
           <p>
-            <strong>Expected per checkpoint:</strong> {{ validationResult.expected_per_checkpoint }}
-          </p>
-          <p>
-            <strong>Total expected:</strong> {{ validationResult.total_expected }}
-          </p>
-          <p>
-            <strong>Total verified:</strong> {{ validationResult.total_verified }}
-          </p>
-          <p v-if="validationResult.total_expected > validationResult.total_verified">
-            <strong>Missing:</strong> {{ validationResult.total_expected - validationResult.total_verified }}
+            <strong>Existing samples:</strong>
+            {{ validationResult.total_actual }} / {{ validationResult.total_expected }} expected
+            <span v-if="validationResult.total_missing > 0" class="missing-count">
+              ({{ validationResult.total_missing }} missing)
+            </span>
           </p>
           <NButton
             v-if="hasMissingSamples"
@@ -1093,8 +1113,12 @@ async function submit() {
   margin-top: 0.5rem;
 }
 
+.missing-only-checkbox {
+  margin-top: 0.25rem;
+}
+
 .validation-preview {
-  padding: 1rem;
+  padding: 0.75rem 1rem;
   background: var(--bg-surface);
   border-radius: 0.25rem;
   border-left: 3px solid var(--accent-color);
@@ -1116,6 +1140,11 @@ async function submit() {
 .validation-loading {
   font-style: italic;
   color: var(--text-secondary);
+}
+
+.missing-count {
+  color: var(--warning-color);
+  font-weight: 600;
 }
 
 .summary {

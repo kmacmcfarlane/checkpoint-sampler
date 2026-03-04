@@ -125,11 +125,16 @@ func (v *ValidationService) ValidateTrainingRun(tr model.TrainingRun, studyName 
 		}
 	}
 	result.TotalVerified = totalVerified
+	result.TotalActual = totalVerified
+	result.TotalMissing = totalExpected - totalVerified
 
 	v.logger.WithFields(logrus.Fields{
 		"training_run":     tr.Name,
 		"checkpoint_count": len(counts),
 		"max_count":        maxCount,
+		"total_expected":   totalExpected,
+		"total_verified":   totalVerified,
+		"total_missing":    result.TotalMissing,
 	}).Info("validation completed")
 
 	return result, nil
@@ -214,6 +219,8 @@ func (v *ValidationService) ValidateTrainingRunWithStudy(tr model.TrainingRun, s
 	}
 
 	result.TotalVerified = totalVerified
+	result.TotalActual = totalVerified
+	result.TotalMissing = totalExpected - totalVerified
 
 	v.logger.WithFields(logrus.Fields{
 		"training_run":     tr.Name,
@@ -221,6 +228,7 @@ func (v *ValidationService) ValidateTrainingRunWithStudy(tr model.TrainingRun, s
 		"expected_per_cp":  expectedPerCheckpoint,
 		"total_expected":   totalExpected,
 		"total_verified":   totalVerified,
+		"total_missing":    result.TotalMissing,
 	}).Info("study validation completed")
 
 	return result, nil
@@ -322,6 +330,8 @@ func (v *ValidationService) ValidateTrainingRunWithManifest(tr model.TrainingRun
 	}
 
 	result.TotalVerified = totalVerified
+	result.TotalActual = totalVerified
+	result.TotalMissing = totalExpected - totalVerified
 
 	v.logger.WithFields(logrus.Fields{
 		"training_run":     tr.Name,
@@ -329,6 +339,7 @@ func (v *ValidationService) ValidateTrainingRunWithManifest(tr model.TrainingRun
 		"expected_per_cp":  expectedPerCheckpoint,
 		"total_expected":   totalExpected,
 		"total_verified":   totalVerified,
+		"total_missing":    result.TotalMissing,
 	}).Info("manifest validation completed")
 
 	return result, nil

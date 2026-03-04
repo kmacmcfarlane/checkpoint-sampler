@@ -523,5 +523,176 @@ describe('TrainingRunSelector', () => {
       // Results should be cleared
       expect(wrapper.find('[data-testid="validation-results"]').exists()).toBe(false)
     })
+
+    // S-084 AC2: Show validation totals after validation
+    it('displays validation totals with sample counts after validation', async () => {
+      mockGetTrainingRuns.mockResolvedValue(sampleRuns)
+      mockValidateTrainingRun.mockResolvedValue({
+        checkpoints: [
+          { checkpoint: 'model-step00001000.safetensors', expected: 3, verified: 3, missing: 0 },
+          { checkpoint: 'model-step00002000.safetensors', expected: 3, verified: 1, missing: 2 },
+        ],
+        total_expected: 6,
+        total_actual: 4,
+        total_missing: 2,
+      })
+
+      const wrapper = mount(TrainingRunSelector)
+      await flushPromises()
+
+      const select = wrapper.findComponent(NSelect)
+      select.vm.$emit('update:value', 0)
+      await nextTick()
+
+      const btn = wrapper.find('[data-testid="validate-button"]')
+      await btn.trigger('click')
+      await flushPromises()
+
+      const totals = wrapper.find('[data-testid="validation-totals"]')
+      expect(totals.exists()).toBe(true)
+      expect(totals.text()).toContain('4 / 6 samples')
+      expect(totals.text()).toContain('2 missing')
+    })
+
+    it('does not show missing count in totals when all samples are present', async () => {
+      mockGetTrainingRuns.mockResolvedValue(sampleRuns)
+      mockValidateTrainingRun.mockResolvedValue({
+        checkpoints: [
+          { checkpoint: 'model-step00001000.safetensors', expected: 3, verified: 3, missing: 0 },
+        ],
+        total_expected: 3,
+        total_actual: 3,
+        total_missing: 0,
+      })
+
+      const wrapper = mount(TrainingRunSelector)
+      await flushPromises()
+
+      const select = wrapper.findComponent(NSelect)
+      select.vm.$emit('update:value', 0)
+      await nextTick()
+
+      const btn = wrapper.find('[data-testid="validate-button"]')
+      await btn.trigger('click')
+      await flushPromises()
+
+      const totals = wrapper.find('[data-testid="validation-totals"]')
+      expect(totals.exists()).toBe(true)
+      expect(totals.text()).toContain('3 / 3 samples')
+      expect(totals.text()).not.toContain('missing')
+    })
+
+    // S-084 AC2: "Generate Missing" button appears when validation fails
+    it('shows "Generate Missing" button when validation reveals missing samples', async () => {
+      mockGetTrainingRuns.mockResolvedValue(sampleRuns)
+      mockValidateTrainingRun.mockResolvedValue({
+        checkpoints: [
+          { checkpoint: 'model-step00001000.safetensors', expected: 3, verified: 1, missing: 2 },
+        ],
+        total_expected: 3,
+        total_actual: 1,
+        total_missing: 2,
+      })
+
+      const wrapper = mount(TrainingRunSelector)
+      await flushPromises()
+
+      const select = wrapper.findComponent(NSelect)
+      select.vm.$emit('update:value', 0)
+      await nextTick()
+
+      const btn = wrapper.find('[data-testid="validate-button"]')
+      await btn.trigger('click')
+      await flushPromises()
+
+      const generateMissingBtn = wrapper.find('[data-testid="generate-missing-button"]')
+      expect(generateMissingBtn.exists()).toBe(true)
+      expect(generateMissingBtn.text()).toBe('Generate Missing')
+    })
+
+    it('does not show "Generate Missing" button when no samples are missing', async () => {
+      mockGetTrainingRuns.mockResolvedValue(sampleRuns)
+      mockValidateTrainingRun.mockResolvedValue({
+        checkpoints: [
+          { checkpoint: 'model-step00001000.safetensors', expected: 3, verified: 3, missing: 0 },
+        ],
+        total_expected: 3,
+        total_actual: 3,
+        total_missing: 0,
+      })
+
+      const wrapper = mount(TrainingRunSelector)
+      await flushPromises()
+
+      const select = wrapper.findComponent(NSelect)
+      select.vm.$emit('update:value', 0)
+      await nextTick()
+
+      const btn = wrapper.find('[data-testid="validate-button"]')
+      await btn.trigger('click')
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="generate-missing-button"]').exists()).toBe(false)
+    })
+
+    it('emits generate-missing event when "Generate Missing" button is clicked', async () => {
+      mockGetTrainingRuns.mockResolvedValue(sampleRuns)
+      mockValidateTrainingRun.mockResolvedValue({
+        checkpoints: [
+          { checkpoint: 'model-step00001000.safetensors', expected: 3, verified: 1, missing: 2 },
+        ],
+        total_expected: 3,
+        total_actual: 1,
+        total_missing: 2,
+      })
+
+      const wrapper = mount(TrainingRunSelector)
+      await flushPromises()
+
+      const select = wrapper.findComponent(NSelect)
+      select.vm.$emit('update:value', 0)
+      await nextTick()
+
+      const btn = wrapper.find('[data-testid="validate-button"]')
+      await btn.trigger('click')
+      await flushPromises()
+
+      const generateMissingBtn = wrapper.find('[data-testid="generate-missing-button"]')
+      await generateMissingBtn.trigger('click')
+
+      expect(wrapper.emitted('generate-missing')).toBeDefined()
+      expect(wrapper.emitted('generate-missing')).toHaveLength(1)
+    })
+
+    it('clears validation totals when switching sample sets', async () => {
+      mockGetTrainingRuns.mockResolvedValue(sampleRuns)
+      mockValidateTrainingRun.mockResolvedValue({
+        checkpoints: [
+          { checkpoint: 'ckpt.safetensors', expected: 1, verified: 1, missing: 0 },
+        ],
+        total_expected: 1,
+        total_actual: 1,
+        total_missing: 0,
+      })
+
+      const wrapper = mount(TrainingRunSelector)
+      await flushPromises()
+
+      const select = wrapper.findComponent(NSelect)
+      select.vm.$emit('update:value', 0)
+      await nextTick()
+
+      const btn = wrapper.find('[data-testid="validate-button"]')
+      await btn.trigger('click')
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="validation-totals"]').exists()).toBe(true)
+
+      // Switch to a different run
+      select.vm.$emit('update:value', 1)
+      await nextTick()
+
+      expect(wrapper.find('[data-testid="validation-totals"]').exists()).toBe(false)
+    })
   })
 })

@@ -130,6 +130,8 @@ func (s *TrainingRunsService) Validate(ctx context.Context, p *gentrainingruns.V
 		ExpectedPerCheckpoint: result.ExpectedPerCheckpoint,
 		TotalExpected:         result.TotalExpected,
 		TotalVerified:         result.TotalVerified,
+		TotalActual:           result.TotalActual,
+		TotalMissing:          result.TotalMissing,
 	}, nil
 }
 
