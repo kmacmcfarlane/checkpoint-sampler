@@ -759,7 +759,7 @@ func (e *JobExecutor) handleItemCompletionAsync(jobID, itemID, promptID string) 
 		return
 	}
 
-	// Fetch the job to get study name for the output path
+	// Fetch the job and study for the output path
 	job, err := e.store.GetSampleJob(jobID)
 	if err != nil {
 		e.logger.WithError(err).Error("failed to fetch job for output path")
@@ -767,9 +767,21 @@ func (e *JobExecutor) handleItemCompletionAsync(jobID, itemID, promptID string) 
 		return
 	}
 
+	// Resolve the output directory name from the study (includes version)
+	studyOutputDir := job.StudyName // fallback to study name if study not found
+	study, err := e.store.GetStudy(job.StudyID)
+	if err != nil {
+		e.logger.WithFields(logrus.Fields{
+			"study_id": job.StudyID,
+			"error":    err.Error(),
+		}).Warn("failed to fetch study for versioned output path, falling back to study name")
+	} else {
+		studyOutputDir = study.OutputDirName()
+	}
+
 	// Generate output filename
 	filename := e.generateOutputFilename(*item)
-	outputPath, err := e.getOutputPath(job.StudyName, item.CheckpointFilename, filename)
+	outputPath, err := e.getOutputPath(studyOutputDir, item.CheckpointFilename, filename)
 	if err != nil {
 		e.logger.WithError(err).Error("invalid output path")
 		e.failItem(itemID, fmt.Sprintf("invalid output path: %v", err))
@@ -916,10 +928,11 @@ func (e *JobExecutor) generateOutputFilename(item model.SampleJobItem) string {
 }
 
 // getOutputPath constructs the full output path for an image.
-// The path is: {sampleDir}/{studyName}/{checkpointFilename}/{filename}
+// The path is: {sampleDir}/{studyOutputDir}/{checkpointFilename}/{filename}
+// where studyOutputDir is typically "{studyName}/v{version}" for versioned studies.
 // Returns an error if the path would escape the sample directory (path traversal protection).
-func (e *JobExecutor) getOutputPath(studyName string, checkpointFilename string, filename string) (string, error) {
-	checkpointDir := filepath.Join(e.sampleDir, studyName, checkpointFilename)
+func (e *JobExecutor) getOutputPath(studyOutputDir string, checkpointFilename string, filename string) (string, error) {
+	checkpointDir := filepath.Join(e.sampleDir, studyOutputDir, checkpointFilename)
 	outputPath := filepath.Join(checkpointDir, filename)
 
 	// Path traversal protection
@@ -1231,7 +1244,8 @@ func (e *JobExecutor) completeJob(jobID string) {
 // verifyCheckpointCompleteness validates that all expected images exist on disk for a completed checkpoint.
 // It compares expected filenames (derived from the completed items) against actual PNG files in the checkpoint's
 // sample directory. Results are stored in e.checkpointCompleteness and reported as warnings (not failures).
-func (e *JobExecutor) verifyCheckpointCompleteness(jobID string, studyName string, checkpoint string, items []model.SampleJobItem) {
+// studyOutputDir is the versioned study output directory (e.g. "My Study/v1").
+func (e *JobExecutor) verifyCheckpointCompleteness(jobID string, studyOutputDir string, checkpoint string, items []model.SampleJobItem) {
 	e.logger.WithFields(logrus.Fields{
 		"job_id":     jobID,
 		"checkpoint": checkpoint,
@@ -1254,7 +1268,7 @@ func (e *JobExecutor) verifyCheckpointCompleteness(jobID string, studyName strin
 	}
 
 	// Check the checkpoint's sample directory on disk
-	checkpointDir := filepath.Join(e.sampleDir, studyName, checkpoint)
+	checkpointDir := filepath.Join(e.sampleDir, studyOutputDir, checkpoint)
 	if !e.fsReader.DirectoryExists(checkpointDir) {
 		e.logger.WithFields(logrus.Fields{
 			"job_id":         jobID,
@@ -1357,6 +1371,12 @@ func (e *JobExecutor) broadcastJobProgress(jobID string) {
 		return
 	}
 
+	// Resolve the study output directory name (includes version)
+	studyOutputDir := job.StudyName // fallback
+	if study, sErr := e.store.GetStudy(job.StudyID); sErr == nil {
+		studyOutputDir = study.OutputDirName()
+	}
+
 	// Compute on-the-fly item counts by status
 	var completed, failed, pending int
 	checkpointStats := make(map[string]struct {
@@ -1395,7 +1415,7 @@ func (e *JobExecutor) broadcastJobProgress(jobID string) {
 			e.mu.Unlock()
 
 			if !alreadyChecked {
-				e.verifyCheckpointCompleteness(jobID, job.StudyName, checkpoint, items)
+				e.verifyCheckpointCompleteness(jobID, studyOutputDir, checkpoint, items)
 			}
 		} else if currentCheckpoint == "" {
 			currentCheckpoint = checkpoint

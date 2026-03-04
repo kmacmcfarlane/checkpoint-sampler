@@ -5,6 +5,17 @@ package model
 // for the number of PNG files; the maximum count across all checkpoints
 // is treated as "expected", and any checkpoint with fewer files has
 // missing samples.
+//
+// When a study is provided for validation, ExpectedPerCheckpoint is set
+// to the study's images-per-checkpoint count, and TotalExpected / TotalVerified
+// provide aggregate counts across all checkpoints.
 type ValidationResult struct {
 	Checkpoints []CheckpointCompletenessInfo
+	// ExpectedPerCheckpoint is the study-derived expected count per checkpoint.
+	// Zero when no study context is available.
+	ExpectedPerCheckpoint int
+	// TotalExpected is the aggregate expected count across all checkpoints.
+	TotalExpected int
+	// TotalVerified is the aggregate verified count across all checkpoints.
+	TotalVerified int
 }

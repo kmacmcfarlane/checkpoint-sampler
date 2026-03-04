@@ -108,7 +108,7 @@ var _ = Describe("TrainingRunsService", func() {
 
 	// Helper to create a TrainingRunsService with all dependencies
 	makeSvc := func(validator *service.ValidationService, watcher *service.Watcher) *api.TrainingRunsService {
-		return api.NewTrainingRunsService(viewerDiscovery, cpDiscovery, scanner, validator, watcher)
+		return api.NewTrainingRunsService(viewerDiscovery, cpDiscovery, scanner, validator, watcher, nil)
 	}
 
 	Describe("List", func() {
@@ -403,7 +403,7 @@ var _ = Describe("TrainingRunsService", func() {
 			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
 			validator := service.NewValidationService(scanFS, sampleDir, logger)
-			svc := api.NewTrainingRunsService(viewerDiscovery, cpDiscovery, scanner, validator, nil)
+			svc := api.NewTrainingRunsService(viewerDiscovery, cpDiscovery, scanner, validator, nil, nil)
 
 			_, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{ID: 5})
 
@@ -422,7 +422,7 @@ var _ = Describe("TrainingRunsService", func() {
 			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
 			validator := service.NewValidationService(scanFS, sampleDir, logger)
-			svc := api.NewTrainingRunsService(viewerDiscovery, cpDiscovery, scanner, validator, nil)
+			svc := api.NewTrainingRunsService(viewerDiscovery, cpDiscovery, scanner, validator, nil, nil)
 
 			scanFS.files[sampleDir+"/model-step00001000.safetensors"] = []string{
 				"seed=42&_00001_.png",
@@ -452,7 +452,7 @@ var _ = Describe("TrainingRunsService", func() {
 			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
 			validator := service.NewValidationService(scanFS, sampleDir, logger)
-			svc := api.NewTrainingRunsService(viewerDiscovery, cpDiscovery, scanner, validator, nil)
+			svc := api.NewTrainingRunsService(viewerDiscovery, cpDiscovery, scanner, validator, nil, nil)
 
 			scanFS.files[sampleDir+"/model-step00001000.safetensors"] = []string{
 				"seed=42&_00001_.png",
@@ -480,7 +480,7 @@ var _ = Describe("TrainingRunsService", func() {
 			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
 			validator := service.NewValidationService(scanFS, sampleDir, logger)
-			svc := api.NewTrainingRunsService(viewerDiscovery, cpDiscovery, scanner, validator, nil)
+			svc := api.NewTrainingRunsService(viewerDiscovery, cpDiscovery, scanner, validator, nil, nil)
 
 			scanFS.files[sampleDir+"/my-study/model-step00001000.safetensors"] = []string{
 				"seed=42&_00001_.png",

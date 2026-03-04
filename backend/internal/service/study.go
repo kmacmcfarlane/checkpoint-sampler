@@ -83,6 +83,7 @@ func (s *StudyService) Create(name string, promptPrefix string, prompts []model.
 	st := model.Study{
 		ID:                    uuid.New().String(),
 		Name:                  name,
+		Version:               1,
 		PromptPrefix:          promptPrefix,
 		Prompts:               prompts,
 		NegativePrompt:        negativePrompt,
@@ -167,6 +168,7 @@ func (s *StudyService) Update(id string, name string, promptPrefix string, promp
 	existing.Seeds = seeds
 	existing.Width = width
 	existing.Height = height
+	existing.Version = existing.Version + 1
 	existing.UpdatedAt = time.Now().UTC()
 
 	if err := s.store.UpdateStudy(existing); err != nil {
@@ -180,6 +182,7 @@ func (s *StudyService) Update(id string, name string, promptPrefix string, promp
 	s.logger.WithFields(logrus.Fields{
 		"study_id":              id,
 		"study_name":            name,
+		"version":               existing.Version,
 		"images_per_checkpoint": existing.ImagesPerCheckpoint(),
 	}).Info("study updated")
 	return existing, nil

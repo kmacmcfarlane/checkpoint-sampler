@@ -59,16 +59,37 @@ Checkpoint values are sorted numerically.
 
 The `sample_dir` contains subdirectories named after checkpoint filenames (exact match, including `.safetensors` extension). Each subdirectory contains the ComfyUI-generated sample images for that checkpoint.
 
+### Versioned study layout (current)
+
+Studies output into versioned subdirectories: `{sample_dir}/{study_name}/v{version}/{checkpoint.safetensors}/`. The version number starts at 1 and increments each time the study's configuration is updated. This ensures different parameter sets produce output in separate directories.
+
 ```
 sample_dir: ~/ai/outputs/stable-diffusion/comfyui/
-├── psai4rt-v0.3.0-no-reg.safetensors/
-│   ├── index=0&prompt_name=forest_portals&seed=420&cfg=1&_00001_.png
-│   ├── index=0&prompt_name=forest_portals&seed=421&cfg=1&_00001_.png
-│   └── index=1&prompt_name=portal_hub&seed=420&cfg=3&_00001_.png
-├── psai4rt-v0.3.0-no-reg-step00004500.safetensors/
+├── My Study/
+│   ├── v1/
+│   │   ├── psai4rt-v0.3.0-no-reg.safetensors/
+│   │   │   ├── index=0&prompt_name=forest_portals&seed=420&cfg=1&_00001_.png
+│   │   │   └── ...
+│   │   └── psai4rt-v0.3.0-no-reg-step00004500.safetensors/
+│   │       └── ...
+│   └── v2/
+│       └── psai4rt-v0.3.0-no-reg.safetensors/
+│           └── ...  (regenerated with updated study params)
+```
+
+### Legacy layouts
+
+Older sample directories may use these layouts which are still supported:
+
+```
+sample_dir: ~/ai/outputs/stable-diffusion/comfyui/
+├── psai4rt-v0.3.0-no-reg.safetensors/           ← legacy: no study
 │   ├── index=0&prompt_name=forest_portals&seed=420&cfg=1&_00001_.png
 │   └── ...
-└── my-flux-lora.safetensors/
+├── My Study/                                      ← legacy: study without version
+│   └── psai4rt-v0.3.0-no-reg.safetensors/
+│       └── ...
+└── my-flux-lora.safetensors/                      ← legacy: no study
     └── ...
 ```
 

@@ -65,6 +65,31 @@ CREATE TABLE presets (
 }
 ```
 
+### 3.2 studies
+
+Stores saved sampling parameter sets (generation studies). Studies are versioned: the `version` column starts at 1 and is incremented each time the study's configuration is updated via the API.
+
+```sql
+CREATE TABLE studies (
+    id                       TEXT PRIMARY KEY,   -- UUID
+    name                     TEXT NOT NULL,
+    version                  INTEGER NOT NULL DEFAULT 1,
+    prompt_prefix            TEXT NOT NULL DEFAULT '',
+    prompts                  TEXT NOT NULL,      -- JSON: array of {name, text}
+    negative_prompt          TEXT NOT NULL,
+    steps                    TEXT NOT NULL,      -- JSON: array of integers
+    cfgs                     TEXT NOT NULL,      -- JSON: array of floats
+    sampler_scheduler_pairs  TEXT NOT NULL,      -- JSON: array of {sampler, scheduler}
+    seeds                    TEXT NOT NULL,      -- JSON: array of integers
+    width                    INTEGER NOT NULL,
+    height                   INTEGER NOT NULL,
+    created_at               TEXT NOT NULL,      -- RFC 3339
+    updated_at               TEXT NOT NULL       -- RFC 3339
+);
+```
+
+The version number is used in the output directory name: `{sample_dir}/{study_name}/v{version}/{checkpoint.safetensors}/`.
+
 ## 4) Conventions
 
 - **Primary keys**: UUIDs generated in Go (`google/uuid`), stored as TEXT.

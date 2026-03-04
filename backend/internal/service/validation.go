@@ -94,12 +94,17 @@ func (v *ValidationService) ValidateTrainingRun(tr model.TrainingRun, studyName 
 	}
 
 	// Build completeness info: expected = maxCount, verified = actual count, missing = expected - verified
+	totalExpected := maxCount * len(counts)
+	totalVerified := 0
 	result := &model.ValidationResult{
-		Checkpoints: make([]model.CheckpointCompletenessInfo, len(counts)),
+		Checkpoints:           make([]model.CheckpointCompletenessInfo, len(counts)),
+		ExpectedPerCheckpoint: maxCount,
+		TotalExpected:         totalExpected,
 	}
 	for i, cc := range counts {
 		verified := cc.count
 		missing := maxCount - verified
+		totalVerified += verified
 		result.Checkpoints[i] = model.CheckpointCompletenessInfo{
 			Checkpoint: cc.checkpoint,
 			Expected:   maxCount,
@@ -116,12 +121,104 @@ func (v *ValidationService) ValidateTrainingRun(tr model.TrainingRun, studyName 
 			}).Warn("validation found missing files")
 		}
 	}
+	result.TotalVerified = totalVerified
 
 	v.logger.WithFields(logrus.Fields{
 		"training_run":     tr.Name,
 		"checkpoint_count": len(counts),
 		"max_count":        maxCount,
 	}).Info("validation completed")
+
+	return result, nil
+}
+
+// ValidateTrainingRunWithStudy checks completeness against a study's expected image count
+// rather than the max-file-count heuristic. For each checkpoint, the expected count is
+// the study's ImagesPerCheckpoint(). This enables the Generate Samples dialog to show
+// expected vs actual sample counts and identify which checkpoints need (re)generation.
+//
+// The studyName parameter scopes the sample directory to a study subdirectory (empty for legacy).
+func (v *ValidationService) ValidateTrainingRunWithStudy(tr model.TrainingRun, study model.Study, studyName string) (*model.ValidationResult, error) {
+	v.logger.WithFields(logrus.Fields{
+		"training_run": tr.Name,
+		"study_name":   studyName,
+		"study_id":     study.ID,
+	}).Trace("entering ValidateTrainingRunWithStudy")
+	defer v.logger.Trace("returning from ValidateTrainingRunWithStudy")
+
+	expectedPerCheckpoint := study.ImagesPerCheckpoint()
+	totalExpected := expectedPerCheckpoint * len(tr.Checkpoints)
+	totalVerified := 0
+
+	result := &model.ValidationResult{
+		Checkpoints:           make([]model.CheckpointCompletenessInfo, 0, len(tr.Checkpoints)),
+		ExpectedPerCheckpoint: expectedPerCheckpoint,
+		TotalExpected:         totalExpected,
+	}
+
+	for _, cp := range tr.Checkpoints {
+		verified := 0
+
+		if cp.HasSamples {
+			var sampleDirPath string
+			if studyName != "" {
+				sampleDirPath = filepath.Join(v.sampleDir, studyName, cp.Filename)
+			} else {
+				sampleDirPath = filepath.Join(v.sampleDir, cp.Filename)
+			}
+
+			if v.fs.DirectoryExists(sampleDirPath) {
+				files, err := v.fs.ListPNGFiles(sampleDirPath)
+				if err != nil {
+					v.logger.WithFields(logrus.Fields{
+						"checkpoint":     cp.Filename,
+						"checkpoint_dir": sampleDirPath,
+						"error":          err.Error(),
+					}).Error("failed to list PNG files during study validation")
+					return nil, fmt.Errorf("listing PNG files for checkpoint %q: %w", cp.Filename, err)
+				}
+				verified = len(files)
+			} else {
+				v.logger.WithFields(logrus.Fields{
+					"checkpoint":     cp.Filename,
+					"checkpoint_dir": sampleDirPath,
+				}).Warn("checkpoint sample directory does not exist during study validation")
+			}
+		}
+
+		missing := expectedPerCheckpoint - verified
+		if missing < 0 {
+			missing = 0
+		}
+
+		totalVerified += verified
+
+		result.Checkpoints = append(result.Checkpoints, model.CheckpointCompletenessInfo{
+			Checkpoint: cp.Filename,
+			Expected:   expectedPerCheckpoint,
+			Verified:   verified,
+			Missing:    missing,
+		})
+
+		if missing > 0 {
+			v.logger.WithFields(logrus.Fields{
+				"checkpoint": cp.Filename,
+				"expected":   expectedPerCheckpoint,
+				"verified":   verified,
+				"missing":    missing,
+			}).Warn("study validation found missing files")
+		}
+	}
+
+	result.TotalVerified = totalVerified
+
+	v.logger.WithFields(logrus.Fields{
+		"training_run":     tr.Name,
+		"checkpoint_count": len(tr.Checkpoints),
+		"expected_per_cp":  expectedPerCheckpoint,
+		"total_expected":   totalExpected,
+		"total_verified":   totalVerified,
+	}).Info("study validation completed")
 
 	return result, nil
 }

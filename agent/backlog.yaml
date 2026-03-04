@@ -443,7 +443,7 @@ stories:
   - id: S-084
     title: "Sample count preview and missing-sample generation from Generate Samples dialog"
     priority: 55
-    status: todo
+    status: in_progress
     complexity: medium
     requires:
       - S-075
@@ -465,7 +465,7 @@ stories:
   - id: S-085
     title: "Study versioning and version-scoped output directories"
     priority: 50
-    status: todo
+    status: uat
     complexity: medium
     requires:
       - S-074
@@ -545,3 +545,20 @@ stories:
       constraints (including ON DELETE CASCADE) may not be enforced on those connections. The fix
       is to use a connection hook or DSN parameter to set the pragma per-connection.
       Found during QA sweep for S-062.
+  - id: B-045
+    title: "on-demand-validation E2E test fails due to empty POST body on updated validate endpoint"
+    priority: 60
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "POST /api/training-runs/{id}/validate returns 200 when called without study_id (empty body)"
+      - "E2E test sends a valid JSON body (empty object) to the validate endpoint"
+    testing:
+      - "command: make test-e2e"
+    notes: |
+      S-084 added an optional study_id body attribute to the validate endpoint payload in the
+      Goa DSL design. This caused the generated DecodeValidateRequest function to require a
+      JSON request body (returning goa.MissingPayloadError on EOF). The E2E test sends a POST
+      without a body, which now triggers a 400 error.
+      Fix: update the E2E test to send an empty JSON object, or make the Goa payload optional.

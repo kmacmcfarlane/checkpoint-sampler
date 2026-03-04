@@ -141,6 +141,7 @@ func studyToResponse(s model.Study) *genstudies.StudyResponse {
 	return &genstudies.StudyResponse{
 		ID:                    s.ID,
 		Name:                  s.Name,
+		Version:               s.Version,
 		PromptPrefix:          s.PromptPrefix,
 		Prompts:               prompts,
 		NegativePrompt:        s.NegativePrompt,

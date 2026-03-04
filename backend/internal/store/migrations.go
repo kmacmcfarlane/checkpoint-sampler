@@ -188,5 +188,12 @@ func AllMigrations() []Migration {
 			DROP TABLE sample_jobs;
 			ALTER TABLE sample_jobs_v2 RENAME TO sample_jobs;`,
 		},
+		{
+			// Add version column to studies table. Starts at 1, incremented
+			// each time the study's configuration is updated. The version
+			// number is included in the output directory name.
+			Version: 12,
+			SQL:     `ALTER TABLE studies ADD COLUMN version INTEGER NOT NULL DEFAULT 1;`,
+		},
 	}
 }

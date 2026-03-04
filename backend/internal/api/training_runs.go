@@ -2,12 +2,18 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 
 	gentrainingruns "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/training_runs"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
 )
+
+// StudyGetter defines the interface for fetching a study by ID, used by validation.
+type StudyGetter interface {
+	GetStudy(id string) (model.Study, error)
+}
 
 // TrainingRunsService implements the generated training_runs service interface.
 type TrainingRunsService struct {
@@ -16,11 +22,12 @@ type TrainingRunsService struct {
 	scanner              *service.Scanner
 	validator            *service.ValidationService
 	watcher              *service.Watcher
+	studyGetter          StudyGetter
 }
 
 // NewTrainingRunsService returns a new TrainingRunsService.
-func NewTrainingRunsService(viewerDiscovery *service.ViewerDiscoveryService, checkpointDiscovery *service.DiscoveryService, scanner *service.Scanner, validator *service.ValidationService, watcher *service.Watcher) *TrainingRunsService {
-	return &TrainingRunsService{viewerDiscovery: viewerDiscovery, checkpointDiscovery: checkpointDiscovery, scanner: scanner, validator: validator, watcher: watcher}
+func NewTrainingRunsService(viewerDiscovery *service.ViewerDiscoveryService, checkpointDiscovery *service.DiscoveryService, scanner *service.Scanner, validator *service.ValidationService, watcher *service.Watcher, studyGetter StudyGetter) *TrainingRunsService {
+	return &TrainingRunsService{viewerDiscovery: viewerDiscovery, checkpointDiscovery: checkpointDiscovery, scanner: scanner, validator: validator, watcher: watcher, studyGetter: studyGetter}
 }
 
 // List returns training runs discovered from either sample output directories
@@ -69,7 +76,8 @@ func (s *TrainingRunsService) List(ctx context.Context, p *gentrainingruns.ListP
 }
 
 // Validate checks the completeness of sample images for a training run.
-// It counts PNG files per checkpoint and compares against the maximum count.
+// When study_id is provided, uses the study's images-per-checkpoint as the expected count.
+// Otherwise falls back to the max-file-count heuristic.
 func (s *TrainingRunsService) Validate(ctx context.Context, p *gentrainingruns.ValidatePayload) (*gentrainingruns.ValidationResultResponse, error) {
 	runs, err := s.viewerDiscovery.DiscoverViewable()
 	if err != nil {
@@ -83,9 +91,27 @@ func (s *TrainingRunsService) Validate(ctx context.Context, p *gentrainingruns.V
 	tr := runs[p.ID]
 	studyName := service.StudyNameForRun(tr.Name)
 
-	result, err := s.validator.ValidateTrainingRun(tr, studyName)
-	if err != nil {
-		return nil, gentrainingruns.MakeValidationFailed(fmt.Errorf("validating training run %q: %w", tr.Name, err))
+	var result *model.ValidationResult
+
+	if p.StudyID != nil && *p.StudyID != "" && s.studyGetter != nil {
+		// Study-aware validation: use the study's expected images-per-checkpoint
+		study, err := s.studyGetter.GetStudy(*p.StudyID)
+		if err == sql.ErrNoRows {
+			return nil, gentrainingruns.MakeNotFound(fmt.Errorf("study %s not found", *p.StudyID))
+		}
+		if err != nil {
+			return nil, gentrainingruns.MakeValidationFailed(fmt.Errorf("fetching study: %w", err))
+		}
+		result, err = s.validator.ValidateTrainingRunWithStudy(tr, study, studyName)
+		if err != nil {
+			return nil, gentrainingruns.MakeValidationFailed(fmt.Errorf("validating training run %q with study: %w", tr.Name, err))
+		}
+	} else {
+		// Legacy validation: max-file-count heuristic
+		result, err = s.validator.ValidateTrainingRun(tr, studyName)
+		if err != nil {
+			return nil, gentrainingruns.MakeValidationFailed(fmt.Errorf("validating training run %q: %w", tr.Name, err))
+		}
 	}
 
 	// Map model types to API response types
@@ -100,7 +126,10 @@ func (s *TrainingRunsService) Validate(ctx context.Context, p *gentrainingruns.V
 	}
 
 	return &gentrainingruns.ValidationResultResponse{
-		Checkpoints: checkpoints,
+		Checkpoints:           checkpoints,
+		ExpectedPerCheckpoint: result.ExpectedPerCheckpoint,
+		TotalExpected:         result.TotalExpected,
+		TotalVerified:         result.TotalVerified,
 	}, nil
 }
 

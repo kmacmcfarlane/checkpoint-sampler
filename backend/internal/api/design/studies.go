@@ -75,6 +75,10 @@ var StudyResponse = Type("StudyResponse", func() {
 	Attribute("name", String, "Study display name", func() {
 		Example("My Study")
 	})
+	Attribute("version", Int, "Study version number (incremented on config updates)", func() {
+		Example(1)
+		Minimum(1)
+	})
 	Attribute("prompt_prefix", String, "Text prepended to each prompt at generation time", func() {
 		Example("photo of a person, ")
 	})
@@ -107,7 +111,7 @@ var StudyResponse = Type("StudyResponse", func() {
 	Attribute("updated_at", String, "Last update timestamp (RFC3339)", func() {
 		Example("2025-01-01T00:00:00Z")
 	})
-	Required("id", "name", "prompt_prefix", "prompts", "negative_prompt", "steps", "cfgs", "sampler_scheduler_pairs", "seeds", "width", "height", "images_per_checkpoint", "created_at", "updated_at")
+	Required("id", "name", "version", "prompt_prefix", "prompts", "negative_prompt", "steps", "cfgs", "sampler_scheduler_pairs", "seeds", "width", "height", "images_per_checkpoint", "created_at", "updated_at")
 })
 
 var CreateStudyPayload = Type("CreateStudyPayload", func() {

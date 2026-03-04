@@ -154,6 +154,7 @@ var _ = Describe("StudyService", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.ID).NotTo(BeEmpty())
 			Expect(result.Name).To(Equal("Test"))
+			Expect(result.Version).To(Equal(1))
 			Expect(result.Prompts).To(Equal(validPrompts))
 			Expect(result.NegativePrompt).To(Equal("negative"))
 			Expect(result.Steps).To(Equal(validSteps))
@@ -164,6 +165,13 @@ var _ = Describe("StudyService", func() {
 			Expect(result.Height).To(Equal(1344))
 			Expect(result.CreatedAt).NotTo(BeZero())
 			Expect(result.UpdatedAt).NotTo(BeZero())
+		})
+
+		It("sets version to 1 for new studies", func() {
+			result, err := svc.Create("VersionTest", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Version).To(Equal(1))
+			Expect(result.OutputDirName()).To(Equal("VersionTest/v1"))
 		})
 
 		It("persists the study in the store", func() {
@@ -587,6 +595,7 @@ var _ = Describe("StudyService", func() {
 			store.studies["existing"] = model.Study{
 				ID:             "existing",
 				Name:           "Original",
+				Version:        1,
 				Prompts:        validPrompts,
 				NegativePrompt: "",
 				Steps:          []int{1},
@@ -617,6 +626,26 @@ var _ = Describe("StudyService", func() {
 			Expect(result.SamplerSchedulerPairs).To(Equal(newPairs))
 			Expect(result.Width).To(Equal(1344))
 			Expect(result.Height).To(Equal(1344))
+		})
+
+		It("increments version on update", func() {
+			result, err := svc.Update("existing", "Original", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Version).To(Equal(2))
+			Expect(result.OutputDirName()).To(Equal("Original/v2"))
+		})
+
+		It("increments version on each successive update", func() {
+			// First update: v1 -> v2
+			result, err := svc.Update("existing", "Original", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Version).To(Equal(2))
+
+			// Second update: v2 -> v3
+			result, err = svc.Update("existing", "Original", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Version).To(Equal(3))
+			Expect(result.OutputDirName()).To(Equal("Original/v3"))
 		})
 
 		It("returns error for non-existent study", func() {

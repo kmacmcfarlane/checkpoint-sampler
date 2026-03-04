@@ -13,7 +13,7 @@ import {
   NTooltip,
 } from 'naive-ui'
 import type { SelectRenderLabel } from 'naive-ui'
-import type { TrainingRun, Study, WorkflowSummary, CreateSampleJobPayload, SampleJob } from '../api/types'
+import type { TrainingRun, Study, WorkflowSummary, CreateSampleJobPayload, SampleJob, ValidationResult } from '../api/types'
 import { apiClient } from '../api/client'
 import StudyEditor from './StudyEditor.vue'
 import { useGenerateInputsPersistence } from '../composables/useGenerateInputsPersistence'
@@ -66,6 +66,10 @@ const selectedCheckpoints = ref<Set<string>>(new Set())
 
 // Whether to clear existing sample directories for selected checkpoints
 const clearExisting = ref(false)
+
+// Validation preview state
+const validationResult = ref<ValidationResult | null>(null)
+const validating = ref(false)
 
 // When true, the training run watcher skips checkpoint auto-selection to allow
 // applyPrefill to control checkpoint selection instead.
@@ -240,6 +244,25 @@ watch(selectedTrainingRunId, async () => {
   }
 })
 
+// Trigger validation when training run + study are both selected
+watch([selectedTrainingRunId, selectedStudy], async () => {
+  validationResult.value = null
+  if (selectedTrainingRunId.value === null || selectedStudy.value === null) return
+
+  validating.value = true
+  try {
+    validationResult.value = await apiClient.validateTrainingRun(
+      selectedTrainingRunId.value,
+      selectedStudy.value,
+    )
+  } catch {
+    // Validation fetch failure is non-fatal; proceed without preview
+    validationResult.value = null
+  } finally {
+    validating.value = false
+  }
+})
+
 // Persist training run selection changes (AC3)
 watch(selectedTrainingRunId, (runId) => {
   if (runId !== null) {
@@ -312,6 +335,11 @@ function restoreModelInputs(modelType: string) {
       }
     }
   }
+}
+
+function selectMissingCheckpoints() {
+  selectedCheckpoints.value = new Set(missingCheckpointFilenames.value)
+  clearExisting.value = false
 }
 
 function selectAllCheckpoints() {
@@ -397,6 +425,20 @@ const imagesPerCheckpoint = computed(() =>
 )
 
 const totalImages = computed(() => targetedCheckpointCount.value * imagesPerCheckpoint.value)
+
+// Whether validation found missing samples (used for "Generate Missing" button visibility)
+const hasMissingSamples = computed(() => {
+  if (!validationResult.value) return false
+  return validationResult.value.checkpoints.some(c => c.missing > 0)
+})
+
+// Checkpoints that have missing samples according to validation
+const missingCheckpointFilenames = computed((): string[] => {
+  if (!validationResult.value) return []
+  return validationResult.value.checkpoints
+    .filter(c => c.missing > 0)
+    .map(c => c.checkpoint)
+})
 
 // Validation: when checkpoint picker is shown, at least one must be selected
 const checkpointValidationError = computed((): string | null => {
@@ -568,6 +610,8 @@ function resetForm() {
   currentModelType.value = null
   showAllRuns.value = true
   prefillActive.value = false
+  validationResult.value = null
+  validating.value = false
   error.value = null
 }
 
@@ -889,6 +933,57 @@ async function submit() {
 
       <NDivider />
 
+      <!-- Validation preview (shown when both training run and study are selected) -->
+      <div
+        v-if="validating || validationResult"
+        class="validation-preview"
+        data-testid="validation-preview"
+      >
+        <p v-if="validating" class="validation-loading">Validating sample completeness...</p>
+        <template v-else-if="validationResult">
+          <div class="validation-header">
+            <strong>Sample Completeness</strong>
+            <NTag
+              v-if="validationResult.total_verified >= validationResult.total_expected && validationResult.total_expected > 0"
+              size="small"
+              type="success"
+              data-testid="validation-status-pass"
+            >
+              Complete
+            </NTag>
+            <NTag
+              v-else-if="validationResult.total_expected > 0"
+              size="small"
+              type="warning"
+              data-testid="validation-status-incomplete"
+            >
+              Incomplete
+            </NTag>
+          </div>
+          <p>
+            <strong>Expected per checkpoint:</strong> {{ validationResult.expected_per_checkpoint }}
+          </p>
+          <p>
+            <strong>Total expected:</strong> {{ validationResult.total_expected }}
+          </p>
+          <p>
+            <strong>Total verified:</strong> {{ validationResult.total_verified }}
+          </p>
+          <p v-if="validationResult.total_expected > validationResult.total_verified">
+            <strong>Missing:</strong> {{ validationResult.total_expected - validationResult.total_verified }}
+          </p>
+          <NButton
+            v-if="hasMissingSamples"
+            size="small"
+            type="warning"
+            data-testid="generate-missing-button"
+            @click="selectMissingCheckpoints"
+          >
+            Generate Missing Samples
+          </NButton>
+        </template>
+      </div>
+
       <div class="summary" data-testid="job-summary">
         <p><strong>Training Run:</strong> {{ selectedTrainingRun?.name ?? 'N/A' }}</p>
         <p><strong>Checkpoints:</strong> {{ totalCheckpoints }}</p>
@@ -996,6 +1091,31 @@ async function submit() {
 
 .clear-existing-checkbox {
   margin-top: 0.5rem;
+}
+
+.validation-preview {
+  padding: 1rem;
+  background: var(--bg-surface);
+  border-radius: 0.25rem;
+  border-left: 3px solid var(--accent-color);
+}
+
+.validation-preview p {
+  margin: 0.375rem 0;
+  color: var(--text-color);
+  font-size: 0.875rem;
+}
+
+.validation-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.validation-loading {
+  font-style: italic;
+  color: var(--text-secondary);
 }
 
 .summary {

@@ -30,15 +30,16 @@ var _ = Service("training_runs", func() {
 	})
 
 	Method("validate", func() {
-		Description("Validate sample set completeness for a training run by comparing PNG file counts per checkpoint")
+		Description("Validate sample set completeness for a training run by comparing PNG file counts per checkpoint. When study_id is provided, uses the study's expected images-per-checkpoint for comparison instead of the max-file-count heuristic.")
 		Payload(func() {
 			Attribute("id", Int, "Training run index (zero-based)", func() {
 				Minimum(0)
 			})
+			Attribute("study_id", String, "Optional study ID for study-aware validation (uses study images_per_checkpoint as expected count)")
 			Required("id")
 		})
 		Result(ValidationResultResponse)
-		Error("not_found", ErrorResult, "Training run not found")
+		Error("not_found", ErrorResult, "Training run or study not found")
 		Error("validation_failed", ErrorResult, "Validation operation failed")
 		HTTP(func() {
 			POST("/api/training-runs/{id}/validate")
@@ -140,7 +141,16 @@ var DimensionResponse = Type("DimensionResponse", func() {
 var ValidationResultResponse = Type("ValidationResultResponse", func() {
 	Description("Result of validating sample set completeness for a training run")
 	Attribute("checkpoints", ArrayOf(CheckpointCompletenessResponse), "Per-checkpoint completeness counts")
-	Required("checkpoints")
+	Attribute("expected_per_checkpoint", Int, "Study-derived expected images per checkpoint (0 when no study context)", func() {
+		Example(54)
+	})
+	Attribute("total_expected", Int, "Total expected images across all checkpoints", func() {
+		Example(270)
+	})
+	Attribute("total_verified", Int, "Total verified images across all checkpoints", func() {
+		Example(216)
+	})
+	Required("checkpoints", "expected_per_checkpoint", "total_expected", "total_verified")
 })
 
 var CheckpointCompletenessResponse = Type("CheckpointCompletenessResponse", func() {

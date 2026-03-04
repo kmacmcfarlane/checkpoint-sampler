@@ -5,6 +5,11 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-085: Study versioning and version-scoped output directories
+- Studies have a `version` integer field (starts at 1, increments on every config update)
+- Output directories now versioned: `{sample_dir}/{study_name}/v{version}/{checkpoint}/`
+- Viewer discovery handles three-level versioned directory structures alongside legacy layouts
+
 ### B-043: Study editor allows duplicate dimension values
 - Backend `validate()` rejects duplicate steps, CFGs, sampler/scheduler pairs, seeds, and prompt names via set-based detection
 - `GetStudyByName` store method + service-layer uniqueness check on Create/Update with self-exclusion for updates

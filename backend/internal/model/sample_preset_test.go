@@ -7,6 +7,29 @@ import (
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
 )
 
+var _ = Describe("Study.OutputDirName", func() {
+	type testCase struct {
+		name     string
+		version  int
+		expected string
+	}
+
+	DescribeTable("returns versioned output directory name",
+		func(tc testCase) {
+			s := model.Study{Name: tc.name, Version: tc.version}
+			Expect(s.OutputDirName()).To(Equal(tc.expected))
+		},
+		Entry("version 1",
+			testCase{name: "My Study", version: 1, expected: "My Study/v1"}),
+		Entry("version 2",
+			testCase{name: "My Study", version: 2, expected: "My Study/v2"}),
+		Entry("version 10",
+			testCase{name: "Test", version: 10, expected: "Test/v10"}),
+		Entry("study name with spaces",
+			testCase{name: "Photo Study v2", version: 3, expected: "Photo Study v2/v3"}),
+	)
+})
+
 var _ = Describe("JoinPromptPrefix", func() {
 	// AC: Unit tests for prefix joining logic (empty prefix, prefix with trailing
 	// period+space, prefix with trailing comma+space, prefix without trailing delimiter)

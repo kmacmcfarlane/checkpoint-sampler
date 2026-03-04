@@ -358,11 +358,11 @@ var _ = Describe("Migrate", func() {
 		err = store.Migrate(db, store.AllMigrations())
 		Expect(err).NotTo(HaveOccurred())
 
-		// Verify all 9 migrations are recorded
+		// Verify all migrations are recorded
 		var count int
 		err = db.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&count)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(count).To(Equal(11))
+		Expect(count).To(Equal(12))
 
 		// Verify the table is functional with width and height columns
 		// First create a study and job to satisfy foreign key constraints
@@ -415,7 +415,7 @@ var _ = Describe("Migrate", func() {
 var _ = Describe("AllMigrations", func() {
 	It("returns the presets table as migration 1", func() {
 		migrations := store.AllMigrations()
-		Expect(migrations).To(HaveLen(11))
+		Expect(migrations).To(HaveLen(12))
 		Expect(migrations[0].Version).To(Equal(1))
 		Expect(migrations[0].SQL).To(ContainSubstring("CREATE TABLE"))
 		Expect(migrations[0].SQL).To(ContainSubstring("presets"))

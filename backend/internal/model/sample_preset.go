@@ -1,6 +1,7 @@
 package model
 
 import (
+	"fmt"
 	"strings"
 	"time"
 )
@@ -15,9 +16,15 @@ type SamplerSchedulerPair struct {
 // A study defines a set of generation parameters and outputs into its own
 // subdirectory under the sample directory, enabling multiple studies per
 // training run with different parameter sets.
+//
+// Version is an integer starting at 1, incremented each time the study's
+// configuration is updated. The version number is included in the output
+// directory name so that re-generating with different parameters produces
+// output in a separate directory.
 type Study struct {
 	ID                    string
 	Name                  string
+	Version               int
 	PromptPrefix          string
 	Prompts               []NamedPrompt
 	NegativePrompt        string
@@ -41,6 +48,12 @@ type NamedPrompt struct {
 // per checkpoint using this study.
 func (s Study) ImagesPerCheckpoint() int {
 	return len(s.Prompts) * len(s.Steps) * len(s.CFGs) * len(s.SamplerSchedulerPairs) * len(s.Seeds)
+}
+
+// OutputDirName returns the versioned output directory name for this study.
+// The format is "{Name}/v{Version}", e.g. "My Study/v1".
+func (s Study) OutputDirName() string {
+	return fmt.Sprintf("%s/v%d", s.Name, s.Version)
 }
 
 // JoinPromptPrefix prepends the prompt prefix to the given prompt text using

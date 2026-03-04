@@ -132,6 +132,7 @@ export interface SamplerSchedulerPair {
 export interface Study {
   id: string
   name: string
+  version: number
   prompt_prefix: string
   prompts: NamedPrompt[]
   negative_prompt: string
@@ -263,6 +264,12 @@ export interface CheckpointCompletenessInfo {
 /** Result of validating sample set completeness for a training run. */
 export interface ValidationResult {
   checkpoints: CheckpointCompletenessInfo[]
+  /** Study-derived expected images per checkpoint (0 when no study context). */
+  expected_per_checkpoint: number
+  /** Total expected images across all checkpoints. */
+  total_expected: number
+  /** Total verified images across all checkpoints. */
+  total_verified: number
 }
 
 /** Demo dataset status response. */
