@@ -17,10 +17,8 @@ Older entries are condensed to titles only — see git history for full details.
 - Master slider relocated to the header center area; zoom control moved to the top nav bar alongside action buttons
 - Responsive layout: header-center wraps to a second row on narrow screens (<768px)
 
-### S-078: Demo sampleset and dimension preset
-- Auto-installs a demo dataset on first run: 24 placeholder PNGs across 3 checkpoints, 2 prompts, 2 seeds, 2 CFGs under `sample_dir/demo-study/`
-- Seeds a "Demo Preset" dimension mapping (X: cfg, Y: prompt_name, Slider: checkpoint, Combos: seed)
-- Settings dialog in toolbar allows deleting and re-adding the demo dataset via `/api/demo` endpoints
+### S-078: Demo sampleset and dimension preset (UAT rework)
+- Fixed study-scoped relative path in `ScanTrainingRun`: image paths now include the study name prefix, resolving broken demo images in the viewer
 
 ### S-080: Disable and sort single-value dimensions to bottom
 - Dimensions with only one unique value are sorted to the bottom of DimensionPanel and visually greyed out with disabled role assignment

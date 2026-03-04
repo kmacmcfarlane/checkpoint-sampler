@@ -417,4 +417,59 @@ var _ = Describe("Scanner", func() {
 			})
 		})
 	})
+
+	Describe("ScanTrainingRun with study name", func() {
+		Context("when study name is provided", func() {
+			It("scans images from study subdirectory", func() {
+				tr := model.TrainingRun{
+					Name: "my-study/model",
+					Checkpoints: []model.Checkpoint{
+						{Filename: "model-step00001000.safetensors", StepNumber: 1000, HasSamples: true},
+					},
+				}
+				fs.files["/samples/my-study/model-step00001000.safetensors"] = []string{
+					"seed=1&cfg=3&_00001_.png",
+				}
+
+				result, err := scanner.ScanTrainingRun(tr, "my-study")
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result.Images).To(HaveLen(1))
+			})
+
+			It("includes study name prefix in relative path", func() {
+				tr := model.TrainingRun{
+					Name: "my-study/model",
+					Checkpoints: []model.Checkpoint{
+						{Filename: "model-step00001000.safetensors", StepNumber: 1000, HasSamples: true},
+					},
+				}
+				fs.files["/samples/my-study/model-step00001000.safetensors"] = []string{
+					"seed=1&cfg=3&_00001_.png",
+				}
+
+				result, err := scanner.ScanTrainingRun(tr, "my-study")
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result.Images[0].RelativePath).To(Equal("my-study/model-step00001000.safetensors/seed=1&cfg=3&_00001_.png"))
+			})
+
+			It("includes study name prefix for demo study images", func() {
+				tr := model.TrainingRun{
+					Name: "demo-study/demo-model",
+					Checkpoints: []model.Checkpoint{
+						{Filename: "demo-model-step00001000.safetensors", StepNumber: 1000, HasSamples: true},
+					},
+				}
+				fs.files["/samples/demo-study/demo-model-step00001000.safetensors"] = []string{
+					"prompt_name=landscape&seed=42&cfg=1&_00001_.png",
+				}
+
+				result, err := scanner.ScanTrainingRun(tr, "demo-study")
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result.Images[0].RelativePath).To(Equal("demo-study/demo-model-step00001000.safetensors/prompt_name=landscape&seed=42&cfg=1&_00001_.png"))
+			})
+		})
+	})
 })

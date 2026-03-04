@@ -133,8 +133,15 @@ func (s *Scanner) ScanTrainingRun(tr model.TrainingRun, studyName string) (*mode
 			// Build dedup key from all dimensions except batch
 			dedupKey := buildDedupKey(allDims)
 
-			// Relative path: checkpoint_filename/image_filename
-			relPath := filepath.Join(cp.Filename, filename)
+			// Relative path: [study_name/]checkpoint_filename/image_filename
+			// When a study name is provided, include it as a prefix so that the
+			// path matches the actual filesystem layout under sampleDir.
+			var relPath string
+			if studyName != "" {
+				relPath = filepath.Join(studyName, cp.Filename, filename)
+			} else {
+				relPath = filepath.Join(cp.Filename, filename)
+			}
 
 			existing, found := imageMap[dedupKey]
 			if !found || batchNum > existing.batchNum {

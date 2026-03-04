@@ -397,8 +397,6 @@ stories:
       - "command: make test-backend"
       - "command: cd frontend && npx vitest run"
 
-    uat_feedback: 'Images show as broken when viewing the demo sample set (with or without selecting the demo dimension preset).
-      Priority: medium.'
   - id: S-081
     title: "Viewer driven by sample output directories instead of checkpoints"
     priority: 90
