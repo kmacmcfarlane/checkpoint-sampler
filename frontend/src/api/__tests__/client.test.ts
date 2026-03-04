@@ -414,6 +414,58 @@ describe('ApiClient', () => {
     })
   })
 
+  describe('validateTrainingRun', () => {
+    it('posts to /api/training-runs/{id}/validate without query param when no studyId', async () => {
+      const client = new ApiClient({ baseUrl: 'http://localhost:8080/api' })
+      const validationResult = {
+        checkpoints: [{ checkpoint: 'model-step00001000.safetensors', expected: 2, verified: 2, missing: 0 }],
+        expected_per_checkpoint: 0,
+        total_expected: 2,
+        total_verified: 2,
+      }
+      mockFetch({ json: () => Promise.resolve(validationResult) })
+
+      const result = await client.validateTrainingRun(0)
+
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        'http://localhost:8080/api/training-runs/0/validate',
+        { method: 'POST' },
+      )
+      expect(result).toEqual(validationResult)
+    })
+
+    it('posts to /api/training-runs/{id}/validate with study_id query param when studyId provided', async () => {
+      const client = new ApiClient({ baseUrl: 'http://localhost:8080/api' })
+      const validationResult = {
+        checkpoints: [{ checkpoint: 'model-step00001000.safetensors', expected: 4, verified: 4, missing: 0 }],
+        expected_per_checkpoint: 4,
+        total_expected: 4,
+        total_verified: 4,
+      }
+      mockFetch({ json: () => Promise.resolve(validationResult) })
+
+      const result = await client.validateTrainingRun(0, 'study-abc-123')
+
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        'http://localhost:8080/api/training-runs/0/validate?study_id=study-abc-123',
+        { method: 'POST' },
+      )
+      expect(result).toEqual(validationResult)
+    })
+
+    it('URL-encodes study_id in query param', async () => {
+      const client = new ApiClient({ baseUrl: 'http://localhost:8080/api' })
+      mockFetch({ json: () => Promise.resolve({ checkpoints: [], expected_per_checkpoint: 0, total_expected: 0, total_verified: 0 }) })
+
+      await client.validateTrainingRun(1, 'study with spaces & special=chars')
+
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        'http://localhost:8080/api/training-runs/1/validate?study_id=study%20with%20spaces%20%26%20special%3Dchars',
+        { method: 'POST' },
+      )
+    })
+  })
+
   describe('getHealth', () => {
     it('fetches health from /health endpoint', async () => {
       const client = new ApiClient({ baseUrl: 'http://localhost:8080/api' })

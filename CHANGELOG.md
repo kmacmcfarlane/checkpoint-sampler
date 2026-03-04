@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-045: on-demand-validation E2E test fails due to empty POST body on updated validate endpoint
+- Moved `study_id` from request body to URL query parameter via `Param("study_id")` in the Goa DSL, eliminating the generated decoder's requirement for a JSON body on POST `/api/training-runs/{id}/validate`
+
 ### S-085: Study versioning and version-scoped output directories
 - Studies have a `version` integer field (starts at 1, increments on every config update)
 - Output directories now versioned: `{sample_dir}/{study_name}/v{version}/{checkpoint}/`

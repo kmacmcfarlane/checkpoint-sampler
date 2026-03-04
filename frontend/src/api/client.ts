@@ -87,12 +87,9 @@ export class ApiClient {
 
   /** POST /api/training-runs/{id}/validate — validate sample set completeness. */
   async validateTrainingRun(id: number, studyId?: string): Promise<ValidationResult> {
-    const body = studyId ? JSON.stringify({ study_id: studyId }) : undefined
-    const headers = studyId ? { 'Content-Type': 'application/json' } : undefined
-    return this.request<ValidationResult>(`/training-runs/${id}/validate`, {
+    const query = studyId ? `?study_id=${encodeURIComponent(studyId)}` : ''
+    return this.request<ValidationResult>(`/training-runs/${id}/validate${query}`, {
       method: 'POST',
-      headers,
-      body,
     })
   }
 

@@ -548,7 +548,7 @@ stories:
   - id: B-045
     title: "on-demand-validation E2E test fails due to empty POST body on updated validate endpoint"
     priority: 60
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:

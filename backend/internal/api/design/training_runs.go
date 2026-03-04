@@ -43,6 +43,7 @@ var _ = Service("training_runs", func() {
 		Error("validation_failed", ErrorResult, "Validation operation failed")
 		HTTP(func() {
 			POST("/api/training-runs/{id}/validate")
+			Param("study_id")
 			Response(StatusOK)
 			Response("not_found", StatusNotFound)
 			Response("validation_failed", StatusInternalServerError)
