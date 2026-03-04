@@ -8,6 +8,7 @@ import { useImagePreloader } from './composables/useImagePreloader'
 import { useWebSocket } from './composables/useWebSocket'
 import { useTheme } from './composables/useTheme'
 import { usePresetPersistence } from './composables/usePresetPersistence'
+import { useLastTrainingRun } from './composables/useLastTrainingRun'
 import AppDrawer from './components/AppDrawer.vue'
 import TrainingRunSelector from './components/TrainingRunSelector.vue'
 import DimensionPanel from './components/DimensionPanel.vue'
@@ -27,6 +28,7 @@ import SettingsDialog from './components/SettingsDialog.vue'
 
 const { theme, isDark, toggle: toggleTheme } = useTheme()
 const { savedData, savePresetSelection, clearPresetSelection } = usePresetPersistence()
+const { lastTrainingRunId, saveLastTrainingRun } = useLastTrainingRun()
 
 const selectedTrainingRun = ref<TrainingRun | null>(null)
 const scanning = ref(false)
@@ -76,14 +78,20 @@ function collapseDrawerIfNarrow() {
  * Eagerly auto-select a saved training run on mount, regardless of drawer state.
  * On narrow screens the drawer (and TrainingRunSelector) may not mount immediately,
  * so this ensures header buttons and scan data are available right away.
+ *
+ * The training run ID to restore is resolved from two sources (in priority order):
+ *   1. The preset persistence data (trainingRunId saved alongside a preset)
+ *   2. The standalone last-training-run persistence (saved on every training run selection)
+ *
+ * This ensures eager loading works even when no preset has ever been saved.
  */
 async function eagerAutoSelect() {
-  const saved = savedData.value
-  if (!saved) return
+  const trainingRunId = savedData.value?.trainingRunId ?? lastTrainingRunId.value
+  if (trainingRunId === null || trainingRunId === undefined) return
 
   try {
     const runs = await apiClient.getTrainingRuns()
-    const run = runs.find((r) => r.id === saved.trainingRunId)
+    const run = runs.find((r) => r.id === trainingRunId)
     if (run) {
       await onTrainingRunSelect(run)
     }
@@ -336,6 +344,10 @@ async function onTrainingRunSelect(run: TrainingRun) {
   if (selectedTrainingRun.value?.id === run.id && !scanning.value && !scanError.value && dimensions.value.length > 0) {
     return
   }
+
+  // Persist the training run ID independently of preset selection so eager
+  // auto-select works on the next page load even without a saved preset.
+  saveLastTrainingRun(run.id)
 
   selectedTrainingRun.value = run
   scanning.value = true
@@ -746,7 +758,7 @@ const TERMINAL_STATUSES: Set<SampleJobStatus> = new Set(['completed', 'completed
       <AppDrawer v-model:show="drawerOpen">
         <div class="drawer-section">
           <TrainingRunSelector
-            :auto-select-run-id="savedData?.trainingRunId ?? null"
+            :auto-select-run-id="savedData?.trainingRunId ?? lastTrainingRunId ?? null"
             @select="onTrainingRunSelect"
           />
         </div>
