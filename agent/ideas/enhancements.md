@@ -85,3 +85,9 @@ Currently only seed, steps, and cfg are routed to NumericFields in the sidecar m
 * priority: low
 * source: developer
 On narrow/mobile screens, add a swipe-left gesture on the drawer to close it, improving touch UX. This requires detecting touch events on the drawer element and emitting update:show=false.
+
+### Filters drawer width configurable or auto-sized
+* status: needs_approval
+* priority: very-low
+* source: developer
+The FiltersDrawer has a fixed 320px width. For users with many dimensions or long dimension values, an auto-sizing or resizable drawer (like the metadata panel) would be more ergonomic.

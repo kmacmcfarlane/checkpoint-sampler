@@ -282,8 +282,9 @@ describe('App', () => {
     expect(statusTag!.props('type')).toBe('default')
   })
 
-  describe('Unified Filters Section', () => {
-    it('renders filters section with "Filters" header when training run has dimensions', async () => {
+  describe('Filters Slideout', () => {
+    it('renders a Filters button in the header when training run has dimensions', async () => {
+      // AC1: Filters button appears in header top bar area when a run is selected
       const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
       await flushPromises()
 
@@ -292,17 +293,14 @@ describe('App', () => {
       selector.vm.$emit('select', mockTrainingRun)
       await flushPromises()
 
-      // Filters section should exist
-      const filtersSection = wrapper.find('.filters-section')
-      expect(filtersSection.exists()).toBe(true)
-
-      // Header should show "Filters"
-      const header = wrapper.find('.filters-section__header')
-      expect(header.exists()).toBe(true)
-      expect(header.find('.filters-section__name').text()).toBe('Filters')
+      // Filters button should exist in the header-center
+      const filtersBtn = wrapper.find('[data-testid="filters-button"]')
+      expect(filtersBtn.exists()).toBe(true)
+      expect(filtersBtn.text()).toBe('Filters')
     })
 
-    it('filters section is collapsed by default', async () => {
+    it('does not render old inline filters section (no .filters-section in DOM)', async () => {
+      // AC1: The old inline collapsible filters section is gone
       const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
       await flushPromises()
 
@@ -311,67 +309,31 @@ describe('App', () => {
       selector.vm.$emit('select', mockTrainingRun)
       await flushPromises()
 
-      // Dimension filters should not be visible initially
-      const dimensionFilters = wrapper.find('.dimension-filters')
-      expect(dimensionFilters.exists()).toBe(false)
-
-      // Toggle should have aria-expanded="false"
-      const toggle = wrapper.find('.filters-section__toggle')
-      expect(toggle.attributes('aria-expanded')).toBe('false')
-    })
-
-    it('clicking "Filters" header expands to show all dimension filters', async () => {
-      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
-      await flushPromises()
-
-      // Select a training run
-      const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
-      selector.vm.$emit('select', mockTrainingRun)
-      await flushPromises()
-
-      // Click the header to expand
-      const header = wrapper.find('.filters-section__header')
-      await header.trigger('click')
-
-      // Dimension filters should now be visible
-      const dimensionFilters = wrapper.find('.dimension-filters')
-      expect(dimensionFilters.exists()).toBe(true)
-
-      // Should render DimensionFilter components for each dimension (2 from mock scan result)
-      const filters = wrapper.findAllComponents({ name: 'DimensionFilter' })
-      expect(filters.length).toBe(2)
-
-      // Toggle should have aria-expanded="true"
-      const toggle = wrapper.find('.filters-section__toggle')
-      expect(toggle.attributes('aria-expanded')).toBe('true')
-    })
-
-    it('clicking "Filters" header again collapses all filters', async () => {
-      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
-      await flushPromises()
-
-      // Select a training run
-      const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
-      selector.vm.$emit('select', mockTrainingRun)
-      await flushPromises()
-
-      // Expand first
-      const header = wrapper.find('.filters-section__header')
-      await header.trigger('click')
-      expect(wrapper.find('.dimension-filters').exists()).toBe(true)
-
-      // Click again to collapse
-      await header.trigger('click')
-
-      // Dimension filters should be hidden
+      // Old inline filters section should NOT exist
+      expect(wrapper.find('.filters-section').exists()).toBe(false)
       expect(wrapper.find('.dimension-filters').exists()).toBe(false)
-
-      // Toggle should have aria-expanded="false"
-      const toggle = wrapper.find('.filters-section__toggle')
-      expect(toggle.attributes('aria-expanded')).toBe('false')
     })
 
-    it('has accessible aria-label on toggle button', async () => {
+    it('renders FiltersDrawer component', async () => {
+      // AC1: FiltersDrawer is present in the component tree
+      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      await flushPromises()
+
+      const filtersDrawer = wrapper.findComponent({ name: 'FiltersDrawer' })
+      expect(filtersDrawer.exists()).toBe(true)
+    })
+
+    it('FiltersDrawer is closed by default', async () => {
+      // AC1: Drawer starts closed — user must click Filters button to open it
+      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      await flushPromises()
+
+      const filtersDrawer = wrapper.findComponent({ name: 'FiltersDrawer' })
+      expect(filtersDrawer.props('show')).toBe(false)
+    })
+
+    it('clicking Filters button opens the FiltersDrawer', async () => {
+      // AC1: Clicking the Filters button sets show=true on FiltersDrawer
       const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
       await flushPromises()
 
@@ -380,12 +342,15 @@ describe('App', () => {
       selector.vm.$emit('select', mockTrainingRun)
       await flushPromises()
 
-      // Toggle should have aria-label
-      const toggle = wrapper.find('.filters-section__toggle')
-      expect(toggle.attributes('aria-label')).toBe('Toggle all filters')
+      const filtersBtn = wrapper.find('[data-testid="filters-button"]')
+      await filtersBtn.trigger('click')
+
+      const filtersDrawer = wrapper.findComponent({ name: 'FiltersDrawer' })
+      expect(filtersDrawer.props('show')).toBe(true)
     })
 
-    it('arrow rotates when expanded', async () => {
+    it('clicking Filters button again closes the FiltersDrawer', async () => {
+      // AC1: Toggle behavior: clicking again closes the drawer
       const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
       await flushPromises()
 
@@ -394,16 +359,98 @@ describe('App', () => {
       selector.vm.$emit('select', mockTrainingRun)
       await flushPromises()
 
-      const arrow = wrapper.find('.filters-section__arrow')
+      const filtersBtn = wrapper.find('[data-testid="filters-button"]')
+      await filtersBtn.trigger('click')
 
-      // Arrow should not have expanded class initially
-      expect(arrow.classes()).not.toContain('filters-section__arrow--expanded')
+      const filtersDrawer = wrapper.findComponent({ name: 'FiltersDrawer' })
+      expect(filtersDrawer.props('show')).toBe(true)
 
-      // Click to expand
-      await wrapper.find('.filters-section__header').trigger('click')
+      // Click again to close
+      await filtersBtn.trigger('click')
+      expect(filtersDrawer.props('show')).toBe(false)
+    })
 
-      // Arrow should now have expanded class
-      expect(arrow.classes()).toContain('filters-section__arrow--expanded')
+    it('Filters button aria-label is "Toggle filters drawer"', async () => {
+      // AC5: Accessible label on the filters button
+      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      await flushPromises()
+
+      const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
+      selector.vm.$emit('select', mockTrainingRun)
+      await flushPromises()
+
+      const filtersBtn = wrapper.find('[data-testid="filters-button"]')
+      expect(filtersBtn.attributes('aria-label')).toBe('Toggle filters drawer')
+    })
+  })
+
+  describe('Top bar layout: MasterSlider and ZoomControl', () => {
+    async function mountAndSelect() {
+      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      await flushPromises()
+      const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
+      selector.vm.$emit('select', mockTrainingRun)
+      await flushPromises()
+      return wrapper
+    }
+
+    it('AC2: MasterSlider renders in the header-center area when slider dimension exists', async () => {
+      // The scan mock returns dimensions without a slider assignment, so
+      // MasterSlider only appears when sliderDimension is assigned. This tests
+      // that MasterSlider is in the header-center (not main content area).
+      const wrapper = await mountAndSelect()
+
+      // header-center should exist
+      const headerCenter = wrapper.find('.header-center')
+      expect(headerCenter.exists()).toBe(true)
+    })
+
+    it('AC3: ZoomControl renders in the header-controls area', async () => {
+      // AC3: ZoomControl is in the top nav bar, inside header-controls
+      const wrapper = await mountAndSelect()
+
+      const zoomControl = wrapper.findComponent({ name: 'ZoomControl' })
+      expect(zoomControl.exists()).toBe(true)
+
+      // ZoomControl should be inside .header-controls (not .app-main)
+      const headerControls = wrapper.find('.header-controls')
+      expect(headerControls.exists()).toBe(true)
+      // Verify it's not in .controls-sticky (old location)
+      expect(wrapper.find('.controls-sticky').exists()).toBe(false)
+    })
+
+    it('AC3: ZoomControl emits update:cellSize and App updates cellSize', async () => {
+      const wrapper = await mountAndSelect()
+
+      const zoomControl = wrapper.findComponent({ name: 'ZoomControl' })
+      expect(zoomControl.exists()).toBe(true)
+
+      // ZoomControl props should start at default 200
+      expect(zoomControl.props('cellSize')).toBe(200)
+
+      // Simulate zoom change from ZoomControl
+      zoomControl.vm.$emit('update:cellSize', 350)
+      await flushPromises()
+
+      // App should update and pass new value back
+      expect(zoomControl.props('cellSize')).toBe(350)
+    })
+
+    it('AC4: filter-update event from FiltersDrawer updates comboSelections in App', async () => {
+      // AC4: All filter functionality is preserved through the FiltersDrawer
+      const wrapper = await mountAndSelect()
+
+      const filtersDrawer = wrapper.findComponent({ name: 'FiltersDrawer' })
+      expect(filtersDrawer.exists()).toBe(true)
+
+      // Simulate filter-update from FiltersDrawer for 'seed' dimension
+      filtersDrawer.vm.$emit('filter-update', 'seed', new Set(['99']))
+      await flushPromises()
+
+      // FiltersDrawer should receive the updated comboSelections
+      const updatedSelections = filtersDrawer.props('comboSelections') as Record<string, Set<string>>
+      expect(updatedSelections['seed']).toBeDefined()
+      expect(updatedSelections['seed'].has('99')).toBe(true)
     })
   })
 

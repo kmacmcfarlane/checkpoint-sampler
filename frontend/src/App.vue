@@ -13,9 +13,9 @@ import TrainingRunSelector from './components/TrainingRunSelector.vue'
 import DimensionPanel from './components/DimensionPanel.vue'
 import XYGrid from './components/XYGrid.vue'
 import type { ImageClickContext, GridNavItem } from './components/types'
-import DimensionFilter from './components/DimensionFilter.vue'
 import MasterSlider from './components/MasterSlider.vue'
 import ZoomControl from './components/ZoomControl.vue'
+import FiltersDrawer from './components/FiltersDrawer.vue'
 import PresetSelector from './components/PresetSelector.vue'
 import ImageLightbox from './components/ImageLightbox.vue'
 import CheckpointMetadataPanel from './components/CheckpointMetadataPanel.vue'
@@ -442,11 +442,11 @@ const defaultSliderValue = computed(() => {
 /** Cell size for grid zoom control. */
 const cellSize = ref(200)
 
-/** Filters section expanded/collapsed state (collapsed by default). */
-const filtersExpanded = ref(false)
+/** Right-side filters drawer open/closed state (closed by default). */
+const filtersDrawerOpen = ref(false)
 
-function toggleFilters() {
-  filtersExpanded.value = !filtersExpanded.value
+function toggleFiltersDrawer() {
+  filtersDrawerOpen.value = !filtersDrawerOpen.value
 }
 
 // Reset master slider value when slider dimension changes
@@ -664,7 +664,30 @@ const TERMINAL_STATUSES: Set<SampleJobStatus> = new Set(['completed', 'completed
           </NButton>
           <h1>Checkpoint Sampler</h1>
         </div>
+        <div class="header-center">
+          <NButton
+            v-if="selectedTrainingRun && !scanning && !scanError && dimensions.length > 0"
+            size="small"
+            aria-label="Toggle filters drawer"
+            data-testid="filters-button"
+            @click="toggleFiltersDrawer"
+          >Filters</NButton>
+          <div v-if="sliderDimension" class="header-master-slider">
+            <MasterSlider
+              :values="sliderDimension.values"
+              :current-value="defaultSliderValue"
+              :dimension-name="sliderDimension.name"
+              @change="onMasterSliderChange"
+            />
+          </div>
+        </div>
         <div class="header-controls">
+          <ZoomControl
+            v-if="selectedTrainingRun && !scanning && !scanError"
+            :cell-size="cellSize"
+            class="header-zoom"
+            @update:cell-size="cellSize = $event"
+          />
           <NButton
             v-if="selectedTrainingRun && !scanning && !scanError"
             :type="showProminentGenerateButton ? 'primary' : 'default'"
@@ -759,42 +782,6 @@ const TERMINAL_STATUSES: Set<SampleJobStatus> = new Set(['completed', 'completed
           <p v-if="scanning">Scanning...</p>
           <p v-else-if="scanError" class="error" role="alert">{{ scanError }}</p>
           <template v-else>
-            <div v-if="dimensions.length > 0" class="filters-section">
-              <div class="filters-section__header" @click="toggleFilters">
-                <button
-                  class="filters-section__toggle"
-                  :aria-expanded="filtersExpanded"
-                  aria-label="Toggle all filters"
-                >
-                  <span class="filters-section__arrow" :class="{ 'filters-section__arrow--expanded': filtersExpanded }">&#9654;</span>
-                  <span class="filters-section__name">Filters</span>
-                </button>
-              </div>
-              <div v-if="filtersExpanded" class="dimension-filters">
-                <DimensionFilter
-                  v-for="dim in dimensions"
-                  :key="dim.name"
-                  :dimension-name="dim.name"
-                  :values="dim.values"
-                  :selected="comboSelections[dim.name] ?? new Set()"
-                  :filter-mode="getFilterMode(dim.name)"
-                  @update="onFilterUpdate"
-                />
-              </div>
-            </div>
-            <div class="controls-sticky">
-              <ZoomControl
-                :cell-size="cellSize"
-                @update:cell-size="cellSize = $event"
-              />
-              <MasterSlider
-                v-if="sliderDimension"
-                :values="sliderDimension.values"
-                :current-value="defaultSliderValue"
-                :dimension-name="sliderDimension.name"
-                @change="onMasterSliderChange"
-              />
-            </div>
             <XYGrid
               :x-dimension="xDimension"
               :y-dimension="yDimension"
@@ -831,6 +818,13 @@ const TERMINAL_STATUSES: Set<SampleJobStatus> = new Set(['completed', 'completed
         v-if="metadataPanelOpen && selectedTrainingRun"
         :checkpoints="selectedTrainingRun.checkpoints"
         @close="metadataPanelOpen = false"
+      />
+      <FiltersDrawer
+        v-model:show="filtersDrawerOpen"
+        :dimensions="dimensions"
+        :combo-selections="comboSelections"
+        :get-filter-mode="getFilterMode"
+        @filter-update="onFilterUpdate"
       />
       <JobLaunchDialog
         v-model:show="jobLaunchDialogOpen"
@@ -892,16 +886,19 @@ const TERMINAL_STATUSES: Set<SampleJobStatus> = new Set(['completed', 'completed
 }
 
 .app-header {
-  padding: 1rem;
+  padding: 0.5rem 1rem;
   border-bottom: 1px solid var(--border-color);
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 .app-header h1 {
   margin: 0;
-  font-size: 1.5rem;
+  font-size: 1.25rem;
+  white-space: nowrap;
 }
 
 .header-left {
@@ -920,61 +917,6 @@ const TERMINAL_STATUSES: Set<SampleJobStatus> = new Set(['completed', 'completed
   flex: 1;
 }
 
-.filters-section {
-  margin-bottom: 1rem;
-}
-
-.filters-section__header {
-  cursor: pointer;
-  user-select: none;
-  padding: 0.5rem;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  background-color: var(--bg-surface);
-  margin-bottom: 0.5rem;
-}
-
-.filters-section__toggle {
-  background: none;
-  border: none;
-  padding: 0;
-  font: inherit;
-  color: inherit;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-}
-
-.filters-section__arrow {
-  display: inline-block;
-  font-size: 0.75rem;
-  transition: transform 0.15s;
-}
-
-.filters-section__arrow--expanded {
-  transform: rotate(90deg);
-}
-
-.filters-section__name {
-  font-weight: 600;
-  font-size: 1rem;
-}
-
-.dimension-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-}
-
-.controls-sticky {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  background-color: var(--bg-color);
-  padding-bottom: 0.5rem;
-}
 
 .error {
   color: var(--error-color);
@@ -985,10 +927,32 @@ const TERMINAL_STATUSES: Set<SampleJobStatus> = new Set(['completed', 'completed
   font-size: 0.875rem;
 }
 
+.header-center {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.header-master-slider {
+  flex: 1;
+  min-width: 0;
+}
+
 .header-controls {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* Compact zoom control wrapper in header */
+.header-zoom {
+  display: flex;
+  align-items: center;
+  min-width: 160px;
+  max-width: 200px;
 }
 
 .header-bead {
@@ -1015,20 +979,23 @@ const TERMINAL_STATUSES: Set<SampleJobStatus> = new Set(['completed', 'completed
 @media (max-width: 767px) {
   .app-header {
     padding: 0.5rem;
-    flex-wrap: wrap;
-    gap: 0.5rem;
   }
 
   .app-header h1 {
-    font-size: 1.125rem;
+    font-size: 1rem;
   }
 
   .app-main {
     padding: 0.5rem;
   }
 
-  .header-controls {
-    gap: 0.5rem;
+  .header-center {
+    order: 3;
+    flex-basis: 100%;
+  }
+
+  .header-zoom {
+    min-width: 120px;
   }
 }
 </style>

@@ -703,7 +703,7 @@ stories:
   - id: S-082
     title: "Make more room in UI — filters slideout, slider/zoom relocation"
     priority: 10
-    status: todo
+    status: uat
     requires: []
     acceptance:
       - "FE: Individual dimension filters are no longer independently collapsible — clicking the filters button shows all

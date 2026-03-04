@@ -164,3 +164,35 @@ export async function selectNaiveOption(page: Page, selectTestId: string, option
   await popup.getByText(optionText, { exact: true }).click()
   await expect(popup).not.toBeVisible()
 }
+
+/**
+ * Opens the right-side Filters drawer by clicking the "Filters" button in the header.
+ * The button is only visible after a training run is selected and scanned.
+ * Filters inside the drawer are always expanded (no individual toggle needed).
+ */
+export async function openFiltersDrawer(page: Page): Promise<void> {
+  const filtersButton = page.locator('[data-testid="filters-button"]')
+  await expect(filtersButton).toBeVisible()
+  await filtersButton.click()
+  // Wait for the drawer content to appear (NDrawerContent title="Filters")
+  await expect(page.locator('.n-drawer-body-content-wrapper')).toBeVisible()
+}
+
+/**
+ * Closes the right-side Filters drawer if it is open.
+ * The NDrawerContent has a close button with aria-label="close".
+ * Since the sidebar drawer also has a close button, we target the last one
+ * (the filters drawer renders after the sidebar drawer in the DOM).
+ */
+export async function closeFiltersDrawer(page: Page): Promise<void> {
+  // The filters drawer close button is the last aria-label="close" button
+  const closeButtons = page.locator('[aria-label="close"]')
+  const count = await closeButtons.count()
+  if (count > 0) {
+    const lastClose = closeButtons.last()
+    if (await lastClose.isVisible()) {
+      await lastClose.click()
+      await page.waitForTimeout(300)
+    }
+  }
+}

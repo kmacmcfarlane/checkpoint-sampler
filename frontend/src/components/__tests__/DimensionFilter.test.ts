@@ -10,6 +10,7 @@ const sampleValues = ['landscape', 'portrait', 'abstract']
 function mountFilter(overrides: {
   selected?: Set<string>
   filterMode?: FilterMode
+  alwaysExpanded?: boolean
 } = {}) {
   return mount(DimensionFilter, {
     props: {
@@ -17,6 +18,7 @@ function mountFilter(overrides: {
       values: sampleValues,
       selected: overrides.selected ?? new Set(sampleValues),
       filterMode: overrides.filterMode ?? 'multi',
+      alwaysExpanded: overrides.alwaysExpanded,
     },
   })
 }
@@ -26,6 +28,40 @@ describe('DimensionFilter', () => {
     it('renders nothing when filter mode is hide', () => {
       const wrapper = mountFilter({ filterMode: 'hide' })
       expect(wrapper.find('.dimension-filter').exists()).toBe(false)
+    })
+  })
+
+  describe('alwaysExpanded prop', () => {
+    it('AC1: shows content without header toggle when alwaysExpanded=true', () => {
+      // When used in the slideout drawer, content is always visible
+      const wrapper = mountFilter({ filterMode: 'multi', alwaysExpanded: true })
+      // Content should be visible immediately (no click needed)
+      expect(wrapper.find('.dimension-filter__content').exists()).toBe(true)
+    })
+
+    it('AC1: does not render toggle button when alwaysExpanded=true', () => {
+      const wrapper = mountFilter({ filterMode: 'multi', alwaysExpanded: true })
+      // The collapse toggle button should not be present
+      expect(wrapper.find('.dimension-filter__toggle').exists()).toBe(false)
+    })
+
+    it('AC1: renders dimension name directly when alwaysExpanded=true', () => {
+      const wrapper = mountFilter({ filterMode: 'multi', alwaysExpanded: true })
+      expect(wrapper.find('.dimension-filter__name').text()).toBe('prompt_name')
+    })
+
+    it('AC1: header click has no effect when alwaysExpanded=true', async () => {
+      const wrapper = mountFilter({ filterMode: 'multi', alwaysExpanded: true })
+      // Content is always shown; clicking header should not hide it
+      await wrapper.find('.dimension-filter__header').trigger('click')
+      expect(wrapper.find('.dimension-filter__content').exists()).toBe(true)
+    })
+
+    it('behaves as collapsible when alwaysExpanded is false/absent', () => {
+      const wrapper = mountFilter({ filterMode: 'multi' })
+      // Without alwaysExpanded, starts collapsed
+      expect(wrapper.find('.dimension-filter__content').exists()).toBe(false)
+      expect(wrapper.find('.dimension-filter__toggle').exists()).toBe(true)
     })
   })
 

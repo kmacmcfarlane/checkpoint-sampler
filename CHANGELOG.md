@@ -5,6 +5,11 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-082: Make more room in UI — filters slideout, slider/zoom relocation
+- Dimension filters moved from inline collapsible section to a right-side slideout drawer (always expanded, no individual collapse)
+- Master slider relocated to the header center area; zoom control moved to the top nav bar alongside action buttons
+- Responsive layout: header-center wraps to a second row on narrow screens (<768px)
+
 ### S-078: Demo sampleset and dimension preset
 - Auto-installs a demo dataset on first run: 24 placeholder PNGs across 3 checkpoints, 2 prompts, 2 seeds, 2 CFGs under `sample_dir/demo-study/`
 - Seeds a "Demo Preset" dimension mapping (X: cfg, Y: prompt_name, Slider: checkpoint, Combos: seed)

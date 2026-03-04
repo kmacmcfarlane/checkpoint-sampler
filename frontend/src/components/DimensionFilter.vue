@@ -8,6 +8,8 @@ const props = defineProps<{
   values: string[]
   selected: Set<string>
   filterMode: FilterMode
+  /** When true, content is always shown without the collapse toggle. */
+  alwaysExpanded?: boolean
 }>()
 
 // update: Emitted when the filter selection changes (checkbox toggle, solo, select-all, select-none, or single dropdown). Payload: dimension name and the new selected Set.
@@ -18,8 +20,12 @@ const emit = defineEmits<{
 const expanded = ref(false)
 
 function toggleExpand() {
-  expanded.value = !expanded.value
+  if (!props.alwaysExpanded) {
+    expanded.value = !expanded.value
+  }
 }
+
+const isExpanded = computed(() => props.alwaysExpanded || expanded.value)
 
 // --- Multi mode helpers ---
 
@@ -77,17 +83,23 @@ function onSingleChange(value: string | null) {
 
 <template>
   <div v-if="filterMode !== 'hide'" class="dimension-filter">
-    <div class="dimension-filter__header" @click="toggleExpand">
+    <div
+      class="dimension-filter__header"
+      :class="{ 'dimension-filter__header--no-toggle': alwaysExpanded }"
+      @click="toggleExpand"
+    >
       <button
+        v-if="!alwaysExpanded"
         class="dimension-filter__toggle"
-        :aria-expanded="expanded"
+        :aria-expanded="isExpanded"
         :aria-label="`Toggle ${dimensionName} filter`"
       >
-        <span class="dimension-filter__arrow" :class="{ 'dimension-filter__arrow--expanded': expanded }">&#9654;</span>
+        <span class="dimension-filter__arrow" :class="{ 'dimension-filter__arrow--expanded': isExpanded }">&#9654;</span>
         <span class="dimension-filter__name">{{ dimensionName }}</span>
       </button>
+      <span v-else class="dimension-filter__name">{{ dimensionName }}</span>
     </div>
-    <div v-if="expanded" class="dimension-filter__content">
+    <div v-if="isExpanded" class="dimension-filter__content">
       <!-- Single mode -->
       <template v-if="filterMode === 'single'">
         <NSelect
@@ -153,6 +165,11 @@ function onSingleChange(value: string | null) {
 .dimension-filter__header {
   cursor: pointer;
   user-select: none;
+}
+
+.dimension-filter__header--no-toggle {
+  cursor: default;
+  margin-bottom: 0.25rem;
 }
 
 .dimension-filter__toggle {

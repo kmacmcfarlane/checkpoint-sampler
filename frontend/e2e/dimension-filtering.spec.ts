@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { resetDatabase } from './helpers'
+import { resetDatabase, openFiltersDrawer, closeFiltersDrawer } from './helpers'
 
 /**
  * E2E tests for dimension configuration and combo filter workflows:
@@ -7,6 +7,10 @@ import { resetDatabase } from './helpers'
  *   - Verify grid updates to reflect new axis dimensions
  *   - Apply combo filter (deselect a value) and verify grid reduces
  *   - Clear the filter and verify grid returns to full state
+ *
+ * Filters are accessed via the right-side Filters drawer (opened by the
+ * "Filters" button in the header). Individual dimension filters are always
+ * expanded inside the drawer (no per-dimension toggle).
  *
  * Test fixture data:
  *   - Training run: "my-model"
@@ -55,33 +59,6 @@ async function closeDrawer(page: Page): Promise<void> {
     // Wait for the drawer to close (close button disappears)
     await expect(drawerCloseButton).not.toBeVisible()
     await page.waitForTimeout(300)
-  }
-}
-
-/**
- * Expands the main-area "Filters" collapsible section.
- */
-async function expandFiltersSection(page: Page): Promise<void> {
-  const filterToggle = page.getByRole('button', { name: 'Toggle all filters' })
-  await expect(filterToggle).toBeVisible()
-  // Only expand if currently collapsed (aria-expanded="false")
-  const expanded = await filterToggle.getAttribute('aria-expanded')
-  if (expanded === 'false') {
-    await filterToggle.click()
-  }
-  // Wait for filter content to become visible
-  await expect(page.locator('.dimension-filters')).toBeVisible()
-}
-
-/**
- * Expands a single dimension's filter panel.
- */
-async function expandDimensionFilter(page: Page, dimensionName: string): Promise<void> {
-  const toggleButton = page.getByRole('button', { name: `Toggle ${dimensionName} filter` })
-  await expect(toggleButton).toBeVisible()
-  const expanded = await toggleButton.getAttribute('aria-expanded')
-  if (expanded === 'false') {
-    await toggleButton.click()
   }
 }
 
@@ -171,7 +148,7 @@ test.describe('dimension filtering and combo filters', () => {
     await selectNaiveOption(page, 'Role for checkpoint', 'X Axis')
     await selectNaiveOption(page, 'Role for prompt_name', 'Y Axis')
 
-    // Close drawer to interact with main area
+    // Close sidebar drawer to interact with main area
     await closeDrawer(page)
 
     // Verify we start with 2 column headers (1000 and 2000)
@@ -180,17 +157,16 @@ test.describe('dimension filtering and combo filters', () => {
     await expect(colHeaders.filter({ hasText: '1000' })).toBeVisible()
     await expect(colHeaders.filter({ hasText: '2000' })).toBeVisible()
 
-    // Expand the Filters section in the main area
-    await expandFiltersSection(page)
+    // Open the Filters drawer (right-side slideout)
+    await openFiltersDrawer(page)
 
-    // Expand the "checkpoint" dimension filter
-    await expandDimensionFilter(page, 'checkpoint')
-
+    // Filters are always expanded in the drawer -- no per-dimension toggle needed.
     // Deselect checkpoint step 1000
-    const checkpoint1000Checkbox = page.getByRole('button', {
-      name: 'Toggle checkpoint 1000',
-    }).or(page.locator('[aria-label="Toggle checkpoint 1000"]'))
+    const checkpoint1000Checkbox = page.locator('[aria-label="Toggle checkpoint 1000"]')
     await checkpoint1000Checkbox.first().click()
+
+    // Close the filters drawer to verify grid state
+    await closeFiltersDrawer(page)
 
     // After deselecting step 1000, only step 2000 column should be visible
     await expect(colHeaders.filter({ hasText: '1000' })).not.toBeVisible()
@@ -213,14 +189,11 @@ test.describe('dimension filtering and combo filters', () => {
     await selectNaiveOption(page, 'Role for checkpoint', 'X Axis')
     await selectNaiveOption(page, 'Role for prompt_name', 'Y Axis')
 
-    // Close drawer to interact with main area
+    // Close sidebar drawer to interact with main area
     await closeDrawer(page)
 
-    // Expand Filters section
-    await expandFiltersSection(page)
-
-    // Expand checkpoint filter
-    await expandDimensionFilter(page, 'checkpoint')
+    // Open the Filters drawer
+    await openFiltersDrawer(page)
 
     // Deselect step 1000 to reduce to 1 column
     const checkpoint1000Checkbox = page.locator('[aria-label="Toggle checkpoint 1000"]')
@@ -235,6 +208,9 @@ test.describe('dimension filtering and combo filters', () => {
     const selectAllButton = page.getByRole('button', { name: 'Select all checkpoint' })
     await expect(selectAllButton).toBeVisible()
     await selectAllButton.click()
+
+    // Close filters drawer to verify grid
+    await closeFiltersDrawer(page)
 
     // Verify the grid returns to full state: both columns visible
     await expect(colHeaders).toHaveCount(2)
