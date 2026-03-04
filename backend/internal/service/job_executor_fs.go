@@ -45,3 +45,15 @@ func (r *RealFileSystemWriter) Stat(path string) (fileInfo, error) {
 func (r *RealFileSystemWriter) RenameFile(oldPath, newPath string) error {
 	return os.Rename(oldPath, newPath)
 }
+
+// RealOutputFileChecker checks whether files exist on the real filesystem.
+type RealOutputFileChecker struct{}
+
+// FileExists returns true if the given path exists and is a regular file.
+func (r *RealOutputFileChecker) FileExists(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	return !info.IsDir()
+}

@@ -5,6 +5,12 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-084: Sample count preview and missing-sample generation from Generate Samples dialog
+- Validation endpoint returns `total_expected`, `total_actual`, `total_missing` aggregate counts alongside per-checkpoint results
+- Generate Samples dialog auto-fetches validation on training run selection, showing expected sample count and missing count preview
+- "Generate missing samples only" checkbox creates a job that skips checkpoint×parameter combinations where the output file already exists
+- Sidebar "Validate" results now show total counts; "Generate Missing" button opens the job dialog when missing samples are detected
+
 ### S-087: JSON sample job manifest per generation job
 - Each completed generation job writes a `manifest.json` file to the study version output directory capturing the full study configuration snapshot, job metadata, checkpoint list, and all dimension values
 - New `fileformat.JobManifest` type with `NewJobManifest`, `MarshalManifest`, `UnmarshalManifest` functions

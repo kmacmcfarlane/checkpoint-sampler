@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/url"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -913,18 +912,9 @@ func (e *JobExecutor) generateFilenamePrefix(item model.SampleJobItem) string {
 }
 
 // generateOutputFilename generates the query-encoded output filename.
+// Delegates to the shared GenerateOutputFilename function.
 func (e *JobExecutor) generateOutputFilename(item model.SampleJobItem) string {
-	// Query-encoded filename includes: prompt_name, steps, cfg, sampler_name, scheduler, seed
-	params := url.Values{}
-	params.Set("prompt", item.PromptName)
-	params.Set("steps", fmt.Sprintf("%d", item.Steps))
-	params.Set("cfg", fmt.Sprintf("%.1f", item.CFG))
-	params.Set("sampler", item.SamplerName)
-	params.Set("scheduler", item.Scheduler)
-	params.Set("seed", fmt.Sprintf("%d", item.Seed))
-
-	encoded := params.Encode()
-	return fmt.Sprintf("%s.png", encoded)
+	return GenerateOutputFilename(item)
 }
 
 // getOutputPath constructs the full output path for an image.

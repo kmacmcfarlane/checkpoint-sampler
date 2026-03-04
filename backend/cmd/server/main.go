@@ -165,6 +165,7 @@ func run() error {
 		pathMatcher := service.NewCheckpointPathMatcher(modelDiscovery, logger)
 		dirRemover := store.NewCheckpointSampleDirRemover(fs, cfg.SampleDir)
 		sampleJobSvc := service.NewSampleJobService(st, pathMatcher, dirRemover, cfg.SampleDir, logger)
+		sampleJobSvc.SetFileChecker(&service.RealOutputFileChecker{})
 
 		// Wire the executor and service together (avoiding circular dependency)
 		sampleJobSvc.SetExecutor(jobExecutor)

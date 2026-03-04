@@ -151,7 +151,13 @@ var ValidationResultResponse = Type("ValidationResultResponse", func() {
 	Attribute("total_verified", Int, "Total verified images across all checkpoints", func() {
 		Example(216)
 	})
-	Required("checkpoints", "expected_per_checkpoint", "total_expected", "total_verified")
+	Attribute("total_actual", Int, "Total sample images found on disk across all checkpoints", func() {
+		Example(240)
+	})
+	Attribute("total_missing", Int, "Total missing sample images across all checkpoints (total_expected - total_actual)", func() {
+		Example(30)
+	})
+	Required("checkpoints", "expected_per_checkpoint", "total_expected", "total_verified", "total_actual", "total_missing")
 })
 
 var CheckpointCompletenessResponse = Type("CheckpointCompletenessResponse", func() {

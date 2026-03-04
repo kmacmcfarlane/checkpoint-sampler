@@ -443,7 +443,7 @@ stories:
   - id: S-084
     title: "Sample count preview and missing-sample generation from Generate Samples dialog"
     priority: 55
-    status: in_progress
+    status: uat
     complexity: medium
     requires:
       - S-075
