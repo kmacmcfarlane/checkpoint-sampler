@@ -421,7 +421,7 @@ stories:
   - id: B-043
     title: "Study editor allows duplicate dimension values"
     priority: 25
-    status: todo
+    status: uat
     complexity: low
     requires:
       - S-074

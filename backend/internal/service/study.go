@@ -14,6 +14,10 @@ import (
 type StudyStore interface {
 	ListStudies() ([]model.Study, error)
 	GetStudy(id string) (model.Study, error)
+	// GetStudyByName returns the first study with the given name, excluding the
+	// study with excludeID (pass "" to include all studies). Returns
+	// sql.ErrNoRows if no matching study is found.
+	GetStudyByName(name string, excludeID string) (model.Study, error)
 	CreateStudy(s model.Study) error
 	UpdateStudy(s model.Study) error
 	DeleteStudy(id string) error
@@ -63,6 +67,18 @@ func (s *StudyService) Create(name string, promptPrefix string, prompts []model.
 		return model.Study{}, err
 	}
 
+	// Check for duplicate study name.
+	if _, err := s.store.GetStudyByName(name, ""); err == nil {
+		s.logger.WithField("study_name", name).Warn("duplicate study name rejected")
+		return model.Study{}, fmt.Errorf("a study named %q already exists", name)
+	} else if err != sql.ErrNoRows {
+		s.logger.WithFields(logrus.Fields{
+			"study_name": name,
+			"error":      err.Error(),
+		}).Error("failed to check for duplicate study name")
+		return model.Study{}, fmt.Errorf("checking study name uniqueness: %w", err)
+	}
+
 	now := time.Now().UTC()
 	st := model.Study{
 		ID:                    uuid.New().String(),
@@ -109,6 +125,22 @@ func (s *StudyService) Update(id string, name string, promptPrefix string, promp
 			"error":    err.Error(),
 		}).Warn("study validation failed")
 		return model.Study{}, err
+	}
+
+	// Check for duplicate study name, excluding the study being updated.
+	if _, err := s.store.GetStudyByName(name, id); err == nil {
+		s.logger.WithFields(logrus.Fields{
+			"study_id":   id,
+			"study_name": name,
+		}).Warn("duplicate study name rejected on update")
+		return model.Study{}, fmt.Errorf("a study named %q already exists", name)
+	} else if err != sql.ErrNoRows {
+		s.logger.WithFields(logrus.Fields{
+			"study_id":   id,
+			"study_name": name,
+			"error":      err.Error(),
+		}).Error("failed to check for duplicate study name on update")
+		return model.Study{}, fmt.Errorf("checking study name uniqueness: %w", err)
 	}
 
 	existing, err := s.store.GetStudy(id)
@@ -182,6 +214,7 @@ func (s *StudyService) validate(name string, prompts []model.NamedPrompt, steps 
 	if len(prompts) == 0 {
 		return fmt.Errorf("at least one prompt is required")
 	}
+	seenPromptNames := make(map[string]bool, len(prompts))
 	for i, p := range prompts {
 		if p.Name == "" {
 			return fmt.Errorf("prompt %d name must not be empty", i)
@@ -189,26 +222,42 @@ func (s *StudyService) validate(name string, prompts []model.NamedPrompt, steps 
 		if p.Text == "" {
 			return fmt.Errorf("prompt %d text must not be empty", i)
 		}
+		if seenPromptNames[p.Name] {
+			return fmt.Errorf("duplicate prompt name %q", p.Name)
+		}
+		seenPromptNames[p.Name] = true
 	}
 	if len(steps) == 0 {
 		return fmt.Errorf("at least one step count is required")
 	}
+	seenSteps := make(map[int]bool, len(steps))
 	for i, step := range steps {
 		if step <= 0 {
 			return fmt.Errorf("step %d must be positive", i)
 		}
+		if seenSteps[step] {
+			return fmt.Errorf("duplicate step value %d", step)
+		}
+		seenSteps[step] = true
 	}
 	if len(cfgs) == 0 {
 		return fmt.Errorf("at least one CFG value is required")
 	}
+	seenCFGs := make(map[float64]bool, len(cfgs))
 	for i, cfg := range cfgs {
 		if cfg <= 0 {
 			return fmt.Errorf("CFG %d must be positive", i)
 		}
+		if seenCFGs[cfg] {
+			return fmt.Errorf("duplicate CFG value %g", cfg)
+		}
+		seenCFGs[cfg] = true
 	}
 	if len(pairs) == 0 {
 		return fmt.Errorf("at least one sampler/scheduler pair is required")
 	}
+	type pairKey struct{ sampler, scheduler string }
+	seenPairs := make(map[pairKey]bool, len(pairs))
 	for i, pair := range pairs {
 		if pair.Sampler == "" {
 			return fmt.Errorf("pair %d sampler must not be empty", i)
@@ -216,9 +265,21 @@ func (s *StudyService) validate(name string, prompts []model.NamedPrompt, steps 
 		if pair.Scheduler == "" {
 			return fmt.Errorf("pair %d scheduler must not be empty", i)
 		}
+		key := pairKey{pair.Sampler, pair.Scheduler}
+		if seenPairs[key] {
+			return fmt.Errorf("duplicate sampler/scheduler pair %q/%q", pair.Sampler, pair.Scheduler)
+		}
+		seenPairs[key] = true
 	}
+	seenSeeds := make(map[int64]bool, len(seeds))
 	if len(seeds) == 0 {
 		return fmt.Errorf("at least one seed is required")
+	}
+	for _, seed := range seeds {
+		if seenSeeds[seed] {
+			return fmt.Errorf("duplicate seed value %d", seed)
+		}
+		seenSeeds[seed] = true
 	}
 	if width <= 0 {
 		return fmt.Errorf("width must be positive")

@@ -93,6 +93,75 @@ const computedTotalImages = computed(() => {
   )
 })
 
+/**
+ * Returns a validation error message if any dimension field contains duplicates,
+ * or if the study name already exists in the loaded studies list.
+ * Returns null when no validation issues are found.
+ */
+const localValidationError = computed((): string | null => {
+  // Check for duplicate prompt names (slugs)
+  const validPrompts = prompts.value.filter(p => p != null && p.name.trim() !== '' && p.text.trim() !== '')
+  const promptNames = validPrompts.map(p => p.name.trim())
+  const seenPromptNames = new Set<string>()
+  for (const name of promptNames) {
+    if (seenPromptNames.has(name)) {
+      return `Duplicate prompt name: "${name}"`
+    }
+    seenPromptNames.add(name)
+  }
+
+  // Check for duplicate steps
+  const seenSteps = new Set<number>()
+  for (const step of steps.value) {
+    if (seenSteps.has(step)) {
+      return `Duplicate step value: ${step}`
+    }
+    seenSteps.add(step)
+  }
+
+  // Check for duplicate CFG values
+  const seenCfgs = new Set<number>()
+  for (const cfg of cfgs.value) {
+    if (seenCfgs.has(cfg)) {
+      return `Duplicate CFG value: ${cfg}`
+    }
+    seenCfgs.add(cfg)
+  }
+
+  // Check for duplicate sampler/scheduler pairs
+  const seenPairs = new Set<string>()
+  for (const pair of samplerSchedulerPairs.value) {
+    const key = `${pair.sampler}/${pair.scheduler}`
+    if (seenPairs.has(key)) {
+      return `Duplicate sampler/scheduler pair: ${pair.sampler} / ${pair.scheduler}`
+    }
+    seenPairs.add(key)
+  }
+
+  // Check for duplicate seeds
+  const seenSeeds = new Set<number>()
+  for (const seed of seeds.value) {
+    if (seenSeeds.has(seed)) {
+      return `Duplicate seed value: ${seed}`
+    }
+    seenSeeds.add(seed)
+  }
+
+  // Check for duplicate study name against the loaded studies list,
+  // excluding the currently selected study (when editing).
+  const trimmedName = studyName.value.trim()
+  if (trimmedName !== '') {
+    const conflict = studies.value.find(
+      s => s.name === trimmedName && s.id !== selectedStudyId.value
+    )
+    if (conflict) {
+      return `A study named "${trimmedName}" already exists`
+    }
+  }
+
+  return null
+})
+
 const canSave = computed(() => {
   return (
     studyName.value.trim() !== '' &&
@@ -103,7 +172,8 @@ const canSave = computed(() => {
     samplerSchedulerPairs.value.every(p => p.sampler.trim() !== '' && p.scheduler.trim() !== '') &&
     seeds.value.length > 0 &&
     width.value > 0 &&
-    height.value > 0
+    height.value > 0 &&
+    localValidationError.value === null
   )
 })
 
@@ -374,6 +444,9 @@ function onUpdateSeeds(tags: string[]) {
       <NSpace vertical :size="16">
         <NAlert v-if="error" type="error" closable @close="error = null">
           {{ error }}
+        </NAlert>
+        <NAlert v-if="localValidationError" type="warning" data-testid="local-validation-error">
+          {{ localValidationError }}
         </NAlert>
 
         <div class="study-controls">

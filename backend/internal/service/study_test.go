@@ -15,12 +15,13 @@ import (
 
 // fakeStudyStore is an in-memory test double for service.StudyStore.
 type fakeStudyStore struct {
-	studies   map[string]model.Study
-	listErr   error
-	getErr    error
-	createErr error
-	updateErr error
-	deleteErr error
+	studies        map[string]model.Study
+	listErr        error
+	getErr         error
+	getByNameErr   error
+	createErr      error
+	updateErr      error
+	deleteErr      error
 }
 
 func newFakeStudyStore() *fakeStudyStore {
@@ -47,6 +48,18 @@ func (f *fakeStudyStore) GetStudy(id string) (model.Study, error) {
 		return model.Study{}, sql.ErrNoRows
 	}
 	return p, nil
+}
+
+func (f *fakeStudyStore) GetStudyByName(name string, excludeID string) (model.Study, error) {
+	if f.getByNameErr != nil {
+		return model.Study{}, f.getByNameErr
+	}
+	for _, p := range f.studies {
+		if p.Name == name && p.ID != excludeID {
+			return p, nil
+		}
+	}
+	return model.Study{}, sql.ErrNoRows
 }
 
 func (f *fakeStudyStore) CreateStudy(p model.Study) error {
@@ -408,7 +421,149 @@ var _ = Describe("StudyService", func() {
 					height:        -1,
 					expectedError: "height must be positive",
 				}),
+		Entry("rejects duplicate step values",
+			validationTestCase{
+				name:          "Test",
+				prompts:       []model.NamedPrompt{{Name: "p1", Text: "text"}},
+				steps:         []int{4, 8, 4},
+				cfgs:          []float64{1.0},
+				pairs:         []model.SamplerSchedulerPair{{Sampler: "euler", Scheduler: "simple"}},
+				seeds:         []int64{420},
+				width:         512,
+				height:        512,
+				expectedError: "duplicate step value 4",
+			}),
+		Entry("rejects duplicate CFG values",
+			validationTestCase{
+				name:          "Test",
+				prompts:       []model.NamedPrompt{{Name: "p1", Text: "text"}},
+				steps:         []int{4},
+				cfgs:          []float64{1.0, 3.0, 1.0},
+				pairs:         []model.SamplerSchedulerPair{{Sampler: "euler", Scheduler: "simple"}},
+				seeds:         []int64{420},
+				width:         512,
+				height:        512,
+				expectedError: "duplicate CFG value 1",
+			}),
+		Entry("rejects duplicate sampler/scheduler pairs",
+			validationTestCase{
+				name:    "Test",
+				prompts: []model.NamedPrompt{{Name: "p1", Text: "text"}},
+				steps:   []int{4},
+				cfgs:    []float64{1.0},
+				pairs: []model.SamplerSchedulerPair{
+					{Sampler: "euler", Scheduler: "simple"},
+					{Sampler: "heun", Scheduler: "normal"},
+					{Sampler: "euler", Scheduler: "simple"},
+				},
+				seeds:         []int64{420},
+				width:         512,
+				height:        512,
+				expectedError: `duplicate sampler/scheduler pair "euler"/"simple"`,
+			}),
+		Entry("rejects duplicate seed values",
+			validationTestCase{
+				name:          "Test",
+				prompts:       []model.NamedPrompt{{Name: "p1", Text: "text"}},
+				steps:         []int{4},
+				cfgs:          []float64{1.0},
+				pairs:         []model.SamplerSchedulerPair{{Sampler: "euler", Scheduler: "simple"}},
+				seeds:         []int64{420, 100, 420},
+				width:         512,
+				height:        512,
+				expectedError: "duplicate seed value 420",
+			}),
+		Entry("rejects duplicate prompt names",
+			validationTestCase{
+				name: "Test",
+				prompts: []model.NamedPrompt{
+					{Name: "forest", Text: "a forest"},
+					{Name: "city", Text: "a city"},
+					{Name: "forest", Text: "another forest"},
+				},
+				steps:         []int{4},
+				cfgs:          []float64{1.0},
+				pairs:         []model.SamplerSchedulerPair{{Sampler: "euler", Scheduler: "simple"}},
+				seeds:         []int64{420},
+				width:         512,
+				height:        512,
+				expectedError: `duplicate prompt name "forest"`,
+			}),
 		)
+	})
+
+	Describe("Duplicate name rejection", func() {
+		var validPrompts []model.NamedPrompt
+		var validSteps []int
+		var validCFGs []float64
+		var validPairs []model.SamplerSchedulerPair
+		var validSeeds []int64
+
+		BeforeEach(func() {
+			validPrompts = []model.NamedPrompt{
+				{Name: "prompt1", Text: "a test prompt"},
+			}
+			validSteps = []int{4, 8}
+			validCFGs = []float64{1.0, 3.0}
+			validPairs = []model.SamplerSchedulerPair{
+				{Sampler: "euler", Scheduler: "simple"},
+			}
+			validSeeds = []int64{420}
+
+			// Pre-seed the store with an existing study named "Existing"
+			store.studies["existing-id"] = model.Study{
+				ID:   "existing-id",
+				Name: "Existing",
+			}
+		})
+
+		It("rejects Create when a study with the same name already exists", func() {
+			_, err := svc.Create("Existing", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("already exists"))
+		})
+
+		It("allows Create when no study with that name exists", func() {
+			_, err := svc.Create("New Name", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("rejects Update when another study already has the target name", func() {
+			// Seed a second study to be updated
+			store.studies["other-id"] = model.Study{
+				ID:                    "other-id",
+				Name:                  "Other",
+				Prompts:               validPrompts,
+				Steps:                 validSteps,
+				CFGs:                  validCFGs,
+				SamplerSchedulerPairs: validPairs,
+				Seeds:                 validSeeds,
+				Width:                 512,
+				Height:                512,
+			}
+			// Try to rename "Other" to "Existing" — should be rejected
+			_, err := svc.Update("other-id", "Existing", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("already exists"))
+		})
+
+		It("allows Update when saving a study with its own current name", func() {
+			// Pre-seed the study being updated
+			store.studies["self-id"] = model.Study{
+				ID:                    "self-id",
+				Name:                  "Self",
+				Prompts:               validPrompts,
+				Steps:                 validSteps,
+				CFGs:                  validCFGs,
+				SamplerSchedulerPairs: validPairs,
+				Seeds:                 validSeeds,
+				Width:                 512,
+				Height:                512,
+			}
+			// Saving with the same name should succeed (self-exclusion)
+			_, err := svc.Update("self-id", "Self", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512)
+			Expect(err).NotTo(HaveOccurred())
+		})
 	})
 
 	Describe("Update", func() {

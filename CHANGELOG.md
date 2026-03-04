@@ -5,6 +5,11 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-043: Study editor allows duplicate dimension values
+- Backend `validate()` rejects duplicate steps, CFGs, sampler/scheduler pairs, seeds, and prompt names via set-based detection
+- `GetStudyByName` store method + service-layer uniqueness check on Create/Update with self-exclusion for updates
+- Frontend `localValidationError` computed mirrors backend checks, disables save button and shows warning alert
+
 ### B-044: SQLite PRAGMA foreign_keys=ON not enforced across connection pool
 - Pragmas (foreign_keys, WAL, busy_timeout) now set via DSN `_pragma` parameters instead of `db.Exec()`, ensuring enforcement on every pool connection
 - E2E test verifies cascade deletion actually removes sample_jobs when a study is deleted

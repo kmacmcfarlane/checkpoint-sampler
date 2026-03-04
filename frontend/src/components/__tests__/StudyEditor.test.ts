@@ -1634,6 +1634,167 @@ describe('StudyEditor', () => {
     })
   })
 
+  describe('duplicate value validation', () => {
+    // Helper: mount and set up a fully valid form state (no pairs — must be set manually).
+    async function mountWithValidForm() {
+      const wrapper = mount(StudyEditor)
+      await flushPromises()
+
+      const nameInput = asVue(wrapper.findComponent('[data-testid="study-name-input"]'))
+      nameInput.vm.$emit('update:value', 'Unique Name')
+
+      const promptInputs = wrapper.findAllComponents(NInput)
+      const promptNameInput = promptInputs.find(i => i.props('placeholder')?.includes('Prompt name'))!
+      promptNameInput.vm.$emit('update:value', 'forest')
+      const promptTextInput = promptInputs.find(i => i.props('placeholder')?.includes('Prompt text'))!
+      promptTextInput.vm.$emit('update:value', 'a forest scene')
+
+      const vm = wrapper.vm as unknown as {
+        samplerSchedulerPairs: Array<{ sampler: string; scheduler: string }>
+        steps: number[]
+        cfgs: number[]
+        seeds: number[]
+        prompts: Array<{ name: string; text: string }>
+      }
+      vm.samplerSchedulerPairs = [{ sampler: 'euler', scheduler: 'simple' }]
+      await nextTick()
+
+      return { wrapper, vm }
+    }
+
+    it('shows no validation error when all dimension values are unique', async () => {
+      const { wrapper } = await mountWithValidForm()
+
+      const warningAlert = wrapper.find('[data-testid="local-validation-error"]')
+      expect(warningAlert.exists()).toBe(false)
+    })
+
+    it('shows validation error and disables save for duplicate step values', async () => {
+      const { wrapper, vm } = await mountWithValidForm()
+
+      vm.steps = [4, 8, 4]
+      await nextTick()
+
+      const warningAlert = wrapper.find('[data-testid="local-validation-error"]')
+      expect(warningAlert.exists()).toBe(true)
+      expect(warningAlert.text()).toContain('Duplicate step value: 4')
+
+      const saveButton = wrapper
+        .findAllComponents(NButton)
+        .find(b => b.text().includes('Save Study'))!
+      expect(saveButton.props('disabled')).toBe(true)
+    })
+
+    it('shows validation error and disables save for duplicate CFG values', async () => {
+      const { wrapper, vm } = await mountWithValidForm()
+
+      vm.cfgs = [1.0, 3.0, 1.0]
+      await nextTick()
+
+      const warningAlert = wrapper.find('[data-testid="local-validation-error"]')
+      expect(warningAlert.exists()).toBe(true)
+      expect(warningAlert.text()).toContain('Duplicate CFG value: 1')
+
+      const saveButton = wrapper
+        .findAllComponents(NButton)
+        .find(b => b.text().includes('Save Study'))!
+      expect(saveButton.props('disabled')).toBe(true)
+    })
+
+    it('shows validation error and disables save for duplicate seed values', async () => {
+      const { wrapper, vm } = await mountWithValidForm()
+
+      vm.seeds = [42, 420, 42]
+      await nextTick()
+
+      const warningAlert = wrapper.find('[data-testid="local-validation-error"]')
+      expect(warningAlert.exists()).toBe(true)
+      expect(warningAlert.text()).toContain('Duplicate seed value: 42')
+
+      const saveButton = wrapper
+        .findAllComponents(NButton)
+        .find(b => b.text().includes('Save Study'))!
+      expect(saveButton.props('disabled')).toBe(true)
+    })
+
+    it('shows validation error and disables save for duplicate sampler/scheduler pairs', async () => {
+      const { wrapper, vm } = await mountWithValidForm()
+
+      vm.samplerSchedulerPairs = [
+        { sampler: 'euler', scheduler: 'simple' },
+        { sampler: 'heun', scheduler: 'normal' },
+        { sampler: 'euler', scheduler: 'simple' },
+      ]
+      await nextTick()
+
+      const warningAlert = wrapper.find('[data-testid="local-validation-error"]')
+      expect(warningAlert.exists()).toBe(true)
+      expect(warningAlert.text()).toContain('Duplicate sampler/scheduler pair')
+
+      const saveButton = wrapper
+        .findAllComponents(NButton)
+        .find(b => b.text().includes('Save Study'))!
+      expect(saveButton.props('disabled')).toBe(true)
+    })
+
+    it('shows validation error and disables save for duplicate prompt names', async () => {
+      const { wrapper, vm } = await mountWithValidForm()
+
+      vm.prompts = [
+        { name: 'forest', text: 'a forest' },
+        { name: 'city', text: 'a city' },
+        { name: 'forest', text: 'another forest' },
+      ]
+      await nextTick()
+
+      const warningAlert = wrapper.find('[data-testid="local-validation-error"]')
+      expect(warningAlert.exists()).toBe(true)
+      expect(warningAlert.text()).toContain('Duplicate prompt name: "forest"')
+
+      const saveButton = wrapper
+        .findAllComponents(NButton)
+        .find(b => b.text().includes('Save Study'))!
+      expect(saveButton.props('disabled')).toBe(true)
+    })
+
+    it('shows validation error when study name conflicts with an existing study', async () => {
+      const { wrapper } = await mountWithValidForm()
+
+      // Set the name to match one of the loaded studies
+      const nameInput = asVue(wrapper.findComponent('[data-testid="study-name-input"]'))
+      nameInput.vm.$emit('update:value', 'Test Preset A')
+      await nextTick()
+
+      const warningAlert = wrapper.find('[data-testid="local-validation-error"]')
+      expect(warningAlert.exists()).toBe(true)
+      expect(warningAlert.text()).toContain('already exists')
+
+      const saveButton = wrapper
+        .findAllComponents(NButton)
+        .find(b => b.text().includes('Save Study'))!
+      expect(saveButton.props('disabled')).toBe(true)
+    })
+
+    it('allows saving when renaming an existing study to its own name', async () => {
+      const wrapper = mount(StudyEditor)
+      await flushPromises()
+
+      // Select an existing study
+      const select = wrapper.findAllComponents(NSelect)[0]
+      select.vm.$emit('update:value', 'preset-1')
+      await nextTick()
+
+      // The name should still be "Test Preset A" and there should be no validation error
+      const warningAlert = wrapper.find('[data-testid="local-validation-error"]')
+      expect(warningAlert.exists()).toBe(false)
+
+      const saveButton = wrapper
+        .findAllComponents(NButton)
+        .find(b => b.text().includes('Update Study'))!
+      expect(saveButton.props('disabled')).toBe(false)
+    })
+  })
+
   afterAll(() => {
     globalThis.confirm = originalConfirm
   })

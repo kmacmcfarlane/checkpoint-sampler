@@ -67,6 +67,15 @@ func (f *fakeStudyStoreAPI) UpdateStudy(p model.Study) error {
 	return nil
 }
 
+func (f *fakeStudyStoreAPI) GetStudyByName(name string, excludeID string) (model.Study, error) {
+	for _, p := range f.studies {
+		if p.Name == name && p.ID != excludeID {
+			return p, nil
+		}
+	}
+	return model.Study{}, sql.ErrNoRows
+}
+
 func (f *fakeStudyStoreAPI) DeleteStudy(id string) error {
 	if f.deleteErr != nil {
 		return f.deleteErr

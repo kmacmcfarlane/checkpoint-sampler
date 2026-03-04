@@ -97,3 +97,9 @@ The FiltersDrawer has a fixed 320px width. For users with many dimensions or lon
 * priority: very-low
 * source: developer
 The Update button updates the mapping but reuses the existing name. A small "Rename" affordance (inline edit on the name field) would let users change names without the Save-As prompt.
+
+### Database UNIQUE constraint on study names
+* status: needs_approval
+* priority: low
+* source: developer
+Add a migration to add a `UNIQUE` constraint on `studies.name` to enforce uniqueness at the database level, complementing the service-layer check and preventing race conditions in concurrent-user scenarios.

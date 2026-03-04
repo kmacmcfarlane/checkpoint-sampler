@@ -209,6 +209,41 @@ func (s *Store) UpdateStudy(st model.Study) error {
 	return nil
 }
 
+// GetStudyByName returns the first study with the given name, excluding the
+// study with excludeID (pass "" to include all studies). Returns sql.ErrNoRows
+// if no matching study is found.
+func (s *Store) GetStudyByName(name string, excludeID string) (model.Study, error) {
+	s.logger.WithField("study_name", name).Trace("entering GetStudyByName")
+	defer s.logger.Trace("returning from GetStudyByName")
+
+	var e studyEntity
+	var err error
+	if excludeID == "" {
+		err = s.db.QueryRow(
+			`SELECT id, name, prompt_prefix, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs, seeds, width, height, created_at, updated_at
+			FROM studies WHERE name = ? LIMIT 1`, name,
+		).Scan(&e.ID, &e.Name, &e.PromptPrefix, &e.Prompts, &e.NegativePrompt, &e.Steps, &e.CFGs, &e.SamplerSchedulerPairs, &e.Seeds, &e.Width, &e.Height, &e.CreatedAt, &e.UpdatedAt)
+	} else {
+		err = s.db.QueryRow(
+			`SELECT id, name, prompt_prefix, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs, seeds, width, height, created_at, updated_at
+			FROM studies WHERE name = ? AND id != ? LIMIT 1`, name, excludeID,
+		).Scan(&e.ID, &e.Name, &e.PromptPrefix, &e.Prompts, &e.NegativePrompt, &e.Steps, &e.CFGs, &e.SamplerSchedulerPairs, &e.Seeds, &e.Width, &e.Height, &e.CreatedAt, &e.UpdatedAt)
+	}
+	if err != nil {
+		if err == sql.ErrNoRows {
+			s.logger.WithField("study_name", name).Debug("no study found with name")
+		} else {
+			s.logger.WithFields(logrus.Fields{
+				"study_name": name,
+				"error":      err.Error(),
+			}).Error("failed to query study by name")
+		}
+		return model.Study{}, err
+	}
+	s.logger.WithField("study_name", name).Debug("fetched study by name from database")
+	return studyEntityToModel(e)
+}
+
 // DeleteStudy removes a study by ID. Returns sql.ErrNoRows if the study
 // does not exist.
 func (s *Store) DeleteStudy(id string) error {
