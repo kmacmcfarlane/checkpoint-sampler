@@ -7,10 +7,7 @@
 !.claude/agents/
 !.claude/skills/
 
-.ralph.stop
-.ralph-temp/
-agent/ralph-runlog.json
-agent/ralph-rawlog*
+.ralph/
 
 # OS
 .DS_Store

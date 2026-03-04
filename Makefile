@@ -35,7 +35,7 @@ ralph-auto-resume-once:
 backlog-count-not-done:
 	grep -E "status: (todo|uat|in_progress|review|testing)" < agent/backlog.yaml|wc -l
 
-# Capture runtime context snapshot (container logs, errors) to .ralph-temp/debug-context
+# Capture runtime context snapshot (container logs, errors) to .ralph/temp/debug-context
 capture-runtime-context:
 	./scripts/capture-runtime-context.sh
 
@@ -91,7 +91,7 @@ up-test:
 down-test:
 	$(COMPOSE_TEST) down -v
 
-E2E_LOG_DIR = .ralph-temp/e2e-logs
+E2E_LOG_DIR = .ralph/temp/e2e-logs
 
 # Build the custom Playwright Docker image with npm dependencies pre-installed.
 # Run this once (or after package.json changes) to avoid npm ci overhead on each test run.
@@ -100,7 +100,7 @@ build-playwright:
 
 # Run Playwright E2E tests against a self-contained stack with test fixture data.
 # Starts backend + frontend with test-fixtures/ data, waits until healthy, runs
-# playwright, then captures logs to .ralph-temp/e2e-logs/ and tears down.
+# playwright, then captures logs to .ralph/temp/e2e-logs/ and tears down.
 # Does not require make up-dev to be running.
 test-e2e:
 	$(COMPOSE_TEST) up -d --build --wait --remove-orphans backend frontend && \

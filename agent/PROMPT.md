@@ -20,13 +20,13 @@ backlog.py next-work --format json
 ```
 
 This returns the selected story with a `queue` field. Dispatch based on the queue value:
-- `review` → invoke code-reviewer subagent
 - `testing` → invoke qa-expert subagent
+- `review` → invoke code-reviewer subagent
+- `in_progress` → invoke fullstack-developer subagent (if story has no branch yet, create one)
 - `uat_feedback` → copy uat_feedback to review_feedback, clear uat_feedback, set in_progress, create new branch from main, invoke fullstack-developer subagent
-- `in_progress_feedback` → invoke fullstack-developer subagent
 - `todo` → set status to in_progress, invoke fullstack-developer subagent
 
-Exit code 2 means no eligible work — touch `.ralph.stop` and exit.
+Exit code 2 means no eligible work — touch `.ralph/stop` and exit.
 
 ## Story marker
 
@@ -166,6 +166,6 @@ Note: `uat` → `done` is a user action. Agents never set `status: done`.
 - If blocked, record via `backlog.py set <id> status blocked` + `echo "<reason>" | backlog.py set-text <id> blocked_reason` and exit.
 
 How to stop:
-- Touch `.ralph.stop` to signal stopping the ralph loop (only if no eligible stories remain).
+- Touch `.ralph/stop` to signal stopping the ralph loop (only if no eligible stories remain).
 
 Never claim completion unless the above conditions are met.

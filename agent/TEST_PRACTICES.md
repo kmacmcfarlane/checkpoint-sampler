@@ -285,8 +285,8 @@ After completing section 5.5 (E2E smoke test), the QA expert must perform a runt
 
 1. Capture logs. Two options:
    a. Use the E2E logs captured automatically by `make test-e2e`. After a run, logs are written to:
-      - `.ralph-temp/e2e-logs/backend.log`
-      - `.ralph-temp/e2e-logs/frontend.log`
+      - `.ralph/temp/e2e-logs/backend.log`
+      - `.ralph/temp/e2e-logs/frontend.log`
       Review these files directly. This is the preferred option when E2E tests have been run.
    b. Start the application briefly, capture logs, then tear down:
       ```

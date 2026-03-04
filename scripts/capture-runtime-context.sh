@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Capture runtime context from docker compose for debugging.
-# Outputs a markdown-formatted snapshot to .ralph-temp/debug-context in the project root.
+# Outputs a markdown-formatted snapshot to .ralph/temp/debug-context in the project root.
 #
 # Usage:
 #   ./scripts/capture-runtime-context.sh              # default output
@@ -11,7 +11,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-DEFAULT_DIR="$PROJECT_DIR/.ralph-temp"
+DEFAULT_DIR="$PROJECT_DIR/.ralph/temp"
 mkdir -p "$DEFAULT_DIR"
 OUTPUT="${1:-$DEFAULT_DIR/debug-context}"
 

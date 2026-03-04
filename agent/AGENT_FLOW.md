@@ -553,12 +553,3 @@ The agent must assume:
 - Therefore, always re-read the input files in section 0 before acting.
 - A single cycle processes exactly ONE story. That story may advance through multiple status transitions within the cycle (e.g., `todo` → `in_progress` → `review` → `testing` → `uat`) if all subagents complete successfully. After a story reaches `uat` (or `blocked`), the cycle ends — the orchestrator does not select additional stories. The `uat` → `done` transition is always a manual user action.
 
-### 10.1 Per-iteration temp directory (`.ralph-temp/`)
-
-The `.ralph-temp/` directory is available for any ephemeral per-iteration files (logs, debug context, intermediate outputs). Key facts:
-
-- **Auto-created**: claude-sandbox creates the directory automatically if it does not exist.
-- **Emptied each iteration**: Contents are deleted at the start of each ralph iteration, unless the iteration is a `--resume` (in which case previous contents are preserved).
-- **Gitignored**: The directory is in `.gitignore` — never commit its contents.
-- **Not committed**: Do not include `.ralph-temp/` files in story commits.
-- **Use cases**: E2E log capture, runtime context snapshots (`capture-runtime-context.sh`), any other temporary diagnostic output.

@@ -125,7 +125,7 @@ Actions: `approve → archive`, `set uat_feedback`, `skip (no change)`
 |----|------|-------|------------------|----------|------------|
 
 After the tables, show:
-- **Next 5 in work order**: The stories that will be worked next after these changes take effect (considering queue priority from AGENT_FLOW.md: uat_feedback → in_progress_feedback → todo)
+- **Next 5 in work order**: The stories that will be worked next after these changes take effect (considering queue priority from AGENT_FLOW.md: testing → review → in_progress → uat_feedback → todo)
 - **Dependency notes**: Any chains or blocking relationships worth calling out
 
 ### Step 2.2: User confirmation

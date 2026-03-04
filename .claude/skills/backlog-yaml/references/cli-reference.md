@@ -129,10 +129,10 @@ Implements the deterministic work-selection algorithm from AGENT_FLOW.md section
 
 | Queue | Meaning | Story status |
 |-------|---------|--------------|
-| `review` | Code review pending | `status: review` |
 | `testing` | QA testing pending | `status: testing` |
+| `review` | Code review pending | `status: review` |
+| `in_progress` | Implementation in progress | `status: in_progress` (with or without `review_feedback`) |
 | `uat_feedback` | UAT rework needed | `status: uat` with `uat_feedback` |
-| `in_progress_feedback` | Review/QA feedback to address | `status: in_progress` with `review_feedback` |
 | `todo` | New work (bugs prioritized, requires satisfied) | `status: todo` |
 
 **Exit codes:** 0 = story selected, 2 = no eligible work found.
