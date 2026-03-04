@@ -61,35 +61,7 @@ This project is part of the [kmac-claude-kit](https://github.com/kmacmcfarlane/k
 - **claude-templates**: The template this project was scaffolded from. See https://github.com/kmacmcfarlane/claude-templates
 - **claude-skills**: Reusable skills (slash commands). See https://github.com/kmacmcfarlane/claude-skills
 
-## 7) Runtime environment (claude-sandbox)
-
-Claude Code may run inside a Docker container (the `claude-sandbox`) or directly on the host.
-**Detect which at the start of each cycle** by checking for `/.dockerenv`:
-- File exists → running inside the claude-sandbox container
-- File does not exist → running directly on the host
-
-### 7.1 Inside the sandbox (/.dockerenv exists)
-The agent is already inside a Docker container with the project mounted. Key facts:
-- **Base image**: Debian bookworm-slim
-- **Installed**: Node.js 22, Python 3 + venv (`/opt/claude-sandbox/venv` with ruamel.yaml), Docker CLI + compose plugin, git, make, jq, curl
-- **NOT installed**: Go, ginkgo, or any Go toolchain
-- **Docker access**: Host Docker socket is mounted — `docker compose` commands work and talk to the host daemon. ONLY use this to bring up and down the application (e.g. for testing), do not run other docker containers on the host system under any circumstances.
-- **Project mount**: The repo is mounted at its real host path (not `/workspace`), so docker compose volume paths resolve correctly on the host
-- **UID/GID**: Container user `claude` is remapped to match the host user's UID/GID. BE CAREFUL INSIDE VOLUME MOUNTS FOR THIS REASON.
-
-Implications for development:
-- **Go commands**: Run via `docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm backend sh -c "..."` (the backend dev container has Go + ginkgo). Do NOT use `docker run` with separate images — always use the project's compose services.
-- **Frontend tests**: `npx vitest run` works directly (Node.js is installed in the sandbox)
-- **Go codegen**: Run via `docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm -w /app/backend backend make gen`
-- **Do not install system packages** or modify the container OS — it is ephemeral
-
-### 7.2 On the host (/.dockerenv does not exist)
-The agent is running directly on the host machine. Go and other tools may be available natively. Check before assuming — use `which go`, `which ginkgo`, etc.
-- If Go is installed: run Go commands directly (no docker compose needed)
-- If Go is NOT installed: fall back to the compose approach from 7.1
-- Frontend commands (npm/npx) work directly if Node.js is installed
-
-## 8) Quick commands (keep accurate)
+## 7) Quick commands (keep accurate)
 
 Root Makefile targets (work in both sandbox and host — preferred for agent use):
 - `make up` / `make down` / `make logs`
@@ -142,14 +114,14 @@ Agents should use one-shot commands, not watch mode. Watch mode is a long-runnin
 - **Frontend verification**: `make test-frontend` or `cd frontend && npx vitest run`
 - **Do not use** `make test-backend-watch` or `make test-frontend-watch` — these never exit
 
-## 9) Change discipline
+## 8) Change discipline
 - One story at a time (from /agent/backlog.yaml) per /agent/AGENT_FLOW.md.
 - Minimal diffs; no drive-by refactors or formatting churn.
 - Do not edit generated code under /backend/internal/api/gen.
 - Update /CHANGELOG.md per completed story.
 - Commit policy is defined in /agent/AGENT_FLOW.md (follow it exactly).
 
-## 10) Subagent workflow
+## 9) Subagent workflow
 Stories progress through a multi-agent pipeline: fullstack-developer → code-reviewer → qa-expert.
 - Story status values: `todo`, `in_progress`, `review`, `testing`, `uat`, `done`, `blocked`
 - The orchestrator (PROMPT.md) dispatches to the appropriate subagent based on story status
@@ -159,7 +131,7 @@ Stories progress through a multi-agent pipeline: fullstack-developer → code-re
 - Subagent definitions live in /.claude/agents/ and are checked into the repository
 - See /agent/AGENT_FLOW.md for the full lifecycle and dispatch rules
 
-## 11) When blocked
+## 10) When blocked
 If acceptance criteria cannot be met:
 - Do not mark the story done.
 - `python3 scripts/backlog/backlog.py set <id> status blocked`

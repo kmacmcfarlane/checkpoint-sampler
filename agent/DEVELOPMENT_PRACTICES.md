@@ -309,13 +309,6 @@ Rules:
 
 ## 5) Docker and dev workflow practices
 
-### 5.0 Environment detection
-Before running build/test commands, detect whether the agent is inside a Docker container by checking for `/.dockerenv`. This determines the correct way to invoke tools:
-- **Inside container**: Go is not available; use `docker compose ... run --rm backend sh -c "..."` for Go commands. Node.js/npm/npx are available directly.
-- **On host**: Check for native tool availability (`which go`, etc.) and use them directly when present. Fall back to compose if not.
-
-See CLAUDE.md section 7 for full details.
-
 ### 5.1 Operational mode (`make up`)
 - Runs the application in a stable configuration:
     - built assets or production-like server mode
