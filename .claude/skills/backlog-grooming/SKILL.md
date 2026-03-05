@@ -23,7 +23,7 @@ Run these in parallel to understand current state:
 ```bash
 python3 scripts/backlog/backlog.py query --status uat --format json --fields id,title,priority,notes,acceptance
 python3 scripts/backlog/backlog.py query --status todo --format json --fields id,title,priority
-python3 scripts/backlog/backlog.py query --status in_progress,review,testing --format json --fields id,title,priority,status
+python3 scripts/backlog/backlog.py query --status in_progress,review,testing,uat_feedback --format json --fields id,title,priority,status,review_feedback
 ```
 
 Summarize the backlog state for the user: how many stories in each status, what's in-flight, what's waiting for review.
