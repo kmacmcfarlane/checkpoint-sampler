@@ -33,7 +33,6 @@ var _ = Describe("JobManifest", func() {
 		study = model.Study{
 			ID:             "study-001",
 			Name:           "Test Study",
-			Version:        2,
 			PromptPrefix:   "high quality",
 			Prompts: []model.NamedPrompt{
 				{Name: "forest", Text: "a dense forest"},
@@ -75,7 +74,6 @@ var _ = Describe("JobManifest", func() {
 
 			Expect(m.StudyID).To(Equal("study-001"))
 			Expect(m.StudyName).To(Equal("Test Study"))
-			Expect(m.StudyVersion).To(Equal(2))
 			Expect(m.PromptPrefix).To(Equal("high quality"))
 			Expect(m.NegativePrompt).To(Equal("blurry, artifacts"))
 			Expect(m.Width).To(Equal(1024))
@@ -150,7 +148,6 @@ var _ = Describe("JobManifest", func() {
 
 			Expect(restored.StudyID).To(Equal(original.StudyID))
 			Expect(restored.StudyName).To(Equal(original.StudyName))
-			Expect(restored.StudyVersion).To(Equal(original.StudyVersion))
 			Expect(restored.PromptPrefix).To(Equal(original.PromptPrefix))
 			Expect(restored.Prompts).To(Equal(original.Prompts))
 			Expect(restored.NegativePrompt).To(Equal(original.NegativePrompt))

@@ -10,23 +10,20 @@ import (
 var _ = Describe("Study.OutputDirName", func() {
 	type testCase struct {
 		name     string
-		version  int
 		expected string
 	}
 
-	DescribeTable("returns versioned output directory name",
+	DescribeTable("returns output directory name (study name)",
 		func(tc testCase) {
-			s := model.Study{Name: tc.name, Version: tc.version}
+			s := model.Study{Name: tc.name}
 			Expect(s.OutputDirName()).To(Equal(tc.expected))
 		},
-		Entry("version 1",
-			testCase{name: "My Study", version: 1, expected: "My Study/v1"}),
-		Entry("version 2",
-			testCase{name: "My Study", version: 2, expected: "My Study/v2"}),
-		Entry("version 10",
-			testCase{name: "Test", version: 10, expected: "Test/v10"}),
-		Entry("study name with spaces",
-			testCase{name: "Photo Study v2", version: 3, expected: "Photo Study v2/v3"}),
+		Entry("simple name",
+			testCase{name: "My Study", expected: "My Study"}),
+		Entry("name with spaces",
+			testCase{name: "Photo Study v2", expected: "Photo Study v2"}),
+		Entry("single word",
+			testCase{name: "Test", expected: "Test"}),
 	)
 })
 

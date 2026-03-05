@@ -5,11 +5,20 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-085: Study immutability and fork workflow (UAT rework)
+- Replaced study versioning (version column, `v{N}/` directories) with immutability + fork approach
+- Studies with existing samples cannot be edited directly; dialog offers "Create New Study" (fork) or "Re-generate Samples" (delete and regenerate)
+- New `POST /api/studies/{source_id}/fork` endpoint creates a copy with modified settings
+- New `GET /api/studies/{id}/has-samples` endpoint checks filesystem for existing samples
+- Migration 13 drops `version` column from studies table (table recreation for SQLite)
+- Flat `StudyAvailability` replaces versioned `StudyVersionInfo[]` in Generate Samples dialog
+- Output directories simplified to `{sample_dir}/{study_name}/{checkpoint}/` (no version subdirectory)
+- Removed `StudyVersion` from job manifest
+
 ### S-086: Study version selector UX and sample availability beads
 - Study selection is now required before the checkpoint picker is shown in the Generate Samples dialog
 - Green bead indicators show which studies have samples for the selected training run
-- Study version suffix (e.g., "(v1)") displayed when availability data is present
-- New `GET /api/studies/availability?training_run_id={id}` endpoint returns per-study version availability
+- New `GET /api/studies/availability?training_run_id={id}` endpoint returns per-study availability
 
 ### S-084: Sample count preview and missing-sample generation from Generate Samples dialog (UAT rework)
 - Generate Samples dialog replaced separate checkpoint picker and validation preview with unified per-checkpoint validation status display (checkmark/warning icons, found/expected counts)
@@ -20,18 +29,13 @@ Older entries are condensed to titles only — see git history for full details.
 - Sidebar "Validate" results now show total counts; "Generate Missing" button opens the job dialog when missing samples are detected
 
 ### S-087: JSON sample job manifest per generation job
-- Each completed generation job writes a `manifest.json` file to the study version output directory capturing the full study configuration snapshot, job metadata, checkpoint list, and all dimension values
+- Each completed generation job writes a `manifest.json` file to the study output directory capturing the full study configuration snapshot, job metadata, checkpoint list, and all dimension values
 - New `fileformat.JobManifest` type with `NewJobManifest`, `MarshalManifest`, `UnmarshalManifest` functions
 - Manifest write is non-fatal: failure logs a warning but does not block job completion
 - `ValidationFileSystem` extended with `ReadFile` method; `ValidateTrainingRunWithManifest` and `ReadManifest` enable manifest-based validation and regeneration
 
 ### B-045: on-demand-validation E2E test fails due to empty POST body on updated validate endpoint
 - Moved `study_id` from request body to URL query parameter via `Param("study_id")` in the Goa DSL, eliminating the generated decoder's requirement for a JSON body on POST `/api/training-runs/{id}/validate`
-
-### S-085: Study versioning and version-scoped output directories
-- Studies have a `version` integer field (starts at 1, increments on every config update)
-- Output directories now versioned: `{sample_dir}/{study_name}/v{version}/{checkpoint}/`
-- Viewer discovery handles three-level versioned directory structures alongside legacy layouts
 
 ### B-043: Study editor allows duplicate dimension values
 - Backend `validate()` rejects duplicate steps, CFGs, sampler/scheduler pairs, seeds, and prompt names via set-based detection

@@ -23,17 +23,24 @@ type StudyStore interface {
 	DeleteStudy(id string) error
 }
 
+// StudySampleChecker checks whether a study has generated samples on disk.
+type StudySampleChecker interface {
+	StudyHasSamples(study model.Study) (bool, error)
+}
+
 // StudyService manages study CRUD operations.
 type StudyService struct {
-	store  StudyStore
-	logger *logrus.Entry
+	store         StudyStore
+	sampleChecker StudySampleChecker
+	logger        *logrus.Entry
 }
 
 // NewStudyService creates a StudyService backed by the given store.
-func NewStudyService(store StudyStore, logger *logrus.Logger) *StudyService {
+func NewStudyService(store StudyStore, sampleChecker StudySampleChecker, logger *logrus.Logger) *StudyService {
 	return &StudyService{
-		store:  store,
-		logger: logger.WithField("component", "study"),
+		store:         store,
+		sampleChecker: sampleChecker,
+		logger:        logger.WithField("component", "study"),
 	}
 }
 
@@ -52,6 +59,26 @@ func (s *StudyService) List() ([]model.Study, error) {
 		studies = []model.Study{}
 	}
 	return studies, nil
+}
+
+// Get returns a single study by ID.
+func (s *StudyService) Get(id string) (model.Study, error) {
+	s.logger.WithField("study_id", id).Trace("entering Get")
+	defer s.logger.Trace("returning from Get")
+
+	study, err := s.store.GetStudy(id)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			s.logger.WithField("study_id", id).Debug("study not found")
+			return model.Study{}, fmt.Errorf("study %s not found", id)
+		}
+		s.logger.WithFields(logrus.Fields{
+			"study_id": id,
+			"error":    err.Error(),
+		}).Error("failed to fetch study")
+		return model.Study{}, fmt.Errorf("fetching study: %w", err)
+	}
+	return study, nil
 }
 
 // Create validates and persists a new study, returning the created study.
@@ -83,7 +110,6 @@ func (s *StudyService) Create(name string, promptPrefix string, prompts []model.
 	st := model.Study{
 		ID:                    uuid.New().String(),
 		Name:                  name,
-		Version:               1,
 		PromptPrefix:          promptPrefix,
 		Prompts:               prompts,
 		NegativePrompt:        negativePrompt,
@@ -168,7 +194,6 @@ func (s *StudyService) Update(id string, name string, promptPrefix string, promp
 	existing.Seeds = seeds
 	existing.Width = width
 	existing.Height = height
-	existing.Version = existing.Version + 1
 	existing.UpdatedAt = time.Now().UTC()
 
 	if err := s.store.UpdateStudy(existing); err != nil {
@@ -182,10 +207,71 @@ func (s *StudyService) Update(id string, name string, promptPrefix string, promp
 	s.logger.WithFields(logrus.Fields{
 		"study_id":              id,
 		"study_name":            name,
-		"version":               existing.Version,
 		"images_per_checkpoint": existing.ImagesPerCheckpoint(),
 	}).Info("study updated")
 	return existing, nil
+}
+
+// Fork creates a new study by copying an existing study's settings with
+// modifications. The new study gets a new ID and name.
+func (s *StudyService) Fork(sourceID string, newName string, promptPrefix string, prompts []model.NamedPrompt, negativePrompt string, steps []int, cfgs []float64, pairs []model.SamplerSchedulerPair, seeds []int64, width int, height int) (model.Study, error) {
+	s.logger.WithFields(logrus.Fields{
+		"source_id": sourceID,
+		"new_name":  newName,
+	}).Trace("entering Fork")
+	defer s.logger.Trace("returning from Fork")
+
+	// Verify source study exists
+	_, err := s.store.GetStudy(sourceID)
+	if err == sql.ErrNoRows {
+		s.logger.WithField("source_id", sourceID).Debug("source study not found for fork")
+		return model.Study{}, fmt.Errorf("source study %s not found", sourceID)
+	}
+	if err != nil {
+		s.logger.WithFields(logrus.Fields{
+			"source_id": sourceID,
+			"error":     err.Error(),
+		}).Error("failed to fetch source study for fork")
+		return model.Study{}, fmt.Errorf("fetching source study: %w", err)
+	}
+
+	// Create the forked study using the standard Create flow (validates, checks name uniqueness)
+	return s.Create(newName, promptPrefix, prompts, negativePrompt, steps, cfgs, pairs, seeds, width, height)
+}
+
+// HasSamples checks whether a study has any generated samples on disk.
+func (s *StudyService) HasSamples(id string) (bool, error) {
+	s.logger.WithField("study_id", id).Trace("entering HasSamples")
+	defer s.logger.Trace("returning from HasSamples")
+
+	study, err := s.store.GetStudy(id)
+	if err == sql.ErrNoRows {
+		s.logger.WithField("study_id", id).Debug("study not found for has-samples check")
+		return false, fmt.Errorf("study %s not found", id)
+	}
+	if err != nil {
+		s.logger.WithFields(logrus.Fields{
+			"study_id": id,
+			"error":    err.Error(),
+		}).Error("failed to fetch study for has-samples check")
+		return false, fmt.Errorf("fetching study: %w", err)
+	}
+
+	hasSamples, err := s.sampleChecker.StudyHasSamples(study)
+	if err != nil {
+		s.logger.WithFields(logrus.Fields{
+			"study_id": id,
+			"error":    err.Error(),
+		}).Error("failed to check if study has samples")
+		return false, fmt.Errorf("checking study samples: %w", err)
+	}
+
+	s.logger.WithFields(logrus.Fields{
+		"study_id":    id,
+		"has_samples": hasSamples,
+	}).Debug("study has-samples check completed")
+
+	return hasSamples, nil
 }
 
 // Delete removes a study by ID.

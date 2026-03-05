@@ -132,7 +132,6 @@ export interface SamplerSchedulerPair {
 export interface Study {
   id: string
   name: string
-  version: number
   prompt_prefix: string
   prompts: NamedPrompt[]
   negative_prompt: string
@@ -174,6 +173,26 @@ export interface UpdateStudyPayload {
   seeds: number[]
   width: number
   height: number
+}
+
+/** Payload for forking a study (creating a new study from an existing one). */
+export interface ForkStudyPayload {
+  source_id: string
+  name: string
+  prompt_prefix: string
+  prompts: NamedPrompt[]
+  negative_prompt: string
+  steps: number[]
+  cfgs: number[]
+  sampler_scheduler_pairs: SamplerSchedulerPair[]
+  seeds: number[]
+  width: number
+  height: number
+}
+
+/** Response for checking if a study has generated samples. */
+export interface HasSamplesResponse {
+  has_samples: boolean
 }
 
 /** Sample job status. */
@@ -278,17 +297,11 @@ export interface ValidationResult {
   total_missing: number
 }
 
-/** A single version of a study with sample availability. */
-export interface StudyVersionInfo {
-  version: number
-  has_samples: boolean
-}
-
-/** Per-study version availability for a training run. */
+/** Per-study sample availability for a training run. */
 export interface StudyAvailability {
   study_id: string
   study_name: string
-  versions: StudyVersionInfo[]
+  has_samples: boolean
 }
 
 /** Demo dataset status response. */

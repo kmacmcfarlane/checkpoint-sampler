@@ -289,97 +289,11 @@ var _ = Describe("ViewerDiscoveryService", func() {
 		})
 
 		Context("ignores non-checkpoint directories within studies", func() {
-			It("skips non-.safetensors non-version directories inside study directories", func() {
+			It("skips non-.safetensors directories inside study directories", func() {
 				fs.subdirs["/samples"] = []string{"my-study"}
 				fs.subdirs["/samples/my-study"] = []string{
 					"model.safetensors",
-					"some-other-dir", // not a checkpoint dir and not a version dir
-				}
-				svc = service.NewViewerDiscoveryService(fs, "/samples", logger)
-
-				runs, err := svc.DiscoverViewable()
-
-				Expect(err).NotTo(HaveOccurred())
-				Expect(runs).To(HaveLen(1))
-				Expect(runs[0].Checkpoints).To(HaveLen(1))
-			})
-		})
-
-		Context("versioned study directories", func() {
-			It("discovers checkpoint directories under version subdirectories", func() {
-				fs.subdirs["/samples"] = []string{"my-study"}
-				fs.subdirs["/samples/my-study"] = []string{"v1"}
-				fs.subdirs["/samples/my-study/v1"] = []string{
-					"model-step00001000.safetensors",
-					"model-step00002000.safetensors",
-				}
-				svc = service.NewViewerDiscoveryService(fs, "/samples", logger)
-
-				runs, err := svc.DiscoverViewable()
-
-				Expect(err).NotTo(HaveOccurred())
-				Expect(runs).To(HaveLen(1))
-				Expect(runs[0].Name).To(Equal("my-study/v1/model"))
-				Expect(runs[0].Checkpoints).To(HaveLen(2))
-				Expect(runs[0].HasSamples).To(BeTrue())
-			})
-
-			It("discovers multiple versions of the same study", func() {
-				fs.subdirs["/samples"] = []string{"my-study"}
-				fs.subdirs["/samples/my-study"] = []string{"v1", "v2"}
-				fs.subdirs["/samples/my-study/v1"] = []string{
-					"model.safetensors",
-				}
-				fs.subdirs["/samples/my-study/v2"] = []string{
-					"model.safetensors",
-				}
-				svc = service.NewViewerDiscoveryService(fs, "/samples", logger)
-
-				runs, err := svc.DiscoverViewable()
-
-				Expect(err).NotTo(HaveOccurred())
-				Expect(runs).To(HaveLen(2))
-				Expect(runs[0].Name).To(Equal("my-study/v1/model"))
-				Expect(runs[1].Name).To(Equal("my-study/v2/model"))
-			})
-
-			It("handles mixed versioned and legacy checkpoint directories within a study", func() {
-				fs.subdirs["/samples"] = []string{"my-study"}
-				fs.subdirs["/samples/my-study"] = []string{
-					"model.safetensors",  // legacy (pre-versioning)
-					"v2",                  // versioned
-				}
-				fs.subdirs["/samples/my-study/v2"] = []string{
-					"model.safetensors",
-				}
-				svc = service.NewViewerDiscoveryService(fs, "/samples", logger)
-
-				runs, err := svc.DiscoverViewable()
-
-				Expect(err).NotTo(HaveOccurred())
-				Expect(runs).To(HaveLen(2))
-				Expect(runs[0].Name).To(Equal("my-study/model"))
-				Expect(runs[1].Name).To(Equal("my-study/v2/model"))
-			})
-
-			It("returns error when listing version directory fails", func() {
-				fs.subdirs["/samples"] = []string{"my-study"}
-				fs.subdirs["/samples/my-study"] = []string{"v1"}
-				fs.errs["/samples/my-study/v1"] = fmt.Errorf("disk error")
-				svc = service.NewViewerDiscoveryService(fs, "/samples", logger)
-
-				_, err := svc.DiscoverViewable()
-
-				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring("disk error"))
-			})
-
-			It("ignores non-checkpoint entries inside version directories", func() {
-				fs.subdirs["/samples"] = []string{"my-study"}
-				fs.subdirs["/samples/my-study"] = []string{"v1"}
-				fs.subdirs["/samples/my-study/v1"] = []string{
-					"model.safetensors",
-					"random-dir",  // not a checkpoint dir
+					"some-other-dir", // not a checkpoint dir
 				}
 				svc = service.NewViewerDiscoveryService(fs, "/samples", logger)
 
@@ -403,14 +317,6 @@ var _ = Describe("ViewerDiscoveryService", func() {
 
 		It("handles multiple path segments", func() {
 			Expect(service.StudyNameForRun("a/b/c")).To(Equal("a/b"))
-		})
-
-		It("returns study name with version for versioned runs", func() {
-			Expect(service.StudyNameForRun("my-study/v1/model")).To(Equal("my-study/v1"))
-		})
-
-		It("returns full directory prefix for deeply nested versioned runs", func() {
-			Expect(service.StudyNameForRun("my-study/v2/model")).To(Equal("my-study/v2"))
 		})
 	})
 })

@@ -11,17 +11,17 @@ import {
 } from './helpers'
 
 /**
- * E2E tests for S-086: Study version selector UX and sample availability beads.
+ * E2E tests for S-086: Study selector UX and sample availability.
  *
  * Verifies:
  * - AC1: Checkpoint picker requires study selection (not just training run)
- * - AC2: Study availability API returns version info for the availability bead
- * - AC5: API returns version list and per-version sample availability
+ * - AC2: Study availability API returns sample status for the availability bead
+ * - AC5: API returns flat availability with has_samples boolean per study
  *
  * Test fixture data:
  *   - Training run "my-model" with 2 checkpoints (from test-fixtures/)
- *   - No study version directories exist in test-fixtures/samples/ so
- *     availability returns empty versions for newly-created studies
+ *   - No study sample directories exist in test-fixtures/samples/ so
+ *     availability returns has_samples=false for newly-created studies
  */
 
 /**
@@ -42,13 +42,13 @@ async function selectNaiveOptionInContainer(
   await expect(popup).not.toBeVisible()
 }
 
-test.describe('study availability and version selector (S-086)', () => {
+test.describe('study availability and selector (S-086)', () => {
   test.beforeEach(async ({ request }) => {
     await resetDatabase(request)
   })
 
-  // AC5: Availability API returns version list and per-version sample availability
-  test('availability API returns study availability with versions array', async ({ request }) => {
+  // AC5: Availability API returns flat availability with has_samples boolean per study
+  test('availability API returns study availability with has_samples boolean', async ({ request }) => {
     // Create a study so the availability response has at least one entry
     const studyResp = await request.post('/api/studies', {
       data: {
@@ -87,11 +87,12 @@ test.describe('study availability and version selector (S-086)', () => {
     expect(studyAvail).toBeDefined()
     expect(studyAvail.study_name).toBe(study.name)
 
-    // Versions should be an array (may be empty if no version directories exist on disk)
-    expect(Array.isArray(studyAvail.versions)).toBe(true)
+    // has_samples should be a boolean (false since no sample directories exist on disk)
+    expect(typeof studyAvail.has_samples).toBe('boolean')
+    expect(studyAvail.has_samples).toBe(false)
   })
 
-  // AC5: Availability API returns 404 for invalid training_run_id
+  // Availability API returns 404 for invalid training_run_id
   test('availability API returns 404 for non-existent training run', async ({ request }) => {
     const resp = await request.get('/api/studies/availability?training_run_id=9999')
     expect(resp.status()).toBe(404)
@@ -158,7 +159,7 @@ test.describe('study availability and version selector (S-086)', () => {
   })
 
   // AC2/AC3: Study select shows study options with renderLabel (bead rendering)
-  // In the test environment, no study version dirs exist, so _hasSamples is false for all.
+  // In the test environment, no study sample dirs exist, so has_samples is false for all.
   // This test verifies the study select renders options with the study name visible.
   test('study select shows available studies in Generate Samples dialog', async ({ page, request }) => {
     const studyName = `Bead Check ${Date.now()}`

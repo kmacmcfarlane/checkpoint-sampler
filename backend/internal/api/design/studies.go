@@ -48,6 +48,41 @@ var _ = Service("studies", func() {
 		})
 	})
 
+	Method("fork", func() {
+		Description("Fork an existing study: create a new study from an existing one with modified settings")
+		Payload(ForkStudyPayload)
+		Result(StudyResponse)
+		Error("not_found", ErrorResult, "Source study not found")
+		Error("invalid_payload", ErrorResult, "Invalid study data")
+		Error("internal_error", ErrorResult, "Internal server error")
+		HTTP(func() {
+			POST("/api/studies/{source_id}/fork")
+			Response(StatusCreated)
+			Response("not_found", StatusNotFound)
+			Response("invalid_payload", StatusBadRequest)
+			Response("internal_error", StatusInternalServerError)
+		})
+	})
+
+	Method("has_samples", func() {
+		Description("Check whether a study has generated samples on disk")
+		Payload(func() {
+			Attribute("id", String, "Study ID", func() {
+				Example("550e8400-e29b-41d4-a716-446655440000")
+			})
+			Required("id")
+		})
+		Result(HasSamplesResponse)
+		Error("not_found", ErrorResult, "Study not found")
+		Error("internal_error", ErrorResult, "Internal server error")
+		HTTP(func() {
+			GET("/api/studies/{id}/has-samples")
+			Response(StatusOK)
+			Response("not_found", StatusNotFound)
+			Response("internal_error", StatusInternalServerError)
+		})
+	})
+
 	Method("delete", func() {
 		Description("Delete a study")
 		Payload(func() {
@@ -67,7 +102,7 @@ var _ = Service("studies", func() {
 	})
 
 	Method("availability", func() {
-		Description("Get per-study version availability for a training run. For each study, returns discovered version directories and whether each has samples matching the training run's checkpoints.")
+		Description("Get per-study sample availability for a training run. For each study, returns whether it has samples matching the training run's checkpoints.")
 		Payload(func() {
 			Attribute("training_run_id", Int, "Training run index (zero-based) to check availability against", func() {
 				Minimum(0)
@@ -94,10 +129,6 @@ var StudyResponse = Type("StudyResponse", func() {
 	})
 	Attribute("name", String, "Study display name", func() {
 		Example("My Study")
-	})
-	Attribute("version", Int, "Study version number (incremented on config updates)", func() {
-		Example(1)
-		Minimum(1)
 	})
 	Attribute("prompt_prefix", String, "Text prepended to each prompt at generation time", func() {
 		Example("photo of a person, ")
@@ -131,7 +162,7 @@ var StudyResponse = Type("StudyResponse", func() {
 	Attribute("updated_at", String, "Last update timestamp (RFC3339)", func() {
 		Example("2025-01-01T00:00:00Z")
 	})
-	Required("id", "name", "version", "prompt_prefix", "prompts", "negative_prompt", "steps", "cfgs", "sampler_scheduler_pairs", "seeds", "width", "height", "images_per_checkpoint", "created_at", "updated_at")
+	Required("id", "name", "prompt_prefix", "prompts", "negative_prompt", "steps", "cfgs", "sampler_scheduler_pairs", "seeds", "width", "height", "images_per_checkpoint", "created_at", "updated_at")
 })
 
 var CreateStudyPayload = Type("CreateStudyPayload", func() {
@@ -223,6 +254,52 @@ var UpdateStudyPayload = Type("UpdateStudyPayload", func() {
 	Required("id", "name", "prompt_prefix", "prompts", "negative_prompt", "steps", "cfgs", "sampler_scheduler_pairs", "seeds", "width", "height")
 })
 
+var ForkStudyPayload = Type("ForkStudyPayload", func() {
+	Description("Payload for forking a study (creating a new study from an existing one)")
+	Attribute("source_id", String, "Source study ID to fork from", func() {
+		Example("550e8400-e29b-41d4-a716-446655440000")
+	})
+	Attribute("name", String, "New study display name", func() {
+		Example("My Study (copy)")
+		MinLength(1)
+	})
+	Attribute("prompt_prefix", String, "Text prepended to each prompt at generation time", func() {
+		Example("photo of a person, ")
+		Default("")
+	})
+	Attribute("prompts", ArrayOf(NamedPrompt), "List of named prompts", func() {
+		MinLength(1)
+	})
+	Attribute("negative_prompt", String, "Negative prompt text", func() {
+		Example("low quality, blurry")
+		Default("")
+	})
+	Attribute("steps", ArrayOf(Int), "Step counts to iterate", func() {
+		Example([]int{1, 4, 8})
+		MinLength(1)
+	})
+	Attribute("cfgs", ArrayOf(Float64), "CFG scale values to iterate", func() {
+		Example([]float64{1.0, 3.0, 7.0})
+		MinLength(1)
+	})
+	Attribute("sampler_scheduler_pairs", ArrayOf(SamplerSchedulerPair), "Sampler/scheduler pair combinations", func() {
+		MinLength(1)
+	})
+	Attribute("seeds", ArrayOf(Int64), "Seed values to iterate", func() {
+		Example([]int64{420, 421, 422})
+		MinLength(1)
+	})
+	Attribute("width", Int, "Image width in pixels", func() {
+		Example(1344)
+		Minimum(1)
+	})
+	Attribute("height", Int, "Image height in pixels", func() {
+		Example(1344)
+		Minimum(1)
+	})
+	Required("source_id", "name", "prompt_prefix", "prompts", "negative_prompt", "steps", "cfgs", "sampler_scheduler_pairs", "seeds", "width", "height")
+})
+
 var NamedPrompt = Type("NamedPrompt", func() {
 	Description("A prompt with a name and text")
 	Attribute("name", String, "Prompt name (used in filename)", func() {
@@ -249,26 +326,24 @@ var SamplerSchedulerPair = Type("SamplerSchedulerPair", func() {
 	Required("sampler", "scheduler")
 })
 
+var HasSamplesResponse = Type("HasSamplesResponse", func() {
+	Description("Response for checking if a study has generated samples")
+	Attribute("has_samples", Boolean, "Whether the study has generated samples on disk", func() {
+		Example(true)
+	})
+	Required("has_samples")
+})
+
 var StudyAvailabilityResponse = Type("StudyAvailabilityResponse", func() {
-	Description("Per-study version availability for a training run")
+	Description("Per-study sample availability for a training run")
 	Attribute("study_id", String, "Study ID (UUID)", func() {
 		Example("550e8400-e29b-41d4-a716-446655440000")
 	})
 	Attribute("study_name", String, "Study display name", func() {
 		Example("My Study")
 	})
-	Attribute("versions", ArrayOf(StudyVersionInfoResponse), "Discovered version directories with sample availability")
-	Required("study_id", "study_name", "versions")
-})
-
-var StudyVersionInfoResponse = Type("StudyVersionInfoResponse", func() {
-	Description("A single version of a study with sample availability")
-	Attribute("version", Int, "Version number", func() {
-		Example(1)
-		Minimum(1)
-	})
-	Attribute("has_samples", Boolean, "Whether this version has samples for the target training run", func() {
+	Attribute("has_samples", Boolean, "Whether this study has samples for the target training run", func() {
 		Example(true)
 	})
-	Required("version", "has_samples")
+	Required("study_id", "study_name", "has_samples")
 })

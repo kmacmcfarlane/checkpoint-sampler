@@ -16,6 +16,16 @@ import (
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
 )
 
+// fakeSampleCheckerAPI is a test double for service.StudySampleChecker.
+type fakeSampleCheckerAPI struct {
+	hasSamples bool
+	err        error
+}
+
+func (f *fakeSampleCheckerAPI) StudyHasSamples(study model.Study) (bool, error) {
+	return f.hasSamples, f.err
+}
+
 // fakeStudyStoreAPI is an in-memory test double for service.StudyStore.
 type fakeStudyStoreAPI struct {
 	studies   map[string]model.Study
@@ -100,7 +110,8 @@ var _ = Describe("StudiesService", func() {
 		store = newFakeStudyStoreAPI()
 		logger = logrus.New()
 		logger.SetOutput(io.Discard) // Silence logs in tests
-		studySvc := service.NewStudyService(store, logger)
+		sampleChecker := &fakeSampleCheckerAPI{}
+		studySvc := service.NewStudyService(store, sampleChecker, logger)
 		studies = api.NewStudiesService(studySvc, nil, nil)
 	})
 

@@ -2579,7 +2579,6 @@ var _ = Describe("JobExecutor", func() {
 			mockStore.studies["study-manifest-1"] = model.Study{
 				ID:      "study-manifest-1",
 				Name:    "Manifest Study",
-				Version: 2,
 				Prompts: []model.NamedPrompt{
 					{Name: "forest", Text: "a dense forest"},
 				},
@@ -2611,21 +2610,21 @@ var _ = Describe("JobExecutor", func() {
 			}
 		})
 
-		It("writes manifest to the study version directory", func() {
+		It("writes manifest to the study directory", func() {
 			err := executor.writeManifest(job, items)
 			Expect(err).NotTo(HaveOccurred())
 
-			// Manifest should be at {sampleDir}/{StudyName}/v{Version}/manifest.json
-			manifestPath := "/test/samples/Manifest Study/v2/manifest.json"
+			// Manifest should be at {sampleDir}/{StudyName}/manifest.json
+			manifestPath := "/test/samples/Manifest Study/manifest.json"
 			Expect(mockFS.writtenFiles).To(HaveKey(manifestPath))
 		})
 
-		// AC2: Manifest includes study config, version, training run, checkpoint list
+		// AC2: Manifest includes study config, training run, checkpoint list
 		It("writes manifest with correct content", func() {
 			err := executor.writeManifest(job, items)
 			Expect(err).NotTo(HaveOccurred())
 
-			manifestPath := "/test/samples/Manifest Study/v2/manifest.json"
+			manifestPath := "/test/samples/Manifest Study/manifest.json"
 			data, ok := mockFS.writtenFiles[manifestPath]
 			Expect(ok).To(BeTrue())
 
@@ -2643,7 +2642,6 @@ var _ = Describe("JobExecutor", func() {
 			// Study config snapshot
 			Expect(manifest.StudyID).To(Equal("study-manifest-1"))
 			Expect(manifest.StudyName).To(Equal("Manifest Study"))
-			Expect(manifest.StudyVersion).To(Equal(2))
 			Expect(manifest.Width).To(Equal(1024))
 			Expect(manifest.Height).To(Equal(768))
 
@@ -2669,7 +2667,7 @@ var _ = Describe("JobExecutor", func() {
 			err := executor.writeManifest(job, items)
 			Expect(err).NotTo(HaveOccurred())
 
-			manifestPath := "/test/samples/Manifest Study/v2/manifest.json"
+			manifestPath := "/test/samples/Manifest Study/manifest.json"
 			tempPath := manifestPath + ".tmp"
 
 			// Temp file should not exist after rename
@@ -2706,7 +2704,7 @@ var _ = Describe("JobExecutor", func() {
 			err := executor.writeManifest(job, items)
 			Expect(err).NotTo(HaveOccurred())
 
-			manifestPath := "/test/samples/Manifest Study/v2/manifest.json"
+			manifestPath := "/test/samples/Manifest Study/manifest.json"
 			data := mockFS.writtenFiles[manifestPath]
 
 			var manifest fileformat.JobManifest
@@ -2745,7 +2743,6 @@ var _ = Describe("JobExecutor", func() {
 			mockStore.studies["study-complete-manifest"] = model.Study{
 				ID:      "study-complete-manifest",
 				Name:    "Complete Study",
-				Version: 1,
 				Prompts: []model.NamedPrompt{{Name: "p1", Text: "t1"}},
 				Steps:   []int{20},
 				CFGs:    []float64{7.0},
@@ -2765,7 +2762,7 @@ var _ = Describe("JobExecutor", func() {
 			executor.processNextItem()
 
 			// Verify manifest was written
-			manifestPath := "/test/samples/Complete Study/v1/manifest.json"
+			manifestPath := "/test/samples/Complete Study/manifest.json"
 			Expect(mockFS.writtenFiles).To(HaveKey(manifestPath))
 
 			// Verify manifest content
@@ -2801,7 +2798,7 @@ var _ = Describe("JobExecutor", func() {
 			Expect(updatedJob.Status).To(Equal(model.SampleJobStatusCompleted))
 
 			// No manifest should be written (study fetch fails)
-			manifestPath := "/test/samples/No Study/v1/manifest.json"
+			manifestPath := "/test/samples/No Study/manifest.json"
 			Expect(mockFS.writtenFiles).NotTo(HaveKey(manifestPath))
 		})
 	})
