@@ -278,6 +278,19 @@ export interface ValidationResult {
   total_missing: number
 }
 
+/** A single version of a study with sample availability. */
+export interface StudyVersionInfo {
+  version: number
+  has_samples: boolean
+}
+
+/** Per-study version availability for a training run. */
+export interface StudyAvailability {
+  study_id: string
+  study_name: string
+  versions: StudyVersionInfo[]
+}
+
 /** Demo dataset status response. */
 export interface DemoStatus {
   installed: boolean

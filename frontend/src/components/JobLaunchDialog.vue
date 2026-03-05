@@ -13,7 +13,7 @@ import {
   NTooltip,
 } from 'naive-ui'
 import type { SelectRenderLabel } from 'naive-ui'
-import type { TrainingRun, Study, WorkflowSummary, CreateSampleJobPayload, SampleJob, ValidationResult } from '../api/types'
+import type { TrainingRun, Study, StudyAvailability, WorkflowSummary, CreateSampleJobPayload, SampleJob, ValidationResult } from '../api/types'
 import { apiClient } from '../api/client'
 import StudyEditor from './StudyEditor.vue'
 import { useGenerateInputsPersistence } from '../composables/useGenerateInputsPersistence'
@@ -46,6 +46,9 @@ const workflows = ref<WorkflowSummary[]>([])
 const studies = ref<Study[]>([])
 const vaeModels = ref<string[]>([])
 const clipModels = ref<string[]>([])
+
+// Study version availability for the selected training run
+const studyAvailability = ref<StudyAvailability[]>([])
 
 // Study editor sub-dialog
 const studyEditorOpen = ref(false)
@@ -251,6 +254,18 @@ watch(selectedTrainingRunId, async () => {
 
 })
 
+// Fetch study version availability when training run changes
+watch(selectedTrainingRunId, async (runId) => {
+  studyAvailability.value = []
+  if (runId === null) return
+
+  try {
+    studyAvailability.value = await apiClient.getStudyAvailability(runId)
+  } catch {
+    // Non-fatal; proceed without availability data
+    studyAvailability.value = []
+  }
+})
 
 // Trigger validation when training run + study are both selected
 watch([selectedTrainingRunId, selectedStudy], async () => {
@@ -377,12 +392,49 @@ const workflowOptions = computed(() =>
     }))
 )
 
-const studyOptions = computed(() =>
-  studies.value.map(p => ({
-    label: p.name,
-    value: p.id,
-  }))
-)
+// AC3: Study options include version info. When availability data is present,
+// each study's current version is shown with a bead indicating sample availability.
+const studyOptions = computed(() => {
+  return studies.value.map(p => {
+    const avail = studyAvailability.value.find(a => a.study_id === p.id)
+    // Check if the current version of this study has samples for the selected training run
+    const versionInfo = avail?.versions.find(v => v.version === p.version)
+    const hasSamples = versionInfo?.has_samples ?? false
+    // Collect available version numbers for the label
+    const versionNumbers = avail?.versions.map(v => v.version) ?? []
+    const versionSuffix = versionNumbers.length > 0
+      ? ` (v${p.version})`
+      : ''
+
+    return {
+      label: `${p.name}${versionSuffix}`,
+      value: p.id,
+      // Metadata for bead rendering
+      _hasSamples: hasSamples,
+      _versionCount: versionNumbers.length,
+    }
+  })
+})
+
+// AC2: renderLabel function for the study NSelect, showing green bead for studies with samples.
+const renderStudyLabel: SelectRenderLabel = (option) => {
+  const hasSamples = (option as { _hasSamples?: boolean })._hasSamples ?? false
+  const color = hasSamples ? '#18a058' : 'transparent'
+  return h('div', { style: { display: 'flex', alignItems: 'center', gap: '0.5rem' } }, [
+    h('span', {
+      style: {
+        display: 'inline-block',
+        width: '10px',
+        height: '10px',
+        borderRadius: '50%',
+        flexShrink: '0',
+        backgroundColor: color,
+        border: hasSamples ? 'none' : '1px solid var(--border-color, #ccc)',
+      },
+    }),
+    h('span', {}, String(option.label ?? '')),
+  ])
+}
 
 const vaeOptions = computed(() =>
   vaeModels.value.map(v => ({
@@ -621,6 +673,7 @@ function resetForm() {
   prefillActive.value = false
   validationResult.value = null
   validating.value = false
+  studyAvailability.value = []
   error.value = null
   validationResult.value = null
 
@@ -795,9 +848,9 @@ async function submit() {
         />
       </div>
 
-      <!-- Checkpoint picker (only shown when run has existing samples) -->
+      <!-- AC1: Checkpoint picker requires both a training run with samples and a selected study -->
       <div
-        v-if="selectedRunHasSamples && selectedRunCheckpoints.length > 0"
+        v-if="selectedStudy !== null && selectedRunHasSamples && selectedRunCheckpoints.length > 0"
         class="form-field"
         data-testid="checkpoint-picker"
       >
@@ -900,6 +953,7 @@ async function submit() {
             id="study-select"
             v-model:value="selectedStudy"
             :options="studyOptions"
+            :render-label="renderStudyLabel"
             placeholder="Select a study"
             clearable
             data-testid="study-select"

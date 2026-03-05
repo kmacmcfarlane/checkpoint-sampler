@@ -487,7 +487,7 @@ stories:
   - id: S-086
     title: "Study version selector UX and sample availability beads"
     priority: 45
-    status: in_progress
+    status: uat
     complexity: medium
     requires:
       - S-085

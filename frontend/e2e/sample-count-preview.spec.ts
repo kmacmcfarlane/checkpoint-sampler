@@ -76,8 +76,27 @@ test.describe('S-084: sample count preview and missing-sample generation', () =>
     expect(result.total_missing).toBe(0)
   })
 
-  // AC1: Generate Samples dialog shows validation preview after selecting a training run
-  test('Generate Samples dialog shows validation preview with sample counts', async ({ page }) => {
+  // AC1: Generate Samples dialog shows validation preview after selecting a training run AND study.
+  // S-086 changed the validation trigger to require both training run and study selection.
+  test('Generate Samples dialog shows validation preview with sample counts', async ({ page, request }) => {
+    // Create a study via API so we can select it in the dialog
+    const createStudyResp = await request.post('/api/studies', {
+      data: {
+        name: `Preview Test ${Date.now()}`,
+        prompt_prefix: '',
+        prompts: [{ name: 'landscape', text: 'a landscape' }],
+        negative_prompt: '',
+        steps: [30],
+        cfgs: [7.0],
+        sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
+        seeds: [42],
+        width: 512,
+        height: 512,
+      },
+    })
+    expect(createStudyResp.ok()).toBeTruthy()
+    const study = await createStudyResp.json()
+
     await page.goto('/')
 
     // Select a training run so the "Generate Samples" button appears
@@ -91,6 +110,9 @@ test.describe('S-084: sample count preview and missing-sample generation', () =>
 
     // Select the training run in the dialog
     await selectNaiveOptionInContainer(page, dialog, 'training-run-select', 'my-model')
+
+    // S-086: Select the study — validation preview now requires both training run + study
+    await selectNaiveOptionInContainer(page, dialog, 'study-select', study.name)
 
     // Wait for the validation preview to appear
     const preview = dialog.locator('[data-testid="validation-preview"]')

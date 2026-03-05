@@ -37,6 +37,7 @@ const studies: Study[] = [
   {
     id: 'preset-1',
     name: 'Test Preset A',
+    version: 1,
     prompt_prefix: 'photo of a person, ',
     prompts: [
       { name: 'forest', text: 'a mystical forest' },
@@ -59,6 +60,7 @@ const studies: Study[] = [
   {
     id: 'preset-2',
     name: 'Test Preset B',
+    version: 1,
     prompt_prefix: '',
     prompts: [{ name: 'cat', text: 'a cute cat' }],
     negative_prompt: '',
@@ -203,6 +205,7 @@ describe('StudyEditor', () => {
     const createdPreset: Study = {
       id: 'new-preset-id',
       name: 'New Study',
+      version: 1,
       prompt_prefix: '',
       prompts: [{ name: 'test', text: 'test prompt' }],
       negative_prompt: '',
@@ -601,6 +604,7 @@ describe('StudyEditor', () => {
     const createdPreset: Study = {
       id: 'new-preset-id',
       name: 'Test',
+      version: 1,
       prompt_prefix: '',
       prompts: [{ name: 'valid', text: 'valid prompt' }],
       negative_prompt: '',
@@ -953,6 +957,7 @@ describe('StudyEditor', () => {
       const createdPreset: Study = {
         id: 'new-id',
         name: 'Multi Pair',
+        version: 1,
         prompt_prefix: '',
         prompts: [{ name: 'test', text: 'test prompt' }],
         negative_prompt: '',
@@ -1073,6 +1078,7 @@ describe('StudyEditor', () => {
       const createdPreset: Study = {
         id: 'prefix-preset-id',
         name: 'Prefix Test',
+        version: 1,
         prompt_prefix: 'artistic photo, ',
         prompts: [{ name: 'test', text: 'test prompt' }],
         negative_prompt: '',

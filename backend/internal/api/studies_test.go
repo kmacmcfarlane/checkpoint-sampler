@@ -101,7 +101,7 @@ var _ = Describe("StudiesService", func() {
 		logger = logrus.New()
 		logger.SetOutput(io.Discard) // Silence logs in tests
 		studySvc := service.NewStudyService(store, logger)
-		studies = api.NewStudiesService(studySvc)
+		studies = api.NewStudiesService(studySvc, nil, nil)
 	})
 
 	Describe("Error responses include Goa ServiceError structure", func() {

@@ -1,4 +1,4 @@
-import type { ApiError, ApiErrorResponse, CheckpointMetadata, ComfyUIModelType, ComfyUIModels, ComfyUIStatus, CreateSampleJobPayload, CreateStudyPayload, DemoStatus, HealthStatus, ImageMetadata, Preset, PresetMapping, SampleJob, SampleJobDetail, Study, ScanResult, TrainingRun, UpdateStudyPayload, ValidationResult, WorkflowSummary } from './types'
+import type { ApiError, ApiErrorResponse, CheckpointMetadata, ComfyUIModelType, ComfyUIModels, ComfyUIStatus, CreateSampleJobPayload, CreateStudyPayload, DemoStatus, HealthStatus, ImageMetadata, Preset, PresetMapping, SampleJob, SampleJobDetail, Study, StudyAvailability, ScanResult, TrainingRun, UpdateStudyPayload, ValidationResult, WorkflowSummary } from './types'
 
 const DEFAULT_BASE_URL = '/api'
 
@@ -190,6 +190,11 @@ export class ApiClient {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     })
+  }
+
+  /** GET /api/studies/availability?training_run_id={id} — get per-study version availability for a training run. */
+  async getStudyAvailability(trainingRunId: number): Promise<StudyAvailability[]> {
+    return this.request<StudyAvailability[]>(`/studies/availability?training_run_id=${trainingRunId}`)
   }
 
   /** DELETE /api/studies/{id} — delete a study. */

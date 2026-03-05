@@ -141,7 +141,8 @@ func run() error {
 	presetSvc := service.NewPresetService(st, logger)
 	presetsSvc := api.NewPresetsService(presetSvc)
 	studySvc := service.NewStudyService(st, logger)
-	studiesSvc := api.NewStudiesService(studySvc)
+	studyAvailSvc := service.NewStudyAvailabilityService(fs, cfg.SampleDir, logger)
+	studiesSvc := api.NewStudiesService(studySvc, studyAvailSvc, discovery)
 	demoSvc := service.NewDemoService(fs, st, cfg.SampleDir, logger)
 	demoAPISvc := api.NewDemoAPIService(demoSvc)
 

@@ -65,6 +65,26 @@ var _ = Service("studies", func() {
 			Response("internal_error", StatusInternalServerError)
 		})
 	})
+
+	Method("availability", func() {
+		Description("Get per-study version availability for a training run. For each study, returns discovered version directories and whether each has samples matching the training run's checkpoints.")
+		Payload(func() {
+			Attribute("training_run_id", Int, "Training run index (zero-based) to check availability against", func() {
+				Minimum(0)
+			})
+			Required("training_run_id")
+		})
+		Result(ArrayOf(StudyAvailabilityResponse))
+		Error("not_found", ErrorResult, "Training run not found")
+		Error("internal_error", ErrorResult, "Internal server error")
+		HTTP(func() {
+			GET("/api/studies/availability")
+			Param("training_run_id")
+			Response(StatusOK)
+			Response("not_found", StatusNotFound)
+			Response("internal_error", StatusInternalServerError)
+		})
+	})
 })
 
 var StudyResponse = Type("StudyResponse", func() {
@@ -227,4 +247,28 @@ var SamplerSchedulerPair = Type("SamplerSchedulerPair", func() {
 		MinLength(1)
 	})
 	Required("sampler", "scheduler")
+})
+
+var StudyAvailabilityResponse = Type("StudyAvailabilityResponse", func() {
+	Description("Per-study version availability for a training run")
+	Attribute("study_id", String, "Study ID (UUID)", func() {
+		Example("550e8400-e29b-41d4-a716-446655440000")
+	})
+	Attribute("study_name", String, "Study display name", func() {
+		Example("My Study")
+	})
+	Attribute("versions", ArrayOf(StudyVersionInfoResponse), "Discovered version directories with sample availability")
+	Required("study_id", "study_name", "versions")
+})
+
+var StudyVersionInfoResponse = Type("StudyVersionInfoResponse", func() {
+	Description("A single version of a study with sample availability")
+	Attribute("version", Int, "Version number", func() {
+		Example(1)
+		Minimum(1)
+	})
+	Attribute("has_samples", Boolean, "Whether this version has samples for the target training run", func() {
+		Example(true)
+	})
+	Required("version", "has_samples")
 })

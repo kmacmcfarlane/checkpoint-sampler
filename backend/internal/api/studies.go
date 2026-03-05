@@ -10,14 +10,21 @@ import (
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
 )
 
+// TrainingRunDiscoverer returns training runs for a given discovery source.
+type TrainingRunDiscoverer interface {
+	Discover() ([]model.TrainingRun, error)
+}
+
 // StudiesService implements the generated studies service interface.
 type StudiesService struct {
-	svc *service.StudyService
+	svc          *service.StudyService
+	availability *service.StudyAvailabilityService
+	discovery    TrainingRunDiscoverer
 }
 
 // NewStudiesService returns a new StudiesService.
-func NewStudiesService(svc *service.StudyService) *StudiesService {
-	return &StudiesService{svc: svc}
+func NewStudiesService(svc *service.StudyService, availability *service.StudyAvailabilityService, discovery TrainingRunDiscoverer) *StudiesService {
+	return &StudiesService{svc: svc, availability: availability, discovery: discovery}
 }
 
 // List returns all saved studies.
@@ -119,6 +126,48 @@ func (s *StudiesService) Delete(ctx context.Context, p *genstudies.DeletePayload
 		return genstudies.MakeInternalError(fmt.Errorf("deleting study: %w", err))
 	}
 	return nil
+}
+
+// Availability returns per-study version availability for a given training run.
+func (s *StudiesService) Availability(ctx context.Context, p *genstudies.AvailabilityPayload) ([]*genstudies.StudyAvailabilityResponse, error) {
+	studies, err := s.svc.List()
+	if err != nil {
+		return nil, genstudies.MakeInternalError(fmt.Errorf("listing studies: %w", err))
+	}
+
+	runs, err := s.discovery.Discover()
+	if err != nil {
+		return nil, genstudies.MakeInternalError(fmt.Errorf("discovering training runs: %w", err))
+	}
+
+	if p.TrainingRunID < 0 || p.TrainingRunID >= len(runs) {
+		return nil, genstudies.MakeNotFound(fmt.Errorf("training run %d not found", p.TrainingRunID))
+	}
+
+	tr := runs[p.TrainingRunID]
+
+	availabilities, err := s.availability.GetAvailability(studies, tr)
+	if err != nil {
+		return nil, genstudies.MakeInternalError(fmt.Errorf("checking study availability: %w", err))
+	}
+
+	result := make([]*genstudies.StudyAvailabilityResponse, len(availabilities))
+	for i, a := range availabilities {
+		versions := make([]*genstudies.StudyVersionInfoResponse, len(a.Versions))
+		for j, v := range a.Versions {
+			versions[j] = &genstudies.StudyVersionInfoResponse{
+				Version:    v.Version,
+				HasSamples: v.HasSamples,
+			}
+		}
+		result[i] = &genstudies.StudyAvailabilityResponse{
+			StudyID:   a.StudyID,
+			StudyName: a.StudyName,
+			Versions:  versions,
+		}
+	}
+
+	return result, nil
 }
 
 func studyToResponse(s model.Study) *genstudies.StudyResponse {

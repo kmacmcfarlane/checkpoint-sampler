@@ -5,6 +5,12 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-086: Study version selector UX and sample availability beads
+- Study selection is now required before the checkpoint picker is shown in the Generate Samples dialog
+- Green bead indicators show which studies have samples for the selected training run
+- Study version suffix (e.g., "(v1)") displayed when availability data is present
+- New `GET /api/studies/availability?training_run_id={id}` endpoint returns per-study version availability
+
 ### S-084: Sample count preview and missing-sample generation from Generate Samples dialog
 - Validation endpoint returns `total_expected`, `total_actual`, `total_missing` aggregate counts alongside per-checkpoint results
 - Generate Samples dialog auto-fetches validation on training run selection, showing expected sample count and missing count preview

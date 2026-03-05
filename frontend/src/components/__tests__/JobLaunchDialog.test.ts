@@ -21,6 +21,7 @@ vi.mock('../../api/client', () => ({
     deleteStudy: vi.fn(),
     getCheckpointMetadata: vi.fn(),
     validateTrainingRun: vi.fn(),
+    getStudyAvailability: vi.fn(),
   },
 }))
 
@@ -36,6 +37,7 @@ const mockGetComfyUIModels = apiClient.getComfyUIModels as ReturnType<typeof vi.
 const mockCreateSampleJob = apiClient.createSampleJob as ReturnType<typeof vi.fn>
 const mockGetCheckpointMetadata = apiClient.getCheckpointMetadata as ReturnType<typeof vi.fn>
 const mockValidateTrainingRun = apiClient.validateTrainingRun as ReturnType<typeof vi.fn>
+const mockGetStudyAvailability = apiClient.getStudyAvailability as ReturnType<typeof vi.fn>
 
 // Training run without samples (gray)
 const runEmpty: TrainingRun = {
@@ -98,6 +100,7 @@ const sampleStudies: Study[] = [
   {
     id: 'preset-1',
     name: 'Quick Test',
+    version: 1,
     prompt_prefix: '',
     prompts: [{ name: 'test', text: 'a photo' }],
     negative_prompt: 'bad quality',
@@ -114,6 +117,7 @@ const sampleStudies: Study[] = [
   {
     id: 'preset-2',
     name: 'Full Test',
+    version: 1,
     prompt_prefix: '',
     prompts: [
       { name: 'test1', text: 'a photo' },
@@ -173,6 +177,8 @@ describe('JobLaunchDialog', () => {
     })
     // Default: no checkpoint metadata (empty ss_* fields)
     mockGetCheckpointMetadata.mockResolvedValue({ metadata: {} })
+    // Default: no study availability data (tests that need it will override)
+    mockGetStudyAvailability.mockResolvedValue([])
     // Default: validation returns empty result (no samples)
     mockValidateTrainingRun.mockResolvedValue({
       checkpoints: [],
@@ -653,6 +659,7 @@ describe('JobLaunchDialog', () => {
     const newStudy: Study = {
       id: 'preset-new',
       name: 'Newly Created',
+      version: 1,
       prompt_prefix: '',
       prompts: [{ name: 'test', text: 'a test' }],
       negative_prompt: '',
@@ -788,6 +795,7 @@ describe('JobLaunchDialog', () => {
       const newStudy: Study = {
         id: 'preset-new',
         name: 'Synced Preset',
+        version: 1,
         prompt_prefix: '',
         prompts: [{ name: 'test', text: 'a test' }],
         negative_prompt: '',
@@ -844,7 +852,7 @@ describe('JobLaunchDialog', () => {
       expect(wrapper.find('[data-testid="checkpoint-picker"]').exists()).toBe(false)
     })
 
-    it('shows checkpoint picker when run with samples is selected', async () => {
+    it('shows checkpoint picker when run with samples is selected and study is chosen', async () => {
       const wrapper = mount(JobLaunchDialog, {
         props: { show: true },
         global: { stubs: { Teleport: true } },
@@ -856,6 +864,12 @@ describe('JobLaunchDialog', () => {
       await nextTick()
 
       wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      await nextTick()
+
+      // AC1: Checkpoint picker requires a study to be selected
+      expect(wrapper.find('[data-testid="checkpoint-picker"]').exists()).toBe(false)
+
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await nextTick()
 
       expect(wrapper.find('[data-testid="checkpoint-picker"]').exists()).toBe(true)
@@ -871,6 +885,8 @@ describe('JobLaunchDialog', () => {
       wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
       await nextTick()
       wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      await nextTick()
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await nextTick()
 
       expect(wrapper.find('[data-testid="select-all-checkpoints"]').exists()).toBe(true)
@@ -1256,6 +1272,9 @@ describe('JobLaunchDialog', () => {
       await nextTick()
       wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
       await flushPromises()
+      // Select a study so the checkpoint picker is visible (AC1)
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
+      await nextTick()
 
       // Check that only failed checkpoints (chk-a, chk-c) are pre-selected
       const chkA = wrapper.find('[data-testid="checkpoint-row-chk-a.safetensors"]').findComponent(NCheckbox)
@@ -1281,6 +1300,9 @@ describe('JobLaunchDialog', () => {
       await nextTick()
       wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
       await flushPromises()
+      // Select a study so the checkpoint picker is visible (AC1)
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
+      await nextTick()
 
       // Failed checkpoints should have a 'failed' badge
       expect(wrapper.find('[data-testid="checkpoint-failed-badge-chk-a.safetensors"]').exists()).toBe(true)
@@ -1303,6 +1325,9 @@ describe('JobLaunchDialog', () => {
       await nextTick()
       wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
       await flushPromises()
+      // Select a study so the checkpoint picker is visible (AC1)
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
+      await nextTick()
 
       const clearExistingCheckbox = wrapper.find('[data-testid="clear-existing-checkbox"]').findComponent(NCheckbox)
       expect(clearExistingCheckbox.props('checked')).toBe(true)
@@ -1401,6 +1426,9 @@ describe('JobLaunchDialog', () => {
       await nextTick()
       wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
       await flushPromises()
+      // Select a study so the checkpoint picker is visible (AC1)
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
+      await nextTick()
 
       // All checkpoints should be selected
       const chkA = wrapper.find('[data-testid="checkpoint-row-chk-a.safetensors"]').findComponent(NCheckbox)
@@ -1421,6 +1449,7 @@ describe('JobLaunchDialog', () => {
       const savedStudy: Study = {
         id: 'preset-1',
         name: 'Quick Test Updated',
+        version: 2,
         prompt_prefix: '',
         prompts: [{ name: 'test', text: 'a photo' }],
         negative_prompt: 'bad quality',
@@ -1634,6 +1663,7 @@ describe('JobLaunchDialog', () => {
       const newStudy: Study = {
         id: 'preset-new',
         name: 'Brand New Preset',
+        version: 1,
         prompt_prefix: '',
         prompts: [{ name: 'test', text: 'a test' }],
         negative_prompt: '',
@@ -2536,6 +2566,8 @@ describe('JobLaunchDialog', () => {
       await nextTick()
       wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
       await flushPromises()
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
+      await nextTick()
 
       expect(wrapper.find('[data-testid="missing-only-checkbox"]').exists()).toBe(true)
     })
@@ -2564,6 +2596,8 @@ describe('JobLaunchDialog', () => {
       await nextTick()
       wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
       await flushPromises()
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
+      await nextTick()
 
       // Enable missing-only
       wrapper.find('[data-testid="missing-only-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
@@ -2584,6 +2618,8 @@ describe('JobLaunchDialog', () => {
       await nextTick()
       wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
       await flushPromises()
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
+      await nextTick()
 
       // clear_existing should be auto-enabled for runs with samples
       const clearExistingCheckbox = wrapper.find('[data-testid="clear-existing-checkbox"]').findComponent(NCheckbox)
@@ -2681,6 +2717,207 @@ describe('JobLaunchDialog', () => {
       const call = mockCreateSampleJob.mock.calls[0][0]
       expect(call.missing_only).toBeUndefined()
       expect(call.clear_existing).toBe(true)
+    })
+  })
+
+  // S-086: Study version selector UX and sample availability beads
+  describe('study version selector and availability beads (S-086)', () => {
+    // AC1: Study selection is required before showing the checkpoint picker
+    it('does not show checkpoint picker when study is not selected even if run has samples', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select run with samples
+      wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
+      await nextTick()
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      await flushPromises()
+
+      // No study selected — checkpoint picker should not be visible
+      expect(wrapper.find('[data-testid="checkpoint-picker"]').exists()).toBe(false)
+    })
+
+    // AC2: Green bead when study has samples for the selected training run
+    it('renders green bead for study with samples and transparent bead for study without', async () => {
+      mockGetStudyAvailability.mockResolvedValue([
+        {
+          study_id: 'preset-1',
+          study_name: 'Quick Test',
+          versions: [{ version: 1, has_samples: true }],
+        },
+        {
+          study_id: 'preset-2',
+          study_name: 'Full Test',
+          versions: [{ version: 1, has_samples: false }],
+        },
+      ])
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select a training run to trigger availability fetch
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      await flushPromises()
+
+      const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+      const options = studySelect.props('options') as Array<{ label: string; value: string; _hasSamples: boolean }>
+
+      const quickTest = options.find(o => o.value === 'preset-1')
+      expect(quickTest?._hasSamples).toBe(true)
+
+      const fullTest = options.find(o => o.value === 'preset-2')
+      expect(fullTest?._hasSamples).toBe(false)
+    })
+
+    it('sets renderLabel on the study select for bead rendering', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+      expect(typeof studySelect.props('renderLabel')).toBe('function')
+    })
+
+    it('renderStudyLabel returns VNode with green bead for hasSamples option', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+      const renderLabel = studySelect.props('renderLabel') as (option: Record<string, unknown>) => VNode
+
+      const vnode = renderLabel({
+        label: 'Test Study (v1)',
+        value: 'test-id',
+        _hasSamples: true,
+        _versionCount: 1,
+      })
+
+      expect(vnode).toBeTruthy()
+      const children = (vnode as { children?: unknown[] }).children
+      expect(Array.isArray(children)).toBe(true)
+      expect((children as unknown[]).length).toBe(2)
+    })
+
+    // AC3: Version suffix shown in study options when availability data exists
+    it('includes version suffix in study label when availability data is present', async () => {
+      mockGetStudyAvailability.mockResolvedValue([
+        {
+          study_id: 'preset-1',
+          study_name: 'Quick Test',
+          versions: [{ version: 1, has_samples: true }],
+        },
+        {
+          study_id: 'preset-2',
+          study_name: 'Full Test',
+          versions: [{ version: 1, has_samples: false }],
+        },
+      ])
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select a training run to trigger availability fetch
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      await flushPromises()
+
+      const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+      const options = studySelect.props('options') as Array<{ label: string; value: string }>
+
+      expect(options.find(o => o.value === 'preset-1')?.label).toBe('Quick Test (v1)')
+      expect(options.find(o => o.value === 'preset-2')?.label).toBe('Full Test (v1)')
+    })
+
+    it('does not include version suffix when no availability data exists', async () => {
+      // Default mock returns empty array for availability
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+      const options = studySelect.props('options') as Array<{ label: string; value: string }>
+
+      expect(options.find(o => o.value === 'preset-1')?.label).toBe('Quick Test')
+      expect(options.find(o => o.value === 'preset-2')?.label).toBe('Full Test')
+    })
+
+    it('fetches study availability when a training run is selected', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      await flushPromises()
+
+      expect(mockGetStudyAvailability).toHaveBeenCalledWith(1)
+    })
+
+    it('clears study availability when training run is deselected', async () => {
+      mockGetStudyAvailability.mockResolvedValue([
+        {
+          study_id: 'preset-1',
+          study_name: 'Quick Test',
+          versions: [{ version: 1, has_samples: true }],
+        },
+      ])
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select training run to trigger availability fetch
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      await flushPromises()
+
+      let options = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+        .props('options') as Array<{ label: string; value: string; _hasSamples: boolean }>
+      expect(options.find(o => o.value === 'preset-1')?._hasSamples).toBe(true)
+
+      // Deselect training run
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', null)
+      await flushPromises()
+
+      options = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+        .props('options') as Array<{ label: string; value: string; _hasSamples: boolean }>
+      expect(options.find(o => o.value === 'preset-1')?._hasSamples).toBe(false)
+    })
+
+    it('handles study availability API failure gracefully', async () => {
+      mockGetStudyAvailability.mockRejectedValue({ code: 'NETWORK_ERROR', message: 'fail' })
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      await flushPromises()
+
+      // Should not crash — study options still display without beads
+      const options = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+        .props('options') as Array<{ label: string; value: string; _hasSamples: boolean }>
+      expect(options).toHaveLength(2)
+      expect(options[0]._hasSamples).toBe(false)
     })
   })
 })
