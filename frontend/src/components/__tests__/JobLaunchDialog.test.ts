@@ -2880,8 +2880,8 @@ describe('JobLaunchDialog', () => {
       expect((children as unknown[]).length).toBe(2)
     })
 
-    // AC3: Study labels show just the name (no version suffix)
-    it('shows study name without version suffix', async () => {
+    // Study labels show just the study name (immutability model — no versioning)
+    it('shows study name as label in the study selector', async () => {
       mockGetStudyAvailability.mockResolvedValue([
         {
           study_id: 'preset-1',

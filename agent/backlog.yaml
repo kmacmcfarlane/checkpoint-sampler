@@ -85,7 +85,7 @@ stories:
   - id: S-086
     title: "Study version selector UX and sample availability beads"
     priority: 45
-    status: uat_feedback
+    status: uat
     complexity: medium
     requires:
       - S-085
@@ -104,10 +104,6 @@ stories:
     testing:
       - "command: make test-backend"
       - "command: make test-frontend"
-    review_feedback: "UAT feedback — rework to align with S-085 fork approach:\n\n1. Drop the version selector dropdown —
-      versioning is being removed per S-085 rework.\n2. Keep: study selection required before displaying checkpoints in Generate
-      Samples dialog.\n3. Keep: green bead indicator for studies with samples for the selected training run.\n4. Align study
-      selection UX with the new immutability model (no versions to choose between)."
   - id: S-088
     title: Study dropdown status beads in Generate Samples dialog
     type: feature
@@ -650,3 +646,37 @@ stories:
       images, or trigger validation leave residual state affecting subsequent tests.
       Affected specs: sidebar-preset-selector, single-value-dimensions, slider-playback,
       study-availability, training-run-grid, viewer-discovery, sample-generation.
+  - id: B-056
+    title: "sample-generation.spec.ts tests 2-4 fail because training run select menu does not open after first test"
+    priority: 60
+    status: todo
+    complexity: medium
+    requires: []
+    acceptance:
+      - "All 4 tests in sample-generation.spec.ts pass in sequence in the full E2E suite"
+      - "The training-run-select menu opens reliably in the beforeEach hook after a prior test has created a sample job"
+    testing:
+      - "command: make test-e2e SPEC=sample-generation.spec.ts"
+    notes: |
+      The beforeEach hook calls selectTrainingRun which clicks the training-run-select trigger.
+      After the first test (full sample generation flow) runs, the ComfyUI mock or application state
+      leaves the select menu in an unresponsive state. The trigger may be closed/disabled after job
+      creation in the first test, preventing the popup from appearing in subsequent tests.
+      Error: locator.click: Test timeout of 60000ms exceeded — waiting for .n-base-select-menu:visible
+  - id: B-057
+    title: "Full E2E suite resource contention causes 15s timeout on 25 UI tests"
+    priority: 55
+    status: todo
+    complexity: medium
+    requires: []
+    acceptance:
+      - "All 131+ E2E tests pass in a single full make test-e2e run"
+      - "No tests timeout when the suite runs in sequence"
+    testing:
+      - "command: make test-e2e"
+    notes: |
+      With 131 tests running in a single Playwright worker sequentially, tests later in
+      alphabetical order (sidebar-*, single-*, slider-*, training-*, viewer-*) hit browser
+      resource pressure or accumulated state that prevents the training-run-select from
+      responding within 15s. All failing tests pass when run in isolation.
+      Related idea: agent/ideas/devops.md "E2E full-suite test isolation".

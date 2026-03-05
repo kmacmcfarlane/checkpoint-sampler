@@ -97,6 +97,41 @@ func (f *fakeStudyStoreAPI) DeleteStudy(id string) error {
 	return nil
 }
 
+// fakeDiscoverer implements api.TrainingRunDiscoverer for testing.
+type fakeDiscoverer struct {
+	runs []model.TrainingRun
+	err  error
+}
+
+func (f *fakeDiscoverer) Discover() ([]model.TrainingRun, error) {
+	return f.runs, f.err
+}
+
+// fakeAvailabilityFSAPI implements service.StudyAvailabilityFileSystem for testing.
+type fakeAvailabilityFSAPI struct {
+	subdirs  map[string][]string
+	dirExist map[string]bool
+}
+
+func newFakeAvailabilityFSAPI() *fakeAvailabilityFSAPI {
+	return &fakeAvailabilityFSAPI{
+		subdirs:  make(map[string][]string),
+		dirExist: make(map[string]bool),
+	}
+}
+
+func (f *fakeAvailabilityFSAPI) ListSubdirectories(root string) ([]string, error) {
+	dirs, ok := f.subdirs[root]
+	if !ok {
+		return []string{}, nil
+	}
+	return dirs, nil
+}
+
+func (f *fakeAvailabilityFSAPI) DirectoryExists(path string) bool {
+	return f.dirExist[path]
+}
+
 var _ = Describe("StudiesService", func() {
 	var (
 		store   *fakeStudyStoreAPI
@@ -149,6 +184,117 @@ var _ = Describe("StudiesService", func() {
 			Expect(ok).To(BeTrue(), "error should implement ErrorNamer interface")
 			Expect(serviceErr.ErrorName()).To(Equal("not_found"))
 			Expect(err.Error()).To(ContainSubstring("not found"))
+		})
+	})
+
+	Describe("Availability", func() {
+		var (
+			availStore   *fakeStudyStoreAPI
+			availFS      *fakeAvailabilityFSAPI
+			discoverer   *fakeDiscoverer
+			availStudies *api.StudiesService
+		)
+
+		BeforeEach(func() {
+			availStore = newFakeStudyStoreAPI()
+			availFS = newFakeAvailabilityFSAPI()
+			discoverer = &fakeDiscoverer{}
+			sampleChecker := &fakeSampleCheckerAPI{}
+			studySvc := service.NewStudyService(availStore, sampleChecker, logger)
+			availabilitySvc := service.NewStudyAvailabilityService(availFS, "/samples", logger)
+			availStudies = api.NewStudiesService(studySvc, availabilitySvc, discoverer)
+		})
+
+		It("returns per-study availability for a valid training run", func() {
+			// Set up store with two studies
+			availStore.studies["s1"] = model.Study{ID: "s1", Name: "StudyA"}
+			availStore.studies["s2"] = model.Study{ID: "s2", Name: "StudyB"}
+
+			// Set up discoverer with one training run
+			discoverer.runs = []model.TrainingRun{
+				{
+					Name: "model-run",
+					Checkpoints: []model.Checkpoint{
+						{Filename: "cp1.safetensors"},
+					},
+				},
+			}
+
+			// StudyA has samples matching the checkpoint, StudyB does not
+			availFS.subdirs["/samples/StudyA"] = []string{"cp1.safetensors"}
+			availFS.subdirs["/samples/StudyB"] = []string{"other.safetensors"}
+
+			result, err := availStudies.Availability(ctx, &genstudies.AvailabilityPayload{TrainingRunID: 0})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result).To(HaveLen(2))
+
+			// Find entries by study ID (order may vary from map iteration)
+			var studyA, studyB *genstudies.StudyAvailabilityResponse
+			for _, r := range result {
+				switch r.StudyID {
+				case "s1":
+					studyA = r
+				case "s2":
+					studyB = r
+				}
+			}
+			Expect(studyA).NotTo(BeNil())
+			Expect(studyA.StudyName).To(Equal("StudyA"))
+			Expect(studyA.HasSamples).To(BeTrue())
+
+			Expect(studyB).NotTo(BeNil())
+			Expect(studyB.StudyName).To(Equal("StudyB"))
+			Expect(studyB.HasSamples).To(BeFalse())
+		})
+
+		It("returns not_found error when training run ID is out of range", func() {
+			discoverer.runs = []model.TrainingRun{
+				{Name: "only-run", Checkpoints: []model.Checkpoint{}},
+			}
+
+			_, err := availStudies.Availability(ctx, &genstudies.AvailabilityPayload{TrainingRunID: 5})
+			Expect(err).To(HaveOccurred())
+
+			serviceErr, ok := err.(errorNamer)
+			Expect(ok).To(BeTrue(), "error should implement ErrorNamer interface")
+			Expect(serviceErr.ErrorName()).To(Equal("not_found"))
+		})
+
+		It("returns internal_error when discovery fails", func() {
+			discoverer.err = errors.New("filesystem unavailable")
+
+			_, err := availStudies.Availability(ctx, &genstudies.AvailabilityPayload{TrainingRunID: 0})
+			Expect(err).To(HaveOccurred())
+
+			serviceErr, ok := err.(errorNamer)
+			Expect(ok).To(BeTrue(), "error should implement ErrorNamer interface")
+			Expect(serviceErr.ErrorName()).To(Equal("internal_error"))
+			Expect(err.Error()).To(ContainSubstring("discovering training runs"))
+		})
+
+		It("returns internal_error when listing studies fails", func() {
+			availStore.listErr = errors.New("db error")
+			discoverer.runs = []model.TrainingRun{
+				{Name: "run", Checkpoints: []model.Checkpoint{}},
+			}
+
+			_, err := availStudies.Availability(ctx, &genstudies.AvailabilityPayload{TrainingRunID: 0})
+			Expect(err).To(HaveOccurred())
+
+			serviceErr, ok := err.(errorNamer)
+			Expect(ok).To(BeTrue(), "error should implement ErrorNamer interface")
+			Expect(serviceErr.ErrorName()).To(Equal("internal_error"))
+			Expect(err.Error()).To(ContainSubstring("listing studies"))
+		})
+
+		It("returns empty result when no studies exist", func() {
+			discoverer.runs = []model.TrainingRun{
+				{Name: "run", Checkpoints: []model.Checkpoint{{Filename: "cp.safetensors"}}},
+			}
+
+			result, err := availStudies.Availability(ctx, &genstudies.AvailabilityPayload{TrainingRunID: 0})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result).To(BeEmpty())
 		})
 	})
 })

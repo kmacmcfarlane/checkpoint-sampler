@@ -15,10 +15,10 @@ Older entries are condensed to titles only — see git history for full details.
 - Output directories simplified to `{sample_dir}/{study_name}/{checkpoint}/` (no version subdirectory)
 - Removed `StudyVersion` from job manifest
 
-### S-086: Study version selector UX and sample availability beads
-- Study selection is now required before the checkpoint picker is shown in the Generate Samples dialog
-- Green bead indicators show which studies have samples for the selected training run
-- New `GET /api/studies/availability?training_run_id={id}` endpoint returns per-study availability
+### S-086: Study version selector UX and sample availability beads (UAT rework)
+- Study selection required before checkpoint picker is shown in Generate Samples dialog
+- Green bead indicators show per-study sample availability for the selected training run
+- Aligned with S-085 immutability/fork model — no version selector (versioning removed)
 
 ### S-084: Sample count preview and missing-sample generation from Generate Samples dialog (UAT rework)
 - Generate Samples dialog replaced separate checkpoint picker and validation preview with unified per-checkpoint validation status display (checkmark/warning icons, found/expected counts)
