@@ -442,7 +442,7 @@ stories:
   - id: S-084
     title: "Sample count preview and missing-sample generation from Generate Samples dialog"
     priority: 55
-    status: uat
+    status: uat_feedback
     complexity: medium
     requires:
       - S-075
@@ -461,6 +461,12 @@ stories:
     testing:
       - "command: make test-backend"
       - "command: make test-frontend"
+    review_feedback: "UAT feedback — rework required:\n\n1. The regeneration list in the Generate Samples dialog should have
+      a similar visual treatment to the validate view in the main controls slideout.\n2. Flow: select training run (top control
+      position) → select study → auto-validate on study select → display per-checkpoint validation status (complete/missing
+      with sample count: found vs expected).\n3. The validation status should populate the checkpoint list used to select
+      checkpoints for regeneration using the selected study.\n4. This replaces the current \"expected sample count preview\"\
+      \ approach with a full validate-style checkpoint status display."
   - id: S-085
     title: "Study versioning and version-scoped output directories"
     priority: 50
@@ -561,3 +567,175 @@ stories:
       JSON request body (returning goa.MissingPayloadError on EOF). The E2E test sends a POST
       without a body, which now triggers a 400 error.
       Fix: update the E2E test to send an empty JSON object, or make the Goa payload optional.
+  - id: S-088
+    title: Study dropdown status beads in Generate Samples dialog
+    type: feature
+    status: todo
+    priority: 45
+    complexity: low
+    requires: []
+    notes: |
+      Spin-off from S-084 UAT feedback. Show status beads in the study dropdown
+      to indicate which studies have partial (yellow) or complete (green) sample
+      sets for the selected training run.
+      Key files: frontend/src/components/JobLaunchDialog.vue,
+      backend/internal/service/validation.go (or similar for per-study counts).
+    acceptance:
+      - "FE: Study dropdown in Generate Samples dialog shows a green bead for studies with complete sample sets for the selected
+        training run"
+      - "FE: Study dropdown shows a yellow bead for studies with partial (some but not all) sample sets"
+      - "FE: Studies with no samples show no bead"
+      - "BE: API returns per-study sample completeness status for a given training run"
+      - "FE: Unit tests for bead display logic"
+      - "BE: Unit tests for per-study completeness query"
+    testing:
+      - "Edge cases: study with zero expected samples, study with all samples complete, study with mixed checkpoint completeness"
+      - "Verify beads update when training run selection changes"
+  - id: B-046
+    title: ComfyUI execution errors not displayed in job viewer
+    type: bug
+    status: todo
+    priority: 75
+    complexity: medium
+    requires: []
+    notes: |
+      Bug: ComfyUI execution_error events (e.g., VAE mismatch) are logged by the
+      backend but not surfaced in the frontend job viewer. The viewer indicates
+      errors occurred but does not display the error message or traceback.
+      Fix: forward exception_message, exception_type, node_type, and traceback from
+      execution_error events through the backend WebSocket to the frontend. Display
+      in JobProgressPanel with expandable detail.
+      Key files: backend/internal/service/comfyui_executor.go (error event parsing),
+      backend/internal/service/websocket.go (new/extended message type),
+      frontend/src/components/JobProgressPanel.vue (error display).
+    acceptance:
+      - "BE: ComfyUI execution_error events are parsed and forwarded through the backend WebSocket with exception_message,
+        exception_type, and node_type"
+      - "BE: Full traceback is included in the WebSocket message for optional display"
+      - "FE: Job viewer shows error summary (exception_type + node_type + exception_message) for failed checkpoints"
+      - "FE: A 'Show full traceback' toggle reveals the complete Python stack trace"
+      - "FE: Error display is per-checkpoint, shown inline in the job progress card"
+      - "BE: Unit tests for execution_error event parsing and forwarding"
+      - "FE: Unit tests for error display and traceback toggle"
+    testing:
+      - "Test with various ComfyUI error types: VAE mismatch (size errors), missing model files, CUDA OOM"
+      - "Verify traceback toggle works and errors for individual checkpoints are correctly associated"
+      - "Edge case: multiple errors in one job, errors on different checkpoints"
+  - id: S-089
+    title: Unified dimension selector (X/Y/Slider, Single, Multi, Hide)
+    type: feature
+    status: todo
+    priority: 45
+    complexity: medium
+    requires: []
+    notes: |
+      Replace the current two-control pattern (dimension assignment dropdown + selector
+      type dropdown) with a single unified selector per dimension. Options: X, Y, Slider,
+      Single, Multi, Hide. Simplifies the mapping editor UX.
+      When a dimension is set to "None" (no X/Y/Slider assignment), the default selector
+      type should be "Single" — except for dimensions with only one value, which should
+      default to "Hide" and be disabled.
+      Key files: frontend/src/components/DimensionPanel.vue,
+      frontend/src/components/PresetSelector.vue.
+    acceptance:
+      - "FE: Each dimension row in the mapping editor has a single dropdown with options: X, Y, Slider, Single, Multi, Hide"
+      - "FE: Selecting X, Y, or Slider assigns the dimension to that axis and removes it from other dimensions' options"
+      - "FE: Dimensions not assigned to X/Y/Slider default to Single"
+      - "FE: Dimensions with only one value default to Hide and the selector is disabled"
+      - "FE: Existing preset load/save works with the unified selector model"
+      - "FE: Unit tests for unified selector behavior, defaults, and mutual exclusion"
+    testing:
+      - "Test preset migration: loading old presets with the two-control model should map correctly to the unified selector"
+      - "Test mutual exclusion: assigning X to one dimension removes X from others"
+      - "Test the single-value-dimension auto-hide default"
+  - id: B-047
+    title: Update button missing after changing selector type on preset load
+    type: bug
+    status: todo
+    priority: 50
+    complexity: low
+    requires:
+      - S-089
+    notes: |
+      Bug: When the app first loads and the last dimension mapping preset is auto-selected,
+      changing the unified selector value for a dimension does not trigger the dirty flag,
+      so the Update button never appears.
+      This story assumes S-089 (unified dimension selector) is already implemented.
+      Key files: frontend/src/components/PresetSelector.vue,
+      frontend/src/components/DimensionPanel.vue.
+    acceptance:
+      - "FE: After app loads with an auto-selected preset, changing any dimension's unified selector value marks the preset
+        as dirty and shows the Update button"
+      - "FE: Dirty tracking correctly compares the loaded preset state against current state for all selector values"
+      - "FE: Update button appears immediately on first change, not requiring a second interaction"
+      - "FE: Unit tests for dirty tracking on initial preset load"
+    testing:
+      - "Reproduce by: cold load app, preset auto-loads, change a dimension selector, verify Update button appears"
+      - "Test with various dimension types (None, X, Y, Single, Multi, Hide)"
+  - id: S-090
+    title: Lightbox shift+up/down for Y-axis grid navigation
+    type: feature
+    status: todo
+    priority: 25
+    complexity: low
+    requires: []
+    notes: |
+      Add shift+up/down arrow key navigation to the lightbox for moving in the Y
+      direction through images in the grid. Left/right arrow already navigates X axis.
+      Key files: frontend/src/components/ImageLightbox.vue (or equivalent lightbox component).
+    acceptance:
+      - "FE: Shift+Up arrow in lightbox navigates to the image above in the Y axis of the grid"
+      - "FE: Shift+Down arrow navigates to the image below in the Y axis"
+      - "FE: Navigation wraps or stops at grid boundaries (consistent with existing X-axis behavior)"
+      - "FE: Existing left/right arrow X-axis navigation is unchanged"
+      - "FE: Unit tests for Y-axis keyboard navigation"
+    testing:
+      - "Test at grid boundaries: top row shift+up, bottom row shift+down"
+      - "Test with grids of different Y dimensions"
+  - id: S-091
+    title: Move Light/Dark and Debug mode to Settings dialog
+    type: feature
+    status: todo
+    priority: 25
+    complexity: low
+    requires: []
+    notes: |
+      Move the Light/Dark theme selector and Debug mode toggle from their current
+      locations into the existing Settings dialog. Reduces top-level UI clutter.
+      Key files: frontend/src/App.vue, frontend/src/components/SettingsDialog.vue
+      (or equivalent existing settings component).
+    acceptance:
+      - "FE: Light/Dark theme selector is in the Settings dialog, removed from its current location"
+      - "FE: Debug mode toggle is in the Settings dialog, removed from its current location"
+      - "FE: Theme and debug mode changes take effect immediately from within the dialog"
+      - "FE: Settings persist across page reloads (existing localStorage behavior)"
+      - "FE: Unit tests for settings dialog controls"
+    testing:
+      - "Verify theme and debug toggles work from the Settings dialog"
+      - "Verify they are removed from their previous locations"
+  - id: S-092
+    title: "Visual polish: remove heading, play/pause icon, refresh icons"
+    type: feature
+    status: todo
+    priority: 20
+    complexity: low
+    requires: []
+    notes: |
+      Bundle of small visual tweaks:
+      1. Remove the "Checkpoint Sampler" heading from the UI.
+      2. Replace the Play/Pause text button (slider animation control) with a green
+         triangle icon that changes to a pause icon when active.
+      3. Add refresh icons (buttons) to the sample set and training run selectors
+         for manual list refresh.
+      Key files: frontend/src/App.vue, frontend/src/components/SliderControls.vue
+      (or equivalent), frontend/src/components/TrainingRunSelector.vue.
+    acceptance:
+      - "FE: 'Checkpoint Sampler' heading is removed from the UI"
+      - "FE: Slider animation play button shows a green triangle icon instead of text"
+      - "FE: Play icon changes to a pause icon when animation is active"
+      - "FE: Sample set selector has a refresh icon button to manually reload the list"
+      - "FE: Training run selector has a refresh icon button to manually reload the list"
+      - "FE: Unit tests for play/pause icon state and refresh button functionality"
+    testing:
+      - "Verify play icon toggles correctly between play and pause states"
+      - "Verify refresh buttons trigger actual data reload"
