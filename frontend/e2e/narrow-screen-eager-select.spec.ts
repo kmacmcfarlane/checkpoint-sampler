@@ -60,18 +60,23 @@ test.describe('narrow screen eager auto-select', () => {
     await expect(statusTag).toBeVisible()
   })
 
-  test('no header buttons on narrow screen when no saved training run in localStorage', async ({ page }) => {
-    // AC: If no saved training run exists in localStorage, the app shows
-    // 'Select a training run to get started' as before.
+  test('Generate Samples and Jobs buttons are always visible on narrow screen even without a saved training run', async ({ page }) => {
+    // UAT rework B-030: Generate Samples and Jobs must ALWAYS be visible,
+    // regardless of whether a training run is selected.
+    // Only the Metadata button is gated on training run selection.
 
     // Navigate with no localStorage data (clean state)
     await page.goto('/')
 
-    // The placeholder message should be shown
+    // The placeholder message should still be shown when no run is selected
     await expect(page.getByText('Select a training run to get started.')).toBeVisible()
 
-    // Header buttons should NOT be visible
-    await expect(page.locator('[data-testid="generate-samples-button"]')).not.toBeVisible()
+    // Generate Samples and Jobs buttons MUST be visible immediately
+    await expect(page.locator('[data-testid="generate-samples-button"]')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Toggle sample jobs panel' })).toBeVisible()
+
+    // Metadata button should NOT be visible (still gated on training run selection)
+    await expect(page.getByRole('button', { name: 'Toggle checkpoint metadata panel' })).not.toBeVisible()
   })
 
   test('drawer shows the auto-selected training run when opened on narrow screen', async ({ page, request }) => {

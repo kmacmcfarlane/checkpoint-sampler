@@ -212,6 +212,86 @@ describe('App', () => {
     expect(statusTag).toBeUndefined()
   })
 
+  // B-030 UAT rework: Generate Samples and Jobs must always be visible in top nav
+  describe('header button visibility (UAT rework B-030)', () => {
+    afterEach(() => {
+      // Restore innerWidth so narrow-screen tests do not bleed into subsequent describe blocks
+      Object.defineProperty(window, 'innerWidth', { value: 1024, configurable: true })
+    })
+
+    it('Generate Samples button is visible even when no training run is selected', async () => {
+      // UAT feedback: Generate Samples must ALWAYS be visible, not gated on run selection.
+      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      await flushPromises()
+
+      const generateBtn = wrapper.find('[data-testid="generate-samples-button"]')
+      expect(generateBtn.exists()).toBe(true)
+    })
+
+    it('Jobs button is visible even when no training run is selected', async () => {
+      // UAT feedback: Jobs must ALWAYS be visible, not gated on run selection.
+      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      await flushPromises()
+
+      const jobsBtn = wrapper.findAllComponents(NButton).find(
+        (b) => b.attributes('aria-label') === 'Toggle sample jobs panel',
+      )
+      expect(jobsBtn).toBeDefined()
+    })
+
+    it('Metadata button is NOT visible when no training run is selected', async () => {
+      // UAT feedback: Only Metadata is gated on training run selection.
+      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      await flushPromises()
+
+      const metadataBtn = wrapper.findAllComponents(NButton).find(
+        (b) => b.attributes('aria-label') === 'Toggle checkpoint metadata panel',
+      )
+      expect(metadataBtn).toBeUndefined()
+    })
+
+    it('Metadata button appears after a training run is selected and scanned', async () => {
+      // UAT feedback: Metadata remains gated on training run selection (but still appears after select).
+      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      await flushPromises()
+
+      const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
+      selector.vm.$emit('select', mockTrainingRun)
+      await flushPromises()
+
+      const metadataBtn = wrapper.findAllComponents(NButton).find(
+        (b) => b.attributes('aria-label') === 'Toggle checkpoint metadata panel',
+      )
+      expect(metadataBtn).toBeDefined()
+    })
+
+    it('Generate Samples button is visible on narrow screen before any training run is selected', async () => {
+      // UAT feedback: reproducible by clearing localStorage and reloading on narrow screen.
+      Object.defineProperty(window, 'innerWidth', { value: 800, configurable: true })
+      vi.stubGlobal('matchMedia', createMatchMediaMock(false))
+
+      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      await flushPromises()
+
+      const generateBtn = wrapper.find('[data-testid="generate-samples-button"]')
+      expect(generateBtn.exists()).toBe(true)
+    })
+
+    it('Jobs button is visible on narrow screen before any training run is selected', async () => {
+      // UAT feedback: reproducible by clearing localStorage and reloading on narrow screen.
+      Object.defineProperty(window, 'innerWidth', { value: 800, configurable: true })
+      vi.stubGlobal('matchMedia', createMatchMediaMock(false))
+
+      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      await flushPromises()
+
+      const jobsBtn = wrapper.findAllComponents(NButton).find(
+        (b) => b.attributes('aria-label') === 'Toggle sample jobs panel',
+      )
+      expect(jobsBtn).toBeDefined()
+    })
+  })
+
   it('shows WebSocket status as "Disconnected" initially when training run is selected', async () => {
     const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
     await flushPromises()

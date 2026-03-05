@@ -16,7 +16,7 @@ stories:
   - id: B-030
     title: "Top nav elements unavailable on narrow screens until drawer opens"
     priority: 92
-    status: uat_feedback
+    status: uat
     requires: []
     acceptance:
       - "FE: On narrow screens (<1024px), the app eagerly loads the saved training run from localStorage and triggers a scan
@@ -38,11 +38,6 @@ stories:
     testing:
       - "command: cd frontend && npx vitest run"
 
-    review_feedback: "UAT feedback — rework required:\n\n1. Generate Samples button and Jobs button must ALWAYS be visible
-      in the top nav, regardless of whether a training run or sample set is selected.\n2. Only the Metadata button can be
-      gated on having a training run selected.\n3. Current behavior: buttons don't appear until a sample set is selected.
-      Reproducible by clearing localStorage and reloading.\n4. The original fix moved auto-select logic to App.vue, but the
-      buttons themselves are still conditionally rendered based on selection state."
   - id: S-084
     title: "Sample count preview and missing-sample generation from Generate Samples dialog"
     priority: 55
@@ -613,3 +608,40 @@ stories:
       - "Test highlighting for each validation error type (duplicates, invalid chars, empty required fields)"
       - "Test that only the correct fields are highlighted, not all fields"
       - "Test highlight clears on fix"
+  - id: B-053
+    title: "E2E selectTrainingRun helper times out across multiple spec files"
+    priority: 80
+    status: todo
+    complexity: medium
+    requires: []
+    acceptance:
+      - "All tests using selectTrainingRun in helpers.ts complete without timeout"
+      - "The training run dropdown popup renders within the configured timeout on all spec files"
+      - "Test fixture 'my-model' training run is consistently discoverable from the dropdown"
+    testing:
+      - "command: make test-e2e SPEC=training-run-grid.spec.ts"
+      - "command: make test-e2e SPEC=sidebar-preset-selector.spec.ts"
+    notes: |
+      Root cause hypothesis: The selectTrainingRun helper in helpers.ts clicks the training
+      run select trigger and waits for the dropdown popup menu, but the popup either fails to
+      render or the 'my-model' option is not present. This may be a timing issue with the
+      NSelect dropdown animation under test conditions, or the test-fixtures training run data
+      is not being populated correctly for these specs. Affects training-run-grid, sidebar-preset-selector,
+      single-value-dimensions, slider-playback, study-availability, sample-generation, viewer-discovery specs.
+  - id: B-054
+    title: "viewer-discovery E2E tests fail — 'my-model' training run not found in API response"
+    priority: 75
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "GET /api/training-runs returns at least one run named 'my-model' with has_samples=true in the E2E test environment"
+      - "GET /api/training-runs?source=samples returns 'my-model' in the E2E test environment"
+      - "viewer-discovery spec passes all tests"
+    testing:
+      - "command: make test-e2e SPEC=viewer-discovery.spec.ts"
+    notes: |
+      Root cause hypothesis: The viewer-discovery tests assert that /api/training-runs returns a
+      run named 'my-model' with has_samples=true. The test fixture may not be providing this run
+      or the API response does not include it. Likely related to the same fixture issue affecting
+      selectTrainingRun timeouts (B-053).

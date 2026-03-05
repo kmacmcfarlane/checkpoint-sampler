@@ -707,7 +707,6 @@ const TERMINAL_STATUSES: Set<SampleJobStatus> = new Set(['completed', 'completed
             @update:cell-size="cellSize = $event"
           />
           <NButton
-            v-if="selectedTrainingRun && !scanning && !scanError"
             :type="showProminentGenerateButton ? 'primary' : 'default'"
             size="small"
             aria-label="Generate samples"
@@ -717,7 +716,6 @@ const TERMINAL_STATUSES: Set<SampleJobStatus> = new Set(['completed', 'completed
             Generate Samples
           </NButton>
           <NButton
-            v-if="selectedTrainingRun && !scanning && !scanError"
             size="small"
             aria-label="Toggle sample jobs panel"
             @click="toggleJobProgressPanel"
