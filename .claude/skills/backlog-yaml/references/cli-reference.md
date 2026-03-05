@@ -36,7 +36,7 @@ backlog.py query [--status STATUS[,STATUS,...]]
 
 | Flag | Description |
 |------|-------------|
-| `--status` | Comma-separated status filter (todo, in_progress, review, testing, uat, done, blocked) |
+| `--status` | Comma-separated status filter (todo, in_progress, review, testing, uat, uat_feedback, done, blocked) |
 | `--priority-min` | Minimum priority (inclusive) |
 | `--priority-max` | Maximum priority (inclusive) |
 | `--id-prefix` | Filter by ID prefix (S, B, R, W) |
@@ -62,7 +62,7 @@ backlog.py query --status in_progress --has-field review_feedback
 backlog.py query --status todo --format json | jq '.[0].id'
 
 # UAT stories with feedback (for orchestrator work selection)
-backlog.py query --status uat --has-field uat_feedback --fields id,title,priority
+backlog.py query --status uat_feedback --fields id,title,priority
 
 # Todo stories with all dependencies satisfied
 backlog.py query --status todo --check-requires --fields id,title,priority
@@ -132,7 +132,7 @@ Implements the deterministic work-selection algorithm from AGENT_FLOW.md section
 | `testing` | QA testing pending | `status: testing` |
 | `review` | Code review pending | `status: review` |
 | `in_progress` | Implementation in progress | `status: in_progress` (with or without `review_feedback`) |
-| `uat_feedback` | UAT rework needed | `status: uat` with `uat_feedback` |
+| `uat_feedback` | UAT rework needed | `status: uat_feedback` |
 | `todo` | New work (bugs prioritized, requires satisfied) | `status: todo` |
 
 **Exit codes:** 0 = story selected, 2 = no eligible work found.
@@ -169,7 +169,7 @@ Reads YAML from stdin. Accepts a single story mapping or a list of mappings. Val
 
 **Required fields:** `id`, `title`, `priority`, `status`, `requires`, `acceptance`, `testing`
 
-**Optional fields:** `complexity`, `notes`, `review_feedback`, `uat_feedback`, `blocked_reason`
+**Optional fields:** `complexity`, `notes`, `review_feedback`, `blocked_reason`
 
 **Examples:**
 
@@ -240,7 +240,7 @@ backlog.py set S-052 complexity medium
 backlog.py set-text <id> <field>
 ```
 
-Reads value from stdin. Allowed fields: `review_feedback`, `uat_feedback`, `notes`, `blocked_reason`
+Reads value from stdin. Allowed fields: `review_feedback`, `notes`, `blocked_reason`
 
 **Examples:**
 
@@ -262,7 +262,7 @@ EOF
 backlog.py clear <id> <field>
 ```
 
-Allowed fields: `review_feedback`, `uat_feedback`, `blocked_reason`, `complexity`, `notes`
+Allowed fields: `review_feedback`, `blocked_reason`, `complexity`, `notes`
 
 Required fields (`id`, `title`, `priority`, `status`, `requires`, `acceptance`, `testing`) cannot be cleared.
 
@@ -330,7 +330,7 @@ backlog.py validate --source both      # Validate both files
 - id: S-083                    # Required. Format: PREFIX-NNN (S/B/R/W)
   title: "Short title"         # Required. Under 80 chars
   priority: 25                 # Required. Positive integer. Higher = more important
-  status: todo                 # Required. Enum: todo, in_progress, review, testing, uat, done, blocked
+  status: todo                 # Required. Enum: todo, in_progress, review, testing, uat, uat_feedback, done, blocked
   complexity: medium           # Optional (encouraged). Enum: low, medium, high
   requires: [S-082]            # Required. List of story IDs (may be empty)
   acceptance:                  # Required. Non-empty list of testable criteria
@@ -341,8 +341,7 @@ backlog.py validate --source both      # Validate both files
     Key files: path/to/file.
   testing:                     # Required. Non-empty list of test commands
     - "command: make test-backend"
-  review_feedback: "..."       # Optional. Set by orchestrator on rejection
-  uat_feedback: "..."          # Optional. Set by user for rework
+  review_feedback: "..."       # Optional. Set by orchestrator on rejection, or by grooming skill for UAT feedback
   blocked_reason: "..."        # Optional. Required when status is blocked
 ```
 
@@ -399,7 +398,7 @@ For manual queue inspection (reference only):
 ```bash
 backlog.py query --status review --fields id,title,priority
 backlog.py query --status testing --fields id,title,priority
-backlog.py query --status uat --has-field uat_feedback --fields id,title,priority
+backlog.py query --status uat_feedback --fields id,title,priority
 backlog.py query --status in_progress --has-field review_feedback --fields id,title,priority
 backlog.py query --status todo --check-requires --format json
 ```
@@ -432,16 +431,11 @@ echo "Needs design decision on layout" | backlog.py set-text S-083 blocked_reaso
 ### UAT feedback handling
 
 ```bash
-# Read the feedback
-backlog.py get S-083 --format json | jq -r '.[0].uat_feedback'
+# User (via grooming skill) sets feedback and status:
+echo "Please fix the button layout" | backlog.py set-text S-083 review_feedback
+backlog.py set S-083 status uat_feedback
 
-# Copy to review_feedback
-backlog.py get S-083 --format json | jq -r '.[0].uat_feedback' | backlog.py set-text S-083 review_feedback
-
-# Clear uat_feedback
-backlog.py clear S-083 uat_feedback
-
-# Set back to in_progress
+# Orchestrator picks up uat_feedback story and transitions to in_progress:
 backlog.py set S-083 status in_progress
 ```
 

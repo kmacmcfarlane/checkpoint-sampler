@@ -51,7 +51,8 @@ Each story in backlog.yaml has a `status` field with one of these values:
 - **in_progress**: Fullstack engineer is actively implementing.
 - **review**: Implementation complete. Pending code review.
 - **testing**: Code review passed. Pending QA testing.
-- **uat**: QA approved. Code is merged to main. Awaiting user acceptance testing. User may provide `uat_feedback` or manually move to `done`.
+- **uat**: QA approved. Code is merged to main. Awaiting user acceptance testing. User may move to `done` or provide feedback (which transitions to `uat_feedback`).
+- **uat_feedback**: User provided feedback on a UAT story. Feedback is in `review_feedback`. Agent's court — will be picked up and transitioned to `in_progress`.
 - **done**: User accepted. Story is complete.
 - **blocked**: Cannot proceed. Must have a non-empty `blocked_reason`.
 
@@ -60,12 +61,12 @@ Each story in backlog.yaml has a `status` field with one of these values:
 ```
 todo ──► in_progress ──► review ──► testing ──► uat ──► done (user action)
               ▲             │           │         │
-              │  (changes   │           │         │ (uat_feedback)
-              │  requested) │           │         │
-              └────────────┘           │         │
+              │  (changes   │           │         │ (user feedback)
+              │  requested) │           │         ▼
+              └────────────┘           │     uat_feedback
               ▲  (issues found)         │         │
               └───────────────────────┘         │
-              ▲  (uat_feedback)                   │
+              ▲                                    │
               └────────────────────────────────┘
 
 Any status ──► blocked (with blocked_reason)
@@ -83,7 +84,8 @@ Valid transitions — the **Deciding subagent** column shows which subagent's ve
 | `review` → `in_progress` | **Code Reviewer**      | Changes requested (feedback in `review_feedback`) |
 | `testing` → `uat` | **QA Expert**          | QA approved; finalization performed (CHANGELOG, commit, merge) |
 | `testing` → `in_progress` | **QA Expert**          | Issues found (feedback in `review_feedback`) |
-| `uat` → `in_progress` | **Orchestrator**       | User provided `uat_feedback`; orchestrator copies to `review_feedback` and clears `uat_feedback` |
+| `uat` → `uat_feedback` | **User** (via grooming skill) | User provided feedback; feedback written to `review_feedback`, status set to `uat_feedback` |
+| `uat_feedback` → `in_progress` | **Orchestrator** | Orchestrator picks up story, creates new branch from main |
 | `uat` → `done` | **User** (manual)      | User accepted; edits backlog.yaml directly |
 
 **Ownership rules:**
@@ -95,7 +97,7 @@ Valid transitions — the **Deciding subagent** column shows which subagent's ve
 
 A story may declare a `requires` field listing the IDs of stories that must be completed before it can be started. This is a structural dependency defined at planning time, distinct from the runtime `blocked` state.
 
-- A story with `requires: [S-002, S-004]` is not eligible for selection until both S-002 and S-004 have `status: done` or `status: uat` (code is on main in both cases).
+- A story with `requires: [S-002, S-004]` is not eligible for selection until both S-002 and S-004 have `status: done`, `status: uat`, or `status: uat_feedback` (code is on main in all cases).
 - `requires` dependencies are transitive in effect: if S-009 requires S-008, and S-008 requires S-007, then S-009 cannot start until both S-007 and S-008 are done or uat.
 - A story may be both `requires`-gated and `blocked` — these are independent conditions.
 
@@ -105,13 +107,15 @@ When a code reviewer or QA expert returns a story to `in_progress`, they record 
 
 ### 1.4 UAT feedback
 
-After a story reaches `uat`, the user may provide feedback by writing to the `uat_feedback` field in backlog.yaml. The orchestrator detects this during work selection (section 3.1). When detected, the orchestrator:
-1. Copies the `uat_feedback` content into `review_feedback`.
-2. Clears `uat_feedback`.
-3. Sets `status: in_progress`.
-4. Creates a new feature branch from `main` (since the prior branch was already merged).
+After a story reaches `uat`, the user may provide feedback via the backlog grooming skill (or directly). Feedback is written to the `review_feedback` field and the story status is set to `uat_feedback`. This makes ownership unambiguous:
+- `uat` = user's court (reviewing)
+- `uat_feedback` = agent's court (feedback to act on)
 
-This allows the fullstack engineer to use the standard `review_feedback` field without awareness of UAT. The rework follows the normal cycle: `in_progress` → `review` → `testing` → `uat`.
+When the orchestrator picks up a `uat_feedback` story (via `next-work`), it:
+1. Sets `status: in_progress`.
+2. Creates a new feature branch from `main` (since the prior branch was already merged).
+
+The fullstack engineer reads the standard `review_feedback` field without awareness of UAT. The rework follows the normal cycle: `in_progress` → `review` → `testing` → `uat`.
 
 ## 2) Subagents
 
@@ -174,7 +178,7 @@ This encodes the full work-selection algorithm and returns the selected story wi
 | `testing` | QA testing pending | QA expert |
 | `review` | Code review pending | Code reviewer |
 | `in_progress` | Implementation in progress (with or without feedback) | Fullstack engineer |
-| `uat_feedback` | UAT rework needed | Fullstack engineer (after copying uat_feedback to review_feedback, clearing uat_feedback, setting in_progress, creating new branch from main) |
+| `uat_feedback` | UAT rework needed | Fullstack engineer (after setting in_progress, creating new branch from main) |
 | `todo` | New work (bugs prioritized, requires satisfied) | Fullstack engineer (after setting in_progress) |
 
 **Algorithm reference** (implemented by `next-work`):
@@ -182,7 +186,7 @@ This encodes the full work-selection algorithm and returns the selected story wi
 1. **Testing queue**: stories with `status: testing`, highest priority first.
 2. **Review queue**: stories with `status: review`, highest priority first.
 3. **In-progress queue**: stories with `status: in_progress`, highest priority first. Includes stories with or without `review_feedback` — they are a single flat queue sorted by priority.
-4. **UAT feedback queue**: stories with `status: uat` AND `uat_feedback` non-empty, highest priority first.
+4. **UAT feedback queue**: stories with `status: uat_feedback`, highest priority first.
 5. **New work**: Select a new story using the algorithm below.
 
 ### 3.2 New work selection algorithm (deterministic)
@@ -208,7 +212,7 @@ The orchestrator performs these steps each cycle:
 - If the story is already `in_progress`/`review`/`testing`, the branch should already exist — switch to it
 - If a story becomes blocked, do not merge down the branch
 - If the story reaches `uat`, the branch has already been merged into `main` (see section 4.5)
-- **UAT rework**: When a `uat` story returns to `in_progress` (via `uat_feedback`), create a new feature branch from current `main`. The previous branch was already merged. Use the standard branch name (e.g., `S-123`); if it still exists from the prior merge, delete it first and recreate from `main`.
+- **UAT rework**: When a `uat_feedback` story transitions to `in_progress`, create a new feature branch from current `main`. The previous branch was already merged. Use the standard branch name (e.g., `S-123`); if it still exists from the prior merge, delete it first and recreate from `main`.
 
 ### 4.2 Check for requirements changes
 - Inspect the git commit history (or working set) for changes to the /agent/PRD.md or answers provided in /agent/QUESTIONS.md
@@ -512,7 +516,7 @@ At all times:
 End the cycle when any occurs — do NOT continue to the next story:
 - The selected story reaches `uat` and is committed/merged to main. Exit immediately; do not call `next-work` again.
 - The selected story becomes `blocked` and backlog.yaml is updated accordingly.
-- No eligible stories remain across any queue (note: `uat` stories without `uat_feedback` are NOT eligible work).
+- No eligible stories remain across any queue (note: `uat` stories are NOT eligible work — they are waiting for user acceptance).
 - A hard failure prevents continuing safely (e.g., irreconcilable test failures); record a blocker note and stop.
 
 ## 9) Discord notifications
@@ -536,7 +540,7 @@ Send a notification on every story status change:
 - **review → in_progress**: `[project] <id>: review → in_progress. Changes requested: <1-2 sentence summary of feedback>.`
 - **testing → uat**: `[project] <id>: testing → uat. QA approved. <title> merged to main, awaiting user acceptance.`
 - **testing → in_progress**: `[project] <id>: testing → in_progress. QA found issues: <1-2 sentence summary of feedback>.`
-- **uat → in_progress**: `[project] <id>: uat → in_progress. UAT feedback received: <1-2 sentence summary of uat_feedback>.`
+- **uat_feedback → in_progress**: `[project] <id>: uat_feedback → in_progress. UAT feedback received: <1-2 sentence summary of review_feedback>.`
 
 When a story is returned to `in_progress` (from review or testing), always include a concise summary of the feedback so the user understands what went wrong without needing to check the repo.
 

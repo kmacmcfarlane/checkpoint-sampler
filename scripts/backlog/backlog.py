@@ -20,7 +20,7 @@ from ruamel.yaml.comments import CommentedMap, CommentedSeq
 # ── Schema constants ────────────────────────────────────────────────────────
 
 VALID_STATUSES = frozenset(
-    {"todo", "in_progress", "review", "testing", "uat", "done", "blocked"}
+    {"todo", "in_progress", "review", "testing", "uat", "uat_feedback", "done", "blocked"}
 )
 VALID_COMPLEXITIES = frozenset({"low", "medium", "high"})
 VALID_ID_PREFIXES = frozenset({"S", "B", "R", "W"})
@@ -39,7 +39,6 @@ OPTIONAL_STORY_FIELDS = (
     "complexity",
     "notes",
     "review_feedback",
-    "uat_feedback",
     "blocked_reason",
     "metrics",
 )
@@ -48,10 +47,10 @@ SCALAR_SET_FIELDS = frozenset(
     {"status", "priority", "complexity", "blocked_reason", "title"}
 )
 TEXT_SET_FIELDS = frozenset(
-    {"review_feedback", "uat_feedback", "notes", "blocked_reason"}
+    {"review_feedback", "notes", "blocked_reason"}
 )
 CLEARABLE_FIELDS = frozenset(
-    {"review_feedback", "uat_feedback", "blocked_reason", "complexity", "notes"}
+    {"review_feedback", "blocked_reason", "complexity", "notes"}
 )
 
 REQUIRED_TOP_LEVEL = ("schema_version", "project", "defaults", "stories")
@@ -206,10 +205,10 @@ def _get_all_stories(backlog_path: Path, done_path: Path) -> list[CommentedMap]:
 
 
 def _requires_satisfied(story: CommentedMap, all_stories: list[CommentedMap]) -> bool:
-    """Check if all requires dependencies are satisfied (status: done or uat).
+    """Check if all requires dependencies are satisfied (status: done, uat, or uat_feedback).
 
     Handles transitive dependencies: if A requires B, and B requires C,
-    then A is only satisfied if both B and C are done/uat.
+    then A is only satisfied if both B and C are done/uat/uat_feedback.
     Circular dependencies are treated as unsatisfied.
     """
     requires = story.get("requires")
@@ -224,7 +223,7 @@ def _requires_satisfied(story: CommentedMap, all_stories: list[CommentedMap]) ->
             reqs = s.get("requires")
             requires_map[sid] = reqs if isinstance(reqs, list) else []
 
-    satisfied_statuses = frozenset({"done", "uat"})
+    satisfied_statuses = frozenset({"done", "uat", "uat_feedback"})
 
     def _check(story_id: str, visited: set[str]) -> bool:
         if story_id in visited:
@@ -502,7 +501,7 @@ def cmd_next_work(args) -> int:
     1. Testing queue: status=testing
     2. Review queue: status=review
     3. In-progress: status=in_progress (with or without review_feedback)
-    4. UAT feedback: status=uat with uat_feedback present
+    4. UAT feedback: status=uat_feedback
     5. New work: status=todo, not blocked, requires satisfied, bugs first
     """
     backlog_path, done_path = args.backlog, args.done
@@ -535,7 +534,7 @@ def cmd_next_work(args) -> int:
     # Queue 4: UAT feedback
     uat_feedback = [
         s for s in active_stories
-        if s.get("status") == "uat" and s.get("uat_feedback")
+        if s.get("status") == "uat_feedback"
     ]
     if uat_feedback:
         selected = _select_highest_priority(uat_feedback)

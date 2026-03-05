@@ -231,10 +231,10 @@ class TestNextWorkCLI(unittest.TestCase):
             [
                 {
                     "id": "S-001",
-                    "title": "UAT story",
+                    "title": "UAT feedback story",
                     "priority": 90,
-                    "status": "uat",
-                    "uat_feedback": "Please fix X",
+                    "status": "uat_feedback",
+                    "review_feedback": "Please fix X",
                     "requires": [],
                     "acceptance": ["FE: Test"],
                     "testing": ["command: echo ok"],
@@ -498,10 +498,10 @@ class TestNextWorkCLI(unittest.TestCase):
             [
                 {
                     "id": "S-001",
-                    "title": "UAT with feedback",
+                    "title": "UAT feedback story",
                     "priority": 90,
-                    "status": "uat",
-                    "uat_feedback": "Please fix",
+                    "status": "uat_feedback",
+                    "review_feedback": "Please fix",
                     "requires": [],
                     "acceptance": ["FE: Test"],
                     "testing": ["command: echo ok"],

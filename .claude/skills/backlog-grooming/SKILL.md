@@ -112,7 +112,7 @@ Present the plan in three sections:
 | ID | Action | Priority | Summary |
 |----|--------|----------|---------|
 
-Actions: `approve → archive`, `set uat_feedback`, `skip (no change)`
+Actions: `approve → archive`, `set review_feedback + status uat_feedback`, `skip (no change)`
 
 **Section B — New stories related to work under review** (bugs found against UAT stories, follow-up tasks, rework items)
 
@@ -125,7 +125,7 @@ Actions: `approve → archive`, `set uat_feedback`, `skip (no change)`
 |----|------|-------|------------------|----------|------------|
 
 After the tables, show:
-- **Next 5 in work order**: The stories that will be worked next after these changes take effect (considering queue priority from AGENT_FLOW.md: testing → review → in_progress → uat_feedback → todo)
+- **Next 5 in work order**: The stories that will be worked next after these changes take effect (considering queue priority from AGENT_FLOW.md: testing → review → in_progress → uat_feedback (status) → todo)
 - **Dependency notes**: Any chains or blocking relationships worth calling out
 
 ### Step 2.2: User confirmation
@@ -144,9 +144,10 @@ If the user requests changes, adjust the plan and re-present. Loop until approve
 
 Once approved, execute all changes in this order (ordering prevents operating on moved stories):
 
-**1. Set uat_feedback** (before any archiving):
+**1. Set review_feedback and status uat_feedback** (before any archiving):
 ```bash
-echo "<feedback text>" | python3 scripts/backlog/backlog.py set-text <id> uat_feedback
+echo "<feedback text>" | python3 scripts/backlog/backlog.py set-text <id> review_feedback
+python3 scripts/backlog/backlog.py set <id> status uat_feedback
 ```
 
 **2. Update priorities** on existing stories:
@@ -193,7 +194,7 @@ The commit message should summarize counts: stories approved, feedback added, ne
 
 Show a concise summary:
 - Stories approved and archived (count + IDs)
-- Stories with uat_feedback set (count + IDs)
+- Stories moved to uat_feedback (count + IDs)
 - New tickets created (count + IDs with titles)
 - Priority changes made (count)
 - Validation result
@@ -209,4 +210,4 @@ Show a concise summary:
 - **New entries always get `status: todo`** — the orchestrator handles lifecycle transitions.
 - **The `complexity` field is required** for new entries. If complexity is unclear during discovery, flag it explicitly and discuss with the user — don't guess.
 - **IDs must be unique** across backlog.yaml and backlog_done.yaml — always use `backlog.py next-id`.
-- **Do NOT change status on feedback stories** — set `uat_feedback` only; the orchestrator handles the status transition.
+- **Feedback stories get both `review_feedback` and `status: uat_feedback`** — write the feedback text to `review_feedback`, then set status to `uat_feedback`. The orchestrator picks up from there.
