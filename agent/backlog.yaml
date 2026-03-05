@@ -13,67 +13,10 @@ stories:
 
   # ─── Code quality alignment stories ──────────────────────────────────────────
 
-  - id: S-052
-    title: "Apply data-testid selectors and test isolation to existing frontend tests"
-    priority: 45
-    status: uat
-    requires: []
-    acceptance:
-      - "FE: All E2E tests use data-testid selectors instead of Naive UI internal CSS classes (e.g., .n-dynamic-tags__add)"
-      - "FE: Components wrapping Naive UI interactive elements have data-testid attributes added"
-      - "FE: enableAutoUnmount(afterEach) is configured in a shared vitest setup file or added to all frontend test files"
-      - "FE: A global beforeEach in vitest setup calls localStorage.clear() to prevent cross-test contamination"
-      - "FE: All existing frontend tests still pass"
-      - "E2E: All existing E2E tests still pass with the updated selectors"
-    notes: |
-      Aligns existing tests with the new standing instructions in TEST_PRACTICES.md sections 3.7, 3.8, and 6.7.
-      Key files: frontend/e2e/*.spec.ts, frontend/src/components/**/*.vue (data-testid additions),
-      frontend/vitest.setup.ts (or equivalent), frontend/src/components/__tests__/*.test.ts.
-    testing:
-      - "command: make test-frontend"
-      - "command: make test-e2e"
-
-  - id: S-053
-    title: "Frontend lint enforcement and component type hygiene"
-    priority: 40
-    status: uat
-    requires: []
-    acceptance:
-      - "FE: make test-frontend runs npm run lint before tests (lint failure = pipeline failure)"
-      - "FE: Shared component interfaces (e.g., ImageClickContext in XYGrid.vue) are moved to dedicated types.ts files"
-      - "FE: Components using defineEmits have brief contract comments describing each event"
-      - "FE: All existing frontend tests and lint pass"
-    notes: |
-      Aligns codebase with DEVELOPMENT_PRACTICES.md sections 4.7, 4.9, and the types.ts convention in 2.3.
-      Key files: frontend/package.json or Makefile (lint step), frontend/src/components/types.ts (new or existing),
-      frontend/src/components/*.vue (defineEmits comments, type exports moved).
-    testing:
-      - "command: make test-frontend"
-
-  - id: S-054
-    title: "Playwright config hardening (HTML reporter, screenshot on failure, explicit timeout)"
-    priority: 38
-    status: uat
-    requires: []
-    acceptance:
-      - "E2E: playwright.config.ts uses reporter: [['list'], ['html', { open: 'never' }]] for dual reporting"
-      - "E2E: playwright.config.ts sets screenshot: 'only-on-failure' in the use block"
-      - "E2E: playwright.config.ts sets an explicit timeout (e.g., 15000) rather than relying on Playwright defaults"
-      - "E2E: All existing E2E tests still pass with the updated config"
-    notes: |
-      Aligns Playwright config with TEST_PRACTICES.md sections 6.7 and 6.8.
-      Key files: frontend/playwright.config.ts.
-    testing:
-      - "command: make test-e2e"
-
-  # ─── User-reported issues (2026-02-27) ──────────────────────────────────────
-
-  # ─── User-reported issues (2026-02-26) ──────────────────────────────────────
-
   - id: B-030
     title: "Top nav elements unavailable on narrow screens until drawer opens"
     priority: 92
-    status: uat
+    status: uat_feedback
     requires: []
     acceptance:
       - "FE: On narrow screens (<1024px), the app eagerly loads the saved training run from localStorage and triggers a scan
@@ -95,354 +38,14 @@ stories:
     testing:
       - "command: cd frontend && npx vitest run"
 
-  - id: S-062
-    title: "Generate Samples dialog polish — bead indicator, preset auto-close, training run restore and refresh"
-    priority: 65
-    status: uat
-    requires: []
-    acceptance:
-      - "FE: Generate Samples header button shows a colored bead indicating sample/job status of the current sidebar-selected
-        training run"
-      - "FE: Saving a preset in the Manage Presets sub-modal auto-closes the sub-modal and returns focus to the job launch
-        dialog"
-      - "FE: Dialog remembers and restores the last selected training run (in addition to existing workflow/model-type persistence)"
-      - "FE: When a job completes via WebSocket while the dialog is open, training run options and status beads refresh automatically"
-      - "FE: After closing the Manage Presets modal, the preset that was last edited is shown as selected in the job dialog
-        dropdown"
-      - "FE: Unit tests for each behavior"
-    notes: |
-      Bundles five approved enhancement ideas for the Generate Samples dialog:
-      1. "Bead count in sidebar" (medium) — visual hint on header button.
-      2. "Preset auto-close on save" (low) — reduces clicks.
-      3. "Last training run restore in Generate Samples dialog" (low) — resume where left off.
-      4. "Training run list refresh in dialog" (low) — auto-refresh on job completion.
-      5. "Preset state persistence after dialog close" (low) — show last edited preset.
-      Key files: frontend/src/App.vue, frontend/src/components/JobLaunchDialog.vue,
-      frontend/src/components/SamplePresetEditor.vue,
-      frontend/src/composables/useGenerateInputsPersistence.ts.
-    testing:
-      - "command: cd frontend && npx vitest run"
-
-  - id: S-064
-    title: "E2E test data isolation per run"
-    priority: 55
-    status: uat
-    requires: []
-    acceptance:
-      - "E2E: Tests have a mechanism to seed the database with known state before each test (e.g., API-based setup/teardown
-        or test-only reset endpoint)"
-      - "E2E: Each E2E test is independent — no test depends on state left by a previous test"
-      - "E2E: Database state is predictable at the start of each test file or describe block"
-      - "E2E: Existing E2E tests updated to use the isolation mechanism"
-    notes: |
-      Source: testing idea "E2E test data isolation per run" (medium).
-      While the E2E stack recreates volumes on each run, there is no mechanism to seed the
-      database with a known preset state before individual tests. Tests may depend on ordering.
-      Key files: frontend/e2e/*.spec.ts, backend (optional test-only reset endpoint).
-    testing:
-      - "command: make test-e2e"
-
-  - id: S-059
-    title: "Build tooling quality-of-life improvements"
-    priority: 29
-    status: uat
-    requires: []
-    acceptance:
-      - "OPS: Update .air.toml from deprecated build.bin to build.entrypoint to silence startup warning"
-      - "OPS: Change make test-backend from exec to run --rm so it works without a running dev stack"
-      - "OPS: Add --remove-orphans to E2E compose commands to suppress orphan container warning"
-      - "OPS: Add root-level make gen target that wraps the docker compose codegen invocation"
-      - "OPS: All existing tests and make targets still work"
-    notes: |
-      Bundles four approved low-priority devops ideas:
-      1. "Update .air.toml to use build.entrypoint" — deprecated setting warning.
-      2. "make test-backend with run --rm instead of exec" — usable without running stack.
-      3. "Suppress Docker Compose orphan container warning" — reduce noise.
-      4. "make gen root-level target" — simplify codegen for agents and developers.
-      Key files: .air.toml, Makefile, docker-compose.test.yml.
-    testing:
-      - "command: make test-backend"
-      - "command: make test-e2e"
-
-  - id: S-060
-    title: "Playwright browser pre-warming via custom Docker image"
-    priority: 28
-    status: uat
-    requires: []
-    acceptance:
-      - "OPS: Custom Playwright Docker image built FROM mcr.microsoft.com/playwright with npm ci baked in"
-      - "OPS: E2E test runs use the pre-built image instead of running npm ci on every invocation"
-      - "OPS: E2E test startup time reduced by 5-10 seconds"
-      - "OPS: Image build process documented in README or Makefile"
-      - "OPS: Existing E2E tests pass with the new image"
-    notes: |
-      Source: devops idea "Playwright browser pre-warming" (low priority).
-      npm ci runs on every E2E test invocation adding 5-10 seconds of overhead.
-      Key files: frontend/Dockerfile.playwright (new), Makefile, docker-compose.test.yml.
-    testing:
-      - "command: make test-e2e"
-
-  - id: S-065
-    title: "E2E test coverage additions — combo solo click and XYGrid emit test"
-    priority: 27
-    status: uat
-    requires: []
-    acceptance:
-      - "E2E: Add Playwright test for DimensionFilter solo click interaction (click value text to solo, click again to unsolo)"
-      - "FE: Add unit test asserting the shape of XYGrid's image:click emit payload (ImageClickContext with cellKey, sliderValues,
-        currentSliderValue, imagesBySliderValue)"
-      - "E2E/FE: All existing tests still pass"
-    notes: |
-      Combines two approved low-priority test ideas:
-      1. "Combo filter Solo click in E2E tests" — power-user feature not yet covered.
-      2. "XYGrid image:click emit test" — payload shape not asserted in tests.
-      Key files: frontend/e2e/ (new spec), frontend/src/components/__tests__/XYGrid.test.ts.
-    testing:
-      - "command: make test-e2e"
-      - "command: cd frontend && npx vitest run"
-
-  - id: R-004
-    title: "Consolidate docker-compose.test.yml and docker-compose.e2e.yml"
-    priority: 22
-    status: uat
-    requires: []
-    acceptance:
-      - "OPS: Merge docker-compose.e2e.yml into docker-compose.test.yml (test fixtures, healthchecks, Playwright container)"
-      - "OPS: Remove docker-compose.e2e.yml"
-      - "OPS: make test-e2e uses docker-compose.test.yml instead of docker-compose.e2e.yml"
-      - "OPS: make up-test / make down-test targets run the consolidated test stack"
-      - "OPS: Remove COMPOSE_E2E variable from Makefile; COMPOSE_TEST handles all test operations"
-      - "OPS: Update CLAUDE.md section 8 to remove up-test/down-test as separate from test-e2e"
-      - "OPS: All E2E tests pass with the consolidated stack"
-    notes: |
-      User observed docker-compose.test.yml and docker-compose.e2e.yml are nearly identical
-      and serve overlapping roles. Consolidate into one test stack under docker-compose.test.yml.
-      The E2E stack (test fixtures, healthchecks, Playwright) becomes the single test environment.
-      Key files: docker-compose.test.yml, docker-compose.e2e.yml (delete), Makefile, CLAUDE.md.
-    testing:
-      - "command: make test-e2e"
-
-  - id: S-070
-    title: "E2E test for full sample generation flow"
-    priority: 21
-    status: uat
-    requires: [B-029]
-    acceptance:
-      - "E2E: Playwright test exercises the full generation flow: select training run, configure preset, launch job, verify
-        job starts"
-      - "E2E: Test uses a mock or lightweight ComfyUI stub that accepts workflow submissions and returns a test image"
-      - "E2E: Test verifies the job progresses from pending through running (at minimum — full completion if mock supports
-        it)"
-      - "E2E: Test is tagged or in a separate spec file so it can be run independently from the main E2E suite"
-      - "E2E: Design documented for how ComfyUI is mocked in the test environment"
-    notes: |
-      Source: new_features idea "E2E test for sample generation batch" (medium priority).
-      Depends on B-029 (job auto-start) being fixed first. Needs design work around how to
-      mock ComfyUI — options include a lightweight HTTP stub container in docker-compose.test.yml
-      or intercepting at the backend service layer.
-      Key files: frontend/e2e/ (new spec), docker-compose.test.yml (mock ComfyUI service).
-    testing:
-      - "command: make test-e2e"
-
-  - id: S-071
-    title: "nginx config validation and WebSocket header checks in build pipeline"
-    priority: 20
-    status: uat
-    requires: []
-    acceptance:
-      - "OPS: Add nginx -t syntax check to the frontend Dockerfile build stage or a Makefile target"
-      - "OPS: Add a check (grep or lint step) that verifies nginx.conf contains required WebSocket headers (proxy_http_version
-        1.1, Upgrade, Connection)"
-      - "OPS: Both checks run as part of the build or a make lint-nginx target"
-      - "OPS: Build fails if nginx config is syntactically invalid or missing WebSocket headers"
-      - "OPS: Existing builds pass with the current nginx.conf"
-    notes: |
-      Combines two approved devops ideas:
-      1. "nginx config validation in CI" (low) — catch syntax errors before runtime.
-      2. "Automated nginx WebSocket validation" (low) — prevent regression of B-026 fix.
-      Key files: frontend/Dockerfile (build stage), frontend/nginx.conf, Makefile.
-    testing:
-      - "command: make up"
-
-  # ─── User-reported issues and features (2026-03-01) ──────────────────────────
-
-  - id: B-031
-    title: "Dimension preset selector missing New/Save/Delete workflow"
-    priority: 24
-    status: uat
-    requires: []
-    acceptance:
-      - "FE: A 'New' button is always visible in PresetSelector, positioned where the Save button currently is"
-      - "FE: Clicking 'New' clears the current preset selection and resets dimension assignments so the user can configure
-        a fresh preset"
-      - "FE: Save and Delete buttons appear below the preset selector dropdown"
-      - "FE: Save button is disabled until the user has modified at least one field on a new or existing preset"
-      - "FE: Save button enables when dimension assignments are touched (dirty tracking)"
-      - "FE: Existing preset load/delete behavior is preserved"
-      - "FE: Unit tests for dirty tracking and New button behavior"
-    notes: |
-      Bug: once a dimension preset is selected, there's no way to start configuring a new one.
-      The current Save button creates a new preset but is always enabled when assignments exist.
-      Need dirty tracking to distinguish "loaded preset" from "user modified preset".
-      Key files: frontend/src/components/PresetSelector.vue, frontend/src/components/DimensionPanel.vue.
-    testing:
-      - "command: cd frontend && npx vitest run"
-
-  - id: S-072
-    title: "Regenerate button for completed sample jobs"
-    priority: 38
-    status: uat
-    requires: []
-    acceptance:
-      - "FE: Completed and completed-with-errors job cards in JobProgressPanel show a 'Regenerate' button"
-      - "FE: Clicking Regenerate opens JobLaunchDialog pre-populated with the original job's settings (training run, workflow,
-        preset, VAE, CLIP, shift)"
-      - "FE: For completed-with-errors jobs, failed checkpoints are pre-selected in the checkpoint picker"
-      - "FE: The regenerated job is a new job (not an edit of the original)"
-      - "FE: Unit tests for Regenerate button visibility and pre-population"
-    notes: |
-      Currently users must manually re-enter all settings to regenerate. This adds a shortcut
-      that carries forward the original job configuration.
-      Key files: frontend/src/components/JobProgressPanel.vue, frontend/src/components/JobLaunchDialog.vue.
-    testing:
-      - "command: cd frontend && npx vitest run"
-
-  - id: S-073
-    title: "Per-sample inference progress bar"
-    priority: 15
-    status: uat
-    requires: []
-    acceptance:
-      - "BE: ComfyUI executor forwards per-node progress events (value/max) through the backend WebSocket to frontend clients"
-      - "BE: WebSocket message type for inference progress includes prompt_id, current_value, max_value"
-      - "FE: JobProgressPanel shows a secondary progress bar for the currently-generating sample within the checkpoint progress
-        section"
-      - "FE: Progress bar updates in real-time as ComfyUI processes nodes"
-      - "FE: Progress bar resets between samples"
-      - "BE: Unit tests for progress event forwarding"
-      - "FE: Unit tests for secondary progress bar rendering"
-    notes: |
-      Currently only checkpoint-level and image-count-level progress is shown. This adds
-      node-level inference progress from ComfyUI's WebSocket progress events.
-      Key files: backend/internal/service/comfyui_executor.go (progress event forwarding),
-      backend/internal/service/websocket.go (new message type),
-      frontend/src/components/JobProgressPanel.vue (secondary progress bar).
-    testing:
-      - "command: make test-backend"
-      - "command: cd frontend && npx vitest run"
-
-  - id: S-075
-    title: "Completeness check for generated sample datasets"
-    priority: 52
-    status: uat
-    requires: []
-    acceptance:
-      - "BE: After each checkpoint's samples are generated, validate that all expected images exist on disk"
-      - "BE: Compare expected items (from job item expansion) against actual files in the checkpoint's sample directory"
-      - "BE: Missing files are reported as warnings on the job (not failures — the images may have been generated but failed
-        to download)"
-      - "BE: Completeness status included in job progress WebSocket events"
-      - "FE: JobProgressPanel shows completeness status per checkpoint (e.g., '24/24 verified' or '23/24 — 1 missing')"
-      - "BE: Unit tests for completeness validation logic"
-      - "FE: Unit tests for completeness display"
-    notes: |
-      Validates that the expected cartesian product of images was actually created on disk.
-      Runs after each checkpoint's batch completes during job execution.
-      Key files: backend/internal/service/sample_job.go (validation after checkpoint batch),
-      backend/internal/store/filesystem.go (file listing for verification),
-      frontend/src/components/JobProgressPanel.vue.
-    testing:
-      - "command: make test-backend"
-      - "command: cd frontend && npx vitest run"
-
-  - id: S-076
-    title: "Auto-select single workflow template in Generate Samples dialog"
-    priority: 35
-    status: uat
-    requires: []
-    acceptance:
-      - "FE: If there is exactly one valid workflow template, auto-select it in the JobLaunchDialog"
-      - "FE: If multiple valid workflows exist, restore the last-used workflow from localStorage (existing behavior via useGenerateInputsPersistence)"
-      - "FE: Auto-selection does not override user's explicit selection"
-      - "FE: Unit tests for auto-selection logic"
-    notes: |
-      Small UX improvement. The useGenerateInputsPersistence composable already handles
-      last-used workflow restoration; this adds the single-workflow auto-select case.
-      Key files: frontend/src/components/JobLaunchDialog.vue,
-      frontend/src/composables/useGenerateInputsPersistence.ts.
-    testing:
-      - "command: cd frontend && npx vitest run"
-
-  - id: S-078
-    title: "Demo sampleset and dimension preset"
-    priority: 50
-    status: uat
-    requires: [S-074]
-    acceptance:
-      - "BE: Application ships with a bundled demo dataset (small set of pre-generated sample images)"
-      - "BE: Demo dimension preset is seeded into the database on first run"
-      - "FE: Demo dataset is visible and browsable out of the box"
-      - "FE: Demo dataset is deletable from the UI"
-      - "FE: A settings dialog allows re-adding the demo dataset after deletion"
-      - "FE: Unit tests for demo dataset management"
-    notes: |
-      Depends on S-074 (Studies) since demo data should use the study-scoped directory structure.
-      Needs design work on: how to bundle demo images (baked into Docker image or downloaded on first run),
-      how to seed the dimension preset, and the settings dialog for re-adding.
-      Key files: TBD — new settings component, seed data mechanism, demo image assets.
-    testing:
-      - "command: make test-backend"
-      - "command: cd frontend && npx vitest run"
-
-  - id: S-081
-    title: "Viewer driven by sample output directories instead of checkpoints"
-    priority: 90
-    status: uat
-    requires: [S-074]
-    acceptance:
-      - "BE: Scanner discovers viewable content from sample output directories rather than checkpoint files"
-      - "BE: Training runs for the viewer are derived from the directory structure under sample_dir (study/checkpoint dirs)"
-      - "FE: The 'Has Samples' filter on the main controls slideout is removed (all listed runs have samples by definition)"
-      - "FE: Existing grid, slider, and filter functionality works with directory-driven discovery"
-      - "BE: Unit tests for directory-driven scanner"
-      - "FE: Unit tests for updated training run selector"
-    notes: |
-      Depends on S-074 (Studies) for the study-scoped directory structure.
-      Decouples the viewer from checkpoint file discovery. The viewer shows what's been generated,
-      not what could be generated. This also enables viewing demo datasets (S-078) and externally
-      generated samples.
-      Key files: backend/internal/service/scanner.go, frontend/src/components/TrainingRunSelector.vue,
-      frontend/src/App.vue.
-    testing:
-      - "command: make test-backend"
-      - "command: cd frontend && npx vitest run"
-
-  - id: B-043
-    title: "Study editor allows duplicate dimension values"
-    priority: 25
-    status: uat
-    complexity: low
-    requires:
-      - S-074
-    acceptance:
-      - "BE: Reject duplicate values for Steps, CFG, Sampler/Scheduler, Seeds, and Prompt slugs with a validation error"
-      - "FE: Display validation error when user enters duplicate dimension values"
-      - "BE: Reject duplicate study names with a validation error"
-      - "FE: Display validation error when user enters a study name that already exists"
-      - "BE: Unit tests for duplicate dimension value validation"
-      - "FE: Unit tests for duplicate value error display"
-    notes: |
-      Bug: the study editor currently accepts duplicate values for dimension fields (Steps, CFG,
-      Sampler/Scheduler, Seeds, Prompt slugs) and allows duplicate study names. Duplicates should
-      be rejected with a validation error.
-      Source: UAT feedback on S-074 study editor.
-    testing:
-      - "command: make test-backend"
-      - "command: make test-frontend"
+    review_feedback: "UAT feedback — rework required:\n\n1. Generate Samples button and Jobs button must ALWAYS be visible
+      in the top nav, regardless of whether a training run or sample set is selected.\n2. Only the Metadata button can be
+      gated on having a training run selected.\n3. Current behavior: buttons don't appear until a sample set is selected.
+      Reproducible by clearing localStorage and reloading.\n4. The original fix moved auto-select logic to App.vue, but the
+      buttons themselves are still conditionally rendered based on selection state."
   - id: S-084
     title: "Sample count preview and missing-sample generation from Generate Samples dialog"
     priority: 55
-    status: uat_feedback
     complexity: medium
     requires:
       - S-075
@@ -467,10 +70,11 @@ stories:
       with sample count: found vs expected).\n3. The validation status should populate the checkpoint list used to select
       checkpoints for regeneration using the selected study.\n4. This replaces the current \"expected sample count preview\"\
       \ approach with a full validate-style checkpoint status display."
+    status: uat_feedback
   - id: S-085
     title: "Study versioning and version-scoped output directories"
     priority: 50
-    status: uat
+    status: uat_feedback
     complexity: medium
     requires:
       - S-074
@@ -489,10 +93,18 @@ stories:
       Source: UAT new feature request (Study Sample Job Manifest breakdown 1/3).
     testing:
       - "command: make test-backend"
+    review_feedback: "UAT feedback — design rework required:\n\nReplace versioning with immutability + fork approach:\n1.
+      Studies should NOT have version numbers. Remove version column and version-scoped directories.\n2. Instead: if a user
+      tries to edit a study that has generated samples, show a dialog with two options:\n   a) \"Create new study\" — fork
+      with modified settings, old study/samples untouched\n   b) \"Re-generate samples\" — update study config in-place, queue
+      jobs to regenerate all existing sample sets with new settings\n3. Studies without generated samples can be edited freely
+      (no dialog).\n4. The study selector only shows the most recent version currently — this is a symptom of the versioning
+      approach and should go away.\n5. The manifest (S-087) should record the study config that produced the samples, no version
+      field needed."
   - id: S-086
     title: "Study version selector UX and sample availability beads"
     priority: 45
-    status: uat
+    status: uat_feedback
     complexity: medium
     requires:
       - S-085
@@ -511,62 +123,10 @@ stories:
     testing:
       - "command: make test-backend"
       - "command: make test-frontend"
-  - id: S-087
-    title: "JSON sample job manifest per generation job"
-    priority: 45
-    status: uat
-    complexity: medium
-    requires:
-      - S-085
-    acceptance:
-      - "BE: Each generation job outputs a JSON manifest file in the study directory containing all job params"
-      - "BE: Manifest includes study config, version, training run, checkpoint list, and all dimension values used"
-      - "BE: Regenerating a sample set reads the manifest to determine what to generate"
-      - "BE: Validating a sample set uses the manifest as the source of truth for expected outputs"
-      - "BE: Unit tests for manifest write, read, and validation against manifest"
-    notes: |
-      Output a JSON manifest per generation job so it is clear what study configuration produced
-      the samples in each directory. Regeneration and validation use the manifest as the source
-      of truth rather than the current study config.
-      Source: UAT new feature request (Study Sample Job Manifest breakdown 3/3).
-    testing:
-      - "command: make test-backend"
-  - id: B-044
-    title: "SQLite PRAGMA foreign_keys=ON not enforced across connection pool"
-    priority: 70
-    status: uat
-    complexity: medium
-    requires: []
-    acceptance:
-      - "PRAGMA foreign_keys=ON is enforced on every database connection, not just the first"
-      - "E2E test for cascade deletion verifies that sample_jobs are actually removed (not just that the study delete returns
-        204)"
-    testing:
-      - "command: make test-backend"
-      - "command: make test-e2e"
-    notes: |
-      OpenDB() sets PRAGMA foreign_keys=ON via db.Exec(), which only applies to one connection
-      in Go's database/sql pool. New connections from the pool do not inherit the pragma, so FK
-      constraints (including ON DELETE CASCADE) may not be enforced on those connections. The fix
-      is to use a connection hook or DSN parameter to set the pragma per-connection.
-      Found during QA sweep for S-062.
-  - id: B-045
-    title: "on-demand-validation E2E test fails due to empty POST body on updated validate endpoint"
-    priority: 60
-    status: uat
-    complexity: low
-    requires: []
-    acceptance:
-      - "POST /api/training-runs/{id}/validate returns 200 when called without study_id (empty body)"
-      - "E2E test sends a valid JSON body (empty object) to the validate endpoint"
-    testing:
-      - "command: make test-e2e"
-    notes: |
-      S-084 added an optional study_id body attribute to the validate endpoint payload in the
-      Goa DSL design. This caused the generated DecodeValidateRequest function to require a
-      JSON request body (returning goa.MissingPayloadError on EOF). The E2E test sends a POST
-      without a body, which now triggers a 400 error.
-      Fix: update the E2E test to send an empty JSON object, or make the Goa payload optional.
+    review_feedback: "UAT feedback — rework to align with S-085 fork approach:\n\n1. Drop the version selector dropdown —
+      versioning is being removed per S-085 rework.\n2. Keep: study selection required before displaying checkpoints in Generate
+      Samples dialog.\n3. Keep: green bead indicator for studies with samples for the selected training run.\n4. Align study
+      selection UX with the new immutability model (no versions to choose between)."
   - id: S-088
     title: Study dropdown status beads in Generate Samples dialog
     type: feature
@@ -739,3 +299,317 @@ stories:
     testing:
       - "Verify play icon toggles correctly between play and pause states"
       - "Verify refresh buttons trigger actual data reload"
+  - id: B-048
+    title: Audit and fix all E2E test failures + add E2E gate to UAT transition
+    type: bug
+    status: todo
+    priority: 92
+    complexity: high
+    requires: []
+    notes: |
+      E2E tests are broken when running make up-test then make test-e2e. This story
+      investigates all failures, spins off individual fix stories if needed, and adds a
+      process gate requiring passing E2E tests before any story can move to UAT.
+      Subsumes B-045 (empty POST body on validate endpoint).
+      Key files: frontend/e2e/*.spec.ts, agent/AGENT_FLOW.md, agent/TEST_PRACTICES.md.
+    acceptance:
+      - "E2E: All existing E2E tests pass when run via make test-e2e"
+      - "E2E: Any tests that cannot be fixed are documented with skip reasons and individual fix stories filed"
+      - "DOC: AGENT_FLOW.md updated to require passing E2E tests before the testing to uat transition"
+      - "DOC: TEST_PRACTICES.md updated to document the E2E gate requirement"
+      - "E2E: B-045 fix included (validate endpoint receives proper JSON body)"
+    testing:
+      - "Run make test-e2e end-to-end and verify all tests pass or are explicitly skipped with documented reasons"
+      - "Verify the process gate is documented clearly enough that agents will follow it"
+  - id: B-049
+    title: "Sample path scoping: Has Samples and validation must strictly scope to study dir"
+    type: bug
+    status: todo
+    priority: 90
+    complexity: medium
+    requires: []
+    notes: |
+      Bug: "Has Samples" indicator and "Generate Missing Samples" button appear for a
+      training run + study combination even when no samples exist in the expected study
+      directory. Sample discovery must strictly look inside sample_dir/<study_name>/ for
+      the selected training run.
+      Reproduced with training run: qwen/psai4rt-v0.3.0-qwen-2512-1024-adafactor-constant-2e-6-steps-9000-timestep-qinglong_qwen-cap_drop-0
+      and study: cfg-1-and-3-1344 (v2).
+      Key files: backend/internal/service/validation.go, backend/internal/store/filesystem.go,
+      frontend/src/components/JobLaunchDialog.vue.
+    acceptance:
+      - "BE: Sample discovery for validation strictly scopes to sample_dir/<study_name>/<training_run>/"
+      - "BE: Has Samples indicator only returns true when samples exist in the correct study directory"
+      - "FE: Generate Missing Samples button only appears when some but not all expected samples exist in the study dir, not
+        when zero samples exist"
+      - "BE: Unit tests for strict path scoping in sample discovery"
+      - "E2E: Test verifying correct behavior with study+training run that has no samples"
+    testing:
+      - "Test with training run that has samples in a different study dir but not the selected one"
+      - "Test with study name containing special characters (parentheses, spaces)"
+      - "Verify Generate Missing Samples vs Generate Samples distinction based on sample count"
+  - id: B-050
+    title: Study name filename validation (no problematic directory characters)
+    type: bug
+    status: todo
+    priority: 70
+    complexity: low
+    requires: []
+    notes: |
+      Study names are used as directory names for sample output. Names with characters
+      problematic for filesystems (parentheses, slashes, colons, etc.) cause path issues.
+      Add validation to reject problematic characters and enforce filename-safe study names.
+      Duplicate study name check was already implemented in B-043.
+      Key files: backend/internal/service/study.go (or equivalent validation),
+      frontend/src/components/StudyEditor.vue.
+    acceptance:
+      - "BE: Study name validation rejects characters problematic for directory names (parentheses, slashes, colons, question
+        marks, asterisks, angle brackets, pipes, quotes)"
+      - "BE: Validation error message lists the specific disallowed characters"
+      - "FE: Validation error displayed inline in the study editor"
+      - "BE: Unit tests for filename validation rules"
+    testing:
+      - "Test with various problematic characters: () / \\ : * ? < > |"
+      - "Test that valid names (alphanumeric, hyphens, underscores, dots) are accepted"
+      - "Verify existing studies with problematic names are handled gracefully"
+  - id: B-051
+    title: Job bead color precedence (green/blue/yellow/red)
+    type: bug
+    status: todo
+    priority: 25
+    complexity: low
+    requires: []
+    notes: |
+      The Jobs nav UI bead should follow a color precedence based on job states:
+      Green = all completed successfully, Blue = job(s) in-progress or completed,
+      Yellow = job(s) exist with partial failures, Red = job(s) with complete failures.
+      Key files: frontend/src/App.vue (or nav component with bead logic).
+    acceptance:
+      - "FE: Job bead shows green when all jobs completed successfully"
+      - "FE: Job bead shows blue when job(s) are in-progress (or mix of in-progress and completed)"
+      - "FE: Job bead shows yellow when job(s) have partial failures"
+      - "FE: Job bead shows red when job(s) have complete failures"
+      - "FE: Color precedence: red > yellow > blue > green"
+      - "FE: Unit tests for bead color logic with various job state combinations"
+    testing:
+      - "Test all four states individually and in combination"
+      - "Test precedence: a mix of completed and failed jobs should show yellow or red, not green"
+  - id: B-052
+    title: "Sample Jobs Dialog cosmetic fixes: progress flip-flop, verified label, checkpoint tooltip"
+    type: bug
+    status: todo
+    priority: 20
+    complexity: low
+    requires: []
+    notes: |
+      Three cosmetic issues in the Sample Jobs Dialog:
+      1. Progress indicator flip-flops between 0/8 and 5/8 during generation (possible race
+         condition when inference WebSocket events switch between samples).
+      2. "verified" label is too small for its container and wraps to next line.
+      3. Long checkpoint names truncated by ellipsis have no tooltip showing the full name.
+      Key files: frontend/src/components/JobProgressPanel.vue.
+    acceptance:
+      - "FE: Progress indicator shows consistent, monotonically increasing values during generation (no flip-flop)"
+      - "FE: 'verified' label fits its container without wrapping"
+      - "FE: Truncated checkpoint names show a tooltip with the full name on hover"
+      - "FE: Unit tests for progress update logic (verify no regression from race condition fix)"
+    testing:
+      - "Test progress updates with rapid WebSocket events to verify no flip-flop"
+      - "Test verified label rendering at various container widths"
+      - "Test tooltip appears for truncated names, does not appear for short names"
+  - id: S-093
+    title: Confirmation dialog for regenerating a valid sample set
+    type: feature
+    status: todo
+    priority: 25
+    complexity: low
+    requires: []
+    notes: |
+      When a user clicks Regenerate on a sample set that passes validation (all expected
+      samples exist), show a confirmation dialog asking if they are sure they want to
+      regenerate. Prevents accidental overwrite of valid sample data.
+      Key files: frontend/src/components/JobLaunchDialog.vue (or regeneration trigger component).
+    acceptance:
+      - "FE: Clicking Regenerate on a validated sample set shows a confirmation dialog"
+      - "FE: Dialog explains that all expected samples already exist and regeneration will overwrite them"
+      - "FE: Cancel aborts the operation, Confirm proceeds with regeneration"
+      - "FE: No confirmation dialog when the sample set has missing samples (incomplete validation)"
+      - "FE: Unit tests for confirmation dialog trigger logic"
+    testing:
+      - "Test confirmation appears for complete sample sets, does not appear for incomplete ones"
+      - "Test cancel and confirm paths"
+  - id: S-094
+    title: Standard delete confirmation dialog component
+    type: feature
+    status: todo
+    priority: 30
+    complexity: low
+    requires: []
+    notes: |
+      Create a reusable delete confirmation dialog component. Clicking outside or Cancel
+      aborts. Red "Yes, Delete" button confirms. The component should accept a title,
+      description, optional checkbox (e.g., "Also delete sample data"), and callbacks.
+      Key files: frontend/src/components/ConfirmDeleteDialog.vue (new).
+    acceptance:
+      - "FE: Reusable ConfirmDeleteDialog component with configurable title, description, and optional checkbox"
+      - "FE: Clicking outside the dialog or clicking Cancel aborts the delete"
+      - "FE: Red 'Yes, Delete' button triggers the delete callback"
+      - "FE: Optional checkbox prop for additional options (e.g., 'Also delete sample data')"
+      - "FE: Unit tests for dialog interactions (cancel, confirm, checkbox state)"
+    testing:
+      - "Test all dismiss paths: click outside, Cancel button, Escape key"
+      - "Test checkbox state is passed through to confirm callback"
+  - id: S-095
+    title: Delete study with option to keep or delete sample data
+    type: feature
+    status: todo
+    priority: 25
+    complexity: low
+    requires:
+      - S-094
+    notes: |
+      Add delete functionality for studies. Uses the standard confirmation dialog (S-094)
+      with a checkbox "Also delete sample data" (default: off). If checked, removes the
+      study's sample output directory in addition to the database record.
+      Key files: frontend/src/components/StudyEditor.vue,
+      backend/internal/service/study.go, backend/internal/store/filesystem.go.
+    acceptance:
+      - "FE: Delete button on study shows the standard confirmation dialog"
+      - "FE: Confirmation dialog includes 'Also delete sample data' checkbox (default off)"
+      - "BE: Deleting a study without the data flag removes only the database record"
+      - "BE: Deleting a study with the data flag also removes the study's sample output directory"
+      - "BE: Unit tests for both deletion paths"
+      - "FE: Unit tests for delete dialog integration"
+    testing:
+      - "Test delete with data flag off: verify files remain on disk"
+      - "Test delete with data flag on: verify files are removed"
+      - "Test delete of study with no sample data (should work gracefully)"
+  - id: S-096
+    title: Delete dimension mapping preset
+    type: feature
+    status: todo
+    priority: 25
+    complexity: low
+    requires:
+      - S-094
+    notes: |
+      Add or improve delete functionality for dimension mapping presets using the
+      standard confirmation dialog (S-094).
+      Key files: frontend/src/components/PresetSelector.vue.
+    acceptance:
+      - "FE: Delete button on dimension mapping preset shows the standard confirmation dialog"
+      - "FE: Confirming delete removes the preset"
+      - "FE: After deletion, the preset selector resets to no selection or the next available preset"
+      - "FE: Unit tests for delete confirmation flow"
+    testing:
+      - "Test deleting a preset that is currently selected"
+      - "Test deleting the last remaining preset"
+  - id: S-097
+    title: Delete jobs with option to keep or delete sample data
+    type: feature
+    status: todo
+    priority: 25
+    complexity: low
+    requires:
+      - S-094
+    notes: |
+      Add delete functionality for sample jobs. Uses the standard confirmation dialog
+      (S-094) with a checkbox to keep or delete the generated sample data.
+      Key files: frontend/src/components/JobProgressPanel.vue,
+      backend/internal/service/sample_job.go.
+    acceptance:
+      - "FE: Delete button on job cards shows the standard confirmation dialog"
+      - "FE: Confirmation dialog includes option to keep or delete sample data"
+      - "BE: Deleting a job without the data flag removes only the database record"
+      - "BE: Deleting a job with the data flag also removes generated sample files"
+      - "BE: Unit tests for both deletion paths"
+      - "FE: Unit tests for delete dialog integration"
+    testing:
+      - "Test delete with data kept vs data removed"
+      - "Test delete of a job that is currently in-progress (should be prevented or warned)"
+  - id: S-098
+    title: ETA per sample and per job (moving average)
+    type: feature
+    status: todo
+    priority: 25
+    complexity: medium
+    requires: []
+    notes: |
+      Add estimated time of arrival for individual samples and overall job completion.
+      Uses a moving average of recent sample generation times to calculate ETA.
+      Key files: backend/internal/service/comfyui_executor.go (timing data),
+      backend/internal/service/websocket.go (ETA in progress events),
+      frontend/src/components/JobProgressPanel.vue (ETA display).
+    acceptance:
+      - "BE: Track per-sample generation time and compute moving average"
+      - "BE: Include per-sample ETA and per-job ETA in WebSocket progress events"
+      - "FE: JobProgressPanel displays ETA for the current sample being generated"
+      - "FE: JobProgressPanel displays overall job ETA based on remaining samples and moving average"
+      - "FE: ETA updates as each sample completes and the average adjusts"
+      - "BE: Unit tests for moving average calculation"
+      - "FE: Unit tests for ETA display"
+    testing:
+      - "Test ETA accuracy improves after several samples (moving average stabilizes)"
+      - "Test ETA display with varying sample generation times"
+      - "Test edge case: first sample has no prior average to work with"
+  - id: S-099
+    title: View job parameters on card title click
+    type: feature
+    status: todo
+    priority: 20
+    complexity: low
+    requires: []
+    notes: |
+      Clicking a job card's title in the Sample Jobs Dialog should show all the job
+      parameters (training run, workflow, preset, VAE, CLIP, shift, checkpoint list, etc.).
+      Key files: frontend/src/components/JobProgressPanel.vue.
+    acceptance:
+      - "FE: Clicking a job card title opens a detail view showing all job parameters"
+      - "FE: Parameters include: training run, workflow, preset name, VAE, CLIP, shift, and checkpoint list"
+      - "FE: Detail view is dismissible (click outside or close button)"
+      - "FE: Unit tests for parameter display"
+    testing:
+      - "Test with jobs that have different parameter configurations"
+      - "Test that all parameters are displayed accurately"
+  - id: S-100
+    title: Debug mode params overlay in lightbox
+    type: feature
+    status: todo
+    priority: 20
+    complexity: low
+    requires: []
+    notes: |
+      When debug mode is enabled, the lightbox should display a params overlay on images
+      similar to what the XY grid already shows. This allows inspecting generation
+      parameters while viewing individual images in the lightbox.
+      Key files: frontend/src/components/ImageLightbox.vue (or equivalent).
+    acceptance:
+      - "FE: When debug mode is enabled, the lightbox displays a params overlay on the current image"
+      - "FE: Overlay shows the same parameter information as the XY grid debug overlay"
+      - "FE: Overlay is positioned to not obscure the main content of the image"
+      - "FE: When debug mode is disabled, no overlay is shown"
+      - "FE: Unit tests for overlay visibility toggle"
+    testing:
+      - "Test overlay appears only when debug mode is on"
+      - "Test overlay content matches the expected parameters for the displayed image"
+  - id: S-101
+    title: Study editor validation field highlighting
+    type: feature
+    status: todo
+    priority: 15
+    complexity: low
+    requires: []
+    notes: |
+      Enhance the study editor to highlight the specific field(s) that have validation
+      errors. For duplicate values, highlight all but the first occurrence of the
+      duplicated value.
+      Key files: frontend/src/components/StudyEditor.vue.
+    acceptance:
+      - "FE: Fields with validation errors are visually highlighted (red border or similar)"
+      - "FE: For duplicate values, all duplicate occurrences except the first are highlighted"
+      - "FE: Highlight clears when the validation error is resolved"
+      - "FE: Unit tests for field highlighting with various validation error types"
+    testing:
+      - "Test highlighting for each validation error type (duplicates, invalid chars, empty required fields)"
+      - "Test that only the correct fields are highlighted, not all fields"
+      - "Test highlight clears on fix"
