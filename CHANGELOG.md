@@ -11,8 +11,10 @@ Older entries are condensed to titles only — see git history for full details.
 - Study version suffix (e.g., "(v1)") displayed when availability data is present
 - New `GET /api/studies/availability?training_run_id={id}` endpoint returns per-study version availability
 
-### S-084: Sample count preview and missing-sample generation from Generate Samples dialog
-- Validation endpoint returns `total_expected`, `total_actual`, `total_missing` aggregate counts alongside per-checkpoint results
+### S-084: Sample count preview and missing-sample generation from Generate Samples dialog (UAT rework)
+- Generate Samples dialog replaced separate checkpoint picker and validation preview with unified per-checkpoint validation status display (checkmark/warning icons, found/expected counts)
+- Form field order changed to Training Run → Study → Validation Status → Workflow → VAE → CLIP → Shift
+- "Select Missing" button replaces "Generate Missing Samples" for checkpoint selection
 - Generate Samples dialog auto-fetches validation on training run selection, showing expected sample count and missing count preview
 - "Generate missing samples only" checkbox creates a job that skips checkpoint×parameter combinations where the output file already exists
 - Sidebar "Validate" results now show total counts; "Generate Missing" button opens the job dialog when missing samples are detected

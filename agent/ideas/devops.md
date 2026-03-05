@@ -86,3 +86,9 @@ The `frontend/dist/assets/` directory is owned by root from a prior Docker-based
 * priority: low
 * source: developer
 Add a CI check or Makefile target that validates all `test-fixtures/**/*.safetensors` files are parseable (non-zero, valid header), preventing silent introduction of corrupt fixture files in the future.
+
+### E2E full-suite test isolation
+* status: needs_approval
+* priority: high
+* source: qa
+29 E2E tests fail in the full suite but pass individually, indicating systemic test isolation issues. Tests sharing database state via `/api/test/reset` interfere when run sequentially in a single worker. Consider Playwright test sharding with separate DB instances, or adding cleanup `afterEach` hooks for tests that create application state (sample jobs, images).

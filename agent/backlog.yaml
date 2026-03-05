@@ -59,13 +59,7 @@ stories:
     testing:
       - "command: make test-backend"
       - "command: make test-frontend"
-    review_feedback: "UAT feedback — rework required:\n\n1. The regeneration list in the Generate Samples dialog should have
-      a similar visual treatment to the validate view in the main controls slideout.\n2. Flow: select training run (top control
-      position) → select study → auto-validate on study select → display per-checkpoint validation status (complete/missing
-      with sample count: found vs expected).\n3. The validation status should populate the checkpoint list used to select
-      checkpoints for regeneration using the selected study.\n4. This replaces the current \"expected sample count preview\"\
-      \ approach with a full validate-style checkpoint status display."
-    status: uat_feedback
+    status: uat
   - id: S-085
     title: "Study versioning and version-scoped output directories"
     priority: 50
@@ -645,3 +639,22 @@ stories:
       run named 'my-model' with has_samples=true. The test fixture may not be providing this run
       or the API response does not include it. Likely related to the same fixture issue affecting
       selectTrainingRun timeouts (B-053).
+  - id: B-055
+    title: "Full E2E suite has systematic test isolation flakiness affecting ~29 tests"
+    priority: 50
+    complexity: high
+    status: todo
+    requires: []
+    acceptance:
+      - "All E2E tests pass consistently in the full suite run (make test-e2e) without test-ordering dependency"
+      - "Each spec file uses resetDatabase in beforeEach to clear state"
+      - "Tests that modify application state use cleanup afterEach hooks to prevent cross-test interference"
+    testing:
+      - "command: make test-e2e"
+    notes: |
+      29 E2E tests fail when run in the full suite but pass individually.
+      Root cause: tests sharing database state via /api/test/reset interfere when
+      run sequentially in a single worker. Tests that create sample jobs, generate
+      images, or trigger validation leave residual state affecting subsequent tests.
+      Affected specs: sidebar-preset-selector, single-value-dimensions, slider-playback,
+      study-availability, training-run-grid, viewer-discovery, sample-generation.

@@ -366,7 +366,12 @@ function selectMissingCheckpoints() {
 }
 
 function selectAllCheckpoints() {
-  selectedCheckpoints.value = new Set(selectedRunCheckpoints.value.map(c => c.filename))
+  // Use validation result checkpoints when available (the displayed list), otherwise fall back to training run checkpoints
+  if (validationResult.value) {
+    selectedCheckpoints.value = new Set(validationResult.value.checkpoints.map(c => c.checkpoint))
+  } else {
+    selectedCheckpoints.value = new Set(selectedRunCheckpoints.value.map(c => c.filename))
+  }
 }
 
 function deselectAllCheckpoints() {
@@ -824,7 +829,7 @@ async function submit() {
         {{ error }}
       </NAlert>
 
-      <!-- Training run selector -->
+      <!-- Training run selector (top position per UAT feedback) -->
       <div class="form-field">
         <div class="field-header">
           <label for="training-run-select">Training Run</label>
@@ -848,104 +853,7 @@ async function submit() {
         />
       </div>
 
-      <!-- AC1: Checkpoint picker requires both a training run with samples and a selected study -->
-      <div
-        v-if="selectedStudy !== null && selectedRunHasSamples && selectedRunCheckpoints.length > 0"
-        class="form-field"
-        data-testid="checkpoint-picker"
-      >
-        <div class="field-header">
-          <label>Checkpoints to Regenerate</label>
-          <div class="checkpoint-controls">
-            <NButton
-              size="tiny"
-              data-testid="select-all-checkpoints"
-              @click="selectAllCheckpoints"
-            >
-              Select All
-            </NButton>
-            <NButton
-              size="tiny"
-              data-testid="deselect-all-checkpoints"
-              @click="deselectAllCheckpoints"
-            >
-              Deselect All
-            </NButton>
-          </div>
-        </div>
-        <p class="field-hint">
-          {{ selectedCheckpoints.size === 0 ? 'No checkpoints selected' : `${selectedCheckpoints.size} of ${selectedRunCheckpoints.length} selected` }}
-        </p>
-        <p v-if="checkpointValidationError" class="field-error" data-testid="checkpoint-validation-error">
-          {{ checkpointValidationError }}
-        </p>
-        <div class="checkpoint-list">
-          <div
-            v-for="cp in selectedRunCheckpoints"
-            :key="cp.filename"
-            class="checkpoint-row"
-            :data-testid="`checkpoint-row-${cp.filename}`"
-          >
-            <NCheckbox
-              :checked="selectedCheckpoints.has(cp.filename)"
-              @update:checked="toggleCheckpoint(cp.filename)"
-            >
-              <span class="checkpoint-filename">{{ cp.filename }}</span>
-              <NTag
-                v-if="cp.has_samples"
-                size="tiny"
-                type="success"
-                class="has-samples-tag"
-              >
-                has samples
-              </NTag>
-              <NTooltip v-if="failedCheckpointMap.has(cp.filename)" trigger="hover">
-                <template #trigger>
-                  <NTag
-                    size="tiny"
-                    type="error"
-                    class="failed-checkpoint-tag"
-                    :data-testid="`checkpoint-failed-badge-${cp.filename}`"
-                  >
-                    failed
-                  </NTag>
-                </template>
-                {{ failedCheckpointMap.get(cp.filename) }}
-              </NTooltip>
-            </NCheckbox>
-          </div>
-        </div>
-        <NCheckbox
-          :checked="clearExisting"
-          :disabled="missingOnly"
-          data-testid="clear-existing-checkbox"
-          class="clear-existing-checkbox"
-          @update:checked="clearExisting = $event"
-        >
-          Clear existing samples for selected checkpoints
-        </NCheckbox>
-        <NCheckbox
-          :checked="missingOnly"
-          data-testid="missing-only-checkbox"
-          class="missing-only-checkbox"
-          @update:checked="missingOnly = $event; if ($event) clearExisting = false"
-        >
-          Generate missing samples only (skip existing)
-        </NCheckbox>
-      </div>
-
-      <div class="form-field">
-        <label for="workflow-select">Workflow Template</label>
-        <NSelect
-          id="workflow-select"
-          v-model:value="selectedWorkflow"
-          :options="workflowOptions"
-          placeholder="Select a workflow"
-          clearable
-          data-testid="workflow-select"
-        />
-      </div>
-
+      <!-- Study selector (second position — selecting triggers auto-validate) -->
       <div class="form-field">
         <label for="study-select">Study</label>
         <div class="study-field-row">
@@ -967,6 +875,146 @@ async function submit() {
             Manage Studies
           </NButton>
         </div>
+      </div>
+
+      <!-- Checkpoint validation status list — shown when training run + study are selected and validation completes.
+           Matches the validate-style display from the main controls slideout (checkmark/warning icons, found/expected counts).
+           For runs with existing samples, checkboxes allow selecting checkpoints for regeneration.
+           For runs without samples, the list is display-only (all checkpoints are targeted). -->
+      <div
+        v-if="selectedStudy !== null && selectedTrainingRunId !== null && (validating || validationResult)"
+        class="form-field"
+        data-testid="checkpoint-picker"
+      >
+        <div class="field-header">
+          <label>{{ selectedRunHasSamples ? 'Checkpoint Validation Status' : 'Checkpoint Status' }}</label>
+          <div v-if="selectedRunHasSamples && validationResult" class="checkpoint-controls">
+            <NButton
+              v-if="hasMissingSamples"
+              size="tiny"
+              type="warning"
+              data-testid="select-missing-checkpoints"
+              @click="selectMissingCheckpoints"
+            >
+              Select Missing
+            </NButton>
+            <NButton
+              size="tiny"
+              data-testid="select-all-checkpoints"
+              @click="selectAllCheckpoints"
+            >
+              Select All
+            </NButton>
+            <NButton
+              size="tiny"
+              data-testid="deselect-all-checkpoints"
+              @click="deselectAllCheckpoints"
+            >
+              Deselect All
+            </NButton>
+          </div>
+        </div>
+        <!-- Validation totals summary -->
+        <div v-if="validationResult" class="validation-totals" data-testid="validation-totals">
+          <p class="validation-totals-text">
+            {{ validationResult.total_actual }} / {{ validationResult.total_expected }} samples
+            <span v-if="validationResult.total_missing > 0" class="validation-missing-text">
+              ({{ validationResult.total_missing }} missing)
+            </span>
+          </p>
+        </div>
+        <p v-if="selectedRunHasSamples && validationResult" class="field-hint">
+          {{ selectedCheckpoints.size === 0 ? 'No checkpoints selected' : `${selectedCheckpoints.size} of ${selectedRunCheckpoints.length} selected` }}
+        </p>
+        <p v-if="checkpointValidationError" class="field-error" data-testid="checkpoint-validation-error">
+          {{ checkpointValidationError }}
+        </p>
+        <p v-if="validating" class="validation-loading">Validating sample completeness...</p>
+        <div v-if="validationResult" class="checkpoint-list" data-testid="validation-results">
+          <div
+            v-for="cp in validationResult.checkpoints"
+            :key="cp.checkpoint"
+            class="checkpoint-row"
+            :class="{ 'checkpoint-row--warning': cp.missing > 0 }"
+            :data-testid="`checkpoint-row-${cp.checkpoint}`"
+          >
+            <NCheckbox
+              v-if="selectedRunHasSamples"
+              :checked="selectedCheckpoints.has(cp.checkpoint)"
+              @update:checked="toggleCheckpoint(cp.checkpoint)"
+            >
+              <span
+                class="validation-status-icon"
+                :style="{ color: cp.missing === 0 ? '#18a058' : undefined }"
+                :class="{ 'validation-status-icon--warning': cp.missing > 0 }"
+              >
+                {{ cp.missing === 0 ? '\u2713' : '\u26A0' }}
+              </span>
+              <span class="checkpoint-filename">{{ cp.checkpoint }}</span>
+              <span class="validation-checkpoint-counts">
+                {{ cp.verified }}/{{ cp.expected }}
+              </span>
+              <NTooltip v-if="failedCheckpointMap.has(cp.checkpoint)" trigger="hover">
+                <template #trigger>
+                  <NTag
+                    size="tiny"
+                    type="error"
+                    class="failed-checkpoint-tag"
+                    :data-testid="`checkpoint-failed-badge-${cp.checkpoint}`"
+                  >
+                    failed
+                  </NTag>
+                </template>
+                {{ failedCheckpointMap.get(cp.checkpoint) }}
+              </NTooltip>
+            </NCheckbox>
+            <!-- Display-only row for runs without samples -->
+            <template v-else>
+              <span
+                class="validation-status-icon"
+                :style="{ color: cp.missing === 0 ? '#18a058' : undefined }"
+                :class="{ 'validation-status-icon--warning': cp.missing > 0 }"
+              >
+                {{ cp.missing === 0 ? '\u2713' : '\u26A0' }}
+              </span>
+              <span class="checkpoint-filename">{{ cp.checkpoint }}</span>
+              <span class="validation-checkpoint-counts">
+                {{ cp.verified }}/{{ cp.expected }}
+              </span>
+            </template>
+          </div>
+        </div>
+        <NCheckbox
+          v-if="selectedRunHasSamples && validationResult"
+          :checked="clearExisting"
+          :disabled="missingOnly"
+          data-testid="clear-existing-checkbox"
+          class="clear-existing-checkbox"
+          @update:checked="clearExisting = $event"
+        >
+          Clear existing samples for selected checkpoints
+        </NCheckbox>
+        <NCheckbox
+          v-if="selectedRunHasSamples && validationResult"
+          :checked="missingOnly"
+          data-testid="missing-only-checkbox"
+          class="missing-only-checkbox"
+          @update:checked="missingOnly = $event; if ($event) clearExisting = false"
+        >
+          Generate missing samples only (skip existing)
+        </NCheckbox>
+      </div>
+
+      <div class="form-field">
+        <label for="workflow-select">Workflow Template</label>
+        <NSelect
+          id="workflow-select"
+          v-model:value="selectedWorkflow"
+          :options="workflowOptions"
+          placeholder="Select a workflow"
+          clearable
+          data-testid="workflow-select"
+        />
       </div>
 
       <div class="form-field">
@@ -1011,52 +1059,6 @@ async function submit() {
       </div>
 
       <NDivider />
-
-      <!-- Validation preview (S-084: shown when training run is selected) -->
-      <div
-        v-if="validating || (validationResult && selectedTrainingRunId !== null)"
-        class="validation-preview"
-        data-testid="validation-preview"
-      >
-        <p v-if="validating" class="validation-loading">Validating sample completeness...</p>
-        <template v-else-if="validationResult">
-          <div class="validation-header">
-            <strong>Sample Completeness</strong>
-            <NTag
-              v-if="validationResult.total_actual >= validationResult.total_expected && validationResult.total_expected > 0"
-              size="small"
-              type="success"
-              data-testid="validation-status-pass"
-            >
-              Complete
-            </NTag>
-            <NTag
-              v-else-if="validationResult.total_expected > 0"
-              size="small"
-              type="warning"
-              data-testid="validation-status-incomplete"
-            >
-              Incomplete
-            </NTag>
-          </div>
-          <p>
-            <strong>Existing samples:</strong>
-            {{ validationResult.total_actual }} / {{ validationResult.total_expected }} expected
-            <span v-if="validationResult.total_missing > 0" class="missing-count">
-              ({{ validationResult.total_missing }} missing)
-            </span>
-          </p>
-          <NButton
-            v-if="hasMissingSamples"
-            size="small"
-            type="warning"
-            data-testid="generate-missing-button"
-            @click="selectMissingCheckpoints"
-          >
-            Generate Missing Samples
-          </NButton>
-        </template>
-      </div>
 
       <div class="summary" data-testid="job-summary">
         <p><strong>Training Run:</strong> {{ selectedTrainingRun?.name ?? 'N/A' }}</p>
@@ -1141,19 +1143,59 @@ async function submit() {
 .checkpoint-row {
   display: flex;
   align-items: center;
+  gap: 0.375rem;
+  padding: 0.125rem 0;
+}
+
+.checkpoint-row--warning {
+  color: var(--warning-color);
 }
 
 .checkpoint-filename {
   font-family: monospace;
   font-size: 0.8125rem;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.has-samples-tag {
-  margin-left: 0.5rem;
+.validation-status-icon {
+  flex-shrink: 0;
+  width: 1.25em;
+  text-align: center;
+}
+
+.validation-status-icon--warning {
+  color: var(--warning-color);
+}
+
+.validation-checkpoint-counts {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
 }
 
 .failed-checkpoint-tag {
   margin-left: 0.5rem;
+}
+
+.validation-totals {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.validation-totals-text {
+  font-size: 0.8125rem;
+  color: var(--text-color);
+  margin: 0;
+}
+
+.validation-missing-text {
+  color: var(--warning-color);
+  font-weight: 600;
 }
 
 .field-error {
@@ -1171,34 +1213,10 @@ async function submit() {
   margin-top: 0.25rem;
 }
 
-.validation-preview {
-  padding: 0.75rem 1rem;
-  background: var(--bg-surface);
-  border-radius: 0.25rem;
-  border-left: 3px solid var(--accent-color);
-}
-
-.validation-preview p {
-  margin: 0.375rem 0;
-  color: var(--text-color);
-  font-size: 0.875rem;
-}
-
-.validation-header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
-}
-
 .validation-loading {
   font-style: italic;
   color: var(--text-secondary);
-}
-
-.missing-count {
-  color: var(--warning-color);
-  font-weight: 600;
+  margin: 0;
 }
 
 .summary {

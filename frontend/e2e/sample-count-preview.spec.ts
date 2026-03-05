@@ -114,17 +114,20 @@ test.describe('S-084: sample count preview and missing-sample generation', () =>
     // S-086: Select the study — validation preview now requires both training run + study
     await selectNaiveOptionInContainer(page, dialog, 'study-select', study.name)
 
-    // Wait for the validation preview to appear
-    const preview = dialog.locator('[data-testid="validation-preview"]')
-    await expect(preview).toBeVisible({ timeout: 5000 })
+    // Wait for the checkpoint-picker section to appear (S-084 UAT rework:
+    // replaced validation-preview with unified per-checkpoint validation status display)
+    const picker = dialog.locator('[data-testid="checkpoint-picker"]')
+    await expect(picker).toBeVisible({ timeout: 5000 })
 
-    // Verify the preview shows the "X / Y expected" format.
+    // Verify the validation totals summary shows the "X / Y samples" format.
     // Both checkpoints have equal PNG counts, so actual = expected (no missing).
     // Exact count varies because other E2E tests may generate additional images.
-    await expect(preview).toContainText(/\d+ \/ \d+ expected/)
+    const totals = picker.locator('[data-testid="validation-totals"]')
+    await expect(totals).toBeVisible({ timeout: 5000 })
+    await expect(totals).toContainText(/\d+ \/ \d+ samples/)
 
-    // No missing samples, so "missing" text should not appear
-    await expect(preview).not.toContainText('missing')
+    // No missing samples, so "missing" text should not appear in the totals
+    await expect(totals).not.toContainText('missing')
   })
 
   // AC2: Sidebar validation totals appear after clicking Validate
@@ -228,6 +231,60 @@ test.describe('S-084: sample count preview and missing-sample generation', () =>
     expect(job.status).toBe('pending')
   })
 
+  // AC1 (UAT rework): Dialog shows per-checkpoint validation status rows matching main controls style
+  // Each row shows checkmark/warning icon, checkpoint filename, and found/expected count
+  test('Generate Samples dialog shows per-checkpoint validation status rows', async ({ page, request }) => {
+    // Create a study so we can trigger validation
+    const createStudyResp = await request.post('/api/studies', {
+      data: {
+        name: `Checkpoint Row Test ${Date.now()}`,
+        prompt_prefix: '',
+        prompts: [{ name: 'landscape', text: 'a landscape' }],
+        negative_prompt: '',
+        steps: [30],
+        cfgs: [7.0],
+        sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
+        seeds: [42],
+        width: 512,
+        height: 512,
+      },
+    })
+    expect(createStudyResp.ok()).toBeTruthy()
+    const study = await createStudyResp.json()
+
+    await page.goto('/')
+
+    // Select a training run so the "Generate Samples" button appears
+    await selectTrainingRun(page, 'my-model')
+    await expect(page.getByText('Dimensions')).toBeVisible()
+
+    // Open the Generate Samples dialog
+    await openGenerateSamplesDialog(page)
+    const dialog = getGenerateSamplesDialog(page)
+    await expect(dialog).toBeVisible()
+
+    // Select training run then study to trigger auto-validation
+    await selectNaiveOptionInContainer(page, dialog, 'training-run-select', 'my-model')
+    await selectNaiveOptionInContainer(page, dialog, 'study-select', study.name)
+
+    // Wait for validation results list to appear
+    const results = dialog.locator('[data-testid="validation-results"]')
+    await expect(results).toBeVisible({ timeout: 5000 })
+
+    // Verify per-checkpoint rows are present (my-model has 2 checkpoints)
+    const rows = results.locator('[data-testid^="checkpoint-row-"]')
+    const rowCount = await rows.count()
+    expect(rowCount).toBeGreaterThanOrEqual(1)
+
+    // Each row should contain the found/expected count in N/N format
+    const firstRow = rows.first()
+    await expect(firstRow).toContainText(/\d+\/\d+/)
+
+    // With all samples present, rows should show green checkmark (no warning icon)
+    // The checkmark character is ✓ (U+2713)
+    await expect(firstRow).toContainText('\u2713')
+  })
+
   // AC1: Validation preview clears when dialog is closed and reopened without a selection
   test('validation preview is not shown when no training run is selected in dialog', async ({ page }) => {
     await page.goto('/')
@@ -241,8 +298,9 @@ test.describe('S-084: sample count preview and missing-sample generation', () =>
     const dialog = getGenerateSamplesDialog(page)
     await expect(dialog).toBeVisible()
 
-    // Before selecting a training run in the dialog, no preview should be visible
-    const preview = dialog.locator('[data-testid="validation-preview"]')
-    await expect(preview).toHaveCount(0)
+    // Before selecting a training run in the dialog, no checkpoint-picker section should be visible
+    // (S-084 UAT rework: the section requires both training run + study to be selected)
+    const picker = dialog.locator('[data-testid="checkpoint-picker"]')
+    await expect(picker).toHaveCount(0)
   })
 })

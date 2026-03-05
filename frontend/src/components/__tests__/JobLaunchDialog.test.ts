@@ -160,6 +160,34 @@ const runningJob: SampleJob = {
 
 const allTrainingRuns = [runEmpty, runWithSamples, runRunning]
 
+// Helper validation results matching each training run's checkpoints.
+// The checkpoint picker now uses validation results (not raw training run checkpoints),
+// so tests that interact with the checkpoint list must provide matching validation data.
+const validationForRunWithSamples = {
+  checkpoints: [
+    { checkpoint: 'chk-a.safetensors', expected: 1, verified: 1, missing: 0 },
+    { checkpoint: 'chk-b.safetensors', expected: 1, verified: 0, missing: 1 },
+    { checkpoint: 'chk-c.safetensors', expected: 1, verified: 1, missing: 0 },
+  ],
+  expected_per_checkpoint: 1,
+  total_expected: 3,
+  total_verified: 2,
+  total_actual: 2,
+  total_missing: 1,
+}
+
+const validationForRunEmpty = {
+  checkpoints: [
+    { checkpoint: 'checkpoint1.safetensors', expected: 0, verified: 0, missing: 0 },
+    { checkpoint: 'checkpoint2.safetensors', expected: 0, verified: 0, missing: 0 },
+  ],
+  expected_per_checkpoint: 0,
+  total_expected: 0,
+  total_verified: 0,
+  total_actual: 0,
+  total_missing: 0,
+}
+
 // enableAutoUnmount is configured globally in vitest.setup.ts
 
 describe('JobLaunchDialog', () => {
@@ -876,6 +904,7 @@ describe('JobLaunchDialog', () => {
     })
 
     it('shows "Select All" and "Deselect All" controls in checkpoint picker', async () => {
+      mockValidateTrainingRun.mockResolvedValue(validationForRunWithSamples)
       const wrapper = mount(JobLaunchDialog, {
         props: { show: true },
         global: { stubs: { Teleport: true } },
@@ -887,7 +916,7 @@ describe('JobLaunchDialog', () => {
       wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
       await nextTick()
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
-      await nextTick()
+      await flushPromises()
 
       expect(wrapper.find('[data-testid="select-all-checkpoints"]').exists()).toBe(true)
       expect(wrapper.find('[data-testid="deselect-all-checkpoints"]').exists()).toBe(true)
@@ -1260,6 +1289,7 @@ describe('JobLaunchDialog', () => {
 
     it('pre-selects only failed checkpoints when completed_with_errors run is selected', async () => {
       mockListSampleJobs.mockResolvedValue([completedWithErrorsJob])
+      mockValidateTrainingRun.mockResolvedValue(validationForRunWithSamples)
 
       const wrapper = mount(JobLaunchDialog, {
         props: { show: true },
@@ -1274,7 +1304,7 @@ describe('JobLaunchDialog', () => {
       await flushPromises()
       // Select a study so the checkpoint picker is visible (AC1)
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
-      await nextTick()
+      await flushPromises()
 
       // Check that only failed checkpoints (chk-a, chk-c) are pre-selected
       const chkA = wrapper.find('[data-testid="checkpoint-row-chk-a.safetensors"]').findComponent(NCheckbox)
@@ -1289,6 +1319,7 @@ describe('JobLaunchDialog', () => {
 
     it('shows failed badge on checkpoints with errors', async () => {
       mockListSampleJobs.mockResolvedValue([completedWithErrorsJob])
+      mockValidateTrainingRun.mockResolvedValue(validationForRunWithSamples)
 
       const wrapper = mount(JobLaunchDialog, {
         props: { show: true },
@@ -1302,7 +1333,7 @@ describe('JobLaunchDialog', () => {
       await flushPromises()
       // Select a study so the checkpoint picker is visible (AC1)
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
-      await nextTick()
+      await flushPromises()
 
       // Failed checkpoints should have a 'failed' badge
       expect(wrapper.find('[data-testid="checkpoint-failed-badge-chk-a.safetensors"]').exists()).toBe(true)
@@ -1314,6 +1345,7 @@ describe('JobLaunchDialog', () => {
 
     it('auto-enables clear_existing when failed checkpoints are pre-selected', async () => {
       mockListSampleJobs.mockResolvedValue([completedWithErrorsJob])
+      mockValidateTrainingRun.mockResolvedValue(validationForRunWithSamples)
 
       const wrapper = mount(JobLaunchDialog, {
         props: { show: true },
@@ -1327,7 +1359,7 @@ describe('JobLaunchDialog', () => {
       await flushPromises()
       // Select a study so the checkpoint picker is visible (AC1)
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
-      await nextTick()
+      await flushPromises()
 
       const clearExistingCheckbox = wrapper.find('[data-testid="clear-existing-checkbox"]').findComponent(NCheckbox)
       expect(clearExistingCheckbox.props('checked')).toBe(true)
@@ -1335,6 +1367,7 @@ describe('JobLaunchDialog', () => {
 
     it('disables submit when all checkpoints are deselected', async () => {
       mockListSampleJobs.mockResolvedValue([completedWithErrorsJob])
+      mockValidateTrainingRun.mockResolvedValue(validationForRunWithSamples)
 
       const wrapper = mount(JobLaunchDialog, {
         props: { show: true },
@@ -1353,7 +1386,7 @@ describe('JobLaunchDialog', () => {
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       wrapper.find('[data-testid="vae-select"]').findComponent(NSelect).vm.$emit('update:value', 'ae.safetensors')
       wrapper.find('[data-testid="clip-select"]').findComponent(NSelect).vm.$emit('update:value', 'clip_l.safetensors')
-      await nextTick()
+      await flushPromises()
 
       // Deselect all checkpoints
       wrapper.find('[data-testid="deselect-all-checkpoints"]').trigger('click')
@@ -1370,6 +1403,7 @@ describe('JobLaunchDialog', () => {
 
     it('sends clear_existing and failed checkpoint filenames in payload', async () => {
       mockListSampleJobs.mockResolvedValue([completedWithErrorsJob])
+      mockValidateTrainingRun.mockResolvedValue(validationForRunWithSamples)
       mockCreateSampleJob.mockResolvedValue({
         id: 'job-regen',
         training_run_name: 'qwen/psai4rt-v0.4.0',
@@ -1398,7 +1432,7 @@ describe('JobLaunchDialog', () => {
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       wrapper.find('[data-testid="vae-select"]').findComponent(NSelect).vm.$emit('update:value', 'ae.safetensors')
       wrapper.find('[data-testid="clip-select"]').findComponent(NSelect).vm.$emit('update:value', 'clip_l.safetensors')
-      await nextTick()
+      await flushPromises()
 
       // Submit (failed checkpoints pre-selected: chk-a, chk-c)
       const buttons = wrapper.findAllComponents(NButton)
@@ -1415,6 +1449,7 @@ describe('JobLaunchDialog', () => {
     it('selects all checkpoints for run with samples but no failures', async () => {
       // No jobs with errors
       mockListSampleJobs.mockResolvedValue([])
+      mockValidateTrainingRun.mockResolvedValue(validationForRunWithSamples)
 
       const wrapper = mount(JobLaunchDialog, {
         props: { show: true },
@@ -1428,7 +1463,7 @@ describe('JobLaunchDialog', () => {
       await flushPromises()
       // Select a study so the checkpoint picker is visible (AC1)
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
-      await nextTick()
+      await flushPromises()
 
       // All checkpoints should be selected
       const chkA = wrapper.find('[data-testid="checkpoint-row-chk-a.safetensors"]').findComponent(NCheckbox)
@@ -1882,6 +1917,7 @@ describe('JobLaunchDialog', () => {
     // AC: For completed_with_errors jobs, failed checkpoints are pre-selected
     it('pre-selects only failed checkpoints for completed_with_errors jobs', async () => {
       mockListSampleJobs.mockResolvedValue([completedWithErrorsJob])
+      mockValidateTrainingRun.mockResolvedValue(validationForRunWithSamples)
 
       const wrapper = mount(JobLaunchDialog, {
         props: { show: true, prefillJob: completedWithErrorsJob },
@@ -1902,6 +1938,8 @@ describe('JobLaunchDialog', () => {
 
     // AC: For completed jobs, all checkpoints are pre-selected
     it('pre-selects all checkpoints for completed jobs', async () => {
+      mockValidateTrainingRun.mockResolvedValue(validationForRunWithSamples)
+
       const wrapper = mount(JobLaunchDialog, {
         props: { show: true, prefillJob: completedJob },
         global: { stubs: { Teleport: true } },
@@ -2231,7 +2269,8 @@ describe('JobLaunchDialog', () => {
       expect(mockValidateTrainingRun).toHaveBeenCalledWith(1, 'preset-1')
     })
 
-    it('displays validation preview with expected sample counts', async () => {
+    // AC: Validation results now appear as per-checkpoint rows with found/expected counts
+    it('displays per-checkpoint validation status with sample counts', async () => {
       mockValidateTrainingRun.mockResolvedValue({
         checkpoints: [
           { checkpoint: 'checkpoint1.safetensors', expected: 10, verified: 8, missing: 2 },
@@ -2255,23 +2294,37 @@ describe('JobLaunchDialog', () => {
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await flushPromises()
 
-      const preview = wrapper.find('[data-testid="validation-preview"]')
-      expect(preview.exists()).toBe(true)
-      expect(preview.text()).toContain('18 / 20 expected')
-      expect(preview.text()).toContain('2 missing')
+      // Checkpoint picker section should be visible (replaces old validation-preview)
+      const picker = wrapper.find('[data-testid="checkpoint-picker"]')
+      expect(picker.exists()).toBe(true)
+
+      // Validation totals summary
+      const totals = wrapper.find('[data-testid="validation-totals"]')
+      expect(totals.exists()).toBe(true)
+      expect(totals.text()).toContain('18 / 20 samples')
+      expect(totals.text()).toContain('2 missing')
+
+      // Per-checkpoint validation rows with counts
+      const results = wrapper.find('[data-testid="validation-results"]')
+      expect(results.exists()).toBe(true)
+      expect(results.text()).toContain('checkpoint1.safetensors')
+      expect(results.text()).toContain('8/10')
+      expect(results.text()).toContain('checkpoint2.safetensors')
+      expect(results.text()).toContain('10/10')
     })
 
-    it('does not show validation preview when no training run is selected', async () => {
+    it('does not show checkpoint picker when no training run is selected', async () => {
       const wrapper = mount(JobLaunchDialog, {
         props: { show: true },
         global: { stubs: { Teleport: true } },
       })
       await flushPromises()
 
-      expect(wrapper.find('[data-testid="validation-preview"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="checkpoint-picker"]').exists()).toBe(false)
     })
 
-    it('shows incomplete validation status when samples are missing', async () => {
+    // AC: Warning icons shown on checkpoints with missing samples
+    it('shows warning icons on checkpoints with missing samples', async () => {
       mockValidateTrainingRun.mockResolvedValue({
         checkpoints: [
           { checkpoint: 'checkpoint1.safetensors', expected: 10, verified: 8, missing: 2 },
@@ -2294,44 +2347,25 @@ describe('JobLaunchDialog', () => {
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await flushPromises()
 
-      expect(wrapper.find('[data-testid="validation-status-incomplete"]').exists()).toBe(true)
-      expect(wrapper.find('[data-testid="validation-status-pass"]').exists()).toBe(false)
+      // The checkpoint row should have a warning class
+      const row = wrapper.find('[data-testid="checkpoint-row-checkpoint1.safetensors"]')
+      expect(row.exists()).toBe(true)
+      expect(row.classes()).toContain('checkpoint-row--warning')
     })
 
-    it('shows "Generate Missing Samples" button when validation finds missing samples', async () => {
+    // AC: "Select Missing" button replaces the old "Generate Missing Samples" button
+    it('shows "Select Missing" button when validation finds missing samples (for runs with samples)', async () => {
       mockValidateTrainingRun.mockResolvedValue({
         checkpoints: [
-          { checkpoint: 'checkpoint1.safetensors', expected: 1, verified: 1, missing: 0 },
-          { checkpoint: 'checkpoint2.safetensors', expected: 1, verified: 0, missing: 1 },
+          { checkpoint: 'chk-a.safetensors', expected: 1, verified: 1, missing: 0 },
+          { checkpoint: 'chk-b.safetensors', expected: 1, verified: 0, missing: 1 },
+          { checkpoint: 'chk-c.safetensors', expected: 1, verified: 1, missing: 0 },
         ],
         expected_per_checkpoint: 1,
-        total_expected: 2,
-        total_verified: 1,
-      })
-
-      const wrapper = mount(JobLaunchDialog, {
-        props: { show: true },
-        global: { stubs: { Teleport: true } },
-      })
-      await flushPromises()
-
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
-      await nextTick()
-      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
-      await flushPromises()
-
-      expect(wrapper.find('[data-testid="generate-missing-button"]').exists()).toBe(true)
-    })
-
-    it('does not show "Generate Missing Samples" button when all samples are present', async () => {
-      mockValidateTrainingRun.mockResolvedValue({
-        checkpoints: [
-          { checkpoint: 'checkpoint1.safetensors', expected: 1, verified: 1, missing: 0 },
-          { checkpoint: 'checkpoint2.safetensors', expected: 1, verified: 1, missing: 0 },
-        ],
-        expected_per_checkpoint: 1,
-        total_expected: 2,
+        total_expected: 3,
         total_verified: 2,
+        total_actual: 2,
+        total_missing: 1,
       })
 
       const wrapper = mount(JobLaunchDialog, {
@@ -2340,15 +2374,48 @@ describe('JobLaunchDialog', () => {
       })
       await flushPromises()
 
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      // Select run with samples
+      wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
+      await nextTick()
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
       await nextTick()
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await flushPromises()
 
-      expect(wrapper.find('[data-testid="generate-missing-button"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="select-missing-checkpoints"]').exists()).toBe(true)
     })
 
-    it('clicking "Generate Missing Samples" selects only incomplete checkpoints and disables clearExisting', async () => {
+    it('does not show "Select Missing" button when all samples are present', async () => {
+      mockValidateTrainingRun.mockResolvedValue({
+        checkpoints: [
+          { checkpoint: 'chk-a.safetensors', expected: 1, verified: 1, missing: 0 },
+          { checkpoint: 'chk-b.safetensors', expected: 1, verified: 1, missing: 0 },
+          { checkpoint: 'chk-c.safetensors', expected: 1, verified: 1, missing: 0 },
+        ],
+        expected_per_checkpoint: 1,
+        total_expected: 3,
+        total_verified: 3,
+        total_actual: 3,
+        total_missing: 0,
+      })
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
+      await nextTick()
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      await nextTick()
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="select-missing-checkpoints"]').exists()).toBe(false)
+    })
+
+    it('clicking "Select Missing" selects only incomplete checkpoints and disables clearExisting', async () => {
       mockValidateTrainingRun.mockResolvedValue({
         checkpoints: [
           { checkpoint: 'chk-a.safetensors', expected: 48, verified: 48, missing: 0 },
@@ -2358,6 +2425,8 @@ describe('JobLaunchDialog', () => {
         expected_per_checkpoint: 48,
         total_expected: 144,
         total_verified: 68,
+        total_actual: 68,
+        total_missing: 76,
       })
 
       const wrapper = mount(JobLaunchDialog, {
@@ -2374,8 +2443,8 @@ describe('JobLaunchDialog', () => {
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-2')
       await flushPromises()
 
-      // Click "Generate Missing Samples"
-      await wrapper.find('[data-testid="generate-missing-button"]').trigger('click')
+      // Click "Select Missing"
+      await wrapper.find('[data-testid="select-missing-checkpoints"]').trigger('click')
       await nextTick()
 
       // Only checkpoints with missing > 0 should be selected (chk-b, chk-c)
@@ -2393,7 +2462,7 @@ describe('JobLaunchDialog', () => {
       expect(clearExistingCheckbox.props('checked')).toBe(false)
     })
 
-    it('does not show validation preview when only training run is selected (no study)', async () => {
+    it('does not show checkpoint picker when only training run is selected (no study)', async () => {
       const wrapper = mount(JobLaunchDialog, {
         props: { show: true },
         global: { stubs: { Teleport: true } },
@@ -2403,10 +2472,10 @@ describe('JobLaunchDialog', () => {
       wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
       await flushPromises()
 
-      expect(wrapper.find('[data-testid="validation-preview"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="checkpoint-picker"]').exists()).toBe(false)
     })
 
-    it('does not show missing count when all samples are present', async () => {
+    it('does not show missing count in totals when all samples are present', async () => {
       mockValidateTrainingRun.mockResolvedValue({
         checkpoints: [
           { checkpoint: 'checkpoint1.safetensors', expected: 10, verified: 10, missing: 0 },
@@ -2429,13 +2498,13 @@ describe('JobLaunchDialog', () => {
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await flushPromises()
 
-      const preview = wrapper.find('[data-testid="validation-preview"]')
-      expect(preview.exists()).toBe(true)
-      expect(preview.text()).toContain('10 / 10 expected')
-      expect(preview.text()).not.toContain('missing')
+      const totals = wrapper.find('[data-testid="validation-totals"]')
+      expect(totals.exists()).toBe(true)
+      expect(totals.text()).toContain('10 / 10 samples')
+      expect(totals.text()).not.toContain('missing')
     })
 
-    it('clears validation preview when training run is deselected', async () => {
+    it('clears checkpoint picker when training run is deselected', async () => {
       mockValidateTrainingRun.mockResolvedValue({
         checkpoints: [
           { checkpoint: 'checkpoint1.safetensors', expected: 1, verified: 1, missing: 0 },
@@ -2459,13 +2528,13 @@ describe('JobLaunchDialog', () => {
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await flushPromises()
 
-      expect(wrapper.find('[data-testid="validation-preview"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="checkpoint-picker"]').exists()).toBe(true)
 
       // Deselect training run
       wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', null)
       await flushPromises()
 
-      expect(wrapper.find('[data-testid="validation-preview"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="checkpoint-picker"]').exists()).toBe(false)
     })
 
     it('clears previous validation result when training run changes and shows loading state', async () => {
@@ -2489,22 +2558,22 @@ describe('JobLaunchDialog', () => {
       await nextTick()
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await flushPromises()
-      expect(wrapper.find('[data-testid="validation-preview"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="checkpoint-picker"]').exists()).toBe(true)
 
       // Now the mock returns a never-resolving promise for the new validation request
       mockValidateTrainingRun.mockReturnValue(new Promise(() => {}))
 
       // Switch to a different training run — validationResult clears but validation re-triggers
-      // since the study is still selected. The preview shows loading state.
+      // since the study is still selected. The checkpoint picker shows loading state.
       wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
       await nextTick()
 
-      // Preview should show loading state (validating = true), not the old results
-      expect(wrapper.find('[data-testid="validation-preview"]').exists()).toBe(true)
+      // Checkpoint picker should show loading state (validating = true), not the old results
+      expect(wrapper.find('[data-testid="checkpoint-picker"]').exists()).toBe(true)
       expect(wrapper.find('.validation-loading').exists()).toBe(true)
     })
 
-    it('handles validation API error gracefully (no preview shown)', async () => {
+    it('handles validation API error gracefully (no checkpoint picker shown)', async () => {
       mockValidateTrainingRun.mockRejectedValue({ code: 'NETWORK_ERROR', message: 'fail' })
 
       const wrapper = mount(JobLaunchDialog, {
@@ -2518,8 +2587,8 @@ describe('JobLaunchDialog', () => {
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await flushPromises()
 
-      // Should not show preview when validation fails
-      expect(wrapper.find('[data-testid="validation-preview"]').exists()).toBe(false)
+      // Should not show checkpoint picker when validation fails
+      expect(wrapper.find('[data-testid="checkpoint-picker"]').exists()).toBe(false)
     })
 
     it('re-triggers validation when study selection changes', async () => {
@@ -2555,7 +2624,8 @@ describe('JobLaunchDialog', () => {
   })
 
   describe('missing-only generation (S-084 AC4)', () => {
-    it('shows missing-only checkbox when run has samples', async () => {
+    it('shows missing-only checkbox when run has samples and validation is complete', async () => {
+      mockValidateTrainingRun.mockResolvedValue(validationForRunWithSamples)
       const wrapper = mount(JobLaunchDialog, {
         props: { show: true },
         global: { stubs: { Teleport: true } },
@@ -2567,12 +2637,13 @@ describe('JobLaunchDialog', () => {
       wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
       await flushPromises()
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
-      await nextTick()
+      await flushPromises()
 
       expect(wrapper.find('[data-testid="missing-only-checkbox"]').exists()).toBe(true)
     })
 
     it('does not show missing-only checkbox for empty runs', async () => {
+      mockValidateTrainingRun.mockResolvedValue(validationForRunEmpty)
       const wrapper = mount(JobLaunchDialog, {
         props: { show: true },
         global: { stubs: { Teleport: true } },
@@ -2581,11 +2652,14 @@ describe('JobLaunchDialog', () => {
 
       wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
       await flushPromises()
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
+      await flushPromises()
 
       expect(wrapper.find('[data-testid="missing-only-checkbox"]').exists()).toBe(false)
     })
 
     it('disables clear_existing checkbox when missing-only is checked', async () => {
+      mockValidateTrainingRun.mockResolvedValue(validationForRunWithSamples)
       const wrapper = mount(JobLaunchDialog, {
         props: { show: true },
         global: { stubs: { Teleport: true } },
@@ -2597,7 +2671,7 @@ describe('JobLaunchDialog', () => {
       wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
       await flushPromises()
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
-      await nextTick()
+      await flushPromises()
 
       // Enable missing-only
       wrapper.find('[data-testid="missing-only-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
@@ -2608,6 +2682,7 @@ describe('JobLaunchDialog', () => {
     })
 
     it('unchecks clear_existing when missing-only is enabled', async () => {
+      mockValidateTrainingRun.mockResolvedValue(validationForRunWithSamples)
       const wrapper = mount(JobLaunchDialog, {
         props: { show: true },
         global: { stubs: { Teleport: true } },
@@ -2619,7 +2694,7 @@ describe('JobLaunchDialog', () => {
       wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
       await flushPromises()
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
-      await nextTick()
+      await flushPromises()
 
       // clear_existing should be auto-enabled for runs with samples
       const clearExistingCheckbox = wrapper.find('[data-testid="clear-existing-checkbox"]').findComponent(NCheckbox)
@@ -2633,6 +2708,7 @@ describe('JobLaunchDialog', () => {
     })
 
     it('sends missing_only in payload when checkbox is checked', async () => {
+      mockValidateTrainingRun.mockResolvedValue(validationForRunWithSamples)
       mockCreateSampleJob.mockResolvedValue({
         id: 'job-missing',
         training_run_name: 'qwen/psai4rt-v0.4.0',
@@ -2661,7 +2737,7 @@ describe('JobLaunchDialog', () => {
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       wrapper.find('[data-testid="vae-select"]').findComponent(NSelect).vm.$emit('update:value', 'ae.safetensors')
       wrapper.find('[data-testid="clip-select"]').findComponent(NSelect).vm.$emit('update:value', 'clip_l.safetensors')
-      await nextTick()
+      await flushPromises()
 
       // Enable missing-only
       wrapper.find('[data-testid="missing-only-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
@@ -2679,6 +2755,7 @@ describe('JobLaunchDialog', () => {
     })
 
     it('does not send missing_only when checkbox is not checked', async () => {
+      mockValidateTrainingRun.mockResolvedValue(validationForRunWithSamples)
       mockCreateSampleJob.mockResolvedValue({
         id: 'job-normal',
         training_run_name: 'qwen/psai4rt-v0.4.0',
@@ -2707,7 +2784,7 @@ describe('JobLaunchDialog', () => {
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       wrapper.find('[data-testid="vae-select"]').findComponent(NSelect).vm.$emit('update:value', 'ae.safetensors')
       wrapper.find('[data-testid="clip-select"]').findComponent(NSelect).vm.$emit('update:value', 'clip_l.safetensors')
-      await nextTick()
+      await flushPromises()
 
       const buttons = wrapper.findAllComponents(NButton)
       const submitButton = buttons.find(b => b.text() === 'Regenerate Samples')
