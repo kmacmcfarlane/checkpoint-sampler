@@ -19,8 +19,8 @@ When invoked, you will receive:
 Steps:
 1. Read the change summary to understand what changed and where tests should exist
 2. Review existing test coverage against acceptance criteria
-3. Execute all test suites and verify zero failures
-4. Run E2E tests (`make test-e2e`) — this is the primary smoke test AND the acceptance verification. Record results per the E2E Test Results section below.
+3. Unit/integration tests: The code-reviewer has already verified that `make test-backend` and `make test-frontend` pass. Do NOT re-run them unless E2E failures suggest a unit-level regression.
+4. Run E2E tests (`make test-e2e`) — this is the primary smoke test AND the acceptance verification. Use the **targeted E2E strategy** below to minimize iteration time. Record results per the E2E Test Results section below.
 5. Write or update E2E tests for acceptance criteria not yet covered by existing E2E tests (see "E2E test authoring" below)
 6. Perform runtime error sweep per TEST_PRACTICES.md section 5.7
 
@@ -292,10 +292,19 @@ The QA agent is empowered to make the following changes autonomously during any 
 These are operational improvements within the QA agent's domain. Only file ideas for changes that are outside QA scope (e.g., new Makefile targets, CI pipeline changes, agent workflow modifications).
 
 E2E test execution (REQUIRED — primary smoke test and acceptance verification):
-E2E tests are the standard verification method for story acceptance. Run the full Playwright E2E suite as the primary smoke test:
+E2E tests are the standard verification method for story acceptance. Run the Playwright E2E suite as the primary smoke test:
 - `make test-e2e` — starts backend + frontend in an isolated stack (checkpoint-sampler-test), runs all Playwright tests, then tears down automatically. No separate `make up-dev` is needed.
+- `make test-e2e SPEC=<filename>` — runs only the specified spec file(s) against the same stack. Use this for targeted iteration runs (see strategy below).
 - A passing E2E run satisfies the smoke test requirement — it confirms the application starts and serves requests end-to-end.
 - Record the number of tests run, passed, and failed in the E2E Test Results section of your verdict.
+
+Targeted E2E strategy (REQUIRED — minimizes iteration time):
+Running the full E2E suite takes ~5 minutes per run. Use this strategy to reduce wall-time during fix-and-rerun cycles:
+1. **First run**: Always run the full suite (`make test-e2e`) as the baseline smoke test.
+2. **Iteration runs** (fixing failures or authoring new tests): Run only the relevant spec file(s) using `make test-e2e SPEC=<filename.spec.ts>`. Multiple specs can be passed space-separated: `make test-e2e SPEC="file1.spec.ts file2.spec.ts"`.
+3. **Final run**: After all fixes and new tests are written, run the full suite once more (`make test-e2e`) to confirm no regressions before approving.
+
+This means a typical cycle with fixes is: full run → N targeted runs → full run (2 full runs + N fast runs), instead of N+2 full runs.
 
 When E2E tests fail, you MUST triage each failure before reporting:
 

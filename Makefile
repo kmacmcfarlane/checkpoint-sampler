@@ -104,7 +104,7 @@ build-playwright:
 # Does not require make up-dev to be running.
 test-e2e:
 	$(COMPOSE_TEST) up -d --build --wait --remove-orphans backend frontend && \
-	$(COMPOSE_TEST) run --rm --remove-orphans playwright sh -c "npx playwright test"; \
+	$(COMPOSE_TEST) run --rm --remove-orphans playwright sh -c "npx playwright test $(SPEC)"; \
 	STATUS=$$?; \
 	mkdir -p $(E2E_LOG_DIR) && \
 	$(COMPOSE_TEST) logs --no-color backend > $(E2E_LOG_DIR)/backend.log 2>&1; \

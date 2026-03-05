@@ -44,7 +44,7 @@ Emit this before any subagent dispatch or status change.
 Read the subagent prompt from `/.claude/agents/<name>.md` and invoke via the Task tool:
 - **fullstack-developer**: For `todo` and `in_progress` stories. Pass story ID, acceptance criteria, branch name, and any review_feedback. On success, extract the "Change Summary" section from the verdict and store it for downstream dispatch. The developer writes and runs unit/integration tests only (`make test-backend`, `make test-frontend`). E2E tests are the QA agent's responsibility.
 - **code-reviewer**: For `review` stories. Pass the **context bundle** (see below), story ID, acceptance criteria, branch name, and the **change summary** from the fullstack engineer. If no change summary is available, generate one from `git diff --name-only main..HEAD`. Extract the **complexity** field from the fullstack engineer's verdict and select the model accordingly: use `sonnet` for `low` complexity, `opus` for `medium` or `high` complexity. Default to `opus` if complexity is not reported. The reviewer verifies unit/integration tests pass. It does NOT run E2E tests.
-- **qa-expert**: For `testing` stories. Pass the **context bundle** (see below), story ID, acceptance criteria, branch name, path to /agent/QA_ALLOWED_ERRORS.md, and the **change summary** from the fullstack engineer. The QA agent is the sole owner of E2E tests — running, authoring, and maintaining them.
+- **qa-expert**: For `testing` stories. Pass the **context bundle** (see below), story ID, acceptance criteria, branch name, path to /agent/QA_ALLOWED_ERRORS.md, and the **change summary** from the fullstack engineer. Extract the **complexity** field from the fullstack engineer's verdict and select the model accordingly: use `sonnet` for `low` or `medium` complexity, `opus` for `high` complexity. Default to `sonnet` if complexity is not reported. The QA agent is the sole owner of E2E tests — running, authoring, and maintaining them.
 - **debugger**: Invoke on demand when test failures or bugs are encountered.
 - **security-auditor**: Invoke on demand for security-sensitive stories.
 
@@ -54,7 +54,7 @@ Read the subagent prompt from `/.claude/agents/<name>.md` and invoke via the Tas
 |-------|----------------------|-----------|
 | fullstack-developer | Writes and runs | Does not run or write |
 | code-reviewer | Verifies pass (`make test-backend` + `make test-frontend`) | Does not run |
-| qa-expert | Verifies pass | Sole owner: runs, writes, maintains |
+| qa-expert | Trusts code-reviewer (re-runs only if E2E failures suggest regression) | Sole owner: runs, writes, maintains |
 
 ### Context bundle for downstream agents
 

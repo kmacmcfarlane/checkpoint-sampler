@@ -140,9 +140,20 @@ Use the Task tool to invoke a subagent. Pass the subagent's prompt (from its `.m
   - `low` complexity: Use `sonnet` (fast, sufficient for pattern-following changes)
   - `medium` or `high` complexity: Use `opus` (thorough review for architectural/cross-stack changes)
   - If complexity is not reported: default to `opus`
-- **QA Expert**: Use `opus` model for test execution and writing E2E tests
+- **QA Expert**: Model depends on change complexity reported by the fullstack engineer:
+  - `low` or `medium` complexity: Use `sonnet` (structured test execution and straightforward E2E authoring)
+  - `high` complexity: Use `opus` (complex E2E authoring, multi-step flows, significant fixture changes)
+  - If complexity is not reported: default to `sonnet`
 - **Debugger**: Use `sonnet` model for diagnosis
 - **Security Auditor**: Use `opus` model for thorough analysis
+
+### 2.3 Efficiency guidelines
+
+These rules minimize wall-time and token cost without sacrificing quality:
+
+- **Targeted E2E runs**: The QA agent runs the full E2E suite (`make test-e2e`) for the first and last run only. Intermediate fix-and-rerun iterations use `make test-e2e SPEC=<file>` to run only the relevant spec file(s). This avoids ~5-minute full-suite overhead per iteration.
+- **Unit test delegation**: The code-reviewer verifies `make test-backend` and `make test-frontend` pass. The QA agent trusts this verification and does not re-run unit tests unless E2E failures suggest a unit-level regression.
+- **Model tiering**: Use the cheapest model tier that meets quality needs (see section 2.2). Most structured/mechanical work (test execution, straightforward reviews) runs well on `sonnet`. Reserve `opus` for complex authoring, architectural decisions, and deep analysis.
 
 ## 3) Selecting work
 
@@ -316,9 +327,9 @@ Subagents receiving the context bundle should use these contents directly and NO
 |-------|----------------------|-----------|
 | fullstack-developer | Writes and runs (`make test-backend`, `make test-frontend`) | Does not run or write |
 | code-reviewer | Verifies pass (`make test-backend`, `make test-frontend`) | Does not run — defers to QA |
-| qa-expert | Verifies pass | Sole owner: runs, writes, maintains (`make test-e2e`) |
+| qa-expert | Trusts code-reviewer verification (re-runs only if E2E failures suggest regression) | Sole owner: runs, writes, maintains (`make test-e2e`) |
 
-This separation ensures E2E tests (which involve Docker compose up/down and are the most expensive operation) run exactly once per story — during QA verification.
+This separation ensures: (1) unit tests are verified once by the code-reviewer, not redundantly by QA; (2) E2E tests use the targeted strategy (section 2.3) to minimize full-suite runs.
 
 ### 4.4 Update artifacts (orchestrator responsibility)
 
