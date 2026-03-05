@@ -32,9 +32,24 @@ Summarize the backlog state for the user: how many stories in each status, what'
 
 If there are stories in `uat` status, present them for triage using `AskUserQuestion`.
 
-Group stories by category (bugs, features/enhancements, infrastructure/testing) and present in batches of up to 4:
+Group stories by category (bugs, features/enhancements, infrastructure/testing) and present in batches of up to 4.
 
-- **question**: `[{id}] {title} — {brief description from notes or first acceptance criterion}`
+**Before each batch**, output a markdown reference block so the user can scroll up for context:
+
+```
+### {Category} — Batch {n}
+
+**[{id}] {title}** (priority {priority})
+{notes field, condensed to 2-3 sentences}
+AC: {bullet list of acceptance criteria, abbreviated to key phrases}
+
+**[{id}] {title}** (priority {priority})
+...
+```
+
+Then present the `AskUserQuestion` batch:
+
+- **question**: `[{id}] {title} — {1-sentence summary from notes}`
 - **header**: Story ID (e.g. "B-023")
 - **options**:
   1. Label: "Approve", Description: "Move this story to done"
