@@ -195,5 +195,58 @@ func AllMigrations() []Migration {
 			Version: 12,
 			SQL:     `ALTER TABLE studies ADD COLUMN version INTEGER NOT NULL DEFAULT 1;`,
 		},
+		{
+			// Drop the version column from studies table. Study versioning
+			// is replaced by immutability + fork: studies with generated
+			// samples are either forked (new study) or regenerated in-place.
+			// Output directories use just the study name (no version suffix).
+			// SQLite does not support DROP COLUMN in older versions, so we
+			// recreate the table without the version column.
+			Version: 13,
+			SQL: `CREATE TABLE studies_v2 (
+				id                       TEXT PRIMARY KEY,
+				name                     TEXT NOT NULL,
+				prompt_prefix            TEXT NOT NULL DEFAULT '',
+				prompts                  TEXT NOT NULL,
+				negative_prompt          TEXT NOT NULL,
+				steps                    TEXT NOT NULL,
+				cfgs                     TEXT NOT NULL,
+				sampler_scheduler_pairs  TEXT NOT NULL,
+				seeds                    TEXT NOT NULL,
+				width                    INTEGER NOT NULL,
+				height                   INTEGER NOT NULL,
+				created_at               TEXT NOT NULL,
+				updated_at               TEXT NOT NULL
+			);
+			INSERT INTO studies_v2 (id, name, prompt_prefix, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs, seeds, width, height, created_at, updated_at)
+			SELECT id, name, prompt_prefix, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs, seeds, width, height, created_at, updated_at
+			FROM studies;
+			DROP TABLE studies;
+			ALTER TABLE studies_v2 RENAME TO studies;
+
+			-- Recreate sample_jobs table with FK pointing to new studies table
+			CREATE TABLE sample_jobs_v3 (
+				id                 TEXT PRIMARY KEY,
+				training_run_name  TEXT NOT NULL,
+				study_id           TEXT NOT NULL,
+				study_name         TEXT NOT NULL DEFAULT '',
+				workflow_name      TEXT NOT NULL,
+				vae                TEXT,
+				clip               TEXT,
+				shift              REAL,
+				status             TEXT NOT NULL,
+				total_items        INTEGER NOT NULL,
+				completed_items    INTEGER NOT NULL DEFAULT 0,
+				error_message      TEXT,
+				created_at         TEXT NOT NULL,
+				updated_at         TEXT NOT NULL,
+				FOREIGN KEY (study_id) REFERENCES studies(id) ON DELETE CASCADE
+			);
+			INSERT INTO sample_jobs_v3 (id, training_run_name, study_id, study_name, workflow_name, vae, clip, shift, status, total_items, completed_items, error_message, created_at, updated_at)
+			SELECT id, training_run_name, study_id, study_name, workflow_name, vae, clip, shift, status, total_items, completed_items, error_message, created_at, updated_at
+			FROM sample_jobs;
+			DROP TABLE sample_jobs;
+			ALTER TABLE sample_jobs_v3 RENAME TO sample_jobs;`,
+		},
 	}
 }

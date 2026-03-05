@@ -773,7 +773,7 @@ func (e *JobExecutor) handleItemCompletionAsync(jobID, itemID, promptID string) 
 		e.logger.WithFields(logrus.Fields{
 			"study_id": job.StudyID,
 			"error":    err.Error(),
-		}).Warn("failed to fetch study for versioned output path, falling back to study name")
+		}).Warn("failed to fetch study for output path, falling back to study name")
 	} else {
 		studyOutputDir = study.OutputDirName()
 	}
@@ -1120,7 +1120,7 @@ func (e *JobExecutor) writeManifest(job model.SampleJob, items []model.SampleJob
 		return fmt.Errorf("marshaling manifest: %w", err)
 	}
 
-	// Write to study version directory: {sampleDir}/{StudyName}/v{Version}/manifest.json
+	// Write to study directory: {sampleDir}/{StudyName}/manifest.json
 	studyOutputDir := study.OutputDirName()
 	dir := filepath.Join(e.sampleDir, studyOutputDir)
 	manifestPath := filepath.Join(dir, fileformat.ManifestFilename)
@@ -1430,7 +1430,7 @@ func (e *JobExecutor) broadcastJobProgress(jobID string) {
 		return
 	}
 
-	// Resolve the study output directory name (includes version)
+	// Resolve the study output directory name
 	studyOutputDir := job.StudyName // fallback
 	if study, sErr := e.store.GetStudy(job.StudyID); sErr == nil {
 		studyOutputDir = study.OutputDirName()

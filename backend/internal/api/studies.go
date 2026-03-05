@@ -116,6 +116,60 @@ func (s *StudiesService) Update(ctx context.Context, p *genstudies.UpdateStudyPa
 	return studyToResponse(study), nil
 }
 
+// Fork creates a new study from an existing one with modified settings.
+func (s *StudiesService) Fork(ctx context.Context, p *genstudies.ForkStudyPayload) (*genstudies.StudyResponse, error) {
+	prompts := make([]model.NamedPrompt, len(p.Prompts))
+	for i, np := range p.Prompts {
+		prompts[i] = model.NamedPrompt{
+			Name: np.Name,
+			Text: np.Text,
+		}
+	}
+
+	pairs := make([]model.SamplerSchedulerPair, len(p.SamplerSchedulerPairs))
+	for i, pair := range p.SamplerSchedulerPairs {
+		pairs[i] = model.SamplerSchedulerPair{
+			Sampler:   pair.Sampler,
+			Scheduler: pair.Scheduler,
+		}
+	}
+
+	study, err := s.svc.Fork(
+		p.SourceID,
+		p.Name,
+		p.PromptPrefix,
+		prompts,
+		p.NegativePrompt,
+		p.Steps,
+		p.Cfgs,
+		pairs,
+		p.Seeds,
+		p.Width,
+		p.Height,
+	)
+	if err != nil {
+		if isNotFound(err) {
+			return nil, genstudies.MakeNotFound(err)
+		}
+		return nil, genstudies.MakeInvalidPayload(fmt.Errorf("forking study: %w", err))
+	}
+	return studyToResponse(study), nil
+}
+
+// HasSamples checks whether a study has generated samples on disk.
+func (s *StudiesService) HasSamples(ctx context.Context, p *genstudies.HasSamplesPayload) (*genstudies.HasSamplesResponse, error) {
+	hasSamples, err := s.svc.HasSamples(p.ID)
+	if err != nil {
+		if isNotFound(err) {
+			return nil, genstudies.MakeNotFound(err)
+		}
+		return nil, genstudies.MakeInternalError(fmt.Errorf("checking samples: %w", err))
+	}
+	return &genstudies.HasSamplesResponse{
+		HasSamples: hasSamples,
+	}, nil
+}
+
 // Delete removes a study.
 func (s *StudiesService) Delete(ctx context.Context, p *genstudies.DeletePayload) error {
 	err := s.svc.Delete(p.ID)
@@ -128,7 +182,7 @@ func (s *StudiesService) Delete(ctx context.Context, p *genstudies.DeletePayload
 	return nil
 }
 
-// Availability returns per-study version availability for a given training run.
+// Availability returns per-study sample availability for a given training run.
 func (s *StudiesService) Availability(ctx context.Context, p *genstudies.AvailabilityPayload) ([]*genstudies.StudyAvailabilityResponse, error) {
 	studies, err := s.svc.List()
 	if err != nil {
@@ -153,17 +207,10 @@ func (s *StudiesService) Availability(ctx context.Context, p *genstudies.Availab
 
 	result := make([]*genstudies.StudyAvailabilityResponse, len(availabilities))
 	for i, a := range availabilities {
-		versions := make([]*genstudies.StudyVersionInfoResponse, len(a.Versions))
-		for j, v := range a.Versions {
-			versions[j] = &genstudies.StudyVersionInfoResponse{
-				Version:    v.Version,
-				HasSamples: v.HasSamples,
-			}
-		}
 		result[i] = &genstudies.StudyAvailabilityResponse{
-			StudyID:   a.StudyID,
-			StudyName: a.StudyName,
-			Versions:  versions,
+			StudyID:    a.StudyID,
+			StudyName:  a.StudyName,
+			HasSamples: a.HasSamples,
 		}
 	}
 
@@ -190,7 +237,6 @@ func studyToResponse(s model.Study) *genstudies.StudyResponse {
 	return &genstudies.StudyResponse{
 		ID:                    s.ID,
 		Name:                  s.Name,
-		Version:               s.Version,
 		PromptPrefix:          s.PromptPrefix,
 		Prompts:               prompts,
 		NegativePrompt:        s.NegativePrompt,

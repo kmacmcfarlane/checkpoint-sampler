@@ -461,7 +461,6 @@ var _ = Describe("ValidationService", func() {
 				JobID:           "job-manifest-1",
 				TrainingRunName: "model",
 				StudyName:       "Test Study",
-				StudyVersion:    1,
 				Prompts: []fileformat.ManifestNamedPrompt{
 					{Name: "prompt1", Text: "text1"},
 					{Name: "prompt2", Text: "text2"},
@@ -486,9 +485,9 @@ var _ = Describe("ValidationService", func() {
 		})
 
 		It("uses manifest images-per-checkpoint as expected count", func() {
-			fs.fileData["/samples/Test Study/v1/manifest.json"] = manifestData
-			fs.files["/samples/Test Study/v1/cp1.safetensors"] = []string{"a.png", "b.png"}
-			fs.files["/samples/Test Study/v1/cp2.safetensors"] = []string{"a.png"}
+			fs.fileData["/samples/Test Study/manifest.json"] = manifestData
+			fs.files["/samples/Test Study/cp1.safetensors"] = []string{"a.png", "b.png"}
+			fs.files["/samples/Test Study/cp2.safetensors"] = []string{"a.png"}
 
 			tr := model.TrainingRun{
 				Name: "model",
@@ -499,7 +498,7 @@ var _ = Describe("ValidationService", func() {
 				HasSamples: true,
 			}
 
-			result, err := svc.ValidateTrainingRunWithManifest(tr, "Test Study/v1")
+			result, err := svc.ValidateTrainingRunWithManifest(tr, "Test Study")
 			Expect(err).NotTo(HaveOccurred())
 
 			Expect(result.ExpectedPerCheckpoint).To(Equal(2))
@@ -524,13 +523,13 @@ var _ = Describe("ValidationService", func() {
 				HasSamples: true,
 			}
 
-			_, err := svc.ValidateTrainingRunWithManifest(tr, "Test Study/v1")
+			_, err := svc.ValidateTrainingRunWithManifest(tr, "Test Study")
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("manifest not found"))
 		})
 
 		It("returns error when manifest file is invalid JSON", func() {
-			fs.fileData["/samples/Test Study/v1/manifest.json"] = []byte("not-json")
+			fs.fileData["/samples/Test Study/manifest.json"] = []byte("not-json")
 
 			tr := model.TrainingRun{
 				Name: "model",
@@ -540,14 +539,14 @@ var _ = Describe("ValidationService", func() {
 				HasSamples: true,
 			}
 
-			_, err := svc.ValidateTrainingRunWithManifest(tr, "Test Study/v1")
+			_, err := svc.ValidateTrainingRunWithManifest(tr, "Test Study")
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("parsing manifest"))
 		})
 
 		It("handles checkpoints with more files than expected (no negative missing)", func() {
-			fs.fileData["/samples/Test Study/v1/manifest.json"] = manifestData
-			fs.files["/samples/Test Study/v1/cp1.safetensors"] = []string{"a.png", "b.png", "c.png", "d.png", "e.png"}
+			fs.fileData["/samples/Test Study/manifest.json"] = manifestData
+			fs.files["/samples/Test Study/cp1.safetensors"] = []string{"a.png", "b.png", "c.png", "d.png", "e.png"}
 
 			tr := model.TrainingRun{
 				Name: "model",
@@ -557,7 +556,7 @@ var _ = Describe("ValidationService", func() {
 				HasSamples: true,
 			}
 
-			result, err := svc.ValidateTrainingRunWithManifest(tr, "Test Study/v1")
+			result, err := svc.ValidateTrainingRunWithManifest(tr, "Test Study")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.Checkpoints[0].Expected).To(Equal(2))
 			Expect(result.Checkpoints[0].Verified).To(Equal(5))
@@ -565,7 +564,7 @@ var _ = Describe("ValidationService", func() {
 		})
 
 		It("handles checkpoints without samples (HasSamples=false)", func() {
-			fs.fileData["/samples/Test Study/v1/manifest.json"] = manifestData
+			fs.fileData["/samples/Test Study/manifest.json"] = manifestData
 
 			tr := model.TrainingRun{
 				Name: "model",
@@ -576,9 +575,9 @@ var _ = Describe("ValidationService", func() {
 				HasSamples: true,
 			}
 
-			fs.files["/samples/Test Study/v1/cp1.safetensors"] = []string{"a.png", "b.png"}
+			fs.files["/samples/Test Study/cp1.safetensors"] = []string{"a.png", "b.png"}
 
-			result, err := svc.ValidateTrainingRunWithManifest(tr, "Test Study/v1")
+			result, err := svc.ValidateTrainingRunWithManifest(tr, "Test Study")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.Checkpoints).To(HaveLen(2))
 			Expect(result.Checkpoints[0].Verified).To(Equal(2))
@@ -588,7 +587,7 @@ var _ = Describe("ValidationService", func() {
 		})
 
 		It("returns error when ReadFile has a non-not-found error", func() {
-			fs.readErrs["/samples/Test Study/v1/manifest.json"] = fmt.Errorf("disk read error")
+			fs.readErrs["/samples/Test Study/manifest.json"] = fmt.Errorf("disk read error")
 
 			tr := model.TrainingRun{
 				Name: "model",
@@ -598,7 +597,7 @@ var _ = Describe("ValidationService", func() {
 				HasSamples: true,
 			}
 
-			_, err := svc.ValidateTrainingRunWithManifest(tr, "Test Study/v1")
+			_, err := svc.ValidateTrainingRunWithManifest(tr, "Test Study")
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("reading manifest"))
 		})
@@ -612,34 +611,32 @@ var _ = Describe("ValidationService", func() {
 				JobID:           "job-read-1",
 				TrainingRunName: "model",
 				StudyName:       "My Study",
-				StudyVersion:    3,
 				ImagesPerCheckpoint: 4,
 				Checkpoints:     []string{"cp1.safetensors"},
 			}
 			data, err := fileformat.MarshalManifest(manifest)
 			Expect(err).NotTo(HaveOccurred())
 
-			fs.fileData["/samples/My Study/v3/manifest.json"] = data
+			fs.fileData["/samples/My Study/manifest.json"] = data
 
-			result, err := svc.ReadManifest("My Study/v3")
+			result, err := svc.ReadManifest("My Study")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.JobID).To(Equal("job-read-1"))
 			Expect(result.StudyName).To(Equal("My Study"))
-			Expect(result.StudyVersion).To(Equal(3))
 			Expect(result.ImagesPerCheckpoint).To(Equal(4))
 			Expect(result.Checkpoints).To(Equal([]string{"cp1.safetensors"}))
 		})
 
 		It("returns error when manifest does not exist", func() {
-			_, err := svc.ReadManifest("Nonexistent Study/v1")
+			_, err := svc.ReadManifest("Nonexistent Study")
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("manifest not found"))
 		})
 
 		It("returns error when manifest is invalid JSON", func() {
-			fs.fileData["/samples/Bad Study/v1/manifest.json"] = []byte("{invalid}")
+			fs.fileData["/samples/Bad Study/manifest.json"] = []byte("{invalid}")
 
-			_, err := svc.ReadManifest("Bad Study/v1")
+			_, err := svc.ReadManifest("Bad Study")
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("parsing manifest"))
 		})

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest'
 import { mount, flushPromises, type VueWrapper } from '@vue/test-utils'
 import { nextTick } from 'vue'
-import { NSelect, NButton, NInput, NInputNumber, NDynamicInput, NDynamicTags } from 'naive-ui'
+import { NSelect, NButton, NInput, NInputNumber, NDynamicInput, NDynamicTags, NModal } from 'naive-ui'
 import StudyEditor from '../StudyEditor.vue'
 import { validateStudyImport } from '../studyImportValidation'
 import type { Study, ComfyUIModels } from '../../api/types'
@@ -13,6 +13,8 @@ vi.mock('../../api/client', () => ({
     createStudy: vi.fn(),
     updateStudy: vi.fn(),
     deleteStudy: vi.fn(),
+    forkStudy: vi.fn(),
+    studyHasSamples: vi.fn(),
     getComfyUIModels: vi.fn(),
   },
 }))
@@ -31,13 +33,15 @@ const mockListStudies = apiClient.listStudies as ReturnType<typeof vi.fn>
 const mockCreateStudy = apiClient.createStudy as ReturnType<typeof vi.fn>
 const mockUpdateStudy = apiClient.updateStudy as ReturnType<typeof vi.fn>
 const mockDeleteStudy = apiClient.deleteStudy as ReturnType<typeof vi.fn>
+const mockForkStudy = apiClient.forkStudy as ReturnType<typeof vi.fn>
+const mockStudyHasSamples = apiClient.studyHasSamples as ReturnType<typeof vi.fn>
 const mockGetComfyUIModels = apiClient.getComfyUIModels as ReturnType<typeof vi.fn>
 
 const studies: Study[] = [
   {
     id: 'preset-1',
     name: 'Test Preset A',
-    version: 1,
+
     prompt_prefix: 'photo of a person, ',
     prompts: [
       { name: 'forest', text: 'a mystical forest' },
@@ -60,7 +64,7 @@ const studies: Study[] = [
   {
     id: 'preset-2',
     name: 'Test Preset B',
-    version: 1,
+
     prompt_prefix: '',
     prompts: [{ name: 'cat', text: 'a cute cat' }],
     negative_prompt: '',
@@ -98,6 +102,8 @@ describe('StudyEditor', () => {
     vi.clearAllMocks()
     // Return a fresh copy of presets for each test to avoid mutation issues
     mockListStudies.mockResolvedValue(JSON.parse(JSON.stringify(studies)))
+    // Default: studies have no samples (no immutability dialog)
+    mockStudyHasSamples.mockResolvedValue({ has_samples: false })
     mockGetComfyUIModels.mockImplementation((type: string) => {
       if (type === 'sampler') return Promise.resolve(mockSamplers)
       if (type === 'scheduler') return Promise.resolve(mockSchedulers)
@@ -205,7 +211,7 @@ describe('StudyEditor', () => {
     const createdPreset: Study = {
       id: 'new-preset-id',
       name: 'New Study',
-      version: 1,
+  
       prompt_prefix: '',
       prompts: [{ name: 'test', text: 'test prompt' }],
       negative_prompt: '',
@@ -604,7 +610,7 @@ describe('StudyEditor', () => {
     const createdPreset: Study = {
       id: 'new-preset-id',
       name: 'Test',
-      version: 1,
+  
       prompt_prefix: '',
       prompts: [{ name: 'valid', text: 'valid prompt' }],
       negative_prompt: '',
@@ -957,7 +963,7 @@ describe('StudyEditor', () => {
       const createdPreset: Study = {
         id: 'new-id',
         name: 'Multi Pair',
-        version: 1,
+    
         prompt_prefix: '',
         prompts: [{ name: 'test', text: 'test prompt' }],
         negative_prompt: '',
@@ -1078,7 +1084,7 @@ describe('StudyEditor', () => {
       const createdPreset: Study = {
         id: 'prefix-preset-id',
         name: 'Prefix Test',
-        version: 1,
+    
         prompt_prefix: 'artistic photo, ',
         prompts: [{ name: 'test', text: 'test prompt' }],
         negative_prompt: '',
@@ -1798,6 +1804,153 @@ describe('StudyEditor', () => {
         .findAllComponents(NButton)
         .find(b => b.text().includes('Update Study'))!
       expect(saveButton.props('disabled')).toBe(false)
+    })
+  })
+
+  describe('immutability dialog', () => {
+    it('shows immutability dialog when updating a study that has generated samples', async () => {
+      mockStudyHasSamples.mockResolvedValue({ has_samples: true })
+
+      const wrapper = mount(StudyEditor, {
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select an existing study
+      const select = wrapper.findAllComponents(NSelect)[0]
+      select.vm.$emit('update:value', 'preset-1')
+      await nextTick()
+
+      // Click Update
+      const saveButton = wrapper
+        .findAllComponents(NButton)
+        .find((b) => b.text().includes('Update Study'))!
+      await saveButton.trigger('click')
+      await flushPromises()
+
+      // Immutability dialog should be shown, updateStudy should NOT have been called
+      expect(mockUpdateStudy).not.toHaveBeenCalled()
+      expect(wrapper.find('[data-testid="immutability-dialog"]').exists() ||
+        wrapper.findComponent(NModal).exists()).toBe(true)
+    })
+
+    it('does not show immutability dialog when study has no samples', async () => {
+      // Default mock already returns { has_samples: false }
+      const updatedStudy: Study = {
+        ...studies[0],
+        name: 'Updated Preset A',
+        updated_at: '2025-01-03T00:00:00Z',
+      }
+      mockUpdateStudy.mockResolvedValue(updatedStudy)
+
+      const wrapper = mount(StudyEditor, {
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select an existing study
+      const select = wrapper.findAllComponents(NSelect)[0]
+      select.vm.$emit('update:value', 'preset-1')
+      await nextTick()
+
+      // Click Update
+      const saveButton = wrapper
+        .findAllComponents(NButton)
+        .find((b) => b.text().includes('Update Study'))!
+      await saveButton.trigger('click')
+      await flushPromises()
+
+      // Should save directly without showing dialog
+      expect(mockUpdateStudy).toHaveBeenCalled()
+    })
+
+    it('forks study when "Create New Study" is clicked in immutability dialog', async () => {
+      mockStudyHasSamples.mockResolvedValue({ has_samples: true })
+      const forkedStudy: Study = {
+        ...studies[0],
+        id: 'forked-1',
+        name: 'Test Preset A (copy)',
+      }
+      mockForkStudy.mockResolvedValue(forkedStudy)
+
+      const wrapper = mount(StudyEditor, {
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select an existing study
+      const select = wrapper.findAllComponents(NSelect)[0]
+      select.vm.$emit('update:value', 'preset-1')
+      await nextTick()
+
+      // Click Update to trigger immutability check
+      const saveButton = wrapper
+        .findAllComponents(NButton)
+        .find((b) => b.text().includes('Update Study'))!
+      await saveButton.trigger('click')
+      await flushPromises()
+
+      // Click the fork button
+      const forkButton = wrapper.find('[data-testid="immutability-fork-button"]')
+      if (forkButton.exists()) {
+        await forkButton.trigger('click')
+      } else {
+        // Find by button text if data-testid not found via DOM (NModal teleport)
+        const allButtons = wrapper.findAllComponents(NButton)
+        const fork = allButtons.find(b => b.text().includes('Create New Study'))
+        expect(fork).toBeTruthy()
+        await fork!.trigger('click')
+      }
+      await flushPromises()
+
+      expect(mockForkStudy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          source_id: 'preset-1',
+          name: 'Test Preset A (copy)',
+        })
+      )
+      expect(mockUpdateStudy).not.toHaveBeenCalled()
+    })
+
+    it('updates study in-place when "Re-generate Samples" is clicked', async () => {
+      mockStudyHasSamples.mockResolvedValue({ has_samples: true })
+      const updatedStudy: Study = {
+        ...studies[0],
+        updated_at: '2025-01-03T00:00:00Z',
+      }
+      mockUpdateStudy.mockResolvedValue(updatedStudy)
+
+      const wrapper = mount(StudyEditor, {
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select an existing study
+      const select = wrapper.findAllComponents(NSelect)[0]
+      select.vm.$emit('update:value', 'preset-1')
+      await nextTick()
+
+      // Click Update to trigger immutability check
+      const saveButton = wrapper
+        .findAllComponents(NButton)
+        .find((b) => b.text().includes('Update Study'))!
+      await saveButton.trigger('click')
+      await flushPromises()
+
+      // Click the regen button
+      const regenButton = wrapper.find('[data-testid="immutability-regen-button"]')
+      if (regenButton.exists()) {
+        await regenButton.trigger('click')
+      } else {
+        const allButtons = wrapper.findAllComponents(NButton)
+        const regen = allButtons.find(b => b.text().includes('Re-generate'))
+        expect(regen).toBeTruthy()
+        await regen!.trigger('click')
+      }
+      await flushPromises()
+
+      expect(mockUpdateStudy).toHaveBeenCalled()
+      expect(mockForkStudy).not.toHaveBeenCalled()
     })
   })
 

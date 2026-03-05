@@ -47,7 +47,7 @@ const studies = ref<Study[]>([])
 const vaeModels = ref<string[]>([])
 const clipModels = ref<string[]>([])
 
-// Study version availability for the selected training run
+// Study sample availability for the selected training run
 const studyAvailability = ref<StudyAvailability[]>([])
 
 // Study editor sub-dialog
@@ -254,7 +254,7 @@ watch(selectedTrainingRunId, async () => {
 
 })
 
-// Fetch study version availability when training run changes
+// Fetch study sample availability when training run changes
 watch(selectedTrainingRunId, async (runId) => {
   studyAvailability.value = []
   if (runId === null) return
@@ -397,26 +397,19 @@ const workflowOptions = computed(() =>
     }))
 )
 
-// AC3: Study options include version info. When availability data is present,
-// each study's current version is shown with a bead indicating sample availability.
+// AC3: Study options include sample availability info. When availability data is present,
+// each study is shown with a bead indicating sample availability for the selected training run.
 const studyOptions = computed(() => {
   return studies.value.map(p => {
     const avail = studyAvailability.value.find(a => a.study_id === p.id)
-    // Check if the current version of this study has samples for the selected training run
-    const versionInfo = avail?.versions.find(v => v.version === p.version)
-    const hasSamples = versionInfo?.has_samples ?? false
-    // Collect available version numbers for the label
-    const versionNumbers = avail?.versions.map(v => v.version) ?? []
-    const versionSuffix = versionNumbers.length > 0
-      ? ` (v${p.version})`
-      : ''
+    const hasSamples = avail?.has_samples ?? false
 
     return {
-      label: `${p.name}${versionSuffix}`,
+      label: p.name,
       value: p.id,
       // Metadata for bead rendering
       _hasSamples: hasSamples,
-      _versionCount: versionNumbers.length,
+      _hasAvailability: avail !== undefined,
     }
   })
 })

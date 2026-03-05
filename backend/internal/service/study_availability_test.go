@@ -14,9 +14,9 @@ import (
 
 // fakeAvailabilityFS implements service.StudyAvailabilityFileSystem for testing.
 type fakeAvailabilityFS struct {
-	subdirs map[string][]string
+	subdirs  map[string][]string
 	dirExist map[string]bool
-	errs    map[string]error
+	errs     map[string]error
 }
 
 func newFakeAvailabilityFS() *fakeAvailabilityFS {
@@ -58,11 +58,10 @@ var _ = Describe("StudyAvailabilityService", func() {
 		svc = service.NewStudyAvailabilityService(fs, sampleDir, logger)
 	})
 
-	// AC5: API returns version list and per-version sample availability for studies
 	Describe("GetAvailability", func() {
-		It("returns empty versions when no version directories exist", func() {
+		It("returns has_samples=false when no checkpoint directories exist under study", func() {
 			studies := []model.Study{
-				{ID: "s1", Name: "MyStudy", Version: 1},
+				{ID: "s1", Name: "MyStudy"},
 			}
 			tr := model.TrainingRun{
 				Name: "model",
@@ -77,12 +76,12 @@ var _ = Describe("StudyAvailabilityService", func() {
 			Expect(result).To(HaveLen(1))
 			Expect(result[0].StudyID).To(Equal("s1"))
 			Expect(result[0].StudyName).To(Equal("MyStudy"))
-			Expect(result[0].Versions).To(BeEmpty())
+			Expect(result[0].HasSamples).To(BeFalse())
 		})
 
-		It("discovers version directories and marks has_samples=true when checkpoint dirs match", func() {
+		It("marks has_samples=true when checkpoint dirs match", func() {
 			studies := []model.Study{
-				{ID: "s1", Name: "MyStudy", Version: 2},
+				{ID: "s1", Name: "MyStudy"},
 			}
 			tr := model.TrainingRun{
 				Name: "model",
@@ -92,26 +91,18 @@ var _ = Describe("StudyAvailabilityService", func() {
 				},
 			}
 
-			// Version directories under /samples/MyStudy
-			fs.subdirs["/samples/MyStudy"] = []string{"v1", "v2"}
-			// v1 has checkpoint dirs matching the training run
-			fs.subdirs["/samples/MyStudy/v1"] = []string{"cp1.safetensors", "cp2.safetensors"}
-			// v2 has no matching checkpoint dirs
-			fs.subdirs["/samples/MyStudy/v2"] = []string{"other-dir"}
+			// Checkpoint directories under /samples/MyStudy
+			fs.subdirs["/samples/MyStudy"] = []string{"cp1.safetensors", "cp2.safetensors"}
 
 			result, err := svc.GetAvailability(studies, tr)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result).To(HaveLen(1))
-			Expect(result[0].Versions).To(HaveLen(2))
-			Expect(result[0].Versions[0].Version).To(Equal(1))
-			Expect(result[0].Versions[0].HasSamples).To(BeTrue())
-			Expect(result[0].Versions[1].Version).To(Equal(2))
-			Expect(result[0].Versions[1].HasSamples).To(BeFalse())
+			Expect(result[0].HasSamples).To(BeTrue())
 		})
 
-		It("ignores non-version directories (e.g. 'latest', 'backup')", func() {
+		It("marks has_samples=false when only non-matching checkpoint dirs exist", func() {
 			studies := []model.Study{
-				{ID: "s1", Name: "MyStudy", Version: 1},
+				{ID: "s1", Name: "MyStudy"},
 			}
 			tr := model.TrainingRun{
 				Name: "model",
@@ -120,46 +111,17 @@ var _ = Describe("StudyAvailabilityService", func() {
 				},
 			}
 
-			fs.subdirs["/samples/MyStudy"] = []string{"v1", "latest", "backup", "v2"}
-			fs.subdirs["/samples/MyStudy/v1"] = []string{"cp1.safetensors"}
-			fs.subdirs["/samples/MyStudy/v2"] = []string{}
+			fs.subdirs["/samples/MyStudy"] = []string{"other-checkpoint.safetensors", "random-dir"}
 
 			result, err := svc.GetAvailability(studies, tr)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(result[0].Versions).To(HaveLen(2))
-			Expect(result[0].Versions[0].Version).To(Equal(1))
-			Expect(result[0].Versions[1].Version).To(Equal(2))
-		})
-
-		It("sorts versions in ascending order", func() {
-			studies := []model.Study{
-				{ID: "s1", Name: "MyStudy", Version: 3},
-			}
-			tr := model.TrainingRun{
-				Name: "model",
-				Checkpoints: []model.Checkpoint{
-					{Filename: "cp1.safetensors"},
-				},
-			}
-
-			fs.subdirs["/samples/MyStudy"] = []string{"v3", "v1", "v2"}
-			fs.subdirs["/samples/MyStudy/v1"] = []string{}
-			fs.subdirs["/samples/MyStudy/v2"] = []string{}
-			fs.subdirs["/samples/MyStudy/v3"] = []string{"cp1.safetensors"}
-
-			result, err := svc.GetAvailability(studies, tr)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(result[0].Versions).To(HaveLen(3))
-			Expect(result[0].Versions[0].Version).To(Equal(1))
-			Expect(result[0].Versions[1].Version).To(Equal(2))
-			Expect(result[0].Versions[2].Version).To(Equal(3))
-			Expect(result[0].Versions[2].HasSamples).To(BeTrue())
+			Expect(result[0].HasSamples).To(BeFalse())
 		})
 
 		It("handles multiple studies", func() {
 			studies := []model.Study{
-				{ID: "s1", Name: "StudyA", Version: 1},
-				{ID: "s2", Name: "StudyB", Version: 2},
+				{ID: "s1", Name: "StudyA"},
+				{ID: "s2", Name: "StudyB"},
 			}
 			tr := model.TrainingRun{
 				Name: "model",
@@ -168,35 +130,27 @@ var _ = Describe("StudyAvailabilityService", func() {
 				},
 			}
 
-			fs.subdirs["/samples/StudyA"] = []string{"v1"}
-			fs.subdirs["/samples/StudyA/v1"] = []string{"cp1.safetensors"}
-			fs.subdirs["/samples/StudyB"] = []string{"v1", "v2"}
-			fs.subdirs["/samples/StudyB/v1"] = []string{}
-			fs.subdirs["/samples/StudyB/v2"] = []string{"cp1.safetensors"}
+			fs.subdirs["/samples/StudyA"] = []string{"cp1.safetensors"}
+			fs.subdirs["/samples/StudyB"] = []string{"other-dir"}
 
 			result, err := svc.GetAvailability(studies, tr)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result).To(HaveLen(2))
 
 			Expect(result[0].StudyID).To(Equal("s1"))
-			Expect(result[0].Versions).To(HaveLen(1))
-			Expect(result[0].Versions[0].HasSamples).To(BeTrue())
+			Expect(result[0].HasSamples).To(BeTrue())
 
 			Expect(result[1].StudyID).To(Equal("s2"))
-			Expect(result[1].Versions).To(HaveLen(2))
-			Expect(result[1].Versions[0].HasSamples).To(BeFalse())
-			Expect(result[1].Versions[1].HasSamples).To(BeTrue())
+			Expect(result[1].HasSamples).To(BeFalse())
 		})
 
 		It("returns an error when listing study directories fails", func() {
 			studies := []model.Study{
-				{ID: "s1", Name: "MyStudy", Version: 1},
+				{ID: "s1", Name: "MyStudy"},
 			}
 			tr := model.TrainingRun{
-				Name: "model",
-				Checkpoints: []model.Checkpoint{
-					{Filename: "cp1.safetensors"},
-				},
+				Name:        "model",
+				Checkpoints: []model.Checkpoint{{Filename: "cp1.safetensors"}},
 			}
 
 			fs.errs["/samples/MyStudy"] = fmt.Errorf("permission denied")
@@ -204,25 +158,6 @@ var _ = Describe("StudyAvailabilityService", func() {
 			_, err := svc.GetAvailability(studies, tr)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("permission denied"))
-		})
-
-		It("returns an error when listing checkpoint directories under a version fails", func() {
-			studies := []model.Study{
-				{ID: "s1", Name: "MyStudy", Version: 1},
-			}
-			tr := model.TrainingRun{
-				Name: "model",
-				Checkpoints: []model.Checkpoint{
-					{Filename: "cp1.safetensors"},
-				},
-			}
-
-			fs.subdirs["/samples/MyStudy"] = []string{"v1"}
-			fs.errs["/samples/MyStudy/v1"] = fmt.Errorf("I/O error")
-
-			_, err := svc.GetAvailability(studies, tr)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("I/O error"))
 		})
 
 		It("returns empty result when no studies are provided", func() {
@@ -235,24 +170,46 @@ var _ = Describe("StudyAvailabilityService", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result).To(BeEmpty())
 		})
+	})
 
-		It("marks has_samples=false for version with only non-matching checkpoint dirs", func() {
-			studies := []model.Study{
-				{ID: "s1", Name: "MyStudy", Version: 1},
-			}
-			tr := model.TrainingRun{
-				Name: "model",
-				Checkpoints: []model.Checkpoint{
-					{Filename: "cp1.safetensors"},
-				},
-			}
+	Describe("StudyHasSamples", func() {
+		It("returns false when study directory does not exist", func() {
+			study := model.Study{ID: "s1", Name: "NoDir"}
+			// DirectoryExists returns false by default
 
-			fs.subdirs["/samples/MyStudy"] = []string{"v1"}
-			fs.subdirs["/samples/MyStudy/v1"] = []string{"other-checkpoint.safetensors", "random-dir"}
-
-			result, err := svc.GetAvailability(studies, tr)
+			hasSamples, err := svc.StudyHasSamples(study)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(result[0].Versions[0].HasSamples).To(BeFalse())
+			Expect(hasSamples).To(BeFalse())
+		})
+
+		It("returns false when study directory exists but is empty", func() {
+			study := model.Study{ID: "s1", Name: "EmptyStudy"}
+			fs.dirExist["/samples/EmptyStudy"] = true
+			fs.subdirs["/samples/EmptyStudy"] = []string{}
+
+			hasSamples, err := svc.StudyHasSamples(study)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(hasSamples).To(BeFalse())
+		})
+
+		It("returns true when study directory has subdirectories", func() {
+			study := model.Study{ID: "s1", Name: "WithSamples"}
+			fs.dirExist["/samples/WithSamples"] = true
+			fs.subdirs["/samples/WithSamples"] = []string{"checkpoint1.safetensors"}
+
+			hasSamples, err := svc.StudyHasSamples(study)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(hasSamples).To(BeTrue())
+		})
+
+		It("returns error when listing directory fails", func() {
+			study := model.Study{ID: "s1", Name: "ErrorStudy"}
+			fs.dirExist["/samples/ErrorStudy"] = true
+			fs.errs["/samples/ErrorStudy"] = fmt.Errorf("I/O error")
+
+			_, err := svc.StudyHasSamples(study)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("I/O error"))
 		})
 	})
 })

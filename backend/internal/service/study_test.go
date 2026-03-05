@@ -15,13 +15,13 @@ import (
 
 // fakeStudyStore is an in-memory test double for service.StudyStore.
 type fakeStudyStore struct {
-	studies        map[string]model.Study
-	listErr        error
-	getErr         error
-	getByNameErr   error
-	createErr      error
-	updateErr      error
-	deleteErr      error
+	studies      map[string]model.Study
+	listErr      error
+	getErr       error
+	getByNameErr error
+	createErr    error
+	updateErr    error
+	deleteErr    error
 }
 
 func newFakeStudyStore() *fakeStudyStore {
@@ -92,18 +92,37 @@ func (f *fakeStudyStore) DeleteStudy(id string) error {
 	return nil
 }
 
+// fakeSampleChecker is a test double for service.StudySampleChecker.
+type fakeSampleChecker struct {
+	results map[string]bool
+	err     error
+}
+
+func newFakeSampleChecker() *fakeSampleChecker {
+	return &fakeSampleChecker{results: make(map[string]bool)}
+}
+
+func (f *fakeSampleChecker) StudyHasSamples(study model.Study) (bool, error) {
+	if f.err != nil {
+		return false, f.err
+	}
+	return f.results[study.ID], nil
+}
+
 var _ = Describe("StudyService", func() {
 	var (
-		store  *fakeStudyStore
-		svc    *service.StudyService
-		logger *logrus.Logger
+		store         *fakeStudyStore
+		sampleChecker *fakeSampleChecker
+		svc           *service.StudyService
+		logger        *logrus.Logger
 	)
 
 	BeforeEach(func() {
 		store = newFakeStudyStore()
+		sampleChecker = newFakeSampleChecker()
 		logger = logrus.New()
 		logger.SetOutput(io.Discard) // Silence logs in tests
-		svc = service.NewStudyService(store, logger)
+		svc = service.NewStudyService(store, sampleChecker, logger)
 	})
 
 	Describe("List", func() {
@@ -154,7 +173,6 @@ var _ = Describe("StudyService", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.ID).NotTo(BeEmpty())
 			Expect(result.Name).To(Equal("Test"))
-			Expect(result.Version).To(Equal(1))
 			Expect(result.Prompts).To(Equal(validPrompts))
 			Expect(result.NegativePrompt).To(Equal("negative"))
 			Expect(result.Steps).To(Equal(validSteps))
@@ -167,11 +185,10 @@ var _ = Describe("StudyService", func() {
 			Expect(result.UpdatedAt).NotTo(BeZero())
 		})
 
-		It("sets version to 1 for new studies", func() {
-			result, err := svc.Create("VersionTest", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512)
+		It("uses study name as output dir name", func() {
+			result, err := svc.Create("OutputTest", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(result.Version).To(Equal(1))
-			Expect(result.OutputDirName()).To(Equal("VersionTest/v1"))
+			Expect(result.OutputDirName()).To(Equal("OutputTest"))
 		})
 
 		It("persists the study in the store", func() {
@@ -595,7 +612,6 @@ var _ = Describe("StudyService", func() {
 			store.studies["existing"] = model.Study{
 				ID:             "existing",
 				Name:           "Original",
-				Version:        1,
 				Prompts:        validPrompts,
 				NegativePrompt: "",
 				Steps:          []int{1},
@@ -628,24 +644,10 @@ var _ = Describe("StudyService", func() {
 			Expect(result.Height).To(Equal(1344))
 		})
 
-		It("increments version on update", func() {
+		It("does not change output directory structure on update", func() {
 			result, err := svc.Update("existing", "Original", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(result.Version).To(Equal(2))
-			Expect(result.OutputDirName()).To(Equal("Original/v2"))
-		})
-
-		It("increments version on each successive update", func() {
-			// First update: v1 -> v2
-			result, err := svc.Update("existing", "Original", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(result.Version).To(Equal(2))
-
-			// Second update: v2 -> v3
-			result, err = svc.Update("existing", "Original", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(result.Version).To(Equal(3))
-			Expect(result.OutputDirName()).To(Equal("Original/v3"))
+			Expect(result.OutputDirName()).To(Equal("Original"))
 		})
 
 		It("returns error for non-existent study", func() {
@@ -658,6 +660,98 @@ var _ = Describe("StudyService", func() {
 			_, err := svc.Update("existing", "", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("name must not be empty"))
+		})
+	})
+
+	Describe("Fork", func() {
+		var validPrompts []model.NamedPrompt
+		var validSteps []int
+		var validCFGs []float64
+		var validPairs []model.SamplerSchedulerPair
+		var validSeeds []int64
+
+		BeforeEach(func() {
+			validPrompts = []model.NamedPrompt{
+				{Name: "prompt1", Text: "a test prompt"},
+			}
+			validSteps = []int{4, 8}
+			validCFGs = []float64{1.0, 3.0}
+			validPairs = []model.SamplerSchedulerPair{
+				{Sampler: "euler", Scheduler: "simple"},
+			}
+			validSeeds = []int64{420}
+
+			store.studies["source"] = model.Study{
+				ID:                    "source",
+				Name:                  "Source Study",
+				Prompts:               validPrompts,
+				Steps:                 validSteps,
+				CFGs:                  validCFGs,
+				SamplerSchedulerPairs: validPairs,
+				Seeds:                 validSeeds,
+				Width:                 512,
+				Height:                512,
+			}
+		})
+
+		It("creates a new study from source with modified settings", func() {
+			newPrompts := []model.NamedPrompt{
+				{Name: "new_prompt", Text: "forked prompt"},
+			}
+			result, err := svc.Fork("source", "Forked Study", "", newPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 1024, 1024)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.ID).NotTo(Equal("source"))
+			Expect(result.Name).To(Equal("Forked Study"))
+			Expect(result.Prompts).To(Equal(newPrompts))
+			Expect(result.Width).To(Equal(1024))
+			Expect(result.Height).To(Equal(1024))
+		})
+
+		It("returns error when source study does not exist", func() {
+			_, err := svc.Fork("nonexistent", "Forked", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("not found"))
+		})
+
+		It("rejects fork when new name already exists", func() {
+			_, err := svc.Fork("source", "Source Study", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("already exists"))
+		})
+	})
+
+	Describe("HasSamples", func() {
+		BeforeEach(func() {
+			store.studies["with-samples"] = model.Study{ID: "with-samples", Name: "Has Samples"}
+			store.studies["no-samples"] = model.Study{ID: "no-samples", Name: "No Samples"}
+
+			sampleChecker.results["with-samples"] = true
+			sampleChecker.results["no-samples"] = false
+		})
+
+		It("returns true when study has samples on disk", func() {
+			hasSamples, err := svc.HasSamples("with-samples")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(hasSamples).To(BeTrue())
+		})
+
+		It("returns false when study has no samples", func() {
+			hasSamples, err := svc.HasSamples("no-samples")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(hasSamples).To(BeFalse())
+		})
+
+		It("returns error for non-existent study", func() {
+			_, err := svc.HasSamples("nonexistent")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("not found"))
+		})
+
+		It("returns error when sample checker fails", func() {
+			sampleChecker.err = errors.New("fs error")
+			_, err := svc.HasSamples("with-samples")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("fs error"))
 		})
 	})
 

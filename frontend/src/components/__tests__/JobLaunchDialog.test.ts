@@ -100,7 +100,6 @@ const sampleStudies: Study[] = [
   {
     id: 'preset-1',
     name: 'Quick Test',
-    version: 1,
     prompt_prefix: '',
     prompts: [{ name: 'test', text: 'a photo' }],
     negative_prompt: 'bad quality',
@@ -117,7 +116,6 @@ const sampleStudies: Study[] = [
   {
     id: 'preset-2',
     name: 'Full Test',
-    version: 1,
     prompt_prefix: '',
     prompts: [
       { name: 'test1', text: 'a photo' },
@@ -687,7 +685,6 @@ describe('JobLaunchDialog', () => {
     const newStudy: Study = {
       id: 'preset-new',
       name: 'Newly Created',
-      version: 1,
       prompt_prefix: '',
       prompts: [{ name: 'test', text: 'a test' }],
       negative_prompt: '',
@@ -823,7 +820,6 @@ describe('JobLaunchDialog', () => {
       const newStudy: Study = {
         id: 'preset-new',
         name: 'Synced Preset',
-        version: 1,
         prompt_prefix: '',
         prompts: [{ name: 'test', text: 'a test' }],
         negative_prompt: '',
@@ -1484,7 +1480,6 @@ describe('JobLaunchDialog', () => {
       const savedStudy: Study = {
         id: 'preset-1',
         name: 'Quick Test Updated',
-        version: 2,
         prompt_prefix: '',
         prompts: [{ name: 'test', text: 'a photo' }],
         negative_prompt: 'bad quality',
@@ -1698,7 +1693,6 @@ describe('JobLaunchDialog', () => {
       const newStudy: Study = {
         id: 'preset-new',
         name: 'Brand New Preset',
-        version: 1,
         prompt_prefix: '',
         prompts: [{ name: 'test', text: 'a test' }],
         negative_prompt: '',
@@ -2797,8 +2791,8 @@ describe('JobLaunchDialog', () => {
     })
   })
 
-  // S-086: Study version selector UX and sample availability beads
-  describe('study version selector and availability beads (S-086)', () => {
+  // S-086: Study selector UX and sample availability beads
+  describe('study selector and availability beads (S-086)', () => {
     // AC1: Study selection is required before showing the checkpoint picker
     it('does not show checkpoint picker when study is not selected even if run has samples', async () => {
       const wrapper = mount(JobLaunchDialog, {
@@ -2823,12 +2817,12 @@ describe('JobLaunchDialog', () => {
         {
           study_id: 'preset-1',
           study_name: 'Quick Test',
-          versions: [{ version: 1, has_samples: true }],
+          has_samples: true,
         },
         {
           study_id: 'preset-2',
           study_name: 'Full Test',
-          versions: [{ version: 1, has_samples: false }],
+          has_samples: false,
         },
       ])
 
@@ -2874,10 +2868,10 @@ describe('JobLaunchDialog', () => {
       const renderLabel = studySelect.props('renderLabel') as (option: Record<string, unknown>) => VNode
 
       const vnode = renderLabel({
-        label: 'Test Study (v1)',
+        label: 'Test Study',
         value: 'test-id',
         _hasSamples: true,
-        _versionCount: 1,
+        _hasAvailability: true,
       })
 
       expect(vnode).toBeTruthy()
@@ -2886,18 +2880,18 @@ describe('JobLaunchDialog', () => {
       expect((children as unknown[]).length).toBe(2)
     })
 
-    // AC3: Version suffix shown in study options when availability data exists
-    it('includes version suffix in study label when availability data is present', async () => {
+    // AC3: Study labels show just the name (no version suffix)
+    it('shows study name without version suffix', async () => {
       mockGetStudyAvailability.mockResolvedValue([
         {
           study_id: 'preset-1',
           study_name: 'Quick Test',
-          versions: [{ version: 1, has_samples: true }],
+          has_samples: true,
         },
         {
           study_id: 'preset-2',
           study_name: 'Full Test',
-          versions: [{ version: 1, has_samples: false }],
+          has_samples: false,
         },
       ])
 
@@ -2914,11 +2908,11 @@ describe('JobLaunchDialog', () => {
       const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
       const options = studySelect.props('options') as Array<{ label: string; value: string }>
 
-      expect(options.find(o => o.value === 'preset-1')?.label).toBe('Quick Test (v1)')
-      expect(options.find(o => o.value === 'preset-2')?.label).toBe('Full Test (v1)')
+      expect(options.find(o => o.value === 'preset-1')?.label).toBe('Quick Test')
+      expect(options.find(o => o.value === 'preset-2')?.label).toBe('Full Test')
     })
 
-    it('does not include version suffix when no availability data exists', async () => {
+    it('shows study name when no availability data exists', async () => {
       // Default mock returns empty array for availability
       const wrapper = mount(JobLaunchDialog, {
         props: { show: true },
@@ -2951,7 +2945,7 @@ describe('JobLaunchDialog', () => {
         {
           study_id: 'preset-1',
           study_name: 'Quick Test',
-          versions: [{ version: 1, has_samples: true }],
+          has_samples: true,
         },
       ])
 

@@ -47,9 +47,8 @@ var _ = Describe("Study Store", func() {
 		It("preserves all fields through entity conversion", func() {
 			now := time.Now().UTC().Truncate(time.Second)
 			original := model.Study{
-				ID:      "test-id",
-				Name:    "Test Study",
-				Version: 3,
+				ID:   "test-id",
+				Name: "Test Study",
 				Prompts: []model.NamedPrompt{
 					{Name: "prompt1", Text: "text1"},
 					{Name: "prompt2", Text: "text2"},
@@ -77,7 +76,6 @@ var _ = Describe("Study Store", func() {
 			// Verify all fields match
 			Expect(retrieved.ID).To(Equal(original.ID))
 			Expect(retrieved.Name).To(Equal(original.Name))
-			Expect(retrieved.Version).To(Equal(original.Version))
 			Expect(retrieved.Prompts).To(Equal(original.Prompts))
 			Expect(retrieved.NegativePrompt).To(Equal(original.NegativePrompt))
 			Expect(retrieved.Steps).To(Equal(original.Steps))
@@ -88,36 +86,6 @@ var _ = Describe("Study Store", func() {
 			Expect(retrieved.Height).To(Equal(original.Height))
 			Expect(retrieved.CreatedAt.Unix()).To(Equal(original.CreatedAt.Unix()))
 			Expect(retrieved.UpdatedAt.Unix()).To(Equal(original.UpdatedAt.Unix()))
-		})
-
-		It("defaults version to 1 for studies created via migration", func() {
-			now := time.Now().UTC().Truncate(time.Second)
-			// Create a study without explicitly setting Version (simulates pre-migration data)
-			original := model.Study{
-				ID:      "legacy-id",
-				Name:    "Legacy Study",
-				Version: 1, // DEFAULT 1 from migration
-				Prompts: []model.NamedPrompt{
-					{Name: "p1", Text: "t1"},
-				},
-				Steps: []int{4},
-				CFGs:  []float64{1.0},
-				SamplerSchedulerPairs: []model.SamplerSchedulerPair{
-					{Sampler: "euler", Scheduler: "simple"},
-				},
-				Seeds:     []int64{42},
-				Width:     512,
-				Height:    512,
-				CreatedAt: now,
-				UpdatedAt: now,
-			}
-
-			err := s.CreateStudy(original)
-			Expect(err).NotTo(HaveOccurred())
-
-			retrieved, err := s.GetStudy("legacy-id")
-			Expect(err).NotTo(HaveOccurred())
-			Expect(retrieved.Version).To(Equal(1))
 		})
 
 		It("handles single pair correctly", func() {
@@ -228,9 +196,8 @@ var _ = Describe("Study Store", func() {
 		BeforeEach(func() {
 			now := time.Now().UTC().Truncate(time.Second)
 			study = model.Study{
-				ID:      "study-1",
-				Name:    "Test Study",
-				Version: 1,
+				ID:   "study-1",
+				Name: "Test Study",
 				Prompts: []model.NamedPrompt{
 					{Name: "test", Text: "test prompt"},
 				},
@@ -348,19 +315,6 @@ var _ = Describe("Study Store", func() {
 				Expect(retrieved.SamplerSchedulerPairs[0].Scheduler).To(Equal("sgm_uniform"))
 				// CreatedAt should remain unchanged
 				Expect(retrieved.CreatedAt.Unix()).To(Equal(study.CreatedAt.Unix()))
-			})
-
-			It("persists version through update", func() {
-				updated := study
-				updated.Version = 5
-				updated.UpdatedAt = time.Now().UTC()
-
-				err := s.UpdateStudy(updated)
-				Expect(err).NotTo(HaveOccurred())
-
-				retrieved, err := s.GetStudy(updated.ID)
-				Expect(err).NotTo(HaveOccurred())
-				Expect(retrieved.Version).To(Equal(5))
 			})
 
 			It("returns sql.ErrNoRows for non-existent ID", func() {

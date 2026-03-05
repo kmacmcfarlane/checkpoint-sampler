@@ -63,7 +63,7 @@ stories:
   - id: S-085
     title: "Study versioning and version-scoped output directories"
     priority: 50
-    status: uat_feedback
+    status: uat
     complexity: medium
     requires:
       - S-074
@@ -82,14 +82,6 @@ stories:
       Source: UAT new feature request (Study Sample Job Manifest breakdown 1/3).
     testing:
       - "command: make test-backend"
-    review_feedback: "UAT feedback — design rework required:\n\nReplace versioning with immutability + fork approach:\n1.
-      Studies should NOT have version numbers. Remove version column and version-scoped directories.\n2. Instead: if a user
-      tries to edit a study that has generated samples, show a dialog with two options:\n   a) \"Create new study\" — fork
-      with modified settings, old study/samples untouched\n   b) \"Re-generate samples\" — update study config in-place, queue
-      jobs to regenerate all existing sample sets with new settings\n3. Studies without generated samples can be edited freely
-      (no dialog).\n4. The study selector only shows the most recent version currently — this is a symptom of the versioning
-      approach and should go away.\n5. The manifest (S-087) should record the study config that produced the samples, no version
-      field needed."
   - id: S-086
     title: "Study version selector UX and sample availability beads"
     priority: 45

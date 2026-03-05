@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { NInput, NInputNumber, NSelect, NButton, NDynamicInput, NDynamicTags, NCard, NSpace, NAlert } from 'naive-ui'
-import type { Study, NamedPrompt, SamplerSchedulerPair, CreateStudyPayload, UpdateStudyPayload } from '../api/types'
+import { NInput, NInputNumber, NSelect, NButton, NDynamicInput, NDynamicTags, NCard, NSpace, NAlert, NModal } from 'naive-ui'
+import type { Study, NamedPrompt, SamplerSchedulerPair, CreateStudyPayload, UpdateStudyPayload, ForkStudyPayload } from '../api/types'
 import { apiClient } from '../api/client'
 import { validateStudyImport } from './studyImportValidation'
 
@@ -25,6 +25,9 @@ const selectedStudyId = ref<string | null>(null)
 const loading = ref(false)
 const saving = ref(false)
 const error = ref<string | null>(null)
+
+// Immutability dialog: shown when user edits a study that has generated samples
+const showImmutabilityDialog = ref(false)
 
 // Form fields
 const studyName = ref('')
@@ -275,6 +278,27 @@ function createNewStudy() {
 async function saveStudy() {
   if (!canSave.value) return
 
+  // When editing an existing study, check if it has generated samples
+  if (selectedStudyId.value) {
+    try {
+      const { has_samples } = await apiClient.studyHasSamples(selectedStudyId.value)
+      if (has_samples) {
+        // Show immutability dialog instead of saving directly
+        showImmutabilityDialog.value = true
+        return
+      }
+    } catch {
+      // If the check fails, fall through to allow the save
+    }
+  }
+
+  await performSave()
+}
+
+/** Actually perform the save (create or update). Called directly or after immutability dialog choice. */
+async function performSave() {
+  if (!canSave.value) return
+
   saving.value = true
   error.value = null
   try {
@@ -332,6 +356,57 @@ async function saveStudy() {
   } finally {
     saving.value = false
   }
+}
+
+/** Fork: create a new study from the current one with the modified settings. */
+async function forkStudy() {
+  if (!selectedStudyId.value || !canSave.value) return
+
+  showImmutabilityDialog.value = false
+  saving.value = true
+  error.value = null
+  try {
+    const validPrompts = prompts.value.filter(p => p != null && p.name.trim() !== '' && p.text.trim() !== '')
+    const forkPayload: ForkStudyPayload = {
+      source_id: selectedStudyId.value,
+      name: studyName.value.trim() + ' (copy)',
+      prompt_prefix: promptPrefix.value,
+      prompts: validPrompts,
+      negative_prompt: negativePrompt.value,
+      steps: steps.value,
+      cfgs: cfgs.value,
+      sampler_scheduler_pairs: samplerSchedulerPairs.value,
+      seeds: seeds.value,
+      width: width.value,
+      height: height.value,
+    }
+
+    const result = await apiClient.forkStudy(forkPayload)
+
+    // Add the new forked study to the list and select it
+    studies.value.push(result)
+    selectedStudyId.value = result.id
+    studyName.value = result.name
+    emit('study-saved', result)
+  } catch (err: unknown) {
+    const message =
+      err && typeof err === 'object' && 'message' in err
+        ? String((err as { message: string }).message)
+        : 'Failed to fork study'
+    error.value = message
+  } finally {
+    saving.value = false
+  }
+}
+
+/** Re-generate: update the study in-place (samples will need to be regenerated). */
+async function regenStudy() {
+  showImmutabilityDialog.value = false
+  await performSave()
+}
+
+function cancelImmutabilityDialog() {
+  showImmutabilityDialog.value = false
 }
 
 async function deleteStudy() {
@@ -728,6 +803,45 @@ function onUpdateSeeds(tags: string[]) {
         </div>
       </NSpace>
     </NCard>
+
+    <!-- Immutability dialog: shown when user edits a study that has generated samples -->
+    <NModal
+      v-model:show="showImmutabilityDialog"
+      preset="dialog"
+      title="Study Has Generated Samples"
+      :closable="true"
+      data-testid="immutability-dialog"
+    >
+      <p>
+        This study already has generated samples on disk. Changing its configuration
+        will invalidate those samples. Choose how to proceed:
+      </p>
+      <NSpace vertical :size="12" style="margin-top: 1rem;">
+        <NButton
+          type="primary"
+          block
+          data-testid="immutability-fork-button"
+          @click="forkStudy"
+        >
+          Create New Study (Fork)
+        </NButton>
+        <NButton
+          type="warning"
+          block
+          data-testid="immutability-regen-button"
+          @click="regenStudy"
+        >
+          Re-generate Samples (Update In-Place)
+        </NButton>
+        <NButton
+          block
+          data-testid="immutability-cancel-button"
+          @click="cancelImmutabilityDialog"
+        >
+          Cancel
+        </NButton>
+      </NSpace>
+    </NModal>
   </div>
 </template>
 

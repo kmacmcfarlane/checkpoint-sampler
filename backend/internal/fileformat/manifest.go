@@ -32,7 +32,6 @@ type JobManifest struct {
 	// Study config snapshot
 	StudyID       string                  `json:"study_id"`
 	StudyName     string                  `json:"study_name"`
-	StudyVersion  int                     `json:"study_version"`
 	PromptPrefix  string                  `json:"prompt_prefix,omitempty"`
 	Prompts       []ManifestNamedPrompt   `json:"prompts"`
 	NegativePrompt string                 `json:"negative_prompt,omitempty"`
@@ -91,7 +90,6 @@ func NewJobManifest(job model.SampleJob, study model.Study, checkpoints []string
 
 		StudyID:               study.ID,
 		StudyName:             study.Name,
-		StudyVersion:          study.Version,
 		PromptPrefix:          study.PromptPrefix,
 		Prompts:               prompts,
 		NegativePrompt:        study.NegativePrompt,

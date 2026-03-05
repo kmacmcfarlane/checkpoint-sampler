@@ -371,7 +371,6 @@ func (v *ValidationService) ReadManifest(studyOutputDir string) (fileformat.JobM
 	v.logger.WithFields(logrus.Fields{
 		"manifest_path": manifestPath,
 		"job_id":        manifest.JobID,
-		"study_version": manifest.StudyVersion,
 	}).Debug("manifest read successfully")
 
 	return manifest, nil
