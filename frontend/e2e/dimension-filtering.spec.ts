@@ -42,18 +42,18 @@ test.describe('dimension filtering and combo filters', () => {
     await expect(page.getByText('Dimensions')).toBeVisible()
 
     // Assign "checkpoint" dimension to X axis
-    await selectNaiveOptionByLabel(page, 'Role for checkpoint', 'X Axis')
+    await selectNaiveOptionByLabel(page, 'Mode for checkpoint', 'X Axis')
 
     // Verify the role select for checkpoint now shows "X Axis"
-    const checkpointRoleSelect = page.locator('[aria-label="Role for checkpoint"]')
+    const checkpointRoleSelect = page.locator('[aria-label="Mode for checkpoint"]')
     await expect(checkpointRoleSelect).toBeVisible()
     await expect(checkpointRoleSelect).toContainText('X Axis')
 
     // Assign "prompt_name" dimension to Y axis
-    await selectNaiveOptionByLabel(page, 'Role for prompt_name', 'Y Axis')
+    await selectNaiveOptionByLabel(page, 'Mode for prompt_name', 'Y Axis')
 
     // Verify the role select for prompt_name now shows "Y Axis"
-    const promptRoleSelect = page.locator('[aria-label="Role for prompt_name"]')
+    const promptRoleSelect = page.locator('[aria-label="Mode for prompt_name"]')
     await expect(promptRoleSelect).toBeVisible()
     await expect(promptRoleSelect).toContainText('Y Axis')
   })
@@ -71,7 +71,7 @@ test.describe('dimension filtering and combo filters', () => {
     await expect(page.locator('.xy-grid-container')).not.toBeVisible()
 
     // Assign "checkpoint" to X axis
-    await selectNaiveOptionByLabel(page, 'Role for checkpoint', 'X Axis')
+    await selectNaiveOptionByLabel(page, 'Mode for checkpoint', 'X Axis')
 
     // Close the drawer so we can see the grid
     await closeDrawer(page)
@@ -89,7 +89,7 @@ test.describe('dimension filtering and combo filters', () => {
     await expect(page.getByText('Dimensions')).toBeVisible()
 
     // Assign "prompt_name" to Y axis
-    await selectNaiveOptionByLabel(page, 'Role for prompt_name', 'Y Axis')
+    await selectNaiveOptionByLabel(page, 'Mode for prompt_name', 'Y Axis')
 
     // Close the drawer again
     await closeDrawer(page)
@@ -109,8 +109,8 @@ test.describe('dimension filtering and combo filters', () => {
     await expect(page.getByText('Dimensions')).toBeVisible()
 
     // Assign axes
-    await selectNaiveOptionByLabel(page, 'Role for checkpoint', 'X Axis')
-    await selectNaiveOptionByLabel(page, 'Role for prompt_name', 'Y Axis')
+    await selectNaiveOptionByLabel(page, 'Mode for checkpoint', 'X Axis')
+    await selectNaiveOptionByLabel(page, 'Mode for prompt_name', 'Y Axis')
 
     // Close sidebar drawer to interact with main area
     await closeDrawer(page)
@@ -150,8 +150,8 @@ test.describe('dimension filtering and combo filters', () => {
     await expect(page.getByText('Dimensions')).toBeVisible()
 
     // Assign axes
-    await selectNaiveOptionByLabel(page, 'Role for checkpoint', 'X Axis')
-    await selectNaiveOptionByLabel(page, 'Role for prompt_name', 'Y Axis')
+    await selectNaiveOptionByLabel(page, 'Mode for checkpoint', 'X Axis')
+    await selectNaiveOptionByLabel(page, 'Mode for prompt_name', 'Y Axis')
 
     // Close sidebar drawer to interact with main area
     await closeDrawer(page)

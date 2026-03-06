@@ -106,14 +106,16 @@ export function useDimensionMapping() {
   const assignments = ref<Map<string, DimensionRole>>(new Map())
   const filterModes = ref<Map<string, FilterMode>>(new Map())
 
-  /** Replace the current scan data and reset assignments. */
+  /** Replace the current scan data and reset assignments.
+   *  Unassigned dimensions default to 'single' filter mode.
+   *  Single-value dimensions (0 or 1 unique values) default to 'hide'. */
   function setScanResult(result: ScanResult) {
     scanResult.value = result
     assignments.value = new Map()
     filterModes.value = new Map()
     for (const dim of result.dimensions) {
       assignments.value.set(dim.name, 'none')
-      filterModes.value.set(dim.name, 'hide')
+      filterModes.value.set(dim.name, dim.values.length <= 1 ? 'hide' : 'single')
     }
   }
 
@@ -140,7 +142,7 @@ export function useDimensionMapping() {
    * Assign a dimension to a role. Enforces uniqueness for x, y, and slider:
    * if another dimension already holds that role, it is moved to 'none'.
    * Dimensions assigned to x/y/slider always use 'multi' filter mode.
-   * Displaced dimensions revert to 'hide' filter mode.
+   * Displaced dimensions revert to 'single' filter mode (the unified default).
    */
   function assignRole(dimensionName: string, role: DimensionRole) {
     if (!assignments.value.has(dimensionName)) return
@@ -150,17 +152,17 @@ export function useDimensionMapping() {
       for (const [name, existingRole] of assignments.value) {
         if (existingRole === role && name !== dimensionName) {
           assignments.value.set(name, 'none')
-          filterModes.value.set(name, 'hide')
+          filterModes.value.set(name, 'single')
         }
       }
     }
     assignments.value.set(dimensionName, role)
 
-    // x/y/slider always use multi filter mode; unassigned default to hide
+    // x/y/slider always use multi filter mode; unassigned default to single
     if (role !== 'none') {
       filterModes.value.set(dimensionName, 'multi')
     } else {
-      filterModes.value.set(dimensionName, 'hide')
+      filterModes.value.set(dimensionName, 'single')
     }
 
     // Trigger reactivity by replacing the maps
@@ -183,12 +185,12 @@ export function useDimensionMapping() {
 
   /**
    * Get the effective filter mode for a dimension.
-   * x/y/slider always return 'multi'.
+   * x/y/slider always return 'multi'. Unassigned dimensions default to 'single'.
    */
   function getFilterMode(dimensionName: string): FilterMode {
     const role = assignments.value.get(dimensionName)
     if (role && role !== 'none') return 'multi'
-    return filterModes.value.get(dimensionName) ?? 'hide'
+    return filterModes.value.get(dimensionName) ?? 'single'
   }
 
   /** Get the dimension assigned to a specific role (null if none). */
@@ -259,7 +261,7 @@ export function useDimensionMapping() {
     for (const dim of newDimensions) {
       if (!assignments.value.has(dim.name)) {
         assignments.value.set(dim.name, 'none')
-        filterModes.value.set(dim.name, 'hide')
+        filterModes.value.set(dim.name, dim.values.length <= 1 ? 'hide' : 'single')
         assignments.value = new Map(assignments.value)
         filterModes.value = new Map(filterModes.value)
       }

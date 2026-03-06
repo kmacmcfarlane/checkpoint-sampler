@@ -28,8 +28,8 @@ async function setupGridWithImages(page: Page): Promise<void> {
   await expect(page.getByText('Dimensions')).toBeVisible()
 
   // Assign axes so images appear
-  await selectNaiveOptionByLabel(page, 'Role for checkpoint', 'X Axis')
-  await selectNaiveOptionByLabel(page, 'Role for prompt_name', 'Y Axis')
+  await selectNaiveOptionByLabel(page, 'Mode for checkpoint', 'X Axis')
+  await selectNaiveOptionByLabel(page, 'Mode for prompt_name', 'Y Axis')
 
   // Wait for at least one image in the grid
   const images = page.locator('.xy-grid [role="gridcell"] img')
@@ -275,8 +275,8 @@ async function setupGridWithSlider(page: Page): Promise<void> {
   await selectTrainingRun(page, 'my-model')
   await expect(page.getByText('Dimensions')).toBeVisible()
 
-  await selectNaiveOptionByLabel(page, 'Role for checkpoint', 'X Axis')
-  await selectNaiveOptionByLabel(page, 'Role for prompt_name', 'Slider')
+  await selectNaiveOptionByLabel(page, 'Mode for checkpoint', 'X Axis')
+  await selectNaiveOptionByLabel(page, 'Mode for prompt_name', 'Slider')
 
   // Wait for at least one image in the grid
   const images = page.locator('.xy-grid [role="gridcell"] img')

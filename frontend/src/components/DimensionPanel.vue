@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { NSelect } from 'naive-ui'
-import type { DimensionRole, FilterMode, ScanDimension } from '../api/types'
+import type { DimensionRole, FilterMode, ScanDimension, UnifiedDimensionMode } from '../api/types'
 
 const props = defineProps<{
   dimensions: ScanDimension[]
@@ -9,29 +9,27 @@ const props = defineProps<{
   filterModes: Map<string, FilterMode>
 }>()
 
-// assign: Emitted when the user changes a dimension's role (X Axis, Y Axis, Slider, or None). Payload: dimension name and new DimensionRole.
-// update:filterMode: Emitted when the user changes a dimension's filter mode (hide, single, or multi). Payload: dimension name and new FilterMode.
+// update:mode: Emitted when the user changes a dimension's unified mode.
+//   Payload: dimension name and new UnifiedDimensionMode ('x'|'y'|'slider'|'single'|'multi'|'hide').
+//   The parent decomposes this into role assignment and filter mode changes.
 const emit = defineEmits<{
-  assign: [dimensionName: string, role: DimensionRole]
-  'update:filterMode': [dimensionName: string, mode: FilterMode]
+  'update:mode': [dimensionName: string, mode: UnifiedDimensionMode]
 }>()
 
-const roleOptions = [
-  { value: 'x', label: 'X Axis' },
-  { value: 'y', label: 'Y Axis' },
-  { value: 'slider', label: 'Slider' },
-  { value: 'none', label: 'None' },
-]
-
-const filterModeOptions = [
-  { value: 'hide', label: 'Hide' },
-  { value: 'single', label: 'Single' },
-  { value: 'multi', label: 'Multi' },
+/** Base options for the unified selector. Axis roles are dynamically filtered
+ *  based on mutual exclusion (only one dimension can hold X, Y, or Slider). */
+const baseOptions: Array<{ value: UnifiedDimensionMode; label: string; group: string }> = [
+  { value: 'x', label: 'X Axis', group: 'Axis' },
+  { value: 'y', label: 'Y Axis', group: 'Axis' },
+  { value: 'slider', label: 'Slider', group: 'Axis' },
+  { value: 'single', label: 'Single', group: 'Filter' },
+  { value: 'multi', label: 'Multi', group: 'Filter' },
+  { value: 'hide', label: 'Hide', group: 'Filter' },
 ]
 
 /** Returns true when the dimension has only one unique value and therefore
  *  provides no variation. Single-value dimensions are sorted to the bottom
- *  of the list and their role selects are disabled. */
+ *  of the list and their selectors are disabled. */
 function isSingleValue(dim: ScanDimension): boolean {
   return dim.values.length <= 1
 }
@@ -44,31 +42,46 @@ const sortedDimensions = computed<ScanDimension[]>(() => {
   return [...multi, ...single]
 })
 
-function onRoleChange(dimensionName: string, value: string | null) {
-  if (value !== null) {
-    emit('assign', dimensionName, value as DimensionRole)
+/** Axis roles currently assigned to other dimensions, keyed by role. */
+const assignedAxes = computed(() => {
+  const map = new Map<string, string>() // role -> dimension name
+  for (const [name, role] of props.assignments) {
+    if (role === 'x' || role === 'y' || role === 'slider') {
+      map.set(role, name)
+    }
   }
+  return map
+})
+
+/**
+ * Build the options available for a specific dimension.
+ * Axis roles already held by other dimensions are excluded from the list,
+ * but the axis role held by THIS dimension is always shown.
+ */
+function getOptionsForDimension(dimensionName: string) {
+  return baseOptions.filter((opt) => {
+    // Filter-mode options are always available
+    if (opt.value === 'single' || opt.value === 'multi' || opt.value === 'hide') return true
+    // Axis option: show if unassigned or assigned to this dimension
+    const holder = assignedAxes.value.get(opt.value)
+    return !holder || holder === dimensionName
+  })
 }
 
-function onFilterModeChange(dimensionName: string, value: string | null) {
+/** Derive the unified mode value for a dimension from its role and filter mode.
+ *  Single-value dimensions always display as 'hide' regardless of stored filter mode. */
+function getUnifiedMode(dimensionName: string): UnifiedDimensionMode {
+  const dim = props.dimensions.find((d) => d.name === dimensionName)
+  if (dim && isSingleValue(dim)) return 'hide'
+  const role = props.assignments.get(dimensionName) ?? 'none'
+  if (role === 'x' || role === 'y' || role === 'slider') return role
+  return props.filterModes.get(dimensionName) ?? 'single'
+}
+
+function onModeChange(dimensionName: string, value: string | null) {
   if (value !== null) {
-    emit('update:filterMode', dimensionName, value as FilterMode)
+    emit('update:mode', dimensionName, value as UnifiedDimensionMode)
   }
-}
-
-function getRole(dimensionName: string): DimensionRole {
-  return props.assignments.get(dimensionName) ?? 'none'
-}
-
-function getFilterMode(dimensionName: string): FilterMode {
-  const role = getRole(dimensionName)
-  if (role !== 'none') return 'multi'
-  return props.filterModes.get(dimensionName) ?? 'hide'
-}
-
-function isFilterModeDisabled(dimensionName: string): boolean {
-  const role = getRole(dimensionName)
-  return role !== 'none'
 }
 </script>
 
@@ -85,22 +98,13 @@ function isFilterModeDisabled(dimensionName: string): boolean {
       >
         <span class="dimension-name">{{ dim.name }}</span>
         <NSelect
-          :value="getRole(dim.name)"
-          :options="roleOptions"
+          :value="getUnifiedMode(dim.name)"
+          :options="getOptionsForDimension(dim.name)"
           :disabled="isSingleValue(dim)"
           size="small"
-          class="dimension-role-select"
-          :aria-label="`Role for ${dim.name}`"
-          @update:value="(v: string | null) => onRoleChange(dim.name, v)"
-        />
-        <NSelect
-          :value="getFilterMode(dim.name)"
-          :options="filterModeOptions"
-          :disabled="isFilterModeDisabled(dim.name)"
-          size="small"
-          class="dimension-filter-select"
-          :aria-label="`Filter mode for ${dim.name}`"
-          @update:value="(v: string | null) => onFilterModeChange(dim.name, v)"
+          class="dimension-mode-select"
+          :aria-label="`Mode for ${dim.name}`"
+          @update:value="(v: string | null) => onModeChange(dim.name, v)"
         />
         <span class="dimension-values">{{ dim.values.length }} values</span>
       </div>
@@ -143,13 +147,8 @@ function isFilterModeDisabled(dimensionName: string): boolean {
   white-space: nowrap;
 }
 
-.dimension-role-select {
+.dimension-mode-select {
   min-width: 100px;
-  flex-shrink: 1;
-}
-
-.dimension-filter-select {
-  min-width: 80px;
   flex-shrink: 1;
 }
 

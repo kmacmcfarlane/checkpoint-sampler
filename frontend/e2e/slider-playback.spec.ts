@@ -41,10 +41,10 @@ async function setupSlider(page: Page): Promise<void> {
   await expect(page.getByText('Dimensions')).toBeVisible()
 
   // Assign "checkpoint" to X Axis so images appear in the grid
-  await selectNaiveOptionByLabel(page, 'Role for checkpoint', 'X Axis')
+  await selectNaiveOptionByLabel(page, 'Mode for checkpoint', 'X Axis')
 
   // Assign "prompt_name" to Slider — this triggers the master slider to appear
-  await selectNaiveOptionByLabel(page, 'Role for prompt_name', 'Slider')
+  await selectNaiveOptionByLabel(page, 'Mode for prompt_name', 'Slider')
 
   // Close the drawer so the master slider in the main area is accessible
   await closeDrawer(page)

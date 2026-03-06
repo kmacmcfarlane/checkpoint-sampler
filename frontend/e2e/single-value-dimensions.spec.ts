@@ -1,16 +1,16 @@
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect } from '@playwright/test'
 import { resetDatabase, selectTrainingRun } from './helpers'
 
 /**
- * E2E tests for single-value dimension behavior (S-080).
+ * E2E tests for single-value dimension behavior (S-080, updated by S-089).
  *
  * Story S-080: Disable and sort single-value dimensions to bottom
+ * Story S-089: Unified dimension selector (X/Y/Slider, Single, Multi, Hide)
  *
  * Verifies that dimensions with only one unique value are:
  *   - Sorted to the bottom of the DimensionPanel list
  *   - Visually disabled (greyed out via opacity)
- *   - Cannot be assigned to X, Y, or Slider roles (role select disabled)
- *   - Can still have filter mode set (filter mode select remains enabled)
+ *   - Have their unified selector disabled (shows Hide)
  *
  * Test fixture data:
  *   - Training run: "my-model"
@@ -77,35 +77,18 @@ test.describe('single-value dimension behavior (S-080)', () => {
     await expect(seedRow).toHaveClass(/dimension-row--disabled/)
   })
 
-  // AC2: Single-value dimensions cannot be assigned to X, Y, or Slider roles (disabled NSelect)
-  test('role select is disabled for single-value dimensions', async ({ page }) => {
-    // The role NSelect for single-value dimensions should be disabled
-    const cfgRoleSelect = page.locator('[aria-label="Role for cfg"]')
-    await expect(cfgRoleSelect).toBeVisible()
-
-    // Check that the NSelect has cursor-not-allowed or is functionally disabled.
-    // Naive UI adds the n-select--disabled class when disabled.
-    const cfgSelectWrapper = page.locator('[data-testid="dimension-row-cfg"] .dimension-role-select')
+  // AC (S-089): Single-value dimensions have their unified selector disabled and show 'Hide'
+  test('unified selector is disabled for single-value dimensions', async ({ page }) => {
+    // The unified selector NSelect for single-value dimensions should be disabled.
+    // S-089 replaced the two-select pattern with a single unified dropdown.
+    const cfgSelectWrapper = page.locator('[data-testid="dimension-row-cfg"] .dimension-mode-select')
     await expect(cfgSelectWrapper.locator('.n-base-selection--disabled')).toBeVisible()
 
-    const seedSelectWrapper = page.locator('[data-testid="dimension-row-seed"] .dimension-role-select')
+    const seedSelectWrapper = page.locator('[data-testid="dimension-row-seed"] .dimension-mode-select')
     await expect(seedSelectWrapper.locator('.n-base-selection--disabled')).toBeVisible()
 
     // Multi-value dimensions should NOT be disabled
-    const checkpointSelectWrapper = page.locator('[data-testid="dimension-row-checkpoint"] .dimension-role-select')
+    const checkpointSelectWrapper = page.locator('[data-testid="dimension-row-checkpoint"] .dimension-mode-select')
     await expect(checkpointSelectWrapper.locator('.n-base-selection--disabled')).toHaveCount(0)
-  })
-
-  // AC3: Single-value dimensions can still have filter mode set
-  test('filter mode select remains enabled for single-value dimensions', async ({ page }) => {
-    // The filter mode NSelect for single-value dimensions (with role=none) should NOT be disabled
-    const cfgFilterWrapper = page.locator('[data-testid="dimension-row-cfg"] .dimension-filter-select')
-    await expect(cfgFilterWrapper).toBeVisible()
-    // It should NOT have the disabled class
-    await expect(cfgFilterWrapper.locator('.n-base-selection--disabled')).toHaveCount(0)
-
-    const seedFilterWrapper = page.locator('[data-testid="dimension-row-seed"] .dimension-filter-select')
-    await expect(seedFilterWrapper).toBeVisible()
-    await expect(seedFilterWrapper.locator('.n-base-selection--disabled')).toHaveCount(0)
   })
 })

@@ -32,8 +32,8 @@ async function setupWithSlider(page: Page): Promise<void> {
   await page.goto('/')
   await selectTrainingRun(page, 'my-model')
   await expect(page.getByText('Dimensions')).toBeVisible()
-  await selectNaiveOptionByLabel(page, 'Role for checkpoint', 'X Axis')
-  await selectNaiveOptionByLabel(page, 'Role for prompt_name', 'Slider')
+  await selectNaiveOptionByLabel(page, 'Mode for checkpoint', 'X Axis')
+  await selectNaiveOptionByLabel(page, 'Mode for prompt_name', 'Slider')
   await closeDrawer(page)
 }
 
@@ -45,8 +45,8 @@ async function setupWithAxes(page: Page): Promise<void> {
   await page.goto('/')
   await selectTrainingRun(page, 'my-model')
   await expect(page.getByText('Dimensions')).toBeVisible()
-  await selectNaiveOptionByLabel(page, 'Role for checkpoint', 'X Axis')
-  await selectNaiveOptionByLabel(page, 'Role for prompt_name', 'Y Axis')
+  await selectNaiveOptionByLabel(page, 'Mode for checkpoint', 'X Axis')
+  await selectNaiveOptionByLabel(page, 'Mode for prompt_name', 'Y Axis')
   await closeDrawer(page)
 }
 

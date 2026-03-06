@@ -60,6 +60,13 @@ export type DimensionRole = 'x' | 'y' | 'slider' | 'none'
 /** Filter mode for a dimension's value filter. */
 export type FilterMode = 'hide' | 'single' | 'multi'
 
+/**
+ * Unified dimension mode combining axis assignment and filter mode into a single selector.
+ * - 'x', 'y', 'slider': Assigns the dimension to that axis role (filter mode is implicitly 'multi').
+ * - 'single', 'multi', 'hide': Dimension is not assigned to an axis; uses the specified filter mode.
+ */
+export type UnifiedDimensionMode = 'x' | 'y' | 'slider' | 'single' | 'multi' | 'hide'
+
 /** Assignment of a dimension to a UI role. */
 export interface DimensionAssignment {
   dimensionName: string

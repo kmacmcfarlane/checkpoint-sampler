@@ -5,6 +5,11 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-089: Unified dimension selector (X/Y/Slider, Single, Multi, Hide)
+- Replaced two-dropdown pattern (role assignment + filter mode) with a single unified dropdown per dimension row in the mapping editor
+- Mutual exclusion: axis options (X/Y/Slider) held by one dimension are hidden from other dimensions' dropdowns
+- Unassigned dimensions default to Single filter mode; single-value dimensions default to Hide and are disabled
+
 ### S-088: Study dropdown status beads in Generate Samples dialog
 - Study availability API returns three-way `sample_status` (none/partial/complete) alongside existing `has_samples` boolean
 - Study dropdown renders green bead for complete, yellow for partial, no bead for none — replacing the previous binary green/transparent pattern

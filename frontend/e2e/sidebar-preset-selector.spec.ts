@@ -30,10 +30,10 @@ import { resetDatabase, selectTrainingRun, selectNaiveOptionByLabel } from './he
 
 /**
  * Assigns a dimension role in the DimensionPanel.
- * The DimensionPanel renders NSelect components with aria-label="Role for <dim>".
+ * The DimensionPanel renders NSelect components with aria-label="Mode for <dim>".
  */
 async function assignDimensionRole(page: Page, dimensionName: string, role: string): Promise<void> {
-  await selectNaiveOptionByLabel(page, `Role for ${dimensionName}`, role)
+  await selectNaiveOptionByLabel(page, `Mode for ${dimensionName}`, role)
 }
 
 test.describe('sidebar PresetSelector New/Save/Delete workflow', () => {

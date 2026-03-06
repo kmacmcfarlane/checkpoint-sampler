@@ -47,10 +47,10 @@ test.describe('training run selection and XY grid display', () => {
     await expect(page.getByText('Dimensions')).toBeVisible()
 
     // Assign "checkpoint" dimension to X axis
-    await selectNaiveOptionByLabel(page, 'Role for checkpoint', 'X Axis')
+    await selectNaiveOptionByLabel(page, 'Mode for checkpoint', 'X Axis')
 
     // Assign "prompt_name" dimension to Y axis
-    await selectNaiveOptionByLabel(page, 'Role for prompt_name', 'Y Axis')
+    await selectNaiveOptionByLabel(page, 'Mode for prompt_name', 'Y Axis')
 
     // The XY grid container should now be visible
     const gridContainer = page.locator('.xy-grid-container')
@@ -75,8 +75,8 @@ test.describe('training run selection and XY grid display', () => {
     await expect(page.getByText('Dimensions')).toBeVisible()
 
     // Assign checkpoint → X axis, prompt_name → Y axis
-    await selectNaiveOptionByLabel(page, 'Role for checkpoint', 'X Axis')
-    await selectNaiveOptionByLabel(page, 'Role for prompt_name', 'Y Axis')
+    await selectNaiveOptionByLabel(page, 'Mode for checkpoint', 'X Axis')
+    await selectNaiveOptionByLabel(page, 'Mode for prompt_name', 'Y Axis')
 
     // Grid cells should contain images (not just "No image" placeholders)
     // The image cells with actual images render an <img> element inside .image-cell
@@ -98,8 +98,8 @@ test.describe('training run selection and XY grid display', () => {
     await expect(page.getByText('Dimensions')).toBeVisible()
 
     // Assign axes
-    await selectNaiveOptionByLabel(page, 'Role for checkpoint', 'X Axis')
-    await selectNaiveOptionByLabel(page, 'Role for prompt_name', 'Y Axis')
+    await selectNaiveOptionByLabel(page, 'Mode for checkpoint', 'X Axis')
+    await selectNaiveOptionByLabel(page, 'Mode for prompt_name', 'Y Axis')
 
     // Verify column headers are visible and display checkpoint step values
     await expect(page.locator('.xy-grid__col-header').filter({ hasText: '1000' })).toBeVisible()

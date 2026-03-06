@@ -11,7 +11,7 @@ const sampleDimensions: ScanDimension[] = [
   { name: 'prompt_name', type: 'string', values: ['landscape', 'portrait'] },
 ]
 
-/** A mixed set where 'cfg' has only one value — it should be sorted to the bottom. */
+/** A mixed set where 'cfg' has only one value -- it should be sorted to the bottom. */
 const dimensionsWithSingleValue: ScanDimension[] = [
   { name: 'step', type: 'int', values: ['500', '1000', '1500'] },
   { name: 'cfg', type: 'int', values: ['7'] },
@@ -35,7 +35,9 @@ function makeFilterModesFor(
 ): Map<string, FilterMode> {
   const map = new Map<string, FilterMode>()
   for (const dim of dims) {
-    map.set(dim.name, overrides[dim.name] ?? 'hide')
+    // AC3: Default to 'single' for multi-value, AC4: 'hide' for single-value
+    const defaultMode: FilterMode = dim.values.length <= 1 ? 'hide' : 'single'
+    map.set(dim.name, overrides[dim.name] ?? defaultMode)
   }
   return map
 }
@@ -53,6 +55,7 @@ function makeFilterModes(
 }
 
 describe('DimensionPanel', () => {
+  // AC1: Each dimension row has a single dropdown
   it('renders a row for each dimension', () => {
     const wrapper = mount(DimensionPanel, {
       props: { dimensions: sampleDimensions, assignments: makeAssignments(), filterModes: makeFilterModes() },
@@ -84,102 +87,122 @@ describe('DimensionPanel', () => {
     expect(valueCounts[2].text()).toBe('2 values')
   })
 
-  it('renders two NSelects per dimension (role + filter mode)', () => {
+  // AC1: Each dimension row has a SINGLE dropdown (unified selector)
+  it('renders one NSelect per dimension (unified selector)', () => {
     const wrapper = mount(DimensionPanel, {
       props: { dimensions: sampleDimensions, assignments: makeAssignments(), filterModes: makeFilterModes() },
     })
 
     const selects = wrapper.findAllComponents(NSelect)
-    // 3 dimensions × 2 selects each = 6
-    expect(selects).toHaveLength(6)
+    // 3 dimensions x 1 select each = 3
+    expect(selects).toHaveLength(3)
   })
 
-  it('role select has four role options', () => {
+  // AC1: Unified dropdown has options: X, Y, Slider, Single, Multi, Hide
+  it('unified selector has six options when no axes are assigned', () => {
     const wrapper = mount(DimensionPanel, {
       props: { dimensions: sampleDimensions, assignments: makeAssignments(), filterModes: makeFilterModes() },
     })
 
     const selects = wrapper.findAllComponents(NSelect)
-    // First NSelect in row is role
     const options = selects[0].props('options') as Array<{ value: string; label: string }>
-    expect(options).toHaveLength(4)
-    expect(options.map((o) => o.label)).toEqual(['X Axis', 'Y Axis', 'Slider', 'None'])
+    expect(options).toHaveLength(6)
+    expect(options.map((o) => o.label)).toEqual([
+      'X Axis', 'Y Axis', 'Slider', 'Single', 'Multi', 'Hide',
+    ])
   })
 
-  it('filter mode select has three options', () => {
+  // AC3: Dimensions not assigned to X/Y/Slider default to Single
+  it('shows Single as default for unassigned multi-value dimensions', () => {
     const wrapper = mount(DimensionPanel, {
-      props: { dimensions: sampleDimensions, assignments: makeAssignments(), filterModes: makeFilterModes() },
+      props: {
+        dimensions: sampleDimensions,
+        assignments: makeAssignments(),
+        filterModes: makeFilterModes(),
+      },
     })
 
     const selects = wrapper.findAllComponents(NSelect)
-    // Second NSelect in row is filter mode
-    const options = selects[1].props('options') as Array<{ value: string; label: string }>
-    expect(options).toHaveLength(3)
-    expect(options.map((o) => o.label)).toEqual(['Hide', 'Single', 'Multi'])
+    // All three dimensions are unassigned, should show 'single'
+    expect(selects[0].props('value')).toBe('single')
+    expect(selects[1].props('value')).toBe('single')
+    expect(selects[2].props('value')).toBe('single')
   })
 
-  it('shows current role assignment as selected value', () => {
+  it('shows axis role for assigned dimensions', () => {
     const wrapper = mount(DimensionPanel, {
       props: {
         dimensions: sampleDimensions,
         assignments: makeAssignments({ step: 'x', seed: 'y' }),
-        filterModes: makeFilterModes(),
+        filterModes: makeFilterModes({ step: 'multi', seed: 'multi' }),
       },
     })
 
     const selects = wrapper.findAllComponents(NSelect)
     expect(selects[0].props('value')).toBe('x')
-    expect(selects[2].props('value')).toBe('y')
-    expect(selects[4].props('value')).toBe('none')
+    expect(selects[1].props('value')).toBe('y')
+    expect(selects[2].props('value')).toBe('single')
   })
 
-  it('shows current filter mode as selected value', () => {
+  it('shows filter mode for unassigned dimensions with custom filter modes', () => {
     const wrapper = mount(DimensionPanel, {
       props: {
         dimensions: sampleDimensions,
         assignments: makeAssignments(),
-        filterModes: makeFilterModes({ step: 'multi', seed: 'single' }),
+        filterModes: makeFilterModes({ step: 'multi', seed: 'hide' }),
       },
     })
 
     const selects = wrapper.findAllComponents(NSelect)
-    // Filter mode selects are at indices 1, 3, 5
-    expect(selects[1].props('value')).toBe('multi')
-    expect(selects[3].props('value')).toBe('single')
-    expect(selects[5].props('value')).toBe('hide')
+    expect(selects[0].props('value')).toBe('multi')
+    expect(selects[1].props('value')).toBe('hide')
+    expect(selects[2].props('value')).toBe('single')
   })
 
-  it('shows multi for dimensions assigned to x/y/slider', () => {
-    const wrapper = mount(DimensionPanel, {
-      props: {
-        dimensions: sampleDimensions,
-        assignments: makeAssignments({ step: 'x' }),
-        filterModes: makeFilterModes({ step: 'hide' }), // should be overridden
-      },
-    })
-
-    const selects = wrapper.findAllComponents(NSelect)
-    // step filter mode select should show 'multi' regardless of filterModes map
-    expect(selects[1].props('value')).toBe('multi')
-  })
-
-  it('disables filter mode select for x/y/slider dimensions', () => {
+  // AC2: Selecting X, Y, or Slider removes it from other dimensions' options
+  it('excludes axis options already held by other dimensions', () => {
     const wrapper = mount(DimensionPanel, {
       props: {
         dimensions: sampleDimensions,
         assignments: makeAssignments({ step: 'x', seed: 'slider' }),
-        filterModes: makeFilterModes(),
+        filterModes: makeFilterModes({ step: 'multi', seed: 'multi' }),
       },
     })
 
     const selects = wrapper.findAllComponents(NSelect)
-    // Filter mode selects: indices 1, 3, 5
-    expect(selects[1].props('disabled')).toBe(true) // step=x
-    expect(selects[3].props('disabled')).toBe(true) // seed=slider
-    expect(selects[5].props('disabled')).toBe(false) // prompt_name=none
+
+    // step has X, so its dropdown should include X (its own)
+    const stepOptions = (selects[0].props('options') as Array<{ value: string }>).map((o) => o.value)
+    expect(stepOptions).toContain('x')
+    // But X and Slider should be excluded from prompt_name's options
+    const promptOptions = (selects[2].props('options') as Array<{ value: string }>).map((o) => o.value)
+    expect(promptOptions).not.toContain('x')
+    expect(promptOptions).not.toContain('slider')
+    expect(promptOptions).toContain('y') // Y is still available
+    expect(promptOptions).toContain('single')
+    expect(promptOptions).toContain('multi')
+    expect(promptOptions).toContain('hide')
   })
 
-  it('emits assign event when role is changed', async () => {
+  // AC2: Dimension that holds an axis sees its own axis option
+  it('shows the held axis option for the dimension that has it', () => {
+    const wrapper = mount(DimensionPanel, {
+      props: {
+        dimensions: sampleDimensions,
+        assignments: makeAssignments({ step: 'x' }),
+        filterModes: makeFilterModes({ step: 'multi' }),
+      },
+    })
+
+    const selects = wrapper.findAllComponents(NSelect)
+    // step holds X, so X should be available in step's options
+    const stepOptions = (selects[0].props('options') as Array<{ value: string }>).map((o) => o.value)
+    expect(stepOptions).toContain('x')
+    expect(stepOptions).toContain('y')
+    expect(stepOptions).toContain('slider')
+  })
+
+  it('emits update:mode event when unified mode is changed', async () => {
     const wrapper = mount(DimensionPanel, {
       props: { dimensions: sampleDimensions, assignments: makeAssignments(), filterModes: makeFilterModes() },
     })
@@ -188,26 +211,37 @@ describe('DimensionPanel', () => {
     selects[0].vm.$emit('update:value', 'x')
     await nextTick()
 
-    const emitted = wrapper.emitted('assign')
+    const emitted = wrapper.emitted('update:mode')
     expect(emitted).toBeDefined()
     expect(emitted).toHaveLength(1)
     expect(emitted![0]).toEqual(['step', 'x'])
   })
 
-  it('emits update:filterMode event when filter mode is changed', async () => {
+  it('emits update:mode for filter mode selections', async () => {
     const wrapper = mount(DimensionPanel, {
       props: { dimensions: sampleDimensions, assignments: makeAssignments(), filterModes: makeFilterModes() },
     })
 
     const selects = wrapper.findAllComponents(NSelect)
-    // Filter mode select for first dimension is at index 1
     selects[1].vm.$emit('update:value', 'multi')
     await nextTick()
 
-    const emitted = wrapper.emitted('update:filterMode')
+    const emitted = wrapper.emitted('update:mode')
     expect(emitted).toBeDefined()
     expect(emitted).toHaveLength(1)
-    expect(emitted![0]).toEqual(['step', 'multi'])
+    expect(emitted![0]).toEqual(['seed', 'multi'])
+  })
+
+  it('does not emit when value is null', async () => {
+    const wrapper = mount(DimensionPanel, {
+      props: { dimensions: sampleDimensions, assignments: makeAssignments(), filterModes: makeFilterModes() },
+    })
+
+    const selects = wrapper.findAllComponents(NSelect)
+    selects[0].vm.$emit('update:value', null)
+    await nextTick()
+
+    expect(wrapper.emitted('update:mode')).toBeUndefined()
   })
 
   it('does not render when dimensions are empty', () => {
@@ -218,24 +252,15 @@ describe('DimensionPanel', () => {
     expect(wrapper.find('.dimension-panel').exists()).toBe(false)
   })
 
-  it('has accessible labels on role selects', () => {
+  it('has accessible labels on unified selects', () => {
     const wrapper = mount(DimensionPanel, {
       props: { dimensions: sampleDimensions, assignments: makeAssignments(), filterModes: makeFilterModes() },
     })
 
     const selects = wrapper.findAllComponents(NSelect)
-    expect(selects[0].attributes('aria-label')).toBe('Role for step')
-    expect(selects[2].attributes('aria-label')).toBe('Role for seed')
-  })
-
-  it('has accessible labels on filter mode selects', () => {
-    const wrapper = mount(DimensionPanel, {
-      props: { dimensions: sampleDimensions, assignments: makeAssignments(), filterModes: makeFilterModes() },
-    })
-
-    const selects = wrapper.findAllComponents(NSelect)
-    expect(selects[1].attributes('aria-label')).toBe('Filter mode for step')
-    expect(selects[3].attributes('aria-label')).toBe('Filter mode for seed')
+    expect(selects[0].attributes('aria-label')).toBe('Mode for step')
+    expect(selects[1].attributes('aria-label')).toBe('Mode for seed')
+    expect(selects[2].attributes('aria-label')).toBe('Mode for prompt_name')
   })
 
   describe('single-value dimension behavior', () => {
@@ -272,7 +297,8 @@ describe('DimensionPanel', () => {
       expect(rows[2].classes()).toContain('dimension-row--disabled')
     })
 
-    it('disables the role select for single-value dimensions', () => {
+    // AC4: Dimensions with only one value default to Hide and the selector is disabled
+    it('disables the unified select for single-value dimensions', () => {
       const wrapper = mount(DimensionPanel, {
         props: {
           dimensions: dimensionsWithSingleValue,
@@ -282,25 +308,26 @@ describe('DimensionPanel', () => {
       })
 
       const selects = wrapper.findAllComponents(NSelect)
-      // After sorting: step (role=0, filter=1), seed (role=2, filter=3), cfg (role=4, filter=5)
-      expect(selects[0].props('disabled')).toBe(false) // step role — multi-value, enabled
-      expect(selects[2].props('disabled')).toBe(false) // seed role — multi-value, enabled
-      expect(selects[4].props('disabled')).toBe(true)  // cfg role — single-value, disabled
+      // After sorting: step (0), seed (1), cfg (2)
+      expect(selects[0].props('disabled')).toBe(false) // step -- multi-value, enabled
+      expect(selects[1].props('disabled')).toBe(false) // seed -- multi-value, enabled
+      expect(selects[2].props('disabled')).toBe(true)  // cfg -- single-value, disabled
     })
 
-    it('does not disable the filter mode select for single-value dimensions', () => {
+    // AC4: Single-value dimensions default to Hide
+    it('shows Hide for single-value dimensions regardless of stored filter mode', () => {
       const wrapper = mount(DimensionPanel, {
         props: {
           dimensions: dimensionsWithSingleValue,
           assignments: makeAssignmentsFor(dimensionsWithSingleValue),
-          filterModes: makeFilterModesFor(dimensionsWithSingleValue),
+          // Even if filterModes stores 'single' for cfg, it should display as 'hide'
+          filterModes: makeFilterModesFor(dimensionsWithSingleValue, { cfg: 'single' }),
         },
       })
 
       const selects = wrapper.findAllComponents(NSelect)
-      // After sorting: cfg is at index 2, its filter mode select is at index 5
-      // cfg has a single value but its role is 'none' so filter mode should NOT be disabled
-      expect(selects[5].props('disabled')).toBe(false)
+      // cfg is at index 2 after sorting
+      expect(selects[2].props('value')).toBe('hide')
     })
 
     it('preserves multi-value dimension order relative to each other', () => {
@@ -342,12 +369,12 @@ describe('DimensionPanel', () => {
         },
       })
 
-      // Initially cfg is single-value (1 value) → sorted to bottom
+      // Initially cfg is single-value (1 value) -> sorted to bottom
       let names = wrapper.findAll('.dimension-name')
       expect(names[0].text()).toBe('step')
       expect(names[1].text()).toBe('cfg')
 
-      // Update: cfg gains a second value → now multi-value → reverts to original order
+      // Update: cfg gains a second value -> now multi-value -> reverts to original order
       const updatedDims: ScanDimension[] = [
         { name: 'step', type: 'int', values: ['500', '1000'] },
         { name: 'cfg', type: 'int', values: ['7', '3.5'] },
@@ -364,6 +391,55 @@ describe('DimensionPanel', () => {
       expect(names[0].text()).toBe('step')
       expect(names[1].text()).toBe('cfg')
       expect(wrapper.findAll('.dimension-row--disabled')).toHaveLength(0)
+    })
+  })
+
+  describe('mutual exclusion', () => {
+    // AC2: When all three axes are assigned, unassigned dimensions have no axis options
+    it('shows only filter options when all three axes are taken by other dims', () => {
+      const dims: ScanDimension[] = [
+        { name: 'step', type: 'int', values: ['500', '1000'] },
+        { name: 'seed', type: 'int', values: ['42', '123'] },
+        { name: 'cfg', type: 'int', values: ['1', '7'] },
+        { name: 'prompt', type: 'string', values: ['a', 'b'] },
+      ]
+      const wrapper = mount(DimensionPanel, {
+        props: {
+          dimensions: dims,
+          assignments: makeAssignmentsFor(dims, { step: 'x', seed: 'y', cfg: 'slider' }),
+          filterModes: makeFilterModesFor(dims, { step: 'multi', seed: 'multi', cfg: 'multi' }),
+        },
+      })
+
+      const selects = wrapper.findAllComponents(NSelect)
+      // prompt is at index 3, has no axes available
+      const promptOptions = (selects[3].props('options') as Array<{ value: string }>).map((o) => o.value)
+      expect(promptOptions).toEqual(['single', 'multi', 'hide'])
+    })
+
+    it('restores axis options when an axis is freed', async () => {
+      const wrapper = mount(DimensionPanel, {
+        props: {
+          dimensions: sampleDimensions,
+          assignments: makeAssignments({ step: 'x' }),
+          filterModes: makeFilterModes({ step: 'multi' }),
+        },
+      })
+
+      const selects = wrapper.findAllComponents(NSelect)
+      // seed should not have 'x' available
+      let seedOptions = (selects[1].props('options') as Array<{ value: string }>).map((o) => o.value)
+      expect(seedOptions).not.toContain('x')
+
+      // Free X by assigning step to 'none'
+      await wrapper.setProps({
+        assignments: makeAssignments(),
+        filterModes: makeFilterModes(),
+      })
+      await nextTick()
+
+      seedOptions = (selects[1].props('options') as Array<{ value: string }>).map((o) => o.value)
+      expect(seedOptions).toContain('x')
     })
   })
 })

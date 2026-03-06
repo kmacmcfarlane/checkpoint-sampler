@@ -130,7 +130,7 @@ describe('useDimensionMapping', () => {
       expect(getFilterMode('seed')).toBe('multi')
     })
 
-    it('reverts displaced dimension filter mode to hide', () => {
+    it('reverts displaced dimension filter mode to single', () => {
       const { setScanResult, assignRole, getFilterMode } = useDimensionMapping()
       setScanResult(makeScanResult())
 
@@ -138,34 +138,43 @@ describe('useDimensionMapping', () => {
       expect(getFilterMode('index')).toBe('multi')
 
       assignRole('step', 'x') // displaces index
-      expect(getFilterMode('index')).toBe('hide')
+      expect(getFilterMode('index')).toBe('single')
       expect(getFilterMode('step')).toBe('multi')
     })
 
-    it('sets filter mode to hide when assigning none role', () => {
+    it('sets filter mode to single when assigning none role', () => {
       const { setScanResult, assignRole, setFilterMode, getFilterMode } = useDimensionMapping()
       setScanResult(makeScanResult())
 
-      setFilterMode('index', 'single')
-      expect(getFilterMode('index')).toBe('single')
+      setFilterMode('index', 'multi')
+      expect(getFilterMode('index')).toBe('multi')
 
       assignRole('index', 'x')
       expect(getFilterMode('index')).toBe('multi')
 
       assignRole('index', 'none')
-      expect(getFilterMode('index')).toBe('hide')
+      expect(getFilterMode('index')).toBe('single')
     })
   })
 
   describe('filterModes', () => {
-    it('initializes all dimensions to hide filter mode', () => {
+    // AC3: Dimensions not assigned to X/Y/Slider default to Single
+    it('initializes multi-value dimensions to single filter mode', () => {
       const { setScanResult, filterModes } = useDimensionMapping()
       setScanResult(makeScanResult())
 
       expect(filterModes.value.size).toBe(3)
-      expect(filterModes.value.get('index')).toBe('hide')
+      expect(filterModes.value.get('index')).toBe('single')
+      expect(filterModes.value.get('step')).toBe('single')
+    })
+
+    // AC4: Dimensions with only one value default to Hide
+    it('initializes single-value dimensions to hide filter mode', () => {
+      const { setScanResult, filterModes } = useDimensionMapping()
+      // 'seed' has only one value ('42') in makeScanResult
+      setScanResult(makeScanResult())
+
       expect(filterModes.value.get('seed')).toBe('hide')
-      expect(filterModes.value.get('step')).toBe('hide')
     })
 
     it('resets filter modes when setScanResult is called', () => {
@@ -174,7 +183,7 @@ describe('useDimensionMapping', () => {
       setFilterMode('index', 'multi')
 
       setScanResult(makeScanResult())
-      expect(filterModes.value.get('index')).toBe('hide')
+      expect(filterModes.value.get('index')).toBe('single')
     })
   })
 
@@ -215,11 +224,20 @@ describe('useDimensionMapping', () => {
   })
 
   describe('getFilterMode', () => {
-    it('returns hide for unassigned dimensions by default', () => {
+    // AC3: Dimensions not assigned to X/Y/Slider default to Single
+    it('returns single for unassigned multi-value dimensions by default', () => {
       const { setScanResult, getFilterMode } = useDimensionMapping()
       setScanResult(makeScanResult())
 
-      expect(getFilterMode('index')).toBe('hide')
+      expect(getFilterMode('index')).toBe('single')
+    })
+
+    // AC4: Dimensions with only one value default to Hide
+    it('returns hide for unassigned single-value dimensions by default', () => {
+      const { setScanResult, getFilterMode } = useDimensionMapping()
+      setScanResult(makeScanResult())
+
+      expect(getFilterMode('seed')).toBe('hide')
     })
 
     it('returns multi for x/y/slider dimensions regardless of stored mode', () => {
@@ -230,11 +248,11 @@ describe('useDimensionMapping', () => {
       expect(getFilterMode('index')).toBe('multi')
     })
 
-    it('returns hide for unknown dimensions', () => {
+    it('returns single for unknown dimensions', () => {
       const { setScanResult, getFilterMode } = useDimensionMapping()
       setScanResult(makeScanResult())
 
-      expect(getFilterMode('nonexistent')).toBe('hide')
+      expect(getFilterMode('nonexistent')).toBe('single')
     })
   })
 
@@ -356,10 +374,11 @@ describe('useDimensionMapping', () => {
       expect(assignments.value.get('cfg')).toBe('none')
     })
 
-    it('initializes filter mode to hide for new dimensions', () => {
+    it('initializes filter mode to hide for new single-value dimensions', () => {
       const { setScanResult, filterModes, addImage } = useDimensionMapping()
       setScanResult(makeScanResult())
 
+      // AC4: New dimension with only one value defaults to 'hide'
       addImage({
         relative_path: 'dir3/index=0&seed=42&cfg=7.5.png',
         dimensions: { index: '0', seed: '42', step: '500', cfg: '7.5' },
