@@ -1,5 +1,12 @@
-import { test, expect, type Page } from '@playwright/test'
-import { resetDatabase, openFiltersDrawer, closeFiltersDrawer } from './helpers'
+import { test, expect } from '@playwright/test'
+import {
+  resetDatabase,
+  selectTrainingRun,
+  selectNaiveOptionByLabel,
+  closeDrawer,
+  openFiltersDrawer,
+  closeFiltersDrawer,
+} from './helpers'
 
 /**
  * E2E tests for dimension configuration and combo filter workflows:
@@ -19,49 +26,6 @@ import { resetDatabase, openFiltersDrawer, closeFiltersDrawer } from './helpers'
  *   - Dimensions: cfg, checkpoint, prompt_name, seed
  */
 
-/**
- * Selects a training run from the sidebar NSelect dropdown.
- */
-async function selectTrainingRun(page: Page, runName: string): Promise<void> {
-  const selectTrigger = page.locator('[data-testid="training-run-select"]')
-  await expect(selectTrigger).toBeVisible()
-  await selectTrigger.click()
-  const popupMenu = page.locator('.n-base-select-menu:visible')
-  await expect(popupMenu).toBeVisible()
-  await popupMenu.getByText(runName, { exact: true }).click()
-  await expect(popupMenu).not.toBeVisible()
-}
-
-/**
- * Opens a Naive UI NSelect dropdown identified by aria-label, waits for the
- * popup to appear, then clicks the option matching optionText.
- *
- * Note: .n-base-select-menu is a Naive UI portal element; no stable data-testid
- * alternative exists. It is stable in practice as a functional class (not internal styling).
- */
-async function selectNaiveOption(page: Page, selectAriaLabel: string, optionText: string): Promise<void> {
-  const select = page.locator(`[aria-label="${selectAriaLabel}"]`)
-  await select.click()
-  const popupMenu = page.locator('.n-base-select-menu:visible')
-  await expect(popupMenu).toBeVisible()
-  await popupMenu.getByText(optionText, { exact: true }).click()
-  await expect(popupMenu).not.toBeVisible()
-}
-
-/**
- * Closes the drawer so its mask doesn't intercept clicks on main-area elements.
- * The close button has aria-label="close" (set by Naive UI's NBaseClose).
- */
-async function closeDrawer(page: Page): Promise<void> {
-  const drawerCloseButton = page.locator('[aria-label="close"]').first()
-  if (await drawerCloseButton.isVisible()) {
-    await drawerCloseButton.click()
-    // Wait for the drawer to close (close button disappears)
-    await expect(drawerCloseButton).not.toBeVisible()
-    await page.waitForTimeout(300)
-  }
-}
-
 test.describe('dimension filtering and combo filters', () => {
   // AC: Each E2E test is independent -- reset database before each test
   test.beforeEach(async ({ request }) => {
@@ -78,7 +42,7 @@ test.describe('dimension filtering and combo filters', () => {
     await expect(page.getByText('Dimensions')).toBeVisible()
 
     // Assign "checkpoint" dimension to X axis
-    await selectNaiveOption(page, 'Role for checkpoint', 'X Axis')
+    await selectNaiveOptionByLabel(page, 'Role for checkpoint', 'X Axis')
 
     // Verify the role select for checkpoint now shows "X Axis"
     const checkpointRoleSelect = page.locator('[aria-label="Role for checkpoint"]')
@@ -86,7 +50,7 @@ test.describe('dimension filtering and combo filters', () => {
     await expect(checkpointRoleSelect).toContainText('X Axis')
 
     // Assign "prompt_name" dimension to Y axis
-    await selectNaiveOption(page, 'Role for prompt_name', 'Y Axis')
+    await selectNaiveOptionByLabel(page, 'Role for prompt_name', 'Y Axis')
 
     // Verify the role select for prompt_name now shows "Y Axis"
     const promptRoleSelect = page.locator('[aria-label="Role for prompt_name"]')
@@ -107,7 +71,7 @@ test.describe('dimension filtering and combo filters', () => {
     await expect(page.locator('.xy-grid-container')).not.toBeVisible()
 
     // Assign "checkpoint" to X axis
-    await selectNaiveOption(page, 'Role for checkpoint', 'X Axis')
+    await selectNaiveOptionByLabel(page, 'Role for checkpoint', 'X Axis')
 
     // Close the drawer so we can see the grid
     await closeDrawer(page)
@@ -125,7 +89,7 @@ test.describe('dimension filtering and combo filters', () => {
     await expect(page.getByText('Dimensions')).toBeVisible()
 
     // Assign "prompt_name" to Y axis
-    await selectNaiveOption(page, 'Role for prompt_name', 'Y Axis')
+    await selectNaiveOptionByLabel(page, 'Role for prompt_name', 'Y Axis')
 
     // Close the drawer again
     await closeDrawer(page)
@@ -145,8 +109,8 @@ test.describe('dimension filtering and combo filters', () => {
     await expect(page.getByText('Dimensions')).toBeVisible()
 
     // Assign axes
-    await selectNaiveOption(page, 'Role for checkpoint', 'X Axis')
-    await selectNaiveOption(page, 'Role for prompt_name', 'Y Axis')
+    await selectNaiveOptionByLabel(page, 'Role for checkpoint', 'X Axis')
+    await selectNaiveOptionByLabel(page, 'Role for prompt_name', 'Y Axis')
 
     // Close sidebar drawer to interact with main area
     await closeDrawer(page)
@@ -186,8 +150,8 @@ test.describe('dimension filtering and combo filters', () => {
     await expect(page.getByText('Dimensions')).toBeVisible()
 
     // Assign axes
-    await selectNaiveOption(page, 'Role for checkpoint', 'X Axis')
-    await selectNaiveOption(page, 'Role for prompt_name', 'Y Axis')
+    await selectNaiveOptionByLabel(page, 'Role for checkpoint', 'X Axis')
+    await selectNaiveOptionByLabel(page, 'Role for prompt_name', 'Y Axis')
 
     // Close sidebar drawer to interact with main area
     await closeDrawer(page)

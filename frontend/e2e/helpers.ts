@@ -17,10 +17,20 @@ export async function resetDatabase(request: APIRequestContext): Promise<void> {
 
 /**
  * Selects a training run from the sidebar NSelect dropdown.
+ *
+ * Waits for the NSelect to finish loading (the component is disabled while
+ * the training runs API call is in flight) before clicking, which prevents
+ * the dropdown popup from failing to open due to a race with data loading.
  */
 export async function selectTrainingRun(page: Page, runName: string): Promise<void> {
   const selectTrigger = page.locator('[data-testid="training-run-select"]')
   await expect(selectTrigger).toBeVisible()
+
+  // Wait for the select to finish loading — Naive UI adds the
+  // .n-base-selection--disabled class while loading is true.
+  // We wait for that class to disappear before clicking.
+  await expect(selectTrigger.locator('.n-base-selection--disabled')).toHaveCount(0)
+
   await selectTrigger.click()
   const popupMenu = page.locator('.n-base-select-menu:visible')
   await expect(popupMenu).toBeVisible()
@@ -163,6 +173,19 @@ export async function selectNaiveOption(page: Page, selectTestId: string, option
   await expect(popup).toBeVisible()
   await popup.getByText(optionText, { exact: true }).click()
   await expect(popup).not.toBeVisible()
+}
+
+/**
+ * Selects an option from a Naive UI NSelect dropdown identified by aria-label.
+ * Used for dimension role selects (e.g., aria-label="Role for checkpoint").
+ */
+export async function selectNaiveOptionByLabel(page: Page, selectAriaLabel: string, optionText: string): Promise<void> {
+  const select = page.locator(`[aria-label="${selectAriaLabel}"]`)
+  await select.click()
+  const popupMenu = page.locator('.n-base-select-menu:visible')
+  await expect(popupMenu).toBeVisible()
+  await popupMenu.getByText(optionText, { exact: true }).click()
+  await expect(popupMenu).not.toBeVisible()
 }
 
 /**

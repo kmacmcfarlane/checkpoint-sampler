@@ -1,5 +1,5 @@
-import { test, expect, type Page } from '@playwright/test'
-import { resetDatabase } from './helpers'
+import { test, expect } from '@playwright/test'
+import { resetDatabase, selectTrainingRun, selectNaiveOptionByLabel } from './helpers'
 
 /**
  * E2E tests for the core user journey:
@@ -13,37 +13,6 @@ import { resetDatabase } from './helpers'
  *   - Each checkpoint has 2 sample images: prompt_name=landscape and prompt_name=portrait
  *   - Dimensions: cfg, checkpoint, prompt_name, seed
  */
-
-/**
- * Opens a Naive UI NSelect dropdown identified by aria-label, waits for the
- * popup to appear, then clicks the option matching optionText.
- *
- * Note: .n-base-select-menu is a Naive UI portal element; no stable data-testid
- * alternative exists. It is stable in practice as a functional class (not internal styling).
- */
-async function selectNaiveOption(page: Page, selectAriaLabel: string, optionText: string): Promise<void> {
-  const select = page.locator(`[aria-label="${selectAriaLabel}"]`)
-  await select.click()
-  const popupMenu = page.locator('.n-base-select-menu:visible')
-  await expect(popupMenu).toBeVisible()
-  await popupMenu.getByText(optionText, { exact: true }).click()
-  // Wait for popup to close after selection
-  await expect(popupMenu).not.toBeVisible()
-}
-
-/**
- * Selects a training run from the sidebar NSelect dropdown.
- * Waits for the training runs to load and the option to appear.
- */
-async function selectTrainingRun(page: Page, runName: string): Promise<void> {
-  const selectTrigger = page.locator('[data-testid="training-run-select"]')
-  await expect(selectTrigger).toBeVisible()
-  await selectTrigger.click()
-  const popupMenu = page.locator('.n-base-select-menu:visible')
-  await expect(popupMenu).toBeVisible()
-  await popupMenu.getByText(runName, { exact: true }).click()
-  await expect(popupMenu).not.toBeVisible()
-}
 
 test.describe('training run selection and XY grid display', () => {
   // AC: Each E2E test is independent -- reset database before each test
@@ -78,10 +47,10 @@ test.describe('training run selection and XY grid display', () => {
     await expect(page.getByText('Dimensions')).toBeVisible()
 
     // Assign "checkpoint" dimension to X axis
-    await selectNaiveOption(page, 'Role for checkpoint', 'X Axis')
+    await selectNaiveOptionByLabel(page, 'Role for checkpoint', 'X Axis')
 
     // Assign "prompt_name" dimension to Y axis
-    await selectNaiveOption(page, 'Role for prompt_name', 'Y Axis')
+    await selectNaiveOptionByLabel(page, 'Role for prompt_name', 'Y Axis')
 
     // The XY grid container should now be visible
     const gridContainer = page.locator('.xy-grid-container')
@@ -106,8 +75,8 @@ test.describe('training run selection and XY grid display', () => {
     await expect(page.getByText('Dimensions')).toBeVisible()
 
     // Assign checkpoint → X axis, prompt_name → Y axis
-    await selectNaiveOption(page, 'Role for checkpoint', 'X Axis')
-    await selectNaiveOption(page, 'Role for prompt_name', 'Y Axis')
+    await selectNaiveOptionByLabel(page, 'Role for checkpoint', 'X Axis')
+    await selectNaiveOptionByLabel(page, 'Role for prompt_name', 'Y Axis')
 
     // Grid cells should contain images (not just "No image" placeholders)
     // The image cells with actual images render an <img> element inside .image-cell
@@ -129,8 +98,8 @@ test.describe('training run selection and XY grid display', () => {
     await expect(page.getByText('Dimensions')).toBeVisible()
 
     // Assign axes
-    await selectNaiveOption(page, 'Role for checkpoint', 'X Axis')
-    await selectNaiveOption(page, 'Role for prompt_name', 'Y Axis')
+    await selectNaiveOptionByLabel(page, 'Role for checkpoint', 'X Axis')
+    await selectNaiveOptionByLabel(page, 'Role for prompt_name', 'Y Axis')
 
     // Verify column headers are visible and display checkpoint step values
     await expect(page.locator('.xy-grid__col-header').filter({ hasText: '1000' })).toBeVisible()

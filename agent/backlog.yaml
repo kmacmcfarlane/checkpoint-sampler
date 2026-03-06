@@ -593,7 +593,7 @@ stories:
   - id: B-053
     title: "E2E selectTrainingRun helper times out across multiple spec files"
     priority: 80
-    status: todo
+    status: uat
     complexity: medium
     requires: []
     acceptance:

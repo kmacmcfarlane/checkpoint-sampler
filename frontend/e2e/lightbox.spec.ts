@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { resetDatabase } from './helpers'
+import { resetDatabase, selectTrainingRun, selectNaiveOptionByLabel, closeDrawer } from './helpers'
 
 /**
  * E2E tests for the image lightbox user journey:
@@ -12,35 +12,6 @@ import { resetDatabase } from './helpers'
  *   - Training run: "my-model" with 2 checkpoints (step 1000, step 2000)
  *   - Each checkpoint has 2 sample images: prompt_name=landscape and prompt_name=portrait
  */
-
-/**
- * Selects a training run from the sidebar NSelect dropdown.
- */
-async function selectTrainingRun(page: Page, runName: string): Promise<void> {
-  const selectTrigger = page.locator('[data-testid="training-run-select"]')
-  await expect(selectTrigger).toBeVisible()
-  await selectTrigger.click()
-  const popupMenu = page.locator('.n-base-select-menu:visible')
-  await expect(popupMenu).toBeVisible()
-  await popupMenu.getByText(runName, { exact: true }).click()
-  await expect(popupMenu).not.toBeVisible()
-}
-
-/**
- * Opens a Naive UI NSelect dropdown identified by aria-label, waits for the
- * popup to appear, then clicks the option matching optionText.
- *
- * Note: .n-base-select-menu is a Naive UI portal element; no stable data-testid
- * alternative exists. It is stable in practice as a functional class (not internal styling).
- */
-async function selectNaiveOption(page: Page, selectAriaLabel: string, optionText: string): Promise<void> {
-  const select = page.locator(`[aria-label="${selectAriaLabel}"]`)
-  await select.click()
-  const popupMenu = page.locator('.n-base-select-menu:visible')
-  await expect(popupMenu).toBeVisible()
-  await popupMenu.getByText(optionText, { exact: true }).click()
-  await expect(popupMenu).not.toBeVisible()
-}
 
 /**
  * Navigates to the app, selects the test training run, assigns checkpoint → X and
@@ -57,23 +28,15 @@ async function setupGridWithImages(page: Page): Promise<void> {
   await expect(page.getByText('Dimensions')).toBeVisible()
 
   // Assign axes so images appear
-  await selectNaiveOption(page, 'Role for checkpoint', 'X Axis')
-  await selectNaiveOption(page, 'Role for prompt_name', 'Y Axis')
+  await selectNaiveOptionByLabel(page, 'Role for checkpoint', 'X Axis')
+  await selectNaiveOptionByLabel(page, 'Role for prompt_name', 'Y Axis')
 
   // Wait for at least one image in the grid
   const images = page.locator('.xy-grid [role="gridcell"] img')
   await expect(images.first()).toBeVisible()
 
   // Close the drawer so its mask doesn't intercept clicks on grid cells.
-  // NDrawer renders a mask overlay that blocks pointer events even on desktop.
-  // The close button has aria-label="close" (set by Naive UI's NBaseClose).
-  const drawerCloseButton = page.locator('[aria-label="close"]').first()
-  if (await drawerCloseButton.isVisible()) {
-    await drawerCloseButton.click()
-    // Wait for the drawer to close (close button disappears)
-    await expect(drawerCloseButton).not.toBeVisible()
-    await page.waitForTimeout(300)
-  }
+  await closeDrawer(page)
 }
 
 test.describe('image lightbox interaction', () => {
@@ -312,22 +275,15 @@ async function setupGridWithSlider(page: Page): Promise<void> {
   await selectTrainingRun(page, 'my-model')
   await expect(page.getByText('Dimensions')).toBeVisible()
 
-  await selectNaiveOption(page, 'Role for checkpoint', 'X Axis')
-  await selectNaiveOption(page, 'Role for prompt_name', 'Slider')
+  await selectNaiveOptionByLabel(page, 'Role for checkpoint', 'X Axis')
+  await selectNaiveOptionByLabel(page, 'Role for prompt_name', 'Slider')
 
   // Wait for at least one image in the grid
   const images = page.locator('.xy-grid [role="gridcell"] img')
   await expect(images.first()).toBeVisible()
 
   // Close the drawer so its mask doesn't intercept clicks on grid cells.
-  // The close button has aria-label="close" (set by Naive UI's NBaseClose).
-  const drawerCloseButton = page.locator('[aria-label="close"]').first()
-  if (await drawerCloseButton.isVisible()) {
-    await drawerCloseButton.click()
-    // Wait for the drawer to close (close button disappears)
-    await expect(drawerCloseButton).not.toBeVisible()
-    await page.waitForTimeout(300)
-  }
+  await closeDrawer(page)
 }
 
 test.describe('lightbox keyboard navigation (Shift+Arrow)', () => {

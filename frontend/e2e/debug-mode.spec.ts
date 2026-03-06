@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { resetDatabase } from './helpers'
+import { resetDatabase, selectTrainingRun, selectNaiveOptionByLabel, closeDrawer } from './helpers'
 
 /**
  * E2E tests for the Debug Mode overlay feature (story B-032).
@@ -17,47 +17,6 @@ import { resetDatabase } from './helpers'
  */
 
 /**
- * Opens a Naive UI NSelect dropdown identified by aria-label, waits for the
- * popup to appear, then clicks the option matching optionText.
- */
-async function selectNaiveOption(page: Page, selectAriaLabel: string, optionText: string): Promise<void> {
-  const select = page.locator(`[aria-label="${selectAriaLabel}"]`)
-  await select.click()
-  const popupMenu = page.locator('.n-base-select-menu:visible')
-  await expect(popupMenu).toBeVisible()
-  await popupMenu.getByText(optionText, { exact: true }).click()
-  await expect(popupMenu).not.toBeVisible()
-}
-
-/**
- * Selects a training run from the sidebar NSelect dropdown.
- */
-async function selectTrainingRun(page: Page, runName: string): Promise<void> {
-  const selectTrigger = page.locator('[data-testid="training-run-select"]')
-  await expect(selectTrigger).toBeVisible()
-  await selectTrigger.click()
-  const popupMenu = page.locator('.n-base-select-menu:visible')
-  await expect(popupMenu).toBeVisible()
-  await popupMenu.getByText(runName, { exact: true }).click()
-  await expect(popupMenu).not.toBeVisible()
-}
-
-/**
- * Closes the NDrawer using its close button (aria-label="close" rendered by
- * Naive UI NBaseClose). The hamburger button may be occluded by the drawer
- * header, so using the drawer's own close button is more reliable.
- * Waits for the drawer mask animation to complete (per TEST_PRACTICES.md 6.9).
- */
-async function closeDrawer(page: Page): Promise<void> {
-  const drawerCloseButton = page.locator('[aria-label="close"]').first()
-  if (await drawerCloseButton.isVisible()) {
-    await drawerCloseButton.click()
-    await expect(drawerCloseButton).not.toBeVisible()
-    await page.waitForTimeout(300)
-  }
-}
-
-/**
  * Sets up a grid by selecting a training run and assigning X/Y axes,
  * then closes the drawer to avoid NDrawer mask interference with
  * subsequent clicks on header elements (per TEST_PRACTICES.md 6.9).
@@ -68,8 +27,8 @@ async function setupGridWithAxes(page: Page): Promise<void> {
   await expect(page.getByText('Dimensions')).toBeVisible()
 
   // Assign checkpoint -> X axis, prompt_name -> Y axis
-  await selectNaiveOption(page, 'Role for checkpoint', 'X Axis')
-  await selectNaiveOption(page, 'Role for prompt_name', 'Y Axis')
+  await selectNaiveOptionByLabel(page, 'Role for checkpoint', 'X Axis')
+  await selectNaiveOptionByLabel(page, 'Role for prompt_name', 'Y Axis')
 
   // Wait for grid to render with images
   const gridCells = page.locator('.xy-grid [role="gridcell"]')
@@ -147,8 +106,8 @@ test.describe('debug mode overlay', () => {
 
     // Assign axes: checkpoint -> X, prompt_name -> Slider (both multi-value)
     // S-080: cfg and seed are single-value and have disabled role selects
-    await selectNaiveOption(page, 'Role for checkpoint', 'X Axis')
-    await selectNaiveOption(page, 'Role for prompt_name', 'Slider')
+    await selectNaiveOptionByLabel(page, 'Role for checkpoint', 'X Axis')
+    await selectNaiveOptionByLabel(page, 'Role for prompt_name', 'Slider')
 
     // Wait for grid
     await expect(page.locator('.xy-grid [role="gridcell"]').first()).toBeVisible()

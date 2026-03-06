@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { resetDatabase } from './helpers'
+import { resetDatabase, selectTrainingRun, selectNaiveOptionByLabel, closeDrawer } from './helpers'
 
 /**
  * E2E tests for the master slider and playback controls user journey:
@@ -22,50 +22,6 @@ import { resetDatabase } from './helpers'
  */
 
 /**
- * Selects a training run from the sidebar NSelect dropdown.
- */
-async function selectTrainingRun(page: Page, runName: string): Promise<void> {
-  const selectTrigger = page.locator('[data-testid="training-run-select"]')
-  await expect(selectTrigger).toBeVisible()
-  await selectTrigger.click()
-  const popupMenu = page.locator('.n-base-select-menu:visible')
-  await expect(popupMenu).toBeVisible()
-  await popupMenu.getByText(runName, { exact: true }).click()
-  await expect(popupMenu).not.toBeVisible()
-}
-
-/**
- * Opens a Naive UI NSelect dropdown identified by aria-label, waits for the
- * popup to appear, then clicks the option matching optionText.
- *
- * Note: .n-base-select-menu is a Naive UI portal element; no stable data-testid
- * alternative exists. It is stable in practice as a functional class (not internal styling).
- */
-async function selectNaiveOption(page: Page, selectAriaLabel: string, optionText: string): Promise<void> {
-  const select = page.locator(`[aria-label="${selectAriaLabel}"]`)
-  await select.click()
-  const popupMenu = page.locator('.n-base-select-menu:visible')
-  await expect(popupMenu).toBeVisible()
-  await popupMenu.getByText(optionText, { exact: true }).click()
-  await expect(popupMenu).not.toBeVisible()
-}
-
-/**
- * Closes the sidebar drawer if it is open.
- * On wide screens the drawer opens automatically and its mask blocks main-area elements.
- * The close button has aria-label="close" (set by Naive UI's NBaseClose).
- */
-async function closeDrawer(page: Page): Promise<void> {
-  const drawerCloseButton = page.locator('[aria-label="close"]').first()
-  if (await drawerCloseButton.isVisible()) {
-    await drawerCloseButton.click()
-    // Wait for the drawer to close (close button disappears)
-    await expect(drawerCloseButton).not.toBeVisible()
-    await page.waitForTimeout(300)
-  }
-}
-
-/**
  * Sets up the app with:
  *   - "my-model" selected
  *   - "checkpoint" assigned to X Axis
@@ -85,10 +41,10 @@ async function setupSlider(page: Page): Promise<void> {
   await expect(page.getByText('Dimensions')).toBeVisible()
 
   // Assign "checkpoint" to X Axis so images appear in the grid
-  await selectNaiveOption(page, 'Role for checkpoint', 'X Axis')
+  await selectNaiveOptionByLabel(page, 'Role for checkpoint', 'X Axis')
 
   // Assign "prompt_name" to Slider — this triggers the master slider to appear
-  await selectNaiveOption(page, 'Role for prompt_name', 'Slider')
+  await selectNaiveOptionByLabel(page, 'Role for prompt_name', 'Slider')
 
   // Close the drawer so the master slider in the main area is accessible
   await closeDrawer(page)

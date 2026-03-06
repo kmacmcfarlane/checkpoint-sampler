@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { resetDatabase } from './helpers'
+import { resetDatabase, selectTrainingRun, selectNaiveOptionByLabel } from './helpers'
 
 /**
  * E2E tests for the sidebar PresetSelector component (B-031).
@@ -29,37 +29,11 @@ import { resetDatabase } from './helpers'
  */
 
 /**
- * Selects a training run from the sidebar NSelect dropdown.
- */
-async function selectTrainingRun(page: Page, runName: string): Promise<void> {
-  const selectTrigger = page.locator('[data-testid="training-run-select"]')
-  await expect(selectTrigger).toBeVisible()
-  await selectTrigger.click()
-  const popupMenu = page.locator('.n-base-select-menu:visible')
-  await expect(popupMenu).toBeVisible()
-  await popupMenu.getByText(runName, { exact: true }).click()
-  await expect(popupMenu).not.toBeVisible()
-}
-
-/**
- * Opens a Naive UI NSelect dropdown identified by aria-label, waits for the
- * popup to appear, then clicks the option matching optionText.
- */
-async function selectNaiveOption(page: Page, selectAriaLabel: string, optionText: string): Promise<void> {
-  const select = page.locator(`[aria-label="${selectAriaLabel}"]`)
-  await select.click()
-  const popupMenu = page.locator('.n-base-select-menu:visible')
-  await expect(popupMenu).toBeVisible()
-  await popupMenu.getByText(optionText, { exact: true }).click()
-  await expect(popupMenu).not.toBeVisible()
-}
-
-/**
  * Assigns a dimension role in the DimensionPanel.
  * The DimensionPanel renders NSelect components with aria-label="Role for <dim>".
  */
 async function assignDimensionRole(page: Page, dimensionName: string, role: string): Promise<void> {
-  await selectNaiveOption(page, `Role for ${dimensionName}`, role)
+  await selectNaiveOptionByLabel(page, `Role for ${dimensionName}`, role)
 }
 
 test.describe('sidebar PresetSelector New/Save/Delete workflow', () => {

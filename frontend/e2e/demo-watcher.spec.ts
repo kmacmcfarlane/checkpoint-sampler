@@ -1,5 +1,5 @@
-import { test, expect, type Page } from '@playwright/test'
-import { resetDatabase, selectTrainingRun } from './helpers'
+import { test, expect } from '@playwright/test'
+import { resetDatabase, selectTrainingRun, selectNaiveOptionByLabel } from './helpers'
 
 /**
  * E2E tests for B-042: Watcher correctly handles study-scoped training runs.
@@ -18,19 +18,6 @@ import { resetDatabase, selectTrainingRun } from './helpers'
  * Before this fix, the watcher would try to watch sample_dir/checkpoint.safetensors
  * instead of sample_dir/demo-study/checkpoint.safetensors, causing errors.
  */
-
-/**
- * Opens a Naive UI NSelect dropdown identified by aria-label, waits for the
- * popup to appear, then clicks the option matching optionText.
- */
-async function selectNaiveOption(page: Page, selectAriaLabel: string, optionText: string): Promise<void> {
-  const select = page.locator(`[aria-label="${selectAriaLabel}"]`)
-  await select.click()
-  const popupMenu = page.locator('.n-base-select-menu:visible')
-  await expect(popupMenu).toBeVisible()
-  await popupMenu.getByText(optionText, { exact: true }).click()
-  await expect(popupMenu).not.toBeVisible()
-}
 
 test.beforeEach(async ({ request }) => {
   await resetDatabase(request)
@@ -89,8 +76,8 @@ test.describe('study-scoped watcher paths (B-042)', () => {
     await expect(page.getByText('Dimensions')).toBeVisible()
 
     // Assign axes: cfg -> X, prompt_name -> Y (matching demo preset layout)
-    await selectNaiveOption(page, 'Role for cfg', 'X Axis')
-    await selectNaiveOption(page, 'Role for prompt_name', 'Y Axis')
+    await selectNaiveOptionByLabel(page, 'Role for cfg', 'X Axis')
+    await selectNaiveOptionByLabel(page, 'Role for prompt_name', 'Y Axis')
 
     // Wait for grid images to appear
     const images = page.locator('.xy-grid [role="gridcell"] img')

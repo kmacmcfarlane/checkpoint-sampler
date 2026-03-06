@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-053: E2E selectTrainingRun helper times out across multiple spec files
+- Added loading-state wait to `selectTrainingRun` helper: waits for NSelect disabled class to disappear before clicking, preventing race condition with async training run data loading
+- Consolidated 8 duplicate local helper definitions (`selectTrainingRun`, `selectNaiveOption`, `closeDrawer`) across spec files into shared `helpers.ts`
+
 ### B-049: Sample path scoping: Has Samples and validation must strictly scope to study dir
 - Validation methods now bypass the legacy `HasSamples` flag when a study name is provided, always checking the study-scoped directory `sample_dir/<study_name>/<checkpoint>/` directly
 - "Select Missing" button hidden when zero samples exist for the study+training run (only appears when some but not all exist)

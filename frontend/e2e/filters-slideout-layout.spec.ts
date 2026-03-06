@@ -1,5 +1,12 @@
 import { test, expect, type Page } from '@playwright/test'
-import { resetDatabase, openFiltersDrawer, closeFiltersDrawer } from './helpers'
+import {
+  resetDatabase,
+  selectTrainingRun,
+  selectNaiveOptionByLabel,
+  closeDrawer,
+  openFiltersDrawer,
+  closeFiltersDrawer,
+} from './helpers'
 
 /**
  * E2E tests for S-082: filters slideout, slider/zoom relocation.
@@ -18,43 +25,6 @@ import { resetDatabase, openFiltersDrawer, closeFiltersDrawer } from './helpers'
  */
 
 /**
- * Selects a training run from the sidebar NSelect dropdown.
- */
-async function selectTrainingRun(page: Page, runName: string): Promise<void> {
-  const selectTrigger = page.locator('[data-testid="training-run-select"]')
-  await expect(selectTrigger).toBeVisible()
-  await selectTrigger.click()
-  const popupMenu = page.locator('.n-base-select-menu:visible')
-  await expect(popupMenu).toBeVisible()
-  await popupMenu.getByText(runName, { exact: true }).click()
-  await expect(popupMenu).not.toBeVisible()
-}
-
-/**
- * Opens a Naive UI NSelect dropdown identified by aria-label.
- */
-async function selectNaiveOption(page: Page, selectAriaLabel: string, optionText: string): Promise<void> {
-  const select = page.locator(`[aria-label="${selectAriaLabel}"]`)
-  await select.click()
-  const popupMenu = page.locator('.n-base-select-menu:visible')
-  await expect(popupMenu).toBeVisible()
-  await popupMenu.getByText(optionText, { exact: true }).click()
-  await expect(popupMenu).not.toBeVisible()
-}
-
-/**
- * Closes the sidebar drawer if open.
- */
-async function closeDrawer(page: Page): Promise<void> {
-  const drawerCloseButton = page.locator('[aria-label="close"]').first()
-  if (await drawerCloseButton.isVisible()) {
-    await drawerCloseButton.click()
-    await expect(drawerCloseButton).not.toBeVisible()
-    await page.waitForTimeout(300)
-  }
-}
-
-/**
  * Selects the training run, assigns checkpoint to X and prompt_name to Slider,
  * then closes the sidebar drawer.
  */
@@ -62,8 +32,8 @@ async function setupWithSlider(page: Page): Promise<void> {
   await page.goto('/')
   await selectTrainingRun(page, 'my-model')
   await expect(page.getByText('Dimensions')).toBeVisible()
-  await selectNaiveOption(page, 'Role for checkpoint', 'X Axis')
-  await selectNaiveOption(page, 'Role for prompt_name', 'Slider')
+  await selectNaiveOptionByLabel(page, 'Role for checkpoint', 'X Axis')
+  await selectNaiveOptionByLabel(page, 'Role for prompt_name', 'Slider')
   await closeDrawer(page)
 }
 
@@ -75,8 +45,8 @@ async function setupWithAxes(page: Page): Promise<void> {
   await page.goto('/')
   await selectTrainingRun(page, 'my-model')
   await expect(page.getByText('Dimensions')).toBeVisible()
-  await selectNaiveOption(page, 'Role for checkpoint', 'X Axis')
-  await selectNaiveOption(page, 'Role for prompt_name', 'Y Axis')
+  await selectNaiveOptionByLabel(page, 'Role for checkpoint', 'X Axis')
+  await selectNaiveOptionByLabel(page, 'Role for prompt_name', 'Y Axis')
   await closeDrawer(page)
 }
 

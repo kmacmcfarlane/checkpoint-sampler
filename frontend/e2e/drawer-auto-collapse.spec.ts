@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { resetDatabase } from './helpers'
+import { resetDatabase, selectTrainingRun, selectNaiveOptionByLabel } from './helpers'
 
 /**
  * E2E tests for drawer auto-collapse on image grid interaction (S-069).
@@ -22,32 +22,10 @@ import { resetDatabase } from './helpers'
  */
 
 /**
- * Opens a Naive UI NSelect dropdown by aria-label and clicks optionText.
- */
-async function selectNaiveOption(page: Page, selectAriaLabel: string, optionText: string): Promise<void> {
-  const select = page.locator(`[aria-label="${selectAriaLabel}"]`)
-  await select.click()
-  const popupMenu = page.locator('.n-base-select-menu:visible')
-  await expect(popupMenu).toBeVisible()
-  await popupMenu.getByText(optionText, { exact: true }).click()
-  await expect(popupMenu).not.toBeVisible()
-}
-
-/**
- * Selects a training run from the sidebar NSelect dropdown.
- */
-async function selectTrainingRun(page: Page, runName: string): Promise<void> {
-  const selectTrigger = page.locator('[data-testid="training-run-select"]')
-  await expect(selectTrigger).toBeVisible()
-  await selectTrigger.click()
-  const popupMenu = page.locator('.n-base-select-menu:visible')
-  await expect(popupMenu).toBeVisible()
-  await popupMenu.getByText(runName, { exact: true }).click()
-  await expect(popupMenu).not.toBeVisible()
-}
-
-/**
  * Closes the drawer using its close button, waiting for the mask animation.
+ * Uses a stricter assertion than the shared closeDrawer helper since
+ * drawer-auto-collapse tests need to verify the entire .n-drawer element
+ * disappears, not just the close button.
  */
 async function closeDrawer(page: Page): Promise<void> {
   const closeBtn = page.locator('[aria-label="close"]').first()
@@ -76,8 +54,8 @@ async function setupGridOnNarrowScreen(page: Page): Promise<void> {
   await expect(page.getByText('Dimensions')).toBeVisible()
 
   // Assign checkpoint to X axis and prompt_name to Y axis
-  await selectNaiveOption(page, 'Role for checkpoint', 'X Axis')
-  await selectNaiveOption(page, 'Role for prompt_name', 'Y Axis')
+  await selectNaiveOptionByLabel(page, 'Role for checkpoint', 'X Axis')
+  await selectNaiveOptionByLabel(page, 'Role for prompt_name', 'Y Axis')
 
   // Verify grid is rendered
   await expect(page.locator('.xy-grid-container')).toBeVisible()
@@ -176,8 +154,8 @@ test.describe('drawer stays open on wide screen', () => {
     // Select training run and set up axes
     await selectTrainingRun(page, 'my-model')
     await expect(page.getByText('Dimensions')).toBeVisible()
-    await selectNaiveOption(page, 'Role for checkpoint', 'X Axis')
-    await selectNaiveOption(page, 'Role for prompt_name', 'Y Axis')
+    await selectNaiveOptionByLabel(page, 'Role for checkpoint', 'X Axis')
+    await selectNaiveOptionByLabel(page, 'Role for prompt_name', 'Y Axis')
 
     // Verify grid is visible
     await expect(page.locator('.xy-grid-container')).toBeVisible()
