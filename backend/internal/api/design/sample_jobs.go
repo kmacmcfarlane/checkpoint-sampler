@@ -188,7 +188,16 @@ var FailedItemDetailResponse = Type("FailedItemDetailResponse", func() {
 		Example("psai4rt-v0.3.0-no-reg-step00004500.safetensors")
 	})
 	Attribute("error_message", String, "Error message describing the failure", func() {
-		Example("read-only file system")
+		Example("[RuntimeError] VAEDecode: sizes must match")
+	})
+	Attribute("exception_type", String, "Python exception type from ComfyUI (e.g. RuntimeError)", func() {
+		Example("RuntimeError")
+	})
+	Attribute("node_type", String, "ComfyUI node type that failed (e.g. VAEDecode)", func() {
+		Example("VAEDecode")
+	})
+	Attribute("traceback", String, "Full Python stack trace from ComfyUI execution error", func() {
+		Example("Traceback (most recent call last):\n  File ...")
 	})
 	Required("checkpoint_filename", "error_message")
 })

@@ -202,6 +202,9 @@ export type SampleJobStatus = 'pending' | 'running' | 'stopped' | 'completed' | 
 export interface FailedItemDetail {
   checkpoint_filename: string
   error_message: string
+  exception_type?: string
+  node_type?: string
+  traceback?: string
 }
 
 /** A sample job. */
@@ -332,4 +335,5 @@ export interface JobProgressMessage {
   current_checkpoint_progress?: number
   current_checkpoint_total?: number
   checkpoint_completeness?: CheckpointCompletenessInfo[]
+  failed_item_details?: FailedItemDetail[]
 }

@@ -38,6 +38,7 @@ type JobProgressEventData struct {
 	CurrentCheckpointProgress  int
 	CurrentCheckpointTotal     int
 	CheckpointCompleteness     []CheckpointCompletenessInfo
+	FailedItemDetails          []FailedItemDetail
 }
 
 // InferenceProgressEventData contains per-node inference progress from ComfyUI.

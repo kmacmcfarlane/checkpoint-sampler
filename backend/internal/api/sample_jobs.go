@@ -233,13 +233,23 @@ func sampleJobToResponse(j model.SampleJob, counts model.ItemStatusCounts, faile
 		resp.ErrorMessage = &j.ErrorMessage
 	}
 
-	// Populate failed item details
+	// Populate failed item details with structured error info
 	resp.FailedItemDetails = make([]*gensamplejobs.FailedItemDetailResponse, len(failedDetails))
 	for i, d := range failedDetails {
-		resp.FailedItemDetails[i] = &gensamplejobs.FailedItemDetailResponse{
+		fd := &gensamplejobs.FailedItemDetailResponse{
 			CheckpointFilename: d.CheckpointFilename,
 			ErrorMessage:       d.ErrorMessage,
 		}
+		if d.ExceptionType != "" {
+			fd.ExceptionType = &d.ExceptionType
+		}
+		if d.NodeType != "" {
+			fd.NodeType = &d.NodeType
+		}
+		if d.Traceback != "" {
+			fd.Traceback = &d.Traceback
+		}
+		resp.FailedItemDetails[i] = fd
 	}
 
 	return resp

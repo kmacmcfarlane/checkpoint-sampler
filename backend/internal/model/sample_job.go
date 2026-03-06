@@ -52,6 +52,9 @@ type SampleJobItem struct {
 	ComfyUIPromptID    string
 	OutputPath         string
 	ErrorMessage       string
+	ExceptionType      string
+	NodeType           string
+	Traceback          string
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
 }
@@ -79,6 +82,9 @@ type ItemStatusCounts struct {
 type FailedItemDetail struct {
 	CheckpointFilename string
 	ErrorMessage       string
+	ExceptionType      string
+	NodeType           string
+	Traceback          string
 }
 
 // JobProgress contains computed progress metrics for a sample job.

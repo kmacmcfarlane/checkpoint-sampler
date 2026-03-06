@@ -123,6 +123,27 @@ func (c *streamClient) writePump() {
 				}
 				resp.CheckpointCompleteness = completeness
 			}
+			// Map failed item details with structured error info
+			if len(d.FailedItemDetails) > 0 {
+				details := make([]*genws.WSFailedItemDetail, len(d.FailedItemDetails))
+				for i, detail := range d.FailedItemDetails {
+					fd := &genws.WSFailedItemDetail{
+						CheckpointFilename: detail.CheckpointFilename,
+						ErrorMessage:       detail.ErrorMessage,
+					}
+					if detail.ExceptionType != "" {
+						fd.ExceptionType = &detail.ExceptionType
+					}
+					if detail.NodeType != "" {
+						fd.NodeType = &detail.NodeType
+					}
+					if detail.Traceback != "" {
+						fd.Traceback = &detail.Traceback
+					}
+					details[i] = fd
+				}
+				resp.FailedItemDetails = details
+			}
 		}
 
 		if err := c.stream.Send(resp); err != nil {

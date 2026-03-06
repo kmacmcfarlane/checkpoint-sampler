@@ -1343,6 +1343,117 @@ var _ = Describe("JobExecutor", func() {
 			Expect(items[0].Status).To(Equal(model.SampleJobItemStatusFailed))
 		})
 
+		// AC: BE: Parse and forward execution_error events with exception_message, exception_type, node_type
+		It("parses structured fields from execution_error event", func() {
+			event := model.ComfyUIEvent{
+				Type: "execution_error",
+				Data: map[string]interface{}{
+					"prompt_id":         "test-prompt-id",
+					"exception_message": "Given groups=1, weight of size [128, 4, 3, 3], expected input[1, 16, 64, 64] to have 4 channels",
+					"exception_type":    "RuntimeError",
+					"node_type":         "VAEDecode",
+					"traceback":         []interface{}{"Traceback (most recent call last):\n", "  File \"/comfyui/execution.py\", line 123\n", "RuntimeError: VAE mismatch\n"},
+				},
+			}
+
+			executor.handleComfyUIEvent(event)
+
+			// Verify item was marked as failed with structured error data
+			items := mockStore.items["job-1"]
+			Expect(items[0].Status).To(Equal(model.SampleJobItemStatusFailed))
+			Expect(items[0].ExceptionType).To(Equal("RuntimeError"))
+			Expect(items[0].NodeType).To(Equal("VAEDecode"))
+			Expect(items[0].Traceback).To(ContainSubstring("Traceback (most recent call last)"))
+			Expect(items[0].Traceback).To(ContainSubstring("RuntimeError: VAE mismatch"))
+			// Error message should be composed from structured fields
+			Expect(items[0].ErrorMessage).To(ContainSubstring("[RuntimeError]"))
+			Expect(items[0].ErrorMessage).To(ContainSubstring("VAEDecode:"))
+			Expect(items[0].ErrorMessage).To(ContainSubstring("expected input"))
+		})
+
+		// AC: BE: Include full traceback in WebSocket message
+		It("includes full traceback from execution_error in the stored item", func() {
+			event := model.ComfyUIEvent{
+				Type: "execution_error",
+				Data: map[string]interface{}{
+					"prompt_id":         "test-prompt-id",
+					"exception_message": "test error",
+					"exception_type":    "ValueError",
+					"node_type":         "KSampler",
+					"traceback": []interface{}{
+						"Traceback (most recent call last):\n",
+						"  File \"/comfyui/execution.py\", line 100, in execute\n",
+						"    return func()\n",
+						"ValueError: test error\n",
+					},
+				},
+			}
+
+			executor.handleComfyUIEvent(event)
+
+			items := mockStore.items["job-1"]
+			Expect(items[0].Traceback).To(Equal(
+				"Traceback (most recent call last):\n" +
+					"  File \"/comfyui/execution.py\", line 100, in execute\n" +
+					"    return func()\n" +
+					"ValueError: test error\n",
+			))
+		})
+
+		// AC: execution_error with missing optional fields gracefully degrades
+		It("handles execution_error with missing optional fields", func() {
+			event := model.ComfyUIEvent{
+				Type: "execution_error",
+				Data: map[string]interface{}{
+					"prompt_id": "test-prompt-id",
+					// No exception_message, exception_type, node_type, or traceback
+				},
+			}
+
+			executor.handleComfyUIEvent(event)
+
+			items := mockStore.items["job-1"]
+			Expect(items[0].Status).To(Equal(model.SampleJobItemStatusFailed))
+			Expect(items[0].ErrorMessage).To(Equal("unknown error"))
+			Expect(items[0].ExceptionType).To(BeEmpty())
+			Expect(items[0].NodeType).To(BeEmpty())
+			Expect(items[0].Traceback).To(BeEmpty())
+		})
+
+		// AC: execution_error broadcasts failed_item_details with structured error info
+		It("broadcasts failed_item_details with structured error info in job_progress event", func() {
+			event := model.ComfyUIEvent{
+				Type: "execution_error",
+				Data: map[string]interface{}{
+					"prompt_id":         "test-prompt-id",
+					"exception_message": "VAE mismatch",
+					"exception_type":    "RuntimeError",
+					"node_type":         "VAEDecode",
+					"traceback":         []interface{}{"Traceback line 1\n", "Traceback line 2\n"},
+				},
+			}
+
+			executor.handleComfyUIEvent(event)
+
+			// Should have broadcast a job_progress event with failed_item_details
+			Expect(mockHub.events).NotTo(BeEmpty())
+			var progressEvent *model.FSEvent
+			for i := range mockHub.events {
+				if mockHub.events[i].Type == model.EventJobProgress {
+					progressEvent = &mockHub.events[i]
+				}
+			}
+			Expect(progressEvent).NotTo(BeNil())
+			Expect(progressEvent.JobProgressData).NotTo(BeNil())
+			Expect(progressEvent.JobProgressData.FailedItemDetails).NotTo(BeEmpty())
+
+			detail := progressEvent.JobProgressData.FailedItemDetails[0]
+			Expect(detail.CheckpointFilename).To(Equal("test.safetensors"))
+			Expect(detail.ExceptionType).To(Equal("RuntimeError"))
+			Expect(detail.NodeType).To(Equal("VAEDecode"))
+			Expect(detail.Traceback).To(ContainSubstring("Traceback line 1"))
+		})
+
 		// AC: BE: ComfyUI executor forwards per-node progress events through the backend WebSocket
 		It("forwards progress events to the hub as inference_progress events", func() {
 			event := model.ComfyUIEvent{
@@ -1866,6 +1977,39 @@ var _ = Describe("JobExecutor", func() {
 			Expect(lastEvent.JobProgressData.Status).To(Equal("completed_with_errors"))
 			Expect(lastEvent.JobProgressData.CompletedItems).To(Equal(1))
 			Expect(lastEvent.JobProgressData.FailedItems).To(Equal(1))
+		})
+	})
+
+	// AC: BE: composeExecutionErrorMessage builds human-readable error summary
+	Describe("composeExecutionErrorMessage", func() {
+		It("formats with all fields: [ExceptionType] NodeType: message", func() {
+			msg := composeExecutionErrorMessage("RuntimeError", "VAEDecode", "channels mismatch")
+			Expect(msg).To(Equal("[RuntimeError] VAEDecode: channels mismatch"))
+		})
+
+		It("formats without exception type", func() {
+			msg := composeExecutionErrorMessage("", "VAEDecode", "channels mismatch")
+			Expect(msg).To(Equal("VAEDecode: channels mismatch"))
+		})
+
+		It("formats without node type", func() {
+			msg := composeExecutionErrorMessage("RuntimeError", "", "channels mismatch")
+			Expect(msg).To(Equal("[RuntimeError] channels mismatch"))
+		})
+
+		It("formats with only message", func() {
+			msg := composeExecutionErrorMessage("", "", "channels mismatch")
+			Expect(msg).To(Equal("channels mismatch"))
+		})
+
+		It("defaults to 'unknown error' when message is empty", func() {
+			msg := composeExecutionErrorMessage("RuntimeError", "VAEDecode", "")
+			Expect(msg).To(Equal("[RuntimeError] VAEDecode: unknown error"))
+		})
+
+		It("defaults to 'unknown error' when all fields are empty", func() {
+			msg := composeExecutionErrorMessage("", "", "")
+			Expect(msg).To(Equal("unknown error"))
 		})
 	})
 

@@ -47,6 +47,9 @@ type sampleJobItemEntity struct {
 	ComfyUIPromptID    sql.NullString
 	OutputPath         sql.NullString
 	ErrorMessage       sql.NullString
+	ExceptionType      string
+	NodeType           string
+	Traceback          string
 	CreatedAt          string // RFC3339
 	UpdatedAt          string // RFC3339
 }
@@ -242,7 +245,7 @@ func (s *Store) ListSampleJobItems(jobID string) ([]model.SampleJobItem, error) 
 	s.logger.WithField("job_id", jobID).Trace("entering ListSampleJobItems")
 	defer s.logger.Trace("returning from ListSampleJobItems")
 
-	rows, err := s.db.Query(`SELECT id, job_id, checkpoint_filename, comfyui_model_path, prompt_name, prompt_text, negative_prompt, steps, cfg, sampler_name, scheduler, seed, width, height, status, comfyui_prompt_id, output_path, error_message, created_at, updated_at
+	rows, err := s.db.Query(`SELECT id, job_id, checkpoint_filename, comfyui_model_path, prompt_name, prompt_text, negative_prompt, steps, cfg, sampler_name, scheduler, seed, width, height, status, comfyui_prompt_id, output_path, error_message, exception_type, node_type, traceback, created_at, updated_at
 		FROM sample_job_items WHERE job_id = ? ORDER BY created_at`, jobID)
 	if err != nil {
 		s.logger.WithFields(logrus.Fields{
@@ -256,7 +259,7 @@ func (s *Store) ListSampleJobItems(jobID string) ([]model.SampleJobItem, error) 
 	var items []model.SampleJobItem
 	for rows.Next() {
 		var e sampleJobItemEntity
-		if err := rows.Scan(&e.ID, &e.JobID, &e.CheckpointFilename, &e.ComfyUIModelPath, &e.PromptName, &e.PromptText, &e.NegativePrompt, &e.Steps, &e.CFG, &e.SamplerName, &e.Scheduler, &e.Seed, &e.Width, &e.Height, &e.Status, &e.ComfyUIPromptID, &e.OutputPath, &e.ErrorMessage, &e.CreatedAt, &e.UpdatedAt); err != nil {
+		if err := rows.Scan(&e.ID, &e.JobID, &e.CheckpointFilename, &e.ComfyUIModelPath, &e.PromptName, &e.PromptText, &e.NegativePrompt, &e.Steps, &e.CFG, &e.SamplerName, &e.Scheduler, &e.Seed, &e.Width, &e.Height, &e.Status, &e.ComfyUIPromptID, &e.OutputPath, &e.ErrorMessage, &e.ExceptionType, &e.NodeType, &e.Traceback, &e.CreatedAt, &e.UpdatedAt); err != nil {
 			s.logger.WithError(err).Error("failed to scan sample job item row")
 			return nil, fmt.Errorf("scanning sample job item row: %w", err)
 		}
@@ -289,8 +292,8 @@ func (s *Store) CreateSampleJobItem(i model.SampleJobItem) error {
 	entity := sampleJobItemModelToEntity(i)
 
 	_, err := s.db.Exec(
-		`INSERT INTO sample_job_items (id, job_id, checkpoint_filename, comfyui_model_path, prompt_name, prompt_text, negative_prompt, steps, cfg, sampler_name, scheduler, seed, width, height, status, comfyui_prompt_id, output_path, error_message, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO sample_job_items (id, job_id, checkpoint_filename, comfyui_model_path, prompt_name, prompt_text, negative_prompt, steps, cfg, sampler_name, scheduler, seed, width, height, status, comfyui_prompt_id, output_path, error_message, exception_type, node_type, traceback, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		entity.ID,
 		entity.JobID,
 		entity.CheckpointFilename,
@@ -309,6 +312,9 @@ func (s *Store) CreateSampleJobItem(i model.SampleJobItem) error {
 		entity.ComfyUIPromptID,
 		entity.OutputPath,
 		entity.ErrorMessage,
+		entity.ExceptionType,
+		entity.NodeType,
+		entity.Traceback,
 		entity.CreatedAt,
 		entity.UpdatedAt,
 	)
@@ -338,7 +344,7 @@ func (s *Store) UpdateSampleJobItem(i model.SampleJobItem) error {
 	entity := sampleJobItemModelToEntity(i)
 
 	result, err := s.db.Exec(
-		`UPDATE sample_job_items SET job_id = ?, checkpoint_filename = ?, comfyui_model_path = ?, prompt_name = ?, prompt_text = ?, negative_prompt = ?, steps = ?, cfg = ?, sampler_name = ?, scheduler = ?, seed = ?, width = ?, height = ?, status = ?, comfyui_prompt_id = ?, output_path = ?, error_message = ?, updated_at = ?
+		`UPDATE sample_job_items SET job_id = ?, checkpoint_filename = ?, comfyui_model_path = ?, prompt_name = ?, prompt_text = ?, negative_prompt = ?, steps = ?, cfg = ?, sampler_name = ?, scheduler = ?, seed = ?, width = ?, height = ?, status = ?, comfyui_prompt_id = ?, output_path = ?, error_message = ?, exception_type = ?, node_type = ?, traceback = ?, updated_at = ?
 		WHERE id = ?`,
 		entity.JobID,
 		entity.CheckpointFilename,
@@ -357,6 +363,9 @@ func (s *Store) UpdateSampleJobItem(i model.SampleJobItem) error {
 		entity.ComfyUIPromptID,
 		entity.OutputPath,
 		entity.ErrorMessage,
+		entity.ExceptionType,
+		entity.NodeType,
+		entity.Traceback,
 		entity.UpdatedAt,
 		entity.ID,
 	)
@@ -476,6 +485,9 @@ func sampleJobItemEntityToModel(e sampleJobItemEntity) (model.SampleJobItem, err
 		ComfyUIPromptID:    e.ComfyUIPromptID.String,
 		OutputPath:         e.OutputPath.String,
 		ErrorMessage:       e.ErrorMessage.String,
+		ExceptionType:      e.ExceptionType,
+		NodeType:           e.NodeType,
+		Traceback:          e.Traceback,
 		CreatedAt:          createdAt,
 		UpdatedAt:          updatedAt,
 	}, nil
@@ -505,6 +517,9 @@ func sampleJobItemModelToEntity(i model.SampleJobItem) sampleJobItemEntity {
 		ComfyUIPromptID:    promptID,
 		OutputPath:         outputPath,
 		ErrorMessage:       errMsg,
+		ExceptionType:      i.ExceptionType,
+		NodeType:           i.NodeType,
+		Traceback:          i.Traceback,
 		CreatedAt:          i.CreatedAt.UTC().Format(time.RFC3339),
 		UpdatedAt:          i.UpdatedAt.UTC().Format(time.RFC3339),
 	}
