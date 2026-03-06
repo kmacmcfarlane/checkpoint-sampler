@@ -54,8 +54,8 @@ async function setupGridOnNarrowScreen(page: Page): Promise<void> {
   await expect(page.getByText('Dimensions')).toBeVisible()
 
   // Assign checkpoint to X axis and prompt_name to Y axis
-  await selectNaiveOptionByLabel(page, 'Role for checkpoint', 'X Axis')
-  await selectNaiveOptionByLabel(page, 'Role for prompt_name', 'Y Axis')
+  await selectNaiveOptionByLabel(page, 'Mode for checkpoint', 'X Axis')
+  await selectNaiveOptionByLabel(page, 'Mode for prompt_name', 'Y Axis')
 
   // Verify grid is rendered
   await expect(page.locator('.xy-grid-container')).toBeVisible()
@@ -154,8 +154,8 @@ test.describe('drawer stays open on wide screen', () => {
     // Select training run and set up axes
     await selectTrainingRun(page, 'my-model')
     await expect(page.getByText('Dimensions')).toBeVisible()
-    await selectNaiveOptionByLabel(page, 'Role for checkpoint', 'X Axis')
-    await selectNaiveOptionByLabel(page, 'Role for prompt_name', 'Y Axis')
+    await selectNaiveOptionByLabel(page, 'Mode for checkpoint', 'X Axis')
+    await selectNaiveOptionByLabel(page, 'Mode for prompt_name', 'Y Axis')
 
     // Verify grid is visible
     await expect(page.locator('.xy-grid-container')).toBeVisible()

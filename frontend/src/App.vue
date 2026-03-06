@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import { NConfigProvider, NButton, NTag } from 'naive-ui'
-import type { TrainingRun, DimensionRole, FilterMode, Preset, SampleJob, SampleJobStatus, JobProgressMessage, InferenceProgressMessage } from './api/types'
+import type { TrainingRun, DimensionRole, FilterMode, UnifiedDimensionMode, Preset, SampleJob, SampleJobStatus, JobProgressMessage, InferenceProgressMessage } from './api/types'
 import { apiClient } from './api/client'
 import { useDimensionMapping } from './composables/useDimensionMapping'
 import { useImagePreloader } from './composables/useImagePreloader'
@@ -388,46 +388,58 @@ async function onTrainingRunSelect(run: TrainingRun) {
   }
 }
 
-function onAssignRole(dimensionName: string, role: DimensionRole) {
-  assignRole(dimensionName, role)
-}
+/**
+ * Handle the unified dimension mode change from DimensionPanel.
+ * Decomposes a UnifiedDimensionMode into role assignment and filter mode changes.
+ * Axis modes ('x', 'y', 'slider') assign the dimension to that axis.
+ * Filter modes ('single', 'multi', 'hide') unassign the dimension and set the filter.
+ */
+function onDimensionModeChange(dimensionName: string, mode: UnifiedDimensionMode) {
+  const AXIS_MODES: Set<string> = new Set(['x', 'y', 'slider'])
 
-function onFilterModeChange(dimensionName: string, mode: FilterMode) {
+  // Capture effective mode before any changes for transition logic
   const prevMode = getFilterMode(dimensionName)
-  setFilterMode(dimensionName, mode)
 
-  // When switching to 'single', reduce selection to one value
-  if (mode === 'single' && prevMode !== 'single') {
-    const current = comboSelections[dimensionName]
-    const dim = dimensions.value.find((d) => d.name === dimensionName)
-    if (dim) {
-      // Pick first previously-selected value that's still valid, or first value
-      let singleVal = dim.values[0]
-      if (current) {
-        for (const v of current) {
-          if (dim.values.includes(v)) {
-            singleVal = v
-            break
+  if (AXIS_MODES.has(mode)) {
+    // Assign to axis role — composable handles mutual exclusion and sets filter to 'multi'
+    assignRole(dimensionName, mode as DimensionRole)
+  } else {
+    // Unassign from any axis (set role to 'none')
+    assignRole(dimensionName, 'none')
+    // Then apply the selected filter mode
+    const filterMode = mode as FilterMode
+    setFilterMode(dimensionName, filterMode)
+
+    // Adjust combo selections based on filter mode transitions
+    if (filterMode === 'single' && prevMode !== 'single') {
+      const current = comboSelections[dimensionName]
+      const dim = dimensions.value.find((d) => d.name === dimensionName)
+      if (dim) {
+        let singleVal = dim.values[0]
+        if (current) {
+          for (const v of current) {
+            if (dim.values.includes(v)) {
+              singleVal = v
+              break
+            }
           }
         }
+        comboSelections[dimensionName] = new Set(singleVal ? [singleVal] : [])
       }
-      comboSelections[dimensionName] = new Set(singleVal ? [singleVal] : [])
     }
-  }
 
-  // When switching to 'hide', restore all values (include everything)
-  if (mode === 'hide') {
-    const dim = dimensions.value.find((d) => d.name === dimensionName)
-    if (dim) {
-      comboSelections[dimensionName] = new Set(dim.values)
+    if (filterMode === 'hide') {
+      const dim = dimensions.value.find((d) => d.name === dimensionName)
+      if (dim) {
+        comboSelections[dimensionName] = new Set(dim.values)
+      }
     }
-  }
 
-  // When switching to 'multi' from 'hide', start with all values selected
-  if (mode === 'multi' && prevMode === 'hide') {
-    const dim = dimensions.value.find((d) => d.name === dimensionName)
-    if (dim) {
-      comboSelections[dimensionName] = new Set(dim.values)
+    if (filterMode === 'multi' && (prevMode === 'hide' || prevMode === 'single')) {
+      const dim = dimensions.value.find((d) => d.name === dimensionName)
+      if (dim) {
+        comboSelections[dimensionName] = new Set(dim.values)
+      }
     }
   }
 }
@@ -775,8 +787,7 @@ const TERMINAL_STATUSES: Set<SampleJobStatus> = new Set(['completed', 'completed
               :dimensions="dimensions"
               :assignments="assignments"
               :filter-modes="filterModes"
-              @assign="onAssignRole"
-              @update:filter-mode="onFilterModeChange"
+              @update:mode="onDimensionModeChange"
             />
           </div>
         </template>

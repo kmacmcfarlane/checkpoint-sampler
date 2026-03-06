@@ -262,7 +262,7 @@ export async function selectNaiveOption(page: Page, selectTestId: string, option
 
 /**
  * Selects an option from a Naive UI NSelect dropdown identified by aria-label.
- * Used for dimension role selects (e.g., aria-label="Role for checkpoint").
+ * Used for dimension selects (e.g., aria-label="Mode for checkpoint").
  */
 export async function selectNaiveOptionByLabel(page: Page, selectAriaLabel: string, optionText: string): Promise<void> {
   const select = page.locator(`[aria-label="${selectAriaLabel}"]`)

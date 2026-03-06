@@ -82,8 +82,8 @@ test.describe('study-scoped watcher paths (B-042)', () => {
     await expect(page.getByText('Dimensions')).toBeVisible()
 
     // Assign axes: cfg -> X, prompt_name -> Y (matching demo preset layout)
-    await selectNaiveOptionByLabel(page, 'Role for cfg', 'X Axis')
-    await selectNaiveOptionByLabel(page, 'Role for prompt_name', 'Y Axis')
+    await selectNaiveOptionByLabel(page, 'Mode for cfg', 'X Axis')
+    await selectNaiveOptionByLabel(page, 'Mode for prompt_name', 'Y Axis')
 
     // Wait for grid images to appear
     const images = page.locator('.xy-grid [role="gridcell"] img')

@@ -161,7 +161,7 @@ stories:
   - id: S-089
     title: Unified dimension selector (X/Y/Slider, Single, Multi, Hide)
     type: feature
-    status: todo
+    status: uat
     priority: 45
     complexity: medium
     requires: []

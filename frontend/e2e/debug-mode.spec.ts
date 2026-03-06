@@ -27,8 +27,8 @@ async function setupGridWithAxes(page: Page): Promise<void> {
   await expect(page.getByText('Dimensions')).toBeVisible()
 
   // Assign checkpoint -> X axis, prompt_name -> Y axis
-  await selectNaiveOptionByLabel(page, 'Role for checkpoint', 'X Axis')
-  await selectNaiveOptionByLabel(page, 'Role for prompt_name', 'Y Axis')
+  await selectNaiveOptionByLabel(page, 'Mode for checkpoint', 'X Axis')
+  await selectNaiveOptionByLabel(page, 'Mode for prompt_name', 'Y Axis')
 
   // Wait for grid to render with images
   const gridCells = page.locator('.xy-grid [role="gridcell"]')
@@ -106,8 +106,8 @@ test.describe('debug mode overlay', () => {
 
     // Assign axes: checkpoint -> X, prompt_name -> Slider (both multi-value)
     // S-080: cfg and seed are single-value and have disabled role selects
-    await selectNaiveOptionByLabel(page, 'Role for checkpoint', 'X Axis')
-    await selectNaiveOptionByLabel(page, 'Role for prompt_name', 'Slider')
+    await selectNaiveOptionByLabel(page, 'Mode for checkpoint', 'X Axis')
+    await selectNaiveOptionByLabel(page, 'Mode for prompt_name', 'Slider')
 
     // Wait for grid
     await expect(page.locator('.xy-grid [role="gridcell"]').first()).toBeVisible()

@@ -41,8 +41,8 @@ test.describe('DimensionFilter solo click interaction', () => {
     await expect(page.getByText('Dimensions')).toBeVisible()
 
     // Assign checkpoint to X axis and prompt_name to Y axis
-    await selectNaiveOptionByLabel(page, 'Role for checkpoint', 'X Axis')
-    await selectNaiveOptionByLabel(page, 'Role for prompt_name', 'Y Axis')
+    await selectNaiveOptionByLabel(page, 'Mode for checkpoint', 'X Axis')
+    await selectNaiveOptionByLabel(page, 'Mode for prompt_name', 'Y Axis')
 
     // Close sidebar drawer to interact with main area
     await closeDrawer(page)
@@ -80,8 +80,8 @@ test.describe('DimensionFilter solo click interaction', () => {
     await expect(page.getByText('Dimensions')).toBeVisible()
 
     // Assign checkpoint to X axis and prompt_name to Y axis
-    await selectNaiveOptionByLabel(page, 'Role for checkpoint', 'X Axis')
-    await selectNaiveOptionByLabel(page, 'Role for prompt_name', 'Y Axis')
+    await selectNaiveOptionByLabel(page, 'Mode for checkpoint', 'X Axis')
+    await selectNaiveOptionByLabel(page, 'Mode for prompt_name', 'Y Axis')
 
     // Close sidebar drawer to interact with main area
     await closeDrawer(page)
