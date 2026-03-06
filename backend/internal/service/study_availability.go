@@ -67,11 +67,29 @@ func (s *StudyAvailabilityService) GetAvailability(studies []model.Study, tr mod
 			return nil, fmt.Errorf("listing checkpoint dirs for study %q: %w", study.Name, err)
 		}
 
+		// Count how many of the training run's checkpoints have a matching
+		// sample directory under this study.
+		cpDirSet := make(map[string]bool, len(checkpointDirs))
 		for _, cpDir := range checkpointDirs {
-			if checkpointSet[cpDir] {
-				avail.HasSamples = true
-				break
+			cpDirSet[cpDir] = true
+		}
+
+		matchCount := 0
+		for cp := range checkpointSet {
+			if cpDirSet[cp] {
+				matchCount++
 			}
+		}
+
+		totalCheckpoints := len(checkpointSet)
+		avail.HasSamples = matchCount > 0
+		switch {
+		case totalCheckpoints == 0 || matchCount == 0:
+			avail.SampleStatus = model.StudySampleStatusNone
+		case matchCount == totalCheckpoints:
+			avail.SampleStatus = model.StudySampleStatusComplete
+		default:
+			avail.SampleStatus = model.StudySampleStatusPartial
 		}
 
 		result = append(result, avail)

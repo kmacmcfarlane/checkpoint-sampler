@@ -397,29 +397,48 @@ const workflowOptions = computed(() =>
     }))
 )
 
-// AC3: Study options include sample availability info. When availability data is present,
-// each study is shown with a bead indicating sample availability for the selected training run.
+// Study options include sample availability info. When availability data is present,
+// each study is shown with a bead indicating sample completeness for the selected training run:
+//   green = complete (all checkpoints have samples)
+//   yellow = partial (some but not all checkpoints have samples)
+//   no bead = none (no samples for this training run)
 const studyOptions = computed(() => {
   return studies.value.map(p => {
     const avail = studyAvailability.value.find(a => a.study_id === p.id)
-    const hasSamples = avail?.has_samples ?? false
+    const sampleStatus = avail?.sample_status ?? 'none'
 
     return {
       label: p.name,
       value: p.id,
       // Metadata for bead rendering
-      _hasSamples: hasSamples,
+      _sampleStatus: sampleStatus,
       _hasAvailability: avail !== undefined,
     }
   })
 })
 
-// AC2: renderLabel function for the study NSelect, showing green bead for studies with samples.
+// Bead color for the study dropdown based on sample completeness status.
+// Returns the hex color for "complete" and "partial", or null for "none" (no bead shown).
+function studyBeadColor(sampleStatus: string): string | null {
+  switch (sampleStatus) {
+    case 'complete': return '#18a058' // green
+    case 'partial':  return '#f0a020' // yellow/amber
+    default:         return null      // no bead
+  }
+}
+
+// renderLabel function for the study NSelect.
+// Shows a green bead for complete studies, yellow for partial, no bead for none.
+//
+// IMPORTANT: VNodes returned from renderLabel are rendered outside Vue's scoped
+// compilation context, so scoped CSS classes are NOT applied. All styles must be inlined.
 const renderStudyLabel: SelectRenderLabel = (option) => {
-  const hasSamples = (option as { _hasSamples?: boolean })._hasSamples ?? false
-  const color = hasSamples ? '#18a058' : 'transparent'
-  return h('div', { style: { display: 'flex', alignItems: 'center', gap: '0.5rem' } }, [
-    h('span', {
+  const sampleStatus = (option as { _sampleStatus?: string })._sampleStatus ?? 'none'
+  const color = studyBeadColor(sampleStatus)
+  const children = [h('span', {}, String(option.label ?? ''))]
+
+  if (color !== null) {
+    children.unshift(h('span', {
       style: {
         display: 'inline-block',
         width: '10px',
@@ -427,11 +446,12 @@ const renderStudyLabel: SelectRenderLabel = (option) => {
         borderRadius: '50%',
         flexShrink: '0',
         backgroundColor: color,
-        border: hasSamples ? 'none' : '1px solid var(--border-color, #ccc)',
       },
-    }),
-    h('span', {}, String(option.label ?? '')),
-  ])
+      title: sampleStatus,
+    }))
+  }
+
+  return h('div', { style: { display: 'flex', alignItems: 'center', gap: '0.5rem' } }, children)
 }
 
 const vaeOptions = computed(() =>

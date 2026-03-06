@@ -59,7 +59,7 @@ var _ = Describe("StudyAvailabilityService", func() {
 	})
 
 	Describe("GetAvailability", func() {
-		It("returns has_samples=false when no checkpoint directories exist under study", func() {
+		It("returns has_samples=false and status=none when no checkpoint directories exist under study", func() {
 			studies := []model.Study{
 				{ID: "s1", Name: "MyStudy"},
 			}
@@ -77,9 +77,10 @@ var _ = Describe("StudyAvailabilityService", func() {
 			Expect(result[0].StudyID).To(Equal("s1"))
 			Expect(result[0].StudyName).To(Equal("MyStudy"))
 			Expect(result[0].HasSamples).To(BeFalse())
+			Expect(result[0].SampleStatus).To(Equal(model.StudySampleStatusNone))
 		})
 
-		It("marks has_samples=true when checkpoint dirs match", func() {
+		It("marks has_samples=true and status=complete when all checkpoint dirs match", func() {
 			studies := []model.Study{
 				{ID: "s1", Name: "MyStudy"},
 			}
@@ -91,16 +92,40 @@ var _ = Describe("StudyAvailabilityService", func() {
 				},
 			}
 
-			// Checkpoint directories under /samples/MyStudy
+			// All checkpoint directories present under /samples/MyStudy
 			fs.subdirs["/samples/MyStudy"] = []string{"cp1.safetensors", "cp2.safetensors"}
 
 			result, err := svc.GetAvailability(studies, tr)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result).To(HaveLen(1))
 			Expect(result[0].HasSamples).To(BeTrue())
+			Expect(result[0].SampleStatus).To(Equal(model.StudySampleStatusComplete))
 		})
 
-		It("marks has_samples=false when only non-matching checkpoint dirs exist", func() {
+		It("marks has_samples=true and status=partial when only some checkpoint dirs match", func() {
+			studies := []model.Study{
+				{ID: "s1", Name: "MyStudy"},
+			}
+			tr := model.TrainingRun{
+				Name: "model",
+				Checkpoints: []model.Checkpoint{
+					{Filename: "cp1.safetensors"},
+					{Filename: "cp2.safetensors"},
+					{Filename: "cp3.safetensors"},
+				},
+			}
+
+			// Only one of three checkpoints has a sample directory
+			fs.subdirs["/samples/MyStudy"] = []string{"cp1.safetensors"}
+
+			result, err := svc.GetAvailability(studies, tr)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result).To(HaveLen(1))
+			Expect(result[0].HasSamples).To(BeTrue())
+			Expect(result[0].SampleStatus).To(Equal(model.StudySampleStatusPartial))
+		})
+
+		It("marks has_samples=false and status=none when only non-matching checkpoint dirs exist", func() {
 			studies := []model.Study{
 				{ID: "s1", Name: "MyStudy"},
 			}
@@ -116,32 +141,64 @@ var _ = Describe("StudyAvailabilityService", func() {
 			result, err := svc.GetAvailability(studies, tr)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result[0].HasSamples).To(BeFalse())
+			Expect(result[0].SampleStatus).To(Equal(model.StudySampleStatusNone))
 		})
 
-		It("handles multiple studies", func() {
+		It("handles multiple studies with different statuses", func() {
 			studies := []model.Study{
 				{ID: "s1", Name: "StudyA"},
 				{ID: "s2", Name: "StudyB"},
+				{ID: "s3", Name: "StudyC"},
 			}
 			tr := model.TrainingRun{
 				Name: "model",
 				Checkpoints: []model.Checkpoint{
 					{Filename: "cp1.safetensors"},
+					{Filename: "cp2.safetensors"},
 				},
 			}
 
-			fs.subdirs["/samples/StudyA"] = []string{"cp1.safetensors"}
-			fs.subdirs["/samples/StudyB"] = []string{"other-dir"}
+			// StudyA: all checkpoints present (complete)
+			fs.subdirs["/samples/StudyA"] = []string{"cp1.safetensors", "cp2.safetensors"}
+			// StudyB: only one checkpoint (partial)
+			fs.subdirs["/samples/StudyB"] = []string{"cp1.safetensors"}
+			// StudyC: no matching checkpoints (none)
+			fs.subdirs["/samples/StudyC"] = []string{"other-dir"}
 
 			result, err := svc.GetAvailability(studies, tr)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(result).To(HaveLen(2))
+			Expect(result).To(HaveLen(3))
 
 			Expect(result[0].StudyID).To(Equal("s1"))
 			Expect(result[0].HasSamples).To(BeTrue())
+			Expect(result[0].SampleStatus).To(Equal(model.StudySampleStatusComplete))
 
 			Expect(result[1].StudyID).To(Equal("s2"))
-			Expect(result[1].HasSamples).To(BeFalse())
+			Expect(result[1].HasSamples).To(BeTrue())
+			Expect(result[1].SampleStatus).To(Equal(model.StudySampleStatusPartial))
+
+			Expect(result[2].StudyID).To(Equal("s3"))
+			Expect(result[2].HasSamples).To(BeFalse())
+			Expect(result[2].SampleStatus).To(Equal(model.StudySampleStatusNone))
+		})
+
+		It("returns status=none when training run has zero checkpoints", func() {
+			studies := []model.Study{
+				{ID: "s1", Name: "MyStudy"},
+			}
+			tr := model.TrainingRun{
+				Name:        "model",
+				Checkpoints: []model.Checkpoint{},
+			}
+
+			// Even if there are directories, zero checkpoints means no matches possible
+			fs.subdirs["/samples/MyStudy"] = []string{"cp1.safetensors"}
+
+			result, err := svc.GetAvailability(studies, tr)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result).To(HaveLen(1))
+			Expect(result[0].HasSamples).To(BeFalse())
+			Expect(result[0].SampleStatus).To(Equal(model.StudySampleStatusNone))
 		})
 
 		It("returns an error when listing study directories fails", func() {

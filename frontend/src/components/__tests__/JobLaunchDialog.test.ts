@@ -2844,18 +2844,20 @@ describe('JobLaunchDialog', () => {
       expect(wrapper.find('[data-testid="checkpoint-picker"]').exists()).toBe(false)
     })
 
-    // AC2: Green bead when study has samples for the selected training run
-    it('renders green bead for study with samples and transparent bead for study without', async () => {
+    // AC2: Green bead when study has complete samples for the selected training run
+    it('renders correct _sampleStatus for studies with complete, partial and no samples', async () => {
       mockGetStudyAvailability.mockResolvedValue([
         {
           study_id: 'preset-1',
           study_name: 'Quick Test',
           has_samples: true,
+          sample_status: 'complete',
         },
         {
           study_id: 'preset-2',
           study_name: 'Full Test',
           has_samples: false,
+          sample_status: 'none',
         },
       ])
 
@@ -2870,13 +2872,13 @@ describe('JobLaunchDialog', () => {
       await flushPromises()
 
       const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
-      const options = studySelect.props('options') as Array<{ label: string; value: string; _hasSamples: boolean }>
+      const options = studySelect.props('options') as Array<{ label: string; value: string; _sampleStatus: string }>
 
       const quickTest = options.find(o => o.value === 'preset-1')
-      expect(quickTest?._hasSamples).toBe(true)
+      expect(quickTest?._sampleStatus).toBe('complete')
 
       const fullTest = options.find(o => o.value === 'preset-2')
-      expect(fullTest?._hasSamples).toBe(false)
+      expect(fullTest?._sampleStatus).toBe('none')
     })
 
     it('sets renderLabel on the study select for bead rendering', async () => {
@@ -2890,7 +2892,7 @@ describe('JobLaunchDialog', () => {
       expect(typeof studySelect.props('renderLabel')).toBe('function')
     })
 
-    it('renderStudyLabel returns VNode with green bead for hasSamples option', async () => {
+    it('renderStudyLabel returns VNode with bead for complete status option', async () => {
       const wrapper = mount(JobLaunchDialog, {
         props: { show: true },
         global: { stubs: { Teleport: true } },
@@ -2903,13 +2905,14 @@ describe('JobLaunchDialog', () => {
       const vnode = renderLabel({
         label: 'Test Study',
         value: 'test-id',
-        _hasSamples: true,
+        _sampleStatus: 'complete',
         _hasAvailability: true,
       })
 
       expect(vnode).toBeTruthy()
       const children = (vnode as { children?: unknown[] }).children
       expect(Array.isArray(children)).toBe(true)
+      // Complete status: bead + label = 2 children
       expect((children as unknown[]).length).toBe(2)
     })
 
@@ -2920,11 +2923,13 @@ describe('JobLaunchDialog', () => {
           study_id: 'preset-1',
           study_name: 'Quick Test',
           has_samples: true,
+          sample_status: 'complete',
         },
         {
           study_id: 'preset-2',
           study_name: 'Full Test',
           has_samples: false,
+          sample_status: 'none',
         },
       ])
 
@@ -2979,6 +2984,7 @@ describe('JobLaunchDialog', () => {
           study_id: 'preset-1',
           study_name: 'Quick Test',
           has_samples: true,
+          sample_status: 'complete',
         },
       ])
 
@@ -2993,16 +2999,16 @@ describe('JobLaunchDialog', () => {
       await flushPromises()
 
       let options = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
-        .props('options') as Array<{ label: string; value: string; _hasSamples: boolean }>
-      expect(options.find(o => o.value === 'preset-1')?._hasSamples).toBe(true)
+        .props('options') as Array<{ label: string; value: string; _sampleStatus: string }>
+      expect(options.find(o => o.value === 'preset-1')?._sampleStatus).toBe('complete')
 
       // Deselect training run
       wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', null)
       await flushPromises()
 
       options = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
-        .props('options') as Array<{ label: string; value: string; _hasSamples: boolean }>
-      expect(options.find(o => o.value === 'preset-1')?._hasSamples).toBe(false)
+        .props('options') as Array<{ label: string; value: string; _sampleStatus: string }>
+      expect(options.find(o => o.value === 'preset-1')?._sampleStatus).toBe('none')
     })
 
     it('handles study availability API failure gracefully', async () => {
@@ -3019,9 +3025,192 @@ describe('JobLaunchDialog', () => {
 
       // Should not crash — study options still display without beads
       const options = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
-        .props('options') as Array<{ label: string; value: string; _hasSamples: boolean }>
+        .props('options') as Array<{ label: string; value: string; _sampleStatus: string }>
       expect(options).toHaveLength(2)
-      expect(options[0]._hasSamples).toBe(false)
+      expect(options[0]._sampleStatus).toBe('none')
+    })
+  })
+
+  // S-088: Study dropdown status beads — green for complete, yellow for partial, none for no samples
+  describe('study dropdown status beads (S-088)', () => {
+    it('study options use _sampleStatus field from availability data', async () => {
+      mockGetStudyAvailability.mockResolvedValue([
+        {
+          study_id: 'preset-1',
+          study_name: 'Quick Test',
+          has_samples: true,
+          sample_status: 'complete',
+        },
+        {
+          study_id: 'preset-2',
+          study_name: 'Full Test',
+          has_samples: true,
+          sample_status: 'partial',
+        },
+      ])
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      await flushPromises()
+
+      const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+      const options = studySelect.props('options') as Array<{ label: string; value: string; _sampleStatus: string }>
+
+      expect(options.find(o => o.value === 'preset-1')?._sampleStatus).toBe('complete')
+      expect(options.find(o => o.value === 'preset-2')?._sampleStatus).toBe('partial')
+    })
+
+    it('renderStudyLabel renders green bead for complete status', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+      const renderLabel = studySelect.props('renderLabel') as (option: Record<string, unknown>) => VNode
+
+      const vnode = renderLabel({
+        label: 'Complete Study',
+        value: 's1',
+        _sampleStatus: 'complete',
+        _hasAvailability: true,
+      })
+
+      // Should have 2 children: bead + label text
+      const children = (vnode as { children?: unknown[] }).children as unknown[]
+      expect(children).toHaveLength(2)
+
+      // The first child is the bead span
+      const beadSpan = children[0] as { props?: { style?: { backgroundColor?: string } } }
+      expect(beadSpan.props?.style?.backgroundColor).toBe('#18a058')
+    })
+
+    it('renderStudyLabel renders yellow bead for partial status', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+      const renderLabel = studySelect.props('renderLabel') as (option: Record<string, unknown>) => VNode
+
+      const vnode = renderLabel({
+        label: 'Partial Study',
+        value: 's2',
+        _sampleStatus: 'partial',
+        _hasAvailability: true,
+      })
+
+      // Should have 2 children: bead + label text
+      const children = (vnode as { children?: unknown[] }).children as unknown[]
+      expect(children).toHaveLength(2)
+
+      // The first child is the bead span with yellow color
+      const beadSpan = children[0] as { props?: { style?: { backgroundColor?: string } } }
+      expect(beadSpan.props?.style?.backgroundColor).toBe('#f0a020')
+    })
+
+    it('renderStudyLabel renders no bead for none status', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+      const renderLabel = studySelect.props('renderLabel') as (option: Record<string, unknown>) => VNode
+
+      const vnode = renderLabel({
+        label: 'Empty Study',
+        value: 's3',
+        _sampleStatus: 'none',
+        _hasAvailability: false,
+      })
+
+      // Should have only 1 child: just the label text (no bead)
+      const children = (vnode as { children?: unknown[] }).children as unknown[]
+      expect(children).toHaveLength(1)
+    })
+
+    it('study options default to _sampleStatus none when no availability data', async () => {
+      // Default mock: availability is empty
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+      const options = studySelect.props('options') as Array<{ label: string; value: string; _sampleStatus: string }>
+
+      // Both studies should default to 'none' when no availability info
+      for (const opt of options) {
+        expect(opt._sampleStatus).toBe('none')
+      }
+    })
+
+    it('beads update when training run selection changes', async () => {
+      // First training run has complete samples for preset-1
+      mockGetStudyAvailability.mockResolvedValueOnce([
+        {
+          study_id: 'preset-1',
+          study_name: 'Quick Test',
+          has_samples: true,
+          sample_status: 'complete',
+        },
+        {
+          study_id: 'preset-2',
+          study_name: 'Full Test',
+          has_samples: false,
+          sample_status: 'none',
+        },
+      ])
+      // Second training run has only partial for preset-1
+      mockGetStudyAvailability.mockResolvedValueOnce([
+        {
+          study_id: 'preset-1',
+          study_name: 'Quick Test',
+          has_samples: true,
+          sample_status: 'partial',
+        },
+        {
+          study_id: 'preset-2',
+          study_name: 'Full Test',
+          has_samples: true,
+          sample_status: 'complete',
+        },
+      ])
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select first training run
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      await flushPromises()
+
+      let options = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+        .props('options') as Array<{ value: string; _sampleStatus: string }>
+      expect(options.find(o => o.value === 'preset-1')?._sampleStatus).toBe('complete')
+      expect(options.find(o => o.value === 'preset-2')?._sampleStatus).toBe('none')
+
+      // Switch to second training run
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      await flushPromises()
+
+      options = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+        .props('options') as Array<{ value: string; _sampleStatus: string }>
+      expect(options.find(o => o.value === 'preset-1')?._sampleStatus).toBe('partial')
+      expect(options.find(o => o.value === 'preset-2')?._sampleStatus).toBe('complete')
     })
   })
 })
