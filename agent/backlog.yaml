@@ -613,7 +613,7 @@ stories:
   - id: B-054
     title: "viewer-discovery E2E tests fail — 'my-model' training run not found in API response"
     priority: 75
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:

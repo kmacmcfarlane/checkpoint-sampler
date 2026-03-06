@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-054: viewer-discovery E2E tests fail — 'my-model' training run not found in API response
+- Replaced inline NSelect click sequence in `viewer-discovery.spec.ts` with shared `selectTrainingRun` helper, fixing race condition where the selector was clicked before async data loading completed (same pattern as B-053)
+
 ### B-046: ComfyUI execution errors not displayed in job viewer
 - ComfyUI `execution_error` events now parsed for `exception_message`, `exception_type`, `node_type`, and `traceback`; forwarded through backend WebSocket to frontend
 - Job viewer shows structured error summary per-checkpoint with expandable Python stack trace toggle

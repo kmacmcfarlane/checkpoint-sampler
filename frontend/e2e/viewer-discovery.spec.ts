@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { resetDatabase } from './helpers'
+import { resetDatabase, selectTrainingRun } from './helpers'
 
 /**
  * E2E tests for viewer-driven discovery (S-081).
@@ -59,16 +59,10 @@ test.describe('viewer-driven discovery (S-081)', () => {
   test('training run is selectable and scan completes successfully', async ({ page }) => {
     await page.goto('/')
 
-    // The training run selector should be visible
-    const selectTrigger = page.locator('[data-testid="training-run-select"]')
-    await expect(selectTrigger).toBeVisible()
-
-    // Select the training run by its directory-derived name
-    await selectTrigger.click()
-    const popupMenu = page.locator('.n-base-select-menu:visible')
-    await expect(popupMenu).toBeVisible()
-    await popupMenu.getByText('my-model', { exact: true }).click()
-    await expect(popupMenu).not.toBeVisible()
+    // Select the training run by its directory-derived name.
+    // Uses selectTrainingRun helper which waits for the NSelect disabled state
+    // to clear before clicking, preventing races with async data loading (B-053/B-054).
+    await selectTrainingRun(page, 'my-model')
 
     // After selection, the app should scan and show the Dimensions panel
     await expect(page.getByText('Dimensions')).toBeVisible()

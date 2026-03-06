@@ -79,3 +79,9 @@ Three categories of expected errors in test logs are not yet in the allowlist: (
 * priority: very-low
 * source: qa
 The 0-byte `.safetensors` files in `test-fixtures/` cause "reading header length: EOF" errors on every checkpoint metadata scan. Adding a minimal valid safetensors header (8-byte length prefix + empty JSON object) would eliminate these log errors and provide more realistic test data.
+
+### Automated audit for bare NSelect click patterns in E2E specs
+* status: needs_approval
+* priority: low
+* source: developer
+A lint rule or pre-commit check that warns when `[data-testid="training-run-select"]` is clicked directly without using the `selectTrainingRun` helper would prevent recurrence of race conditions where NSelect is clicked before its loading state clears. B-053 and B-054 both fixed this same class of bug in different spec files.
