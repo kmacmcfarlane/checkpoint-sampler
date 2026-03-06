@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-057: Full E2E suite resource contention causes 15s timeout on 25 UI tests
+- Added `--disable-dev-shm-usage` and `--disable-gpu` Chromium launch args to prevent `/dev/shm` exhaustion over 130+ sequential tests in Docker
+- Increased playwright service `shm_size` to 256 MB as safety margin for residual shared memory writes
+
 ### B-056: sample-generation.spec.ts tests 2-4 fail because training run select menu does not open after first test
 - Added retry logic (up to 3 attempts) to `selectTrainingRun` E2E helper to handle NDrawer slide-in animation swallowing the NSelect trigger click
 - Changed `page.goto` to use `networkidle` in sample-generation.spec.ts beforeEach to prevent race with training-runs API response

@@ -666,7 +666,7 @@ stories:
   - id: B-057
     title: "Full E2E suite resource contention causes 15s timeout on 25 UI tests"
     priority: 55
-    status: todo
+    status: uat
     complexity: medium
     requires: []
     acceptance:
