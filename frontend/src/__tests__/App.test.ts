@@ -1092,6 +1092,126 @@ describe('App', () => {
     })
   })
 
+  // B-051: bead color rendering in the UI
+  describe('header bead color rendering (B-051)', () => {
+    const runWithSamples: TrainingRun = mockTrainingRun // has_samples=true
+
+    const emptyRun: TrainingRun = {
+      id: 2,
+      name: 'empty-run',
+      checkpoint_count: 1,
+      has_samples: false,
+      checkpoints: [],
+    }
+
+    function makeJob(status: SampleJob['status'], runName = 'test-run'): SampleJob {
+      return {
+        id: `job-${status}`,
+        training_run_name: runName,
+        study_id: 'study-1',
+        study_name: 'Test Study',
+        workflow_name: 'default',
+        vae: '',
+        clip: '',
+        status,
+        total_items: 10,
+        completed_items: 5,
+        failed_items: 0,
+        pending_items: 5,
+        created_at: '2024-01-01T00:00:00Z',
+        updated_at: '2024-01-01T00:00:00Z',
+      }
+    }
+
+    async function mountAndSelectRun(run: TrainingRun, jobs: SampleJob[]) {
+      mockListSampleJobs.mockResolvedValue(jobs)
+      Object.defineProperty(window, 'innerWidth', { value: 1200, configurable: true })
+      vi.stubGlobal('matchMedia', createMatchMediaMock(true))
+
+      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      await flushPromises()
+
+      const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
+      selector.vm.$emit('select', run)
+      await flushPromises()
+
+      // Open job panel to trigger fetchSampleJobs (populates sampleJobs ref)
+      const jobsBtn = wrapper.findAllComponents(NButton).find(
+        (b) => b.attributes('aria-label') === 'Toggle sample jobs panel',
+      )
+      await jobsBtn!.trigger('click')
+      await flushPromises()
+
+      return wrapper
+    }
+
+    it('shows green bead when run has_samples and no jobs', async () => {
+      const wrapper = await mountAndSelectRun(runWithSamples, [])
+      const bead = wrapper.find('[data-testid="jobs-bead"]')
+      expect(bead.exists()).toBe(true)
+      expect(bead.attributes('title')).toBe('complete')
+      // green = #18a058 → rgb(24, 160, 88)
+      expect(bead.attributes('style')).toContain('rgb(24, 160, 88)')
+    })
+
+    it('shows blue bead when a job is running', async () => {
+      const wrapper = await mountAndSelectRun(emptyRun, [makeJob('running', 'empty-run')])
+      const bead = wrapper.find('[data-testid="jobs-bead"]')
+      expect(bead.exists()).toBe(true)
+      expect(bead.attributes('title')).toBe('running')
+      // blue = #2080f0 → rgb(32, 128, 240)
+      expect(bead.attributes('style')).toContain('rgb(32, 128, 240)')
+    })
+
+    it('shows blue bead when a job is pending', async () => {
+      const wrapper = await mountAndSelectRun(emptyRun, [makeJob('pending', 'empty-run')])
+      const bead = wrapper.find('[data-testid="jobs-bead"]')
+      expect(bead.exists()).toBe(true)
+      expect(bead.attributes('title')).toBe('running')
+      expect(bead.attributes('style')).toContain('rgb(32, 128, 240)')
+    })
+
+    it('shows yellow bead when a job has completed_with_errors (partial failure)', async () => {
+      const wrapper = await mountAndSelectRun(emptyRun, [makeJob('completed_with_errors', 'empty-run')])
+      const bead = wrapper.find('[data-testid="jobs-bead"]')
+      expect(bead.exists()).toBe(true)
+      expect(bead.attributes('title')).toBe('complete_with_errors')
+      // yellow = #f0a020 → rgb(240, 160, 32)
+      expect(bead.attributes('style')).toContain('rgb(240, 160, 32)')
+    })
+
+    it('shows red bead when a job has failed (complete failure)', async () => {
+      const wrapper = await mountAndSelectRun(emptyRun, [makeJob('failed', 'empty-run')])
+      const bead = wrapper.find('[data-testid="jobs-bead"]')
+      expect(bead.exists()).toBe(true)
+      expect(bead.attributes('title')).toBe('failed')
+      // red = #d03050 → rgb(208, 48, 80)
+      expect(bead.attributes('style')).toContain('rgb(208, 48, 80)')
+    })
+
+    it('shows red bead when mix includes a failed job (red beats yellow)', async () => {
+      const wrapper = await mountAndSelectRun(emptyRun, [
+        makeJob('completed_with_errors', 'empty-run'),
+        makeJob('failed', 'empty-run'),
+      ])
+      const bead = wrapper.find('[data-testid="jobs-bead"]')
+      expect(bead.exists()).toBe(true)
+      expect(bead.attributes('title')).toBe('failed')
+      expect(bead.attributes('style')).toContain('rgb(208, 48, 80)')
+    })
+
+    it('shows yellow bead when mix includes complete_with_errors and running (yellow beats blue)', async () => {
+      const wrapper = await mountAndSelectRun(emptyRun, [
+        makeJob('running', 'empty-run'),
+        makeJob('completed_with_errors', 'empty-run'),
+      ])
+      const bead = wrapper.find('[data-testid="jobs-bead"]')
+      expect(bead.exists()).toBe(true)
+      expect(bead.attributes('title')).toBe('complete_with_errors')
+      expect(bead.attributes('style')).toContain('rgb(240, 160, 32)')
+    })
+  })
+
   // S-073: Per-sample inference progress bar reset behavior
   describe('handleJobProgress: inference progress reset between samples', () => {
     const runningJob: SampleJob = {

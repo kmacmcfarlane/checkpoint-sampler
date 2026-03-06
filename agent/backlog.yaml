@@ -352,7 +352,7 @@ stories:
   - id: B-051
     title: Job bead color precedence (green/blue/yellow/red)
     type: bug
-    status: todo
+    status: uat
     priority: 25
     complexity: low
     requires: []

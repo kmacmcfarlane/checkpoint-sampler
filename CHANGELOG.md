@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-051: Job bead color precedence (green/blue/yellow/red)
+- Fixed bead color mapping: `completed_with_errors` now shows yellow (was red), added `failed` status mapped to red (was unhandled/gray)
+- Extracted bead logic into `composables/beadStatus.ts` with correct precedence: red > yellow > blue > green
+
 ### B-055: Full E2E suite has systematic test isolation flakiness affecting ~29 tests
 - Added `afterEach` cleanup hooks to 5 spec files: `cancelAllJobs()` for sample job specs, `uninstallDemo()` for demo dataset specs
 - Enhanced `resetDatabase()` with post-reset `/health` check to guard against race conditions where subsequent API calls arrive before the backend has stabilized
