@@ -631,7 +631,7 @@ stories:
     title: "Full E2E suite has systematic test isolation flakiness affecting ~29 tests"
     priority: 50
     complexity: high
-    status: todo
+    status: uat
     requires: []
     acceptance:
       - "All E2E tests pass consistently in the full suite run (make test-e2e) without test-ordering dependency"

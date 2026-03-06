@@ -1,6 +1,7 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test'
 import {
   resetDatabase,
+  cancelAllJobs,
   selectTrainingRun,
   closeDrawer,
   openGenerateSamplesDialog,
@@ -139,6 +140,14 @@ test.describe('sample generation flow (with ComfyUI mock)', () => {
     await selectTrainingRun(page, 'my-model')
     // Wait for scan to complete (Dimensions panel appears in the drawer)
     await expect(page.getByText('Dimensions')).toBeVisible()
+  })
+
+  // Cancel any running/pending jobs after each test to prevent background
+  // processing from leaking into subsequent tests. The job executor may
+  // still be mid-item when a test finishes; cancelling ensures the executor
+  // does not continue saving images or sending WS events after the test ends.
+  test.afterEach(async ({ request }) => {
+    await cancelAllJobs(request)
   })
 
   // AC1: Full generation flow — select training run → configure → launch → job starts

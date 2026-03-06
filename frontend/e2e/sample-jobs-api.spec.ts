@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { resetDatabase } from './helpers'
+import { resetDatabase, cancelAllJobs } from './helpers'
 
 // AC: SampleJobsService methods return an empty result (or appropriate error)
 //     when no jobs exist
@@ -12,6 +12,13 @@ test.describe('sample-jobs API (ComfyUI configured in test environment)', () => 
   // AC: Each E2E test is independent -- reset database before each test
   test.beforeEach(async ({ request }) => {
     await resetDatabase(request)
+  })
+
+  // Cancel any running/pending jobs after each test to prevent background
+  // processing from leaking into subsequent tests. Tests in this spec
+  // create jobs via the API that auto-start via the executor.
+  test.afterEach(async ({ request }) => {
+    await cancelAllJobs(request)
   })
 
   test('GET /api/sample-jobs returns 200 with empty array', async ({ request }) => {

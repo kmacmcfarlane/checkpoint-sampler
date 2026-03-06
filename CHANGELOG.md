@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-055: Full E2E suite has systematic test isolation flakiness affecting ~29 tests
+- Added `afterEach` cleanup hooks to 5 spec files: `cancelAllJobs()` for sample job specs, `uninstallDemo()` for demo dataset specs
+- Enhanced `resetDatabase()` with post-reset `/health` check to guard against race conditions where subsequent API calls arrive before the backend has stabilized
+
 ### B-057: Full E2E suite resource contention causes 15s timeout on 25 UI tests
 - Added `--disable-dev-shm-usage` and `--disable-gpu` Chromium launch args to prevent `/dev/shm` exhaustion over 130+ sequential tests in Docker
 - Increased playwright service `shm_size` to 256 MB as safety margin for residual shared memory writes

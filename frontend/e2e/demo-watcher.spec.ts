@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { resetDatabase, selectTrainingRun, selectNaiveOptionByLabel } from './helpers'
+import { resetDatabase, selectTrainingRun, selectNaiveOptionByLabel, uninstallDemo } from './helpers'
 
 /**
  * E2E tests for B-042: Watcher correctly handles study-scoped training runs.
@@ -23,6 +23,12 @@ test.beforeEach(async ({ request }) => {
   await resetDatabase(request)
   // Ensure the demo dataset is installed (creates study-scoped directories)
   await request.post('/api/demo/install')
+})
+
+// Uninstall the demo dataset after each test to prevent filesystem artifacts
+// (demo-study/ directory, demo images) from leaking into subsequent spec files.
+test.afterEach(async ({ request }) => {
+  await uninstallDemo(request)
 })
 
 test.describe('study-scoped watcher paths (B-042)', () => {

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { resetDatabase, closeDrawer } from './helpers'
+import { resetDatabase, closeDrawer, uninstallDemo } from './helpers'
 
 /**
  * E2E tests for the demo dataset settings dialog (story S-078).
@@ -21,6 +21,14 @@ test.beforeEach(async ({ request }) => {
   // (the database reset clears the preset but the demo directory persists;
   // re-install ensures a clean, consistent state)
   await request.post('/api/demo/install')
+})
+
+// Uninstall the demo dataset after each test to prevent filesystem artifacts
+// (demo-study/ directory, demo images, demo preset) from leaking into
+// subsequent spec files. The resetDatabase in the next spec's beforeEach
+// cleans the DB, but the demo directory on disk persists unless explicitly removed.
+test.afterEach(async ({ request }) => {
+  await uninstallDemo(request)
 })
 
 test.describe('demo settings dialog (S-078)', () => {

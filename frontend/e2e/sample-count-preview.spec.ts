@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test'
 import {
   resetDatabase,
+  cancelAllJobs,
   selectTrainingRun,
   openGenerateSamplesDialog,
   getGenerateSamplesDialog,
@@ -47,6 +48,13 @@ async function selectNaiveOptionInContainer(
 test.describe('S-084: sample count preview and missing-sample generation', () => {
   test.beforeEach(async ({ request }) => {
     await resetDatabase(request)
+  })
+
+  // Cancel any running/pending jobs after each test. One test in this spec
+  // creates a sample job via the API; cancelling ensures the executor does
+  // not continue background processing into subsequent tests.
+  test.afterEach(async ({ request }) => {
+    await cancelAllJobs(request)
   })
 
   // AC3: Validate API returns total_expected, total_actual, total_missing fields

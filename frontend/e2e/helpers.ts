@@ -9,10 +9,66 @@ import { type APIRequestContext, type Page, expect } from '@playwright/test'
  * Call this in a beforeEach hook to ensure each test starts with a
  * predictable, empty database -- no leftover presets, jobs, or other
  * state from previous tests.
+ *
+ * The reset endpoint:
+ *   1. Pauses the job executor (clears active job/item/prompt state)
+ *   2. Drops all tables and reruns migrations
+ *   3. Removes study-generated sample directories from sample_dir
+ *   4. Resumes the job executor
+ *
+ * After the reset returns 200, we verify the backend is healthy by
+ * hitting /health. This guards against races where a subsequent API call
+ * arrives before the backend has fully stabilized after the reset.
  */
 export async function resetDatabase(request: APIRequestContext): Promise<void> {
   const response = await request.delete('/api/test/reset')
   expect(response.status()).toBe(200)
+
+  // Verify backend is healthy after reset — the executor has resumed and
+  // the fresh schema is ready to serve requests.
+  const healthResponse = await request.get('/health')
+  expect(healthResponse.status()).toBe(200)
+}
+
+/**
+ * Cancels all running or pending sample jobs via the API.
+ *
+ * Use this in afterEach hooks of spec files that create sample jobs
+ * (e.g., sample-generation.spec.ts, sample-jobs-api.spec.ts) to ensure
+ * no background job processing leaks into subsequent tests.
+ *
+ * The job executor may be mid-item when this is called. Deleting the job
+ * via the API marks it as cancelled and the executor will skip it on the
+ * next polling tick.
+ */
+export async function cancelAllJobs(request: APIRequestContext): Promise<void> {
+  const listResponse = await request.get('/api/sample-jobs')
+  if (listResponse.status() !== 200) return
+
+  const jobs = await listResponse.json() as Array<{ id: string; status: string }>
+  for (const job of jobs) {
+    if (job.status === 'pending' || job.status === 'running') {
+      await request.delete(`/api/sample-jobs/${job.id}`)
+    }
+  }
+}
+
+/**
+ * Uninstalls the demo dataset if it is currently installed.
+ *
+ * Use this in afterEach hooks of spec files that install the demo dataset
+ * (e.g., demo-settings.spec.ts, demo-watcher.spec.ts) to ensure the demo
+ * filesystem artifacts (directories, images, presets) do not leak into
+ * subsequent tests.
+ */
+export async function uninstallDemo(request: APIRequestContext): Promise<void> {
+  const statusResponse = await request.get('/api/demo/status')
+  if (statusResponse.status() !== 200) return
+
+  const status = await statusResponse.json()
+  if (status.installed) {
+    await request.delete('/api/demo')
+  }
 }
 
 /**
