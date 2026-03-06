@@ -9,6 +9,8 @@ import { useWebSocket } from './composables/useWebSocket'
 import { useTheme } from './composables/useTheme'
 import { usePresetPersistence } from './composables/usePresetPersistence'
 import { useLastTrainingRun } from './composables/useLastTrainingRun'
+import { getBeadStatus, BEAD_COLORS } from './composables/beadStatus'
+import type { BeadStatus } from './composables/beadStatus'
 import AppDrawer from './components/AppDrawer.vue'
 import TrainingRunSelector from './components/TrainingRunSelector.vue'
 import DimensionPanel from './components/DimensionPanel.vue'
@@ -628,37 +630,16 @@ const showProminentGenerateButton = computed(() => {
   return selectedTrainingRun.value && !selectedTrainingRun.value.has_samples
 })
 
-/** AC1: Status of the current sidebar-selected training run for header bead. */
-type TrainingRunButtonStatus = 'complete' | 'complete_with_errors' | 'running' | 'queued' | 'empty'
-
-function getTrainingRunButtonStatus(run: TrainingRun): TrainingRunButtonStatus {
-  const runJobs = sampleJobs.value.filter(j => j.training_run_name === run.name)
-  const hasRunning = runJobs.some(j => j.status === 'running')
-  const hasQueued = runJobs.some(j => j.status === 'pending' || j.status === 'stopped')
-  const hasCompletedWithErrors = runJobs.some(j => j.status === 'completed_with_errors')
-  if (hasRunning) return 'running'
-  if (hasQueued) return 'queued'
-  if (hasCompletedWithErrors) return 'complete_with_errors'
-  if (run.has_samples) return 'complete'
-  return 'empty'
-}
-
-const buttonBeadStatus = computed((): TrainingRunButtonStatus | null => {
+/** AC1–AC5 (B-051): Bead status and color for the Jobs nav button. */
+const buttonBeadStatus = computed((): BeadStatus | null => {
   if (!selectedTrainingRun.value) return null
-  return getTrainingRunButtonStatus(selectedTrainingRun.value)
+  return getBeadStatus(selectedTrainingRun.value, sampleJobs.value)
 })
 
 const buttonBeadColor = computed((): string | null => {
   const status = buttonBeadStatus.value
   if (!status) return null
-  const colorMap: Record<TrainingRunButtonStatus, string> = {
-    complete: '#18a058',
-    complete_with_errors: '#d03050',
-    running: '#2080f0',
-    queued: '#f0a020',
-    empty: '#909090',
-  }
-  return colorMap[status]
+  return BEAD_COLORS[status]
 })
 
 /** AC4: Counter incremented when a job completes via WebSocket to trigger dialog refresh. */
