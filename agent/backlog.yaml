@@ -279,7 +279,7 @@ stories:
   - id: B-048
     title: Audit and fix all E2E test failures + add E2E gate to UAT transition
     type: bug
-    status: todo
+    status: uat
     priority: 92
     complexity: high
     requires: []

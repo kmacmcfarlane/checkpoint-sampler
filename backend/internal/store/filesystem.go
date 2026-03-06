@@ -204,6 +204,57 @@ func (fs *FileSystem) ReadFile(path string) ([]byte, error) {
 	return data, nil
 }
 
+// SampleDirCleaner removes study-generated sample directories from the
+// sample directory root. It preserves directories whose names end in
+// ".safetensors" (checkpoint fixture directories) and removes everything
+// else (study-scoped directories created by the job executor during E2E
+// tests). This is used by the test reset endpoint to prevent filesystem
+// state from leaking between E2E tests.
+type SampleDirCleaner struct {
+	fs        *FileSystem
+	sampleDir string
+}
+
+// NewSampleDirCleaner creates a SampleDirCleaner for the given sample directory.
+func NewSampleDirCleaner(fs *FileSystem, sampleDir string) *SampleDirCleaner {
+	return &SampleDirCleaner{fs: fs, sampleDir: sampleDir}
+}
+
+// CleanStudyDirs removes non-safetensors directories from the sample_dir root.
+// These are study-scoped sample directories created during E2E tests.
+// Checkpoint fixture directories (*.safetensors) and regular files are preserved.
+func (c *SampleDirCleaner) CleanStudyDirs() error {
+	c.fs.logger.WithField("sample_dir", c.sampleDir).Info("cleaning study-generated sample directories")
+
+	entries, err := os.ReadDir(c.sampleDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			c.fs.logger.Debug("sample directory does not exist, nothing to clean")
+			return nil
+		}
+		return fmt.Errorf("reading sample directory %s: %w", c.sampleDir, err)
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		// Preserve checkpoint directories (*.safetensors)
+		if strings.HasSuffix(strings.ToLower(entry.Name()), ".safetensors") {
+			continue
+		}
+		// Remove study-generated directories
+		target := filepath.Join(c.sampleDir, entry.Name())
+		c.fs.logger.WithField("target", target).Info("removing study-generated sample directory")
+		if err := os.RemoveAll(target); err != nil {
+			return fmt.Errorf("removing study directory %s: %w", target, err)
+		}
+	}
+
+	c.fs.logger.Info("study-generated sample directories cleaned")
+	return nil
+}
+
 // OpenFile opens a file for reading. Implements service.CheckpointMetadataReader.
 func (fs *FileSystem) OpenFile(path string) (io.ReadCloser, error) {
 	fs.logger.WithField("path", path).Trace("entering OpenFile")

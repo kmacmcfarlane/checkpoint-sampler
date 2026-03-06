@@ -199,6 +199,9 @@ func run() error {
 	imagesEndpoints := genimages.NewEndpoints(imagesSvc)
 	wsEndpoints := genws.NewEndpoints(wsSvc)
 
+	// Create sample directory cleaner for test reset endpoint
+	sampleDirCleaner := store.NewSampleDirCleaner(fs, cfg.SampleDir)
+
 	// Build the HTTP handler with all transport setup
 	handler := api.NewHTTPHandler(api.HTTPHandlerConfig{
 		HealthEndpoints:        healthEndpoints,
@@ -218,6 +221,7 @@ func run() error {
 		Debug:                  true,
 		DBResetter:             st,
 		BackgroundPauser:       bgPauser,
+		SampleDirCleaner:       sampleDirCleaner,
 	})
 
 	// Create HTTP server

@@ -21,6 +21,14 @@ type BackgroundPauser interface {
 	Resume()
 }
 
+// SampleDirCleaner is an optional interface for removing study-generated
+// sample directories during test reset. When provided, study directories
+// (non-safetensors directories at the root of sample_dir) are removed to
+// prevent filesystem state from leaking between E2E tests.
+type SampleDirCleaner interface {
+	CleanStudyDirs() error
+}
+
 // MountTestResetEndpoint conditionally registers DELETE /api/test/reset on the
 // given mux. The endpoint is only mounted when the ENABLE_TEST_ENDPOINTS
 // environment variable is set to "true". It drops all tables and reruns
@@ -29,9 +37,12 @@ type BackgroundPauser interface {
 // If a BackgroundPauser is provided, it is paused before the reset and resumed
 // after, preventing race conditions with background polling loops.
 //
+// If a SampleDirCleaner is provided, study-generated sample directories are
+// removed to restore the sample_dir to its original fixture state.
+//
 // This is intended exclusively for E2E test isolation -- it must never be
 // enabled in production.
-func MountTestResetEndpoint(mux interface{ Handle(string, string, http.HandlerFunc) }, resetter DBResetter, pauser BackgroundPauser, logger *logrus.Logger) {
+func MountTestResetEndpoint(mux interface{ Handle(string, string, http.HandlerFunc) }, resetter DBResetter, pauser BackgroundPauser, cleaner SampleDirCleaner, logger *logrus.Logger) {
 	if os.Getenv("ENABLE_TEST_ENDPOINTS") != "true" {
 		return
 	}
@@ -39,7 +50,7 @@ func MountTestResetEndpoint(mux interface{ Handle(string, string, http.HandlerFu
 	logger.Warn("test-only reset endpoint enabled (ENABLE_TEST_ENDPOINTS=true)")
 
 	mux.Handle("DELETE", "/api/test/reset", func(w http.ResponseWriter, r *http.Request) {
-		logger.Info("test reset endpoint called -- resetting database")
+		logger.Info("test reset endpoint called -- resetting database and sample directory")
 
 		// Pause background processes to prevent SQL errors during table
 		// drop/recreate. Resume is deferred so it always runs, even if
@@ -55,7 +66,17 @@ func MountTestResetEndpoint(mux interface{ Handle(string, string, http.HandlerFu
 			return
 		}
 
-		logger.Info("database reset completed successfully")
+		// Clean up study-generated sample directories to prevent
+		// filesystem state from leaking between E2E tests.
+		if cleaner != nil {
+			if err := cleaner.CleanStudyDirs(); err != nil {
+				logger.WithError(err).Error("sample directory cleanup failed")
+				http.Error(w, "sample directory cleanup failed", http.StatusInternalServerError)
+				return
+			}
+		}
+
+		logger.Info("database reset and sample directory cleanup completed successfully")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"reset_complete"}`))
 	})

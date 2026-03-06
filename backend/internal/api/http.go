@@ -65,6 +65,13 @@ type HTTPHandlerConfig struct {
 	// the test reset endpoint calls Pause() before dropping tables and
 	// Resume() after recreating them to prevent SQL race conditions.
 	BackgroundPauser BackgroundPauser
+
+	// SampleDirCleaner is an optional dependency for removing study-generated
+	// sample directories during test reset. When non-nil and
+	// ENABLE_TEST_ENDPOINTS=true, the test reset endpoint removes study
+	// directories from sample_dir to prevent filesystem state leaking
+	// between E2E tests.
+	SampleDirCleaner SampleDirCleaner
 }
 
 // NewHTTPHandler creates a fully wired http.Handler with all Goa services,
@@ -128,7 +135,7 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 
 	// Mount test-only endpoints (no-op unless ENABLE_TEST_ENDPOINTS=true)
 	if cfg.DBResetter != nil {
-		MountTestResetEndpoint(mux, cfg.DBResetter, cfg.BackgroundPauser, cfg.Logger)
+		MountTestResetEndpoint(mux, cfg.DBResetter, cfg.BackgroundPauser, cfg.SampleDirCleaner, cfg.Logger)
 	}
 
 	// Redirect /docs to /docs/ for the Swagger UI

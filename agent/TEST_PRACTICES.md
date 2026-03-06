@@ -261,6 +261,17 @@ This verifies that the application starts, serves requests, and that user-facing
 
 Results (tests run, passed, failed) must be recorded in the "E2E Test Results" section of the QA verdict.
 
+### 5.5.1 E2E gate requirement (MANDATORY)
+
+The full E2E suite must pass with **zero failures** before any story transitions from `testing` to `uat`. This is a hard gate — no exceptions.
+
+- The QA expert must run `make test-e2e` and verify all tests pass.
+- If any E2E tests fail due to the story's changes, the story is rejected back to `in_progress` with feedback describing the failures.
+- If any E2E tests fail due to pre-existing/unrelated issues, the QA expert must fix or skip those tests (with documented skip reasons and filed bug tickets) before approving the story. The final `make test-e2e` run must show zero failures.
+- E2E pass/fail counts must be recorded in the QA verdict's "E2E Test Results" section.
+
+This gate was introduced by B-048 after discovering that E2E test failures can cascade silently across spec files due to shared test fixture state (e.g., sample directories deleted by one test affecting all subsequent tests).
+
 ### 5.6 Manual HTTP verification (secondary — debugging aid only)
 
 Manual curl/HTTP checks are a debugging tool, not a substitute for E2E tests. Use them only when:
@@ -419,4 +430,5 @@ A story may be set to `status: uat` only when:
 - New/changed behavior is covered by tests following these practices.
 - Tests are deterministic and fast enough for watch workflows.
 - All relevant suites pass locally and in docker watch mode (when applicable).
+- The full E2E suite (`make test-e2e`) passes with zero failures (see section 5.5.1).
 - The QA expert subagent has approved the story (see section 5).

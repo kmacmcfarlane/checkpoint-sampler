@@ -258,12 +258,13 @@ Based on the story's current status, invoke the appropriate subagent:
    - **Change summary** extracted from the fullstack engineer's verdict (see section 4.3.2)
 3. The QA expert is the sole owner of E2E tests. It will run `make test-e2e` as part of its verification. This command is self-contained — it starts an isolated backend + frontend stack (`checkpoint-sampler-test`), runs all Playwright tests, and tears down automatically. The orchestrator does NOT need to ensure `make up-dev` is running before dispatching to QA for E2E tests.
 4. Parse the QA verdict for the story result, E2E test results, and runtime error sweep findings.
-5. If approved: `backlog.py set <id> status uat` (finalization per section 4.5)
-6. If issues found:
+5. **E2E gate**: The full E2E suite (`make test-e2e`) must pass with zero failures before the story can transition to `uat`. If any E2E tests fail, the QA expert must either fix the tests (if pre-existing/unrelated) or reject the story back to `in_progress`. A story MUST NOT advance to `uat` with known E2E failures.
+6. If approved: `backlog.py set <id> status uat` (finalization per section 4.5)
+7. If issues found:
    - `backlog.py set <id> status in_progress`
    - `echo "<feedback>" | backlog.py set-text <id> review_feedback`
-7. After the story status transition, process any sweep findings per section 4.4.1.
-8. After the story status transition, process any E2E failure bug tickets per section 4.4.2.
+8. After the story status transition, process any sweep findings per section 4.4.1.
+9. After the story status transition, process any E2E failure bug tickets per section 4.4.2.
 
 ### 4.3.2 Change summary extraction and passthrough
 
@@ -475,15 +476,16 @@ A story may be set to `status: uat` only if all are true:
 4) Lint/typecheck passes where applicable (per story scope).
 5) Code review passed (story went through `review` → `testing` transition).
 6) QA testing passed (QA expert reports APPROVED).
-7) No scope violations:
+7) **E2E gate**: The full E2E suite (`make test-e2e`) passes with zero failures. No story may advance to `uat` with known E2E test failures.
+8) No scope violations:
     - no generated code edits in internal/api/gen or **/mocks or inside node_modules or any other generated/external code
     - no unofficial workarounds for stubbed features
     - no secrets added to repo or logs
 
 **Performed by the orchestrator (after QA approval):**
-8) /CHANGELOG.md updated with the story entry.
-9) Work committed with correct message format (unless story explicitly overrides).
-10) Feature branch merged to main (per commit/merge policy in PROMPT.md).
+9) /CHANGELOG.md updated with the story entry.
+10) Work committed with correct message format (unless story explicitly overrides).
+11) Feature branch merged to main (per commit/merge policy in PROMPT.md).
 
 ### 5.2 Entry to `done` (user-driven)
 

@@ -54,6 +54,17 @@ func (f *fakePauser) Resume() {
 	f.resumeOrder = *f.callCounter
 }
 
+// fakeSampleDirCleaner is a test double for the SampleDirCleaner interface.
+type fakeSampleDirCleaner struct {
+	called bool
+	err    error
+}
+
+func (f *fakeSampleDirCleaner) CleanStudyDirs() error {
+	f.called = true
+	return f.err
+}
+
 var _ = Describe("MountTestResetEndpoint", func() {
 	var (
 		mux      goahttp.Muxer
@@ -74,7 +85,7 @@ var _ = Describe("MountTestResetEndpoint", func() {
 		})
 
 		It("does not mount the endpoint", func() {
-			api.MountTestResetEndpoint(mux, resetter, nil, logger)
+			api.MountTestResetEndpoint(mux, resetter, nil, nil, logger)
 
 			server := httptest.NewServer(mux)
 			defer server.Close()
@@ -102,7 +113,7 @@ var _ = Describe("MountTestResetEndpoint", func() {
 		})
 
 		It("mounts the endpoint and calls ResetDB on DELETE", func() {
-			api.MountTestResetEndpoint(mux, resetter, nil, logger)
+			api.MountTestResetEndpoint(mux, resetter, nil, nil, logger)
 
 			server := httptest.NewServer(mux)
 			defer server.Close()
@@ -124,7 +135,7 @@ var _ = Describe("MountTestResetEndpoint", func() {
 
 		It("returns 500 when ResetDB fails", func() {
 			resetter.err = fmt.Errorf("db error")
-			api.MountTestResetEndpoint(mux, resetter, nil, logger)
+			api.MountTestResetEndpoint(mux, resetter, nil, nil, logger)
 
 			server := httptest.NewServer(mux)
 			defer server.Close()
@@ -143,7 +154,7 @@ var _ = Describe("MountTestResetEndpoint", func() {
 		// executor to prevent SQL errors during table recreation.
 		It("pauses and resumes the background pauser during reset", func() {
 			pauser := newFakePauser()
-			api.MountTestResetEndpoint(mux, resetter, pauser, logger)
+			api.MountTestResetEndpoint(mux, resetter, pauser, nil, logger)
 
 			server := httptest.NewServer(mux)
 			defer server.Close()
@@ -165,7 +176,7 @@ var _ = Describe("MountTestResetEndpoint", func() {
 		It("resumes the pauser even when ResetDB fails", func() {
 			resetter.err = fmt.Errorf("db error")
 			pauser := newFakePauser()
-			api.MountTestResetEndpoint(mux, resetter, pauser, logger)
+			api.MountTestResetEndpoint(mux, resetter, pauser, nil, logger)
 
 			server := httptest.NewServer(mux)
 			defer server.Close()
@@ -184,7 +195,7 @@ var _ = Describe("MountTestResetEndpoint", func() {
 		})
 
 		It("works without a pauser (nil pauser)", func() {
-			api.MountTestResetEndpoint(mux, resetter, nil, logger)
+			api.MountTestResetEndpoint(mux, resetter, nil, nil, logger)
 
 			server := httptest.NewServer(mux)
 			defer server.Close()
@@ -199,6 +210,79 @@ var _ = Describe("MountTestResetEndpoint", func() {
 			Expect(resp.StatusCode).To(Equal(http.StatusOK))
 			Expect(resetter.called).To(BeTrue())
 		})
+
+		It("calls CleanStudyDirs when a sample dir cleaner is provided", func() {
+			cleaner := &fakeSampleDirCleaner{}
+			api.MountTestResetEndpoint(mux, resetter, nil, cleaner, logger)
+
+			server := httptest.NewServer(mux)
+			defer server.Close()
+
+			req, err := http.NewRequest(http.MethodDelete, server.URL+"/api/test/reset", nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			resp, err := http.DefaultClient.Do(req)
+			Expect(err).NotTo(HaveOccurred())
+			defer resp.Body.Close()
+
+			Expect(resp.StatusCode).To(Equal(http.StatusOK))
+			Expect(resetter.called).To(BeTrue())
+			Expect(cleaner.called).To(BeTrue())
+		})
+
+		It("returns 500 when CleanStudyDirs fails", func() {
+			cleaner := &fakeSampleDirCleaner{err: fmt.Errorf("cleanup error")}
+			api.MountTestResetEndpoint(mux, resetter, nil, cleaner, logger)
+
+			server := httptest.NewServer(mux)
+			defer server.Close()
+
+			req, err := http.NewRequest(http.MethodDelete, server.URL+"/api/test/reset", nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			resp, err := http.DefaultClient.Do(req)
+			Expect(err).NotTo(HaveOccurred())
+			defer resp.Body.Close()
+
+			Expect(resp.StatusCode).To(Equal(http.StatusInternalServerError))
+		})
+
+		It("works without a sample dir cleaner (nil cleaner)", func() {
+			api.MountTestResetEndpoint(mux, resetter, nil, nil, logger)
+
+			server := httptest.NewServer(mux)
+			defer server.Close()
+
+			req, err := http.NewRequest(http.MethodDelete, server.URL+"/api/test/reset", nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			resp, err := http.DefaultClient.Do(req)
+			Expect(err).NotTo(HaveOccurred())
+			defer resp.Body.Close()
+
+			Expect(resp.StatusCode).To(Equal(http.StatusOK))
+			Expect(resetter.called).To(BeTrue())
+		})
+
+		It("does not call CleanStudyDirs when ResetDB fails", func() {
+			resetter.err = fmt.Errorf("db error")
+			cleaner := &fakeSampleDirCleaner{}
+			api.MountTestResetEndpoint(mux, resetter, nil, cleaner, logger)
+
+			server := httptest.NewServer(mux)
+			defer server.Close()
+
+			req, err := http.NewRequest(http.MethodDelete, server.URL+"/api/test/reset", nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			resp, err := http.DefaultClient.Do(req)
+			Expect(err).NotTo(HaveOccurred())
+			defer resp.Body.Close()
+
+			Expect(resp.StatusCode).To(Equal(http.StatusInternalServerError))
+			// CleanStudyDirs should NOT be called when DB reset fails
+			Expect(cleaner.called).To(BeFalse())
+		})
 	})
 
 	Context("when ENABLE_TEST_ENDPOINTS is set to a non-true value", func() {
@@ -211,7 +295,7 @@ var _ = Describe("MountTestResetEndpoint", func() {
 		})
 
 		It("does not mount the endpoint", func() {
-			api.MountTestResetEndpoint(mux, resetter, nil, logger)
+			api.MountTestResetEndpoint(mux, resetter, nil, nil, logger)
 
 			server := httptest.NewServer(mux)
 			defer server.Close()

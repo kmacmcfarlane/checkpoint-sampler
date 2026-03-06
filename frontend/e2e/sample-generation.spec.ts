@@ -157,21 +157,7 @@ test.describe('sample generation flow (with ComfyUI mock)', () => {
     // training-run-select (both share the same data-testid).
     await selectNaiveOptionInContainer(page, dialog, 'training-run-select', 'my-model')
 
-    // Step 3: Uncheck "Clear existing samples" if auto-checked.
-    // When a training run already has samples (has_samples: true), the dialog
-    // auto-checks this option. Clearing samples would delete the test fixture
-    // images that other E2E specs (training-run-grid, viewer-discovery) depend on.
-    // Naive UI NCheckbox hides the native <input> (opacity:0), so Playwright's
-    // isChecked() hangs waiting for visibility. Use the CSS class instead.
-    const clearExistingCheckbox = page.locator('[data-testid="clear-existing-checkbox"]')
-    if (await clearExistingCheckbox.isVisible()) {
-      const isChecked = await clearExistingCheckbox.evaluate(el => el.classList.contains('n-checkbox--checked'))
-      if (isChecked) {
-        await clearExistingCheckbox.click()
-      }
-    }
-
-    // Step 4: Create a study via the Manage Studies editor
+    // Step 3: Create a study via the Manage Studies editor
     const manageStudiesButton = page.locator('[data-testid="manage-studies-button"]')
     await expect(manageStudiesButton).toBeVisible()
     await manageStudiesButton.click()
@@ -199,23 +185,38 @@ test.describe('sample generation flow (with ComfyUI mock)', () => {
     const studySelect = page.locator('[data-testid="study-select"]')
     await expect(studySelect).toContainText(studyName)
 
-    // Step 5: Select the test workflow (test-workflow.json from test-fixtures/workflows/)
+    // Step 4: Select the test workflow (test-workflow.json from test-fixtures/workflows/)
     // AC2: ComfyUI mock serves the workflow list via the backend's workflow loader
     const workflowSelect = page.locator('[data-testid="workflow-select"]')
     await expect(workflowSelect).toBeVisible()
     await selectNaiveOption(page, 'workflow-select', 'test-workflow.json')
 
-    // Step 6: Select VAE model (served by ComfyUI mock's /object_info/VAELoader)
+    // Step 5: Select VAE model (served by ComfyUI mock's /object_info/VAELoader)
     // AC2: Mock returns 'test-vae.safetensors' in the VAELoader object_info response
     const vaeSelect = page.locator('[data-testid="vae-select"]')
     await expect(vaeSelect).toBeVisible()
     await selectNaiveOption(page, 'vae-select', 'test-vae.safetensors')
 
-    // Step 7: Select CLIP model (served by ComfyUI mock's /object_info/CLIPLoader)
+    // Step 6: Select CLIP model (served by ComfyUI mock's /object_info/CLIPLoader)
     // AC2: Mock returns 'test-clip.safetensors' in the CLIPLoader object_info response
     const clipSelect = page.locator('[data-testid="clip-select"]')
     await expect(clipSelect).toBeVisible()
     await selectNaiveOption(page, 'clip-select', 'test-clip.safetensors')
+
+    // Step 7: Uncheck "Clear existing samples" if auto-checked.
+    // This checkbox is only rendered AFTER validation completes (v-if="selectedRunHasSamples && validationResult"),
+    // which happens after both training run and study are selected. We must wait for it to appear
+    // before attempting to uncheck. Clearing samples would delete the test fixture images
+    // that other E2E specs (training-run-grid, viewer-discovery) depend on.
+    const clearExistingCheckbox = page.locator('[data-testid="clear-existing-checkbox"]')
+    // Wait for the checkbox to appear (validation runs after study selection)
+    await expect(clearExistingCheckbox).toBeVisible({ timeout: 10000 })
+    const isChecked = await clearExistingCheckbox.evaluate(el => el.classList.contains('n-checkbox--checked'))
+    if (isChecked) {
+      await clearExistingCheckbox.click()
+      // Verify it was unchecked
+      await expect(clearExistingCheckbox).not.toHaveClass(/n-checkbox--checked/)
+    }
 
     // Step 8: Verify the submit button is now enabled (all required fields filled)
     const submitButton = getGenerateSamplesDialog(page).locator('button').filter({ hasText: /Generate Samples|Regenerate Samples/ }).first()
@@ -263,16 +264,6 @@ test.describe('sample generation flow (with ComfyUI mock)', () => {
     const dialog = getGenerateSamplesDialog(page)
     await selectNaiveOptionInContainer(page, dialog, 'training-run-select', 'my-model')
 
-    // Uncheck "Clear existing samples" if auto-checked (protects test fixture images)
-    // Naive UI NCheckbox hides the native <input> (opacity:0); use CSS class to detect state.
-    const clearExistingCheckbox = page.locator('[data-testid="clear-existing-checkbox"]')
-    if (await clearExistingCheckbox.isVisible()) {
-      const isChecked = await clearExistingCheckbox.evaluate(el => el.classList.contains('n-checkbox--checked'))
-      if (isChecked) {
-        await clearExistingCheckbox.click()
-      }
-    }
-
     await page.locator('[data-testid="manage-studies-button"]').click()
     await expect(getManageStudiesDialog(page)).toBeVisible()
     await page.locator('[data-testid="new-study-button"]').click()
@@ -288,6 +279,16 @@ test.describe('sample generation flow (with ComfyUI mock)', () => {
     await selectNaiveOption(page, 'workflow-select', 'test-workflow.json')
     await selectNaiveOption(page, 'vae-select', 'test-vae.safetensors')
     await selectNaiveOption(page, 'clip-select', 'test-clip.safetensors')
+
+    // Uncheck "Clear existing samples" — the checkbox only appears after validation
+    // completes (requires both training run + study selected). Must wait for it here.
+    const clearExistingCheckbox = page.locator('[data-testid="clear-existing-checkbox"]')
+    await expect(clearExistingCheckbox).toBeVisible({ timeout: 10000 })
+    const isChecked = await clearExistingCheckbox.evaluate(el => el.classList.contains('n-checkbox--checked'))
+    if (isChecked) {
+      await clearExistingCheckbox.click()
+      await expect(clearExistingCheckbox).not.toHaveClass(/n-checkbox--checked/)
+    }
 
     // Submit the job
     const submitButton = dialog.locator('button').filter({ hasText: /Generate Samples|Regenerate Samples/ }).first()
@@ -354,14 +355,6 @@ test.describe('sample generation flow (with ComfyUI mock)', () => {
     const dialog = getGenerateSamplesDialog(page)
     await selectNaiveOptionInContainer(page, dialog, 'training-run-select', 'my-model')
 
-    const clearExistingCheckbox = page.locator('[data-testid="clear-existing-checkbox"]')
-    if (await clearExistingCheckbox.isVisible()) {
-      const isChecked = await clearExistingCheckbox.evaluate(el => el.classList.contains('n-checkbox--checked'))
-      if (isChecked) {
-        await clearExistingCheckbox.click()
-      }
-    }
-
     await page.locator('[data-testid="manage-studies-button"]').click()
     await expect(getManageStudiesDialog(page)).toBeVisible()
     await page.locator('[data-testid="new-study-button"]').click()
@@ -376,6 +369,16 @@ test.describe('sample generation flow (with ComfyUI mock)', () => {
     await selectNaiveOption(page, 'workflow-select', 'test-workflow.json')
     await selectNaiveOption(page, 'vae-select', 'test-vae.safetensors')
     await selectNaiveOption(page, 'clip-select', 'test-clip.safetensors')
+
+    // Uncheck "Clear existing samples" — the checkbox only appears after validation
+    // completes (requires both training run + study selected). Must wait for it here.
+    const clearExistingCheckbox = page.locator('[data-testid="clear-existing-checkbox"]')
+    await expect(clearExistingCheckbox).toBeVisible({ timeout: 10000 })
+    const isChecked = await clearExistingCheckbox.evaluate(el => el.classList.contains('n-checkbox--checked'))
+    if (isChecked) {
+      await clearExistingCheckbox.click()
+      await expect(clearExistingCheckbox).not.toHaveClass(/n-checkbox--checked/)
+    }
 
     const submitButton = dialog.locator('button').filter({ hasText: /Generate Samples|Regenerate Samples/ }).first()
     await expect(submitButton).not.toBeDisabled()
@@ -439,16 +442,6 @@ test.describe('sample generation flow (with ComfyUI mock)', () => {
     const dialog = getGenerateSamplesDialog(page)
     await selectNaiveOptionInContainer(page, dialog, 'training-run-select', 'my-model')
 
-    // Uncheck "Clear existing samples" if auto-checked (protects test fixture images)
-    // Naive UI NCheckbox hides the native <input> (opacity:0); use CSS class to detect state.
-    const clearExistingCheckbox = page.locator('[data-testid="clear-existing-checkbox"]')
-    if (await clearExistingCheckbox.isVisible()) {
-      const isChecked = await clearExistingCheckbox.evaluate(el => el.classList.contains('n-checkbox--checked'))
-      if (isChecked) {
-        await clearExistingCheckbox.click()
-      }
-    }
-
     await page.locator('[data-testid="manage-studies-button"]').click()
     await expect(getManageStudiesDialog(page)).toBeVisible()
     await page.locator('[data-testid="new-study-button"]').click()
@@ -463,6 +456,16 @@ test.describe('sample generation flow (with ComfyUI mock)', () => {
     await selectNaiveOption(page, 'workflow-select', 'test-workflow.json')
     await selectNaiveOption(page, 'vae-select', 'test-vae.safetensors')
     await selectNaiveOption(page, 'clip-select', 'test-clip.safetensors')
+
+    // Uncheck "Clear existing samples" — the checkbox only appears after validation
+    // completes (requires both training run + study selected). Must wait for it here.
+    const clearExistingCheckbox = page.locator('[data-testid="clear-existing-checkbox"]')
+    await expect(clearExistingCheckbox).toBeVisible({ timeout: 10000 })
+    const isChecked = await clearExistingCheckbox.evaluate(el => el.classList.contains('n-checkbox--checked'))
+    if (isChecked) {
+      await clearExistingCheckbox.click()
+      await expect(clearExistingCheckbox).not.toHaveClass(/n-checkbox--checked/)
+    }
 
     const submitButton = dialog.locator('button').filter({ hasText: /Generate Samples|Regenerate Samples/ }).first()
     await expect(submitButton).not.toBeDisabled()

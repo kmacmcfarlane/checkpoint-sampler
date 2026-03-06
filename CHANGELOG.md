@@ -5,6 +5,11 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-048: Audit and fix all E2E test failures + add E2E gate to UAT transition
+- Fixed 29 cascading E2E test failures caused by premature "Clear existing samples" checkbox interaction before Vue rendered it, which deleted test fixture directories
+- Added `SampleDirCleaner` to test reset endpoint as defense-in-depth, removing study-generated directories between E2E tests
+- E2E gate: AGENT_FLOW.md and TEST_PRACTICES.md now require zero E2E failures before any story transitions to `uat`
+
 ### S-085: Study immutability and fork workflow (UAT rework)
 - Replaced study versioning (version column, `v{N}/` directories) with immutability + fork approach
 - Studies with existing samples cannot be edited directly; dialog offers "Create New Study" (fork) or "Re-generate Samples" (delete and regenerate)
