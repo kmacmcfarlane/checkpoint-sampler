@@ -21,6 +21,14 @@ export async function resetDatabase(request: APIRequestContext): Promise<void> {
  * Waits for the NSelect to finish loading (the component is disabled while
  * the training runs API call is in flight) before clicking, which prevents
  * the dropdown popup from failing to open due to a race with data loading.
+ *
+ * Uses retry logic for the click-to-open step because the NDrawer's opening
+ * transition can cause the first click to not reliably open the popup. This
+ * manifests as a flaky failure in sample-generation.spec.ts where tests 2-4
+ * fail after the first test creates a sample job: the page reloads, the
+ * drawer opens with its slide-in animation, and the NSelect trigger click
+ * fires before the drawer transition completes — Naive UI swallows the
+ * click without opening the popup menu.
  */
 export async function selectTrainingRun(page: Page, runName: string): Promise<void> {
   const selectTrigger = page.locator('[data-testid="training-run-select"]')
@@ -31,9 +39,30 @@ export async function selectTrainingRun(page: Page, runName: string): Promise<vo
   // We wait for that class to disappear before clicking.
   await expect(selectTrigger.locator('.n-base-selection--disabled')).toHaveCount(0)
 
-  await selectTrigger.click()
+  // Retry clicking the trigger up to 3 times. The NDrawer's slide-in
+  // animation can cause the first click to be swallowed before the drawer
+  // content is fully interactive. Each retry waits briefly, then dismisses
+  // any stale focus state with Escape before re-clicking.
   const popupMenu = page.locator('.n-base-select-menu:visible')
-  await expect(popupMenu).toBeVisible()
+  const MAX_RETRIES = 3
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    await selectTrigger.click()
+    try {
+      await expect(popupMenu).toBeVisible({ timeout: 3000 })
+      break // popup appeared, exit the retry loop
+    } catch {
+      if (attempt === MAX_RETRIES) {
+        // Final attempt failed — throw a clear error
+        throw new Error(
+          `selectTrainingRun: popup menu did not appear after ${MAX_RETRIES} click attempts on [data-testid="training-run-select"]`
+        )
+      }
+      // Dismiss any partial state (e.g. focused input without popup) before retrying
+      await page.keyboard.press('Escape')
+      await page.waitForTimeout(300)
+    }
+  }
+
   await popupMenu.getByText(runName, { exact: true }).click()
   await expect(popupMenu).not.toBeVisible()
 }

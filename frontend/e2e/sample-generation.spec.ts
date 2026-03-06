@@ -131,7 +131,10 @@ test.describe('sample generation flow (with ComfyUI mock)', () => {
   // AC: Each E2E test is independent — reset database before each test
   test.beforeEach(async ({ page, request }) => {
     await resetDatabase(request)
-    await page.goto('/')
+    // Use networkidle to ensure the training-runs API call completes before
+    // interacting with the NSelect. Without this, the NSelect trigger click
+    // can race with the API response that populates the dropdown options.
+    await page.goto('/', { waitUntil: 'networkidle' })
     // Select the fixture training run so the "Generate Samples" button appears
     await selectTrainingRun(page, 'my-model')
     // Wait for scan to complete (Dimensions panel appears in the drawer)

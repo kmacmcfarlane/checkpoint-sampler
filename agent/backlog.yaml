@@ -649,7 +649,7 @@ stories:
   - id: B-056
     title: "sample-generation.spec.ts tests 2-4 fail because training run select menu does not open after first test"
     priority: 60
-    status: todo
+    status: uat
     complexity: medium
     requires: []
     acceptance:

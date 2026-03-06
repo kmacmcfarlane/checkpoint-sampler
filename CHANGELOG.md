@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-056: sample-generation.spec.ts tests 2-4 fail because training run select menu does not open after first test
+- Added retry logic (up to 3 attempts) to `selectTrainingRun` E2E helper to handle NDrawer slide-in animation swallowing the NSelect trigger click
+- Changed `page.goto` to use `networkidle` in sample-generation.spec.ts beforeEach to prevent race with training-runs API response
+
 ### B-050: Study name filename validation (no problematic directory characters)
 - Backend `validate()` rejects filesystem-unsafe characters `()/\:*?<>|"` in study names with descriptive error message
 - Frontend mirrors validation inline in study editor, blocking save when disallowed characters are present
