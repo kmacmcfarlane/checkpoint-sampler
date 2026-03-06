@@ -107,7 +107,7 @@ stories:
   - id: S-088
     title: Study dropdown status beads in Generate Samples dialog
     type: feature
-    status: todo
+    status: uat
     priority: 45
     complexity: low
     requires: []

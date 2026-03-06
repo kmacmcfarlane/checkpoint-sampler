@@ -300,11 +300,16 @@ export interface ValidationResult {
   total_missing: number
 }
 
+/** Sample completeness status for a study relative to a training run. */
+export type StudySampleStatus = 'none' | 'partial' | 'complete'
+
 /** Per-study sample availability for a training run. */
 export interface StudyAvailability {
   study_id: string
   study_name: string
   has_samples: boolean
+  /** Completeness status: 'none' = no samples, 'partial' = some checkpoints have samples, 'complete' = all checkpoints have samples */
+  sample_status: StudySampleStatus
 }
 
 /** Demo dataset status response. */

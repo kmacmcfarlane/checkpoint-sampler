@@ -12,16 +12,19 @@ import {
 
 /**
  * E2E tests for S-086: Study selector UX and sample availability.
+ * E2E tests for S-088: Study dropdown status beads.
  *
  * Verifies:
  * - AC1: Checkpoint picker requires study selection (not just training run)
  * - AC2: Study availability API returns sample status for the availability bead
  * - AC5: API returns flat availability with has_samples boolean per study
+ * - S-088 AC4: API returns per-study sample_status field ('none'|'partial'|'complete')
  *
  * Test fixture data:
  *   - Training run "my-model" with 2 checkpoints (from test-fixtures/)
  *   - No study sample directories exist in test-fixtures/samples/ so
- *     availability returns has_samples=false for newly-created studies
+ *     availability returns has_samples=false and sample_status='none' for
+ *     newly-created studies
  */
 
 /**
@@ -90,6 +93,67 @@ test.describe('study availability and selector (S-086)', () => {
     // has_samples should be a boolean (false since no sample directories exist on disk)
     expect(typeof studyAvail.has_samples).toBe('boolean')
     expect(studyAvail.has_samples).toBe(false)
+
+    // S-088 AC4: sample_status field must be present and be one of the valid enum values
+    expect(studyAvail.sample_status).toBeDefined()
+    expect(['none', 'partial', 'complete']).toContain(studyAvail.sample_status)
+    // No sample directories exist in test fixtures, so status must be 'none'
+    expect(studyAvail.sample_status).toBe('none')
+  })
+
+  // S-088 AC4: sample_status field is present for every study in the response
+  test('availability API returns sample_status for every study in the response', async ({ request }) => {
+    // Create two studies to verify sample_status is present on all entries
+    const ts = Date.now()
+    const study1Resp = await request.post('/api/studies', {
+      data: {
+        name: `Status Check A ${ts}`,
+        prompt_prefix: '',
+        prompts: [{ name: 'test', text: 'a test prompt' }],
+        negative_prompt: '',
+        steps: [30],
+        cfgs: [7.0],
+        sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
+        seeds: [42],
+        width: 512,
+        height: 512,
+      },
+    })
+    expect(study1Resp.ok()).toBeTruthy()
+
+    const study2Resp = await request.post('/api/studies', {
+      data: {
+        name: `Status Check B ${ts}`,
+        prompt_prefix: '',
+        prompts: [{ name: 'portrait', text: 'a portrait prompt' }],
+        negative_prompt: '',
+        steps: [20],
+        cfgs: [5.0],
+        sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
+        seeds: [1],
+        width: 512,
+        height: 512,
+      },
+    })
+    expect(study2Resp.ok()).toBeTruthy()
+
+    const runsResp = await request.get('/api/training-runs')
+    expect(runsResp.ok()).toBeTruthy()
+    const runs = await runsResp.json()
+    expect(runs.length).toBeGreaterThan(0)
+    const runId = runs[0].id
+
+    const availResp = await request.get(`/api/studies/availability?training_run_id=${runId}`)
+    expect(availResp.ok()).toBeTruthy()
+
+    const availabilities = await availResp.json() as Array<{ study_id: string; sample_status: string }>
+    expect(Array.isArray(availabilities)).toBe(true)
+    expect(availabilities.length).toBeGreaterThanOrEqual(2)
+
+    // Every entry must have a valid sample_status value
+    for (const entry of availabilities) {
+      expect(['none', 'partial', 'complete']).toContain(entry.sample_status)
+    }
   })
 
   // Availability API returns 404 for invalid training_run_id

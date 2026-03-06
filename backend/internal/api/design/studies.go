@@ -345,5 +345,9 @@ var StudyAvailabilityResponse = Type("StudyAvailabilityResponse", func() {
 	Attribute("has_samples", Boolean, "Whether this study has samples for the target training run", func() {
 		Example(true)
 	})
-	Required("study_id", "study_name", "has_samples")
+	Attribute("sample_status", String, "Sample completeness status for the target training run: 'none' = no samples, 'partial' = some checkpoints have samples, 'complete' = all checkpoints have samples", func() {
+		Example("complete")
+		Enum("none", "partial", "complete")
+	})
+	Required("study_id", "study_name", "has_samples", "sample_status")
 })

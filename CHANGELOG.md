@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-088: Study dropdown status beads in Generate Samples dialog
+- Study availability API returns three-way `sample_status` (none/partial/complete) alongside existing `has_samples` boolean
+- Study dropdown renders green bead for complete, yellow for partial, no bead for none — replacing the previous binary green/transparent pattern
+
 ### B-052: Sample Jobs Dialog cosmetic fixes: progress flip-flop, verified label, checkpoint tooltip
 - Monotonic guard on inference progress prevents out-of-order WebSocket events from flipping the progress bar backward
 - Completeness status label (`verified`/`missing`) styled with `nowrap` to prevent wrapping in narrow containers

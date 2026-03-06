@@ -110,6 +110,12 @@ Add a migration to add a `UNIQUE` constraint on `studies.name` to enforce unique
 * source: developer
 The "Current checkpoint:" progress line in JobProgressPanel also shows raw checkpoint filenames that could be long. Unlike the completeness section (fixed in B-052), this line has no ellipsis/tooltip treatment. Could add the same `:title` binding for consistency.
 
+### Tooltip on study bead showing checkpoint counts
+* status: needs_approval
+* priority: low
+* source: developer
+When hovering over a study's bead in the dropdown, show a tooltip like "3/5 checkpoints have samples" for partial status to give the user more information without cluttering the dropdown label.
+
 ### Shared validation constants between backend and frontend
 * status: needs_approval
 * priority: very-low

@@ -208,9 +208,10 @@ func (s *StudiesService) Availability(ctx context.Context, p *genstudies.Availab
 	result := make([]*genstudies.StudyAvailabilityResponse, len(availabilities))
 	for i, a := range availabilities {
 		result[i] = &genstudies.StudyAvailabilityResponse{
-			StudyID:    a.StudyID,
-			StudyName:  a.StudyName,
-			HasSamples: a.HasSamples,
+			StudyID:      a.StudyID,
+			StudyName:    a.StudyName,
+			HasSamples:   a.HasSamples,
+			SampleStatus: string(a.SampleStatus),
 		}
 	}
 
