@@ -357,8 +357,8 @@ function isTracebackExpanded(jobId: string, errorIdx: number): boolean {
                     class="completeness-line"
                     :class="{ 'completeness-line--missing': entry.missing > 0 }"
                   >
-                    <span class="completeness-checkpoint">{{ entry.checkpoint }}</span>
-                    <span>{{ formatCompleteness(entry) }}</span>
+                    <span class="completeness-checkpoint" :title="entry.checkpoint">{{ entry.checkpoint }}</span>
+                    <span class="completeness-status">{{ formatCompleteness(entry) }}</span>
                   </p>
                 </div>
               </div>
@@ -678,5 +678,11 @@ function isTracebackExpanded(jobId: string, errorIdx: number): boolean {
   text-overflow: ellipsis;
   white-space: nowrap;
   margin-right: 0.5rem;
+  min-width: 0;
+}
+
+.completeness-status {
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 </style>
