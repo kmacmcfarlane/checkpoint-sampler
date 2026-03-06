@@ -131,7 +131,7 @@ stories:
   - id: B-046
     title: ComfyUI execution errors not displayed in job viewer
     type: bug
-    status: todo
+    status: uat
     priority: 75
     complexity: medium
     requires: []

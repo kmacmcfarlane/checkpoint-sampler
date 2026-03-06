@@ -248,5 +248,20 @@ func AllMigrations() []Migration {
 			DROP TABLE sample_jobs;
 			ALTER TABLE sample_jobs_v3 RENAME TO sample_jobs;`,
 		},
+		{
+			// Add exception_type column for ComfyUI execution_error events.
+			Version: 14,
+			SQL: `ALTER TABLE sample_job_items ADD COLUMN exception_type TEXT NOT NULL DEFAULT '';`,
+		},
+		{
+			// Add node_type column for ComfyUI execution_error events.
+			Version: 15,
+			SQL: `ALTER TABLE sample_job_items ADD COLUMN node_type TEXT NOT NULL DEFAULT '';`,
+		},
+		{
+			// Add traceback column for ComfyUI execution_error events.
+			Version: 16,
+			SQL: `ALTER TABLE sample_job_items ADD COLUMN traceback TEXT NOT NULL DEFAULT '';`,
+		},
 	}
 }

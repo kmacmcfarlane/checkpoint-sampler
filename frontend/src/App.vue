@@ -284,6 +284,7 @@ function handleJobProgress(message: JobProgressMessage) {
       completed_items: message.completed_items,
       failed_items: message.failed_items,
       pending_items: message.pending_items,
+      failed_item_details: message.failed_item_details,
       updated_at: new Date().toISOString(),
     }
     // AC: Reset inference progress between samples.

@@ -176,28 +176,54 @@ function hasFailedItems(job: SampleJob): boolean {
   return (job.failed_items ?? 0) > 0
 }
 
+/** Grouped error info including optional traceback. */
+interface GroupedError {
+  errorMessage: string
+  checkpoints: string[]
+  traceback?: string
+}
+
 /**
  * Group failed item details by error message.
- * Returns an array of { errorMessage, checkpoints } objects.
+ * Returns an array of { errorMessage, checkpoints, traceback } objects.
  */
-function getGroupedErrors(job: SampleJob): Array<{ errorMessage: string; checkpoints: string[] }> {
+function getGroupedErrors(job: SampleJob): GroupedError[] {
   const details = job.failed_item_details ?? []
   if (details.length === 0) return []
 
-  const grouped = new Map<string, string[]>()
+  const grouped = new Map<string, { checkpoints: string[]; traceback?: string }>()
   for (const detail of details) {
     const existing = grouped.get(detail.error_message)
     if (existing) {
-      existing.push(detail.checkpoint_filename)
+      existing.checkpoints.push(detail.checkpoint_filename)
     } else {
-      grouped.set(detail.error_message, [detail.checkpoint_filename])
+      grouped.set(detail.error_message, {
+        checkpoints: [detail.checkpoint_filename],
+        traceback: detail.traceback,
+      })
     }
   }
 
-  return Array.from(grouped.entries()).map(([errorMessage, checkpoints]) => ({
+  return Array.from(grouped.entries()).map(([errorMessage, data]) => ({
     errorMessage,
-    checkpoints: checkpoints.sort(),
+    checkpoints: data.checkpoints.sort(),
+    traceback: data.traceback,
   }))
+}
+
+/** Map of "jobId:errorIdx" to whether the traceback is expanded. */
+const expandedTracebacks = ref<Record<string, boolean>>({})
+
+function toggleTraceback(jobId: string, errorIdx: number) {
+  const key = `${jobId}:${errorIdx}`
+  expandedTracebacks.value = {
+    ...expandedTracebacks.value,
+    [key]: !expandedTracebacks.value[key],
+  }
+}
+
+function isTracebackExpanded(jobId: string, errorIdx: number): boolean {
+  return expandedTracebacks.value[`${jobId}:${errorIdx}`] ?? false
 }
 </script>
 
@@ -380,6 +406,20 @@ function getGroupedErrors(job: SampleJob): Array<{ errorMessage: string; checkpo
                       {{ cp }}
                     </li>
                   </ul>
+                  <!-- AC: FE: 'Show full traceback' toggle reveals the complete Python stack trace -->
+                  <button
+                    v-if="group.traceback"
+                    class="traceback-toggle"
+                    :data-testid="`job-${job.id}-traceback-toggle-${idx}`"
+                    @click="toggleTraceback(job.id, idx)"
+                  >
+                    {{ isTracebackExpanded(job.id, idx) ? 'Hide full traceback' : 'Show full traceback' }}
+                  </button>
+                  <pre
+                    v-if="group.traceback && isTracebackExpanded(job.id, idx)"
+                    class="traceback-content"
+                    :data-testid="`job-${job.id}-traceback-content-${idx}`"
+                  >{{ group.traceback }}</pre>
                 </div>
               </div>
             </div>
@@ -567,6 +607,33 @@ function getGroupedErrors(job: SampleJob): Array<{ errorMessage: string; checkpo
   font-size: 0.8125rem;
   font-family: monospace;
   color: var(--text-secondary);
+}
+
+.traceback-toggle {
+  background: none;
+  border: none;
+  padding: 0.25rem 0;
+  font: inherit;
+  font-size: 0.75rem;
+  color: var(--accent-color);
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+}
+
+.traceback-content {
+  margin: 0.25rem 0 0;
+  padding: 0.5rem;
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  font-family: monospace;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  max-height: 300px;
+  overflow-y: auto;
 }
 
 .error-message {

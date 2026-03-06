@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-046: ComfyUI execution errors not displayed in job viewer
+- ComfyUI `execution_error` events now parsed for `exception_message`, `exception_type`, `node_type`, and `traceback`; forwarded through backend WebSocket to frontend
+- Job viewer shows structured error summary per-checkpoint with expandable Python stack trace toggle
+
 ### B-053: E2E selectTrainingRun helper times out across multiple spec files
 - Added loading-state wait to `selectTrainingRun` helper: waits for NSelect disabled class to disappear before clicking, preventing race condition with async training run data loading
 - Consolidated 8 duplicate local helper definitions (`selectTrainingRun`, `selectNaiveOption`, `closeDrawer`) across spec files into shared `helpers.ts`

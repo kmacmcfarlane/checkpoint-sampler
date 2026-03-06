@@ -700,8 +700,34 @@ func (e *JobExecutor) handleComfyUIEvent(event model.ComfyUIEvent) {
 			capturedItemID := e.activeItemID
 			e.mu.Unlock()
 
-			e.logger.WithField("prompt_id", promptID).Error("ComfyUI execution error")
-			e.failItem(capturedItemID, "ComfyUI execution error")
+			// AC: BE: Parse execution_error fields from ComfyUI event
+			exceptionMessage, _ := data["exception_message"].(string)
+			exceptionType, _ := data["exception_type"].(string)
+			nodeType, _ := data["node_type"].(string)
+
+			// Build traceback string from the array
+			var traceback string
+			if tbArray, ok := data["traceback"].([]interface{}); ok {
+				var lines []string
+				for _, line := range tbArray {
+					if s, ok := line.(string); ok {
+						lines = append(lines, s)
+					}
+				}
+				traceback = strings.Join(lines, "")
+			}
+
+			// Compose a rich error message from the structured fields
+			errMsg := composeExecutionErrorMessage(exceptionType, nodeType, exceptionMessage)
+
+			e.logger.WithFields(logrus.Fields{
+				"prompt_id":         promptID,
+				"exception_type":    exceptionType,
+				"exception_message": exceptionMessage,
+				"node_type":         nodeType,
+			}).Error("ComfyUI execution error")
+
+			e.failItemWithDetails(capturedItemID, errMsg, exceptionType, nodeType, traceback)
 			return
 		}
 	}
@@ -1160,6 +1186,12 @@ func (e *JobExecutor) ensureDir(path string) error {
 // failItem marks an item as failed with an error message (called without holding mutex).
 // It performs blocking I/O and then re-acquires the lock to clear active state.
 func (e *JobExecutor) failItem(itemID string, errorMsg string) {
+	e.failItemWithDetails(itemID, errorMsg, "", "", "")
+}
+
+// failItemWithDetails marks an item as failed with structured error details
+// from ComfyUI execution_error events (called without holding mutex).
+func (e *JobExecutor) failItemWithDetails(itemID string, errorMsg string, exceptionType string, nodeType string, traceback string) {
 	e.logger.WithFields(logrus.Fields{
 		"item_id": itemID,
 		"error":   errorMsg,
@@ -1180,6 +1212,9 @@ func (e *JobExecutor) failItem(itemID string, errorMsg string) {
 		if items[i].ID == itemID {
 			items[i].Status = model.SampleJobItemStatusFailed
 			items[i].ErrorMessage = errorMsg
+			items[i].ExceptionType = exceptionType
+			items[i].NodeType = nodeType
+			items[i].Traceback = traceback
 			items[i].UpdatedAt = time.Now().UTC()
 			if err := e.store.UpdateSampleJobItem(items[i]); err != nil {
 				e.logger.WithError(err).Error("failed to update item status to failed")
@@ -1436,15 +1471,27 @@ func (e *JobExecutor) broadcastJobProgress(jobID string) {
 		studyOutputDir = study.OutputDirName()
 	}
 
-	// Compute on-the-fly item counts by status
-	var completed, failed, pending int
-	checkpointStats := make(map[string]struct {
+	// Compute on-the-fly item counts by status and collect failed item details
+	type errorDetailInfo struct {
+		exceptionType string
+		nodeType      string
+		traceback     string
+	}
+	type cpStats struct {
 		total     int
 		completed int
-	})
+		failed    int
+		errors    map[string]errorDetailInfo
+	}
+	var completed, failed, pending int
+	checkpointStatsMap := make(map[string]*cpStats)
 
 	for _, item := range items {
-		stats := checkpointStats[item.CheckpointFilename]
+		stats, ok := checkpointStatsMap[item.CheckpointFilename]
+		if !ok {
+			stats = &cpStats{errors: make(map[string]errorDetailInfo)}
+			checkpointStatsMap[item.CheckpointFilename] = stats
+		}
 		stats.total++
 		switch item.Status {
 		case model.SampleJobItemStatusCompleted:
@@ -1452,20 +1499,30 @@ func (e *JobExecutor) broadcastJobProgress(jobID string) {
 			stats.completed++
 		case model.SampleJobItemStatusFailed:
 			failed++
+			stats.failed++
+			if item.ErrorMessage != "" {
+				stats.errors[item.ErrorMessage] = errorDetailInfo{
+					exceptionType: item.ExceptionType,
+					nodeType:      item.NodeType,
+					traceback:     item.Traceback,
+				}
+			}
 		case model.SampleJobItemStatusPending:
 			pending++
 		}
-		checkpointStats[item.CheckpointFilename] = stats
 	}
 
 	// Count fully completed checkpoints, find current, and run completeness checks
 	checkpointsCompleted := 0
-	totalCheckpoints := len(checkpointStats)
+	totalCheckpoints := len(checkpointStatsMap)
 	var currentCheckpoint string
 	var currentCheckpointProgress, currentCheckpointTotal int
 
-	for checkpoint, stats := range checkpointStats {
-		if stats.completed == stats.total {
+	// Build failed item details for the progress broadcast
+	var failedItemDetails []model.FailedItemDetail
+
+	for checkpoint, stats := range checkpointStatsMap {
+		if stats.completed+stats.failed == stats.total && stats.failed == 0 {
 			checkpointsCompleted++
 
 			// AC: After each checkpoint's samples are generated, validate completeness
@@ -1476,11 +1533,32 @@ func (e *JobExecutor) broadcastJobProgress(jobID string) {
 			if !alreadyChecked {
 				e.verifyCheckpointCompleteness(jobID, studyOutputDir, checkpoint, items)
 			}
-		} else if currentCheckpoint == "" {
+		} else if currentCheckpoint == "" && stats.completed+stats.failed < stats.total {
 			currentCheckpoint = checkpoint
 			currentCheckpointProgress = stats.completed
 			currentCheckpointTotal = stats.total
 		}
+
+		if stats.failed > 0 {
+			for errMsg, detail := range stats.errors {
+				failedItemDetails = append(failedItemDetails, model.FailedItemDetail{
+					CheckpointFilename: checkpoint,
+					ErrorMessage:       errMsg,
+					ExceptionType:      detail.exceptionType,
+					NodeType:           detail.nodeType,
+					Traceback:          detail.traceback,
+				})
+			}
+			if len(stats.errors) == 0 {
+				failedItemDetails = append(failedItemDetails, model.FailedItemDetail{
+					CheckpointFilename: checkpoint,
+					ErrorMessage:       "unknown error",
+				})
+			}
+		}
+	}
+	if failedItemDetails == nil {
+		failedItemDetails = []model.FailedItemDetail{}
 	}
 
 	// Collect completeness info for the broadcast
@@ -1507,6 +1585,7 @@ func (e *JobExecutor) broadcastJobProgress(jobID string) {
 			CurrentCheckpointProgress: currentCheckpointProgress,
 			CurrentCheckpointTotal:    currentCheckpointTotal,
 			CheckpointCompleteness:    completeness,
+			FailedItemDetails:         failedItemDetails,
 		},
 	}
 	e.hub.Broadcast(event)
@@ -1613,6 +1692,23 @@ func toInt(v interface{}) (int, bool) {
 	default:
 		return 0, false
 	}
+}
+
+// composeExecutionErrorMessage builds a human-readable error summary from ComfyUI
+// execution_error event fields. Format: "[ExceptionType] NodeType: message"
+func composeExecutionErrorMessage(exceptionType, nodeType, exceptionMessage string) string {
+	if exceptionMessage == "" {
+		exceptionMessage = "unknown error"
+	}
+	parts := make([]string, 0, 3)
+	if exceptionType != "" {
+		parts = append(parts, fmt.Sprintf("[%s]", exceptionType))
+	}
+	if nodeType != "" {
+		parts = append(parts, fmt.Sprintf("%s:", nodeType))
+	}
+	parts = append(parts, exceptionMessage)
+	return strings.Join(parts, " ")
 }
 
 // isConnectionError detects if an error is a connection-related failure.

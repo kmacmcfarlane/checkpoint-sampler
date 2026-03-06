@@ -594,12 +594,17 @@ func (s *SampleJobService) GetProgress(id string) (model.JobProgress, error) {
 	}).Debug("fetched sample job items from store")
 
 	// Group items by checkpoint and count by status
+	type errorDetail struct {
+		exceptionType string
+		nodeType      string
+		traceback     string
+	}
 	type checkpointStats struct {
 		total     int
 		completed int
 		failed    int
-		// Track unique error messages per checkpoint
-		errors map[string]struct{}
+		// Track unique error messages per checkpoint with their structured details
+		errors map[string]errorDetail
 	}
 	checkpointProgress := make(map[string]*checkpointStats)
 
@@ -609,7 +614,7 @@ func (s *SampleJobService) GetProgress(id string) (model.JobProgress, error) {
 	for _, item := range items {
 		stats, ok := checkpointProgress[item.CheckpointFilename]
 		if !ok {
-			stats = &checkpointStats{errors: make(map[string]struct{})}
+			stats = &checkpointStats{errors: make(map[string]errorDetail)}
 			checkpointProgress[item.CheckpointFilename] = stats
 		}
 		stats.total++
@@ -621,7 +626,11 @@ func (s *SampleJobService) GetProgress(id string) (model.JobProgress, error) {
 			stats.failed++
 			itemCounts.Failed++
 			if item.ErrorMessage != "" {
-				stats.errors[item.ErrorMessage] = struct{}{}
+				stats.errors[item.ErrorMessage] = errorDetail{
+					exceptionType: item.ExceptionType,
+					nodeType:      item.NodeType,
+					traceback:     item.Traceback,
+				}
 			}
 		case model.SampleJobItemStatusPending:
 			itemCounts.Pending++
@@ -658,11 +667,14 @@ func (s *SampleJobService) GetProgress(id string) (model.JobProgress, error) {
 
 		// A checkpoint is considered failed if ANY of its items have status=failed
 		if stats.failed > 0 {
-			// Collect unique error messages for this checkpoint
-			for errMsg := range stats.errors {
+			// Collect unique error messages for this checkpoint with structured details
+			for errMsg, detail := range stats.errors {
 				failedItemDetails = append(failedItemDetails, model.FailedItemDetail{
 					CheckpointFilename: checkpoint,
 					ErrorMessage:       errMsg,
+					ExceptionType:      detail.exceptionType,
+					NodeType:           detail.nodeType,
+					Traceback:          detail.traceback,
 				})
 			}
 			// If there are failed items but no error messages recorded, still include the checkpoint

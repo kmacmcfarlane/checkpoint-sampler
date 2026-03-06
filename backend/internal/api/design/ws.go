@@ -26,6 +26,16 @@ var CheckpointCompletenessInfo = Type("CheckpointCompletenessInfo", func() {
 	Required("checkpoint", "expected", "verified", "missing")
 })
 
+var WSFailedItemDetail = Type("WSFailedItemDetail", func() {
+	Description("Details of a failed checkpoint in a job progress WebSocket event")
+	Attribute("checkpoint_filename", String, "Checkpoint filename that failed")
+	Attribute("error_message", String, "Error message describing the failure")
+	Attribute("exception_type", String, "Python exception type (e.g. RuntimeError)")
+	Attribute("node_type", String, "ComfyUI node type that failed (e.g. VAEDecode)")
+	Attribute("traceback", String, "Full Python stack trace")
+	Required("checkpoint_filename", "error_message")
+})
+
 var FSEventResponse = Type("FSEventResponse", func() {
 	Description("A filesystem change event or job progress update pushed to WebSocket clients")
 	Attribute("type", String, "Event type", func() {
@@ -48,6 +58,7 @@ var FSEventResponse = Type("FSEventResponse", func() {
 	Attribute("current_checkpoint_progress", Int, "Items completed in current checkpoint (only for job_progress events)")
 	Attribute("current_checkpoint_total", Int, "Total items in current checkpoint (only for job_progress events)")
 	Attribute("checkpoint_completeness", ArrayOf(CheckpointCompletenessInfo), "Per-checkpoint completeness verification results (only for job_progress events)")
+	Attribute("failed_item_details", ArrayOf(WSFailedItemDetail), "Details of failed checkpoints with error info (only for job_progress events)")
 	// Inference progress fields (only present when type=inference_progress)
 	Attribute("prompt_id", String, "ComfyUI prompt ID (only for inference_progress events)")
 	Attribute("current_value", Int, "Current inference step (only for inference_progress events)")

@@ -844,6 +844,165 @@ describe('JobProgressPanel', () => {
     })
   })
 
+  // AC: FE: Show error summary (exception_type + node_type + exception_message) for failed checkpoints
+  // AC: FE: 'Show full traceback' toggle reveals the complete Python stack trace
+  describe('structured error display and traceback toggle', () => {
+    const jobWithStructuredErrors: SampleJob = {
+      id: 'job-structured',
+      training_run_name: 'test/vae-mismatch',
+      study_id: 'preset-1', study_name: 'Quick Test',
+      workflow_name: 'flux.json',
+      vae: 'ae.safetensors',
+      clip: 'clip.safetensors',
+      status: 'completed_with_errors',
+      total_items: 10,
+      completed_items: 7,
+      failed_items: 3,
+      pending_items: 0,
+      failed_item_details: [
+        {
+          checkpoint_filename: 'chk-a.safetensors',
+          error_message: '[RuntimeError] VAEDecode: channels mismatch',
+          exception_type: 'RuntimeError',
+          node_type: 'VAEDecode',
+          traceback: 'Traceback (most recent call last):\n  File "/comfyui/execution.py", line 123\nRuntimeError: channels mismatch\n',
+        },
+        {
+          checkpoint_filename: 'chk-b.safetensors',
+          error_message: '[RuntimeError] VAEDecode: channels mismatch',
+          exception_type: 'RuntimeError',
+          node_type: 'VAEDecode',
+          traceback: 'Traceback (most recent call last):\n  File "/comfyui/execution.py", line 123\nRuntimeError: channels mismatch\n',
+        },
+        {
+          checkpoint_filename: 'chk-c.safetensors',
+          error_message: 'generic error without traceback',
+        },
+      ],
+      created_at: '2025-01-01T04:00:00Z',
+      updated_at: '2025-01-01T04:00:00Z',
+    }
+
+    // AC: FE: Error display is per-checkpoint, shown inline in the job progress card
+    it('shows structured error summary with exception_type and node_type in error groups', async () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: [jobWithStructuredErrors] },
+        global: { stubs: { Teleport: true } },
+      })
+
+      // Expand the error section
+      await wrapper.find('[data-testid="job-job-structured-error-toggle"]').trigger('click')
+      await nextTick()
+
+      const details = wrapper.find('[data-testid="job-job-structured-error-details"]')
+      expect(details.exists()).toBe(true)
+
+      const groups = details.findAll('.error-group')
+      // Two groups: one for [RuntimeError] VAEDecode (2 checkpoints), one for generic error (1 checkpoint)
+      expect(groups).toHaveLength(2)
+
+      const groupTexts = groups.map(g => g.text())
+      const vaeGroup = groupTexts.find(t => t.includes('[RuntimeError] VAEDecode'))
+      expect(vaeGroup).toBeDefined()
+      expect(vaeGroup).toContain('2 checkpoints')
+    })
+
+    // AC: FE: 'Show full traceback' toggle appears for errors with traceback
+    it('shows traceback toggle button for errors with traceback data', async () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: [jobWithStructuredErrors] },
+        global: { stubs: { Teleport: true } },
+      })
+
+      // Expand the error section
+      await wrapper.find('[data-testid="job-job-structured-error-toggle"]').trigger('click')
+      await nextTick()
+
+      // The first error group (VAEDecode) has a traceback -> toggle should be visible
+      const tracebackToggle = wrapper.find('[data-testid="job-job-structured-traceback-toggle-0"]')
+      expect(tracebackToggle.exists()).toBe(true)
+      expect(tracebackToggle.text()).toBe('Show full traceback')
+    })
+
+    it('does not show traceback toggle for errors without traceback', async () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: [jobWithStructuredErrors] },
+        global: { stubs: { Teleport: true } },
+      })
+
+      await wrapper.find('[data-testid="job-job-structured-error-toggle"]').trigger('click')
+      await nextTick()
+
+      // The second error group (generic error) has no traceback -> no toggle
+      const tracebackToggle = wrapper.find('[data-testid="job-job-structured-traceback-toggle-1"]')
+      expect(tracebackToggle.exists()).toBe(false)
+    })
+
+    // AC: FE: Clicking the toggle reveals the complete Python stack trace
+    it('reveals traceback content when toggle is clicked', async () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: [jobWithStructuredErrors] },
+        global: { stubs: { Teleport: true } },
+      })
+
+      // Expand the error section
+      await wrapper.find('[data-testid="job-job-structured-error-toggle"]').trigger('click')
+      await nextTick()
+
+      // Initially traceback content is hidden
+      expect(wrapper.find('[data-testid="job-job-structured-traceback-content-0"]').exists()).toBe(false)
+
+      // Click the traceback toggle
+      await wrapper.find('[data-testid="job-job-structured-traceback-toggle-0"]').trigger('click')
+      await nextTick()
+
+      // Traceback content should now be visible
+      const tracebackContent = wrapper.find('[data-testid="job-job-structured-traceback-content-0"]')
+      expect(tracebackContent.exists()).toBe(true)
+      expect(tracebackContent.text()).toContain('Traceback (most recent call last)')
+      expect(tracebackContent.text()).toContain('RuntimeError: channels mismatch')
+    })
+
+    it('hides traceback content when toggle is clicked again', async () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: [jobWithStructuredErrors] },
+        global: { stubs: { Teleport: true } },
+      })
+
+      // Expand the error section and the traceback
+      await wrapper.find('[data-testid="job-job-structured-error-toggle"]').trigger('click')
+      await nextTick()
+      await wrapper.find('[data-testid="job-job-structured-traceback-toggle-0"]').trigger('click')
+      await nextTick()
+
+      // Toggle button should now say 'Hide full traceback'
+      const toggle = wrapper.find('[data-testid="job-job-structured-traceback-toggle-0"]')
+      expect(toggle.text()).toBe('Hide full traceback')
+
+      // Click again to hide
+      await toggle.trigger('click')
+      await nextTick()
+
+      expect(wrapper.find('[data-testid="job-job-structured-traceback-content-0"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="job-job-structured-traceback-toggle-0"]').text()).toBe('Show full traceback')
+    })
+
+    it('renders traceback in a pre element for proper formatting', async () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: [jobWithStructuredErrors] },
+        global: { stubs: { Teleport: true } },
+      })
+
+      await wrapper.find('[data-testid="job-job-structured-error-toggle"]').trigger('click')
+      await nextTick()
+      await wrapper.find('[data-testid="job-job-structured-traceback-toggle-0"]').trigger('click')
+      await nextTick()
+
+      const tracebackContent = wrapper.find('[data-testid="job-job-structured-traceback-content-0"]')
+      expect(tracebackContent.element.tagName).toBe('PRE')
+    })
+  })
+
   // AC: FE: Completed and completed-with-errors job cards show a 'Regenerate' button
   describe('regenerate button', () => {
     const completedJob: SampleJob = {
