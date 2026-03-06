@@ -301,7 +301,7 @@ stories:
   - id: B-049
     title: "Sample path scoping: Has Samples and validation must strictly scope to study dir"
     type: bug
-    status: todo
+    status: uat
     priority: 90
     complexity: medium
     requires: []

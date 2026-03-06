@@ -484,10 +484,14 @@ const imagesPerCheckpoint = computed(() =>
 
 const totalImages = computed(() => targetedCheckpointCount.value * imagesPerCheckpoint.value)
 
-// Whether validation found missing samples (used for "Generate Missing" button visibility)
+// Whether validation found missing samples (used for "Generate Missing" button visibility).
+// Only true when SOME samples exist (total_actual > 0) AND some are missing. When zero
+// samples exist for the study+training run, this is a "generate all" scenario, not
+// "generate missing" (AC3: Generate Missing button only appears when some but not all exist).
 const hasMissingSamples = computed(() => {
   if (!validationResult.value) return false
-  return validationResult.value.checkpoints.some(c => c.missing > 0)
+  return validationResult.value.total_actual > 0 &&
+    validationResult.value.checkpoints.some(c => c.missing > 0)
 })
 
 // Checkpoints that have missing samples according to validation

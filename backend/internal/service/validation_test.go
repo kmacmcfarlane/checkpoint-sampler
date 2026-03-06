@@ -261,6 +261,57 @@ var _ = Describe("ValidationService", func() {
 			Expect(result.Checkpoints[0].Verified).To(Equal(0))
 			Expect(result.Checkpoints[0].Missing).To(Equal(0))
 		})
+		// B-049: Strict study-scoped sample discovery
+		It("checks study-scoped directory even when HasSamples=false (legacy path absent)", func() {
+			tr := model.TrainingRun{
+				Name: "model",
+				Checkpoints: []model.Checkpoint{
+					// HasSamples=false because legacy path sample_dir/cp1.safetensors/ doesn't exist
+					{Filename: "cp1.safetensors", StepNumber: 1000, HasSamples: false},
+					{Filename: "cp2.safetensors", StepNumber: 2000, HasSamples: false},
+				},
+				HasSamples: false,
+			}
+
+			// Study-scoped directory exists with files
+			fs.files["/samples/my-study/cp1.safetensors"] = []string{"a.png", "b.png"}
+			fs.files["/samples/my-study/cp2.safetensors"] = []string{"a.png"}
+
+			result, err := svc.ValidateTrainingRun(tr, "my-study")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Checkpoints).To(HaveLen(2))
+			// max count is 2 (from cp1)
+			Expect(result.ExpectedPerCheckpoint).To(Equal(2))
+			Expect(result.Checkpoints[0].Verified).To(Equal(2))
+			Expect(result.Checkpoints[0].Missing).To(Equal(0))
+			Expect(result.Checkpoints[1].Verified).To(Equal(1))
+			Expect(result.Checkpoints[1].Missing).To(Equal(1))
+		})
+
+		// B-049: HasSamples=true (from legacy path) but study-scoped directory absent
+		It("returns zero verified when HasSamples=true but study directory does not exist", func() {
+			tr := model.TrainingRun{
+				Name: "model",
+				Checkpoints: []model.Checkpoint{
+					// HasSamples=true because legacy path sample_dir/cp1.safetensors/ exists
+					{Filename: "cp1.safetensors", StepNumber: 1000, HasSamples: true},
+				},
+				HasSamples: true,
+			}
+
+			// Legacy path exists (this is what set HasSamples=true)
+			fs.files["/samples/cp1.safetensors"] = []string{"a.png", "b.png"}
+			// Study-scoped directory does NOT exist — no entry in fs.files for /samples/other-study/cp1.safetensors
+
+			result, err := svc.ValidateTrainingRun(tr, "other-study")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Checkpoints).To(HaveLen(1))
+			// Expected is 0 because max count across study-scoped dirs is 0
+			Expect(result.ExpectedPerCheckpoint).To(Equal(0))
+			Expect(result.Checkpoints[0].Verified).To(Equal(0))
+			Expect(result.Checkpoints[0].Missing).To(Equal(0))
+		})
+
 		It("populates summary fields (TotalExpected, TotalVerified, ExpectedPerCheckpoint)", func() {
 			tr := model.TrainingRun{
 				Name: "model",
@@ -396,7 +447,7 @@ var _ = Describe("ValidationService", func() {
 			Expect(result.Checkpoints[0].Missing).To(Equal(0))
 		})
 
-		It("handles checkpoints without samples (HasSamples=false)", func() {
+		It("handles checkpoints without samples in legacy path (HasSamples=false)", func() {
 			tr := model.TrainingRun{
 				Name: "model",
 				Checkpoints: []model.Checkpoint{
@@ -416,6 +467,56 @@ var _ = Describe("ValidationService", func() {
 			// Final checkpoint has no samples → verified=0, missing=2
 			Expect(result.Checkpoints[1].Verified).To(Equal(0))
 			Expect(result.Checkpoints[1].Missing).To(Equal(2))
+		})
+
+		// B-049: Study-scoped validation must check study dir even when HasSamples=false
+		It("checks study-scoped directory even when HasSamples=false (legacy path absent)", func() {
+			tr := model.TrainingRun{
+				Name: "model",
+				Checkpoints: []model.Checkpoint{
+					// HasSamples=false: legacy path doesn't exist
+					{Filename: "cp1.safetensors", StepNumber: 1000, HasSamples: false},
+					{Filename: "cp2.safetensors", StepNumber: 2000, HasSamples: false},
+				},
+				HasSamples: false,
+			}
+
+			// Study-scoped directories have files
+			fs.files["/samples/Test Study/cp1.safetensors"] = []string{"a.png", "b.png"}
+			fs.files["/samples/Test Study/cp2.safetensors"] = []string{"a.png", "b.png"}
+
+			result, err := svc.ValidateTrainingRunWithStudy(tr, study, "Test Study")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.ExpectedPerCheckpoint).To(Equal(2))
+			Expect(result.TotalExpected).To(Equal(4))
+			Expect(result.TotalVerified).To(Equal(4)) // all found
+			Expect(result.Checkpoints[0].Verified).To(Equal(2))
+			Expect(result.Checkpoints[0].Missing).To(Equal(0))
+			Expect(result.Checkpoints[1].Verified).To(Equal(2))
+			Expect(result.Checkpoints[1].Missing).To(Equal(0))
+		})
+
+		// B-049: HasSamples=true from legacy but study-scoped dir absent → verified=0
+		It("returns zero verified when HasSamples=true but study directory absent", func() {
+			tr := model.TrainingRun{
+				Name: "model",
+				Checkpoints: []model.Checkpoint{
+					{Filename: "cp1.safetensors", StepNumber: 1000, HasSamples: true},
+				},
+				HasSamples: true,
+			}
+
+			// Legacy path exists (this is what set HasSamples=true)
+			fs.files["/samples/cp1.safetensors"] = []string{"a.png", "b.png"}
+			// Study-scoped directory does NOT exist
+
+			result, err := svc.ValidateTrainingRunWithStudy(tr, study, "Other Study")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.ExpectedPerCheckpoint).To(Equal(2))
+			Expect(result.TotalExpected).To(Equal(2))
+			Expect(result.TotalVerified).To(Equal(0))
+			Expect(result.Checkpoints[0].Verified).To(Equal(0))
+			Expect(result.Checkpoints[0].Missing).To(Equal(2))
 		})
 
 		It("returns error when ListPNGFiles fails", func() {
@@ -563,7 +664,7 @@ var _ = Describe("ValidationService", func() {
 			Expect(result.Checkpoints[0].Missing).To(Equal(0))
 		})
 
-		It("handles checkpoints without samples (HasSamples=false)", func() {
+		It("handles checkpoints without legacy samples (HasSamples=false) but with study dir files", func() {
 			fs.fileData["/samples/Test Study/manifest.json"] = manifestData
 
 			tr := model.TrainingRun{
@@ -584,6 +685,34 @@ var _ = Describe("ValidationService", func() {
 			Expect(result.Checkpoints[0].Missing).To(Equal(0))
 			Expect(result.Checkpoints[1].Verified).To(Equal(0))
 			Expect(result.Checkpoints[1].Missing).To(Equal(2))
+		})
+
+		// B-049: Manifest validation ignores HasSamples and always checks study output dir
+		It("finds samples in study dir even when HasSamples=false", func() {
+			fs.fileData["/samples/Test Study/manifest.json"] = manifestData
+
+			tr := model.TrainingRun{
+				Name: "model",
+				Checkpoints: []model.Checkpoint{
+					// HasSamples=false: legacy path doesn't exist
+					{Filename: "cp1.safetensors", StepNumber: 1000, HasSamples: false},
+					{Filename: "cp2.safetensors", StepNumber: 2000, HasSamples: false},
+				},
+				HasSamples: false,
+			}
+
+			// Study output dir has files for both checkpoints
+			fs.files["/samples/Test Study/cp1.safetensors"] = []string{"a.png", "b.png"}
+			fs.files["/samples/Test Study/cp2.safetensors"] = []string{"a.png"}
+
+			result, err := svc.ValidateTrainingRunWithManifest(tr, "Test Study")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Checkpoints).To(HaveLen(2))
+			Expect(result.Checkpoints[0].Verified).To(Equal(2))
+			Expect(result.Checkpoints[0].Missing).To(Equal(0))
+			Expect(result.Checkpoints[1].Verified).To(Equal(1))
+			Expect(result.Checkpoints[1].Missing).To(Equal(1))
+			Expect(result.TotalVerified).To(Equal(3))
 		})
 
 		It("returns error when ReadFile has a non-not-found error", func() {

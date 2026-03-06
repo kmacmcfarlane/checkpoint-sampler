@@ -58,7 +58,11 @@ func (v *ValidationService) ValidateTrainingRun(tr model.TrainingRun, studyName 
 	maxCount := 0
 
 	for _, cp := range tr.Checkpoints {
-		if !cp.HasSamples {
+		// When a studyName is provided, always check the study-scoped directory
+		// directly. The cp.HasSamples flag is set by discovery based on the legacy
+		// path (sample_dir/<filename>/), which does not reflect study-scoped state.
+		// Only skip for legacy (non-study) validation when HasSamples is false.
+		if studyName == "" && !cp.HasSamples {
 			counts = append(counts, cpCount{checkpoint: cp.Filename, count: 0})
 			continue
 		}
@@ -74,7 +78,7 @@ func (v *ValidationService) ValidateTrainingRun(tr model.TrainingRun, studyName 
 			v.logger.WithFields(logrus.Fields{
 				"checkpoint":     cp.Filename,
 				"checkpoint_dir": sampleDirPath,
-			}).Warn("checkpoint sample directory does not exist during validation")
+			}).Debug("checkpoint sample directory does not exist during validation")
 			counts = append(counts, cpCount{checkpoint: cp.Filename, count: 0})
 			continue
 		}
@@ -167,7 +171,13 @@ func (v *ValidationService) ValidateTrainingRunWithStudy(tr model.TrainingRun, s
 	for _, cp := range tr.Checkpoints {
 		verified := 0
 
-		if cp.HasSamples {
+		// When a studyName is provided, always check the study-scoped directory
+		// directly regardless of cp.HasSamples. The HasSamples flag is set by
+		// discovery based on the legacy path (sample_dir/<filename>/), which
+		// does not reflect study-scoped state. Only skip for legacy (non-study)
+		// validation when HasSamples is false.
+		shouldCheck := cp.HasSamples || studyName != ""
+		if shouldCheck {
 			var sampleDirPath string
 			if studyName != "" {
 				sampleDirPath = filepath.Join(v.sampleDir, studyName, cp.Filename)
@@ -190,7 +200,7 @@ func (v *ValidationService) ValidateTrainingRunWithStudy(tr model.TrainingRun, s
 				v.logger.WithFields(logrus.Fields{
 					"checkpoint":     cp.Filename,
 					"checkpoint_dir": sampleDirPath,
-				}).Warn("checkpoint sample directory does not exist during study validation")
+				}).Debug("checkpoint sample directory does not exist during study validation")
 			}
 		}
 
@@ -283,26 +293,23 @@ func (v *ValidationService) ValidateTrainingRunWithManifest(tr model.TrainingRun
 	for _, cp := range tr.Checkpoints {
 		verified := 0
 
-		if cp.HasSamples {
-			sampleDirPath := filepath.Join(v.sampleDir, studyOutputDir, cp.Filename)
+		// Always check the study output directory directly regardless of
+		// cp.HasSamples. The HasSamples flag is set by discovery based on
+		// the legacy path (sample_dir/<filename>/), which does not reflect
+		// whether samples exist in this specific study output directory.
+		sampleDirPath := filepath.Join(v.sampleDir, studyOutputDir, cp.Filename)
 
-			if v.fs.DirectoryExists(sampleDirPath) {
-				files, err := v.fs.ListPNGFiles(sampleDirPath)
-				if err != nil {
-					v.logger.WithFields(logrus.Fields{
-						"checkpoint":     cp.Filename,
-						"checkpoint_dir": sampleDirPath,
-						"error":          err.Error(),
-					}).Error("failed to list PNG files during manifest validation")
-					return nil, fmt.Errorf("listing PNG files for checkpoint %q: %w", cp.Filename, err)
-				}
-				verified = len(files)
-			} else {
+		if v.fs.DirectoryExists(sampleDirPath) {
+			files, err := v.fs.ListPNGFiles(sampleDirPath)
+			if err != nil {
 				v.logger.WithFields(logrus.Fields{
 					"checkpoint":     cp.Filename,
 					"checkpoint_dir": sampleDirPath,
-				}).Warn("checkpoint sample directory does not exist during manifest validation")
+					"error":          err.Error(),
+				}).Error("failed to list PNG files during manifest validation")
+				return nil, fmt.Errorf("listing PNG files for checkpoint %q: %w", cp.Filename, err)
 			}
+			verified = len(files)
 		}
 
 		missing := expectedPerCheckpoint - verified

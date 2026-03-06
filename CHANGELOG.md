@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-049: Sample path scoping: Has Samples and validation must strictly scope to study dir
+- Validation methods now bypass the legacy `HasSamples` flag when a study name is provided, always checking the study-scoped directory `sample_dir/<study_name>/<checkpoint>/` directly
+- "Select Missing" button hidden when zero samples exist for the study+training run (only appears when some but not all exist)
+
 ### B-048: Audit and fix all E2E test failures + add E2E gate to UAT transition
 - Fixed 29 cascading E2E test failures caused by premature "Clear existing samples" checkbox interaction before Vue rendered it, which deleted test fixture directories
 - Added `SampleDirCleaner` to test reset endpoint as defense-in-depth, removing study-generated directories between E2E tests

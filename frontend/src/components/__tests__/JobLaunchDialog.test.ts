@@ -2379,6 +2379,39 @@ describe('JobLaunchDialog', () => {
       expect(wrapper.find('[data-testid="select-missing-checkpoints"]').exists()).toBe(true)
     })
 
+    // B-049: "Select Missing" button must not appear when zero samples exist (total_actual=0)
+    it('does not show "Select Missing" button when total_actual is 0 even if checkpoints have missing > 0', async () => {
+      mockValidateTrainingRun.mockResolvedValue({
+        checkpoints: [
+          { checkpoint: 'chk-a.safetensors', expected: 2, verified: 0, missing: 2 },
+          { checkpoint: 'chk-b.safetensors', expected: 2, verified: 0, missing: 2 },
+          { checkpoint: 'chk-c.safetensors', expected: 2, verified: 0, missing: 2 },
+        ],
+        expected_per_checkpoint: 2,
+        total_expected: 6,
+        total_verified: 0,
+        total_actual: 0,
+        total_missing: 6,
+      })
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select run with samples (to show checkpoint picker)
+      wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
+      await nextTick()
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      await nextTick()
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
+      await flushPromises()
+
+      // "Select Missing" should NOT be shown because no samples exist at all
+      expect(wrapper.find('[data-testid="select-missing-checkpoints"]').exists()).toBe(false)
+    })
+
     it('does not show "Select Missing" button when all samples are present', async () => {
       mockValidateTrainingRun.mockResolvedValue({
         checkpoints: [
