@@ -374,7 +374,7 @@ stories:
   - id: B-052
     title: "Sample Jobs Dialog cosmetic fixes: progress flip-flop, verified label, checkpoint tooltip"
     type: bug
-    status: todo
+    status: uat
     priority: 20
     complexity: low
     requires: []

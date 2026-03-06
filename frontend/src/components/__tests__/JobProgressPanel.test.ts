@@ -681,6 +681,156 @@ describe('JobProgressPanel', () => {
     })
   })
 
+  // AC2 (B-052): 'verified' label fits container without wrapping
+  // AC3 (B-052): Truncated checkpoint names show tooltip with full name on hover
+  describe('completeness label and tooltip cosmetics (B-052)', () => {
+    const jobWithLongCheckpoint: SampleJob = {
+      id: 'job-long-ckpt',
+      training_run_name: 'test/long-names',
+      study_id: 'preset-1', study_name: 'Quick Test',
+      workflow_name: 'test.json',
+      vae: 'ae.safetensors',
+      clip: 'clip.safetensors',
+      status: 'running',
+      total_items: 4,
+      completed_items: 2,
+      failed_items: 0,
+      pending_items: 2,
+      created_at: '2025-01-01T00:00:00Z',
+      updated_at: '2025-01-01T00:00:00Z',
+    }
+
+    // AC2: 'verified' status label has .completeness-status class (CSS prevents wrapping)
+    it('completeness status span has completeness-status class to prevent label wrapping', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: {
+          show: true,
+          jobs: [jobWithLongCheckpoint],
+          jobProgress: {
+            'job-long-ckpt': {
+              checkpoints_completed: 1,
+              total_checkpoints: 2,
+              checkpoint_completeness: [
+                { checkpoint: 'short.safetensors', expected: 4, verified: 4, missing: 0 },
+              ],
+            },
+          },
+        },
+        global: { stubs: { Teleport: true } },
+      })
+
+      // The second span (status text) must have the completeness-status class
+      const completenessLine = wrapper.find('.completeness-line')
+      const spans = completenessLine.findAll('span')
+      const statusSpan = spans.find(s => s.classes().includes('completeness-status'))
+      expect(statusSpan).toBeDefined()
+      // The text should contain the formatted completeness string
+      expect(statusSpan!.text()).toContain('4/4 verified')
+    })
+
+    // AC2: completeness-checkpoint span has min-width: 0 allowing ellipsis truncation in flex
+    it('completeness-checkpoint span has the completeness-checkpoint class', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: {
+          show: true,
+          jobs: [jobWithLongCheckpoint],
+          jobProgress: {
+            'job-long-ckpt': {
+              checkpoints_completed: 1,
+              total_checkpoints: 2,
+              checkpoint_completeness: [
+                { checkpoint: 'a-very-long-checkpoint-filename-that-would-truncate.safetensors', expected: 24, verified: 24, missing: 0 },
+              ],
+            },
+          },
+        },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const checkpointSpan = wrapper.find('.completeness-checkpoint')
+      expect(checkpointSpan.exists()).toBe(true)
+      // The checkpoint span should NOT have inline styles overriding CSS
+      expect(checkpointSpan.attributes('style')).toBeUndefined()
+    })
+
+    // AC3: Truncated checkpoint names show a tooltip with the full name on hover
+    it('completeness-checkpoint span has a title attribute with the full checkpoint name', () => {
+      const fullName = 'a-very-long-checkpoint-filename-that-would-be-truncated-by-ellipsis.safetensors'
+      const wrapper = mount(JobProgressPanel, {
+        props: {
+          show: true,
+          jobs: [jobWithLongCheckpoint],
+          jobProgress: {
+            'job-long-ckpt': {
+              checkpoints_completed: 1,
+              total_checkpoints: 2,
+              checkpoint_completeness: [
+                { checkpoint: fullName, expected: 24, verified: 24, missing: 0 },
+              ],
+            },
+          },
+        },
+        global: { stubs: { Teleport: true } },
+      })
+
+      // AC3: title attribute must match the full checkpoint name
+      const checkpointSpan = wrapper.find('.completeness-checkpoint')
+      expect(checkpointSpan.exists()).toBe(true)
+      expect(checkpointSpan.attributes('title')).toBe(fullName)
+    })
+
+    // AC3: Short checkpoint names also have the title attribute (tooltip for all entries)
+    it('completeness-checkpoint span has title attribute even for short names', () => {
+      const shortName = 'short.safetensors'
+      const wrapper = mount(JobProgressPanel, {
+        props: {
+          show: true,
+          jobs: [jobWithLongCheckpoint],
+          jobProgress: {
+            'job-long-ckpt': {
+              checkpoints_completed: 1,
+              total_checkpoints: 2,
+              checkpoint_completeness: [
+                { checkpoint: shortName, expected: 4, verified: 4, missing: 0 },
+              ],
+            },
+          },
+        },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const checkpointSpan = wrapper.find('.completeness-checkpoint')
+      expect(checkpointSpan.attributes('title')).toBe(shortName)
+    })
+
+    // AC3: Each entry in a multi-entry completeness list has the correct title
+    it('each completeness-checkpoint span carries the title of its own entry', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: {
+          show: true,
+          jobs: [jobWithLongCheckpoint],
+          jobProgress: {
+            'job-long-ckpt': {
+              checkpoints_completed: 2,
+              total_checkpoints: 2,
+              checkpoint_completeness: [
+                { checkpoint: 'alpha-very-long.safetensors', expected: 4, verified: 4, missing: 0 },
+                { checkpoint: 'beta-very-long.safetensors', expected: 4, verified: 3, missing: 1 },
+              ],
+            },
+          },
+        },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const checkpointSpans = wrapper.findAll('.completeness-checkpoint')
+      expect(checkpointSpans).toHaveLength(2)
+      // Sorted alphabetically: alpha first, beta second
+      expect(checkpointSpans[0].attributes('title')).toBe('alpha-very-long.safetensors')
+      expect(checkpointSpans[1].attributes('title')).toBe('beta-very-long.safetensors')
+    })
+  })
+
   // AC: FE: JobProgressPanel shows a secondary progress bar for the currently-generating sample
   describe('inference progress bar', () => {
     const runningJob: SampleJob = {

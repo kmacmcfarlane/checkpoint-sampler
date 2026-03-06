@@ -265,9 +265,15 @@ function handleInferenceProgress(message: InferenceProgressMessage) {
   // to the currently running job.
   const runningJob = sampleJobs.value.find(j => j.status === 'running')
   if (runningJob) {
-    inferenceProgress[runningJob.id] = {
-      current_value: message.current_value,
-      max_value: message.max_value,
+    const existing = inferenceProgress[runningJob.id]
+    // AC: Only update inference progress if this is a fresh start (no existing entry) or
+    // the value is moving forward. This prevents out-of-order stale WebSocket events from
+    // a completed sample from flipping the progress bar back to a lower value (flip-flop fix).
+    if (!existing || message.current_value >= existing.current_value) {
+      inferenceProgress[runningJob.id] = {
+        current_value: message.current_value,
+        max_value: message.max_value,
+      }
     }
   }
 }

@@ -1349,4 +1349,154 @@ describe('App', () => {
       })
     })
   })
+
+  // AC: B-052 — Inference progress flip-flop prevention
+  describe('handleInferenceProgress: monotonic progress guard (B-052)', () => {
+    const runningJob: SampleJob = {
+      id: 'job-flip',
+      training_run_name: 'test-run',
+      study_id: 'study-1',
+      study_name: 'Test Study',
+      workflow_name: 'default',
+      vae: '',
+      clip: '',
+      status: 'running',
+      total_items: 8,
+      completed_items: 0,
+      failed_items: 0,
+      pending_items: 8,
+      created_at: '2024-01-01T00:00:00Z',
+      updated_at: '2024-01-01T00:00:00Z',
+    }
+
+    async function mountWithFlipJob() {
+      mockListSampleJobs.mockResolvedValue([runningJob])
+      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      await flushPromises()
+
+      const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
+      selector.vm.$emit('select', mockTrainingRun)
+      await flushPromises()
+
+      expect(mockWebSocketInstances.length).toBeGreaterThan(0)
+      const ws = mockWebSocketInstances[0]
+      ws.simulateOpen()
+      await flushPromises()
+
+      // Open job panel to populate sampleJobs
+      const jobsBtn = wrapper.findAllComponents(NButton).find(
+        (b) => b.attributes('aria-label') === 'Toggle sample jobs panel',
+      )
+      await jobsBtn!.trigger('click')
+      await flushPromises()
+
+      return { wrapper, ws }
+    }
+
+    // AC1: Progress indicator shows consistent, monotonically increasing values during generation
+    it('ignores out-of-order stale inference events that would cause a backward flip', async () => {
+      // AC1: A stale lower-value event should NOT overwrite a higher current value.
+      const { wrapper, ws } = await mountWithFlipJob()
+
+      // Deliver progress at step 5
+      ws.onmessage?.(new MessageEvent('message', {
+        data: JSON.stringify({ type: 'inference_progress', prompt_id: 'p1', current_value: 5, max_value: 8 }),
+      }))
+      await flushPromises()
+
+      const panel = wrapper.findComponent({ name: 'JobProgressPanel' })
+      expect(panel.props('inferenceProgress')).toEqual({ 'job-flip': { current_value: 5, max_value: 8 } })
+
+      // A stale event with current_value < 5 arrives (out-of-order from previous sample)
+      ws.onmessage?.(new MessageEvent('message', {
+        data: JSON.stringify({ type: 'inference_progress', prompt_id: 'p1', current_value: 0, max_value: 8 }),
+      }))
+      await flushPromises()
+
+      // Progress should remain at 5, not flip back to 0
+      expect(wrapper.findComponent({ name: 'JobProgressPanel' }).props('inferenceProgress')).toEqual({
+        'job-flip': { current_value: 5, max_value: 8 },
+      })
+    })
+
+    // AC1: Progress still increases forward when events arrive in order
+    it('accepts inference events that move progress forward', async () => {
+      const { wrapper, ws } = await mountWithFlipJob()
+
+      // Step 3
+      ws.onmessage?.(new MessageEvent('message', {
+        data: JSON.stringify({ type: 'inference_progress', prompt_id: 'p1', current_value: 3, max_value: 8 }),
+      }))
+      await flushPromises()
+
+      // Step 6 — forward, must be accepted
+      ws.onmessage?.(new MessageEvent('message', {
+        data: JSON.stringify({ type: 'inference_progress', prompt_id: 'p1', current_value: 6, max_value: 8 }),
+      }))
+      await flushPromises()
+
+      expect(wrapper.findComponent({ name: 'JobProgressPanel' }).props('inferenceProgress')).toEqual({
+        'job-flip': { current_value: 6, max_value: 8 },
+      })
+    })
+
+    // AC1: After an explicit reset (via job_progress completed_items change), the next event is accepted
+    it('accepts the first event after a reset even if its value is 0', async () => {
+      const { wrapper, ws } = await mountWithFlipJob()
+
+      // Deliver progress at step 5 for sample 1
+      ws.onmessage?.(new MessageEvent('message', {
+        data: JSON.stringify({ type: 'inference_progress', prompt_id: 'p1', current_value: 5, max_value: 8 }),
+      }))
+      await flushPromises()
+
+      // Job progress event: completed_items increments → triggers reset of inference progress
+      ws.onmessage?.(new MessageEvent('message', {
+        data: JSON.stringify({
+          type: 'job_progress',
+          job_id: 'job-flip',
+          status: 'running',
+          total_items: 8,
+          completed_items: 1, // changed from 0
+          failed_items: 0,
+          pending_items: 7,
+          checkpoints_completed: 0,
+          total_checkpoints: 8,
+        }),
+      }))
+      await flushPromises()
+
+      // inferenceProgress should now be cleared
+      expect(wrapper.findComponent({ name: 'JobProgressPanel' }).props('inferenceProgress')).not.toHaveProperty('job-flip')
+
+      // First event of new sample starts at 0 — must be accepted after reset
+      ws.onmessage?.(new MessageEvent('message', {
+        data: JSON.stringify({ type: 'inference_progress', prompt_id: 'p2', current_value: 0, max_value: 8 }),
+      }))
+      await flushPromises()
+
+      expect(wrapper.findComponent({ name: 'JobProgressPanel' }).props('inferenceProgress')).toEqual({
+        'job-flip': { current_value: 0, max_value: 8 },
+      })
+    })
+
+    // AC1: Rapid events during generation produce monotonically increasing values (no flip-flop)
+    it('produces monotonically increasing values under rapid sequential events', async () => {
+      const { wrapper, ws } = await mountWithFlipJob()
+
+      // Deliver events rapidly in ascending order: 0, 2, 4, 6, 8
+      const steps = [0, 2, 4, 6, 8]
+      for (const step of steps) {
+        ws.onmessage?.(new MessageEvent('message', {
+          data: JSON.stringify({ type: 'inference_progress', prompt_id: 'p1', current_value: step, max_value: 8 }),
+        }))
+      }
+      await flushPromises()
+
+      // Final value must be 8 (the highest), not any earlier value
+      expect(wrapper.findComponent({ name: 'JobProgressPanel' }).props('inferenceProgress')).toEqual({
+        'job-flip': { current_value: 8, max_value: 8 },
+      })
+    })
+  })
 })

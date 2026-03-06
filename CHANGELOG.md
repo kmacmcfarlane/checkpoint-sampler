@@ -5,6 +5,11 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-052: Sample Jobs Dialog cosmetic fixes: progress flip-flop, verified label, checkpoint tooltip
+- Monotonic guard on inference progress prevents out-of-order WebSocket events from flipping the progress bar backward
+- Completeness status label (`verified`/`missing`) styled with `nowrap` to prevent wrapping in narrow containers
+- Checkpoint names in completeness list show full name tooltip on hover via native `title` attribute
+
 ### B-051: Job bead color precedence (green/blue/yellow/red)
 - Fixed bead color mapping: `completed_with_errors` now shows yellow (was red), added `failed` status mapped to red (was unhandled/gray)
 - Extracted bead logic into `composables/beadStatus.ts` with correct precedence: red > yellow > blue > green

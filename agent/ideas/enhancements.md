@@ -104,6 +104,12 @@ The Update button updates the mapping but reuses the existing name. A small "Ren
 * source: developer
 Add a migration to add a `UNIQUE` constraint on `studies.name` to enforce uniqueness at the database level, complementing the service-layer check and preventing race conditions in concurrent-user scenarios.
 
+### Tooltip for long checkpoint names in "Current checkpoint" progress line
+* status: needs_approval
+* priority: very-low
+* source: developer
+The "Current checkpoint:" progress line in JobProgressPanel also shows raw checkpoint filenames that could be long. Unlike the completeness section (fixed in B-052), this line has no ellipsis/tooltip treatment. Could add the same `:title` binding for consistency.
+
 ### Shared validation constants between backend and frontend
 * status: needs_approval
 * priority: very-low
