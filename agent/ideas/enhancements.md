@@ -103,3 +103,9 @@ The Update button updates the mapping but reuses the existing name. A small "Ren
 * priority: low
 * source: developer
 Add a migration to add a `UNIQUE` constraint on `studies.name` to enforce uniqueness at the database level, complementing the service-layer check and preventing race conditions in concurrent-user scenarios.
+
+### Shared validation constants between backend and frontend
+* status: needs_approval
+* priority: very-low
+* source: developer
+The disallowed character set for study name validation is defined independently in the Go service (`disallowedNameChars` constant) and the Vue component (`disallowedChars` variable). A future improvement could surface the disallowed characters in the API error response and have the frontend reflect them, eliminating the duplicated constant. For a simple character set, the current duplication is acceptable.

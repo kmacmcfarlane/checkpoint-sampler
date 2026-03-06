@@ -51,7 +51,7 @@ test.describe('study immutability + fork (S-085)', () => {
     const forkPayload = {
       ...payload,
       source_id: source.id,
-      name: `${source.name} (fork)`,
+      name: `${source.name} - fork`,
       steps: [10, 20],
     }
     const forkResp = await request.post(`/api/studies/${source.id}/fork`, { data: forkPayload })
@@ -59,7 +59,7 @@ test.describe('study immutability + fork (S-085)', () => {
     const forked = await forkResp.json()
 
     expect(forked.id).not.toBe(source.id)
-    expect(forked.name).toContain('(fork)')
+    expect(forked.name).toContain('- fork')
     expect(forked.steps).toEqual([10, 20])
   })
 

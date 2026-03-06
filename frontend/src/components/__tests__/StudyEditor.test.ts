@@ -1805,6 +1805,55 @@ describe('StudyEditor', () => {
         .find(b => b.text().includes('Update Study'))!
       expect(saveButton.props('disabled')).toBe(false)
     })
+
+    // AC: Study name validation rejects characters problematic for directory names
+    it.each([
+      ['(', 'study(1)'],
+      [')', 'study)1'],
+      ['/', 'study/v2'],
+      ['\\', 'study\\v2'],
+      [':', 'study:v2'],
+      ['*', 'study*'],
+      ['?', 'study?'],
+      ['<', 'study<v2'],
+      ['>', 'study>v2'],
+      ['|', 'study|v2'],
+      ['"', 'study"v2'],
+    ])('shows validation error and disables save when name contains "%s"', async (_char, name) => {
+      const { wrapper } = await mountWithValidForm()
+
+      const nameInput = asVue(wrapper.findComponent('[data-testid="study-name-input"]'))
+      nameInput.vm.$emit('update:value', name)
+      await nextTick()
+
+      // AC: Validation error displayed inline in the study editor
+      const warningAlert = wrapper.find('[data-testid="local-validation-error"]')
+      expect(warningAlert.exists()).toBe(true)
+      expect(warningAlert.text()).toContain('disallowed characters')
+
+      const saveButton = wrapper
+        .findAllComponents(NButton)
+        .find(b => b.text().includes('Save Study'))!
+      expect(saveButton.props('disabled')).toBe(true)
+    })
+
+    it.each([
+      ['alphanumeric', 'MyStudy123'],
+      ['hyphens', 'my-study-v2'],
+      ['underscores', 'my_study_v2'],
+      ['dots', 'my.study.v2'],
+      ['spaces', 'My Study Config'],
+    ])('accepts valid name with %s', async (_desc, name) => {
+      const { wrapper } = await mountWithValidForm()
+
+      const nameInput = asVue(wrapper.findComponent('[data-testid="study-name-input"]'))
+      nameInput.vm.$emit('update:value', name)
+      await nextTick()
+
+      // No validation error for safe characters
+      const warningAlert = wrapper.find('[data-testid="local-validation-error"]')
+      expect(warningAlert.exists()).toBe(false)
+    })
   })
 
   describe('immutability dialog', () => {
@@ -1869,7 +1918,7 @@ describe('StudyEditor', () => {
       const forkedStudy: Study = {
         ...studies[0],
         id: 'forked-1',
-        name: 'Test Preset A (copy)',
+        name: 'Test Preset A - copy',
       }
       mockForkStudy.mockResolvedValue(forkedStudy)
 
@@ -1906,10 +1955,58 @@ describe('StudyEditor', () => {
       expect(mockForkStudy).toHaveBeenCalledWith(
         expect.objectContaining({
           source_id: 'preset-1',
-          name: 'Test Preset A (copy)',
+          name: 'Test Preset A - copy',
         })
       )
       expect(mockUpdateStudy).not.toHaveBeenCalled()
+    })
+
+    it('fork suffix does not contain disallowed characters', async () => {
+      mockStudyHasSamples.mockResolvedValue({ has_samples: true })
+      const forkedStudy: Study = {
+        ...studies[0],
+        id: 'forked-1',
+        name: 'Test Preset A - copy',
+      }
+      mockForkStudy.mockResolvedValue(forkedStudy)
+
+      const wrapper = mount(StudyEditor, {
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select an existing study to trigger the fork flow
+      const select = wrapper.findAllComponents(NSelect)[0]
+      select.vm.$emit('update:value', 'preset-1')
+      await nextTick()
+
+      // Click Update to trigger immutability check
+      const saveButton = wrapper
+        .findAllComponents(NButton)
+        .find((b) => b.text().includes('Update Study'))!
+      await saveButton.trigger('click')
+      await flushPromises()
+
+      // Click the fork button to trigger a fork
+      const forkButton = wrapper.find('[data-testid="immutability-fork-button"]')
+      if (forkButton.exists()) {
+        await forkButton.trigger('click')
+      } else {
+        const allButtons = wrapper.findAllComponents(NButton)
+        const fork = allButtons.find(b => b.text().includes('Create New Study'))
+        expect(fork).toBeTruthy()
+        await fork!.trigger('click')
+      }
+      await flushPromises()
+
+      // Verify forkStudy was called (meaning the forked name passed validation)
+      expect(mockForkStudy).toHaveBeenCalled()
+      const calledName: string = mockForkStudy.mock.calls[0][0].name as string
+      // The forked name must not contain any disallowed characters
+      const disallowedChars = `()/\\:*?<>|"`
+      for (const ch of disallowedChars) {
+        expect(calledName).not.toContain(ch)
+      }
     })
 
     it('updates study in-place when "Re-generate Samples" is clicked', async () => {

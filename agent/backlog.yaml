@@ -328,7 +328,7 @@ stories:
   - id: B-050
     title: Study name filename validation (no problematic directory characters)
     type: bug
-    status: todo
+    status: uat
     priority: 70
     complexity: low
     requires: []

@@ -517,6 +517,66 @@ var _ = Describe("StudyService", func() {
 		)
 	})
 
+	Describe("Filename character validation", func() {
+		type filenameTestCase struct {
+			name          string
+			expectError   bool
+			expectedError string
+		}
+
+		validPrompts := []model.NamedPrompt{{Name: "p1", Text: "text"}}
+		validSteps := []int{4}
+		validCFGs := []float64{1.0}
+		validPairs := []model.SamplerSchedulerPair{{Sampler: "euler", Scheduler: "simple"}}
+		validSeeds := []int64{420}
+
+		DescribeTable("validates study name filesystem safety",
+			func(tc filenameTestCase) {
+				_, err := svc.Create(tc.name, "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512)
+				if tc.expectError {
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).To(ContainSubstring(tc.expectedError))
+				} else {
+					Expect(err).NotTo(HaveOccurred())
+				}
+			},
+			// AC: Valid names must be accepted
+			Entry("accepts alphanumeric name",
+				filenameTestCase{name: "MyStudy123", expectError: false}),
+			Entry("accepts name with hyphens",
+				filenameTestCase{name: "my-study-v2", expectError: false}),
+			Entry("accepts name with underscores",
+				filenameTestCase{name: "my_study_v2", expectError: false}),
+			Entry("accepts name with dots",
+				filenameTestCase{name: "my.study.v2", expectError: false}),
+			Entry("accepts name with spaces",
+				filenameTestCase{name: "My Study Config", expectError: false}),
+			// AC: Problematic characters must be rejected
+			Entry("rejects name with opening parenthesis",
+				filenameTestCase{name: "study(1)", expectError: true, expectedError: "disallowed characters"}),
+			Entry("rejects name with closing parenthesis",
+				filenameTestCase{name: "study)1", expectError: true, expectedError: "disallowed characters"}),
+			Entry("rejects name with forward slash",
+				filenameTestCase{name: "study/v2", expectError: true, expectedError: "disallowed characters"}),
+			Entry("rejects name with backslash",
+				filenameTestCase{name: `study\v2`, expectError: true, expectedError: "disallowed characters"}),
+			Entry("rejects name with colon",
+				filenameTestCase{name: "study:v2", expectError: true, expectedError: "disallowed characters"}),
+			Entry("rejects name with asterisk",
+				filenameTestCase{name: "study*", expectError: true, expectedError: "disallowed characters"}),
+			Entry("rejects name with question mark",
+				filenameTestCase{name: "study?", expectError: true, expectedError: "disallowed characters"}),
+			Entry("rejects name with less-than sign",
+				filenameTestCase{name: "study<v2", expectError: true, expectedError: "disallowed characters"}),
+			Entry("rejects name with greater-than sign",
+				filenameTestCase{name: "study>v2", expectError: true, expectedError: "disallowed characters"}),
+			Entry("rejects name with pipe",
+				filenameTestCase{name: "study|v2", expectError: true, expectedError: "disallowed characters"}),
+			Entry("rejects name with double quote",
+				filenameTestCase{name: `study"v2`, expectError: true, expectedError: "disallowed characters"}),
+		)
+	})
+
 	Describe("Duplicate name rejection", func() {
 		var validPrompts []model.NamedPrompt
 		var validSteps []int

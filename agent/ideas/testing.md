@@ -85,3 +85,9 @@ The 0-byte `.safetensors` files in `test-fixtures/` cause "reading header length
 * priority: low
 * source: developer
 A lint rule or pre-commit check that warns when `[data-testid="training-run-select"]` is clicked directly without using the `selectTrainingRun` helper would prevent recurrence of race conditions where NSelect is clicked before its loading state clears. B-053 and B-054 both fixed this same class of bug in different spec files.
+
+### Cross-story regression guard for character-set changes
+* status: needs_approval
+* priority: low
+* source: developer
+When a story adds new disallowed characters (e.g., B-050 adding parentheses to `disallowedNameChars`), an automated check could scan for existing string literals that contain those characters (e.g., the `' (copy)'` fork suffix) and flag them before review. This would catch this class of regression automatically.

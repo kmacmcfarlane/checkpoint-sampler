@@ -3,12 +3,17 @@ package service
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
 	"github.com/sirupsen/logrus"
 )
+
+// disallowedNameChars lists characters that are problematic for directory names
+// on Linux, macOS, and Windows filesystems.
+const disallowedNameChars = `()/\:*?<>|"`
 
 // StudyStore defines the persistence operations the study service needs.
 type StudyStore interface {
@@ -299,6 +304,9 @@ func (s *StudyService) Delete(id string) error {
 func (s *StudyService) validate(name string, prompts []model.NamedPrompt, steps []int, cfgs []float64, pairs []model.SamplerSchedulerPair, seeds []int64, width int, height int) error {
 	if name == "" {
 		return fmt.Errorf("study name must not be empty")
+	}
+	if strings.ContainsAny(name, disallowedNameChars) {
+		return fmt.Errorf("study name contains disallowed characters; the following characters are not allowed: %s", disallowedNameChars)
 	}
 	if len(prompts) == 0 {
 		return fmt.Errorf("at least one prompt is required")

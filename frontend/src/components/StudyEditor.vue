@@ -150,15 +150,26 @@ const localValidationError = computed((): string | null => {
     seenSeeds.add(seed)
   }
 
+  // Check study name for filesystem-unsafe characters.
+  // These characters are problematic for directory names on Linux, macOS, and Windows.
+  const disallowedChars = `()/\\:*?<>|"`
+  const studyNameVal = studyName.value.trim()
+  if (studyNameVal !== '') {
+    for (const ch of disallowedChars) {
+      if (studyNameVal.includes(ch)) {
+        return `Study name contains disallowed characters; the following characters are not allowed: ${disallowedChars}`
+      }
+    }
+  }
+
   // Check for duplicate study name against the loaded studies list,
   // excluding the currently selected study (when editing).
-  const trimmedName = studyName.value.trim()
-  if (trimmedName !== '') {
+  if (studyNameVal !== '') {
     const conflict = studies.value.find(
-      s => s.name === trimmedName && s.id !== selectedStudyId.value
+      s => s.name === studyNameVal && s.id !== selectedStudyId.value
     )
     if (conflict) {
-      return `A study named "${trimmedName}" already exists`
+      return `A study named "${studyNameVal}" already exists`
     }
   }
 
@@ -369,7 +380,7 @@ async function forkStudy() {
     const validPrompts = prompts.value.filter(p => p != null && p.name.trim() !== '' && p.text.trim() !== '')
     const forkPayload: ForkStudyPayload = {
       source_id: selectedStudyId.value,
-      name: studyName.value.trim() + ' (copy)',
+      name: studyName.value.trim() + ' - copy',
       prompt_prefix: promptPrefix.value,
       prompts: validPrompts,
       negative_prompt: negativePrompt.value,

@@ -5,6 +5,11 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-050: Study name filename validation (no problematic directory characters)
+- Backend `validate()` rejects filesystem-unsafe characters `()/\:*?<>|"` in study names with descriptive error message
+- Frontend mirrors validation inline in study editor, blocking save when disallowed characters are present
+- Fork suffix changed from `" (copy)"` to `" - copy"` to avoid triggering the new validation
+
 ### B-054: viewer-discovery E2E tests fail — 'my-model' training run not found in API response
 - Replaced inline NSelect click sequence in `viewer-discovery.spec.ts` with shared `selectTrainingRun` helper, fixing race condition where the selector was clicked before async data loading completed (same pattern as B-053)
 
