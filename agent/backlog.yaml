@@ -701,3 +701,41 @@ stories:
       Affected specs: sidebar-preset-selector, single-value-dimensions, slider-playback, training-run-grid,
       viewer-discovery, study-availability, study-name-validation, sample-count-preview, sample-generation,
       sample-path-scoping.
+  - id: B-059
+    title: "Training run discovery returns empty — both viewer and Generate Samples selectors show nothing"
+    priority: 90
+    complexity: medium
+    status: closed
+    requires: []
+    acceptance:
+      - "GET /api/training-runs returns training runs discovered from study-scoped sample directories"
+      - "GET /api/training-runs?source=checkpoints returns training runs discovered from checkpoint directories"
+      - "Sample Set selector in the left drawer populates on initial page load"
+      - "Training run selector in Generate Samples dialog populates with checkpoint-based training runs"
+      - "Existing E2E tests continue to pass"
+    testing:
+      - "command: make test-backend"
+      - "command: make test-e2e"
+    notes: |
+      Closed — not a code bug. Root cause was Docker bind mounts created before CIFS mount at /mnt/lucy was available.
+      Containers needed recreation (make down && make up-dev) after CIFS was restored.
+      No code changes required.
+  - id: B-060
+    title: "Drawer open/close resets dirty dimension mappings; axis role assignment should swap instead of block"
+    priority: 80
+    complexity: medium
+    status: done
+    requires: []
+    acceptance:
+      - "Opening and closing the left-side drawer does not reset dimension mappings that the user has modified since the last
+        preset load/save"
+      - "Assigning X/Y/Slider to a dimension that is already assigned to another dimension swaps the roles between the two
+        dimensions instead of hiding the option"
+      - "Existing E2E tests continue to pass"
+    testing:
+      - "command: make test-frontend"
+      - "command: make test-e2e"
+    notes: |
+      Two related UX issues in dimension mapping:
+      1. Drawer toggle reloads preset mappings, discarding user edits. The drawer should preserve in-memory dirty state.
+      2. S-089 unified selector hides axis options already held by another dimension (mutual exclusion). Instead, selecting an already-assigned axis role should swap — the old holder gets the new dimension's previous role.

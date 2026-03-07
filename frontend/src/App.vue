@@ -400,8 +400,34 @@ function onDimensionModeChange(dimensionName: string, mode: UnifiedDimensionMode
   const prevMode = getFilterMode(dimensionName)
 
   if (AXIS_MODES.has(mode)) {
-    // Assign to axis role — composable handles mutual exclusion and sets filter to 'multi'
-    assignRole(dimensionName, mode as DimensionRole)
+    const newRole = mode as DimensionRole
+    // Capture the current unified mode of the dimension being changed
+    const currentRole = assignments.value.get(dimensionName) ?? 'none'
+    const currentFilterMode = filterModes.value.get(dimensionName) ?? 'single'
+
+    // Find which dimension currently holds the target axis role
+    let displacedName: string | null = null
+    for (const [name, role] of assignments.value) {
+      if (role === newRole && name !== dimensionName) {
+        displacedName = name
+        break
+      }
+    }
+
+    // Assign the new axis role (composable displaces old holder to 'none')
+    assignRole(dimensionName, newRole)
+
+    // Swap: give the displaced dimension the previous role of the changed dimension
+    if (displacedName) {
+      if (currentRole !== 'none') {
+        // Both had axis roles — swap them
+        assignRole(displacedName, currentRole)
+      } else {
+        // Changed dimension was a filter mode — give displaced dimension that filter mode
+        assignRole(displacedName, 'none')
+        setFilterMode(displacedName, currentFilterMode)
+      }
+    }
   } else {
     // Unassign from any axis (set role to 'none')
     assignRole(dimensionName, 'none')

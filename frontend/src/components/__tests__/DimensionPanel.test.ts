@@ -159,8 +159,8 @@ describe('DimensionPanel', () => {
     expect(selects[2].props('value')).toBe('single')
   })
 
-  // AC2: Selecting X, Y, or Slider removes it from other dimensions' options
-  it('excludes axis options already held by other dimensions', () => {
+  // AC2: All axis options are always shown — parent handles swapping on conflict
+  it('shows all axis options for all dimensions regardless of current assignments', () => {
     const wrapper = mount(DimensionPanel, {
       props: {
         dimensions: sampleDimensions,
@@ -174,11 +174,11 @@ describe('DimensionPanel', () => {
     // step has X, so its dropdown should include X (its own)
     const stepOptions = (selects[0].props('options') as Array<{ value: string }>).map((o) => o.value)
     expect(stepOptions).toContain('x')
-    // But X and Slider should be excluded from prompt_name's options
+    // All axis options should be available for prompt_name too (swap behavior)
     const promptOptions = (selects[2].props('options') as Array<{ value: string }>).map((o) => o.value)
-    expect(promptOptions).not.toContain('x')
-    expect(promptOptions).not.toContain('slider')
-    expect(promptOptions).toContain('y') // Y is still available
+    expect(promptOptions).toContain('x')
+    expect(promptOptions).toContain('slider')
+    expect(promptOptions).toContain('y')
     expect(promptOptions).toContain('single')
     expect(promptOptions).toContain('multi')
     expect(promptOptions).toContain('hide')
@@ -394,9 +394,9 @@ describe('DimensionPanel', () => {
     })
   })
 
-  describe('mutual exclusion', () => {
-    // AC2: When all three axes are assigned, unassigned dimensions have no axis options
-    it('shows only filter options when all three axes are taken by other dims', () => {
+  describe('axis options always available', () => {
+    // AC2: All axis options are shown even when taken by other dimensions (swap behavior)
+    it('shows all axis options even when all three axes are taken by other dims', () => {
       const dims: ScanDimension[] = [
         { name: 'step', type: 'int', values: ['500', '1000'] },
         { name: 'seed', type: 'int', values: ['42', '123'] },
@@ -412,12 +412,12 @@ describe('DimensionPanel', () => {
       })
 
       const selects = wrapper.findAllComponents(NSelect)
-      // prompt is at index 3, has no axes available
+      // prompt should still see all options including axis roles (parent handles swapping)
       const promptOptions = (selects[3].props('options') as Array<{ value: string }>).map((o) => o.value)
-      expect(promptOptions).toEqual(['single', 'multi', 'hide'])
+      expect(promptOptions).toEqual(['x', 'y', 'slider', 'single', 'multi', 'hide'])
     })
 
-    it('restores axis options when an axis is freed', async () => {
+    it('shows all axis options for every dimension regardless of current assignments', () => {
       const wrapper = mount(DimensionPanel, {
         props: {
           dimensions: sampleDimensions,
@@ -427,19 +427,11 @@ describe('DimensionPanel', () => {
       })
 
       const selects = wrapper.findAllComponents(NSelect)
-      // seed should not have 'x' available
-      let seedOptions = (selects[1].props('options') as Array<{ value: string }>).map((o) => o.value)
-      expect(seedOptions).not.toContain('x')
-
-      // Free X by assigning step to 'none'
-      await wrapper.setProps({
-        assignments: makeAssignments(),
-        filterModes: makeFilterModes(),
-      })
-      await nextTick()
-
-      seedOptions = (selects[1].props('options') as Array<{ value: string }>).map((o) => o.value)
+      // seed should also see 'x' even though step holds it (parent handles swap)
+      const seedOptions = (selects[1].props('options') as Array<{ value: string }>).map((o) => o.value)
       expect(seedOptions).toContain('x')
+      expect(seedOptions).toContain('y')
+      expect(seedOptions).toContain('slider')
     })
   })
 })

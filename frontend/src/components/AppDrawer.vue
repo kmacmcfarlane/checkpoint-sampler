@@ -48,6 +48,7 @@ function onUpdateShow(value: boolean) {
     placement="left"
     :width="drawerWidth"
     :auto-focus="false"
+    display-directive="show"
     @update:show="onUpdateShow"
   >
     <NDrawerContent title="Controls" closable>

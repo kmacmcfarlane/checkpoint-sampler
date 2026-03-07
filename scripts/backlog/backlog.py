@@ -20,7 +20,7 @@ from ruamel.yaml.comments import CommentedMap, CommentedSeq
 # ── Schema constants ────────────────────────────────────────────────────────
 
 VALID_STATUSES = frozenset(
-    {"todo", "in_progress", "review", "testing", "uat", "uat_feedback", "done", "blocked"}
+    {"todo", "in_progress", "review", "testing", "uat", "uat_feedback", "done", "blocked", "closed"}
 )
 VALID_COMPLEXITIES = frozenset({"low", "medium", "high"})
 VALID_ID_PREFIXES = frozenset({"S", "B", "R", "W"})
@@ -223,7 +223,7 @@ def _requires_satisfied(story: CommentedMap, all_stories: list[CommentedMap]) ->
             reqs = s.get("requires")
             requires_map[sid] = reqs if isinstance(reqs, list) else []
 
-    satisfied_statuses = frozenset({"done", "uat", "uat_feedback"})
+    satisfied_statuses = frozenset({"done", "uat", "uat_feedback", "closed"})
 
     def _check(story_id: str, visited: set[str]) -> bool:
         if story_id in visited:

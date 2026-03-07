@@ -42,30 +42,13 @@ const sortedDimensions = computed<ScanDimension[]>(() => {
   return [...multi, ...single]
 })
 
-/** Axis roles currently assigned to other dimensions, keyed by role. */
-const assignedAxes = computed(() => {
-  const map = new Map<string, string>() // role -> dimension name
-  for (const [name, role] of props.assignments) {
-    if (role === 'x' || role === 'y' || role === 'slider') {
-      map.set(role, name)
-    }
-  }
-  return map
-})
-
 /**
  * Build the options available for a specific dimension.
- * Axis roles already held by other dimensions are excluded from the list,
- * but the axis role held by THIS dimension is always shown.
+ * All options are always shown. Axis roles held by other dimensions are
+ * still selectable — the parent handles swapping the displaced dimension.
  */
-function getOptionsForDimension(dimensionName: string) {
-  return baseOptions.filter((opt) => {
-    // Filter-mode options are always available
-    if (opt.value === 'single' || opt.value === 'multi' || opt.value === 'hide') return true
-    // Axis option: show if unassigned or assigned to this dimension
-    const holder = assignedAxes.value.get(opt.value)
-    return !holder || holder === dimensionName
-  })
+function getOptionsForDimension(_dimensionName: string) {
+  return baseOptions
 }
 
 /** Derive the unified mode value for a dimension from its role and filter mode.

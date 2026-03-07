@@ -55,6 +55,7 @@ Each story in backlog.yaml has a `status` field with one of these values:
 - **uat_feedback**: User provided feedback on a UAT story. Feedback is in `review_feedback`. Agent's court — will be picked up and transitioned to `in_progress`.
 - **done**: User accepted. Story is complete.
 - **blocked**: Cannot proceed. Must have a non-empty `blocked_reason`.
+- **closed**: Resolved without code changes. Used when a ticket is determined not to need work (e.g., infrastructure issue, duplicate, won't-fix).
 
 ### 1.1 Status transitions
 
@@ -71,6 +72,7 @@ todo ──► in_progress ──► review ──► testing ──► uat ─�
 
 Any status ──► blocked (with blocked_reason)
 blocked ──► todo (when blocker is resolved by user)
+Any status ──► closed (resolved without code changes)
 ```
 
 Valid transitions — the **Deciding subagent** column shows which subagent's verdict triggers the transition. The **orchestrator** writes all status changes to backlog.yaml; subagents only report their verdict.
