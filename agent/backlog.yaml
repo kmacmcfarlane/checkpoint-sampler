@@ -739,3 +739,56 @@ stories:
       Two related UX issues in dimension mapping:
       1. Drawer toggle reloads preset mappings, discarding user edits. The drawer should preserve in-memory dirty state.
       2. S-089 unified selector hides axis options already held by another dimension (mutual exclusion). Instead, selecting an already-assigned axis role should swap — the old holder gets the new dimension's previous role.
+  - id: B-061
+    title: "Job marked as completed despite 94 missing samples (590/684)"
+    priority: 75
+    complexity: medium
+    status: todo
+    requires: []
+    acceptance:
+      - "A job with incomplete items (missing samples) is not marked as 'completed' — should show 'completed_with_errors'
+        or similar"
+      - "Job progress display accurately reflects the actual completion state"
+    testing:
+      - "command: make test-backend"
+      - "command: make test-e2e"
+    notes: |
+      Observed: Job for training run qwen/psai4rt-v0.3.0-...-cap_drop-0 shows 'completed' status
+      but only 590/684 items completed. Study: psy-cfg-check-1344, Workflow: qwen-image.json.
+      The job should show a non-complete status or 'completed_with_errors' when items are missing.
+  - id: B-062
+    title: "Generate Samples dialog: wrong bead colors, missing regeneration checkboxes"
+    priority: 70
+    complexity: medium
+    status: todo
+    requires: []
+    acceptance:
+      - "Training run selector bead shows yellow (not grey) for runs with partial samples"
+      - "Study bead shows yellow (not green) when study has missing samples (e.g. 590/684)"
+      - "'Generate missing samples only' checkbox appears when missing samples are detected"
+      - "'Clear existing samples' checkbox appears for regeneration scenarios"
+    testing:
+      - "command: make test-frontend"
+      - "command: make test-e2e"
+    notes: |
+      Three issues in the Generate Samples dialog:
+      1. Training run bead color: partial samples shows grey instead of yellow
+      2. Study bead: shows green despite 590/684 (94 missing) — should be yellow for partial
+      3. Regeneration checkboxes from S-084 ('Generate missing samples only' and 'Clear existing samples')
+         are not appearing. These previously worked and have regressed.
+  - id: B-063
+    title: "Hot reload resets all dimension mappings to Single"
+    priority: 65
+    complexity: medium
+    status: todo
+    requires: []
+    acceptance:
+      - "Vite HMR hot reload preserves current dimension role assignments and filter modes"
+      - "Dimension mappings do not reset to 'single' on hot reload"
+    testing:
+      - "command: make test-frontend"
+    notes: |
+      When Vite hot module replacement triggers (e.g. saving a frontend file during make up-dev),
+      all dimension mappings reset to 'single'. User must switch the preset selector away and back
+      to restore their configuration. Likely the composable state (useDimensionMapping) is
+      being re-initialized on HMR without preserving the current assignments.
