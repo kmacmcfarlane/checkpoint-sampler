@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue'
+import { ref, computed, type Ref } from 'vue'
 import type {
   ScanResult,
   ScanDimension,
@@ -7,6 +7,49 @@ import type {
   DimensionAssignment,
   FilterMode,
 } from '../api/types'
+
+/**
+ * HMR-safe state container for dimension mapping.
+ *
+ * State is held at module scope so that Vite HMR of importing modules
+ * (e.g. App.vue) does not recreate the refs. When this module itself is
+ * HMR'd, the `import.meta.hot` block below transfers state across the
+ * old and new module instances.
+ */
+interface DimensionMappingState {
+  scanResult: Ref<ScanResult | null>
+  assignments: Ref<Map<string, DimensionRole>>
+  filterModes: Ref<Map<string, FilterMode>>
+}
+
+function createFreshState(): DimensionMappingState {
+  return {
+    scanResult: ref<ScanResult | null>(null),
+    assignments: ref<Map<string, DimensionRole>>(new Map()),
+    filterModes: ref<Map<string, FilterMode>>(new Map()),
+  }
+}
+
+// Restore state from a previous HMR cycle if available, otherwise create fresh.
+// Guard on `import.meta.hot?.data` because the test environment (jsdom) may
+// provide a truthy `import.meta.hot` without the full HMR data object.
+let _state: DimensionMappingState =
+  (import.meta.hot?.data?.dimensionMappingState as DimensionMappingState | undefined) ??
+  createFreshState()
+
+// Preserve state across HMR of this module.
+if (import.meta.hot?.data) {
+  import.meta.hot.data.dimensionMappingState = _state
+}
+
+/**
+ * Reset module-scoped state. Exported ONLY for test isolation —
+ * each test should call this in beforeEach to avoid shared state.
+ * @internal
+ */
+export function _resetForTesting(): void {
+  _state = createFreshState()
+}
 
 /**
  * Sort dimension values: integer dimensions sorted numerically, string dimensions lexicographically.
@@ -102,9 +145,8 @@ function rebuildDimensions(
  * for every dimension regardless of role assignment.
  */
 export function useDimensionMapping() {
-  const scanResult = ref<ScanResult | null>(null)
-  const assignments = ref<Map<string, DimensionRole>>(new Map())
-  const filterModes = ref<Map<string, FilterMode>>(new Map())
+  // Use module-scoped state so HMR of importing modules does not reset it.
+  const { scanResult, assignments, filterModes } = _state
 
   /** Replace the current scan data and reset assignments.
    *  Unassigned dimensions default to 'single' filter mode.

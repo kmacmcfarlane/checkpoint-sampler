@@ -4,6 +4,7 @@ import { NButton, NTag } from 'naive-ui'
 import App from '../App.vue'
 import TrainingRunSelector from '../components/TrainingRunSelector.vue'
 import type { TrainingRun, SampleJob } from '../api/types'
+import { _resetForTesting as resetDimensionMapping } from '../composables/useDimensionMapping'
 
 vi.mock('../api/client', () => ({
   apiClient: {
@@ -108,6 +109,7 @@ function createMatchMediaMock(matches: boolean) {
 describe('App', () => {
   beforeEach(() => {
     localStorage.clear()
+    resetDimensionMapping()
     mockGetTrainingRuns.mockClear()
     mockScanTrainingRun.mockClear()
     mockListSampleJobs.mockClear()

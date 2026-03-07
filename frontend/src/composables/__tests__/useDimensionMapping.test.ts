@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { useDimensionMapping } from '../useDimensionMapping'
+import { describe, it, expect, beforeEach } from 'vitest'
+import { useDimensionMapping, _resetForTesting } from '../useDimensionMapping'
 import type { ScanResult } from '../../api/types'
 
 function makeScanResult(overrides?: Partial<ScanResult>): ScanResult {
@@ -28,6 +28,11 @@ function makeScanResult(overrides?: Partial<ScanResult>): ScanResult {
 }
 
 describe('useDimensionMapping', () => {
+  // Reset module-scoped singleton state between tests to prevent cross-test contamination.
+  beforeEach(() => {
+    _resetForTesting()
+  })
+
   describe('setScanResult', () => {
     it('initializes all dimensions to none role', () => {
       const { setScanResult, assignments } = useDimensionMapping()
@@ -509,6 +514,71 @@ describe('useDimensionMapping', () => {
       const { images, removeImage } = useDimensionMapping()
       removeImage('test.png')
       expect(images.value).toHaveLength(0)
+    })
+  })
+
+  // AC: Vite HMR hot reload preserves current dimension role assignments and filter modes
+  describe('singleton state (HMR resilience)', () => {
+    it('returns the same state across multiple calls to useDimensionMapping', () => {
+      const first = useDimensionMapping()
+      first.setScanResult(makeScanResult())
+      first.assignRole('index', 'x')
+      first.setFilterMode('step', 'multi')
+
+      // Simulate what happens during HMR: useDimensionMapping() is called again
+      const second = useDimensionMapping()
+
+      expect(second.assignments.value.get('index')).toBe('x')
+      expect(second.getFilterMode('step')).toBe('multi')
+      expect(second.images.value).toHaveLength(3)
+    })
+
+    // AC: Dimension mappings do not reset to 'single' on hot reload
+    it('preserves role assignments when composable is re-invoked', () => {
+      const first = useDimensionMapping()
+      first.setScanResult(makeScanResult())
+      first.assignRole('index', 'x')
+      first.assignRole('step', 'y')
+      first.assignRole('seed', 'slider')
+
+      const second = useDimensionMapping()
+
+      expect(second.xDimension.value?.name).toBe('index')
+      expect(second.yDimension.value?.name).toBe('step')
+      expect(second.sliderDimension.value?.name).toBe('seed')
+    })
+
+    it('preserves filter modes when composable is re-invoked', () => {
+      const first = useDimensionMapping()
+      first.setScanResult(makeScanResult())
+      first.setFilterMode('index', 'hide')
+
+      const second = useDimensionMapping()
+
+      expect(second.filterModes.value.get('index')).toBe('hide')
+    })
+
+    it('shares mutations: changes via second instance are visible in first', () => {
+      const first = useDimensionMapping()
+      first.setScanResult(makeScanResult())
+
+      const second = useDimensionMapping()
+      second.assignRole('index', 'x')
+
+      expect(first.assignments.value.get('index')).toBe('x')
+    })
+
+    it('_resetForTesting clears all state', () => {
+      const first = useDimensionMapping()
+      first.setScanResult(makeScanResult())
+      first.assignRole('index', 'x')
+
+      _resetForTesting()
+
+      const second = useDimensionMapping()
+      expect(second.scanResult.value).toBeNull()
+      expect(second.assignments.value.size).toBe(0)
+      expect(second.filterModes.value.size).toBe(0)
     })
   })
 })

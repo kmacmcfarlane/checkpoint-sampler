@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-063: Hot reload resets all dimension mappings to Single
+- Converted `useDimensionMapping` composable to module-scoped singleton state with `import.meta.hot.data` preservation, preventing Vite HMR from resetting dimension role assignments and filter modes
+
 ### B-062: Generate Samples dialog: wrong bead colors, missing regeneration checkboxes
 - Training run bead now uses job data as primary indicator: completed → green, completed_with_errors → yellow/partial (was red), replacing the root-level `has_samples` check that missed study-scoped sample directories
 - Study bead overrides directory-level availability with validation results for image-level accuracy (e.g. 590/684 shows yellow, not green)

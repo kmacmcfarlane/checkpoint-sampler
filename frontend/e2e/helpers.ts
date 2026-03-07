@@ -303,8 +303,12 @@ export async function openFiltersDrawer(page: Page): Promise<void> {
   const filtersButton = page.locator('[data-testid="filters-button"]')
   await expect(filtersButton).toBeVisible()
   await filtersButton.click()
-  // Wait for the drawer content to appear (NDrawerContent title="Filters")
-  await expect(page.locator('.n-drawer-body-content-wrapper')).toBeVisible()
+  // Wait for the right-side filters drawer content to appear.
+  // Scope to right-placement to avoid strict mode violation when the left
+  // sidebar drawer is also open (both render .n-drawer-body-content-wrapper).
+  await expect(
+    page.locator('.n-drawer--right-placement .n-drawer-body-content-wrapper'),
+  ).toBeVisible()
 }
 
 /**

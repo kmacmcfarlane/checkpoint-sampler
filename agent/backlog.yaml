@@ -780,7 +780,7 @@ stories:
     title: "Hot reload resets all dimension mappings to Single"
     priority: 65
     complexity: medium
-    status: todo
+    status: uat
     requires: []
     acceptance:
       - "Vite HMR hot reload preserves current dimension role assignments and filter modes"
