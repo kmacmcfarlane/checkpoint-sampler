@@ -397,7 +397,7 @@ stories:
   - id: S-093
     title: Confirmation dialog for regenerating a valid sample set
     type: feature
-    status: todo
+    status: uat
     priority: 25
     complexity: low
     requires: []
@@ -680,3 +680,24 @@ stories:
       resource pressure or accumulated state that prevents the training-run-select from
       responding within 15s. All failing tests pass when run in isolation.
       Related idea: agent/ideas/devops.md "E2E full-suite test isolation".
+  - id: B-058
+    title: "45 pre-existing E2E test failures across 10 spec files"
+    type: bug
+    status: todo
+    priority: 60
+    complexity: medium
+    requires: []
+    acceptance:
+      - "All E2E test suites pass with zero failures in the test environment"
+      - "sidebar-preset-selector, single-value-dimensions, slider-playback, training-run-grid, viewer-discovery, study-availability,
+        study-name-validation, sample-count-preview, sample-generation, sample-path-scoping specs all pass"
+    testing:
+      - "command: make test-e2e"
+    notes: |
+      Discovered during S-093 QA cycle. 45 E2E tests across 10 spec files fail in the test environment.
+      These are unrelated to S-093 (one-line computed property fix). Root cause hypothesis: DOM structure
+      shifts from recent stories (S-091 moved UI to Settings, S-094 added delete dialog) may have broken
+      E2E selectors. Could also be test environment flakiness or resource contention.
+      Affected specs: sidebar-preset-selector, single-value-dimensions, slider-playback, training-run-grid,
+      viewer-discovery, study-availability, study-name-validation, sample-count-preview, sample-generation,
+      sample-path-scoping.

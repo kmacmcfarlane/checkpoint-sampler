@@ -3213,4 +3213,244 @@ describe('JobLaunchDialog', () => {
       expect(options.find(o => o.value === 'preset-2')?._sampleStatus).toBe('complete')
     })
   })
+
+  // S-093: Confirmation dialog for regenerating a fully-validated sample set
+  describe('regeneration confirmation dialog (S-093)', () => {
+    // Validation result where ALL expected samples exist (complete = no missing)
+    const validationComplete = {
+      checkpoints: [
+        { checkpoint: 'chk-a.safetensors', expected: 1, verified: 1, missing: 0 },
+        { checkpoint: 'chk-b.safetensors', expected: 1, verified: 1, missing: 0 },
+        { checkpoint: 'chk-c.safetensors', expected: 1, verified: 1, missing: 0 },
+      ],
+      expected_per_checkpoint: 1,
+      total_expected: 3,
+      total_verified: 3,
+      total_actual: 3,
+      total_missing: 0,
+    }
+
+    // Validation result with some missing samples (incomplete)
+    const validationIncomplete = {
+      checkpoints: [
+        { checkpoint: 'chk-a.safetensors', expected: 1, verified: 1, missing: 0 },
+        { checkpoint: 'chk-b.safetensors', expected: 1, verified: 0, missing: 1 },
+        { checkpoint: 'chk-c.safetensors', expected: 1, verified: 1, missing: 0 },
+      ],
+      expected_per_checkpoint: 1,
+      total_expected: 3,
+      total_verified: 2,
+      total_actual: 2,
+      total_missing: 1,
+    }
+
+    /** Helper to set up the dialog with a run-with-samples selected + all form fields filled. */
+    async function mountAndFillRunWithSamples(validationResult: typeof validationComplete) {
+      mockValidateTrainingRun.mockResolvedValue(validationResult)
+      mockCreateSampleJob.mockResolvedValue({
+        id: 'job-regen',
+        training_run_name: 'qwen/psai4rt-v0.4.0',
+        study_id: 'preset-1',
+        study_name: 'Quick Test',
+        workflow_name: 'qwen-image.json',
+        status: 'pending',
+        total_items: 3,
+        completed_items: 0,
+        failed_items: 0,
+        pending_items: 3,
+        created_at: '2025-01-01T00:00:00Z',
+        updated_at: '2025-01-01T00:00:00Z',
+      })
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
+      await nextTick()
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      await flushPromises()
+      wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect).vm.$emit('update:value', 'qwen-image.json')
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
+      wrapper.find('[data-testid="vae-select"]').findComponent(NSelect).vm.$emit('update:value', 'ae.safetensors')
+      wrapper.find('[data-testid="clip-select"]').findComponent(NSelect).vm.$emit('update:value', 'clip_l.safetensors')
+      await flushPromises()
+
+      return wrapper
+    }
+
+    // AC1: Clicking Regenerate on a validated (complete) sample set shows the confirmation dialog
+    it('shows confirmation dialog when all expected samples exist (complete validation)', async () => {
+      const wrapper = await mountAndFillRunWithSamples(validationComplete)
+
+      // Confirmation dialog should be hidden initially
+      const confirmDialog = wrapper.findAllComponents(NModal).find(m => m.props('title') === 'Regenerate All Samples?')
+      expect(confirmDialog).toBeDefined()
+      expect(confirmDialog!.props('show')).toBe(false)
+
+      // Click "Regenerate Samples"
+      const buttons = wrapper.findAllComponents(NButton)
+      const submitButton = buttons.find(b => b.text() === 'Regenerate Samples')
+      await submitButton!.trigger('click')
+      await nextTick()
+
+      // AC1: Confirmation dialog must appear
+      const updatedDialog = wrapper.findAllComponents(NModal).find(m => m.props('title') === 'Regenerate All Samples?')
+      expect(updatedDialog!.props('show')).toBe(true)
+
+      // No API call made yet (dialog shown, not submitted)
+      expect(mockCreateSampleJob).not.toHaveBeenCalled()
+    })
+
+    // AC2: Dialog explains that all expected samples already exist and regeneration will overwrite them
+    it('shows explanation text in confirmation dialog', async () => {
+      const wrapper = await mountAndFillRunWithSamples(validationComplete)
+
+      const buttons = wrapper.findAllComponents(NButton)
+      const submitButton = buttons.find(b => b.text() === 'Regenerate Samples')
+      await submitButton!.trigger('click')
+      await nextTick()
+
+      // AC2: Description must mention samples already exist and overwrite
+      const description = wrapper.find('[data-testid="confirm-regen-description"]')
+      expect(description.exists()).toBe(true)
+      expect(description.text()).toContain('All expected samples already exist')
+      expect(description.text()).toContain('overwrite')
+    })
+
+    // AC3: Confirm proceeds with regeneration
+    it('proceeds with job creation when Confirm button is clicked', async () => {
+      const wrapper = await mountAndFillRunWithSamples(validationComplete)
+
+      // Open the confirmation dialog
+      const buttons = wrapper.findAllComponents(NButton)
+      const submitButton = buttons.find(b => b.text() === 'Regenerate Samples')
+      await submitButton!.trigger('click')
+      await nextTick()
+
+      // Click the confirm button
+      const confirmButton = wrapper.find('[data-testid="confirm-regen-button"]')
+      await confirmButton.trigger('click')
+      await flushPromises()
+
+      // AC3: Job creation API must have been called
+      expect(mockCreateSampleJob).toHaveBeenCalledTimes(1)
+      const call = mockCreateSampleJob.mock.calls[0][0]
+      expect(call.training_run_name).toBe('qwen/psai4rt-v0.4.0')
+    })
+
+    // AC3: Cancel aborts the operation
+    it('does not create a job when Cancel button is clicked', async () => {
+      const wrapper = await mountAndFillRunWithSamples(validationComplete)
+
+      // Open the confirmation dialog
+      const buttons = wrapper.findAllComponents(NButton)
+      const submitButton = buttons.find(b => b.text() === 'Regenerate Samples')
+      await submitButton!.trigger('click')
+      await nextTick()
+
+      // Click Cancel
+      const cancelButton = wrapper.find('[data-testid="confirm-regen-cancel-button"]')
+      await cancelButton.trigger('click')
+      await nextTick()
+
+      // AC3: No job creation
+      expect(mockCreateSampleJob).not.toHaveBeenCalled()
+
+      // Confirmation dialog should be closed
+      const confirmDialog = wrapper.findAllComponents(NModal).find(m => m.props('title') === 'Regenerate All Samples?')
+      expect(confirmDialog!.props('show')).toBe(false)
+    })
+
+    // AC4: No confirmation dialog when the sample set has missing samples (incomplete validation)
+    it('does not show confirmation dialog when some samples are missing (incomplete validation)', async () => {
+      const wrapper = await mountAndFillRunWithSamples(validationIncomplete)
+
+      // Click "Regenerate Samples" — should proceed directly without showing dialog
+      const buttons = wrapper.findAllComponents(NButton)
+      const submitButton = buttons.find(b => b.text() === 'Regenerate Samples')
+      await submitButton!.trigger('click')
+      await flushPromises()
+
+      // AC4: No confirmation dialog shown
+      const confirmDialog = wrapper.findAllComponents(NModal).find(m => m.props('title') === 'Regenerate All Samples?')
+      // Dialog either doesn't exist or its show prop is false
+      if (confirmDialog) {
+        expect(confirmDialog.props('show')).toBe(false)
+      }
+
+      // Job creation should have been called directly
+      expect(mockCreateSampleJob).toHaveBeenCalledTimes(1)
+    })
+
+    // AC4: No confirmation for runs with NO samples at all (total_actual = 0)
+    it('does not show confirmation dialog when no samples exist at all (total_actual = 0)', async () => {
+      // Use the empty run (id=1, no has_samples) — no confirmation ever needed for generate-from-scratch
+      mockValidateTrainingRun.mockResolvedValue(validationForRunEmpty)
+      mockCreateSampleJob.mockResolvedValue({
+        id: 'job-gen',
+        training_run_name: 'qwen/psai4rt-v0.3.0',
+        study_id: 'preset-1',
+        study_name: 'Quick Test',
+        workflow_name: 'qwen-image.json',
+        status: 'pending',
+        total_items: 5,
+        completed_items: 0,
+        failed_items: 0,
+        pending_items: 5,
+        created_at: '2025-01-01T00:00:00Z',
+        updated_at: '2025-01-01T00:00:00Z',
+      })
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect).vm.$emit('update:value', 'qwen-image.json')
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
+      wrapper.find('[data-testid="vae-select"]').findComponent(NSelect).vm.$emit('update:value', 'ae.safetensors')
+      wrapper.find('[data-testid="clip-select"]').findComponent(NSelect).vm.$emit('update:value', 'clip_l.safetensors')
+      await flushPromises()
+
+      // Click "Generate Samples" (not Regenerate — empty run)
+      const buttons = wrapper.findAllComponents(NButton)
+      const submitButton = buttons.find(b => b.text() === 'Generate Samples')
+      await submitButton!.trigger('click')
+      await flushPromises()
+
+      // No confirmation dialog
+      const confirmDialog = wrapper.findAllComponents(NModal).find(m => m.props('title') === 'Regenerate All Samples?')
+      if (confirmDialog) {
+        expect(confirmDialog.props('show')).toBe(false)
+      }
+
+      // Job created directly
+      expect(mockCreateSampleJob).toHaveBeenCalledTimes(1)
+    })
+
+    // AC3: Closing the confirmation dialog via mask (update:show=false) is treated as cancel
+    it('treats dialog mask-close as cancel (no job creation)', async () => {
+      const wrapper = await mountAndFillRunWithSamples(validationComplete)
+
+      const buttons = wrapper.findAllComponents(NButton)
+      const submitButton = buttons.find(b => b.text() === 'Regenerate Samples')
+      await submitButton!.trigger('click')
+      await nextTick()
+
+      // Simulate mask close (update:show emitted with false)
+      const confirmDialog = wrapper.findAllComponents(NModal).find(m => m.props('title') === 'Regenerate All Samples?')
+      confirmDialog!.vm.$emit('update:show', false)
+      await nextTick()
+
+      expect(mockCreateSampleJob).not.toHaveBeenCalled()
+
+      const updatedDialog = wrapper.findAllComponents(NModal).find(m => m.props('title') === 'Regenerate All Samples?')
+      expect(updatedDialog!.props('show')).toBe(false)
+    })
+  })
 })

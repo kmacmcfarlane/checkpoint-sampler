@@ -77,6 +77,9 @@ const missingOnly = ref(false)
 const validationResult = ref<ValidationResult | null>(null)
 const validating = ref(false)
 
+// Confirmation dialog for regenerating a fully-validated (complete) sample set
+const confirmRegenOpen = ref(false)
+
 // When true, the training run watcher skips checkpoint auto-selection to allow
 // applyPrefill to control checkpoint selection instead.
 const prefillActive = ref(false)
@@ -514,6 +517,17 @@ const hasMissingSamples = computed(() => {
     validationResult.value.checkpoints.some(c => c.missing > 0)
 })
 
+// Whether the sample set is fully validated (all expected samples exist, none missing).
+// This is the condition that requires a confirmation dialog before regeneration.
+// AC4: No dialog when sample set has missing samples (incomplete validation).
+// Note: total_missing can be negative when actual samples exceed expected count
+// (e.g. more files on disk than the study requires). Both zero and negative values
+// mean no samples are missing, so we use <= 0 rather than strict equality.
+const isCompleteValidation = computed(() => {
+  if (!validationResult.value) return false
+  return validationResult.value.total_actual > 0 && validationResult.value.total_missing <= 0
+})
+
 // Checkpoints that have missing samples according to validation
 const missingCheckpointFilenames = computed((): string[] => {
   if (!validationResult.value) return []
@@ -697,8 +711,7 @@ function resetForm() {
   validating.value = false
   studyAvailability.value = []
   error.value = null
-  validationResult.value = null
-
+  confirmRegenOpen.value = false
 }
 
 /**
@@ -771,8 +784,45 @@ async function onStudyDeleted(studyId: string) {
   await fetchStudies()
 }
 
+/**
+ * Called when the Regenerate Samples / Generate Samples button is clicked.
+ * For runs with a fully-validated (complete) sample set, shows a confirmation
+ * dialog before proceeding. For runs with missing samples, proceeds directly.
+ * AC1: Show confirmation when sample set is fully valid.
+ * AC4: No confirmation when sample set has missing samples.
+ */
 async function submit() {
   if (!canSubmit.value || !selectedTrainingRun.value) return
+
+  // AC1 + AC4: Show confirmation only when all expected samples exist (complete validation).
+  if (selectedRunHasSamples.value && isCompleteValidation.value) {
+    confirmRegenOpen.value = true
+    return
+  }
+
+  await doSubmit()
+}
+
+/**
+ * Called when the user confirms regeneration in the confirmation dialog.
+ * AC3: Confirm proceeds with regeneration.
+ */
+async function handleRegenConfirm() {
+  confirmRegenOpen.value = false
+  await doSubmit()
+}
+
+/**
+ * Called when the user cancels the confirmation dialog.
+ * AC3: Cancel aborts the operation.
+ */
+function handleRegenCancel() {
+  confirmRegenOpen.value = false
+}
+
+/** Performs the actual API call to create the sample job. */
+async function doSubmit() {
+  if (!selectedTrainingRun.value) return
 
   loading.value = true
   error.value = null
@@ -839,6 +889,39 @@ async function submit() {
         @study-saved="onStudySaved"
         @study-deleted="onStudyDeleted"
       />
+    </NModal>
+
+    <!-- AC1-AC3: Confirmation dialog shown when regenerating a fully-validated sample set. -->
+    <!-- AC2: Dialog explains that all expected samples already exist and regeneration will overwrite them. -->
+    <NModal
+      :show="confirmRegenOpen"
+      preset="card"
+      title="Regenerate All Samples?"
+      style="max-width: 420px;"
+      :mask-closable="true"
+      data-testid="confirm-regen-dialog"
+      @update:show="(val) => { if (!val) handleRegenCancel() }"
+    >
+      <div class="confirm-regen-body">
+        <p class="confirm-regen-description" data-testid="confirm-regen-description">
+          All expected samples already exist for this training run. Regenerating will overwrite them. Are you sure you want to continue?
+        </p>
+      </div>
+      <div class="action-buttons">
+        <NButton
+          type="warning"
+          data-testid="confirm-regen-button"
+          @click="handleRegenConfirm"
+        >
+          Yes, Regenerate
+        </NButton>
+        <NButton
+          data-testid="confirm-regen-cancel-button"
+          @click="handleRegenCancel"
+        >
+          Cancel
+        </NButton>
+      </div>
     </NModal>
 
     <NSpace vertical :size="16">
@@ -1256,5 +1339,19 @@ async function submit() {
   display: flex;
   gap: 0.75rem;
   justify-content: flex-end;
+}
+
+.confirm-regen-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.confirm-regen-description {
+  margin: 0;
+  font-size: 0.9375rem;
+  color: var(--text-color);
+  line-height: 1.5;
 }
 </style>

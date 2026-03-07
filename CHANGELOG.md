@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-093: Confirmation dialog for regenerating a valid sample set
+- Clicking "Regenerate Samples" on a fully-validated sample set (all expected images exist) shows a confirmation dialog before proceeding
+- Incomplete or empty sample sets skip the dialog and proceed directly to job creation
+
 ### S-091: Move Light/Dark and Debug mode to Settings dialog
 - Theme toggle and debug mode switch moved from header into the Settings dialog's new "Appearance" section
 - Reduces top-level UI clutter; controls take effect immediately without closing the dialog

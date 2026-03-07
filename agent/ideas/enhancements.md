@@ -139,3 +139,15 @@ PresetSelector also uses `window.confirm()` for delete confirmation. Replace wit
 * priority: very-low
 * source: developer
 `ThemeToggle.vue` and `ThemeToggle.test.ts` are now dead code since S-091 moved the toggle into the Settings dialog. A cleanup story could delete them.
+
+### Configurable confirmation button text in ConfirmDeleteDialog
+* status: needs_approval
+* priority: low
+* source: developer
+The `ConfirmDeleteDialog.vue` component has a hardcoded "Yes, Delete" button, limiting reuse for non-delete confirmations. Adding a `confirmLabel` prop would allow reusing it for the regeneration confirmation dialog without creating an ad-hoc inline modal.
+
+### Clamp TotalMissing in backend validation service to prevent negative values
+* status: needs_approval
+* priority: low
+* source: qa
+`TotalMissing = totalExpected - totalVerified` in `validation.go` is not clamped at 0. While per-checkpoint `missing` is clamped, the aggregate is not. Returning a negative `total_missing` via the API is semantically incorrect and can confuse consumers. Fix: `result.TotalMissing = max(0, totalExpected - totalVerified)`.
