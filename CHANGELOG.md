@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-066: Job executor logs spurious error when database is reset mid-poll
+- Downgraded `autoStartJob` error log from ERROR to WARN when `UpdateSampleJob` returns `sql.ErrNoRows`, eliminating spurious error noise during E2E test teardown race conditions
+
 ### S-101: Study editor validation field highlighting
 - Per-field validation error highlighting in the study editor: NInput/NSelect `status="error"` for study name, prompt rows, and sampler/scheduler pairs; CSS error border wrappers for NDynamicTags (steps, CFGs, seeds)
 - Duplicate values highlight only occurrences after the first; highlights clear reactively when errors are resolved

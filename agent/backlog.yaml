@@ -826,7 +826,7 @@ stories:
   - id: B-066
     title: "Job executor logs spurious error when database is reset mid-poll"
     priority: 40
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:

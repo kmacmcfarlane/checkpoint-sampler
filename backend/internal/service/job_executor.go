@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"path/filepath"
@@ -349,10 +350,17 @@ func (e *JobExecutor) autoStartJob(job *model.SampleJob) error {
 	job.Status = model.SampleJobStatusRunning
 	job.UpdatedAt = time.Now().UTC()
 	if err := e.store.UpdateSampleJob(*job); err != nil {
-		e.logger.WithFields(logrus.Fields{
-			"job_id": job.ID,
-			"error":  err.Error(),
-		}).Error("failed to auto-start pending job")
+		// sql.ErrNoRows means the row was deleted between the poll and the update
+		// (e.g. database reset during E2E teardown). This is a benign race — log at
+		// WARN rather than ERROR to avoid spurious noise in test output.
+		if err == sql.ErrNoRows {
+			e.logger.WithField("job_id", job.ID).Warn("job row not found during auto-start (deleted between poll and update)")
+		} else {
+			e.logger.WithFields(logrus.Fields{
+				"job_id": job.ID,
+				"error":  err.Error(),
+			}).Error("failed to auto-start pending job")
+		}
 		return fmt.Errorf("auto-starting job: %w", err)
 	}
 	e.logger.WithField("job_id", job.ID).Info("pending job transitioned to running")
