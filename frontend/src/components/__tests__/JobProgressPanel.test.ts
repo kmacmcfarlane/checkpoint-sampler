@@ -1594,4 +1594,269 @@ describe('JobProgressPanel', () => {
       expect(jobEta.text()).toContain(expected)
     })
   })
+
+  // AC1: FE: Clicking a job card title opens a detail view showing all job parameters
+  // AC2: FE: Parameters include: training run, workflow, preset name, VAE, CLIP, shift, and checkpoint list
+  // AC3: FE: Detail view is dismissible (click outside or close button)
+  // AC4: FE: Unit tests for parameter display
+  describe('job parameter detail panel', () => {
+    const paramJob: SampleJob = {
+      id: 'job-params',
+      training_run_name: 'flux/my-run',
+      study_id: 'study-abc',
+      study_name: 'My Study Preset',
+      workflow_name: 'flux-workflow.json',
+      vae: 'ae.safetensors',
+      clip: 't5xxl.safetensors',
+      shift: 1.5,
+      status: 'running',
+      total_items: 12,
+      completed_items: 4,
+      failed_items: 0,
+      pending_items: 8,
+      created_at: '2025-01-01T00:00:00Z',
+      updated_at: '2025-01-01T00:00:00Z',
+    }
+
+    // AC1: Parameter panel is not visible by default
+    it('parameter panel is hidden before the title is clicked', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: [paramJob] },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const panel = wrapper.find('[data-testid="job-job-params-params"]')
+      expect(panel.exists()).toBe(false)
+    })
+
+    // AC1: Clicking the job title reveals the parameter panel
+    it('clicking the job title opens the parameter panel', async () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: [paramJob] },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const titleBtn = wrapper.find('[data-testid="job-job-params-title"]')
+      expect(titleBtn.exists()).toBe(true)
+      await titleBtn.trigger('click')
+      await nextTick()
+
+      const panel = wrapper.find('[data-testid="job-job-params-params"]')
+      expect(panel.exists()).toBe(true)
+    })
+
+    // AC2: Training run is displayed in the parameter panel
+    it('displays training run name in the parameter panel', async () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: [paramJob] },
+        global: { stubs: { Teleport: true } },
+      })
+
+      await wrapper.find('[data-testid="job-job-params-title"]').trigger('click')
+      await nextTick()
+
+      const trainingRun = wrapper.find('[data-testid="job-job-params-param-training-run"]')
+      expect(trainingRun.exists()).toBe(true)
+      expect(trainingRun.text()).toBe('flux/my-run')
+    })
+
+    // AC2: Workflow is displayed in the parameter panel
+    it('displays workflow name in the parameter panel', async () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: [paramJob] },
+        global: { stubs: { Teleport: true } },
+      })
+
+      await wrapper.find('[data-testid="job-job-params-title"]').trigger('click')
+      await nextTick()
+
+      const workflow = wrapper.find('[data-testid="job-job-params-param-workflow"]')
+      expect(workflow.exists()).toBe(true)
+      expect(workflow.text()).toBe('flux-workflow.json')
+    })
+
+    // AC2: Study (preset) name is displayed in the parameter panel
+    it('displays study (preset) name in the parameter panel', async () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: [paramJob] },
+        global: { stubs: { Teleport: true } },
+      })
+
+      await wrapper.find('[data-testid="job-job-params-title"]').trigger('click')
+      await nextTick()
+
+      const study = wrapper.find('[data-testid="job-job-params-param-study"]')
+      expect(study.exists()).toBe(true)
+      expect(study.text()).toBe('My Study Preset')
+    })
+
+    // AC2: VAE is displayed in the parameter panel
+    it('displays VAE in the parameter panel', async () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: [paramJob] },
+        global: { stubs: { Teleport: true } },
+      })
+
+      await wrapper.find('[data-testid="job-job-params-title"]').trigger('click')
+      await nextTick()
+
+      const vae = wrapper.find('[data-testid="job-job-params-param-vae"]')
+      expect(vae.exists()).toBe(true)
+      expect(vae.text()).toBe('ae.safetensors')
+    })
+
+    // AC2: CLIP is displayed in the parameter panel
+    it('displays CLIP in the parameter panel', async () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: [paramJob] },
+        global: { stubs: { Teleport: true } },
+      })
+
+      await wrapper.find('[data-testid="job-job-params-title"]').trigger('click')
+      await nextTick()
+
+      const clip = wrapper.find('[data-testid="job-job-params-param-clip"]')
+      expect(clip.exists()).toBe(true)
+      expect(clip.text()).toBe('t5xxl.safetensors')
+    })
+
+    // AC2: Shift is displayed when present
+    it('displays shift value when present in the parameter panel', async () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: [paramJob] },
+        global: { stubs: { Teleport: true } },
+      })
+
+      await wrapper.find('[data-testid="job-job-params-title"]').trigger('click')
+      await nextTick()
+
+      const shift = wrapper.find('[data-testid="job-job-params-param-shift"]')
+      expect(shift.exists()).toBe(true)
+      expect(shift.text()).toBe('1.5')
+    })
+
+    // AC2: Shift row is not shown when shift is undefined
+    it('does not display shift row when shift is undefined', async () => {
+      const jobWithoutShift: SampleJob = { ...paramJob, id: 'job-no-shift', shift: undefined }
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: [jobWithoutShift] },
+        global: { stubs: { Teleport: true } },
+      })
+
+      await wrapper.find('[data-testid="job-job-no-shift-title"]').trigger('click')
+      await nextTick()
+
+      const shift = wrapper.find('[data-testid="job-job-no-shift-param-shift"]')
+      expect(shift.exists()).toBe(false)
+    })
+
+    // AC2: Checkpoint count is displayed in the parameter panel
+    it('displays checkpoint count in the parameter panel', async () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: [paramJob] },
+        global: { stubs: { Teleport: true } },
+      })
+
+      await wrapper.find('[data-testid="job-job-params-title"]').trigger('click')
+      await nextTick()
+
+      const checkpoints = wrapper.find('[data-testid="job-job-params-param-checkpoints"]')
+      expect(checkpoints.exists()).toBe(true)
+      expect(checkpoints.text()).toContain('total')
+    })
+
+    // AC2: Checkpoint count uses jobProgress.total_checkpoints when available
+    it('uses jobProgress total_checkpoints for checkpoint count when available', async () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: {
+          show: true,
+          jobs: [paramJob],
+          jobProgress: {
+            'job-params': {
+              checkpoints_completed: 2,
+              total_checkpoints: 6,
+            },
+          },
+        },
+        global: { stubs: { Teleport: true } },
+      })
+
+      await wrapper.find('[data-testid="job-job-params-title"]').trigger('click')
+      await nextTick()
+
+      const checkpoints = wrapper.find('[data-testid="job-job-params-param-checkpoints"]')
+      expect(checkpoints.text()).toContain('6')
+    })
+
+    // AC3: Clicking the title again closes the parameter panel (toggle)
+    it('clicking the title again closes the parameter panel', async () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: [paramJob] },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const titleBtn = wrapper.find('[data-testid="job-job-params-title"]')
+      // Open
+      await titleBtn.trigger('click')
+      await nextTick()
+      expect(wrapper.find('[data-testid="job-job-params-params"]').exists()).toBe(true)
+
+      // Close by clicking title again
+      await titleBtn.trigger('click')
+      await nextTick()
+      expect(wrapper.find('[data-testid="job-job-params-params"]').exists()).toBe(false)
+    })
+
+    // AC3: Clicking the close button dismisses the parameter panel
+    it('clicking the close button dismisses the parameter panel', async () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: [paramJob] },
+        global: { stubs: { Teleport: true } },
+      })
+
+      // Open
+      await wrapper.find('[data-testid="job-job-params-title"]').trigger('click')
+      await nextTick()
+      expect(wrapper.find('[data-testid="job-job-params-params"]').exists()).toBe(true)
+
+      // Close via the X button
+      const closeBtn = wrapper.find('[data-testid="job-job-params-params-close"]')
+      expect(closeBtn.exists()).toBe(true)
+      await closeBtn.trigger('click')
+      await nextTick()
+      expect(wrapper.find('[data-testid="job-job-params-params"]').exists()).toBe(false)
+    })
+
+    // AC1: Title button has aria-expanded attribute for accessibility
+    it('title button has aria-expanded attribute reflecting panel state', async () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: [paramJob] },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const titleBtn = wrapper.find('[data-testid="job-job-params-title"]')
+      expect(titleBtn.attributes('aria-expanded')).toBe('false')
+
+      await titleBtn.trigger('click')
+      await nextTick()
+      expect(titleBtn.attributes('aria-expanded')).toBe('true')
+    })
+
+    // Each job has its own independent parameter panel state
+    it('opening one job param panel does not affect other jobs', async () => {
+      const job1: SampleJob = { ...paramJob, id: 'j1' }
+      const job2: SampleJob = { ...paramJob, id: 'j2' }
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: [job1, job2] },
+        global: { stubs: { Teleport: true } },
+      })
+
+      // Open job 1's panel
+      await wrapper.find('[data-testid="job-j1-title"]').trigger('click')
+      await nextTick()
+
+      expect(wrapper.find('[data-testid="job-j1-params"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="job-j2-params"]').exists()).toBe(false)
+    })
+  })
 })

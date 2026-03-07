@@ -532,7 +532,7 @@ stories:
   - id: S-099
     title: View job parameters on card title click
     type: feature
-    status: todo
+    status: uat
     priority: 20
     complexity: low
     requires: []

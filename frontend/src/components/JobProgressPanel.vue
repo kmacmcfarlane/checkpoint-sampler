@@ -59,6 +59,20 @@ const sortedJobs = computed(() => {
   })
 })
 
+/** Map of job IDs to whether their parameters panel is expanded. */
+const expandedParams = ref<Record<string, boolean>>({})
+
+function toggleParams(jobId: string) {
+  expandedParams.value = {
+    ...expandedParams.value,
+    [jobId]: !expandedParams.value[jobId],
+  }
+}
+
+function isParamsExpanded(jobId: string): boolean {
+  return expandedParams.value[jobId] ?? false
+}
+
 /** Map of job IDs to whether their error section is expanded. */
 const expandedErrors = ref<Record<string, boolean>>({})
 
@@ -320,7 +334,14 @@ function isTracebackExpanded(jobId: string, errorIdx: number): boolean {
         >
           <div class="job-header">
             <div class="job-title">
-              <strong>{{ job.training_run_name }}</strong>
+              <button
+                class="job-title-btn"
+                :data-testid="`job-${job.id}-title`"
+                :aria-expanded="isParamsExpanded(job.id)"
+                @click="toggleParams(job.id)"
+              >
+                <strong>{{ job.training_run_name }}</strong>
+              </button>
               <NTag
                 :type="getStatusType(job.status)"
                 size="small"
@@ -366,6 +387,58 @@ function isTracebackExpanded(jobId: string, errorIdx: number): boolean {
                 Delete
               </NButton>
             </div>
+          </div>
+
+          <!-- AC: FE: Clicking a job card title opens a detail view showing all job parameters -->
+          <div
+            v-if="isParamsExpanded(job.id)"
+            class="job-params-panel"
+            :data-testid="`job-${job.id}-params`"
+          >
+            <div class="job-params-header">
+              <span class="job-params-title">Job Parameters</span>
+              <button
+                class="job-params-close"
+                :data-testid="`job-${job.id}-params-close`"
+                aria-label="Close parameters"
+                @click="toggleParams(job.id)"
+              >
+                &times;
+              </button>
+            </div>
+            <!-- AC: FE: Parameters include training run, workflow, preset name, VAE, CLIP, shift, and checkpoint list -->
+            <dl class="job-params-list">
+              <div class="job-params-row">
+                <dt class="job-params-label">Training Run</dt>
+                <dd class="job-params-value" :data-testid="`job-${job.id}-param-training-run`">{{ job.training_run_name }}</dd>
+              </div>
+              <div class="job-params-row">
+                <dt class="job-params-label">Workflow</dt>
+                <dd class="job-params-value" :data-testid="`job-${job.id}-param-workflow`">{{ job.workflow_name }}</dd>
+              </div>
+              <div class="job-params-row">
+                <dt class="job-params-label">Study (Preset)</dt>
+                <dd class="job-params-value" :data-testid="`job-${job.id}-param-study`">{{ job.study_name }}</dd>
+              </div>
+              <div class="job-params-row">
+                <dt class="job-params-label">VAE</dt>
+                <dd class="job-params-value" :data-testid="`job-${job.id}-param-vae`">{{ job.vae || '—' }}</dd>
+              </div>
+              <div class="job-params-row">
+                <dt class="job-params-label">CLIP</dt>
+                <dd class="job-params-value" :data-testid="`job-${job.id}-param-clip`">{{ job.clip || '—' }}</dd>
+              </div>
+              <div class="job-params-row" v-if="job.shift !== undefined">
+                <dt class="job-params-label">Shift</dt>
+                <dd class="job-params-value" :data-testid="`job-${job.id}-param-shift`">{{ job.shift }}</dd>
+              </div>
+              <div class="job-params-row">
+                <dt class="job-params-label">Checkpoints</dt>
+                <dd class="job-params-value" :data-testid="`job-${job.id}-param-checkpoints`">
+                  {{ hasCheckpointProgress(job.id) ? getJobProgress(job.id)?.total_checkpoints : job.total_items }} total
+                </dd>
+              </div>
+            </dl>
           </div>
 
           <div class="job-details">
@@ -779,5 +852,87 @@ function isTracebackExpanded(jobId: string, errorIdx: number): boolean {
 .completeness-status {
   white-space: nowrap;
   flex-shrink: 0;
+}
+
+.job-title-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--text-color);
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+}
+
+.job-title-btn:hover strong {
+  color: var(--accent-color);
+}
+
+.job-params-panel {
+  margin-bottom: 0.75rem;
+  padding: 0.75rem;
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
+  border-radius: 0.25rem;
+}
+
+.job-params-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.job-params-title {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.job-params-close {
+  background: none;
+  border: none;
+  padding: 0 0.25rem;
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.job-params-close:hover {
+  color: var(--text-color);
+}
+
+.job-params-list {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.job-params-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+}
+
+.job-params-label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  min-width: 7rem;
+  flex-shrink: 0;
+}
+
+.job-params-value {
+  font-size: 0.8125rem;
+  color: var(--text-color);
+  font-family: monospace;
+  word-break: break-all;
 }
 </style>

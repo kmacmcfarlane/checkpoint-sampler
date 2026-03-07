@@ -37,3 +37,9 @@ The "Eager auto-select" tests in App.test.ts set `Object.defineProperty(window, 
 * priority: low
 * source: developer
 Implemented in S-070: helpers extracted to `frontend/e2e/helpers.ts`.
+
+### Add Vite ws proxy EPIPE to QA_ALLOWED_ERRORS.md
+* status: needs_approval
+* priority: low
+* source: qa
+The `[vite] ws proxy socket error: Error: write EPIPE` pattern appears in every E2E run (~93 times) because Playwright closes WebSocket connections when pages are navigated or reset. Adding this to QA_ALLOWED_ERRORS.md would eliminate recurring noise in QA sweeps.

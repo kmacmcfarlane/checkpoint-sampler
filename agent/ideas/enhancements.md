@@ -67,3 +67,9 @@ The "Save preset" flow still uses `window.prompt`, which is inconsistent with th
 * priority: low
 * source: developer
 Currently the Delete button shows on running jobs, which could lead to data inconsistency if the executor is mid-write when the DB record is removed. A dedicated "stop then delete" flow or hiding Delete when status is `running` would improve safety.
+
+### Display individual checkpoint filenames in job parameters panel
+* status: needs_approval
+* priority: low
+* source: developer
+The SampleJob API response does not currently include the list of checkpoint filenames selected at job creation. Storing and returning this list would make the job parameter detail panel richer (show individual checkpoint names instead of just a count). Requires a backend schema change and API update.

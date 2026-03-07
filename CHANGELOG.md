@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-099: View job parameters on card title click
+- Job card title in Sample Jobs dialog is now clickable; opens an inline parameter detail panel showing training run, workflow, study/preset, VAE, CLIP, shift, and checkpoint count
+- Panel dismissible via close button or title toggle; accessible with `aria-expanded` attribute
+
 ### S-092: Visual polish: remove heading, play/pause icon, refresh icons
 - Removed "Checkpoint Sampler" heading from the UI header to reclaim vertical space
 - Play/Pause text button replaced with circular icon button: green triangle (play) and pause bars (pause) SVGs, themed via `--play-icon-color` CSS variable
