@@ -5,6 +5,11 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-095: Delete study with option to keep or delete sample data
+- Study deletion now shows a `ConfirmDeleteDialog` with an "Also delete sample data" checkbox (default off), replacing the browser `window.confirm()`
+- Backend `DELETE /api/studies/{id}?delete_data=true` removes the study's sample output directory from disk before deleting the database record
+- Filesystem removal errors prevent database deletion, avoiding orphaned state
+
 ### B-058: 45 pre-existing E2E test failures across 10 spec files
 - Added `confirmRegenDialogIfVisible()` helper to handle S-093's regeneration confirmation dialog in E2E tests
 - Fixed `regen-confirmation.spec.ts` unchecking "Clear existing samples" to prevent fixture directory deletion cascading across 9 spec files

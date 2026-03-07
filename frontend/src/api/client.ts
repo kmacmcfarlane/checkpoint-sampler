@@ -211,9 +211,11 @@ export class ApiClient {
     return this.request<StudyAvailability[]>(`/studies/availability?training_run_id=${trainingRunId}`)
   }
 
-  /** DELETE /api/studies/{id} — delete a study. */
-  async deleteStudy(id: string): Promise<void> {
-    const url = `${this.baseUrl}/studies/${id}`
+  /** DELETE /api/studies/{id}?delete_data={bool} — delete a study.
+   *  When deleteData is true, also removes the study's sample output directory from disk. */
+  async deleteStudy(id: string, deleteData: boolean = false): Promise<void> {
+    const query = deleteData ? '?delete_data=true' : ''
+    const url = `${this.baseUrl}/studies/${id}${query}`
     let response: Response
     try {
       response = await fetch(url, { method: 'DELETE' })

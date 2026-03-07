@@ -4,6 +4,7 @@ import { NInput, NInputNumber, NSelect, NButton, NDynamicInput, NDynamicTags, NC
 import type { Study, NamedPrompt, SamplerSchedulerPair, CreateStudyPayload, UpdateStudyPayload, ForkStudyPayload } from '../api/types'
 import { apiClient } from '../api/client'
 import { validateStudyImport } from './studyImportValidation'
+import ConfirmDeleteDialog from './ConfirmDeleteDialog.vue'
 
 // initialStudyId: When provided, the study with this ID is pre-selected after studies load.
 // If null or the ID is not found in the loaded studies, no study is selected (default behavior).
@@ -28,6 +29,9 @@ const error = ref<string | null>(null)
 
 // Immutability dialog: shown when user edits a study that has generated samples
 const showImmutabilityDialog = ref(false)
+
+// Delete confirmation dialog
+const showDeleteDialog = ref(false)
 
 // Form fields
 const studyName = ref('')
@@ -420,16 +424,18 @@ function cancelImmutabilityDialog() {
   showImmutabilityDialog.value = false
 }
 
-async function deleteStudy() {
+function deleteStudy() {
   if (!selectedStudyId.value) return
+  showDeleteDialog.value = true
+}
 
-  const confirmed = confirm(`Delete study "${studyName.value}"?`)
-  if (!confirmed) return
+async function performDeleteStudy(deleteData: boolean) {
+  if (!selectedStudyId.value) return
 
   error.value = null
   try {
     const deletedId = selectedStudyId.value
-    await apiClient.deleteStudy(selectedStudyId.value)
+    await apiClient.deleteStudy(selectedStudyId.value, deleteData)
     studies.value = studies.value.filter(p => p.id !== selectedStudyId.value)
     resetForm()
     selectedStudyId.value = null
@@ -814,6 +820,17 @@ function onUpdateSeeds(tags: string[]) {
         </div>
       </NSpace>
     </NCard>
+
+    <!-- Delete confirmation dialog -->
+    <ConfirmDeleteDialog
+      v-model:show="showDeleteDialog"
+      title="Delete Study"
+      :description="`Are you sure you want to delete the study &quot;${studyName}&quot;? This action cannot be undone.`"
+      checkbox-label="Also delete sample data"
+      :checkbox-checked="false"
+      data-testid="delete-study-dialog"
+      @confirm="performDeleteStudy"
+    />
 
     <!-- Immutability dialog: shown when user edits a study that has generated samples -->
     <NModal

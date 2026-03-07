@@ -212,8 +212,13 @@ test.describe('study CRUD via job launch dialog', () => {
     await cleanupMenu.getByText(updatedName, { exact: true }).click()
     await expect(cleanupMenu).not.toBeVisible()
 
-    page.on('dialog', (dialog) => dialog.accept())
     await page.locator('[data-testid="delete-study-button"]').click()
+
+    // S-095: Delete now opens the ConfirmDeleteDialog instead of window.confirm
+    const confirmDialog = page.locator('[data-testid="delete-study-dialog"]')
+    await expect(confirmDialog).toBeVisible()
+    await confirmDialog.locator('[data-testid="confirm-delete-button"]').click()
+    await expect(confirmDialog).not.toBeVisible()
 
     // After deletion the study is removed from the editor selector
     await expect(editorStudySelect).not.toContainText(updatedName)
@@ -254,13 +259,16 @@ test.describe('study CRUD via job launch dialog', () => {
     // Verify study exists in editor selector before deletion
     await expect(editorStudySelect).toContainText(uniqueStudyName)
 
-    // Register handler to accept the window.confirm dialog that deleteStudy() triggers
-    page.on('dialog', (dialog) => dialog.accept())
-
-    // Click Delete Study
+    // Click Delete Study — S-095 replaced window.confirm with ConfirmDeleteDialog
     const deleteButton = page.locator('[data-testid="delete-study-button"]')
     await expect(deleteButton).toBeVisible()
     await deleteButton.click()
+
+    // S-095: Confirm deletion via the ConfirmDeleteDialog
+    const confirmDialog = page.locator('[data-testid="delete-study-dialog"]')
+    await expect(confirmDialog).toBeVisible()
+    await confirmDialog.locator('[data-testid="confirm-delete-button"]').click()
+    await expect(confirmDialog).not.toBeVisible()
 
     // After deletion: no study is selected, so the delete button disappears
     await expect(deleteButton).not.toBeVisible()
@@ -333,9 +341,12 @@ test.describe('study CRUD via job launch dialog', () => {
     const loadedPrefixInput = page.locator('[data-testid="prompt-prefix-input"] input')
     await expect(loadedPrefixInput).toHaveValue(promptPrefixValue)
 
-    // Clean up: delete the study
-    page.on('dialog', (dialog) => dialog.accept())
+    // Clean up: delete the study via ConfirmDeleteDialog (S-095)
     await page.locator('[data-testid="delete-study-button"]').click()
+    const cleanupConfirmDialog = page.locator('[data-testid="delete-study-dialog"]')
+    await expect(cleanupConfirmDialog).toBeVisible()
+    await cleanupConfirmDialog.locator('[data-testid="confirm-delete-button"]').click()
+    await expect(cleanupConfirmDialog).not.toBeVisible()
     await expect(page.locator('[data-testid="delete-study-button"]')).not.toBeVisible()
   })
 })

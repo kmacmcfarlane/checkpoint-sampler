@@ -204,6 +204,45 @@ func (fs *FileSystem) ReadFile(path string) ([]byte, error) {
 	return data, nil
 }
 
+// RemoveStudyDir removes the sample output directory for a given study name.
+// The directory is located at sampleDir/studyName/.
+// If the directory does not exist, this is a no-op (not an error).
+func (fs *FileSystem) RemoveStudyDir(sampleDir string, studyName string) error {
+	fs.logger.WithFields(logrus.Fields{
+		"study_name": studyName,
+		"sample_dir": sampleDir,
+	}).Trace("entering RemoveStudyDir")
+	defer fs.logger.Trace("returning from RemoveStudyDir")
+
+	target := filepath.Join(sampleDir, studyName)
+	if err := os.RemoveAll(target); err != nil {
+		fs.logger.WithFields(logrus.Fields{
+			"target": target,
+			"error":  err.Error(),
+		}).Error("failed to remove study sample directory")
+		return fmt.Errorf("removing study sample directory %s: %w", target, err)
+	}
+	fs.logger.WithField("target", target).Info("study sample directory removed")
+	return nil
+}
+
+// StudyDirRemover implements service.StudySampleDirRemover by removing the
+// per-study sample directory under a configured sample root directory.
+type StudyDirRemover struct {
+	fs        *FileSystem
+	sampleDir string
+}
+
+// NewStudyDirRemover creates a StudyDirRemover.
+func NewStudyDirRemover(fs *FileSystem, sampleDir string) *StudyDirRemover {
+	return &StudyDirRemover{fs: fs, sampleDir: sampleDir}
+}
+
+// RemoveStudySampleDir removes sampleDir/studyName/ for the given study.
+func (r *StudyDirRemover) RemoveStudySampleDir(studyName string) error {
+	return r.fs.RemoveStudyDir(r.sampleDir, studyName)
+}
+
 // SampleDirCleaner removes study-generated sample directories from the
 // sample directory root. It preserves directories whose names end in
 // ".safetensors" (checkpoint fixture directories) and removes everything

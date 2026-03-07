@@ -65,7 +65,7 @@ function handleCancel() {
     data-testid="confirm-delete-dialog"
     @update:show="(val) => { if (!val) handleCancel() }"
   >
-    <div class="dialog-body">
+    <div class="dialog-body" data-testid="confirm-delete-dialog-body">
       <p class="description" data-testid="confirm-delete-description">{{ description }}</p>
 
       <NCheckbox

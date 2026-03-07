@@ -164,6 +164,7 @@ var _ = Describe("StudiesService", func() {
 		})
 
 		It("Delete returns ServiceError with proper fields on internal error", func() {
+			store.studies["test-id"] = model.Study{ID: "test-id", Name: "Test Study"}
 			store.deleteErr = errors.New("database write failed")
 			err := studies.Delete(ctx, &genstudies.DeletePayload{ID: "test-id"})
 			Expect(err).To(HaveOccurred())

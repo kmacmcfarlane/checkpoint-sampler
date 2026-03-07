@@ -3,6 +3,7 @@ import { mount, flushPromises, type VueWrapper } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { NSelect, NButton, NInput, NInputNumber, NDynamicInput, NDynamicTags, NModal } from 'naive-ui'
 import StudyEditor from '../StudyEditor.vue'
+import ConfirmDeleteDialog from '../ConfirmDeleteDialog.vue'
 import { validateStudyImport } from '../studyImportValidation'
 import type { Study, ComfyUIModels } from '../../api/types'
 
@@ -19,10 +20,8 @@ vi.mock('../../api/client', () => ({
   },
 }))
 
-// Mock window.confirm
-const originalConfirm = globalThis.confirm
 beforeEach(() => {
-  globalThis.confirm = vi.fn()
+  vi.clearAllMocks()
 })
 
 import { apiClient } from '../../api/client'
@@ -321,11 +320,11 @@ describe('StudyEditor', () => {
     })
   })
 
-  it('deletes preset when Delete button is clicked and confirmed', async () => {
-    ;(globalThis.confirm as ReturnType<typeof vi.fn>).mockReturnValue(true)
-    mockDeleteStudy.mockResolvedValue(undefined)
-
-    const wrapper = mount(StudyEditor)
+  // AC: FE: Delete button on study shows the standard confirmation dialog
+  it('shows ConfirmDeleteDialog when Delete button is clicked', async () => {
+    const wrapper = mount(StudyEditor, {
+      global: { stubs: { Teleport: true } },
+    })
     await flushPromises()
 
     // Select preset
@@ -337,18 +336,20 @@ describe('StudyEditor', () => {
       .findAllComponents(NButton)
       .find((b) => b.text().includes('Delete Study'))!
     await deleteButton.trigger('click')
-    await flushPromises()
+    await nextTick()
 
-    expect(mockDeleteStudy).toHaveBeenCalledWith('preset-1')
+    const dialog = wrapper.findComponent(ConfirmDeleteDialog)
+    expect(dialog.exists()).toBe(true)
+    expect(dialog.props('show')).toBe(true)
   })
 
-  it('does not delete preset when deletion is cancelled', async () => {
-    ;(globalThis.confirm as ReturnType<typeof vi.fn>).mockReturnValue(false)
-
-    const wrapper = mount(StudyEditor)
+  // AC: FE: Confirmation dialog includes 'Also delete sample data' checkbox (default off)
+  it('passes checkboxLabel and default checkboxChecked=false to ConfirmDeleteDialog', async () => {
+    const wrapper = mount(StudyEditor, {
+      global: { stubs: { Teleport: true } },
+    })
     await flushPromises()
 
-    // Select preset
     const select = wrapper.findAllComponents(NSelect)[0]
     select.vm.$emit('update:value', 'preset-1')
     await nextTick()
@@ -357,6 +358,87 @@ describe('StudyEditor', () => {
       .findAllComponents(NButton)
       .find((b) => b.text().includes('Delete Study'))!
     await deleteButton.trigger('click')
+    await nextTick()
+
+    const dialog = wrapper.findComponent(ConfirmDeleteDialog)
+    expect(dialog.props('checkboxLabel')).toBe('Also delete sample data')
+    expect(dialog.props('checkboxChecked')).toBe(false)
+  })
+
+  // AC: FE: Delete calls API without deleteData when checkbox is not checked
+  it('deletes study without data when confirm emitted with false', async () => {
+    mockDeleteStudy.mockResolvedValue(undefined)
+
+    const wrapper = mount(StudyEditor, {
+      global: { stubs: { Teleport: true } },
+    })
+    await flushPromises()
+
+    const select = wrapper.findAllComponents(NSelect)[0]
+    select.vm.$emit('update:value', 'preset-1')
+    await nextTick()
+
+    const deleteButton = wrapper
+      .findAllComponents(NButton)
+      .find((b) => b.text().includes('Delete Study'))!
+    await deleteButton.trigger('click')
+    await nextTick()
+
+    // Simulate dialog confirm with checkbox=false (keep sample data)
+    const dialog = wrapper.findComponent(ConfirmDeleteDialog)
+    await dialog.vm.$emit('confirm', false)
+    await flushPromises()
+
+    expect(mockDeleteStudy).toHaveBeenCalledWith('preset-1', false)
+  })
+
+  // AC: FE: Delete calls API with deleteData when checkbox is checked
+  it('deletes study with data when confirm emitted with true', async () => {
+    mockDeleteStudy.mockResolvedValue(undefined)
+
+    const wrapper = mount(StudyEditor, {
+      global: { stubs: { Teleport: true } },
+    })
+    await flushPromises()
+
+    const select = wrapper.findAllComponents(NSelect)[0]
+    select.vm.$emit('update:value', 'preset-1')
+    await nextTick()
+
+    const deleteButton = wrapper
+      .findAllComponents(NButton)
+      .find((b) => b.text().includes('Delete Study'))!
+    await deleteButton.trigger('click')
+    await nextTick()
+
+    // Simulate dialog confirm with checkbox=true (delete sample data too)
+    const dialog = wrapper.findComponent(ConfirmDeleteDialog)
+    await dialog.vm.$emit('confirm', true)
+    await flushPromises()
+
+    expect(mockDeleteStudy).toHaveBeenCalledWith('preset-1', true)
+  })
+
+  // AC: FE: Cancelling the dialog does not call deleteStudy
+  it('does not delete study when dialog emits cancel', async () => {
+    const wrapper = mount(StudyEditor, {
+      global: { stubs: { Teleport: true } },
+    })
+    await flushPromises()
+
+    const select = wrapper.findAllComponents(NSelect)[0]
+    select.vm.$emit('update:value', 'preset-1')
+    await nextTick()
+
+    const deleteButton = wrapper
+      .findAllComponents(NButton)
+      .find((b) => b.text().includes('Delete Study'))!
+    await deleteButton.trigger('click')
+    await nextTick()
+
+    // Simulate dialog cancel
+    const dialog = wrapper.findComponent(ConfirmDeleteDialog)
+    await dialog.vm.$emit('cancel')
     await flushPromises()
 
     expect(mockDeleteStudy).not.toHaveBeenCalled()
@@ -2051,7 +2133,5 @@ describe('StudyEditor', () => {
     })
   })
 
-  afterAll(() => {
-    globalThis.confirm = originalConfirm
-  })
 })
+

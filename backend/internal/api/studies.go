@@ -170,9 +170,9 @@ func (s *StudiesService) HasSamples(ctx context.Context, p *genstudies.HasSample
 	}, nil
 }
 
-// Delete removes a study.
+// Delete removes a study. When p.DeleteData is true, also removes the study's sample output directory.
 func (s *StudiesService) Delete(ctx context.Context, p *genstudies.DeletePayload) error {
-	err := s.svc.Delete(p.ID)
+	err := s.svc.Delete(p.ID, p.DeleteData)
 	if err != nil {
 		if isNotFound(err) {
 			return genstudies.MakeNotFound(err)

@@ -109,6 +109,24 @@ func (f *fakeSampleChecker) StudyHasSamples(study model.Study) (bool, error) {
 	return f.results[study.ID], nil
 }
 
+// fakeSampleRemover is a test double for service.StudySampleDirRemover.
+type fakeSampleRemover struct {
+	removed []string
+	err     error
+}
+
+func newFakeSampleRemover() *fakeSampleRemover {
+	return &fakeSampleRemover{}
+}
+
+func (f *fakeSampleRemover) RemoveStudySampleDir(studyName string) error {
+	if f.err != nil {
+		return f.err
+	}
+	f.removed = append(f.removed, studyName)
+	return nil
+}
+
 var _ = Describe("StudyService", func() {
 	var (
 		store         *fakeStudyStore
@@ -820,16 +838,68 @@ var _ = Describe("StudyService", func() {
 			store.studies["to-delete"] = model.Study{ID: "to-delete", Name: "Remove Me"}
 		})
 
-		It("deletes an existing study", func() {
-			err := svc.Delete("to-delete")
+		// AC: BE: Deleting a study without the data flag removes only the database record
+		It("deletes an existing study without removing sample data when deleteData=false", func() {
+			err := svc.Delete("to-delete", false)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(store.studies).NotTo(HaveKey("to-delete"))
 		})
 
+		// AC: BE: Deleting a study without the data flag removes only the database record
 		It("returns error for non-existent study", func() {
-			err := svc.Delete("nonexistent")
+			err := svc.Delete("nonexistent", false)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("not found"))
+		})
+	})
+
+	Describe("Delete with sample data removal", func() {
+		var remover *fakeSampleRemover
+
+		BeforeEach(func() {
+			remover = newFakeSampleRemover()
+			svc = service.NewStudyService(store, sampleChecker, logger).WithSampleRemover(remover)
+			store.studies["study-with-data"] = model.Study{ID: "study-with-data", Name: "My Study"}
+			store.studies["study-no-data"] = model.Study{ID: "study-no-data", Name: "Another Study"}
+		})
+
+		// AC: BE: Deleting a study with the data flag also removes the study's sample output directory
+		It("removes the sample directory when deleteData=true", func() {
+			err := svc.Delete("study-with-data", true)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(store.studies).NotTo(HaveKey("study-with-data"))
+			Expect(remover.removed).To(ConsistOf("My Study"))
+		})
+
+		// AC: BE: Deleting a study without the data flag removes only the database record
+		It("does not remove the sample directory when deleteData=false", func() {
+			err := svc.Delete("study-no-data", false)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(store.studies).NotTo(HaveKey("study-no-data"))
+			Expect(remover.removed).To(BeEmpty())
+		})
+
+		// AC: BE: Test delete of study with no sample data (should work gracefully)
+		It("succeeds when deleteData=true and study has no sample directory", func() {
+			err := svc.Delete("study-with-data", true)
+			Expect(err).NotTo(HaveOccurred())
+			// No-op removal should not cause an error
+		})
+
+		It("returns error when sample directory removal fails", func() {
+			remover.err = errors.New("permission denied")
+			err := svc.Delete("study-with-data", true)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("permission denied"))
+			// DB record should NOT be deleted since filesystem removal failed
+			Expect(store.studies).To(HaveKey("study-with-data"))
+		})
+
+		It("returns error for non-existent study even with deleteData=true", func() {
+			err := svc.Delete("nonexistent", true)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("not found"))
+			Expect(remover.removed).To(BeEmpty())
 		})
 	})
 

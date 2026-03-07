@@ -84,10 +84,13 @@ var _ = Service("studies", func() {
 	})
 
 	Method("delete", func() {
-		Description("Delete a study")
+		Description("Delete a study. When delete_data is true, also removes the study's sample output directory from disk.")
 		Payload(func() {
 			Attribute("id", String, "Study ID", func() {
 				Example("550e8400-e29b-41d4-a716-446655440000")
+			})
+			Attribute("delete_data", Boolean, "When true, also deletes the study's sample output directory from disk", func() {
+				Default(false)
 			})
 			Required("id")
 		})
@@ -95,6 +98,7 @@ var _ = Service("studies", func() {
 		Error("internal_error", ErrorResult, "Internal server error")
 		HTTP(func() {
 			DELETE("/api/studies/{id}")
+			Param("delete_data")
 			Response(StatusNoContent)
 			Response("not_found", StatusNotFound)
 			Response("internal_error", StatusInternalServerError)

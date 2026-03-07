@@ -439,7 +439,7 @@ stories:
   - id: S-095
     title: Delete study with option to keep or delete sample data
     type: feature
-    status: todo
+    status: uat
     priority: 25
     complexity: low
     requires:

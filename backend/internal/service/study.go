@@ -33,11 +33,17 @@ type StudySampleChecker interface {
 	StudyHasSamples(study model.Study) (bool, error)
 }
 
+// StudySampleDirRemover removes a study's sample output directory from disk.
+type StudySampleDirRemover interface {
+	RemoveStudySampleDir(studyName string) error
+}
+
 // StudyService manages study CRUD operations.
 type StudyService struct {
-	store         StudyStore
-	sampleChecker StudySampleChecker
-	logger        *logrus.Entry
+	store          StudyStore
+	sampleChecker  StudySampleChecker
+	sampleRemover  StudySampleDirRemover
+	logger         *logrus.Entry
 }
 
 // NewStudyService creates a StudyService backed by the given store.
@@ -47,6 +53,13 @@ func NewStudyService(store StudyStore, sampleChecker StudySampleChecker, logger 
 		sampleChecker: sampleChecker,
 		logger:        logger.WithField("component", "study"),
 	}
+}
+
+// WithSampleRemover sets the sample directory remover used by Delete(deleteData=true).
+// This is optional; if not set, Delete with deleteData=true will skip filesystem cleanup.
+func (s *StudyService) WithSampleRemover(remover StudySampleDirRemover) *StudyService {
+	s.sampleRemover = remover
+	return s
 }
 
 // List returns all studies.
@@ -279,17 +292,51 @@ func (s *StudyService) HasSamples(id string) (bool, error) {
 	return hasSamples, nil
 }
 
-// Delete removes a study by ID.
-func (s *StudyService) Delete(id string) error {
-	s.logger.WithField("study_id", id).Trace("entering Delete")
+// Delete removes a study by ID. When deleteData is true, also removes the
+// study's sample output directory from disk (if a remover has been configured).
+func (s *StudyService) Delete(id string, deleteData bool) error {
+	s.logger.WithFields(logrus.Fields{
+		"study_id":    id,
+		"delete_data": deleteData,
+	}).Trace("entering Delete")
 	defer s.logger.Trace("returning from Delete")
 
-	err := s.store.DeleteStudy(id)
+	// Fetch the study first so we know its name (needed for directory removal).
+	study, err := s.store.GetStudy(id)
 	if err == sql.ErrNoRows {
 		s.logger.WithField("study_id", id).Debug("study not found for deletion")
 		return fmt.Errorf("study %s not found", id)
 	}
 	if err != nil {
+		s.logger.WithFields(logrus.Fields{
+			"study_id": id,
+			"error":    err.Error(),
+		}).Error("failed to fetch study for deletion")
+		return fmt.Errorf("fetching study: %w", err)
+	}
+
+	// Remove the sample output directory before deleting the DB record so that
+	// a filesystem error does not leave a dangling database entry.
+	if deleteData && s.sampleRemover != nil {
+		s.logger.WithFields(logrus.Fields{
+			"study_id":   id,
+			"study_name": study.Name,
+		}).Debug("removing study sample directory")
+		if removeErr := s.sampleRemover.RemoveStudySampleDir(study.Name); removeErr != nil {
+			s.logger.WithFields(logrus.Fields{
+				"study_id":   id,
+				"study_name": study.Name,
+				"error":      removeErr.Error(),
+			}).Error("failed to remove study sample directory")
+			return fmt.Errorf("removing study sample directory: %w", removeErr)
+		}
+		s.logger.WithFields(logrus.Fields{
+			"study_id":   id,
+			"study_name": study.Name,
+		}).Info("study sample directory removed")
+	}
+
+	if err := s.store.DeleteStudy(id); err != nil {
 		s.logger.WithFields(logrus.Fields{
 			"study_id": id,
 			"error":    err.Error(),
