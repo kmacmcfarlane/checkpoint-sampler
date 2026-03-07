@@ -21,11 +21,16 @@ const props = defineProps<{
   gridImages: GridNavItem[]
   /** Index of the currently displayed image in gridImages. */
   gridIndex: number
+  /**
+   * Number of X-axis columns in the grid. Used for Shift+Up/Down Y-axis navigation.
+   * 0 when there is no X dimension (Y-only or flat mode), which disables Y navigation.
+   */
+  gridColumnCount: number
 }>()
 
 // close: Emitted when the lightbox is dismissed (Escape key, backdrop click, or close button). No payload.
 // slider-change: Emitted when the in-lightbox slider changes value. Payload: cell key and new slider value.
-// navigate: Emitted when the user navigates to a different grid image via Shift+Arrow. Payload: new grid index.
+// navigate: Emitted when the user navigates to a different grid image via Shift+Arrow (X or Y axis). Payload: new grid index.
 const emit = defineEmits<{
   close: []
   'slider-change': [cellKey: string, value: string]
@@ -187,7 +192,7 @@ function onKeyDown(e: KeyboardEvent) {
     return
   }
 
-  // Shift+ArrowLeft / Shift+ArrowRight navigate between grid images (wrapping)
+  // Shift+ArrowLeft / Shift+ArrowRight navigate between grid images along the X axis (wrapping)
   if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && e.shiftKey) {
     e.preventDefault()
     e.stopImmediatePropagation()
@@ -198,6 +203,23 @@ function onKeyDown(e: KeyboardEvent) {
       emit('navigate', newIndex)
     } else {
       const newIndex = (props.gridIndex + 1) % total
+      emit('navigate', newIndex)
+    }
+    return
+  }
+
+  // Shift+ArrowUp / Shift+ArrowDown navigate between grid images along the Y axis (wrapping)
+  if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && e.shiftKey) {
+    e.preventDefault()
+    e.stopImmediatePropagation()
+    const total = props.gridImages.length
+    const cols = props.gridColumnCount
+    if (total === 0 || cols <= 0) return
+    if (e.key === 'ArrowUp') {
+      const newIndex = (props.gridIndex - cols + total) % total
+      emit('navigate', newIndex)
+    } else {
+      const newIndex = (props.gridIndex + cols) % total
       emit('navigate', newIndex)
     }
     return

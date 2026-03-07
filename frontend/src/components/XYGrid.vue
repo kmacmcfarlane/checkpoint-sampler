@@ -245,6 +245,9 @@ function onImageClick(xVal: string | undefined, yVal: string | undefined, imageU
   const imagesBySliderValue = getImagesBySliderValue(xVal, yVal)
   const gridImages = buildGridNavItems()
   const gridIndex = gridImages.findIndex((item) => item.cellKey === key && item.imageUrl === imageUrl)
+  // Column count for Y-axis keyboard navigation: number of visible X values.
+  // 0 when there is no X dimension (Y-only or flat mode).
+  const gridColumnCount = props.xDimension ? xValues.value.length : 0
   emit('image:click', {
     imageUrl,
     cellKey: key,
@@ -253,6 +256,7 @@ function onImageClick(xVal: string | undefined, yVal: string | undefined, imageU
     imagesBySliderValue,
     gridImages,
     gridIndex: gridIndex >= 0 ? gridIndex : 0,
+    gridColumnCount,
   })
 }
 

@@ -329,6 +329,7 @@ describe('MasterSlider', () => {
           sliderDimensionName: 'cfg',
           gridImages: [],
           gridIndex: 0,
+          gridColumnCount: 0,
         },
       })
 

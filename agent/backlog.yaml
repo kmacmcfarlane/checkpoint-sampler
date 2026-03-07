@@ -212,7 +212,7 @@ stories:
   - id: S-090
     title: Lightbox shift+up/down for Y-axis grid navigation
     type: feature
-    status: todo
+    status: uat
     priority: 25
     complexity: low
     requires: []

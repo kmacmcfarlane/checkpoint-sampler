@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-090: Lightbox shift+up/down for Y-axis grid navigation
+- Shift+Up/Down arrow keys in lightbox navigate between grid rows (Y-axis), complementing existing Shift+Left/Right X-axis navigation
+- Navigation wraps at grid boundaries; disabled when no X dimension is assigned
+
 ### S-094: Standard delete confirmation dialog component
 - Reusable `ConfirmDeleteDialog.vue` with configurable title, description, optional checkbox, and red "Yes, Delete" confirm button
 - Emits `confirm` (with checkbox state), `cancel`, and `update:show` events; integrates with Naive UI NModal

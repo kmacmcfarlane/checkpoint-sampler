@@ -827,6 +827,7 @@ const TERMINAL_STATUSES: Set<SampleJobStatus> = new Set(['completed', 'completed
         :slider-dimension-name="sliderDimension?.name ?? ''"
         :grid-images="lightboxContext?.gridImages ?? []"
         :grid-index="lightboxContext?.gridIndex ?? 0"
+        :grid-column-count="lightboxContext?.gridColumnCount ?? 0"
         @close="onLightboxClose"
         @slider-change="onLightboxSliderChange"
         @navigate="onLightboxNavigate"

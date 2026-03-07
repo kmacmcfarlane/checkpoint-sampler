@@ -19,6 +19,12 @@ export interface ImageClickContext extends GridNavItem {
   gridImages: GridNavItem[]
   /** Index of this image in gridImages. */
   gridIndex: number
+  /**
+   * Number of X-axis columns in the grid. Used for Y-axis keyboard navigation
+   * (Shift+Up/Down) to compute row offsets in the flat gridImages array.
+   * 0 when there is no X dimension (Y-only or flat mode).
+   */
+  gridColumnCount: number
 }
 
 /** Debug info for a single grid cell, showing the filtering parameters that selected its image. */

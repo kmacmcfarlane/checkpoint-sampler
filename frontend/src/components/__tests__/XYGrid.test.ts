@@ -996,6 +996,12 @@ describe('XYGrid', () => {
       // gridIndex: index of this cell in gridImages
       expect(payload).toHaveProperty('gridIndex')
       expect(typeof payload.gridIndex).toBe('number')
+
+      // gridColumnCount: number of X-axis columns for Y-axis keyboard navigation
+      expect(payload).toHaveProperty('gridColumnCount')
+      expect(typeof payload.gridColumnCount).toBe('number')
+      // With an X dimension assigned, gridColumnCount should be > 0
+      expect(payload.gridColumnCount).toBeGreaterThan(0)
     })
 
     it('emits image:click with empty sliderValues and imagesBySliderValue when no slider dimension', async () => {

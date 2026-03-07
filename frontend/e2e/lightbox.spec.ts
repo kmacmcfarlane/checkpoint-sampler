@@ -390,6 +390,110 @@ test.describe('lightbox keyboard navigation (Shift+Arrow)', () => {
   })
 })
 
+test.describe('lightbox Y-axis keyboard navigation (Shift+Up/Down)', () => {
+  // AC: Each E2E test is independent -- reset database before each test
+  test.beforeEach(async ({ request }) => {
+    await resetDatabase(request)
+  })
+
+  // AC: Shift+Down navigates to the image below in the Y axis of the grid
+  test('Shift+ArrowDown navigates to the image below in the Y axis', async ({ page }) => {
+    // Setup: checkpoint → X (2 cols: step-1000, step-2000), prompt_name → Y (2 rows: landscape, portrait)
+    await setupGridWithImages(page)
+
+    // Open the lightbox by clicking the first image (row 0, col 0 in row-major order)
+    const firstImage = page.locator('.xy-grid [role="gridcell"] img').first()
+    await firstImage.click()
+
+    const lightbox = page.locator('[role="dialog"][aria-label="Image lightbox"]')
+    await expect(lightbox).toBeVisible()
+
+    const fullSizeImage = lightbox.locator('img[alt="Full-size image"]')
+    const initialSrc = await fullSizeImage.getAttribute('src')
+    expect(initialSrc).toContain('/api/images/')
+
+    // Press Shift+ArrowDown to navigate down one row (same column, next Y value)
+    await page.keyboard.press('Shift+ArrowDown')
+
+    // The image src should change (moved to next row)
+    await expect(fullSizeImage).not.toHaveAttribute('src', initialSrc!)
+    const newSrc = await fullSizeImage.getAttribute('src')
+    expect(newSrc).toContain('/api/images/')
+    expect(newSrc).not.toBe(initialSrc)
+  })
+
+  // AC: Shift+Up navigates to the image above in the Y axis
+  test('Shift+ArrowUp navigates to the image above in the Y axis', async ({ page }) => {
+    await setupGridWithImages(page)
+
+    // Click the third image (index 2 in row-major order: second row, first column)
+    const thirdImage = page.locator('.xy-grid [role="gridcell"] img').nth(2)
+    await thirdImage.click()
+
+    const lightbox = page.locator('[role="dialog"][aria-label="Image lightbox"]')
+    await expect(lightbox).toBeVisible()
+
+    const fullSizeImage = lightbox.locator('img[alt="Full-size image"]')
+    const initialSrc = await fullSizeImage.getAttribute('src')
+
+    // Press Shift+ArrowUp to navigate up one row
+    await page.keyboard.press('Shift+ArrowUp')
+
+    // The image src should change (moved to previous row)
+    await expect(fullSizeImage).not.toHaveAttribute('src', initialSrc!)
+    const newSrc = await fullSizeImage.getAttribute('src')
+    expect(newSrc).not.toBe(initialSrc)
+  })
+
+  // AC: Navigation wraps at grid boundaries (consistent with existing X-axis behavior)
+  test('Shift+ArrowDown wraps from last row to first row (same column)', async ({ page }) => {
+    await setupGridWithImages(page)
+
+    // Click the third image (index 2: second row, first col) — bottom-left in a 2×2 grid
+    const thirdImage = page.locator('.xy-grid [role="gridcell"] img').nth(2)
+    await thirdImage.click()
+
+    const lightbox = page.locator('[role="dialog"][aria-label="Image lightbox"]')
+    await expect(lightbox).toBeVisible()
+
+    const fullSizeImage = lightbox.locator('img[alt="Full-size image"]')
+    const bottomRowSrc = await fullSizeImage.getAttribute('src')
+
+    // Shift+ArrowDown at last row wraps to first row at same column
+    await page.keyboard.press('Shift+ArrowDown')
+
+    const wrappedSrc = await fullSizeImage.getAttribute('src')
+    expect(wrappedSrc).not.toBe(bottomRowSrc)
+
+    // Pressing Shift+ArrowDown again wraps back to bottom row
+    await page.keyboard.press('Shift+ArrowDown')
+    const backToBottomSrc = await fullSizeImage.getAttribute('src')
+    expect(backToBottomSrc).toBe(bottomRowSrc)
+  })
+
+  // AC: Existing X-axis left/right navigation is unchanged
+  test('Shift+ArrowRight still navigates X axis when Y navigation is also enabled', async ({ page }) => {
+    await setupGridWithImages(page)
+
+    // Open the lightbox on the first image
+    const firstImage = page.locator('.xy-grid [role="gridcell"] img').first()
+    await firstImage.click()
+
+    const lightbox = page.locator('[role="dialog"][aria-label="Image lightbox"]')
+    await expect(lightbox).toBeVisible()
+
+    const fullSizeImage = lightbox.locator('img[alt="Full-size image"]')
+    const initialSrc = await fullSizeImage.getAttribute('src')
+
+    // Shift+ArrowRight should still navigate X axis (same row, next column)
+    await page.keyboard.press('Shift+ArrowRight')
+
+    const newSrc = await fullSizeImage.getAttribute('src')
+    expect(newSrc).not.toBe(initialSrc)
+    expect(newSrc).toContain('/api/images/')
+  })
+})
+
 test.describe('lightbox mousedown origin guard (B-033)', () => {
   // AC: Each E2E test is independent -- reset database before each test
   test.beforeEach(async ({ request }) => {

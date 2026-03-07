@@ -26,6 +26,7 @@ describe('ImageLightbox', () => {
     sliderDimensionName: '',
     gridImages: [],
     gridIndex: 0,
+    gridColumnCount: 0,
   }
 
   beforeEach(() => {
@@ -602,6 +603,7 @@ describe('ImageLightbox', () => {
         sliderDimensionName: 'cfg',
         gridImages: [],
         gridIndex: 0,
+        gridColumnCount: 0,
       }
       const wrapper = mount(ImageLightbox, { props: sliderProps })
       await flushPromises()
@@ -679,6 +681,7 @@ describe('ImageLightbox', () => {
       sliderDimensionName: 'cfg',
       gridImages: [],
       gridIndex: 0,
+      gridColumnCount: 0,
     }
 
     it('renders a SliderBar when slider dimension values are provided', async () => {
@@ -886,6 +889,7 @@ describe('ImageLightbox', () => {
         sliderDimensionName: 'checkpoint',
         gridImages: [],
         gridIndex: 0,
+        gridColumnCount: 0,
       }
 
       const wrapper = mount(ImageLightbox, { props: nonUniformProps })
@@ -924,6 +928,7 @@ describe('ImageLightbox', () => {
         sliderDimensionName: 'checkpoint',
         gridImages: [],
         gridIndex: 0,
+        gridColumnCount: 0,
       }
 
       const wrapper = mount(ImageLightbox, { props: nonUniformProps })
@@ -1018,6 +1023,7 @@ describe('ImageLightbox', () => {
       imageUrl: '/api/images/b.png',
       gridImages,
       gridIndex: 1,
+      gridColumnCount: 0,
     }
 
     it('emits navigate with previous index on Shift+ArrowLeft', async () => {
@@ -1139,11 +1145,256 @@ describe('ImageLightbox', () => {
         sliderDimensionName: 'cfg',
         gridImages,
         gridIndex: 1,
+        gridColumnCount: 0,
       }
       const wrapper = mount(ImageLightbox, { props: sliderAndNavProps })
       await flushPromises()
 
       const event = new KeyboardEvent('keydown', { key: 'ArrowLeft', shiftKey: true, bubbles: true, cancelable: true })
+      document.dispatchEvent(event)
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.emitted('navigate')).toBeDefined()
+      expect(wrapper.emitted('slider-change')).toBeUndefined()
+
+      wrapper.unmount()
+    })
+  })
+
+  // --- Y-axis grid navigation tests (Shift+Up/Down) ---
+
+  describe('Y-axis grid navigation', () => {
+    // Simulate a 2-column (X), 2-row (Y) grid (row-major order):
+    // index 0: (x=a, y=row1), index 1: (x=b, y=row1)
+    // index 2: (x=a, y=row2), index 3: (x=b, y=row2)
+    const gridImages2x2 = [
+      { imageUrl: '/api/images/a-r1.png', cellKey: 'a|row1', sliderValues: [], currentSliderValue: '', imagesBySliderValue: {} },
+      { imageUrl: '/api/images/b-r1.png', cellKey: 'b|row1', sliderValues: [], currentSliderValue: '', imagesBySliderValue: {} },
+      { imageUrl: '/api/images/a-r2.png', cellKey: 'a|row2', sliderValues: [], currentSliderValue: '', imagesBySliderValue: {} },
+      { imageUrl: '/api/images/b-r2.png', cellKey: 'b|row2', sliderValues: [], currentSliderValue: '', imagesBySliderValue: {} },
+    ]
+
+    // AC: Shift+Down navigates to the image below in the Y axis
+    it('emits navigate with index+cols on Shift+ArrowDown (move down one row)', async () => {
+      // Start at index 0 (top-left cell), column count = 2
+      const wrapper = mount(ImageLightbox, {
+        props: { ...defaultProps, gridImages: gridImages2x2, gridIndex: 0, gridColumnCount: 2 },
+      })
+      await flushPromises()
+
+      const event = new KeyboardEvent('keydown', { key: 'ArrowDown', shiftKey: true, bubbles: true, cancelable: true })
+      document.dispatchEvent(event)
+      await wrapper.vm.$nextTick()
+
+      const emitted = wrapper.emitted('navigate')
+      expect(emitted).toBeDefined()
+      expect(emitted).toHaveLength(1)
+      // index 0 + 2 cols = index 2 (same X column, next Y row)
+      expect(emitted![0]).toEqual([2])
+
+      wrapper.unmount()
+    })
+
+    // AC: Shift+Up navigates to the image above in the Y axis
+    it('emits navigate with index-cols on Shift+ArrowUp (move up one row)', async () => {
+      // Start at index 3 (bottom-right cell), column count = 2
+      const wrapper = mount(ImageLightbox, {
+        props: { ...defaultProps, gridImages: gridImages2x2, gridIndex: 3, gridColumnCount: 2 },
+      })
+      await flushPromises()
+
+      const event = new KeyboardEvent('keydown', { key: 'ArrowUp', shiftKey: true, bubbles: true, cancelable: true })
+      document.dispatchEvent(event)
+      await wrapper.vm.$nextTick()
+
+      const emitted = wrapper.emitted('navigate')
+      expect(emitted).toBeDefined()
+      expect(emitted).toHaveLength(1)
+      // index 3 - 2 cols = index 1 (same X column, previous Y row)
+      expect(emitted![0]).toEqual([1])
+
+      wrapper.unmount()
+    })
+
+    // AC: Navigation wraps at grid boundaries (consistent with X-axis behavior)
+    it('wraps to last row on Shift+ArrowUp at top row', async () => {
+      // Start at index 0 (top-left cell), column count = 2
+      const wrapper = mount(ImageLightbox, {
+        props: { ...defaultProps, gridImages: gridImages2x2, gridIndex: 0, gridColumnCount: 2 },
+      })
+      await flushPromises()
+
+      const event = new KeyboardEvent('keydown', { key: 'ArrowUp', shiftKey: true, bubbles: true, cancelable: true })
+      document.dispatchEvent(event)
+      await wrapper.vm.$nextTick()
+
+      const emitted = wrapper.emitted('navigate')
+      expect(emitted).toBeDefined()
+      // (0 - 2 + 4) % 4 = 2 (same X column, last row)
+      expect(emitted![0]).toEqual([2])
+
+      wrapper.unmount()
+    })
+
+    it('wraps to first row on Shift+ArrowDown at bottom row', async () => {
+      // Start at index 2 (bottom-left cell), column count = 2
+      const wrapper = mount(ImageLightbox, {
+        props: { ...defaultProps, gridImages: gridImages2x2, gridIndex: 2, gridColumnCount: 2 },
+      })
+      await flushPromises()
+
+      const event = new KeyboardEvent('keydown', { key: 'ArrowDown', shiftKey: true, bubbles: true, cancelable: true })
+      document.dispatchEvent(event)
+      await wrapper.vm.$nextTick()
+
+      const emitted = wrapper.emitted('navigate')
+      expect(emitted).toBeDefined()
+      // (2 + 2) % 4 = 0 (same X column, first row)
+      expect(emitted![0]).toEqual([0])
+
+      wrapper.unmount()
+    })
+
+    // AC: No Y navigation when gridColumnCount is 0 (Y-only or flat mode)
+    it('does not emit navigate on Shift+ArrowUp when gridColumnCount is 0', async () => {
+      const wrapper = mount(ImageLightbox, {
+        props: { ...defaultProps, gridImages: gridImages2x2, gridIndex: 2, gridColumnCount: 0 },
+      })
+      await flushPromises()
+
+      const event = new KeyboardEvent('keydown', { key: 'ArrowUp', shiftKey: true, bubbles: true, cancelable: true })
+      document.dispatchEvent(event)
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.emitted('navigate')).toBeUndefined()
+
+      wrapper.unmount()
+    })
+
+    it('does not emit navigate on Shift+ArrowDown when gridColumnCount is 0', async () => {
+      const wrapper = mount(ImageLightbox, {
+        props: { ...defaultProps, gridImages: gridImages2x2, gridIndex: 0, gridColumnCount: 0 },
+      })
+      await flushPromises()
+
+      const event = new KeyboardEvent('keydown', { key: 'ArrowDown', shiftKey: true, bubbles: true, cancelable: true })
+      document.dispatchEvent(event)
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.emitted('navigate')).toBeUndefined()
+
+      wrapper.unmount()
+    })
+
+    it('does not emit navigate on Shift+ArrowUp when gridImages is empty', async () => {
+      const wrapper = mount(ImageLightbox, {
+        props: { ...defaultProps, gridImages: [], gridIndex: 0, gridColumnCount: 2 },
+      })
+      await flushPromises()
+
+      const event = new KeyboardEvent('keydown', { key: 'ArrowUp', shiftKey: true, bubbles: true, cancelable: true })
+      document.dispatchEvent(event)
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.emitted('navigate')).toBeUndefined()
+
+      wrapper.unmount()
+    })
+
+    it('does not emit navigate on plain ArrowUp (without Shift)', async () => {
+      const wrapper = mount(ImageLightbox, {
+        props: { ...defaultProps, gridImages: gridImages2x2, gridIndex: 2, gridColumnCount: 2 },
+      })
+      await flushPromises()
+
+      const event = new KeyboardEvent('keydown', { key: 'ArrowUp', shiftKey: false, bubbles: true, cancelable: true })
+      document.dispatchEvent(event)
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.emitted('navigate')).toBeUndefined()
+
+      wrapper.unmount()
+    })
+
+    it('does not emit navigate on plain ArrowDown (without Shift)', async () => {
+      const wrapper = mount(ImageLightbox, {
+        props: { ...defaultProps, gridImages: gridImages2x2, gridIndex: 0, gridColumnCount: 2 },
+      })
+      await flushPromises()
+
+      const event = new KeyboardEvent('keydown', { key: 'ArrowDown', shiftKey: false, bubbles: true, cancelable: true })
+      document.dispatchEvent(event)
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.emitted('navigate')).toBeUndefined()
+
+      wrapper.unmount()
+    })
+
+    // AC: Existing X-axis navigation is unchanged
+    it('Shift+ArrowRight still navigates X axis correctly when gridColumnCount is set', async () => {
+      // Start at index 0, column count = 2 → Shift+Right goes to index 1
+      const wrapper = mount(ImageLightbox, {
+        props: { ...defaultProps, gridImages: gridImages2x2, gridIndex: 0, gridColumnCount: 2 },
+      })
+      await flushPromises()
+
+      const event = new KeyboardEvent('keydown', { key: 'ArrowRight', shiftKey: true, bubbles: true, cancelable: true })
+      document.dispatchEvent(event)
+      await wrapper.vm.$nextTick()
+
+      const emitted = wrapper.emitted('navigate')
+      expect(emitted).toBeDefined()
+      expect(emitted![0]).toEqual([1])
+
+      wrapper.unmount()
+    })
+
+    // AC: Test with different Y dimensions (3 rows, 3 columns = 9 items)
+    it('navigates correctly in a 3x3 grid', async () => {
+      const grid3x3 = Array.from({ length: 9 }, (_, i) => ({
+        imageUrl: `/api/images/img${i}.png`,
+        cellKey: `x${i % 3}|y${Math.floor(i / 3)}`,
+        sliderValues: [] as string[],
+        currentSliderValue: '',
+        imagesBySliderValue: {} as Record<string, string>,
+      }))
+
+      // Start at index 4 (center), column count = 3
+      const wrapper = mount(ImageLightbox, {
+        props: { ...defaultProps, gridImages: grid3x3, gridIndex: 4, gridColumnCount: 3 },
+      })
+      await flushPromises()
+
+      // Shift+Down: 4 + 3 = 7
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', shiftKey: true, bubbles: true, cancelable: true }))
+      await wrapper.vm.$nextTick()
+      expect(wrapper.emitted('navigate')![0]).toEqual([7])
+
+      wrapper.unmount()
+    })
+
+    it('Shift+ArrowDown does not also emit slider-change', async () => {
+      const sliderAndNavProps = {
+        ...defaultProps,
+        imageUrl: '/api/images/a-r1.png',
+        cellKey: 'a|row1',
+        sliderValues: ['3', '7', '15'],
+        currentSliderValue: '7',
+        imagesBySliderValue: {
+          '3': '/api/images/a-r1-cfg3.png',
+          '7': '/api/images/a-r1-cfg7.png',
+          '15': '/api/images/a-r1-cfg15.png',
+        },
+        sliderDimensionName: 'cfg',
+        gridImages: gridImages2x2,
+        gridIndex: 0,
+        gridColumnCount: 2,
+      }
+      const wrapper = mount(ImageLightbox, { props: sliderAndNavProps })
+      await flushPromises()
+
+      const event = new KeyboardEvent('keydown', { key: 'ArrowDown', shiftKey: true, bubbles: true, cancelable: true })
       document.dispatchEvent(event)
       await wrapper.vm.$nextTick()
 
@@ -1172,6 +1423,7 @@ describe('ImageLightbox', () => {
           sliderDimensionName: 'cfg',
           gridImages: [],
           gridIndex: 0,
+          gridColumnCount: 0,
         },
       })
       await flushPromises()
@@ -1198,6 +1450,7 @@ describe('ImageLightbox', () => {
           sliderDimensionName: 'checkpoint',
           gridImages: [],
           gridIndex: 0,
+          gridColumnCount: 0,
         },
       })
       await flushPromises()
@@ -1224,6 +1477,7 @@ describe('ImageLightbox', () => {
           sliderDimensionName: '',
           gridImages: [],
           gridIndex: 0,
+          gridColumnCount: 0,
         },
       })
       await flushPromises()

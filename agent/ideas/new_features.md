@@ -32,6 +32,12 @@ Currently the regeneration flow for failed items requires launching a new job. A
 * source: qa
 The E2E environment cannot create sample jobs because ComfyUI is not configured. A test-only seed endpoint (similar to the existing `/api/test/reset`) that can create sample jobs with specified statuses would enable E2E testing of job-related UI features like the Regenerate button, job progress panel, and status beads.
 
+### Keyboard navigation help overlay in lightbox
+* status: needs_approval
+* priority: low
+* source: developer
+Add a "Keyboard shortcuts" tooltip or help panel in the lightbox listing all shortcuts (Escape, Shift+Arrow for grid nav, plain Arrow for slider). This would make the lightbox keyboard navigation feature more discoverable.
+
 ### WebSocket heartbeat/ping-pong mechanism
 * status: needs_approval
 * priority: medium
