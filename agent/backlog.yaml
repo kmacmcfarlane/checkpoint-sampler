@@ -796,7 +796,7 @@ stories:
     title: "openFiltersDrawer E2E helper strict mode violation — sidebar drawer body remains in DOM after B-060"
     priority: 65
     complexity: low
-    status: todo
+    status: closed
     requires: []
     acceptance:
       - "All 7 failing tests in combo-solo-click.spec.ts, dimension-filtering.spec.ts, and filters-slideout-layout.spec.ts
@@ -804,12 +804,8 @@ stories:
       - "openFiltersDrawer helper disambiguates between the sidebar drawer body and the filters drawer body"
     testing:
       - "command: make test-e2e SPEC=\"combo-solo-click.spec.ts dimension-filtering.spec.ts filters-slideout-layout.spec.ts\""
-    notes: |
-      Root cause: B-060 added display-directive="show" to AppDrawer.vue, keeping the sidebar
-      drawer DOM content rendered when closed. The openFiltersDrawer helper uses an unqualified
-      .n-drawer-body-content-wrapper locator which now matches 2 elements (sidebar + filters),
-      triggering Playwright strict mode violations in 7 tests across 3 spec files.
-      Fix: scope the locator to the visible drawer or use .first()/.last() disambiguation.
+    notes: |-
+      Fix was proactively applied during B-063 (commit 5b2cf2e). The openFiltersDrawer helper already uses the scoped locator '.n-drawer--right-placement .n-drawer-body-content-wrapper'. All 15 tests pass. No code changes required.
   - id: B-065
     title: "E2E: openFiltersDrawer helper fails with strict mode violation after B-060 dual-drawer change"
     priority: 65
