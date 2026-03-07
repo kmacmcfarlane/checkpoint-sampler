@@ -810,7 +810,7 @@ stories:
     title: "E2E: openFiltersDrawer helper fails with strict mode violation after B-060 dual-drawer change"
     priority: 65
     complexity: low
-    status: todo
+    status: closed
     requires: []
     acceptance:
       - "The openFiltersDrawer helper selects the correct drawer content wrapper without strict-mode violation"
@@ -821,10 +821,5 @@ stories:
       - "command: make test-e2e SPEC=combo-solo-click.spec.ts"
       - "command: make test-e2e SPEC=dimension-filtering.spec.ts"
       - "command: make test-e2e SPEC=filters-slideout-layout.spec.ts"
-    notes: |
-      Root cause: The openFiltersDrawer() helper in frontend/e2e/helpers.ts line 307 uses
-      .n-drawer-body-content-wrapper which is now ambiguous because story B-060 introduced
-      a second drawer (the dimension panel drawer) that can be open simultaneously with the
-      filters drawer. The selector resolves to 2 matching DOM elements, triggering Playwright
-      strict-mode rejection.
-      Discovered during B-062 QA cycle. 7 tests affected across 3 spec files.
+    notes: |-
+      Duplicate of B-064. The openFiltersDrawer helper was already fixed during B-063 (commit 5b2cf2e) to use '.n-drawer--right-placement .n-drawer-body-content-wrapper'. All 15 affected tests pass.
