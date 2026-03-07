@@ -164,6 +164,27 @@ export function getGenerateSamplesDialog(page: Page) {
 }
 
 /**
+ * Handles the S-093 regeneration confirmation dialog if it appears after
+ * clicking the submit button in the Generate Samples dialog.
+ *
+ * When all expected samples already exist for the selected training run
+ * (isCompleteValidation), clicking "Regenerate Samples" shows a confirmation
+ * dialog instead of immediately submitting. This helper clicks "Yes, Regenerate"
+ * to confirm and proceed.
+ *
+ * If the confirmation dialog does not appear (e.g. because the validation
+ * shows missing samples), this function is a no-op.
+ */
+export async function confirmRegenDialogIfVisible(page: Page): Promise<void> {
+  const confirmDialog = page.locator('[data-testid="confirm-regen-dialog"]')
+  if (await confirmDialog.isVisible({ timeout: 2000 }).catch(() => false)) {
+    const confirmButton = page.locator('[data-testid="confirm-regen-button"]')
+    await confirmButton.click()
+    await expect(confirmDialog).not.toBeVisible()
+  }
+}
+
+/**
  * Returns the Manage Studies dialog locator.
  * Uses the study-editor-select data-testid as a unique child to distinguish
  * from the outer Generate Samples dialog (which also contains the text

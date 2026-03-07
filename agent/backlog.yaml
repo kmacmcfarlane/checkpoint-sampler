@@ -683,7 +683,7 @@ stories:
   - id: B-058
     title: "45 pre-existing E2E test failures across 10 spec files"
     type: bug
-    status: todo
+    status: uat
     priority: 60
     complexity: medium
     requires: []

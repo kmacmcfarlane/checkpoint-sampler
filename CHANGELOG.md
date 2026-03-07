@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-058: 45 pre-existing E2E test failures across 10 spec files
+- Added `confirmRegenDialogIfVisible()` helper to handle S-093's regeneration confirmation dialog in E2E tests
+- Fixed `regen-confirmation.spec.ts` unchecking "Clear existing samples" to prevent fixture directory deletion cascading across 9 spec files
+
 ### S-093: Confirmation dialog for regenerating a valid sample set
 - Clicking "Regenerate Samples" on a fully-validated sample set (all expected images exist) shows a confirmation dialog before proceeding
 - Incomplete or empty sample sets skip the dialog and proceed directly to job creation

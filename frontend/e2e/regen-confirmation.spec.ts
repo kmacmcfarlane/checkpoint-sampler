@@ -112,6 +112,16 @@ async function setupDialogForRegenerateWithCompleteValidation(
   const clearExistingCheckbox = page.locator('[data-testid="clear-existing-checkbox"]')
   await expect(clearExistingCheckbox).toBeVisible({ timeout: 10000 })
 
+  // Uncheck "Clear existing samples" to preserve the test fixture directories in
+  // the shared samples volume. Without this, the confirmed regeneration job deletes
+  // the my-model-step*.safetensors directories, breaking all subsequent E2E tests
+  // that rely on those fixture images being present (cross-test contamination).
+  const isChecked = await clearExistingCheckbox.evaluate(el => el.classList.contains('n-checkbox--checked'))
+  if (isChecked) {
+    await clearExistingCheckbox.click()
+    await expect(clearExistingCheckbox).not.toHaveClass(/n-checkbox--checked/)
+  }
+
   return dialog
 }
 

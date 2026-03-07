@@ -11,6 +11,7 @@ import {
   fillFirstPromptRow,
   addSamplerSchedulerPair,
   selectNaiveOption,
+  confirmRegenDialogIfVisible,
 } from './helpers'
 
 /**
@@ -238,6 +239,10 @@ test.describe('sample generation flow (with ComfyUI mock)', () => {
     // AC1: Launch job
     await submitButton.click()
 
+    // S-093: When all expected samples exist, a confirmation dialog appears before
+    // the job is submitted. Click "Yes, Regenerate" to confirm and proceed.
+    await confirmRegenDialogIfVisible(page)
+
     // Dialog should close after successful job creation
     await expect(getGenerateSamplesDialog(page)).not.toBeVisible({ timeout: 5000 })
 
@@ -306,6 +311,9 @@ test.describe('sample generation flow (with ComfyUI mock)', () => {
     const submitButton = dialog.locator('button').filter({ hasText: /Generate Samples|Regenerate Samples/ }).first()
     await expect(submitButton).not.toBeDisabled()
     await submitButton.click()
+
+    // S-093: Handle the regeneration confirmation dialog if it appears
+    await confirmRegenDialogIfVisible(page)
     await expect(dialog).not.toBeVisible({ timeout: 5000 })
 
     // The "Jobs" button should now be visible in the header
@@ -395,6 +403,9 @@ test.describe('sample generation flow (with ComfyUI mock)', () => {
     const submitButton = dialog.locator('button').filter({ hasText: /Generate Samples|Regenerate Samples/ }).first()
     await expect(submitButton).not.toBeDisabled()
     await submitButton.click()
+
+    // S-093: Handle the regeneration confirmation dialog if it appears
+    await confirmRegenDialogIfVisible(page)
     await expect(dialog).not.toBeVisible({ timeout: 5000 })
 
     // Wait for the job to reach running or completed state
@@ -482,6 +493,9 @@ test.describe('sample generation flow (with ComfyUI mock)', () => {
     const submitButton = dialog.locator('button').filter({ hasText: /Generate Samples|Regenerate Samples/ }).first()
     await expect(submitButton).not.toBeDisabled()
     await submitButton.click()
+
+    // S-093: Handle the regeneration confirmation dialog if it appears
+    await confirmRegenDialogIfVisible(page)
     await expect(dialog).not.toBeVisible({ timeout: 5000 })
 
     // AC3: Wait for job to transition from pending → running (auto-start, B-029 fix)
