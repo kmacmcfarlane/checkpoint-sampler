@@ -5,6 +5,11 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-062: Generate Samples dialog: wrong bead colors, missing regeneration checkboxes
+- Training run bead now uses job data as primary indicator: completed → green, completed_with_errors → yellow/partial (was red), replacing the root-level `has_samples` check that missed study-scoped sample directories
+- Study bead overrides directory-level availability with validation results for image-level accuracy (e.g. 590/684 shows yellow, not green)
+- Regeneration checkboxes now appear for runs with partial samples
+
 ### B-061: Job marked as completed despite 94 missing samples (590/684)
 - `completeJob` now checks that ALL items are in `completed` status; any non-completed item (skipped, failed, stuck in running) triggers `completed_with_errors`
 - Skipped items (from checkpoint path matching failures) counted as failed in `GetItemCounts`, `GetProgress`, and WebSocket progress broadcasts

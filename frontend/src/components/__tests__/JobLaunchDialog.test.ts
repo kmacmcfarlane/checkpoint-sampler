@@ -1263,7 +1263,7 @@ describe('JobLaunchDialog', () => {
       updated_at: '2025-01-02T00:00:00Z',
     }
 
-    it('shows red bead for training run with completed_with_errors jobs', async () => {
+    it('shows yellow bead for training run with completed_with_errors jobs (partial samples)', async () => {
       mockListSampleJobs.mockResolvedValue([completedWithErrorsJob])
 
       const wrapper = mount(JobLaunchDialog, {
@@ -1279,8 +1279,9 @@ describe('JobLaunchDialog', () => {
       const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
       const options = runSelect.props('options') as Array<{ label: string; value: number; _status: string; _color: string }>
       const errorRunOpt = options.find(o => o.value === 2)
-      expect(errorRunOpt?._status).toBe('complete_with_errors')
-      expect(errorRunOpt?._color).toBe('#d03050')
+      // AC: completed_with_errors → partial (yellow), not red
+      expect(errorRunOpt?._status).toBe('partial')
+      expect(errorRunOpt?._color).toBe('#f0a020')
     })
 
     it('pre-selects only failed checkpoints when completed_with_errors run is selected', async () => {
@@ -3211,6 +3212,166 @@ describe('JobLaunchDialog', () => {
         .props('options') as Array<{ value: string; _sampleStatus: string }>
       expect(options.find(o => o.value === 'preset-1')?._sampleStatus).toBe('partial')
       expect(options.find(o => o.value === 'preset-2')?._sampleStatus).toBe('complete')
+    })
+
+    // B-062: Study bead overrides directory-level status with validation results
+    it('overrides study bead to partial when validation shows missing images', async () => {
+      // Backend availability says 'complete' (directory-level check), but validation shows missing images
+      mockGetStudyAvailability.mockResolvedValue([
+        {
+          study_id: 'preset-1',
+          study_name: 'Quick Test',
+          has_samples: true,
+          sample_status: 'complete',
+        },
+        {
+          study_id: 'preset-2',
+          study_name: 'Full Test',
+          has_samples: false,
+          sample_status: 'none',
+        },
+      ])
+      // Validation result shows missing samples (590/684 scenario)
+      mockValidateTrainingRun.mockResolvedValue({
+        checkpoints: [
+          { checkpoint: 'chk-a.safetensors', expected: 228, verified: 200, missing: 28 },
+          { checkpoint: 'chk-b.safetensors', expected: 228, verified: 195, missing: 33 },
+          { checkpoint: 'chk-c.safetensors', expected: 228, verified: 195, missing: 33 },
+        ],
+        expected_per_checkpoint: 228,
+        total_expected: 684,
+        total_verified: 590,
+        total_actual: 590,
+        total_missing: 94,
+      })
+      // Completed job so the training run shows as having samples
+      mockListSampleJobs.mockResolvedValue([{
+        id: 'job-1',
+        training_run_name: 'qwen/psai4rt-v0.4.0',
+        study_id: 'preset-1', study_name: 'Quick Test',
+        workflow_name: 'qwen-image.json',
+        vae: 'ae.safetensors', clip: 'clip_l.safetensors',
+        status: 'completed',
+        total_items: 684, completed_items: 684, failed_items: 0, pending_items: 0,
+        created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-01T00:00:00Z',
+      }])
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select the training run
+      wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
+      await nextTick()
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      await flushPromises()
+
+      // Before study selection: availability says 'complete'
+      let options = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+        .props('options') as Array<{ value: string; _sampleStatus: string }>
+      expect(options.find(o => o.value === 'preset-1')?._sampleStatus).toBe('complete')
+
+      // Select the study to trigger validation
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
+      await flushPromises()
+
+      // After validation: should override to 'partial' because total_missing > 0
+      options = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+        .props('options') as Array<{ value: string; _sampleStatus: string }>
+      expect(options.find(o => o.value === 'preset-1')?._sampleStatus).toBe('partial')
+      // Non-selected study remains unchanged
+      expect(options.find(o => o.value === 'preset-2')?._sampleStatus).toBe('none')
+    })
+  })
+
+  // B-062: Training run bead shows correct color with study-scoped samples
+  describe('training run bead with study-scoped samples (B-062)', () => {
+    // Training run with has_samples: false (study-scoped directories not found at root level)
+    // but with a completed job
+    it('shows green bead for completed job even when has_samples is false', async () => {
+      mockListSampleJobs.mockResolvedValue([{
+        id: 'job-done',
+        training_run_name: 'qwen/psai4rt-v0.3.0',
+        study_id: 'preset-1', study_name: 'Quick Test',
+        workflow_name: 'qwen-image.json',
+        vae: 'ae.safetensors', clip: 'clip_l.safetensors',
+        status: 'completed',
+        total_items: 10, completed_items: 10, failed_items: 0, pending_items: 0,
+        created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-01T00:00:00Z',
+      }])
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
+      const options = runSelect.props('options') as Array<{ label: string; value: number; _status: string; _color: string }>
+      // runEmpty (id=1) has_samples: false but has a completed job → should be green (complete)
+      const opt = options.find(o => o.value === 1)
+      expect(opt?._status).toBe('complete')
+      expect(opt?._color).toBe('#18a058')
+    })
+
+    it('shows yellow bead for completed_with_errors job even when has_samples is false', async () => {
+      mockListSampleJobs.mockResolvedValue([{
+        id: 'job-partial',
+        training_run_name: 'qwen/psai4rt-v0.3.0',
+        study_id: 'preset-1', study_name: 'Quick Test',
+        workflow_name: 'qwen-image.json',
+        vae: 'ae.safetensors', clip: 'clip_l.safetensors',
+        status: 'completed_with_errors',
+        total_items: 10, completed_items: 7, failed_items: 3, pending_items: 0,
+        created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-01T00:00:00Z',
+      }])
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
+      const options = runSelect.props('options') as Array<{ label: string; value: number; _status: string; _color: string }>
+      // runEmpty (id=1) has_samples: false but has a completed_with_errors job → should be yellow (partial)
+      const opt = options.find(o => o.value === 1)
+      expect(opt?._status).toBe('partial')
+      expect(opt?._color).toBe('#f0a020')
+    })
+
+    it('shows checkboxes for run with completed job even when has_samples is false', async () => {
+      // Completed job for the empty run (has_samples: false, but has completed job)
+      mockListSampleJobs.mockResolvedValue([{
+        id: 'job-done',
+        training_run_name: 'qwen/psai4rt-v0.3.0',
+        study_id: 'preset-1', study_name: 'Quick Test',
+        workflow_name: 'qwen-image.json',
+        vae: 'ae.safetensors', clip: 'clip_l.safetensors',
+        status: 'completed',
+        total_items: 10, completed_items: 10, failed_items: 0, pending_items: 0,
+        created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-01T00:00:00Z',
+      }])
+      mockValidateTrainingRun.mockResolvedValue(validationForRunWithSamples)
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select the run with completed job (has_samples: false)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      await flushPromises()
+      // Select a study so validation triggers
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
+      await flushPromises()
+
+      // AC: checkboxes should appear since the run has samples (from completed job)
+      expect(wrapper.find('[data-testid="clear-existing-checkbox"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="missing-only-checkbox"]').exists()).toBe(true)
     })
   })
 

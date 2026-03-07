@@ -19,7 +19,7 @@ import StudyEditor from './StudyEditor.vue'
 import { useGenerateInputsPersistence } from '../composables/useGenerateInputsPersistence'
 
 /** Status of a training run used to determine bead color. */
-type TrainingRunStatus = 'complete' | 'complete_with_errors' | 'running' | 'queued' | 'empty'
+type TrainingRunStatus = 'complete' | 'partial' | 'running' | 'queued' | 'empty'
 
 const props = defineProps<{
   show: boolean
@@ -95,15 +95,22 @@ const selectedTrainingRun = computed(() =>
   trainingRuns.value.find(r => r.id === selectedTrainingRunId.value) ?? null
 )
 
-// Compute status per training run based on job list
+// Compute status per training run based on job list and sample presence.
+// Uses job data as the primary indicator because run.has_samples only checks
+// root-level sample directories, not study-scoped ones ({sample_dir}/{study}/{checkpoint}/).
 function getRunStatus(run: TrainingRun): TrainingRunStatus {
   const runJobs = sampleJobs.value.filter(j => j.training_run_name === run.name)
   const hasRunning = runJobs.some(j => j.status === 'running')
   const hasQueued = runJobs.some(j => j.status === 'pending' || j.status === 'stopped')
   const hasCompletedWithErrors = runJobs.some(j => j.status === 'completed_with_errors')
+  const hasCompleted = runJobs.some(j => j.status === 'completed')
   if (hasRunning) return 'running'
   if (hasQueued) return 'queued'
-  if (hasCompletedWithErrors) return 'complete_with_errors'
+  // completed_with_errors means some items failed → partial sample coverage
+  if (hasCompletedWithErrors) return 'partial'
+  // A successfully completed job means all samples were generated
+  if (hasCompleted) return 'complete'
+  // Legacy fallback: root-level has_samples check
   if (run.has_samples) return 'complete'
   return 'empty'
 }
@@ -111,11 +118,11 @@ function getRunStatus(run: TrainingRun): TrainingRunStatus {
 // Bead color per status
 function beadColor(status: TrainingRunStatus): string {
   switch (status) {
-    case 'complete': return '#18a058'            // green
-    case 'complete_with_errors': return '#d03050' // red
-    case 'running': return '#2080f0'              // blue
-    case 'queued': return '#f0a020'               // yellow/amber
-    case 'empty': return '#909090'                // gray
+    case 'complete': return '#18a058'  // green
+    case 'partial': return '#f0a020'   // yellow/amber — some samples missing or failed
+    case 'running': return '#2080f0'   // blue
+    case 'queued': return '#f0a020'    // yellow/amber
+    case 'empty': return '#909090'     // gray
   }
 }
 
@@ -170,7 +177,7 @@ const selectedRunHasSamples = computed(() => {
   const run = selectedTrainingRun.value
   if (!run) return false
   const status = getRunStatus(run)
-  return status === 'complete' || status === 'complete_with_errors' || status === 'running' || status === 'queued'
+  return status === 'complete' || status === 'partial' || status === 'running' || status === 'queued'
 })
 
 // Checkpoints of the selected training run
@@ -402,13 +409,30 @@ const workflowOptions = computed(() =>
 
 // Study options include sample availability info. When availability data is present,
 // each study is shown with a bead indicating sample completeness for the selected training run:
-//   green = complete (all checkpoints have samples)
-//   yellow = partial (some but not all checkpoints have samples)
+//   green = complete (all checkpoints have all expected images)
+//   yellow = partial (some but not all images exist)
 //   no bead = none (no samples for this training run)
+// For the currently selected study, validation results override the directory-level
+// availability check to provide image-level accuracy (e.g. 590/684 → partial, not complete).
 const studyOptions = computed(() => {
   return studies.value.map(p => {
     const avail = studyAvailability.value.find(a => a.study_id === p.id)
-    const sampleStatus = avail?.sample_status ?? 'none'
+    let sampleStatus = avail?.sample_status ?? 'none'
+
+    // Override with validation results for the currently selected study.
+    // The availability API only checks directory-level existence, which can report
+    // 'complete' even when individual images are missing. Validation provides
+    // image-level accuracy.
+    if (p.id === selectedStudy.value && validationResult.value) {
+      const vr = validationResult.value
+      if (vr.total_actual === 0) {
+        sampleStatus = 'none'
+      } else if (vr.total_missing > 0) {
+        sampleStatus = 'partial'
+      } else {
+        sampleStatus = 'complete'
+      }
+    }
 
     return {
       label: p.name,
