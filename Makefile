@@ -56,7 +56,7 @@ up-dev:
 	$(COMPOSE_DEV) up -d --build
 
 down-dev:
-	$(COMPOSE_DEV) down -v
+	$(COMPOSE_DEV) down
 
 logs-dev:
 	$(COMPOSE_DEV) logs -f
