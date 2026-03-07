@@ -244,8 +244,9 @@ const jobProgress = reactive<Record<string, {
   current_checkpoint?: string
   current_checkpoint_progress?: number
   current_checkpoint_total?: number
-  estimated_completion_time?: string
   checkpoint_completeness?: Array<{ checkpoint: string; expected: number; verified: number; missing: number }>
+  sample_eta_seconds?: number
+  job_eta_seconds?: number
 }>>({})
 
 /** Per-sample inference progress keyed by job ID. */
@@ -309,18 +310,16 @@ function handleJobProgress(message: JobProgressMessage) {
       prevCheckpointProgress[message.job_id] = message.current_checkpoint_progress
     }
 
-    // Store checkpoint-level progress separately
-    // Estimated completion time would need to be calculated or fetched separately
-    // For now, preserve existing value if available
-    const existingEta = jobProgress[message.job_id]?.estimated_completion_time
+    // Store checkpoint-level progress separately with ETA data from the backend
     jobProgress[message.job_id] = {
       checkpoints_completed: message.checkpoints_completed,
       total_checkpoints: message.total_checkpoints,
       current_checkpoint: message.current_checkpoint,
       current_checkpoint_progress: message.current_checkpoint_progress,
       current_checkpoint_total: message.current_checkpoint_total,
-      estimated_completion_time: existingEta,
       checkpoint_completeness: message.checkpoint_completeness,
+      sample_eta_seconds: message.sample_eta_seconds,
+      job_eta_seconds: message.job_eta_seconds,
     }
     // AC4: When a job transitions to a terminal status, increment the refresh trigger
     // so the JobLaunchDialog can update its training run options and status beads.

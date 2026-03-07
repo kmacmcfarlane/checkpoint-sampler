@@ -39,6 +39,14 @@ type JobProgressEventData struct {
 	CurrentCheckpointTotal     int
 	CheckpointCompleteness     []CheckpointCompletenessInfo
 	FailedItemDetails          []FailedItemDetail
+	// SampleETASeconds is the estimated time in seconds for the current sample
+	// to complete, based on the moving average of recent sample generation times.
+	// Zero means no estimate is available yet.
+	SampleETASeconds float64
+	// JobETASeconds is the estimated time in seconds for the entire job to complete,
+	// based on remaining items and the moving average of sample generation times.
+	// Zero means no estimate is available yet.
+	JobETASeconds float64
 }
 
 // InferenceProgressEventData contains per-node inference progress from ComfyUI.

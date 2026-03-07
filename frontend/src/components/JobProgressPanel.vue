@@ -27,8 +27,11 @@ const props = defineProps<{
     current_checkpoint?: string
     current_checkpoint_progress?: number
     current_checkpoint_total?: number
-    estimated_completion_time?: string
     checkpoint_completeness?: CompletenessEntry[]
+    /** Estimated seconds remaining for the current sample. */
+    sample_eta_seconds?: number
+    /** Estimated seconds remaining for the entire job. */
+    job_eta_seconds?: number
   }>
   /** Per-sample inference progress keyed by job ID. Reset between samples. */
   inferenceProgress?: Record<string, InferenceProgress>
@@ -154,6 +157,38 @@ function handleRegenerate(job: SampleJob) {
 function formatTimestamp(timestamp: string): string {
   const date = new Date(timestamp)
   return date.toLocaleString()
+}
+
+/**
+ * Format a duration in seconds to a human-readable string.
+ * Examples: "5s", "2m 30s", "1h 15m", "2h 0m"
+ */
+function formatDuration(seconds: number): string {
+  if (seconds <= 0) return '0s'
+  const totalSeconds = Math.round(seconds)
+  if (totalSeconds < 60) return `${totalSeconds}s`
+  const minutes = Math.floor(totalSeconds / 60)
+  const remainingSeconds = totalSeconds % 60
+  if (minutes < 60) {
+    return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`
+  }
+  const hours = Math.floor(minutes / 60)
+  const remainingMinutes = minutes % 60
+  return `${hours}h ${remainingMinutes}m`
+}
+
+/** Get the per-sample ETA string for a job, or undefined if not available. */
+function getSampleETA(jobId: string): string | undefined {
+  const progress = props.jobProgress?.[jobId]
+  if (!progress?.sample_eta_seconds || progress.sample_eta_seconds <= 0) return undefined
+  return formatDuration(progress.sample_eta_seconds)
+}
+
+/** Get the per-job ETA string for a job, or undefined if not available. */
+function getJobETA(jobId: string): string | undefined {
+  const progress = props.jobProgress?.[jobId]
+  if (!progress?.job_eta_seconds || progress.job_eta_seconds <= 0) return undefined
+  return formatDuration(progress.job_eta_seconds)
 }
 
 function getJobProgress(jobId: string) {
@@ -374,9 +409,23 @@ function isTracebackExpanded(jobId: string, errorIdx: number): boolean {
                     :height="6"
                   />
                 </div>
-                <p v-if="getJobProgress(job.id)?.estimated_completion_time" class="progress-line">
-                  <span class="progress-label">Estimated completion:</span>
-                  <span>{{ formatTimestamp(getJobProgress(job.id)!.estimated_completion_time!) }}</span>
+                <!-- AC: FE: JobProgressPanel displays ETA for the current sample being generated -->
+                <p
+                  v-if="getSampleETA(job.id)"
+                  class="progress-line"
+                  :data-testid="`job-${job.id}-sample-eta`"
+                >
+                  <span class="progress-label">Sample ETA:</span>
+                  <span>{{ getSampleETA(job.id) }}</span>
+                </p>
+                <!-- AC: FE: JobProgressPanel displays overall job ETA based on remaining samples and moving average -->
+                <p
+                  v-if="getJobETA(job.id)"
+                  class="progress-line"
+                  :data-testid="`job-${job.id}-job-eta`"
+                >
+                  <span class="progress-label">Job ETA:</span>
+                  <span>{{ getJobETA(job.id) }}</span>
                 </p>
                 <!-- AC: Completeness status per checkpoint -->
                 <div

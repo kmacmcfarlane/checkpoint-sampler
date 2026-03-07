@@ -58,6 +58,10 @@ type EventHub interface {
 	Broadcast(event model.FSEvent)
 }
 
+// sampleTimingWindowSize is the number of recent sample durations used for
+// the moving average ETA calculation.
+const sampleTimingWindowSize = 10
+
 // JobExecutor executes sample jobs in the background.
 type JobExecutor struct {
 	store          JobExecutorStore
@@ -83,6 +87,14 @@ type JobExecutor struct {
 	shutdownCh               chan struct{}
 	shutdownComplete         chan struct{}
 	started                  bool
+
+	// sampleStartTime records when the current sample began processing.
+	// Set in processItem, read in handleItemCompletionAsync.
+	sampleStartTime time.Time
+	// sampleTiming tracks the moving average of recent sample generation durations.
+	sampleTiming *MovingAverage
+	// timeNow is a function that returns the current time, injected for testability.
+	timeNow func() time.Time
 }
 
 // NewJobExecutor creates a new job executor.
@@ -113,6 +125,8 @@ func NewJobExecutor(
 		cancel:                   cancel,
 		shutdownCh:               make(chan struct{}),
 		shutdownComplete:         make(chan struct{}),
+		sampleTiming:             NewMovingAverage(sampleTimingWindowSize),
+		timeNow:                  time.Now,
 	}
 }
 
@@ -265,6 +279,8 @@ func (e *JobExecutor) Pause() {
 	e.activeItemID = ""
 	e.activePromptID = ""
 	e.checkpointCompleteness = make(map[string]model.CheckpointCompletenessInfo)
+	e.sampleTiming.Reset()
+	e.sampleStartTime = time.Time{}
 
 	e.logger.Info("job executor paused")
 }
@@ -517,6 +533,11 @@ func (e *JobExecutor) processItem(job model.SampleJob, item model.SampleJobItem)
 		"item_id":             item.ID,
 		"checkpoint_filename": item.CheckpointFilename,
 	}).Info("processing job item")
+
+	// Record sample start time for ETA calculation
+	e.mu.Lock()
+	e.sampleStartTime = e.timeNow()
+	e.mu.Unlock()
 
 	// Update item status to running
 	item.Status = model.SampleJobItemStatusRunning
@@ -834,6 +855,21 @@ func (e *JobExecutor) handleItemCompletionAsync(jobID, itemID, promptID string) 
 	if err := e.store.UpdateSampleJobItem(*item); err != nil {
 		e.logger.WithError(err).Error("failed to update item status to completed")
 	}
+
+	// Record sample duration for ETA calculation
+	e.mu.Lock()
+	if !e.sampleStartTime.IsZero() {
+		duration := e.timeNow().Sub(e.sampleStartTime)
+		e.sampleTiming.Add(duration)
+		e.sampleStartTime = time.Time{}
+		e.logger.WithFields(logrus.Fields{
+			"item_id":          itemID,
+			"sample_duration":  duration.String(),
+			"moving_avg":       e.sampleTiming.Average().String(),
+			"sample_count":     e.sampleTiming.Count(),
+		}).Debug("recorded sample duration for ETA")
+	}
+	e.mu.Unlock()
 
 	// Update job progress
 	e.updateJobProgress(jobID)
@@ -1324,12 +1360,14 @@ func (e *JobExecutor) completeJob(jobID string) {
 	// Broadcast completion event
 	e.broadcastJobProgress(jobID)
 
-	// Clear active state and completeness data for the finished job
+	// Clear active state, completeness data, and timing data for the finished job
 	e.mu.Lock()
 	e.activeJobID = ""
 	e.activeItemID = ""
 	e.activePromptID = ""
 	e.checkpointCompleteness = make(map[string]model.CheckpointCompletenessInfo)
+	e.sampleTiming.Reset()
+	e.sampleStartTime = time.Time{}
 	e.mu.Unlock()
 
 	e.logger.WithFields(logrus.Fields{
@@ -1572,6 +1610,30 @@ func (e *JobExecutor) broadcastJobProgress(jobID string) {
 	}
 	e.mu.Unlock()
 
+	// Compute ETA based on the moving average of sample generation times
+	e.mu.Lock()
+	avgDuration := e.sampleTiming.Average()
+	startTime := e.sampleStartTime
+	e.mu.Unlock()
+
+	var sampleETASeconds, jobETASeconds float64
+	if avgDuration > 0 {
+		// Per-sample ETA: estimated time remaining for the current in-flight sample.
+		// If a sample is currently being processed, subtract the elapsed time.
+		if !startTime.IsZero() {
+			elapsed := e.timeNow().Sub(startTime)
+			remaining := avgDuration - elapsed
+			if remaining > 0 {
+				sampleETASeconds = remaining.Seconds()
+			}
+		}
+
+		// Per-job ETA: remaining items * average duration, plus the current sample's remaining time.
+		// "remaining" means pending items (samples not yet started).
+		remainingItems := pending
+		jobETASeconds = float64(remainingItems)*avgDuration.Seconds() + sampleETASeconds
+	}
+
 	event := model.FSEvent{
 		Type: model.EventJobProgress,
 		Path: fmt.Sprintf("job_progress/%s", jobID),
@@ -1589,6 +1651,8 @@ func (e *JobExecutor) broadcastJobProgress(jobID string) {
 			CurrentCheckpointTotal:    currentCheckpointTotal,
 			CheckpointCompleteness:    completeness,
 			FailedItemDetails:         failedItemDetails,
+			SampleETASeconds:          sampleETASeconds,
+			JobETASeconds:             jobETASeconds,
 		},
 	}
 	e.hub.Broadcast(event)

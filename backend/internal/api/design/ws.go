@@ -59,6 +59,8 @@ var FSEventResponse = Type("FSEventResponse", func() {
 	Attribute("current_checkpoint_total", Int, "Total items in current checkpoint (only for job_progress events)")
 	Attribute("checkpoint_completeness", ArrayOf(CheckpointCompletenessInfo), "Per-checkpoint completeness verification results (only for job_progress events)")
 	Attribute("failed_item_details", ArrayOf(WSFailedItemDetail), "Details of failed checkpoints with error info (only for job_progress events)")
+	Attribute("sample_eta_seconds", Float64, "Estimated seconds remaining for the current sample (only for job_progress events, 0 if unavailable)")
+	Attribute("job_eta_seconds", Float64, "Estimated seconds remaining for the entire job (only for job_progress events, 0 if unavailable)")
 	// Inference progress fields (only present when type=inference_progress)
 	Attribute("prompt_id", String, "ComfyUI prompt ID (only for inference_progress events)")
 	Attribute("current_value", Int, "Current inference step (only for inference_progress events)")

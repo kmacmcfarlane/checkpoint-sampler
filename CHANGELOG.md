@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-098: ETA per sample and per job (moving average)
+- Moving-average ETA (10-sample window) for current sample and overall job, broadcast via WebSocket `job_progress` events
+- JobProgressPanel displays sample ETA and job ETA with human-readable duration formatting (seconds/minutes/hours)
+
 ### S-097: Delete jobs with option to keep or delete sample data
 - Delete button on job cards opens a ConfirmDeleteDialog with "Also delete sample data" checkbox (default unchecked)
 - `DELETE /api/sample-jobs/{id}?delete_data=true` removes per-checkpoint sample directories from disk before deleting the database record; filesystem errors prevent DB deletion to avoid orphaned state

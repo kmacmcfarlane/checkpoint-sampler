@@ -507,7 +507,7 @@ stories:
   - id: S-098
     title: ETA per sample and per job (moving average)
     type: feature
-    status: todo
+    status: uat
     priority: 25
     complexity: medium
     requires: []

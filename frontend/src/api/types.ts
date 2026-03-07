@@ -348,4 +348,8 @@ export interface JobProgressMessage {
   current_checkpoint_total?: number
   checkpoint_completeness?: CheckpointCompletenessInfo[]
   failed_item_details?: FailedItemDetail[]
+  /** Estimated seconds remaining for the current sample (0 if unavailable). */
+  sample_eta_seconds?: number
+  /** Estimated seconds remaining for the entire job (0 if unavailable). */
+  job_eta_seconds?: number
 }

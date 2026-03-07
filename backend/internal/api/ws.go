@@ -123,6 +123,13 @@ func (c *streamClient) writePump() {
 				}
 				resp.CheckpointCompleteness = completeness
 			}
+			// Map ETA fields (only when non-zero, meaning an estimate is available)
+			if d.SampleETASeconds > 0 {
+				resp.SampleEtaSeconds = &d.SampleETASeconds
+			}
+			if d.JobETASeconds > 0 {
+				resp.JobEtaSeconds = &d.JobETASeconds
+			}
 			// Map failed item details with structured error info
 			if len(d.FailedItemDetails) > 0 {
 				details := make([]*genws.WSFailedItemDetail, len(d.FailedItemDetails))

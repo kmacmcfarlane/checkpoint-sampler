@@ -1396,4 +1396,202 @@ describe('JobProgressPanel', () => {
       expect(wrapper.emitted('delete')).toBeUndefined()
     })
   })
+
+  // AC: FE: Unit tests for ETA display
+  describe('ETA display', () => {
+    it('displays sample ETA when sample_eta_seconds is provided', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: {
+          show: true,
+          jobs: [sampleJobs[0]], // running job
+          jobProgress: {
+            'job-1': {
+              checkpoints_completed: 2,
+              total_checkpoints: 5,
+              current_checkpoint: 'ckpt-3.safetensors',
+              current_checkpoint_progress: 3,
+              current_checkpoint_total: 10,
+              sample_eta_seconds: 45,
+              job_eta_seconds: 600,
+            },
+          },
+        },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const sampleEta = wrapper.find('[data-testid="job-job-1-sample-eta"]')
+      expect(sampleEta.exists()).toBe(true)
+      expect(sampleEta.text()).toContain('Sample ETA:')
+      expect(sampleEta.text()).toContain('45s')
+    })
+
+    it('displays job ETA when job_eta_seconds is provided', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: {
+          show: true,
+          jobs: [sampleJobs[0]], // running job
+          jobProgress: {
+            'job-1': {
+              checkpoints_completed: 2,
+              total_checkpoints: 5,
+              current_checkpoint: 'ckpt-3.safetensors',
+              current_checkpoint_progress: 3,
+              current_checkpoint_total: 10,
+              sample_eta_seconds: 30,
+              job_eta_seconds: 600,
+            },
+          },
+        },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const jobEta = wrapper.find('[data-testid="job-job-1-job-eta"]')
+      expect(jobEta.exists()).toBe(true)
+      expect(jobEta.text()).toContain('Job ETA:')
+      expect(jobEta.text()).toContain('10m')
+    })
+
+    it('does not display sample ETA when sample_eta_seconds is 0', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: {
+          show: true,
+          jobs: [sampleJobs[0]],
+          jobProgress: {
+            'job-1': {
+              checkpoints_completed: 0,
+              total_checkpoints: 5,
+              current_checkpoint: 'ckpt-1.safetensors',
+              current_checkpoint_progress: 0,
+              current_checkpoint_total: 10,
+              sample_eta_seconds: 0,
+              job_eta_seconds: 0,
+            },
+          },
+        },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const sampleEta = wrapper.find('[data-testid="job-job-1-sample-eta"]')
+      expect(sampleEta.exists()).toBe(false)
+    })
+
+    it('does not display job ETA when job_eta_seconds is 0', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: {
+          show: true,
+          jobs: [sampleJobs[0]],
+          jobProgress: {
+            'job-1': {
+              checkpoints_completed: 0,
+              total_checkpoints: 5,
+              current_checkpoint: 'ckpt-1.safetensors',
+              current_checkpoint_progress: 0,
+              current_checkpoint_total: 10,
+              sample_eta_seconds: 0,
+              job_eta_seconds: 0,
+            },
+          },
+        },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const jobEta = wrapper.find('[data-testid="job-job-1-job-eta"]')
+      expect(jobEta.exists()).toBe(false)
+    })
+
+    it('does not display ETA when no jobProgress is provided', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: {
+          show: true,
+          jobs: [sampleJobs[0]],
+        },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const sampleEta = wrapper.find('[data-testid="job-job-1-sample-eta"]')
+      const jobEta = wrapper.find('[data-testid="job-job-1-job-eta"]')
+      expect(sampleEta.exists()).toBe(false)
+      expect(jobEta.exists()).toBe(false)
+    })
+
+    // AC: FE: ETA updates as each sample completes and the average adjusts
+    it('updates ETA display when props change', async () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: {
+          show: true,
+          jobs: [sampleJobs[0]],
+          jobProgress: {
+            'job-1': {
+              checkpoints_completed: 1,
+              total_checkpoints: 5,
+              current_checkpoint: 'ckpt-2.safetensors',
+              current_checkpoint_progress: 5,
+              current_checkpoint_total: 10,
+              sample_eta_seconds: 30,
+              job_eta_seconds: 1800,
+            },
+          },
+        },
+        global: { stubs: { Teleport: true } },
+      })
+
+      // Initial: 30m job ETA
+      let jobEta = wrapper.find('[data-testid="job-job-1-job-eta"]')
+      expect(jobEta.text()).toContain('30m')
+
+      // Update to a lower ETA (simulating samples completing)
+      await wrapper.setProps({
+        jobProgress: {
+          'job-1': {
+            checkpoints_completed: 2,
+            total_checkpoints: 5,
+            current_checkpoint: 'ckpt-3.safetensors',
+            current_checkpoint_progress: 2,
+            current_checkpoint_total: 10,
+            sample_eta_seconds: 20,
+            job_eta_seconds: 900,
+          },
+        },
+      })
+      await nextTick()
+
+      jobEta = wrapper.find('[data-testid="job-job-1-job-eta"]')
+      expect(jobEta.text()).toContain('15m')
+    })
+
+    // AC: Test ETA display with varying formats (seconds, minutes, hours)
+    it.each([
+      { seconds: 5, expected: '5s' },
+      { seconds: 45, expected: '45s' },
+      { seconds: 60, expected: '1m' },
+      { seconds: 90, expected: '1m 30s' },
+      { seconds: 150, expected: '2m 30s' },
+      { seconds: 3600, expected: '1h 0m' },
+      { seconds: 3660, expected: '1h 1m' },
+      { seconds: 5400, expected: '1h 30m' },
+    ])('formats job ETA of $seconds seconds as "$expected"', ({ seconds, expected }) => {
+      const wrapper = mount(JobProgressPanel, {
+        props: {
+          show: true,
+          jobs: [sampleJobs[0]],
+          jobProgress: {
+            'job-1': {
+              checkpoints_completed: 1,
+              total_checkpoints: 5,
+              current_checkpoint: 'ckpt-2.safetensors',
+              current_checkpoint_progress: 1,
+              current_checkpoint_total: 10,
+              sample_eta_seconds: 10,
+              job_eta_seconds: seconds,
+            },
+          },
+        },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const jobEta = wrapper.find('[data-testid="job-job-1-job-eta"]')
+      expect(jobEta.exists()).toBe(true)
+      expect(jobEta.text()).toContain(expected)
+    })
+  })
 })
