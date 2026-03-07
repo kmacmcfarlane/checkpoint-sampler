@@ -67,3 +67,9 @@ A systematic check comparing nil-guard error types in API handler methods agains
 * priority: low
 * source: developer
 When a new migration adds a table, the developer must remember to update the table list in `ResetDB()`. A code review checklist item or a linter rule could catch this automatically.
+
+### E2E test impact analysis for UI behavior changes
+* status: needs_approval
+* priority: low
+* source: developer
+When a story introduces an intermediate dialog or changes a user flow (like S-093's confirmation dialog), the developer should proactively search for E2E specs that exercise the affected journey (e.g., `grep -r 'submitButton.click' frontend/e2e/`) and update them in the same story. This would prevent downstream E2E failures from being discovered during QA of a subsequent story.
