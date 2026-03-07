@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-101: Study editor validation field highlighting
+- Per-field validation error highlighting in the study editor: NInput/NSelect `status="error"` for study name, prompt rows, and sampler/scheduler pairs; CSS error border wrappers for NDynamicTags (steps, CFGs, seeds)
+- Duplicate values highlight only occurrences after the first; highlights clear reactively when errors are resolved
+
 ### S-100: Debug mode params overlay in lightbox
 - Lightbox now shows a debug overlay (bottom-left, non-interactive) displaying the same dimension parameters as the XY grid debug overlay when debug mode is enabled
 - Debug info updates correctly when navigating between grid cells (Shift+Arrow) or changing the slider value inside the lightbox

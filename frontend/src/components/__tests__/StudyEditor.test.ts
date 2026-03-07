@@ -1938,6 +1938,274 @@ describe('StudyEditor', () => {
     })
   })
 
+  describe('field validation highlighting', () => {
+    // Helper: mount and set up a fully valid form state for highlighting tests.
+    async function mountWithValidForm() {
+      const wrapper = mount(StudyEditor)
+      await flushPromises()
+
+      const nameInput = asVue(wrapper.findComponent('[data-testid="study-name-input"]'))
+      nameInput.vm.$emit('update:value', 'Unique Name')
+
+      const promptInputs = wrapper.findAllComponents(NInput)
+      const promptNameInput = promptInputs.find(i => i.props('placeholder')?.includes('Prompt name'))!
+      promptNameInput.vm.$emit('update:value', 'forest')
+      const promptTextInput = promptInputs.find(i => i.props('placeholder')?.includes('Prompt text'))!
+      promptTextInput.vm.$emit('update:value', 'a forest scene')
+
+      const vm = wrapper.vm as unknown as {
+        samplerSchedulerPairs: Array<{ sampler: string; scheduler: string }>
+        steps: number[]
+        cfgs: number[]
+        seeds: number[]
+        prompts: Array<{ name: string; text: string }>
+      }
+      vm.samplerSchedulerPairs = [{ sampler: 'euler', scheduler: 'simple' }]
+      await nextTick()
+
+      return { wrapper, vm }
+    }
+
+    // AC: FE: Fields with validation errors are visually highlighted (red border or similar)
+    // AC: FE: Highlight clears when the validation error is resolved
+
+    it('study name input has error status when name contains disallowed characters', async () => {
+      // AC: Fields with validation errors are visually highlighted
+      const { wrapper } = await mountWithValidForm()
+
+      const nameInput = asVue(wrapper.findComponent('[data-testid="study-name-input"]'))
+      nameInput.vm.$emit('update:value', 'Bad(Name)')
+      await nextTick()
+
+      // NInput status prop should be 'error' when study name is invalid
+      expect(nameInput.props('status')).toBe('error')
+    })
+
+    it('study name input error status clears when invalid characters are removed', async () => {
+      // AC: Highlight clears when the validation error is resolved
+      const { wrapper } = await mountWithValidForm()
+
+      const nameInput = asVue(wrapper.findComponent('[data-testid="study-name-input"]'))
+      // Set invalid name
+      nameInput.vm.$emit('update:value', 'Bad:Name')
+      await nextTick()
+      expect(nameInput.props('status')).toBe('error')
+
+      // Fix the name
+      nameInput.vm.$emit('update:value', 'GoodName')
+      await nextTick()
+      expect(nameInput.props('status')).toBeUndefined()
+    })
+
+    it('study name input has error status when name conflicts with existing study', async () => {
+      // AC: Fields with validation errors are visually highlighted (duplicate study name)
+      const { wrapper } = await mountWithValidForm()
+
+      const nameInput = asVue(wrapper.findComponent('[data-testid="study-name-input"]'))
+      nameInput.vm.$emit('update:value', 'Test Preset A')
+      await nextTick()
+
+      expect(nameInput.props('status')).toBe('error')
+    })
+
+    it('study name input has no error status when name is valid', async () => {
+      const { wrapper } = await mountWithValidForm()
+
+      const nameInput = asVue(wrapper.findComponent('[data-testid="study-name-input"]'))
+      expect(nameInput.props('status')).toBeUndefined()
+    })
+
+    it('steps tags wrapper gets error class when duplicate step values are present', async () => {
+      // AC: FE: Fields with validation errors are visually highlighted
+      const { wrapper, vm } = await mountWithValidForm()
+
+      vm.steps = [4, 8, 4]
+      await nextTick()
+
+      const stepsWrapper = wrapper.find('[data-testid="steps-tags-wrapper"]')
+      expect(stepsWrapper.classes()).toContain('tags-error-wrapper')
+    })
+
+    it('steps tags wrapper error class clears when duplicate step is removed', async () => {
+      // AC: FE: Highlight clears when the validation error is resolved
+      const { wrapper, vm } = await mountWithValidForm()
+
+      vm.steps = [4, 8, 4]
+      await nextTick()
+      const stepsWrapper = wrapper.find('[data-testid="steps-tags-wrapper"]')
+      expect(stepsWrapper.classes()).toContain('tags-error-wrapper')
+
+      // Fix by removing duplicate
+      vm.steps = [4, 8]
+      await nextTick()
+      expect(stepsWrapper.classes()).not.toContain('tags-error-wrapper')
+    })
+
+    it('cfgs tags wrapper gets error class when duplicate CFG values are present', async () => {
+      // AC: FE: Fields with validation errors are visually highlighted
+      const { wrapper, vm } = await mountWithValidForm()
+
+      vm.cfgs = [1.0, 3.0, 1.0]
+      await nextTick()
+
+      const cfgsWrapper = wrapper.find('[data-testid="cfgs-tags-wrapper"]')
+      expect(cfgsWrapper.classes()).toContain('tags-error-wrapper')
+    })
+
+    it('cfgs tags wrapper error class clears when duplicate CFG is removed', async () => {
+      // AC: FE: Highlight clears when the validation error is resolved
+      const { wrapper, vm } = await mountWithValidForm()
+
+      vm.cfgs = [1.0, 3.0, 1.0]
+      await nextTick()
+      const cfgsWrapper = wrapper.find('[data-testid="cfgs-tags-wrapper"]')
+      expect(cfgsWrapper.classes()).toContain('tags-error-wrapper')
+
+      vm.cfgs = [1.0, 3.0]
+      await nextTick()
+      expect(cfgsWrapper.classes()).not.toContain('tags-error-wrapper')
+    })
+
+    it('seeds tags wrapper gets error class when duplicate seed values are present', async () => {
+      // AC: FE: Fields with validation errors are visually highlighted
+      const { wrapper, vm } = await mountWithValidForm()
+
+      vm.seeds = [42, 420, 42]
+      await nextTick()
+
+      const seedsWrapper = wrapper.find('[data-testid="seeds-tags-wrapper"]')
+      expect(seedsWrapper.classes()).toContain('tags-error-wrapper')
+    })
+
+    it('seeds tags wrapper error class clears when duplicate seed is removed', async () => {
+      // AC: FE: Highlight clears when the validation error is resolved
+      const { wrapper, vm } = await mountWithValidForm()
+
+      vm.seeds = [42, 420, 42]
+      await nextTick()
+      const seedsWrapper = wrapper.find('[data-testid="seeds-tags-wrapper"]')
+      expect(seedsWrapper.classes()).toContain('tags-error-wrapper')
+
+      vm.seeds = [42, 420]
+      await nextTick()
+      expect(seedsWrapper.classes()).not.toContain('tags-error-wrapper')
+    })
+
+    it('only the duplicate prompt row gets field-error class, not the first occurrence', async () => {
+      // AC: FE: For duplicate values, all duplicate occurrences except the first are highlighted
+      const { wrapper, vm } = await mountWithValidForm()
+
+      vm.prompts = [
+        { name: 'forest', text: 'a forest' },
+        { name: 'city', text: 'a city' },
+        { name: 'forest', text: 'another forest' }, // duplicate at index 2
+      ]
+      await nextTick()
+
+      // First row (index 0) should NOT have error class
+      const row0 = wrapper.find('[data-testid="prompt-row-0"]')
+      expect(row0.classes()).not.toContain('field-error')
+
+      // Second row (index 1) has a unique name, should NOT have error class
+      const row1 = wrapper.find('[data-testid="prompt-row-1"]')
+      expect(row1.classes()).not.toContain('field-error')
+
+      // Third row (index 2) is the duplicate, SHOULD have error class
+      const row2 = wrapper.find('[data-testid="prompt-row-2"]')
+      expect(row2.classes()).toContain('field-error')
+    })
+
+    it('prompt row field-error class clears when duplicate prompt name is fixed', async () => {
+      // AC: FE: Highlight clears when the validation error is resolved
+      const { wrapper, vm } = await mountWithValidForm()
+
+      vm.prompts = [
+        { name: 'forest', text: 'a forest' },
+        { name: 'forest', text: 'another forest' }, // duplicate at index 1
+      ]
+      await nextTick()
+
+      expect(wrapper.find('[data-testid="prompt-row-1"]').classes()).toContain('field-error')
+
+      // Fix by renaming the duplicate
+      vm.prompts = [
+        { name: 'forest', text: 'a forest' },
+        { name: 'city', text: 'another forest' },
+      ]
+      await nextTick()
+      // Re-query after state change to avoid stale element reference
+      expect(wrapper.find('[data-testid="prompt-row-1"]').classes()).not.toContain('field-error')
+    })
+
+    it('only the duplicate sampler/scheduler pair row gets field-error class', async () => {
+      // AC: FE: For duplicate values, all duplicate occurrences except the first are highlighted
+      const { wrapper, vm } = await mountWithValidForm()
+
+      vm.samplerSchedulerPairs = [
+        { sampler: 'euler', scheduler: 'simple' },
+        { sampler: 'heun', scheduler: 'normal' },
+        { sampler: 'euler', scheduler: 'simple' }, // duplicate at index 2
+      ]
+      await nextTick()
+
+      // First row (index 0) should NOT have error class
+      const pair0 = wrapper.find('[data-testid="pair-row-0"]')
+      expect(pair0.classes()).not.toContain('field-error')
+
+      // Second row (index 1) is unique, should NOT have error class
+      const pair1 = wrapper.find('[data-testid="pair-row-1"]')
+      expect(pair1.classes()).not.toContain('field-error')
+
+      // Third row (index 2) is the duplicate, SHOULD have error class
+      const pair2 = wrapper.find('[data-testid="pair-row-2"]')
+      expect(pair2.classes()).toContain('field-error')
+    })
+
+    it('pair row field-error class clears when duplicate pair is fixed', async () => {
+      // AC: FE: Highlight clears when the validation error is resolved
+      const { wrapper, vm } = await mountWithValidForm()
+
+      vm.samplerSchedulerPairs = [
+        { sampler: 'euler', scheduler: 'simple' },
+        { sampler: 'euler', scheduler: 'simple' }, // duplicate at index 1
+      ]
+      await nextTick()
+
+      expect(wrapper.find('[data-testid="pair-row-1"]').classes()).toContain('field-error')
+
+      // Fix by changing the duplicate pair
+      vm.samplerSchedulerPairs = [
+        { sampler: 'euler', scheduler: 'simple' },
+        { sampler: 'heun', scheduler: 'normal' },
+      ]
+      await nextTick()
+      // Re-query after state change to avoid stale element reference
+      expect(wrapper.find('[data-testid="pair-row-1"]').classes()).not.toContain('field-error')
+    })
+
+    it('steps tags wrapper has no error class when all steps are unique', async () => {
+      // AC: Only the correct fields are highlighted, not all fields
+      const { wrapper } = await mountWithValidForm()
+
+      const stepsWrapper = wrapper.find('[data-testid="steps-tags-wrapper"]')
+      expect(stepsWrapper.classes()).not.toContain('tags-error-wrapper')
+    })
+
+    it('cfgs error class does not appear when only steps have duplicates', async () => {
+      // AC: Only the correct fields are highlighted, not all fields
+      const { wrapper, vm } = await mountWithValidForm()
+
+      vm.steps = [4, 8, 4] // only steps are duplicated
+      await nextTick()
+
+      const cfgsWrapper = wrapper.find('[data-testid="cfgs-tags-wrapper"]')
+      expect(cfgsWrapper.classes()).not.toContain('tags-error-wrapper')
+
+      const seedsWrapper = wrapper.find('[data-testid="seeds-tags-wrapper"]')
+      expect(seedsWrapper.classes()).not.toContain('tags-error-wrapper')
+    })
+  })
+
   describe('immutability dialog', () => {
     it('shows immutability dialog when updating a study that has generated samples', async () => {
       mockStudyHasSamples.mockResolvedValue({ has_samples: true })

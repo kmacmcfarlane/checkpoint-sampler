@@ -572,7 +572,7 @@ stories:
   - id: S-101
     title: Study editor validation field highlighting
     type: feature
-    status: todo
+    status: uat
     priority: 15
     complexity: low
     requires: []
@@ -823,3 +823,22 @@ stories:
       - "command: make test-e2e SPEC=filters-slideout-layout.spec.ts"
     notes: |-
       Duplicate of B-064. The openFiltersDrawer helper was already fixed during B-063 (commit 5b2cf2e) to use '.n-drawer--right-placement .n-drawer-body-content-wrapper'. All 15 affected tests pass.
+  - id: B-066
+    title: "Job executor logs spurious error when database is reset mid-poll"
+    priority: 40
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "The job executor does not log at ERROR level when the row it is trying to update has been deleted (e.g., gracefully
+        handles sql: no rows in result set as a warning or info)"
+      - "The log level is downgraded to WARN or the error is silenced when it occurs during a database reset or row-not-found
+        scenario"
+    testing:
+      - "command: make test-e2e"
+      - "Grep backend logs for level=error.*auto-start — should be absent after fix"
+    notes: |
+      The job executor poll loop picks up a pending job ID and then attempts to update it to running state.
+      Between those two operations, the E2E test reset endpoint drops all tables and reruns migrations,
+      leaving no row for that job ID. The UpdateSampleJob call returns sql: no rows in result set,
+      which is logged at ERROR level even though it is a benign race between test teardown and the executor loop.

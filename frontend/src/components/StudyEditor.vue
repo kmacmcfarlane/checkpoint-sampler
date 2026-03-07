@@ -180,6 +180,118 @@ const localValidationError = computed((): string | null => {
   return null
 })
 
+/**
+ * Per-field validation error state.
+ * Returns a structured object indicating which specific fields have errors.
+ * Sets contain the indices of duplicate items (all occurrences after the first).
+ * For study name, a boolean indicates whether the name field itself has an error.
+ */
+const fieldValidationErrors = computed(() => {
+  const disallowedChars = `()/\\:*?<>|"`
+  const studyNameVal = studyName.value.trim()
+
+  // Study name: invalid characters or duplicate name
+  let studyNameError = false
+  if (studyNameVal !== '') {
+    for (const ch of disallowedChars) {
+      if (studyNameVal.includes(ch)) {
+        studyNameError = true
+        break
+      }
+    }
+    if (!studyNameError) {
+      const conflict = studies.value.find(
+        s => s.name === studyNameVal && s.id !== selectedStudyId.value
+      )
+      if (conflict) studyNameError = true
+    }
+  }
+
+  // Duplicate prompt names: highlight all but the first occurrence
+  const seenPromptNames = new Map<string, number>() // name -> first index in validPrompts
+  const promptNameErrorIndices = new Set<number>()
+  const validPrompts = prompts.value.filter(p => p != null && p.name.trim() !== '' && p.text.trim() !== '')
+  for (let i = 0; i < validPrompts.length; i++) {
+    const name = validPrompts[i].name.trim()
+    if (seenPromptNames.has(name)) {
+      promptNameErrorIndices.add(i)
+    } else {
+      seenPromptNames.set(name, i)
+    }
+  }
+
+  // Map validPrompt error indices back to prompts array indices
+  const promptErrorIndices = new Set<number>()
+  let validIdx = 0
+  for (let i = 0; i < prompts.value.length; i++) {
+    const p = prompts.value[i]
+    if (p != null && p.name.trim() !== '' && p.text.trim() !== '') {
+      if (promptNameErrorIndices.has(validIdx)) {
+        promptErrorIndices.add(i)
+      }
+      validIdx++
+    }
+  }
+
+  // Duplicate steps: highlight all but the first occurrence
+  const seenSteps = new Map<number, number>()
+  const stepErrorIndices = new Set<number>()
+  for (let i = 0; i < steps.value.length; i++) {
+    const step = steps.value[i]
+    if (seenSteps.has(step)) {
+      stepErrorIndices.add(i)
+    } else {
+      seenSteps.set(step, i)
+    }
+  }
+
+  // Duplicate CFGs: highlight all but the first occurrence
+  const seenCfgs = new Map<number, number>()
+  const cfgErrorIndices = new Set<number>()
+  for (let i = 0; i < cfgs.value.length; i++) {
+    const cfg = cfgs.value[i]
+    if (seenCfgs.has(cfg)) {
+      cfgErrorIndices.add(i)
+    } else {
+      seenCfgs.set(cfg, i)
+    }
+  }
+
+  // Duplicate sampler/scheduler pairs: highlight all but the first occurrence
+  const seenPairs = new Map<string, number>()
+  const pairErrorIndices = new Set<number>()
+  for (let i = 0; i < samplerSchedulerPairs.value.length; i++) {
+    const pair = samplerSchedulerPairs.value[i]
+    const key = `${pair.sampler}/${pair.scheduler}`
+    if (seenPairs.has(key)) {
+      pairErrorIndices.add(i)
+    } else {
+      seenPairs.set(key, i)
+    }
+  }
+
+  // Duplicate seeds: highlight all but the first occurrence
+  const seenSeeds = new Map<number, number>()
+  const seedErrorIndices = new Set<number>()
+  for (let i = 0; i < seeds.value.length; i++) {
+    const seed = seeds.value[i]
+    if (seenSeeds.has(seed)) {
+      seedErrorIndices.add(i)
+    } else {
+      seenSeeds.set(seed, i)
+    }
+  }
+
+  return {
+    studyName: studyNameError,
+    promptIndices: promptErrorIndices,
+    stepIndices: stepErrorIndices,
+    cfgIndices: cfgErrorIndices,
+    pairIndices: pairErrorIndices,
+    seedIndices: seedErrorIndices,
+  }
+})
+
 const canSave = computed(() => {
   return (
     studyName.value.trim() !== '' &&
@@ -570,6 +682,7 @@ function onUpdateSeeds(tags: string[]) {
             v-model:value="studyName"
             placeholder="My Study Config"
             size="medium"
+            :status="fieldValidationErrors.studyName ? 'error' : undefined"
             data-testid="study-name-input"
           />
         </div>
@@ -591,13 +704,14 @@ function onUpdateSeeds(tags: string[]) {
             v-model:value="prompts"
             :min="1"
             :on-create="createPromptItem"
-            #="{ value }"
+            #="{ value, index }"
           >
-            <div class="prompt-row">
+            <div class="prompt-row" :class="{ 'field-error': fieldValidationErrors.promptIndices.has(index) }" :data-testid="`prompt-row-${index}`">
               <NInput
                 v-model:value="value.name"
                 placeholder="Prompt name"
                 size="medium"
+                :status="fieldValidationErrors.promptIndices.has(index) ? 'error' : undefined"
                 style="flex: 1;"
               />
               <NInput
@@ -626,48 +740,52 @@ function onUpdateSeeds(tags: string[]) {
         <div class="form-row">
           <div class="form-field">
             <label>Steps</label>
-            <NDynamicTags
-              :value="stepsAsStrings"
-              :input-props="numericInputProps"
-              size="medium"
-              data-testid="steps-tags"
-              @update:value="onUpdateSteps"
-            >
-              <template #trigger="{ activate, disabled }">
-                <NButton
-                  size="medium"
-                  dashed
-                  :disabled="disabled"
-                  data-testid="steps-tags-add"
-                  @click="activate"
-                >
-                  +
-                </NButton>
-              </template>
-            </NDynamicTags>
+            <div :class="{ 'tags-error-wrapper': fieldValidationErrors.stepIndices.size > 0 }" data-testid="steps-tags-wrapper">
+              <NDynamicTags
+                :value="stepsAsStrings"
+                :input-props="numericInputProps"
+                size="medium"
+                data-testid="steps-tags"
+                @update:value="onUpdateSteps"
+              >
+                <template #trigger="{ activate, disabled }">
+                  <NButton
+                    size="medium"
+                    dashed
+                    :disabled="disabled"
+                    data-testid="steps-tags-add"
+                    @click="activate"
+                  >
+                    +
+                  </NButton>
+                </template>
+              </NDynamicTags>
+            </div>
           </div>
 
           <div class="form-field">
             <label>CFG Values</label>
-            <NDynamicTags
-              :value="cfgsAsStrings"
-              :input-props="numericInputProps"
-              size="medium"
-              data-testid="cfgs-tags"
-              @update:value="onUpdateCfgs"
-            >
-              <template #trigger="{ activate, disabled }">
-                <NButton
-                  size="medium"
-                  dashed
-                  :disabled="disabled"
-                  data-testid="cfgs-tags-add"
-                  @click="activate"
-                >
-                  +
-                </NButton>
-              </template>
-            </NDynamicTags>
+            <div :class="{ 'tags-error-wrapper': fieldValidationErrors.cfgIndices.size > 0 }" data-testid="cfgs-tags-wrapper">
+              <NDynamicTags
+                :value="cfgsAsStrings"
+                :input-props="numericInputProps"
+                size="medium"
+                data-testid="cfgs-tags"
+                @update:value="onUpdateCfgs"
+              >
+                <template #trigger="{ activate, disabled }">
+                  <NButton
+                    size="medium"
+                    dashed
+                    :disabled="disabled"
+                    data-testid="cfgs-tags-add"
+                    @click="activate"
+                  >
+                    +
+                  </NButton>
+                </template>
+              </NDynamicTags>
+            </div>
           </div>
         </div>
 
@@ -681,7 +799,7 @@ function onUpdateSeeds(tags: string[]) {
             data-testid="sampler-scheduler-pairs"
           >
             <template #default="{ index, value }">
-              <div class="pair-row">
+              <div class="pair-row" :class="{ 'field-error': fieldValidationErrors.pairIndices.has(index) }" :data-testid="`pair-row-${index}`">
                 <NSelect
                   :value="value.sampler"
                   :options="samplerOptions"
@@ -690,6 +808,7 @@ function onUpdateSeeds(tags: string[]) {
                   placeholder="Sampler"
                   size="medium"
                   class="pair-select"
+                  :status="fieldValidationErrors.pairIndices.has(index) ? 'error' : undefined"
                   :data-testid="`pair-sampler-${index}`"
                   @update:value="(v: string) => { samplerSchedulerPairs[index].sampler = v }"
                 />
@@ -701,6 +820,7 @@ function onUpdateSeeds(tags: string[]) {
                   placeholder="Scheduler"
                   size="medium"
                   class="pair-select"
+                  :status="fieldValidationErrors.pairIndices.has(index) ? 'error' : undefined"
                   :data-testid="`pair-scheduler-${index}`"
                   @update:value="(v: string) => { samplerSchedulerPairs[index].scheduler = v }"
                 />
@@ -731,25 +851,27 @@ function onUpdateSeeds(tags: string[]) {
 
         <div class="form-field">
           <label>Seeds</label>
-          <NDynamicTags
-            :value="seedsAsStrings"
-            :input-props="numericInputProps"
-            size="medium"
-            data-testid="seeds-tags"
-            @update:value="onUpdateSeeds"
-          >
-            <template #trigger="{ activate, disabled }">
-              <NButton
-                size="medium"
-                dashed
-                :disabled="disabled"
-                data-testid="seeds-tags-add"
-                @click="activate"
-              >
-                +
-              </NButton>
-            </template>
-          </NDynamicTags>
+          <div :class="{ 'tags-error-wrapper': fieldValidationErrors.seedIndices.size > 0 }" data-testid="seeds-tags-wrapper">
+            <NDynamicTags
+              :value="seedsAsStrings"
+              :input-props="numericInputProps"
+              size="medium"
+              data-testid="seeds-tags"
+              @update:value="onUpdateSeeds"
+            >
+              <template #trigger="{ activate, disabled }">
+                <NButton
+                  size="medium"
+                  dashed
+                  :disabled="disabled"
+                  data-testid="seeds-tags-add"
+                  @click="activate"
+                >
+                  +
+                </NButton>
+              </template>
+            </NDynamicTags>
+          </div>
         </div>
 
         <div class="form-row">
@@ -942,5 +1064,19 @@ function onUpdateSeeds(tags: string[]) {
   display: flex;
   gap: 0.75rem;
   justify-content: flex-start;
+}
+
+/* Field-level validation error highlight: applied to prompt-row and pair-row containers */
+.field-error {
+  border: 1px solid var(--error-color);
+  border-radius: 0.25rem;
+  padding: 0.25rem;
+}
+
+/* Wrapper for NDynamicTags that shows an error border when duplicates are present */
+.tags-error-wrapper {
+  border: 1px solid var(--error-color);
+  border-radius: 0.25rem;
+  padding: 0.25rem;
 }
 </style>
