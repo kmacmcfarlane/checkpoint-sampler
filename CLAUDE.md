@@ -100,7 +100,7 @@ Backlog CLI (preferred over direct YAML editing):
 - `python3 scripts/backlog/backlog.py query --status todo --fields id,title,priority`
 - `python3 scripts/backlog/backlog.py get <id>`
 - `python3 scripts/backlog/backlog.py set <id> status <value>`
-- `python3 scripts/backlog/backlog.py next-id <S|B|R|W>`
+- `python3 scripts/backlog/backlog.py next-id <S|B|R|W|M>`
 - `cat story.yaml | python3 scripts/backlog/backlog.py add`
 - `python3 scripts/backlog/backlog.py validate [--strict]`
 - See AGENT_FLOW.md section 0 for the full command reference.

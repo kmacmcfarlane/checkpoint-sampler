@@ -23,8 +23,8 @@ VALID_STATUSES = frozenset(
     {"todo", "in_progress", "review", "testing", "uat", "uat_feedback", "done", "blocked", "closed"}
 )
 VALID_COMPLEXITIES = frozenset({"low", "medium", "high"})
-VALID_ID_PREFIXES = frozenset({"S", "B", "R", "W"})
-ID_PATTERN = re.compile(r"^[SBRW]-\d{1,3}$")
+VALID_ID_PREFIXES = frozenset({"S", "B", "R", "W", "M"})
+ID_PATTERN = re.compile(r"^[SBRWM]-\d{1,3}$")
 
 REQUIRED_STORY_FIELDS = (
     "id",
@@ -864,7 +864,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--status", help="Comma-separated status filter")
     p.add_argument("--priority-min", type=int, help="Minimum priority (inclusive)")
     p.add_argument("--priority-max", type=int, help="Maximum priority (inclusive)")
-    p.add_argument("--id-prefix", help="Filter by ID prefix (S, B, R, W)")
+    p.add_argument("--id-prefix", help="Filter by ID prefix (S, B, R, W, M)")
     p.add_argument("--complexity", help="Comma-separated complexity filter")
     p.add_argument("--has-field", help="Only stories with this field non-empty")
     p.add_argument(

@@ -34,6 +34,17 @@ Key commands:
 - **Validate**: `python3 scripts/backlog/backlog.py validate [--strict]`
 
 Output format: `--format yaml` (default) or `--format json`. `--format` works in both global position (before subcommand) and subcommand position (after subcommand). Exit codes: 0=success, 1=validation error, 2=not found, 3=file error.
+
+### Ticket ID prefixes
+
+| Prefix | Type | Description |
+|--------|------|-------------|
+| **S** | Story | New features and enhancements |
+| **B** | Bug | Bug fixes (prioritized in work selection — see section 3.1) |
+| **R** | Refactor | Code refactoring and cleanup |
+| **W** | Workflow | Agent workflow and process improvements |
+| **M** | Maintenance | DevOps, CI/CD, dependency updates, infrastructure, and tooling |
+
 - /agent/PRD.md defines product requirements and scope.
 - /agent/TEST_PRACTICES.md and /agent/DEVELOPMENT_PRACTICES.md define standards.
 

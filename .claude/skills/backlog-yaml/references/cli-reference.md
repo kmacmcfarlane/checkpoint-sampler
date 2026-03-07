@@ -39,7 +39,7 @@ backlog.py query [--status STATUS[,STATUS,...]]
 | `--status` | Comma-separated status filter (todo, in_progress, review, testing, uat, uat_feedback, done, blocked) |
 | `--priority-min` | Minimum priority (inclusive) |
 | `--priority-max` | Maximum priority (inclusive) |
-| `--id-prefix` | Filter by ID prefix (S, B, R, W) |
+| `--id-prefix` | Filter by ID prefix (S, B, R, W, M) |
 | `--complexity` | Comma-separated complexity filter (low, medium, high) |
 | `--has-field` | Only stories with this field non-empty |
 | `--check-requires` | Exclude stories whose `requires` dependencies are not satisfied (done/uat) |
@@ -89,7 +89,7 @@ backlog.py get B-030 --format json
 backlog.py next-id <prefix>
 ```
 
-Scans both backlog files to find the highest numeric ID for the prefix and returns the next one. Prefix must be one of: `S`, `B`, `R`, `W`.
+Scans both backlog files to find the highest numeric ID for the prefix and returns the next one. Prefix must be one of: `S`, `B`, `R`, `W`, `M`.
 
 **Examples:**
 
