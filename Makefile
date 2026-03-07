@@ -1,4 +1,4 @@
-.PHONY: claude claude-resume ralph ralph-resume ralph-auto ralph-auto-resume capture-runtime-context up down logs up-dev down-dev logs-dev gen test-frontend-watch test-backend-watch lint-nginx up-test down-test build-playwright test-e2e test-e2e-logs down-e2e
+.PHONY: claude claude-resume claude-dangerous ralph ralph-resume ralph-auto ralph-auto-resume capture-runtime-context up down logs up-dev down-dev logs-dev gen test-frontend-watch test-backend-watch lint-nginx up-test down-test build-playwright test-e2e test-e2e-logs down-e2e
 
 COMPOSE_DEV = docker compose -p checkpoint-sampler-dev -f docker-compose.yml -f docker-compose.dev.yml
 COMPOSE_TEST = docker compose -p checkpoint-sampler-test -f docker-compose.test.yml
@@ -9,11 +9,17 @@ claude:
 claude-resume:
 	claude-sandbox --resume
 
+claude-dangerous:
+	claude-sandbox --dangerously-skip-permissions
+
+claude-resume-dangerous:
+	claude-sandbox --resume --dangerously-skip-permissions
+
 ralph:
 	claude-sandbox --ralph --interactive ${ARGS}
 
 ralph-dangerous:
-	claude-sandbox --ralph --interactive ${ARGS}
+	claude-sandbox --ralph --interactive --dangerously-skip-permissions ${ARGS}
 
 ralph-resume:
 	claude-sandbox --ralph --interactive --resume ${ARGS}

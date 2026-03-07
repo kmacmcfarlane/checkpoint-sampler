@@ -743,7 +743,7 @@ stories:
     title: "Job marked as completed despite 94 missing samples (590/684)"
     priority: 75
     complexity: medium
-    status: todo
+    status: uat
     requires: []
     acceptance:
       - "A job with incomplete items (missing samples) is not marked as 'completed' — should show 'completed_with_errors'
@@ -792,3 +792,21 @@ stories:
       all dimension mappings reset to 'single'. User must switch the preset selector away and back
       to restore their configuration. Likely the composable state (useDimensionMapping) is
       being re-initialized on HMR without preserving the current assignments.
+  - id: B-064
+    title: "openFiltersDrawer E2E helper strict mode violation — sidebar drawer body remains in DOM after B-060"
+    priority: 65
+    complexity: low
+    status: todo
+    requires: []
+    acceptance:
+      - "All 7 failing tests in combo-solo-click.spec.ts, dimension-filtering.spec.ts, and filters-slideout-layout.spec.ts
+        pass with zero strict mode violations"
+      - "openFiltersDrawer helper disambiguates between the sidebar drawer body and the filters drawer body"
+    testing:
+      - "command: make test-e2e SPEC=\"combo-solo-click.spec.ts dimension-filtering.spec.ts filters-slideout-layout.spec.ts\""
+    notes: |
+      Root cause: B-060 added display-directive="show" to AppDrawer.vue, keeping the sidebar
+      drawer DOM content rendered when closed. The openFiltersDrawer helper uses an unqualified
+      .n-drawer-body-content-wrapper locator which now matches 2 elements (sidebar + filters),
+      triggering Playwright strict mode violations in 7 tests across 3 spec files.
+      Fix: scope the locator to the visible drawer or use .first()/.last() disambiguation.

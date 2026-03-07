@@ -1271,8 +1271,9 @@ func (e *JobExecutor) updateJobProgress(jobID string) {
 }
 
 // completeJob marks a job as completed (or completed_with_errors) when all items are done.
-// If at least one item has status=failed, the job transitions to completed_with_errors.
-// If all items completed successfully (none failed), the job transitions to completed.
+// If any item is not in completed status (failed, skipped, or stuck in running),
+// the job transitions to completed_with_errors. Only when every item completed
+// successfully does the job transition to completed.
 func (e *JobExecutor) completeJob(jobID string) {
 	e.logger.WithField("job_id", jobID).Info("completing job")
 
@@ -1282,23 +1283,25 @@ func (e *JobExecutor) completeJob(jobID string) {
 		return
 	}
 
-	// Check if any items failed to determine terminal status
+	// Check if all items completed successfully to determine terminal status.
+	// Any non-completed item (failed, skipped, stuck in running) means the job
+	// should be marked as completed_with_errors.
 	items, err := e.store.ListSampleJobItems(jobID)
 	if err != nil {
 		e.logger.WithError(err).Error("failed to list items for completion check")
 		// Fall back to completed status
 		job.Status = model.SampleJobStatusCompleted
 	} else {
-		hasFailed := false
+		allCompleted := true
 		for _, item := range items {
-			if item.Status == model.SampleJobItemStatusFailed {
-				hasFailed = true
+			if item.Status != model.SampleJobItemStatusCompleted {
+				allCompleted = false
 				break
 			}
 		}
-		if hasFailed {
+		if !allCompleted {
 			job.Status = model.SampleJobStatusCompletedWithErrors
-			e.logger.WithField("job_id", jobID).Info("job has failed items, transitioning to completed_with_errors")
+			e.logger.WithField("job_id", jobID).Info("job has non-completed items, transitioning to completed_with_errors")
 		} else {
 			job.Status = model.SampleJobStatusCompleted
 		}
@@ -1497,7 +1500,7 @@ func (e *JobExecutor) broadcastJobProgress(jobID string) {
 		case model.SampleJobItemStatusCompleted:
 			completed++
 			stats.completed++
-		case model.SampleJobItemStatusFailed:
+		case model.SampleJobItemStatusFailed, model.SampleJobItemStatusSkipped:
 			failed++
 			stats.failed++
 			if item.ErrorMessage != "" {

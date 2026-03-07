@@ -1952,6 +1952,85 @@ var _ = Describe("JobExecutor", func() {
 			Expect(updatedJob.Status).To(Equal(model.SampleJobStatusCompletedWithErrors))
 		})
 
+		It("transitions job to completed_with_errors when some items are skipped", func() {
+			// B-061: Job with 3 items: 2 completed, 1 skipped (path matching failed during creation)
+			job := model.SampleJob{
+				ID:         "job-partial-skip",
+				Status:     model.SampleJobStatusRunning,
+				TotalItems: 3,
+			}
+			mockStore.jobs[job.ID] = job
+			mockStore.items[job.ID] = []model.SampleJobItem{
+				{ID: "i1", JobID: job.ID, CheckpointFilename: "chk1.safetensors", Status: model.SampleJobItemStatusCompleted},
+				{ID: "i2", JobID: job.ID, CheckpointFilename: "chk1.safetensors", Status: model.SampleJobItemStatusCompleted},
+				{ID: "i3", JobID: job.ID, CheckpointFilename: "chk2.safetensors", Status: model.SampleJobItemStatusSkipped, ErrorMessage: "checkpoint not found in ComfyUI"},
+			}
+
+			// processNextItem should find no pending items and call completeJob
+			executor.mu.Lock()
+			executor.activeJobID = job.ID
+			executor.mu.Unlock()
+			executor.processNextItem()
+
+			// Job should be completed_with_errors, not completed
+			updatedJob := mockStore.jobs[job.ID]
+			Expect(updatedJob.Status).To(Equal(model.SampleJobStatusCompletedWithErrors))
+		})
+
+		It("transitions job to completed_with_errors when items are stuck in running", func() {
+			// B-061: Edge case where an item was left in running status (e.g. ComfyUI disconnect)
+			job := model.SampleJob{
+				ID:         "job-stuck-running",
+				Status:     model.SampleJobStatusRunning,
+				TotalItems: 2,
+			}
+			mockStore.jobs[job.ID] = job
+			mockStore.items[job.ID] = []model.SampleJobItem{
+				{ID: "i1", JobID: job.ID, CheckpointFilename: "chk1.safetensors", Status: model.SampleJobItemStatusCompleted},
+				{ID: "i2", JobID: job.ID, CheckpointFilename: "chk1.safetensors", Status: model.SampleJobItemStatusRunning},
+			}
+
+			executor.mu.Lock()
+			executor.activeJobID = job.ID
+			executor.mu.Unlock()
+			executor.processNextItem()
+
+			// Job should be completed_with_errors, not completed
+			updatedJob := mockStore.jobs[job.ID]
+			Expect(updatedJob.Status).To(Equal(model.SampleJobStatusCompletedWithErrors))
+		})
+
+		It("broadcasts skipped items as failed in job_progress event", func() {
+			// B-061: Skipped items should be counted as failed in progress broadcasts
+			job := model.SampleJob{
+				ID:         "job-broadcast-skip",
+				Status:     model.SampleJobStatusRunning,
+				TotalItems: 3,
+				StudyID:    "study-1",
+			}
+			mockStore.jobs[job.ID] = job
+			mockStore.items[job.ID] = []model.SampleJobItem{
+				{ID: "i1", JobID: job.ID, CheckpointFilename: "chk1.safetensors", Status: model.SampleJobItemStatusCompleted},
+				{ID: "i2", JobID: job.ID, CheckpointFilename: "chk1.safetensors", Status: model.SampleJobItemStatusCompleted},
+				{ID: "i3", JobID: job.ID, CheckpointFilename: "chk2.safetensors", Status: model.SampleJobItemStatusSkipped, ErrorMessage: "checkpoint not found"},
+			}
+
+			executor.mu.Lock()
+			executor.activeJobID = job.ID
+			executor.mu.Unlock()
+			executor.processNextItem()
+
+			// Should have broadcast a job_progress event with skipped counted as failed
+			Expect(mockHub.events).NotTo(BeEmpty())
+			lastEvent := mockHub.events[len(mockHub.events)-1]
+			Expect(lastEvent.Type).To(Equal(model.EventJobProgress))
+			Expect(lastEvent.JobProgressData).NotTo(BeNil())
+			Expect(lastEvent.JobProgressData.Status).To(Equal("completed_with_errors"))
+			Expect(lastEvent.JobProgressData.CompletedItems).To(Equal(2))
+			Expect(lastEvent.JobProgressData.FailedItems).To(Equal(1))
+			Expect(lastEvent.JobProgressData.PendingItems).To(Equal(0))
+		})
+
 		It("broadcasts job_progress event with correct status on completion", func() {
 			job := model.SampleJob{
 				ID:         "job-broadcast",

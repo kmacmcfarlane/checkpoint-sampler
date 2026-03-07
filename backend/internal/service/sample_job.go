@@ -544,7 +544,7 @@ func (s *SampleJobService) GetItemCounts(id string) (model.ItemStatusCounts, err
 		switch item.Status {
 		case model.SampleJobItemStatusCompleted:
 			counts.Completed++
-		case model.SampleJobItemStatusFailed:
+		case model.SampleJobItemStatusFailed, model.SampleJobItemStatusSkipped:
 			counts.Failed++
 		case model.SampleJobItemStatusPending:
 			counts.Pending++
@@ -622,7 +622,7 @@ func (s *SampleJobService) GetProgress(id string) (model.JobProgress, error) {
 		case model.SampleJobItemStatusCompleted:
 			stats.completed++
 			itemCounts.Completed++
-		case model.SampleJobItemStatusFailed:
+		case model.SampleJobItemStatusFailed, model.SampleJobItemStatusSkipped:
 			stats.failed++
 			itemCounts.Failed++
 			if item.ErrorMessage != "" {

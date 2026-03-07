@@ -664,6 +664,25 @@ var _ = Describe("SampleJobService", func() {
 			Expect(counts.Pending).To(Equal(2))
 		})
 
+		It("counts skipped items as failed", func() {
+			// B-061: Skipped items (e.g. checkpoint path matching failed) should be
+			// counted in the Failed bucket so the frontend accurately reflects errors.
+			job := model.SampleJob{ID: "job-skipped", TotalItems: 4}
+			store.jobs[job.ID] = job
+			store.items[job.ID] = []model.SampleJobItem{
+				{ID: "i1", JobID: job.ID, Status: model.SampleJobItemStatusCompleted},
+				{ID: "i2", JobID: job.ID, Status: model.SampleJobItemStatusCompleted},
+				{ID: "i3", JobID: job.ID, Status: model.SampleJobItemStatusSkipped},
+				{ID: "i4", JobID: job.ID, Status: model.SampleJobItemStatusFailed},
+			}
+
+			counts, err := svc.GetItemCounts("job-skipped")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(counts.Completed).To(Equal(2))
+			Expect(counts.Failed).To(Equal(2)) // both failed and skipped counted as failed
+			Expect(counts.Pending).To(Equal(0))
+		})
+
 		It("returns zero counts for a job with no items", func() {
 			job := model.SampleJob{ID: "job-empty", TotalItems: 0}
 			store.jobs[job.ID] = job
@@ -803,6 +822,28 @@ var _ = Describe("SampleJobService", func() {
 			Expect(progress.FailedItemDetails).To(HaveLen(1))
 			Expect(progress.FailedItemDetails[0].CheckpointFilename).To(Equal("chk1.safetensors"))
 			Expect(progress.FailedItemDetails[0].ErrorMessage).To(Equal("unknown error"))
+		})
+
+		It("counts skipped items as failed in progress metrics", func() {
+			// B-061: Skipped items should be counted in the Failed bucket in progress
+			job := model.SampleJob{ID: "job-skip-progress", TotalItems: 3}
+			store.jobs[job.ID] = job
+			store.items[job.ID] = []model.SampleJobItem{
+				{ID: "i1", JobID: job.ID, CheckpointFilename: "chk1.safetensors", Status: model.SampleJobItemStatusCompleted},
+				{ID: "i2", JobID: job.ID, CheckpointFilename: "chk2.safetensors", Status: model.SampleJobItemStatusSkipped, ErrorMessage: "checkpoint not found in ComfyUI"},
+				{ID: "i3", JobID: job.ID, CheckpointFilename: "chk2.safetensors", Status: model.SampleJobItemStatusCompleted},
+			}
+
+			progress, err := svc.GetProgress("job-skip-progress")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(progress.ItemCounts.Completed).To(Equal(2))
+			Expect(progress.ItemCounts.Failed).To(Equal(1)) // skipped counted as failed
+			Expect(progress.ItemCounts.Pending).To(Equal(0))
+
+			// Skipped items with error messages should appear in failed item details
+			Expect(progress.FailedItemDetails).To(HaveLen(1))
+			Expect(progress.FailedItemDetails[0].CheckpointFilename).To(Equal("chk2.safetensors"))
+			Expect(progress.FailedItemDetails[0].ErrorMessage).To(Equal("checkpoint not found in ComfyUI"))
 		})
 	})
 })

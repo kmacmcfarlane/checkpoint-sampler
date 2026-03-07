@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-061: Job marked as completed despite 94 missing samples (590/684)
+- `completeJob` now checks that ALL items are in `completed` status; any non-completed item (skipped, failed, stuck in running) triggers `completed_with_errors`
+- Skipped items (from checkpoint path matching failures) counted as failed in `GetItemCounts`, `GetProgress`, and WebSocket progress broadcasts
+
 ### S-095: Delete study with option to keep or delete sample data
 - Study deletion now shows a `ConfirmDeleteDialog` with an "Also delete sample data" checkbox (default off), replacing the browser `window.confirm()`
 - Backend `DELETE /api/studies/{id}?delete_data=true` removes the study's sample output directory from disk before deleting the database record
