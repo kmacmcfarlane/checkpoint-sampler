@@ -20,30 +20,6 @@ Example:
 
 ## Ideas
 
-### Add "queued" status (yellow bead) test case to JobLaunchDialog status bead tests
-* status: needs_approval
-* priority: low
-* source: qa
-The `_status`/`_color` metadata test covers empty/complete/running but does not exercise the queued path (pending or paused job). Adding a `pendingJob` fixture for a training run with status `pending` and asserting `_status: 'queued'` and `_color: '#f0a020'` would complete the 4-of-4 coverage for the `beadColor()` function.
-
-### Add Vite ws proxy ECONNREFUSED to QA_ALLOWED_ERRORS.md
-* status: needs_approval
-* priority: very-low
-* source: qa
-During startup, the frontend Vite dev server briefly logs `Error: connect ECONNREFUSED` for its WebSocket proxy before the backend is ready. This is a benign startup timing race and could be added to the allowlist to prevent future QA agents from investigating it.
-
-### Automated panic detection in E2E log scan
-* status: needs_approval
-* priority: medium
-* source: developer
-The QA agent currently searches E2E backend logs for panics manually. A lightweight shell script or Makefile target that exits non-zero when `panic:` appears in E2E logs would make panic-free criteria machine-verifiable and prevent regressions silently passing review.
-
-### Widen accessibility test coverage to include grid state
-* status: needs_approval
-* priority: low
-* source: developer
-Currently the accessibility audit runs only on the initial empty-state page. Adding a second scan after loading a training run and assigning axes (with real images rendered) would catch contrast violations inside grid cells, image captions, and axis labels.
-
 ### E2E test for keyboard auto-repeat slider navigation
 * status: needs_approval
 * priority: low
@@ -61,33 +37,3 @@ The "Eager auto-select" tests in App.test.ts set `Object.defineProperty(window, 
 * priority: low
 * source: developer
 Implemented in S-070: helpers extracted to `frontend/e2e/helpers.ts`.
-
-### Add workflow fixtures to E2E test environment
-* status: done
-* priority: medium
-* source: qa
-Implemented in S-070: `test-fixtures/workflows/test-workflow.json` added, mounted in `docker-compose.test.yml`.
-
-### Expand QA_ALLOWED_ERRORS.md with test environment artifacts
-* status: needs_approval
-* priority: low
-* source: qa
-Three categories of expected errors in test logs are not yet in the allowlist: (1) database reset race conditions ("no such table/column" during test reset), (2) safetensors metadata parse failures for empty test fixture checkpoint files, (3) Vite ws proxy EPIPE/ECONNREFUSED errors during E2E teardown. Adding these would reduce re-triage overhead for QA agents. EPIPE specifically triggered by Playwright rapid connect/disconnect — confirmed by QA sweep on S-071.
-
-### Populate safetensors test fixtures with minimal valid headers
-* status: needs_approval
-* priority: very-low
-* source: qa
-The 0-byte `.safetensors` files in `test-fixtures/` cause "reading header length: EOF" errors on every checkpoint metadata scan. Adding a minimal valid safetensors header (8-byte length prefix + empty JSON object) would eliminate these log errors and provide more realistic test data.
-
-### Automated audit for bare NSelect click patterns in E2E specs
-* status: needs_approval
-* priority: low
-* source: developer
-A lint rule or pre-commit check that warns when `[data-testid="training-run-select"]` is clicked directly without using the `selectTrainingRun` helper would prevent recurrence of race conditions where NSelect is clicked before its loading state clears. B-053 and B-054 both fixed this same class of bug in different spec files.
-
-### Cross-story regression guard for character-set changes
-* status: needs_approval
-* priority: low
-* source: developer
-When a story adds new disallowed characters (e.g., B-050 adding parentheses to `disallowedNameChars`), an automated check could scan for existing string literals that contain those characters (e.g., the `' (copy)'` fork suffix) and flag them before review. This would catch this class of regression automatically.
