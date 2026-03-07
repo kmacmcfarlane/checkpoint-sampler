@@ -220,4 +220,122 @@ test.describe('debug mode overlay', () => {
     await page.keyboard.press('Escape')
     await expect(page.locator('[data-testid="debug-overlay"]')).toHaveCount(0)
   })
+
+  // AC1 (S-100): When debug mode is enabled, the lightbox displays a params overlay on the current image
+  test('lightbox shows debug overlay when debug mode is enabled', async ({ page }) => {
+    await setupGridWithAxes(page)
+
+    // Enable debug mode
+    await enableDebugMode(page)
+
+    // Wait for debug overlays to appear on grid cells
+    await expect(page.locator('[data-testid="debug-overlay"]').first()).toBeVisible()
+
+    // Click the first image cell that has an actual image
+    const firstImage = page.locator('.xy-grid [role="gridcell"] img').first()
+    await expect(firstImage).toBeVisible()
+    await firstImage.click()
+
+    // Lightbox should open
+    const lightbox = page.locator('.lightbox-backdrop')
+    await expect(lightbox).toBeVisible()
+
+    // AC1: Debug overlay should appear inside the lightbox
+    const lightboxDebugOverlay = lightbox.locator('[data-testid="lightbox-debug-overlay"]')
+    await expect(lightboxDebugOverlay).toBeVisible()
+  })
+
+  // AC4 (S-100): When debug mode is disabled, no overlay is shown in the lightbox
+  test('lightbox does not show debug overlay when debug mode is disabled', async ({ page }) => {
+    await setupGridWithAxes(page)
+
+    // Do NOT enable debug mode — it starts off
+
+    // Click the first image to open the lightbox
+    const firstImage = page.locator('.xy-grid [role="gridcell"] img').first()
+    await expect(firstImage).toBeVisible()
+    await firstImage.click()
+
+    // Lightbox should open
+    const lightbox = page.locator('.lightbox-backdrop')
+    await expect(lightbox).toBeVisible()
+
+    // AC4: No debug overlay should be present in the lightbox
+    const lightboxDebugOverlay = lightbox.locator('[data-testid="lightbox-debug-overlay"]')
+    await expect(lightboxDebugOverlay).toHaveCount(0)
+
+    // Close lightbox
+    await page.keyboard.press('Escape')
+    await expect(lightbox).not.toBeVisible()
+  })
+
+  // AC2 (S-100): Overlay shows the same parameter information as the XY grid debug overlay
+  test('lightbox debug overlay shows x and y axis values matching the grid cell', async ({ page }) => {
+    await setupGridWithAxes(page)
+
+    // Enable debug mode — grid cells will show overlays with X and Y info
+    await enableDebugMode(page)
+    await expect(page.locator('[data-testid="debug-overlay"]').first()).toBeVisible()
+
+    // Click the first image to open the lightbox
+    const firstImage = page.locator('.xy-grid [role="gridcell"] img').first()
+    await expect(firstImage).toBeVisible()
+    await firstImage.click()
+
+    const lightbox = page.locator('.lightbox-backdrop')
+    await expect(lightbox).toBeVisible()
+
+    const lightboxDebugOverlay = lightbox.locator('[data-testid="lightbox-debug-overlay"]')
+    await expect(lightboxDebugOverlay).toBeVisible()
+
+    // AC2: The overlay should show X and Y values
+    const xValue = lightboxDebugOverlay.locator('[data-testid="debug-x-value"]')
+    await expect(xValue).toBeVisible()
+    await expect(xValue).toContainText('X:')
+
+    const yValue = lightboxDebugOverlay.locator('[data-testid="debug-y-value"]')
+    await expect(yValue).toBeVisible()
+    await expect(yValue).toContainText('Y:')
+
+    // Close lightbox
+    await page.keyboard.press('Escape')
+    await expect(lightbox).not.toBeVisible()
+  })
+
+  // AC3 (S-100): Overlay is positioned to not obscure the main content of the image
+  test('lightbox debug overlay does not interfere with zoom or image interaction', async ({ page }) => {
+    await setupGridWithAxes(page)
+    await enableDebugMode(page)
+
+    await expect(page.locator('[data-testid="debug-overlay"]').first()).toBeVisible()
+
+    // Click the first image to open the lightbox
+    const firstImage = page.locator('.xy-grid [role="gridcell"] img').first()
+    await firstImage.click()
+
+    const lightbox = page.locator('.lightbox-backdrop')
+    await expect(lightbox).toBeVisible()
+
+    // Verify debug overlay is present but the main image is still visible and accessible
+    const lightboxDebugOverlay = lightbox.locator('[data-testid="lightbox-debug-overlay"]')
+    await expect(lightboxDebugOverlay).toBeVisible()
+
+    const fullSizeImage = lightbox.locator('img[alt="Full-size image"]')
+    await expect(fullSizeImage).toBeVisible()
+
+    // Zoom in using the zoom button — should still work with overlay present
+    const zoomInButton = page.getByRole('button', { name: 'Zoom in' })
+    await expect(zoomInButton).toBeVisible()
+    await zoomInButton.click()
+
+    const transform = await fullSizeImage.evaluate((el) => (el as HTMLElement).style.transform)
+    // Scale should have increased above 1 after zoom in
+    const scaleMatch = transform.match(/scale\(([^)]+)\)/)
+    expect(scaleMatch).toBeTruthy()
+    expect(parseFloat(scaleMatch![1])).toBeGreaterThan(1)
+
+    // Close lightbox
+    await page.keyboard.press('Escape')
+    await expect(lightbox).not.toBeVisible()
+  })
 })

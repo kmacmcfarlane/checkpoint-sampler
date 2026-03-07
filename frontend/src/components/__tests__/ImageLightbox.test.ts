@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import ImageLightbox from '../ImageLightbox.vue'
 import SliderBar from '../SliderBar.vue'
+import DebugOverlay from '../DebugOverlay.vue'
+import type { DebugCellInfo } from '../types'
 
 // enableAutoUnmount is configured globally in vitest.setup.ts
 
@@ -1487,6 +1489,131 @@ describe('ImageLightbox', () => {
       expect(slider.props('label')).toBe('Slider')
 
       wrapper.unmount()
+    })
+  })
+
+  // --- Debug overlay tests (S-100) ---
+
+  describe('debug overlay', () => {
+    const debugInfo: DebugCellInfo = {
+      xValue: '1000',
+      yValue: 'landscape',
+      sliderValue: '7',
+      sliderDimensionName: 'cfg',
+      comboSelections: { seed: ['42'] },
+    }
+
+    // AC1: When debug mode is enabled, the lightbox displays a params overlay on the current image
+    it('renders DebugOverlay when debugMode is true and debugInfo is provided', async () => {
+      const wrapper = mount(ImageLightbox, {
+        props: { ...defaultProps, debugMode: true, debugInfo },
+      })
+      await flushPromises()
+
+      const overlay = wrapper.findComponent(DebugOverlay)
+      expect(overlay.exists()).toBe(true)
+      expect(overlay.attributes('data-testid')).toBe('lightbox-debug-overlay')
+    })
+
+    // AC4: When debug mode is disabled, no overlay is shown
+    it('does not render DebugOverlay when debugMode is false', async () => {
+      const wrapper = mount(ImageLightbox, {
+        props: { ...defaultProps, debugMode: false, debugInfo },
+      })
+      await flushPromises()
+
+      const overlay = wrapper.findComponent(DebugOverlay)
+      expect(overlay.exists()).toBe(false)
+    })
+
+    // AC4: When debug mode is omitted (default), no overlay is shown
+    it('does not render DebugOverlay when debugMode is omitted', async () => {
+      const wrapper = mount(ImageLightbox, {
+        props: { ...defaultProps },
+      })
+      await flushPromises()
+
+      const overlay = wrapper.findComponent(DebugOverlay)
+      expect(overlay.exists()).toBe(false)
+    })
+
+    // AC4: When debugInfo is not provided but debugMode is true, no overlay is shown
+    it('does not render DebugOverlay when debugMode is true but debugInfo is missing', async () => {
+      const wrapper = mount(ImageLightbox, {
+        props: { ...defaultProps, debugMode: true },
+      })
+      await flushPromises()
+
+      const overlay = wrapper.findComponent(DebugOverlay)
+      expect(overlay.exists()).toBe(false)
+    })
+
+    // AC2: Overlay shows the same parameter information as the XY grid debug overlay
+    it('passes the debugInfo to DebugOverlay correctly', async () => {
+      const wrapper = mount(ImageLightbox, {
+        props: { ...defaultProps, debugMode: true, debugInfo },
+      })
+      await flushPromises()
+
+      const overlay = wrapper.findComponent(DebugOverlay)
+      expect(overlay.exists()).toBe(true)
+      expect(overlay.props('info')).toEqual(debugInfo)
+    })
+
+    // AC2: Overlay renders x, y, slider, and combo values
+    it('DebugOverlay displays x, y, slider, and combo values from debugInfo', async () => {
+      const wrapper = mount(ImageLightbox, {
+        props: { ...defaultProps, debugMode: true, debugInfo },
+      })
+      await flushPromises()
+
+      const xRow = wrapper.find('[data-testid="debug-x-value"]')
+      expect(xRow.exists()).toBe(true)
+      expect(xRow.text()).toContain('1000')
+
+      const yRow = wrapper.find('[data-testid="debug-y-value"]')
+      expect(yRow.exists()).toBe(true)
+      expect(yRow.text()).toContain('landscape')
+
+      const sliderRow = wrapper.find('[data-testid="debug-slider-value"]')
+      expect(sliderRow.exists()).toBe(true)
+      expect(sliderRow.text()).toContain('cfg:')
+      expect(sliderRow.text()).toContain('7')
+
+      const comboRows = wrapper.findAll('[data-testid="debug-combo-value"]')
+      expect(comboRows.length).toBe(1)
+      expect(comboRows[0].text()).toContain('seed:')
+      expect(comboRows[0].text()).toContain('42')
+    })
+
+    // AC5: Unit test for overlay visibility toggle
+    it('shows overlay when debugMode is toggled from false to true', async () => {
+      const wrapper = mount(ImageLightbox, {
+        props: { ...defaultProps, debugMode: false, debugInfo },
+      })
+      await flushPromises()
+
+      expect(wrapper.findComponent(DebugOverlay).exists()).toBe(false)
+
+      await wrapper.setProps({ debugMode: true })
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.findComponent(DebugOverlay).exists()).toBe(true)
+    })
+
+    // AC5: Unit test for overlay visibility toggle (reverse)
+    it('hides overlay when debugMode is toggled from true to false', async () => {
+      const wrapper = mount(ImageLightbox, {
+        props: { ...defaultProps, debugMode: true, debugInfo },
+      })
+      await flushPromises()
+
+      expect(wrapper.findComponent(DebugOverlay).exists()).toBe(true)
+
+      await wrapper.setProps({ debugMode: false })
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.findComponent(DebugOverlay).exists()).toBe(false)
     })
   })
 })

@@ -551,7 +551,7 @@ stories:
   - id: S-100
     title: Debug mode params overlay in lightbox
     type: feature
-    status: todo
+    status: uat
     priority: 20
     complexity: low
     requires: []

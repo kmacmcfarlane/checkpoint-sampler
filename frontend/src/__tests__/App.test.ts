@@ -1504,4 +1504,139 @@ describe('App', () => {
       })
     })
   })
+
+  // AC2: debugInfo must be updated on grid navigation and slider change inside the lightbox
+  describe('lightbox debugInfo state update', () => {
+    /** Build a minimal GridNavItem for testing navigation. */
+    function makeNavItem(xVal: string, yVal: string, withDebug: boolean) {
+      return {
+        imageUrl: `/api/images/${xVal}-${yVal}.png`,
+        cellKey: `${xVal}|${yVal}`,
+        sliderValues: ['3', '7'],
+        currentSliderValue: '3',
+        imagesBySliderValue: {
+          '3': `/api/images/${xVal}-${yVal}-cfg3.png`,
+          '7': `/api/images/${xVal}-${yVal}-cfg7.png`,
+        },
+        debugInfo: withDebug
+          ? { xValue: xVal, yValue: yVal, sliderValue: '3', comboSelections: {} }
+          : undefined,
+      }
+    }
+
+    /** Emit image:click on XYGrid to open the lightbox with debug context. */
+    async function openLightboxWithDebug(wrapper: ReturnType<typeof mount>) {
+      const xyGrid = wrapper.findComponent({ name: 'XYGrid' })
+      const navItem0 = makeNavItem('42', '500', true)
+      const navItem1 = makeNavItem('123', '500', true)
+      xyGrid.vm.$emit('image:click', {
+        imageUrl: navItem0.imageUrl,
+        cellKey: navItem0.cellKey,
+        sliderValues: navItem0.sliderValues,
+        currentSliderValue: navItem0.currentSliderValue,
+        imagesBySliderValue: navItem0.imagesBySliderValue,
+        gridImages: [navItem0, navItem1],
+        gridIndex: 0,
+        gridColumnCount: 2,
+        debugInfo: navItem0.debugInfo,
+      })
+      await flushPromises()
+    }
+
+    async function mountWithRun() {
+      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      await flushPromises()
+      const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
+      selector.vm.$emit('select', mockTrainingRun)
+      await flushPromises()
+      return wrapper
+    }
+
+    it('AC2: debugInfo updates when navigating to a different grid cell in the lightbox', async () => {
+      // Regression test for Issue 1 (code review feedback):
+      // onLightboxNavigate must replace debugInfo from the navigated-to GridNavItem.
+      const wrapper = await mountWithRun()
+      await openLightboxWithDebug(wrapper)
+
+      // Navigate to the second grid cell (index 1, xValue='123', yValue='500')
+      const lightbox = wrapper.findComponent({ name: 'ImageLightbox' })
+      expect(lightbox.exists()).toBe(true)
+      lightbox.vm.$emit('navigate', 1)
+      await flushPromises()
+
+      // The lightbox should now receive the debugInfo from the second GridNavItem
+      const updatedDebugInfo = lightbox.props('debugInfo') as { xValue?: string; yValue?: string } | undefined
+      expect(updatedDebugInfo).toBeDefined()
+      expect(updatedDebugInfo!.xValue).toBe('123')
+      expect(updatedDebugInfo!.yValue).toBe('500')
+    })
+
+    it('AC2: debugInfo is not stale when navigating back to the first grid cell', async () => {
+      // Navigate forward then back; each navigation should update debugInfo from the item.
+      const wrapper = await mountWithRun()
+      await openLightboxWithDebug(wrapper)
+
+      const lightbox = wrapper.findComponent({ name: 'ImageLightbox' })
+      // Navigate to index 1
+      lightbox.vm.$emit('navigate', 1)
+      await flushPromises()
+
+      // Navigate back to index 0
+      lightbox.vm.$emit('navigate', 0)
+      await flushPromises()
+
+      const updatedDebugInfo = lightbox.props('debugInfo') as { xValue?: string } | undefined
+      expect(updatedDebugInfo).toBeDefined()
+      expect(updatedDebugInfo!.xValue).toBe('42')
+    })
+
+    it('AC2: debugInfo.sliderValue updates when the in-lightbox slider changes', async () => {
+      // Regression test for Issue 2 (code review feedback):
+      // onLightboxSliderChange must update debugInfo.sliderValue.
+      const wrapper = await mountWithRun()
+      await openLightboxWithDebug(wrapper)
+
+      const lightbox = wrapper.findComponent({ name: 'ImageLightbox' })
+      // Simulate slider change to '7' from within the lightbox
+      lightbox.vm.$emit('slider-change', '42|500', '7')
+      await flushPromises()
+
+      const updatedDebugInfo = lightbox.props('debugInfo') as { sliderValue?: string } | undefined
+      expect(updatedDebugInfo).toBeDefined()
+      // sliderValue in the debug overlay must reflect the newly chosen slider value
+      expect(updatedDebugInfo!.sliderValue).toBe('7')
+    })
+
+    it('AC2: debugInfo remains undefined if it was never set when slider changes', async () => {
+      // When the lightbox was opened without debug mode (debugInfo = undefined),
+      // slider changes must not create a debugInfo where none existed.
+      const wrapper = await mountWithRun()
+
+      const xyGrid = wrapper.findComponent({ name: 'XYGrid' })
+      xyGrid.vm.$emit('image:click', {
+        imageUrl: '/api/images/42-500.png',
+        cellKey: '42|500',
+        sliderValues: ['3', '7'],
+        currentSliderValue: '3',
+        imagesBySliderValue: {
+          '3': '/api/images/42-500-cfg3.png',
+          '7': '/api/images/42-500-cfg7.png',
+        },
+        gridImages: [],
+        gridIndex: 0,
+        gridColumnCount: 0,
+        debugInfo: undefined,  // debug mode off
+      })
+      await flushPromises()
+
+      const lightbox = wrapper.findComponent({ name: 'ImageLightbox' })
+      expect(lightbox.exists()).toBe(true)
+
+      lightbox.vm.$emit('slider-change', '42|500', '7')
+      await flushPromises()
+
+      // debugInfo must remain undefined — no spurious object should be created
+      expect(lightbox.props('debugInfo')).toBeUndefined()
+    })
+  })
 })

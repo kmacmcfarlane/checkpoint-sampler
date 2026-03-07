@@ -935,6 +935,123 @@ describe('XYGrid', () => {
     })
   })
 
+  describe('debugInfo propagation in buildGridNavItems gridImages', () => {
+    // AC2: debugInfo must be included in each GridNavItem produced by buildGridNavItems
+    // so that onLightboxNavigate in App.vue can update lightboxContext.debugInfo when
+    // the user presses Shift+Arrow to navigate grid cells inside the lightbox.
+
+    it('includes debugInfo in X+Y grid GridNavItems when debug mode is on', async () => {
+      const wrapper = mountGrid({ debugMode: true })
+
+      // Trigger a click on the first ImageCell to retrieve the gridImages payload
+      const imageCells = wrapper.findAllComponents(ImageCell)
+      imageCells[0].vm.$emit('click', '/api/images/a/seed=42&step=500&cfg=3.png')
+      await wrapper.vm.$nextTick()
+
+      const emitted = wrapper.emitted('image:click')
+      expect(emitted).toBeDefined()
+      const payload = emitted![0][0] as ImageClickContext
+
+      // Every GridNavItem in gridImages should have a defined debugInfo
+      expect(payload.gridImages.length).toBeGreaterThan(0)
+      for (const item of payload.gridImages) {
+        expect(item.debugInfo).toBeDefined()
+      }
+
+      // The first item (seed=42, step=500) should have xValue='42', yValue='500'
+      const firstItem = payload.gridImages[0]
+      expect(firstItem.debugInfo!.xValue).toBe('42')
+      expect(firstItem.debugInfo!.yValue).toBe('500')
+    })
+
+    it('debugInfo is undefined in GridNavItems when debug mode is off', async () => {
+      const wrapper = mountGrid({ debugMode: false })
+
+      const imageCells = wrapper.findAllComponents(ImageCell)
+      imageCells[0].vm.$emit('click', '/api/images/a/seed=42&step=500&cfg=3.png')
+      await wrapper.vm.$nextTick()
+
+      const emitted = wrapper.emitted('image:click')
+      expect(emitted).toBeDefined()
+      const payload = emitted![0][0] as ImageClickContext
+
+      for (const item of payload.gridImages) {
+        expect(item.debugInfo).toBeUndefined()
+      }
+    })
+
+    it('includes debugInfo in X-only GridNavItems when debug mode is on', async () => {
+      const xOnlyImages: ScanImage[] = [
+        { relative_path: 'a/seed=42&cfg=3.png', dimensions: { seed: '42', cfg: '3' } },
+        { relative_path: 'a/seed=123&cfg=3.png', dimensions: { seed: '123', cfg: '3' } },
+      ]
+      const wrapper = mountGrid({ yDimension: null, images: xOnlyImages, debugMode: true })
+
+      const imageCells = wrapper.findAllComponents(ImageCell)
+      imageCells[0].vm.$emit('click', '/api/images/a/seed=42&cfg=3.png')
+      await wrapper.vm.$nextTick()
+
+      const emitted = wrapper.emitted('image:click')
+      expect(emitted).toBeDefined()
+      const payload = emitted![0][0] as ImageClickContext
+
+      expect(payload.gridImages.length).toBe(2)
+      // X-only: each item has xValue but no yValue
+      for (const item of payload.gridImages) {
+        expect(item.debugInfo).toBeDefined()
+        expect(item.debugInfo!.xValue).toBeDefined()
+        expect(item.debugInfo!.yValue).toBeUndefined()
+      }
+    })
+
+    it('includes debugInfo in Y-only GridNavItems when debug mode is on', async () => {
+      const yOnlyImages: ScanImage[] = [
+        { relative_path: 'a/step=500&cfg=3.png', dimensions: { step: '500', cfg: '3' } },
+        { relative_path: 'a/step=1000&cfg=3.png', dimensions: { step: '1000', cfg: '3' } },
+      ]
+      const wrapper = mountGrid({ xDimension: null, images: yOnlyImages, debugMode: true })
+
+      const imageCells = wrapper.findAllComponents(ImageCell)
+      imageCells[0].vm.$emit('click', '/api/images/a/step=500&cfg=3.png')
+      await wrapper.vm.$nextTick()
+
+      const emitted = wrapper.emitted('image:click')
+      expect(emitted).toBeDefined()
+      const payload = emitted![0][0] as ImageClickContext
+
+      expect(payload.gridImages.length).toBe(2)
+      // Y-only: each item has yValue but no xValue
+      for (const item of payload.gridImages) {
+        expect(item.debugInfo).toBeDefined()
+        expect(item.debugInfo!.yValue).toBeDefined()
+        expect(item.debugInfo!.xValue).toBeUndefined()
+      }
+    })
+
+    it('includes debugInfo in flat-mode GridNavItems when debug mode is on', async () => {
+      const flatImages: ScanImage[] = [
+        { relative_path: 'a/img1.png', dimensions: { cfg: '3' } },
+      ]
+      const wrapper = mountGrid({ xDimension: null, yDimension: null, images: flatImages, debugMode: true })
+
+      const imageCells = wrapper.findAllComponents(ImageCell)
+      expect(imageCells.length).toBeGreaterThan(0)
+      imageCells[0].vm.$emit('click', '/api/images/a/img1.png')
+      await wrapper.vm.$nextTick()
+
+      const emitted = wrapper.emitted('image:click')
+      expect(emitted).toBeDefined()
+      const payload = emitted![0][0] as ImageClickContext
+
+      expect(payload.gridImages.length).toBeGreaterThan(0)
+      const item = payload.gridImages[0]
+      // Flat mode: no xValue or yValue
+      expect(item.debugInfo).toBeDefined()
+      expect(item.debugInfo!.xValue).toBeUndefined()
+      expect(item.debugInfo!.yValue).toBeUndefined()
+    })
+  })
+
   describe('image:click emit payload shape', () => {
     // AC2: XYGrid image:click emit payload has cellKey, sliderValues, currentSliderValue,
     // imagesBySliderValue as defined by ImageClickContext

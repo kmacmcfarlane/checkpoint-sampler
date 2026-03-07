@@ -186,6 +186,7 @@ function buildGridNavItems(): GridNavItem[] {
         sliderValues: sliderVals,
         currentSliderValue: getSliderValue(undefined, undefined),
         imagesBySliderValue: getImagesBySliderValue(undefined, undefined),
+        debugInfo: getDebugInfo(undefined, undefined),
       })
     }
   } else if (props.xDimension && props.yDimension) {
@@ -201,6 +202,7 @@ function buildGridNavItems(): GridNavItem[] {
           sliderValues: sliderVals,
           currentSliderValue: getSliderValue(xVal, yVal),
           imagesBySliderValue: getImagesBySliderValue(xVal, yVal),
+          debugInfo: getDebugInfo(xVal, yVal),
         })
       }
     }
@@ -216,6 +218,7 @@ function buildGridNavItems(): GridNavItem[] {
         sliderValues: sliderVals,
         currentSliderValue: getSliderValue(xVal, undefined),
         imagesBySliderValue: getImagesBySliderValue(xVal, undefined),
+        debugInfo: getDebugInfo(xVal, undefined),
       })
     }
   } else if (props.yDimension) {
@@ -230,6 +233,7 @@ function buildGridNavItems(): GridNavItem[] {
         sliderValues: sliderVals,
         currentSliderValue: getSliderValue(undefined, yVal),
         imagesBySliderValue: getImagesBySliderValue(undefined, yVal),
+        debugInfo: getDebugInfo(undefined, yVal),
       })
     }
   }
@@ -257,6 +261,7 @@ function onImageClick(xVal: string | undefined, yVal: string | undefined, imageU
     gridImages,
     gridIndex: gridIndex >= 0 ? gridIndex : 0,
     gridColumnCount,
+    debugInfo: getDebugInfo(xVal, yVal),
   })
 }
 

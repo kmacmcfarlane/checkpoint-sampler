@@ -3,7 +3,8 @@ import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
 import { NButton } from 'naive-ui'
 import { apiClient } from '../api/client'
 import SliderBar from './SliderBar.vue'
-import type { GridNavItem } from './types'
+import DebugOverlay from './DebugOverlay.vue'
+import type { DebugCellInfo, GridNavItem } from './types'
 
 const props = defineProps<{
   imageUrl: string
@@ -26,6 +27,10 @@ const props = defineProps<{
    * 0 when there is no X dimension (Y-only or flat mode), which disables Y navigation.
    */
   gridColumnCount: number
+  /** When true, renders a debug overlay showing the image's generation parameters. */
+  debugMode?: boolean
+  /** Debug info for the current image. Shown when debugMode is true. */
+  debugInfo?: DebugCellInfo
 }>()
 
 // close: Emitted when the lightbox is dismissed (Escape key, backdrop click, or close button). No payload.
@@ -416,6 +421,12 @@ onUnmounted(() => {
         draggable="false"
       />
     </div>
+    <DebugOverlay
+      v-if="debugMode && debugInfo"
+      :info="debugInfo"
+      class="lightbox-debug-overlay"
+      data-testid="lightbox-debug-overlay"
+    />
     <div v-if="hasSlider" class="lightbox-slider-panel" @click.stop>
       <SliderBar
         :values="sliderValues"
@@ -513,6 +524,16 @@ onUnmounted(() => {
   z-index: 1001;
   background: rgba(20, 20, 20, 0.85);
   padding: 0.5rem 1rem;
+}
+
+.lightbox-debug-overlay {
+  position: fixed;
+  bottom: 4rem;
+  left: 0;
+  right: auto;
+  z-index: 1002;
+  max-width: 300px;
+  pointer-events: none;
 }
 
 .metadata-panel {

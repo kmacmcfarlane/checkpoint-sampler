@@ -10,6 +10,8 @@ export interface GridNavItem {
   sliderValues: string[]
   currentSliderValue: string
   imagesBySliderValue: Record<string, string>
+  /** Debug info for this cell. Present only when debug mode is active. */
+  debugInfo?: DebugCellInfo
 }
 
 /** Context passed when a cell image is clicked. */
@@ -25,6 +27,8 @@ export interface ImageClickContext extends GridNavItem {
    * 0 when there is no X dimension (Y-only or flat mode).
    */
   gridColumnCount: number
+  /** Debug info for the clicked cell. Present only when debug mode is active. */
+  debugInfo?: DebugCellInfo
 }
 
 /** Debug info for a single grid cell, showing the filtering parameters that selected its image. */

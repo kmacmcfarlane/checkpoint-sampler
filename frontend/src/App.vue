@@ -152,7 +152,14 @@ function onLightboxSliderChange(cellKey: string, value: string) {
     const newUrl = lightboxContext.value.imagesBySliderValue[value]
     if (newUrl) {
       lightboxImageUrl.value = newUrl
-      lightboxContext.value = { ...lightboxContext.value, currentSliderValue: value, imageUrl: newUrl }
+      lightboxContext.value = {
+        ...lightboxContext.value,
+        currentSliderValue: value,
+        imageUrl: newUrl,
+        debugInfo: lightboxContext.value.debugInfo
+          ? { ...lightboxContext.value.debugInfo, sliderValue: value }
+          : undefined,
+      }
     }
   }
 }
@@ -172,6 +179,7 @@ function onLightboxNavigate(index: number) {
     currentSliderValue: item.currentSliderValue,
     imagesBySliderValue: item.imagesBySliderValue,
     gridIndex: clampedIndex,
+    debugInfo: item.debugInfo,
   }
 }
 
@@ -853,6 +861,8 @@ const TERMINAL_STATUSES: Set<SampleJobStatus> = new Set(['completed', 'completed
         :grid-images="lightboxContext?.gridImages ?? []"
         :grid-index="lightboxContext?.gridIndex ?? 0"
         :grid-column-count="lightboxContext?.gridColumnCount ?? 0"
+        :debug-mode="debugMode"
+        :debug-info="lightboxContext?.debugInfo"
         @close="onLightboxClose"
         @slider-change="onLightboxSliderChange"
         @navigate="onLightboxNavigate"

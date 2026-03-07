@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-100: Debug mode params overlay in lightbox
+- Lightbox now shows a debug overlay (bottom-left, non-interactive) displaying the same dimension parameters as the XY grid debug overlay when debug mode is enabled
+- Debug info updates correctly when navigating between grid cells (Shift+Arrow) or changing the slider value inside the lightbox
+
 ### S-099: View job parameters on card title click
 - Job card title in Sample Jobs dialog is now clickable; opens an inline parameter detail panel showing training run, workflow, study/preset, VAE, CLIP, shift, and checkpoint count
 - Panel dismissible via close button or title toggle; accessible with `aria-expanded` attribute
