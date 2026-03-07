@@ -43,3 +43,9 @@ Implemented in S-070: helpers extracted to `frontend/e2e/helpers.ts`.
 * priority: low
 * source: qa
 The `[vite] ws proxy socket error: Error: write EPIPE` pattern appears in every E2E run (~93 times) because Playwright closes WebSocket connections when pages are navigated or reset. Adding this to QA_ALLOWED_ERRORS.md would eliminate recurring noise in QA sweeps.
+
+### Shared logrus log-level assertion helper for backend tests
+* status: needs_approval
+* priority: low
+* source: developer
+The pattern of capturing logrus output to a buffer to assert log levels (as used in B-066's test) works but is verbose. A small shared test helper (e.g. `captureLogrus(logger, fn) string`) in the service test suite would reduce boilerplate for similar log-level regression tests in the future.

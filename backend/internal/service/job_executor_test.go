@@ -1,7 +1,9 @@
 package service
 
 import (
+	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 
@@ -550,6 +552,46 @@ var _ = Describe("JobExecutor", func() {
 			err := executor.autoStartJob(&jobCopy)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("auto-starting job"))
+
+			// Restore for cleanup
+			mockStore.updateJobError = nil
+		})
+
+		It("logs at WARN (not ERROR) when UpdateSampleJob returns sql.ErrNoRows during auto-start", func() {
+			// AC: B-066 — benign race between poll and reset should not emit ERROR log
+			var logBuf bytes.Buffer
+			testLogger := logrus.New()
+			testLogger.SetOutput(&logBuf)
+			testLogger.SetFormatter(&logrus.TextFormatter{DisableColors: true})
+			testLogger.SetLevel(logrus.TraceLevel)
+
+			localExecutor := NewJobExecutor(
+				mockStore,
+				mockClient,
+				mockWS,
+				mockLoader,
+				mockHub,
+				"/test/samples",
+				mockFS,
+				mockFSRead,
+				testLogger,
+			)
+
+			job := model.SampleJob{
+				ID:     "job-no-rows",
+				Status: model.SampleJobStatusPending,
+			}
+			mockStore.jobs[job.ID] = job
+			mockStore.updateJobError = sql.ErrNoRows
+
+			jobCopy := job
+			err := localExecutor.autoStartJob(&jobCopy)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("auto-starting job"))
+
+			logOutput := logBuf.String()
+			Expect(logOutput).NotTo(ContainSubstring("level=error"))
+			Expect(logOutput).To(ContainSubstring("level=warning"))
 
 			// Restore for cleanup
 			mockStore.updateJobError = nil
