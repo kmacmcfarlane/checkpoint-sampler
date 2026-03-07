@@ -26,6 +26,12 @@ type SampleJobStore interface {
 	GetStudy(id string) (model.Study, error)
 }
 
+// JobSampleDataRemover defines the interface for removing generated sample files for a job.
+// It removes the per-checkpoint output directory under the job's study directory.
+type JobSampleDataRemover interface {
+	RemoveJobSampleDir(studyName string, checkpointFilename string) error
+}
+
 // PathMatcher defines the interface for matching checkpoint filenames to ComfyUI model paths.
 type PathMatcher interface {
 	MatchCheckpointPath(filename string) (string, error)
@@ -50,13 +56,14 @@ type OutputFileChecker interface {
 
 // SampleJobService manages sample job creation, state transitions, and progress tracking.
 type SampleJobService struct {
-	store       SampleJobStore
-	pathMatcher PathMatcher
-	dirRemover  SampleDirRemover
-	fileChecker OutputFileChecker
-	sampleDir   string
-	executor    SampleJobExecutor
-	logger      *logrus.Entry
+	store              SampleJobStore
+	pathMatcher        PathMatcher
+	dirRemover         SampleDirRemover
+	jobDataRemover     JobSampleDataRemover
+	fileChecker        OutputFileChecker
+	sampleDir          string
+	executor           SampleJobExecutor
+	logger             *logrus.Entry
 }
 
 // NewSampleJobService creates a SampleJobService backed by the given store.
@@ -69,6 +76,12 @@ func NewSampleJobService(store SampleJobStore, pathMatcher PathMatcher, dirRemov
 		executor:    nil, // Set later via SetExecutor
 		logger:      logger.WithField("component", "sample_job"),
 	}
+}
+
+// SetJobDataRemover sets the remover used by Delete(deleteData=true).
+// This is optional; if not set, Delete with deleteData=true will skip filesystem cleanup.
+func (s *SampleJobService) SetJobDataRemover(remover JobSampleDataRemover) {
+	s.jobDataRemover = remover
 }
 
 // SetFileChecker sets the output file checker (used for missing-only job creation).
@@ -504,17 +517,69 @@ func (s *SampleJobService) Resume(id string) (model.SampleJob, error) {
 	return job, nil
 }
 
-// Delete removes a sample job and all its items.
-func (s *SampleJobService) Delete(id string) error {
-	s.logger.WithField("sample_job_id", id).Trace("entering Delete")
+// Delete removes a sample job and all its items. When deleteData is true, also
+// removes the generated sample files for each checkpoint covered by the job
+// (if a JobSampleDataRemover has been configured).
+func (s *SampleJobService) Delete(id string, deleteData bool) error {
+	s.logger.WithFields(logrus.Fields{
+		"sample_job_id": id,
+		"delete_data":   deleteData,
+	}).Trace("entering Delete")
 	defer s.logger.Trace("returning from Delete")
 
-	err := s.store.DeleteSampleJob(id)
+	// Fetch the job first so we know its study name and can list its items for
+	// filesystem cleanup before removing the database record.
+	job, err := s.store.GetSampleJob(id)
 	if err == sql.ErrNoRows {
 		s.logger.WithField("sample_job_id", id).Debug("sample job not found for deletion")
 		return fmt.Errorf("sample job %s not found", id)
 	}
 	if err != nil {
+		s.logger.WithFields(logrus.Fields{
+			"sample_job_id": id,
+			"error":         err.Error(),
+		}).Error("failed to fetch sample job for deletion")
+		return fmt.Errorf("fetching sample job: %w", err)
+	}
+
+	// Remove generated sample files before deleting the database record so
+	// a filesystem error does not leave a dangling database entry.
+	if deleteData && s.jobDataRemover != nil {
+		// Collect unique checkpoint filenames from job items
+		items, err := s.store.ListSampleJobItems(id)
+		if err != nil {
+			s.logger.WithFields(logrus.Fields{
+				"sample_job_id": id,
+				"error":         err.Error(),
+			}).Error("failed to list job items for data deletion")
+			return fmt.Errorf("listing job items: %w", err)
+		}
+
+		seen := make(map[string]struct{})
+		for _, item := range items {
+			if _, ok := seen[item.CheckpointFilename]; ok {
+				continue
+			}
+			seen[item.CheckpointFilename] = struct{}{}
+
+			if removeErr := s.jobDataRemover.RemoveJobSampleDir(job.StudyName, item.CheckpointFilename); removeErr != nil {
+				s.logger.WithFields(logrus.Fields{
+					"sample_job_id":       id,
+					"study_name":          job.StudyName,
+					"checkpoint_filename": item.CheckpointFilename,
+					"error":               removeErr.Error(),
+				}).Error("failed to remove job sample directory")
+				return fmt.Errorf("removing job sample directory: %w", removeErr)
+			}
+			s.logger.WithFields(logrus.Fields{
+				"sample_job_id":       id,
+				"study_name":          job.StudyName,
+				"checkpoint_filename": item.CheckpointFilename,
+			}).Info("job sample directory removed")
+		}
+	}
+
+	if err := s.store.DeleteSampleJob(id); err != nil {
 		s.logger.WithFields(logrus.Fields{
 			"sample_job_id": id,
 			"error":         err.Error(),

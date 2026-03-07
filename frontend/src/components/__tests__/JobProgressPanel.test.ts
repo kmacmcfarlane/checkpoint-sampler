@@ -3,6 +3,7 @@ import { mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { NModal, NButton, NTag, NProgress, NEmpty } from 'naive-ui'
 import JobProgressPanel from '../JobProgressPanel.vue'
+import ConfirmDeleteDialog from '../ConfirmDeleteDialog.vue'
 import type { SampleJob } from '../../api/types'
 
 // enableAutoUnmount is configured globally in vitest.setup.ts
@@ -1242,6 +1243,157 @@ describe('JobProgressPanel', () => {
       expect(emitted).toBeDefined()
       expect(emitted).toHaveLength(1)
       expect(emitted![0]).toEqual([completedJob])
+    })
+  })
+
+  // AC1: Delete button on each job card opens the standard confirmation dialog
+  // AC2: Confirmation dialog includes 'Also delete sample data' checkbox
+  describe('delete button and confirmation dialog', () => {
+    const jobToDelete: SampleJob = {
+      id: 'job-pending',
+      training_run_name: 'flux/delete-test',
+      study_id: 'study-1',
+      study_name: 'Delete Test',
+      workflow_name: 'flux.json',
+      vae: 'ae.safetensors',
+      clip: 't5.safetensors',
+      status: 'pending',
+      total_items: 50,
+      completed_items: 0,
+      failed_items: 0,
+      pending_items: 50,
+      created_at: '2025-01-01T00:00:00Z',
+      updated_at: '2025-01-01T00:00:00Z',
+    }
+
+    // AC1: Delete button is shown on every job card regardless of status
+    it('shows a Delete button on every job card', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: sampleJobs },
+        global: { stubs: { Teleport: true } },
+      })
+
+      // All 4 sample jobs should have a delete button
+      expect(wrapper.find('[data-testid="job-job-1-delete"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="job-job-2-delete"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="job-job-3-delete"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="job-job-4-delete"]').exists()).toBe(true)
+    })
+
+    // AC1: Clicking Delete opens the ConfirmDeleteDialog
+    it('clicking Delete button shows the ConfirmDeleteDialog', async () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: [jobToDelete] },
+        global: { stubs: { Teleport: true } },
+      })
+
+      // Dialog should not be visible initially
+      const dialog = wrapper.findComponent(ConfirmDeleteDialog)
+      expect(dialog.exists()).toBe(true)
+      expect(dialog.props('show')).toBe(false)
+
+      // Click the delete button
+      const deleteButton = wrapper.find('[data-testid="job-job-pending-delete"]').findComponent(NButton)
+      await deleteButton.trigger('click')
+      await nextTick()
+
+      // Dialog should now be shown
+      expect(dialog.props('show')).toBe(true)
+    })
+
+    // AC2: Confirmation dialog includes 'Also delete sample data' checkbox
+    it('ConfirmDeleteDialog has a checkboxLabel for "Also delete sample data"', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: [jobToDelete] },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const dialog = wrapper.findComponent(ConfirmDeleteDialog)
+      expect(dialog.props('checkboxLabel')).toBe('Also delete sample data')
+    })
+
+    // AC2: The checkbox defaults to unchecked
+    it('ConfirmDeleteDialog checkbox defaults to unchecked (false)', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: [jobToDelete] },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const dialog = wrapper.findComponent(ConfirmDeleteDialog)
+      expect(dialog.props('checkboxChecked')).toBe(false)
+    })
+
+    // AC3: Confirming deletion without checking the checkbox emits delete(id, false)
+    it('confirming with deleteData=false emits delete event with id and false', async () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: [jobToDelete] },
+        global: { stubs: { Teleport: true } },
+      })
+
+      // Open the dialog
+      const deleteButton = wrapper.find('[data-testid="job-job-pending-delete"]').findComponent(NButton)
+      await deleteButton.trigger('click')
+      await nextTick()
+
+      // Confirm with deleteData=false (checkbox not checked)
+      const dialog = wrapper.findComponent(ConfirmDeleteDialog)
+      await dialog.vm.$emit('confirm', false)
+      await nextTick()
+
+      const emitted = wrapper.emitted('delete')
+      expect(emitted).toBeDefined()
+      expect(emitted).toHaveLength(1)
+      expect(emitted![0]).toEqual(['job-pending', false])
+
+      // Dialog should be closed after confirm
+      expect(dialog.props('show')).toBe(false)
+    })
+
+    // AC4: Confirming deletion with checkbox checked emits delete(id, true)
+    it('confirming with deleteData=true emits delete event with id and true', async () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: [jobToDelete] },
+        global: { stubs: { Teleport: true } },
+      })
+
+      // Open the dialog
+      const deleteButton = wrapper.find('[data-testid="job-job-pending-delete"]').findComponent(NButton)
+      await deleteButton.trigger('click')
+      await nextTick()
+
+      // Confirm with deleteData=true (checkbox checked)
+      const dialog = wrapper.findComponent(ConfirmDeleteDialog)
+      await dialog.vm.$emit('confirm', true)
+      await nextTick()
+
+      const emitted = wrapper.emitted('delete')
+      expect(emitted).toBeDefined()
+      expect(emitted).toHaveLength(1)
+      expect(emitted![0]).toEqual(['job-pending', true])
+    })
+
+    // Cancelling the dialog closes it without emitting delete
+    it('cancelling the dialog closes it without emitting delete', async () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: [jobToDelete] },
+        global: { stubs: { Teleport: true } },
+      })
+
+      // Open the dialog
+      const deleteButton = wrapper.find('[data-testid="job-job-pending-delete"]').findComponent(NButton)
+      await deleteButton.trigger('click')
+      await nextTick()
+
+      const dialog = wrapper.findComponent(ConfirmDeleteDialog)
+      expect(dialog.props('show')).toBe(true)
+
+      // Cancel the dialog
+      await dialog.vm.$emit('cancel')
+      await nextTick()
+
+      // Dialog should be closed and no delete event emitted
+      expect(dialog.props('show')).toBe(false)
+      expect(wrapper.emitted('delete')).toBeUndefined()
     })
   })
 })

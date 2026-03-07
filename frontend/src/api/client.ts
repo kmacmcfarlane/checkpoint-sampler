@@ -294,9 +294,11 @@ export class ApiClient {
     return (await response.json()) as DemoStatus
   }
 
-  /** DELETE /api/sample-jobs/{id} — delete a sample job. */
-  async deleteSampleJob(id: string): Promise<void> {
-    const url = `${this.baseUrl}/sample-jobs/${id}`
+  /** DELETE /api/sample-jobs/{id}?delete_data={bool} — delete a sample job.
+   *  When deleteData is true, also removes the generated sample files from disk. */
+  async deleteSampleJob(id: string, deleteData: boolean = false): Promise<void> {
+    const query = deleteData ? '?delete_data=true' : ''
+    const url = `${this.baseUrl}/sample-jobs/${id}${query}`
     let response: Response
     try {
       response = await fetch(url, { method: 'DELETE' })

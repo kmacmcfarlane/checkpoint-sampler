@@ -243,6 +243,40 @@ func (r *StudyDirRemover) RemoveStudySampleDir(studyName string) error {
 	return r.fs.RemoveStudyDir(r.sampleDir, studyName)
 }
 
+// JobSampleDirRemover implements service.JobSampleDataRemover by removing
+// per-checkpoint sample directories under a study directory.
+type JobSampleDirRemover struct {
+	fs        *FileSystem
+	sampleDir string
+}
+
+// NewJobSampleDirRemover creates a JobSampleDirRemover.
+func NewJobSampleDirRemover(fs *FileSystem, sampleDir string) *JobSampleDirRemover {
+	return &JobSampleDirRemover{fs: fs, sampleDir: sampleDir}
+}
+
+// RemoveJobSampleDir removes sampleDir/studyName/checkpointFilename/ for the given
+// study and checkpoint, which removes the generated sample images for that checkpoint.
+func (r *JobSampleDirRemover) RemoveJobSampleDir(studyName string, checkpointFilename string) error {
+	target := filepath.Join(r.sampleDir, studyName, checkpointFilename)
+	r.fs.logger.WithFields(logrus.Fields{
+		"study_name":          studyName,
+		"checkpoint_filename": checkpointFilename,
+		"target":              target,
+	}).Trace("entering RemoveJobSampleDir")
+	defer r.fs.logger.Trace("returning from RemoveJobSampleDir")
+
+	if err := os.RemoveAll(target); err != nil {
+		r.fs.logger.WithFields(logrus.Fields{
+			"target": target,
+			"error":  err.Error(),
+		}).Error("failed to remove job sample directory")
+		return fmt.Errorf("removing job sample directory %s: %w", target, err)
+	}
+	r.fs.logger.WithField("target", target).Info("job sample directory removed")
+	return nil
+}
+
 // SampleDirCleaner removes study-generated sample directories from the
 // sample directory root. It preserves directories whose names end in
 // ".safetensors" (checkpoint fixture directories) and removes everything

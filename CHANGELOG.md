@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-097: Delete jobs with option to keep or delete sample data
+- Delete button on job cards opens a ConfirmDeleteDialog with "Also delete sample data" checkbox (default unchecked)
+- `DELETE /api/sample-jobs/{id}?delete_data=true` removes per-checkpoint sample directories from disk before deleting the database record; filesystem errors prevent DB deletion to avoid orphaned state
+
 ### S-096: Delete dimension mapping preset
 - Delete button on preset selector now shows a confirmation dialog (ConfirmDeleteDialog) before removing the preset, preventing accidental deletions
 

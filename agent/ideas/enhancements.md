@@ -61,3 +61,9 @@ The FiltersDrawer has a fixed 320px width. For users with many dimensions or lon
 * priority: medium
 * source: developer
 The "Save preset" flow still uses `window.prompt`, which is inconsistent with the ConfirmDeleteDialog pattern established in S-094/S-095/S-096. A proper NModal input dialog would provide a more polished UX.
+
+### Restrict Delete button to non-running jobs or add "Stop then Delete" flow
+* status: needs_approval
+* priority: low
+* source: developer
+Currently the Delete button shows on running jobs, which could lead to data inconsistency if the executor is mid-write when the DB record is removed. A dedicated "stop then delete" flow or hiding Delete when status is `running` would improve safety.

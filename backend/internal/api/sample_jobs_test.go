@@ -202,6 +202,8 @@ var _ = Describe("SampleJobsService", func() {
 		})
 
 		It("Delete returns ServiceError with proper fields on internal error", func() {
+			// Pre-populate job so GetSampleJob succeeds and reaches DeleteSampleJob
+			store.jobs["test-id"] = model.SampleJob{ID: "test-id", StudyName: "study-1"}
 			store.deleteErr = errors.New("database write failed")
 			err := sampleJobs.Delete(ctx, &gensamplejobs.DeletePayload{ID: "test-id"})
 			Expect(err).To(HaveOccurred())

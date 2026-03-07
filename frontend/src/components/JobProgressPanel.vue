@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { NModal, NButton, NTag, NProgress, NSpace, NEmpty, NSpin } from 'naive-ui'
 import type { SampleJob, SampleJobStatus } from '../api/types'
+import ConfirmDeleteDialog from './ConfirmDeleteDialog.vue'
 
 /** Completeness verification result for a single checkpoint. */
 interface CompletenessEntry {
@@ -37,12 +38,14 @@ const props = defineProps<{
 // stop: Emitted when the user clicks Stop on a running job. Payload: the job ID string.
 // resume: Emitted when the user clicks Resume on a stopped job. Payload: the job ID string.
 // regenerate: Emitted when the user clicks Regenerate on a completed or completed_with_errors job. Payload: the full SampleJob object.
+// delete: Emitted when the user confirms deletion. Payload: { id: string, deleteData: boolean }.
 // refresh: Emitted when the user clicks the Refresh button. No payload.
 // close: Emitted when the modal is dismissed. No payload.
 const emit = defineEmits<{
   stop: [jobId: string]
   resume: [jobId: string]
   regenerate: [job: SampleJob]
+  delete: [id: string, deleteData: boolean]
   refresh: []
   close: []
 }>()
@@ -55,6 +58,29 @@ const sortedJobs = computed(() => {
 
 /** Map of job IDs to whether their error section is expanded. */
 const expandedErrors = ref<Record<string, boolean>>({})
+
+/** The ID of the job pending deletion confirmation, or null when the dialog is closed. */
+const pendingDeleteJobId = ref<string | null>(null)
+/** Whether the delete confirmation dialog is visible. */
+const showDeleteDialog = ref(false)
+
+function handleDeleteClick(jobId: string) {
+  pendingDeleteJobId.value = jobId
+  showDeleteDialog.value = true
+}
+
+function handleDeleteConfirm(deleteData: boolean) {
+  if (pendingDeleteJobId.value !== null) {
+    emit('delete', pendingDeleteJobId.value, deleteData)
+  }
+  showDeleteDialog.value = false
+  pendingDeleteJobId.value = null
+}
+
+function handleDeleteCancel() {
+  showDeleteDialog.value = false
+  pendingDeleteJobId.value = null
+}
 
 function toggleErrorSection(jobId: string) {
   expandedErrors.value = {
@@ -296,6 +322,14 @@ function isTracebackExpanded(jobId: string, errorIdx: number): boolean {
               >
                 Regenerate
               </NButton>
+              <NButton
+                size="tiny"
+                type="error"
+                :data-testid="`job-${job.id}-delete`"
+                @click="handleDeleteClick(job.id)"
+              >
+                Delete
+              </NButton>
             </div>
           </div>
 
@@ -432,6 +466,18 @@ function isTracebackExpanded(jobId: string, errorIdx: number): boolean {
       </NSpace>
     </NSpin>
   </NModal>
+
+  <ConfirmDeleteDialog
+    :show="showDeleteDialog"
+    data-testid="delete-job-dialog"
+    title="Delete Sample Job"
+    description="Are you sure you want to delete this sample job? This action cannot be undone."
+    checkbox-label="Also delete sample data"
+    :checkbox-checked="false"
+    @update:show="(val) => { if (!val) handleDeleteCancel() }"
+    @confirm="handleDeleteConfirm"
+    @cancel="handleDeleteCancel"
+  />
 </template>
 
 <style scoped>

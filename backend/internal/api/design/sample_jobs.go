@@ -113,10 +113,13 @@ var _ = Service("sample_jobs", func() {
 	})
 
 	Method("delete", func() {
-		Description("Delete a sample job and all its items")
+		Description("Delete a sample job and all its items. When delete_data is true, also removes the generated sample files from disk.")
 		Payload(func() {
 			Attribute("id", String, "Sample job ID", func() {
 				Example("550e8400-e29b-41d4-a716-446655440000")
+			})
+			Attribute("delete_data", Boolean, "When true, also deletes the generated sample files from disk", func() {
+				Default(false)
 			})
 			Required("id")
 		})
@@ -124,6 +127,7 @@ var _ = Service("sample_jobs", func() {
 		Error("internal_error", ErrorResult, "Internal server error")
 		HTTP(func() {
 			DELETE("/api/sample-jobs/{id}")
+			Param("delete_data")
 			Response(StatusNoContent)
 			Response("not_found", StatusNotFound)
 			Response("internal_error", StatusInternalServerError)

@@ -656,6 +656,16 @@ async function resumeJob(jobId: string) {
   }
 }
 
+/** Delete a sample job, optionally removing its sample data from disk. */
+async function deleteJob(jobId: string, deleteData: boolean) {
+  try {
+    await apiClient.deleteSampleJob(jobId, deleteData)
+    await fetchSampleJobs()
+  } catch (err: unknown) {
+    console.warn('Failed to delete sample job:', err)
+  }
+}
+
 /** Toggle the job progress panel. */
 function toggleJobProgressPanel() {
   jobProgressPanelOpen.value = !jobProgressPanelOpen.value
@@ -876,6 +886,7 @@ const TERMINAL_STATUSES: Set<SampleJobStatus> = new Set(['completed', 'completed
         @stop="stopJob"
         @resume="resumeJob"
         @regenerate="handleRegenerate"
+        @delete="deleteJob"
         @refresh="fetchSampleJobs"
         @close="jobProgressPanelOpen = false"
       />

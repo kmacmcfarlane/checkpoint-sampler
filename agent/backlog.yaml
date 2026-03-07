@@ -484,7 +484,7 @@ stories:
   - id: S-097
     title: Delete jobs with option to keep or delete sample data
     type: feature
-    status: todo
+    status: uat
     priority: 25
     complexity: low
     requires:

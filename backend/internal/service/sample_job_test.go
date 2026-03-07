@@ -166,6 +166,20 @@ func (f *fakeSampleDirRemover) RemoveSampleDir(checkpointFilename string) error 
 	return nil
 }
 
+// fakeJobSampleDataRemover is a test double for service.JobSampleDataRemover.
+type fakeJobSampleDataRemover struct {
+	removed []struct{ studyName, checkpointFilename string }
+	err     error
+}
+
+func (f *fakeJobSampleDataRemover) RemoveJobSampleDir(studyName string, checkpointFilename string) error {
+	if f.err != nil {
+		return f.err
+	}
+	f.removed = append(f.removed, struct{ studyName, checkpointFilename string }{studyName, checkpointFilename})
+	return nil
+}
+
 // fakeOutputFileChecker is a test double for service.OutputFileChecker.
 type fakeOutputFileChecker struct {
 	existingFiles map[string]bool
@@ -628,19 +642,85 @@ var _ = Describe("SampleJobService", func() {
 	})
 
 	Describe("Delete", func() {
-		It("deletes a job", func() {
-			job := model.SampleJob{ID: "job-1"}
-			store.jobs[job.ID] = job
+		// AC3: BE: Deleting a job without the data flag removes only the database record
+		It("deletes a job without removing sample data when deleteData=false", func() {
+			jobDataRemover := &fakeJobSampleDataRemover{}
+			svc.SetJobDataRemover(jobDataRemover)
 
-			err := svc.Delete("job-1")
+			job := model.SampleJob{ID: "job-1", StudyName: "My Study"}
+			store.jobs[job.ID] = job
+			store.items[job.ID] = []model.SampleJobItem{
+				{ID: "i1", JobID: job.ID, CheckpointFilename: "checkpoint1.safetensors", Status: model.SampleJobItemStatusCompleted},
+			}
+
+			err := svc.Delete("job-1", false)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(store.jobs).NotTo(HaveKey("job-1"))
+			// No filesystem removal should have occurred
+			Expect(jobDataRemover.removed).To(BeEmpty())
+		})
+
+		// AC4: BE: Deleting a job with the data flag also removes generated sample files
+		It("deletes a job and removes sample data when deleteData=true", func() {
+			jobDataRemover := &fakeJobSampleDataRemover{}
+			svc.SetJobDataRemover(jobDataRemover)
+
+			job := model.SampleJob{ID: "job-1", StudyName: "My Study"}
+			store.jobs[job.ID] = job
+			store.items[job.ID] = []model.SampleJobItem{
+				{ID: "i1", JobID: job.ID, CheckpointFilename: "checkpoint1.safetensors", Status: model.SampleJobItemStatusCompleted},
+				{ID: "i2", JobID: job.ID, CheckpointFilename: "checkpoint1.safetensors", Status: model.SampleJobItemStatusCompleted},
+				{ID: "i3", JobID: job.ID, CheckpointFilename: "checkpoint2.safetensors", Status: model.SampleJobItemStatusCompleted},
+			}
+
+			err := svc.Delete("job-1", true)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(store.jobs).NotTo(HaveKey("job-1"))
+			// Each unique checkpoint should have been removed once
+			Expect(jobDataRemover.removed).To(HaveLen(2))
+			removedCheckpoints := []string{}
+			for _, r := range jobDataRemover.removed {
+				Expect(r.studyName).To(Equal("My Study"))
+				removedCheckpoints = append(removedCheckpoints, r.checkpointFilename)
+			}
+			Expect(removedCheckpoints).To(ConsistOf("checkpoint1.safetensors", "checkpoint2.safetensors"))
+		})
+
+		It("does not call remover when deleteData=true but no remover is set", func() {
+			svc.SetJobDataRemover(nil) // explicitly nil
+
+			job := model.SampleJob{ID: "job-1", StudyName: "My Study"}
+			store.jobs[job.ID] = job
+			store.items[job.ID] = []model.SampleJobItem{
+				{ID: "i1", JobID: job.ID, CheckpointFilename: "checkpoint1.safetensors"},
+			}
+
+			err := svc.Delete("job-1", true)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(store.jobs).NotTo(HaveKey("job-1"))
 		})
 
 		It("returns error when job not found", func() {
-			err := svc.Delete("nonexistent")
+			err := svc.Delete("nonexistent", false)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("not found"))
+		})
+
+		It("returns error when sample data removal fails", func() {
+			jobDataRemover := &fakeJobSampleDataRemover{err: errors.New("disk error")}
+			svc.SetJobDataRemover(jobDataRemover)
+
+			job := model.SampleJob{ID: "job-1", StudyName: "My Study"}
+			store.jobs[job.ID] = job
+			store.items[job.ID] = []model.SampleJobItem{
+				{ID: "i1", JobID: job.ID, CheckpointFilename: "checkpoint1.safetensors"},
+			}
+
+			err := svc.Delete("job-1", true)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("removing job sample directory"))
+			// DB record should NOT have been deleted (filesystem cleanup runs first)
+			Expect(store.jobs).To(HaveKey("job-1"))
 		})
 	})
 

@@ -187,11 +187,12 @@ func (s *SampleJobsService) Resume(ctx context.Context, p *gensamplejobs.ResumeP
 }
 
 // Delete removes a sample job and all its items.
+// When p.DeleteData is true, also removes the generated sample files from disk.
 func (s *SampleJobsService) Delete(ctx context.Context, p *gensamplejobs.DeletePayload) error {
 	if !s.enabled {
 		return gensamplejobs.MakeInternalError(fmt.Errorf("sample jobs not available: ComfyUI is not configured"))
 	}
-	err := s.svc.Delete(p.ID)
+	err := s.svc.Delete(p.ID, p.DeleteData)
 	if err != nil {
 		if isNotFound(err) {
 			return gensamplejobs.MakeNotFound(err)

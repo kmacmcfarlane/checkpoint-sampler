@@ -168,6 +168,7 @@ func run() error {
 		dirRemover := store.NewCheckpointSampleDirRemover(fs, cfg.SampleDir)
 		sampleJobSvc := service.NewSampleJobService(st, pathMatcher, dirRemover, cfg.SampleDir, logger)
 		sampleJobSvc.SetFileChecker(&service.RealOutputFileChecker{})
+		sampleJobSvc.SetJobDataRemover(store.NewJobSampleDirRemover(fs, cfg.SampleDir))
 
 		// Wire the executor and service together (avoiding circular dependency)
 		sampleJobSvc.SetExecutor(jobExecutor)
