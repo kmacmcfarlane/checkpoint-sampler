@@ -418,7 +418,7 @@ stories:
   - id: S-094
     title: Standard delete confirmation dialog component
     type: feature
-    status: todo
+    status: uat
     priority: 30
     complexity: low
     requires: []
