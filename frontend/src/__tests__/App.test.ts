@@ -122,10 +122,13 @@ describe('App', () => {
     mockWebSocketInstances = []
   })
 
-  it('renders the application header', async () => {
+  it('renders the application header without heading', async () => {
     const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
     await flushPromises()
-    expect(wrapper.find('h1').text()).toBe('Checkpoint Sampler')
+    // AC: 'Checkpoint Sampler' heading is removed from the UI
+    expect(wrapper.find('h1').exists()).toBe(false)
+    // Header still renders (hamburger button and header controls are present)
+    expect(wrapper.find('.app-header').exists()).toBe(true)
   })
 
   it('renders placeholder content when no training run is selected', async () => {
@@ -727,8 +730,8 @@ describe('App', () => {
       const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
       await flushPromises()
 
-      // App should not crash; placeholder text may be shown
-      expect(wrapper.find('h1').text()).toBe('Checkpoint Sampler')
+      // App should not crash; header should still render (heading was removed in S-092)
+      expect(wrapper.find('.app-header').exists()).toBe(true)
     })
 
     it('calls getTrainingRuns without filter arguments during eager auto-select', async () => {

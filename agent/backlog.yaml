@@ -253,7 +253,7 @@ stories:
   - id: S-092
     title: "Visual polish: remove heading, play/pause icon, refresh icons"
     type: feature
-    status: todo
+    status: uat
     priority: 20
     complexity: low
     requires: []

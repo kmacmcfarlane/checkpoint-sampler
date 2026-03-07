@@ -190,9 +190,22 @@ onBeforeUnmount(() => {
       <span class="master-slider__value">{{ currentValue }}</span>
       <NButton
         size="small"
+        circle
         :aria-label="playing ? 'Pause playback' : 'Play playback'"
+        class="master-slider__play-btn"
+        :class="{ 'master-slider__play-btn--playing': playing }"
+        data-testid="play-pause-button"
         @click="togglePlayback"
-      >{{ playing ? 'Pause' : 'Play' }}</NButton>
+      >
+        <!-- AC: Play icon (green triangle) when not playing; Pause icon when playing -->
+        <svg v-if="!playing" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" class="play-icon">
+          <polygon points="5,3 19,12 5,21" fill="currentColor" />
+        </svg>
+        <svg v-else viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+          <rect x="5" y="3" width="4" height="18" fill="currentColor" />
+          <rect x="15" y="3" width="4" height="18" fill="currentColor" />
+        </svg>
+      </NButton>
     </div>
     <div v-if="playing" class="master-slider__loop-controls">
       <NCheckbox
@@ -247,6 +260,19 @@ onBeforeUnmount(() => {
   font-size: 0.875rem;
   color: var(--text-secondary);
   white-space: nowrap;
+}
+
+.master-slider__play-btn {
+  flex-shrink: 0;
+  color: var(--play-icon-color);
+}
+
+.master-slider__play-btn--playing {
+  color: var(--text-secondary);
+}
+
+.play-icon {
+  transform: translateX(1px);
 }
 
 .master-slider__loop-controls {

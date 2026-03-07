@@ -695,4 +695,68 @@ describe('TrainingRunSelector', () => {
       expect(wrapper.find('[data-testid="validation-totals"]').exists()).toBe(false)
     })
   })
+
+  // AC: Sample set selector has a refresh icon button to manually reload the list
+  describe('refresh button', () => {
+    it('renders a refresh icon button for the sample set selector', async () => {
+      mockGetTrainingRuns.mockResolvedValue(sampleRuns)
+      const wrapper = mount(TrainingRunSelector)
+      await flushPromises()
+
+      const refreshBtn = wrapper.find('[data-testid="refresh-sample-set-button"]')
+      expect(refreshBtn.exists()).toBe(true)
+    })
+
+    it('refresh button is accessible with aria-label', async () => {
+      mockGetTrainingRuns.mockResolvedValue(sampleRuns)
+      const wrapper = mount(TrainingRunSelector)
+      await flushPromises()
+
+      const refreshBtn = wrapper.find('[data-testid="refresh-sample-set-button"]')
+      expect(refreshBtn.attributes('aria-label')).toBe('Refresh sample set list')
+    })
+
+    it('clicking the refresh button calls getTrainingRuns again', async () => {
+      mockGetTrainingRuns.mockResolvedValue(sampleRuns)
+      const wrapper = mount(TrainingRunSelector)
+      await flushPromises()
+
+      expect(mockGetTrainingRuns).toHaveBeenCalledTimes(1)
+
+      // AC: Refresh button triggers actual data reload
+      const refreshBtn = wrapper.find('[data-testid="refresh-sample-set-button"]')
+      await refreshBtn.trigger('click')
+      await flushPromises()
+
+      expect(mockGetTrainingRuns).toHaveBeenCalledTimes(2)
+    })
+
+    it('refresh updates the options after reload', async () => {
+      const additionalRun: TrainingRun = {
+        id: 2,
+        name: 'new-run',
+        checkpoint_count: 1,
+        has_samples: true,
+        checkpoints: [{ filename: 'new-run.safetensors', step_number: 1000, has_samples: true }],
+      }
+      mockGetTrainingRuns.mockResolvedValueOnce(sampleRuns)
+      mockGetTrainingRuns.mockResolvedValueOnce([...sampleRuns, additionalRun])
+
+      const wrapper = mount(TrainingRunSelector)
+      await flushPromises()
+
+      // Initially 2 runs
+      let options = wrapper.findComponent(NSelect).props('options') as Array<{ label: string }>
+      expect(options).toHaveLength(2)
+
+      // Refresh — now 3 runs appear
+      const refreshBtn = wrapper.find('[data-testid="refresh-sample-set-button"]')
+      await refreshBtn.trigger('click')
+      await flushPromises()
+
+      options = wrapper.findComponent(NSelect).props('options') as Array<{ label: string }>
+      expect(options).toHaveLength(3)
+      expect(options[2].label).toBe('new-run')
+    })
+  })
 })

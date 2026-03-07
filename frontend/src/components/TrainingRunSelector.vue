@@ -39,6 +39,9 @@ const emit = defineEmits<{
   'generate-missing': []
 }>()
 
+/** True while a manual refresh of the training runs list is in progress. */
+const refreshing = ref(false)
+
 /** True when at least one loaded run has no samples, making the filter checkbox relevant. */
 const hasRunsWithoutSamples = computed(() =>
   trainingRuns.value.some((run) => !run.has_samples)
@@ -86,6 +89,22 @@ function attemptAutoSelect() {
     emit('select', run)
   }
   // If run doesn't exist, do nothing (stale training run ID in localStorage)
+}
+
+/** Manual refresh of the training run list (triggered by the refresh icon button). */
+async function refreshTrainingRuns() {
+  refreshing.value = true
+  try {
+    trainingRuns.value = await apiClient.getTrainingRuns()
+    attemptAutoSelect()
+  } catch (err: unknown) {
+    const message = err && typeof err === 'object' && 'message' in err
+      ? String((err as { message: string }).message)
+      : 'Failed to load training runs'
+    error.value = message
+  } finally {
+    refreshing.value = false
+  }
 }
 
 onMounted(fetchTrainingRuns)
@@ -174,6 +193,20 @@ function checkpointStatus(cp: CheckpointCompletenessInfo): 'pass' | 'warning' {
       size="small"
       @update:value="onSelect"
     />
+    <!-- AC: Refresh icon button to manually reload the sample set list -->
+    <NButton
+      size="small"
+      circle
+      :loading="refreshing"
+      :disabled="refreshing"
+      aria-label="Refresh sample set list"
+      data-testid="refresh-sample-set-button"
+      @click="refreshTrainingRuns"
+    >
+      <svg v-if="!refreshing" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+        <path d="M17.65 6.35A7.958 7.958 0 0 0 12 4C7.58 4 4 7.58 4 12s3.58 8 8 8 8-3.58 8-8h-2c0 3.31-2.69 6-6 6s-6-2.69-6-6 2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L11 13h7V6l-2.35 2.35z" fill="currentColor" />
+      </svg>
+    </NButton>
     <p v-if="error" class="error" role="alert">{{ error }}</p>
   </div>
   <!-- AC2: Validate button beneath the Sample Set selector -->

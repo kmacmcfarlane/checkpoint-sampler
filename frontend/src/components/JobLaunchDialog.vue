@@ -56,6 +56,9 @@ const studyEditorOpen = ref(false)
 // Training run filter: when true, show all runs; when false, show only gray (empty) runs
 const showAllRuns = ref(true)
 
+/** True while a manual refresh of the training runs list is in progress. */
+const refreshingTrainingRuns = ref(false)
+
 // Form selections
 const selectedTrainingRunId = ref<number | null>(null)
 const selectedWorkflow = ref<string | null>(null)
@@ -679,6 +682,16 @@ async function fetchTrainingRunsAndJobs() {
   }
 }
 
+/** Manual refresh of the training run list (triggered by the refresh icon button). */
+async function refreshTrainingRunsAndJobs() {
+  refreshingTrainingRuns.value = true
+  try {
+    await fetchTrainingRunsAndJobs()
+  } finally {
+    refreshingTrainingRuns.value = false
+  }
+}
+
 async function fetchWorkflows() {
   try {
     workflows.value = await apiClient.listWorkflows()
@@ -965,16 +978,33 @@ async function doSubmit() {
             Show all (including with existing samples)
           </NCheckbox>
         </div>
-        <NSelect
-          id="training-run-select"
-          v-model:value="selectedTrainingRunId"
-          :options="trainingRunOptions"
-          :render-label="renderTrainingRunLabel"
-          placeholder="Select a training run"
-          clearable
-          filterable
-          data-testid="training-run-select"
-        />
+        <div class="training-run-select-row">
+          <NSelect
+            id="training-run-select"
+            v-model:value="selectedTrainingRunId"
+            :options="trainingRunOptions"
+            :render-label="renderTrainingRunLabel"
+            placeholder="Select a training run"
+            clearable
+            filterable
+            data-testid="training-run-select"
+            class="training-run-select-input"
+          />
+          <!-- AC: Refresh icon button to manually reload the training run list -->
+          <NButton
+            size="medium"
+            circle
+            :loading="refreshingTrainingRuns"
+            :disabled="refreshingTrainingRuns"
+            aria-label="Refresh training run list"
+            data-testid="refresh-training-run-button"
+            @click="refreshTrainingRunsAndJobs"
+          >
+            <svg v-if="!refreshingTrainingRuns" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+              <path d="M17.65 6.35A7.958 7.958 0 0 0 12 4C7.58 4 4 7.58 4 12s3.58 8 8 8 8-3.58 8-8h-2c0 3.31-2.69 6-6 6s-6-2.69-6-6 2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L11 13h7V6l-2.35 2.35z" fill="currentColor" />
+            </svg>
+          </NButton>
+        </div>
       </div>
 
       <!-- Study selector (second position — selecting triggers auto-validate) -->
@@ -1224,6 +1254,16 @@ async function doSubmit() {
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 0.5rem;
+}
+
+.training-run-select-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.training-run-select-input {
+  flex: 1;
 }
 
 .study-field-row {

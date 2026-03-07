@@ -5,6 +5,11 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-092: Visual polish: remove heading, play/pause icon, refresh icons
+- Removed "Checkpoint Sampler" heading from the UI header to reclaim vertical space
+- Play/Pause text button replaced with circular icon button: green triangle (play) and pause bars (pause) SVGs, themed via `--play-icon-color` CSS variable
+- Refresh icon buttons added to Sample Set selector (sidebar) and Training Run selector (Generate Samples dialog) for manual list reload
+
 ### S-098: ETA per sample and per job (moving average)
 - Moving-average ETA (10-sample window) for current sample and overall job, broadcast via WebSocket `job_progress` events
 - JobProgressPanel displays sample ETA and job ETA with human-readable duration formatting (seconds/minutes/hours)

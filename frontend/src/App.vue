@@ -714,7 +714,6 @@ const TERMINAL_STATUSES: Set<SampleJobStatus> = new Set(['completed', 'completed
           >
             <span class="hamburger-icon">&#9776;</span>
           </NButton>
-          <h1>Checkpoint Sampler</h1>
         </div>
         <div class="header-center">
           <NButton
@@ -911,6 +910,7 @@ const TERMINAL_STATUSES: Set<SampleJobStatus> = new Set(['completed', 'completed
   --warning-color: #f57c00;
   --accent-color: #1976d2;
   --accent-bg: #e3f2fd;
+  --play-icon-color: #22c55e;
 
   font-family: system-ui, -apple-system, sans-serif;
   max-width: 100vw;
@@ -932,6 +932,7 @@ const TERMINAL_STATUSES: Set<SampleJobStatus> = new Set(['completed', 'completed
   --warning-color: #ffb74d;
   --accent-color: #90caf9;
   --accent-bg: #1e3a5f;
+  --play-icon-color: #4ade80;
 }
 
 .app-header {
@@ -942,12 +943,6 @@ const TERMINAL_STATUSES: Set<SampleJobStatus> = new Set(['completed', 'completed
   justify-content: space-between;
   gap: 0.5rem;
   flex-wrap: wrap;
-}
-
-.app-header h1 {
-  margin: 0;
-  font-size: 1.25rem;
-  white-space: nowrap;
 }
 
 .header-left {
@@ -1028,10 +1023,6 @@ const TERMINAL_STATUSES: Set<SampleJobStatus> = new Set(['completed', 'completed
 @media (max-width: 767px) {
   .app-header {
     padding: 0.5rem;
-  }
-
-  .app-header h1 {
-    font-size: 1rem;
   }
 
   .app-main {

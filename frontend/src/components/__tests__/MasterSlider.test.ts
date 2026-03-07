@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, type VueWrapper } from '@vue/test-utils'
+import { mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { NSlider, NButton, NCheckbox, NSelect } from 'naive-ui'
 import MasterSlider from '../MasterSlider.vue'
@@ -115,9 +115,9 @@ describe('MasterSlider', () => {
   it('play button is inline with the slider in the main row', () => {
     const wrapper = mountMaster()
     const main = wrapper.find('.master-slider__main')
-    const buttons = main.findAllComponents(NButton)
-    const playBtn = buttons.find((b: VueWrapper) => b.text() === 'Play')
-    expect(playBtn).toBeDefined()
+    // AC: Play/pause button is in the main row (uses data-testid)
+    const playBtn = main.find('[data-testid="play-pause-button"]')
+    expect(playBtn.exists()).toBe(true)
   })
 
   describe('keyboard navigation', () => {
@@ -360,31 +360,31 @@ describe('MasterSlider', () => {
 
     it('renders play button', () => {
       const wrapper = mountMaster()
-      const buttons = wrapper.findAllComponents(NButton)
-      const playBtn = buttons.find((b) => b.text() === 'Play')
-      expect(playBtn).toBeDefined()
+      // AC: Play/pause button exists (icon-based, identified by data-testid)
+      const playBtn = wrapper.find('[data-testid="play-pause-button"]')
+      expect(playBtn.exists()).toBe(true)
     })
 
-    it('shows Pause when playing', async () => {
+    it('shows Pause aria-label when playing', async () => {
       const wrapper = mountMaster()
-      const buttons = wrapper.findAllComponents(NButton)
-      const playBtn = buttons.find((b) => b.text() === 'Play')!
+      const playBtn = wrapper.find('[data-testid="play-pause-button"]')
+      expect(playBtn.attributes('aria-label')).toBe('Play playback')
       await playBtn.trigger('click')
-      const pauseBtn = wrapper.findAllComponents(NButton).find((b) => b.text() === 'Pause')
-      expect(pauseBtn).toBeDefined()
+      // AC: Play icon changes to a pause icon when animation is active
+      expect(playBtn.attributes('aria-label')).toBe('Pause playback')
     })
 
-    it('shows Play when paused after playing', async () => {
+    it('shows Play aria-label when paused after playing', async () => {
       const wrapper = mountMaster()
-      const getPlayBtn = () => wrapper.findAllComponents(NButton).find((b) => b.text() === 'Play' || b.text() === 'Pause')!
-      await getPlayBtn().trigger('click') // play
-      await getPlayBtn().trigger('click') // pause
-      expect(getPlayBtn().text()).toBe('Play')
+      const playBtn = wrapper.find('[data-testid="play-pause-button"]')
+      await playBtn.trigger('click') // play
+      await playBtn.trigger('click') // pause
+      expect(playBtn.attributes('aria-label')).toBe('Play playback')
     })
 
     it('emits change to next value on interval tick', async () => {
       const wrapper = mountMaster({ currentValue: '100' })
-      const playBtn = wrapper.findAllComponents(NButton).find((b) => b.text() === 'Play')!
+      const playBtn = wrapper.find('[data-testid="play-pause-button"]')
       await playBtn.trigger('click')
 
       vi.advanceTimersByTime(1000)
@@ -397,7 +397,7 @@ describe('MasterSlider', () => {
 
     it('advances through multiple values over multiple ticks', async () => {
       const wrapper = mountMaster({ currentValue: '100' })
-      const playBtn = wrapper.findAllComponents(NButton).find((b) => b.text() === 'Play')!
+      const playBtn = wrapper.find('[data-testid="play-pause-button"]')
       await playBtn.trigger('click')
 
       vi.advanceTimersByTime(1000)
@@ -415,8 +415,8 @@ describe('MasterSlider', () => {
 
     it('stops at last value when loop is off', async () => {
       const wrapper = mountMaster({ currentValue: '100' })
+      const playBtn = wrapper.find('[data-testid="play-pause-button"]')
       // Start playing to reveal loop controls
-      const playBtn = wrapper.findAllComponents(NButton).find((b) => b.text() === 'Play')!
       await playBtn.trigger('click')
 
       // Disable loop (on by default)
@@ -425,25 +425,22 @@ describe('MasterSlider', () => {
       await nextTick()
 
       // Stop and restart at last value
-      const pauseBtn = wrapper.findAllComponents(NButton).find((b) => b.text() === 'Pause')!
-      await pauseBtn.trigger('click')
+      await playBtn.trigger('click') // pause
       await wrapper.setProps({ currentValue: '2000' })
 
-      const playBtn2 = wrapper.findAllComponents(NButton).find((b) => b.text() === 'Play')!
-      await playBtn2.trigger('click')
+      await playBtn.trigger('click') // play again
 
       vi.advanceTimersByTime(1000)
       await wrapper.vm.$nextTick()
 
       // Should have stopped — no change emitted after last value with loop off
-      const currentBtn = wrapper.findAllComponents(NButton).find((b) => b.text() === 'Play' || b.text() === 'Pause')!
-      expect(currentBtn.text()).toBe('Play')
+      expect(playBtn.attributes('aria-label')).toBe('Play playback')
     })
 
     it('wraps to first value when loop is on (default)', async () => {
       const wrapper = mountMaster({ currentValue: '2000' })
+      const playBtn = wrapper.find('[data-testid="play-pause-button"]')
       // Loop is on by default, no need to enable it
-      const playBtn = wrapper.findAllComponents(NButton).find((b) => b.text() === 'Play')!
       await playBtn.trigger('click')
 
       vi.advanceTimersByTime(1000)
@@ -452,23 +449,22 @@ describe('MasterSlider', () => {
       const emitted = wrapper.emitted('change')
       expect(emitted).toBeDefined()
       expect(emitted![0]).toEqual(['100'])
-      const currentBtn = wrapper.findAllComponents(NButton).find((b) => b.text() === 'Play' || b.text() === 'Pause')!
-      expect(currentBtn.text()).toBe('Pause')
+      // AC: Play icon changes to a pause icon when animation is active
+      expect(playBtn.attributes('aria-label')).toBe('Pause playback')
     })
 
     it('does not start playback with 0 or 1 values', async () => {
       const wrapper = mountMaster({ values: ['only'], currentValue: 'only' })
-      const playBtn = wrapper.findAllComponents(NButton).find((b) => b.text() === 'Play')!
+      const playBtn = wrapper.find('[data-testid="play-pause-button"]')
       await playBtn.trigger('click')
-      const currentBtn = wrapper.findAllComponents(NButton).find((b) => b.text() === 'Play' || b.text() === 'Pause')!
-      expect(currentBtn.text()).toBe('Play')
+      expect(playBtn.attributes('aria-label')).toBe('Play playback')
     })
 
     it('stops emitting after pause is clicked', async () => {
       const wrapper = mountMaster({ currentValue: '100' })
-      const getPlayPauseBtn = () => wrapper.findAllComponents(NButton).find((b) => b.text() === 'Play' || b.text() === 'Pause')!
-      await getPlayPauseBtn().trigger('click') // play
-      await getPlayPauseBtn().trigger('click') // pause
+      const playBtn = wrapper.find('[data-testid="play-pause-button"]')
+      await playBtn.trigger('click') // play
+      await playBtn.trigger('click') // pause
 
       vi.advanceTimersByTime(2000)
       await wrapper.vm.$nextTick()
@@ -479,7 +475,7 @@ describe('MasterSlider', () => {
     it('renders speed selector with default 1s when playing', async () => {
       const wrapper = mountMaster()
       // Speed selector only visible when playing
-      const playBtn = wrapper.findAllComponents(NButton).find((b) => b.text() === 'Play')!
+      const playBtn = wrapper.find('[data-testid="play-pause-button"]')
       await playBtn.trigger('click')
 
       const speedSelect = wrapper.findAllComponents(NSelect).find((s) => s.attributes('aria-label') === 'Playback speed')
@@ -489,7 +485,7 @@ describe('MasterSlider', () => {
 
     it('has 6 speed options including 0.25s and 0.33s', async () => {
       const wrapper = mountMaster()
-      const playBtn = wrapper.findAllComponents(NButton).find((b) => b.text() === 'Play')!
+      const playBtn = wrapper.find('[data-testid="play-pause-button"]')
       await playBtn.trigger('click')
 
       const speedSelect = wrapper.findAllComponents(NSelect).find((s) => s.attributes('aria-label') === 'Playback speed')!
@@ -501,7 +497,7 @@ describe('MasterSlider', () => {
 
     it('adjusts playback interval when speed changes', async () => {
       const wrapper = mountMaster({ currentValue: '100' })
-      const playBtn = wrapper.findAllComponents(NButton).find((b) => b.text() === 'Play')!
+      const playBtn = wrapper.find('[data-testid="play-pause-button"]')
       await playBtn.trigger('click')
 
       // Change speed to 500ms
@@ -519,7 +515,7 @@ describe('MasterSlider', () => {
 
     it('restarts interval when speed changes during playback', async () => {
       const wrapper = mountMaster({ currentValue: '100' })
-      const playBtn = wrapper.findAllComponents(NButton).find((b) => b.text() === 'Play')!
+      const playBtn = wrapper.find('[data-testid="play-pause-button"]')
       await playBtn.trigger('click')
 
       vi.advanceTimersByTime(800)
@@ -541,7 +537,7 @@ describe('MasterSlider', () => {
     it('loop checkbox is checked by default', async () => {
       const wrapper = mountMaster()
       // Start playing to reveal loop controls
-      const playBtn = wrapper.findAllComponents(NButton).find((b) => b.text() === 'Play')!
+      const playBtn = wrapper.find('[data-testid="play-pause-button"]')
       await playBtn.trigger('click')
 
       const checkbox = wrapper.findComponent(NCheckbox)
@@ -551,7 +547,8 @@ describe('MasterSlider', () => {
 
     it('has accessible labels on playback controls when playing', async () => {
       const wrapper = mountMaster()
-      const playBtn = wrapper.findAllComponents(NButton).find((b) => b.text() === 'Play')!
+      const playBtn = wrapper.find('[data-testid="play-pause-button"]')
+      // AC: Play button shows aria-label 'Play playback' when not playing
       expect(playBtn.attributes('aria-label')).toBe('Play playback')
 
       // Start playing to check loop/speed labels
@@ -566,22 +563,20 @@ describe('MasterSlider', () => {
 
     it('play button has aria-label Pause when playing', async () => {
       const wrapper = mountMaster()
-      const playBtn = wrapper.findAllComponents(NButton).find((b) => b.text() === 'Play')!
+      const playBtn = wrapper.find('[data-testid="play-pause-button"]')
       await playBtn.trigger('click')
-      const pauseBtn = wrapper.findAllComponents(NButton).find((b) => b.text() === 'Pause')!
-      expect(pauseBtn.attributes('aria-label')).toBe('Pause playback')
+      // AC: Play icon changes to a pause icon when animation is active (aria-label changes)
+      expect(playBtn.attributes('aria-label')).toBe('Pause playback')
     })
 
     it('stops playback when values prop changes', async () => {
       const wrapper = mountMaster({ currentValue: '100' })
-      const playBtn = wrapper.findAllComponents(NButton).find((b) => b.text() === 'Play')!
+      const playBtn = wrapper.find('[data-testid="play-pause-button"]')
       await playBtn.trigger('click')
-      const pauseBtn = wrapper.findAllComponents(NButton).find((b) => b.text() === 'Pause')
-      expect(pauseBtn).toBeDefined()
+      expect(playBtn.attributes('aria-label')).toBe('Pause playback')
 
       await wrapper.setProps({ values: ['a', 'b', 'c'] })
-      const currentBtn = wrapper.findAllComponents(NButton).find((b) => b.text() === 'Play' || b.text() === 'Pause')!
-      expect(currentBtn.text()).toBe('Play')
+      expect(playBtn.attributes('aria-label')).toBe('Play playback')
     })
 
     it('hides loop controls when not playing', () => {
@@ -595,7 +590,7 @@ describe('MasterSlider', () => {
 
     it('shows loop controls when playing', async () => {
       const wrapper = mountMaster()
-      const playBtn = wrapper.findAllComponents(NButton).find((b) => b.text() === 'Play')!
+      const playBtn = wrapper.find('[data-testid="play-pause-button"]')
       await playBtn.trigger('click')
 
       expect(wrapper.find('.master-slider__loop-controls').exists()).toBe(true)
@@ -606,12 +601,40 @@ describe('MasterSlider', () => {
 
     it('hides loop controls after stopping playback', async () => {
       const wrapper = mountMaster()
-      const getPlayPauseBtn = () => wrapper.findAllComponents(NButton).find((b) => b.text() === 'Play' || b.text() === 'Pause')!
-      await getPlayPauseBtn().trigger('click') // play
+      const playBtn = wrapper.find('[data-testid="play-pause-button"]')
+      await playBtn.trigger('click') // play
       expect(wrapper.find('.master-slider__loop-controls').exists()).toBe(true)
 
-      await getPlayPauseBtn().trigger('click') // pause
+      await playBtn.trigger('click') // pause
       expect(wrapper.find('.master-slider__loop-controls').exists()).toBe(false)
+    })
+
+    // AC: Play button shows green triangle icon (play-icon class present)
+    it('play button shows play icon (svg with play-icon class) when not playing', () => {
+      const wrapper = mountMaster()
+      const playBtn = wrapper.find('[data-testid="play-pause-button"]')
+      // The SVG with play-icon class is rendered when not playing
+      expect(playBtn.find('svg.play-icon').exists()).toBe(true)
+    })
+
+    // AC: Play icon disappears and pause icon appears when playing
+    it('play button shows pause icon (no play-icon class) when playing', async () => {
+      const wrapper = mountMaster()
+      const playBtn = wrapper.find('[data-testid="play-pause-button"]')
+      await playBtn.trigger('click')
+      // The play-icon SVG should be gone; a pause SVG (without the class) appears
+      expect(playBtn.find('svg.play-icon').exists()).toBe(false)
+      expect(playBtn.find('svg').exists()).toBe(true)
+    })
+
+    // AC: Play button is a circle button (visual polish)
+    it('play button has circle shape', () => {
+      const wrapper = mountMaster()
+      // Find the play-pause button component
+      const buttons = wrapper.findAllComponents(NButton)
+      const playBtnComponent = buttons.find((b) => b.attributes('data-testid') === 'play-pause-button')
+      expect(playBtnComponent).toBeDefined()
+      expect(playBtnComponent!.props('circle')).toBe(true)
     })
   })
 
