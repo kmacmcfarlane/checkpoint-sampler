@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-094: Standard delete confirmation dialog component
+- Reusable `ConfirmDeleteDialog.vue` with configurable title, description, optional checkbox, and red "Yes, Delete" confirm button
+- Emits `confirm` (with checkbox state), `cancel`, and `update:show` events; integrates with Naive UI NModal
+
 ### B-047: Update button missing after changing selector type on preset load
 - Extended preset dirty tracking to compare filter modes (Single/Multi/Hide) alongside axis role assignments, fixing invisible changes when switching filter modes after auto-load
 

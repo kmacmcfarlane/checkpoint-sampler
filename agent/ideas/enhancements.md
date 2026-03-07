@@ -121,3 +121,15 @@ When hovering over a study's bead in the dropdown, show a tooltip like "3/5 chec
 * priority: very-low
 * source: developer
 The disallowed character set for study name validation is defined independently in the Go service (`disallowedNameChars` constant) and the Vue component (`disallowedChars` variable). A future improvement could surface the disallowed characters in the API error response and have the frontend reflect them, eliminating the duplicated constant. For a simple character set, the current duplication is acceptable.
+
+### Integrate ConfirmDeleteDialog into StudyEditor delete flow
+* status: needs_approval
+* priority: medium
+* source: developer
+StudyEditor currently uses `window.confirm()` for delete confirmation, which is browser-native and not styled. Replace with the new ConfirmDeleteDialog (with optional "Also delete sample data" checkbox) for a consistent UX.
+
+### Integrate ConfirmDeleteDialog into preset delete flow
+* status: needs_approval
+* priority: low
+* source: developer
+PresetSelector also uses `window.confirm()` for delete confirmation. Replace with ConfirmDeleteDialog for a consistent deletion UX across the app.
