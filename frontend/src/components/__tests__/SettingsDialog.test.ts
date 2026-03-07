@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
-import { NModal, NButton, NAlert } from 'naive-ui'
+import { NModal, NButton, NAlert, NSwitch } from 'naive-ui'
 import SettingsDialog from '../SettingsDialog.vue'
 
 // Mock the API client
@@ -20,9 +20,9 @@ describe('SettingsDialog', () => {
     vi.clearAllMocks()
   })
 
-  function mountDialog(show = true) {
+  function mountDialog(show = true, isDark = false, debugMode = false) {
     return mount(SettingsDialog, {
-      props: { show },
+      props: { show, isDark, debugMode },
       global: {
         stubs: { Teleport: true },
       },
@@ -151,7 +151,7 @@ describe('SettingsDialog', () => {
   it('fetches demo status when show changes from false to true', async () => {
     mockedClient.getDemoStatus.mockResolvedValue({ installed: true })
     const wrapper = mount(SettingsDialog, {
-      props: { show: false },
+      props: { show: false, isDark: false, debugMode: false },
       global: { stubs: { Teleport: true } },
     })
 
@@ -166,7 +166,7 @@ describe('SettingsDialog', () => {
   it('does not render dialog when show is false', () => {
     mockedClient.getDemoStatus.mockResolvedValue({ installed: true })
     const wrapper = mount(SettingsDialog, {
-      props: { show: false },
+      props: { show: false, isDark: false, debugMode: false },
       global: { stubs: { Teleport: true } },
     })
 
@@ -174,5 +174,94 @@ describe('SettingsDialog', () => {
     const modal = wrapper.findComponent(NModal)
     expect(modal.exists()).toBe(true)
     expect(modal.props('show')).toBe(false)
+  })
+
+  // AC1: Light/Dark theme selector is in the Settings dialog
+  it('renders the appearance section with theme toggle', async () => {
+    mockedClient.getDemoStatus.mockResolvedValue({ installed: false })
+    const wrapper = mountDialog(true, false)
+    await flushPromises()
+
+    const section = wrapper.find('[data-testid="appearance-section"]')
+    expect(section.exists()).toBe(true)
+
+    const themeToggle = wrapper.find('[data-testid="theme-toggle"]')
+    expect(themeToggle.exists()).toBe(true)
+  })
+
+  // AC1: Theme toggle shows 'Dark' when in light mode (to switch to dark)
+  it('theme toggle shows "Dark" when in light mode', async () => {
+    mockedClient.getDemoStatus.mockResolvedValue({ installed: false })
+    const wrapper = mountDialog(true, false)
+    await flushPromises()
+
+    const themeToggle = wrapper.find('[data-testid="theme-toggle"]')
+    expect(themeToggle.text()).toBe('Dark')
+  })
+
+  // AC1: Theme toggle shows 'Light' when in dark mode (to switch to light)
+  it('theme toggle shows "Light" when in dark mode', async () => {
+    mockedClient.getDemoStatus.mockResolvedValue({ installed: false })
+    const wrapper = mountDialog(true, true)
+    await flushPromises()
+
+    const themeToggle = wrapper.find('[data-testid="theme-toggle"]')
+    expect(themeToggle.text()).toBe('Light')
+  })
+
+  // AC3: Theme changes take effect immediately from within the dialog
+  it('emits toggle-theme when the theme button is clicked', async () => {
+    mockedClient.getDemoStatus.mockResolvedValue({ installed: false })
+    const wrapper = mountDialog(true, false)
+    await flushPromises()
+
+    const themeToggle = wrapper.find('[data-testid="theme-toggle"]')
+    await themeToggle.findComponent(NButton).trigger('click')
+
+    expect(wrapper.emitted('toggle-theme')).toHaveLength(1)
+  })
+
+  // AC2: Debug mode toggle is in the Settings dialog
+  it('renders the debug mode switch in the appearance section', async () => {
+    mockedClient.getDemoStatus.mockResolvedValue({ installed: false })
+    const wrapper = mountDialog(true, false, false)
+    await flushPromises()
+
+    const debugSwitch = wrapper.find('[data-testid="debug-toggle"]')
+    expect(debugSwitch.exists()).toBe(true)
+    expect(wrapper.findComponent(NSwitch).exists()).toBe(true)
+  })
+
+  // AC2: Debug switch reflects current debugMode prop
+  it('debug switch reflects debugMode=false prop', async () => {
+    mockedClient.getDemoStatus.mockResolvedValue({ installed: false })
+    const wrapper = mountDialog(true, false, false)
+    await flushPromises()
+
+    const switchComp = wrapper.findComponent(NSwitch)
+    expect(switchComp.props('value')).toBe(false)
+  })
+
+  it('debug switch reflects debugMode=true prop', async () => {
+    mockedClient.getDemoStatus.mockResolvedValue({ installed: false })
+    const wrapper = mountDialog(true, false, true)
+    await flushPromises()
+
+    const switchComp = wrapper.findComponent(NSwitch)
+    expect(switchComp.props('value')).toBe(true)
+  })
+
+  // AC3: Debug mode changes take effect immediately from within the dialog
+  it('emits update:debugMode when the debug switch is toggled', async () => {
+    mockedClient.getDemoStatus.mockResolvedValue({ installed: false })
+    const wrapper = mountDialog(true, false, false)
+    await flushPromises()
+
+    const switchComp = wrapper.findComponent(NSwitch)
+    await switchComp.vm.$emit('update:value', true)
+
+    const emitted = wrapper.emitted('update:debugMode')
+    expect(emitted).toHaveLength(1)
+    expect(emitted![0]).toEqual([true])
   })
 })

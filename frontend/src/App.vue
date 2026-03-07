@@ -22,7 +22,6 @@ import FiltersDrawer from './components/FiltersDrawer.vue'
 import PresetSelector from './components/PresetSelector.vue'
 import ImageLightbox from './components/ImageLightbox.vue'
 import CheckpointMetadataPanel from './components/CheckpointMetadataPanel.vue'
-import ThemeToggle from './components/ThemeToggle.vue'
 import ComfyUIStatus from './components/ComfyUIStatus.vue'
 import JobLaunchDialog from './components/JobLaunchDialog.vue'
 import JobProgressPanel from './components/JobProgressPanel.vue'
@@ -748,15 +747,7 @@ const TERMINAL_STATUSES: Set<SampleJobStatus> = new Set(['completed', 'completed
             data-testid="settings-button"
             @click="settingsDialogOpen = true"
           >Settings</NButton>
-          <NButton
-            size="small"
-            :type="debugMode ? 'warning' : 'default'"
-            aria-label="Toggle debug mode"
-            data-testid="debug-toggle"
-            @click="debugMode = !debugMode"
-          >Debug</NButton>
           <ComfyUIStatus />
-          <ThemeToggle :is-dark="isDark" @toggle="toggleTheme" />
         </div>
       </header>
       <AppDrawer v-model:show="drawerOpen">
@@ -864,6 +855,10 @@ const TERMINAL_STATUSES: Set<SampleJobStatus> = new Set(['completed', 'completed
       />
       <SettingsDialog
         v-model:show="settingsDialogOpen"
+        :is-dark="isDark"
+        :debug-mode="debugMode"
+        @toggle-theme="toggleTheme"
+        @update:debug-mode="debugMode = $event"
       />
     </div>
   </NConfigProvider>

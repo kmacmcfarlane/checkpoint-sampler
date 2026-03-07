@@ -133,3 +133,9 @@ StudyEditor currently uses `window.confirm()` for delete confirmation, which is 
 * priority: low
 * source: developer
 PresetSelector also uses `window.confirm()` for delete confirmation. Replace with ConfirmDeleteDialog for a consistent deletion UX across the app.
+
+### Remove orphaned ThemeToggle.vue component
+* status: needs_approval
+* priority: very-low
+* source: developer
+`ThemeToggle.vue` and `ThemeToggle.test.ts` are now dead code since S-091 moved the toggle into the Settings dialog. A cleanup story could delete them.

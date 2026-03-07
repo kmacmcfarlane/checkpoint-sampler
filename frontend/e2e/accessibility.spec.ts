@@ -64,10 +64,17 @@ test.describe('accessibility audit', () => {
     // (drawer auto-opens on the default wide E2E viewport; see TEST_PRACTICES.md §6.9)
     await closeDrawerIfOpen(page)
 
-    // Ensure we are in light mode. If currently dark, switch to light.
-    const switchToLightButton = page.getByRole('button', { name: 'Switch to light theme' })
-    if (await switchToLightButton.isVisible()) {
-      await switchToLightButton.click()
+    // Ensure we are in light mode. If currently dark, switch to light via Settings dialog
+    // (S-091: theme toggle moved from header to Settings dialog)
+    const isDarkMode = await page.locator('.app.dark-mode').isVisible()
+    if (isDarkMode) {
+      await page.locator('[data-testid="settings-button"]').click()
+      await expect(page.locator('[data-testid="settings-dialog"]')).toBeVisible()
+      // Theme toggle shows "Light" in dark mode (clicking switches to light)
+      await page.locator('[data-testid="theme-toggle"]').click()
+      // Close the dialog
+      await page.keyboard.press('Escape')
+      await expect(page.locator('[data-testid="settings-dialog"]')).not.toBeVisible()
       // Wait for dark-mode class to be removed
       await expect(page.locator('.app.dark-mode')).not.toBeVisible()
     }
@@ -109,10 +116,16 @@ test.describe('accessibility audit', () => {
     // (NDrawer mask covers the full viewport and blocks pointer events on header controls)
     await closeDrawerIfOpen(page)
 
-    // Switch to dark mode if not already active
-    const switchToDarkButton = page.getByRole('button', { name: 'Switch to dark theme' })
-    if (await switchToDarkButton.isVisible()) {
-      await switchToDarkButton.click()
+    // Switch to dark mode via the Settings dialog (S-091: theme toggle moved to settings)
+    const isDarkMode = await page.locator('.app.dark-mode').isVisible()
+    if (!isDarkMode) {
+      await page.locator('[data-testid="settings-button"]').click()
+      await expect(page.locator('[data-testid="settings-dialog"]')).toBeVisible()
+      // Theme toggle shows "Dark" in light mode (clicking switches to dark)
+      await page.locator('[data-testid="theme-toggle"]').click()
+      // Close the dialog
+      await page.keyboard.press('Escape')
+      await expect(page.locator('[data-testid="settings-dialog"]')).not.toBeVisible()
     }
 
     // Wait for dark-mode class to be applied (App.vue toggles .dark-mode on .app)

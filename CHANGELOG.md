@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-091: Move Light/Dark and Debug mode to Settings dialog
+- Theme toggle and debug mode switch moved from header into the Settings dialog's new "Appearance" section
+- Reduces top-level UI clutter; controls take effect immediately without closing the dialog
+
 ### S-090: Lightbox shift+up/down for Y-axis grid navigation
 - Shift+Up/Down arrow keys in lightbox navigate between grid rows (Y-axis), complementing existing Shift+Left/Right X-axis navigation
 - Navigation wraps at grid boundaries; disabled when no X dimension is assigned

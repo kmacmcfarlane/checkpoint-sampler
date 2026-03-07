@@ -1,17 +1,23 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { NModal, NButton, NSpin, NAlert } from 'naive-ui'
+import { NModal, NButton, NSpin, NAlert, NSwitch } from 'naive-ui'
 import { apiClient } from '../api/client'
 
 const props = defineProps<{
   show: boolean
+  isDark: boolean
+  debugMode: boolean
 }>()
 
 // settings-closed: Emitted when the dialog is closed. No payload.
 // demo-changed: Emitted when the demo dataset is installed or uninstalled. No payload.
+// toggle-theme: Emitted when the user clicks the theme toggle. No payload.
+// update:debugMode: Emitted when the debug mode switch is toggled. Payload: new boolean value.
 const emit = defineEmits<{
   'update:show': [value: boolean]
   'demo-changed': []
+  'toggle-theme': []
+  'update:debugMode': [value: boolean]
 }>()
 
 const demoInstalled = ref<boolean | null>(null)
@@ -91,7 +97,29 @@ watch(() => props.show, (newVal) => {
     data-testid="settings-dialog"
     @update:show="closeDialog"
   >
-    <div data-testid="demo-section">
+    <div data-testid="appearance-section" class="settings-section">
+      <h3 class="section-title">Appearance</h3>
+      <div class="setting-row">
+        <span class="setting-label">Theme</span>
+        <NButton
+          size="small"
+          quaternary
+          :aria-label="isDark ? 'Switch to light theme' : 'Switch to dark theme'"
+          data-testid="theme-toggle"
+          @click="emit('toggle-theme')"
+        >{{ isDark ? 'Light' : 'Dark' }}</NButton>
+      </div>
+      <div class="setting-row">
+        <span class="setting-label">Debug mode</span>
+        <NSwitch
+          :value="debugMode"
+          size="small"
+          data-testid="debug-toggle"
+          @update:value="emit('update:debugMode', $event)"
+        />
+      </div>
+    </div>
+    <div data-testid="demo-section" class="settings-section">
       <h3 class="section-title">Demo Dataset</h3>
       <template v-if="loading">
         <div class="loading-container">
@@ -139,10 +167,34 @@ watch(() => props.show, (newVal) => {
 </template>
 
 <style scoped>
+.settings-section {
+  margin-bottom: 1.25rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.settings-section:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
 .section-title {
   margin: 0 0 0.75rem 0;
   font-size: 1rem;
   font-weight: 600;
+  color: var(--text-color);
+}
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.375rem 0;
+}
+
+.setting-label {
+  font-size: 0.875rem;
   color: var(--text-color);
 }
 

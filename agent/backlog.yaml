@@ -232,7 +232,7 @@ stories:
   - id: S-091
     title: Move Light/Dark and Debug mode to Settings dialog
     type: feature
-    status: todo
+    status: uat
     priority: 25
     complexity: low
     requires: []
