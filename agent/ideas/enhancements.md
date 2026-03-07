@@ -55,3 +55,9 @@ On narrow/mobile screens, add a swipe-left gesture on the drawer to close it, im
 * priority: very-low
 * source: developer
 The FiltersDrawer has a fixed 320px width. For users with many dimensions or long dimension values, an auto-sizing or resizable drawer (like the metadata panel) would be more ergonomic.
+
+### Replace window.prompt for preset save with NModal input dialog
+* status: needs_approval
+* priority: medium
+* source: developer
+The "Save preset" flow still uses `window.prompt`, which is inconsistent with the ConfirmDeleteDialog pattern established in S-094/S-095/S-096. A proper NModal input dialog would provide a more polished UX.

@@ -464,7 +464,7 @@ stories:
   - id: S-096
     title: Delete dimension mapping preset
     type: feature
-    status: todo
+    status: uat
     priority: 25
     complexity: low
     requires:

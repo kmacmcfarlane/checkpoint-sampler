@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { NSelect, NButton } from 'naive-ui'
 import type { Preset, PresetMapping, DimensionRole, FilterMode } from '../api/types'
 import { apiClient } from '../api/client'
+import ConfirmDeleteDialog from './ConfirmDeleteDialog.vue'
 
 const props = defineProps<{
   /** Current dimension assignments as a Map of dimension name to role. */
@@ -223,6 +224,12 @@ async function onSave() {
 
 const updating = ref(false)
 
+/** Controls visibility of the delete confirmation dialog. */
+const showDeleteDialog = ref(false)
+
+/** ID of the preset pending deletion (set when the user clicks Delete, cleared after confirm/cancel). */
+const pendingDeleteId = ref<string | null>(null)
+
 /**
  * Whether the Update button should be available.
  * True only when an existing preset is selected AND assignments are dirty.
@@ -256,7 +263,24 @@ async function onUpdate() {
   }
 }
 
-async function onDelete(id: string) {
+/**
+ * Called when the user clicks the Delete button.
+ * Opens the ConfirmDeleteDialog instead of deleting immediately.
+ */
+function requestDelete(id: string) {
+  pendingDeleteId.value = id
+  showDeleteDialog.value = true
+}
+
+/**
+ * Called when the user confirms deletion in the ConfirmDeleteDialog.
+ * Performs the actual API call and updates local state.
+ */
+async function onConfirmDelete() {
+  const id = pendingDeleteId.value
+  if (!id) return
+  pendingDeleteId.value = null
+
   error.value = null
   try {
     await apiClient.deletePreset(id)
@@ -274,6 +298,13 @@ async function onDelete(id: string) {
         : 'Failed to delete preset'
     error.value = message
   }
+}
+
+/**
+ * Called when the user cancels deletion in the ConfirmDeleteDialog.
+ */
+function onCancelDelete() {
+  pendingDeleteId.value = null
 }
 
 function assignmentsToMapping(): PresetMapping {
@@ -346,13 +377,25 @@ function assignmentsToMapping(): PresetMapping {
         v-if="selectedId"
         size="small"
         type="error"
+        data-testid="preset-delete-button"
         aria-label="Delete preset"
-        @click="onDelete(selectedId!)"
+        @click="requestDelete(selectedId!)"
       >
         Delete
       </NButton>
     </div>
     <p v-if="error" class="error" role="alert">{{ error }}</p>
+
+    <ConfirmDeleteDialog
+      v-model:show="showDeleteDialog"
+      title="Delete Preset"
+      :description="pendingDeleteId
+        ? `Delete preset '${presets.find(p => p.id === pendingDeleteId)?.name ?? ''}'? This cannot be undone.`
+        : 'Delete this preset? This cannot be undone.'"
+      data-testid="preset-delete-dialog"
+      @confirm="onConfirmDelete"
+      @cancel="onCancelDelete"
+    />
   </div>
 </template>
 

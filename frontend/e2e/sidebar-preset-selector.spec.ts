@@ -137,7 +137,8 @@ test.describe('sidebar PresetSelector New/Save/Delete workflow', () => {
   })
 
   // AC: Existing preset load/delete behavior is preserved
-  test('deletes a selected preset', async ({ page }) => {
+  // AC1: Delete button shows confirmation dialog; AC2: Confirming removes the preset; AC3: Selector resets
+  test('deletes a selected preset via confirmation dialog', async ({ page }) => {
     const presetName = `E2E Delete Sidebar ${Date.now()}`
 
     // Create a preset first (use multi-value dimension; S-080 disables single-value role selects)
@@ -160,13 +161,22 @@ test.describe('sidebar PresetSelector New/Save/Delete workflow', () => {
     const deleteButton = page.locator('[aria-label="Delete preset"]')
     await expect(deleteButton).toBeVisible()
 
-    // Click Delete
+    // AC1: Click Delete — should open the ConfirmDeleteDialog instead of deleting immediately
     await deleteButton.click()
 
-    // After deletion, the Delete button should disappear (no preset selected)
+    // AC1: Confirmation dialog should be visible
+    // data-testid="preset-delete-dialog" is passed from PresetSelector to ConfirmDeleteDialog
+    const confirmDialog = page.locator('[data-testid="preset-delete-dialog"]')
+    await expect(confirmDialog).toBeVisible()
+
+    // AC2: Confirm the deletion
+    await confirmDialog.locator('[data-testid="confirm-delete-button"]').click()
+    await expect(confirmDialog).not.toBeVisible()
+
+    // AC3: After deletion, the Delete button should disappear (no preset selected)
     await expect(deleteButton).not.toBeVisible()
 
-    // The preset should be removed from the dropdown
+    // AC2: The preset should be removed from the dropdown
     const presetSelect = page.locator('.preset-select')
     await presetSelect.click()
     const popupMenu = page.locator('.n-base-select-menu:visible')

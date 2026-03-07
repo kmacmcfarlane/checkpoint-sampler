@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-096: Delete dimension mapping preset
+- Delete button on preset selector now shows a confirmation dialog (ConfirmDeleteDialog) before removing the preset, preventing accidental deletions
+
 ### B-063: Hot reload resets all dimension mappings to Single
 - Converted `useDimensionMapping` composable to module-scoped singleton state with `import.meta.hot.data` preservation, preventing Vite HMR from resetting dimension role assignments and filter modes
 

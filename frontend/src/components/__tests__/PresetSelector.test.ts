@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest'
 import { mount, flushPromises, type VueWrapper } from '@vue/test-utils'
 import { nextTick } from 'vue'
-import { NSelect, NButton } from 'naive-ui'
+import { NSelect, NButton, NModal } from 'naive-ui'
 import PresetSelector from '../PresetSelector.vue'
+import ConfirmDeleteDialog from '../ConfirmDeleteDialog.vue'
 import type { Preset, DimensionRole, FilterMode } from '../../api/types'
 
 // Mock the api client module
@@ -62,6 +63,31 @@ const defaultProps = {
 /** Helper to find an NButton by its aria-label attribute. */
 function findButton(wrapper: ReturnType<typeof mount>, ariaLabel: string) {
   return wrapper.findAllComponents(NButton).find((b) => b.attributes('aria-label') === ariaLabel)
+}
+
+/**
+ * Simulate confirming the ConfirmDeleteDialog.
+ * Finds the ConfirmDeleteDialog, finds its confirm button, and clicks it.
+ */
+async function confirmDeleteDialog(wrapper: ReturnType<typeof mount>) {
+  const dialog = wrapper.findComponent(ConfirmDeleteDialog)
+  expect(dialog.exists()).toBe(true)
+  const confirmBtn = dialog.find('[data-testid="confirm-delete-button"]')
+  expect(confirmBtn.exists()).toBe(true)
+  await confirmBtn.findComponent(NButton).trigger('click')
+  await flushPromises()
+}
+
+/**
+ * Simulate cancelling the ConfirmDeleteDialog.
+ */
+async function cancelDeleteDialog(wrapper: ReturnType<typeof mount>) {
+  const dialog = wrapper.findComponent(ConfirmDeleteDialog)
+  expect(dialog.exists()).toBe(true)
+  const cancelBtn = dialog.find('[data-testid="confirm-cancel-button"]')
+  expect(cancelBtn.exists()).toBe(true)
+  await cancelBtn.findComponent(NButton).trigger('click')
+  await flushPromises()
 }
 
 describe('PresetSelector', () => {
@@ -296,10 +322,14 @@ describe('PresetSelector', () => {
     expect(saveBtn.props('disabled')).toBe(false)
   })
 
-  it('delete button appears when a preset is selected and calls deletePreset', async () => {
+  // AC1: FE: Delete button on dimension mapping preset shows the standard confirmation dialog
+  it('delete button appears when a preset is selected and shows confirmation dialog on click', async () => {
     mockGetPresets.mockResolvedValue(samplePresets)
     mockDeletePreset.mockResolvedValue(undefined)
-    const wrapper = mount(PresetSelector, { props: defaultProps })
+    const wrapper = mount(PresetSelector, {
+      props: defaultProps,
+      global: { stubs: { Teleport: true } },
+    })
     await flushPromises()
 
     // No delete button initially
@@ -314,13 +344,164 @@ describe('PresetSelector', () => {
     const deleteBtn = findButton(wrapper, 'Delete preset')!
     expect(deleteBtn).toBeDefined()
 
+    // AC1: Clicking delete opens the confirmation dialog — does NOT call deletePreset yet
     await deleteBtn.trigger('click')
-    await flushPromises()
+    await nextTick()
+
+    expect(mockDeletePreset).not.toHaveBeenCalled()
+
+    // ConfirmDeleteDialog should now be shown
+    const dialog = wrapper.findComponent(ConfirmDeleteDialog)
+    expect(dialog.exists()).toBe(true)
+    const modal = dialog.findComponent(NModal)
+    expect(modal.props('show')).toBe(true)
+
+    // AC2: Confirming delete removes the preset
+    await confirmDeleteDialog(wrapper)
 
     expect(mockDeletePreset).toHaveBeenCalledWith('p1')
     const emitted = wrapper.emitted('delete')
     expect(emitted).toBeDefined()
     expect(emitted![0][0]).toBe('p1')
+  })
+
+  // AC1: FE: Confirming delete removes the preset; canceling does not
+  it('cancel in confirmation dialog does not call deletePreset', async () => {
+    mockGetPresets.mockResolvedValue(samplePresets)
+    mockDeletePreset.mockResolvedValue(undefined)
+    const wrapper = mount(PresetSelector, {
+      props: defaultProps,
+      global: { stubs: { Teleport: true } },
+    })
+    await flushPromises()
+
+    // Select a preset
+    const select = wrapper.findComponent(NSelect)
+    select.vm.$emit('update:value', 'p1')
+    await nextTick()
+
+    // Click delete to open dialog
+    const deleteBtn = findButton(wrapper, 'Delete preset')!
+    await deleteBtn.trigger('click')
+    await nextTick()
+
+    // Cancel the dialog
+    await cancelDeleteDialog(wrapper)
+
+    // deletePreset should NOT have been called
+    expect(mockDeletePreset).not.toHaveBeenCalled()
+
+    // Preset should still be selected
+    const select2 = wrapper.findComponent(NSelect)
+    expect(select2.props('value')).toBe('p1')
+  })
+
+  // AC2 + AC3: FE: Confirming delete removes the preset; selector resets to no selection when deleting selected preset
+  it('confirming delete removes the selected preset and resets selector to no selection', async () => {
+    mockGetPresets.mockResolvedValue(samplePresets)
+    mockDeletePreset.mockResolvedValue(undefined)
+    const wrapper = mount(PresetSelector, {
+      props: defaultProps,
+      global: { stubs: { Teleport: true } },
+    })
+    await flushPromises()
+
+    // Select p1
+    const select = wrapper.findComponent(NSelect)
+    select.vm.$emit('update:value', 'p1')
+    await nextTick()
+
+    expect(select.props('value')).toBe('p1')
+
+    // Click delete then confirm
+    const deleteBtn = findButton(wrapper, 'Delete preset')!
+    await deleteBtn.trigger('click')
+    await nextTick()
+    await confirmDeleteDialog(wrapper)
+
+    // AC3: Selector resets to no selection after deleting the selected preset
+    expect(wrapper.findComponent(NSelect).props('value')).toBeNull()
+
+    // p1 should be removed from the options list
+    const options = wrapper.findComponent(NSelect).props('options') as Array<{ label: string; value: string }>
+    expect(options.find((o) => o.value === 'p1')).toBeUndefined()
+
+    // AC3: Delete button disappears (no preset selected)
+    expect(findButton(wrapper, 'Delete preset')).toBeUndefined()
+  })
+
+  // AC3 + Testing scenario: Deleting the last remaining preset resets to no selection
+  it('deleting the last remaining preset resets to no selection', async () => {
+    const lastPreset: Preset = {
+      id: 'last',
+      name: 'Last Preset',
+      mapping: { x: 'cfg', combos: [] },
+      created_at: '2025-01-01T00:00:00Z',
+      updated_at: '2025-01-01T00:00:00Z',
+    }
+    mockGetPresets.mockResolvedValue([lastPreset])
+    mockDeletePreset.mockResolvedValue(undefined)
+    const wrapper = mount(PresetSelector, {
+      props: defaultProps,
+      global: { stubs: { Teleport: true } },
+    })
+    await flushPromises()
+
+    // Select the only preset
+    const select = wrapper.findComponent(NSelect)
+    select.vm.$emit('update:value', 'last')
+    await nextTick()
+
+    // Confirm delete
+    const deleteBtn = findButton(wrapper, 'Delete preset')!
+    await deleteBtn.trigger('click')
+    await nextTick()
+    await confirmDeleteDialog(wrapper)
+
+    // Preset list should be empty
+    const options = wrapper.findComponent(NSelect).props('options') as Array<{ label: string; value: string }>
+    expect(options).toHaveLength(0)
+
+    // Selector should be reset
+    expect(wrapper.findComponent(NSelect).props('value')).toBeNull()
+
+    // Delete button should be gone
+    expect(findButton(wrapper, 'Delete preset')).toBeUndefined()
+
+    // delete event emitted
+    expect(wrapper.emitted('delete')).toBeDefined()
+    expect(wrapper.emitted('delete')![0][0]).toBe('last')
+  })
+
+  // Testing scenario: Deleting a preset that is currently selected (verifies selectedId resets)
+  it('deleting a currently selected preset resets selectedId and clears snapshot', async () => {
+    mockGetPresets.mockResolvedValue(samplePresets)
+    mockDeletePreset.mockResolvedValue(undefined)
+    const wrapper = mount(PresetSelector, {
+      props: defaultProps,
+      global: { stubs: { Teleport: true } },
+    })
+    await flushPromises()
+
+    // Select p1 and establish a snapshot (simulating parent applying the preset)
+    const select = wrapper.findComponent(NSelect)
+    select.vm.$emit('update:value', 'p1')
+    await nextTick()
+    await wrapper.setProps({ assignments: new Map(defaultProps.assignments), filterModes: new Map(defaultProps.filterModes) })
+    await nextTick()
+
+    // p1 is selected; now delete it
+    const deleteBtn = findButton(wrapper, 'Delete preset')!
+    await deleteBtn.trigger('click')
+    await nextTick()
+    await confirmDeleteDialog(wrapper)
+
+    // Selector should be reset (selectedId null)
+    expect(wrapper.findComponent(NSelect).props('value')).toBeNull()
+
+    // Snapshot should be cleared (save button disabled)
+    const saveBtn = findButton(wrapper, 'Save preset')!
+    expect(saveBtn.props('disabled')).toBe(true)
   })
 
   it('has accessible labels on buttons', async () => {
@@ -553,7 +734,10 @@ describe('PresetSelector', () => {
     it('delete clears snapshot so save is disabled', async () => {
       mockGetPresets.mockResolvedValue(samplePresets)
       mockDeletePreset.mockResolvedValue(undefined)
-      const wrapper = mount(PresetSelector, { props: defaultProps })
+      const wrapper = mount(PresetSelector, {
+        props: defaultProps,
+        global: { stubs: { Teleport: true } },
+      })
       await flushPromises()
 
       // Select a preset (triggers pendingSnapshot)
@@ -564,10 +748,11 @@ describe('PresetSelector', () => {
       await wrapper.setProps({ assignments: new Map(defaultProps.assignments), filterModes: new Map(defaultProps.filterModes) })
       await nextTick()
 
-      // Delete the selected preset
+      // Delete the selected preset (now goes through dialog)
       const deleteBtn = findButton(wrapper, 'Delete preset')!
       await deleteBtn.trigger('click')
-      await flushPromises()
+      await nextTick()
+      await confirmDeleteDialog(wrapper)
 
       // Snapshot should be cleared, save disabled
       const saveBtn = findButton(wrapper, 'Save preset')!
