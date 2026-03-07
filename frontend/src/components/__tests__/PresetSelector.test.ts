@@ -3,7 +3,7 @@ import { mount, flushPromises, type VueWrapper } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { NSelect, NButton } from 'naive-ui'
 import PresetSelector from '../PresetSelector.vue'
-import type { Preset, DimensionRole } from '../../api/types'
+import type { Preset, DimensionRole, FilterMode } from '../../api/types'
 
 // Mock the api client module
 vi.mock('../../api/client', () => ({
@@ -50,6 +50,11 @@ const defaultProps = {
     ['cfg', 'x' as const],
     ['prompt', 'y' as const],
     ['seed', 'none' as const],
+  ]),
+  filterModes: new Map([
+    ['cfg', 'multi' as FilterMode],
+    ['prompt', 'multi' as FilterMode],
+    ['seed', 'single' as FilterMode],
   ]),
   dimensionNames: ['cfg', 'prompt', 'seed'],
 }
@@ -164,17 +169,22 @@ describe('PresetSelector', () => {
     await newBtn.trigger('click')
     await nextTick()
 
-    // Simulate parent resetting assignments (pendingSnapshot captures this)
+    // Simulate parent resetting assignments and filter modes (pendingSnapshot captures this)
     const emptyAssignments = new Map<string, DimensionRole>([
       ['cfg', 'none'],
       ['prompt', 'none'],
       ['seed', 'none'],
     ])
-    await wrapper.setProps({ assignments: emptyAssignments })
+    const emptyFilterModes = new Map<string, FilterMode>([
+      ['cfg', 'single'],
+      ['prompt', 'single'],
+      ['seed', 'single'],
+    ])
+    await wrapper.setProps({ assignments: emptyAssignments, filterModes: emptyFilterModes })
     await nextTick()
 
     // Now modify assignments to make it dirty
-    await wrapper.setProps({ assignments: defaultProps.assignments })
+    await wrapper.setProps({ assignments: defaultProps.assignments, filterModes: defaultProps.filterModes })
     await nextTick()
 
     const saveBtn = findButton(wrapper, 'Save preset')!
@@ -208,9 +218,14 @@ describe('PresetSelector', () => {
       ['prompt', 'none'],
       ['seed', 'none'],
     ])
-    await wrapper.setProps({ assignments: emptyAssignments })
+    const emptyFilterModes = new Map<string, FilterMode>([
+      ['cfg', 'single'],
+      ['prompt', 'single'],
+      ['seed', 'single'],
+    ])
+    await wrapper.setProps({ assignments: emptyAssignments, filterModes: emptyFilterModes })
     await nextTick()
-    await wrapper.setProps({ assignments: defaultProps.assignments })
+    await wrapper.setProps({ assignments: defaultProps.assignments, filterModes: defaultProps.filterModes })
     await nextTick()
 
     const saveBtn = findButton(wrapper, 'Save preset')!
@@ -244,8 +259,8 @@ describe('PresetSelector', () => {
     select.vm.$emit('update:value', 'p1')
     await nextTick()
 
-    // Simulate parent applying the preset mapping (same assignments as default)
-    await wrapper.setProps({ assignments: new Map(defaultProps.assignments) })
+    // Simulate parent applying the preset mapping (same assignments and filter modes as default)
+    await wrapper.setProps({ assignments: new Map(defaultProps.assignments), filterModes: new Map(defaultProps.filterModes) })
     await nextTick()
 
     const saveBtn = findButton(wrapper, 'Save preset')!
@@ -263,8 +278,8 @@ describe('PresetSelector', () => {
     select.vm.$emit('update:value', 'p1')
     await nextTick()
 
-    // Simulate parent applying the preset mapping
-    await wrapper.setProps({ assignments: new Map(defaultProps.assignments) })
+    // Simulate parent applying the preset mapping (same assignments and filter modes as default)
+    await wrapper.setProps({ assignments: new Map(defaultProps.assignments), filterModes: new Map(defaultProps.filterModes) })
     await nextTick()
 
     // Save should still be disabled (clean)
@@ -274,7 +289,7 @@ describe('PresetSelector', () => {
     // Now change an assignment to make it dirty
     const modifiedAssignments = new Map(defaultProps.assignments)
     modifiedAssignments.set('cfg', 'y')
-    await wrapper.setProps({ assignments: modifiedAssignments })
+    await wrapper.setProps({ assignments: modifiedAssignments, filterModes: new Map(defaultProps.filterModes) })
     await nextTick()
 
     saveBtn = findButton(wrapper, 'Save preset')!
@@ -448,13 +463,18 @@ describe('PresetSelector', () => {
       await newBtn.trigger('click')
       await nextTick()
 
-      // Simulate parent resetting all assignments to 'none' (the New handler in App.vue)
+      // Simulate parent resetting all assignments to 'none' and filter modes to 'single' (the New handler in App.vue)
       const resetAssignments = new Map<string, DimensionRole>([
         ['cfg', 'none'],
         ['prompt', 'none'],
         ['seed', 'none'],
       ])
-      await wrapper.setProps({ assignments: resetAssignments })
+      const resetFilterModes = new Map<string, FilterMode>([
+        ['cfg', 'single'],
+        ['prompt', 'single'],
+        ['seed', 'single'],
+      ])
+      await wrapper.setProps({ assignments: resetAssignments, filterModes: resetFilterModes })
       await nextTick()
 
       // Save is still disabled (snapshot matches current state)
@@ -467,7 +487,12 @@ describe('PresetSelector', () => {
         ['prompt', 'none'],
         ['seed', 'none'],
       ])
-      await wrapper.setProps({ assignments: modifiedAssignments })
+      const modifiedFilterModes = new Map<string, FilterMode>([
+        ['cfg', 'multi'],
+        ['prompt', 'single'],
+        ['seed', 'single'],
+      ])
+      await wrapper.setProps({ assignments: modifiedAssignments, filterModes: modifiedFilterModes })
       await nextTick()
 
       // Save should now be enabled (dirty)
@@ -502,9 +527,14 @@ describe('PresetSelector', () => {
         ['prompt', 'none'],
         ['seed', 'none'],
       ])
-      await wrapper.setProps({ assignments: emptyAssignments })
+      const emptyFilterModes = new Map<string, FilterMode>([
+        ['cfg', 'single'],
+        ['prompt', 'single'],
+        ['seed', 'single'],
+      ])
+      await wrapper.setProps({ assignments: emptyAssignments, filterModes: emptyFilterModes })
       await nextTick()
-      await wrapper.setProps({ assignments: defaultProps.assignments })
+      await wrapper.setProps({ assignments: defaultProps.assignments, filterModes: defaultProps.filterModes })
       await nextTick()
 
       // Save should be enabled (dirty)
@@ -530,8 +560,8 @@ describe('PresetSelector', () => {
       const select = wrapper.findComponent(NSelect)
       select.vm.$emit('update:value', 'p1')
       await nextTick()
-      // Simulate parent applying mapping
-      await wrapper.setProps({ assignments: new Map(defaultProps.assignments) })
+      // Simulate parent applying mapping (assignments + filter modes)
+      await wrapper.setProps({ assignments: new Map(defaultProps.assignments), filterModes: new Map(defaultProps.filterModes) })
       await nextTick()
 
       // Delete the selected preset
@@ -551,12 +581,122 @@ describe('PresetSelector', () => {
       })
       await flushPromises()
 
-      // Auto-load triggers pendingSnapshot; simulate parent applying the preset mapping
-      await wrapper.setProps({ assignments: new Map(defaultProps.assignments) })
+      // Auto-load triggers pendingSnapshot; simulate parent applying the preset mapping and filter modes
+      await wrapper.setProps({ assignments: new Map(defaultProps.assignments), filterModes: new Map(defaultProps.filterModes) })
       await nextTick()
 
       const saveBtn = findButton(wrapper, 'Save preset')!
       expect(saveBtn.props('disabled')).toBe(true)
+    })
+
+    // AC1, AC3: After auto-load, changing a filter mode (single→multi) marks the preset dirty
+    // This is the bug scenario: role stays 'none' but filter mode changes should still trigger dirty
+    it('changing filter mode after auto-load marks preset dirty (shows Update button)', async () => {
+      mockGetPresets.mockResolvedValue(samplePresets)
+      const wrapper = mount(PresetSelector, {
+        props: { ...defaultProps, autoLoadPresetId: 'p1' },
+      })
+      await flushPromises()
+
+      // Auto-load triggers pendingSnapshot; simulate parent applying preset mapping and filter modes
+      await wrapper.setProps({ assignments: new Map(defaultProps.assignments), filterModes: new Map(defaultProps.filterModes) })
+      await nextTick()
+
+      // Verify clean state — Update button should not be visible
+      expect(findButton(wrapper, 'Update preset')).toBeUndefined()
+      const saveBtn = findButton(wrapper, 'Save preset')!
+      expect(saveBtn.props('disabled')).toBe(true)
+
+      // Simulate changing a filter mode: 'seed' from 'single' → 'multi'
+      // (role stays 'none', so assignments map is unchanged — only filterModes changes)
+      const changedFilterModes = new Map(defaultProps.filterModes)
+      changedFilterModes.set('seed', 'multi')
+      await wrapper.setProps({ filterModes: changedFilterModes })
+      await nextTick()
+
+      // AC1: Update button must appear immediately on first change
+      expect(findButton(wrapper, 'Update preset')).toBeDefined()
+      // AC2: Save button also enabled (dirty)
+      expect(saveBtn.props('disabled')).toBe(false)
+    })
+
+    // AC2: Dirty tracking correctly compares all selector values including filter modes
+    it('filter mode change from hide to single marks preset dirty after manual preset load', async () => {
+      mockGetPresets.mockResolvedValue(samplePresets)
+      const wrapper = mount(PresetSelector, { props: defaultProps })
+      await flushPromises()
+
+      // Select a preset manually (triggers pendingSnapshot)
+      const select = wrapper.findComponent(NSelect)
+      select.vm.$emit('update:value', 'p1')
+      await nextTick()
+
+      // Simulate parent applying preset mapping and filter modes
+      await wrapper.setProps({ assignments: new Map(defaultProps.assignments), filterModes: new Map(defaultProps.filterModes) })
+      await nextTick()
+
+      // Clean state
+      expect(findButton(wrapper, 'Update preset')).toBeUndefined()
+
+      // Change filter mode of 'seed' from 'single' to 'hide' — role stays 'none'
+      const changedFilterModes = new Map(defaultProps.filterModes)
+      changedFilterModes.set('seed', 'hide')
+      await wrapper.setProps({ filterModes: changedFilterModes })
+      await nextTick()
+
+      // Should be dirty now — Update button should appear
+      expect(findButton(wrapper, 'Update preset')).toBeDefined()
+    })
+
+    // AC3: Update button appears immediately on first change, not requiring a second interaction
+    it('first filter mode change immediately marks dirty without requiring second interaction', async () => {
+      mockGetPresets.mockResolvedValue(samplePresets)
+      const wrapper = mount(PresetSelector, {
+        props: { ...defaultProps, autoLoadPresetId: 'p1' },
+      })
+      await flushPromises()
+
+      // Apply parent mapping (establishes snapshot)
+      await wrapper.setProps({ assignments: new Map(defaultProps.assignments), filterModes: new Map(defaultProps.filterModes) })
+      await nextTick()
+
+      // Only ONE change — should immediately be dirty
+      const changedFilterModes = new Map(defaultProps.filterModes)
+      changedFilterModes.set('seed', 'multi')
+      await wrapper.setProps({ filterModes: changedFilterModes })
+      await nextTick()
+
+      // Update button should appear after the very first change
+      expect(findButton(wrapper, 'Update preset')).toBeDefined()
+    })
+
+    // AC4: Unit test for reverting filter mode back to snapshot value (no longer dirty)
+    it('reverting filter mode to snapshot value removes dirty state', async () => {
+      mockGetPresets.mockResolvedValue(samplePresets)
+      const wrapper = mount(PresetSelector, {
+        props: { ...defaultProps, autoLoadPresetId: 'p1' },
+      })
+      await flushPromises()
+
+      // Apply parent mapping (establishes snapshot with filterModes from defaultProps)
+      await wrapper.setProps({ assignments: new Map(defaultProps.assignments), filterModes: new Map(defaultProps.filterModes) })
+      await nextTick()
+
+      // Change filter mode to make dirty
+      const changedFilterModes = new Map(defaultProps.filterModes)
+      changedFilterModes.set('seed', 'multi')
+      await wrapper.setProps({ filterModes: changedFilterModes })
+      await nextTick()
+
+      // Dirty — Update button visible
+      expect(findButton(wrapper, 'Update preset')).toBeDefined()
+
+      // Revert filter mode back to original value
+      await wrapper.setProps({ filterModes: new Map(defaultProps.filterModes) })
+      await nextTick()
+
+      // No longer dirty — Update button should hide
+      expect(findButton(wrapper, 'Update preset')).toBeUndefined()
     })
   })
 
@@ -606,13 +746,13 @@ describe('PresetSelector', () => {
       const select = wrapper.findComponent(NSelect)
       select.vm.$emit('update:value', 'p1')
       await nextTick()
-      // Simulate parent applying preset mapping (clean state)
-      await wrapper.setProps({ assignments: new Map(defaultProps.assignments) })
+      // Simulate parent applying preset mapping and filter modes (clean state)
+      await wrapper.setProps({ assignments: new Map(defaultProps.assignments), filterModes: new Map(defaultProps.filterModes) })
       await nextTick()
       // Now change an assignment to make dirty
       const modifiedAssignments = new Map(defaultProps.assignments)
       modifiedAssignments.set('cfg', 'y')
-      await wrapper.setProps({ assignments: modifiedAssignments })
+      await wrapper.setProps({ assignments: modifiedAssignments, filterModes: new Map(defaultProps.filterModes) })
       await nextTick()
     }
 
@@ -646,8 +786,8 @@ describe('PresetSelector', () => {
       const select = wrapper.findComponent(NSelect)
       select.vm.$emit('update:value', 'p1')
       await nextTick()
-      // Simulate parent applying preset mapping (clean state)
-      await wrapper.setProps({ assignments: new Map(defaultProps.assignments) })
+      // Simulate parent applying preset mapping and filter modes (clean state)
+      await wrapper.setProps({ assignments: new Map(defaultProps.assignments), filterModes: new Map(defaultProps.filterModes) })
       await nextTick()
 
       // Clean state: Update button should not be visible

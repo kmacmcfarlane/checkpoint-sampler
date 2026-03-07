@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-047: Update button missing after changing selector type on preset load
+- Extended preset dirty tracking to compare filter modes (Single/Multi/Hide) alongside axis role assignments, fixing invisible changes when switching filter modes after auto-load
+
 ### S-089: Unified dimension selector (X/Y/Slider, Single, Multi, Hide)
 - Replaced two-dropdown pattern (role assignment + filter mode) with a single unified dropdown per dimension row in the mapping editor
 - Mutual exclusion: axis options (X/Y/Slider) held by one dimension are hidden from other dimensions' dropdowns

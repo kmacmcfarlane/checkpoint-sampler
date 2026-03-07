@@ -771,6 +771,7 @@ const TERMINAL_STATUSES: Set<SampleJobStatus> = new Set(['completed', 'completed
           <div class="drawer-section">
             <PresetSelector
               :assignments="assignments"
+              :filter-modes="filterModes"
               :dimension-names="dimensionNames"
               :auto-load-preset-id="shouldAutoLoadPreset ? savedData?.presetId ?? null : null"
               @load="onPresetLoad"

@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import { NSelect, NButton } from 'naive-ui'
-import type { Preset, PresetMapping, DimensionRole } from '../api/types'
+import type { Preset, PresetMapping, DimensionRole, FilterMode } from '../api/types'
 import { apiClient } from '../api/client'
 
 const props = defineProps<{
   /** Current dimension assignments as a Map of dimension name to role. */
   assignments: Map<string, DimensionRole>
+  /** Current filter modes as a Map of dimension name to filter mode. */
+  filterModes: Map<string, FilterMode>
   /** Names of all currently discovered dimensions. */
   dimensionNames: string[]
   /** Auto-load this preset ID if provided (used for restoring from localStorage). */
@@ -39,6 +41,16 @@ const attemptedAutoLoad = ref(false)
  */
 const assignmentSnapshot = ref<Map<string, DimensionRole> | null>(null)
 
+/**
+ * Snapshot of filter modes at the time a preset was loaded or saved.
+ * Tracks changes to single/multi/hide filter modes separately from axis role assignments,
+ * because filter mode changes (e.g. single→multi) do not alter the role in `assignments`
+ * (the role stays 'none' in both cases). Without this snapshot, switching between
+ * single/multi/hide would not be detected as a dirty change.
+ * A null snapshot means no baseline has been established (initial state).
+ */
+const filterModeSnapshot = ref<Map<string, FilterMode> | null>(null)
+
 const selectOptions = computed(() =>
   presets.value.map((p) => ({
     label: p.name,
@@ -47,41 +59,48 @@ const selectOptions = computed(() =>
 )
 
 /**
- * Serialize assignments Map to a comparable string for dirty tracking.
+ * Serialize a string-keyed Map to a comparable string for dirty tracking.
  * Sorts entries by key to ensure deterministic comparison.
  */
-function serializeAssignments(map: Map<string, DimensionRole>): string {
+function serializeMap<V>(map: Map<string, V>): string {
   const entries = Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]))
   return JSON.stringify(entries)
 }
 
 /**
- * Whether the user has modified assignments since the last load, save, or new action.
- * True when the current assignments differ from the snapshot.
+ * Whether the user has modified assignments or filter modes since the last load, save, or new action.
+ * True when the current assignments or filter modes differ from their respective snapshots.
+ * Both must be non-null (a baseline must have been established) for dirty to be true.
  */
 const isDirty = computed(() => {
-  if (assignmentSnapshot.value === null) return false
-  return serializeAssignments(props.assignments) !== serializeAssignments(assignmentSnapshot.value)
+  if (assignmentSnapshot.value === null || filterModeSnapshot.value === null) return false
+  if (serializeMap(props.assignments) !== serializeMap(assignmentSnapshot.value)) return true
+  if (serializeMap(props.filterModes) !== serializeMap(filterModeSnapshot.value)) return true
+  return false
 })
 
 /**
- * Take a snapshot of the current assignments for dirty tracking.
+ * Take a snapshot of the current assignments and filter modes for dirty tracking.
  * Called after load, save, and new actions to establish a clean baseline.
  */
 function snapshotAssignments() {
   assignmentSnapshot.value = new Map(props.assignments)
+  filterModeSnapshot.value = new Map(props.filterModes)
 }
 
 /**
- * Watch for assignment changes propagated by the parent after a load event.
- * When a preset is loaded, the parent applies the mapping and the assignments prop
- * updates asynchronously. We need to re-snapshot once the parent has finished applying.
+ * Watch for assignment and filter mode changes propagated by the parent after a load event.
+ * When a preset is loaded, the parent applies the mapping and the assignments / filterModes
+ * props update asynchronously. We need to re-snapshot once the parent has finished applying.
  * The pendingSnapshot flag coordinates this one-time update.
+ *
+ * Both assignments and filterModes are watched together so that the snapshot is taken after
+ * all reactive updates settle (Vue batches the two watchers into one flush).
  */
 const pendingSnapshot = ref(false)
 
 watch(
-  () => props.assignments,
+  () => [props.assignments, props.filterModes],
   () => {
     if (pendingSnapshot.value) {
       pendingSnapshot.value = false
@@ -154,8 +173,9 @@ function onSelect(value: string | null) {
 function onNew() {
   selectedId.value = null
   assignmentSnapshot.value = null
+  filterModeSnapshot.value = null
   emit('new')
-  // After the parent resets assignments, we snapshot the clean state on next tick.
+  // After the parent resets assignments and filter modes, we snapshot the clean state on next tick.
   // Use pendingSnapshot so the watcher captures the reset.
   pendingSnapshot.value = true
 }
@@ -244,6 +264,7 @@ async function onDelete(id: string) {
     if (selectedId.value === id) {
       selectedId.value = null
       assignmentSnapshot.value = null
+      filterModeSnapshot.value = null
     }
     emit('delete', id)
   } catch (err: unknown) {

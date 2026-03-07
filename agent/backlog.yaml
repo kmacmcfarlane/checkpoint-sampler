@@ -188,7 +188,7 @@ stories:
   - id: B-047
     title: Update button missing after changing selector type on preset load
     type: bug
-    status: todo
+    status: uat
     priority: 50
     complexity: low
     requires:
