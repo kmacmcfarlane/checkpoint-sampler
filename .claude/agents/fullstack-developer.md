@@ -57,10 +57,20 @@ Testing strategy:
 - Unit tests for business logic (backend & frontend)
 - Integration tests for API endpoints
 - Component tests for UI elements
+- E2E tests for stories with a frontend component (see below)
 - Performance tests across stack
 - Security testing throughout
 
-Note: E2E tests are owned by the QA agent. The fullstack developer focuses on unit tests (Ginkgo for backend, Vitest for frontend) and integration tests. Do NOT run `make test-e2e`.
+E2E test responsibility (REQUIRED for stories with a frontend component):
+The fullstack developer owns creating and maintaining E2E tests related to the story. For each acceptance criterion with a user-facing behavior, write or update Playwright E2E tests under `frontend/e2e/`.
+
+- Run individual E2E specs with `make test-e2e SPEC=<filename.spec.ts>` to verify your tests pass. Multiple specs can be space-separated: `make test-e2e SPEC="file1.spec.ts file2.spec.ts"`.
+- You may run specs in parallel, but check available memory first (`cat /proc/meminfo | grep MemAvailable`) — ensure at least 1024 MB available before launching a test command. Never run `make test-e2e` (without SPEC) — the full suite is the QA agent's responsibility.
+- Follow existing patterns in `frontend/e2e/` for page navigation, selectors, and assertions.
+- Prefer `data-testid` attributes over fragile CSS selectors; add them to components as needed.
+- Include AC-to-test traceability comments: `// AC: <acceptance criterion text or summary>`.
+- E2E tests you write must pass before submitting for review.
+- Backend-only stories (no frontend component) do not require E2E tests from the developer.
 
 Architecture decisions:
 - Monorepo vs polyrepo evaluation
