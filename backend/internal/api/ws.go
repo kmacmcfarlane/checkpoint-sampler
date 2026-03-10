@@ -90,6 +90,11 @@ func (c *streamClient) writePump() {
 			resp.PromptID = &d.PromptID
 			resp.CurrentValue = &d.CurrentValue
 			resp.MaxValue = &d.MaxValue
+			// Include per-sample ETA in inference progress events so the frontend
+			// can display live sample ETA based on step completion rate.
+			if d.SampleETASeconds > 0 {
+				resp.SampleEtaSeconds = &d.SampleETASeconds
+			}
 		}
 
 		// Include job progress data when present

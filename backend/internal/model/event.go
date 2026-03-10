@@ -55,6 +55,10 @@ type InferenceProgressEventData struct {
 	PromptID     string
 	CurrentValue int
 	MaxValue     int
+	// SampleETASeconds is the estimated time in seconds for the current sample
+	// to complete, computed from elapsed time and step-based progress.
+	// Zero means no estimate is available yet (e.g. first step or no start time).
+	SampleETASeconds float64
 }
 
 // CheckpointCompletenessInfo holds the result of verifying that expected images

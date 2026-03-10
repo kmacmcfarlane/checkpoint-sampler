@@ -26,8 +26,8 @@ Older entries are condensed to titles only — see git history for full details.
 - Refresh icon buttons added to Sample Set selector (sidebar) and Training Run selector (Generate Samples dialog) for manual list reload
 
 ### S-098: ETA per sample and per job (moving average)
-- Moving-average ETA (10-sample window) for current sample and overall job, broadcast via WebSocket `job_progress` events
-- JobProgressPanel displays sample ETA and job ETA with human-readable duration formatting (seconds/minutes/hours)
+- Per-sample ETA computed from step-based inference progress (elapsed × remaining/completed steps), broadcast via `inference_progress` WebSocket events for live updates during generation
+- Job-level ETA uses moving-average (10-sample window) of completed sample durations; both ETAs displayed in JobProgressPanel with human-readable formatting
 
 ### S-097: Delete jobs with option to keep or delete sample data
 - Delete button on job cards opens a ConfirmDeleteDialog with "Also delete sample data" checkbox (default unchecked)

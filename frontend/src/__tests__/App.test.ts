@@ -1503,6 +1503,70 @@ describe('App', () => {
         'job-flip': { current_value: 8, max_value: 8 },
       })
     })
+
+    // AC: FE: ETA updates as each sample completes and the average adjusts
+    // AC: Per-sample ETA is updated in jobProgress from inference_progress events
+    it('updates jobProgress.sample_eta_seconds when inference_progress includes sample_eta_seconds', async () => {
+      const { wrapper, ws } = await mountWithFlipJob()
+
+      // Deliver an inference_progress event with sample_eta_seconds
+      ws.onmessage?.(new MessageEvent('message', {
+        data: JSON.stringify({
+          type: 'inference_progress',
+          prompt_id: 'p1',
+          current_value: 5,
+          max_value: 20,
+          sample_eta_seconds: 30.5,
+        }),
+      }))
+      await flushPromises()
+
+      const panel = wrapper.findComponent({ name: 'JobProgressPanel' })
+      const jobProgress = panel.props('jobProgress') as Record<string, { sample_eta_seconds?: number }>
+      // The running job's progress should now have sample_eta_seconds updated
+      expect(jobProgress['job-flip']).toBeDefined()
+      expect(jobProgress['job-flip'].sample_eta_seconds).toBeCloseTo(30.5)
+    })
+
+    // AC: FE: No sample ETA update when inference_progress has no sample_eta_seconds
+    it('does not update jobProgress.sample_eta_seconds when inference_progress has no sample_eta_seconds', async () => {
+      const { wrapper, ws } = await mountWithFlipJob()
+
+      // First set up jobProgress via a job_progress event
+      ws.onmessage?.(new MessageEvent('message', {
+        data: JSON.stringify({
+          type: 'job_progress',
+          job_id: 'job-flip',
+          status: 'running',
+          total_items: 8,
+          completed_items: 0,
+          failed_items: 0,
+          pending_items: 8,
+          checkpoints_completed: 0,
+          total_checkpoints: 8,
+          sample_eta_seconds: 45.0,
+        }),
+      }))
+      await flushPromises()
+
+      // Deliver inference_progress event WITHOUT sample_eta_seconds
+      ws.onmessage?.(new MessageEvent('message', {
+        data: JSON.stringify({
+          type: 'inference_progress',
+          prompt_id: 'p1',
+          current_value: 3,
+          max_value: 20,
+          // no sample_eta_seconds
+        }),
+      }))
+      await flushPromises()
+
+      // jobProgress.sample_eta_seconds should be unchanged from the job_progress event
+      const panel = wrapper.findComponent({ name: 'JobProgressPanel' })
+      const jobProgress = panel.props('jobProgress') as Record<string, { sample_eta_seconds?: number }>
+      // sample_eta_seconds from the prior job_progress event should remain
+      expect(jobProgress['job-flip']?.sample_eta_seconds).toBe(45.0)
+    })
   })
 
   // AC2: debugInfo must be updated on grid navigation and slider change inside the lightbox

@@ -283,6 +283,15 @@ function handleInferenceProgress(message: InferenceProgressMessage) {
         max_value: message.max_value,
       }
     }
+    // AC: Update per-sample ETA in jobProgress from inference_progress events.
+    // This gives live ETA updates during sample generation, based on step completion rate.
+    if (message.sample_eta_seconds !== undefined && message.sample_eta_seconds > 0) {
+      const existing = jobProgress[runningJob.id]
+      jobProgress[runningJob.id] = {
+        ...(existing ?? { checkpoints_completed: 0, total_checkpoints: 0 }),
+        sample_eta_seconds: message.sample_eta_seconds,
+      }
+    }
   }
 }
 

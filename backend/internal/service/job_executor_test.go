@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"time"
 
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/fileformat"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
@@ -1594,6 +1595,87 @@ var _ = Describe("JobExecutor", func() {
 
 			// Should not be broadcast (missing max)
 			Expect(mockHub.events).To(BeEmpty())
+		})
+
+		// AC: BE: Inference progress events include sample ETA based on elapsed time and step progress
+		It("includes sample_eta_seconds in inference progress events when sampleStartTime is set", func() {
+			// Set a fake start time 10 seconds in the past
+			fakeStart := time.Now().Add(-10 * time.Second)
+			executor.mu.Lock()
+			executor.sampleStartTime = fakeStart
+			executor.mu.Unlock()
+
+			// value=10, max=20 means 10 steps done, 10 remaining
+			// elapsed ~10s, so ETA = elapsed * (remaining/done) = 10 * (10/10) = ~10s
+			event := model.ComfyUIEvent{
+				Type: "progress",
+				Data: map[string]interface{}{
+					"prompt_id": "test-prompt-id",
+					"value":     float64(10),
+					"max":       float64(20),
+				},
+			}
+
+			executor.handleComfyUIEvent(event)
+
+			Expect(mockHub.events).To(HaveLen(1))
+			data := mockHub.events[0].InferenceProgressData
+			Expect(data).NotTo(BeNil())
+			Expect(data.CurrentValue).To(Equal(10))
+			Expect(data.MaxValue).To(Equal(20))
+			// ETA should be approximately 10s (elapsed * remaining/done)
+			// Allow ±2s for timing jitter in tests
+			Expect(data.SampleETASeconds).To(BeNumerically(">", 8.0))
+			Expect(data.SampleETASeconds).To(BeNumerically("<", 15.0))
+		})
+
+		// AC: BE: Inference progress events have zero sample ETA when no sampleStartTime is set
+		It("has zero sample_eta_seconds in inference progress events when no sampleStartTime is set", func() {
+			// Ensure sampleStartTime is zero (default state)
+			executor.mu.Lock()
+			executor.sampleStartTime = time.Time{}
+			executor.mu.Unlock()
+
+			event := model.ComfyUIEvent{
+				Type: "progress",
+				Data: map[string]interface{}{
+					"prompt_id": "test-prompt-id",
+					"value":     float64(5),
+					"max":       float64(20),
+				},
+			}
+
+			executor.handleComfyUIEvent(event)
+
+			Expect(mockHub.events).To(HaveLen(1))
+			data := mockHub.events[0].InferenceProgressData
+			Expect(data).NotTo(BeNil())
+			Expect(data.SampleETASeconds).To(Equal(0.0))
+		})
+
+		// AC: BE: Inference progress events have zero sample ETA when value is 0 (first step)
+		It("has zero sample_eta_seconds when value is 0 (first step, no elapsed data yet)", func() {
+			fakeStart := time.Now().Add(-1 * time.Second)
+			executor.mu.Lock()
+			executor.sampleStartTime = fakeStart
+			executor.mu.Unlock()
+
+			event := model.ComfyUIEvent{
+				Type: "progress",
+				Data: map[string]interface{}{
+					"prompt_id": "test-prompt-id",
+					"value":     float64(0),
+					"max":       float64(20),
+				},
+			}
+
+			executor.handleComfyUIEvent(event)
+
+			Expect(mockHub.events).To(HaveLen(1))
+			data := mockHub.events[0].InferenceProgressData
+			Expect(data).NotTo(BeNil())
+			// value=0 means division by zero risk; implementation returns 0 ETA
+			Expect(data.SampleETASeconds).To(Equal(0.0))
 		})
 	})
 

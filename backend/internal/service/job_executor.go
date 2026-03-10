@@ -646,22 +646,34 @@ func (e *JobExecutor) handleComfyUIEvent(event model.ComfyUIEvent) {
 		max, maxOK := toInt(data["max"])
 
 		if valueOK && maxOK {
+			// Compute per-sample ETA from step-based progress while the lock is held.
+			// ETA = elapsed * (remaining_steps / completed_steps)
+			startTime := e.sampleStartTime
 			e.mu.Unlock()
+
+			var sampleETASeconds float64
+			if !startTime.IsZero() && value > 0 && max > value {
+				elapsed := e.timeNow().Sub(startTime)
+				remaining := elapsed * time.Duration(max-value) / time.Duration(value)
+				sampleETASeconds = remaining.Seconds()
+			}
 
 			progressEvent := model.FSEvent{
 				Type: model.EventInferenceProgress,
 				Path: fmt.Sprintf("inference_progress/%s", promptID),
 				InferenceProgressData: &model.InferenceProgressEventData{
-					PromptID:     promptID,
-					CurrentValue: value,
-					MaxValue:     max,
+					PromptID:         promptID,
+					CurrentValue:     value,
+					MaxValue:         max,
+					SampleETASeconds: sampleETASeconds,
 				},
 			}
 			e.hub.Broadcast(progressEvent)
 			e.logger.WithFields(logrus.Fields{
-				"prompt_id": promptID,
-				"value":     value,
-				"max":       max,
+				"prompt_id":          promptID,
+				"value":              value,
+				"max":                max,
+				"sample_eta_seconds": sampleETASeconds,
 			}).Trace("forwarded inference progress event")
 			return
 		}

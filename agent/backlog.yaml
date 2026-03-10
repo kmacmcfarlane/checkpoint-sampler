@@ -57,7 +57,7 @@ stories:
   - id: S-098
     title: ETA per sample and per job (moving average)
     type: feature
-    status: uat_feedback
+    status: uat
     priority: 25
     complexity: medium
     requires: []
@@ -79,8 +79,6 @@ stories:
       - "Test ETA accuracy improves after several samples (moving average stabilizes)"
       - "Test ETA display with varying sample generation times"
       - "Test edge case: first sample has no prior average to work with"
-    review_feedback: Job-level ETA displays correctly, but there is no ETA per individual sample generation as specified
-      in the acceptance criteria.
   - id: S-101
     title: Study editor validation field highlighting
     type: feature
@@ -917,3 +915,21 @@ stories:
     testing:
       - "Test with complete sample set (no regenerate needed), incomplete, and failed"
       - "Verify pre-filled params match the job's training run, study, and generation settings"
+  - id: B-080
+    title: "Job executor race condition: sql no rows during concurrent cancel/completion"
+    type: bug
+    priority: 60
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "Job executor gracefully handles cancellation during item processing without logging errors"
+      - "No 'sql: no rows in result set' errors appear in logs when a running job is cancelled"
+    testing:
+      - "command: make test-e2e"
+    notes: |
+      When a job is cancelled (e.g., during E2E test afterEach cleanup) while the executor
+      is still processing items, the executor attempts to update/query job rows that have
+      already been removed or marked as cancelled. The executor does not check for cancellation
+      before each DB write. Error log: "failed to update item status to completed" with
+      "sql: no rows in result set" (3 occurrences during E2E runs).

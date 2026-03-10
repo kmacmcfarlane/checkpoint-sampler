@@ -330,6 +330,8 @@ export interface InferenceProgressMessage {
   prompt_id: string
   current_value: number
   max_value: number
+  /** Estimated seconds remaining for the current sample, computed from step-based progress. */
+  sample_eta_seconds?: number
 }
 
 /** WebSocket job progress event. */
