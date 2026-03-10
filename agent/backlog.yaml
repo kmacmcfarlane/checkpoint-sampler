@@ -191,7 +191,7 @@ stories:
   - id: B-068
     title: "Lightbox slider not synced with master slider on shift+arrow navigation"
     priority: 60
-    status: todo
+    status: uat
     complexity: medium
     requires: []
     acceptance:
@@ -982,3 +982,20 @@ stories:
       - "command: make test-e2e SPEC=sample-count-preview.spec.ts"
     notes: |-
       Duplicate of B-082. The fix (using pre-seeded fixture study instead of dynamically-created studies) was already applied to sample-count-preview.spec.ts as part of B-082. All 7 tests in the spec pass reliably.
+  - id: B-084
+    title: "SQL error 'no such column: negative_prompt' during sample job execution"
+    priority: 60
+    status: todo
+    complexity: medium
+    requires: []
+    acceptance:
+      - "Sample job execution completes without SQL errors when generating samples"
+      - "The sample_job_items table schema matches all column references in store SQL statements"
+    testing:
+      - "command: make test-e2e SPEC=validation-after-generation.spec.ts"
+    notes: |
+      QA sweep finding from B-068. The store layer references a `negative_prompt` column in
+      a SQL UPDATE statement for the `sample_job_items` table, but the database schema does
+      not include this column. Likely a schema migration was missed or the store code references
+      a column that was renamed or removed.
+      Log evidence: level=error msg="failed to update sample job item in database" component=store error="SQL logic error: no such column: negative_prompt (1)"

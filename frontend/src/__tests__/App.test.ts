@@ -1869,4 +1869,129 @@ describe('App', () => {
       expect(lightbox.props('debugInfo')).toBeUndefined()
     })
   })
+
+  // AC4 (B-068): Unit tests for bidirectional slider sync between lightbox and master
+  describe('lightbox slider bidirectional sync (B-068)', () => {
+    async function mountWithRun() {
+      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      await flushPromises()
+      const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
+      selector.vm.$emit('select', mockTrainingRun)
+      await flushPromises()
+      return wrapper
+    }
+
+    /** Open the lightbox with a two-value slider. */
+    async function openLightboxWithSlider(wrapper: ReturnType<typeof mount>) {
+      const xyGrid = wrapper.findComponent({ name: 'XYGrid' })
+      const navItem0 = {
+        imageUrl: '/api/images/cell0-val-a.png',
+        cellKey: 'x0|y0',
+        sliderValues: ['val-a', 'val-b'],
+        currentSliderValue: 'val-a',
+        imagesBySliderValue: {
+          'val-a': '/api/images/cell0-val-a.png',
+          'val-b': '/api/images/cell0-val-b.png',
+        },
+      }
+      const navItem1 = {
+        imageUrl: '/api/images/cell1-val-a.png',
+        cellKey: 'x1|y0',
+        sliderValues: ['val-a', 'val-b'],
+        currentSliderValue: 'val-a',
+        imagesBySliderValue: {
+          'val-a': '/api/images/cell1-val-a.png',
+          'val-b': '/api/images/cell1-val-b.png',
+        },
+      }
+      xyGrid.vm.$emit('image:click', {
+        ...navItem0,
+        gridImages: [navItem0, navItem1],
+        gridIndex: 0,
+        gridColumnCount: 2,
+      })
+      await flushPromises()
+    }
+
+    // AC1 (B-068): Changing the slider in the lightbox updates the master slider state
+    // (verified via the lightbox's currentSliderValue prop which mirrors defaultSliderValue)
+    it('AC1: lightbox slider-change propagates to the master state (currentSliderValue)', async () => {
+      const wrapper = await mountWithRun()
+      await openLightboxWithSlider(wrapper)
+
+      const lightbox = wrapper.findComponent({ name: 'ImageLightbox' })
+      expect(lightbox.exists()).toBe(true)
+      // Confirm starting value
+      expect(lightbox.props('currentSliderValue')).toBe('val-a')
+
+      // Simulate the lightbox emitting a slider change
+      lightbox.vm.$emit('slider-change', 'x0|y0', 'val-b')
+      await flushPromises()
+
+      // The lightbox's currentSliderValue is fed from defaultSliderValue (i.e. master state).
+      // After the lightbox slider-change, the master state is updated to 'val-b'.
+      expect(lightbox.props('currentSliderValue')).toBe('val-b')
+    })
+
+    // AC1 (B-068): Lightbox image URL updates to match the new slider value
+    it('AC1: lightbox imageUrl updates when slider-change is emitted', async () => {
+      const wrapper = await mountWithRun()
+      await openLightboxWithSlider(wrapper)
+
+      const lightbox = wrapper.findComponent({ name: 'ImageLightbox' })
+      expect(lightbox.props('imageUrl')).toBe('/api/images/cell0-val-a.png')
+
+      lightbox.vm.$emit('slider-change', 'x0|y0', 'val-b')
+      await flushPromises()
+
+      // The lightbox imageUrl should now point to the val-b image for cell0
+      expect(lightbox.props('imageUrl')).toBe('/api/images/cell0-val-b.png')
+    })
+
+    // AC2, AC3 (B-068): Shift+Arrow navigation uses the live master slider value
+    it('AC2/AC3: navigate uses the live master slider value, not the stale snapshot', async () => {
+      const wrapper = await mountWithRun()
+      await openLightboxWithSlider(wrapper)
+
+      const lightbox = wrapper.findComponent({ name: 'ImageLightbox' })
+
+      // First change the master slider to 'val-b' via the lightbox
+      lightbox.vm.$emit('slider-change', 'x0|y0', 'val-b')
+      await flushPromises()
+
+      // Now navigate to the second grid image (index 1)
+      // The snapshot had currentSliderValue: 'val-a', but the live master is 'val-b'
+      lightbox.vm.$emit('navigate', 1)
+      await flushPromises()
+
+      // The lightbox should show the val-b image for cell1 (using live value, not stale snapshot)
+      expect(lightbox.props('imageUrl')).toBe('/api/images/cell1-val-b.png')
+      expect(lightbox.props('currentSliderValue')).toBe('val-b')
+    })
+
+    // AC3 (B-068): No images show different slider values after shift+arrow navigation.
+    // Navigating forward then back must preserve the current master slider value.
+    it('AC3: back-navigation keeps the slider value consistent with the master', async () => {
+      const wrapper = await mountWithRun()
+      await openLightboxWithSlider(wrapper)
+
+      const lightbox = wrapper.findComponent({ name: 'ImageLightbox' })
+
+      // Change slider to val-b via lightbox
+      lightbox.vm.$emit('slider-change', 'x0|y0', 'val-b')
+      await flushPromises()
+      expect(lightbox.props('currentSliderValue')).toBe('val-b')
+
+      // Navigate to the second cell
+      lightbox.vm.$emit('navigate', 1)
+      await flushPromises()
+      expect(lightbox.props('currentSliderValue')).toBe('val-b')
+
+      // Navigate back to the first cell — should still show val-b, not the stale val-a
+      lightbox.vm.$emit('navigate', 0)
+      await flushPromises()
+      expect(lightbox.props('currentSliderValue')).toBe('val-b')
+      expect(lightbox.props('imageUrl')).toBe('/api/images/cell0-val-b.png')
+    })
+  })
 })

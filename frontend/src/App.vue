@@ -144,10 +144,11 @@ function onLightboxClose() {
   lightboxContext.value = null
 }
 
-function onLightboxSliderChange(cellKey: string, value: string) {
-  // Update the per-cell slider override
-  onSliderValueUpdate(cellKey, value)
-  // Also update the lightbox image URL
+function onLightboxSliderChange(_cellKey: string, value: string) {
+  // Propagate lightbox slider changes to the master slider (and clear per-cell overrides)
+  // so all cells and the master slider stay in sync (AC1, AC2 — B-068).
+  onMasterSliderChange(value)
+  // Also update the lightbox image URL to reflect the new slider value
   if (lightboxContext.value) {
     const newUrl = lightboxContext.value.imagesBySliderValue[value]
     if (newUrl) {
@@ -170,13 +171,17 @@ function onLightboxNavigate(index: number) {
   if (!gridImages || gridImages.length === 0) return
   const clampedIndex = Math.max(0, Math.min(index, gridImages.length - 1))
   const item: GridNavItem = gridImages[clampedIndex]
-  lightboxImageUrl.value = item.imageUrl
+  // Use the live master slider value instead of the stale snapshot value so all sliders
+  // stay in sync after Shift+Arrow navigation (AC2, AC3 — B-068).
+  const liveSliderValue = defaultSliderValue.value || item.currentSliderValue
+  const liveImageUrl = item.imagesBySliderValue[liveSliderValue] ?? item.imageUrl
+  lightboxImageUrl.value = liveImageUrl
   lightboxContext.value = {
     ...lightboxContext.value,
-    imageUrl: item.imageUrl,
+    imageUrl: liveImageUrl,
     cellKey: item.cellKey ?? lightboxContext.value.cellKey,
     sliderValues: item.sliderValues,
-    currentSliderValue: item.currentSliderValue,
+    currentSliderValue: liveSliderValue,
     imagesBySliderValue: item.imagesBySliderValue,
     gridIndex: clampedIndex,
     debugInfo: item.debugInfo,
