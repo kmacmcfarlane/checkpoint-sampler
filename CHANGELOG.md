@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-079: Checkpoint validation status missing after generation (persists across refresh)
+- Validate endpoint now uses checkpoint discovery (same source as frontend) when `study_id` is provided, fixing ID mismatch that caused not_found before generation and double-nested path after generation
+- Legacy validation (no study context) continues to use viewer discovery for backward compatibility
+
 ### B-067: Inference progress bar missing on first sample generation
 - Initialize `jobProgress` placeholder when `inference_progress` WebSocket events arrive before `job_progress`, fixing invisible progress bar on the first sample of a job
 

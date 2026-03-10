@@ -57,8 +57,10 @@ test.describe('B-078: validation count scoping', () => {
     // 1 prompt × 1 step × 1 cfg × 1 pair × 1 seed = 1 image per checkpoint
     expect(study.images_per_checkpoint).toBe(1)
 
-    // Get the "my-model" training run (discovered from legacy sample dirs)
-    const runsResp = await request.get('/api/training-runs')
+    // Get the "my-model" training run using checkpoint source (same source the frontend
+    // uses for the Generate Samples dialog). B-079: validate with study_id uses
+    // checkpoint discovery, so the ID must come from the same source.
+    const runsResp = await request.get('/api/training-runs?source=checkpoints')
     expect(runsResp.ok()).toBeTruthy()
     const runs = await runsResp.json()
     const myModel = runs.find((r: { name: string }) => r.name === 'my-model')
@@ -119,11 +121,13 @@ test.describe('B-078: validation count scoping', () => {
     expect(studyResp.ok()).toBeTruthy()
     const study = await studyResp.json()
 
-    // Get the "my-model" training run
-    const runsResp = await request.get('/api/training-runs')
-    expect(runsResp.ok()).toBeTruthy()
-    const runs = await runsResp.json()
-    const myModel = runs.find((r: { name: string }) => r.name === 'my-model')
+    // Get the "my-model" training run using checkpoint source (same source the frontend
+    // uses for the Generate Samples dialog). B-079: validate with study_id uses
+    // checkpoint discovery, so the ID must come from the same source.
+    const cpRunsResp = await request.get('/api/training-runs?source=checkpoints')
+    expect(cpRunsResp.ok()).toBeTruthy()
+    const cpRuns = await cpRunsResp.json()
+    const myModel = cpRuns.find((r: { name: string }) => r.name === 'my-model')
     expect(myModel).toBeDefined()
 
     // Validate "my-model" with study_id
@@ -139,8 +143,11 @@ test.describe('B-078: validation count scoping', () => {
     expect(result.total_actual).toBe(0)
     expect(result.total_verified).toBe(0)
 
-    // Confirm demo run exists separately (installed correctly)
-    const demoRun = runs.find((r: { name: string }) => r.name === 'demo-model/demo-study/demo-model')
+    // Confirm demo run exists separately via viewer discovery (installed correctly)
+    const viewerRunsResp = await request.get('/api/training-runs')
+    expect(viewerRunsResp.ok()).toBeTruthy()
+    const viewerRuns = await viewerRunsResp.json()
+    const demoRun = viewerRuns.find((r: { name: string }) => r.name === 'demo-model/demo-study/demo-model')
     expect(demoRun).toBeDefined()
   })
 
@@ -195,8 +202,9 @@ test.describe('B-078: validation count scoping', () => {
     // Study B: 3 prompts × 1 step × 1 cfg × 1 pair × 2 seeds = 6 images per cp
     expect(studyB.images_per_checkpoint).toBe(6)
 
-    // Get my-model training run
-    const runsResp = await request.get('/api/training-runs')
+    // Get my-model training run using checkpoint source (same source the frontend uses).
+    // B-079: validate with study_id uses checkpoint discovery for correct path scoping.
+    const runsResp = await request.get('/api/training-runs?source=checkpoints')
     expect(runsResp.ok()).toBeTruthy()
     const runs = await runsResp.json()
     const myModel = runs.find((r: { name: string }) => r.name === 'my-model')

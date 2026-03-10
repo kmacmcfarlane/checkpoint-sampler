@@ -155,21 +155,31 @@ test.describe('B-049: sample path scoping', () => {
     // 3 prompts × 1 step × 1 cfg × 1 pair × 1 seed = 3 images per checkpoint
     expect(study.images_per_checkpoint).toBe(3)
 
-    // Get "my-model" training run (viewer-discovered)
-    const runsResp = await request.get('/api/training-runs')
-    expect(runsResp.ok()).toBeTruthy()
-    const runs = await runsResp.json()
-    const myModel = runs.find((r: { name: string }) => r.name === 'my-model')
+    // Get "my-model" training run using checkpoint source (same source the frontend uses
+    // for the Generate Samples dialog). B-079: validate with study_id now uses checkpoint
+    // discovery, so the ID must come from the same source.
+    const cpRunsResp = await request.get('/api/training-runs?source=checkpoints')
+    expect(cpRunsResp.ok()).toBeTruthy()
+    const cpRuns = await cpRunsResp.json()
+    const myModel = cpRuns.find((r: { name: string }) => r.name === 'my-model')
     expect(myModel).toBeDefined()
 
-    // Call validate WITHOUT study_id (legacy heuristic mode)
-    const legacyResp = await request.post(`/api/training-runs/${myModel.id}/validate`)
+    // For legacy validate (no study_id), use the viewer-discovered ID — the legacy path
+    // still uses viewer discovery.
+    const viewerRunsResp = await request.get('/api/training-runs')
+    expect(viewerRunsResp.ok()).toBeTruthy()
+    const viewerRuns = await viewerRunsResp.json()
+    const viewerModel = viewerRuns.find((r: { name: string }) => r.name === 'my-model')
+    expect(viewerModel).toBeDefined()
+
+    // Call validate WITHOUT study_id (legacy heuristic mode uses viewer discovery)
+    const legacyResp = await request.post(`/api/training-runs/${viewerModel.id}/validate`)
     expect(legacyResp.ok()).toBeTruthy()
     const legacyResult = await legacyResp.json()
     // Legacy mode uses max-file-count heuristic = 2 (each checkpoint has 2 PNGs)
     expect(legacyResult.expected_per_checkpoint).toBe(2)
 
-    // Call validate WITH study_id (study-aware mode)
+    // Call validate WITH study_id (study-aware mode uses checkpoint discovery)
     const studyResp2 = await request.post(
       `/api/training-runs/${myModel.id}/validate?study_id=${study.id}`,
     )
@@ -214,8 +224,9 @@ test.describe('B-049: sample path scoping', () => {
     expect(studyResp.ok()).toBeTruthy()
     const study = await studyResp.json()
 
-    // Get my-model training run
-    const runsResp = await request.get('/api/training-runs')
+    // Get my-model training run using checkpoint source (same source the frontend uses).
+    // B-079: validate with study_id uses checkpoint discovery for correct path scoping.
+    const runsResp = await request.get('/api/training-runs?source=checkpoints')
     expect(runsResp.ok()).toBeTruthy()
     const runs = await runsResp.json()
     const myModel = runs.find((r: { name: string }) => r.name === 'my-model')

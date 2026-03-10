@@ -12,6 +12,7 @@ import (
 
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api"
 	gentrainingruns "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/training_runs"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
 )
 
@@ -88,6 +89,27 @@ func (f *fakeCheckpointDiscoveryFS) ListSafetensorsFiles(root string) ([]string,
 
 func (f *fakeCheckpointDiscoveryFS) DirectoryExists(path string) bool {
 	return f.dirs[path]
+}
+
+// fakeStudyGetter implements the api.StudyGetter interface for testing.
+type fakeStudyGetter struct {
+	studies map[string]model.Study
+	err     error
+}
+
+func newFakeStudyGetter() *fakeStudyGetter {
+	return &fakeStudyGetter{studies: make(map[string]model.Study)}
+}
+
+func (f *fakeStudyGetter) GetStudy(id string) (model.Study, error) {
+	if f.err != nil {
+		return model.Study{}, f.err
+	}
+	s, ok := f.studies[id]
+	if !ok {
+		return model.Study{}, fmt.Errorf("study %q not found", id)
+	}
+	return s, nil
 }
 
 var _ = Describe("TrainingRunsService", func() {
@@ -498,6 +520,180 @@ var _ = Describe("TrainingRunsService", func() {
 			Expect(result.Checkpoints[0].Expected).To(Equal(1))
 			Expect(result.Checkpoints[0].Verified).To(Equal(1))
 			Expect(result.Checkpoints[0].Missing).To(Equal(0))
+		})
+
+		// B-079: Study-aware validation uses checkpoint discovery (same source as the frontend).
+		// Before fix, the Validate endpoint used viewer discovery, which returns no runs before
+		// generation (causing not_found) and returns runs with embedded study dirs after
+		// generation (causing double-nested paths and wrong validation results).
+		Describe("study-aware validation (study_id provided)", func() {
+			studyID := "study-abc"
+
+			It("returns per-checkpoint completeness using checkpoint discovery before samples exist", func() {
+				// Viewer discovery returns nothing (no samples yet)
+				viewerFS.subdirs[sampleDir] = []string{}
+				// Checkpoint discovery returns the training run
+				cpFS.safetensors["/checkpoints"] = []string{
+					"model-step00001000.safetensors",
+					"model-step00002000.safetensors",
+				}
+				viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
+				cpDiscovery = service.NewDiscoveryService(cpFS, []string{"/checkpoints"}, sampleDir, logger)
+				scanner = service.NewScanner(scanFS, sampleDir, logger)
+				validator := service.NewValidationService(scanFS, sampleDir, logger)
+				studyGetter := newFakeStudyGetter()
+				studyGetter.studies[studyID] = model.Study{
+					ID:      studyID,
+					Name:    "Test Study",
+					Prompts: []model.NamedPrompt{{Name: "p1", Text: "prompt"}},
+					Steps:   []int{20},
+					CFGs:    []float64{7},
+					SamplerSchedulerPairs: []model.SamplerSchedulerPair{
+						{Sampler: "euler", Scheduler: "normal"},
+					},
+					Seeds: []int64{42},
+				}
+				svc := api.NewTrainingRunsService(viewerDiscovery, cpDiscovery, scanner, validator, nil, studyGetter)
+
+				// No sample files yet — all checkpoints should show 0 verified
+				sid := studyID
+				result, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{ID: 0, StudyID: &sid})
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result.Checkpoints).To(HaveLen(2))
+				Expect(result.Checkpoints[0].Verified).To(Equal(0))
+				Expect(result.Checkpoints[1].Verified).To(Equal(0))
+				Expect(result.ExpectedPerCheckpoint).To(Equal(1))
+			})
+
+			It("returns per-checkpoint completeness using correct scoped dir after generation", func() {
+				// After generation: samples exist at {sampleDir}/{trainingRunName}/{studyID}/{checkpoint}/
+				// Viewer discovery finds new-layout run (name embeds study output dir).
+				viewerFS.subdirs[sampleDir] = []string{"model"}
+				viewerFS.subdirs[sampleDir+"/model"] = []string{studyID}
+				viewerFS.subdirs[sampleDir+"/model/"+studyID] = []string{
+					"model-step00001000.safetensors",
+					"model-step00002000.safetensors",
+				}
+				// Checkpoint discovery returns the training run using its canonical name.
+				cpFS.safetensors["/checkpoints"] = []string{
+					"model-step00001000.safetensors",
+					"model-step00002000.safetensors",
+				}
+				viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
+				cpDiscovery = service.NewDiscoveryService(cpFS, []string{"/checkpoints"}, sampleDir, logger)
+				scanner = service.NewScanner(scanFS, sampleDir, logger)
+				validator := service.NewValidationService(scanFS, sampleDir, logger)
+				studyGetter := newFakeStudyGetter()
+				studyGetter.studies[studyID] = model.Study{
+					ID:      studyID,
+					Name:    "Test Study",
+					Prompts: []model.NamedPrompt{{Name: "p1", Text: "prompt"}},
+					Steps:   []int{20},
+					CFGs:    []float64{7},
+					SamplerSchedulerPairs: []model.SamplerSchedulerPair{
+						{Sampler: "euler", Scheduler: "normal"},
+					},
+					Seeds: []int64{42},
+				}
+				svc := api.NewTrainingRunsService(viewerDiscovery, cpDiscovery, scanner, validator, nil, studyGetter)
+
+				// Sample files in the scoped directory: {sampleDir}/model/study-abc/{checkpoint}/
+				scanFS.files[sampleDir+"/model/"+studyID+"/model-step00001000.safetensors"] = []string{
+					"seed=42&_00001_.png",
+				}
+				scanFS.files[sampleDir+"/model/"+studyID+"/model-step00002000.safetensors"] = []string{
+					"seed=42&_00001_.png",
+				}
+
+				sid := studyID
+				result, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{ID: 0, StudyID: &sid})
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result.Checkpoints).To(HaveLen(2))
+				Expect(result.Checkpoints[0].Verified).To(Equal(1))
+				Expect(result.Checkpoints[0].Missing).To(Equal(0))
+				Expect(result.Checkpoints[1].Verified).To(Equal(1))
+				Expect(result.Checkpoints[1].Missing).To(Equal(0))
+				Expect(result.TotalActual).To(Equal(2))
+			})
+
+			It("correctly validates when only some checkpoints have been generated", func() {
+				// Only model-step00001000 has samples; model-step00002000 does not.
+				// Samples are placed at {sampleDir}/model/{studyID}/{checkpoint}/
+				cpFS.safetensors["/checkpoints"] = []string{
+					"model-step00001000.safetensors",
+					"model-step00002000.safetensors",
+				}
+				viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
+				cpDiscovery = service.NewDiscoveryService(cpFS, []string{"/checkpoints"}, sampleDir, logger)
+				scanner = service.NewScanner(scanFS, sampleDir, logger)
+				validator := service.NewValidationService(scanFS, sampleDir, logger)
+				studyGetter := newFakeStudyGetter()
+				studyGetter.studies[studyID] = model.Study{
+					ID:      studyID,
+					Name:    "Test Study",
+					Prompts: []model.NamedPrompt{{Name: "p1", Text: "prompt"}},
+					Steps:   []int{20},
+					CFGs:    []float64{7},
+					SamplerSchedulerPairs: []model.SamplerSchedulerPair{
+						{Sampler: "euler", Scheduler: "normal"},
+					},
+					Seeds: []int64{42},
+				}
+				svc := api.NewTrainingRunsService(viewerDiscovery, cpDiscovery, scanner, validator, nil, studyGetter)
+
+				// Only the first checkpoint's scoped directory exists with samples.
+				// scopedStudyDir = "model/" + studyID → {sampleDir}/model/{studyID}/{checkpoint}/
+				scanFS.files[sampleDir+"/model/"+studyID+"/model-step00001000.safetensors"] = []string{
+					"seed=42&_00001_.png",
+				}
+				// model-step00002000 has no directory entry → verified=0
+
+				sid := studyID
+				result, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{ID: 0, StudyID: &sid})
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result.Checkpoints).To(HaveLen(2))
+				// Sorted by step: step1000 first, step2000 second
+				Expect(result.Checkpoints[0].Verified).To(Equal(1)) // model-step00001000 has 1 file
+				Expect(result.Checkpoints[0].Missing).To(Equal(0))
+				Expect(result.Checkpoints[1].Verified).To(Equal(0)) // model-step00002000 has no files
+				Expect(result.Checkpoints[1].Missing).To(Equal(1))
+			})
+
+			It("returns not_found when study_id does not match any study", func() {
+				cpFS.safetensors["/checkpoints"] = []string{"model.safetensors"}
+				viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
+				cpDiscovery = service.NewDiscoveryService(cpFS, []string{"/checkpoints"}, sampleDir, logger)
+				scanner = service.NewScanner(scanFS, sampleDir, logger)
+				validator := service.NewValidationService(scanFS, sampleDir, logger)
+				studyGetter := newFakeStudyGetter()
+				// studyGetter has no studies
+				svc := api.NewTrainingRunsService(viewerDiscovery, cpDiscovery, scanner, validator, nil, studyGetter)
+
+				sid := "nonexistent-study"
+				_, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{ID: 0, StudyID: &sid})
+
+				Expect(err).To(HaveOccurred())
+			})
+
+			It("returns not_found for out-of-range ID with checkpoint discovery", func() {
+				cpFS.safetensors["/checkpoints"] = []string{"model.safetensors"}
+				viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
+				cpDiscovery = service.NewDiscoveryService(cpFS, []string{"/checkpoints"}, sampleDir, logger)
+				scanner = service.NewScanner(scanFS, sampleDir, logger)
+				validator := service.NewValidationService(scanFS, sampleDir, logger)
+				studyGetter := newFakeStudyGetter()
+				studyGetter.studies[studyID] = model.Study{ID: studyID, Name: "Test Study"}
+				svc := api.NewTrainingRunsService(viewerDiscovery, cpDiscovery, scanner, validator, nil, studyGetter)
+
+				sid := studyID
+				_, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{ID: 5, StudyID: &sid})
+
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("not found"))
+			})
 		})
 	})
 })

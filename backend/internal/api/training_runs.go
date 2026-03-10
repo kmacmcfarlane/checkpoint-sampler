@@ -79,24 +79,28 @@ func (s *TrainingRunsService) List(ctx context.Context, p *gentrainingruns.ListP
 // When study_id is provided, uses the study's images-per-checkpoint as the expected count.
 // Otherwise falls back to the max-file-count heuristic.
 func (s *TrainingRunsService) Validate(ctx context.Context, p *gentrainingruns.ValidatePayload) (*gentrainingruns.ValidationResultResponse, error) {
-	runs, err := s.viewerDiscovery.DiscoverViewable()
-	if err != nil {
-		return nil, gentrainingruns.MakeValidationFailed(fmt.Errorf("discovering viewable training runs: %w", err))
-	}
-
-	if p.ID < 0 || p.ID >= len(runs) {
-		return nil, gentrainingruns.MakeNotFound(fmt.Errorf("training run %d not found", p.ID))
-	}
-
-	tr := runs[p.ID]
-	studyName := service.StudyNameForRun(tr.Name)
-
 	var result *model.ValidationResult
 
 	if p.StudyID != nil && *p.StudyID != "" && s.studyGetter != nil {
-		// Study-aware validation: use the study's expected images-per-checkpoint.
-		// The sample path is scoped to {training_run_name}/{study_id}/ to isolate
-		// samples per training run and study combination (AC3, AC4).
+		// Study-aware validation path: discover training runs using the checkpoint
+		// source (same source the frontend uses for the Generate Samples dialog).
+		// This ensures the training run ID matches what the frontend sent.
+		// The viewer-discovery source cannot be used here because:
+		//   1. Before generation it returns no runs (ID mismatch → not_found).
+		//   2. After generation the run name embeds the study output dir
+		//      (e.g. "my-model/study-abc/my-model") and appending study.ID
+		//      would produce an incorrect double-nested path.
+		runs, err := s.checkpointDiscovery.Discover()
+		if err != nil {
+			return nil, gentrainingruns.MakeValidationFailed(fmt.Errorf("discovering checkpoint training runs: %w", err))
+		}
+
+		if p.ID < 0 || p.ID >= len(runs) {
+			return nil, gentrainingruns.MakeNotFound(fmt.Errorf("training run %d not found", p.ID))
+		}
+
+		tr := runs[p.ID]
+
 		study, err := s.studyGetter.GetStudy(*p.StudyID)
 		if err == sql.ErrNoRows {
 			return nil, gentrainingruns.MakeNotFound(fmt.Errorf("study %s not found", *p.StudyID))
@@ -105,13 +109,26 @@ func (s *TrainingRunsService) Validate(ctx context.Context, p *gentrainingruns.V
 			return nil, gentrainingruns.MakeValidationFailed(fmt.Errorf("fetching study: %w", err))
 		}
 		// Build the scoped study output dir: {trainingRunName}/{studyID}
+		// This matches the directory written by the job executor.
 		scopedStudyDir := tr.Name + "/" + study.ID
 		result, err = s.validator.ValidateTrainingRunWithStudy(tr, study, scopedStudyDir)
 		if err != nil {
 			return nil, gentrainingruns.MakeValidationFailed(fmt.Errorf("validating training run %q with study: %w", tr.Name, err))
 		}
 	} else {
-		// Legacy validation: max-file-count heuristic
+		// Legacy validation (no study context): discover from viewer source and
+		// use the max-file-count heuristic.
+		runs, err := s.viewerDiscovery.DiscoverViewable()
+		if err != nil {
+			return nil, gentrainingruns.MakeValidationFailed(fmt.Errorf("discovering viewable training runs: %w", err))
+		}
+
+		if p.ID < 0 || p.ID >= len(runs) {
+			return nil, gentrainingruns.MakeNotFound(fmt.Errorf("training run %d not found", p.ID))
+		}
+
+		tr := runs[p.ID]
+		studyName := service.StudyNameForRun(tr.Name)
 		result, err = s.validator.ValidateTrainingRun(tr, studyName)
 		if err != nil {
 			return nil, gentrainingruns.MakeValidationFailed(fmt.Errorf("validating training run %q: %w", tr.Name, err))

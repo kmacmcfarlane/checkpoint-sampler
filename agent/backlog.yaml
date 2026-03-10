@@ -749,7 +749,7 @@ stories:
   - id: B-079
     title: "Checkpoint validation status missing after generation (persists across refresh)"
     type: bug
-    status: todo
+    status: uat
     priority: 65
     complexity: medium
     requires:
