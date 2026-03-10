@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### W-007: Automated panic detection in E2E log scan
+- `make test-e2e` now automatically scans backend logs for Go panics after each run; a passing Playwright suite with backend panics exits non-zero
+- Standalone `make check-e2e-panics` target for scanning saved E2E logs without re-running the suite
+
 ### B-086: E2E: S-116 activity bead not visible for running job in Generate Samples dialog
 - Executor polling loop no longer discovers externally-seeded running jobs (which have no items) and immediately completes them; `resumeRunningJobs()` now properly adopts running jobs at startup by setting `activeJobID`
 

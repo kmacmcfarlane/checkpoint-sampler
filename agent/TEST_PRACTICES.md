@@ -272,6 +272,33 @@ The full E2E suite must pass with **zero failures** before any story transitions
 
 This gate was introduced by B-048 after discovering that E2E test failures can cascade silently across spec files due to shared test fixture state (e.g., sample directories deleted by one test affecting all subsequent tests).
 
+### 5.5.2 Automated panic detection
+
+`make test-e2e` automatically scans `backend.log` for Go panics after each run. The scan is performed by `scripts/check-e2e-panics.sh`:
+
+- If `panic:` appears in the backend log, the script prints the matching lines to stderr and exits non-zero, which overrides a passing Playwright exit status with exit code 1.
+- If Playwright tests already failed (non-zero `STATUS`), the panic scan still runs and reports findings, but the original failure exit code is preserved.
+
+**Standalone use:**
+
+```
+make check-e2e-panics
+```
+
+This scans the most recent E2E log directory (`.ralph/temp/e2e-logs/backend.log`) without re-running the E2E suite. To point it at a different directory:
+
+```
+make check-e2e-panics LOG_DIR=/path/to/logs
+```
+
+Or call the script directly:
+
+```
+./scripts/check-e2e-panics.sh [log-dir]
+```
+
+The script exits 0 when no panics are found (or when `backend.log` does not exist), and exits 1 when any `panic:` line is detected. Matching lines are printed to stderr.
+
 ### 5.6 Manual HTTP verification (secondary — debugging aid only)
 
 Manual curl/HTTP checks are a debugging tool, not a substitute for E2E tests. Use them only when:
