@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-075: Clamp TotalMissing in backend validation to prevent negative values
+- `TotalMissing` aggregate now clamped to `max(0, totalExpected - totalVerified)` in all three validation functions, preventing semantically incorrect negative values when checkpoints have more files than expected
+
 ### B-074: Atomic stop-and-transition in executor
 - `RequestStop` now owns the DB status update to `stopped` (mirroring `completeJob`), eliminating the window where the executor cleared its state but the DB still showed `running`
 - Service layer's `Stop()` delegates the DB write entirely to the executor, re-fetching post-stop state for the caller
