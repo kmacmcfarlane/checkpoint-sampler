@@ -723,7 +723,7 @@ stories:
   - id: B-078
     title: "Sample output directory restructure + per-training-run manifest + validation count scoping"
     type: bug
-    status: todo
+    status: uat
     priority: 90
     complexity: high
     requires: []
@@ -931,3 +931,39 @@ stories:
       already been removed or marked as cancelled. The executor does not check for cancellation
       before each DB write. Error log: "failed to update item status to completed" with
       "sql: no rows in result set" (3 occurrences during E2E runs).
+  - id: B-081
+    title: "E2E: regen-confirmation.spec.ts 4 tests timing out in Generate Samples dialog"
+    type: bug
+    status: todo
+    priority: 70
+    complexity: medium
+    requires: []
+    acceptance:
+      - "All 4 regen-confirmation E2E tests pass reliably"
+      - "Generate Samples dialog correctly shows Regenerate button when samples exist"
+    testing:
+      - "command: make test-e2e SPEC=regen-confirmation.spec.ts"
+    notes: |
+      All 4 tests in regen-confirmation.spec.ts time out at ~11s. The tests depend on 
+      the Generate Samples dialog flow reaching a state where the Regenerate button appears.
+      Root cause hypothesis: the validation scoping changes (B-078) may have changed how 
+      the dialog detects existing samples, or selectors may be stale after recent dialog changes.
+      Discovered during B-078 QA cycle — pre-existing/unrelated to B-078 changes.
+  - id: B-082
+    title: "E2E: sample-count-preview.spec.ts 2 tests timing out in Generate Samples dialog"
+    type: bug
+    status: todo
+    priority: 70
+    complexity: medium
+    requires: []
+    acceptance:
+      - "Both sample-count-preview dialog E2E tests pass reliably"
+      - "Validation preview correctly displays sample counts in the Generate Samples dialog"
+    testing:
+      - "command: make test-e2e SPEC=sample-count-preview.spec.ts"
+    notes: |
+      Both tests in sample-count-preview.spec.ts time out at ~8.6s waiting for validation 
+      preview UI elements in the Generate Samples dialog.
+      Root cause hypothesis: the validation preview may now require the new scoped path 
+      to find samples, or selectors may be stale after recent dialog changes.
+      Discovered during B-078 QA cycle — pre-existing/unrelated to B-078 changes.

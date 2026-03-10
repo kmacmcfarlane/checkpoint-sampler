@@ -13,10 +13,10 @@ import { resetDatabase, selectTrainingRun, selectNaiveOptionByLabel, uninstallDe
  * - S-078 UAT: Demo images render correctly (not broken/404) after the scanner
  *   includes the study name prefix in relative paths.
  *
- * The demo dataset creates a study-scoped training run "demo-study/demo-model"
- * with checkpoint sample directories nested under sample_dir/demo-study/.
+ * The demo dataset creates a training-run-scoped run "demo-model/demo-study/demo-model"
+ * with checkpoint sample directories nested under sample_dir/demo-model/demo-study/.
  * Before this fix, the watcher would try to watch sample_dir/checkpoint.safetensors
- * instead of sample_dir/demo-study/checkpoint.safetensors, causing errors.
+ * instead of sample_dir/demo-model/demo-study/checkpoint.safetensors, causing errors.
  */
 
 test.beforeEach(async ({ request }) => {
@@ -26,7 +26,7 @@ test.beforeEach(async ({ request }) => {
 })
 
 // Uninstall the demo dataset after each test to prevent filesystem artifacts
-// (demo-study/ directory, demo images) from leaking into subsequent spec files.
+// (demo-model/demo-study/ directory, demo images) from leaking into subsequent spec files.
 test.afterEach(async ({ request }) => {
   await uninstallDemo(request)
 })
@@ -38,7 +38,7 @@ test.describe('study-scoped watcher paths (B-042)', () => {
     await page.goto('/')
 
     // Select the study-scoped demo training run
-    await selectTrainingRun(page, 'demo-study/demo-model')
+    await selectTrainingRun(page, 'demo-model/demo-study/demo-model')
 
     // After selection, the app should scan and show the Dimensions panel.
     // If the watcher failed to resolve the study-scoped paths, the backend
@@ -57,7 +57,7 @@ test.describe('study-scoped watcher paths (B-042)', () => {
     expect(response.ok()).toBeTruthy()
 
     const runs = await response.json()
-    const demoRun = runs.find((r: { name: string }) => r.name === 'demo-study/demo-model')
+    const demoRun = runs.find((r: { name: string }) => r.name === 'demo-model/demo-study/demo-model')
     expect(demoRun).toBeDefined()
 
     // The demo run should have 3 checkpoints, all with samples
@@ -76,7 +76,7 @@ test.describe('study-scoped watcher paths (B-042)', () => {
     await page.goto('/')
 
     // Select the demo training run
-    await selectTrainingRun(page, 'demo-study/demo-model')
+    await selectTrainingRun(page, 'demo-model/demo-study/demo-model')
 
     // Wait for dimension panel (scan complete)
     await expect(page.getByText('Dimensions')).toBeVisible()
@@ -89,10 +89,10 @@ test.describe('study-scoped watcher paths (B-042)', () => {
     const images = page.locator('.xy-grid [role="gridcell"] img')
     await expect(images.first()).toBeVisible()
 
-    // Verify that image src attributes contain the study name prefix.
-    // Before the fix, paths were missing "demo-study/" causing 404s.
+    // Verify that image src attributes contain the new training-run/study path prefix.
+    // Before the fix, paths were missing the study dir prefix causing 404s.
     const firstImageSrc = await images.first().getAttribute('src')
-    expect(firstImageSrc).toContain('demo-study')
+    expect(firstImageSrc).toContain('demo-model')
 
     // Verify images actually loaded (not broken) by checking naturalWidth > 0.
     // A broken image (404) will have naturalWidth === 0.
@@ -112,7 +112,7 @@ test.describe('study-scoped watcher paths (B-042)', () => {
     const runsResponse = await request.get('/api/training-runs')
     expect(runsResponse.ok()).toBeTruthy()
     const runs = await runsResponse.json()
-    const demoRun = runs.find((r: { name: string }) => r.name === 'demo-study/demo-model')
+    const demoRun = runs.find((r: { name: string }) => r.name === 'demo-model/demo-study/demo-model')
     expect(demoRun).toBeDefined()
 
     // Scan the demo run via GET /api/training-runs/{id}/scan
@@ -120,10 +120,11 @@ test.describe('study-scoped watcher paths (B-042)', () => {
     expect(scanResponse.ok()).toBeTruthy()
     const scanResult = await scanResponse.json()
 
-    // Verify the scan returned images with study-scoped paths
+    // Verify the scan returned images with the new training-run/study-scoped paths
     expect(scanResult.images.length).toBeGreaterThan(0)
     const firstImage = scanResult.images[0]
-    expect(firstImage.relative_path).toContain('demo-study/')
+    // New layout: paths include "demo-model/demo-study/" prefix
+    expect(firstImage.relative_path).toContain('demo-model/')
 
     // Fetch the image via API and verify it returns 200 (not 404)
     const imageResponse = await request.get(`/api/images/${firstImage.relative_path}`)

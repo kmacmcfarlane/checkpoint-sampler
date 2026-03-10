@@ -78,9 +78,10 @@ var _ = Describe("DemoService", func() {
 			Expect(status.Installed).To(BeFalse())
 		})
 
-		It("returns installed=true when demo directory exists", func() {
-			demoDir := filepath.Join(sampleDir, model.DemoStudyName)
-			fs.dirs[demoDir] = true
+		It("returns installed=true when demo study directory exists", func() {
+			// New layout: sample_dir/demo-model/demo-study/
+			demoStudyDir := filepath.Join(sampleDir, model.DemoTrainingRunName, model.DemoStudyOutputDir)
+			fs.dirs[demoStudyDir] = true
 			status := svc.Status()
 			Expect(status.Installed).To(BeTrue())
 		})
@@ -88,23 +89,30 @@ var _ = Describe("DemoService", func() {
 
 	Describe("Install", func() {
 		// AC: Application ships with a bundled demo dataset (small set of pre-generated sample images)
-		It("creates demo study directory with checkpoint subdirectories", func() {
+		It("creates demo directory structure with training run and study subdirectories", func() {
 			err := svc.Install()
 			Expect(err).NotTo(HaveOccurred())
 
-			// Verify study dir exists
-			info, err := os.Stat(filepath.Join(sampleDir, model.DemoStudyName))
+			// Verify training run dir exists: sample_dir/demo-model/
+			trainingRunDir := filepath.Join(sampleDir, model.DemoTrainingRunName)
+			info, err := os.Stat(trainingRunDir)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(info.IsDir()).To(BeTrue())
 
-			// Verify checkpoint directories exist
+			// Verify study output dir exists: sample_dir/demo-model/demo-study/
+			studyDir := filepath.Join(sampleDir, model.DemoTrainingRunName, model.DemoStudyOutputDir)
+			info, err = os.Stat(studyDir)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(info.IsDir()).To(BeTrue())
+
+			// Verify checkpoint directories exist under study dir
 			expectedCheckpoints := []string{
 				"demo-model-step00001000.safetensors",
 				"demo-model-step00002000.safetensors",
 				"demo-model-step00003000.safetensors",
 			}
 			for _, cp := range expectedCheckpoints {
-				cpDir := filepath.Join(sampleDir, model.DemoStudyName, cp)
+				cpDir := filepath.Join(sampleDir, model.DemoTrainingRunName, model.DemoStudyOutputDir, cp)
 				info, err := os.Stat(cpDir)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(info.IsDir()).To(BeTrue())
@@ -115,8 +123,8 @@ var _ = Describe("DemoService", func() {
 			err := svc.Install()
 			Expect(err).NotTo(HaveOccurred())
 
-			// Check a specific image exists and is a valid PNG
-			imgPath := filepath.Join(sampleDir, model.DemoStudyName,
+			// Check a specific image exists and is a valid PNG (new layout)
+			imgPath := filepath.Join(sampleDir, model.DemoTrainingRunName, model.DemoStudyOutputDir,
 				"demo-model-step00001000.safetensors",
 				"prompt_name=landscape&seed=42&cfg=1&_00001_.png")
 			f, err := os.Open(imgPath)
@@ -136,7 +144,7 @@ var _ = Describe("DemoService", func() {
 
 			// 3 checkpoints x 2 prompts x 2 seeds x 2 cfgs = 24 images
 			count := 0
-			cpDir := filepath.Join(sampleDir, model.DemoStudyName, "demo-model-step00001000.safetensors")
+			cpDir := filepath.Join(sampleDir, model.DemoTrainingRunName, model.DemoStudyOutputDir, "demo-model-step00001000.safetensors")
 			entries, err := os.ReadDir(cpDir)
 			Expect(err).NotTo(HaveOccurred())
 			for _, entry := range entries {
@@ -162,13 +170,13 @@ var _ = Describe("DemoService", func() {
 		})
 
 		It("is idempotent - does not recreate if directory already exists", func() {
-			// Create the demo directory manually
-			demoDir := filepath.Join(sampleDir, model.DemoStudyName)
-			err := os.MkdirAll(demoDir, 0755)
+			// Create the demo study output directory manually (new layout)
+			demoStudyDir := filepath.Join(sampleDir, model.DemoTrainingRunName, model.DemoStudyOutputDir)
+			err := os.MkdirAll(demoStudyDir, 0755)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Update fake fs to reflect the directory exists
-			fs.dirs[demoDir] = true
+			fs.dirs[demoStudyDir] = true
 
 			err = svc.Install()
 			Expect(err).NotTo(HaveOccurred())
@@ -182,8 +190,8 @@ var _ = Describe("DemoService", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(presetStore.presets).To(HaveLen(1))
 
-			// Remove the directory to allow reinstall
-			os.RemoveAll(filepath.Join(sampleDir, model.DemoStudyName))
+			// Remove the training run directory to allow reinstall
+			os.RemoveAll(filepath.Join(sampleDir, model.DemoTrainingRunName))
 
 			err = svc.Install()
 			Expect(err).NotTo(HaveOccurred())
@@ -200,11 +208,12 @@ var _ = Describe("DemoService", func() {
 		})
 
 		// AC: Demo dataset is deletable from the UI
-		It("removes the demo study directory", func() {
+		It("removes the demo training run directory (and study subdirectory)", func() {
 			err := svc.Uninstall()
 			Expect(err).NotTo(HaveOccurred())
 
-			_, err = os.Stat(filepath.Join(sampleDir, model.DemoStudyName))
+			// Training run directory should be gone
+			_, err = os.Stat(filepath.Join(sampleDir, model.DemoTrainingRunName))
 			Expect(os.IsNotExist(err)).To(BeTrue())
 		})
 

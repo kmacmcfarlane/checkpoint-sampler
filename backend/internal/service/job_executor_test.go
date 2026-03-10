@@ -2603,10 +2603,12 @@ var _ = Describe("JobExecutor", func() {
 
 		It("includes completeness data in broadcast when checkpoint is fully completed", func() {
 			job := model.SampleJob{
-				ID:         "job-completeness-broadcast",
-				StudyName:  "TestStudy",
-				Status:     model.SampleJobStatusRunning,
-				TotalItems: 2,
+				ID:              "job-completeness-broadcast",
+				TrainingRunName: "test-model",
+				StudyID:         "study-broadcast",
+				StudyName:       "TestStudy",
+				Status:          model.SampleJobStatusRunning,
+				TotalItems:      2,
 			}
 			mockStore.jobs[job.ID] = job
 			items := []model.SampleJobItem{
@@ -2626,9 +2628,10 @@ var _ = Describe("JobExecutor", func() {
 			mockStore.items[job.ID] = items
 
 			// Set up filesystem mock so completeness check succeeds
+			// Path uses new layout: {sampleDir}/{trainingRunName}/{studyID}/{checkpoint}/
 			file1 := executor.generateOutputFilename(items[0])
 			file2 := executor.generateOutputFilename(items[1])
-			checkpointDir := "/test/samples/TestStudy/ckpt1.safetensors"
+			checkpointDir := "/test/samples/test-model/study-broadcast/ckpt1.safetensors"
 			mockFSRead.dirs[checkpointDir] = true
 			mockFSRead.files[checkpointDir] = []string{file1, file2}
 
@@ -2961,8 +2964,8 @@ var _ = Describe("JobExecutor", func() {
 			err := executor.writeManifest(job, items)
 			Expect(err).NotTo(HaveOccurred())
 
-			// Manifest should be at {sampleDir}/{StudyName}/manifest.json
-			manifestPath := "/test/samples/Manifest Study/manifest.json"
+			// Manifest should be at {sampleDir}/{trainingRunName}/{studyID}/manifest.json
+			manifestPath := "/test/samples/my-model/study-manifest-1/manifest.json"
 			Expect(mockFS.writtenFiles).To(HaveKey(manifestPath))
 		})
 
@@ -2971,7 +2974,7 @@ var _ = Describe("JobExecutor", func() {
 			err := executor.writeManifest(job, items)
 			Expect(err).NotTo(HaveOccurred())
 
-			manifestPath := "/test/samples/Manifest Study/manifest.json"
+			manifestPath := "/test/samples/my-model/study-manifest-1/manifest.json"
 			data, ok := mockFS.writtenFiles[manifestPath]
 			Expect(ok).To(BeTrue())
 
@@ -3014,7 +3017,7 @@ var _ = Describe("JobExecutor", func() {
 			err := executor.writeManifest(job, items)
 			Expect(err).NotTo(HaveOccurred())
 
-			manifestPath := "/test/samples/Manifest Study/manifest.json"
+			manifestPath := "/test/samples/my-model/study-manifest-1/manifest.json"
 			tempPath := manifestPath + ".tmp"
 
 			// Temp file should not exist after rename
@@ -3051,7 +3054,7 @@ var _ = Describe("JobExecutor", func() {
 			err := executor.writeManifest(job, items)
 			Expect(err).NotTo(HaveOccurred())
 
-			manifestPath := "/test/samples/Manifest Study/manifest.json"
+			manifestPath := "/test/samples/my-model/study-manifest-1/manifest.json"
 			data := mockFS.writtenFiles[manifestPath]
 
 			var manifest fileformat.JobManifest
@@ -3076,11 +3079,12 @@ var _ = Describe("JobExecutor", func() {
 
 		It("writes manifest file when job completes successfully", func() {
 			job := model.SampleJob{
-				ID:         "job-complete-manifest",
-				StudyID:    "study-complete-manifest",
-				StudyName:  "Complete Study",
-				Status:     model.SampleJobStatusRunning,
-				TotalItems: 2,
+				ID:              "job-complete-manifest",
+				TrainingRunName: "complete-model",
+				StudyID:         "study-complete-manifest",
+				StudyName:       "Complete Study",
+				Status:          model.SampleJobStatusRunning,
+				TotalItems:      2,
 			}
 			mockStore.jobs[job.ID] = job
 			mockStore.items[job.ID] = []model.SampleJobItem{
@@ -3108,8 +3112,8 @@ var _ = Describe("JobExecutor", func() {
 			// processNextItem should find no pending items and call completeJob
 			executor.processNextItem()
 
-			// Verify manifest was written
-			manifestPath := "/test/samples/Complete Study/manifest.json"
+			// Verify manifest was written at {sampleDir}/{trainingRunName}/{studyID}/manifest.json
+			manifestPath := "/test/samples/complete-model/study-complete-manifest/manifest.json"
 			Expect(mockFS.writtenFiles).To(HaveKey(manifestPath))
 
 			// Verify manifest content

@@ -304,10 +304,151 @@ var _ = Describe("ViewerDiscoveryService", func() {
 				Expect(runs[0].Checkpoints).To(HaveLen(1))
 			})
 		})
+
+		// B-078: New per-training-run layout: {training_run}/{study_id}/{checkpoint}/
+		Context("new per-training-run layout", func() {
+			It("discovers training runs from 3-level hierarchy", func() {
+				// New layout: sample_dir/my-model/study-abc/checkpoint.safetensors/
+				fs.subdirs["/samples"] = []string{"my-model"}
+				fs.subdirs["/samples/my-model"] = []string{"study-abc"}
+				fs.subdirs["/samples/my-model/study-abc"] = []string{
+					"my-model-step00001000.safetensors",
+					"my-model-step00002000.safetensors",
+				}
+				svc = service.NewViewerDiscoveryService(fs, "/samples", logger)
+
+				runs, err := svc.DiscoverViewable()
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(runs).To(HaveLen(1))
+				// Run name includes the study output dir prefix
+				Expect(runs[0].Name).To(Equal("my-model/study-abc/my-model"))
+				Expect(runs[0].Checkpoints).To(HaveLen(2))
+				Expect(runs[0].HasSamples).To(BeTrue())
+			})
+
+			It("groups checkpoints from the same training_run/study_id pair into one run", func() {
+				fs.subdirs["/samples"] = []string{"my-model"}
+				fs.subdirs["/samples/my-model"] = []string{"study-abc"}
+				fs.subdirs["/samples/my-model/study-abc"] = []string{
+					"my-model-step00001000.safetensors",
+					"my-model-step00002000.safetensors",
+					"my-model.safetensors",
+				}
+				svc = service.NewViewerDiscoveryService(fs, "/samples", logger)
+
+				runs, err := svc.DiscoverViewable()
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(runs).To(HaveLen(1))
+				Expect(runs[0].Name).To(Equal("my-model/study-abc/my-model"))
+				Expect(runs[0].Checkpoints).To(HaveLen(3))
+			})
+
+			It("creates separate runs for the same training run with different study ids", func() {
+				fs.subdirs["/samples"] = []string{"my-model"}
+				fs.subdirs["/samples/my-model"] = []string{"study-abc", "study-xyz"}
+				fs.subdirs["/samples/my-model/study-abc"] = []string{
+					"my-model-step00001000.safetensors",
+				}
+				fs.subdirs["/samples/my-model/study-xyz"] = []string{
+					"my-model-step00002000.safetensors",
+				}
+				svc = service.NewViewerDiscoveryService(fs, "/samples", logger)
+
+				runs, err := svc.DiscoverViewable()
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(runs).To(HaveLen(2))
+				Expect(runs[0].Name).To(Equal("my-model/study-abc/my-model"))
+				Expect(runs[1].Name).To(Equal("my-model/study-xyz/my-model"))
+			})
+
+			It("creates separate runs for different training runs with same study id", func() {
+				fs.subdirs["/samples"] = []string{"model-a", "model-b"}
+				fs.subdirs["/samples/model-a"] = []string{"study-abc"}
+				fs.subdirs["/samples/model-b"] = []string{"study-abc"}
+				fs.subdirs["/samples/model-a/study-abc"] = []string{
+					"model-a-step00001000.safetensors",
+				}
+				fs.subdirs["/samples/model-b/study-abc"] = []string{
+					"model-b-step00001000.safetensors",
+				}
+				svc = service.NewViewerDiscoveryService(fs, "/samples", logger)
+
+				runs, err := svc.DiscoverViewable()
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(runs).To(HaveLen(2))
+				Expect(runs[0].Name).To(Equal("model-a/study-abc/model-a"))
+				Expect(runs[1].Name).To(Equal("model-b/study-abc/model-b"))
+			})
+
+			It("returns StudyNameForRun result that scopes to training_run/study_id", func() {
+				fs.subdirs["/samples"] = []string{"my-model"}
+				fs.subdirs["/samples/my-model"] = []string{"study-abc"}
+				fs.subdirs["/samples/my-model/study-abc"] = []string{
+					"my-model-step00001000.safetensors",
+				}
+				svc = service.NewViewerDiscoveryService(fs, "/samples", logger)
+
+				runs, err := svc.DiscoverViewable()
+				Expect(err).NotTo(HaveOccurred())
+				Expect(runs).To(HaveLen(1))
+
+				// StudyNameForRun should return "my-model/study-abc" for the run "my-model/study-abc/my-model"
+				studyOutputDir := service.StudyNameForRun(runs[0].Name)
+				Expect(studyOutputDir).To(Equal("my-model/study-abc"))
+			})
+
+			It("handles empty study_id directories gracefully", func() {
+				fs.subdirs["/samples"] = []string{"my-model"}
+				fs.subdirs["/samples/my-model"] = []string{"empty-study-id"}
+				fs.subdirs["/samples/my-model/empty-study-id"] = []string{}
+				svc = service.NewViewerDiscoveryService(fs, "/samples", logger)
+
+				runs, err := svc.DiscoverViewable()
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(runs).To(BeEmpty())
+			})
+
+			It("returns error when listing level-2 directory fails", func() {
+				fs.subdirs["/samples"] = []string{"my-model"}
+				fs.subdirs["/samples/my-model"] = []string{"broken-study-id"}
+				fs.errs["/samples/my-model/broken-study-id"] = fmt.Errorf("level-2 io error")
+				svc = service.NewViewerDiscoveryService(fs, "/samples", logger)
+
+				_, err := svc.DiscoverViewable()
+
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("level-2 io error"))
+			})
+
+			It("handles demo dataset layout (demo-model/demo-study/checkpoint/)", func() {
+				fs.subdirs["/samples"] = []string{"demo-model"}
+				fs.subdirs["/samples/demo-model"] = []string{"demo-study"}
+				fs.subdirs["/samples/demo-model/demo-study"] = []string{
+					"demo-model-step00001000.safetensors",
+					"demo-model-step00002000.safetensors",
+					"demo-model-step00003000.safetensors",
+				}
+				svc = service.NewViewerDiscoveryService(fs, "/samples", logger)
+
+				runs, err := svc.DiscoverViewable()
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(runs).To(HaveLen(1))
+				Expect(runs[0].Name).To(Equal("demo-model/demo-study/demo-model"))
+				Expect(runs[0].Checkpoints).To(HaveLen(3))
+				// StudyNameForRun returns "demo-model/demo-study" for validation scoping
+				Expect(service.StudyNameForRun(runs[0].Name)).To(Equal("demo-model/demo-study"))
+			})
+		})
 	})
 
 	Describe("StudyNameForRun", func() {
-		It("returns the study prefix for a study-scoped run", func() {
+		It("returns the study prefix for a legacy study-scoped run", func() {
 			Expect(service.StudyNameForRun("my-study/model")).To(Equal("my-study"))
 		})
 
@@ -315,7 +456,11 @@ var _ = Describe("ViewerDiscoveryService", func() {
 			Expect(service.StudyNameForRun("model")).To(Equal(""))
 		})
 
-		It("handles multiple path segments", func() {
+		It("returns training_run/study_id for new 3-level layout", func() {
+			Expect(service.StudyNameForRun("my-model/study-abc/my-model")).To(Equal("my-model/study-abc"))
+		})
+
+		It("handles multiple path segments (general case)", func() {
 			Expect(service.StudyNameForRun("a/b/c")).To(Equal("a/b"))
 		})
 	})

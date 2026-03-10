@@ -833,17 +833,11 @@ func (e *JobExecutor) handleItemCompletionAsync(jobID, itemID, promptID string) 
 		return
 	}
 
-	// Resolve the output directory name from the study (includes version)
-	studyOutputDir := job.StudyName // fallback to study name if study not found
-	study, err := e.store.GetStudy(job.StudyID)
-	if err != nil {
-		e.logger.WithFields(logrus.Fields{
-			"study_id": job.StudyID,
-			"error":    err.Error(),
-		}).Warn("failed to fetch study for output path, falling back to study name")
-	} else {
-		studyOutputDir = study.OutputDirName()
-	}
+	// Compute the study output directory prefix for the new per-training-run layout:
+	// {training_run_name}/{study_id}
+	// This scopes samples to both the selected training run and the selected study,
+	// fixing the 36/1 count bug where all training runs shared the same study directory.
+	studyOutputDir := job.TrainingRunName + "/" + job.StudyID
 
 	// Generate output filename
 	filename := e.generateOutputFilename(*item)
@@ -1202,8 +1196,10 @@ func (e *JobExecutor) writeManifest(job model.SampleJob, items []model.SampleJob
 		return fmt.Errorf("marshaling manifest: %w", err)
 	}
 
-	// Write to study directory: {sampleDir}/{StudyName}/manifest.json
-	studyOutputDir := study.OutputDirName()
+	// Write to study output directory: {sampleDir}/{training_run_name}/{study_id}/manifest.json
+	// This is the per-training-run layout that scopes manifests to both the training run
+	// and the selected study, matching the sample image directory structure.
+	studyOutputDir := job.TrainingRunName + "/" + job.StudyID
 	dir := filepath.Join(e.sampleDir, studyOutputDir)
 	manifestPath := filepath.Join(dir, fileformat.ManifestFilename)
 	tempPath := manifestPath + ".tmp"
@@ -1526,11 +1522,8 @@ func (e *JobExecutor) broadcastJobProgress(jobID string) {
 		return
 	}
 
-	// Resolve the study output directory name
-	studyOutputDir := job.StudyName // fallback
-	if study, sErr := e.store.GetStudy(job.StudyID); sErr == nil {
-		studyOutputDir = study.OutputDirName()
-	}
+	// Resolve the study output directory using training_run/study_id layout
+	studyOutputDir := job.TrainingRunName + "/" + job.StudyID
 
 	// Compute on-the-fly item counts by status and collect failed item details
 	type errorDetailInfo struct {

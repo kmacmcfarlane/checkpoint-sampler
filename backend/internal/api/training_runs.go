@@ -94,7 +94,9 @@ func (s *TrainingRunsService) Validate(ctx context.Context, p *gentrainingruns.V
 	var result *model.ValidationResult
 
 	if p.StudyID != nil && *p.StudyID != "" && s.studyGetter != nil {
-		// Study-aware validation: use the study's expected images-per-checkpoint
+		// Study-aware validation: use the study's expected images-per-checkpoint.
+		// The sample path is scoped to {training_run_name}/{study_id}/ to isolate
+		// samples per training run and study combination (AC3, AC4).
 		study, err := s.studyGetter.GetStudy(*p.StudyID)
 		if err == sql.ErrNoRows {
 			return nil, gentrainingruns.MakeNotFound(fmt.Errorf("study %s not found", *p.StudyID))
@@ -102,7 +104,9 @@ func (s *TrainingRunsService) Validate(ctx context.Context, p *gentrainingruns.V
 		if err != nil {
 			return nil, gentrainingruns.MakeValidationFailed(fmt.Errorf("fetching study: %w", err))
 		}
-		result, err = s.validator.ValidateTrainingRunWithStudy(tr, study, studyName)
+		// Build the scoped study output dir: {trainingRunName}/{studyID}
+		scopedStudyDir := tr.Name + "/" + study.ID
+		result, err = s.validator.ValidateTrainingRunWithStudy(tr, study, scopedStudyDir)
 		if err != nil {
 			return nil, gentrainingruns.MakeValidationFailed(fmt.Errorf("validating training run %q with study: %w", tr.Name, err))
 		}

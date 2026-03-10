@@ -5,6 +5,11 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-078: Sample output directory restructure + per-training-run manifest + validation count scoping
+- Sample output directories restructured from `{study_name}/{checkpoint}/` to `{training_run_name}/{study_id}/{checkpoint}/`, scoping samples per training run and preventing cross-contamination when multiple training runs share the same study
+- Validation counts now scoped to the selected training run + study combination, fixing inflated 36/1 and 8/1 count bugs
+- Demo dataset uses new `demo-model/demo-study/` layout; viewer discovery detects both 3-level (new) and 2-level (legacy) directory structures
+
 ### B-066: Job executor logs spurious error when database is reset mid-poll
 - Downgraded `autoStartJob` error log from ERROR to WARN when `UpdateSampleJob` returns `sql.ErrNoRows`, eliminating spurious error noise during E2E test teardown race conditions
 

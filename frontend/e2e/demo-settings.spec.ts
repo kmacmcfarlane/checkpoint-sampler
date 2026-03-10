@@ -120,8 +120,9 @@ test.describe('demo settings dialog (S-078)', () => {
     const popupMenu = page.locator('.n-base-select-menu:visible')
     await expect(popupMenu).toBeVisible()
 
-    // Verify demo training run appears in the list
-    const demoOption = popupMenu.getByText('demo-study/demo-model')
+    // Verify demo training run appears in the list.
+    // New layout: demo-model/demo-study/demo-model (training_run/study_id/model_base)
+    const demoOption = popupMenu.getByText('demo-model/demo-study/demo-model')
     await expect(demoOption).toBeVisible()
 
     // Close the popup

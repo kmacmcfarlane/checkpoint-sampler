@@ -46,12 +46,24 @@ func NewDemoService(fs DemoFileSystem, presetStore DemoPresetStore, sampleDir st
 	}
 }
 
+// demoDirPath returns the full path to the demo training run directory:
+// {sampleDir}/demo-model/
+func (s *DemoService) demoTrainingRunDir() string {
+	return filepath.Join(s.sampleDir, model.DemoTrainingRunName)
+}
+
+// demoStudyOutputDir returns the full path to the demo study output directory:
+// {sampleDir}/demo-model/demo-study/
+func (s *DemoService) demoStudyDir() string {
+	return filepath.Join(s.sampleDir, model.DemoTrainingRunName, model.DemoStudyOutputDir)
+}
+
 // Status returns whether the demo dataset is currently installed.
 func (s *DemoService) Status() model.DemoStatus {
 	s.logger.Trace("entering Status")
 	defer s.logger.Trace("returning from Status")
 
-	demoDir := filepath.Join(s.sampleDir, model.DemoStudyName)
+	demoDir := s.demoStudyDir()
 	installed := s.fs.DirectoryExists(demoDir)
 	s.logger.WithField("installed", installed).Debug("checked demo status")
 	return model.DemoStatus{Installed: installed}
@@ -59,17 +71,19 @@ func (s *DemoService) Status() model.DemoStatus {
 
 // Install creates the demo dataset under sample_dir and seeds the demo preset.
 // If the demo data already exists, it is a no-op.
+//
+// New layout: sample_dir/demo-model/demo-study/{checkpoint}/
 func (s *DemoService) Install() error {
 	s.logger.Trace("entering Install")
 	defer s.logger.Trace("returning from Install")
 
-	demoDir := filepath.Join(s.sampleDir, model.DemoStudyName)
+	demoDir := s.demoStudyDir()
 	if s.fs.DirectoryExists(demoDir) {
 		s.logger.Debug("demo dataset already installed, skipping")
 		return nil
 	}
 
-	// Create the demo study directory
+	// Create the demo study output directory (and training run dir as parent)
 	if err := os.MkdirAll(demoDir, 0755); err != nil {
 		s.logger.WithError(err).Error("failed to create demo study directory")
 		return fmt.Errorf("creating demo study directory: %w", err)
@@ -77,8 +91,8 @@ func (s *DemoService) Install() error {
 
 	// Generate demo checkpoint directories and images
 	if err := s.generateDemoImages(demoDir); err != nil {
-		// Clean up on failure
-		os.RemoveAll(demoDir)
+		// Clean up on failure — remove the training run directory entirely
+		os.RemoveAll(s.demoTrainingRunDir())
 		return err
 	}
 
@@ -97,13 +111,13 @@ func (s *DemoService) Uninstall() error {
 	s.logger.Trace("entering Uninstall")
 	defer s.logger.Trace("returning from Uninstall")
 
-	// Remove demo study directory
-	demoDir := filepath.Join(s.sampleDir, model.DemoStudyName)
-	if err := os.RemoveAll(demoDir); err != nil {
-		s.logger.WithError(err).Error("failed to remove demo study directory")
-		return fmt.Errorf("removing demo study directory: %w", err)
+	// Remove the entire training run directory (includes demo-study subdirectory)
+	demoRunDir := s.demoTrainingRunDir()
+	if err := os.RemoveAll(demoRunDir); err != nil {
+		s.logger.WithError(err).Error("failed to remove demo training run directory")
+		return fmt.Errorf("removing demo training run directory: %w", err)
 	}
-	s.logger.Debug("demo study directory removed")
+	s.logger.Debug("demo training run directory removed")
 
 	// Remove demo preset
 	if err := s.removeDemoPreset(); err != nil {

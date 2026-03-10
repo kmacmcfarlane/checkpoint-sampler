@@ -20,13 +20,17 @@ type ViewerFileSystem interface {
 // structure instead of checkpoint files. This decouples the viewer from checkpoint
 // file discovery — the viewer shows what's been generated, not what could be generated.
 //
-// Directory structure:
+// Supported directory structures (newest-first priority):
 //
-//	sample_dir/{study_name}/{checkpoint_filename.safetensors}/ → study samples
-//	sample_dir/{checkpoint_filename.safetensors}/              → legacy (non-study) samples
+//	sample_dir/{training_run_name}/{study_id}/{checkpoint.safetensors}/ → new per-training-run layout
+//	sample_dir/{study_name}/{checkpoint.safetensors}/                   → legacy study layout
+//	sample_dir/{checkpoint.safetensors}/                                → legacy no-study layout
+//
+// Detection: a non-safetensors directory at root level that contains sub-directories
+// that are ALSO non-safetensors (rather than safetensors) is treated as a training_run
+// directory (new layout). Otherwise it is treated as a study directory (legacy layout).
 //
 // A directory is considered a checkpoint directory if its name ends with ".safetensors".
-// Non-safetensors directories at the root level are treated as study directories.
 type ViewerDiscoveryService struct {
 	fs        ViewerFileSystem
 	sampleDir string
@@ -68,19 +72,58 @@ func (d *ViewerDiscoveryService) DiscoverViewable() ([]model.TrainingRun, error)
 			// Legacy: checkpoint dir at root of sample_dir (no study)
 			d.addCheckpointDir(runMap, "", entry)
 		} else {
-			// Study directory: scan for checkpoint subdirectories
-			studyDir := filepath.Join(d.sampleDir, entry)
-			cpEntries, err := d.fs.ListSubdirectories(studyDir)
+			// Non-safetensors dir: either training_run dir (new layout) or study dir (legacy).
+			// Scan one level down to determine which layout it is.
+			level1Dir := filepath.Join(d.sampleDir, entry)
+			level1Entries, err := d.fs.ListSubdirectories(level1Dir)
 			if err != nil {
 				d.logger.WithFields(logrus.Fields{
-					"study_dir": entry,
-					"error":     err.Error(),
-				}).Error("failed to list study directory entries")
+					"dir":   entry,
+					"error": err.Error(),
+				}).Error("failed to list level-1 directory entries")
 				return nil, err
 			}
-			for _, cpEntry := range cpEntries {
-				if isCheckpointDirName(cpEntry) {
-					d.addCheckpointDir(runMap, entry, cpEntry)
+
+			// Check whether level-1 entries are checkpoint dirs (legacy study layout)
+			// or non-checkpoint dirs (new training_run layout with study_id subdirs).
+			hasCheckpointSubdir := false
+			for _, l1Entry := range level1Entries {
+				if isCheckpointDirName(l1Entry) {
+					hasCheckpointSubdir = true
+					break
+				}
+			}
+
+			if hasCheckpointSubdir {
+				// Legacy study layout: {study_name}/{checkpoint.safetensors}/
+				// entry = study_name, l1Entry = checkpoint filename
+				for _, cpEntry := range level1Entries {
+					if isCheckpointDirName(cpEntry) {
+						d.addCheckpointDir(runMap, entry, cpEntry)
+					}
+				}
+			} else {
+				// New layout: {training_run_name}/{study_id}/{checkpoint.safetensors}/
+				// entry = training_run_name, l1Entry = study_id
+				for _, studyIDEntry := range level1Entries {
+					// Each study_id dir should contain checkpoint dirs
+					level2Dir := filepath.Join(d.sampleDir, entry, studyIDEntry)
+					level2Entries, err := d.fs.ListSubdirectories(level2Dir)
+					if err != nil {
+						d.logger.WithFields(logrus.Fields{
+							"training_run": entry,
+							"study_id":     studyIDEntry,
+							"error":        err.Error(),
+						}).Error("failed to list level-2 directory entries")
+						return nil, err
+					}
+					// The study output dir prefix used for scoping: training_run/study_id
+					studyOutputDir := entry + "/" + studyIDEntry
+					for _, cpEntry := range level2Entries {
+						if isCheckpointDirName(cpEntry) {
+							d.addCheckpointDir(runMap, studyOutputDir, cpEntry)
+						}
+					}
 				}
 			}
 		}
@@ -124,16 +167,19 @@ func (d *ViewerDiscoveryService) DiscoverViewable() ([]model.TrainingRun, error)
 }
 
 // addCheckpointDir adds a checkpoint directory to the training run map.
-// studyName is the study directory name (empty for legacy root-level checkpoints).
+// studyOutputDir is the path prefix between sample_dir and the checkpoint dir.
+// For new layout: "{training_run_name}/{study_id}" (e.g., "my-model/abc-123")
+// For legacy layout: "{study_name}" or "" (root-level checkpoints).
 // cpDirName is the checkpoint directory name (e.g., "model-step00001000.safetensors").
-func (d *ViewerDiscoveryService) addCheckpointDir(runMap map[string][]model.Checkpoint, studyName string, cpDirName string) {
+func (d *ViewerDiscoveryService) addCheckpointDir(runMap map[string][]model.Checkpoint, studyOutputDir string, cpDirName string) {
 	filename := cpDirName // The directory name IS the checkpoint filename
 	baseName := stripCheckpointSuffixes(filename)
 
-	// Include study name in the run name for scoping
+	// Include study output dir in the run name for scoping.
+	// StudyNameForRun(runName) returns studyOutputDir by extracting path.Dir(runName).
 	var runName string
-	if studyName != "" {
-		runName = studyName + "/" + baseName
+	if studyOutputDir != "" {
+		runName = studyOutputDir + "/" + baseName
 	} else {
 		runName = baseName
 	}
@@ -161,7 +207,8 @@ func isCheckpointDirName(name string) bool {
 // training run name. This is the portion of the path between sample_dir and the
 // checkpoint base name, used to scope validation and scanning to the correct subdirectory.
 //
-// For study-scoped runs like "study_name/model_base", returns "study_name".
+// For new-layout runs like "training_run/study_id/model_base", returns "training_run/study_id".
+// For legacy study-scoped runs like "study_name/model_base", returns "study_name".
 // For legacy (root-level) runs like "model_base", returns "".
 func StudyNameForRun(runName string) string {
 	dir := path.Dir(runName)

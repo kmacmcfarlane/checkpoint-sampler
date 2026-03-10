@@ -57,39 +57,63 @@ Checkpoint values are sorted numerically.
 
 ## Sample directory
 
-The `sample_dir` contains subdirectories named after checkpoint filenames (exact match, including `.safetensors` extension). Each subdirectory contains the ComfyUI-generated sample images for that checkpoint.
+The `sample_dir` contains subdirectories organized by training run and study. Each checkpoint's sample images are stored in a directory named after the checkpoint filename (exact match, including `.safetensors` extension).
 
-### Versioned study layout (current)
+### Per-training-run layout (current)
 
-Studies output into versioned subdirectories: `{sample_dir}/{study_name}/v{version}/{checkpoint.safetensors}/`. The version number starts at 1 and increments each time the study's configuration is updated. This ensures different parameter sets produce output in separate directories.
+New jobs output into a 3-level hierarchy: `{sample_dir}/{training_run_name}/{study_id}/{checkpoint.safetensors}/`. This scopes samples to the exact training run and study combination, preventing cross-contamination when the same study name is used across multiple training runs.
+
+A manifest file is written at the study level to capture the full job configuration: `{sample_dir}/{training_run_name}/{study_id}/manifest.json`.
 
 ```
 sample_dir: ~/ai/outputs/stable-diffusion/comfyui/
-├── My Study/
-│   ├── v1/
-│   │   ├── psai4rt-v0.3.0-no-reg.safetensors/
-│   │   │   ├── index=0&prompt_name=forest_portals&seed=420&cfg=1&_00001_.png
-│   │   │   └── ...
-│   │   └── psai4rt-v0.3.0-no-reg-step00004500.safetensors/
-│   │       └── ...
-│   └── v2/
-│       └── psai4rt-v0.3.0-no-reg.safetensors/
-│           └── ...  (regenerated with updated study params)
+├── qwen/
+│   └── psai4rt-v0.3.0-no-reg/
+│       ├── manifest.json                                     ← job manifest
+│       ├── psai4rt-v0.3.0-no-reg.safetensors/
+│       │   ├── prompt_name=forest_portals&seed=420&cfg=1&_00001_.png
+│       │   └── ...
+│       └── psai4rt-v0.3.0-no-reg-step00004500.safetensors/
+│           └── ...
+└── flux/
+    └── my-flux-lora/
+        ├── manifest.json
+        └── my-flux-lora-step00001000.safetensors/
+            └── ...
+```
+
+The training run name component is the base name of the training run (e.g. `qwen/psai4rt-v0.3.0-no-reg` for checkpoints discovered under `qwen/`). The study ID is the database UUID for the study.
+
+### Demo dataset layout
+
+The bundled demo dataset uses the per-training-run layout:
+
+```
+sample_dir: ~/ai/outputs/stable-diffusion/comfyui/
+└── demo-model/
+    └── demo-study/
+        ├── demo-model-step00001000.safetensors/
+        │   ├── prompt_name=landscape&seed=42&cfg=1&_00001_.png
+        │   └── ...
+        ├── demo-model-step00002000.safetensors/
+        │   └── ...
+        └── demo-model-step00003000.safetensors/
+            └── ...
 ```
 
 ### Legacy layouts
 
-Older sample directories may use these layouts which are still supported:
+Older sample directories may use these layouts which are still supported for viewing (read-only):
 
 ```
 sample_dir: ~/ai/outputs/stable-diffusion/comfyui/
-├── psai4rt-v0.3.0-no-reg.safetensors/           ← legacy: no study
-│   ├── index=0&prompt_name=forest_portals&seed=420&cfg=1&_00001_.png
+├── psai4rt-v0.3.0-no-reg.safetensors/           ← legacy: no study, root-level
+│   ├── prompt_name=forest_portals&seed=420&cfg=1&_00001_.png
 │   └── ...
-├── My Study/                                      ← legacy: study without version
+├── My Study/                                      ← legacy: study-scoped without training run
 │   └── psai4rt-v0.3.0-no-reg.safetensors/
 │       └── ...
-└── my-flux-lora.safetensors/                      ← legacy: no study
+└── my-flux-lora.safetensors/                      ← legacy: no study, root-level
     └── ...
 ```
 
