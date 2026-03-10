@@ -98,3 +98,9 @@ Add a CI check or Makefile target that validates all `test-fixtures/**/*.safeten
 * priority: low
 * source: developer
 Add an explicit idempotency check in `FixtureSeeder.SeedFixtures()` to detect and skip already-seeded fixture data, preventing silent state duplication if the cleaner fails mid-reset.
+
+### Generate TypeScript API types from Goa design for E2E tests
+* status: needs_approval
+* priority: low
+* source: developer
+E2E tests manually type API payload field names (e.g., `workflow_filename` vs `workflow_name`), which can silently diverge from the Goa API design. Generate a lightweight TypeScript types file from the Goa design so E2E tests can import typed payloads rather than guessing field names by hand.
