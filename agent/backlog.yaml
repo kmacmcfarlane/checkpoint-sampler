@@ -370,7 +370,7 @@ stories:
   - id: B-077
     title: "Tooltip for long checkpoint names in Current checkpoint progress line"
     priority: 15
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:

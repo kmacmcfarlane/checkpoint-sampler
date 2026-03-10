@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-077: Tooltip for long checkpoint names in Current checkpoint progress line
+- Current checkpoint name in JobProgressPanel progress line now shows ellipsis truncation with native tooltip on hover, consistent with B-052 completeness section treatment
+
 ### B-075: Clamp TotalMissing in backend validation to prevent negative values
 - `TotalMissing` aggregate now clamped to `max(0, totalExpected - totalVerified)` in all three validation functions, preventing semantically incorrect negative values when checkpoints have more files than expected
 

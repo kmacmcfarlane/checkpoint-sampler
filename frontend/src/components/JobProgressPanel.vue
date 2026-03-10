@@ -458,7 +458,11 @@ function isTracebackExpanded(jobId: string, errorIdx: number): boolean {
                 </p>
                 <p v-if="getJobProgress(job.id)?.current_checkpoint" class="progress-line">
                   <span class="progress-label">Current checkpoint:</span>
-                  <span>{{ getJobProgress(job.id)?.current_checkpoint }}</span>
+                  <span
+                    class="progress-checkpoint"
+                    :title="getJobProgress(job.id)?.current_checkpoint"
+                    :data-testid="`job-${job.id}-current-checkpoint`"
+                  >{{ getJobProgress(job.id)?.current_checkpoint }}</span>
                 </p>
                 <p v-if="getJobProgress(job.id)?.current_checkpoint_progress !== undefined" class="progress-line">
                   <span class="progress-label">Current progress:</span>
@@ -846,6 +850,14 @@ function isTracebackExpanded(jobId: string, errorIdx: number): boolean {
   text-overflow: ellipsis;
   white-space: nowrap;
   margin-right: 0.5rem;
+  min-width: 0;
+}
+
+.progress-checkpoint {
+  font-family: monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   min-width: 0;
 }
 

@@ -1859,4 +1859,95 @@ describe('JobProgressPanel', () => {
       expect(wrapper.find('[data-testid="job-j2-params"]').exists()).toBe(false)
     })
   })
+
+  // AC1 (B-077): Long checkpoint names in the Current checkpoint progress line show ellipsis with a tooltip on hover
+  // AC2 (B-077): Tooltip displays the full checkpoint filename
+  // AC3 (B-077): Consistent with the tooltip treatment in B-052 completeness section
+  describe('current checkpoint tooltip (B-077)', () => {
+    const runningJobForTooltip: SampleJob = {
+      id: 'job-ckpt-tip',
+      training_run_name: 'flux/tooltip-test',
+      study_id: 'preset-1', study_name: 'Quick Test',
+      workflow_name: 'flux.json',
+      vae: 'ae.safetensors',
+      clip: 't5.safetensors',
+      status: 'running',
+      total_items: 10,
+      completed_items: 3,
+      failed_items: 0,
+      pending_items: 7,
+      created_at: '2025-01-01T00:00:00Z',
+      updated_at: '2025-01-01T00:00:00Z',
+    }
+
+    // AC1 + AC2: Current checkpoint span has a title attribute with the full filename
+    it('current checkpoint span has a title attribute with the full checkpoint name', () => {
+      const fullName = 'a-very-long-checkpoint-filename-that-would-overflow.safetensors'
+      const wrapper = mount(JobProgressPanel, {
+        props: {
+          show: true,
+          jobs: [runningJobForTooltip],
+          jobProgress: {
+            'job-ckpt-tip': {
+              checkpoints_completed: 1,
+              total_checkpoints: 3,
+              current_checkpoint: fullName,
+            },
+          },
+        },
+        global: { stubs: { Teleport: true } },
+      })
+
+      // AC2: title attribute must match the full checkpoint filename
+      const ckptSpan = wrapper.find('[data-testid="job-job-ckpt-tip-current-checkpoint"]')
+      expect(ckptSpan.exists()).toBe(true)
+      expect(ckptSpan.attributes('title')).toBe(fullName)
+    })
+
+    // AC3: Span carries the progress-checkpoint class (consistent with completeness-checkpoint treatment)
+    it('current checkpoint span has the progress-checkpoint class for ellipsis truncation', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: {
+          show: true,
+          jobs: [runningJobForTooltip],
+          jobProgress: {
+            'job-ckpt-tip': {
+              checkpoints_completed: 1,
+              total_checkpoints: 3,
+              current_checkpoint: 'short.safetensors',
+            },
+          },
+        },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const ckptSpan = wrapper.find('[data-testid="job-job-ckpt-tip-current-checkpoint"]')
+      expect(ckptSpan.exists()).toBe(true)
+      expect(ckptSpan.classes()).toContain('progress-checkpoint')
+      // No inline style overrides
+      expect(ckptSpan.attributes('style')).toBeUndefined()
+    })
+
+    // AC2: Title attribute also present for short names (tooltip is always available)
+    it('title attribute is present even for short checkpoint names', () => {
+      const shortName = 'ckpt-001.safetensors'
+      const wrapper = mount(JobProgressPanel, {
+        props: {
+          show: true,
+          jobs: [runningJobForTooltip],
+          jobProgress: {
+            'job-ckpt-tip': {
+              checkpoints_completed: 0,
+              total_checkpoints: 2,
+              current_checkpoint: shortName,
+            },
+          },
+        },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const ckptSpan = wrapper.find('[data-testid="job-job-ckpt-tip-current-checkpoint"]')
+      expect(ckptSpan.attributes('title')).toBe(shortName)
+    })
+  })
 })
