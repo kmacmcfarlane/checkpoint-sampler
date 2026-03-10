@@ -39,7 +39,16 @@ ralph-auto-resume-once:
 	claude-sandbox --ralph --dangerously-skip-permissions --limit 1 --resume ${ARGS}
 
 backlog-count-not-done:
-	grep -E "status: (todo|uat|in_progress|review|testing)" < agent/backlog.yaml|wc -l
+	./scripts/backlog/backlog.py query --status todo,in_progress,review,testing,uat --fields id|wc -l
+
+backlog-count-uat:
+	./scripts/backlog/backlog.py query --status uat --fields id|wc -l
+
+backlog-count-todo:
+	./scripts/backlog/backlog.py query --status todo --fields id|wc -l
+
+backlog-count-in-flight:
+	./scripts/backlog/backlog.py query --status in_progress,review,testing --fields id|wc -l
 
 # Capture runtime context snapshot (container logs, errors) to .ralph/temp/debug-context
 capture-runtime-context:

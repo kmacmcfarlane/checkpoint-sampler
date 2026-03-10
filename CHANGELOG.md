@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-111: Test seed endpoint for sample jobs (E2E testing infra)
+- New `POST /api/test/seed-jobs` endpoint (gated on `ENABLE_TEST_ENDPOINTS=true`) creates sample jobs with specified statuses, enabling E2E testing of job-related UI without requiring ComfyUI
+- Store-level `SeedSampleJobs` method auto-creates stub study rows to satisfy FK constraints
+
 ### B-085: Studies created without workflow_template cause 'workflow not found: .json' errors at job execution
 - Added missing `workflow_template`, `vae`, and `text_encoder` fields to E2E test study payloads and backend fixture seeder that were not updated when S-112 moved these fields from job-level to study-level
 
