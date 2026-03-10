@@ -30,6 +30,10 @@ const STUDY_PAYLOAD = {
   seeds: [42],
   width: 512,
   height: 512,
+  // S-112: Workflow settings are now part of the study definition
+  workflow_template: 'test-workflow.json',
+  vae: 'test-vae.safetensors',
+  text_encoder: 'test-clip.safetensors',
 }
 
 /** Create a study via the REST API and return its ID. */

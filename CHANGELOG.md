@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-085: Studies created without workflow_template cause 'workflow not found: .json' errors at job execution
+- Added missing `workflow_template`, `vae`, and `text_encoder` fields to E2E test study payloads and backend fixture seeder that were not updated when S-112 moved these fields from job-level to study-level
+
 ### S-112: Move workflow template, VAE, text encoder, shift into study definition
 - Workflow template, VAE, text encoder, and shift moved from job-level settings into the study definition; DB migration 18 adds columns to `studies` table
 - `CreateSampleJobPayload` no longer accepts workflow/VAE/CLIP/shift — these are read from the study at job creation time

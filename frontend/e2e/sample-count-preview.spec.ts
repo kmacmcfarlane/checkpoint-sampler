@@ -208,6 +208,9 @@ test.describe('S-084: sample count preview and missing-sample generation', () =>
         seeds: [42],
         width: 1024,
         height: 1024,
+        workflow_template: 'test-workflow.json',
+        vae: 'test-vae.safetensors',
+        text_encoder: 'test-clip.safetensors',
       },
     })
     expect(createStudyResponse.ok()).toBeTruthy()

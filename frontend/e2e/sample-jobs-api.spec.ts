@@ -58,6 +58,10 @@ test.describe('sample-jobs API (ComfyUI configured in test environment)', () => 
       seeds: [42],
       width: 512,
       height: 512,
+      // S-112: Workflow settings are now part of the study definition
+      workflow_template: 'test-workflow.json',
+      vae: 'test-vae.safetensors',
+      text_encoder: 'test-clip.safetensors',
     }
     const createStudyResp = await request.post('/api/studies', { data: studyPayload })
     expect(createStudyResp.status()).toBe(201)
@@ -110,6 +114,10 @@ test.describe('sample-jobs API (ComfyUI configured in test environment)', () => 
       seeds: [123],
       width: 512,
       height: 512,
+      // S-112: Workflow settings are now part of the study definition
+      workflow_template: 'test-workflow.json',
+      vae: 'test-vae.safetensors',
+      text_encoder: 'test-clip.safetensors',
     }
     const createStudyResp = await request.post('/api/studies', { data: studyPayload })
     expect(createStudyResp.status()).toBe(201)

@@ -87,6 +87,9 @@ func (s *FixtureSeeder) seedFixtureStudy() error {
 		Seeds:                 []int64{42},
 		Width:                 512,
 		Height:                512,
+		WorkflowTemplate:      "test-workflow.json",
+		VAE:                   "test-vae.safetensors",
+		TextEncoder:           "test-clip.safetensors",
 		CreatedAt:             now,
 		UpdatedAt:             now,
 	}

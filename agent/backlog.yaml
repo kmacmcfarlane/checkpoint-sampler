@@ -1002,7 +1002,7 @@ stories:
   - id: B-085
     title: "Studies created without workflow_template cause 'workflow not found: .json' errors at job execution"
     priority: 60
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:
