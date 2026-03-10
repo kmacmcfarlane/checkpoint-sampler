@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest'
 import { mount, flushPromises, type VueWrapper } from '@vue/test-utils'
 import { nextTick } from 'vue'
-import { NSelect, NButton, NInput, NInputNumber, NDynamicInput, NDynamicTags, NModal } from 'naive-ui'
+import { NSelect, NButton, NInput, NInputNumber, NDynamicInput, NDynamicTags, NTag, NModal } from 'naive-ui'
 import StudyEditor from '../StudyEditor.vue'
 import ConfirmDeleteDialog from '../ConfirmDeleteDialog.vue'
 import { validateStudyImport } from '../studyImportValidation'
@@ -2015,80 +2015,95 @@ describe('StudyEditor', () => {
       expect(nameInput.props('status')).toBeUndefined()
     })
 
-    it('steps tags wrapper gets error class when duplicate step values are present', async () => {
+    // Helper: find an NTag component by its data-testid attribute.
+    // renderTag functions pass data-testid as an attribute to the NTag h() call,
+    // which is forwarded to the root DOM element (Vue 3 fallthrough attrs).
+    function findTagByTestId(wrapper: VueWrapper, testId: string) {
+      return wrapper.findAllComponents(NTag).find(
+        t => t.element.getAttribute('data-testid') === testId
+      )
+    }
+
+    it('duplicate step tag gets error type, first occurrence does not', async () => {
       // AC: FE: Fields with validation errors are visually highlighted
+      // AC: FE: For duplicate values, all duplicate occurrences except the first are highlighted
       const { wrapper, vm } = await mountWithValidForm()
 
       vm.steps = [4, 8, 4]
       await nextTick()
 
-      const stepsWrapper = wrapper.find('[data-testid="steps-tags-wrapper"]')
-      expect(stepsWrapper.classes()).toContain('tags-error-wrapper')
+      expect(findTagByTestId(wrapper, 'step-tag-0')?.props('type')).toBe('default') // first '4', not a duplicate
+      expect(findTagByTestId(wrapper, 'step-tag-1')?.props('type')).toBe('default') // '8', unique
+      expect(findTagByTestId(wrapper, 'step-tag-2')?.props('type')).toBe('error')   // second '4', duplicate
     })
 
-    it('steps tags wrapper error class clears when duplicate step is removed', async () => {
+    it('step tag error type clears when duplicate step is removed', async () => {
       // AC: FE: Highlight clears when the validation error is resolved
       const { wrapper, vm } = await mountWithValidForm()
 
       vm.steps = [4, 8, 4]
       await nextTick()
-      const stepsWrapper = wrapper.find('[data-testid="steps-tags-wrapper"]')
-      expect(stepsWrapper.classes()).toContain('tags-error-wrapper')
+      expect(findTagByTestId(wrapper, 'step-tag-2')?.props('type')).toBe('error')
 
-      // Fix by removing duplicate
+      // Fix by removing duplicate — now only 2 tags
       vm.steps = [4, 8]
       await nextTick()
-      expect(stepsWrapper.classes()).not.toContain('tags-error-wrapper')
+      expect(findTagByTestId(wrapper, 'step-tag-0')?.props('type')).toBe('default')
+      expect(findTagByTestId(wrapper, 'step-tag-1')?.props('type')).toBe('default')
     })
 
-    it('cfgs tags wrapper gets error class when duplicate CFG values are present', async () => {
+    it('duplicate CFG tag gets error type, first occurrence does not', async () => {
       // AC: FE: Fields with validation errors are visually highlighted
+      // AC: FE: For duplicate values, all duplicate occurrences except the first are highlighted
       const { wrapper, vm } = await mountWithValidForm()
 
       vm.cfgs = [1.0, 3.0, 1.0]
       await nextTick()
 
-      const cfgsWrapper = wrapper.find('[data-testid="cfgs-tags-wrapper"]')
-      expect(cfgsWrapper.classes()).toContain('tags-error-wrapper')
+      expect(findTagByTestId(wrapper, 'cfg-tag-0')?.props('type')).toBe('default') // first '1.0', not a duplicate
+      expect(findTagByTestId(wrapper, 'cfg-tag-1')?.props('type')).toBe('default') // '3.0', unique
+      expect(findTagByTestId(wrapper, 'cfg-tag-2')?.props('type')).toBe('error')   // second '1.0', duplicate
     })
 
-    it('cfgs tags wrapper error class clears when duplicate CFG is removed', async () => {
+    it('cfg tag error type clears when duplicate CFG is removed', async () => {
       // AC: FE: Highlight clears when the validation error is resolved
       const { wrapper, vm } = await mountWithValidForm()
 
       vm.cfgs = [1.0, 3.0, 1.0]
       await nextTick()
-      const cfgsWrapper = wrapper.find('[data-testid="cfgs-tags-wrapper"]')
-      expect(cfgsWrapper.classes()).toContain('tags-error-wrapper')
+      expect(findTagByTestId(wrapper, 'cfg-tag-2')?.props('type')).toBe('error')
 
       vm.cfgs = [1.0, 3.0]
       await nextTick()
-      expect(cfgsWrapper.classes()).not.toContain('tags-error-wrapper')
+      expect(findTagByTestId(wrapper, 'cfg-tag-0')?.props('type')).toBe('default')
+      expect(findTagByTestId(wrapper, 'cfg-tag-1')?.props('type')).toBe('default')
     })
 
-    it('seeds tags wrapper gets error class when duplicate seed values are present', async () => {
+    it('duplicate seed tag gets error type, first occurrence does not', async () => {
       // AC: FE: Fields with validation errors are visually highlighted
+      // AC: FE: For duplicate values, all duplicate occurrences except the first are highlighted
       const { wrapper, vm } = await mountWithValidForm()
 
       vm.seeds = [42, 420, 42]
       await nextTick()
 
-      const seedsWrapper = wrapper.find('[data-testid="seeds-tags-wrapper"]')
-      expect(seedsWrapper.classes()).toContain('tags-error-wrapper')
+      expect(findTagByTestId(wrapper, 'seed-tag-0')?.props('type')).toBe('default') // first '42', not a duplicate
+      expect(findTagByTestId(wrapper, 'seed-tag-1')?.props('type')).toBe('default') // '420', unique
+      expect(findTagByTestId(wrapper, 'seed-tag-2')?.props('type')).toBe('error')   // second '42', duplicate
     })
 
-    it('seeds tags wrapper error class clears when duplicate seed is removed', async () => {
+    it('seed tag error type clears when duplicate seed is removed', async () => {
       // AC: FE: Highlight clears when the validation error is resolved
       const { wrapper, vm } = await mountWithValidForm()
 
       vm.seeds = [42, 420, 42]
       await nextTick()
-      const seedsWrapper = wrapper.find('[data-testid="seeds-tags-wrapper"]')
-      expect(seedsWrapper.classes()).toContain('tags-error-wrapper')
+      expect(findTagByTestId(wrapper, 'seed-tag-2')?.props('type')).toBe('error')
 
       vm.seeds = [42, 420]
       await nextTick()
-      expect(seedsWrapper.classes()).not.toContain('tags-error-wrapper')
+      expect(findTagByTestId(wrapper, 'seed-tag-0')?.props('type')).toBe('default')
+      expect(findTagByTestId(wrapper, 'seed-tag-1')?.props('type')).toBe('default')
     })
 
     it('only the duplicate prompt row gets field-error class, not the first occurrence', async () => {
@@ -2183,26 +2198,26 @@ describe('StudyEditor', () => {
       expect(wrapper.find('[data-testid="pair-row-1"]').classes()).not.toContain('field-error')
     })
 
-    it('steps tags wrapper has no error class when all steps are unique', async () => {
+    it('step tags have default type when all steps are unique', async () => {
       // AC: Only the correct fields are highlighted, not all fields
       const { wrapper } = await mountWithValidForm()
 
-      const stepsWrapper = wrapper.find('[data-testid="steps-tags-wrapper"]')
-      expect(stepsWrapper.classes()).not.toContain('tags-error-wrapper')
+      // Default initial steps value is [30], so index 0 should be default type
+      expect(findTagByTestId(wrapper, 'step-tag-0')?.props('type')).toBe('default')
     })
 
-    it('cfgs error class does not appear when only steps have duplicates', async () => {
+    it('cfg and seed tags have default type when only steps have duplicates', async () => {
       // AC: Only the correct fields are highlighted, not all fields
       const { wrapper, vm } = await mountWithValidForm()
 
       vm.steps = [4, 8, 4] // only steps are duplicated
       await nextTick()
 
-      const cfgsWrapper = wrapper.find('[data-testid="cfgs-tags-wrapper"]')
-      expect(cfgsWrapper.classes()).not.toContain('tags-error-wrapper')
+      // CFG tag (index 0) should not be error type
+      expect(findTagByTestId(wrapper, 'cfg-tag-0')?.props('type')).toBe('default')
 
-      const seedsWrapper = wrapper.find('[data-testid="seeds-tags-wrapper"]')
-      expect(seedsWrapper.classes()).not.toContain('tags-error-wrapper')
+      // Seed tag (index 0) should not be error type
+      expect(findTagByTestId(wrapper, 'seed-tag-0')?.props('type')).toBe('default')
     })
   })
 

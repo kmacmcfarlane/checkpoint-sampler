@@ -82,7 +82,7 @@ stories:
   - id: S-101
     title: Study editor validation field highlighting
     type: feature
-    status: uat_feedback
+    status: uat
     priority: 15
     complexity: low
     requires: []
@@ -100,8 +100,6 @@ stories:
       - "Test highlighting for each validation error type (duplicates, invalid chars, empty required fields)"
       - "Test that only the correct fields are highlighted, not all fields"
       - "Test highlight clears on fix"
-    review_feedback: The actual input field that contains the duplicated value is not highlighted with a different 
-      color. The field should visually change (e.g. red border) to indicate which specific input has the duplicate.
   - id: B-059
     title: "Training run discovery returns empty — both viewer and Generate Samples selectors show nothing"
     priority: 90

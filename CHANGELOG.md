@@ -8,9 +8,9 @@ Older entries are condensed to titles only — see git history for full details.
 ### B-066: Job executor logs spurious error when database is reset mid-poll
 - Downgraded `autoStartJob` error log from ERROR to WARN when `UpdateSampleJob` returns `sql.ErrNoRows`, eliminating spurious error noise during E2E test teardown race conditions
 
-### S-101: Study editor validation field highlighting
-- Per-field validation error highlighting in the study editor: NInput/NSelect `status="error"` for study name, prompt rows, and sampler/scheduler pairs; CSS error border wrappers for NDynamicTags (steps, CFGs, seeds)
-- Duplicate values highlight only occurrences after the first; highlights clear reactively when errors are resolved
+### S-101: Study editor validation field highlighting (UAT rework)
+- Per-tag error highlighting for NDynamicTags (steps, CFGs, seeds) using `renderTag` prop with `NTag type="error"` — individual duplicate tags now show red styling instead of a wrapper border around the entire tag group
+- NInput/NSelect `status="error"` for study name, prompt rows, and sampler/scheduler pairs; duplicate values highlight only occurrences after the first; highlights clear reactively when errors are resolved
 
 ### S-100: Debug mode params overlay in lightbox
 - Lightbox now shows a debug overlay (bottom-left, non-interactive) displaying the same dimension parameters as the XY grid debug overlay when debug mode is enabled

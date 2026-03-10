@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { NInput, NInputNumber, NSelect, NButton, NDynamicInput, NDynamicTags, NCard, NSpace, NAlert, NModal } from 'naive-ui'
+import { ref, computed, onMounted, h } from 'vue'
+import { NInput, NInputNumber, NSelect, NButton, NDynamicInput, NDynamicTags, NTag, NCard, NSpace, NAlert, NModal } from 'naive-ui'
 import type { Study, NamedPrompt, SamplerSchedulerPair, CreateStudyPayload, UpdateStudyPayload, ForkStudyPayload } from '../api/types'
 import { apiClient } from '../api/client'
 import { validateStudyImport } from './studyImportValidation'
@@ -640,6 +640,57 @@ function onUpdateCfgs(tags: string[]) {
 function onUpdateSeeds(tags: string[]) {
   seeds.value = tags.map(s => parseFloat(s)).filter(n => !isNaN(n))
 }
+
+/**
+ * Render functions for NDynamicTags. Used via the :render-tag prop to apply
+ * per-tag error highlighting (NTag type="error") for duplicate values.
+ * NDynamicTags does not have a #tag slot; the renderTag prop is the only way
+ * to customize individual tag rendering.
+ */
+function renderStepTag(tag: string, index: number) {
+  const isError = fieldValidationErrors.value.stepIndices.has(index)
+  return h(NTag, {
+    closable: true,
+    type: isError ? 'error' : 'default',
+    size: 'medium',
+    'data-testid': `step-tag-${index}`,
+    onClose: () => {
+      const updated = [...stepsAsStrings.value]
+      updated.splice(index, 1)
+      onUpdateSteps(updated)
+    },
+  }, () => tag)
+}
+
+function renderCfgTag(tag: string, index: number) {
+  const isError = fieldValidationErrors.value.cfgIndices.has(index)
+  return h(NTag, {
+    closable: true,
+    type: isError ? 'error' : 'default',
+    size: 'medium',
+    'data-testid': `cfg-tag-${index}`,
+    onClose: () => {
+      const updated = [...cfgsAsStrings.value]
+      updated.splice(index, 1)
+      onUpdateCfgs(updated)
+    },
+  }, () => tag)
+}
+
+function renderSeedTag(tag: string, index: number) {
+  const isError = fieldValidationErrors.value.seedIndices.has(index)
+  return h(NTag, {
+    closable: true,
+    type: isError ? 'error' : 'default',
+    size: 'medium',
+    'data-testid': `seed-tag-${index}`,
+    onClose: () => {
+      const updated = [...seedsAsStrings.value]
+      updated.splice(index, 1)
+      onUpdateSeeds(updated)
+    },
+  }, () => tag)
+}
 </script>
 
 <template>
@@ -740,52 +791,50 @@ function onUpdateSeeds(tags: string[]) {
         <div class="form-row">
           <div class="form-field">
             <label>Steps</label>
-            <div :class="{ 'tags-error-wrapper': fieldValidationErrors.stepIndices.size > 0 }" data-testid="steps-tags-wrapper">
-              <NDynamicTags
-                :value="stepsAsStrings"
-                :input-props="numericInputProps"
-                size="medium"
-                data-testid="steps-tags"
-                @update:value="onUpdateSteps"
-              >
-                <template #trigger="{ activate, disabled }">
-                  <NButton
-                    size="medium"
-                    dashed
-                    :disabled="disabled"
-                    data-testid="steps-tags-add"
-                    @click="activate"
-                  >
-                    +
-                  </NButton>
-                </template>
-              </NDynamicTags>
-            </div>
+            <NDynamicTags
+              :value="stepsAsStrings"
+              :input-props="numericInputProps"
+              :render-tag="renderStepTag"
+              size="medium"
+              data-testid="steps-tags"
+              @update:value="onUpdateSteps"
+            >
+              <template #trigger="{ activate, disabled }">
+                <NButton
+                  size="medium"
+                  dashed
+                  :disabled="disabled"
+                  data-testid="steps-tags-add"
+                  @click="activate"
+                >
+                  +
+                </NButton>
+              </template>
+            </NDynamicTags>
           </div>
 
           <div class="form-field">
             <label>CFG Values</label>
-            <div :class="{ 'tags-error-wrapper': fieldValidationErrors.cfgIndices.size > 0 }" data-testid="cfgs-tags-wrapper">
-              <NDynamicTags
-                :value="cfgsAsStrings"
-                :input-props="numericInputProps"
-                size="medium"
-                data-testid="cfgs-tags"
-                @update:value="onUpdateCfgs"
-              >
-                <template #trigger="{ activate, disabled }">
-                  <NButton
-                    size="medium"
-                    dashed
-                    :disabled="disabled"
-                    data-testid="cfgs-tags-add"
-                    @click="activate"
-                  >
-                    +
-                  </NButton>
-                </template>
-              </NDynamicTags>
-            </div>
+            <NDynamicTags
+              :value="cfgsAsStrings"
+              :input-props="numericInputProps"
+              :render-tag="renderCfgTag"
+              size="medium"
+              data-testid="cfgs-tags"
+              @update:value="onUpdateCfgs"
+            >
+              <template #trigger="{ activate, disabled }">
+                <NButton
+                  size="medium"
+                  dashed
+                  :disabled="disabled"
+                  data-testid="cfgs-tags-add"
+                  @click="activate"
+                >
+                  +
+                </NButton>
+              </template>
+            </NDynamicTags>
           </div>
         </div>
 
@@ -851,27 +900,26 @@ function onUpdateSeeds(tags: string[]) {
 
         <div class="form-field">
           <label>Seeds</label>
-          <div :class="{ 'tags-error-wrapper': fieldValidationErrors.seedIndices.size > 0 }" data-testid="seeds-tags-wrapper">
-            <NDynamicTags
-              :value="seedsAsStrings"
-              :input-props="numericInputProps"
-              size="medium"
-              data-testid="seeds-tags"
-              @update:value="onUpdateSeeds"
-            >
-              <template #trigger="{ activate, disabled }">
-                <NButton
-                  size="medium"
-                  dashed
-                  :disabled="disabled"
-                  data-testid="seeds-tags-add"
-                  @click="activate"
-                >
-                  +
-                </NButton>
-              </template>
-            </NDynamicTags>
-          </div>
+          <NDynamicTags
+            :value="seedsAsStrings"
+            :input-props="numericInputProps"
+            :render-tag="renderSeedTag"
+            size="medium"
+            data-testid="seeds-tags"
+            @update:value="onUpdateSeeds"
+          >
+            <template #trigger="{ activate, disabled }">
+              <NButton
+                size="medium"
+                dashed
+                :disabled="disabled"
+                data-testid="seeds-tags-add"
+                @click="activate"
+              >
+                +
+              </NButton>
+            </template>
+          </NDynamicTags>
         </div>
 
         <div class="form-row">
@@ -1073,10 +1121,4 @@ function onUpdateSeeds(tags: string[]) {
   padding: 0.25rem;
 }
 
-/* Wrapper for NDynamicTags that shows an error border when duplicates are present */
-.tags-error-wrapper {
-  border: 1px solid var(--error-color);
-  border-radius: 0.25rem;
-  padding: 0.25rem;
-}
 </style>
