@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-113: MRU defaults for workflow/VAE/text encoder selections (local storage)
+- VAE and text encoder selections now auto-fill from most-recently-used values per workflow template, stored in localStorage
+- MRU only applies on user-driven workflow selection; loading an existing study preserves its own values
+
 ### S-116: Training run and study status beads in Generate Samples
 - Dual-bead system replaces single-bead: each training run and study item shows up to two independent beads — activity (blue=running, green=complete) and problem (red=failed, yellow=incomplete)
 - New `dualBeadStatus.ts` composable with pure functions for bead state computation; existing Jobs nav button bead (`beadStatus.ts`) unchanged

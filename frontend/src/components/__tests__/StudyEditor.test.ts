@@ -2826,6 +2826,163 @@ describe('StudyEditor', () => {
 
       localStorage.removeItem('checkpoint-sampler:mru-workflow-template')
     })
+
+    // AC1: MRU VAE and text encoder are auto-filled when user selects a workflow
+    it('auto-fills VAE and text encoder from MRU when user selects a workflow', async () => {
+      // Pre-seed MRU for 'flux-image.json'
+      localStorage.setItem(
+        'checkpoint-sampler:mru-workflow-vae-te',
+        JSON.stringify({ 'flux-image.json': { vae: 'ae.safetensors', textEncoder: 'clip_l.safetensors' } }),
+      )
+
+      const wrapper = mount(StudyEditor)
+      await flushPromises()
+
+      // Simulate user selecting workflow via NSelect update:value event
+      wrapper.find('[data-testid="study-workflow-template-select"]').findComponent(NSelect).vm.$emit('update:value', 'flux-image.json')
+      await nextTick()
+
+      const vm = wrapper.vm as unknown as { selectedVAE: string | null; selectedCLIP: string | null }
+      expect(vm.selectedVAE).toBe('ae.safetensors')
+      expect(vm.selectedCLIP).toBe('clip_l.safetensors')
+
+      localStorage.removeItem('checkpoint-sampler:mru-workflow-vae-te')
+    })
+
+    // AC1: When no MRU is stored for a workflow, VAE and TE are not auto-filled
+    it('does not auto-fill VAE and text encoder when no MRU is stored for the selected workflow', async () => {
+      localStorage.removeItem('checkpoint-sampler:mru-workflow-vae-te')
+
+      const wrapper = mount(StudyEditor)
+      await flushPromises()
+
+      wrapper.find('[data-testid="study-workflow-template-select"]').findComponent(NSelect).vm.$emit('update:value', 'flux-image.json')
+      await nextTick()
+
+      const vm = wrapper.vm as unknown as { selectedVAE: string | null; selectedCLIP: string | null }
+      expect(vm.selectedVAE).toBeNull()
+      expect(vm.selectedCLIP).toBeNull()
+    })
+
+    // AC1: MRU VAE/TE are saved per-workflow when study is saved
+    it('saves VAE and text encoder MRU per workflow when saving a study', async () => {
+      const createdStudy: Study = {
+        id: 'new-id',
+        name: 'MRU Test Study',
+        prompt_prefix: '',
+        prompts: [{ name: 'test', text: 'test prompt' }],
+        negative_prompt: '',
+        steps: [30],
+        cfgs: [7.0],
+        sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
+        seeds: [42],
+        width: 1024,
+        height: 1024,
+        workflow_template: 'flux-image.json',
+        vae: 'ae.safetensors',
+        text_encoder: 'clip_l.safetensors',
+        images_per_checkpoint: 1,
+        created_at: '2025-01-03T00:00:00Z',
+        updated_at: '2025-01-03T00:00:00Z',
+      }
+      mockCreateStudy.mockResolvedValue(createdStudy)
+
+      localStorage.removeItem('checkpoint-sampler:mru-workflow-vae-te')
+
+      const wrapper = mount(StudyEditor)
+      await flushPromises()
+
+      // Set form fields directly via vm to meet canSave requirements
+      const vm = wrapper.vm as unknown as {
+        workflowTemplate: string | null
+        selectedVAE: string | null
+        selectedCLIP: string | null
+        samplerSchedulerPairs: Array<{ sampler: string; scheduler: string }>
+        prompts: Array<{ name: string; text: string }>
+      }
+
+      // Simulate user selecting workflow (which sets workflowTemplate via handler)
+      wrapper.find('[data-testid="study-workflow-template-select"]').findComponent(NSelect).vm.$emit('update:value', 'flux-image.json')
+      await nextTick()
+
+      // Set VAE and CLIP
+      wrapper.find('[data-testid="study-vae-select"]').findComponent(NSelect).vm.$emit('update:value', 'ae.safetensors')
+      wrapper.find('[data-testid="study-clip-select"]').findComponent(NSelect).vm.$emit('update:value', 'clip_l.safetensors')
+      await nextTick()
+
+      const nameInput = asVue(wrapper.findComponent('[data-testid="study-name-input"]'))
+      nameInput.vm.$emit('update:value', 'MRU Test Study')
+      vm.samplerSchedulerPairs = [{ sampler: 'euler', scheduler: 'normal' }]
+      vm.prompts = [{ name: 'test', text: 'test prompt' }]
+      await nextTick()
+
+      const saveButton = wrapper.findAllComponents(NButton).find(b => b.text().includes('Save Study'))!
+      await saveButton.trigger('click')
+      await flushPromises()
+
+      // Verify MRU was saved
+      const rawMru = localStorage.getItem('checkpoint-sampler:mru-workflow-vae-te')
+      expect(rawMru).not.toBeNull()
+      const mru = JSON.parse(rawMru!)
+      expect(mru['flux-image.json']).toEqual({ vae: 'ae.safetensors', textEncoder: 'clip_l.safetensors' })
+
+      localStorage.removeItem('checkpoint-sampler:mru-workflow-vae-te')
+    })
+
+    // AC3: Loading an existing study does NOT trigger MRU auto-fill (pre-fill takes priority)
+    it('does not override study values with MRU when loading an existing study', async () => {
+      // Pre-seed MRU with different values
+      localStorage.setItem(
+        'checkpoint-sampler:mru-workflow-vae-te',
+        JSON.stringify({ 'my-workflow.json': { vae: 'mru-vae.safetensors', textEncoder: 'mru-clip.safetensors' } }),
+      )
+
+      const wrapper = mount(StudyEditor)
+      await flushPromises()
+
+      // Load study (preset-1 has workflow='my-workflow.json', vae='ae.safetensors', text_encoder='clip_l.safetensors')
+      const select = wrapper.findAllComponents(NSelect)[0]
+      select.vm.$emit('update:value', 'preset-1')
+      await nextTick()
+
+      // The values from the study should be preserved, NOT the MRU values
+      const vm = wrapper.vm as unknown as { selectedVAE: string | null; selectedCLIP: string | null }
+      expect(vm.selectedVAE).toBe('ae.safetensors')
+      expect(vm.selectedCLIP).toBe('clip_l.safetensors')
+
+      localStorage.removeItem('checkpoint-sampler:mru-workflow-vae-te')
+    })
+
+    // AC2: Selecting a different workflow applies that workflow's MRU values
+    it('applies correct MRU per-workflow when switching between workflows', async () => {
+      localStorage.setItem(
+        'checkpoint-sampler:mru-workflow-vae-te',
+        JSON.stringify({
+          'flux-image.json': { vae: 'flux-vae.safetensors', textEncoder: 'clip_l.safetensors' },
+          'auraflow-image.json': { vae: 'aura-vae.safetensors', textEncoder: 't5xxl.safetensors' },
+        }),
+      )
+
+      const wrapper = mount(StudyEditor)
+      await flushPromises()
+
+      const workflowSelect = wrapper.find('[data-testid="study-workflow-template-select"]').findComponent(NSelect)
+
+      // Select first workflow
+      workflowSelect.vm.$emit('update:value', 'flux-image.json')
+      await nextTick()
+      const vm = wrapper.vm as unknown as { selectedVAE: string | null; selectedCLIP: string | null }
+      expect(vm.selectedVAE).toBe('flux-vae.safetensors')
+      expect(vm.selectedCLIP).toBe('clip_l.safetensors')
+
+      // Switch to second workflow
+      workflowSelect.vm.$emit('update:value', 'auraflow-image.json')
+      await nextTick()
+      expect(vm.selectedVAE).toBe('aura-vae.safetensors')
+      expect(vm.selectedCLIP).toBe('t5xxl.safetensors')
+
+      localStorage.removeItem('checkpoint-sampler:mru-workflow-vae-te')
+    })
   })
 
 })

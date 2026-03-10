@@ -789,7 +789,7 @@ stories:
   - id: S-113
     title: "MRU defaults for workflow/VAE/text encoder selections (local storage)"
     type: enhancement
-    status: todo
+    status: uat
     priority: 45
     complexity: low
     requires:

@@ -91,3 +91,9 @@ The `ListSampleJobs()` function is used for both UI display (should be newest-fi
 * priority: very-low
 * source: developer
 Instead of waiting for each WebSocket event to update the sample ETA display, the frontend could interpolate the countdown between events using setInterval, giving a smoother "counting down" UX. Requires FE-only changes.
+
+### MRU for sampler/scheduler pairs per workflow
+* status: needs_approval
+* priority: very-low
+* source: developer
+Following the same pattern as VAE/TE MRU (S-113), sampler and scheduler pairs could also be stored per workflow template in localStorage for auto-fill on workflow selection.

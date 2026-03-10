@@ -9,6 +9,12 @@ import ConfirmDeleteDialog from './ConfirmDeleteDialog.vue'
 /** localStorage key for most-recently-used workflow template. */
 const MRU_WORKFLOW_KEY = 'checkpoint-sampler:mru-workflow-template'
 
+/**
+ * localStorage key for most-recently-used VAE and text encoder per workflow template.
+ * Stored as a JSON-serialised map: Record<workflowName, { vae: string | null, textEncoder: string | null }>.
+ */
+const MRU_WORKFLOW_VAE_TE_KEY = 'checkpoint-sampler:mru-workflow-vae-te'
+
 function getMruWorkflow(): string | null {
   try { return localStorage.getItem(MRU_WORKFLOW_KEY) } catch { return null }
 }
@@ -17,6 +23,32 @@ function saveMruWorkflow(name: string | null): void {
   try {
     if (name) localStorage.setItem(MRU_WORKFLOW_KEY, name)
     else localStorage.removeItem(MRU_WORKFLOW_KEY)
+  } catch { /* ignore */ }
+}
+
+/** Returns the MRU VAE/text-encoder map from localStorage. */
+function getMruVaeTe(): Record<string, { vae: string | null; textEncoder: string | null }> {
+  try {
+    const raw = localStorage.getItem(MRU_WORKFLOW_VAE_TE_KEY)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw)
+    if (typeof parsed === 'object' && parsed !== null) return parsed as Record<string, { vae: string | null; textEncoder: string | null }>
+    return {}
+  } catch { return {} }
+}
+
+/** Returns the MRU VAE and text encoder for a given workflow name, or null if not stored. */
+function getMruVaeTeForWorkflow(workflowName: string): { vae: string | null; textEncoder: string | null } | null {
+  const map = getMruVaeTe()
+  return map[workflowName] ?? null
+}
+
+/** Saves the MRU VAE and text encoder for a given workflow name. */
+function saveMruVaeTe(workflowName: string, vae: string | null, textEncoder: string | null): void {
+  try {
+    const map = getMruVaeTe()
+    map[workflowName] = { vae, textEncoder }
+    localStorage.setItem(MRU_WORKFLOW_VAE_TE_KEY, JSON.stringify(map))
   } catch { /* ignore */ }
 }
 
@@ -518,6 +550,8 @@ async function performSave() {
     // Save workflow template to MRU when set
     if (workflowTemplate.value) {
       saveMruWorkflow(workflowTemplate.value)
+      // Save VAE and text encoder MRU for this workflow
+      saveMruVaeTe(workflowTemplate.value, selectedVAE.value, selectedCLIP.value)
     }
 
     const payload: CreateStudyPayload | UpdateStudyPayload = selectedStudyId.value
@@ -593,6 +627,8 @@ async function forkStudy() {
     // Save workflow template to MRU when set
     if (workflowTemplate.value) {
       saveMruWorkflow(workflowTemplate.value)
+      // Save VAE and text encoder MRU for this workflow
+      saveMruVaeTe(workflowTemplate.value, selectedVAE.value, selectedCLIP.value)
     }
 
     const forkPayload: ForkStudyPayload = {
@@ -732,6 +768,26 @@ function triggerImport() {
     }
   }
   input.click()
+}
+
+/**
+ * Called when the user selects (or clears) a workflow template via the NSelect.
+ * Updates workflowTemplate and, when a workflow is chosen, auto-fills VAE and
+ * text encoder from the stored MRU for that workflow (if any).
+ *
+ * This handler is NOT called during loadStudy / resetForm — those set the ref
+ * value directly, bypassing the @update:value DOM event. So it is safe to apply
+ * MRU here without a guard flag.
+ */
+function onWorkflowTemplateChange(name: string | null) {
+  workflowTemplate.value = name
+  if (name) {
+    const mru = getMruVaeTeForWorkflow(name)
+    if (mru) {
+      selectedVAE.value = mru.vae
+      selectedCLIP.value = mru.textEncoder
+    }
+  }
 }
 
 function createPromptItem(): NamedPrompt {
@@ -1065,12 +1121,13 @@ function renderSeedTag(tag: string, index: number) {
           <label for="workflow-template-select">Workflow Template</label>
           <NSelect
             id="workflow-template-select"
-            v-model:value="workflowTemplate"
+            :value="workflowTemplate"
             :options="workflowOptions"
             placeholder="Select a workflow template (optional)"
             clearable
             filterable
             data-testid="study-workflow-template-select"
+            @update:value="onWorkflowTemplateChange"
           />
         </div>
 
