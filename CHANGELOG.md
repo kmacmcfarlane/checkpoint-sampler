@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-082: E2E sample-count-preview.spec.ts 2 tests timing out in Generate Samples dialog
+- Two dialog validation tests now use the pre-seeded fixture study instead of dynamically-created studies, fixing timeouts caused by B-078's scoped sample directory structure
+
 ### B-081: E2E regen-confirmation.spec.ts 4 tests timing out in Generate Samples dialog
 - Added `FixtureSeeder` to test reset endpoint that seeds a deterministic study with matching sample directories after each DB reset, fixing B-078 regression where dynamically-created studies had no sample dirs at the per-study-scoped path
 - regen-confirmation E2E tests now select the pre-seeded fixture study instead of creating studies via UI

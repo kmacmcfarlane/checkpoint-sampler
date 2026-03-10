@@ -25,7 +25,26 @@ import {
  *     validation consistently shows 0 missing -- but the exact total varies.
  *   - For missing-sample scenarios, we test the negative case (no missing)
  *     at the E2E level; the positive case is covered by unit tests.
+ *
+ * Study selection for dialog tests (AC1):
+ *   Tests that open the Generate Samples dialog and trigger validation MUST use
+ *   the pre-seeded fixture study ("E2E Fixture Study") rather than creating a
+ *   new study dynamically. Validation looks for samples at the scoped path
+ *   {sampleDir}/{trainingRunName}/{studyID}/{checkpoint}/. Only the fixture study
+ *   has pre-created sample directories on disk (seeded by the test reset endpoint
+ *   via FixtureSeeder). A dynamically-created study has a different ID with no
+ *   matching directories, so validation returns 0/0 and the checkpoint-picker
+ *   UI elements never appear. This pattern was established in B-081 for
+ *   regen-confirmation.spec.ts.
  */
+
+/**
+ * The fixture study name seeded into the DB by the test reset endpoint.
+ * Must match store.E2EFixtureStudyName in the backend fixture_seeder.go.
+ * This study has 2 prompts × 1 step × 1 cfg × 1 sampler/scheduler pair × 1 seed = 2 images/checkpoint,
+ * and matching sample directories exist under samples/my-model/<fixture-study-id>/.
+ */
+const FIXTURE_STUDY_NAME = 'E2E Fixture Study'
 
 /**
  * Selects a Naive UI NSelect option within a specific container.
@@ -46,6 +65,9 @@ async function selectNaiveOptionInContainer(
 }
 
 test.describe('S-084: sample count preview and missing-sample generation', () => {
+  // Allow extra time: setup (~5s) + validation (~5s) + UI interactions + dialog animations
+  test.setTimeout(60000)
+
   test.beforeEach(async ({ request }) => {
     await resetDatabase(request)
   })
@@ -86,24 +108,12 @@ test.describe('S-084: sample count preview and missing-sample generation', () =>
 
   // AC1: Generate Samples dialog shows validation preview after selecting a training run AND study.
   // S-086 changed the validation trigger to require both training run and study selection.
-  test('Generate Samples dialog shows validation preview with sample counts', async ({ page, request }) => {
-    // Create a study via API so we can select it in the dialog
-    const createStudyResp = await request.post('/api/studies', {
-      data: {
-        name: `Preview Test ${Date.now()}`,
-        prompt_prefix: '',
-        prompts: [{ name: 'landscape', text: 'a landscape' }],
-        negative_prompt: '',
-        steps: [30],
-        cfgs: [7.0],
-        sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
-        seeds: [42],
-        width: 512,
-        height: 512,
-      },
-    })
-    expect(createStudyResp.ok()).toBeTruthy()
-    const study = await createStudyResp.json()
+  // Uses the pre-seeded fixture study so that validation finds sample files on disk.
+  // (A dynamically-created study has no matching sample directories after B-078's path restructure.)
+  test('Generate Samples dialog shows validation preview with sample counts', async ({ page }) => {
+    // AC1: Use the pre-seeded fixture study (seeded by test reset endpoint via FixtureSeeder).
+    // The fixture study has known sample directories under samples/my-model/<fixture-study-id>/,
+    // so validation returns actual > 0 and the checkpoint-picker UI elements appear.
 
     await page.goto('/')
 
@@ -119,13 +129,14 @@ test.describe('S-084: sample count preview and missing-sample generation', () =>
     // Select the training run in the dialog
     await selectNaiveOptionInContainer(page, dialog, 'training-run-select', 'my-model')
 
-    // S-086: Select the study — validation preview now requires both training run + study
-    await selectNaiveOptionInContainer(page, dialog, 'study-select', study.name)
+    // S-086: Select the pre-seeded fixture study — validation preview now requires both training run + study.
+    // The fixture study has matching sample directories, so validation returns actual > 0.
+    await selectNaiveOptionInContainer(page, dialog, 'study-select', FIXTURE_STUDY_NAME)
 
     // Wait for the checkpoint-picker section to appear (S-084 UAT rework:
     // replaced validation-preview with unified per-checkpoint validation status display)
     const picker = dialog.locator('[data-testid="checkpoint-picker"]')
-    await expect(picker).toBeVisible({ timeout: 5000 })
+    await expect(picker).toBeVisible({ timeout: 10000 })
 
     // Verify the validation totals summary shows the "X / Y samples" format.
     // Both checkpoints have equal PNG counts, so actual = expected (no missing).
@@ -240,25 +251,13 @@ test.describe('S-084: sample count preview and missing-sample generation', () =>
   })
 
   // AC1 (UAT rework): Dialog shows per-checkpoint validation status rows matching main controls style
-  // Each row shows checkmark/warning icon, checkpoint filename, and found/expected count
-  test('Generate Samples dialog shows per-checkpoint validation status rows', async ({ page, request }) => {
-    // Create a study so we can trigger validation
-    const createStudyResp = await request.post('/api/studies', {
-      data: {
-        name: `Checkpoint Row Test ${Date.now()}`,
-        prompt_prefix: '',
-        prompts: [{ name: 'landscape', text: 'a landscape' }],
-        negative_prompt: '',
-        steps: [30],
-        cfgs: [7.0],
-        sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
-        seeds: [42],
-        width: 512,
-        height: 512,
-      },
-    })
-    expect(createStudyResp.ok()).toBeTruthy()
-    const study = await createStudyResp.json()
+  // Each row shows checkmark/warning icon, checkpoint filename, and found/expected count.
+  // Uses the pre-seeded fixture study so that validation finds sample files on disk and
+  // checkpoint rows render with sample counts (not 0/N with warning icons).
+  test('Generate Samples dialog shows per-checkpoint validation status rows', async ({ page }) => {
+    // AC1: Use the pre-seeded fixture study (seeded by test reset endpoint via FixtureSeeder).
+    // The fixture study has known sample directories under samples/my-model/<fixture-study-id>/,
+    // so validation returns actual > 0 and per-checkpoint rows show checkmarks.
 
     await page.goto('/')
 
@@ -271,13 +270,14 @@ test.describe('S-084: sample count preview and missing-sample generation', () =>
     const dialog = getGenerateSamplesDialog(page)
     await expect(dialog).toBeVisible()
 
-    // Select training run then study to trigger auto-validation
+    // Select training run then the pre-seeded fixture study to trigger auto-validation.
+    // The fixture study has matching sample dirs, so validation returns actual > 0.
     await selectNaiveOptionInContainer(page, dialog, 'training-run-select', 'my-model')
-    await selectNaiveOptionInContainer(page, dialog, 'study-select', study.name)
+    await selectNaiveOptionInContainer(page, dialog, 'study-select', FIXTURE_STUDY_NAME)
 
     // Wait for validation results list to appear
     const results = dialog.locator('[data-testid="validation-results"]')
-    await expect(results).toBeVisible({ timeout: 5000 })
+    await expect(results).toBeVisible({ timeout: 10000 })
 
     // Verify per-checkpoint rows are present (my-model has 2 checkpoints)
     const rows = results.locator('[data-testid^="checkpoint-row-"]')

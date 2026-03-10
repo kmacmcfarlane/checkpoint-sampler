@@ -952,7 +952,7 @@ stories:
   - id: B-082
     title: "E2E: sample-count-preview.spec.ts 2 tests timing out in Generate Samples dialog"
     type: bug
-    status: todo
+    status: uat
     priority: 70
     complexity: medium
     requires: []
