@@ -728,3 +728,196 @@ stories:
       disallowedNameChars), an automated check could scan for existing string literals that
       contain those characters and flag them before review.
       Source: developer.
+  - id: B-078
+    title: "Sample output directory restructure + per-training-run manifest + validation count scoping"
+    type: bug
+    status: todo
+    priority: 90
+    complexity: high
+    requires: []
+    notes: |
+      Current manifest.json at study level only allows one training run per study. Directory structure
+      must change to [outputs_dir]/[training_run_name]/[study_id]/ with manifest.json at that level
+      and checkpoint subdirectories beneath. Validation status currently counts samples across all
+      training runs and studies instead of scoping to the selected ones. Demo set structure must also
+      be updated. Existing samples require regeneration (no migration).
+    acceptance:
+      - "BE: Restructure sample output dirs to [outputs_dir]/[training_run_name]/[study_id]/[checkpoint]/"
+      - "BE: Place manifest.json at the [outputs_dir]/[training_run_name]/[study_id]/ level"
+      - "BE: Checkpoint validation status only shows checkpoints from the selected training run"
+      - "BE: Checkpoint validation status only shows sample counts from the selected study"
+      - "BE: Update demo fixture directory structure to match new layout"
+      - "FE: Update any frontend paths that reference sample locations"
+      - "E2E: Verify validation counts are correct for multi-training-run, multi-study scenarios"
+      - "DOC: Update filesystem.md with new directory structure"
+    testing:
+      - "Key edge cases: training run with no samples for a study, study with samples across multiple training runs, demo
+        checkpoints should not appear for non-demo training runs"
+      - "Verify that the 36/1 and 8/1 count bugs from the report are resolved"
+  - id: B-079
+    title: "Checkpoint validation status missing after generation (persists across refresh)"
+    type: bug
+    status: todo
+    priority: 65
+    complexity: medium
+    requires:
+      - B-078
+    notes: |
+      After generating samples for a study, the Checkpoint Validation Status UI does not display
+      when returning to regenerate. This persists across page refreshes, so it is a data issue
+      rather than a reactivity bug. Affects both new and existing studies. Other existing sample
+      sets display correctly.
+    acceptance:
+      - "BE: Validation status data is returned correctly for all sample sets after generation"
+      - "FE: Checkpoint Validation Status UI displays for all studies with generated samples"
+      - "E2E: Generate samples for a study, verify validation status appears on regenerate view"
+    testing:
+      - "Test with brand-new study and with existing study that transitions from 0 to N samples"
+      - "Verify data persists correctly across page refreshes"
+  - id: S-112
+    title: "Move workflow template, VAE, text encoder, shift into study definition"
+    type: enhancement
+    status: todo
+    priority: 65
+    complexity: high
+    requires:
+      - B-078
+    notes: |
+      Workflow template, VAE, Text Encoder, and shift setting currently live outside the study
+      definition. Move them into the study model. This requires a DB schema change. Existing
+      sample sets will need regeneration since the manifest structure changes. Most recently used
+      values for workflow template should be selected by default when the dialog is not being
+      populated for a regeneration. VAE and text encoder MRU values are handled in S-113.
+    acceptance:
+      - "BE: Study model includes workflow_template, vae, text_encoder, and shift fields"
+      - "BE: DB schema migration adds new fields to studies table"
+      - "FE: Generate Samples dialog moves workflow template, VAE, text encoder, shift into study section"
+      - "FE: Most recently used workflow template is selected by default for new generations"
+      - "FE: When regenerating from job list or elsewhere, values are pre-filled from the study"
+      - "E2E: Create study with workflow settings, verify they persist and pre-fill on regenerate"
+    testing:
+      - "Verify that workflow settings are stored and retrieved correctly per study"
+      - "Test that pre-fill from external regenerate buttons overrides MRU defaults"
+  - id: S-113
+    title: "MRU defaults for workflow/VAE/text encoder selections (local storage)"
+    type: enhancement
+    status: todo
+    priority: 45
+    complexity: low
+    requires:
+      - S-112
+    notes: |
+      When a workflow is selected in the Generate Samples dialog, the most recently used VAE and
+      text encoder for that workflow should be auto-selected. MRU values are stored in local storage
+      as a map keyed by workflow template name. Only applies when the dialog is opened fresh (not
+      when pre-filled from a regeneration action).
+    acceptance:
+      - "FE: VAE and text encoder MRU values stored in local storage per workflow template"
+      - "FE: Selecting a workflow auto-fills VAE and text encoder from stored MRU values"
+      - "FE: MRU defaults do not override values when dialog is pre-filled from external action"
+      - "E2E: Select workflow, choose VAE/TE, generate, reopen dialog — MRU values restored"
+    testing:
+      - "Test local storage persistence across page refreshes"
+      - "Test that MRU does not interfere with pre-fill from regenerate buttons"
+  - id: S-114
+    title: "Pre-generate JPEG thumbnails for sample images"
+    type: enhancement
+    status: todo
+    priority: 50
+    complexity: medium
+    requires: []
+    notes: |
+      Browser disk cache evicts large sample images (3-4MB each) when scrolling through many
+      checkpoints, causing cache misses. Pre-generate JPEG thumbnails at sample creation time.
+      Thumbnail settings (max_resolution_x, max_resolution_y, jpeg_quality) configurable in
+      config.yaml. Thumbnail generation is optional (disabled by default or via config flag).
+      Thumbnails stored in a subdirectory within each checkpoint's sample directory. Frontend
+      serves thumbnails in grid view, full-res images in lightbox.
+    acceptance:
+      - "BE: Generate JPEG thumbnails during sample creation when enabled in config"
+      - "BE: Thumbnail settings (max_resolution_x, max_resolution_y, jpeg_quality) in config.yaml"
+      - "BE: Thumbnails stored in subdir of each checkpoint's sample directory"
+      - "BE: Thumbnail generation is optional via config flag"
+      - "FE: Grid view serves thumbnails instead of full-res images when available"
+      - "FE: Lightbox continues to serve full-resolution images"
+      - "DOC: Update config.yaml example with thumbnail settings"
+    testing:
+      - "Verify thumbnails are generated at correct resolution and quality"
+      - "Test with thumbnail generation disabled — no thumbnails created, full-res served everywhere"
+      - "Verify cache behavior improvement with 6x3 grid scrolling through checkpoints"
+  - id: S-115
+    title: "Generate Samples dialog — smart checkbox defaults"
+    type: enhancement
+    status: todo
+    priority: 45
+    complexity: low
+    requires: []
+    notes: |
+      Improve default checkbox state in the Generate Samples dialog based on sample set completeness.
+      If the sample set is incomplete, check "Generate missing samples only" by default. If the
+      sample set is complete, leave "Clear existing samples for selected checkpoints" unchecked.
+    acceptance:
+      - "FE: 'Generate missing samples only' checked by default when sample set is incomplete"
+      - "FE: 'Clear existing samples' unchecked by default when sample set is complete"
+      - "E2E: Open dialog for incomplete set — missing-only checked; open for complete set — clear unchecked"
+    testing:
+      - "Test transition from complete to incomplete (e.g., after deleting some samples)"
+      - "Test that manual checkbox changes are respected and not overridden during the session"
+  - id: S-116
+    title: "Training run and study status beads in Generate Samples"
+    type: enhancement
+    status: todo
+    priority: 50
+    complexity: high
+    requires: []
+    notes: |
+      Add up to two status beads to training run and study items in the Generate Samples UI.
+      Each item can show a blue/green bead (blue wins) and a red/yellow bead (red wins).
+
+      Training Run Beads:
+      - Blue: running job for the sample set
+      - Green: all study sample sets are complete
+      - Yellow: incomplete sample sets without running jobs
+      - Red: failed job with missing samples
+
+      Study Beads:
+      - Blue: running job for selected sample set
+      - Green: selected sample set is complete
+      - Yellow: selected sample set exists but incomplete
+      - Red: failed job with missing samples
+
+      May require new BE API fields to expose aggregated job/completion status.
+    acceptance:
+      - "FE: Training run items display up to two beads based on status rules"
+      - "FE: Study items display up to two beads based on status rules"
+      - "FE: Blue bead takes priority over green; red takes priority over yellow"
+      - "BE: API exposes sufficient data for frontend to compute bead states (investigate if new fields needed)"
+      - "E2E: Verify bead states for running, complete, incomplete, and failed scenarios"
+    testing:
+      - "Test priority rules: blue overrides green, red overrides yellow"
+      - "Test bead state transitions as jobs start, complete, and fail"
+      - "Investigate whether existing API data suffices or new endpoints are needed"
+  - id: S-117
+    title: "Validation results dialog with regenerate flow (job list + slideout)"
+    type: enhancement
+    status: todo
+    priority: 25
+    complexity: medium
+    requires:
+      - B-078
+    notes: |
+      Add a "Validate" button to each job in the job list and in the main controls slideout panel.
+      Opens a dialog displaying validation results. The dialog includes a "Regenerate" button that
+      opens the Generate Samples dialog with pre-filled parameters (training run, study, params)
+      and "only generate missing samples" checked, closing the validation dialog in the process.
+    acceptance:
+      - "FE: Validate button on each job in job list"
+      - "FE: Validate button in main controls slideout panel"
+      - "FE: Validation results displayed in a dialog (not inline)"
+      - "FE: Regenerate button in validation dialog opens Generate Samples with pre-filled params"
+      - "FE: 'Generate missing samples only' checked when launching from validation dialog"
+      - "FE: Validation dialog closes when Generate Samples dialog opens"
+      - "E2E: Click validate on job, verify results dialog, click regenerate, verify pre-filled dialog"
+    testing:
+      - "Test with complete sample set (no regenerate needed), incomplete, and failed"
+      - "Verify pre-filled params match the job's training run, study, and generation settings"
