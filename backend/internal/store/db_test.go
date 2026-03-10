@@ -341,18 +341,20 @@ var _ = Describe("Migrate", func() {
 
 	It("handles migrations 5, 6, and 7 idempotently with existing columns", func() {
 		// Apply migrations 1-4 to create base tables
+		// Migration 4 now includes negative_prompt, so only width and height
+		// need to be pre-added to simulate "already existing" columns for
+		// migrations 5 and 6.
 		baseMigrations := store.AllMigrations()[:4]
 		err := store.Migrate(db, baseMigrations)
 		Expect(err).NotTo(HaveOccurred())
 
-		// Manually add width, height, and negative_prompt columns
-		// (simulating a database that already has them)
+		// Manually add width and height columns
+		// (simulating a database that already has them before migrations 5 and 6)
 		_, err = db.Exec("ALTER TABLE sample_job_items ADD COLUMN width INTEGER NOT NULL DEFAULT 512")
 		Expect(err).NotTo(HaveOccurred())
 		_, err = db.Exec("ALTER TABLE sample_job_items ADD COLUMN height INTEGER NOT NULL DEFAULT 512")
 		Expect(err).NotTo(HaveOccurred())
-		_, err = db.Exec("ALTER TABLE sample_job_items ADD COLUMN negative_prompt TEXT NOT NULL DEFAULT ''")
-		Expect(err).NotTo(HaveOccurred())
+		// negative_prompt is already included in migration 4; no need to add it manually
 
 		// Now run all migrations including 5, 6, and 7 — should succeed
 		err = store.Migrate(db, store.AllMigrations())

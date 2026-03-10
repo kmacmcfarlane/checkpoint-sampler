@@ -65,6 +65,7 @@ func AllMigrations() []Migration {
 				comfyui_model_path  TEXT NOT NULL,
 				prompt_name         TEXT NOT NULL,
 				prompt_text         TEXT NOT NULL,
+				negative_prompt     TEXT NOT NULL DEFAULT '',
 				steps               INTEGER NOT NULL,
 				cfg                 REAL NOT NULL,
 				sampler_name        TEXT NOT NULL,

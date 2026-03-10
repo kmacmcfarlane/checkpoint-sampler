@@ -985,7 +985,7 @@ stories:
   - id: B-084
     title: "SQL error 'no such column: negative_prompt' during sample job execution"
     priority: 60
-    status: todo
+    status: uat
     complexity: medium
     requires: []
     acceptance:
