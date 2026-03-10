@@ -867,7 +867,9 @@ describe('JobLaunchDialog', () => {
   })
 
   describe('payload for regeneration', () => {
-    it('sends clear_existing=true when a run with samples is selected', async () => {
+    // S-115: clearExisting now defaults to false (smart defaults based on validation).
+    // When validation returns an empty/complete result (default mock), clearExisting stays false.
+    it('sends clear_existing=false by default when a run with complete/empty samples is selected', async () => {
       mockCreateSampleJob.mockResolvedValue({
         id: 'job-2',
         training_run_name: 'qwen/psai4rt-v0.4.0',
@@ -892,7 +894,7 @@ describe('JobLaunchDialog', () => {
       await nextTick()
       wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
-      await nextTick()
+      await flushPromises()
 
       const buttons = wrapper.findAllComponents(NButton)
       const submitButton = buttons.find(b => b.text() === 'Regenerate Samples')
@@ -900,7 +902,8 @@ describe('JobLaunchDialog', () => {
       await flushPromises()
 
       const call = mockCreateSampleJob.mock.calls[0][0]
-      expect(call.clear_existing).toBe(true)
+      // S-115: clearExisting defaults to false (not auto-set for complete/empty sets)
+      expect(call.clear_existing).toBe(false)
       expect(call.training_run_name).toBe('qwen/psai4rt-v0.4.0')
       // All checkpoints are auto-selected when run has samples
       expect(call.checkpoint_filenames).toEqual(['chk-a.safetensors', 'chk-b.safetensors', 'chk-c.safetensors'])
@@ -1072,7 +1075,8 @@ describe('JobLaunchDialog', () => {
       expect(wrapper.find('[data-testid="checkpoint-failed-badge-chk-b.safetensors"]').exists()).toBe(false)
     })
 
-    it('auto-enables clear_existing when failed checkpoints are pre-selected', async () => {
+    // S-115: When validation finds missing samples, smart defaults enable missingOnly (not clearExisting).
+    it('auto-enables missing_only when validation finds missing samples (incomplete set)', async () => {
       mockListSampleJobs.mockResolvedValue([completedWithErrorsJob])
       mockValidateTrainingRun.mockResolvedValue(validationForRunWithSamples)
 
@@ -1090,8 +1094,13 @@ describe('JobLaunchDialog', () => {
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await flushPromises()
 
+      // S-115 AC1: missingOnly should be checked by default when sample set is incomplete
+      const missingOnlyCheckbox = wrapper.find('[data-testid="missing-only-checkbox"]').findComponent(NCheckbox)
+      expect(missingOnlyCheckbox.props('checked')).toBe(true)
+
+      // S-115 AC2: clearExisting should be unchecked (mutually exclusive with missingOnly)
       const clearExistingCheckbox = wrapper.find('[data-testid="clear-existing-checkbox"]').findComponent(NCheckbox)
-      expect(clearExistingCheckbox.props('checked')).toBe(true)
+      expect(clearExistingCheckbox.props('checked')).toBe(false)
     })
 
     it('disables submit when all checkpoints are deselected', async () => {
@@ -1127,7 +1136,9 @@ describe('JobLaunchDialog', () => {
       expect(wrapper.find('[data-testid="checkpoint-validation-error"]').exists()).toBe(true)
     })
 
-    it('sends clear_existing and failed checkpoint filenames in payload', async () => {
+    // S-115: With smart defaults, incomplete sets default to missing_only=true.
+    // The payload now carries missing_only instead of clear_existing.
+    it('sends missing_only=true and failed checkpoint filenames in payload for incomplete set', async () => {
       mockListSampleJobs.mockResolvedValue([completedWithErrorsJob])
       mockValidateTrainingRun.mockResolvedValue(validationForRunWithSamples)
       mockCreateSampleJob.mockResolvedValue({
@@ -1164,7 +1175,9 @@ describe('JobLaunchDialog', () => {
       await flushPromises()
 
       const call = mockCreateSampleJob.mock.calls[0][0]
-      expect(call.clear_existing).toBe(true)
+      // S-115: Smart defaults set missingOnly=true for incomplete sets → payload carries missing_only
+      expect(call.missing_only).toBe(true)
+      expect(call.clear_existing).toBeUndefined()
       expect(call.checkpoint_filenames).toEqual(expect.arrayContaining(['chk-a.safetensors', 'chk-c.safetensors']))
       expect(call.checkpoint_filenames).toHaveLength(2)
     })
@@ -1197,6 +1210,162 @@ describe('JobLaunchDialog', () => {
 
       const chkC = wrapper.find('[data-testid="checkpoint-row-chk-c.safetensors"]').findComponent(NCheckbox)
       expect(chkC.props('checked')).toBe(true)
+    })
+  })
+
+  // S-115: Smart checkbox defaults based on sample set completeness
+  describe('smart checkbox defaults (S-115)', () => {
+    // AC1: When validation shows an incomplete sample set (some missing), missingOnly is checked by default.
+    it('AC1: checks missing-only by default when sample set is incomplete', async () => {
+      // validationForRunWithSamples has total_missing=1 → hasMissingSamples=true
+      mockValidateTrainingRun.mockResolvedValue(validationForRunWithSamples)
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
+      await nextTick()
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      await nextTick()
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
+      await flushPromises()
+
+      // AC1: missingOnly should be checked by default for an incomplete set
+      const missingOnlyCheckbox = wrapper.find('[data-testid="missing-only-checkbox"]').findComponent(NCheckbox)
+      expect(missingOnlyCheckbox.props('checked')).toBe(true)
+    })
+
+    // AC2: When validation shows a complete sample set (none missing), clearExisting is unchecked by default.
+    it('AC2: leaves clear-existing unchecked by default when sample set is complete', async () => {
+      const completeValidation = {
+        checkpoints: [
+          { checkpoint: 'chk-a.safetensors', expected: 1, verified: 1, missing: 0 },
+          { checkpoint: 'chk-b.safetensors', expected: 1, verified: 1, missing: 0 },
+          { checkpoint: 'chk-c.safetensors', expected: 1, verified: 1, missing: 0 },
+        ],
+        expected_per_checkpoint: 1,
+        total_expected: 3,
+        total_verified: 3,
+        total_actual: 3,
+        total_missing: 0,
+      }
+      mockValidateTrainingRun.mockResolvedValue(completeValidation)
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
+      await nextTick()
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      await nextTick()
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
+      await flushPromises()
+
+      // AC2: clearExisting should remain unchecked for a complete set
+      const clearExistingCheckbox = wrapper.find('[data-testid="clear-existing-checkbox"]').findComponent(NCheckbox)
+      expect(clearExistingCheckbox.props('checked')).toBe(false)
+
+      // missingOnly should also be unchecked (no missing samples)
+      const missingOnlyCheckbox = wrapper.find('[data-testid="missing-only-checkbox"]').findComponent(NCheckbox)
+      expect(missingOnlyCheckbox.props('checked')).toBe(false)
+    })
+
+    // AC3 (manual override): After defaults are applied, manual checkbox changes are not overridden.
+    it('respects manual checkbox changes after smart defaults are applied', async () => {
+      // Start with incomplete validation so missingOnly is auto-checked
+      mockValidateTrainingRun.mockResolvedValue(validationForRunWithSamples)
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
+      await nextTick()
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      await nextTick()
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
+      await flushPromises()
+
+      // Confirm smart defaults are applied (missingOnly=true)
+      const missingOnlyCheckbox = wrapper.find('[data-testid="missing-only-checkbox"]').findComponent(NCheckbox)
+      expect(missingOnlyCheckbox.props('checked')).toBe(true)
+
+      // User manually unchecks missingOnly
+      missingOnlyCheckbox.vm.$emit('update:checked', false)
+      await nextTick()
+
+      // User manually checks clearExisting
+      const clearExistingCheckbox = wrapper.find('[data-testid="clear-existing-checkbox"]').findComponent(NCheckbox)
+      clearExistingCheckbox.vm.$emit('update:checked', true)
+      await nextTick()
+
+      // Simulate a validation refresh (e.g. via refreshTrigger) — the smart defaults
+      // should NOT override the user's manual changes (validationDefaultsApplied=true)
+      mockValidateTrainingRun.mockResolvedValue(validationForRunWithSamples)
+      await wrapper.setProps({ refreshTrigger: 1 })
+      await flushPromises()
+
+      // Manual changes should be preserved
+      expect(missingOnlyCheckbox.props('checked')).toBe(false)
+      expect(clearExistingCheckbox.props('checked')).toBe(true)
+    })
+
+    // Switching training run resets smart defaults so the new run gets fresh defaults.
+    it('reapplies smart defaults when training run changes', async () => {
+      const completeValidation = {
+        checkpoints: [
+          { checkpoint: 'chk-a.safetensors', expected: 1, verified: 1, missing: 0 },
+          { checkpoint: 'chk-b.safetensors', expected: 1, verified: 1, missing: 0 },
+          { checkpoint: 'chk-c.safetensors', expected: 1, verified: 1, missing: 0 },
+        ],
+        expected_per_checkpoint: 1,
+        total_expected: 3,
+        total_verified: 3,
+        total_actual: 3,
+        total_missing: 0,
+      }
+      // First validation: complete (clearExisting stays false, missingOnly stays false)
+      // Second validation: incomplete (missingOnly should be auto-checked)
+      mockValidateTrainingRun
+        .mockResolvedValueOnce(completeValidation)
+        .mockResolvedValueOnce(validationForRunWithSamples)
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
+      await nextTick()
+
+      // Select run 2 + study — completeValidation fires → defaults: both unchecked
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      await nextTick()
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
+      await flushPromises()
+
+      const missingOnlyCheckbox = wrapper.find('[data-testid="missing-only-checkbox"]').findComponent(NCheckbox)
+      expect(missingOnlyCheckbox.props('checked')).toBe(false)
+
+      // Switch to a different study to reset validationDefaultsApplied via the combined watcher
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', null)
+      await nextTick()
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
+      await flushPromises()
+
+      // After the second validation (validationForRunWithSamples) fires → defaults: missingOnly=true
+      // Re-find the checkbox as the DOM re-rendered after study change
+      const updatedMissingOnlyCheckbox = wrapper.find('[data-testid="missing-only-checkbox"]').findComponent(NCheckbox)
+      expect(updatedMissingOnlyCheckbox.props('checked')).toBe(true)
     })
   })
 
@@ -2196,7 +2365,20 @@ describe('JobLaunchDialog', () => {
     })
 
     it('unchecks clear_existing when missing-only is enabled', async () => {
-      mockValidateTrainingRun.mockResolvedValue(validationForRunWithSamples)
+      // Use a complete validation result so clearExisting is not auto-unchecked by smart defaults
+      const completeValidation = {
+        checkpoints: [
+          { checkpoint: 'chk-a.safetensors', expected: 1, verified: 1, missing: 0 },
+          { checkpoint: 'chk-b.safetensors', expected: 1, verified: 1, missing: 0 },
+          { checkpoint: 'chk-c.safetensors', expected: 1, verified: 1, missing: 0 },
+        ],
+        expected_per_checkpoint: 1,
+        total_expected: 3,
+        total_verified: 3,
+        total_actual: 3,
+        total_missing: 0,
+      }
+      mockValidateTrainingRun.mockResolvedValue(completeValidation)
       const wrapper = mount(JobLaunchDialog, {
         props: { show: true },
         global: { stubs: { Teleport: true } },
@@ -2210,8 +2392,10 @@ describe('JobLaunchDialog', () => {
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await flushPromises()
 
-      // clear_existing should be auto-enabled for runs with samples
+      // Manually enable clear_existing to set up the test precondition
       const clearExistingCheckbox = wrapper.find('[data-testid="clear-existing-checkbox"]').findComponent(NCheckbox)
+      clearExistingCheckbox.vm.$emit('update:checked', true)
+      await nextTick()
       expect(clearExistingCheckbox.props('checked')).toBe(true)
 
       // Enable missing-only — should uncheck clear_existing
@@ -2265,8 +2449,27 @@ describe('JobLaunchDialog', () => {
       expect(call.clear_existing).toBeUndefined()
     })
 
-    it('does not send missing_only when checkbox is not checked', async () => {
-      mockValidateTrainingRun.mockResolvedValue(validationForRunWithSamples)
+    // S-115: When the sample set has no samples yet (total_actual=0), smart defaults leave
+    // both missingOnly and clearExisting unchecked. This verifies missing_only is not sent
+    // in the payload when it is not checked.
+    // Note: For a complete set (total_actual>0, total_missing=0), the regen confirmation
+    // dialog is shown — that path is tested in regen-confirmation.spec.ts.
+    it('does not send missing_only when no samples exist and missing-only is unchecked', async () => {
+      // Use empty validation (no samples generated yet) — hasMissingSamples=false, isCompleteValidation=false
+      // This avoids both the auto-check of missingOnly AND the regen confirmation dialog.
+      const emptyValidation = {
+        checkpoints: [
+          { checkpoint: 'chk-a.safetensors', expected: 1, verified: 0, missing: 0 },
+          { checkpoint: 'chk-b.safetensors', expected: 1, verified: 0, missing: 0 },
+          { checkpoint: 'chk-c.safetensors', expected: 1, verified: 0, missing: 0 },
+        ],
+        expected_per_checkpoint: 1,
+        total_expected: 3,
+        total_verified: 0,
+        total_actual: 0,
+        total_missing: 0,
+      }
+      mockValidateTrainingRun.mockResolvedValue(emptyValidation)
       mockCreateSampleJob.mockResolvedValue({
         id: 'job-normal',
         training_run_name: 'qwen/psai4rt-v0.4.0',
@@ -2294,6 +2497,10 @@ describe('JobLaunchDialog', () => {
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await flushPromises()
 
+      // Confirm smart defaults: missingOnly=false (no missing samples), clearExisting=false
+      const missingOnlyCheckbox = wrapper.find('[data-testid="missing-only-checkbox"]').findComponent(NCheckbox)
+      expect(missingOnlyCheckbox.props('checked')).toBe(false)
+
       const buttons = wrapper.findAllComponents(NButton)
       const submitButton = buttons.find(b => b.text() === 'Regenerate Samples')
       await submitButton!.trigger('click')
@@ -2301,7 +2508,8 @@ describe('JobLaunchDialog', () => {
 
       const call = mockCreateSampleJob.mock.calls[0][0]
       expect(call.missing_only).toBeUndefined()
-      expect(call.clear_existing).toBe(true)
+      // S-115: clearExisting defaults to false, so clear_existing=false in payload
+      expect(call.clear_existing).toBe(false)
     })
   })
 

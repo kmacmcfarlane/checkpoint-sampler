@@ -81,6 +81,12 @@ const confirmRegenOpen = ref(false)
 // applyPrefill to control checkpoint selection instead.
 const prefillActive = ref(false)
 
+// When true, smart checkbox defaults have already been applied for the current
+// training run + study combination. Reset when the run or study changes so that
+// a fresh combo gets fresh defaults. Once set, manual user changes take effect
+// without being overridden by subsequent validation re-fetches.
+const validationDefaultsApplied = ref(false)
+
 // Persistence composable
 const persistence = useGenerateInputsPersistence()
 
@@ -251,6 +257,7 @@ watch(selectedTrainingRunId, async () => {
     missingOnly.value = false
   }
   validationResult.value = null
+  validationDefaultsApplied.value = false
 
   const run = selectedTrainingRun.value
   if (!run || run.checkpoints.length === 0) return
@@ -265,10 +272,10 @@ watch(selectedTrainingRunId, async () => {
       selectedCheckpoints.value = new Set(run.checkpoints.map(c => c.filename))
     }
 
-    // Auto-enable clear_existing when run has existing samples
-    if (selectedRunHasSamples.value) {
-      clearExisting.value = true
-    }
+    // Note: clearExisting and missingOnly defaults are now handled by the
+    // validationResult watcher (smart checkbox defaults per S-115).
+    // After validation completes, it sets missingOnly=true for incomplete sets
+    // and leaves clearExisting=false for complete sets.
   }
 
 })
@@ -289,6 +296,7 @@ watch(selectedTrainingRunId, async (runId) => {
 // Trigger validation when training run + study are both selected
 watch([selectedTrainingRunId, selectedStudy], async () => {
   validationResult.value = null
+  validationDefaultsApplied.value = false
   if (selectedTrainingRunId.value === null || selectedStudy.value === null) return
 
   validating.value = true
@@ -303,6 +311,34 @@ watch([selectedTrainingRunId, selectedStudy], async () => {
   } finally {
     validating.value = false
   }
+})
+
+// S-115: Apply smart checkbox defaults when validation results arrive.
+// - Incomplete sample set (some missing): check "Generate missing only", uncheck "Clear existing"
+// - Complete sample set (none missing): leave "Clear existing" unchecked (default)
+//
+// Defaults are applied only once per training run + study combination
+// (guarded by validationDefaultsApplied). After the first application,
+// manual user changes to either checkbox are respected and not overridden.
+watch(validationResult, (result) => {
+  // Only apply defaults when validation has returned a result and defaults
+  // have not yet been applied for this run+study combination.
+  if (!result) return
+  if (validationDefaultsApplied.value) return
+
+  if (hasMissingSamples.value) {
+    // Incomplete sample set: default to generating only the missing ones.
+    // Also clear clearExisting since missing_only and clear_existing are mutually exclusive.
+    missingOnly.value = true
+    clearExisting.value = false
+  } else {
+    // Complete sample set (or no samples): leave both checkboxes unchecked.
+    // clearExisting was reset to false when the training run changed, so no action needed.
+    // Explicitly ensure clearExisting stays false (not auto-set by old code path).
+    clearExisting.value = false
+  }
+
+  validationDefaultsApplied.value = true
 })
 
 // Persist training run selection changes (AC3)
@@ -593,6 +629,7 @@ function resetForm() {
   showAllRuns.value = true
   prefillActive.value = false
   validationResult.value = null
+  validationDefaultsApplied.value = false
   validating.value = false
   studyAvailability.value = []
   error.value = null

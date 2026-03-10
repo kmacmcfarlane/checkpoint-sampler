@@ -49,3 +49,9 @@ The `[vite] ws proxy socket error: Error: write EPIPE` pattern appears in every 
 * priority: low
 * source: developer
 The pattern of capturing logrus output to a buffer to assert log levels (as used in B-066's test) works but is verbose. A small shared test helper (e.g. `captureLogrus(logger, fn) string`) in the service test suite would reduce boilerplate for similar log-level regression tests in the future.
+
+### Incomplete-set E2E test infrastructure (partial sample seeding)
+* status: needs_approval
+* priority: low
+* source: developer
+A test-only API endpoint to seed partial sample directories (e.g., `POST /api/test/seed-partial-samples?study_id=...`) would enable true E2E coverage of the AC1 incomplete-set path (hasMissingSamples=true) without running a full generation job. Currently the incomplete-set smart defaults are covered only by unit tests.

@@ -836,7 +836,7 @@ stories:
   - id: S-115
     title: "Generate Samples dialog — smart checkbox defaults"
     type: enhancement
-    status: todo
+    status: uat
     priority: 45
     complexity: low
     requires: []
@@ -1014,3 +1014,19 @@ stories:
       do not include workflow_template in their study payloads. When these tests create jobs,
       the executor reads an empty workflow_template from the study, appends .json, and fails
       to find a file named .json. 18 error-level log entries observed during E2E test runs.
+  - id: B-086
+    title: "E2E: S-116 activity bead not visible for running job in Generate Samples dialog"
+    type: bug
+    status: todo
+    priority: 70
+    complexity: low
+    requires: []
+    acceptance:
+      - "Activity bead with title 'running' appears on the training run option in the Generate Samples dialog select dropdown
+        when a running job exists for that run"
+      - "E2E test reliably detects the bead within the configured timeout"
+    testing:
+      - "command: make test-e2e SPEC=generate-samples-beads.spec.ts"
+    notes: |
+      Failing test: frontend/e2e/generate-samples-beads.spec.ts > Generate Samples dual beads (S-116) > AC training run: blue activity bead when a running job exists.
+      The test expects a blue activity bead (data-testid="run-bead-activity") on the training run option when a job is running. May be a race condition between job creation and WebSocket/polling update propagating bead status.

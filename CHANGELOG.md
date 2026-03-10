@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-115: Generate Samples dialog — smart checkbox defaults
+- "Generate missing samples only" auto-checked when validation detects an incomplete sample set; "Clear existing samples" left unchecked for complete sets
+- Smart defaults apply once per training run + study combination; subsequent manual checkbox changes are preserved
+
 ### S-113: MRU defaults for workflow/VAE/text encoder selections (local storage)
 - VAE and text encoder selections now auto-fill from most-recently-used values per workflow template, stored in localStorage
 - MRU only applies on user-driven workflow selection; loading an existing study preserves its own values
