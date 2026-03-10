@@ -831,8 +831,15 @@ async function onStudyDeleted(studyId: string) {
 async function submit() {
   if (!canSubmit.value || !selectedTrainingRun.value) return
 
-  // AC1 + AC4: Show confirmation only when all expected samples exist (complete validation).
-  if (selectedRunHasSamples.value && isCompleteValidation.value) {
+  // AC1 + AC4: Show confirmation when the run has existing samples AND either:
+  //   a) validation confirms all expected samples exist (isCompleteValidation), OR
+  //   b) validation is still in progress (validating=true) — conservative: we can't
+  //      yet confirm missing samples, so show the dialog to avoid data loss.
+  //
+  // The validating guard fixes a race condition where the user clicks Regenerate before
+  // the validation API call returns: without it, validationResult is null,
+  // isCompleteValidation is false, and the dialog is bypassed entirely.
+  if (selectedRunHasSamples.value && (isCompleteValidation.value || validating.value)) {
     confirmRegenOpen.value = true
     return
   }

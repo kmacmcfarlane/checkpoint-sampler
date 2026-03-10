@@ -3613,5 +3613,59 @@ describe('JobLaunchDialog', () => {
       const updatedDialog = wrapper.findAllComponents(NModal).find(m => m.props('title') === 'Regenerate All Samples?')
       expect(updatedDialog!.props('show')).toBe(false)
     })
+
+    // AC1 (race condition): Clicking Regenerate before validation returns still shows the
+    // confirmation dialog. This covers the UAT-reported bug where clicking quickly after
+    // the dialog opened bypassed the dialog (validationResult was null at submit time).
+    it('shows confirmation dialog when validation has not yet returned (validationResult is null)', async () => {
+      // Make validateTrainingRun return a promise that never resolves, simulating slow network.
+      // This means validationResult.value stays null when the user clicks submit.
+      mockValidateTrainingRun.mockReturnValue(new Promise(() => { /* never resolves */ }))
+      mockCreateSampleJob.mockResolvedValue({
+        id: 'job-regen-race',
+        training_run_name: 'qwen/psai4rt-v0.4.0',
+        study_id: 'preset-1',
+        study_name: 'Quick Test',
+        workflow_name: 'qwen-image.json',
+        status: 'pending',
+        total_items: 3,
+        completed_items: 0,
+        failed_items: 0,
+        pending_items: 3,
+        created_at: '2025-01-01T00:00:00Z',
+        updated_at: '2025-01-01T00:00:00Z',
+      })
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select run-with-samples and fill all required fields
+      wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
+      await nextTick()
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      // Do NOT await flushPromises here — this keeps validation in-flight
+      wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect).vm.$emit('update:value', 'qwen-image.json')
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
+      wrapper.find('[data-testid="vae-select"]').findComponent(NSelect).vm.$emit('update:value', 'ae.safetensors')
+      wrapper.find('[data-testid="clip-select"]').findComponent(NSelect).vm.$emit('update:value', 'clip_l.safetensors')
+      await nextTick()
+
+      // Click "Regenerate Samples" while validation is still in progress (result is null)
+      const buttons = wrapper.findAllComponents(NButton)
+      const submitButton = buttons.find(b => b.text() === 'Regenerate Samples')
+      await submitButton!.trigger('click')
+      await nextTick()
+
+      // AC1: Confirmation dialog must appear even though validation hasn't returned
+      const confirmDialog = wrapper.findAllComponents(NModal).find(m => m.props('title') === 'Regenerate All Samples?')
+      expect(confirmDialog).toBeDefined()
+      expect(confirmDialog!.props('show')).toBe(true)
+
+      // No API call made yet
+      expect(mockCreateSampleJob).not.toHaveBeenCalled()
+    })
   })
 })

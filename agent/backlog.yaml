@@ -16,7 +16,7 @@ stories:
   - id: S-093
     title: Confirmation dialog for regenerating a valid sample set
     type: feature
-    status: uat_feedback
+    status: uat
     priority: 25
     complexity: low
     requires: []
@@ -34,8 +34,6 @@ stories:
     testing:
       - "Test confirmation appears for complete sample sets, does not appear for incomplete ones"
       - "Test cancel and confirm paths"
-    review_feedback: Clicking Regenerate on a complete sample set skips the confirmation dialog and goes straight to 
-      regenerating. The confirmation dialog does not appear.
   - id: S-096
     title: Delete dimension mapping preset
     type: feature

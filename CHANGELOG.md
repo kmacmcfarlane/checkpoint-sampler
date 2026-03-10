@@ -57,9 +57,9 @@ Older entries are condensed to titles only — see git history for full details.
 - Added `confirmRegenDialogIfVisible()` helper to handle S-093's regeneration confirmation dialog in E2E tests
 - Fixed `regen-confirmation.spec.ts` unchecking "Clear existing samples" to prevent fixture directory deletion cascading across 9 spec files
 
-### S-093: Confirmation dialog for regenerating a valid sample set
-- Clicking "Regenerate Samples" on a fully-validated sample set (all expected images exist) shows a confirmation dialog before proceeding
-- Incomplete or empty sample sets skip the dialog and proceed directly to job creation
+### S-093: Confirmation dialog for regenerating a valid sample set (UAT rework)
+- Fixed race condition where clicking Regenerate before validation API returned bypassed the confirmation dialog; now conservatively shows dialog while validation is in-flight
+- Complete sample sets still show confirmation; incomplete sets skip the dialog and proceed directly
 
 ### S-091: Move Light/Dark and Debug mode to Settings dialog
 - Theme toggle and debug mode switch moved from header into the Settings dialog's new "Appearance" section
