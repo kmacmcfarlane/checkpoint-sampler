@@ -318,7 +318,7 @@ stories:
   - id: B-074
     title: "Atomic stop-and-transition in executor"
     priority: 25
-    status: todo
+    status: uat
     complexity: medium
     requires: []
     acceptance:

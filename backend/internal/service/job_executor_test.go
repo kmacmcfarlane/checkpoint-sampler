@@ -23,6 +23,9 @@ type mockJobExecutorStore struct {
 	studies          map[string]model.Study
 	updateJobError   error
 	updateItemError  error
+	// onUpdateJob is an optional callback invoked during UpdateSampleJob (before the write).
+	// Used by tests that need to inspect executor state at the exact moment of a DB write.
+	onUpdateJob      func(model.SampleJob)
 }
 
 func newMockJobExecutorStore() *mockJobExecutorStore {
@@ -42,6 +45,9 @@ func (m *mockJobExecutorStore) GetSampleJob(id string) (model.SampleJob, error) 
 }
 
 func (m *mockJobExecutorStore) UpdateSampleJob(j model.SampleJob) error {
+	if m.onUpdateJob != nil {
+		m.onUpdateJob(j)
+	}
 	if m.updateJobError != nil {
 		return m.updateJobError
 	}
@@ -1078,6 +1084,13 @@ var _ = Describe("JobExecutor", func() {
 		It("clears executor state when RequestStop is called", func() {
 			// AC: After RequestStop, executor state is cleared so pending jobs can be
 			// picked up on the next tick.
+			job := model.SampleJob{
+				ID:     "job-1",
+				Status: model.SampleJobStatusRunning,
+			}
+			mockStore.jobs[job.ID] = job
+			mockStore.items[job.ID] = []model.SampleJobItem{}
+
 			executor.mu.Lock()
 			executor.activeJobID = "job-1"
 			executor.activeItemID = "item-1"
@@ -1095,6 +1108,90 @@ var _ = Describe("JobExecutor", func() {
 			Expect(executor.activePromptID).To(BeEmpty())
 			Expect(executor.stopRequested).To(BeFalse())
 			executor.mu.Unlock()
+		})
+
+		// AC1: Executor owns the DB status update to stopped after RequestStop
+		It("updates DB status to stopped atomically when RequestStop is called", func() {
+			job := model.SampleJob{
+				ID:     "job-atomic-stop",
+				Status: model.SampleJobStatusRunning,
+			}
+			mockStore.jobs[job.ID] = job
+			mockStore.items[job.ID] = []model.SampleJobItem{}
+
+			executor.mu.Lock()
+			executor.activeJobID = job.ID
+			executor.activeItemID = "item-atomic-1"
+			executor.activePromptID = ""
+			executor.mu.Unlock()
+
+			err := executor.RequestStop(job.ID)
+			Expect(err).ToNot(HaveOccurred())
+
+			// DB must be updated to stopped before executor state was cleared
+			updatedJob := mockStore.jobs[job.ID]
+			Expect(updatedJob.Status).To(Equal(model.SampleJobStatusStopped))
+		})
+
+		// AC2: No window where DB and executor state diverge during stop
+		It("writes stopped status to DB before clearing executor active state", func() {
+			// This test verifies the ordering: DB update happens before state clear.
+			// We track calls order via a custom store that records sequence.
+			type callRecord struct {
+				event string
+			}
+			var callLog []callRecord
+
+			trackingStore := newMockJobExecutorStore()
+			job := model.SampleJob{
+				ID:     "job-ordering",
+				Status: model.SampleJobStatusRunning,
+			}
+			trackingStore.jobs[job.ID] = job
+			trackingStore.items[job.ID] = []model.SampleJobItem{}
+
+			// Build an executor with the tracking store
+			trackingExecutor := NewJobExecutor(
+				trackingStore,
+				mockClient,
+				mockWS,
+				mockLoader,
+				mockHub,
+				"/test/samples",
+				mockFS,
+				mockFSRead,
+				logger,
+			)
+
+			// Simulate the UpdateSampleJob call to record when the DB update happens
+			// relative to executor state changes. After UpdateSampleJob returns, the
+			// executor state should still be set (cleared only afterwards).
+			trackingStore.onUpdateJob = func(j model.SampleJob) {
+				// At the point of DB update, executor active state must still be set.
+				// This is the key invariant: DB is written before executor clears itself.
+				trackingExecutor.mu.Lock()
+				activeJobID := trackingExecutor.activeJobID
+				trackingExecutor.mu.Unlock()
+				if j.Status == model.SampleJobStatusStopped {
+					if activeJobID == job.ID {
+						callLog = append(callLog, callRecord{"db_updated_before_state_clear"})
+					} else {
+						callLog = append(callLog, callRecord{"db_updated_after_state_clear"})
+					}
+				}
+			}
+
+			trackingExecutor.mu.Lock()
+			trackingExecutor.activeJobID = job.ID
+			trackingExecutor.activeItemID = "item-ordering-1"
+			trackingExecutor.mu.Unlock()
+
+			err := trackingExecutor.RequestStop(job.ID)
+			Expect(err).ToNot(HaveOccurred())
+
+			// The DB update must have happened while executor still held the job active
+			Expect(callLog).To(ContainElement(callRecord{"db_updated_before_state_clear"}))
+			Expect(callLog).NotTo(ContainElement(callRecord{"db_updated_after_state_clear"}))
 		})
 
 		It("clears stop flag when RequestResume is called while activeJobID matches", func() {
@@ -1171,16 +1268,14 @@ var _ = Describe("JobExecutor", func() {
 			executor.activeJobID = runningJob.ID
 			executor.mu.Unlock()
 
-			// Stop the running job (simulates user clicking Stop)
-			// The service layer also transitions the DB job to stopped, but for this unit test
-			// we only test executor state. We manually update the store to reflect stopped.
+			// Stop the running job (simulates user clicking Stop).
+			// The executor now owns the DB status update to stopped (AC1), so no manual
+			// store update is needed here.
 			err := executor.RequestStop(runningJob.ID)
 			Expect(err).ToNot(HaveOccurred())
 
-			// Update store to reflect the stopped status (done by SampleJobService.Stop in production)
-			stopped := mockStore.jobs[runningJob.ID]
-			stopped.Status = model.SampleJobStatusStopped
-			mockStore.jobs[runningJob.ID] = stopped
+			// DB must reflect stopped (executor wrote it)
+			Expect(mockStore.jobs[runningJob.ID].Status).To(Equal(model.SampleJobStatusStopped))
 
 			// Executor state must be fully cleared after stop
 			executor.mu.Lock()

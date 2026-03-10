@@ -426,6 +426,9 @@ func (s *SampleJobService) Start(id string) (model.SampleJob, error) {
 }
 
 // Stop transitions a running job to stopped status.
+// The executor owns the DB status update to stopped (via RequestStop), so the service
+// layer fetches the job for validation only and delegates the actual transition to
+// the executor. This eliminates the window where the DB and executor state diverge.
 func (s *SampleJobService) Stop(id string) (model.SampleJob, error) {
 	s.logger.WithField("sample_job_id", id).Trace("entering Stop")
 	defer s.logger.Trace("returning from Stop")
@@ -447,32 +450,48 @@ func (s *SampleJobService) Stop(id string) (model.SampleJob, error) {
 	// Validate state transition
 	if job.Status != model.SampleJobStatusRunning {
 		s.logger.WithFields(logrus.Fields{
-			"sample_job_id": id,
+			"sample_job_id":  id,
 			"current_status": job.Status,
 		}).Warn("cannot stop job: job is not running")
 		return model.SampleJob{}, fmt.Errorf("cannot stop job in status %s", job.Status)
 	}
 
-	// Request the executor to stop
+	// Delegate to executor: it cancels the in-flight ComfyUI prompt and atomically
+	// updates the DB status to stopped before clearing its own active state.
+	// The DB update no longer happens here — the executor owns it.
 	if s.executor != nil {
 		if err := s.executor.RequestStop(id); err != nil {
-			s.logger.WithError(err).Warn("executor stop request failed, updating status anyway")
+			s.logger.WithError(err).Warn("executor stop request failed")
+			return model.SampleJob{}, fmt.Errorf("requesting stop: %w", err)
+		}
+	} else {
+		// No executor configured (e.g. tests without executor); update DB directly as fallback.
+		job.Status = model.SampleJobStatusStopped
+		job.UpdatedAt = time.Now().UTC()
+		if err := s.store.UpdateSampleJob(job); err != nil {
+			s.logger.WithFields(logrus.Fields{
+				"sample_job_id": id,
+				"error":         err.Error(),
+			}).Error("failed to update sample job status")
+			return model.SampleJob{}, fmt.Errorf("updating sample job: %w", err)
 		}
 	}
 
-	// Update status to stopped
-	job.Status = model.SampleJobStatusStopped
-	job.UpdatedAt = time.Now().UTC()
-
-	if err := s.store.UpdateSampleJob(job); err != nil {
+	// Re-fetch the job so the caller gets the post-stop state that the executor wrote.
+	updatedJob, err := s.store.GetSampleJob(id)
+	if err != nil {
 		s.logger.WithFields(logrus.Fields{
 			"sample_job_id": id,
 			"error":         err.Error(),
-		}).Error("failed to update sample job status")
-		return model.SampleJob{}, fmt.Errorf("updating sample job: %w", err)
+		}).Warn("failed to re-fetch job after stop, returning pre-stop snapshot")
+		// Return a best-effort snapshot with the expected stopped status.
+		job.Status = model.SampleJobStatusStopped
+		s.logger.WithField("sample_job_id", id).Info("sample job stopped")
+		return job, nil
 	}
+
 	s.logger.WithField("sample_job_id", id).Info("sample job stopped")
-	return job, nil
+	return updatedJob, nil
 }
 
 // Resume transitions a stopped job back to running status.

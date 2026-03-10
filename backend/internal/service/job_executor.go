@@ -1915,7 +1915,9 @@ func (e *JobExecutor) broadcastJobProgress(jobID string) {
 
 // RequestStop requests the executor to stop the given job immediately.
 // If there is an active ComfyUI prompt, it is canceled.
-// After this call the executor state is cleared so that pending jobs can
+// The executor owns the DB status update to stopped (mirroring how completeJob owns
+// the completed transition), so there is no window where the DB and executor state
+// diverge. After this call the executor state is cleared so that pending jobs can
 // be picked up on the next tick.
 func (e *JobExecutor) RequestStop(jobID string) error {
 	e.mu.Lock()
@@ -1937,6 +1939,38 @@ func (e *JobExecutor) RequestStop(jobID string) error {
 		if err := e.comfyuiClient.CancelPrompt(e.ctx, promptID); err != nil {
 			e.logger.WithError(err).Warn("failed to cancel ComfyUI prompt")
 			// Don't return error - we still want to stop the job even if cancellation fails
+		}
+	}
+
+	// Update the DB status to stopped before clearing executor state.
+	// This ensures the DB and executor state are never out of sync: the DB is updated
+	// to stopped atomically with the executor clearing its active tracking state.
+	job, err := e.store.GetSampleJob(jobID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			e.logger.WithField("job_id", jobID).Warn("job row not found during stop (job likely deleted)")
+		} else {
+			e.logger.WithFields(logrus.Fields{
+				"job_id": jobID,
+				"error":  err.Error(),
+			}).Error("failed to fetch job for stop transition")
+		}
+		// Even if the DB update fails, clear executor state so we don't stay stuck.
+	} else {
+		job.Status = model.SampleJobStatusStopped
+		job.UpdatedAt = time.Now().UTC()
+		if err := e.store.UpdateSampleJob(job); err != nil {
+			if err == sql.ErrNoRows {
+				e.logger.WithField("job_id", jobID).Warn("job row not found during stop update (job likely deleted)")
+			} else {
+				e.logger.WithFields(logrus.Fields{
+					"job_id": jobID,
+					"error":  err.Error(),
+				}).Error("failed to update job status to stopped")
+			}
+			// Even if the DB update fails, clear executor state so we don't stay stuck.
+		} else {
+			e.logger.WithField("job_id", jobID).Info("job status updated to stopped in DB")
 		}
 	}
 

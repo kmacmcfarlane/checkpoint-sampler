@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-074: Atomic stop-and-transition in executor
+- `RequestStop` now owns the DB status update to `stopped` (mirroring `completeJob`), eliminating the window where the executor cleared its state but the DB still showed `running`
+- Service layer's `Stop()` delegates the DB write entirely to the executor, re-fetching post-stop state for the caller
+
 ### B-076: Database UNIQUE constraint on study names
 - Migration 17 adds a UNIQUE index on `studies.name`, enforcing name uniqueness at the DB level and preventing race conditions that bypass the service-layer check
 

@@ -207,12 +207,17 @@ func (f *fakeOutputFileChecker) FileExists(path string) bool {
 }
 
 // fakeSampleJobExecutor is a test double for service.SampleJobExecutor.
+// It simulates the executor's contract: RequestStop both signals the stop AND
+// updates the DB status to stopped (mirroring the real JobExecutor.RequestStop).
 type fakeSampleJobExecutor struct {
 	stopCalled   bool
 	resumeCalled bool
 	stopErr      error
 	resumeErr    error
 	connected    bool
+	// store is optional; when set, RequestStop will write the stopped status to the
+	// store to simulate the executor owning the DB transition.
+	store        *fakeSampleJobStore
 }
 
 func newFakeSampleJobExecutor() *fakeSampleJobExecutor {
@@ -223,7 +228,17 @@ func newFakeSampleJobExecutor() *fakeSampleJobExecutor {
 
 func (f *fakeSampleJobExecutor) RequestStop(jobID string) error {
 	f.stopCalled = true
-	return f.stopErr
+	if f.stopErr != nil {
+		return f.stopErr
+	}
+	// Simulate the executor's DB ownership: update the job status to stopped.
+	if f.store != nil {
+		if job, ok := f.store.jobs[jobID]; ok {
+			job.Status = model.SampleJobStatusStopped
+			f.store.jobs[jobID] = job
+		}
+	}
+	return nil
 }
 
 func (f *fakeSampleJobExecutor) RequestResume(jobID string) error {
@@ -279,6 +294,8 @@ var _ = Describe("SampleJobService", func() {
 		pathMatcher = newFakePathMatcher()
 		dirRemover = &fakeSampleDirRemover{}
 		executor = newFakeSampleJobExecutor()
+		// Wire the store so the fake executor can simulate the DB ownership contract.
+		executor.store = store
 		logger = logrus.New()
 		logger.SetOutput(io.Discard)
 		svc = service.NewSampleJobService(store, pathMatcher, dirRemover, "/samples", logger)
