@@ -41,14 +41,12 @@ function onUpdate(idx: number) {
 function onKeydown(event: KeyboardEvent) {
   if (props.values.length === 0) return
   const idx = currentIndex.value
-  // Use Ctrl+ArrowLeft/Ctrl+ArrowRight to avoid conflict with zoom controls
-  // which use plain arrow keys.
-  if ((event.key === 'ArrowLeft' || event.key === 'ArrowDown') && event.ctrlKey) {
+  if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') {
     event.preventDefault()
     event.stopPropagation()
     const prevIdx = idx > 0 ? idx - 1 : props.values.length - 1
     emit('change', props.values[prevIdx])
-  } else if ((event.key === 'ArrowRight' || event.key === 'ArrowUp') && event.ctrlKey) {
+  } else if (event.key === 'ArrowRight' || event.key === 'ArrowUp') {
     event.preventDefault()
     event.stopPropagation()
     const nextIdx = idx < props.values.length - 1 ? idx + 1 : 0
@@ -134,20 +132,25 @@ watch(() => props.values, () => {
 })
 
 /**
- * Document-level keydown handler so Ctrl+Arrow keys navigate the slider even
+ * Document-level keydown handler so plain Arrow keys navigate the slider even
  * when focus is elsewhere (e.g. on the page body or after clicking the NSlider
- * thumb). Skips when a text-input element has focus to avoid interfering with
- * typing. Also skips when this instance is not the active keyboard owner
+ * thumb). Skips when a text-input element or another slider (e.g. ZoomControl)
+ * has focus to avoid interfering with typing or other slider controls.
+ * Also skips when this instance is not the active keyboard owner
  * (another MasterSlider has focus).
  */
 function onDocumentKeydown(event: KeyboardEvent) {
   // Only the active slider instance handles document-level keyboard events
   if (!isSliderActive(sliderId)) return
 
-  const tag = (document.activeElement?.tagName ?? '').toLowerCase()
+  const activeEl = document.activeElement as HTMLElement | null
+  const tag = (activeEl?.tagName ?? '').toLowerCase()
+  const role = (activeEl?.getAttribute('role') ?? '').toLowerCase()
   const isInputFocused = tag === 'input' || tag === 'textarea' || tag === 'select'
-    || ((document.activeElement as HTMLElement | null)?.isContentEditable ?? false)
-  if (isInputFocused) return
+    || (activeEl?.isContentEditable ?? false)
+  // Skip if a non-MasterSlider slider element (e.g. ZoomControl's NSlider) has focus
+  const isOtherSliderFocused = role === 'slider' && !activeEl?.closest('.master-slider')
+  if (isInputFocused || isOtherSliderFocused) return
   onKeydown(event)
 }
 

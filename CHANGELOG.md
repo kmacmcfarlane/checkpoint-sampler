@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-070: Main slider keyboard left/right arrows broken (regression)
+- Removed incorrect `ctrlKey` guard from MasterSlider's keyboard handler (S-063 regression); plain arrow keys now navigate the slider as originally intended
+- Added focus-based guard to skip document-level arrow handling when a non-MasterSlider slider (e.g. ZoomControl) has DOM focus
+
 ### B-078: Sample output directory restructure + per-training-run manifest + validation count scoping
 - Sample output directories restructured from `{study_name}/{checkpoint}/` to `{training_run_name}/{study_id}/{checkpoint}/`, scoping samples per training run and preventing cross-contamination when multiple training runs share the same study
 - Validation counts now scoped to the selected training run + study combination, fixing inflated 36/1 and 8/1 count bugs
