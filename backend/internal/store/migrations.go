@@ -264,5 +264,12 @@ func AllMigrations() []Migration {
 			Version: 16,
 			SQL: `ALTER TABLE sample_job_items ADD COLUMN traceback TEXT NOT NULL DEFAULT '';`,
 		},
+		{
+			// Add UNIQUE constraint on studies.name to enforce uniqueness at the
+			// database level, complementing the service-layer check and preventing
+			// race conditions in concurrent-user scenarios.
+			Version: 17,
+			SQL:     `CREATE UNIQUE INDEX IF NOT EXISTS idx_studies_name_unique ON studies (name);`,
+		},
 	}
 }

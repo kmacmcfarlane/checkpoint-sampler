@@ -234,6 +234,30 @@ var _ = Describe("Study Store", func() {
 				err = s.CreateStudy(study)
 				Expect(err).To(HaveOccurred())
 			})
+
+			// AC: Concurrent creation of studies with the same name is prevented at the DB level
+			It("rejects duplicate name via UNIQUE constraint", func() {
+				err := s.CreateStudy(study)
+				Expect(err).NotTo(HaveOccurred())
+
+				// Create a second study with a different ID but the same name
+				duplicate := study
+				duplicate.ID = "study-duplicate"
+				err = s.CreateStudy(duplicate)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("UNIQUE"))
+			})
+
+			It("allows studies with different names", func() {
+				err := s.CreateStudy(study)
+				Expect(err).NotTo(HaveOccurred())
+
+				different := study
+				different.ID = "study-different"
+				different.Name = "Different Study Name"
+				err = s.CreateStudy(different)
+				Expect(err).NotTo(HaveOccurred())
+			})
 		})
 
 		Describe("ListStudies", func() {
@@ -290,6 +314,22 @@ var _ = Describe("Study Store", func() {
 			BeforeEach(func() {
 				err := s.CreateStudy(study)
 				Expect(err).NotTo(HaveOccurred())
+			})
+
+			// AC: Concurrent creation of studies with the same name is prevented at the DB level
+			It("rejects rename to an already-used name via UNIQUE constraint", func() {
+				// Create a second study with a different name
+				other := study
+				other.ID = "study-other"
+				other.Name = "Other Study"
+				err := s.CreateStudy(other)
+				Expect(err).NotTo(HaveOccurred())
+
+				// Attempt to rename the second study to match the first
+				other.Name = study.Name
+				err = s.UpdateStudy(other)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("UNIQUE"))
 			})
 
 			It("updates an existing study", func() {

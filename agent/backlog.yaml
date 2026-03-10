@@ -353,7 +353,7 @@ stories:
   - id: B-076
     title: "Database UNIQUE constraint on study names"
     priority: 30
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:

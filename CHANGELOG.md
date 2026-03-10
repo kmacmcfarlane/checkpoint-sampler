@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-076: Database UNIQUE constraint on study names
+- Migration 17 adds a UNIQUE index on `studies.name`, enforcing name uniqueness at the DB level and preventing race conditions that bypass the service-layer check
+
 ### B-071: Deterministic pending-job pickup order (ORDER BY created_at)
 - `ListSampleJobs()` now orders by `created_at ASC` (oldest first) instead of `DESC`, ensuring FIFO processing when multiple pending jobs are queued
 
