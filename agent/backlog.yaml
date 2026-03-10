@@ -281,7 +281,7 @@ stories:
   - id: B-072
     title: "Guard Start() API against concurrent running jobs"
     priority: 50
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:

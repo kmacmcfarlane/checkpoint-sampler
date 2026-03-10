@@ -89,6 +89,21 @@ func (s *Store) ListSampleJobs() ([]model.SampleJob, error) {
 	return jobs, nil
 }
 
+// HasRunningJob returns true if any sample job currently has status "running".
+func (s *Store) HasRunningJob() (bool, error) {
+	s.logger.Trace("entering HasRunningJob")
+	defer s.logger.Trace("returning from HasRunningJob")
+
+	var count int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM sample_jobs WHERE status = 'running'`).Scan(&count)
+	if err != nil {
+		s.logger.WithError(err).Error("failed to query running job count")
+		return false, fmt.Errorf("querying running job count: %w", err)
+	}
+	s.logger.WithField("running_count", count).Debug("checked for running jobs")
+	return count > 0, nil
+}
+
 // GetSampleJob returns a single sample job by ID, or sql.ErrNoRows if not found.
 func (s *Store) GetSampleJob(id string) (model.SampleJob, error) {
 	s.logger.WithField("sample_job_id", id).Trace("entering GetSampleJob")

@@ -58,6 +58,15 @@ func (f *fakeSampleJobStore) GetSampleJob(id string) (model.SampleJob, error) {
 	return j, nil
 }
 
+func (f *fakeSampleJobStore) HasRunningJob() (bool, error) {
+	for _, j := range f.jobs {
+		if j.Status == model.SampleJobStatusRunning {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func (f *fakeSampleJobStore) CreateSampleJob(job model.SampleJob) error {
 	if f.createErr != nil {
 		return f.createErr

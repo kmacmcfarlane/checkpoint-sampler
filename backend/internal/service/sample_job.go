@@ -17,6 +17,7 @@ import (
 type SampleJobStore interface {
 	ListSampleJobs() ([]model.SampleJob, error)
 	GetSampleJob(id string) (model.SampleJob, error)
+	HasRunningJob() (bool, error)
 	CreateSampleJob(j model.SampleJob) error
 	UpdateSampleJob(j model.SampleJob) error
 	DeleteSampleJob(id string) error
@@ -370,6 +371,20 @@ func (s *SampleJobService) Start(id string) (model.SampleJob, error) {
 	if s.executor == nil || !s.executor.IsConnected() {
 		s.logger.Warn("cannot start job: ComfyUI not connected")
 		return model.SampleJob{}, fmt.Errorf("ComfyUI not connected")
+	}
+
+	// Guard: reject if another job is already running
+	hasRunning, err := s.store.HasRunningJob()
+	if err != nil {
+		s.logger.WithFields(logrus.Fields{
+			"sample_job_id": id,
+			"error":         err.Error(),
+		}).Error("failed to check for running jobs")
+		return model.SampleJob{}, fmt.Errorf("checking for running jobs: %w", err)
+	}
+	if hasRunning {
+		s.logger.WithField("sample_job_id", id).Warn("cannot start job: another job is already running")
+		return model.SampleJob{}, fmt.Errorf("another job is already running")
 	}
 
 	job, err := s.store.GetSampleJob(id)

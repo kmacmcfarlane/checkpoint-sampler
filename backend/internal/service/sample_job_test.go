@@ -15,18 +15,19 @@ import (
 
 // fakeSampleJobStore is an in-memory test double for service.SampleJobStore.
 type fakeSampleJobStore struct {
-	jobs          map[string]model.SampleJob
-	items         map[string][]model.SampleJobItem
-	studies       map[string]model.Study
-	listJobsErr   error
-	getJobErr     error
-	createJobErr  error
-	updateJobErr  error
-	deleteJobErr  error
-	listItemsErr  error
-	createItemErr error
-	updateItemErr error
-	getStudyErr   error
+	jobs             map[string]model.SampleJob
+	items            map[string][]model.SampleJobItem
+	studies          map[string]model.Study
+	listJobsErr      error
+	getJobErr        error
+	hasRunningJobErr error
+	createJobErr     error
+	updateJobErr     error
+	deleteJobErr     error
+	listItemsErr     error
+	createItemErr    error
+	updateItemErr    error
+	getStudyErr      error
 }
 
 func newFakeSampleJobStore() *fakeSampleJobStore {
@@ -57,6 +58,18 @@ func (f *fakeSampleJobStore) GetSampleJob(id string) (model.SampleJob, error) {
 		return model.SampleJob{}, sql.ErrNoRows
 	}
 	return j, nil
+}
+
+func (f *fakeSampleJobStore) HasRunningJob() (bool, error) {
+	if f.hasRunningJobErr != nil {
+		return false, f.hasRunningJobErr
+	}
+	for _, j := range f.jobs {
+		if j.Status == model.SampleJobStatusRunning {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (f *fakeSampleJobStore) CreateSampleJob(j model.SampleJob) error {
@@ -547,16 +560,62 @@ var _ = Describe("SampleJobService", func() {
 			Expect(err.Error()).To(ContainSubstring("not found"))
 		})
 
-		It("returns error when job is not pending", func() {
+		It("returns error when job is not pending (stopped)", func() {
+			// Use a stopped job so the running-job guard does not trigger
 			job := model.SampleJob{
 				ID:     "job-1",
-				Status: model.SampleJobStatusRunning,
+				Status: model.SampleJobStatusStopped,
 			}
 			store.jobs[job.ID] = job
 
 			_, err := svc.Start("job-1")
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("cannot start job"))
+		})
+
+		It("returns error when another job is already running", func() {
+			// Another job already running
+			store.jobs["running-job"] = model.SampleJob{
+				ID:     "running-job",
+				Status: model.SampleJobStatusRunning,
+			}
+			// Target job is pending and valid
+			store.jobs["job-1"] = model.SampleJob{
+				ID:     "job-1",
+				Status: model.SampleJobStatusPending,
+			}
+
+			_, err := svc.Start("job-1")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("another job is already running"))
+
+			// Verify the pending job was NOT transitioned
+			unchanged := store.jobs["job-1"]
+			Expect(unchanged.Status).To(Equal(model.SampleJobStatusPending))
+		})
+
+		It("returns error when HasRunningJob store call fails", func() {
+			store.hasRunningJobErr = errors.New("db connection lost")
+			store.jobs["job-1"] = model.SampleJob{
+				ID:     "job-1",
+				Status: model.SampleJobStatusPending,
+			}
+
+			_, err := svc.Start("job-1")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("checking for running jobs"))
+		})
+
+		It("allows starting a pending job when no other job is running", func() {
+			// No running jobs in store
+			store.jobs["job-1"] = model.SampleJob{
+				ID:     "job-1",
+				Status: model.SampleJobStatusPending,
+			}
+
+			result, err := svc.Start("job-1")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Status).To(Equal(model.SampleJobStatusRunning))
 		})
 	})
 
