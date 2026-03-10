@@ -1569,6 +1569,172 @@ describe('App', () => {
     })
   })
 
+  // AC3 (B-067): Progress bar initialization on first generation event
+  describe('handleInferenceProgress: first generation progress bar initialization (B-067)', () => {
+    const firstSampleJob: SampleJob = {
+      id: 'job-first',
+      training_run_name: 'test-run',
+      study_id: 'study-1',
+      study_name: 'Test Study',
+      workflow_name: 'default',
+      vae: '',
+      clip: '',
+      status: 'running',
+      total_items: 5,
+      completed_items: 0,
+      failed_items: 0,
+      pending_items: 5,
+      created_at: '2024-01-01T00:00:00Z',
+      updated_at: '2024-01-01T00:00:00Z',
+    }
+
+    async function mountWithFirstSampleJob() {
+      mockListSampleJobs.mockResolvedValue([firstSampleJob])
+      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      await flushPromises()
+
+      const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
+      selector.vm.$emit('select', mockTrainingRun)
+      await flushPromises()
+
+      expect(mockWebSocketInstances.length).toBeGreaterThan(0)
+      const ws = mockWebSocketInstances[0]
+      ws.simulateOpen()
+      await flushPromises()
+
+      // Open job panel to populate sampleJobs
+      const jobsBtn = wrapper.findAllComponents(NButton).find(
+        (b) => b.attributes('aria-label') === 'Toggle sample jobs panel',
+      )
+      await jobsBtn!.trigger('click')
+      await flushPromises()
+
+      return { wrapper, ws }
+    }
+
+    // AC1: Inference progress bar displays correctly for the first sample generation in a job
+    it('initializes jobProgress when inference_progress arrives before any job_progress event', async () => {
+      // Bug B-067: If inference_progress events arrive before the first job_progress event,
+      // jobProgress[jobId] is undefined, making hasCheckpointProgress return false and hiding the bar.
+      const { wrapper, ws } = await mountWithFirstSampleJob()
+
+      // No job_progress events have arrived yet — jobProgress is empty
+      const panelInitial = wrapper.findComponent({ name: 'JobProgressPanel' })
+      expect(panelInitial.props('jobProgress')).toEqual({})
+
+      // First inference_progress event arrives (first sample, no prior job_progress)
+      ws.onmessage?.(new MessageEvent('message', {
+        data: JSON.stringify({
+          type: 'inference_progress',
+          prompt_id: 'p1',
+          current_value: 3,
+          max_value: 20,
+        }),
+      }))
+      await flushPromises()
+
+      const panel = wrapper.findComponent({ name: 'JobProgressPanel' })
+      // inferenceProgress should be set
+      expect(panel.props('inferenceProgress')).toEqual({
+        'job-first': { current_value: 3, max_value: 20 },
+      })
+      // jobProgress should be initialized with at least total_checkpoints > 0
+      // so that hasCheckpointProgress() returns true and the inference bar renders
+      const jobProgress = panel.props('jobProgress') as Record<string, { total_checkpoints: number }>
+      expect(jobProgress['job-first']).toBeDefined()
+      expect(jobProgress['job-first'].total_checkpoints).toBeGreaterThan(0)
+    })
+
+    // AC2: Progress bar behavior is consistent between the first and subsequent sample generations
+    it('job_progress event overwrites the placeholder jobProgress with real data', async () => {
+      const { wrapper, ws } = await mountWithFirstSampleJob()
+
+      // First, inference_progress arrives (sets placeholder jobProgress)
+      ws.onmessage?.(new MessageEvent('message', {
+        data: JSON.stringify({
+          type: 'inference_progress',
+          prompt_id: 'p1',
+          current_value: 5,
+          max_value: 20,
+        }),
+      }))
+      await flushPromises()
+
+      // Then a real job_progress event arrives with actual data
+      ws.onmessage?.(new MessageEvent('message', {
+        data: JSON.stringify({
+          type: 'job_progress',
+          job_id: 'job-first',
+          status: 'running',
+          total_items: 5,
+          completed_items: 0,
+          failed_items: 0,
+          pending_items: 5,
+          checkpoints_completed: 0,
+          total_checkpoints: 5,
+          current_checkpoint: 'ckpt-001.safetensors',
+        }),
+      }))
+      await flushPromises()
+
+      const panel = wrapper.findComponent({ name: 'JobProgressPanel' })
+      const jobProgress = panel.props('jobProgress') as Record<string, {
+        total_checkpoints: number
+        current_checkpoint?: string
+      }>
+      // Real data should overwrite the placeholder
+      expect(jobProgress['job-first'].total_checkpoints).toBe(5)
+      expect(jobProgress['job-first'].current_checkpoint).toBe('ckpt-001.safetensors')
+      // inferenceProgress should still be set (was not reset since completed_items is 0→0)
+      expect(panel.props('inferenceProgress')).toEqual({
+        'job-first': { current_value: 5, max_value: 20 },
+      })
+    })
+
+    // AC2: For subsequent samples, jobProgress is already populated so no initialization needed
+    it('does not overwrite existing jobProgress when inference_progress arrives for subsequent samples', async () => {
+      const { wrapper, ws } = await mountWithFirstSampleJob()
+
+      // Populate jobProgress via a real job_progress event first (simulates subsequent sample scenario)
+      ws.onmessage?.(new MessageEvent('message', {
+        data: JSON.stringify({
+          type: 'job_progress',
+          job_id: 'job-first',
+          status: 'running',
+          total_items: 5,
+          completed_items: 1,
+          failed_items: 0,
+          pending_items: 4,
+          checkpoints_completed: 0,
+          total_checkpoints: 5,
+          current_checkpoint: 'ckpt-002.safetensors',
+          current_checkpoint_progress: 1,
+        }),
+      }))
+      await flushPromises()
+
+      // Now inference_progress arrives for the second sample
+      ws.onmessage?.(new MessageEvent('message', {
+        data: JSON.stringify({
+          type: 'inference_progress',
+          prompt_id: 'p2',
+          current_value: 2,
+          max_value: 20,
+        }),
+      }))
+      await flushPromises()
+
+      const panel = wrapper.findComponent({ name: 'JobProgressPanel' })
+      const jobProgress = panel.props('jobProgress') as Record<string, {
+        total_checkpoints: number
+        current_checkpoint?: string
+      }>
+      // Real data from job_progress should not be overwritten by the placeholder
+      expect(jobProgress['job-first'].total_checkpoints).toBe(5)
+      expect(jobProgress['job-first'].current_checkpoint).toBe('ckpt-002.safetensors')
+    })
+  })
+
   // AC2: debugInfo must be updated on grid navigation and slider change inside the lightbox
   describe('lightbox debugInfo state update', () => {
     /** Build a minimal GridNavItem for testing navigation. */

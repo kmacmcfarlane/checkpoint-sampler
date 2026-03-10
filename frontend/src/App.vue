@@ -283,12 +283,23 @@ function handleInferenceProgress(message: InferenceProgressMessage) {
         max_value: message.max_value,
       }
     }
+    // AC (B-067): Ensure jobProgress is initialized before the first job_progress event arrives.
+    // Without this, inference progress events that arrive before the first job_progress event
+    // would not display the progress bar because hasCheckpointProgress() would return false
+    // (it checks total_checkpoints > 0). Use a placeholder with total_checkpoints: 1 so
+    // the inference bar renders immediately; this is overwritten by the first job_progress event.
+    if (!jobProgress[runningJob.id]) {
+      jobProgress[runningJob.id] = {
+        checkpoints_completed: 0,
+        total_checkpoints: 1,
+      }
+    }
     // AC: Update per-sample ETA in jobProgress from inference_progress events.
     // This gives live ETA updates during sample generation, based on step completion rate.
     if (message.sample_eta_seconds !== undefined && message.sample_eta_seconds > 0) {
       const existing = jobProgress[runningJob.id]
       jobProgress[runningJob.id] = {
-        ...(existing ?? { checkpoints_completed: 0, total_checkpoints: 0 }),
+        ...(existing ?? { checkpoints_completed: 0, total_checkpoints: 1 }),
         sample_eta_seconds: message.sample_eta_seconds,
       }
     }

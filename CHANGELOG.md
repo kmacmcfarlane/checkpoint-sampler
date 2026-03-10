@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-067: Inference progress bar missing on first sample generation
+- Initialize `jobProgress` placeholder when `inference_progress` WebSocket events arrive before `job_progress`, fixing invisible progress bar on the first sample of a job
+
 ### B-082: E2E sample-count-preview.spec.ts 2 tests timing out in Generate Samples dialog
 - Two dialog validation tests now use the pre-seeded fixture study instead of dynamically-created studies, fixing timeouts caused by B-078's scoped sample directory structure
 

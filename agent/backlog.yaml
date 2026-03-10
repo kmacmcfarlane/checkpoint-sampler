@@ -172,7 +172,7 @@ stories:
   - id: B-067
     title: "Inference progress bar missing on first sample generation"
     priority: 65
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:
