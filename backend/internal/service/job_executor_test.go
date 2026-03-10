@@ -401,7 +401,9 @@ var _ = Describe("JobExecutor", func() {
 		})
 
 		It("does not start a second job while one is already running", func() {
-			// AC: BE: Only one job runs at a time; additional pending jobs wait in queue
+			// AC: BE: Only one job runs at a time; additional pending jobs wait in queue.
+			// The executor tracks running jobs via activeJobID (set when it auto-started them
+			// or resumed them at startup). We simulate this by setting activeJobID directly.
 			runningJob := model.SampleJob{
 				ID:     "job-running-1",
 				Status: model.SampleJobStatusRunning,
@@ -421,6 +423,12 @@ var _ = Describe("JobExecutor", func() {
 			mockStore.jobs[pendingJob.ID] = pendingJob
 			mockStore.items[runningJob.ID] = []model.SampleJobItem{runningItem}
 			mockStore.items[pendingJob.ID] = []model.SampleJobItem{}
+
+			// Simulate the executor already tracking the running job (as it would after
+			// auto-starting it or resuming it at startup via resumeRunningJobs).
+			executor.mu.Lock()
+			executor.activeJobID = runningJob.ID
+			executor.mu.Unlock()
 
 			executor.processNextItem()
 

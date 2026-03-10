@@ -490,8 +490,11 @@ func (e *JobExecutor) Resume() {
 	e.logger.Info("job executor resumed")
 }
 
-// resumeRunningJobs logs any jobs in 'running' state on startup.
-// The executor loop will automatically pick them up.
+// resumeRunningJobs adopts the first running job found in the database on startup
+// by setting activeJobID so the executor loop picks it up. Only the first running
+// job is adopted (the executor processes one job at a time). Additional running
+// jobs (which should not normally exist) remain in their current state and would
+// require a restart to be adopted.
 func (e *JobExecutor) resumeRunningJobs() error {
 	e.logger.Trace("entering resumeRunningJobs")
 	defer e.logger.Trace("returning from resumeRunningJobs")
@@ -507,23 +510,21 @@ func (e *JobExecutor) resumeRunningJobs() error {
 		return fmt.Errorf("listing jobs: %w", err)
 	}
 
-	runningCount := 0
+	var adopted bool
 	for _, job := range jobs {
 		if job.Status == model.SampleJobStatusRunning {
-			runningCount++
-			if isConnected {
-				e.logger.WithField("job_id", job.ID).Info("found running job to resume")
+			if !adopted {
+				e.mu.Lock()
+				e.activeJobID = job.ID
+				e.mu.Unlock()
+				adopted = true
+				e.logger.WithField("job_id", job.ID).Info("adopted running job for resume")
 			} else {
-				e.logger.WithField("job_id", job.ID).Warn("found running job to resume but ComfyUI connection not available")
+				e.logger.WithField("job_id", job.ID).Info("found additional running job (will be adopted after current job completes)")
 			}
-		}
-	}
-
-	if runningCount > 0 {
-		if isConnected {
-			e.logger.WithField("count", runningCount).Info("will resume running jobs")
-		} else {
-			e.logger.WithField("count", runningCount).Warn("will resume running jobs once ComfyUI connection is established")
+			if !isConnected {
+				e.logger.WithField("job_id", job.ID).Warn("ComfyUI connection not available — will resume once connected")
+			}
 		}
 	}
 
@@ -654,36 +655,30 @@ func (e *JobExecutor) processNextItem() {
 			return
 		}
 	} else {
-		// No job currently tracked. Look for a running job first (e.g. resume after restart).
+		// AC: No explicit Start API call required — auto-start the first pending job.
+		// Note: running-job discovery is intentionally omitted here. Jobs become
+		// running only through this executor (via autoStartJob), and startup-time
+		// resumption is handled by resumeRunningJobs(). Scanning for running jobs
+		// in the polling loop would cause externally-seeded test jobs (which have
+		// no items) to be immediately completed.
 		for i := range jobs {
-			if jobs[i].Status == model.SampleJobStatusRunning {
+			if jobs[i].Status == model.SampleJobStatusPending {
 				runningJob = &jobs[i]
 				break
 			}
 		}
-
-		// AC: No explicit Start API call required — auto-start the first pending job
 		if runningJob == nil {
-			// Look for a pending job to auto-start (ListSampleJobs returns oldest-first for FIFO processing)
-			for i := range jobs {
-				if jobs[i].Status == model.SampleJobStatusPending {
-					runningJob = &jobs[i]
-					break
-				}
-			}
-			if runningJob == nil {
-				e.mu.Unlock()
-				return
-			}
-
-			// Transition pending → running (release lock before I/O, re-acquire after)
 			e.mu.Unlock()
-			if err := e.autoStartJob(runningJob); err != nil {
-				return
-			}
-			// Re-acquire the lock to continue with item processing
-			e.mu.Lock()
+			return
 		}
+
+		// Transition pending → running (release lock before I/O, re-acquire after)
+		e.mu.Unlock()
+		if err := e.autoStartJob(runningJob); err != nil {
+			return
+		}
+		// Re-acquire the lock to continue with item processing
+		e.mu.Lock()
 	}
 
 	// Find the next pending item for the running job

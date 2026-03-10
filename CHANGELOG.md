@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-086: E2E: S-116 activity bead not visible for running job in Generate Samples dialog
+- Executor polling loop no longer discovers externally-seeded running jobs (which have no items) and immediately completes them; `resumeRunningJobs()` now properly adopts running jobs at startup by setting `activeJobID`
+
 ### S-115: Generate Samples dialog — smart checkbox defaults
 - "Generate missing samples only" auto-checked when validation detects an incomplete sample set; "Clear existing samples" left unchecked for complete sets
 - Smart defaults apply once per training run + study combination; subsequent manual checkbox changes are preserved

@@ -1017,7 +1017,7 @@ stories:
   - id: B-086
     title: "E2E: S-116 activity bead not visible for running job in Generate Samples dialog"
     type: bug
-    status: todo
+    status: uat
     priority: 70
     complexity: low
     requires: []
