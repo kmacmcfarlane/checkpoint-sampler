@@ -335,7 +335,7 @@ stories:
   - id: B-075
     title: "Clamp TotalMissing in backend validation to prevent negative values"
     priority: 25
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:

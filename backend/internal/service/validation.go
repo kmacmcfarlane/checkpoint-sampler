@@ -130,7 +130,9 @@ func (v *ValidationService) ValidateTrainingRun(tr model.TrainingRun, studyName 
 	}
 	result.TotalVerified = totalVerified
 	result.TotalActual = totalVerified
-	result.TotalMissing = totalExpected - totalVerified
+	if diff := totalExpected - totalVerified; diff > 0 {
+		result.TotalMissing = diff
+	}
 
 	v.logger.WithFields(logrus.Fields{
 		"training_run":     tr.Name,
@@ -230,7 +232,9 @@ func (v *ValidationService) ValidateTrainingRunWithStudy(tr model.TrainingRun, s
 
 	result.TotalVerified = totalVerified
 	result.TotalActual = totalVerified
-	result.TotalMissing = totalExpected - totalVerified
+	if diff := totalExpected - totalVerified; diff > 0 {
+		result.TotalMissing = diff
+	}
 
 	v.logger.WithFields(logrus.Fields{
 		"training_run":     tr.Name,
@@ -338,7 +342,9 @@ func (v *ValidationService) ValidateTrainingRunWithManifest(tr model.TrainingRun
 
 	result.TotalVerified = totalVerified
 	result.TotalActual = totalVerified
-	result.TotalMissing = totalExpected - totalVerified
+	if diff := totalExpected - totalVerified; diff > 0 {
+		result.TotalMissing = diff
+	}
 
 	v.logger.WithFields(logrus.Fields{
 		"training_run":     tr.Name,

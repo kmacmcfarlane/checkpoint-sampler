@@ -312,6 +312,31 @@ var _ = Describe("ValidationService", func() {
 			Expect(result.Checkpoints[0].Missing).To(Equal(0))
 		})
 
+		// B-075: TotalMissing aggregate must be clamped to 0 — defensive guard
+		// ValidateTrainingRun uses the max-file-count heuristic so totalVerified can
+		// never exceed totalExpected through normal file system state. However the clamp
+		// is still important as a defensive boundary. Confirm TotalMissing is exactly 0
+		// (not negative) when all checkpoints are complete (verified == expected).
+		It("returns TotalMissing of zero when all checkpoints are fully verified", func() {
+			tr := model.TrainingRun{
+				Name: "model",
+				Checkpoints: []model.Checkpoint{
+					{Filename: "cp1.safetensors", StepNumber: 1000, HasSamples: true},
+					{Filename: "cp2.safetensors", StepNumber: 2000, HasSamples: true},
+				},
+				HasSamples: true,
+			}
+
+			fs.files["/samples/cp1.safetensors"] = []string{"a.png", "b.png"}
+			fs.files["/samples/cp2.safetensors"] = []string{"a.png", "b.png"}
+
+			result, err := svc.ValidateTrainingRun(tr, "")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.TotalExpected).To(Equal(4))
+			Expect(result.TotalVerified).To(Equal(4))
+			Expect(result.TotalMissing).To(Equal(0))
+		})
+
 		It("populates summary fields (TotalExpected, TotalVerified, ExpectedPerCheckpoint)", func() {
 			tr := model.TrainingRun{
 				Name: "model",
@@ -409,6 +434,29 @@ var _ = Describe("ValidationService", func() {
 			Expect(result.Checkpoints[0].Expected).To(Equal(2))
 			Expect(result.Checkpoints[0].Verified).To(Equal(5))
 			Expect(result.Checkpoints[0].Missing).To(Equal(0)) // clamped to 0
+		})
+
+		// B-075: TotalMissing aggregate clamped to 0 when totalVerified > totalExpected
+		It("clamps TotalMissing to zero when all checkpoints have more files than expected", func() {
+			tr := model.TrainingRun{
+				Name: "model",
+				Checkpoints: []model.Checkpoint{
+					{Filename: "cp1.safetensors", StepNumber: 1000, HasSamples: true},
+					{Filename: "cp2.safetensors", StepNumber: 2000, HasSamples: true},
+				},
+				HasSamples: true,
+			}
+
+			// study expects 2 per checkpoint (4 total), but both checkpoints have 5 each
+			fs.files["/samples/cp1.safetensors"] = []string{"a.png", "b.png", "c.png", "d.png", "e.png"}
+			fs.files["/samples/cp2.safetensors"] = []string{"a.png", "b.png", "c.png", "d.png", "e.png"}
+
+			result, err := svc.ValidateTrainingRunWithStudy(tr, study, "")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.TotalExpected).To(Equal(4))   // 2 * 2 checkpoints
+			Expect(result.TotalVerified).To(Equal(10))  // 5 + 5
+			// B-075: must be 0, not -6
+			Expect(result.TotalMissing).To(Equal(0))
 		})
 
 		It("marks all checkpoints as missing when no directories exist", func() {
@@ -662,6 +710,30 @@ var _ = Describe("ValidationService", func() {
 			Expect(result.Checkpoints[0].Expected).To(Equal(2))
 			Expect(result.Checkpoints[0].Verified).To(Equal(5))
 			Expect(result.Checkpoints[0].Missing).To(Equal(0))
+		})
+
+		// B-075: TotalMissing aggregate clamped to 0 when totalVerified > totalExpected
+		It("clamps TotalMissing to zero when all checkpoints have more files than expected", func() {
+			fs.fileData["/samples/Test Study/manifest.json"] = manifestData
+			// manifest expects 2 per checkpoint (4 total), but both have 5 files each
+			fs.files["/samples/Test Study/cp1.safetensors"] = []string{"a.png", "b.png", "c.png", "d.png", "e.png"}
+			fs.files["/samples/Test Study/cp2.safetensors"] = []string{"a.png", "b.png", "c.png", "d.png", "e.png"}
+
+			tr := model.TrainingRun{
+				Name: "model",
+				Checkpoints: []model.Checkpoint{
+					{Filename: "cp1.safetensors", StepNumber: 1000, HasSamples: true},
+					{Filename: "cp2.safetensors", StepNumber: 2000, HasSamples: true},
+				},
+				HasSamples: true,
+			}
+
+			result, err := svc.ValidateTrainingRunWithManifest(tr, "Test Study")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.TotalExpected).To(Equal(4))   // 2 * 2 checkpoints
+			Expect(result.TotalVerified).To(Equal(10))  // 5 + 5
+			// B-075: must be 0, not -6
+			Expect(result.TotalMissing).To(Equal(0))
 		})
 
 		It("handles checkpoints without legacy samples (HasSamples=false) but with study dir files", func() {
