@@ -193,8 +193,9 @@ func (s *TrainingRunsService) Scan(ctx context.Context, p *gentrainingruns.ScanP
 	images := make([]*gentrainingruns.ImageResponse, len(scanResult.Images))
 	for i, img := range scanResult.Images {
 		images[i] = &gentrainingruns.ImageResponse{
-			RelativePath: img.RelativePath,
-			Dimensions:   img.Dimensions,
+			RelativePath:  img.RelativePath,
+			Dimensions:    img.Dimensions,
+			ThumbnailPath: img.ThumbnailPath,
 		}
 	}
 

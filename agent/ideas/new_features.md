@@ -31,3 +31,9 @@ Implement periodic WebSocket ping frames from the backend (or nginx) to keep idl
 * priority: low
 * source: developer
 The shift input only appears when the selected workflow has a `shift` role. Adding a second test fixture workflow with this role would enable E2E testing of the shift field visibility behavior in the study editor.
+
+### Retroactive thumbnail generation command
+* status: needs_approval
+* priority: low
+* source: developer
+Add a CLI or API endpoint to generate thumbnails for existing sample images that were captured before thumbnails were enabled, avoiding the need to re-run jobs.

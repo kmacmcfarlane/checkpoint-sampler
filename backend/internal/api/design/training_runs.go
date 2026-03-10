@@ -121,7 +121,10 @@ var ImageResponse = Type("ImageResponse", func() {
 	Attribute("dimensions", MapOf(String, String), "Dimension key-value pairs for this image", func() {
 		Example(map[string]string{"checkpoint": "4500", "prompt_name": "forest", "seed": "420"})
 	})
-	Required("relative_path", "dimensions")
+	Attribute("thumbnail_path", String, "Thumbnail path relative to sample directory (empty if thumbnails disabled or not yet generated)", func() {
+		Example("psai4rt-v0.3.0-no-reg-step00004500.safetensors/thumbnails/index=0&prompt_name=forest&seed=420&cfg=1&_00001_.jpg")
+	})
+	Required("relative_path", "dimensions", "thumbnail_path")
 })
 
 var DimensionResponse = Type("DimensionResponse", func() {

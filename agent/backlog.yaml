@@ -814,7 +814,7 @@ stories:
   - id: S-114
     title: "Pre-generate JPEG thumbnails for sample images"
     type: enhancement
-    status: todo
+    status: uat
     priority: 50
     complexity: medium
     requires: []

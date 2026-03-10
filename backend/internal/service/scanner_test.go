@@ -14,20 +14,31 @@ import (
 
 // fakeScannerFS implements service.ScannerFileSystem for testing.
 type fakeScannerFS struct {
-	files map[string][]string // abs dir → list of filenames
-	errs  map[string]error    // abs dir → error to return
+	files         map[string][]string // abs dir → list of filenames
+	errs          map[string]error    // abs dir → error to return
+	fileExistsSet map[string]struct{} // set of absolute paths that "exist"
 }
 
 func newFakeScannerFS() *fakeScannerFS {
 	return &fakeScannerFS{
-		files: make(map[string][]string),
-		errs:  make(map[string]error),
+		files:         make(map[string][]string),
+		errs:          make(map[string]error),
+		fileExistsSet: make(map[string]struct{}),
 	}
 }
 
 func (f *fakeScannerFS) DirectoryExists(path string) bool {
 	_, ok := f.files[path]
 	return ok
+}
+
+func (f *fakeScannerFS) FileExists(path string) bool {
+	// Check if path is in the fileExistsSet (for thumbnails, etc.)
+	if f.fileExistsSet != nil {
+		_, ok := f.fileExistsSet[path]
+		return ok
+	}
+	return false
 }
 
 func (f *fakeScannerFS) ListPNGFiles(dir string) ([]string, error) {

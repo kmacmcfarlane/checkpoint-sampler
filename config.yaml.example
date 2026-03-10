@@ -20,6 +20,18 @@ ip_address: "0.0.0.0"
 # SQLite database path (relative to working directory)
 db_path: ./data/checkpoint-sampler.db
 
+# Thumbnail generation settings (optional).
+# When enabled, JPEG thumbnails are generated when sample images are created.
+# Thumbnails are stored in a "thumbnails/" subdirectory within each checkpoint's
+# sample directory. The grid view uses thumbnails for faster loading while the
+# lightbox continues to serve full-resolution images.
+# If omitted (or enabled: false), thumbnail generation is disabled.
+# thumbnails:
+#   enabled: true
+#   max_resolution_x: 512
+#   max_resolution_y: 512
+#   jpeg_quality: 85
+
 # ComfyUI connection settings for inference pipeline (optional).
 # If omitted, inference pipeline features are disabled in the UI.
 # The URL must include the scheme (http:// or https://).

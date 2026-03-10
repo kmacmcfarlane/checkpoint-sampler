@@ -5,6 +5,10 @@ import DebugOverlay from './DebugOverlay.vue'
 
 const props = defineProps<{
   relativePath: string | null
+  /** Pre-generated JPEG thumbnail path (relative to sample dir). When provided, the grid
+   *  uses the thumbnail URL instead of the full-resolution image for faster loading.
+   *  The click event still emits the full-resolution URL for the lightbox. */
+  thumbnailPath?: string
   /** Ordered slider values for this cell. When provided, arrow keys step through them. */
   sliderValues?: string[]
   /** Currently active slider value for this cell. */
@@ -20,9 +24,16 @@ const emit = defineEmits<{
   'slider:change': [value: string]
 }>()
 
+/** Full-resolution URL — used by the lightbox and as fallback when no thumbnail. */
 const imageUrl = computed(() => {
   if (!props.relativePath) return null
   return `/api/images/${props.relativePath}`
+})
+
+/** URL used for the grid <img> element. Prefers the thumbnail when available. */
+const gridImageUrl = computed(() => {
+  if (props.thumbnailPath) return `/api/images/${props.thumbnailPath}`
+  return imageUrl.value
 })
 
 function onClick() {
@@ -60,10 +71,11 @@ function onKeydown(event: KeyboardEvent) {
     @keydown="onKeydown"
   >
     <img
-      v-if="imageUrl"
-      :src="imageUrl"
+      v-if="gridImageUrl"
+      :src="gridImageUrl"
       :alt="relativePath ?? ''"
       loading="lazy"
+      :data-full-src="imageUrl ?? undefined"
     />
     <div v-else class="image-cell__placeholder">
       No image

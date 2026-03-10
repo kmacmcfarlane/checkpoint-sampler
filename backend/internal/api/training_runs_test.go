@@ -66,6 +66,10 @@ func (f *fakeScanFS) DirectoryExists(path string) bool {
 	return ok
 }
 
+func (f *fakeScanFS) FileExists(path string) bool {
+	return false
+}
+
 func (f *fakeScanFS) ReadFile(path string) ([]byte, error) {
 	return nil, os.ErrNotExist
 }

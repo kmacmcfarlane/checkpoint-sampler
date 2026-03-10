@@ -91,7 +91,10 @@ func run() error {
 	fs := store.NewFileSystem(logger)
 	discovery := service.NewDiscoveryService(fs, cfg.CheckpointDirs, cfg.SampleDir, logger)
 	viewerDiscovery := service.NewViewerDiscoveryService(fs, cfg.SampleDir, logger)
-	scanner := service.NewScanner(fs, cfg.SampleDir, logger)
+
+	// Determine thumbnail settings
+	thumbnailsEnabled := cfg.Thumbnails != nil && cfg.Thumbnails.Enabled
+	scanner := service.NewScannerWithThumbnails(fs, cfg.SampleDir, thumbnailsEnabled, logger)
 
 	// Create WebSocket hub and filesystem watcher
 	hub := service.NewHub(logger)
@@ -122,9 +125,13 @@ func run() error {
 		}
 		workflowsSvc = api.NewWorkflowService(workflowLoader)
 
-		// Create job executor
+		// Create job executor (with optional thumbnail generator)
 		fsWriter := &service.RealFileSystemWriter{}
-		jobExecutor = service.NewJobExecutor(st, httpClient, wsClient, workflowLoader, hub, cfg.SampleDir, fsWriter, fs, logger)
+		var thumbGen *service.ThumbnailGenerator
+		if cfg.Thumbnails != nil && cfg.Thumbnails.Enabled {
+			thumbGen = service.NewThumbnailGenerator(*cfg.Thumbnails, logger)
+		}
+		jobExecutor = service.NewJobExecutorWithThumbnails(st, httpClient, wsClient, workflowLoader, hub, cfg.SampleDir, fsWriter, fs, thumbGen, logger)
 		bgPauser = jobExecutor
 	} else {
 		// Create disabled service when ComfyUI is not configured

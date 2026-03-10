@@ -8,6 +8,7 @@ type Config struct {
 	IPAddress      string
 	DBPath         string
 	ComfyUI        *ComfyUIConfig
+	Thumbnails     *ThumbnailConfig
 }
 
 // ComfyUIConfig represents the ComfyUI integration configuration.
@@ -15,6 +16,15 @@ type Config struct {
 type ComfyUIConfig struct {
 	URL         string
 	WorkflowDir string
+}
+
+// ThumbnailConfig holds thumbnail generation settings.
+// Thumbnail generation is optional; if Enabled is false, no thumbnails are created.
+type ThumbnailConfig struct {
+	Enabled       bool
+	MaxResolutionX int
+	MaxResolutionY int
+	JPEGQuality   int
 }
 
 // DimensionType indicates how dimension values are sorted.

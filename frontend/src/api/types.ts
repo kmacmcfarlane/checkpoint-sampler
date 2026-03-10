@@ -39,6 +39,8 @@ export interface TrainingRun {
 export interface ScanImage {
   relative_path: string
   dimensions: Record<string, string>
+  /** Relative path to the pre-generated JPEG thumbnail, or empty string when unavailable. */
+  thumbnail_path: string
 }
 
 /** A discovered dimension with its unique sorted values. */

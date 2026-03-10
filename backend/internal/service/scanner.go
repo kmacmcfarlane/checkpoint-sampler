@@ -20,14 +20,16 @@ var batchPattern = regexp.MustCompile(`_(\d+)_$`)
 type ScannerFileSystem interface {
 	ListPNGFiles(dir string) ([]string, error)
 	DirectoryExists(path string) bool
+	FileExists(path string) bool
 }
 
 // Scanner scans sample directories for a training run's checkpoints and discovers
 // images with dimensions.
 type Scanner struct {
-	fs        ScannerFileSystem
-	sampleDir string
-	logger    *logrus.Entry
+	fs                  ScannerFileSystem
+	sampleDir           string
+	thumbnailsEnabled   bool
+	logger              *logrus.Entry
 }
 
 // NewScanner creates a Scanner backed by the given filesystem and sample directory.
@@ -36,6 +38,16 @@ func NewScanner(fs ScannerFileSystem, sampleDir string, logger *logrus.Logger) *
 		fs:        fs,
 		sampleDir: sampleDir,
 		logger:    logger.WithField("component", "scanner"),
+	}
+}
+
+// NewScannerWithThumbnails creates a Scanner that also checks for thumbnails.
+func NewScannerWithThumbnails(fs ScannerFileSystem, sampleDir string, thumbnailsEnabled bool, logger *logrus.Logger) *Scanner {
+	return &Scanner{
+		fs:                fs,
+		sampleDir:         sampleDir,
+		thumbnailsEnabled: thumbnailsEnabled,
+		logger:            logger.WithField("component", "scanner"),
 	}
 }
 
@@ -143,12 +155,23 @@ func (s *Scanner) ScanTrainingRun(tr model.TrainingRun, studyName string) (*mode
 				relPath = filepath.Join(cp.Filename, filename)
 			}
 
+			// Check for an existing thumbnail
+			var thumbRelPath string
+			if s.thumbnailsEnabled {
+				thumbRelPath = ThumbnailRelativePathURLSafe(relPath)
+				thumbAbsPath := filepath.Join(s.sampleDir, filepath.FromSlash(thumbRelPath))
+				if !s.fs.FileExists(thumbAbsPath) {
+					thumbRelPath = ""
+				}
+			}
+
 			existing, found := imageMap[dedupKey]
 			if !found || batchNum > existing.batchNum {
 				imageMap[dedupKey] = imageEntry{
 					image: model.Image{
-						RelativePath: relPath,
-						Dimensions:   allDims,
+						RelativePath:  relPath,
+						Dimensions:    allDims,
+						ThumbnailPath: thumbRelPath,
 					},
 					batchNum: batchNum,
 				}

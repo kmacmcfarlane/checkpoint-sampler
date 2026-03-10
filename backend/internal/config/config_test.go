@@ -235,6 +235,102 @@ sample_dir: "` + filePath + `"
 		})
 	})
 
+	Describe("Thumbnail configuration", func() {
+		Context("when thumbnails section is present with enabled=true", func() {
+			It("parses thumbnail config with all fields", func() {
+				yamlStr := `
+checkpoint_dirs:
+  - "` + filepath.Join(tmpDir, "checkpoints") + `"
+sample_dir: "` + sampleDir + `"
+thumbnails:
+  enabled: true
+  max_resolution_x: 320
+  max_resolution_y: 320
+  jpeg_quality: 75
+`
+				cfg, err := config.LoadFromString(yamlStr)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(cfg.Thumbnails).NotTo(BeNil())
+				Expect(cfg.Thumbnails.Enabled).To(BeTrue())
+				Expect(cfg.Thumbnails.MaxResolutionX).To(Equal(320))
+				Expect(cfg.Thumbnails.MaxResolutionY).To(Equal(320))
+				Expect(cfg.Thumbnails.JPEGQuality).To(Equal(75))
+			})
+
+			It("uses default resolution and quality when not specified", func() {
+				yamlStr := `
+checkpoint_dirs:
+  - "` + filepath.Join(tmpDir, "checkpoints") + `"
+sample_dir: "` + sampleDir + `"
+thumbnails:
+  enabled: true
+`
+				cfg, err := config.LoadFromString(yamlStr)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(cfg.Thumbnails).NotTo(BeNil())
+				Expect(cfg.Thumbnails.Enabled).To(BeTrue())
+				Expect(cfg.Thumbnails.MaxResolutionX).To(Equal(512))
+				Expect(cfg.Thumbnails.MaxResolutionY).To(Equal(512))
+				Expect(cfg.Thumbnails.JPEGQuality).To(Equal(85))
+			})
+		})
+
+		Context("when thumbnails section is present with enabled=false", func() {
+			It("sets Enabled to false", func() {
+				yamlStr := `
+checkpoint_dirs:
+  - "` + filepath.Join(tmpDir, "checkpoints") + `"
+sample_dir: "` + sampleDir + `"
+thumbnails:
+  enabled: false
+`
+				cfg, err := config.LoadFromString(yamlStr)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(cfg.Thumbnails).NotTo(BeNil())
+				Expect(cfg.Thumbnails.Enabled).To(BeFalse())
+			})
+		})
+
+		Context("when thumbnails section is absent", func() {
+			It("sets Thumbnails to nil (disabled by default)", func() {
+				yamlStr := `
+checkpoint_dirs:
+  - "` + filepath.Join(tmpDir, "checkpoints") + `"
+sample_dir: "` + sampleDir + `"
+`
+				cfg, err := config.LoadFromString(yamlStr)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(cfg.Thumbnails).To(BeNil())
+			})
+		})
+
+		Context("thumbnail validation", func() {
+			DescribeTable("rejects invalid thumbnail configurations",
+				func(yamlStr string, expectedErr string) {
+					_, err := config.LoadFromString(yamlStr)
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).To(ContainSubstring(expectedErr))
+				},
+				Entry("zero max_resolution_x",
+					"checkpoint_dirs:\n  - \""+os.TempDir()+"\"\nsample_dir: \""+os.TempDir()+"\"\nthumbnails:\n  enabled: true\n  max_resolution_x: 0\n",
+					"max_resolution_x must be at least 1",
+				),
+				Entry("zero max_resolution_y",
+					"checkpoint_dirs:\n  - \""+os.TempDir()+"\"\nsample_dir: \""+os.TempDir()+"\"\nthumbnails:\n  enabled: true\n  max_resolution_y: 0\n",
+					"max_resolution_y must be at least 1",
+				),
+				Entry("jpeg_quality too low",
+					"checkpoint_dirs:\n  - \""+os.TempDir()+"\"\nsample_dir: \""+os.TempDir()+"\"\nthumbnails:\n  enabled: true\n  jpeg_quality: 0\n",
+					"jpeg_quality must be between 1 and 100",
+				),
+				Entry("jpeg_quality too high",
+					"checkpoint_dirs:\n  - \""+os.TempDir()+"\"\nsample_dir: \""+os.TempDir()+"\"\nthumbnails:\n  enabled: true\n  jpeg_quality: 101\n",
+					"jpeg_quality must be between 1 and 100",
+				),
+			)
+		})
+	})
+
 	Describe("ComfyUI configuration", func() {
 		Context("when comfyui section is present", func() {
 			It("parses comfyui config with all fields", func() {

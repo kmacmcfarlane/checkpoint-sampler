@@ -74,6 +74,12 @@ func (fs *FileSystem) DirectoryExists(path string) bool {
 	return err == nil && info.IsDir()
 }
 
+// FileExists reports whether the given path exists and is a regular file.
+func (fs *FileSystem) FileExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir()
+}
+
 // ListPNGFiles returns the names of .png files in the given directory.
 // Only regular files with a .png extension (case-insensitive) are returned.
 func (fs *FileSystem) ListPNGFiles(dir string) ([]string, error) {

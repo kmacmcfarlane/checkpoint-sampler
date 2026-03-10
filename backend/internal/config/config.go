@@ -13,12 +13,21 @@ import (
 
 // yamlConfig is the raw YAML-tagged representation of the config file.
 type yamlConfig struct {
-	CheckpointDirs []string           `yaml:"checkpoint_dirs"`
-	SampleDir      string             `yaml:"sample_dir"`
-	Port           *int               `yaml:"port"`
-	IPAddress      string             `yaml:"ip_address"`
-	DBPath         string             `yaml:"db_path"`
-	ComfyUI        *yamlComfyUIConfig `yaml:"comfyui"`
+	CheckpointDirs []string               `yaml:"checkpoint_dirs"`
+	SampleDir      string                 `yaml:"sample_dir"`
+	Port           *int                   `yaml:"port"`
+	IPAddress      string                 `yaml:"ip_address"`
+	DBPath         string                 `yaml:"db_path"`
+	ComfyUI        *yamlComfyUIConfig     `yaml:"comfyui"`
+	Thumbnails     *yamlThumbnailConfig   `yaml:"thumbnails"`
+}
+
+// yamlThumbnailConfig is the raw YAML-tagged representation of thumbnail config.
+type yamlThumbnailConfig struct {
+	Enabled        bool `yaml:"enabled"`
+	MaxResolutionX *int `yaml:"max_resolution_x"`
+	MaxResolutionY *int `yaml:"max_resolution_y"`
+	JPEGQuality    *int `yaml:"jpeg_quality"`
 }
 
 // yamlComfyUIConfig is the raw YAML-tagged representation of ComfyUI config.
@@ -123,6 +132,15 @@ func parseAndValidate(raw yamlConfig) (*model.Config, error) {
 		}
 	}
 
+	// Parse and validate thumbnail config if present
+	var thumbnails *model.ThumbnailConfig
+	if raw.Thumbnails != nil {
+		thumbnails, err = parseThumbnailConfig(raw.Thumbnails)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return &model.Config{
 		CheckpointDirs: raw.CheckpointDirs,
 		SampleDir:      raw.SampleDir,
@@ -130,6 +148,42 @@ func parseAndValidate(raw yamlConfig) (*model.Config, error) {
 		IPAddress:      raw.IPAddress,
 		DBPath:         raw.DBPath,
 		ComfyUI:        comfyUI,
+		Thumbnails:     thumbnails,
+	}, nil
+}
+
+// parseThumbnailConfig parses and validates the thumbnail configuration section.
+func parseThumbnailConfig(raw *yamlThumbnailConfig) (*model.ThumbnailConfig, error) {
+	// Apply defaults
+	maxResX := 512
+	if raw.MaxResolutionX != nil {
+		maxResX = *raw.MaxResolutionX
+	}
+	maxResY := 512
+	if raw.MaxResolutionY != nil {
+		maxResY = *raw.MaxResolutionY
+	}
+	quality := 85
+	if raw.JPEGQuality != nil {
+		quality = *raw.JPEGQuality
+	}
+
+	// Validate
+	if maxResX < 1 {
+		return nil, fmt.Errorf("config: thumbnails.max_resolution_x must be at least 1, got %d", maxResX)
+	}
+	if maxResY < 1 {
+		return nil, fmt.Errorf("config: thumbnails.max_resolution_y must be at least 1, got %d", maxResY)
+	}
+	if quality < 1 || quality > 100 {
+		return nil, fmt.Errorf("config: thumbnails.jpeg_quality must be between 1 and 100, got %d", quality)
+	}
+
+	return &model.ThumbnailConfig{
+		Enabled:        raw.Enabled,
+		MaxResolutionX: maxResX,
+		MaxResolutionY: maxResY,
+		JPEGQuality:    quality,
 	}, nil
 }
 

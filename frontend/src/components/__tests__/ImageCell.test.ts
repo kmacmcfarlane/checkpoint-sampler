@@ -23,6 +23,56 @@ describe('ImageCell', () => {
     expect(img.attributes('alt')).toBe('dir/index=0&seed=42.png')
   })
 
+  // AC: Grid view serves thumbnails instead of full-res images when available
+  it('uses thumbnailPath as src when thumbnailPath is provided', () => {
+    const wrapper = mountCell({
+      relativePath: 'dir/image.png',
+      thumbnailPath: 'dir/thumbnails/image.jpg',
+    })
+
+    const img = wrapper.find('img')
+    expect(img.exists()).toBe(true)
+    // Grid img element should use the thumbnail URL
+    expect(img.attributes('src')).toBe('/api/images/dir/thumbnails/image.jpg')
+    // Alt still reflects the original relative path
+    expect(img.attributes('alt')).toBe('dir/image.png')
+  })
+
+  // AC: data-full-src carries the full-resolution URL for the lightbox
+  it('sets data-full-src to the full-res URL when thumbnailPath is provided', () => {
+    const wrapper = mountCell({
+      relativePath: 'dir/image.png',
+      thumbnailPath: 'dir/thumbnails/image.jpg',
+    })
+
+    const img = wrapper.find('img')
+    expect(img.attributes('data-full-src')).toBe('/api/images/dir/image.png')
+  })
+
+  // AC: Falls back to full-res URL when no thumbnail
+  it('falls back to full-res URL when thumbnailPath is not provided', () => {
+    const wrapper = mountCell({ relativePath: 'dir/image.png' })
+
+    const img = wrapper.find('img')
+    expect(img.attributes('src')).toBe('/api/images/dir/image.png')
+  })
+
+  // AC: Lightbox click event still emits the full-resolution URL
+  it('emits click with full-res imageUrl even when thumbnailPath is provided', async () => {
+    const wrapper = mountCell({
+      relativePath: 'dir/image.png',
+      thumbnailPath: 'dir/thumbnails/image.jpg',
+    })
+
+    await wrapper.find('.image-cell').trigger('click')
+
+    const emitted = wrapper.emitted('click')
+    expect(emitted).toBeDefined()
+    expect(emitted).toHaveLength(1)
+    // Click event must carry the full-resolution URL for the lightbox
+    expect(emitted![0]).toEqual(['/api/images/dir/image.png'])
+  })
+
   it('renders placeholder when relativePath is null', () => {
     const wrapper = mountCell({ relativePath: null })
 

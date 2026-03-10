@@ -6,6 +6,8 @@ type Image struct {
 	RelativePath string
 	// Dimensions maps dimension names to their string values for this image.
 	Dimensions map[string]string
+	// ThumbnailPath is the relative path to the JPEG thumbnail, or empty if none.
+	ThumbnailPath string
 }
 
 // Dimension represents a discovered dimension with its unique values.

@@ -459,6 +459,7 @@ onUnmounted(() => {
             >
               <ImageCell
                 :relative-path="getImage(xVal, yVal)?.relative_path ?? null"
+                :thumbnail-path="getImage(xVal, yVal)?.thumbnail_path || undefined"
                 :slider-values="sliderDimension?.values"
                 :current-slider-value="getSliderValue(xVal, yVal)"
                 :debug-info="getDebugInfo(xVal, yVal)"
@@ -484,6 +485,7 @@ onUnmounted(() => {
           >
             <ImageCell
               :relative-path="getImage(undefined, yVal)?.relative_path ?? null"
+              :thumbnail-path="getImage(undefined, yVal)?.thumbnail_path || undefined"
               :slider-values="sliderDimension?.values"
               :current-slider-value="getSliderValue(undefined, yVal)"
               :debug-info="getDebugInfo(undefined, yVal)"
@@ -512,6 +514,7 @@ onUnmounted(() => {
         >
           <ImageCell
             :relative-path="getImage(xVal, undefined)?.relative_path ?? null"
+            :thumbnail-path="getImage(xVal, undefined)?.thumbnail_path || undefined"
             :slider-values="sliderDimension?.values"
             :current-slider-value="getSliderValue(xVal, undefined)"
             :debug-info="getDebugInfo(xVal, undefined)"
@@ -541,6 +544,7 @@ onUnmounted(() => {
       >
         <ImageCell
           :relative-path="img.relative_path"
+          :thumbnail-path="img.thumbnail_path || undefined"
           :slider-values="sliderDimension?.values"
           :current-slider-value="getSliderValue(undefined, undefined)"
           :debug-info="getDebugInfo(undefined, undefined)"

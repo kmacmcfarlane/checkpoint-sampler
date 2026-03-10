@@ -73,6 +73,7 @@ type JobExecutor struct {
 	sampleDir      string
 	fsWriter       FileSystemWriter
 	fsReader       FileSystemReader
+	thumbGen       *ThumbnailGenerator // nil if thumbnail generation is disabled
 	logger         *logrus.Entry
 
 	mu                       sync.Mutex
@@ -99,7 +100,7 @@ type JobExecutor struct {
 	timeNow func() time.Time
 }
 
-// NewJobExecutor creates a new job executor.
+// NewJobExecutor creates a new job executor without thumbnail generation.
 func NewJobExecutor(
 	store JobExecutorStore,
 	comfyuiClient ComfyUIClient,
@@ -109,6 +110,23 @@ func NewJobExecutor(
 	sampleDir string,
 	fsWriter FileSystemWriter,
 	fsReader FileSystemReader,
+	logger *logrus.Logger,
+) *JobExecutor {
+	return NewJobExecutorWithThumbnails(store, comfyuiClient, comfyuiWS, workflowLoader, hub, sampleDir, fsWriter, fsReader, nil, logger)
+}
+
+// NewJobExecutorWithThumbnails creates a new job executor with optional thumbnail generation.
+// Pass nil for thumbGen to disable thumbnail generation.
+func NewJobExecutorWithThumbnails(
+	store JobExecutorStore,
+	comfyuiClient ComfyUIClient,
+	comfyuiWS ComfyUIWS,
+	workflowLoader WorkflowLoaderService,
+	hub EventHub,
+	sampleDir string,
+	fsWriter FileSystemWriter,
+	fsReader FileSystemReader,
+	thumbGen *ThumbnailGenerator,
 	logger *logrus.Logger,
 ) *JobExecutor {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -121,6 +139,7 @@ func NewJobExecutor(
 		sampleDir:                sampleDir,
 		fsWriter:                 fsWriter,
 		fsReader:                 fsReader,
+		thumbGen:                 thumbGen,
 		logger:                   logger.WithField("component", "job_executor"),
 		checkpointCompleteness:   make(map[string]model.CheckpointCompletenessInfo),
 		ctx:                      ctx,
@@ -1040,6 +1059,13 @@ func (e *JobExecutor) handleItemCompletionAsync(jobID, itemID, promptID string) 
 	}
 
 	e.logger.WithField("output_path", outputPath).Info("image saved successfully")
+
+	// Generate thumbnail if enabled (non-fatal if it fails)
+	if e.thumbGen != nil {
+		if thumbErr := e.thumbGen.GenerateAndSave(outputPath, imageData, e.fsWriter); thumbErr != nil {
+			e.logger.WithError(thumbErr).Warn("failed to generate thumbnail, image saved but thumbnail missing")
+		}
+	}
 
 	// Write sidecar JSON alongside the image (non-fatal if it fails)
 	if sidecarErr := e.writeSidecar(outputPath, job, *item); sidecarErr != nil {
