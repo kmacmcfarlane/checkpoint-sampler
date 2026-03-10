@@ -5,10 +5,6 @@ import {
   closeDrawer,
   openGenerateSamplesDialog,
   getGenerateSamplesDialog,
-  getManageStudiesDialog,
-  fillStudyName,
-  fillFirstPromptRow,
-  addSamplerSchedulerPair,
   selectNaiveOption,
   cancelAllJobs,
 } from './helpers'
@@ -67,37 +63,41 @@ async function selectNaiveOptionInContainer(
 }
 
 /**
- * Sets up the Generate Samples dialog fully (training run, study, workflow, VAE, CLIP)
- * for a run that already has samples, then waits for validation to complete.
+ * The fixture study name seeded into the DB by the test reset endpoint.
+ * Must match store.E2EFixtureStudyName in the backend fixture_seeder.go.
+ * This study has 2 prompts × 1 seed × 1 cfg × 1 pair × 1 step = 2 images/checkpoint,
+ * and matching sample directories exist under samples/my-model/<fixture-study-id>/.
+ * After reset, the backend seeds this study into the DB so that validation returns
+ * total_actual > 0 and total_missing = 0, triggering the confirmation dialog.
+ */
+const FIXTURE_STUDY_NAME = 'E2E Fixture Study'
+
+/**
+ * Sets up the Generate Samples dialog fully (training run, pre-seeded study,
+ * workflow, VAE, CLIP) for a run that already has samples, then waits for
+ * validation to complete.
+ *
+ * Uses the pre-seeded fixture study (seeded by the test reset endpoint) rather
+ * than creating a new study through the UI, because validation needs to find
+ * sample files at a study-scoped path ({sampleDir}/{trainingRun}/{studyID}/).
+ * The fixture study has known sample directories pre-created on disk, so
+ * validation returns total_actual > 0 and total_missing = 0, enabling the
+ * regeneration confirmation dialog to appear.
+ *
  * Returns the dialog locator.
  */
 async function setupDialogForRegenerateWithCompleteValidation(
   page: Page,
-  studyName: string,
 ): Promise<ReturnType<typeof page.locator>> {
   await openGenerateSamplesDialog(page)
   const dialog = getGenerateSamplesDialog(page)
   await expect(dialog).toBeVisible()
 
-  // Select the training run that already has samples
+  // Select the training run that already has samples (via fixture seeder)
   await selectNaiveOptionInContainer(page, dialog, 'training-run-select', 'my-model')
 
-  // Create a study
-  const manageStudiesButton = page.locator('[data-testid="manage-studies-button"]')
-  await expect(manageStudiesButton).toBeVisible()
-  await manageStudiesButton.click()
-  await expect(getManageStudiesDialog(page)).toBeVisible()
-
-  await page.locator('[data-testid="new-study-button"]').click()
-  await fillStudyName(page, studyName)
-  await fillFirstPromptRow(page, 'landscape', 'a beautiful landscape')
-  await addSamplerSchedulerPair(page, 'euler', 'normal')
-
-  const saveButton = page.locator('[data-testid="save-study-button"]')
-  await expect(saveButton).not.toBeDisabled()
-  await saveButton.click()
-  await expect(getManageStudiesDialog(page)).not.toBeVisible()
-  await expect(dialog).toBeVisible()
+  // Select the pre-seeded fixture study (created by test reset endpoint)
+  await selectNaiveOptionInContainer(page, dialog, 'study-select', FIXTURE_STUDY_NAME)
 
   // Select workflow and models
   await selectNaiveOption(page, 'workflow-select', 'test-workflow.json')
@@ -107,10 +107,11 @@ async function setupDialogForRegenerateWithCompleteValidation(
   // Wait for the "Clear existing samples" checkbox — it only appears after
   // validation completes (requires both training run + study selected and
   // selectedRunHasSamples=true). When this checkbox is visible, validation
-  // has run and returned results. For my-model with equal sample counts across
-  // checkpoints, total_missing = 0 (complete validation → confirm dialog will appear).
+  // has run and returned results. For my-model with the fixture study, all
+  // checkpoint sample directories exist with the expected number of PNGs,
+  // so total_missing = 0 (complete validation → confirm dialog will appear).
   const clearExistingCheckbox = page.locator('[data-testid="clear-existing-checkbox"]')
-  await expect(clearExistingCheckbox).toBeVisible({ timeout: 10000 })
+  await expect(clearExistingCheckbox).toBeVisible({ timeout: 15000 })
 
   // Uncheck "Clear existing samples" to preserve the test fixture directories in
   // the shared samples volume. Without this, the confirmed regeneration job deletes
@@ -147,8 +148,7 @@ test.describe('regeneration confirmation dialog (S-093)', () => {
   // AC1: Clicking Regenerate on a validated (complete) sample set shows a
   // confirmation dialog instead of immediately submitting.
   test('AC1: shows confirmation dialog when all expected samples exist (complete validation)', async ({ page }) => {
-    const studyName = `E2E S-093 Confirm ${Date.now()}`
-    const dialog = await setupDialogForRegenerateWithCompleteValidation(page, studyName)
+    const dialog = await setupDialogForRegenerateWithCompleteValidation(page)
 
     // The submit button should read "Regenerate Samples" for a run with has_samples=true
     const submitButton = dialog.locator('button').filter({ hasText: 'Regenerate Samples' }).first()
@@ -168,8 +168,7 @@ test.describe('regeneration confirmation dialog (S-093)', () => {
   // AC2: Dialog explains that all expected samples already exist and regeneration
   // will overwrite them.
   test('AC2: confirmation dialog explains that samples exist and will be overwritten', async ({ page }) => {
-    const studyName = `E2E S-093 Text ${Date.now()}`
-    const dialog = await setupDialogForRegenerateWithCompleteValidation(page, studyName)
+    const dialog = await setupDialogForRegenerateWithCompleteValidation(page)
 
     const submitButton = dialog.locator('button').filter({ hasText: 'Regenerate Samples' }).first()
     await submitButton.click()
@@ -187,8 +186,7 @@ test.describe('regeneration confirmation dialog (S-093)', () => {
   // AC3 (Cancel path): Clicking Cancel aborts the operation — no job is created
   // and the dialog closes.
   test('AC3 (cancel): clicking Cancel closes the confirmation dialog without creating a job', async ({ page, request }) => {
-    const studyName = `E2E S-093 Cancel ${Date.now()}`
-    const dialog = await setupDialogForRegenerateWithCompleteValidation(page, studyName)
+    const dialog = await setupDialogForRegenerateWithCompleteValidation(page)
 
     const submitButton = dialog.locator('button').filter({ hasText: 'Regenerate Samples' }).first()
     await submitButton.click()
@@ -213,8 +211,7 @@ test.describe('regeneration confirmation dialog (S-093)', () => {
 
   // AC3 (Confirm path): Clicking Confirm proceeds with regeneration — a job is created.
   test('AC3 (confirm): clicking Confirm proceeds with sample job creation', async ({ page, request }) => {
-    const studyName = `E2E S-093 Confirm Submit ${Date.now()}`
-    const dialog = await setupDialogForRegenerateWithCompleteValidation(page, studyName)
+    const dialog = await setupDialogForRegenerateWithCompleteValidation(page)
 
     const submitButton = dialog.locator('button').filter({ hasText: 'Regenerate Samples' }).first()
     await submitButton.click()

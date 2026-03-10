@@ -29,6 +29,14 @@ type SampleDirCleaner interface {
 	CleanStudyDirs() error
 }
 
+// FixtureSeeder is an optional interface for seeding deterministic fixture data
+// (studies + sample directories) after a test reset. When provided, the test
+// reset endpoint calls SeedFixtures() after CleanStudyDirs() to restore the
+// fixture state required by E2E tests (e.g. regen-confirmation.spec.ts).
+type FixtureSeeder interface {
+	SeedFixtures() error
+}
+
 // MountTestResetEndpoint conditionally registers DELETE /api/test/reset on the
 // given mux. The endpoint is only mounted when the ENABLE_TEST_ENDPOINTS
 // environment variable is set to "true". It drops all tables and reruns
@@ -40,9 +48,12 @@ type SampleDirCleaner interface {
 // If a SampleDirCleaner is provided, study-generated sample directories are
 // removed to restore the sample_dir to its original fixture state.
 //
+// If a FixtureSeeder is provided, deterministic fixture data is seeded after
+// cleanup to ensure E2E tests start with known-good state.
+//
 // This is intended exclusively for E2E test isolation -- it must never be
 // enabled in production.
-func MountTestResetEndpoint(mux interface{ Handle(string, string, http.HandlerFunc) }, resetter DBResetter, pauser BackgroundPauser, cleaner SampleDirCleaner, logger *logrus.Logger) {
+func MountTestResetEndpoint(mux interface{ Handle(string, string, http.HandlerFunc) }, resetter DBResetter, pauser BackgroundPauser, cleaner SampleDirCleaner, seeder FixtureSeeder, logger *logrus.Logger) {
 	if os.Getenv("ENABLE_TEST_ENDPOINTS") != "true" {
 		return
 	}
@@ -76,7 +87,17 @@ func MountTestResetEndpoint(mux interface{ Handle(string, string, http.HandlerFu
 			}
 		}
 
-		logger.Info("database reset and sample directory cleanup completed successfully")
+		// Seed deterministic fixture data (studies + sample dirs) so that
+		// E2E tests that rely on pre-existing samples start in known-good state.
+		if seeder != nil {
+			if err := seeder.SeedFixtures(); err != nil {
+				logger.WithError(err).Error("fixture seeding failed")
+				http.Error(w, "fixture seeding failed", http.StatusInternalServerError)
+				return
+			}
+		}
+
+		logger.Info("database reset, sample directory cleanup, and fixture seeding completed successfully")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"reset_complete"}`))
 	})

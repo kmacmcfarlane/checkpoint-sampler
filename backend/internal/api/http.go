@@ -72,6 +72,12 @@ type HTTPHandlerConfig struct {
 	// directories from sample_dir to prevent filesystem state leaking
 	// between E2E tests.
 	SampleDirCleaner SampleDirCleaner
+
+	// FixtureSeeder is an optional dependency for seeding deterministic
+	// fixture data (studies + sample directories) after a test reset. When
+	// non-nil and ENABLE_TEST_ENDPOINTS=true, the test reset endpoint calls
+	// SeedFixtures() to restore known-good state for E2E tests.
+	FixtureSeeder FixtureSeeder
 }
 
 // NewHTTPHandler creates a fully wired http.Handler with all Goa services,
@@ -135,7 +141,7 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 
 	// Mount test-only endpoints (no-op unless ENABLE_TEST_ENDPOINTS=true)
 	if cfg.DBResetter != nil {
-		MountTestResetEndpoint(mux, cfg.DBResetter, cfg.BackgroundPauser, cfg.SampleDirCleaner, cfg.Logger)
+		MountTestResetEndpoint(mux, cfg.DBResetter, cfg.BackgroundPauser, cfg.SampleDirCleaner, cfg.FixtureSeeder, cfg.Logger)
 	}
 
 	// Redirect /docs to /docs/ for the Swagger UI

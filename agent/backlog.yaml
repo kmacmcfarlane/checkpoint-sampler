@@ -934,7 +934,7 @@ stories:
   - id: B-081
     title: "E2E: regen-confirmation.spec.ts 4 tests timing out in Generate Samples dialog"
     type: bug
-    status: todo
+    status: uat
     priority: 70
     complexity: medium
     requires: []
@@ -967,3 +967,24 @@ stories:
       Root cause hypothesis: the validation preview may now require the new scoped path 
       to find samples, or selectors may be stale after recent dialog changes.
       Discovered during B-078 QA cycle — pre-existing/unrelated to B-078 changes.
+  - id: B-083
+    title: "E2E: sample-count-preview.spec.ts 2 tests timing out after B-078 per-study validation scoping"
+    type: bug
+    status: todo
+    priority: 70
+    complexity: medium
+    requires: []
+    acceptance:
+      - "sample-count-preview.spec.ts test 'Generate Samples dialog shows validation preview with sample counts' passes reliably"
+      - "sample-count-preview.spec.ts test 'Generate Samples dialog shows per-checkpoint validation status rows' passes reliably"
+      - "Tests use pre-seeded fixture study or create matching sample directories for dynamic studies"
+    testing:
+      - "command: make test-e2e SPEC=sample-count-preview.spec.ts"
+    notes: |
+      Both tests in sample-count-preview.spec.ts time out at ~8.5s. They create dynamic studies via API
+      with random UUIDs that have no matching sample directories on disk. B-078 changed validation to
+      per-study directory scoping ({sampleDir}/{trainingRun}/{studyID}/), so validation returns incomplete
+      or empty results and the checkpoint picker / validation totals never appear.
+      Same root cause pattern as B-081 (fixed for regen-confirmation.spec.ts via FixtureSeeder).
+      Fix approach: extend the FixtureSeeder or use the existing pre-seeded study in these tests.
+      Discovered during B-081 QA cycle.

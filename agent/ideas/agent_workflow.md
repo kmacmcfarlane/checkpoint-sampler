@@ -73,3 +73,9 @@ When a new migration adds a table, the developer must remember to update the tab
 * priority: low
 * source: developer
 When a story introduces an intermediate dialog or changes a user flow (like S-093's confirmation dialog), the developer should proactively search for E2E specs that exercise the affected journey (e.g., `grep -r 'submitButton.click' frontend/e2e/`) and update them in the same story. This would prevent downstream E2E failures from being discovered during QA of a subsequent story.
+
+### Pre-existing E2E failure tracking
+* status: needs_approval
+* priority: medium
+* source: developer
+The E2E gate fails on any failure but has no mechanism to distinguish regressions from known pre-existing failures. Consider adding a `known_failures` list to the E2E test configuration or immediately filing a B- story when a failure is discovered, so carry-forward defects don't block unrelated stories.

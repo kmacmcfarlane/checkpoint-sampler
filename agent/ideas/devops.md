@@ -92,3 +92,9 @@ Add a CI check or Makefile target that validates all `test-fixtures/**/*.safeten
 * priority: high
 * source: qa
 29 E2E tests fail in the full suite but pass individually, indicating systemic test isolation issues. Tests sharing database state via `/api/test/reset` interfere when run sequentially in a single worker. Consider Playwright test sharding with separate DB instances, or adding cleanup `afterEach` hooks for tests that create application state (sample jobs, images).
+
+### Fixture seeder idempotency guard
+* status: needs_approval
+* priority: low
+* source: developer
+Add an explicit idempotency check in `FixtureSeeder.SeedFixtures()` to detect and skip already-seeded fixture data, preventing silent state duplication if the cleaner fails mid-reset.
