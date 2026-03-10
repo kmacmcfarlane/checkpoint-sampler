@@ -635,7 +635,7 @@ stories:
   - id: W-007
     title: "Automated panic detection in E2E log scan"
     priority: 45
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:

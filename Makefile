@@ -1,4 +1,4 @@
-.PHONY: claude claude-resume claude-dangerous ralph ralph-resume ralph-auto ralph-auto-resume capture-runtime-context up down logs up-dev down-dev logs-dev gen test-frontend-watch test-backend-watch lint-nginx up-test down-test build-playwright test-e2e test-e2e-logs down-e2e
+.PHONY: claude claude-resume claude-dangerous ralph ralph-resume ralph-auto ralph-auto-resume capture-runtime-context up down logs up-dev down-dev logs-dev gen test-frontend-watch test-backend-watch lint-nginx up-test down-test build-playwright test-e2e test-e2e-logs down-e2e check-e2e-panics
 
 COMPOSE_DEV = docker compose -p checkpoint-sampler-dev -f docker-compose.yml -f docker-compose.dev.yml
 COMPOSE_TEST = docker compose -p checkpoint-sampler-test -f docker-compose.test.yml
@@ -38,17 +38,17 @@ ralph-auto-resume:
 ralph-auto-resume-once:
 	claude-sandbox --ralph --dangerously-skip-permissions --limit 1 --resume ${ARGS}
 
-backlog-count-not-done:
-	./scripts/backlog/backlog.py query --status todo,in_progress,review,testing,uat --fields id|wc -l
+backlog-not-done:
+	./scripts/backlog/backlog.py query --status todo,in_progress,review,testing,uat --fields id
 
-backlog-count-uat:
-	./scripts/backlog/backlog.py query --status uat --fields id|wc -l
+backlog-uat:
+	./scripts/backlog/backlog.py query --status uat --fields id
 
-backlog-count-todo:
-	./scripts/backlog/backlog.py query --status todo --fields id|wc -l
+backlog-todo:
+	./scripts/backlog/backlog.py query --status todo --fields id
 
-backlog-count-in-flight:
-	./scripts/backlog/backlog.py query --status in_progress,review,testing --fields id|wc -l
+backlog-in-flight:
+	./scripts/backlog/backlog.py query --status in_progress,review,testing --fields id
 
 # Capture runtime context snapshot (container logs, errors) to .ralph/temp/debug-context
 capture-runtime-context:
@@ -125,7 +125,13 @@ test-e2e:
 	$(COMPOSE_TEST) logs --no-color backend > $(E2E_LOG_DIR)/backend.log 2>&1; \
 	$(COMPOSE_TEST) logs --no-color frontend > $(E2E_LOG_DIR)/frontend.log 2>&1; \
 	$(COMPOSE_TEST) down -v; \
+	./scripts/check-e2e-panics.sh $(E2E_LOG_DIR) || STATUS=1; \
 	exit $$STATUS
+
+# Scan E2E backend logs for Go panics. Exits non-zero when panic: is found.
+# Log directory defaults to .ralph/temp/e2e-logs. Override with: make check-e2e-panics LOG_DIR=<path>
+check-e2e-panics:
+	./scripts/check-e2e-panics.sh $(if $(LOG_DIR),$(LOG_DIR),$(E2E_LOG_DIR))
 
 # Capture logs from a running E2E stack without tearing it down.
 # Useful for manual inspection when the stack is still up.
