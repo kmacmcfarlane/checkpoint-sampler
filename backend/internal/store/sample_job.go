@@ -54,13 +54,13 @@ type sampleJobItemEntity struct {
 	UpdatedAt          string // RFC3339
 }
 
-// ListSampleJobs returns all sample jobs ordered by created_at descending (newest first).
+// ListSampleJobs returns all sample jobs ordered by created_at ascending (oldest first, FIFO).
 func (s *Store) ListSampleJobs() ([]model.SampleJob, error) {
 	s.logger.Trace("entering ListSampleJobs")
 	defer s.logger.Trace("returning from ListSampleJobs")
 
 	rows, err := s.db.Query(`SELECT id, training_run_name, study_id, study_name, workflow_name, vae, clip, shift, status, total_items, completed_items, error_message, created_at, updated_at
-		FROM sample_jobs ORDER BY created_at DESC`)
+		FROM sample_jobs ORDER BY created_at ASC`)
 	if err != nil {
 		s.logger.WithError(err).Error("failed to query sample jobs")
 		return nil, fmt.Errorf("querying sample jobs: %w", err)

@@ -645,8 +645,7 @@ func (e *JobExecutor) processNextItem() {
 
 		// AC: No explicit Start API call required — auto-start the first pending job
 		if runningJob == nil {
-			// Look for a pending job to auto-start (note: ListSampleJobs returns newest-first;
-			// FIFO ordering improvement tracked in agent/ideas/enhancements.md)
+			// Look for a pending job to auto-start (ListSampleJobs returns oldest-first for FIFO processing)
 			for i := range jobs {
 				if jobs[i].Status == model.SampleJobStatusPending {
 					runningJob = &jobs[i]

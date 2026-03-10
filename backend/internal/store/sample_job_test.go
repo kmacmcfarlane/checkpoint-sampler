@@ -184,7 +184,7 @@ var _ = Describe("SampleJob Store", func() {
 				Expect(result).To(HaveLen(0))
 			})
 
-			It("returns all sample jobs ordered by created_at descending", func() {
+			It("returns all sample jobs ordered by created_at ascending (FIFO)", func() {
 				now := time.Now().UTC().Truncate(time.Second)
 
 				job1 := sampleJob
@@ -214,10 +214,55 @@ var _ = Describe("SampleJob Store", func() {
 				result, err := s.ListSampleJobs()
 				Expect(err).NotTo(HaveOccurred())
 				Expect(result).To(HaveLen(3))
-				// Should be ordered by created_at DESC: job3, job2, job1
-				Expect(result[0].ID).To(Equal("job-3"))
+				// Should be ordered by created_at ASC (oldest first): job1, job2, job3
+				Expect(result[0].ID).To(Equal("job-1"))
 				Expect(result[1].ID).To(Equal("job-2"))
-				Expect(result[2].ID).To(Equal("job-1"))
+				Expect(result[2].ID).To(Equal("job-3"))
+			})
+
+		It("returns pending jobs in FIFO order for deterministic pickup", func() {
+				now := time.Now().UTC().Truncate(time.Second)
+
+				// Create three pending jobs with distinct creation times
+				pendingJob1 := sampleJob
+				pendingJob1.ID = "pending-job-1"
+				pendingJob1.Status = model.SampleJobStatusPending
+				pendingJob1.CreatedAt = now.Add(-3 * time.Hour)
+				pendingJob1.UpdatedAt = now.Add(-3 * time.Hour)
+
+				pendingJob2 := sampleJob
+				pendingJob2.ID = "pending-job-2"
+				pendingJob2.Status = model.SampleJobStatusPending
+				pendingJob2.CreatedAt = now.Add(-2 * time.Hour)
+				pendingJob2.UpdatedAt = now.Add(-2 * time.Hour)
+
+				pendingJob3 := sampleJob
+				pendingJob3.ID = "pending-job-3"
+				pendingJob3.Status = model.SampleJobStatusPending
+				pendingJob3.CreatedAt = now.Add(-1 * time.Hour)
+				pendingJob3.UpdatedAt = now.Add(-1 * time.Hour)
+
+				// Insert in non-chronological order to verify ordering is from query, not insertion
+				err := s.CreateSampleJob(pendingJob3)
+				Expect(err).NotTo(HaveOccurred())
+
+				err = s.CreateSampleJob(pendingJob1)
+				Expect(err).NotTo(HaveOccurred())
+
+				err = s.CreateSampleJob(pendingJob2)
+				Expect(err).NotTo(HaveOccurred())
+
+				result, err := s.ListSampleJobs()
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result).To(HaveLen(3))
+
+				// All jobs should be pending and returned in creation order (oldest first = FIFO)
+				Expect(result[0].ID).To(Equal("pending-job-1"))
+				Expect(result[0].Status).To(Equal(model.SampleJobStatusPending))
+				Expect(result[1].ID).To(Equal("pending-job-2"))
+				Expect(result[1].Status).To(Equal(model.SampleJobStatusPending))
+				Expect(result[2].ID).To(Equal("pending-job-3"))
+				Expect(result[2].Status).To(Equal(model.SampleJobStatusPending))
 			})
 		})
 

@@ -80,6 +80,12 @@ The SampleJob API response does not currently include the list of checkpoint fil
 * source: developer
 The 10-second reconnect ticker for the ComfyUI WebSocket connection is hardcoded. Exposing it as a config parameter would allow tuning for environments with slower ComfyUI startup.
 
+### Separate display ordering from processing ordering for ListSampleJobs
+* status: needs_approval
+* priority: low
+* source: developer
+The `ListSampleJobs()` function is used for both UI display (should be newest-first for better UX) and job executor pickup (must be oldest-first for FIFO). Splitting into two queries or adding an `ORDER BY` parameter would make intent clearer and avoid future conflicts.
+
 ### ETA countdown timer (client-side interpolation)
 * status: needs_approval
 * priority: very-low

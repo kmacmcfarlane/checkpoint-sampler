@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-071: Deterministic pending-job pickup order (ORDER BY created_at)
+- `ListSampleJobs()` now orders by `created_at ASC` (oldest first) instead of `DESC`, ensuring FIFO processing when multiple pending jobs are queued
+
 ### B-069: Lightbox slider overlaps metadata button in bottom right
 - Conditional CSS class offsets the metadata panel above the slider panel when a slider dimension is active, preventing overlap in the bottom-right corner
 

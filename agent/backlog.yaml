@@ -265,7 +265,7 @@ stories:
   - id: B-071
     title: "Deterministic pending-job pickup order (ORDER BY created_at)"
     priority: 30
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:
