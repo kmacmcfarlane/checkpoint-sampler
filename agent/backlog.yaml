@@ -970,7 +970,7 @@ stories:
   - id: B-083
     title: "E2E: sample-count-preview.spec.ts 2 tests timing out after B-078 per-study validation scoping"
     type: bug
-    status: todo
+    status: closed
     priority: 70
     complexity: medium
     requires: []
@@ -980,11 +980,5 @@ stories:
       - "Tests use pre-seeded fixture study or create matching sample directories for dynamic studies"
     testing:
       - "command: make test-e2e SPEC=sample-count-preview.spec.ts"
-    notes: |
-      Both tests in sample-count-preview.spec.ts time out at ~8.5s. They create dynamic studies via API
-      with random UUIDs that have no matching sample directories on disk. B-078 changed validation to
-      per-study directory scoping ({sampleDir}/{trainingRun}/{studyID}/), so validation returns incomplete
-      or empty results and the checkpoint picker / validation totals never appear.
-      Same root cause pattern as B-081 (fixed for regen-confirmation.spec.ts via FixtureSeeder).
-      Fix approach: extend the FixtureSeeder or use the existing pre-seeded study in these tests.
-      Discovered during B-081 QA cycle.
+    notes: |-
+      Duplicate of B-082. The fix (using pre-seeded fixture study instead of dynamically-created studies) was already applied to sample-count-preview.spec.ts as part of B-082. All 7 tests in the spec pass reliably.
