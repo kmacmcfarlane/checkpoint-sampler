@@ -227,7 +227,7 @@ stories:
   - id: B-070
     title: "Main slider keyboard left/right arrows broken (regression)"
     priority: 70
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:

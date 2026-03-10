@@ -83,16 +83,16 @@ test.describe('slider and playback controls', () => {
     const initialValue = await valueDisplay.textContent()
     expect(initialValue?.trim()).toBe('landscape')
 
-    // Focus the master slider group and press Ctrl+ArrowRight to advance by one step
-    // (MasterSlider uses Ctrl+Arrow to avoid conflict with zoom controls)
+    // Focus the master slider group and press ArrowRight to advance by one step
+    // AC1: Pressing right arrow after clicking the slider knob moves the slider position
     await masterSlider.focus()
-    await masterSlider.press('Control+ArrowRight')
+    await masterSlider.press('ArrowRight')
 
     // The displayed value should now be "portrait" (second value)
     await expect(valueDisplay).toContainText('portrait')
 
-    // Press Ctrl+ArrowLeft to step back
-    await masterSlider.press('Control+ArrowLeft')
+    // Press ArrowLeft to step back
+    await masterSlider.press('ArrowLeft')
 
     // The displayed value should return to "landscape"
     await expect(valueDisplay).toContainText('landscape')
@@ -113,9 +113,10 @@ test.describe('slider and playback controls', () => {
     await expect(firstSliderBar).toBeVisible()
     await expect(firstSliderBar).toContainText('landscape')
 
-    // Step the master slider forward to "portrait" (Ctrl+Arrow for MasterSlider)
+    // Step the master slider forward to "portrait" (plain ArrowRight)
+    // AC1: Pressing right arrow after clicking the slider knob moves the slider position
     await masterSlider.focus()
-    await masterSlider.press('Control+ArrowRight')
+    await masterSlider.press('ArrowRight')
 
     // All per-cell SliderBars should now show "portrait"
     await expect(firstSliderBar).toContainText('portrait')
