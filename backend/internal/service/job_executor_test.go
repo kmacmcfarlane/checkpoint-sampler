@@ -18,10 +18,11 @@ import (
 // Mock implementations
 
 type mockJobExecutorStore struct {
-	jobs            map[string]model.SampleJob
-	items           map[string][]model.SampleJobItem
-	studies         map[string]model.Study
-	updateJobError  error
+	jobs             map[string]model.SampleJob
+	items            map[string][]model.SampleJobItem
+	studies          map[string]model.Study
+	updateJobError   error
+	updateItemError  error
 }
 
 func newMockJobExecutorStore() *mockJobExecutorStore {
@@ -35,7 +36,7 @@ func newMockJobExecutorStore() *mockJobExecutorStore {
 func (m *mockJobExecutorStore) GetSampleJob(id string) (model.SampleJob, error) {
 	job, ok := m.jobs[id]
 	if !ok {
-		return model.SampleJob{}, errors.New("not found")
+		return model.SampleJob{}, sql.ErrNoRows
 	}
 	return job, nil
 }
@@ -57,6 +58,9 @@ func (m *mockJobExecutorStore) ListSampleJobItems(jobID string) ([]model.SampleJ
 }
 
 func (m *mockJobExecutorStore) UpdateSampleJobItem(i model.SampleJobItem) error {
+	if m.updateItemError != nil {
+		return m.updateItemError
+	}
 	items := m.items[i.JobID]
 	for idx := range items {
 		if items[idx].ID == i.ID {
@@ -1245,6 +1249,202 @@ var _ = Describe("JobExecutor", func() {
 			items := mockStore.items[job.ID]
 			Expect(items[0].Status).To(Equal(model.SampleJobItemStatusFailed))
 			Expect(items[0].ErrorMessage).To(ContainSubstring("ComfyUI"))
+		})
+	})
+
+	// B-080: Graceful handling of sql.ErrNoRows during concurrent cancel/completion
+	Describe("Cancellation race condition handling", func() {
+		var testLogger *logrus.Logger
+		var logBuf bytes.Buffer
+		var localExecutor *JobExecutor
+
+		BeforeEach(func() {
+			logBuf.Reset()
+			testLogger = logrus.New()
+			testLogger.SetOutput(&logBuf)
+			testLogger.SetFormatter(&logrus.TextFormatter{DisableColors: true})
+			testLogger.SetLevel(logrus.TraceLevel)
+
+			localExecutor = NewJobExecutor(
+				mockStore,
+				mockClient,
+				mockWS,
+				mockLoader,
+				mockHub,
+				"/test/samples",
+				mockFS,
+				mockFSRead,
+				testLogger,
+			)
+			localExecutor.mu.Lock()
+			localExecutor.connected = true
+			localExecutor.mu.Unlock()
+		})
+
+		// AC1: Job executor gracefully handles cancellation during item processing without logging errors
+		// AC2: No 'sql: no rows in result set' errors appear in logs when a running job is cancelled
+		It("logs at WARN (not ERROR) when UpdateSampleJobItem returns sql.ErrNoRows during processItem status-to-running update", func() {
+			// Simulate: item row deleted (job cancelled) between processNextItem listing it and processItem updating it
+			job := model.SampleJob{
+				ID:           "job-cancel-running",
+				Status:       model.SampleJobStatusRunning,
+				WorkflowName: "test-workflow.json",
+			}
+			item := model.SampleJobItem{
+				ID:               "item-cancel-1",
+				JobID:            job.ID,
+				Status:           model.SampleJobItemStatusPending,
+				ComfyUIModelPath: "models/test.safetensors",
+				SamplerName:      "euler",
+				Scheduler:        "normal",
+				Seed:             1,
+				Steps:            1,
+				CFG:              1.0,
+				Width:            64,
+				Height:           64,
+			}
+			mockStore.jobs[job.ID] = job
+			mockStore.items[job.ID] = []model.SampleJobItem{item}
+			// Simulate item row deleted by cancellation
+			mockStore.updateItemError = sql.ErrNoRows
+
+			localExecutor.mu.Lock()
+			localExecutor.activeJobID = job.ID
+			localExecutor.activeItemID = item.ID
+			localExecutor.mu.Unlock()
+
+			localExecutor.processItem(job, item)
+
+			logOutput := logBuf.String()
+			Expect(logOutput).NotTo(ContainSubstring("level=error"), "should not log ERROR when item deleted during cancel")
+			Expect(logOutput).To(ContainSubstring("level=warning"), "should log WARN when item deleted during cancel")
+
+			// Active state must be cleared so executor can pick up new work
+			localExecutor.mu.Lock()
+			Expect(localExecutor.activeItemID).To(BeEmpty())
+			localExecutor.mu.Unlock()
+
+			// Restore
+			mockStore.updateItemError = nil
+		})
+
+		It("logs at WARN (not ERROR) when UpdateSampleJobItem returns sql.ErrNoRows during handleItemCompletionAsync status-to-completed update", func() {
+			// This is the primary bug scenario: item row deleted after image download but before completed status update
+			job := model.SampleJob{
+				ID:           "job-cancel-complete",
+				Status:       model.SampleJobStatusRunning,
+				TotalItems:   1,
+				CompletedItems: 0,
+			}
+			item := model.SampleJobItem{
+				ID:                 "item-cancel-2",
+				JobID:              job.ID,
+				CheckpointFilename: "test.safetensors",
+				PromptName:         "test",
+				Steps:              20,
+				CFG:                7.5,
+				SamplerName:        "euler",
+				Scheduler:          "normal",
+				Seed:               42,
+				Status:             model.SampleJobItemStatusRunning,
+			}
+			mockStore.jobs[job.ID] = job
+			mockStore.items[job.ID] = []model.SampleJobItem{item}
+			// Simulate item row deleted by job cancellation after image was downloaded
+			mockStore.updateItemError = sql.ErrNoRows
+
+			localExecutor.handleItemCompletionAsync(job.ID, item.ID, "test-prompt-id")
+
+			logOutput := logBuf.String()
+			Expect(logOutput).NotTo(ContainSubstring("level=error"), "should not log ERROR when item deleted during cancel")
+			Expect(logOutput).To(ContainSubstring("level=warning"), "should log WARN when item deleted during cancel")
+
+			// Restore
+			mockStore.updateItemError = nil
+		})
+
+		It("logs at WARN (not ERROR) when GetSampleJob returns sql.ErrNoRows during updateJobProgress", func() {
+			// Simulate: job row deleted between item completion and progress update
+			// By not putting the job in the store, GetSampleJob returns sql.ErrNoRows
+			jobID := "job-deleted-before-progress"
+
+			// Call updateJobProgress for a non-existent job
+			localExecutor.updateJobProgress(jobID)
+
+			logOutput := logBuf.String()
+			Expect(logOutput).NotTo(ContainSubstring("level=error"), "should not log ERROR when job deleted during cancel")
+			Expect(logOutput).To(ContainSubstring("level=warning"), "should log WARN when job deleted during cancel")
+		})
+
+		It("logs at WARN (not ERROR) when UpdateSampleJob returns sql.ErrNoRows during updateJobProgress", func() {
+			// Simulate: job row deleted between GetSampleJob and UpdateSampleJob in updateJobProgress
+			job := model.SampleJob{
+				ID:     "job-cancel-progress",
+				Status: model.SampleJobStatusRunning,
+			}
+			mockStore.jobs[job.ID] = job
+			mockStore.updateJobError = sql.ErrNoRows
+
+			localExecutor.updateJobProgress(job.ID)
+
+			logOutput := logBuf.String()
+			Expect(logOutput).NotTo(ContainSubstring("level=error"), "should not log ERROR when job deleted during cancel")
+			Expect(logOutput).To(ContainSubstring("level=warning"), "should log WARN when job deleted during cancel")
+
+			// Restore
+			mockStore.updateJobError = nil
+		})
+
+		It("logs at WARN (not ERROR) and clears active state when GetSampleJob returns sql.ErrNoRows during completeJob", func() {
+			// Simulate: job row deleted before completeJob can fetch it
+			jobID := "job-deleted-before-complete"
+
+			localExecutor.mu.Lock()
+			localExecutor.activeJobID = jobID
+			localExecutor.activeItemID = "some-item"
+			localExecutor.mu.Unlock()
+
+			localExecutor.completeJob(jobID)
+
+			logOutput := logBuf.String()
+			Expect(logOutput).NotTo(ContainSubstring("level=error"), "should not log ERROR when job deleted during cancel")
+			Expect(logOutput).To(ContainSubstring("level=warning"), "should log WARN when job deleted during cancel")
+
+			// Active state must be cleared
+			localExecutor.mu.Lock()
+			Expect(localExecutor.activeJobID).To(BeEmpty())
+			Expect(localExecutor.activeItemID).To(BeEmpty())
+			localExecutor.mu.Unlock()
+		})
+
+		It("logs at WARN (not ERROR) and clears active state when UpdateSampleJob returns sql.ErrNoRows during completeJob", func() {
+			// Simulate: job row deleted between GetSampleJob and UpdateSampleJob in completeJob
+			job := model.SampleJob{
+				ID:     "job-cancel-complete-update",
+				Status: model.SampleJobStatusRunning,
+			}
+			mockStore.jobs[job.ID] = job
+			mockStore.updateJobError = sql.ErrNoRows
+
+			localExecutor.mu.Lock()
+			localExecutor.activeJobID = job.ID
+			localExecutor.activeItemID = "some-item"
+			localExecutor.mu.Unlock()
+
+			localExecutor.completeJob(job.ID)
+
+			logOutput := logBuf.String()
+			Expect(logOutput).NotTo(ContainSubstring("level=error"), "should not log ERROR when job deleted during cancel")
+			Expect(logOutput).To(ContainSubstring("level=warning"), "should log WARN when job deleted during cancel")
+
+			// Active state must be cleared
+			localExecutor.mu.Lock()
+			Expect(localExecutor.activeJobID).To(BeEmpty())
+			Expect(localExecutor.activeItemID).To(BeEmpty())
+			localExecutor.mu.Unlock()
+
+			// Restore
+			mockStore.updateJobError = nil
 		})
 	})
 

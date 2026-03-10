@@ -551,8 +551,18 @@ func (e *JobExecutor) processItem(job model.SampleJob, item model.SampleJobItem)
 	item.Status = model.SampleJobItemStatusRunning
 	item.UpdatedAt = time.Now().UTC()
 	if err := e.store.UpdateSampleJobItem(item); err != nil {
-		e.logger.WithError(err).Error("failed to update item status to running")
-		e.failItem(item.ID, "failed to update item status")
+		if err == sql.ErrNoRows {
+			// Item was deleted between poll and update (e.g. job cancelled during E2E teardown).
+			// This is a benign race — clear active state and return without error.
+			e.logger.WithField("item_id", item.ID).Warn("item row not found during status-to-running update (job likely cancelled)")
+			e.mu.Lock()
+			e.activeItemID = ""
+			e.activePromptID = ""
+			e.mu.Unlock()
+		} else {
+			e.logger.WithError(err).Error("failed to update item status to running")
+			e.failItem(item.ID, "failed to update item status")
+		}
 		return
 	}
 
@@ -602,7 +612,13 @@ func (e *JobExecutor) processItem(job model.SampleJob, item model.SampleJobItem)
 	item.ComfyUIPromptID = promptResp.PromptID
 	item.UpdatedAt = time.Now().UTC()
 	if err := e.store.UpdateSampleJobItem(item); err != nil {
-		e.logger.WithError(err).Error("failed to update item with prompt ID")
+		if err == sql.ErrNoRows {
+			// Item was deleted between prompt submission and prompt-ID update (job cancelled).
+			// This is a benign race — log at warn, not error.
+			e.logger.WithField("item_id", item.ID).Warn("item row not found during prompt-ID update (job likely cancelled)")
+		} else {
+			e.logger.WithError(err).Error("failed to update item with prompt ID")
+		}
 	}
 
 	// Monitoring is handled via WebSocket events in handleComfyUIEvent
@@ -867,7 +883,13 @@ func (e *JobExecutor) handleItemCompletionAsync(jobID, itemID, promptID string) 
 	item.OutputPath = outputPath
 	item.UpdatedAt = time.Now().UTC()
 	if err := e.store.UpdateSampleJobItem(*item); err != nil {
-		e.logger.WithError(err).Error("failed to update item status to completed")
+		if err == sql.ErrNoRows {
+			// Item was deleted between image download and status update (job cancelled during E2E teardown).
+			// This is the primary benign race condition — log at warn, not error.
+			e.logger.WithField("item_id", item.ID).Warn("item row not found during status-to-completed update (job likely cancelled)")
+		} else {
+			e.logger.WithError(err).Error("failed to update item status to completed")
+		}
 	}
 
 	// Record sample duration for ETA calculation
@@ -1269,7 +1291,13 @@ func (e *JobExecutor) failItemWithDetails(itemID string, errorMsg string, except
 			items[i].Traceback = traceback
 			items[i].UpdatedAt = time.Now().UTC()
 			if err := e.store.UpdateSampleJobItem(items[i]); err != nil {
-				e.logger.WithError(err).Error("failed to update item status to failed")
+				if err == sql.ErrNoRows {
+					// Item was deleted between list and update (job cancelled during E2E teardown).
+					// This is a benign race — log at warn, not error.
+					e.logger.WithField("item_id", itemID).Warn("item row not found during status-to-failed update (job likely cancelled)")
+				} else {
+					e.logger.WithError(err).Error("failed to update item status to failed")
+				}
 			}
 			break
 		}
@@ -1292,7 +1320,13 @@ func (e *JobExecutor) failItemWithDetails(itemID string, errorMsg string, except
 func (e *JobExecutor) updateJobProgress(jobID string) {
 	job, err := e.store.GetSampleJob(jobID)
 	if err != nil {
-		e.logger.WithError(err).Error("failed to get job for progress update")
+		if err == sql.ErrNoRows {
+			// Job was deleted between item completion and progress update (job cancelled during E2E teardown).
+			// This is a benign race — log at warn, not error.
+			e.logger.WithField("job_id", jobID).Warn("job row not found during progress update (job likely cancelled)")
+		} else {
+			e.logger.WithError(err).Error("failed to get job for progress update")
+		}
 		return
 	}
 
@@ -1312,7 +1346,13 @@ func (e *JobExecutor) updateJobProgress(jobID string) {
 	job.CompletedItems = completed
 	job.UpdatedAt = time.Now().UTC()
 	if err := e.store.UpdateSampleJob(job); err != nil {
-		e.logger.WithError(err).Error("failed to update job progress")
+		if err == sql.ErrNoRows {
+			// Job was deleted between get and update (job cancelled during E2E teardown).
+			// This is a benign race — log at warn, not error.
+			e.logger.WithField("job_id", jobID).Warn("job row not found during progress update write (job likely cancelled)")
+		} else {
+			e.logger.WithError(err).Error("failed to update job progress")
+		}
 	}
 
 	e.logger.WithFields(logrus.Fields{
@@ -1331,7 +1371,21 @@ func (e *JobExecutor) completeJob(jobID string) {
 
 	job, err := e.store.GetSampleJob(jobID)
 	if err != nil {
-		e.logger.WithError(err).Error("failed to get job for completion")
+		if err == sql.ErrNoRows {
+			// Job was deleted between all-items-done detection and completion (job cancelled during E2E teardown).
+			// This is a benign race — clear active state and return without error.
+			e.logger.WithField("job_id", jobID).Warn("job row not found during completion (job likely cancelled)")
+			e.mu.Lock()
+			e.activeJobID = ""
+			e.activeItemID = ""
+			e.activePromptID = ""
+			e.checkpointCompleteness = make(map[string]model.CheckpointCompletenessInfo)
+			e.sampleTiming.Reset()
+			e.sampleStartTime = time.Time{}
+			e.mu.Unlock()
+		} else {
+			e.logger.WithError(err).Error("failed to get job for completion")
+		}
 		return
 	}
 
@@ -1361,7 +1415,21 @@ func (e *JobExecutor) completeJob(jobID string) {
 
 	job.UpdatedAt = time.Now().UTC()
 	if err := e.store.UpdateSampleJob(job); err != nil {
-		e.logger.WithError(err).Error("failed to mark job as completed")
+		if err == sql.ErrNoRows {
+			// Job was deleted between get and update during completion (job cancelled during E2E teardown).
+			// Clear active state and return without error.
+			e.logger.WithField("job_id", jobID).Warn("job row not found during completion update (job likely cancelled)")
+			e.mu.Lock()
+			e.activeJobID = ""
+			e.activeItemID = ""
+			e.activePromptID = ""
+			e.checkpointCompleteness = make(map[string]model.CheckpointCompletenessInfo)
+			e.sampleTiming.Reset()
+			e.sampleStartTime = time.Time{}
+			e.mu.Unlock()
+		} else {
+			e.logger.WithError(err).Error("failed to mark job as completed")
+		}
 		return
 	}
 

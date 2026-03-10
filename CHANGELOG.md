@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-080: Job executor race condition: sql no rows during concurrent cancel/completion
+- All job executor DB write paths now handle `sql.ErrNoRows` gracefully (WARN instead of ERROR), eliminating spurious error logs when a job is cancelled mid-processing
+
 ### B-068: Lightbox slider not synced with master slider on shift+arrow navigation
 - Lightbox slider changes now propagate to master slider (via `onMasterSliderChange` instead of per-cell `onSliderValueUpdate`), keeping all grid cells in sync
 - Shift+Arrow navigation uses the live master slider value instead of the stale snapshot from lightbox-open time
