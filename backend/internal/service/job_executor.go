@@ -81,6 +81,7 @@ type JobExecutor struct {
 	activePromptID           string
 	stopRequested            bool
 	connected                bool
+	everConnected            bool // true after the first successful connection; distinguishes reconnects from the initial connect
 	paused                   bool
 	checkpointCompleteness   map[string]model.CheckpointCompletenessInfo
 	ctx                      context.Context
@@ -170,6 +171,8 @@ func (e *JobExecutor) Start() error {
 }
 
 // tryConnect attempts to connect to ComfyUI WebSocket and updates the connected state.
+// If this is a reconnect (not the initial connection), it triggers stuck-item recovery
+// asynchronously so that jobs interrupted by the disconnect are not left in limbo.
 func (e *JobExecutor) tryConnect() error {
 	e.logger.Debug("attempting to connect to ComfyUI WebSocket")
 	if err := e.comfyuiWS.Connect(e.ctx); err != nil {
@@ -180,10 +183,176 @@ func (e *JobExecutor) tryConnect() error {
 	}
 
 	e.mu.Lock()
+	isReconnect := e.everConnected
 	e.connected = true
+	e.everConnected = true
 	e.mu.Unlock()
+
 	e.logger.Info("ComfyUI WebSocket connected")
+
+	// On reconnect (not the very first connection), poll the ComfyUI history API
+	// to recover any job items that completed while the connection was down.
+	if isReconnect {
+		e.logger.Info("reconnected to ComfyUI WebSocket, triggering stuck-item recovery")
+		go e.recoverStuckItems()
+	}
+
 	return nil
+}
+
+// recoverStuckItems is called after a successful reconnect to detect job items that
+// completed in ComfyUI while the WebSocket connection was down.
+//
+// For each running job, it inspects every item in "running" status:
+//   - If the item has a ComfyUI prompt ID and that prompt appears in the history API
+//     with output images, the item is treated as already-completed and processed via
+//     handleItemCompletionAsync.
+//   - Otherwise (no prompt ID, not yet in history, or history call fails), the item
+//     is reset to "pending" so the executor will re-submit it on the next tick.
+//
+// This makes the system resilient to ComfyUI restarts and mid-job network interruptions
+// that would otherwise leave jobs permanently stuck in the running state.
+func (e *JobExecutor) recoverStuckItems() {
+	e.logger.Trace("entering recoverStuckItems")
+	defer e.logger.Trace("returning from recoverStuckItems")
+
+	jobs, err := e.store.ListSampleJobs()
+	if err != nil {
+		e.logger.WithError(err).Error("recoverStuckItems: failed to list jobs")
+		return
+	}
+
+	for _, job := range jobs {
+		if job.Status != model.SampleJobStatusRunning {
+			continue
+		}
+
+		items, err := e.store.ListSampleJobItems(job.ID)
+		if err != nil {
+			e.logger.WithFields(logrus.Fields{
+				"job_id": job.ID,
+				"error":  err.Error(),
+			}).Error("recoverStuckItems: failed to list items for job")
+			continue
+		}
+
+		for i := range items {
+			item := &items[i]
+			if item.Status != model.SampleJobItemStatusRunning {
+				continue
+			}
+
+			if item.ComfyUIPromptID == "" {
+				// Item was set to running but no prompt was submitted yet (or prompt ID
+				// was never persisted). Reset to pending so it gets re-submitted.
+				e.logger.WithFields(logrus.Fields{
+					"job_id":  job.ID,
+					"item_id": item.ID,
+				}).Warn("recoverStuckItems: item stuck in running with no prompt ID, resetting to pending")
+				e.resetItemToPending(item)
+				continue
+			}
+
+			// Query ComfyUI history to see if the prompt already completed.
+			history, err := e.comfyuiClient.GetHistory(e.ctx, item.ComfyUIPromptID)
+			if err != nil {
+				e.logger.WithFields(logrus.Fields{
+					"job_id":    job.ID,
+					"item_id":   item.ID,
+					"prompt_id": item.ComfyUIPromptID,
+					"error":     err.Error(),
+				}).Warn("recoverStuckItems: failed to query history, resetting item to pending")
+				e.resetItemToPending(item)
+				continue
+			}
+
+			entry, found := history[item.ComfyUIPromptID]
+			if !found {
+				// Prompt not in history — either it never ran or ComfyUI evicted it.
+				// Reset to pending so it is re-submitted.
+				e.logger.WithFields(logrus.Fields{
+					"job_id":    job.ID,
+					"item_id":   item.ID,
+					"prompt_id": item.ComfyUIPromptID,
+				}).Warn("recoverStuckItems: prompt not found in ComfyUI history, resetting item to pending")
+				e.resetItemToPending(item)
+				continue
+			}
+
+			// Check if the entry has output images (indicates successful completion).
+			if !historyEntryHasOutputImages(entry) {
+				e.logger.WithFields(logrus.Fields{
+					"job_id":    job.ID,
+					"item_id":   item.ID,
+					"prompt_id": item.ComfyUIPromptID,
+				}).Warn("recoverStuckItems: prompt found in history but has no output images, resetting item to pending")
+				e.resetItemToPending(item)
+				continue
+			}
+
+			// Prompt completed with output images — process the completion.
+			e.logger.WithFields(logrus.Fields{
+				"job_id":    job.ID,
+				"item_id":   item.ID,
+				"prompt_id": item.ComfyUIPromptID,
+			}).Info("recoverStuckItems: recovering completed prompt from history")
+
+			// Claim the active slot before calling handleItemCompletionAsync.
+			// If another goroutine (e.g. processNextItem) already claimed the slot,
+			// skip recovery for this item — it will be handled naturally by the executor loop.
+			e.mu.Lock()
+			if e.activeItemID != "" {
+				e.logger.WithFields(logrus.Fields{
+					"job_id":           job.ID,
+					"item_id":          item.ID,
+					"active_item_id":   e.activeItemID,
+				}).Warn("recoverStuckItems: active slot already taken, skipping recovery for this item")
+				e.mu.Unlock()
+				continue
+			}
+			e.activeJobID = job.ID
+			e.activeItemID = item.ID
+			e.activePromptID = item.ComfyUIPromptID
+			e.mu.Unlock()
+
+			e.handleItemCompletionAsync(job.ID, item.ID, item.ComfyUIPromptID)
+		}
+	}
+}
+
+// historyEntryHasOutputImages returns true if the ComfyUI history entry contains
+// at least one output with an images array (indicating successful image generation).
+func historyEntryHasOutputImages(entry model.HistoryEntry) bool {
+	for _, outputData := range entry.Outputs {
+		outputMap, ok := outputData.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		images, ok := outputMap["images"].([]interface{})
+		if ok && len(images) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// resetItemToPending resets a stuck running item back to pending status so the
+// executor will re-submit it to ComfyUI on the next processing tick.
+func (e *JobExecutor) resetItemToPending(item *model.SampleJobItem) {
+	e.logger.WithFields(logrus.Fields{
+		"item_id": item.ID,
+		"job_id":  item.JobID,
+	}).Info("resetItemToPending: resetting stuck item to pending for retry")
+
+	item.Status = model.SampleJobItemStatusPending
+	item.ComfyUIPromptID = ""
+	item.UpdatedAt = time.Now().UTC()
+	if err := e.store.UpdateSampleJobItem(*item); err != nil {
+		e.logger.WithFields(logrus.Fields{
+			"item_id": item.ID,
+			"error":   err.Error(),
+		}).Error("resetItemToPending: failed to reset item status to pending")
+	}
 }
 
 // handleDisconnect is called by the WebSocket client when the connection drops.

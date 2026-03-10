@@ -74,6 +74,12 @@ Currently the Delete button shows on running jobs, which could lead to data inco
 * source: developer
 The SampleJob API response does not currently include the list of checkpoint filenames selected at job creation. Storing and returning this list would make the job parameter detail panel richer (show individual checkpoint names instead of just a count). Requires a backend schema change and API update.
 
+### Configurable ComfyUI reconnect interval
+* status: needs_approval
+* priority: low
+* source: developer
+The 10-second reconnect ticker for the ComfyUI WebSocket connection is hardcoded. Exposing it as a config parameter would allow tuning for environments with slower ComfyUI startup.
+
 ### ETA countdown timer (client-side interpolation)
 * status: needs_approval
 * priority: very-low

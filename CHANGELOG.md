@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-073: ComfyUI WS reconnect on disconnect / recover stuck jobs
+- Job executor now recovers stuck items after WebSocket reconnect by polling ComfyUI's history API for completed prompts and resetting unfinished items to pending for retry
+- `everConnected` flag distinguishes initial connections from reconnects; recovery only triggers on reconnect to avoid unnecessary history polling at startup
+
 ### B-084: SQL error 'no such column: negative_prompt' during sample job execution
 - Added `negative_prompt` column to initial `sample_job_items` CREATE TABLE in migration 4, ensuring fresh databases (including after ResetDB) always have the column from initial creation
 

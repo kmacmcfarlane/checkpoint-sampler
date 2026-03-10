@@ -298,7 +298,7 @@ stories:
   - id: B-073
     title: "ComfyUI WS reconnect on disconnect / recover stuck jobs"
     priority: 55
-    status: todo
+    status: uat
     complexity: high
     requires: []
     acceptance:

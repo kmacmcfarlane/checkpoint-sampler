@@ -3353,4 +3353,439 @@ var _ = Describe("JobExecutor", func() {
 			Expect(mockFS.writtenFiles).NotTo(HaveKey(manifestPath))
 		})
 	})
+
+	// AC1: BE: WebSocket connection to ComfyUI automatically reconnects on disconnect
+	// AC2: BE: After reconnect, executor polls ComfyUI history API to detect already-completed prompts
+	// AC3: BE: Jobs stuck in running state due to missed completion events are recovered
+	Describe("WebSocket reconnect and stuck-item recovery", func() {
+		BeforeEach(func() {
+			executor.mu.Lock()
+			executor.connected = true
+			executor.everConnected = true // simulate that we've connected before (so next connect = reconnect)
+			executor.mu.Unlock()
+		})
+
+		It("does not trigger recovery on the initial connection (only on reconnect)", func() {
+			// AC1: The first connection should not trigger history polling.
+			// Set up a running job with a stuck item that has a prompt ID.
+			job := model.SampleJob{
+				ID:     "job-initial-connect",
+				Status: model.SampleJobStatusRunning,
+			}
+			item := model.SampleJobItem{
+				ID:              "item-initial-1",
+				JobID:           job.ID,
+				Status:          model.SampleJobItemStatusRunning,
+				ComfyUIPromptID: "prompt-initial-1",
+			}
+			mockStore.jobs[job.ID] = job
+			mockStore.items[job.ID] = []model.SampleJobItem{item}
+
+			// Use an executor where everConnected = false (initial state)
+			freshExecutor := NewJobExecutor(
+				mockStore, mockClient, mockWS, mockLoader, mockHub,
+				"/test/samples", mockFS, mockFSRead, logger,
+			)
+			// Connect for the first time: everConnected is false, so isReconnect = false
+			freshExecutor.mu.Lock()
+			freshExecutor.connected = false
+			freshExecutor.everConnected = false
+			freshExecutor.mu.Unlock()
+
+			// tryConnect should succeed and mark everConnected = true, but NOT trigger recovery
+			err := freshExecutor.tryConnect()
+			Expect(err).ToNot(HaveOccurred())
+			Expect(freshExecutor.IsConnected()).To(BeTrue())
+
+			// GetHistory should NOT have been called (no recovery on initial connect)
+			// If it were called, it would succeed (mock returns historyResponse for "test-prompt-id"),
+			// but since item has a different prompt ID, it would return empty and reset the item.
+			// We verify by checking the item is still in "running" status (no reset happened).
+			items := mockStore.items[job.ID]
+			Expect(items[0].Status).To(Equal(model.SampleJobItemStatusRunning))
+
+			freshExecutor.Stop()
+		})
+
+		It("resets stuck running item with no prompt ID to pending on reconnect", func() {
+			// AC3: Items stuck in running without a prompt ID should be reset to pending.
+			job := model.SampleJob{
+				ID:     "job-stuck-no-prompt",
+				Status: model.SampleJobStatusRunning,
+			}
+			item := model.SampleJobItem{
+				ID:              "item-no-prompt",
+				JobID:           job.ID,
+				Status:          model.SampleJobItemStatusRunning,
+				ComfyUIPromptID: "", // no prompt ID
+			}
+			mockStore.jobs[job.ID] = job
+			mockStore.items[job.ID] = []model.SampleJobItem{item}
+
+			executor.recoverStuckItems()
+
+			items := mockStore.items[job.ID]
+			Expect(items[0].Status).To(Equal(model.SampleJobItemStatusPending))
+			Expect(items[0].ComfyUIPromptID).To(BeEmpty())
+		})
+
+		It("resets stuck running item to pending when prompt is not in ComfyUI history", func() {
+			// AC2/AC3: If the prompt is not in history, reset to pending for retry.
+			job := model.SampleJob{
+				ID:     "job-not-in-history",
+				Status: model.SampleJobStatusRunning,
+			}
+			item := model.SampleJobItem{
+				ID:              "item-not-in-history",
+				JobID:           job.ID,
+				Status:          model.SampleJobItemStatusRunning,
+				ComfyUIPromptID: "prompt-missing-from-history",
+			}
+			mockStore.jobs[job.ID] = job
+			mockStore.items[job.ID] = []model.SampleJobItem{item}
+
+			// GetHistory returns empty map (prompt not in history)
+			mockClient.historyResponse = model.HistoryResponse{}
+
+			executor.recoverStuckItems()
+
+			items := mockStore.items[job.ID]
+			Expect(items[0].Status).To(Equal(model.SampleJobItemStatusPending))
+			Expect(items[0].ComfyUIPromptID).To(BeEmpty())
+		})
+
+		It("resets stuck running item to pending when history API call fails", func() {
+			// AC2: If history API fails, reset to pending so it can be retried.
+			job := model.SampleJob{
+				ID:     "job-history-err",
+				Status: model.SampleJobStatusRunning,
+			}
+			item := model.SampleJobItem{
+				ID:              "item-history-err",
+				JobID:           job.ID,
+				Status:          model.SampleJobItemStatusRunning,
+				ComfyUIPromptID: "prompt-history-err",
+			}
+			mockStore.jobs[job.ID] = job
+			mockStore.items[job.ID] = []model.SampleJobItem{item}
+
+			mockClient.historyErr = errors.New("ComfyUI unreachable")
+
+			executor.recoverStuckItems()
+
+			// Restore for cleanup
+			mockClient.historyErr = nil
+
+			items := mockStore.items[job.ID]
+			Expect(items[0].Status).To(Equal(model.SampleJobItemStatusPending))
+			Expect(items[0].ComfyUIPromptID).To(BeEmpty())
+		})
+
+		It("resets stuck running item to pending when history entry has no output images", func() {
+			// AC2/AC3: If the history entry exists but has no output images,
+			// the prompt likely failed or is still running — reset to pending.
+			job := model.SampleJob{
+				ID:     "job-history-no-outputs",
+				Status: model.SampleJobStatusRunning,
+			}
+			item := model.SampleJobItem{
+				ID:              "item-no-outputs",
+				JobID:           job.ID,
+				Status:          model.SampleJobItemStatusRunning,
+				ComfyUIPromptID: "prompt-no-outputs",
+			}
+			mockStore.jobs[job.ID] = job
+			mockStore.items[job.ID] = []model.SampleJobItem{item}
+
+			// History has the prompt but no output images
+			mockClient.historyResponse = model.HistoryResponse{
+				"prompt-no-outputs": model.HistoryEntry{
+					Outputs: map[string]interface{}{
+						"some_node": map[string]interface{}{
+							// No "images" key
+						},
+					},
+				},
+			}
+
+			executor.recoverStuckItems()
+
+			items := mockStore.items[job.ID]
+			Expect(items[0].Status).To(Equal(model.SampleJobItemStatusPending))
+			Expect(items[0].ComfyUIPromptID).To(BeEmpty())
+		})
+
+		It("processes completion for a stuck item whose prompt already completed in ComfyUI", func() {
+			// AC2/AC3: If the prompt is in history with output images, treat it as
+			// completed and process the completion (download image, update DB).
+			job := model.SampleJob{
+				ID:           "job-recover-complete",
+				Status:       model.SampleJobStatusRunning,
+				WorkflowName: "test-workflow.json",
+			}
+			item := model.SampleJobItem{
+				ID:                 "item-recover-complete",
+				JobID:              job.ID,
+				CheckpointFilename: "test-checkpoint.safetensors",
+				ComfyUIModelPath:   "models/test-checkpoint.safetensors",
+				Status:             model.SampleJobItemStatusRunning,
+				ComfyUIPromptID:    "prompt-recover",
+				PromptName:         "test-prompt",
+				PromptText:         "a photo",
+				SamplerName:        "euler",
+				Scheduler:          "normal",
+				Seed:               42,
+				Steps:              20,
+				CFG:                7.0,
+				Width:              512,
+				Height:             512,
+			}
+			mockStore.jobs[job.ID] = job
+			mockStore.items[job.ID] = []model.SampleJobItem{item}
+
+			// History shows the prompt completed with output images
+			mockClient.historyResponse = model.HistoryResponse{
+				"prompt-recover": model.HistoryEntry{
+					Outputs: map[string]interface{}{
+						"save_image": map[string]interface{}{
+							"images": []interface{}{
+								map[string]interface{}{
+									"filename":  "output_recovered.png",
+									"subfolder": "",
+									"type":      "output",
+								},
+							},
+						},
+					},
+				},
+			}
+
+			executor.recoverStuckItems()
+
+			// Item should be marked as completed after recovery
+			items := mockStore.items[job.ID]
+			Expect(items[0].Status).To(Equal(model.SampleJobItemStatusCompleted))
+			Expect(items[0].OutputPath).NotTo(BeEmpty())
+		})
+
+		It("skips items in non-running status during recovery", func() {
+			// Only items in running status should be examined; pending, completed, failed are skipped.
+			job := model.SampleJob{
+				ID:     "job-skip-non-running",
+				Status: model.SampleJobStatusRunning,
+			}
+			mockStore.jobs[job.ID] = job
+			mockStore.items[job.ID] = []model.SampleJobItem{
+				{ID: "item-pending", JobID: job.ID, Status: model.SampleJobItemStatusPending, ComfyUIPromptID: ""},
+				{ID: "item-completed", JobID: job.ID, Status: model.SampleJobItemStatusCompleted},
+				{ID: "item-failed", JobID: job.ID, Status: model.SampleJobItemStatusFailed},
+			}
+
+			executor.recoverStuckItems()
+
+			// None of the items should have changed status
+			items := mockStore.items[job.ID]
+			statusMap := make(map[string]model.SampleJobItemStatus)
+			for _, i := range items {
+				statusMap[i.ID] = i.Status
+			}
+			Expect(statusMap["item-pending"]).To(Equal(model.SampleJobItemStatusPending))
+			Expect(statusMap["item-completed"]).To(Equal(model.SampleJobItemStatusCompleted))
+			Expect(statusMap["item-failed"]).To(Equal(model.SampleJobItemStatusFailed))
+		})
+
+		It("skips jobs that are not in running status during recovery", func() {
+			// Jobs in pending, completed, or stopped status should not be examined.
+			completedJob := model.SampleJob{
+				ID:     "job-already-completed",
+				Status: model.SampleJobStatusCompleted,
+			}
+			stuckItem := model.SampleJobItem{
+				ID:              "item-completed-job",
+				JobID:           completedJob.ID,
+				Status:          model.SampleJobItemStatusRunning,
+				ComfyUIPromptID: "old-prompt",
+			}
+			mockStore.jobs[completedJob.ID] = completedJob
+			mockStore.items[completedJob.ID] = []model.SampleJobItem{stuckItem}
+
+			mockClient.historyResponse = model.HistoryResponse{}
+
+			executor.recoverStuckItems()
+
+			// Item should NOT have been reset (job was not in running status)
+			items := mockStore.items[completedJob.ID]
+			Expect(items[0].Status).To(Equal(model.SampleJobItemStatusRunning))
+		})
+
+		It("does not trigger recovery on reconnect when no jobs are running", func() {
+			// Recovery should gracefully handle the case where there are no running jobs.
+			// (Verifies no panic or unexpected side effects)
+			mockStore.jobs = make(map[string]model.SampleJob)
+			mockStore.items = make(map[string][]model.SampleJobItem)
+
+			Expect(func() { executor.recoverStuckItems() }).NotTo(Panic())
+		})
+
+		It("skips recovery for a stuck item when active slot is already claimed", func() {
+			// AC3: If processNextItem has already claimed the active slot while
+			// recoverStuckItems is iterating, skip recovery to avoid overwriting active state.
+			job := model.SampleJob{
+				ID:     "job-slot-taken",
+				Status: model.SampleJobStatusRunning,
+			}
+			item := model.SampleJobItem{
+				ID:              "item-slot-taken",
+				JobID:           job.ID,
+				Status:          model.SampleJobItemStatusRunning,
+				ComfyUIPromptID: "prompt-slot-taken",
+			}
+			mockStore.jobs[job.ID] = job
+			mockStore.items[job.ID] = []model.SampleJobItem{item}
+
+			// Simulate active slot already taken by another item
+			executor.mu.Lock()
+			executor.activeItemID = "other-active-item"
+			executor.mu.Unlock()
+
+			// History shows the prompt completed
+			mockClient.historyResponse = model.HistoryResponse{
+				"prompt-slot-taken": model.HistoryEntry{
+					Outputs: map[string]interface{}{
+						"save_image": map[string]interface{}{
+							"images": []interface{}{
+								map[string]interface{}{
+									"filename": "output.png",
+								},
+							},
+						},
+					},
+				},
+			}
+
+			executor.recoverStuckItems()
+
+			// The active slot should not have been overwritten
+			executor.mu.Lock()
+			Expect(executor.activeItemID).To(Equal("other-active-item"))
+			executor.mu.Unlock()
+
+			// The item should still be in running status (recovery skipped)
+			items := mockStore.items[job.ID]
+			Expect(items[0].Status).To(Equal(model.SampleJobItemStatusRunning))
+		})
+	})
+
+	// AC1/AC4: tryConnect triggers recoverStuckItems on reconnect but not initial connect
+	Describe("tryConnect reconnect detection", func() {
+		It("sets everConnected=true after first successful connect", func() {
+			freshWS := &mockComfyUIWS{clientID: "fresh-id"}
+			freshExecutor := NewJobExecutor(
+				mockStore, mockClient, freshWS, mockLoader, mockHub,
+				"/test/samples", mockFS, mockFSRead, logger,
+			)
+
+			freshExecutor.mu.Lock()
+			Expect(freshExecutor.everConnected).To(BeFalse())
+			freshExecutor.mu.Unlock()
+
+			err := freshExecutor.tryConnect()
+			Expect(err).ToNot(HaveOccurred())
+
+			freshExecutor.mu.Lock()
+			Expect(freshExecutor.everConnected).To(BeTrue())
+			freshExecutor.mu.Unlock()
+
+			freshExecutor.Stop()
+		})
+
+		It("marks everConnected=true even if reconnect fails", func() {
+			// After a successful initial connect, everConnected stays true
+			// through subsequent failed reconnect attempts (the flag only flips to true, never back).
+			freshWS := &mockComfyUIWS{clientID: "fresh-id2"}
+			freshExecutor := NewJobExecutor(
+				mockStore, mockClient, freshWS, mockLoader, mockHub,
+				"/test/samples", mockFS, mockFSRead, logger,
+			)
+
+			// First connect succeeds
+			err := freshExecutor.tryConnect()
+			Expect(err).ToNot(HaveOccurred())
+
+			freshExecutor.mu.Lock()
+			freshExecutor.connected = false // simulate disconnect
+			freshExecutor.mu.Unlock()
+
+			// Make the next connection attempt fail
+			freshWS.connectErr = errors.New("connection refused")
+			err = freshExecutor.tryConnect()
+			Expect(err).To(HaveOccurred())
+
+			// everConnected should still be true (was set on first success)
+			freshExecutor.mu.Lock()
+			Expect(freshExecutor.everConnected).To(BeTrue())
+			freshExecutor.mu.Unlock()
+
+			freshWS.connectErr = nil
+			freshExecutor.Stop()
+		})
+	})
+
+	// AC4: historyEntryHasOutputImages helper
+	Describe("historyEntryHasOutputImages", func() {
+		DescribeTable("detects output images in a ComfyUI history entry",
+			func(entry model.HistoryEntry, expectHasImages bool) {
+				result := historyEntryHasOutputImages(entry)
+				Expect(result).To(Equal(expectHasImages))
+			},
+			Entry("empty outputs map returns false",
+				model.HistoryEntry{Outputs: map[string]interface{}{}},
+				false,
+			),
+			Entry("outputs with images array returns true",
+				model.HistoryEntry{
+					Outputs: map[string]interface{}{
+						"save_image": map[string]interface{}{
+							"images": []interface{}{
+								map[string]interface{}{"filename": "output.png"},
+							},
+						},
+					},
+				},
+				true,
+			),
+			Entry("outputs with empty images array returns false",
+				model.HistoryEntry{
+					Outputs: map[string]interface{}{
+						"save_image": map[string]interface{}{
+							"images": []interface{}{},
+						},
+					},
+				},
+				false,
+			),
+			Entry("outputs with no images key returns false",
+				model.HistoryEntry{
+					Outputs: map[string]interface{}{
+						"save_image": map[string]interface{}{
+							"latents": []interface{}{},
+						},
+					},
+				},
+				false,
+			),
+			Entry("outputs with non-map value returns false",
+				model.HistoryEntry{
+					Outputs: map[string]interface{}{
+						"save_image": "not-a-map",
+					},
+				},
+				false,
+			),
+			Entry("nil outputs returns false",
+				model.HistoryEntry{Outputs: nil},
+				false,
+			),
+		)
+	})
 })
