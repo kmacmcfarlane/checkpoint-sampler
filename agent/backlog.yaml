@@ -842,3 +842,554 @@ stories:
       Between those two operations, the E2E test reset endpoint drops all tables and reruns migrations,
       leaving no row for that job ID. The UpdateSampleJob call returns sql: no rows in result set,
       which is logged at ERROR level even though it is a benign race between test teardown and the executor loop.
+  - id: B-067
+    title: "Inference progress bar missing on first sample generation"
+    priority: 65
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "FE: Inference progress bar displays correctly for the first sample generation in a job"
+      - "FE: Progress bar behavior is consistent between the first and subsequent sample generations"
+      - "FE: Unit tests for progress bar initialization on first generation event"
+    testing:
+      - "Manually trigger a sample generation job and verify the progress bar appears during the first sample"
+      - "Check that WebSocket progress events are handled before the first inference starts"
+    notes: |
+      Bug: The per-sample inference progress bar in the Sample Jobs Dialog does not display
+      for the first generation, but works correctly for subsequent samples. Likely a timing
+      issue where the progress bar reactive state isn't initialized before the first progress
+      event arrives from the WebSocket.
+      Key files: frontend/src/components/JobProgressPanel.vue.
+  - id: B-068
+    title: "Lightbox slider not synced with master slider on shift+arrow navigation"
+    priority: 60
+    status: todo
+    complexity: medium
+    requires: []
+    acceptance:
+      - "FE: Changing the slider position in the lightbox updates the master slider and all other cell sliders"
+      - "FE: Using shift+arrow to switch between images in the lightbox keeps all sliders in sync"
+      - "FE: No images show different slider values than the rest after shift+arrow navigation"
+      - "FE: Unit tests for bidirectional slider sync between lightbox and master"
+    testing:
+      - "Open lightbox, move slider, verify master slider updates"
+      - "Use shift+arrow to navigate between images and check all sliders remain consistent"
+    notes: |
+      Bug: Moving the master slider updates individual cell positions, but moving the slider
+      in the lightbox does not propagate back to the master or other cells. Additionally,
+      shift+arrow navigation between images in the lightbox occasionally results in one image
+      having a different slider value from the rest.
+      Key files: frontend/src/components/ImageLightbox.vue, slider composable.
+  - id: B-069
+    title: "Lightbox slider overlaps metadata button in bottom right"
+    priority: 45
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "FE: Slider and metadata button in the lightbox do not overlap"
+      - "FE: Both controls are fully accessible and clickable without obstruction"
+      - "FE: Layout is correct across typical viewport sizes"
+    testing:
+      - "Open lightbox and verify slider does not visually overlap the metadata button"
+    notes: |
+      Bug: In the lightbox, the slider overlaps the metadata button in the bottom right corner.
+      CSS/layout fix needed to ensure proper spacing or positioning.
+      Key files: frontend/src/components/ImageLightbox.vue.
+  - id: B-070
+    title: "Main slider keyboard left/right arrows broken (regression)"
+    priority: 70
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "FE: Pressing left/right arrow keys after clicking the slider knob moves the slider position"
+      - "FE: Arrow key navigation works on first focus (no extra clicks needed)"
+      - "FE: Unit tests for keyboard event handling on the main slider"
+    testing:
+      - "Click the main slider knob, press left/right arrows, verify position changes"
+      - "Check for event listener regressions in recent slider-related changes"
+    notes: |
+      Bug: Keyboard left/right arrows no longer work on the main slider, even after clicking
+      the slider knob to give it focus. This is a recent regression. Previously worked.
+      Key files: frontend/src/components/SliderControls.vue (or equivalent slider component).
+  - id: S-102
+    title: "Show full sample params for currently generating sample in job list"
+    priority: 40
+    status: todo
+    complexity: medium
+    requires: []
+    acceptance:
+      - "FE: Job progress panel shows the full generation parameters for the currently generating sample"
+      - "FE: Parameters displayed include checkpoint name, CFG, steps, sampler, and other study params"
+      - "BE: WebSocket progress events include or reference the current sample's generation parameters"
+      - "FE: Parameters update as the job progresses to the next sample"
+      - "FE: Unit tests for parameter display during active generation"
+    testing:
+      - "Trigger a generation job and verify all sample params are visible in the job card"
+      - "Check WebSocket events include necessary param data"
+    notes: |
+      Enhancement: The job list should include the full sample generation parameters for the
+      currently generating sample, so the user can see what's being generated without opening
+      the job detail view. Includes checkpoint name, CFG, steps, sampler, etc.
+      Key files: frontend/src/components/JobProgressPanel.vue,
+      backend/internal/service/websocket.go (if params need to be added to progress events).
+  - id: B-071
+    title: "Deterministic pending-job pickup order (ORDER BY created_at)"
+    priority: 30
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "BE: ListSampleJobs() store query orders pending jobs by created_at ASC for FIFO processing"
+      - "BE: Unit tests verify deterministic ordering of pending job retrieval"
+    testing:
+      - "Create multiple pending jobs and verify they are picked up in creation order"
+    notes: |
+      The ListSampleJobs() store query should ORDER BY created_at ASC to ensure FIFO processing
+      of pending jobs. Currently the SQLite query may return jobs in arbitrary order when multiple
+      jobs are pending.
+      Source: developer.
+  - id: B-072
+    title: "Guard Start() API against concurrent running jobs"
+    priority: 50
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "BE: SampleJobService.Start() checks for existing running jobs before starting a new one"
+      - "BE: Returns an error if a job is already running"
+      - "BE: Unit tests for concurrent start guard"
+    testing:
+      - "Call Start() while a job is running and verify error is returned"
+    notes: |
+      The SampleJobService.Start() method doesn't verify that no other job is already running.
+      While the executor now won't preempt, the DB can end up with two running jobs, which is
+      confusing. Start() should check for existing running jobs and return an error if one exists.
+      Source: developer.
+  - id: B-073
+    title: "ComfyUI WS reconnect on disconnect / recover stuck jobs"
+    priority: 55
+    status: todo
+    complexity: high
+    requires: []
+    acceptance:
+      - "BE: WebSocket connection to ComfyUI automatically reconnects on disconnect"
+      - "BE: After reconnect, executor polls ComfyUI history API to detect already-completed prompts"
+      - "BE: Jobs stuck in running state due to missed completion events are recovered"
+      - "BE: Unit tests for reconnect logic and history-based recovery"
+    testing:
+      - "Simulate WS disconnect mid-job and verify recovery after reconnect"
+      - "Verify stuck jobs are detected and completed via history API polling"
+    notes: |
+      If the WebSocket connection drops mid-job (e.g. ComfyUI restarts), the executor never
+      receives the completion event and the job stays stuck in running. A recovery mechanism
+      that polls the ComfyUI history API after reconnect to detect already-completed prompts
+      would make the system resilient to mid-job connection losses.
+      Source: developer.
+  - id: B-074
+    title: "Atomic stop-and-transition in executor"
+    priority: 25
+    status: todo
+    complexity: medium
+    requires: []
+    acceptance:
+      - "BE: Executor owns the DB status update to stopped after RequestStop (like completeJob does)"
+      - "BE: No window where DB and executor state diverge during stop"
+      - "BE: Unit tests for atomic stop-and-transition"
+    testing:
+      - "Stop a running job and verify DB and executor state are consistent at all points"
+    notes: |
+      Currently RequestStop clears executor state but the DB update to stopped happens in the
+      service layer separately. The executor could own the DB status update after stop (like
+      completeJob does), reducing the window where the DB and executor state diverge.
+      Source: developer.
+  - id: B-075
+    title: "Clamp TotalMissing in backend validation to prevent negative values"
+    priority: 25
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "BE: TotalMissing = max(0, totalExpected - totalVerified) in validation.go"
+      - "BE: API never returns negative total_missing values"
+      - "BE: Unit tests for clamping behavior"
+    testing:
+      - "Test with edge case where totalVerified > totalExpected"
+    notes: |
+      TotalMissing = totalExpected - totalVerified in validation.go is not clamped at 0.
+      While per-checkpoint missing is clamped, the aggregate is not. Returning a negative
+      total_missing via the API is semantically incorrect.
+      Fix: result.TotalMissing = max(0, totalExpected - totalVerified).
+      Source: qa.
+  - id: B-076
+    title: "Database UNIQUE constraint on study names"
+    priority: 30
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "DB: Migration adds UNIQUE constraint on studies.name column"
+      - "BE: Concurrent creation of studies with the same name is prevented at the DB level"
+      - "BE: Unit tests for unique constraint enforcement"
+    testing:
+      - "Attempt to insert two studies with the same name and verify DB error"
+    notes: |
+      Add a migration to add a UNIQUE constraint on studies.name to enforce uniqueness at the
+      database level, complementing the service-layer check and preventing race conditions in
+      concurrent-user scenarios.
+      Source: developer.
+  - id: B-077
+    title: "Tooltip for long checkpoint names in Current checkpoint progress line"
+    priority: 15
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "FE: Long checkpoint names in the Current checkpoint progress line show ellipsis with a tooltip on hover"
+      - "FE: Tooltip displays the full checkpoint filename"
+      - "FE: Consistent with the tooltip treatment in B-052 completeness section"
+    testing:
+      - "Verify tooltip appears on hover for truncated checkpoint names in progress line"
+    notes: |
+      The "Current checkpoint:" progress line in JobProgressPanel shows raw checkpoint filenames
+      that could be long. Unlike the completeness section (fixed in B-052), this line has no
+      ellipsis/tooltip treatment. Add the same :title binding for consistency.
+      Source: developer.
+      Key files: frontend/src/components/JobProgressPanel.vue.
+  - id: S-103
+    title: "Expose more sidecar fields as numeric in metadata API"
+    priority: 15
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "BE: Fields like width, height, and index are returned as NumericFields in the sidecar metadata parser"
+      - "BE: Expanded numericSidecarFields set based on observed sidecar field conventions"
+      - "BE: Unit tests for new numeric field routing"
+    testing:
+      - "Query metadata API and verify width/height/index appear in NumericFields"
+    notes: |
+      Currently only seed, steps, and cfg are routed to NumericFields in the sidecar metadata
+      parser. Fields like width, height, and index are also numeric in practice but are returned
+      as strings. Expand the numericSidecarFields set.
+      Source: developer.
+  - id: S-104
+    title: "Rename preset inline"
+    priority: 15
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "FE: Inline rename affordance on the preset name field"
+      - "FE: Renaming updates the preset without requiring Save-As"
+      - "FE: Unit tests for inline rename flow"
+    testing:
+      - "Click rename, change name, verify preset is updated without creating a duplicate"
+    notes: |
+      The Update button updates the mapping but reuses the existing name. A small "Rename"
+      affordance (inline edit on the name field) would let users change names without the
+      Save-As prompt.
+      Source: developer.
+      Key files: frontend/src/components/PresetSelector.vue.
+  - id: S-105
+    title: "Tooltip on study bead showing checkpoint counts"
+    priority: 25
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "FE: Hovering over a study bead in the dropdown shows a tooltip like '3/5 checkpoints have samples'"
+      - "FE: Tooltip reflects actual checkpoint counts for the selected training run"
+      - "FE: Unit tests for tooltip content"
+    testing:
+      - "Hover over study beads and verify tooltip shows correct counts"
+    notes: |
+      When hovering over a study's bead in the dropdown, show a tooltip like "3/5 checkpoints
+      have samples" for partial status to give the user more information without cluttering
+      the dropdown label.
+      Source: developer.
+  - id: S-106
+    title: "Integrate ConfirmDeleteDialog into StudyEditor delete flow"
+    priority: 45
+    status: todo
+    complexity: low
+    requires:
+      - S-094
+    acceptance:
+      - "FE: StudyEditor uses ConfirmDeleteDialog instead of window.confirm()"
+      - "FE: Dialog includes 'Also delete sample data' checkbox"
+      - "FE: Unit tests for ConfirmDeleteDialog integration in StudyEditor"
+    testing:
+      - "Delete a study and verify styled dialog appears instead of browser-native confirm"
+    notes: |
+      StudyEditor currently uses window.confirm() for delete confirmation, which is browser-native
+      and not styled. Replace with the new ConfirmDeleteDialog (with optional "Also delete sample
+      data" checkbox) for a consistent UX.
+      Source: developer.
+      Key files: frontend/src/components/StudyEditor.vue.
+  - id: S-107
+    title: "Integrate ConfirmDeleteDialog into preset delete flow"
+    priority: 30
+    status: todo
+    complexity: low
+    requires:
+      - S-094
+    acceptance:
+      - "FE: PresetSelector uses ConfirmDeleteDialog instead of window.confirm()"
+      - "FE: After deletion, preset selector resets appropriately"
+      - "FE: Unit tests for ConfirmDeleteDialog integration in PresetSelector"
+    testing:
+      - "Delete a preset and verify styled dialog appears"
+    notes: |
+      PresetSelector also uses window.confirm() for delete confirmation. Replace with
+      ConfirmDeleteDialog for a consistent deletion UX across the app.
+      Source: developer.
+      Key files: frontend/src/components/PresetSelector.vue.
+  - id: S-108
+    title: "Configurable confirmation button text in ConfirmDeleteDialog"
+    priority: 25
+    status: todo
+    complexity: low
+    requires:
+      - S-094
+    acceptance:
+      - "FE: ConfirmDeleteDialog accepts a confirmLabel prop to customize the button text"
+      - "FE: Default remains 'Yes, Delete' when prop is not provided"
+      - "FE: Unit tests for custom button text"
+    testing:
+      - "Use the component with a custom confirmLabel and verify button text changes"
+    notes: |
+      The ConfirmDeleteDialog.vue component has a hardcoded "Yes, Delete" button, limiting
+      reuse for non-delete confirmations. Adding a confirmLabel prop would allow reusing it
+      for the regeneration confirmation dialog without creating an ad-hoc inline modal.
+      Source: developer.
+      Key files: frontend/src/components/ConfirmDeleteDialog.vue.
+  - id: S-109
+    title: "Keyboard navigation help overlay in lightbox"
+    priority: 25
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "FE: Lightbox includes a keyboard shortcuts tooltip or help panel"
+      - "FE: Lists all shortcuts (Escape, Shift+Arrow for grid nav, plain Arrow for slider)"
+      - "FE: Help is unobtrusive and dismissible"
+      - "FE: Unit tests for help overlay visibility"
+    testing:
+      - "Open lightbox and verify help overlay lists all shortcuts"
+    notes: |
+      Add a "Keyboard shortcuts" tooltip or help panel in the lightbox listing all shortcuts
+      (Escape, Shift+Arrow for grid nav, plain Arrow for slider). Makes keyboard navigation
+      more discoverable.
+      Source: developer.
+      Key files: frontend/src/components/ImageLightbox.vue.
+  - id: S-110
+    title: "Resume completed_with_errors jobs (retry failed items)"
+    priority: 30
+    status: todo
+    complexity: medium
+    requires: []
+    acceptance:
+      - "FE: 'Retry failed' button on JobProgressPanel for completed_with_errors jobs"
+      - "BE: Retry re-queues only failed items in the same job"
+      - "BE: Unit tests for retry logic"
+      - "FE: Unit tests for retry button visibility and interaction"
+    testing:
+      - "Create a job with partial failures, click retry, verify only failed items are re-queued"
+    notes: |
+      Currently the regeneration flow for failed items requires launching a new job. A "retry
+      failed" button on the JobProgressPanel that directly re-queues only failed items in the
+      same job would be more streamlined.
+      Source: developer.
+  - id: S-111
+    title: "Test seed endpoint for sample jobs (E2E testing infra)"
+    priority: 50
+    status: todo
+    complexity: medium
+    requires: []
+    acceptance:
+      - "BE: Test-only seed endpoint (e.g. /api/test/seed-jobs) creates sample jobs with specified statuses"
+      - "BE: Endpoint is only available in test mode"
+      - "BE: Unit tests for seed endpoint"
+      - "E2E: At least one E2E test uses the seed endpoint to verify job-related UI"
+    testing:
+      - "Call the seed endpoint and verify jobs appear in the job viewer with correct statuses"
+    notes: |
+      The E2E environment cannot create sample jobs because ComfyUI is not configured. A
+      test-only seed endpoint (similar to /api/test/reset) that can create sample jobs with
+      specified statuses would enable E2E testing of job-related UI features.
+      Source: qa.
+  - id: R-005
+    title: "Deprecate has_samples query parameter from Goa DSL"
+    priority: 10
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "BE: has_samples query parameter removed from Goa DSL for GET /api/training-runs"
+      - "BE: Codegen cycle completed successfully"
+      - "FE: Frontend client updated to not send has_samples parameter"
+      - "BE: Unit tests pass after removal"
+    testing:
+      - "Verify GET /api/training-runs works without has_samples parameter"
+    notes: |
+      The has_samples query parameter on GET /api/training-runs is now ignored by the backend
+      after S-081 switched the viewer to directory-driven discovery. Remove it from the Goa
+      DSL to keep the API spec clean. Requires codegen cycle and frontend client update.
+      Source: developer.
+  - id: R-006
+    title: "Shared validation constants between backend and frontend"
+    priority: 10
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "BE: Disallowed characters for study name validation are surfaced in the API error response"
+      - "FE: Frontend reflects disallowed characters from the API rather than maintaining a duplicate constant"
+      - "BE: Unit tests for error response format"
+    testing:
+      - "Verify frontend validation mirrors backend when disallowed characters change"
+    notes: |
+      The disallowed character set for study name validation is defined independently in Go
+      (disallowedNameChars) and Vue (disallowedChars). Surface the disallowed characters in
+      the API error response and have the frontend reflect them.
+      Source: developer.
+  - id: R-007
+    title: "Remove orphaned ThemeToggle.vue component"
+    priority: 10
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "FE: ThemeToggle.vue and ThemeToggle.test.ts are deleted"
+      - "FE: No remaining imports or references to ThemeToggle"
+      - "FE: All tests pass after removal"
+    testing:
+      - "Verify no broken imports after deletion"
+    notes: |
+      ThemeToggle.vue and ThemeToggle.test.ts are now dead code since S-091 moved the toggle
+      into the Settings dialog. Delete them.
+      Source: developer.
+  - id: W-005
+    title: "Add queued status bead test case to JobLaunchDialog tests"
+    priority: 25
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "FE: Test covers the queued path (pending or paused job) in beadColor() function"
+      - "FE: pendingJob fixture asserts _status: 'queued' and _color: '#f0a020'"
+      - "FE: 4-of-4 coverage for beadColor() states (empty/complete/running/queued)"
+    testing:
+      - "Run frontend tests and verify new test case passes"
+    notes: |
+      The _status/_color metadata test covers empty/complete/running but does not exercise
+      the queued path. Adding a pendingJob fixture for a training run with status pending
+      and asserting _status: 'queued' and _color: '#f0a020' completes coverage.
+      Source: qa.
+  - id: W-006
+    title: "Expand QA_ALLOWED_ERRORS.md with all test environment artifacts"
+    priority: 25
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "DOC: QA_ALLOWED_ERRORS.md updated with database reset race conditions (no such table/column)"
+      - "DOC: Safetensors metadata parse failures for empty test fixture files documented"
+      - "DOC: Vite ws proxy EPIPE/ECONNREFUSED errors during E2E startup/teardown documented"
+      - "DOC: Each entry includes root cause and why it's benign"
+    testing:
+      - "Validate entries match actual test log patterns"
+    notes: |
+      Three categories of expected errors in test logs are not yet in the allowlist:
+      (1) database reset race conditions ("no such table/column" during test reset),
+      (2) safetensors metadata parse failures for empty test fixture checkpoint files,
+      (3) Vite ws proxy EPIPE/ECONNREFUSED errors during E2E teardown.
+      Also includes the Vite ws proxy ECONNREFUSED during startup (benign timing race).
+      Source: qa.
+  - id: W-007
+    title: "Automated panic detection in E2E log scan"
+    priority: 45
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "OPS: Shell script or Makefile target that exits non-zero when panic: appears in E2E logs"
+      - "OPS: Integrated into make test-e2e or available as standalone target"
+      - "DOC: Usage documented in TEST_PRACTICES.md"
+    testing:
+      - "Inject a fake panic into test logs and verify the scan catches it"
+    notes: |
+      The QA agent currently searches E2E backend logs for panics manually. A lightweight
+      shell script or Makefile target that exits non-zero when panic: appears in E2E logs
+      would make panic-free criteria machine-verifiable.
+      Source: developer.
+  - id: W-008
+    title: "Widen accessibility test coverage to include grid state"
+    priority: 25
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "E2E: Accessibility audit runs after loading a training run and assigning axes"
+      - "E2E: Catches contrast violations inside grid cells, image captions, and axis labels"
+      - "E2E: Existing empty-state audit is unchanged"
+    testing:
+      - "Run E2E suite and verify accessibility audit covers both empty and populated states"
+    notes: |
+      Currently the accessibility audit runs only on the initial empty-state page. Adding a
+      second scan after loading a training run and assigning axes (with real images rendered)
+      would catch contrast violations inside grid cells, image captions, and axis labels.
+      Source: developer.
+  - id: W-009
+    title: "Populate safetensors test fixtures with minimal valid headers"
+    priority: 15
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "E2E: 0-byte .safetensors files in test-fixtures/ replaced with minimal valid headers"
+      - "E2E: Minimal header is 8-byte length prefix + empty JSON object"
+      - "E2E: No more 'reading header length: EOF' errors in checkpoint metadata scans"
+    testing:
+      - "Run E2E suite and verify no safetensors header parse errors in logs"
+    notes: |
+      The 0-byte .safetensors files in test-fixtures/ cause "reading header length: EOF" errors
+      on every checkpoint metadata scan. Adding a minimal valid safetensors header would eliminate
+      these log errors and provide more realistic test data.
+      Source: qa.
+  - id: W-010
+    title: "Automated audit for bare NSelect click patterns in E2E specs"
+    priority: 25
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "OPS: Lint rule or pre-commit check warns when training-run-select is clicked directly without selectTrainingRun helper"
+      - "OPS: Prevents recurrence of NSelect race condition bugs (B-053, B-054)"
+    testing:
+      - "Add a bare NSelect click to a test and verify the lint/check catches it"
+    notes: |
+      A lint rule or pre-commit check that warns when [data-testid="training-run-select"] is
+      clicked directly without using the selectTrainingRun helper would prevent recurrence of
+      race conditions where NSelect is clicked before its loading state clears.
+      Source: developer.
+  - id: W-011
+    title: "Cross-story regression guard for character-set changes"
+    priority: 25
+    status: todo
+    complexity: medium
+    requires: []
+    acceptance:
+      - "OPS: Automated check scans for string literals containing newly disallowed characters"
+      - "OPS: Flags violations before review (e.g. ' (copy)' suffix after adding parentheses to disallowed set)"
+      - "OPS: Catches this class of regression automatically"
+    testing:
+      - "Simulate adding a new disallowed character and verify the guard flags existing usage"
+    notes: |
+      When a story adds new disallowed characters (e.g., B-050 adding parentheses to
+      disallowedNameChars), an automated check could scan for existing string literals that
+      contain those characters and flag them before review.
+      Source: developer.
