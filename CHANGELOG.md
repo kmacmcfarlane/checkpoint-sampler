@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-069: Lightbox slider overlaps metadata button in bottom right
+- Conditional CSS class offsets the metadata panel above the slider panel when a slider dimension is active, preventing overlap in the bottom-right corner
+
 ### B-072: Guard Start() API against concurrent running jobs
 - `SampleJobService.Start()` now checks for existing running jobs via `HasRunningJob()` store query and returns an error if one is already running, preventing confusing dual-running-job state in the database
 

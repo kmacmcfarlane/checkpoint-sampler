@@ -596,3 +596,79 @@ test.describe('lightbox slider dimension label', () => {
     expect(ariaLabel).toBe('prompt_name')
   })
 })
+
+test.describe('lightbox slider and metadata panel layout (B-069)', () => {
+  // AC: Each E2E test is independent -- reset database before each test
+  test.beforeEach(async ({ request }) => {
+    await resetDatabase(request)
+  })
+
+  // AC1 (B-069): Slider and metadata button do not overlap when slider is visible
+  // AC2 (B-069): Both controls are fully accessible and clickable without obstruction
+  test('metadata button is above the slider panel and both are accessible', async ({ page }) => {
+    await setupGridWithSlider(page)
+
+    // Open lightbox (slider is present because prompt_name → Slider)
+    const firstImage = page.locator('.xy-grid [role="gridcell"] img').first()
+    await firstImage.click()
+
+    const lightbox = page.locator('[role="dialog"][aria-label="Image lightbox"]')
+    await expect(lightbox).toBeVisible()
+
+    const sliderPanel = lightbox.locator('.lightbox-slider-panel')
+    await expect(sliderPanel).toBeVisible()
+
+    const metadataPanel = lightbox.locator('.metadata-panel')
+    await expect(metadataPanel).toBeVisible()
+
+    // AC1: Verify the metadata panel bottom edge is at or above the slider panel top edge
+    // (no overlap). The metadata button should be positioned above the slider panel.
+    const sliderBox = await sliderPanel.boundingBox()
+    const metadataBox = await metadataPanel.boundingBox()
+
+    expect(sliderBox).not.toBeNull()
+    expect(metadataBox).not.toBeNull()
+
+    // The bottom of the metadata panel must not extend below the top of the slider panel
+    const metadataBottom = metadataBox!.y + metadataBox!.height
+    const sliderTop = sliderBox!.y
+    expect(metadataBottom).toBeLessThanOrEqual(sliderTop + 2) // 2px tolerance for sub-pixel rounding
+
+    // AC2: The metadata toggle button should be clickable (not covered by slider panel)
+    const metadataToggle = page.getByRole('button', { name: 'Toggle metadata' })
+    await expect(metadataToggle).toBeVisible()
+    await metadataToggle.click()
+
+    // After clicking, metadata content should appear (confirming it was accessible)
+    const metadataContent = lightbox.locator('.metadata-content')
+    await expect(metadataContent).toBeVisible()
+  })
+
+  // AC3 (B-069): Layout is correct across typical viewport sizes — verify at 1280px and 1440px
+  test('metadata panel does not overlap slider panel at 1440px viewport width', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await setupGridWithSlider(page)
+
+    const firstImage = page.locator('.xy-grid [role="gridcell"] img').first()
+    await firstImage.click()
+
+    const lightbox = page.locator('[role="dialog"][aria-label="Image lightbox"]')
+    await expect(lightbox).toBeVisible()
+
+    const sliderPanel = lightbox.locator('.lightbox-slider-panel')
+    const metadataPanel = lightbox.locator('.metadata-panel')
+
+    await expect(sliderPanel).toBeVisible()
+    await expect(metadataPanel).toBeVisible()
+
+    const sliderBox = await sliderPanel.boundingBox()
+    const metadataBox = await metadataPanel.boundingBox()
+
+    expect(sliderBox).not.toBeNull()
+    expect(metadataBox).not.toBeNull()
+
+    const metadataBottom = metadataBox!.y + metadataBox!.height
+    const sliderTop = sliderBox!.y
+    expect(metadataBottom).toBeLessThanOrEqual(sliderTop + 2) // 2px tolerance for sub-pixel rounding
+  })
+})

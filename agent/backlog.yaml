@@ -211,7 +211,7 @@ stories:
   - id: B-069
     title: "Lightbox slider overlaps metadata button in bottom right"
     priority: 45
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:

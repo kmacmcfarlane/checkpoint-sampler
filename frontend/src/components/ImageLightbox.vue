@@ -435,7 +435,7 @@ onUnmounted(() => {
         @change="onLightboxSliderChange"
       />
     </div>
-    <div class="metadata-panel" @click.stop>
+    <div class="metadata-panel" :class="{ 'metadata-panel--above-slider': hasSlider }" @click.stop>
       <NButton
         class="metadata-toggle"
         size="small"
@@ -516,6 +516,11 @@ onUnmounted(() => {
   user-select: none;
 }
 
+/* Height of the slider panel (padding + content). Used to offset overlapping panels. */
+:root {
+  --lightbox-slider-panel-height: 3.5rem;
+}
+
 .lightbox-slider-panel {
   position: fixed;
   bottom: 0;
@@ -546,6 +551,11 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
+}
+
+/* Shift the metadata panel above the slider panel when the slider is visible. */
+.metadata-panel--above-slider {
+  bottom: var(--lightbox-slider-panel-height);
 }
 
 .metadata-toggle {

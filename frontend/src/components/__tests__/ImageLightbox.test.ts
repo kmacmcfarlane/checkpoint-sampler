@@ -767,6 +767,33 @@ describe('ImageLightbox', () => {
       expect(wrapper.find('.metadata-content').exists()).toBe(true)
     })
 
+    // AC: B-069 — metadata panel does not overlap the slider panel
+    it('adds above-slider class to metadata-panel when slider is visible (B-069)', async () => {
+      const wrapper = mount(ImageLightbox, { props: sliderProps })
+      await flushPromises()
+
+      const panel = wrapper.find('.metadata-panel')
+      expect(panel.classes()).toContain('metadata-panel--above-slider')
+    })
+
+    it('does not add above-slider class to metadata-panel when no slider (B-069)', async () => {
+      const wrapper = mount(ImageLightbox, { props: defaultProps })
+      await flushPromises()
+
+      const panel = wrapper.find('.metadata-panel')
+      expect(panel.classes()).not.toContain('metadata-panel--above-slider')
+    })
+
+    it('does not add above-slider class when cellKey is null even with slider values (B-069)', async () => {
+      const wrapper = mount(ImageLightbox, {
+        props: { ...sliderProps, cellKey: null },
+      })
+      await flushPromises()
+
+      const panel = wrapper.find('.metadata-panel')
+      expect(panel.classes()).not.toContain('metadata-panel--above-slider')
+    })
+
     it('does not render SliderBar when sliderValues has only one value', async () => {
       const wrapper = mount(ImageLightbox, {
         props: {
