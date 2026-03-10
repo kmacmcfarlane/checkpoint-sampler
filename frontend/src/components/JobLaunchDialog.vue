@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, h } from 'vue'
+import { ref, computed, onMounted, watch, h, type VNode } from 'vue'
 import {
   NModal,
   NSelect,
@@ -16,8 +16,10 @@ import type { TrainingRun, Study, StudyAvailability, CreateSampleJobPayload, Sam
 import { apiClient } from '../api/client'
 import StudyEditor from './StudyEditor.vue'
 import { useGenerateInputsPersistence } from '../composables/useGenerateInputsPersistence'
+import { getTrainingRunDualBead, getStudyDualBead, DUAL_BEAD_COLORS, type DualBead } from '../composables/dualBeadStatus'
 
-/** Status of a training run used to determine bead color. */
+// TrainingRunStatus is kept for the filter logic (getRunStatus) but is no longer used for bead rendering.
+// Bead rendering now uses the dual-bead system from dualBeadStatus.ts.
 type TrainingRunStatus = 'complete' | 'partial' | 'running' | 'queued' | 'empty'
 
 const props = defineProps<{
@@ -107,15 +109,24 @@ function getRunStatus(run: TrainingRun): TrainingRunStatus {
   return 'empty'
 }
 
-// Bead color per status
-function beadColor(status: TrainingRunStatus): string {
-  switch (status) {
-    case 'complete': return '#18a058'  // green
-    case 'partial': return '#f0a020'   // yellow/amber — some samples missing or failed
-    case 'running': return '#2080f0'   // blue
-    case 'queued': return '#f0a020'    // yellow/amber
-    case 'empty': return '#909090'     // gray
-  }
+/**
+ * Renders a bead circle element for use in NSelect renderLabel.
+ * Returns null (no element) when color is null.
+ * IMPORTANT: All styles must be inlined — renderLabel VNodes run outside scoped CSS context.
+ */
+function renderBeadSpan(color: string, title: string, testId: string): VNode {
+  return h('span', {
+    'data-testid': testId,
+    style: {
+      display: 'inline-block',
+      width: '10px',
+      height: '10px',
+      borderRadius: '50%',
+      flexShrink: '0',
+      backgroundColor: color,
+    },
+    title,
+  })
 }
 
 // renderLabel function for the training run NSelect.
@@ -123,28 +134,40 @@ function beadColor(status: TrainingRunStatus): string {
 // done via the renderLabel prop (a render function returning VNodeChild).
 //
 // IMPORTANT: VNodes returned from renderLabel are rendered outside Vue's scoped
-// compilation context, so scoped CSS classes (e.g. .status-bead) are NOT applied.
+// compilation context, so scoped CSS classes are NOT applied.
 // All styles must be inlined directly on the element.
+//
+// Renders up to two beads per training run using the dual-bead system:
+//   Slot 1 (activity): blue = running/pending job, green = all studies complete
+//   Slot 2 (problem):  red = failed job, yellow = incomplete without running jobs
 const renderTrainingRunLabel: SelectRenderLabel = (option) => {
-  const color = (option as { _color?: string })._color ?? '#909090'
-  const status = (option as { _status?: string })._status ?? 'empty'
-  return h('div', { style: { display: 'flex', alignItems: 'center', gap: '0.5rem' } }, [
-    h('span', {
-      style: {
-        display: 'inline-block',
-        width: '10px',
-        height: '10px',
-        borderRadius: '50%',
-        flexShrink: '0',
-        backgroundColor: color,
-      },
-      title: status,
-    }),
-    h('span', {}, String(option.label ?? '')),
-  ])
+  const dualBead = (option as { _dualBead?: DualBead })._dualBead
+
+  const children: VNode[] = []
+
+  if (dualBead) {
+    // Slot 1: activity bead (blue/green)
+    if (dualBead.activity === 'blue') {
+      children.push(renderBeadSpan(DUAL_BEAD_COLORS.blue, 'running', 'run-bead-activity'))
+    } else if (dualBead.activity === 'green') {
+      children.push(renderBeadSpan(DUAL_BEAD_COLORS.green, 'complete', 'run-bead-activity'))
+    }
+
+    // Slot 2: problem bead (red/yellow)
+    if (dualBead.problem === 'red') {
+      children.push(renderBeadSpan(DUAL_BEAD_COLORS.red, 'failed', 'run-bead-problem'))
+    } else if (dualBead.problem === 'yellow') {
+      children.push(renderBeadSpan(DUAL_BEAD_COLORS.yellow, 'incomplete', 'run-bead-problem'))
+    }
+  }
+
+  children.push(h('span', {}, String(option.label ?? '')))
+
+  return h('div', { style: { display: 'flex', alignItems: 'center', gap: '0.5rem' } }, children)
 }
 
 // Training run select options (filtered by showAllRuns)
+// Each option includes _dualBead metadata for the renderLabel function.
 const trainingRunOptions = computed(() => {
   return trainingRuns.value
     .filter(run => {
@@ -152,14 +175,24 @@ const trainingRunOptions = computed(() => {
       return getRunStatus(run) === 'empty'
     })
     .map(run => {
-      const status = getRunStatus(run)
-      const color = beadColor(status)
+      // Compute dual-bead for this training run:
+      // - Study statuses come from ALL studyAvailability entries for ALL training runs;
+      //   but since trainingRunOptions is not per-selected-run, we use the currently
+      //   loaded studyAvailability (which is for the selected training run).
+      //   For non-selected runs, we don't have availability data, so pass empty array.
+      //
+      // When a training run IS the selected run, use the loaded studyAvailability.
+      // For other runs, studyStatuses = [] (no green bead unless it's the selected run).
+      const studyStatuses = run.id === selectedTrainingRunId.value
+        ? studyAvailability.value.map(a => a.sample_status)
+        : []
+      const dualBead = getTrainingRunDualBead(run.name, sampleJobs.value, studyStatuses)
+
       return {
         label: run.name,
         value: run.id,
         // Custom rendering via renderLabel
-        _status: status,
-        _color: color,
+        _dualBead: dualBead,
       }
     })
 })
@@ -312,14 +345,16 @@ function toggleCheckpoint(filename: string) {
   selectedCheckpoints.value = next
 }
 
-// Study options include sample availability info. When availability data is present,
-// each study is shown with a bead indicating sample completeness for the selected training run:
-//   green = complete (all checkpoints have all expected images)
-//   yellow = partial (some but not all images exist)
-//   no bead = none (no samples for this training run)
-// For the currently selected study, validation results override the directory-level
-// availability check to provide image-level accuracy (e.g. 590/684 → partial, not complete).
+// Study options include sample availability info and job status for dual-bead rendering.
+// When a training run is selected:
+//   Slot 1 (activity): blue = running/pending job for this study, green = sample_status='complete'
+//   Slot 2 (problem):  red = failed job for this study, yellow = sample_status='partial' without running jobs
+//
+// For the currently selected study, validation results override directory-level availability
+// to provide image-level accuracy (e.g. 590/684 → partial, not complete).
 const studyOptions = computed(() => {
+  const runName = selectedTrainingRun.value?.name ?? ''
+
   return studies.value.map(p => {
     const avail = studyAvailability.value.find(a => a.study_id === p.id)
     let sampleStatus = avail?.sample_status ?? 'none'
@@ -339,49 +374,48 @@ const studyOptions = computed(() => {
       }
     }
 
+    // Compute dual-bead for this study. Only possible when a training run is selected.
+    const dualBead = runName
+      ? getStudyDualBead(runName, p.id, sampleJobs.value, sampleStatus as 'none' | 'partial' | 'complete')
+      : { activity: null, problem: null }
+
     return {
       label: p.name,
       value: p.id,
       // Metadata for bead rendering
       _sampleStatus: sampleStatus,
-      _hasAvailability: avail !== undefined,
+      _dualBead: dualBead,
     }
   })
 })
 
-// Bead color for the study dropdown based on sample completeness status.
-// Returns the hex color for "complete" and "partial", or null for "none" (no bead shown).
-function studyBeadColor(sampleStatus: string): string | null {
-  switch (sampleStatus) {
-    case 'complete': return '#18a058' // green
-    case 'partial':  return '#f0a020' // yellow/amber
-    default:         return null      // no bead
-  }
-}
-
 // renderLabel function for the study NSelect.
-// Shows a green bead for complete studies, yellow for partial, no bead for none.
+// Renders up to two beads per study using the dual-bead system.
 //
 // IMPORTANT: VNodes returned from renderLabel are rendered outside Vue's scoped
 // compilation context, so scoped CSS classes are NOT applied. All styles must be inlined.
 const renderStudyLabel: SelectRenderLabel = (option) => {
-  const sampleStatus = (option as { _sampleStatus?: string })._sampleStatus ?? 'none'
-  const color = studyBeadColor(sampleStatus)
-  const children = [h('span', {}, String(option.label ?? ''))]
+  const dualBead = (option as { _dualBead?: DualBead })._dualBead
 
-  if (color !== null) {
-    children.unshift(h('span', {
-      style: {
-        display: 'inline-block',
-        width: '10px',
-        height: '10px',
-        borderRadius: '50%',
-        flexShrink: '0',
-        backgroundColor: color,
-      },
-      title: sampleStatus,
-    }))
+  const children: VNode[] = []
+
+  if (dualBead) {
+    // Slot 1: activity bead (blue/green)
+    if (dualBead.activity === 'blue') {
+      children.push(renderBeadSpan(DUAL_BEAD_COLORS.blue, 'running', 'study-bead-activity'))
+    } else if (dualBead.activity === 'green') {
+      children.push(renderBeadSpan(DUAL_BEAD_COLORS.green, 'complete', 'study-bead-activity'))
+    }
+
+    // Slot 2: problem bead (red/yellow)
+    if (dualBead.problem === 'red') {
+      children.push(renderBeadSpan(DUAL_BEAD_COLORS.red, 'failed', 'study-bead-problem'))
+    } else if (dualBead.problem === 'yellow') {
+      children.push(renderBeadSpan(DUAL_BEAD_COLORS.yellow, 'incomplete', 'study-bead-problem'))
+    }
   }
+
+  children.push(h('span', {}, String(option.label ?? '')))
 
   return h('div', { style: { display: 'flex', alignItems: 'center', gap: '0.5rem' } }, children)
 }

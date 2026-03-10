@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-116: Training run and study status beads in Generate Samples
+- Dual-bead system replaces single-bead: each training run and study item shows up to two independent beads — activity (blue=running, green=complete) and problem (red=failed, yellow=incomplete)
+- New `dualBeadStatus.ts` composable with pure functions for bead state computation; existing Jobs nav button bead (`beadStatus.ts`) unchanged
+
 ### S-114: Pre-generate JPEG thumbnails for sample images
 - JPEG thumbnails generated during sample creation when `thumbnails.enabled: true` in config; stored in `thumbnails/` subdirectory within each checkpoint's sample directory
 - Configurable `max_resolution_x`, `max_resolution_y` (default 512x512) and `jpeg_quality` (default 85); generation is optional and non-fatal on error

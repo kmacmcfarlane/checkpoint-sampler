@@ -315,37 +315,32 @@ describe('JobLaunchDialog', () => {
       expect(typeof runSelect.props('renderLabel')).toBe('function')
     })
 
-    it('training run options carry _status and _color metadata for bead rendering', async () => {
+    it('training run options carry _dualBead metadata for bead rendering', async () => {
       const wrapper = mount(JobLaunchDialog, {
         props: { show: true },
         global: { stubs: { Teleport: true } },
       })
       await flushPromises()
 
-      // Show all runs to get all three statuses
+      // Show all runs to get all three options
       wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
       await nextTick()
 
       const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
-      const options = runSelect.props('options') as Array<{ label: string; value: number; _status: string; _color: string }>
+      type DualBead = { activity: string | null; problem: string | null }
+      const options = runSelect.props('options') as Array<{ label: string; value: number; _dualBead: DualBead }>
 
-      // runEmpty (id=1): no samples, no jobs → gray
+      // runEmpty (id=1): no samples, no jobs → both beads null
       const emptyOpt = options.find(o => o.value === 1)
-      expect(emptyOpt?._status).toBe('empty')
-      expect(emptyOpt?._color).toBe('#909090')
+      expect(emptyOpt?._dualBead.activity).toBeNull()
+      expect(emptyOpt?._dualBead.problem).toBeNull()
 
-      // runWithSamples (id=2): has_samples=true, no active jobs → complete/green
-      const completeOpt = options.find(o => o.value === 2)
-      expect(completeOpt?._status).toBe('complete')
-      expect(completeOpt?._color).toBe('#18a058')
-
-      // runRunning (id=3): has a running job → blue
+      // runRunning (id=3): has a running job → activity=blue
       const runningOpt = options.find(o => o.value === 3)
-      expect(runningOpt?._status).toBe('running')
-      expect(runningOpt?._color).toBe('#2080f0')
+      expect(runningOpt?._dualBead.activity).toBe('blue')
     })
 
-    it('renderLabel function returns a VNode containing both a bead span and label text', async () => {
+    it('renderLabel function returns a VNode with activity bead and label text', async () => {
       const wrapper = mount(JobLaunchDialog, {
         props: { show: true },
         global: { stubs: { Teleport: true } },
@@ -355,18 +350,66 @@ describe('JobLaunchDialog', () => {
       const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
       const renderLabel = runSelect.props('renderLabel') as (option: Record<string, unknown>) => VNode
 
+      // Pass a _dualBead with activity=blue (running) and no problem
       const vnode = renderLabel({
         label: 'my-run',
         value: 99,
-        _status: 'complete',
-        _color: '#18a058',
+        _dualBead: { activity: 'blue', problem: null },
       })
 
-      // The returned VNode should be a div containing two children: bead span + label span
+      // The returned VNode should be a div containing: activity bead + label span (2 children)
       expect(vnode).toBeTruthy()
       const children = (vnode as { children?: unknown[] }).children
       expect(Array.isArray(children)).toBe(true)
       expect((children as unknown[]).length).toBe(2)
+    })
+
+    it('renderLabel function returns only label text when no beads are active', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
+      const renderLabel = runSelect.props('renderLabel') as (option: Record<string, unknown>) => VNode
+
+      // Pass a _dualBead with both null (no beads)
+      const vnode = renderLabel({
+        label: 'empty-run',
+        value: 99,
+        _dualBead: { activity: null, problem: null },
+      })
+
+      // The returned VNode should contain only the label span (1 child)
+      expect(vnode).toBeTruthy()
+      const children = (vnode as { children?: unknown[] }).children
+      expect(Array.isArray(children)).toBe(true)
+      expect((children as unknown[]).length).toBe(1)
+    })
+
+    it('renderLabel function renders both beads when both are active', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
+      const renderLabel = runSelect.props('renderLabel') as (option: Record<string, unknown>) => VNode
+
+      // activity=blue (running) + problem=red (failed)
+      const vnode = renderLabel({
+        label: 'troubled-run',
+        value: 99,
+        _dualBead: { activity: 'blue', problem: 'red' },
+      })
+
+      // The returned VNode should contain: activity bead + problem bead + label span (3 children)
+      expect(vnode).toBeTruthy()
+      const children = (vnode as { children?: unknown[] }).children
+      expect(Array.isArray(children)).toBe(true)
+      expect((children as unknown[]).length).toBe(3)
     })
   })
 
@@ -951,7 +994,7 @@ describe('JobLaunchDialog', () => {
       updated_at: '2025-01-02T00:00:00Z',
     }
 
-    it('shows yellow bead for training run with completed_with_errors jobs (partial samples)', async () => {
+    it('shows yellow problem bead for training run with completed_with_errors jobs (partial samples)', async () => {
       mockListSampleJobs.mockResolvedValue([completedWithErrorsJob])
 
       const wrapper = mount(JobLaunchDialog, {
@@ -965,11 +1008,12 @@ describe('JobLaunchDialog', () => {
       await nextTick()
 
       const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
-      const options = runSelect.props('options') as Array<{ label: string; value: number; _status: string; _color: string }>
+      type DualBead = { activity: string | null; problem: string | null }
+      const options = runSelect.props('options') as Array<{ label: string; value: number; _dualBead: DualBead }>
       const errorRunOpt = options.find(o => o.value === 2)
-      // AC: completed_with_errors → partial (yellow), not red
-      expect(errorRunOpt?._status).toBe('partial')
-      expect(errorRunOpt?._color).toBe('#f0a020')
+      // AC: completed_with_errors → problem=yellow (incomplete without running jobs)
+      expect(errorRunOpt?._dualBead.problem).toBe('yellow')
+      expect(errorRunOpt?._dualBead.activity).toBeNull()
     })
 
     it('pre-selects only failed checkpoints when completed_with_errors run is selected', async () => {
@@ -1351,11 +1395,12 @@ describe('JobLaunchDialog', () => {
       wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
       await nextTick()
 
-      // Verify initial status
+      // Verify initial status: runRunning (id=3) has a running job → activity=blue
       const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
-      let options = runSelect.props('options') as Array<{ value: number; _status: string }>
+      type DualBead = { activity: string | null; problem: string | null }
+      let options = runSelect.props('options') as Array<{ value: number; _dualBead: DualBead }>
       let runningOpt = options.find(o => o.value === 3)
-      expect(runningOpt?._status).toBe('running')
+      expect(runningOpt?._dualBead.activity).toBe('blue')
 
       // Now simulate job completing: mock returns no running jobs
       mockGetCheckpointTrainingRuns.mockResolvedValue(allTrainingRuns)
@@ -1365,10 +1410,11 @@ describe('JobLaunchDialog', () => {
       await wrapper.setProps({ refreshTrigger: 1 })
       await flushPromises()
 
-      // Re-check the options — runRunning should now be 'empty'
-      options = runSelect.props('options') as Array<{ value: number; _status: string }>
+      // Re-check the options — runRunning should now have no beads (no activity, no problem)
+      options = runSelect.props('options') as Array<{ value: number; _dualBead: DualBead }>
       runningOpt = options.find(o => o.value === 3)
-      expect(runningOpt?._status).toBe('empty')
+      expect(runningOpt?._dualBead.activity).toBeNull()
+      expect(runningOpt?._dualBead.problem).toBeNull()
     })
   })
 
@@ -2327,7 +2373,7 @@ describe('JobLaunchDialog', () => {
       expect(typeof studySelect.props('renderLabel')).toBe('function')
     })
 
-    it('renderStudyLabel returns VNode with bead for complete status option', async () => {
+    it('renderStudyLabel returns VNode with activity bead for complete status option', async () => {
       const wrapper = mount(JobLaunchDialog, {
         props: { show: true },
         global: { stubs: { Teleport: true } },
@@ -2337,17 +2383,18 @@ describe('JobLaunchDialog', () => {
       const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
       const renderLabel = studySelect.props('renderLabel') as (option: Record<string, unknown>) => VNode
 
+      // Pass _dualBead with activity=green for complete status
       const vnode = renderLabel({
         label: 'Test Study',
         value: 'test-id',
         _sampleStatus: 'complete',
-        _hasAvailability: true,
+        _dualBead: { activity: 'green', problem: null },
       })
 
       expect(vnode).toBeTruthy()
       const children = (vnode as { children?: unknown[] }).children
       expect(Array.isArray(children)).toBe(true)
-      // Complete status: bead + label = 2 children
+      // Complete status (activity=green): activity bead + label = 2 children
       expect((children as unknown[]).length).toBe(2)
     })
 
@@ -2500,7 +2547,7 @@ describe('JobLaunchDialog', () => {
       expect(options.find(o => o.value === 'preset-2')?._sampleStatus).toBe('partial')
     })
 
-    it('renderStudyLabel renders green bead for complete status', async () => {
+    it('renderStudyLabel renders green bead for complete status (activity=green)', async () => {
       const wrapper = mount(JobLaunchDialog, {
         props: { show: true },
         global: { stubs: { Teleport: true } },
@@ -2510,23 +2557,24 @@ describe('JobLaunchDialog', () => {
       const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
       const renderLabel = studySelect.props('renderLabel') as (option: Record<string, unknown>) => VNode
 
+      // activity=green (complete), no problem
       const vnode = renderLabel({
         label: 'Complete Study',
         value: 's1',
         _sampleStatus: 'complete',
-        _hasAvailability: true,
+        _dualBead: { activity: 'green', problem: null },
       })
 
-      // Should have 2 children: bead + label text
+      // Should have 2 children: activity bead + label text
       const children = (vnode as { children?: unknown[] }).children as unknown[]
       expect(children).toHaveLength(2)
 
-      // The first child is the bead span
+      // The first child is the green bead span
       const beadSpan = children[0] as { props?: { style?: { backgroundColor?: string } } }
       expect(beadSpan.props?.style?.backgroundColor).toBe('#18a058')
     })
 
-    it('renderStudyLabel renders yellow bead for partial status', async () => {
+    it('renderStudyLabel renders yellow bead for partial status (problem=yellow)', async () => {
       const wrapper = mount(JobLaunchDialog, {
         props: { show: true },
         global: { stubs: { Teleport: true } },
@@ -2536,18 +2584,19 @@ describe('JobLaunchDialog', () => {
       const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
       const renderLabel = studySelect.props('renderLabel') as (option: Record<string, unknown>) => VNode
 
+      // no activity, problem=yellow (partial, no running jobs)
       const vnode = renderLabel({
         label: 'Partial Study',
         value: 's2',
         _sampleStatus: 'partial',
-        _hasAvailability: true,
+        _dualBead: { activity: null, problem: 'yellow' },
       })
 
-      // Should have 2 children: bead + label text
+      // Should have 2 children: problem bead + label text
       const children = (vnode as { children?: unknown[] }).children as unknown[]
       expect(children).toHaveLength(2)
 
-      // The first child is the bead span with yellow color
+      // The first child is the yellow bead span
       const beadSpan = children[0] as { props?: { style?: { backgroundColor?: string } } }
       expect(beadSpan.props?.style?.backgroundColor).toBe('#f0a020')
     })
@@ -2562,14 +2611,15 @@ describe('JobLaunchDialog', () => {
       const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
       const renderLabel = studySelect.props('renderLabel') as (option: Record<string, unknown>) => VNode
 
+      // Both beads null (no samples, no jobs)
       const vnode = renderLabel({
         label: 'Empty Study',
         value: 's3',
         _sampleStatus: 'none',
-        _hasAvailability: false,
+        _dualBead: { activity: null, problem: null },
       })
 
-      // Should have only 1 child: just the label text (no bead)
+      // Should have only 1 child: just the label text (no beads)
       const children = (vnode as { children?: unknown[] }).children as unknown[]
       expect(children).toHaveLength(1)
     })
@@ -2724,7 +2774,10 @@ describe('JobLaunchDialog', () => {
   describe('training run bead with study-scoped samples (B-062)', () => {
     // Training run with has_samples: false (study-scoped directories not found at root level)
     // but with a completed job
-    it('shows green bead for completed job even when has_samples is false', async () => {
+    it('shows no activity bead and no problem bead for completed job with study statuses (green requires all-complete)', async () => {
+      // A completed job doesn't directly trigger green on the training run bead;
+      // green requires ALL study statuses to be 'complete' via studyAvailability.
+      // Without studyAvailability data, the bead is null even with a completed job.
       mockListSampleJobs.mockResolvedValue([{
         id: 'job-done',
         training_run_name: 'qwen/psai4rt-v0.3.0',
@@ -2743,14 +2796,15 @@ describe('JobLaunchDialog', () => {
       await flushPromises()
 
       const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
-      const options = runSelect.props('options') as Array<{ label: string; value: number; _status: string; _color: string }>
-      // runEmpty (id=1) has_samples: false but has a completed job → should be green (complete)
+      type DualBead = { activity: string | null; problem: string | null }
+      const options = runSelect.props('options') as Array<{ label: string; value: number; _dualBead: DualBead }>
+      // runEmpty (id=1) has a completed job but no studyAvailability → activity=null (no green bead)
       const opt = options.find(o => o.value === 1)
-      expect(opt?._status).toBe('complete')
-      expect(opt?._color).toBe('#18a058')
+      expect(opt?._dualBead.activity).toBeNull()
+      expect(opt?._dualBead.problem).toBeNull()
     })
 
-    it('shows yellow bead for completed_with_errors job even when has_samples is false', async () => {
+    it('shows yellow (problem) bead for completed_with_errors job even when has_samples is false', async () => {
       mockListSampleJobs.mockResolvedValue([{
         id: 'job-partial',
         training_run_name: 'qwen/psai4rt-v0.3.0',
@@ -2769,11 +2823,11 @@ describe('JobLaunchDialog', () => {
       await flushPromises()
 
       const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
-      const options = runSelect.props('options') as Array<{ label: string; value: number; _status: string; _color: string }>
-      // runEmpty (id=1) has_samples: false but has a completed_with_errors job → should be yellow (partial)
+      type DualBead = { activity: string | null; problem: string | null }
+      const options = runSelect.props('options') as Array<{ label: string; value: number; _dualBead: DualBead }>
+      // runEmpty (id=1) has a completed_with_errors job → problem=yellow (incomplete without running)
       const opt = options.find(o => o.value === 1)
-      expect(opt?._status).toBe('partial')
-      expect(opt?._color).toBe('#f0a020')
+      expect(opt?._dualBead.problem).toBe('yellow')
     })
 
     it('shows checkboxes for run with completed job even when has_samples is false', async () => {

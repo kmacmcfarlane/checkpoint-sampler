@@ -858,7 +858,7 @@ stories:
   - id: S-116
     title: "Training run and study status beads in Generate Samples"
     type: enhancement
-    status: todo
+    status: uat
     priority: 50
     complexity: high
     requires: []
