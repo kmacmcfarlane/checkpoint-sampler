@@ -37,7 +37,7 @@ stories:
   - id: S-096
     title: Delete dimension mapping preset
     type: feature
-    status: uat_feedback
+    status: uat
     priority: 25
     complexity: low
     requires:
@@ -54,8 +54,6 @@ stories:
     testing:
       - "Test deleting a preset that is currently selected"
       - "Test deleting the last remaining preset"
-    review_feedback: After deleting a preset, should auto-select the last-recently-used preset, else the first available
-      preset. Does not need to persist across refreshes.
   - id: S-098
     title: ETA per sample and per job (moving average)
     type: feature

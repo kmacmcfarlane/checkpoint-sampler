@@ -33,8 +33,8 @@ Older entries are condensed to titles only — see git history for full details.
 - Delete button on job cards opens a ConfirmDeleteDialog with "Also delete sample data" checkbox (default unchecked)
 - `DELETE /api/sample-jobs/{id}?delete_data=true` removes per-checkpoint sample directories from disk before deleting the database record; filesystem errors prevent DB deletion to avoid orphaned state
 
-### S-096: Delete dimension mapping preset
-- Delete button on preset selector now shows a confirmation dialog (ConfirmDeleteDialog) before removing the preset, preventing accidental deletions
+### S-096: Delete dimension mapping preset (UAT rework)
+- After deleting a preset, auto-selects the most recently used preset (or first available) instead of resetting to empty; MRU tracking is in-memory only (no cross-refresh persistence)
 
 ### B-063: Hot reload resets all dimension mappings to Single
 - Converted `useDimensionMapping` composable to module-scoped singleton state with `import.meta.hot.data` preservation, preventing Vite HMR from resetting dimension role assignments and filter modes

@@ -396,8 +396,8 @@ describe('PresetSelector', () => {
     expect(select2.props('value')).toBe('p1')
   })
 
-  // AC2 + AC3: FE: Confirming delete removes the preset; selector resets to no selection when deleting selected preset
-  it('confirming delete removes the selected preset and resets selector to no selection', async () => {
+  // AC2 + AC3: FE: Confirming delete removes the preset; selector auto-selects the first available preset when no MRU history
+  it('confirming delete removes the selected preset and auto-selects the first available preset (no MRU history)', async () => {
     mockGetPresets.mockResolvedValue(samplePresets)
     mockDeletePreset.mockResolvedValue(undefined)
     const wrapper = mount(PresetSelector, {
@@ -406,7 +406,7 @@ describe('PresetSelector', () => {
     })
     await flushPromises()
 
-    // Select p1
+    // Select p1 (no prior MRU history for p2)
     const select = wrapper.findComponent(NSelect)
     select.vm.$emit('update:value', 'p1')
     await nextTick()
@@ -419,15 +419,56 @@ describe('PresetSelector', () => {
     await nextTick()
     await confirmDeleteDialog(wrapper)
 
-    // AC3: Selector resets to no selection after deleting the selected preset
-    expect(wrapper.findComponent(NSelect).props('value')).toBeNull()
+    // AC3: After deleting p1, selector auto-selects the first remaining preset (p2)
+    expect(wrapper.findComponent(NSelect).props('value')).toBe('p2')
 
     // p1 should be removed from the options list
     const options = wrapper.findComponent(NSelect).props('options') as Array<{ label: string; value: string }>
     expect(options.find((o) => o.value === 'p1')).toBeUndefined()
 
-    // AC3: Delete button disappears (no preset selected)
-    expect(findButton(wrapper, 'Delete preset')).toBeUndefined()
+    // AC3: Delete button is still visible because p2 is now selected
+    expect(findButton(wrapper, 'Delete preset')).toBeDefined()
+
+    // load event emitted for the auto-selected preset
+    const loadEmitted = wrapper.emitted('load')
+    expect(loadEmitted).toBeDefined()
+    expect((loadEmitted![loadEmitted!.length - 1][0] as Preset).id).toBe('p2')
+  })
+
+  // AC3: After deleting a preset, auto-selects the MRU preset if available
+  it('confirming delete auto-selects the most recently used preset when MRU history is available', async () => {
+    mockGetPresets.mockResolvedValue(samplePresets)
+    mockDeletePreset.mockResolvedValue(undefined)
+    const wrapper = mount(PresetSelector, {
+      props: defaultProps,
+      global: { stubs: { Teleport: true } },
+    })
+    await flushPromises()
+
+    const select = wrapper.findComponent(NSelect)
+
+    // Visit p2 first, then p1 — so p2 is MRU before p1
+    select.vm.$emit('update:value', 'p2')
+    await nextTick()
+    select.vm.$emit('update:value', 'p1')
+    await nextTick()
+
+    // p1 is now selected and p2 was visited most recently before p1
+    expect(select.props('value')).toBe('p1')
+
+    // Delete p1
+    const deleteBtn = findButton(wrapper, 'Delete preset')!
+    await deleteBtn.trigger('click')
+    await nextTick()
+    await confirmDeleteDialog(wrapper)
+
+    // AC3: p2 is the most recently used preset that still exists → auto-selected
+    expect(wrapper.findComponent(NSelect).props('value')).toBe('p2')
+
+    // load event emitted for p2
+    const loadEmitted = wrapper.emitted('load')
+    expect(loadEmitted).toBeDefined()
+    expect((loadEmitted![loadEmitted!.length - 1][0] as Preset).id).toBe('p2')
   })
 
   // AC3 + Testing scenario: Deleting the last remaining preset resets to no selection
@@ -473,8 +514,8 @@ describe('PresetSelector', () => {
     expect(wrapper.emitted('delete')![0][0]).toBe('last')
   })
 
-  // Testing scenario: Deleting a preset that is currently selected (verifies selectedId resets)
-  it('deleting a currently selected preset resets selectedId and clears snapshot', async () => {
+  // Testing scenario: Deleting a preset that is currently selected (verifies auto-selection occurs)
+  it('deleting a currently selected preset auto-selects the first available preset', async () => {
     mockGetPresets.mockResolvedValue(samplePresets)
     mockDeletePreset.mockResolvedValue(undefined)
     const wrapper = mount(PresetSelector, {
@@ -496,12 +537,13 @@ describe('PresetSelector', () => {
     await nextTick()
     await confirmDeleteDialog(wrapper)
 
-    // Selector should be reset (selectedId null)
-    expect(wrapper.findComponent(NSelect).props('value')).toBeNull()
+    // Selector should auto-select p2 (first available since no MRU for p2)
+    expect(wrapper.findComponent(NSelect).props('value')).toBe('p2')
 
-    // Snapshot should be cleared (save button disabled)
-    const saveBtn = findButton(wrapper, 'Save preset')!
-    expect(saveBtn.props('disabled')).toBe(true)
+    // load event should have been emitted for p2
+    const loadEmitted = wrapper.emitted('load')
+    expect(loadEmitted).toBeDefined()
+    expect((loadEmitted![loadEmitted!.length - 1][0] as Preset).id).toBe('p2')
   })
 
   it('has accessible labels on buttons', async () => {

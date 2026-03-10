@@ -35,6 +35,13 @@ const error = ref<string | null>(null)
 const attemptedAutoLoad = ref(false)
 
 /**
+ * In-memory list of recently selected preset IDs, most-recently-used first.
+ * Used to auto-select the MRU preset after a deletion.
+ * Does not persist across page refreshes.
+ */
+const recentPresetIds = ref<string[]>([])
+
+/**
  * Snapshot of assignments at the time a preset was loaded or saved.
  * Used for dirty tracking: if the current assignments differ from this snapshot,
  * the user has modified the preset configuration and Save should be enabled.
@@ -128,6 +135,7 @@ function attemptAutoLoad() {
   if (preset) {
     // Preset exists, load it
     selectedId.value = preset.id
+    trackRecentPreset(preset.id)
     const warnings = computeWarnings(preset)
     pendingSnapshot.value = true
     emit('load', preset, warnings)
@@ -153,12 +161,20 @@ async function fetchPresets() {
   }
 }
 
+/**
+ * Push a preset ID to the front of the MRU list, removing any prior occurrence.
+ */
+function trackRecentPreset(id: string) {
+  recentPresetIds.value = [id, ...recentPresetIds.value.filter((r) => r !== id)]
+}
+
 function onSelect(value: string | null) {
   if (!value) {
     selectedId.value = null
     return
   }
   selectedId.value = value
+  trackRecentPreset(value)
   const preset = presets.value.find((p) => p.id === value)
   if (preset) {
     const warnings = computeWarnings(preset)
@@ -284,11 +300,27 @@ async function onConfirmDelete() {
   error.value = null
   try {
     await apiClient.deletePreset(id)
-    presets.value = presets.value.filter((p) => p.id !== id)
+    const remaining = presets.value.filter((p) => p.id !== id)
+    presets.value = remaining
+
     if (selectedId.value === id) {
-      selectedId.value = null
-      assignmentSnapshot.value = null
-      filterModeSnapshot.value = null
+      // Find the most-recently-used preset that still exists in the remaining list
+      const mruId = recentPresetIds.value.find((r) => r !== id && remaining.some((p) => p.id === r))
+      const nextPreset = mruId
+        ? remaining.find((p) => p.id === mruId)!
+        : remaining[0] ?? null
+
+      if (nextPreset) {
+        selectedId.value = nextPreset.id
+        trackRecentPreset(nextPreset.id)
+        const warnings = computeWarnings(nextPreset)
+        pendingSnapshot.value = true
+        emit('load', nextPreset, warnings)
+      } else {
+        selectedId.value = null
+        assignmentSnapshot.value = null
+        filterModeSnapshot.value = null
+      }
     }
     emit('delete', id)
   } catch (err: unknown) {

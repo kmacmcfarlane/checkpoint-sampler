@@ -241,6 +241,77 @@ test.describe('sidebar PresetSelector New/Save/Delete workflow', () => {
     await expect(deleteButton).toBeVisible()
   })
 
+  // S-096 AC3: After deleting a preset, auto-selects the most recently used preset
+  test('deleting a preset auto-selects the most recently used preset (S-096)', async ({ page }) => {
+    const presetA = `E2E Preset A ${Date.now()}`
+    const presetB = `E2E Preset B ${Date.now()}`
+
+    const newButton = page.locator('[aria-label="New preset"]')
+    const saveButton = page.locator('[aria-label="Save preset"]')
+    const deleteButton = page.locator('[aria-label="Delete preset"]')
+    const presetSelect = page.locator('.preset-select')
+
+    // Track which name the prompt dialog should accept
+    let nextPresetName = presetA
+    page.on('dialog', async (dialog) => {
+      if (dialog.type() === 'prompt') {
+        await dialog.accept(nextPresetName)
+      }
+    })
+
+    // Create Preset A: assign checkpoint to X Axis
+    await newButton.click()
+    await assignDimensionRole(page, 'checkpoint', 'X Axis')
+    await expect(saveButton).toBeEnabled()
+    await saveButton.click()
+    await expect(saveButton).toBeDisabled()
+
+    // Create Preset B: click New, assign prompt_name to Y Axis
+    nextPresetName = presetB
+    await newButton.click()
+    await assignDimensionRole(page, 'prompt_name', 'Y Axis')
+    await expect(saveButton).toBeEnabled()
+    await saveButton.click()
+    await expect(saveButton).toBeDisabled()
+
+    // Now we have two presets. Preset B is currently selected (just saved).
+    // Visit Preset A to build MRU history: A is now the most recently used.
+    await presetSelect.click()
+    const popupMenu = page.locator('.n-base-select-menu:visible')
+    await expect(popupMenu).toBeVisible()
+    await popupMenu.getByText(presetA, { exact: true }).click()
+    await expect(popupMenu).not.toBeVisible()
+
+    // Now visit Preset B again so B is current and A is MRU.
+    await presetSelect.click()
+    const popupMenu2 = page.locator('.n-base-select-menu:visible')
+    await expect(popupMenu2).toBeVisible()
+    await popupMenu2.getByText(presetB, { exact: true }).click()
+    await expect(popupMenu2).not.toBeVisible()
+
+    // Preset B is selected. MRU order: [B, A]. Delete B.
+    await expect(deleteButton).toBeVisible()
+    await deleteButton.click()
+
+    const confirmDialog = page.locator('[data-testid="preset-delete-dialog"]')
+    await expect(confirmDialog).toBeVisible()
+    await confirmDialog.locator('[data-testid="confirm-delete-button"]').click()
+    await expect(confirmDialog).not.toBeVisible()
+
+    // AC3 (S-096): After deleting B, Preset A should be auto-selected (MRU fallback)
+    await expect(deleteButton).toBeVisible() // A is now selected, so delete button is visible
+
+    // Verify the preset dropdown shows Preset A is selected (its text appears in the select)
+    await expect(presetSelect).toContainText(presetA)
+
+    // Verify Preset B is gone from the dropdown
+    await presetSelect.click()
+    const popupMenu3 = page.locator('.n-base-select-menu:visible')
+    await expect(popupMenu3).toBeVisible()
+    await expect(popupMenu3.getByText(presetB, { exact: true })).not.toBeVisible()
+    await page.keyboard.press('Escape')
+  })
+
   // AC: Clicking New clears the current preset selection
   test('clicking New clears the current preset selection', async ({ page }) => {
     const presetName = `E2E Clear Selection ${Date.now()}`
