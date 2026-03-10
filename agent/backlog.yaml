@@ -533,7 +533,7 @@ stories:
   - id: S-111
     title: "Test seed endpoint for sample jobs (E2E testing infra)"
     priority: 50
-    status: todo
+    status: uat
     complexity: medium
     requires: []
     acceptance:

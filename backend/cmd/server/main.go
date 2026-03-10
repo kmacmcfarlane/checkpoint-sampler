@@ -206,6 +206,7 @@ func run() error {
 	fixtureSeeder := store.NewFixtureSeeder(st, cfg.SampleDir, logger)
 
 	// Build the HTTP handler with all transport setup
+	// st satisfies the JobSeeder interface via its SeedSampleJobs method.
 	handler := api.NewHTTPHandler(api.HTTPHandlerConfig{
 		HealthEndpoints:        healthEndpoints,
 		DocsEndpoints:          docsEndpoints,
@@ -226,6 +227,7 @@ func run() error {
 		BackgroundPauser:       bgPauser,
 		SampleDirCleaner:       sampleDirCleaner,
 		FixtureSeeder:          fixtureSeeder,
+		JobSeeder:              st,
 	})
 
 	// Create HTTP server

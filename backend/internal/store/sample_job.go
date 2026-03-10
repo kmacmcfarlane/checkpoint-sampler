@@ -411,6 +411,72 @@ func (s *Store) UpdateSampleJobItem(i model.SampleJobItem) error {
 	return nil
 }
 
+// SeedSampleJobs inserts multiple sample jobs directly into the database.
+// For each unique study_id referenced by a job, a minimal stub study is
+// created if no study with that ID already exists, satisfying the FK constraint.
+// This is intended for test infrastructure only (E2E seed endpoint).
+func (s *Store) SeedSampleJobs(jobs []model.SampleJob) error {
+	s.logger.WithField("job_count", len(jobs)).Trace("entering SeedSampleJobs")
+	defer s.logger.Trace("returning from SeedSampleJobs")
+
+	// Collect unique study IDs so we can create stub studies if needed.
+	seen := make(map[string]bool)
+	for _, j := range jobs {
+		if j.StudyID != "" && !seen[j.StudyID] {
+			seen[j.StudyID] = true
+			if err := s.ensureStubStudy(j.StudyID, j.StudyName); err != nil {
+				return fmt.Errorf("ensuring stub study %s: %w", j.StudyID, err)
+			}
+		}
+	}
+
+	for _, j := range jobs {
+		if err := s.CreateSampleJob(j); err != nil {
+			s.logger.WithFields(logrus.Fields{
+				"sample_job_id": j.ID,
+				"error":         err.Error(),
+			}).Error("failed to seed sample job")
+			return fmt.Errorf("seeding sample job %s: %w", j.ID, err)
+		}
+	}
+	s.logger.WithField("job_count", len(jobs)).Info("seeded sample jobs into database")
+	return nil
+}
+
+// ensureStubStudy inserts a minimal study row with the given ID and name if
+// no study with that ID exists. Used by SeedSampleJobs to satisfy the FK
+// constraint on sample_jobs(study_id) without requiring a real study to exist.
+func (s *Store) ensureStubStudy(studyID, studyName string) error {
+	// Check if the study already exists.
+	var count int
+	if err := s.db.QueryRow("SELECT COUNT(*) FROM studies WHERE id = ?", studyID).Scan(&count); err != nil {
+		return fmt.Errorf("checking study existence: %w", err)
+	}
+	if count > 0 {
+		return nil // Study already exists; nothing to do.
+	}
+
+	name := studyName
+	if name == "" {
+		name = "Stub Study " + studyID
+	}
+	now := time.Now().UTC().Format(time.RFC3339)
+
+	_, err := s.db.Exec(
+		`INSERT INTO studies (id, name, prompt_prefix, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs, seeds, width, height, created_at, updated_at)
+		VALUES (?, ?, '', '[]', '', '[]', '[]', '[]', '[]', 512, 512, ?, ?)`,
+		studyID, name, now, now,
+	)
+	if err != nil {
+		return fmt.Errorf("inserting stub study: %w", err)
+	}
+	s.logger.WithFields(logrus.Fields{
+		"study_id":   studyID,
+		"study_name": name,
+	}).Debug("stub study created for job seeding")
+	return nil
+}
+
 func sampleJobEntityToModel(e sampleJobEntity) (model.SampleJob, error) {
 	createdAt, err := time.Parse(time.RFC3339, e.CreatedAt)
 	if err != nil {
