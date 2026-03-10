@@ -2942,3 +2942,676 @@ stories:
 
   # ─── User-reported issues and features (2026-03-01) ──────────────────────────
 
+  - id: B-030
+    title: "Top nav elements unavailable on narrow screens until drawer opens"
+    priority: 92
+    status: done
+    requires: []
+    acceptance:
+      - "FE: On narrow screens (<1024px), the app eagerly loads the saved training run from localStorage and triggers a scan
+        on mount, regardless of drawer state"
+      - "FE: Header buttons (Generate Samples, Jobs, Metadata, Live indicator) appear immediately after app load when a saved
+        training run exists"
+      - "FE: The drawer's TrainingRunSelector still reflects the auto-selected training run when opened"
+      - "FE: On wide screens (>=1024px), behavior is unchanged (drawer auto-opens, training run auto-selects)"
+      - "FE: If no saved training run exists in localStorage, the app shows 'Select a training run to get started' as before"
+      - "FE: Unit tests for eager loading on narrow screens"
+    notes: |
+      Root cause: TrainingRunSelector is inside AppDrawer, which is not mounted on narrow screens
+      until the user opens it. The auto-select logic lives in TrainingRunSelector's onMounted hook,
+      so it never fires. Fix: move auto-select and scan logic to App.vue's onMounted, independent
+      of drawer state. TrainingRunSelector can still sync its UI when mounted later.
+      Key files: frontend/src/App.vue (onMounted, onTrainingRunSelect),
+      frontend/src/components/TrainingRunSelector.vue (auto-select logic),
+      frontend/src/composables/usePresetPersistence.ts.
+    testing:
+      - "command: cd frontend && npx vitest run"
+
+  - id: B-046
+    title: ComfyUI execution errors not displayed in job viewer
+    type: bug
+    status: done
+    priority: 75
+    complexity: medium
+    requires: []
+    notes: |
+      Bug: ComfyUI execution_error events (e.g., VAE mismatch) are logged by the
+      backend but not surfaced in the frontend job viewer. The viewer indicates
+      errors occurred but does not display the error message or traceback.
+      Fix: forward exception_message, exception_type, node_type, and traceback from
+      execution_error events through the backend WebSocket to the frontend. Display
+      in JobProgressPanel with expandable detail.
+      Key files: backend/internal/service/comfyui_executor.go (error event parsing),
+      backend/internal/service/websocket.go (new/extended message type),
+      frontend/src/components/JobProgressPanel.vue (error display).
+    acceptance:
+      - "BE: ComfyUI execution_error events are parsed and forwarded through the backend WebSocket with exception_message,
+        exception_type, and node_type"
+      - "BE: Full traceback is included in the WebSocket message for optional display"
+      - "FE: Job viewer shows error summary (exception_type + node_type + exception_message) for failed checkpoints"
+      - "FE: A 'Show full traceback' toggle reveals the complete Python stack trace"
+      - "FE: Error display is per-checkpoint, shown inline in the job progress card"
+      - "BE: Unit tests for execution_error event parsing and forwarding"
+      - "FE: Unit tests for error display and traceback toggle"
+    testing:
+      - "Test with various ComfyUI error types: VAE mismatch (size errors), missing model files, CUDA OOM"
+      - "Verify traceback toggle works and errors for individual checkpoints are correctly associated"
+      - "Edge case: multiple errors in one job, errors on different checkpoints"
+  - id: B-047
+    title: Update button missing after changing selector type on preset load
+    type: bug
+    status: done
+    priority: 50
+    complexity: low
+    requires:
+      - S-089
+    notes: |
+      Bug: When the app first loads and the last dimension mapping preset is auto-selected,
+      changing the unified selector value for a dimension does not trigger the dirty flag,
+      so the Update button never appears.
+      This story assumes S-089 (unified dimension selector) is already implemented.
+      Key files: frontend/src/components/PresetSelector.vue,
+      frontend/src/components/DimensionPanel.vue.
+    acceptance:
+      - "FE: After app loads with an auto-selected preset, changing any dimension's unified selector value marks the preset
+        as dirty and shows the Update button"
+      - "FE: Dirty tracking correctly compares the loaded preset state against current state for all selector values"
+      - "FE: Update button appears immediately on first change, not requiring a second interaction"
+      - "FE: Unit tests for dirty tracking on initial preset load"
+    testing:
+      - "Reproduce by: cold load app, preset auto-loads, change a dimension selector, verify Update button appears"
+      - "Test with various dimension types (None, X, Y, Single, Multi, Hide)"
+  - id: B-048
+    title: Audit and fix all E2E test failures + add E2E gate to UAT transition
+    type: bug
+    status: done
+    priority: 92
+    complexity: high
+    requires: []
+    notes: |
+      E2E tests are broken when running make up-test then make test-e2e. This story
+      investigates all failures, spins off individual fix stories if needed, and adds a
+      process gate requiring passing E2E tests before any story can move to UAT.
+      Subsumes B-045 (empty POST body on validate endpoint).
+      Key files: frontend/e2e/*.spec.ts, agent/AGENT_FLOW.md, agent/TEST_PRACTICES.md.
+    acceptance:
+      - "E2E: All existing E2E tests pass when run via make test-e2e"
+      - "E2E: Any tests that cannot be fixed are documented with skip reasons and individual fix stories filed"
+      - "DOC: AGENT_FLOW.md updated to require passing E2E tests before the testing to uat transition"
+      - "DOC: TEST_PRACTICES.md updated to document the E2E gate requirement"
+      - "E2E: B-045 fix included (validate endpoint receives proper JSON body)"
+    testing:
+      - "Run make test-e2e end-to-end and verify all tests pass or are explicitly skipped with documented reasons"
+      - "Verify the process gate is documented clearly enough that agents will follow it"
+  - id: B-049
+    title: "Sample path scoping: Has Samples and validation must strictly scope to study dir"
+    type: bug
+    status: done
+    priority: 90
+    complexity: medium
+    requires: []
+    notes: |
+      Bug: "Has Samples" indicator and "Generate Missing Samples" button appear for a
+      training run + study combination even when no samples exist in the expected study
+      directory. Sample discovery must strictly look inside sample_dir/<study_name>/ for
+      the selected training run.
+      Reproduced with training run: qwen/psai4rt-v0.3.0-qwen-2512-1024-adafactor-constant-2e-6-steps-9000-timestep-qinglong_qwen-cap_drop-0
+      and study: cfg-1-and-3-1344 (v2).
+      Key files: backend/internal/service/validation.go, backend/internal/store/filesystem.go,
+      frontend/src/components/JobLaunchDialog.vue.
+    acceptance:
+      - "BE: Sample discovery for validation strictly scopes to sample_dir/<study_name>/<training_run>/"
+      - "BE: Has Samples indicator only returns true when samples exist in the correct study directory"
+      - "FE: Generate Missing Samples button only appears when some but not all expected samples exist in the study dir, not
+        when zero samples exist"
+      - "BE: Unit tests for strict path scoping in sample discovery"
+      - "E2E: Test verifying correct behavior with study+training run that has no samples"
+    testing:
+      - "Test with training run that has samples in a different study dir but not the selected one"
+      - "Test with study name containing special characters (parentheses, spaces)"
+      - "Verify Generate Missing Samples vs Generate Samples distinction based on sample count"
+  - id: B-050
+    title: Study name filename validation (no problematic directory characters)
+    type: bug
+    status: done
+    priority: 70
+    complexity: low
+    requires: []
+    notes: |
+      Study names are used as directory names for sample output. Names with characters
+      problematic for filesystems (parentheses, slashes, colons, etc.) cause path issues.
+      Add validation to reject problematic characters and enforce filename-safe study names.
+      Duplicate study name check was already implemented in B-043.
+      Key files: backend/internal/service/study.go (or equivalent validation),
+      frontend/src/components/StudyEditor.vue.
+    acceptance:
+      - "BE: Study name validation rejects characters problematic for directory names (parentheses, slashes, colons, question
+        marks, asterisks, angle brackets, pipes, quotes)"
+      - "BE: Validation error message lists the specific disallowed characters"
+      - "FE: Validation error displayed inline in the study editor"
+      - "BE: Unit tests for filename validation rules"
+    testing:
+      - "Test with various problematic characters: () / \\ : * ? < > |"
+      - "Test that valid names (alphanumeric, hyphens, underscores, dots) are accepted"
+      - "Verify existing studies with problematic names are handled gracefully"
+  - id: B-051
+    title: Job bead color precedence (green/blue/yellow/red)
+    type: bug
+    status: done
+    priority: 25
+    complexity: low
+    requires: []
+    notes: |
+      The Jobs nav UI bead should follow a color precedence based on job states:
+      Green = all completed successfully, Blue = job(s) in-progress or completed,
+      Yellow = job(s) exist with partial failures, Red = job(s) with complete failures.
+      Key files: frontend/src/App.vue (or nav component with bead logic).
+    acceptance:
+      - "FE: Job bead shows green when all jobs completed successfully"
+      - "FE: Job bead shows blue when job(s) are in-progress (or mix of in-progress and completed)"
+      - "FE: Job bead shows yellow when job(s) have partial failures"
+      - "FE: Job bead shows red when job(s) have complete failures"
+      - "FE: Color precedence: red > yellow > blue > green"
+      - "FE: Unit tests for bead color logic with various job state combinations"
+    testing:
+      - "Test all four states individually and in combination"
+      - "Test precedence: a mix of completed and failed jobs should show yellow or red, not green"
+  - id: B-052
+    title: "Sample Jobs Dialog cosmetic fixes: progress flip-flop, verified label, checkpoint tooltip"
+    type: bug
+    status: done
+    priority: 20
+    complexity: low
+    requires: []
+    notes: |
+      Three cosmetic issues in the Sample Jobs Dialog:
+      1. Progress indicator flip-flops between 0/8 and 5/8 during generation (possible race
+         condition when inference WebSocket events switch between samples).
+      2. "verified" label is too small for its container and wraps to next line.
+      3. Long checkpoint names truncated by ellipsis have no tooltip showing the full name.
+      Key files: frontend/src/components/JobProgressPanel.vue.
+    acceptance:
+      - "FE: Progress indicator shows consistent, monotonically increasing values during generation (no flip-flop)"
+      - "FE: 'verified' label fits its container without wrapping"
+      - "FE: Truncated checkpoint names show a tooltip with the full name on hover"
+      - "FE: Unit tests for progress update logic (verify no regression from race condition fix)"
+    testing:
+      - "Test progress updates with rapid WebSocket events to verify no flip-flop"
+      - "Test verified label rendering at various container widths"
+      - "Test tooltip appears for truncated names, does not appear for short names"
+  - id: B-053
+    title: "E2E selectTrainingRun helper times out across multiple spec files"
+    priority: 80
+    status: done
+    complexity: medium
+    requires: []
+    acceptance:
+      - "All tests using selectTrainingRun in helpers.ts complete without timeout"
+      - "The training run dropdown popup renders within the configured timeout on all spec files"
+      - "Test fixture 'my-model' training run is consistently discoverable from the dropdown"
+    testing:
+      - "command: make test-e2e SPEC=training-run-grid.spec.ts"
+      - "command: make test-e2e SPEC=sidebar-preset-selector.spec.ts"
+    notes: |
+      Root cause hypothesis: The selectTrainingRun helper in helpers.ts clicks the training
+      run select trigger and waits for the dropdown popup menu, but the popup either fails to
+      render or the 'my-model' option is not present. This may be a timing issue with the
+      NSelect dropdown animation under test conditions, or the test-fixtures training run data
+      is not being populated correctly for these specs. Affects training-run-grid, sidebar-preset-selector,
+      single-value-dimensions, slider-playback, study-availability, sample-generation, viewer-discovery specs.
+  - id: B-054
+    title: "viewer-discovery E2E tests fail — 'my-model' training run not found in API response"
+    priority: 75
+    status: done
+    complexity: low
+    requires: []
+    acceptance:
+      - "GET /api/training-runs returns at least one run named 'my-model' with has_samples=true in the E2E test environment"
+      - "GET /api/training-runs?source=samples returns 'my-model' in the E2E test environment"
+      - "viewer-discovery spec passes all tests"
+    testing:
+      - "command: make test-e2e SPEC=viewer-discovery.spec.ts"
+    notes: |
+      Root cause hypothesis: The viewer-discovery tests assert that /api/training-runs returns a
+      run named 'my-model' with has_samples=true. The test fixture may not be providing this run
+      or the API response does not include it. Likely related to the same fixture issue affecting
+      selectTrainingRun timeouts (B-053).
+  - id: B-055
+    title: "Full E2E suite has systematic test isolation flakiness affecting ~29 tests"
+    priority: 50
+    complexity: high
+    status: done
+    requires: []
+    acceptance:
+      - "All E2E tests pass consistently in the full suite run (make test-e2e) without test-ordering dependency"
+      - "Each spec file uses resetDatabase in beforeEach to clear state"
+      - "Tests that modify application state use cleanup afterEach hooks to prevent cross-test interference"
+    testing:
+      - "command: make test-e2e"
+    notes: |
+      29 E2E tests fail when run in the full suite but pass individually.
+      Root cause: tests sharing database state via /api/test/reset interfere when
+      run sequentially in a single worker. Tests that create sample jobs, generate
+      images, or trigger validation leave residual state affecting subsequent tests.
+      Affected specs: sidebar-preset-selector, single-value-dimensions, slider-playback,
+      study-availability, training-run-grid, viewer-discovery, sample-generation.
+  - id: B-056
+    title: "sample-generation.spec.ts tests 2-4 fail because training run select menu does not open after first test"
+    priority: 60
+    status: done
+    complexity: medium
+    requires: []
+    acceptance:
+      - "All 4 tests in sample-generation.spec.ts pass in sequence in the full E2E suite"
+      - "The training-run-select menu opens reliably in the beforeEach hook after a prior test has created a sample job"
+    testing:
+      - "command: make test-e2e SPEC=sample-generation.spec.ts"
+    notes: |
+      The beforeEach hook calls selectTrainingRun which clicks the training-run-select trigger.
+      After the first test (full sample generation flow) runs, the ComfyUI mock or application state
+      leaves the select menu in an unresponsive state. The trigger may be closed/disabled after job
+      creation in the first test, preventing the popup from appearing in subsequent tests.
+      Error: locator.click: Test timeout of 60000ms exceeded — waiting for .n-base-select-menu:visible
+  - id: B-057
+    title: "Full E2E suite resource contention causes 15s timeout on 25 UI tests"
+    priority: 55
+    status: done
+    complexity: medium
+    requires: []
+    acceptance:
+      - "All 131+ E2E tests pass in a single full make test-e2e run"
+      - "No tests timeout when the suite runs in sequence"
+    testing:
+      - "command: make test-e2e"
+    notes: |
+      With 131 tests running in a single Playwright worker sequentially, tests later in
+      alphabetical order (sidebar-*, single-*, slider-*, training-*, viewer-*) hit browser
+      resource pressure or accumulated state that prevents the training-run-select from
+      responding within 15s. All failing tests pass when run in isolation.
+      Related idea: agent/ideas/devops.md "E2E full-suite test isolation".
+  - id: B-058
+    title: "45 pre-existing E2E test failures across 10 spec files"
+    type: bug
+    status: done
+    priority: 60
+    complexity: medium
+    requires: []
+    acceptance:
+      - "All E2E test suites pass with zero failures in the test environment"
+      - "sidebar-preset-selector, single-value-dimensions, slider-playback, training-run-grid, viewer-discovery, study-availability,
+        study-name-validation, sample-count-preview, sample-generation, sample-path-scoping specs all pass"
+    testing:
+      - "command: make test-e2e"
+    notes: |
+      Discovered during S-093 QA cycle. 45 E2E tests across 10 spec files fail in the test environment.
+      These are unrelated to S-093 (one-line computed property fix). Root cause hypothesis: DOM structure
+      shifts from recent stories (S-091 moved UI to Settings, S-094 added delete dialog) may have broken
+      E2E selectors. Could also be test environment flakiness or resource contention.
+      Affected specs: sidebar-preset-selector, single-value-dimensions, slider-playback, training-run-grid,
+      viewer-discovery, study-availability, study-name-validation, sample-count-preview, sample-generation,
+      sample-path-scoping.
+  - id: B-061
+    title: "Job marked as completed despite 94 missing samples (590/684)"
+    priority: 75
+    complexity: medium
+    status: done
+    requires: []
+    acceptance:
+      - "A job with incomplete items (missing samples) is not marked as 'completed' — should show 'completed_with_errors'
+        or similar"
+      - "Job progress display accurately reflects the actual completion state"
+    testing:
+      - "command: make test-backend"
+      - "command: make test-e2e"
+    notes: |
+      Observed: Job for training run qwen/psai4rt-v0.3.0-...-cap_drop-0 shows 'completed' status
+      but only 590/684 items completed. Study: psy-cfg-check-1344, Workflow: qwen-image.json.
+      The job should show a non-complete status or 'completed_with_errors' when items are missing.
+  - id: B-062
+    title: "Generate Samples dialog: wrong bead colors, missing regeneration checkboxes"
+    priority: 70
+    complexity: medium
+    status: done
+    requires: []
+    acceptance:
+      - "Training run selector bead shows yellow (not grey) for runs with partial samples"
+      - "Study bead shows yellow (not green) when study has missing samples (e.g. 590/684)"
+      - "'Generate missing samples only' checkbox appears when missing samples are detected"
+      - "'Clear existing samples' checkbox appears for regeneration scenarios"
+    testing:
+      - "command: make test-frontend"
+      - "command: make test-e2e"
+    notes: |
+      Three issues in the Generate Samples dialog:
+      1. Training run bead color: partial samples shows grey instead of yellow
+      2. Study bead: shows green despite 590/684 (94 missing) — should be yellow for partial
+      3. Regeneration checkboxes from S-084 ('Generate missing samples only' and 'Clear existing samples')
+         are not appearing. These previously worked and have regressed.
+  - id: B-063
+    title: "Hot reload resets all dimension mappings to Single"
+    priority: 65
+    complexity: medium
+    status: done
+    requires: []
+    acceptance:
+      - "Vite HMR hot reload preserves current dimension role assignments and filter modes"
+      - "Dimension mappings do not reset to 'single' on hot reload"
+    testing:
+      - "command: make test-frontend"
+    notes: |
+      When Vite hot module replacement triggers (e.g. saving a frontend file during make up-dev),
+      all dimension mappings reset to 'single'. User must switch the preset selector away and back
+      to restore their configuration. Likely the composable state (useDimensionMapping) is
+      being re-initialized on HMR without preserving the current assignments.
+  - id: B-066
+    title: "Job executor logs spurious error when database is reset mid-poll"
+    priority: 40
+    status: done
+    complexity: low
+    requires: []
+    acceptance:
+      - "The job executor does not log at ERROR level when the row it is trying to update has been deleted (e.g., gracefully
+        handles sql: no rows in result set as a warning or info)"
+      - "The log level is downgraded to WARN or the error is silenced when it occurs during a database reset or row-not-found
+        scenario"
+    testing:
+      - "command: make test-e2e"
+      - "Grep backend logs for level=error.*auto-start — should be absent after fix"
+    notes: |
+      The job executor poll loop picks up a pending job ID and then attempts to update it to running state.
+      Between those two operations, the E2E test reset endpoint drops all tables and reruns migrations,
+      leaving no row for that job ID. The UpdateSampleJob call returns sql: no rows in result set,
+      which is logged at ERROR level even though it is a benign race between test teardown and the executor loop.
+  - id: S-084
+    title: "Sample count preview and missing-sample generation from Generate Samples dialog"
+    priority: 55
+    complexity: medium
+    requires:
+      - S-075
+    acceptance:
+      - "FE: Generate Samples dialog runs validation and displays the expected sample count before generation starts"
+      - "FE: Main controls side-panel shows a way to generate missing samples when validation fails"
+      - "BE: API support for returning expected vs actual sample counts from validation"
+      - "BE: API support for generating only missing samples from a failed validation"
+      - "BE: Unit tests for missing-sample generation logic"
+      - "FE: Unit tests for sample count preview display"
+    notes: |
+      Extends the validation concept (S-075 completeness check, S-083 on-demand validation) into the
+      Generate Samples dialog. The dialog should show the expected sample count from the validation,
+      and there should be a way to generate only missing samples if validation fails.
+      Source: UAT new feature request.
+    testing:
+      - "command: make test-backend"
+      - "command: make test-frontend"
+    status: done
+  - id: S-085
+    title: "Study versioning and version-scoped output directories"
+    priority: 50
+    status: done
+    complexity: medium
+    requires:
+      - S-074
+    acceptance:
+      - "BE: Studies have a version number field (integer, starting at 1)"
+      - "BE: Updating a study's configuration increments the version number"
+      - "BE: Study output directory includes the version number in the dir name"
+      - "BE: Future sample generations use the new version directory"
+      - "BE: Existing sample outputs in prior version directories remain untouched"
+      - "BE: Unit tests for version increment logic and directory naming"
+      - "DB: Migration adds version column to studies table"
+    notes: |
+      Studies are versioned so that re-generating with different params produces output in a separate
+      directory. Version is an integer starting at 1, incremented on config updates. The version
+      number is included in the study directory name.
+      Source: UAT new feature request (Study Sample Job Manifest breakdown 1/3).
+    testing:
+      - "command: make test-backend"
+  - id: S-086
+    title: "Study version selector UX and sample availability beads"
+    priority: 45
+    status: done
+    complexity: medium
+    requires:
+      - S-085
+    acceptance:
+      - "FE: Selecting a study is required before displaying checkpoints to regenerate in Generate Samples dialog"
+      - "FE: Green bead indicator shown for studies that have samples for the selected training run"
+      - "FE: Different versions of a study are selectable from the study selector dropdown"
+      - "FE: Unit tests for version selector and bead display"
+      - "BE: API returns version list and per-version sample availability for studies"
+      - "BE: Unit tests for version list and availability endpoints"
+    notes: |
+      UX for study versioning. The study selector shows available versions and indicates which
+      have samples for the selected training run (green bead). Study selection is required before
+      the checkpoint list is displayed.
+      Source: UAT new feature request (Study Sample Job Manifest breakdown 2/3).
+    testing:
+      - "command: make test-backend"
+      - "command: make test-frontend"
+  - id: S-088
+    title: Study dropdown status beads in Generate Samples dialog
+    type: feature
+    status: done
+    priority: 45
+    complexity: low
+    requires: []
+    notes: |
+      Spin-off from S-084 UAT feedback. Show status beads in the study dropdown
+      to indicate which studies have partial (yellow) or complete (green) sample
+      sets for the selected training run.
+      Key files: frontend/src/components/JobLaunchDialog.vue,
+      backend/internal/service/validation.go (or similar for per-study counts).
+    acceptance:
+      - "FE: Study dropdown in Generate Samples dialog shows a green bead for studies with complete sample sets for the selected
+        training run"
+      - "FE: Study dropdown shows a yellow bead for studies with partial (some but not all) sample sets"
+      - "FE: Studies with no samples show no bead"
+      - "BE: API returns per-study sample completeness status for a given training run"
+      - "FE: Unit tests for bead display logic"
+      - "BE: Unit tests for per-study completeness query"
+    testing:
+      - "Edge cases: study with zero expected samples, study with all samples complete, study with mixed checkpoint completeness"
+      - "Verify beads update when training run selection changes"
+  - id: S-089
+    title: Unified dimension selector (X/Y/Slider, Single, Multi, Hide)
+    type: feature
+    status: done
+    priority: 45
+    complexity: medium
+    requires: []
+    notes: |
+      Replace the current two-control pattern (dimension assignment dropdown + selector
+      type dropdown) with a single unified selector per dimension. Options: X, Y, Slider,
+      Single, Multi, Hide. Simplifies the mapping editor UX.
+      When a dimension is set to "None" (no X/Y/Slider assignment), the default selector
+      type should be "Single" — except for dimensions with only one value, which should
+      default to "Hide" and be disabled.
+      Key files: frontend/src/components/DimensionPanel.vue,
+      frontend/src/components/PresetSelector.vue.
+    acceptance:
+      - "FE: Each dimension row in the mapping editor has a single dropdown with options: X, Y, Slider, Single, Multi, Hide"
+      - "FE: Selecting X, Y, or Slider assigns the dimension to that axis and removes it from other dimensions' options"
+      - "FE: Dimensions not assigned to X/Y/Slider default to Single"
+      - "FE: Dimensions with only one value default to Hide and the selector is disabled"
+      - "FE: Existing preset load/save works with the unified selector model"
+      - "FE: Unit tests for unified selector behavior, defaults, and mutual exclusion"
+    testing:
+      - "Test preset migration: loading old presets with the two-control model should map correctly to the unified selector"
+      - "Test mutual exclusion: assigning X to one dimension removes X from others"
+      - "Test the single-value-dimension auto-hide default"
+  - id: S-090
+    title: Lightbox shift+up/down for Y-axis grid navigation
+    type: feature
+    status: done
+    priority: 25
+    complexity: low
+    requires: []
+    notes: |
+      Add shift+up/down arrow key navigation to the lightbox for moving in the Y
+      direction through images in the grid. Left/right arrow already navigates X axis.
+      Key files: frontend/src/components/ImageLightbox.vue (or equivalent lightbox component).
+    acceptance:
+      - "FE: Shift+Up arrow in lightbox navigates to the image above in the Y axis of the grid"
+      - "FE: Shift+Down arrow navigates to the image below in the Y axis"
+      - "FE: Navigation wraps or stops at grid boundaries (consistent with existing X-axis behavior)"
+      - "FE: Existing left/right arrow X-axis navigation is unchanged"
+      - "FE: Unit tests for Y-axis keyboard navigation"
+    testing:
+      - "Test at grid boundaries: top row shift+up, bottom row shift+down"
+      - "Test with grids of different Y dimensions"
+  - id: S-091
+    title: Move Light/Dark and Debug mode to Settings dialog
+    type: feature
+    status: done
+    priority: 25
+    complexity: low
+    requires: []
+    notes: |
+      Move the Light/Dark theme selector and Debug mode toggle from their current
+      locations into the existing Settings dialog. Reduces top-level UI clutter.
+      Key files: frontend/src/App.vue, frontend/src/components/SettingsDialog.vue
+      (or equivalent existing settings component).
+    acceptance:
+      - "FE: Light/Dark theme selector is in the Settings dialog, removed from its current location"
+      - "FE: Debug mode toggle is in the Settings dialog, removed from its current location"
+      - "FE: Theme and debug mode changes take effect immediately from within the dialog"
+      - "FE: Settings persist across page reloads (existing localStorage behavior)"
+      - "FE: Unit tests for settings dialog controls"
+    testing:
+      - "Verify theme and debug toggles work from the Settings dialog"
+      - "Verify they are removed from their previous locations"
+  - id: S-092
+    title: "Visual polish: remove heading, play/pause icon, refresh icons"
+    type: feature
+    status: done
+    priority: 20
+    complexity: low
+    requires: []
+    notes: |
+      Bundle of small visual tweaks:
+      1. Remove the "Checkpoint Sampler" heading from the UI.
+      2. Replace the Play/Pause text button (slider animation control) with a green
+         triangle icon that changes to a pause icon when active.
+      3. Add refresh icons (buttons) to the sample set and training run selectors
+         for manual list refresh.
+      Key files: frontend/src/App.vue, frontend/src/components/SliderControls.vue
+      (or equivalent), frontend/src/components/TrainingRunSelector.vue.
+    acceptance:
+      - "FE: 'Checkpoint Sampler' heading is removed from the UI"
+      - "FE: Slider animation play button shows a green triangle icon instead of text"
+      - "FE: Play icon changes to a pause icon when animation is active"
+      - "FE: Sample set selector has a refresh icon button to manually reload the list"
+      - "FE: Training run selector has a refresh icon button to manually reload the list"
+      - "FE: Unit tests for play/pause icon state and refresh button functionality"
+    testing:
+      - "Verify play icon toggles correctly between play and pause states"
+      - "Verify refresh buttons trigger actual data reload"
+  - id: S-094
+    title: Standard delete confirmation dialog component
+    type: feature
+    status: done
+    priority: 30
+    complexity: low
+    requires: []
+    notes: |
+      Create a reusable delete confirmation dialog component. Clicking outside or Cancel
+      aborts. Red "Yes, Delete" button confirms. The component should accept a title,
+      description, optional checkbox (e.g., "Also delete sample data"), and callbacks.
+      Key files: frontend/src/components/ConfirmDeleteDialog.vue (new).
+    acceptance:
+      - "FE: Reusable ConfirmDeleteDialog component with configurable title, description, and optional checkbox"
+      - "FE: Clicking outside the dialog or clicking Cancel aborts the delete"
+      - "FE: Red 'Yes, Delete' button triggers the delete callback"
+      - "FE: Optional checkbox prop for additional options (e.g., 'Also delete sample data')"
+      - "FE: Unit tests for dialog interactions (cancel, confirm, checkbox state)"
+    testing:
+      - "Test all dismiss paths: click outside, Cancel button, Escape key"
+      - "Test checkbox state is passed through to confirm callback"
+  - id: S-095
+    title: Delete study with option to keep or delete sample data
+    type: feature
+    status: done
+    priority: 25
+    complexity: low
+    requires:
+      - S-094
+    notes: |
+      Add delete functionality for studies. Uses the standard confirmation dialog (S-094)
+      with a checkbox "Also delete sample data" (default: off). If checked, removes the
+      study's sample output directory in addition to the database record.
+      Key files: frontend/src/components/StudyEditor.vue,
+      backend/internal/service/study.go, backend/internal/store/filesystem.go.
+    acceptance:
+      - "FE: Delete button on study shows the standard confirmation dialog"
+      - "FE: Confirmation dialog includes 'Also delete sample data' checkbox (default off)"
+      - "BE: Deleting a study without the data flag removes only the database record"
+      - "BE: Deleting a study with the data flag also removes the study's sample output directory"
+      - "BE: Unit tests for both deletion paths"
+      - "FE: Unit tests for delete dialog integration"
+    testing:
+      - "Test delete with data flag off: verify files remain on disk"
+      - "Test delete with data flag on: verify files are removed"
+      - "Test delete of study with no sample data (should work gracefully)"
+  - id: S-097
+    title: Delete jobs with option to keep or delete sample data
+    type: feature
+    status: done
+    priority: 25
+    complexity: low
+    requires:
+      - S-094
+    notes: |
+      Add delete functionality for sample jobs. Uses the standard confirmation dialog
+      (S-094) with a checkbox to keep or delete the generated sample data.
+      Key files: frontend/src/components/JobProgressPanel.vue,
+      backend/internal/service/sample_job.go.
+    acceptance:
+      - "FE: Delete button on job cards shows the standard confirmation dialog"
+      - "FE: Confirmation dialog includes option to keep or delete sample data"
+      - "BE: Deleting a job without the data flag removes only the database record"
+      - "BE: Deleting a job with the data flag also removes generated sample files"
+      - "BE: Unit tests for both deletion paths"
+      - "FE: Unit tests for delete dialog integration"
+    testing:
+      - "Test delete with data kept vs data removed"
+      - "Test delete of a job that is currently in-progress (should be prevented or warned)"
+  - id: S-099
+    title: View job parameters on card title click
+    type: feature
+    status: done
+    priority: 20
+    complexity: low
+    requires: []
+    notes: |
+      Clicking a job card's title in the Sample Jobs Dialog should show all the job
+      parameters (training run, workflow, preset, VAE, CLIP, shift, checkpoint list, etc.).
+      Key files: frontend/src/components/JobProgressPanel.vue.
+    acceptance:
+      - "FE: Clicking a job card title opens a detail view showing all job parameters"
+      - "FE: Parameters include: training run, workflow, preset name, VAE, CLIP, shift, and checkpoint list"
+      - "FE: Detail view is dismissible (click outside or close button)"
+      - "FE: Unit tests for parameter display"
+    testing:
+      - "Test with jobs that have different parameter configurations"
+      - "Test that all parameters are displayed accurately"
+  - id: S-100
+    title: Debug mode params overlay in lightbox
+    type: feature
+    status: done
+    priority: 20
+    complexity: low
+    requires: []
+    notes: |
+      When debug mode is enabled, the lightbox should display a params overlay on images
+      similar to what the XY grid already shows. This allows inspecting generation
+      parameters while viewing individual images in the lightbox.
+      Key files: frontend/src/components/ImageLightbox.vue (or equivalent).
+    acceptance:
+      - "FE: When debug mode is enabled, the lightbox displays a params overlay on the current image"
+      - "FE: Overlay shows the same parameter information as the XY grid debug overlay"
+      - "FE: Overlay is positioned to not obscure the main content of the image"
+      - "FE: When debug mode is disabled, no overlay is shown"
+      - "FE: Unit tests for overlay visibility toggle"
+    testing:
+      - "Test overlay appears only when debug mode is on"
+      - "Test overlay content matches the expected parameters for the displayed image"
