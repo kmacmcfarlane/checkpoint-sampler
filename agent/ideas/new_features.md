@@ -25,3 +25,9 @@ Example:
 * priority: medium
 * source: developer
 Implement periodic WebSocket ping frames from the backend (or nginx) to keep idle WebSocket tunnels alive beyond the proxy_read_timeout limit and prevent browser-side idle timeouts. This is a necessary follow-up to make the WebSocket robust for long sessions with no activity.
+
+### Shift field E2E testing with AuraFlow workflow fixture
+* status: needs_approval
+* priority: low
+* source: developer
+The shift input only appears when the selected workflow has a `shift` role. Adding a second test fixture workflow with this role would enable E2E testing of the shift field visibility behavior in the study editor.

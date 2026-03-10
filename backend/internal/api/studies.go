@@ -58,6 +58,11 @@ func (s *StudiesService) Create(ctx context.Context, p *genstudies.CreateStudyPa
 		}
 	}
 
+	var shift *float64
+	if p.Shift != nil {
+		shift = p.Shift
+	}
+
 	study, err := s.svc.Create(
 		p.Name,
 		p.PromptPrefix,
@@ -69,6 +74,10 @@ func (s *StudiesService) Create(ctx context.Context, p *genstudies.CreateStudyPa
 		p.Seeds,
 		p.Width,
 		p.Height,
+		p.WorkflowTemplate,
+		p.Vae,
+		p.TextEncoder,
+		shift,
 	)
 	if err != nil {
 		return nil, genstudies.MakeInvalidPayload(fmt.Errorf("creating study: %w", err))
@@ -94,6 +103,11 @@ func (s *StudiesService) Update(ctx context.Context, p *genstudies.UpdateStudyPa
 		}
 	}
 
+	var updateShift *float64
+	if p.Shift != nil {
+		updateShift = p.Shift
+	}
+
 	study, err := s.svc.Update(
 		p.ID,
 		p.Name,
@@ -106,6 +120,10 @@ func (s *StudiesService) Update(ctx context.Context, p *genstudies.UpdateStudyPa
 		p.Seeds,
 		p.Width,
 		p.Height,
+		p.WorkflowTemplate,
+		p.Vae,
+		p.TextEncoder,
+		updateShift,
 	)
 	if err != nil {
 		if isNotFound(err) {
@@ -134,6 +152,11 @@ func (s *StudiesService) Fork(ctx context.Context, p *genstudies.ForkStudyPayloa
 		}
 	}
 
+	var forkShift *float64
+	if p.Shift != nil {
+		forkShift = p.Shift
+	}
+
 	study, err := s.svc.Fork(
 		p.SourceID,
 		p.Name,
@@ -146,6 +169,10 @@ func (s *StudiesService) Fork(ctx context.Context, p *genstudies.ForkStudyPayloa
 		p.Seeds,
 		p.Width,
 		p.Height,
+		p.WorkflowTemplate,
+		p.Vae,
+		p.TextEncoder,
+		forkShift,
 	)
 	if err != nil {
 		if isNotFound(err) {
@@ -247,6 +274,10 @@ func studyToResponse(s model.Study) *genstudies.StudyResponse {
 		Seeds:                 s.Seeds,
 		Width:                 s.Width,
 		Height:                s.Height,
+		WorkflowTemplate:      s.WorkflowTemplate,
+		Vae:                   s.VAE,
+		TextEncoder:           s.TextEncoder,
+		Shift:                 s.Shift,
 		ImagesPerCheckpoint:   s.ImagesPerCheckpoint(),
 		CreatedAt:             s.CreatedAt.UTC().Format(time.RFC3339),
 		UpdatedAt:             s.UpdatedAt.UTC().Format(time.RFC3339),

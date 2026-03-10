@@ -769,7 +769,7 @@ stories:
   - id: S-112
     title: "Move workflow template, VAE, text encoder, shift into study definition"
     type: enhancement
-    status: todo
+    status: uat
     priority: 65
     complexity: high
     requires:
@@ -999,3 +999,22 @@ stories:
       not include this column. Likely a schema migration was missed or the store code references
       a column that was renamed or removed.
       Log evidence: level=error msg="failed to update sample job item in database" component=store error="SQL logic error: no such column: negative_prompt (1)"
+  - id: B-085
+    title: "Studies created without workflow_template cause 'workflow not found: .json' errors at job execution"
+    priority: 60
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "All E2E test study payloads that create sample jobs include workflow_template: 'test-workflow.json', vae: 'test-vae.safetensors',
+        text_encoder: 'test-clip.safetensors'"
+      - "Backend E2E fixture seeder includes workflow settings in the seeded fixture study"
+      - "Runtime error sweep shows zero 'workflow not found' errors after fix"
+    testing:
+      - "command: make test-e2e"
+    notes: |
+      S-112 moved workflow_template from the job payload to the study definition, but
+      job-delete.spec.ts STUDY_PAYLOAD and the backend E2E fixture seeder (fixture_seeder.go)
+      do not include workflow_template in their study payloads. When these tests create jobs,
+      the executor reads an empty workflow_template from the study, appends .json, and fails
+      to find a file named .json. 18 error-level log entries observed during E2E test runs.

@@ -235,7 +235,7 @@ var JobProgressResponse = Type("JobProgressResponse", func() {
 })
 
 var CreateSampleJobPayload = Type("CreateSampleJobPayload", func() {
-	Description("Payload for creating a new sample job")
+	Description("Payload for creating a new sample job. Workflow template, VAE, text encoder, and shift are read from the study definition.")
 	Attribute("training_run_name", String, "Training run identifier", func() {
 		Example("qwen/psai4rt-v0.3.0-no-reg")
 		MinLength(1)
@@ -243,19 +243,6 @@ var CreateSampleJobPayload = Type("CreateSampleJobPayload", func() {
 	Attribute("study_id", String, "Study ID (UUID)", func() {
 		Example("550e8400-e29b-41d4-a716-446655440000")
 	})
-	Attribute("workflow_name", String, "Workflow template filename", func() {
-		Example("qwen-image.json")
-		MinLength(1)
-	})
-	Attribute("vae", String, "Selected VAE (ComfyUI path)", func() {
-		Example("ae.safetensors")
-		Default("")
-	})
-	Attribute("clip", String, "Selected CLIP (ComfyUI path)", func() {
-		Example("clip_l.safetensors")
-		Default("")
-	})
-	Attribute("shift", Float64, "AuraFlow shift value (nullable, for workflows with shift role)")
 	Attribute("checkpoint_filenames", ArrayOf(String), "Optional list of checkpoint filenames to include; when omitted all checkpoints are included", func() {
 		Example([]string{"psai4rt-v0.3.0-no-reg-step00004500.safetensors"})
 	})
@@ -265,5 +252,5 @@ var CreateSampleJobPayload = Type("CreateSampleJobPayload", func() {
 	Attribute("missing_only", Boolean, "When true, only generate samples that are missing on disk (skips items whose output file already exists)", func() {
 		Default(false)
 	})
-	Required("training_run_name", "study_id", "workflow_name")
+	Required("training_run_name", "study_id")
 })

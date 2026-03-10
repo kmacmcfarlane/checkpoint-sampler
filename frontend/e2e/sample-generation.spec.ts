@@ -184,6 +184,15 @@ test.describe('sample generation flow (with ComfyUI mock)', () => {
     await fillStudyName(page, studyName)
     await fillFirstPromptRow(page, 'landscape', 'a beautiful landscape')
     await addSamplerSchedulerPair(page, 'euler', 'normal')
+    // Wait for sampler/scheduler pair popup animations to fully complete before opening new popups
+    await page.waitForTimeout(500)
+
+    // Step 4: Select workflow template, VAE, and CLIP in the study editor.
+    // S-112: Workflow, VAE, and CLIP are now part of the study definition.
+    // AC2: ComfyUI mock serves the workflow list via the backend's workflow loader
+    await selectNaiveOption(page, 'study-workflow-template-select', 'test-workflow.json')
+    await selectNaiveOption(page, 'study-vae-select', 'test-vae.safetensors')
+    await selectNaiveOption(page, 'study-clip-select', 'test-clip.safetensors')
 
     // Save the study
     const saveButton = page.locator('[data-testid="save-study-button"]')
@@ -197,24 +206,6 @@ test.describe('sample generation flow (with ComfyUI mock)', () => {
     // The newly saved study should be auto-selected in the dialog
     const studySelect = page.locator('[data-testid="study-select"]')
     await expect(studySelect).toContainText(studyName)
-
-    // Step 4: Select the test workflow (test-workflow.json from test-fixtures/workflows/)
-    // AC2: ComfyUI mock serves the workflow list via the backend's workflow loader
-    const workflowSelect = page.locator('[data-testid="workflow-select"]')
-    await expect(workflowSelect).toBeVisible()
-    await selectNaiveOption(page, 'workflow-select', 'test-workflow.json')
-
-    // Step 5: Select VAE model (served by ComfyUI mock's /object_info/VAELoader)
-    // AC2: Mock returns 'test-vae.safetensors' in the VAELoader object_info response
-    const vaeSelect = page.locator('[data-testid="vae-select"]')
-    await expect(vaeSelect).toBeVisible()
-    await selectNaiveOption(page, 'vae-select', 'test-vae.safetensors')
-
-    // Step 6: Select CLIP model (served by ComfyUI mock's /object_info/CLIPLoader)
-    // AC2: Mock returns 'test-clip.safetensors' in the CLIPLoader object_info response
-    const clipSelect = page.locator('[data-testid="clip-select"]')
-    await expect(clipSelect).toBeVisible()
-    await selectNaiveOption(page, 'clip-select', 'test-clip.safetensors')
 
     // Step 7: Uncheck "Clear existing samples" if auto-checked.
     // This checkbox is only rendered AFTER validation completes (v-if="selectedRunHasSamples && validationResult"),
@@ -287,15 +278,16 @@ test.describe('sample generation flow (with ComfyUI mock)', () => {
     await fillStudyName(page, studyName)
     await fillFirstPromptRow(page, 'test', 'a test image')
     await addSamplerSchedulerPair(page, 'euler', 'normal')
+    // Wait for sampler/scheduler pair popup animations to fully complete before opening new popups
+    await page.waitForTimeout(500)
+    // S-112: Select workflow template, VAE, and CLIP in the study editor
+    await selectNaiveOption(page, 'study-workflow-template-select', 'test-workflow.json')
+    await selectNaiveOption(page, 'study-vae-select', 'test-vae.safetensors')
+    await selectNaiveOption(page, 'study-clip-select', 'test-clip.safetensors')
     const saveButton = page.locator('[data-testid="save-study-button"]')
     await expect(saveButton).not.toBeDisabled()
     await saveButton.click()
     await expect(getManageStudiesDialog(page)).not.toBeVisible()
-
-    // Select workflow and models
-    await selectNaiveOption(page, 'workflow-select', 'test-workflow.json')
-    await selectNaiveOption(page, 'vae-select', 'test-vae.safetensors')
-    await selectNaiveOption(page, 'clip-select', 'test-clip.safetensors')
 
     // Uncheck "Clear existing samples" — the checkbox only appears after validation
     // completes (requires both training run + study selected). Must wait for it here.
@@ -381,14 +373,16 @@ test.describe('sample generation flow (with ComfyUI mock)', () => {
     await fillStudyName(page, studyName)
     await fillFirstPromptRow(page, 'progress-test', 'a test for progress')
     await addSamplerSchedulerPair(page, 'euler', 'normal')
+    // Wait for sampler/scheduler pair popup animations to fully complete before opening new popups
+    await page.waitForTimeout(500)
+    // S-112: Select workflow template, VAE, and CLIP in the study editor
+    await selectNaiveOption(page, 'study-workflow-template-select', 'test-workflow.json')
+    await selectNaiveOption(page, 'study-vae-select', 'test-vae.safetensors')
+    await selectNaiveOption(page, 'study-clip-select', 'test-clip.safetensors')
     const saveButton = page.locator('[data-testid="save-study-button"]')
     await expect(saveButton).not.toBeDisabled()
     await saveButton.click()
     await expect(getManageStudiesDialog(page)).not.toBeVisible()
-
-    await selectNaiveOption(page, 'workflow-select', 'test-workflow.json')
-    await selectNaiveOption(page, 'vae-select', 'test-vae.safetensors')
-    await selectNaiveOption(page, 'clip-select', 'test-clip.safetensors')
 
     // Uncheck "Clear existing samples" — the checkbox only appears after validation
     // completes (requires both training run + study selected). Must wait for it here.
@@ -471,14 +465,16 @@ test.describe('sample generation flow (with ComfyUI mock)', () => {
     await fillStudyName(page, studyName)
     await fillFirstPromptRow(page, 'portrait', 'a dramatic portrait')
     await addSamplerSchedulerPair(page, 'euler', 'normal')
+    // Wait for sampler/scheduler pair popup animations to fully complete before opening new popups
+    await page.waitForTimeout(500)
+    // S-112: Select workflow template, VAE, and CLIP in the study editor
+    await selectNaiveOption(page, 'study-workflow-template-select', 'test-workflow.json')
+    await selectNaiveOption(page, 'study-vae-select', 'test-vae.safetensors')
+    await selectNaiveOption(page, 'study-clip-select', 'test-clip.safetensors')
     const saveButton = page.locator('[data-testid="save-study-button"]')
     await expect(saveButton).not.toBeDisabled()
     await saveButton.click()
     await expect(getManageStudiesDialog(page)).not.toBeVisible()
-
-    await selectNaiveOption(page, 'workflow-select', 'test-workflow.json')
-    await selectNaiveOption(page, 'vae-select', 'test-vae.safetensors')
-    await selectNaiveOption(page, 'clip-select', 'test-clip.safetensors')
 
     // Uncheck "Clear existing samples" — the checkbox only appears after validation
     // completes (requires both training run + study selected). Must wait for it here.

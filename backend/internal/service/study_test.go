@@ -187,7 +187,7 @@ var _ = Describe("StudyService", func() {
 		})
 
 		It("creates a study with valid inputs", func() {
-			result, err := svc.Create("Test", "", validPrompts, "negative", validSteps, validCFGs, validPairs, validSeeds, 1344, 1344)
+			result, err := svc.Create("Test", "", validPrompts, "negative", validSteps, validCFGs, validPairs, validSeeds, 1344, 1344, "", "", "", nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.ID).NotTo(BeEmpty())
 			Expect(result.Name).To(Equal("Test"))
@@ -204,26 +204,26 @@ var _ = Describe("StudyService", func() {
 		})
 
 		It("uses study name as output dir name", func() {
-			result, err := svc.Create("OutputTest", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512)
+			result, err := svc.Create("OutputTest", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512, "", "", "", nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.OutputDirName()).To(Equal("OutputTest"))
 		})
 
 		It("persists the study in the store", func() {
-			_, err := svc.Create("Stored", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512)
+			_, err := svc.Create("Stored", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512, "", "", "", nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(store.studies).To(HaveLen(1))
 		})
 
 		It("rejects empty name", func() {
-			_, err := svc.Create("", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512)
+			_, err := svc.Create("", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512, "", "", "", nil)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("name must not be empty"))
 		})
 
 		It("returns error when store fails", func() {
 			store.createErr = errors.New("insert failed")
-			_, err := svc.Create("Test", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512)
+			_, err := svc.Create("Test", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512, "", "", "", nil)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("insert failed"))
 		})
@@ -244,7 +244,7 @@ var _ = Describe("StudyService", func() {
 
 		DescribeTable("validates required fields and constraints",
 			func(tc validationTestCase) {
-				_, err := svc.Create(tc.name, "", tc.prompts, "", tc.steps, tc.cfgs, tc.pairs, tc.seeds, tc.width, tc.height)
+				_, err := svc.Create(tc.name, "", tc.prompts, "", tc.steps, tc.cfgs, tc.pairs, tc.seeds, tc.width, tc.height, "", "", "", nil)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring(tc.expectedError))
 			},
@@ -550,7 +550,7 @@ var _ = Describe("StudyService", func() {
 
 		DescribeTable("validates study name filesystem safety",
 			func(tc filenameTestCase) {
-				_, err := svc.Create(tc.name, "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512)
+				_, err := svc.Create(tc.name, "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512, "", "", "", nil)
 				if tc.expectError {
 					Expect(err).To(HaveOccurred())
 					Expect(err.Error()).To(ContainSubstring(tc.expectedError))
@@ -621,13 +621,13 @@ var _ = Describe("StudyService", func() {
 		})
 
 		It("rejects Create when a study with the same name already exists", func() {
-			_, err := svc.Create("Existing", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512)
+			_, err := svc.Create("Existing", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512, "", "", "", nil)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("already exists"))
 		})
 
 		It("allows Create when no study with that name exists", func() {
-			_, err := svc.Create("New Name", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512)
+			_, err := svc.Create("New Name", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512, "", "", "", nil)
 			Expect(err).NotTo(HaveOccurred())
 		})
 
@@ -645,7 +645,7 @@ var _ = Describe("StudyService", func() {
 				Height:                512,
 			}
 			// Try to rename "Other" to "Existing" — should be rejected
-			_, err := svc.Update("other-id", "Existing", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512)
+			_, err := svc.Update("other-id", "Existing", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512, "", "", "", nil)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("already exists"))
 		})
@@ -664,7 +664,7 @@ var _ = Describe("StudyService", func() {
 				Height:                512,
 			}
 			// Saving with the same name should succeed (self-exclusion)
-			_, err := svc.Update("self-id", "Self", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512)
+			_, err := svc.Update("self-id", "Self", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512, "", "", "", nil)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
@@ -710,7 +710,7 @@ var _ = Describe("StudyService", func() {
 			newPairs := []model.SamplerSchedulerPair{
 				{Sampler: "dpmpp_2m", Scheduler: "sgm_uniform"},
 			}
-			result, err := svc.Update("existing", "Renamed", "", newPrompts, "new negative", validSteps, validCFGs, newPairs, validSeeds, 1344, 1344)
+			result, err := svc.Update("existing", "Renamed", "", newPrompts, "new negative", validSteps, validCFGs, newPairs, validSeeds, 1344, 1344, "", "", "", nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.Name).To(Equal("Renamed"))
 			Expect(result.Prompts).To(Equal(newPrompts))
@@ -723,19 +723,19 @@ var _ = Describe("StudyService", func() {
 		})
 
 		It("does not change output directory structure on update", func() {
-			result, err := svc.Update("existing", "Original", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512)
+			result, err := svc.Update("existing", "Original", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512, "", "", "", nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.OutputDirName()).To(Equal("Original"))
 		})
 
 		It("returns error for non-existent study", func() {
-			_, err := svc.Update("missing", "Name", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512)
+			_, err := svc.Update("missing", "Name", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512, "", "", "", nil)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("not found"))
 		})
 
 		It("rejects invalid inputs during update", func() {
-			_, err := svc.Update("existing", "", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512)
+			_, err := svc.Update("existing", "", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512, "", "", "", nil)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("name must not be empty"))
 		})
@@ -776,7 +776,7 @@ var _ = Describe("StudyService", func() {
 			newPrompts := []model.NamedPrompt{
 				{Name: "new_prompt", Text: "forked prompt"},
 			}
-			result, err := svc.Fork("source", "Forked Study", "", newPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 1024, 1024)
+			result, err := svc.Fork("source", "Forked Study", "", newPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 1024, 1024, "", "", "", nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.ID).NotTo(Equal("source"))
 			Expect(result.Name).To(Equal("Forked Study"))
@@ -786,13 +786,13 @@ var _ = Describe("StudyService", func() {
 		})
 
 		It("returns error when source study does not exist", func() {
-			_, err := svc.Fork("nonexistent", "Forked", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512)
+			_, err := svc.Fork("nonexistent", "Forked", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512, "", "", "", nil)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("not found"))
 		})
 
 		It("rejects fork when new name already exists", func() {
-			_, err := svc.Fork("source", "Source Study", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512)
+			_, err := svc.Fork("source", "Source Study", "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512, "", "", "", nil)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("already exists"))
 		})
@@ -919,7 +919,7 @@ var _ = Describe("StudyService", func() {
 			}
 			seeds := []int64{420, 421}
 
-			result, err := svc.Create("Test", "", prompts, "", steps, cfgs, pairs, seeds, 512, 512)
+			result, err := svc.Create("Test", "", prompts, "", steps, cfgs, pairs, seeds, 512, 512, "", "", "", nil)
 			Expect(err).NotTo(HaveOccurred())
 			// 2 prompts * 2 steps * 2 cfgs * 2 pairs * 2 seeds = 32
 			Expect(result.ImagesPerCheckpoint()).To(Equal(32))
@@ -936,7 +936,7 @@ var _ = Describe("StudyService", func() {
 			}
 			seeds := []int64{420}
 
-			result, err := svc.Create("Test", "", prompts, "", steps, cfgs, pairs, seeds, 512, 512)
+			result, err := svc.Create("Test", "", prompts, "", steps, cfgs, pairs, seeds, 512, 512, "", "", "", nil)
 			Expect(err).NotTo(HaveOccurred())
 			// 1 prompt * 1 step * 1 cfg * 1 pair * 1 seed = 1
 			Expect(result.ImagesPerCheckpoint()).To(Equal(1))

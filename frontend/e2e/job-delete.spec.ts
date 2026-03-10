@@ -41,12 +41,12 @@ async function createStudyViaAPI(request: APIRequestContext): Promise<string> {
 }
 
 /** Create a sample job via the REST API and return its ID. */
+// S-112: workflow_name/vae/clip come from the study definition, not the job payload
 async function createJobViaAPI(request: APIRequestContext, studyId: string): Promise<string> {
   const response = await request.post('/api/sample-jobs', {
     data: {
       training_run_name: 'my-model',
       study_id: studyId,
-      workflow_name: 'test-workflow.json',
     },
   })
   expect(response.status()).toBe(201)

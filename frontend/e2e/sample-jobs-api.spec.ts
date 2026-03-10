@@ -34,7 +34,6 @@ test.describe('sample-jobs API (ComfyUI configured in test environment)', () => 
       data: {
         training_run_name: 'nonexistent',
         study_id: 'nonexistent',
-        workflow_name: 'test.json',
       },
     })
     // Should get an error response, not a 502/503 from a crashed backend
@@ -66,11 +65,11 @@ test.describe('sample-jobs API (ComfyUI configured in test environment)', () => 
     expect(study.id).toBeTruthy()
 
     // Step 2: Create a sample job referencing this study.
+    // S-112: workflow_name/vae/clip come from the study definition, not the job payload
     const jobResp = await request.post('/api/sample-jobs', {
       data: {
         training_run_name: 'my-model',
         study_id: study.id,
-        workflow_name: 'test-workflow.json',
       },
     })
     // The job should be created successfully (ComfyUI mock is running)
@@ -118,11 +117,11 @@ test.describe('sample-jobs API (ComfyUI configured in test environment)', () => 
     expect(study.id).toBeTruthy()
 
     // Step 2: Create a sample job referencing this study
+    // S-112: workflow_name/vae/clip come from the study definition, not the job payload
     const jobResp = await request.post('/api/sample-jobs', {
       data: {
         training_run_name: 'my-model',
         study_id: study.id,
-        workflow_name: 'test-workflow.json',
       },
     })
     expect(jobResp.status()).toBe(201)

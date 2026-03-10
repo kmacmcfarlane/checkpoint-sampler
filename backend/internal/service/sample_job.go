@@ -137,11 +137,11 @@ func (s *SampleJobService) Get(id string) (model.SampleJob, error) {
 // checkpointFilenames is an optional filter: when non-empty, only the listed checkpoints are included.
 // clearExisting: when true, the sample directory for each selected checkpoint is removed before creating job items.
 // missingOnly: when true, only items whose output file does not already exist on disk are included.
-func (s *SampleJobService) Create(trainingRunName string, checkpoints []model.Checkpoint, studyID string, workflowName string, vae string, clip string, shift *float64, checkpointFilenames []string, clearExisting bool, missingOnly bool) (model.SampleJob, error) {
+// Workflow template, VAE, text encoder, and shift are read from the study definition.
+func (s *SampleJobService) Create(trainingRunName string, checkpoints []model.Checkpoint, studyID string, checkpointFilenames []string, clearExisting bool, missingOnly bool) (model.SampleJob, error) {
 	s.logger.WithFields(logrus.Fields{
 		"training_run_name":     trainingRunName,
 		"study_id":              studyID,
-		"workflow_name":         workflowName,
 		"checkpoint_filter_len": len(checkpointFilenames),
 		"clear_existing":        clearExisting,
 		"missing_only":          missingOnly,
@@ -203,7 +203,7 @@ func (s *SampleJobService) Create(trainingRunName string, checkpoints []model.Ch
 	imagesPerCheckpoint := study.ImagesPerCheckpoint()
 	totalItems := len(checkpoints) * imagesPerCheckpoint
 
-	// Create the job
+	// Create the job — workflow, VAE, text encoder, and shift come from the study definition.
 	now := time.Now().UTC()
 	jobID := uuid.New().String()
 	job := model.SampleJob{
@@ -211,10 +211,10 @@ func (s *SampleJobService) Create(trainingRunName string, checkpoints []model.Ch
 		TrainingRunName: trainingRunName,
 		StudyID:         studyID,
 		StudyName:       study.Name,
-		WorkflowName:    workflowName,
-		VAE:             vae,
-		CLIP:            clip,
-		Shift:           shift,
+		WorkflowName:    study.WorkflowTemplate,
+		VAE:             study.VAE,
+		CLIP:            study.TextEncoder,
+		Shift:           study.Shift,
 		Status:          model.SampleJobStatusPending,
 		TotalItems:      totalItems,
 		CompletedItems:  0,

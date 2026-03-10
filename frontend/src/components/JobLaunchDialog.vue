@@ -3,7 +3,6 @@ import { ref, computed, onMounted, watch, h } from 'vue'
 import {
   NModal,
   NSelect,
-  NInputNumber,
   NButton,
   NSpace,
   NAlert,
@@ -13,7 +12,7 @@ import {
   NTooltip,
 } from 'naive-ui'
 import type { SelectRenderLabel } from 'naive-ui'
-import type { TrainingRun, Study, StudyAvailability, WorkflowSummary, CreateSampleJobPayload, SampleJob, ValidationResult } from '../api/types'
+import type { TrainingRun, Study, StudyAvailability, CreateSampleJobPayload, SampleJob, ValidationResult } from '../api/types'
 import { apiClient } from '../api/client'
 import StudyEditor from './StudyEditor.vue'
 import { useGenerateInputsPersistence } from '../composables/useGenerateInputsPersistence'
@@ -42,10 +41,7 @@ const error = ref<string | null>(null)
 // Available options
 const trainingRuns = ref<TrainingRun[]>([])
 const sampleJobs = ref<SampleJob[]>([])
-const workflows = ref<WorkflowSummary[]>([])
 const studies = ref<Study[]>([])
-const vaeModels = ref<string[]>([])
-const clipModels = ref<string[]>([])
 
 // Study sample availability for the selected training run
 const studyAvailability = ref<StudyAvailability[]>([])
@@ -61,11 +57,7 @@ const refreshingTrainingRuns = ref(false)
 
 // Form selections
 const selectedTrainingRunId = ref<number | null>(null)
-const selectedWorkflow = ref<string | null>(null)
 const selectedStudy = ref<string | null>(null)
-const selectedVAE = ref<string | null>(null)
-const selectedCLIP = ref<string | null>(null)
-const shiftValue = ref<number | null>(null)
 
 // Checkpoint selection for regeneration
 const selectedCheckpoints = ref<Set<string>>(new Set())
@@ -86,9 +78,6 @@ const confirmRegenOpen = ref(false)
 // When true, the training run watcher skips checkpoint auto-selection to allow
 // applyPrefill to control checkpoint selection instead.
 const prefillActive = ref(false)
-
-// Current model type derived from the first checkpoint's ss_base_model_version metadata
-const currentModelType = ref<string | null>(null)
 
 // Persistence composable
 const persistence = useGenerateInputsPersistence()
@@ -228,9 +217,7 @@ watch(selectedTrainingRunId, async () => {
     clearExisting.value = false
     missingOnly.value = false
   }
-  currentModelType.value = null
   validationResult.value = null
-
 
   const run = selectedTrainingRun.value
   if (!run || run.checkpoints.length === 0) return
@@ -249,20 +236,6 @@ watch(selectedTrainingRunId, async () => {
     if (selectedRunHasSamples.value) {
       clearExisting.value = true
     }
-  }
-
-  // Fetch metadata for the first checkpoint to determine the model type
-  const firstCheckpoint = run.checkpoints[0]
-  try {
-    const metadataResult = await apiClient.getCheckpointMetadata(firstCheckpoint.filename)
-    const modelType = metadataResult.metadata['ss_base_model_version'] ?? null
-    currentModelType.value = modelType
-
-    if (modelType && !skipAutoSelection) {
-      restoreModelInputs(modelType)
-    }
-  } catch {
-    // Metadata fetch failure is non-fatal; proceed without model-type restoration
   }
 
 })
@@ -306,72 +279,10 @@ watch(selectedTrainingRunId, (runId) => {
   }
 })
 
-// Persist workflow selection changes (AC3: per model type when model type is known, global fallback otherwise)
-watch(selectedWorkflow, (workflowId) => {
-  if (currentModelType.value) {
-    persistence.saveWorkflowIdForModelType(currentModelType.value, workflowId)
-  } else {
-    // No model type known yet — save globally as fallback
-    persistence.saveWorkflowId(workflowId)
-  }
-})
-
 // Persist study selection changes
 watch(selectedStudy, (studyId) => {
   persistence.saveStudyId(studyId)
 })
-
-// Persist model-type-specific input changes
-watch([selectedVAE, selectedCLIP, shiftValue], () => {
-  if (!currentModelType.value) return
-  persistence.saveModelInputs(currentModelType.value, {
-    vae: selectedVAE.value,
-    clip: selectedCLIP.value,
-    shift: shiftValue.value,
-  })
-})
-
-/**
- * Restore model-type-specific inputs from persistence, filtering any values
- * that are no longer available in the current model/clip lists.
- * Also restores the per-model-type workflow preference (AC3).
- */
-function restoreModelInputs(modelType: string) {
-  const saved = persistence.getModelInputs(modelType)
-  if (saved) {
-    // Restore VAE only if still available
-    if (saved.vae !== null && vaeModels.value.includes(saved.vae)) {
-      selectedVAE.value = saved.vae
-    } else {
-      selectedVAE.value = null
-    }
-
-    // Restore CLIP only if still available
-    if (saved.clip !== null && clipModels.value.includes(saved.clip)) {
-      selectedCLIP.value = saved.clip
-    } else {
-      selectedCLIP.value = null
-    }
-
-    // Restore shift value (no availability check needed — it's a free numeric value)
-    shiftValue.value = saved.shift
-  }
-
-  // AC3: Restore per-model-type workflow preference, if not already set by the single-workflow auto-select
-  const validWorkflows = workflows.value.filter(w => w.validation_state === 'valid')
-  if (validWorkflows.length !== 1) {
-    // Only override workflow if it was not already auto-selected (single workflow)
-    const modelWorkflowId = persistence.getWorkflowIdForModelType(modelType)
-    if (modelWorkflowId !== null) {
-      const isAvailable = workflows.value.some(
-        w => w.name === modelWorkflowId && w.validation_state === 'valid'
-      )
-      if (isAvailable) {
-        selectedWorkflow.value = modelWorkflowId
-      }
-    }
-  }
-}
 
 function selectMissingCheckpoints() {
   selectedCheckpoints.value = new Set(missingCheckpointFilenames.value)
@@ -400,15 +311,6 @@ function toggleCheckpoint(filename: string) {
   }
   selectedCheckpoints.value = next
 }
-
-const workflowOptions = computed(() =>
-  workflows.value
-    .filter(w => w.validation_state === 'valid')
-    .map(w => ({
-      label: w.name,
-      value: w.name,
-    }))
-)
 
 // Study options include sample availability info. When availability data is present,
 // each study is shown with a bead indicating sample completeness for the selected training run:
@@ -484,30 +386,6 @@ const renderStudyLabel: SelectRenderLabel = (option) => {
   return h('div', { style: { display: 'flex', alignItems: 'center', gap: '0.5rem' } }, children)
 }
 
-const vaeOptions = computed(() =>
-  vaeModels.value.map(v => ({
-    label: v,
-    value: v,
-  }))
-)
-
-const clipOptions = computed(() =>
-  clipModels.value.map(c => ({
-    label: c,
-    value: c,
-  }))
-)
-
-const selectedWorkflowDetail = computed(() =>
-  workflows.value.find(w => w.name === selectedWorkflow.value)
-)
-
-const hasShiftRole = computed(() => {
-  const workflow = selectedWorkflowDetail.value
-  if (!workflow) return false
-  return 'shift' in workflow.roles
-})
-
 const selectedStudyDetail = computed(() =>
   studies.value.find(p => p.id === selectedStudy.value)
 )
@@ -574,11 +452,7 @@ const checkpointValidationError = computed((): string | null => {
 const canSubmit = computed(() => {
   return (
     selectedTrainingRunId.value !== null &&
-    selectedWorkflow.value !== null &&
     selectedStudy.value !== null &&
-    selectedVAE.value !== null &&
-    selectedCLIP.value !== null &&
-    (!hasShiftRole.value || shiftValue.value !== null) &&
     checkpointValidationError.value === null
   )
 })
@@ -596,10 +470,7 @@ watch(() => props.show, async (newShow) => {
   // Re-fetch data to ensure latest state
   await Promise.all([
     fetchTrainingRunsAndJobs(),
-    fetchWorkflows(),
     fetchStudies(),
-    fetchVAEModels(),
-    fetchCLIPModels(),
   ])
 
   applyPrefill(props.prefillJob)
@@ -608,39 +479,13 @@ watch(() => props.show, async (newShow) => {
 onMounted(async () => {
   await Promise.all([
     fetchTrainingRunsAndJobs(),
-    fetchWorkflows(),
     fetchStudies(),
-    fetchVAEModels(),
-    fetchCLIPModels(),
   ])
 
   // If a prefill job is provided, apply its settings instead of restoring from persistence
   if (props.prefillJob) {
     applyPrefill(props.prefillJob)
     return
-  }
-
-  // AC1: If exactly one valid workflow exists, auto-select it.
-  // AC3/AC2: If multiple valid workflows exist, restore from localStorage.
-  //   - Prefer the per-model-type workflow when a model type is already known.
-  //   - Fall back to the global lastWorkflowId (legacy / no model type yet).
-  const validWorkflows = workflows.value.filter(w => w.validation_state === 'valid')
-  if (validWorkflows.length === 1) {
-    selectedWorkflow.value = validWorkflows[0].name
-  } else {
-    // Try per-model-type first (will be null if no model type is determined yet at mount)
-    const modelTypeWorkflowId = currentModelType.value
-      ? persistence.getWorkflowIdForModelType(currentModelType.value)
-      : null
-    const lastWorkflowId = modelTypeWorkflowId ?? persistence.getLastWorkflowId()
-    if (lastWorkflowId !== null) {
-      const isAvailable = workflows.value.some(
-        w => w.name === lastWorkflowId && w.validation_state === 'valid'
-      )
-      if (isAvailable) {
-        selectedWorkflow.value = lastWorkflowId
-      }
-    }
   }
 
   // Restore last used study (only if it's still in the available list).
@@ -692,37 +537,11 @@ async function refreshTrainingRunsAndJobs() {
   }
 }
 
-async function fetchWorkflows() {
-  try {
-    workflows.value = await apiClient.listWorkflows()
-  } catch {
-    workflows.value = []
-  }
-}
-
 async function fetchStudies() {
   try {
     studies.value = await apiClient.listStudies()
   } catch {
     studies.value = []
-  }
-}
-
-async function fetchVAEModels() {
-  try {
-    const result = await apiClient.getComfyUIModels('vae')
-    vaeModels.value = result.models
-  } catch {
-    vaeModels.value = []
-  }
-}
-
-async function fetchCLIPModels() {
-  try {
-    const result = await apiClient.getComfyUIModels('clip')
-    clipModels.value = result.models
-  } catch {
-    clipModels.value = []
   }
 }
 
@@ -733,15 +552,10 @@ function close() {
 
 function resetForm() {
   selectedTrainingRunId.value = null
-  selectedWorkflow.value = null
   selectedStudy.value = null
-  selectedVAE.value = null
-  selectedCLIP.value = null
-  shiftValue.value = null
   selectedCheckpoints.value = new Set()
   clearExisting.value = false
   missingOnly.value = false
-  currentModelType.value = null
   showAllRuns.value = true
   prefillActive.value = false
   validationResult.value = null
@@ -776,12 +590,8 @@ function applyPrefill(job: SampleJob) {
   // Set training run (this triggers the watch, but it will skip checkpoint auto-selection)
   selectedTrainingRunId.value = run.id
 
-  // Set workflow, study, VAE, CLIP, shift from the job
-  selectedWorkflow.value = job.workflow_name
+  // Set study from the job (workflow, VAE, CLIP, shift now come from the study definition)
   selectedStudy.value = job.study_id
-  selectedVAE.value = job.vae || null
-  selectedCLIP.value = job.clip || null
-  shiftValue.value = job.shift ?? null
 
   // Handle checkpoint selection based on job status
   if (job.status === 'completed_with_errors' && job.failed_item_details && job.failed_item_details.length > 0) {
@@ -875,13 +685,6 @@ async function doSubmit() {
     const payload: CreateSampleJobPayload = {
       training_run_name: selectedTrainingRun.value.name,
       study_id: selectedStudy.value!,
-      workflow_name: selectedWorkflow.value!,
-      vae: selectedVAE.value ?? '',
-      clip: selectedCLIP.value ?? '',
-    }
-
-    if (hasShiftRole.value && shiftValue.value !== null) {
-      payload.shift = shiftValue.value
     }
 
     if (selectedRunHasSamples.value) {
@@ -1164,59 +967,6 @@ async function doSubmit() {
         >
           Generate missing samples only (skip existing)
         </NCheckbox>
-      </div>
-
-      <div class="form-field">
-        <label for="workflow-select">Workflow Template</label>
-        <NSelect
-          id="workflow-select"
-          v-model:value="selectedWorkflow"
-          :options="workflowOptions"
-          placeholder="Select a workflow"
-          clearable
-          data-testid="workflow-select"
-        />
-      </div>
-
-      <div class="form-field">
-        <label for="vae-select">VAE</label>
-        <NSelect
-          key="vae-select"
-          id="vae-select"
-          v-model:value="selectedVAE"
-          :options="vaeOptions"
-          placeholder="Select a VAE model"
-          clearable
-          filterable
-          data-testid="vae-select"
-        />
-      </div>
-
-      <div class="form-field">
-        <label for="clip-select">CLIP / Text Encoder</label>
-        <NSelect
-          key="clip-select"
-          id="clip-select"
-          v-model:value="selectedCLIP"
-          :options="clipOptions"
-          placeholder="Select a CLIP model"
-          clearable
-          filterable
-          data-testid="clip-select"
-        />
-      </div>
-
-      <div v-if="hasShiftRole" class="form-field">
-        <label for="shift-input">Shift Value</label>
-        <NInputNumber
-          id="shift-input"
-          v-model:value="shiftValue"
-          :min="0"
-          :step="0.1"
-          placeholder="Enter shift value"
-          style="width: 100%;"
-          data-testid="shift-input"
-        />
       </div>
 
       <NDivider />

@@ -5,6 +5,12 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-112: Move workflow template, VAE, text encoder, shift into study definition
+- Workflow template, VAE, text encoder, and shift moved from job-level settings into the study definition; DB migration 18 adds columns to `studies` table
+- `CreateSampleJobPayload` no longer accepts workflow/VAE/CLIP/shift — these are read from the study at job creation time
+- StudyEditor gains workflow template, VAE, CLIP, and shift selectors with MRU workflow template via localStorage
+- Study export/import includes the new fields for round-trip fidelity
+
 ### B-077: Tooltip for long checkpoint names in Current checkpoint progress line
 - Current checkpoint name in JobProgressPanel progress line now shows ellipsis truncation with native tooltip on hover, consistent with B-052 completeness section treatment
 

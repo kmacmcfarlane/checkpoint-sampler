@@ -32,6 +32,10 @@ type Study struct {
 	Seeds                 []int64
 	Width                 int
 	Height                int
+	WorkflowTemplate      string   // ComfyUI workflow template filename (optional)
+	VAE                   string   // ComfyUI VAE model path (optional)
+	TextEncoder           string   // ComfyUI CLIP/text encoder model path (optional)
+	Shift                 *float64 // AuraFlow shift value (optional, nullable)
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
 }

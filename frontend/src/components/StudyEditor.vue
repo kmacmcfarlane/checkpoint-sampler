@@ -1,10 +1,24 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, h } from 'vue'
 import { NInput, NInputNumber, NSelect, NButton, NDynamicInput, NDynamicTags, NTag, NCard, NSpace, NAlert, NModal } from 'naive-ui'
-import type { Study, NamedPrompt, SamplerSchedulerPair, CreateStudyPayload, UpdateStudyPayload, ForkStudyPayload } from '../api/types'
+import type { Study, NamedPrompt, SamplerSchedulerPair, CreateStudyPayload, UpdateStudyPayload, ForkStudyPayload, WorkflowSummary } from '../api/types'
 import { apiClient } from '../api/client'
 import { validateStudyImport } from './studyImportValidation'
 import ConfirmDeleteDialog from './ConfirmDeleteDialog.vue'
+
+/** localStorage key for most-recently-used workflow template. */
+const MRU_WORKFLOW_KEY = 'checkpoint-sampler:mru-workflow-template'
+
+function getMruWorkflow(): string | null {
+  try { return localStorage.getItem(MRU_WORKFLOW_KEY) } catch { return null }
+}
+
+function saveMruWorkflow(name: string | null): void {
+  try {
+    if (name) localStorage.setItem(MRU_WORKFLOW_KEY, name)
+    else localStorage.removeItem(MRU_WORKFLOW_KEY)
+  } catch { /* ignore */ }
+}
 
 // initialStudyId: When provided, the study with this ID is pre-selected after studies load.
 // If null or the ID is not found in the loaded studies, no study is selected (default behavior).
@@ -44,10 +58,17 @@ const samplerSchedulerPairs = ref<SamplerSchedulerPair[]>([])
 const seeds = ref<number[]>([42])
 const width = ref(1024)
 const height = ref(1024)
+const workflowTemplate = ref<string | null>(null)
+const selectedVAE = ref<string | null>(null)
+const selectedCLIP = ref<string | null>(null)
+const shiftValue = ref<number | null>(null)
 
 // Available options from ComfyUI
 const availableSamplers = ref<string[]>([])
 const availableSchedulers = ref<string[]>([])
+const availableWorkflows = ref<WorkflowSummary[]>([])
+const availableVAE = ref<string[]>([])
+const availableCLIP = ref<string[]>([])
 
 const selectOptions = computed(() =>
   studies.value.map((p) => ({
@@ -69,6 +90,30 @@ const schedulerOptions = computed(() =>
     value: s,
   }))
 )
+
+const workflowOptions = computed(() =>
+  availableWorkflows.value
+    .filter(w => w.validation_state === 'valid')
+    .map(w => ({ label: w.name, value: w.name }))
+)
+
+const vaeOptions = computed(() =>
+  availableVAE.value.map(v => ({ label: v, value: v }))
+)
+
+const clipOptions = computed(() =>
+  availableCLIP.value.map(c => ({ label: c, value: c }))
+)
+
+const selectedWorkflowDetail = computed(() =>
+  availableWorkflows.value.find(w => w.name === workflowTemplate.value)
+)
+
+const hasShiftRole = computed(() => {
+  const wf = selectedWorkflowDetail.value
+  if (!wf) return false
+  return 'shift' in wf.roles
+})
 
 /**
  * Format a CFG value as a string, preserving one decimal place for whole numbers.
@@ -312,6 +357,9 @@ onMounted(async () => {
     fetchStudies(),
     fetchSamplers(),
     fetchSchedulers(),
+    fetchWorkflowOptions(),
+    fetchVAEOptions(),
+    fetchCLIPOptions(),
   ])
 
   // After studies are loaded, pre-select the study from the parent dialog if one was provided.
@@ -359,6 +407,32 @@ async function fetchSchedulers() {
   }
 }
 
+async function fetchWorkflowOptions() {
+  try {
+    availableWorkflows.value = await apiClient.listWorkflows()
+  } catch {
+    availableWorkflows.value = []
+  }
+}
+
+async function fetchVAEOptions() {
+  try {
+    const result = await apiClient.getComfyUIModels('vae')
+    availableVAE.value = result.models
+  } catch {
+    availableVAE.value = []
+  }
+}
+
+async function fetchCLIPOptions() {
+  try {
+    const result = await apiClient.getComfyUIModels('clip')
+    availableCLIP.value = result.models
+  } catch {
+    availableCLIP.value = []
+  }
+}
+
 function onSelectStudy(value: string | null) {
   selectedStudyId.value = value
   if (!value) {
@@ -382,6 +456,10 @@ function loadStudy(study: Study) {
   seeds.value = [...study.seeds]
   width.value = study.width
   height.value = study.height
+  workflowTemplate.value = study.workflow_template || null
+  selectedVAE.value = study.vae || null
+  selectedCLIP.value = study.text_encoder || null
+  shiftValue.value = study.shift ?? null
 }
 
 function resetForm() {
@@ -395,6 +473,11 @@ function resetForm() {
   seeds.value = [42]
   width.value = 1024
   height.value = 1024
+  // MRU: apply most-recently-used workflow template when creating a new study
+  workflowTemplate.value = getMruWorkflow()
+  selectedVAE.value = null
+  selectedCLIP.value = null
+  shiftValue.value = null
 }
 
 function createNewStudy() {
@@ -432,6 +515,11 @@ async function performSave() {
     // Filter out empty prompts
     const validPrompts = prompts.value.filter(p => p != null && p.name.trim() !== '' && p.text.trim() !== '')
 
+    // Save workflow template to MRU when set
+    if (workflowTemplate.value) {
+      saveMruWorkflow(workflowTemplate.value)
+    }
+
     const payload: CreateStudyPayload | UpdateStudyPayload = selectedStudyId.value
       ? {
           id: selectedStudyId.value,
@@ -445,6 +533,10 @@ async function performSave() {
           seeds: seeds.value,
           width: width.value,
           height: height.value,
+          workflow_template: workflowTemplate.value ?? undefined,
+          vae: selectedVAE.value ?? undefined,
+          text_encoder: selectedCLIP.value ?? undefined,
+          shift: shiftValue.value ?? undefined,
         }
       : {
           name: studyName.value.trim(),
@@ -457,6 +549,10 @@ async function performSave() {
           seeds: seeds.value,
           width: width.value,
           height: height.value,
+          workflow_template: workflowTemplate.value ?? undefined,
+          vae: selectedVAE.value ?? undefined,
+          text_encoder: selectedCLIP.value ?? undefined,
+          shift: shiftValue.value ?? undefined,
         }
 
     const result = selectedStudyId.value
@@ -494,6 +590,11 @@ async function forkStudy() {
   error.value = null
   try {
     const validPrompts = prompts.value.filter(p => p != null && p.name.trim() !== '' && p.text.trim() !== '')
+    // Save workflow template to MRU when set
+    if (workflowTemplate.value) {
+      saveMruWorkflow(workflowTemplate.value)
+    }
+
     const forkPayload: ForkStudyPayload = {
       source_id: selectedStudyId.value,
       name: studyName.value.trim() + ' - copy',
@@ -506,6 +607,10 @@ async function forkStudy() {
       seeds: seeds.value,
       width: width.value,
       height: height.value,
+      workflow_template: workflowTemplate.value ?? undefined,
+      vae: selectedVAE.value ?? undefined,
+      text_encoder: selectedCLIP.value ?? undefined,
+      shift: shiftValue.value ?? undefined,
     }
 
     const result = await apiClient.forkStudy(forkPayload)
@@ -573,6 +678,10 @@ function exportStudy() {
     seeds: seeds.value,
     width: width.value,
     height: height.value,
+    workflow_template: workflowTemplate.value ?? undefined,
+    vae: selectedVAE.value ?? undefined,
+    text_encoder: selectedCLIP.value ?? undefined,
+    shift: shiftValue.value ?? undefined,
   }
   const json = JSON.stringify(payload, null, 2)
   const blob = new Blob([json], { type: 'application/json' })
@@ -613,6 +722,10 @@ function triggerImport() {
       seeds.value = [...result.data.seeds]
       width.value = result.data.width
       height.value = result.data.height
+      workflowTemplate.value = result.data.workflow_template ?? null
+      selectedVAE.value = result.data.vae ?? null
+      selectedCLIP.value = result.data.text_encoder ?? null
+      shiftValue.value = result.data.shift ?? null
       error.value = null
     } catch {
       error.value = 'Import error: Invalid JSON file'
@@ -946,6 +1059,58 @@ function renderSeedTag(tag: string, index: number) {
               style="width: 100%;"
             />
           </div>
+        </div>
+
+        <div class="form-field">
+          <label for="workflow-template-select">Workflow Template</label>
+          <NSelect
+            id="workflow-template-select"
+            v-model:value="workflowTemplate"
+            :options="workflowOptions"
+            placeholder="Select a workflow template (optional)"
+            clearable
+            filterable
+            data-testid="study-workflow-template-select"
+          />
+        </div>
+
+        <div class="form-field">
+          <label for="study-vae-select">VAE</label>
+          <NSelect
+            id="study-vae-select"
+            v-model:value="selectedVAE"
+            :options="vaeOptions"
+            placeholder="Select a VAE model (optional)"
+            clearable
+            filterable
+            data-testid="study-vae-select"
+          />
+        </div>
+
+        <div class="form-field">
+          <label for="study-clip-select">CLIP / Text Encoder</label>
+          <NSelect
+            id="study-clip-select"
+            v-model:value="selectedCLIP"
+            :options="clipOptions"
+            placeholder="Select a CLIP model (optional)"
+            clearable
+            filterable
+            data-testid="study-clip-select"
+          />
+        </div>
+
+        <div v-if="hasShiftRole" class="form-field">
+          <label for="study-shift-input">Shift Value</label>
+          <NInputNumber
+            id="study-shift-input"
+            v-model:value="shiftValue"
+            :min="0"
+            :step="0.1"
+            placeholder="Enter shift value"
+            style="width: 100%;"
+            data-testid="study-shift-input"
+          />
         </div>
 
         <div class="total-images">

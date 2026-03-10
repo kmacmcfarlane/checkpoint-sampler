@@ -220,21 +220,12 @@ test.describe('S-084: sample count preview and missing-sample generation', () =>
     const myModel = runs.find((r: { name: string }) => r.name === 'my-model')
     expect(myModel).toBeDefined()
 
-    // Get the list of valid workflows
-    const workflowsResponse = await request.get('/api/workflows')
-    expect(workflowsResponse.ok()).toBeTruthy()
-    const workflows = await workflowsResponse.json()
-    const validWorkflow = workflows.find((w: { validation_state: string }) => w.validation_state === 'valid')
-    expect(validWorkflow).toBeDefined()
-
     // Create a sample job with missing_only=true
+    // S-112: workflow_name/vae/clip come from the study definition, not the job payload
     const createJobResponse = await request.post('/api/sample-jobs', {
       data: {
         training_run_name: myModel.name,
         study_id: study.id,
-        workflow_name: validWorkflow.name,
-        vae: 'test-vae.safetensors',
-        clip: 'test-clip.safetensors',
         missing_only: true,
       },
     })

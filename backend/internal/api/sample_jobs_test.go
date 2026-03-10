@@ -262,8 +262,7 @@ var _ = Describe("SampleJobsService", func() {
 		It("Create returns invalid_payload ServiceError", func() {
 			_, err := disabledSvc.Create(ctx, &gensamplejobs.CreateSampleJobPayload{
 				TrainingRunName: "run-1",
-				StudyID:  "study-1",
-				WorkflowName:    "wf.json",
+				StudyID:         "study-1",
 			})
 			Expect(err).To(HaveOccurred())
 			serviceErr, ok := err.(errorNamer)

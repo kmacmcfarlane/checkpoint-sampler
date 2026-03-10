@@ -157,6 +157,19 @@ var StudyResponse = Type("StudyResponse", func() {
 	Attribute("height", Int, "Image height in pixels", func() {
 		Example(1344)
 	})
+	Attribute("workflow_template", String, "ComfyUI workflow template filename (optional)", func() {
+		Example("qwen-image.json")
+		Default("")
+	})
+	Attribute("vae", String, "ComfyUI VAE model path (optional)", func() {
+		Example("ae.safetensors")
+		Default("")
+	})
+	Attribute("text_encoder", String, "ComfyUI CLIP/text encoder model path (optional)", func() {
+		Example("clip_l.safetensors")
+		Default("")
+	})
+	Attribute("shift", Float64, "AuraFlow shift value (optional, nullable)")
 	Attribute("images_per_checkpoint", Int, "Computed: total images per checkpoint", func() {
 		Example(54)
 	})
@@ -166,7 +179,7 @@ var StudyResponse = Type("StudyResponse", func() {
 	Attribute("updated_at", String, "Last update timestamp (RFC3339)", func() {
 		Example("2025-01-01T00:00:00Z")
 	})
-	Required("id", "name", "prompt_prefix", "prompts", "negative_prompt", "steps", "cfgs", "sampler_scheduler_pairs", "seeds", "width", "height", "images_per_checkpoint", "created_at", "updated_at")
+	Required("id", "name", "prompt_prefix", "prompts", "negative_prompt", "steps", "cfgs", "sampler_scheduler_pairs", "seeds", "width", "height", "workflow_template", "vae", "text_encoder", "images_per_checkpoint", "created_at", "updated_at")
 })
 
 var CreateStudyPayload = Type("CreateStudyPayload", func() {
@@ -209,6 +222,19 @@ var CreateStudyPayload = Type("CreateStudyPayload", func() {
 		Example(1344)
 		Minimum(1)
 	})
+	Attribute("workflow_template", String, "ComfyUI workflow template filename (optional)", func() {
+		Example("qwen-image.json")
+		Default("")
+	})
+	Attribute("vae", String, "ComfyUI VAE model path (optional)", func() {
+		Example("ae.safetensors")
+		Default("")
+	})
+	Attribute("text_encoder", String, "ComfyUI CLIP/text encoder model path (optional)", func() {
+		Example("clip_l.safetensors")
+		Default("")
+	})
+	Attribute("shift", Float64, "AuraFlow shift value (optional, nullable)")
 	Required("name", "prompt_prefix", "prompts", "negative_prompt", "steps", "cfgs", "sampler_scheduler_pairs", "seeds", "width", "height")
 })
 
@@ -255,6 +281,19 @@ var UpdateStudyPayload = Type("UpdateStudyPayload", func() {
 		Example(1344)
 		Minimum(1)
 	})
+	Attribute("workflow_template", String, "ComfyUI workflow template filename (optional)", func() {
+		Example("qwen-image.json")
+		Default("")
+	})
+	Attribute("vae", String, "ComfyUI VAE model path (optional)", func() {
+		Example("ae.safetensors")
+		Default("")
+	})
+	Attribute("text_encoder", String, "ComfyUI CLIP/text encoder model path (optional)", func() {
+		Example("clip_l.safetensors")
+		Default("")
+	})
+	Attribute("shift", Float64, "AuraFlow shift value (optional, nullable)")
 	Required("id", "name", "prompt_prefix", "prompts", "negative_prompt", "steps", "cfgs", "sampler_scheduler_pairs", "seeds", "width", "height")
 })
 
@@ -301,6 +340,19 @@ var ForkStudyPayload = Type("ForkStudyPayload", func() {
 		Example(1344)
 		Minimum(1)
 	})
+	Attribute("workflow_template", String, "ComfyUI workflow template filename (optional)", func() {
+		Example("qwen-image.json")
+		Default("")
+	})
+	Attribute("vae", String, "ComfyUI VAE model path (optional)", func() {
+		Example("ae.safetensors")
+		Default("")
+	})
+	Attribute("text_encoder", String, "ComfyUI CLIP/text encoder model path (optional)", func() {
+		Example("clip_l.safetensors")
+		Default("")
+	})
+	Attribute("shift", Float64, "AuraFlow shift value (optional, nullable)")
 	Required("source_id", "name", "prompt_prefix", "prompts", "negative_prompt", "steps", "cfgs", "sampler_scheduler_pairs", "seeds", "width", "height")
 })
 

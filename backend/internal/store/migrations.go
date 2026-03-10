@@ -271,5 +271,18 @@ func AllMigrations() []Migration {
 			Version: 17,
 			SQL:     `CREATE UNIQUE INDEX IF NOT EXISTS idx_studies_name_unique ON studies (name);`,
 		},
+		{
+			// Add workflow_template, vae, text_encoder, and shift columns to the
+			// studies table. These settings were previously job-level fields;
+			// moving them into the study definition ensures they are stored once
+			// per study and automatically used when generating samples.
+			// All columns are nullable to support existing studies created before
+			// this migration.
+			Version: 18,
+			SQL: `ALTER TABLE studies ADD COLUMN workflow_template TEXT;
+ALTER TABLE studies ADD COLUMN vae TEXT;
+ALTER TABLE studies ADD COLUMN text_encoder TEXT;
+ALTER TABLE studies ADD COLUMN shift REAL;`,
+		},
 	}
 }

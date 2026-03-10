@@ -100,7 +100,7 @@ func (s *StudyService) Get(id string) (model.Study, error) {
 }
 
 // Create validates and persists a new study, returning the created study.
-func (s *StudyService) Create(name string, promptPrefix string, prompts []model.NamedPrompt, negativePrompt string, steps []int, cfgs []float64, pairs []model.SamplerSchedulerPair, seeds []int64, width int, height int) (model.Study, error) {
+func (s *StudyService) Create(name string, promptPrefix string, prompts []model.NamedPrompt, negativePrompt string, steps []int, cfgs []float64, pairs []model.SamplerSchedulerPair, seeds []int64, width int, height int, workflowTemplate string, vae string, textEncoder string, shift *float64) (model.Study, error) {
 	s.logger.WithField("study_name", name).Trace("entering Create")
 	defer s.logger.Trace("returning from Create")
 
@@ -137,6 +137,10 @@ func (s *StudyService) Create(name string, promptPrefix string, prompts []model.
 		Seeds:                 seeds,
 		Width:                 width,
 		Height:                height,
+		WorkflowTemplate:      workflowTemplate,
+		VAE:                   vae,
+		TextEncoder:           textEncoder,
+		Shift:                 shift,
 		CreatedAt:             now,
 		UpdatedAt:             now,
 	}
@@ -157,7 +161,7 @@ func (s *StudyService) Create(name string, promptPrefix string, prompts []model.
 }
 
 // Update modifies an existing study.
-func (s *StudyService) Update(id string, name string, promptPrefix string, prompts []model.NamedPrompt, negativePrompt string, steps []int, cfgs []float64, pairs []model.SamplerSchedulerPair, seeds []int64, width int, height int) (model.Study, error) {
+func (s *StudyService) Update(id string, name string, promptPrefix string, prompts []model.NamedPrompt, negativePrompt string, steps []int, cfgs []float64, pairs []model.SamplerSchedulerPair, seeds []int64, width int, height int, workflowTemplate string, vae string, textEncoder string, shift *float64) (model.Study, error) {
 	s.logger.WithFields(logrus.Fields{
 		"study_id":   id,
 		"study_name": name,
@@ -212,6 +216,10 @@ func (s *StudyService) Update(id string, name string, promptPrefix string, promp
 	existing.Seeds = seeds
 	existing.Width = width
 	existing.Height = height
+	existing.WorkflowTemplate = workflowTemplate
+	existing.VAE = vae
+	existing.TextEncoder = textEncoder
+	existing.Shift = shift
 	existing.UpdatedAt = time.Now().UTC()
 
 	if err := s.store.UpdateStudy(existing); err != nil {
@@ -232,7 +240,7 @@ func (s *StudyService) Update(id string, name string, promptPrefix string, promp
 
 // Fork creates a new study by copying an existing study's settings with
 // modifications. The new study gets a new ID and name.
-func (s *StudyService) Fork(sourceID string, newName string, promptPrefix string, prompts []model.NamedPrompt, negativePrompt string, steps []int, cfgs []float64, pairs []model.SamplerSchedulerPair, seeds []int64, width int, height int) (model.Study, error) {
+func (s *StudyService) Fork(sourceID string, newName string, promptPrefix string, prompts []model.NamedPrompt, negativePrompt string, steps []int, cfgs []float64, pairs []model.SamplerSchedulerPair, seeds []int64, width int, height int, workflowTemplate string, vae string, textEncoder string, shift *float64) (model.Study, error) {
 	s.logger.WithFields(logrus.Fields{
 		"source_id": sourceID,
 		"new_name":  newName,
@@ -254,7 +262,7 @@ func (s *StudyService) Fork(sourceID string, newName string, promptPrefix string
 	}
 
 	// Create the forked study using the standard Create flow (validates, checks name uniqueness)
-	return s.Create(newName, promptPrefix, prompts, negativePrompt, steps, cfgs, pairs, seeds, width, height)
+	return s.Create(newName, promptPrefix, prompts, negativePrompt, steps, cfgs, pairs, seeds, width, height, workflowTemplate, vae, textEncoder, shift)
 }
 
 // HasSamples checks whether a study has any generated samples on disk.

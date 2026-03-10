@@ -148,6 +148,14 @@ export interface Study {
   seeds: number[]
   width: number
   height: number
+  /** ComfyUI workflow template filename (optional). */
+  workflow_template: string
+  /** ComfyUI VAE model path (optional). */
+  vae: string
+  /** ComfyUI CLIP/text encoder model path (optional). */
+  text_encoder: string
+  /** AuraFlow shift value (optional, nullable). */
+  shift?: number
   images_per_checkpoint: number
   created_at: string
   updated_at: string
@@ -165,6 +173,10 @@ export interface CreateStudyPayload {
   seeds: number[]
   width: number
   height: number
+  workflow_template?: string
+  vae?: string
+  text_encoder?: string
+  shift?: number
 }
 
 /** Payload for updating a study. */
@@ -180,6 +192,10 @@ export interface UpdateStudyPayload {
   seeds: number[]
   width: number
   height: number
+  workflow_template?: string
+  vae?: string
+  text_encoder?: string
+  shift?: number
 }
 
 /** Payload for forking a study (creating a new study from an existing one). */
@@ -195,6 +211,10 @@ export interface ForkStudyPayload {
   seeds: number[]
   width: number
   height: number
+  workflow_template?: string
+  vae?: string
+  text_encoder?: string
+  shift?: number
 }
 
 /** Response for checking if a study has generated samples. */
@@ -251,14 +271,10 @@ export interface SampleJobDetail {
   progress: JobProgress
 }
 
-/** Payload for creating a new sample job. */
+/** Payload for creating a new sample job. Workflow template, VAE, text encoder, and shift come from the study definition. */
 export interface CreateSampleJobPayload {
   training_run_name: string
   study_id: string
-  workflow_name: string
-  vae?: string
-  clip?: string
-  shift?: number
   /** Optional list of checkpoint filenames to include; omit to include all checkpoints. */
   checkpoint_filenames?: string[]
   /** When true, delete existing sample directories for selected checkpoints before creating job items. */

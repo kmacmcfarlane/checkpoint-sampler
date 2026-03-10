@@ -99,20 +99,11 @@ func (s *SampleJobsService) Create(ctx context.Context, p *gensamplejobs.CreateS
 		return nil, gensamplejobs.MakeNotFound(fmt.Errorf("training run %s not found", p.TrainingRunName))
 	}
 
-	// Create the job
-	var shift *float64
-	if p.Shift != nil {
-		shift = p.Shift
-	}
-
+	// Create the job — workflow, VAE, text encoder, and shift are read from the study definition.
 	job, err := s.svc.Create(
 		p.TrainingRunName,
 		trainingRun.Checkpoints,
 		p.StudyID,
-		p.WorkflowName,
-		p.Vae,
-		p.Clip,
-		shift,
 		p.CheckpointFilenames,
 		p.ClearExisting,
 		p.MissingOnly,

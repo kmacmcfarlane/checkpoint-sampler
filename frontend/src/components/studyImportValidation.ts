@@ -143,6 +143,10 @@ export function validateStudyImport(raw: unknown): StudyImportResult {
       seeds: obj.seeds as number[],
       width: obj.width as number,
       height: obj.height as number,
+      workflow_template: typeof obj.workflow_template === 'string' ? obj.workflow_template : undefined,
+      vae: typeof obj.vae === 'string' ? obj.vae : undefined,
+      text_encoder: typeof obj.text_encoder === 'string' ? obj.text_encoder : undefined,
+      shift: typeof obj.shift === 'number' && Number.isFinite(obj.shift) ? obj.shift : undefined,
     },
   }
 }

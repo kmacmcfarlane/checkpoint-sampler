@@ -23,8 +23,12 @@ type studyEntity struct {
 	Seeds                 string // JSON
 	Width                 int
 	Height                int
-	CreatedAt             string // RFC3339
-	UpdatedAt             string // RFC3339
+	WorkflowTemplate      *string  // nullable
+	VAE                   *string  // nullable
+	TextEncoder           *string  // nullable
+	Shift                 *float64 // nullable
+	CreatedAt             string   // RFC3339
+	UpdatedAt             string   // RFC3339
 }
 
 // promptJSON is the JSON shape for named prompts.
@@ -44,7 +48,7 @@ func (s *Store) ListStudies() ([]model.Study, error) {
 	s.logger.Trace("entering ListStudies")
 	defer s.logger.Trace("returning from ListStudies")
 
-	rows, err := s.db.Query(`SELECT id, name, prompt_prefix, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs, seeds, width, height, created_at, updated_at
+	rows, err := s.db.Query(`SELECT id, name, prompt_prefix, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs, seeds, width, height, workflow_template, vae, text_encoder, shift, created_at, updated_at
 		FROM studies ORDER BY name`)
 	if err != nil {
 		s.logger.WithError(err).Error("failed to query studies")
@@ -55,7 +59,7 @@ func (s *Store) ListStudies() ([]model.Study, error) {
 	var studies []model.Study
 	for rows.Next() {
 		var e studyEntity
-		if err := rows.Scan(&e.ID, &e.Name, &e.PromptPrefix, &e.Prompts, &e.NegativePrompt, &e.Steps, &e.CFGs, &e.SamplerSchedulerPairs, &e.Seeds, &e.Width, &e.Height, &e.CreatedAt, &e.UpdatedAt); err != nil {
+		if err := rows.Scan(&e.ID, &e.Name, &e.PromptPrefix, &e.Prompts, &e.NegativePrompt, &e.Steps, &e.CFGs, &e.SamplerSchedulerPairs, &e.Seeds, &e.Width, &e.Height, &e.WorkflowTemplate, &e.VAE, &e.TextEncoder, &e.Shift, &e.CreatedAt, &e.UpdatedAt); err != nil {
 			s.logger.WithError(err).Error("failed to scan study row")
 			return nil, fmt.Errorf("scanning study row: %w", err)
 		}
@@ -81,9 +85,9 @@ func (s *Store) GetStudy(id string) (model.Study, error) {
 
 	var e studyEntity
 	err := s.db.QueryRow(
-		`SELECT id, name, prompt_prefix, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs, seeds, width, height, created_at, updated_at
+		`SELECT id, name, prompt_prefix, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs, seeds, width, height, workflow_template, vae, text_encoder, shift, created_at, updated_at
 		FROM studies WHERE id = ?`, id,
-	).Scan(&e.ID, &e.Name, &e.PromptPrefix, &e.Prompts, &e.NegativePrompt, &e.Steps, &e.CFGs, &e.SamplerSchedulerPairs, &e.Seeds, &e.Width, &e.Height, &e.CreatedAt, &e.UpdatedAt)
+	).Scan(&e.ID, &e.Name, &e.PromptPrefix, &e.Prompts, &e.NegativePrompt, &e.Steps, &e.CFGs, &e.SamplerSchedulerPairs, &e.Seeds, &e.Width, &e.Height, &e.WorkflowTemplate, &e.VAE, &e.TextEncoder, &e.Shift, &e.CreatedAt, &e.UpdatedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			s.logger.WithField("study_id", id).Debug("study not found in database")
@@ -117,8 +121,8 @@ func (s *Store) CreateStudy(st model.Study) error {
 	}
 
 	_, err = s.db.Exec(
-		`INSERT INTO studies (id, name, prompt_prefix, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs, seeds, width, height, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO studies (id, name, prompt_prefix, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs, seeds, width, height, workflow_template, vae, text_encoder, shift, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		entity.ID,
 		entity.Name,
 		entity.PromptPrefix,
@@ -130,6 +134,10 @@ func (s *Store) CreateStudy(st model.Study) error {
 		entity.Seeds,
 		entity.Width,
 		entity.Height,
+		entity.WorkflowTemplate,
+		entity.VAE,
+		entity.TextEncoder,
+		entity.Shift,
 		entity.CreatedAt,
 		entity.UpdatedAt,
 	)
@@ -167,7 +175,7 @@ func (s *Store) UpdateStudy(st model.Study) error {
 	}
 
 	result, err := s.db.Exec(
-		`UPDATE studies SET name = ?, prompt_prefix = ?, prompts = ?, negative_prompt = ?, steps = ?, cfgs = ?, sampler_scheduler_pairs = ?, seeds = ?, width = ?, height = ?, updated_at = ?
+		`UPDATE studies SET name = ?, prompt_prefix = ?, prompts = ?, negative_prompt = ?, steps = ?, cfgs = ?, sampler_scheduler_pairs = ?, seeds = ?, width = ?, height = ?, workflow_template = ?, vae = ?, text_encoder = ?, shift = ?, updated_at = ?
 		WHERE id = ?`,
 		entity.Name,
 		entity.PromptPrefix,
@@ -179,6 +187,10 @@ func (s *Store) UpdateStudy(st model.Study) error {
 		entity.Seeds,
 		entity.Width,
 		entity.Height,
+		entity.WorkflowTemplate,
+		entity.VAE,
+		entity.TextEncoder,
+		entity.Shift,
 		entity.UpdatedAt,
 		entity.ID,
 	)
@@ -220,14 +232,14 @@ func (s *Store) GetStudyByName(name string, excludeID string) (model.Study, erro
 	var err error
 	if excludeID == "" {
 		err = s.db.QueryRow(
-			`SELECT id, name, prompt_prefix, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs, seeds, width, height, created_at, updated_at
+			`SELECT id, name, prompt_prefix, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs, seeds, width, height, workflow_template, vae, text_encoder, shift, created_at, updated_at
 			FROM studies WHERE name = ? LIMIT 1`, name,
-		).Scan(&e.ID, &e.Name, &e.PromptPrefix, &e.Prompts, &e.NegativePrompt, &e.Steps, &e.CFGs, &e.SamplerSchedulerPairs, &e.Seeds, &e.Width, &e.Height, &e.CreatedAt, &e.UpdatedAt)
+		).Scan(&e.ID, &e.Name, &e.PromptPrefix, &e.Prompts, &e.NegativePrompt, &e.Steps, &e.CFGs, &e.SamplerSchedulerPairs, &e.Seeds, &e.Width, &e.Height, &e.WorkflowTemplate, &e.VAE, &e.TextEncoder, &e.Shift, &e.CreatedAt, &e.UpdatedAt)
 	} else {
 		err = s.db.QueryRow(
-			`SELECT id, name, prompt_prefix, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs, seeds, width, height, created_at, updated_at
+			`SELECT id, name, prompt_prefix, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs, seeds, width, height, workflow_template, vae, text_encoder, shift, created_at, updated_at
 			FROM studies WHERE name = ? AND id != ? LIMIT 1`, name, excludeID,
-		).Scan(&e.ID, &e.Name, &e.PromptPrefix, &e.Prompts, &e.NegativePrompt, &e.Steps, &e.CFGs, &e.SamplerSchedulerPairs, &e.Seeds, &e.Width, &e.Height, &e.CreatedAt, &e.UpdatedAt)
+		).Scan(&e.ID, &e.Name, &e.PromptPrefix, &e.Prompts, &e.NegativePrompt, &e.Steps, &e.CFGs, &e.SamplerSchedulerPairs, &e.Seeds, &e.Width, &e.Height, &e.WorkflowTemplate, &e.VAE, &e.TextEncoder, &e.Shift, &e.CreatedAt, &e.UpdatedAt)
 	}
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -325,6 +337,20 @@ func studyEntityToModel(e studyEntity) (model.Study, error) {
 		}
 	}
 
+	// Convert nullable pointer fields to their zero-value equivalents for the model.
+	workflowTemplate := ""
+	if e.WorkflowTemplate != nil {
+		workflowTemplate = *e.WorkflowTemplate
+	}
+	vae := ""
+	if e.VAE != nil {
+		vae = *e.VAE
+	}
+	textEncoder := ""
+	if e.TextEncoder != nil {
+		textEncoder = *e.TextEncoder
+	}
+
 	return model.Study{
 		ID:                    e.ID,
 		Name:                  e.Name,
@@ -337,6 +363,10 @@ func studyEntityToModel(e studyEntity) (model.Study, error) {
 		Seeds:                 seeds,
 		Width:                 e.Width,
 		Height:                e.Height,
+		WorkflowTemplate:      workflowTemplate,
+		VAE:                   vae,
+		TextEncoder:           textEncoder,
+		Shift:                 e.Shift,
 		CreatedAt:             createdAt,
 		UpdatedAt:             updatedAt,
 	}, nil
@@ -383,6 +413,20 @@ func studyModelToEntity(st model.Study) (studyEntity, error) {
 		return studyEntity{}, fmt.Errorf("marshaling seeds: %w", err)
 	}
 
+	// Convert empty string fields to nil pointers so they are stored as NULL.
+	var workflowTemplate *string
+	if st.WorkflowTemplate != "" {
+		workflowTemplate = &st.WorkflowTemplate
+	}
+	var vae *string
+	if st.VAE != "" {
+		vae = &st.VAE
+	}
+	var textEncoder *string
+	if st.TextEncoder != "" {
+		textEncoder = &st.TextEncoder
+	}
+
 	return studyEntity{
 		ID:                    st.ID,
 		Name:                  st.Name,
@@ -395,6 +439,10 @@ func studyModelToEntity(st model.Study) (studyEntity, error) {
 		Seeds:                 string(seedsBytes),
 		Width:                 st.Width,
 		Height:                st.Height,
+		WorkflowTemplate:      workflowTemplate,
+		VAE:                   vae,
+		TextEncoder:           textEncoder,
+		Shift:                 st.Shift,
 		CreatedAt:             st.CreatedAt.UTC().Format(time.RFC3339),
 		UpdatedAt:             st.UpdatedAt.UTC().Format(time.RFC3339),
 	}, nil

@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { nextTick, type VNode } from 'vue'
-import { NModal, NSelect, NInputNumber, NButton, NCheckbox } from 'naive-ui'
+import { NModal, NSelect, NButton, NCheckbox } from 'naive-ui'
 import JobLaunchDialog from '../JobLaunchDialog.vue'
 import StudyEditor from '../StudyEditor.vue'
-import type { TrainingRun, WorkflowSummary, Study, SampleJob } from '../../api/types'
+import type { TrainingRun, Study, SampleJob, WorkflowSummary } from '../../api/types'
 
 // Mock the api client module
 vi.mock('../../api/client', () => ({
@@ -109,6 +109,9 @@ const sampleStudies: Study[] = [
     seeds: [42],
     width: 1024,
     height: 1024,
+    workflow_template: 'qwen-image.json',
+    vae: 'ae.safetensors',
+    text_encoder: 'clip_l.safetensors',
     images_per_checkpoint: 1,
     created_at: '2025-01-01T00:00:00Z',
     updated_at: '2025-01-01T00:00:00Z',
@@ -131,6 +134,9 @@ const sampleStudies: Study[] = [
     seeds: [42, 420],
     width: 1024,
     height: 1024,
+    workflow_template: '',
+    vae: '',
+    text_encoder: '',
     images_per_checkpoint: 48,
     created_at: '2025-01-01T00:00:00Z',
     updated_at: '2025-01-01T00:00:00Z',
@@ -228,7 +234,7 @@ describe('JobLaunchDialog', () => {
     expect(modal.props('title')).toBe('Generate Samples')
   })
 
-  it('fetches training runs, jobs, workflows, studies, and ComfyUI models on mount', async () => {
+  it('fetches training runs, jobs, and studies on mount', async () => {
     mount(JobLaunchDialog, {
       props: { show: true },
       global: { stubs: { Teleport: true } },
@@ -237,10 +243,7 @@ describe('JobLaunchDialog', () => {
 
     expect(mockGetCheckpointTrainingRuns).toHaveBeenCalledTimes(1)
     expect(mockListSampleJobs).toHaveBeenCalledTimes(1)
-    expect(mockListWorkflows).toHaveBeenCalledTimes(1)
     expect(mockListStudies).toHaveBeenCalled()
-    expect(mockGetComfyUIModels).toHaveBeenCalledWith('vae')
-    expect(mockGetComfyUIModels).toHaveBeenCalledWith('clip')
   })
 
   it('starts with no training run pre-selected', async () => {
@@ -367,20 +370,6 @@ describe('JobLaunchDialog', () => {
     })
   })
 
-  it('populates workflow select with valid workflows only', async () => {
-    const wrapper = mount(JobLaunchDialog, {
-      props: { show: true },
-      global: { stubs: { Teleport: true } },
-    })
-    await flushPromises()
-
-    const workflowSelect = wrapper.find('[data-testid="workflow-select"]')
-    const select = workflowSelect.findComponent(NSelect)
-    const options = select.props('options') as Array<{ label: string; value: string }>
-    expect(options).toHaveLength(2)
-    expect(options.map(o => o.value)).toEqual(['qwen-image.json', 'auraflow-image.json'])
-  })
-
   it('populates study select with all studies', async () => {
     const wrapper = mount(JobLaunchDialog, {
       props: { show: true },
@@ -393,26 +382,6 @@ describe('JobLaunchDialog', () => {
     const options = select.props('options') as Array<{ label: string; value: string }>
     expect(options).toHaveLength(2)
     expect(options.map(o => o.label)).toEqual(['Quick Test', 'Full Test'])
-  })
-
-  it('shows shift input only when workflow has shift role', async () => {
-    const wrapper = mount(JobLaunchDialog, {
-      props: { show: true },
-      global: { stubs: { Teleport: true } },
-    })
-    await flushPromises()
-
-    // No shift input initially
-    expect(wrapper.find('[data-testid="shift-input"]').exists()).toBe(false)
-
-    // Select workflow with shift role
-    const workflowSelect = wrapper.find('[data-testid="workflow-select"]')
-    const select = workflowSelect.findComponent(NSelect)
-    select.vm.$emit('update:value', 'auraflow-image.json')
-    await nextTick()
-
-    // Shift input should appear
-    expect(wrapper.find('[data-testid="shift-input"]').exists()).toBe(true)
   })
 
   it('displays confirmation summary with N/A when no training run selected', async () => {
@@ -463,7 +432,7 @@ describe('JobLaunchDialog', () => {
     expect(submitButton!.props('disabled')).toBe(true)
   })
 
-  it('enables submit button when all required fields are filled for an empty run', async () => {
+  it('enables submit button when training run and study are selected', async () => {
     const wrapper = mount(JobLaunchDialog, {
       props: { show: true },
       global: { stubs: { Teleport: true } },
@@ -473,16 +442,7 @@ describe('JobLaunchDialog', () => {
     wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
     await nextTick()
 
-    wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect).vm.$emit('update:value', 'qwen-image.json')
-    await nextTick()
-
     wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
-    await nextTick()
-
-    wrapper.find('[data-testid="vae-select"]').findComponent(NSelect).vm.$emit('update:value', 'ae.safetensors')
-    await nextTick()
-
-    wrapper.find('[data-testid="clip-select"]').findComponent(NSelect).vm.$emit('update:value', 'clip_l.safetensors')
     await nextTick()
 
     const buttons = wrapper.findAllComponents(NButton)
@@ -514,12 +474,9 @@ describe('JobLaunchDialog', () => {
     })
     await flushPromises()
 
-    // Select empty run (only one shown by default)
+    // Select empty run and study (workflow/VAE/CLIP now come from the study definition)
     wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
-    wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect).vm.$emit('update:value', 'qwen-image.json')
     wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
-    wrapper.find('[data-testid="vae-select"]').findComponent(NSelect).vm.$emit('update:value', 'ae.safetensors')
-    wrapper.find('[data-testid="clip-select"]').findComponent(NSelect).vm.$emit('update:value', 'clip_l.safetensors')
     await nextTick()
 
     const buttons = wrapper.findAllComponents(NButton)
@@ -530,59 +487,6 @@ describe('JobLaunchDialog', () => {
     expect(mockCreateSampleJob).toHaveBeenCalledWith({
       training_run_name: 'qwen/psai4rt-v0.3.0',
       study_id: 'preset-1',
-      workflow_name: 'qwen-image.json',
-      vae: 'ae.safetensors',
-      clip: 'clip_l.safetensors',
-    })
-  })
-
-  it('includes shift value in payload when workflow has shift role', async () => {
-    const mockJob: SampleJob = {
-      id: 'job-1',
-      training_run_name: 'qwen/psai4rt-v0.3.0',
-      study_id: 'preset-1', study_name: 'Quick Test',
-      workflow_name: 'auraflow-image.json',
-      vae: 'ae.safetensors',
-      clip: 'clip_l.safetensors',
-      shift: 3.0,
-      status: 'running',
-      total_items: 5,
-      completed_items: 0,
-      failed_items: 0,
-      pending_items: 5,
-      created_at: '2025-01-01T00:00:00Z',
-      updated_at: '2025-01-01T00:00:00Z',
-    }
-    mockCreateSampleJob.mockResolvedValue(mockJob)
-
-    const wrapper = mount(JobLaunchDialog, {
-      props: { show: true },
-      global: { stubs: { Teleport: true } },
-    })
-    await flushPromises()
-
-    wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
-    wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect).vm.$emit('update:value', 'auraflow-image.json')
-    wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
-    wrapper.find('[data-testid="vae-select"]').findComponent(NSelect).vm.$emit('update:value', 'ae.safetensors')
-    wrapper.find('[data-testid="clip-select"]').findComponent(NSelect).vm.$emit('update:value', 'clip_l.safetensors')
-    await nextTick()
-
-    wrapper.find('[data-testid="shift-input"]').findComponent(NInputNumber).vm.$emit('update:value', 3.0)
-    await nextTick()
-
-    const buttons = wrapper.findAllComponents(NButton)
-    const submitButton = buttons.find(b => b.text() === 'Generate Samples')
-    await submitButton!.trigger('click')
-    await flushPromises()
-
-    expect(mockCreateSampleJob).toHaveBeenCalledWith({
-      training_run_name: 'qwen/psai4rt-v0.3.0',
-      study_id: 'preset-1',
-      workflow_name: 'auraflow-image.json',
-      vae: 'ae.safetensors',
-      clip: 'clip_l.safetensors',
-      shift: 3.0,
     })
   })
 
@@ -608,10 +512,7 @@ describe('JobLaunchDialog', () => {
     await flushPromises()
 
     wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
-    wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect).vm.$emit('update:value', 'qwen-image.json')
     wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
-    wrapper.find('[data-testid="vae-select"]').findComponent(NSelect).vm.$emit('update:value', 'ae.safetensors')
-    wrapper.find('[data-testid="clip-select"]').findComponent(NSelect).vm.$emit('update:value', 'clip_l.safetensors')
     await nextTick()
 
     const buttons = wrapper.findAllComponents(NButton)
@@ -633,10 +534,7 @@ describe('JobLaunchDialog', () => {
     await flushPromises()
 
     wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
-    wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect).vm.$emit('update:value', 'qwen-image.json')
     wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
-    wrapper.find('[data-testid="vae-select"]').findComponent(NSelect).vm.$emit('update:value', 'ae.safetensors')
-    wrapper.find('[data-testid="clip-select"]').findComponent(NSelect).vm.$emit('update:value', 'clip_l.safetensors')
     await nextTick()
 
     const buttons = wrapper.findAllComponents(NButton)
@@ -694,6 +592,9 @@ describe('JobLaunchDialog', () => {
       seeds: [42],
       width: 1024,
       height: 1024,
+      workflow_template: '',
+      vae: '',
+      text_encoder: '',
       images_per_checkpoint: 1,
       created_at: '2025-01-01T00:00:00Z',
       updated_at: '2025-01-01T00:00:00Z',
@@ -829,6 +730,9 @@ describe('JobLaunchDialog', () => {
         seeds: [42],
         width: 1024,
         height: 1024,
+        workflow_template: '',
+        vae: '',
+        text_encoder: '',
         images_per_checkpoint: 1,
         created_at: '2025-01-01T00:00:00Z',
         updated_at: '2025-01-01T00:00:00Z',
@@ -944,10 +848,7 @@ describe('JobLaunchDialog', () => {
       wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
       await nextTick()
       wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
-      wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect).vm.$emit('update:value', 'qwen-image.json')
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
-      wrapper.find('[data-testid="vae-select"]').findComponent(NSelect).vm.$emit('update:value', 'ae.safetensors')
-      wrapper.find('[data-testid="clip-select"]').findComponent(NSelect).vm.$emit('update:value', 'clip_l.safetensors')
       await nextTick()
 
       const buttons = wrapper.findAllComponents(NButton)
@@ -996,9 +897,24 @@ describe('JobLaunchDialog', () => {
   })
 
   describe('localStorage persistence', () => {
-    it('restores last workflow ID on mount when workflow is still available', async () => {
+    it('persists the selected study ID to localStorage', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
+      await nextTick()
+
+      const stored = JSON.parse(localStorage.getItem(GENERATE_INPUTS_STORAGE_KEY) ?? '{}') as GenerateInputsState
+      expect(stored.lastStudyId).toBe('preset-1')
+    })
+
+    it('restores the last study on mount when it is still available', async () => {
       const state: GenerateInputsState = {
-        lastWorkflowId: 'qwen-image.json',
+        lastWorkflowId: null,
+        lastStudyId: 'preset-2',
         byModelType: {},
       }
       localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
@@ -1009,236 +925,8 @@ describe('JobLaunchDialog', () => {
       })
       await flushPromises()
 
-      const workflowSelect = wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect)
-      expect(workflowSelect.props('value')).toBe('qwen-image.json')
-    })
-
-    it('does not restore workflow ID when it is no longer available', async () => {
-      const state: GenerateInputsState = {
-        lastWorkflowId: 'deleted-workflow.json',
-        byModelType: {},
-      }
-      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
-
-      const wrapper = mount(JobLaunchDialog, {
-        props: { show: true },
-        global: { stubs: { Teleport: true } },
-      })
-      await flushPromises()
-
-      const workflowSelect = wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect)
-      expect(workflowSelect.props('value')).toBeNull()
-    })
-
-    it('does not restore invalid workflow (validation_state=invalid) from localStorage', async () => {
-      const state: GenerateInputsState = {
-        lastWorkflowId: 'invalid-workflow.json',
-        byModelType: {},
-      }
-      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
-
-      const wrapper = mount(JobLaunchDialog, {
-        props: { show: true },
-        global: { stubs: { Teleport: true } },
-      })
-      await flushPromises()
-
-      const workflowSelect = wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect)
-      expect(workflowSelect.props('value')).toBeNull()
-    })
-
-    it('persists workflow ID to localStorage when workflow is selected', async () => {
-      const wrapper = mount(JobLaunchDialog, {
-        props: { show: true },
-        global: { stubs: { Teleport: true } },
-      })
-      await flushPromises()
-
-      wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect).vm.$emit('update:value', 'auraflow-image.json')
-      await nextTick()
-
-      const stored = JSON.parse(localStorage.getItem(GENERATE_INPUTS_STORAGE_KEY) ?? '{}') as GenerateInputsState
-      expect(stored.lastWorkflowId).toBe('auraflow-image.json')
-    })
-
-    it('restores model-type-specific VAE and CLIP inputs when training run is selected', async () => {
-      // Pre-populate persisted state for model type 'qwen_image'
-      const state: GenerateInputsState = {
-        lastWorkflowId: null,
-        byModelType: {
-          qwen_image: { vae: 'ae.safetensors', clip: 'clip_l.safetensors', shift: null },
-        },
-      }
-      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
-
-      // Mock metadata to return ss_base_model_version = 'qwen_image'
-      mockGetCheckpointMetadata.mockResolvedValue({
-        metadata: { ss_base_model_version: 'qwen_image' },
-      })
-
-      const wrapper = mount(JobLaunchDialog, {
-        props: { show: true },
-        global: { stubs: { Teleport: true } },
-      })
-      await flushPromises()
-
-      // Select empty run (id=1)
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
-      await flushPromises()
-
-      const vaeSelect = wrapper.find('[data-testid="vae-select"]').findComponent(NSelect)
-      const clipSelect = wrapper.find('[data-testid="clip-select"]').findComponent(NSelect)
-      expect(vaeSelect.props('value')).toBe('ae.safetensors')
-      expect(clipSelect.props('value')).toBe('clip_l.safetensors')
-    })
-
-    it('restores shift value when training run is selected and workflow has shift role', async () => {
-      const state: GenerateInputsState = {
-        lastWorkflowId: 'auraflow-image.json',
-        byModelType: {
-          aura_flow: { vae: 'ae.safetensors', clip: 't5xxl_fp16.safetensors', shift: 3.0 },
-        },
-      }
-      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
-
-      mockGetCheckpointMetadata.mockResolvedValue({
-        metadata: { ss_base_model_version: 'aura_flow' },
-      })
-
-      const wrapper = mount(JobLaunchDialog, {
-        props: { show: true },
-        global: { stubs: { Teleport: true } },
-      })
-      await flushPromises()
-
-      // Select empty run (id=1)
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
-      await flushPromises()
-
-      // Workflow is restored, so shift input should appear
-      const shiftInput = wrapper.find('[data-testid="shift-input"]').findComponent(NInputNumber)
-      expect(shiftInput.props('value')).toBe(3.0)
-    })
-
-    it('falls back to null for VAE and CLIP when persisted values are no longer available', async () => {
-      const state: GenerateInputsState = {
-        lastWorkflowId: null,
-        byModelType: {
-          qwen_image: { vae: 'deleted-vae.safetensors', clip: 'deleted-clip.safetensors', shift: null },
-        },
-      }
-      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
-
-      mockGetCheckpointMetadata.mockResolvedValue({
-        metadata: { ss_base_model_version: 'qwen_image' },
-      })
-
-      const wrapper = mount(JobLaunchDialog, {
-        props: { show: true },
-        global: { stubs: { Teleport: true } },
-      })
-      await flushPromises()
-
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
-      await flushPromises()
-
-      const vaeSelect = wrapper.find('[data-testid="vae-select"]').findComponent(NSelect)
-      const clipSelect = wrapper.find('[data-testid="clip-select"]').findComponent(NSelect)
-      expect(vaeSelect.props('value')).toBeNull()
-      expect(clipSelect.props('value')).toBeNull()
-    })
-
-    it('persists VAE and CLIP selections to localStorage when a model type is known', async () => {
-      mockGetCheckpointMetadata.mockResolvedValue({
-        metadata: { ss_base_model_version: 'qwen_image' },
-      })
-
-      const wrapper = mount(JobLaunchDialog, {
-        props: { show: true },
-        global: { stubs: { Teleport: true } },
-      })
-      await flushPromises()
-
-      // Select a training run so model type is fetched
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
-      await flushPromises()
-
-      // Now select VAE and CLIP
-      wrapper.find('[data-testid="vae-select"]').findComponent(NSelect).vm.$emit('update:value', 'ae.safetensors')
-      await nextTick()
-      wrapper.find('[data-testid="clip-select"]').findComponent(NSelect).vm.$emit('update:value', 'clip_l.safetensors')
-      await nextTick()
-
-      const stored = JSON.parse(localStorage.getItem(GENERATE_INPUTS_STORAGE_KEY) ?? '{}') as GenerateInputsState
-      expect(stored.byModelType['qwen_image']).toEqual({
-        vae: 'ae.safetensors',
-        clip: 'clip_l.safetensors',
-        shift: null,
-      })
-    })
-
-    it('does not persist VAE/CLIP if model type is unknown (metadata fetch failed)', async () => {
-      mockGetCheckpointMetadata.mockRejectedValue({ code: 'NETWORK_ERROR', message: 'fail' })
-
-      const wrapper = mount(JobLaunchDialog, {
-        props: { show: true },
-        global: { stubs: { Teleport: true } },
-      })
-      await flushPromises()
-
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
-      await flushPromises()
-
-      wrapper.find('[data-testid="vae-select"]').findComponent(NSelect).vm.$emit('update:value', 'ae.safetensors')
-      await nextTick()
-
-      const stored = JSON.parse(localStorage.getItem(GENERATE_INPUTS_STORAGE_KEY) ?? '{}') as GenerateInputsState
-      // byModelType should be empty since model type was never resolved
-      expect(Object.keys(stored.byModelType ?? {})).toHaveLength(0)
-    })
-
-    it('does not restore model inputs when checkpoint has no ss_base_model_version', async () => {
-      // Metadata present but no ss_base_model_version key
-      mockGetCheckpointMetadata.mockResolvedValue({
-        metadata: { ss_output_name: 'my-model' },
-      })
-
-      const state: GenerateInputsState = {
-        lastWorkflowId: null,
-        byModelType: {
-          qwen_image: { vae: 'ae.safetensors', clip: 'clip_l.safetensors', shift: null },
-        },
-      }
-      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
-
-      const wrapper = mount(JobLaunchDialog, {
-        props: { show: true },
-        global: { stubs: { Teleport: true } },
-      })
-      await flushPromises()
-
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
-      await flushPromises()
-
-      // No model type was found, so VAE and CLIP remain null
-      const vaeSelect = wrapper.find('[data-testid="vae-select"]').findComponent(NSelect)
-      const clipSelect = wrapper.find('[data-testid="clip-select"]').findComponent(NSelect)
-      expect(vaeSelect.props('value')).toBeNull()
-      expect(clipSelect.props('value')).toBeNull()
-    })
-
-    it('fetches checkpoint metadata for the first checkpoint of the selected run', async () => {
-      const wrapper = mount(JobLaunchDialog, {
-        props: { show: true },
-        global: { stubs: { Teleport: true } },
-      })
-      await flushPromises()
-
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
-      await flushPromises()
-
-      // runEmpty has checkpoints[0].filename = 'checkpoint1.safetensors'
-      expect(mockGetCheckpointMetadata).toHaveBeenCalledWith('checkpoint1.safetensors')
+      const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+      expect(studySelect.props('value')).toBe('preset-2')
     })
   })
 
@@ -1379,10 +1067,7 @@ describe('JobLaunchDialog', () => {
       await flushPromises()
 
       // Fill other required fields
-      wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect).vm.$emit('update:value', 'qwen-image.json')
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
-      wrapper.find('[data-testid="vae-select"]').findComponent(NSelect).vm.$emit('update:value', 'ae.safetensors')
-      wrapper.find('[data-testid="clip-select"]').findComponent(NSelect).vm.$emit('update:value', 'clip_l.safetensors')
       await flushPromises()
 
       // Deselect all checkpoints
@@ -1425,10 +1110,7 @@ describe('JobLaunchDialog', () => {
       await nextTick()
       wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
       await flushPromises()
-      wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect).vm.$emit('update:value', 'qwen-image.json')
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
-      wrapper.find('[data-testid="vae-select"]').findComponent(NSelect).vm.$emit('update:value', 'ae.safetensors')
-      wrapper.find('[data-testid="clip-select"]').findComponent(NSelect).vm.$emit('update:value', 'clip_l.safetensors')
       await flushPromises()
 
       // Submit (failed checkpoints pre-selected: chk-a, chk-c)
@@ -1490,6 +1172,9 @@ describe('JobLaunchDialog', () => {
         seeds: [42],
         width: 1024,
         height: 1024,
+        workflow_template: '',
+        vae: '',
+        text_encoder: '',
         images_per_checkpoint: 1,
         created_at: '2025-01-01T00:00:00Z',
         updated_at: '2025-01-01T00:00:00Z',
@@ -1703,6 +1388,9 @@ describe('JobLaunchDialog', () => {
         seeds: [42],
         width: 1024,
         height: 1024,
+        workflow_template: '',
+        vae: '',
+        text_encoder: '',
         images_per_checkpoint: 1,
         created_at: '2025-01-01T00:00:00Z',
         updated_at: '2025-01-01T00:00:00Z',
@@ -1837,18 +1525,6 @@ describe('JobLaunchDialog', () => {
       expect(runSelect.props('value')).toBe(2)
     })
 
-    // AC: Dialog is pre-populated with workflow from the job
-    it('pre-selects the workflow from the job', async () => {
-      const wrapper = mount(JobLaunchDialog, {
-        props: { show: true, prefillJob: completedJob },
-        global: { stubs: { Teleport: true } },
-      })
-      await flushPromises()
-
-      const workflowSelect = wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect)
-      expect(workflowSelect.props('value')).toBe('auraflow-image.json')
-    })
-
     // AC: Dialog is pre-populated with study from the job
     it('pre-selects the study from the job', async () => {
       const wrapper = mount(JobLaunchDialog, {
@@ -1859,42 +1535,6 @@ describe('JobLaunchDialog', () => {
 
       const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
       expect(studySelect.props('value')).toBe('preset-2')
-    })
-
-    // AC: Dialog is pre-populated with VAE from the job
-    it('pre-selects the VAE from the job', async () => {
-      const wrapper = mount(JobLaunchDialog, {
-        props: { show: true, prefillJob: completedJob },
-        global: { stubs: { Teleport: true } },
-      })
-      await flushPromises()
-
-      const vaeSelect = wrapper.find('[data-testid="vae-select"]').findComponent(NSelect)
-      expect(vaeSelect.props('value')).toBe('ae.safetensors')
-    })
-
-    // AC: Dialog is pre-populated with CLIP from the job
-    it('pre-selects the CLIP from the job', async () => {
-      const wrapper = mount(JobLaunchDialog, {
-        props: { show: true, prefillJob: completedJob },
-        global: { stubs: { Teleport: true } },
-      })
-      await flushPromises()
-
-      const clipSelect = wrapper.find('[data-testid="clip-select"]').findComponent(NSelect)
-      expect(clipSelect.props('value')).toBe('t5xxl_fp16.safetensors')
-    })
-
-    // AC: Dialog is pre-populated with shift from the job
-    it('pre-selects the shift value from the job', async () => {
-      const wrapper = mount(JobLaunchDialog, {
-        props: { show: true, prefillJob: completedJob },
-        global: { stubs: { Teleport: true } },
-      })
-      await flushPromises()
-
-      const shiftInput = wrapper.find('[data-testid="shift-input"]').findComponent(NInputNumber)
-      expect(shiftInput.props('value')).toBe(3.0)
     })
 
     // AC: Expands the "show all" filter when the training run is not in the default filter
@@ -1973,7 +1613,7 @@ describe('JobLaunchDialog', () => {
       })
       await flushPromises()
 
-      // All fields should be pre-filled, so submit should be enabled
+      // Training run and study should be pre-filled
       const buttons = wrapper.findAllComponents(NButton)
       const submitButton = buttons.find(b => b.text() === 'Regenerate Samples')
       expect(submitButton).toBeDefined()
@@ -1982,43 +1622,18 @@ describe('JobLaunchDialog', () => {
       await submitButton!.trigger('click')
       await flushPromises()
 
-      // Verify the standard createSampleJob API was called
+      // Verify the standard createSampleJob API was called (workflow/vae/clip/shift now come from the study)
       expect(mockCreateSampleJob).toHaveBeenCalledTimes(1)
       const call = mockCreateSampleJob.mock.calls[0][0]
       expect(call.training_run_name).toBe('qwen/psai4rt-v0.4.0')
       expect(call.study_id).toBe('preset-2')
-      expect(call.workflow_name).toBe('auraflow-image.json')
-      expect(call.vae).toBe('ae.safetensors')
-      expect(call.clip).toBe('t5xxl_fp16.safetensors')
-      expect(call.shift).toBe(3.0)
+      // workflow_name, vae, clip, shift are NOT in the payload anymore (come from the study)
+      expect(call.workflow_name).toBeUndefined()
+      expect(call.vae).toBeUndefined()
+      expect(call.clip).toBeUndefined()
     })
 
-    // AC: Prefill skips auto-selection (does not use auto-selected single workflow)
-    it('uses prefill workflow instead of auto-selected single workflow', async () => {
-      // Only one valid workflow remains: qwen-image.json
-      // But prefill job uses auraflow-image.json — prefill must win
-      const singleValidWorkflows: WorkflowSummary[] = [
-        {
-          name: 'auraflow-image.json',
-          validation_state: 'valid',
-          roles: { save_image: ['9'], unet_loader: ['4'], shift: ['3'] },
-          warnings: [],
-        },
-      ]
-      mockListWorkflows.mockResolvedValue(singleValidWorkflows)
-
-      const wrapper = mount(JobLaunchDialog, {
-        props: { show: true, prefillJob: completedJob },
-        global: { stubs: { Teleport: true } },
-      })
-      await flushPromises()
-
-      const workflowSelect = wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect)
-      // Prefill sets workflow from the job, not from auto-selection logic
-      expect(workflowSelect.props('value')).toBe('auraflow-image.json')
-    })
-
-    // AC: Prefill skips persistence restoration (does not use localStorage values)
+    // AC: Prefill skips persistence restoration (does not use localStorage values for training run / study)
     it('uses prefill values instead of localStorage persistence', async () => {
       // Set up localStorage with different values
       const state: GenerateInputsState = {
@@ -2039,186 +1654,11 @@ describe('JobLaunchDialog', () => {
       const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
       expect(runSelect.props('value')).toBe(2) // Not 1 from localStorage
 
-      const workflowSelect = wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect)
-      expect(workflowSelect.props('value')).toBe('auraflow-image.json') // Not 'qwen-image.json' from localStorage
-
       const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
       expect(studySelect.props('value')).toBe('preset-2') // Not 'preset-1' from localStorage
     })
   })
 
-  // AC1 + AC2 + AC3: Single-workflow auto-selection
-  describe('single-workflow auto-selection (AC1/AC2/AC3)', () => {
-    // AC1: When exactly one valid workflow exists, it is auto-selected on mount.
-    it('auto-selects the workflow when exactly one valid workflow is available', async () => {
-      const singleWorkflow: WorkflowSummary[] = [
-        {
-          name: 'qwen-image.json',
-          validation_state: 'valid',
-          roles: { save_image: ['9'], unet_loader: ['4'] },
-          warnings: [],
-        },
-      ]
-      mockListWorkflows.mockResolvedValue(singleWorkflow)
-
-      const wrapper = mount(JobLaunchDialog, {
-        props: { show: true },
-        global: { stubs: { Teleport: true } },
-      })
-      await flushPromises()
-
-      // AC1: The sole valid workflow should be auto-selected
-      const workflowSelect = wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect)
-      expect(workflowSelect.props('value')).toBe('qwen-image.json')
-    })
-
-    // AC1: Only valid workflows count — invalid workflows are excluded from the single-workflow check.
-    it('auto-selects the single valid workflow even when invalid workflows are present', async () => {
-      const mixedWorkflows: WorkflowSummary[] = [
-        {
-          name: 'valid-only.json',
-          validation_state: 'valid',
-          roles: { save_image: ['9'], unet_loader: ['4'] },
-          warnings: [],
-        },
-        {
-          name: 'broken.json',
-          validation_state: 'invalid',
-          roles: {},
-          warnings: ['Missing required roles'],
-        },
-      ]
-      mockListWorkflows.mockResolvedValue(mixedWorkflows)
-
-      const wrapper = mount(JobLaunchDialog, {
-        props: { show: true },
-        global: { stubs: { Teleport: true } },
-      })
-      await flushPromises()
-
-      // AC1: 'valid-only.json' is the sole valid workflow and should be auto-selected
-      const workflowSelect = wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect)
-      expect(workflowSelect.props('value')).toBe('valid-only.json')
-    })
-
-    // AC2: When multiple valid workflows exist, the last-used workflow is restored from localStorage.
-    it('restores last-used workflow from localStorage when multiple valid workflows exist', async () => {
-      // sampleWorkflows has two valid workflows: qwen-image.json and auraflow-image.json
-      // (default mock already sets this up)
-      const state: GenerateInputsState = {
-        lastWorkflowId: 'auraflow-image.json',
-        byModelType: {},
-      }
-      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
-
-      const wrapper = mount(JobLaunchDialog, {
-        props: { show: true },
-        global: { stubs: { Teleport: true } },
-      })
-      await flushPromises()
-
-      // AC2: Last-used workflow from localStorage should be restored
-      const workflowSelect = wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect)
-      expect(workflowSelect.props('value')).toBe('auraflow-image.json')
-    })
-
-    // AC2: When multiple valid workflows exist and no localStorage value, no workflow is pre-selected.
-    it('does not auto-select any workflow when multiple valid workflows exist and no localStorage value', async () => {
-      // sampleWorkflows has two valid workflows and localStorage is empty
-      const wrapper = mount(JobLaunchDialog, {
-        props: { show: true },
-        global: { stubs: { Teleport: true } },
-      })
-      await flushPromises()
-
-      // AC2: No auto-selection when multiple valid workflows exist
-      const workflowSelect = wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect)
-      expect(workflowSelect.props('value')).toBeNull()
-    })
-
-    // AC3: Auto-selection does not override an explicit user selection made after mount.
-    it('does not override a user-selected workflow when only one valid workflow was auto-selected', async () => {
-      // Start with one valid workflow so auto-selection fires
-      const singleWorkflow: WorkflowSummary[] = [
-        {
-          name: 'qwen-image.json',
-          validation_state: 'valid',
-          roles: { save_image: ['9'], unet_loader: ['4'] },
-          warnings: [],
-        },
-      ]
-      mockListWorkflows.mockResolvedValue(singleWorkflow)
-
-      const wrapper = mount(JobLaunchDialog, {
-        props: { show: true },
-        global: { stubs: { Teleport: true } },
-      })
-      await flushPromises()
-
-      // Auto-selected on mount
-      const workflowSelect = wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect)
-      expect(workflowSelect.props('value')).toBe('qwen-image.json')
-
-      // AC3: User explicitly clears the selection — this should stick
-      workflowSelect.vm.$emit('update:value', null)
-      await nextTick()
-
-      expect(workflowSelect.props('value')).toBeNull()
-    })
-
-    // AC1: When zero valid workflows exist, no auto-selection occurs.
-    it('does not auto-select when no valid workflows are available', async () => {
-      mockListWorkflows.mockResolvedValue([
-        {
-          name: 'broken.json',
-          validation_state: 'invalid' as const,
-          roles: {},
-          warnings: ['Missing required roles'],
-        },
-      ])
-
-      const wrapper = mount(JobLaunchDialog, {
-        props: { show: true },
-        global: { stubs: { Teleport: true } },
-      })
-      await flushPromises()
-
-      const workflowSelect = wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect)
-      expect(workflowSelect.props('value')).toBeNull()
-    })
-
-    // AC3: Auto-selection does not override a restored localStorage value in the single-workflow case.
-    // When localStorage holds the same workflow name, the result is identical (no conflict).
-    // When localStorage holds a different name that is no longer valid, single-workflow auto-select fires.
-    it('auto-selects single workflow even when localStorage has a stale (now invalid) workflow', async () => {
-      const singleWorkflow: WorkflowSummary[] = [
-        {
-          name: 'new-workflow.json',
-          validation_state: 'valid',
-          roles: { save_image: ['9'], unet_loader: ['4'] },
-          warnings: [],
-        },
-      ]
-      mockListWorkflows.mockResolvedValue(singleWorkflow)
-
-      // localStorage has a stale workflow that is no longer available
-      const state: GenerateInputsState = {
-        lastWorkflowId: 'old-deleted-workflow.json',
-        byModelType: {},
-      }
-      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
-
-      const wrapper = mount(JobLaunchDialog, {
-        props: { show: true },
-        global: { stubs: { Teleport: true } },
-      })
-      await flushPromises()
-
-      // AC1: Single-workflow auto-select should fire since only one valid workflow exists
-      const workflowSelect = wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect)
-      expect(workflowSelect.props('value')).toBe('new-workflow.json')
-    })
-  })
 
   // S-084: Validation preview and Generate Missing Samples
   describe('validation preview (S-084)', () => {
@@ -2761,10 +2201,7 @@ describe('JobLaunchDialog', () => {
       await nextTick()
       wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
       await flushPromises()
-      wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect).vm.$emit('update:value', 'qwen-image.json')
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
-      wrapper.find('[data-testid="vae-select"]').findComponent(NSelect).vm.$emit('update:value', 'ae.safetensors')
-      wrapper.find('[data-testid="clip-select"]').findComponent(NSelect).vm.$emit('update:value', 'clip_l.safetensors')
       await flushPromises()
 
       // Enable missing-only
@@ -2808,10 +2245,7 @@ describe('JobLaunchDialog', () => {
       await nextTick()
       wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
       await flushPromises()
-      wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect).vm.$emit('update:value', 'qwen-image.json')
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
-      wrapper.find('[data-testid="vae-select"]').findComponent(NSelect).vm.$emit('update:value', 'ae.safetensors')
-      wrapper.find('[data-testid="clip-select"]').findComponent(NSelect).vm.$emit('update:value', 'clip_l.safetensors')
       await flushPromises()
 
       const buttons = wrapper.findAllComponents(NButton)
@@ -3433,10 +2867,7 @@ describe('JobLaunchDialog', () => {
       await nextTick()
       wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
       await flushPromises()
-      wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect).vm.$emit('update:value', 'qwen-image.json')
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
-      wrapper.find('[data-testid="vae-select"]').findComponent(NSelect).vm.$emit('update:value', 'ae.safetensors')
-      wrapper.find('[data-testid="clip-select"]').findComponent(NSelect).vm.$emit('update:value', 'clip_l.safetensors')
       await flushPromises()
 
       return wrapper
@@ -3572,10 +3003,7 @@ describe('JobLaunchDialog', () => {
       await flushPromises()
 
       wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
-      wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect).vm.$emit('update:value', 'qwen-image.json')
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
-      wrapper.find('[data-testid="vae-select"]').findComponent(NSelect).vm.$emit('update:value', 'ae.safetensors')
-      wrapper.find('[data-testid="clip-select"]').findComponent(NSelect).vm.$emit('update:value', 'clip_l.safetensors')
       await flushPromises()
 
       // Click "Generate Samples" (not Regenerate — empty run)
@@ -3647,10 +3075,7 @@ describe('JobLaunchDialog', () => {
       await nextTick()
       wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
       // Do NOT await flushPromises here — this keeps validation in-flight
-      wrapper.find('[data-testid="workflow-select"]').findComponent(NSelect).vm.$emit('update:value', 'qwen-image.json')
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
-      wrapper.find('[data-testid="vae-select"]').findComponent(NSelect).vm.$emit('update:value', 'ae.safetensors')
-      wrapper.find('[data-testid="clip-select"]').findComponent(NSelect).vm.$emit('update:value', 'clip_l.safetensors')
       await nextTick()
 
       // Click "Regenerate Samples" while validation is still in progress (result is null)

@@ -97,12 +97,8 @@ async function setupDialogForRegenerateWithCompleteValidation(
   await selectNaiveOptionInContainer(page, dialog, 'training-run-select', 'my-model')
 
   // Select the pre-seeded fixture study (created by test reset endpoint)
+  // S-112: Workflow, VAE, and CLIP are now part of the study definition (not dialog fields)
   await selectNaiveOptionInContainer(page, dialog, 'study-select', FIXTURE_STUDY_NAME)
-
-  // Select workflow and models
-  await selectNaiveOption(page, 'workflow-select', 'test-workflow.json')
-  await selectNaiveOption(page, 'vae-select', 'test-vae.safetensors')
-  await selectNaiveOption(page, 'clip-select', 'test-clip.safetensors')
 
   // Wait for the "Clear existing samples" checkbox — it only appears after
   // validation completes (requires both training run + study selected and

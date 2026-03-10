@@ -1,11 +1,11 @@
-import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises, type VueWrapper } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { NSelect, NButton, NInput, NInputNumber, NDynamicInput, NDynamicTags, NTag, NModal } from 'naive-ui'
 import StudyEditor from '../StudyEditor.vue'
 import ConfirmDeleteDialog from '../ConfirmDeleteDialog.vue'
 import { validateStudyImport } from '../studyImportValidation'
-import type { Study, ComfyUIModels } from '../../api/types'
+import type { Study, ComfyUIModels, WorkflowSummary } from '../../api/types'
 
 // Mock the api client module
 vi.mock('../../api/client', () => ({
@@ -17,6 +17,7 @@ vi.mock('../../api/client', () => ({
     forkStudy: vi.fn(),
     studyHasSamples: vi.fn(),
     getComfyUIModels: vi.fn(),
+    listWorkflows: vi.fn(),
   },
 }))
 
@@ -35,6 +36,7 @@ const mockDeleteStudy = apiClient.deleteStudy as ReturnType<typeof vi.fn>
 const mockForkStudy = apiClient.forkStudy as ReturnType<typeof vi.fn>
 const mockStudyHasSamples = apiClient.studyHasSamples as ReturnType<typeof vi.fn>
 const mockGetComfyUIModels = apiClient.getComfyUIModels as ReturnType<typeof vi.fn>
+const mockListWorkflows = apiClient.listWorkflows as ReturnType<typeof vi.fn>
 
 const studies: Study[] = [
   {
@@ -56,6 +58,9 @@ const studies: Study[] = [
     seeds: [42, 420],
     width: 1024,
     height: 1024,
+    workflow_template: 'my-workflow.json',
+    vae: 'ae.safetensors',
+    text_encoder: 'clip_l.safetensors',
     images_per_checkpoint: 72, // 2*3*3*2*2 = 72
     created_at: '2025-01-01T00:00:00Z',
     updated_at: '2025-01-01T00:00:00Z',
@@ -75,6 +80,9 @@ const studies: Study[] = [
     seeds: [1337],
     width: 512,
     height: 512,
+    workflow_template: '',
+    vae: '',
+    text_encoder: '',
     images_per_checkpoint: 1,
     created_at: '2025-01-02T00:00:00Z',
     updated_at: '2025-01-02T00:00:00Z',
@@ -108,6 +116,7 @@ describe('StudyEditor', () => {
       if (type === 'scheduler') return Promise.resolve(mockSchedulers)
       return Promise.resolve({ models: [] })
     })
+    mockListWorkflows.mockResolvedValue([])
   })
 
   it('renders with default form state', async () => {
@@ -210,7 +219,7 @@ describe('StudyEditor', () => {
     const createdPreset: Study = {
       id: 'new-preset-id',
       name: 'New Study',
-  
+
       prompt_prefix: '',
       prompts: [{ name: 'test', text: 'test prompt' }],
       negative_prompt: '',
@@ -220,6 +229,9 @@ describe('StudyEditor', () => {
       seeds: [42],
       width: 1024,
       height: 1024,
+      workflow_template: '',
+      vae: '',
+      text_encoder: '',
       images_per_checkpoint: 1,
       created_at: '2025-01-03T00:00:00Z',
       updated_at: '2025-01-03T00:00:00Z',
@@ -317,6 +329,9 @@ describe('StudyEditor', () => {
       seeds: [42, 420],
       width: 1024,
       height: 1024,
+      workflow_template: 'my-workflow.json',
+      vae: 'ae.safetensors',
+      text_encoder: 'clip_l.safetensors',
     })
   })
 
@@ -692,7 +707,7 @@ describe('StudyEditor', () => {
     const createdPreset: Study = {
       id: 'new-preset-id',
       name: 'Test',
-  
+
       prompt_prefix: '',
       prompts: [{ name: 'valid', text: 'valid prompt' }],
       negative_prompt: '',
@@ -702,6 +717,9 @@ describe('StudyEditor', () => {
       seeds: [42],
       width: 1024,
       height: 1024,
+      workflow_template: '',
+      vae: '',
+      text_encoder: '',
       images_per_checkpoint: 1,
       created_at: '2025-01-03T00:00:00Z',
       updated_at: '2025-01-03T00:00:00Z',
@@ -1045,7 +1063,7 @@ describe('StudyEditor', () => {
       const createdPreset: Study = {
         id: 'new-id',
         name: 'Multi Pair',
-    
+
         prompt_prefix: '',
         prompts: [{ name: 'test', text: 'test prompt' }],
         negative_prompt: '',
@@ -1058,6 +1076,9 @@ describe('StudyEditor', () => {
         seeds: [42],
         width: 1024,
         height: 1024,
+        workflow_template: '',
+        vae: '',
+        text_encoder: '',
         images_per_checkpoint: 2,
         created_at: '2025-01-03T00:00:00Z',
         updated_at: '2025-01-03T00:00:00Z',
@@ -1166,7 +1187,7 @@ describe('StudyEditor', () => {
       const createdPreset: Study = {
         id: 'prefix-preset-id',
         name: 'Prefix Test',
-    
+
         prompt_prefix: 'artistic photo, ',
         prompts: [{ name: 'test', text: 'test prompt' }],
         negative_prompt: '',
@@ -1176,6 +1197,9 @@ describe('StudyEditor', () => {
         seeds: [42],
         width: 1024,
         height: 1024,
+        workflow_template: '',
+        vae: '',
+        text_encoder: '',
         images_per_checkpoint: 1,
         created_at: '2025-01-03T00:00:00Z',
         updated_at: '2025-01-03T00:00:00Z',
@@ -1513,6 +1537,96 @@ describe('StudyEditor', () => {
         expect(result.ok).toBe(false)
         if (!result.ok) expect(result.error).toContain('"height"')
       })
+
+      it('extracts workflow_template when present as a string', () => {
+        const result = validateStudyImport({ ...validPayload, workflow_template: 'flux-dev.json' })
+        expect(result.ok).toBe(true)
+        if (result.ok) expect(result.data.workflow_template).toBe('flux-dev.json')
+      })
+
+      it('omits workflow_template when absent', () => {
+        const result = validateStudyImport(validPayload)
+        expect(result.ok).toBe(true)
+        if (result.ok) expect(result.data.workflow_template).toBeUndefined()
+      })
+
+      it('omits workflow_template when value is not a string', () => {
+        const result = validateStudyImport({ ...validPayload, workflow_template: 42 })
+        expect(result.ok).toBe(true)
+        if (result.ok) expect(result.data.workflow_template).toBeUndefined()
+      })
+
+      it('extracts vae when present as a string', () => {
+        const result = validateStudyImport({ ...validPayload, vae: 'ae.safetensors' })
+        expect(result.ok).toBe(true)
+        if (result.ok) expect(result.data.vae).toBe('ae.safetensors')
+      })
+
+      it('omits vae when absent', () => {
+        const result = validateStudyImport(validPayload)
+        expect(result.ok).toBe(true)
+        if (result.ok) expect(result.data.vae).toBeUndefined()
+      })
+
+      it('extracts text_encoder when present as a string', () => {
+        const result = validateStudyImport({ ...validPayload, text_encoder: 'clip_l.safetensors' })
+        expect(result.ok).toBe(true)
+        if (result.ok) expect(result.data.text_encoder).toBe('clip_l.safetensors')
+      })
+
+      it('omits text_encoder when absent', () => {
+        const result = validateStudyImport(validPayload)
+        expect(result.ok).toBe(true)
+        if (result.ok) expect(result.data.text_encoder).toBeUndefined()
+      })
+
+      it('extracts shift when present as a finite number', () => {
+        const result = validateStudyImport({ ...validPayload, shift: 3.5 })
+        expect(result.ok).toBe(true)
+        if (result.ok) expect(result.data.shift).toBe(3.5)
+      })
+
+      it('extracts shift of zero', () => {
+        const result = validateStudyImport({ ...validPayload, shift: 0 })
+        expect(result.ok).toBe(true)
+        if (result.ok) expect(result.data.shift).toBe(0)
+      })
+
+      it('omits shift when absent', () => {
+        const result = validateStudyImport(validPayload)
+        expect(result.ok).toBe(true)
+        if (result.ok) expect(result.data.shift).toBeUndefined()
+      })
+
+      it('omits shift when value is not a finite number', () => {
+        const result = validateStudyImport({ ...validPayload, shift: 'fast' })
+        expect(result.ok).toBe(true)
+        if (result.ok) expect(result.data.shift).toBeUndefined()
+      })
+
+      it('omits shift when value is NaN', () => {
+        const result = validateStudyImport({ ...validPayload, shift: NaN })
+        expect(result.ok).toBe(true)
+        if (result.ok) expect(result.data.shift).toBeUndefined()
+      })
+
+      it('round-trips all workflow fields through validate', () => {
+        const payload = {
+          ...validPayload,
+          workflow_template: 'my-workflow.json',
+          vae: 'ae.safetensors',
+          text_encoder: 'clip_l.safetensors',
+          shift: 2.5,
+        }
+        const result = validateStudyImport(payload)
+        expect(result.ok).toBe(true)
+        if (result.ok) {
+          expect(result.data.workflow_template).toBe('my-workflow.json')
+          expect(result.data.vae).toBe('ae.safetensors')
+          expect(result.data.text_encoder).toBe('clip_l.safetensors')
+          expect(result.data.shift).toBe(2.5)
+        }
+      })
     })
 
     describe('export button', () => {
@@ -1611,6 +1725,11 @@ describe('StudyEditor', () => {
           expect(parsed).not.toHaveProperty('created_at')
           expect(parsed).not.toHaveProperty('updated_at')
           expect(parsed).not.toHaveProperty('images_per_checkpoint')
+
+          // Workflow fields from preset-1
+          expect(parsed.workflow_template).toBe('my-workflow.json')
+          expect(parsed.vae).toBe('ae.safetensors')
+          expect(parsed.text_encoder).toBe('clip_l.safetensors')
 
           // Download filename should use study name
           expect(mockAnchor.download).toBe('Test Preset A.json')
@@ -1711,6 +1830,121 @@ describe('StudyEditor', () => {
         // Width/height updated
         const widthInput = wrapper.findAllComponents(NInputNumber)[0]
         expect(widthInput.props('value')).toBe(768)
+      })
+
+      it('restores workflow_template, vae, text_encoder, and shift from imported data', async () => {
+        const importedData = {
+          name: 'Workflow Study',
+          prompt_prefix: '',
+          prompts: [{ name: 'scene', text: 'a scene' }],
+          negative_prompt: '',
+          steps: [20],
+          cfgs: [7.0],
+          sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'simple' }],
+          seeds: [1],
+          width: 512,
+          height: 512,
+          workflow_template: 'flux-dev.json',
+          vae: 'ae.safetensors',
+          text_encoder: 'clip_l.safetensors',
+          shift: 3.5,
+        }
+
+        const wrapper = mount(StudyEditor)
+        await flushPromises()
+
+        const mockInputEl = {
+          type: '',
+          accept: '',
+          onchange: null as ((event: Event) => void) | null,
+          click: vi.fn(),
+        }
+        const origCreateElement = document.createElement.bind(document)
+        const createElementSpy = vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
+          if (tag === 'input') return mockInputEl as unknown as HTMLElement
+          return origCreateElement(tag)
+        })
+
+        const importButton = asVue(wrapper.findComponent('[data-testid="import-study-button"]'))
+        await importButton.trigger('click')
+        createElementSpy.mockRestore()
+
+        const blob = new Blob([JSON.stringify(importedData)], { type: 'application/json' })
+        const file = new File([blob], 'study.json', { type: 'application/json' })
+        const fakeEvent = { target: { files: [file] } } as unknown as Event
+
+        await mockInputEl.onchange!(fakeEvent)
+        await flushPromises()
+        await nextTick()
+
+        const vm = wrapper.vm as unknown as {
+          workflowTemplate: string | null
+          selectedVAE: string | null
+          selectedCLIP: string | null
+          shiftValue: number | null
+        }
+        expect(vm.workflowTemplate).toBe('flux-dev.json')
+        expect(vm.selectedVAE).toBe('ae.safetensors')
+        expect(vm.selectedCLIP).toBe('clip_l.safetensors')
+        expect(vm.shiftValue).toBe(3.5)
+      })
+
+      it('clears workflow fields when importing data without them', async () => {
+        const importedData = {
+          name: 'Plain Study',
+          prompt_prefix: '',
+          prompts: [{ name: 'scene', text: 'a scene' }],
+          negative_prompt: '',
+          steps: [20],
+          cfgs: [7.0],
+          sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'simple' }],
+          seeds: [1],
+          width: 512,
+          height: 512,
+        }
+
+        const wrapper = mount(StudyEditor)
+        await flushPromises()
+
+        // Pre-populate with a study that has workflow fields
+        const select = wrapper.findAllComponents(NSelect)[0]
+        select.vm.$emit('update:value', 'preset-1')
+        await nextTick()
+
+        const mockInputEl = {
+          type: '',
+          accept: '',
+          onchange: null as ((event: Event) => void) | null,
+          click: vi.fn(),
+        }
+        const origCreateElement = document.createElement.bind(document)
+        const createElementSpy = vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
+          if (tag === 'input') return mockInputEl as unknown as HTMLElement
+          return origCreateElement(tag)
+        })
+
+        const importButton = asVue(wrapper.findComponent('[data-testid="import-study-button"]'))
+        await importButton.trigger('click')
+        createElementSpy.mockRestore()
+
+        const blob = new Blob([JSON.stringify(importedData)], { type: 'application/json' })
+        const file = new File([blob], 'study.json', { type: 'application/json' })
+        const fakeEvent = { target: { files: [file] } } as unknown as Event
+
+        await mockInputEl.onchange!(fakeEvent)
+        await flushPromises()
+        await nextTick()
+
+        const vm = wrapper.vm as unknown as {
+          workflowTemplate: string | null
+          selectedVAE: string | null
+          selectedCLIP: string | null
+          shiftValue: number | null
+        }
+        expect(vm.workflowTemplate).toBeNull()
+        expect(vm.selectedVAE).toBeNull()
+        expect(vm.selectedCLIP).toBeNull()
+        expect(vm.shiftValue).toBeNull()
       })
 
       it('shows error when JSON file is invalid', async () => {
@@ -2413,6 +2647,184 @@ describe('StudyEditor', () => {
 
       expect(mockUpdateStudy).toHaveBeenCalled()
       expect(mockForkStudy).not.toHaveBeenCalled()
+    })
+  })
+
+  // S-112: Workflow template, VAE, CLIP, and shift fields in study definition
+  describe('workflow template, VAE, CLIP, and shift fields (S-112)', () => {
+    const sampleWorkflows: WorkflowSummary[] = [
+      {
+        name: 'flux-image.json',
+        validation_state: 'valid',
+        roles: { save_image: ['9'], unet_loader: ['4'] },
+        warnings: [],
+      },
+      {
+        name: 'auraflow-image.json',
+        validation_state: 'valid',
+        roles: { save_image: ['9'], unet_loader: ['4'], shift: ['3'] },
+        warnings: [],
+      },
+      {
+        name: 'broken-workflow.json',
+        validation_state: 'invalid',
+        roles: {},
+        warnings: ['Missing required roles'],
+      },
+    ]
+
+    beforeEach(() => {
+      mockListWorkflows.mockResolvedValue(sampleWorkflows)
+      mockGetComfyUIModels.mockImplementation((type: string) => {
+        if (type === 'sampler') return Promise.resolve({ models: ['euler'] })
+        if (type === 'scheduler') return Promise.resolve({ models: ['normal'] })
+        if (type === 'vae') return Promise.resolve({ models: ['ae.safetensors', 'vae-ft.safetensors'] })
+        if (type === 'clip') return Promise.resolve({ models: ['clip_l.safetensors', 't5xxl.safetensors'] })
+        return Promise.resolve({ models: [] })
+      })
+    })
+
+    // AC: StudyEditor fetches and populates workflow template options
+    it('fetches workflows, VAE, and CLIP options on mount', async () => {
+      mount(StudyEditor)
+      await flushPromises()
+
+      expect(mockListWorkflows).toHaveBeenCalled()
+      expect(mockGetComfyUIModels).toHaveBeenCalledWith('vae')
+      expect(mockGetComfyUIModels).toHaveBeenCalledWith('clip')
+    })
+
+    // AC: Only valid workflows appear in the workflow template select options
+    it('shows only valid workflows in workflow template select', async () => {
+      const wrapper = mount(StudyEditor)
+      await flushPromises()
+
+      const workflowSelect = wrapper.find('[data-testid="study-workflow-template-select"]').findComponent(NSelect)
+      const options = workflowSelect.props('options') as Array<{ label: string; value: string }>
+      expect(options).toHaveLength(2) // Only the 2 valid ones
+      expect(options.map(o => o.value)).toContain('flux-image.json')
+      expect(options.map(o => o.value)).toContain('auraflow-image.json')
+      expect(options.map(o => o.value)).not.toContain('broken-workflow.json')
+    })
+
+    // AC: Shift input is hidden when selected workflow has no shift role
+    it('does not show shift input when workflow has no shift role', async () => {
+      const wrapper = mount(StudyEditor)
+      await flushPromises()
+
+      wrapper.find('[data-testid="study-workflow-template-select"]').findComponent(NSelect).vm.$emit('update:value', 'flux-image.json')
+      await nextTick()
+
+      const shiftInput = wrapper.find('[data-testid="study-shift-input"]')
+      expect(shiftInput.exists()).toBe(false)
+    })
+
+    // AC: Shift input is shown when selected workflow has a shift role
+    it('shows shift input when workflow has shift role', async () => {
+      const wrapper = mount(StudyEditor)
+      await flushPromises()
+
+      wrapper.find('[data-testid="study-workflow-template-select"]').findComponent(NSelect).vm.$emit('update:value', 'auraflow-image.json')
+      await nextTick()
+
+      const shiftInput = wrapper.find('[data-testid="study-shift-input"]')
+      expect(shiftInput.exists()).toBe(true)
+    })
+
+    // AC: Loading a study pre-fills workflow_template, vae, text_encoder, shift
+    it('pre-fills workflow_template, vae, text_encoder, shift when study is loaded', async () => {
+      // Use studies[0] which has workflow_template='my-workflow.json', vae='ae.safetensors', text_encoder='clip_l.safetensors'
+      const wrapper = mount(StudyEditor)
+      await flushPromises()
+
+      const select = wrapper.findAllComponents(NSelect)[0]
+      select.vm.$emit('update:value', 'preset-1')
+      await nextTick()
+
+      const vm = wrapper.vm as unknown as {
+        workflowTemplate: string | null
+        selectedVAE: string | null
+        selectedCLIP: string | null
+        shiftValue: number | null
+      }
+      expect(vm.workflowTemplate).toBe('my-workflow.json')
+      expect(vm.selectedVAE).toBe('ae.safetensors')
+      expect(vm.selectedCLIP).toBe('clip_l.safetensors')
+      expect(vm.shiftValue).toBeNull()
+    })
+
+    // AC: workflow_template, vae, text_encoder are sent in create payload
+    it('includes workflow_template, vae, and text_encoder in create payload', async () => {
+      const createdStudy: Study = {
+        id: 'new-id',
+        name: 'Workflow Study',
+        prompt_prefix: '',
+        prompts: [{ name: 'test', text: 'test prompt' }],
+        negative_prompt: '',
+        steps: [30],
+        cfgs: [7.0],
+        sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
+        seeds: [42],
+        width: 1024,
+        height: 1024,
+        workflow_template: 'flux-image.json',
+        vae: 'ae.safetensors',
+        text_encoder: 'clip_l.safetensors',
+        images_per_checkpoint: 1,
+        created_at: '2025-01-03T00:00:00Z',
+        updated_at: '2025-01-03T00:00:00Z',
+      }
+      mockCreateStudy.mockResolvedValue(createdStudy)
+
+      const wrapper = mount(StudyEditor)
+      await flushPromises()
+
+      // Fill in form
+      const nameInput = asVue(wrapper.findComponent('[data-testid="study-name-input"]'))
+      nameInput.vm.$emit('update:value', 'Workflow Study')
+      await nextTick()
+
+      // Set workflow, VAE, CLIP
+      wrapper.find('[data-testid="study-workflow-template-select"]').findComponent(NSelect).vm.$emit('update:value', 'flux-image.json')
+      wrapper.find('[data-testid="study-vae-select"]').findComponent(NSelect).vm.$emit('update:value', 'ae.safetensors')
+      wrapper.find('[data-testid="study-clip-select"]').findComponent(NSelect).vm.$emit('update:value', 'clip_l.safetensors')
+
+      // Also add a sampler pair and prompt to meet canSave requirements
+      const vm = wrapper.vm as unknown as {
+        samplerSchedulerPairs: Array<{ sampler: string; scheduler: string }>
+        prompts: Array<{ name: string; text: string }>
+      }
+      vm.samplerSchedulerPairs = [{ sampler: 'euler', scheduler: 'normal' }]
+      vm.prompts = [{ name: 'test', text: 'test prompt' }]
+      await nextTick()
+
+      const saveButton = wrapper.findAllComponents(NButton).find(b => b.text().includes('Save Study'))!
+      await saveButton.trigger('click')
+      await flushPromises()
+
+      expect(mockCreateStudy).toHaveBeenCalled()
+      const payload = mockCreateStudy.mock.calls[0][0]
+      expect(payload.workflow_template).toBe('flux-image.json')
+      expect(payload.vae).toBe('ae.safetensors')
+      expect(payload.text_encoder).toBe('clip_l.safetensors')
+    })
+
+    // AC: MRU workflow template is applied when creating a new study
+    it('applies MRU workflow template when clicking New Study', async () => {
+      localStorage.setItem('checkpoint-sampler:mru-workflow-template', 'flux-image.json')
+
+      const wrapper = mount(StudyEditor)
+      await flushPromises()
+
+      // Click New Study
+      const newButton = wrapper.findAllComponents(NButton).find(b => b.text() === 'New Study')!
+      await newButton.trigger('click')
+      await nextTick()
+
+      const vm = wrapper.vm as unknown as { workflowTemplate: string | null }
+      expect(vm.workflowTemplate).toBe('flux-image.json')
+
+      localStorage.removeItem('checkpoint-sampler:mru-workflow-template')
     })
   })
 

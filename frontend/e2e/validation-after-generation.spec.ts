@@ -125,16 +125,17 @@ test.describe('B-079: validation status after generation', () => {
     await fillStudyName(page, studyName)
     await fillFirstPromptRow(page, 'landscape', 'a beautiful landscape')
     await addSamplerSchedulerPair(page, 'euler', 'normal')
+    // Wait for sampler/scheduler pair popup animations to fully complete before opening new popups
+    await page.waitForTimeout(500)
+    // S-112: Select workflow template, VAE, and CLIP in the study editor
+    await selectNaiveOption(page, 'study-workflow-template-select', 'test-workflow.json')
+    await selectNaiveOption(page, 'study-vae-select', 'test-vae.safetensors')
+    await selectNaiveOption(page, 'study-clip-select', 'test-clip.safetensors')
     const saveButton = page.locator('[data-testid="save-study-button"]')
     await expect(saveButton).not.toBeDisabled()
     await saveButton.click()
     await expect(getManageStudiesDialog(page)).not.toBeVisible()
     await expect(dialog).toBeVisible()
-
-    // Select workflow and models
-    await selectNaiveOption(page, 'workflow-select', 'test-workflow.json')
-    await selectNaiveOption(page, 'vae-select', 'test-vae.safetensors')
-    await selectNaiveOption(page, 'clip-select', 'test-clip.safetensors')
 
     // Uncheck "Clear existing samples" to avoid removing fixture images
     const clearExistingCheckbox = page.locator('[data-testid="clear-existing-checkbox"]')
@@ -233,7 +234,7 @@ test.describe('B-079: validation status after generation', () => {
   test('validate API returns non-zero total_actual after samples are generated', async ({ request }) => {
     const studyName = `B079 API Test ${Date.now()}`
 
-    // Create a study
+    // Create a study with workflow settings (S-112: workflow/vae/clip now live in study)
     const studyResp = await request.post('/api/studies', {
       data: {
         name: studyName,
@@ -246,6 +247,9 @@ test.describe('B-079: validation status after generation', () => {
         seeds: [42],
         width: 512,
         height: 512,
+        workflow_template: 'test-workflow.json',
+        vae: 'test-vae.safetensors',
+        text_encoder: 'test-clip.safetensors',
       },
     })
     expect(studyResp.ok()).toBeTruthy()
@@ -271,13 +275,11 @@ test.describe('B-079: validation status after generation', () => {
     expect(beforeResult.expected_per_checkpoint).toBe(1)
 
     // Create and run a sample job via the API
+    // S-112: workflow/vae/clip now come from the study, not the job payload
     const jobResp = await request.post('/api/sample-jobs', {
       data: {
         training_run_name: 'my-model',
         study_id: study.id,
-        workflow_name: 'test-workflow.json',
-        vae: 'test-vae.safetensors',
-        clip: 'test-clip.safetensors',
         checkpoint_filenames: ['my-model-step00001000.safetensors', 'my-model-step00002000.safetensors'],
         clear_existing: false,
         missing_only: false,
