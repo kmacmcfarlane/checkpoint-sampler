@@ -997,7 +997,7 @@ stories:
   - id: B-092
     title: "E2E: Missing studies table and study_id column in test DB schema causes 40+ test failures"
     priority: 80
-    status: todo
+    status: closed
     complexity: medium
     requires: []
     acceptance:
@@ -1006,10 +1006,8 @@ stories:
       - "make test-e2e passes with zero schema-related failures"
     testing:
       - "command: make test-e2e"
-    notes: |
-      Discovered during B-091 QA. The test environment database is missing the studies table and study_id column on sample_jobs, causing 40 E2E test failures across preset-crud, regen-confirmation, retry-failed, sample-count-preview, and sample-generation specs.
-      Error: SQL logic error: no such table: studies (1) and SQL logic error: no such column: study_id (1).
-      Root cause hypothesis: A migration may not be running in the test environment, or the schema init/reset script is outdated and doesn't include the studies table migration.
+    notes: |-
+      Already fixed by B-091 commit ca4f5a3 which added 'down -v' pre-clean to make test-e2e target, ensuring stale volumes with old DB schema are always wiped before test runs.
   - id: B-093
     title: "E2E: Preset auto-load via localStorage fails — Delete button not visible after auto-load"
     priority: 70
