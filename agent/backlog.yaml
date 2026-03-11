@@ -1011,7 +1011,7 @@ stories:
   - id: B-093
     title: "E2E: Preset auto-load via localStorage fails — Delete button not visible after auto-load"
     priority: 70
-    status: todo
+    status: closed
     complexity: low
     requires: []
     acceptance:
@@ -1019,10 +1019,8 @@ stories:
       - "Delete button is visible after preset auto-loads from localStorage seed"
     testing:
       - "command: make test-e2e SPEC=preset-dirty-on-autoload.spec.ts"
-    notes: |
-      Discovered during B-091 QA. The addInitScript localStorage seeding for preset auto-load may be racing with the app's initialization, or the auto-load feature has a regression that prevents preset selection when localStorage is pre-seeded before navigation.
-      Failing test: preset-dirty-on-autoload.spec.ts > B-047: preset dirty tracking after auto-load > Update button appears after changing filter mode on auto-loaded preset
-      Error: expect(locator).toBeVisible() - Locator: locator('[aria-label="Delete preset"]') - Timeout: 5000ms - element(s) not found
+    notes: |-
+      Already fixed by B-091. The preset auto-load E2E tests pass consistently (4 consecutive runs, all 5 tests passing each time). The timing race that caused the flakiness was eliminated when B-091 replaced the window.prompt listener with the NModal save dialog pattern.
   - id: B-094
     title: "E2E: Lightbox Shift+Arrow keyboard navigation times out (6 tests)"
     priority: 60
