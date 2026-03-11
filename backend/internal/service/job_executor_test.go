@@ -2706,6 +2706,113 @@ var _ = Describe("JobExecutor", func() {
 		})
 	})
 
+	// AC: S-114 — Thumbnail generation during handleItemCompletionAsync
+	Describe("handleItemCompletionAsync thumbnail generation", func() {
+		var job model.SampleJob
+		var item model.SampleJobItem
+		var thumbGen *ThumbnailGenerator
+		var localFS *mockFileSystemWriter
+		var localExecutor *JobExecutor
+
+		BeforeEach(func() {
+			// Use a valid 1x1 PNG as the download data so thumbnail generation succeeds.
+			mockClient.downloadData = makePNGBytes(64, 64)
+
+			job = model.SampleJob{
+				ID:              "job-thumb-1",
+				TrainingRunName: "my-model",
+				StudyID:         "study-thumb-1",
+				StudyName:       "Thumb Study",
+				Status:          model.SampleJobStatusRunning,
+				WorkflowName:    "flux_dev.json",
+				VAE:             "ae.safetensors",
+				TotalItems:      1,
+				CompletedItems:  0,
+			}
+			item = model.SampleJobItem{
+				ID:                 "item-thumb-1",
+				JobID:              "job-thumb-1",
+				CheckpointFilename: "my-model-step00001000.safetensors",
+				PromptName:         "test-prompt",
+				Steps:              20,
+				CFG:                7.0,
+				SamplerName:        "euler",
+				Scheduler:          "normal",
+				Seed:               42,
+				Status:             model.SampleJobItemStatusRunning,
+			}
+
+			mockStore.jobs[job.ID] = job
+			mockStore.items[job.ID] = []model.SampleJobItem{item}
+			mockStore.studies["study-thumb-1"] = model.Study{
+				ID: "study-thumb-1",
+			}
+
+			thumbCfg := model.ThumbnailConfig{
+				Enabled:        true,
+				MaxResolutionX: 256,
+				MaxResolutionY: 256,
+				JPEGQuality:    85,
+			}
+			thumbGen = NewThumbnailGenerator(thumbCfg, logger)
+			localFS = newMockFileSystemWriter()
+			localExecutor = NewJobExecutorWithThumbnails(
+				mockStore,
+				mockClient,
+				mockWS,
+				mockLoader,
+				mockHub,
+				"/test/samples",
+				localFS,
+				mockFSRead,
+				thumbGen,
+				logger,
+			)
+		})
+
+		AfterEach(func() {
+			// Restore the default fake-image-data for other tests
+			mockClient.downloadData = []byte("fake-image-data")
+		})
+
+		// AC1: BE: Generate JPEG thumbnails during sample creation when enabled in config
+		It("writes a .jpg thumbnail alongside the .png image", func() {
+			localExecutor.handleItemCompletionAsync(job.ID, item.ID, "test-prompt-id")
+
+			// Verify item completed
+			items := mockStore.items[job.ID]
+			Expect(items[0].Status).To(Equal(model.SampleJobItemStatusCompleted))
+
+			// Find the written .jpg thumbnail file
+			var thumbPath string
+			for path := range localFS.writtenFiles {
+				if len(path) > 4 && path[len(path)-4:] == ".jpg" {
+					thumbPath = path
+					break
+				}
+			}
+			Expect(thumbPath).NotTo(BeEmpty(), "expected a .jpg thumbnail to be written")
+
+			// Thumbnail must reside in a 'thumbnails' subdirectory
+			Expect(thumbPath).To(ContainSubstring("/thumbnails/"))
+
+			// Thumbnail content must be non-empty JPEG bytes
+			thumbData := localFS.writtenFiles[thumbPath]
+			Expect(thumbData).NotTo(BeEmpty())
+		})
+
+		// AC4: BE: Thumbnail generation is optional via config flag
+		// When thumbGen is nil (disabled), no thumbnail file should be written
+		It("does not write thumbnails when thumbGen is nil (disabled)", func() {
+			// executor uses NewJobExecutor (nil thumbGen)
+			executor.handleItemCompletionAsync(job.ID, item.ID, "test-prompt-id")
+
+			for path := range mockFS.writtenFiles {
+				Expect(path).NotTo(HaveSuffix(".jpg"), "no .jpg thumbnail should be written when thumbnails are disabled")
+			}
+		})
+	})
+
 	// AC: S-075 — Completeness check for generated sample datasets
 	Describe("verifyCheckpointCompleteness", func() {
 		var job model.SampleJob

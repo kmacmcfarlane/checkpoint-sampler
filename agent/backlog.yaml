@@ -438,7 +438,7 @@ stories:
   - id: S-114
     title: "Pre-generate JPEG thumbnails for sample images"
     type: enhancement
-    status: uat_feedback
+    status: uat
     priority: 50
     complexity: medium
     requires: []
@@ -461,9 +461,6 @@ stories:
       - "Verify thumbnails are generated at correct resolution and quality"
       - "Test with thumbnail generation disabled — no thumbnails created, full-res served everywhere"
       - "Verify cache behavior improvement with 6x3 grid scrolling through checkpoints"
-    review_feedback: 'Thumbnails not being generated despite config enabled. Config: thumbnails: { enabled: true, max_resolution_x:
-      512, max_resolution_y: 512, jpeg_quality: 85 }. No thumbnails appear in [output_dir]/[training_run]/[study] directory
-      after sample generation.'
   - id: S-116
     title: "Training run and study status beads in Generate Samples"
     type: enhancement

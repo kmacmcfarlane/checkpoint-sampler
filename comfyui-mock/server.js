@@ -57,10 +57,13 @@ const CHECKPOINT_FILENAMES = (process.env.CHECKPOINT_FILENAMES || '')
 console.log(`[comfyui-mock] Starting on port ${PORT}`);
 console.log(`[comfyui-mock] Known checkpoint files: ${CHECKPOINT_FILENAMES.join(', ')}`);
 
-// Minimal 1x1 PNG (base64-encoded)
-// This is a valid 1x1 white PNG file, used as the dummy output image
+// Minimal 1x1 white PNG (base64-encoded).
+// This is a structurally valid PNG with correct CRC checksums on all chunks.
+// The previous base64 had an invalid IDAT CRC, causing Go's image.Decode to
+// fail with "png: invalid format: invalid checksum" when generating thumbnails.
+// Generated via Python's struct/zlib with verified chunk CRCs.
 const MINIMAL_PNG_B64 =
-  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI6QAAAABJRU5ErkJggg==';
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4//8/AAX+Av4N70a4AAAAAElFTkSuQmCC';
 const MINIMAL_PNG = Buffer.from(MINIMAL_PNG_B64, 'base64');
 
 // In-memory store: promptId → {clientId, filename}

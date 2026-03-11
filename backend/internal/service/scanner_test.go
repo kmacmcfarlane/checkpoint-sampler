@@ -484,3 +484,84 @@ var _ = Describe("Scanner", func() {
 		})
 	})
 })
+
+// AC: S-114 — Scanner populates ThumbnailPath when thumbnails are enabled and file exists
+var _ = Describe("ScanTrainingRun thumbnail path population", func() {
+	var (
+		fs        *fakeScannerFS
+		sampleDir string
+		logger    *logrus.Logger
+	)
+
+	BeforeEach(func() {
+		sampleDir = "/samples"
+		fs = newFakeScannerFS()
+		logger = logrus.New()
+		logger.SetOutput(io.Discard)
+	})
+
+	It("sets ThumbnailPath when thumbnail file exists on disk and thumbnails are enabled", func() {
+		// AC5: FE: Grid view serves thumbnails instead of full-res images when available
+		thumbScanner := service.NewScannerWithThumbnails(fs, sampleDir, true, logger)
+		tr := model.TrainingRun{
+			Name: "my-study/my-model",
+			Checkpoints: []model.Checkpoint{
+				{Filename: "my-model-step00001000.safetensors", StepNumber: 1000, HasSamples: true},
+			},
+		}
+		imageFile := "seed=42&cfg=7&_00001_.png"
+		fs.files["/samples/my-study/my-model-step00001000.safetensors"] = []string{imageFile}
+
+		// The expected thumbnail absolute path under sampleDir
+		thumbAbsPath := "/samples/my-study/my-model-step00001000.safetensors/thumbnails/seed=42&cfg=7&_00001_.jpg"
+		fs.fileExistsSet[thumbAbsPath] = struct{}{}
+
+		result, err := thumbScanner.ScanTrainingRun(tr, "my-study")
+
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.Images).To(HaveLen(1))
+		Expect(result.Images[0].ThumbnailPath).To(Equal("my-study/my-model-step00001000.safetensors/thumbnails/seed=42&cfg=7&_00001_.jpg"))
+	})
+
+	It("leaves ThumbnailPath empty when thumbnail file does not exist on disk", func() {
+		thumbScanner := service.NewScannerWithThumbnails(fs, sampleDir, true, logger)
+		tr := model.TrainingRun{
+			Name: "my-study/my-model",
+			Checkpoints: []model.Checkpoint{
+				{Filename: "my-model-step00001000.safetensors", StepNumber: 1000, HasSamples: true},
+			},
+		}
+		imageFile := "seed=42&cfg=7&_00001_.png"
+		fs.files["/samples/my-study/my-model-step00001000.safetensors"] = []string{imageFile}
+		// No thumbnail file added to fileExistsSet
+
+		result, err := thumbScanner.ScanTrainingRun(tr, "my-study")
+
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.Images).To(HaveLen(1))
+		Expect(result.Images[0].ThumbnailPath).To(BeEmpty())
+	})
+
+	It("leaves ThumbnailPath empty when thumbnails are disabled even if thumbnail file exists", func() {
+		// AC4: BE: Thumbnail generation is optional via config flag
+		disabledScanner := service.NewScanner(fs, sampleDir, logger)
+		tr := model.TrainingRun{
+			Name: "my-study/my-model",
+			Checkpoints: []model.Checkpoint{
+				{Filename: "my-model-step00001000.safetensors", StepNumber: 1000, HasSamples: true},
+			},
+		}
+		imageFile := "seed=42&cfg=7&_00001_.png"
+		fs.files["/samples/my-study/my-model-step00001000.safetensors"] = []string{imageFile}
+
+		// Thumbnail file "exists" on disk but thumbnails are disabled in scanner
+		thumbAbsPath := "/samples/my-study/my-model-step00001000.safetensors/thumbnails/seed=42&cfg=7&_00001_.jpg"
+		fs.fileExistsSet[thumbAbsPath] = struct{}{}
+
+		result, err := disabledScanner.ScanTrainingRun(tr, "my-study")
+
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.Images).To(HaveLen(1))
+		Expect(result.Images[0].ThumbnailPath).To(BeEmpty())
+	})
+})

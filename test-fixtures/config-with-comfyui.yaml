@@ -15,3 +15,11 @@ db_path: ./data/checkpoint-sampler.db
 comfyui:
   url: http://comfyui-mock:8188
   workflow_dir: /data/workflows
+
+# Thumbnail generation enabled for E2E tests so the sample-generation E2E
+# suite can verify that thumbnails are created alongside generated images.
+thumbnails:
+  enabled: true
+  max_resolution_x: 512
+  max_resolution_y: 512
+  jpeg_quality: 85

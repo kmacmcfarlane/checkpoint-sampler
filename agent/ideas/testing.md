@@ -20,44 +20,8 @@ Example:
 
 ## Ideas
 
-### E2E test for keyboard auto-repeat slider navigation
+### Screenshot diffing for thumbnail E2E tests
 * status: needs_approval
-* priority: low
+* priority: very-low
 * source: developer
-Keyboard-driven slider behaviors (arrow navigation with auto-repeat) are difficult to test in JSDOM because the stale-prop race condition only manifests at real browser auto-repeat rates. A Playwright E2E test using `page.keyboard.down('ArrowRight')` with repeated presses and asserting correct slider progression would give higher confidence for this interaction pattern.
-
-### App.test.ts window.innerWidth cleanup between tests
-* status: needs_approval
-* priority: low
-* source: developer
-The "Eager auto-select" tests in App.test.ts set `Object.defineProperty(window, 'innerWidth', ...)` which persists across tests since `vi.unstubAllGlobals()` only removes `vi.stubGlobal` stubs. Tests running after this section inherit the modified `innerWidth`. A shared `afterEach` that resets `innerWidth` to a known default would prevent ordering-dependent test failures.
-
-### Shared E2E helper functions across spec files
-* status: done
-* priority: low
-* source: developer
-Implemented in S-070: helpers extracted to `frontend/e2e/helpers.ts`.
-
-### Add Vite ws proxy EPIPE to QA_ALLOWED_ERRORS.md
-* status: needs_approval
-* priority: low
-* source: qa
-The `[vite] ws proxy socket error: Error: write EPIPE` pattern appears in every E2E run (~93 times) because Playwright closes WebSocket connections when pages are navigated or reset. Adding this to QA_ALLOWED_ERRORS.md would eliminate recurring noise in QA sweeps.
-
-### Shared logrus log-level assertion helper for backend tests
-* status: needs_approval
-* priority: low
-* source: developer
-The pattern of capturing logrus output to a buffer to assert log levels (as used in B-066's test) works but is verbose. A small shared test helper (e.g. `captureLogrus(logger, fn) string`) in the service test suite would reduce boilerplate for similar log-level regression tests in the future.
-
-### Incomplete-set E2E test infrastructure (partial sample seeding)
-* status: needs_approval
-* priority: low
-* source: developer
-A test-only API endpoint to seed partial sample directories (e.g., `POST /api/test/seed-partial-samples?study_id=...`) would enable true E2E coverage of the AC1 incomplete-set path (hasMissingSamples=true) without running a full generation job. Currently the incomplete-set smart defaults are covered only by unit tests.
-
-### Slow-motion mock mode for E2E timing tests
-* status: needs_approval
-* priority: low
-* source: developer
-Add a configurable delay to the ComfyUI mock (e.g., via an env var) so E2E tests for in-flight state (like mid-generation params display) can reliably observe the running phase without relying on polling luck.
+The thumbnail E2E tests verify URLs but not visual correctness. A screenshot comparison tool could verify the grid actually renders thumbnail-sized images vs full-res images, catching cases where the URL is correct but the image fails to load.

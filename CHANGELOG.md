@@ -46,10 +46,10 @@ Older entries are condensed to titles only — see git history for full details.
 - Dual-bead system replaces single-bead: each training run and study item shows up to two independent beads — activity (blue=running, green=complete) and problem (red=failed, yellow=incomplete)
 - New `dualBeadStatus.ts` composable with pure functions for bead state computation; existing Jobs nav button bead (`beadStatus.ts`) unchanged
 
-### S-114: Pre-generate JPEG thumbnails for sample images
-- JPEG thumbnails generated during sample creation when `thumbnails.enabled: true` in config; stored in `thumbnails/` subdirectory within each checkpoint's sample directory
-- Configurable `max_resolution_x`, `max_resolution_y` (default 512x512) and `jpeg_quality` (default 85); generation is optional and non-fatal on error
-- Grid view serves thumbnails for faster loading; lightbox continues to use full-resolution images
+### S-114: Pre-generate JPEG thumbnails for sample images (UAT rework)
+- Fixed corrupt IDAT CRC in ComfyUI mock PNG that silently prevented thumbnail generation; Go's `image.Decode` now succeeds on mock output
+- Added unit tests for thumbnail generation in job executor and scanner thumbnail path population
+- E2E tests verify end-to-end thumbnail generation and grid thumbnail URL usage
 
 ### S-111: Test seed endpoint for sample jobs (E2E testing infra)
 - New `POST /api/test/seed-jobs` endpoint (gated on `ENABLE_TEST_ENDPOINTS=true`) creates sample jobs with specified statuses, enabling E2E testing of job-related UI without requiring ComfyUI

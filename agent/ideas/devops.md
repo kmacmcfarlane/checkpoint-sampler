@@ -20,87 +20,14 @@ Example:
 
 ## Ideas
 
-### Scoped-CSS-in-render-functions lint rule or doc note
-* status: needs_approval
-* priority: low
-* source: developer
-A custom ESLint rule or DEVELOPMENT_PRACTICES doc note could warn developers when CSS class names from `<style scoped>` are used inside `h()` render functions or `renderLabel`/`renderOption` callbacks — scoped CSS is not applied to VNodes created outside Vue's template compilation context. This footgun caused a two-iteration UAT cycle on S-049.
-
-### Update frontend npm dependencies to resolve high-severity audit findings
-* status: resolved
-* priority: medium
-* source: qa
-`rollup` can be updated non-breakingly via `npm audit fix`; the `minimatch`/`@vue/test-utils` chain requires evaluation of the breaking-change downgrade to `@vue/test-utils@2.4.0`. See B-034 in backlog.yaml.
-Resolved by B-034: rollup upgraded to 4.59.0 via npm audit fix; minimatch pinned to >=9.0.7 via overrides.
-
-### Fix pre-existing vue-tsc build failure from TypeScript errors in test files
-* status: needs_approval
-* priority: medium
-* source: developer
-The `npm run build` command runs `vue-tsc -b` which type-checks test files and fails with ~50 TypeScript errors (e.g., `WrapperLike` missing `.vm`/`.props`, unused variables, implicit `any` types). This blocks the canonical build command. Fix options: exclude test files from the tsconfig used by vue-tsc, or create a separate `tsconfig.build.json` that excludes `**/__tests__/**`. Both the developer (B-034) and QA independently flagged this issue. Filed as B-038.
-
-### Add lint-nginx to CI pipeline
-* status: needs_approval
-* priority: low
-* source: developer
-Once a CI configuration (e.g., GitHub Actions workflow) is added to this repo, `make lint-nginx` should be included as a step so nginx config regressions are caught automatically on every PR.
-
-### Add test-frontend and test-backend to Makefile .PHONY
-* status: needs_approval
-* priority: very-low
-* source: qa
-`test-frontend` and `test-backend` are Makefile targets but are not listed in the `.PHONY` declaration on line 1. While unlikely to cause issues (no files with those names exist), it is best practice to declare all non-file targets as phony.
-
-### Explicit log-capture helper Makefile target
-* status: needs_approval
-* priority: very-low
-* source: developer
-A `make logs-snapshot` target that performs `make up-dev && docker compose logs --tail=500 --no-color 2>&1 && make down` as a single atomic operation would reduce the chance of a QA agent forgetting teardown during the runtime error sweep and would be referenceable by a single command in both TEST_PRACTICES.md and qa-expert.md.
-
-### Gitignore Playwright HTML report directory
-* status: needs_approval
-* priority: low
-* source: developer
-The HTML reporter (added in S-054) writes output to `frontend/playwright-report/` by default. Confirm this path is in `.gitignore` to avoid accidental commits of generated artifacts.
-
-### .dockerignore for Playwright build context
-* status: needs_approval
-* priority: low
-* source: developer
-The `./frontend` directory is large (~44 MB sent to Docker daemon per build). Adding a `.dockerignore` (or `frontend/.dockerignore`) to exclude `node_modules`, `dist`, `e2e/test-results`, and other non-essential files from the build context would significantly reduce image build time for all frontend-based images.
-
-### Add vue-tsc --noEmit to CI pre-build step for full type coverage
-* status: needs_approval
-* priority: medium
-* source: developer
-The build runs `vue-tsc -b` but only for `tsconfig.app.json`, excluding test files. Adding a separate CI step that runs `npx vue-tsc --noEmit` (covering all files) would catch type errors in test files on each PR rather than accumulating across stories.
-
-### Fix root-owned dist/assets directory blocking host-side npm run build
-* status: needs_approval
-* priority: low
-* source: qa
-The `frontend/dist/assets/` directory is owned by root from a prior Docker-based build, preventing `npm run build` from completing outside Docker. This should be addressed by either adding `dist/` to `.gitignore` cleanup or fixing the Dockerfile to use the correct UID.
-
-### Fixture validation script for test safetensors files
-* status: needs_approval
-* priority: low
-* source: developer
-Add a CI check or Makefile target that validates all `test-fixtures/**/*.safetensors` files are parseable (non-zero, valid header), preventing silent introduction of corrupt fixture files in the future.
-
-### E2E full-suite test isolation
-* status: needs_approval
-* priority: high
-* source: qa
-29 E2E tests fail in the full suite but pass individually, indicating systemic test isolation issues. Tests sharing database state via `/api/test/reset` interfere when run sequentially in a single worker. Consider Playwright test sharding with separate DB instances, or adding cleanup `afterEach` hooks for tests that create application state (sample jobs, images).
-
-### Fixture seeder idempotency guard
-* status: needs_approval
-* priority: low
-* source: developer
-Add an explicit idempotency check in `FixtureSeeder.SeedFixtures()` to detect and skip already-seeded fixture data, preventing silent state duplication if the cleaner fails mid-reset.
-
 ### Generate TypeScript API types from Goa design for E2E tests
 * status: needs_approval
 * priority: low
 * source: developer
 E2E tests manually type API payload field names (e.g., `workflow_filename` vs `workflow_name`), which can silently diverge from the Goa API design. Generate a lightweight TypeScript types file from the Goa design so E2E tests can import typed payloads rather than guessing field names by hand.
+
+### Validate mock server PNG checksum in CI
+* status: needs_approval
+* priority: low
+* source: developer
+Add a startup validation step to the ComfyUI mock that verifies its PNG data passes Go's CRC check before tests run, preventing silent thumbnail failures if the PNG is ever modified again.
