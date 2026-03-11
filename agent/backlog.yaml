@@ -1027,3 +1027,422 @@ stories:
     notes: |
       Failing test: frontend/e2e/generate-samples-beads.spec.ts > Generate Samples dual beads (S-116) > AC training run: blue activity bead when a running job exists.
       The test expects a blue activity bead (data-testid="run-bead-activity") on the training run option when a job is running. May be a race condition between job creation and WebSocket/polling update propagating bead status.
+  - id: S-118
+    title: "Lightbox grid position indicator"
+    priority: 25
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "FE: Thumbnail strip or position indicator shows current grid position in lightbox"
+      - "FE: Position updates when navigating with Shift+Arrow keys"
+      - "FE: Indicator is unobtrusive and does not obscure image content"
+      - "FE: Unit tests for position indicator rendering and navigation updates"
+    notes: |
+      Show a thumbnail strip indicator in the lightbox so the user knows their position
+      in the grid while navigating with Shift+Arrow keys.
+      Source: developer.
+      Key files: frontend/src/components/ImageLightbox.vue.
+    testing:
+      - "Verify position indicator updates correctly when navigating with Shift+Arrow"
+      - "Verify indicator handles edge cases (first/last cell in grid)"
+  - id: S-119
+    title: "Per-model-type workflow restore on training run change"
+    priority: 25
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "FE: Per-model-type workflow is speculatively applied when model type is already cached"
+      - "FE: Behavior is unchanged when model type is not cached (waits for metadata fetch)"
+      - "FE: Unit tests for speculative workflow application from cache"
+    notes: |
+      Currently restoreModelInputs is called when the training run changes (after metadata
+      fetch). If the user opens the dialog and the training run is already known (from restore),
+      the per-model-type workflow won't be applied until after the metadata loads. Speculatively
+      apply the per-model-type workflow earlier if the model type is already cached from a
+      previous session.
+      Source: developer.
+    testing:
+      - "Verify cached model type triggers early workflow application"
+      - "Verify non-cached path still works correctly after metadata fetch"
+  - id: S-120
+    title: "Filters drawer width configurable or auto-sized"
+    priority: 15
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "FE: FiltersDrawer width adapts to content or is user-resizable"
+      - "FE: Drawer does not exceed viewport width on small screens"
+      - "FE: Unit tests for drawer sizing behavior"
+    notes: |
+      The FiltersDrawer has a fixed 320px width. For users with many dimensions or long
+      dimension values, an auto-sizing or resizable drawer (like the metadata panel) would
+      be more ergonomic.
+      Source: developer.
+      Key files: frontend/src/components/FiltersDrawer.vue.
+    testing:
+      - "Verify drawer handles long dimension values without truncation or overflow"
+  - id: S-121
+    title: "Replace window.prompt for preset save with NModal input dialog"
+    priority: 45
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "FE: Save preset flow uses an NModal input dialog instead of window.prompt"
+      - "FE: Dialog is consistent with ConfirmDeleteDialog pattern (S-094/S-095/S-096)"
+      - "FE: Cancel and confirm actions work correctly"
+      - "FE: Unit tests for the new modal dialog"
+    notes: |
+      The "Save preset" flow still uses window.prompt, which is inconsistent with the
+      ConfirmDeleteDialog pattern established in S-094/S-095/S-096. A proper NModal input
+      dialog would provide a more polished UX.
+      Source: developer.
+    testing:
+      - "Verify modal dialog replaces browser prompt for preset naming"
+      - "Verify empty/whitespace-only names are rejected"
+  - id: S-122
+    title: "Restrict Delete button to non-running jobs; require stop-then-delete flow"
+    priority: 25
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "FE: Delete button is hidden when job status is running"
+      - "FE: User must stop a running job before deleting it"
+      - "FE: Delete button remains visible for all other job statuses"
+      - "FE: Unit tests for Delete button visibility based on job status"
+    notes: |
+      Currently the Delete button shows on running jobs, which could lead to data
+      inconsistency if the executor is mid-write when the DB record is removed. Hide
+      Delete when status is running to enforce a stop-then-delete flow.
+      Source: developer.
+    testing:
+      - "Verify Delete button not shown for running jobs"
+      - "Verify stop-then-delete flow works end to end"
+  - id: S-123
+    title: "Display individual checkpoint filenames in job parameters panel"
+    priority: 25
+    status: todo
+    complexity: medium
+    requires: []
+    acceptance:
+      - "BE: Store list of checkpoint filenames selected at job creation in the database"
+      - "BE: SampleJob API response includes checkpoint filename list"
+      - "BE: DB schema migration adds checkpoint filenames field to sample_jobs table"
+      - "FE: Job parameter detail panel displays individual checkpoint names"
+      - "FE: Unit tests for checkpoint filename display"
+      - "BE: Unit tests for checkpoint filename storage and retrieval"
+    notes: |
+      The SampleJob API response does not currently include the list of checkpoint filenames
+      selected at job creation. Storing and returning this list would make the job parameter
+      detail panel richer (show individual checkpoint names instead of just a count).
+      Source: developer.
+    testing:
+      - "Verify checkpoint names are stored at job creation and returned in API"
+      - "Verify UI displays individual names, not just count"
+  - id: S-124
+    title: "Configurable ComfyUI reconnect interval"
+    priority: 25
+    status: todo
+    complexity: low
+    requires:
+      - B-073
+    acceptance:
+      - "BE: ComfyUI WebSocket reconnect interval is configurable via config.yaml"
+      - "BE: Default interval remains 10 seconds when not configured"
+      - "BE: Unit tests for configurable reconnect interval"
+      - "DOC: Update config.yaml example with reconnect interval setting"
+    notes: |
+      The 10-second reconnect ticker for the ComfyUI WebSocket connection is hardcoded.
+      Exposing it as a config parameter would allow tuning for environments with slower
+      ComfyUI startup.
+      Source: developer.
+    testing:
+      - "Verify custom interval is respected when configured"
+      - "Verify default 10s interval when not configured"
+  - id: S-125
+    title: "Separate display ordering from processing ordering for ListSampleJobs"
+    priority: 25
+    status: todo
+    complexity: low
+    requires:
+      - B-071
+    acceptance:
+      - "BE: UI-facing job list returns jobs newest-first (created_at DESC)"
+      - "BE: Executor job pickup uses oldest-first (created_at ASC) for FIFO"
+      - "BE: Separate queries or ORDER BY parameter distinguishes the two use cases"
+      - "BE: Unit tests for both ordering behaviors"
+    notes: |
+      The ListSampleJobs() function is used for both UI display (should be newest-first
+      for better UX) and job executor pickup (must be oldest-first for FIFO). Splitting
+      into two queries or adding an ORDER BY parameter would make intent clearer.
+      Source: developer.
+    testing:
+      - "Verify UI list shows newest first"
+      - "Verify executor picks up oldest pending job first"
+  - id: S-126
+    title: "ETA countdown timer (client-side interpolation)"
+    priority: 15
+    status: todo
+    complexity: low
+    requires:
+      - S-098
+    acceptance:
+      - "FE: ETA display interpolates countdown between WebSocket events using setInterval"
+      - "FE: Countdown resets when a new ETA value arrives from WebSocket"
+      - "FE: Timer is cleaned up on component unmount"
+      - "FE: Unit tests for countdown interpolation and reset behavior"
+    notes: |
+      Instead of waiting for each WebSocket event to update the sample ETA display, the
+      frontend could interpolate the countdown between events using setInterval, giving
+      a smoother "counting down" UX. FE-only changes.
+      Source: developer.
+    testing:
+      - "Verify countdown ticks between WebSocket events"
+      - "Verify countdown resets correctly on new ETA value"
+  - id: S-127
+    title: "MRU for sampler/scheduler pairs per workflow"
+    priority: 15
+    status: todo
+    complexity: low
+    requires:
+      - S-113
+    acceptance:
+      - "FE: Sampler and scheduler MRU values stored in localStorage per workflow template"
+      - "FE: Selecting a workflow auto-fills sampler and scheduler from stored MRU values"
+      - "FE: MRU defaults do not override values when dialog is pre-filled from external action"
+      - "FE: Unit tests for sampler/scheduler MRU storage and retrieval"
+    notes: |
+      Following the same pattern as VAE/TE MRU (S-113), sampler and scheduler pairs could
+      also be stored per workflow template in localStorage for auto-fill on workflow selection.
+      Source: developer.
+    testing:
+      - "Verify sampler/scheduler are stored on generation and restored on workflow re-selection"
+      - "Verify pre-filled values from regeneration are not overwritten by MRU"
+  - id: S-128
+    title: "WebSocket heartbeat/ping-pong mechanism"
+    priority: 45
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "BE: Backend sends periodic WebSocket ping frames to keep connections alive"
+      - "BE: Ping interval is configurable via config.yaml"
+      - "BE: Idle connections survive beyond proxy_read_timeout limits"
+      - "BE: Unit tests for ping frame scheduling"
+    notes: |
+      Implement periodic WebSocket ping frames from the backend to keep idle WebSocket
+      tunnels alive beyond the proxy_read_timeout limit and prevent browser-side idle
+      timeouts. Necessary follow-up to make WebSocket robust for long sessions with no
+      activity.
+      Source: developer.
+    testing:
+      - "Verify ping frames are sent at configured interval"
+      - "Verify idle connections remain open through proxy timeouts"
+  - id: B-087
+    title: "Fix root-owned dist/assets blocking host-side npm run build"
+    priority: 25
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "OPS: frontend/dist/ is not owned by root after Docker-based builds"
+      - "OPS: npm run build succeeds on host without permission errors"
+      - "OPS: dist/ added to .gitignore if not already present"
+    notes: |
+      The frontend/dist/assets/ directory is owned by root from a prior Docker-based build,
+      preventing npm run build from completing outside Docker. Fix by either adding dist/
+      to .gitignore cleanup or fixing the Dockerfile to use the correct UID.
+      Source: qa.
+    testing:
+      - "Verify npm run build works on host after Docker build"
+      - "Verify dist/ ownership is correct after Docker build"
+  - id: W-012
+    title: "Shift field E2E testing with AuraFlow workflow fixture"
+    priority: 25
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "E2E: Second test fixture workflow with a shift role is available"
+      - "E2E: Test verifies shift input appears when shift-role workflow is selected"
+      - "E2E: Test verifies shift input is hidden when non-shift workflow is selected"
+    notes: |
+      The shift input only appears when the selected workflow has a shift role. Adding a
+      second test fixture workflow with this role would enable E2E testing of the shift
+      field visibility behavior in the study editor.
+      Source: developer.
+    testing:
+      - "Verify shift field visibility toggles based on workflow selection"
+  - id: W-013
+    title: "E2E test for keyboard auto-repeat slider navigation"
+    priority: 25
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "E2E: Playwright test exercises arrow key auto-repeat on slider"
+      - "E2E: Test asserts correct slider progression under repeated key presses"
+      - "E2E: Test catches stale-prop race conditions that JSDOM cannot reproduce"
+    notes: |
+      Keyboard-driven slider behaviors (arrow navigation with auto-repeat) are difficult
+      to test in JSDOM because the stale-prop race condition only manifests at real browser
+      auto-repeat rates. A Playwright E2E test using page.keyboard.down('ArrowRight') with
+      repeated presses would give higher confidence.
+      Source: developer.
+    testing:
+      - "Verify slider moves correctly under rapid repeated arrow key presses"
+  - id: W-014
+    title: "App.test.ts window.innerWidth cleanup between tests"
+    priority: 25
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "FE: afterEach hook resets window.innerWidth to a known default in App.test.ts"
+      - "FE: Tests after the eager auto-select section are not affected by modified innerWidth"
+      - "FE: All existing tests continue to pass"
+    notes: |
+      The "Eager auto-select" tests in App.test.ts set Object.defineProperty(window, 'innerWidth')
+      which persists across tests since vi.unstubAllGlobals() only removes vi.stubGlobal stubs.
+      A shared afterEach that resets innerWidth would prevent ordering-dependent test failures.
+      Source: developer.
+    testing:
+      - "Verify tests pass in any order after fix"
+  - id: W-015
+    title: "Add Vite ws proxy EPIPE to QA_ALLOWED_ERRORS.md"
+    priority: 25
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "DOC: QA_ALLOWED_ERRORS.md includes the vite ws proxy EPIPE pattern"
+      - "DOC: Pattern explanation notes it is caused by Playwright closing WebSocket connections"
+    notes: |
+      The [vite] ws proxy socket error: Error: write EPIPE pattern appears in every E2E run
+      (~93 times) because Playwright closes WebSocket connections when pages are navigated or
+      reset. Adding this to QA_ALLOWED_ERRORS.md would eliminate recurring noise in QA sweeps.
+      Source: qa.
+    testing:
+      - "Verify QA agent no longer flags EPIPE errors as issues"
+  - id: W-016
+    title: "Shared logrus log-level assertion helper for backend tests"
+    priority: 25
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "BE: Shared test helper (e.g. captureLogrus) reduces boilerplate for log-level assertions"
+      - "BE: Existing log-level tests refactored to use the helper"
+      - "BE: Unit tests for the helper itself"
+    notes: |
+      The pattern of capturing logrus output to a buffer to assert log levels (as used in
+      B-066's test) works but is verbose. A small shared test helper in the service test
+      suite would reduce boilerplate for similar log-level regression tests.
+      Source: developer.
+    testing:
+      - "Verify helper captures and asserts log levels correctly"
+  - id: W-017
+    title: "Incomplete-set E2E test infra (partial sample seeding)"
+    priority: 25
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "BE: Test-only API endpoint seeds partial sample directories for a study"
+      - "BE: Endpoint is only available in test mode"
+      - "E2E: At least one E2E test uses partial seeding to verify incomplete-set behavior"
+    notes: |
+      A test-only API endpoint to seed partial sample directories (e.g., POST
+      /api/test/seed-partial-samples?study_id=...) would enable true E2E coverage of
+      the incomplete-set path (hasMissingSamples=true) without running a full generation
+      job. Currently only covered by unit tests.
+      Source: developer.
+    testing:
+      - "Verify partial seeding creates expected directory structure"
+      - "Verify incomplete-set UI behavior with seeded partial data"
+  - id: W-018
+    title: "Slow-motion mock mode for E2E timing tests"
+    priority: 25
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "BE: ComfyUI mock supports configurable delay via env var"
+      - "E2E: Tests for in-flight state can reliably observe the running phase"
+      - "E2E: At least one test uses slow-motion mode to verify mid-generation UI state"
+    notes: |
+      Add a configurable delay to the ComfyUI mock (e.g., via an env var) so E2E tests
+      for in-flight state (like mid-generation params display) can reliably observe the
+      running phase without relying on polling luck.
+      Source: developer.
+    testing:
+      - "Verify configurable delay slows mock responses as expected"
+      - "Verify in-flight UI state is observable during delayed mock execution"
+  - id: W-019
+    title: "Add test-frontend and test-backend to Makefile .PHONY"
+    priority: 15
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "OPS: test-frontend and test-backend are listed in .PHONY declaration in root Makefile"
+    notes: |
+      test-frontend and test-backend are Makefile targets but are not listed in the .PHONY
+      declaration. While unlikely to cause issues, it is best practice to declare all
+      non-file targets as phony.
+      Source: qa.
+    testing:
+      - "Verify .PHONY includes test-frontend and test-backend"
+  - id: W-020
+    title: "Explicit log-capture helper Makefile target"
+    priority: 15
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "OPS: make logs-snapshot target performs up-dev, log capture, and teardown atomically"
+      - "DOC: Usage documented in TEST_PRACTICES.md and qa-expert.md"
+    notes: |
+      A make logs-snapshot target that performs make up-dev && docker compose logs --tail=500
+      --no-color 2>&1 && make down as a single atomic operation would reduce the chance of
+      forgetting teardown during runtime error sweeps.
+      Source: developer.
+    testing:
+      - "Verify target captures logs and tears down cleanly"
+  - id: W-021
+    title: "Gitignore Playwright HTML report directory"
+    priority: 25
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "OPS: frontend/playwright-report/ is listed in .gitignore"
+      - "OPS: No generated report artifacts are accidentally committed"
+    notes: |
+      The HTML reporter writes output to frontend/playwright-report/ by default. Confirm
+      this path is in .gitignore to avoid accidental commits of generated artifacts.
+      Source: developer.
+    testing:
+      - "Verify playwright-report/ is gitignored after generating a report"
+  - id: W-022
+    title: "Fixture seeder idempotency guard"
+    priority: 25
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "BE: FixtureSeeder.SeedFixtures() detects already-seeded data and skips re-seeding"
+      - "BE: Silent state duplication is prevented if the cleaner fails mid-reset"
+      - "BE: Unit tests for idempotency check"
+    notes: |
+      Add an explicit idempotency check in FixtureSeeder.SeedFixtures() to detect and skip
+      already-seeded fixture data, preventing silent state duplication if the cleaner fails
+      mid-reset.
+      Source: developer.
+    testing:
+      - "Verify double-seeding does not duplicate data"
+      - "Verify seeding works correctly on clean database"
