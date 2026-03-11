@@ -1930,11 +1930,18 @@ func (e *JobExecutor) broadcastJobProgress(jobID string) {
 	if avgDuration > 0 {
 		// Per-sample ETA: estimated time remaining for the current in-flight sample.
 		// If a sample is currently being processed, subtract the elapsed time.
+		// If the elapsed time already exceeds the historical average (e.g. this sample
+		// is taking longer than usual, or setup overhead ate into the estimate), fall
+		// back to the full avgDuration so that the field is always populated while a
+		// sample is actively running. Inference-progress events will override this with
+		// a step-based ETA once they start arriving.
 		if !startTime.IsZero() {
 			elapsed := e.timeNow().Sub(startTime)
 			remaining := avgDuration - elapsed
 			if remaining > 0 {
 				sampleETASeconds = remaining.Seconds()
+			} else {
+				sampleETASeconds = avgDuration.Seconds()
 			}
 		}
 

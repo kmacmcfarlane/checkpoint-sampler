@@ -1569,6 +1569,141 @@ describe('App', () => {
     })
   })
 
+  // AC (S-098 UAT): Per-sample ETA preservation and clearing in handleJobProgress
+  describe('handleJobProgress: sample ETA preservation (S-098)', () => {
+    const runningJob: SampleJob = {
+      id: 'job-eta',
+      training_run_name: 'test-run',
+      study_id: 'study-1',
+      study_name: 'Test Study',
+      workflow_name: 'default',
+      vae: '',
+      clip: '',
+      status: 'running',
+      total_items: 6,
+      completed_items: 0,
+      failed_items: 0,
+      pending_items: 6,
+      created_at: '2024-01-01T00:00:00Z',
+      updated_at: '2024-01-01T00:00:00Z',
+    }
+
+    async function mountWithETAJob() {
+      mockListSampleJobs.mockResolvedValue([runningJob])
+      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      await flushPromises()
+
+      const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
+      selector.vm.$emit('select', mockTrainingRun)
+      await flushPromises()
+
+      expect(mockWebSocketInstances.length).toBeGreaterThan(0)
+      const ws = mockWebSocketInstances[0]
+      ws.simulateOpen()
+      await flushPromises()
+
+      const jobsBtn = wrapper.findAllComponents(NButton).find(
+        (b) => b.attributes('aria-label') === 'Toggle sample jobs panel',
+      )
+      await jobsBtn!.trigger('click')
+      await flushPromises()
+
+      return { wrapper, ws }
+    }
+
+    // AC: FE: Per-sample ETA is preserved when a subsequent job_progress event omits sample_eta_seconds
+    it('preserves sample_eta_seconds when job_progress event omits it and completed_items is unchanged', async () => {
+      // AC (S-098 UAT): After inference_progress sets sample_eta_seconds, a subsequent
+      // job_progress event without sample_eta_seconds must NOT clear the stored value.
+      const { wrapper, ws } = await mountWithETAJob()
+
+      // First, set sample_eta_seconds via an inference_progress event
+      ws.onmessage?.(new MessageEvent('message', {
+        data: JSON.stringify({
+          type: 'inference_progress',
+          prompt_id: 'p1',
+          current_value: 5,
+          max_value: 20,
+          sample_eta_seconds: 28.0,
+        }),
+      }))
+      await flushPromises()
+
+      // Verify it was recorded
+      const panelBefore = wrapper.findComponent({ name: 'JobProgressPanel' })
+      const progressBefore = panelBefore.props('jobProgress') as Record<string, { sample_eta_seconds?: number }>
+      expect(progressBefore['job-eta']?.sample_eta_seconds).toBeCloseTo(28.0)
+
+      // Now deliver a job_progress event WITHOUT sample_eta_seconds; completed_items unchanged
+      ws.onmessage?.(new MessageEvent('message', {
+        data: JSON.stringify({
+          type: 'job_progress',
+          job_id: 'job-eta',
+          status: 'running',
+          total_items: 6,
+          completed_items: 0, // unchanged
+          failed_items: 0,
+          pending_items: 6,
+          checkpoints_completed: 0,
+          total_checkpoints: 6,
+          // no sample_eta_seconds field
+        }),
+      }))
+      await flushPromises()
+
+      // sample_eta_seconds must be preserved from the earlier inference_progress event
+      const panelAfter = wrapper.findComponent({ name: 'JobProgressPanel' })
+      const progressAfter = panelAfter.props('jobProgress') as Record<string, { sample_eta_seconds?: number }>
+      expect(progressAfter['job-eta']?.sample_eta_seconds).toBeCloseTo(28.0)
+    })
+
+    // AC: FE: Per-sample ETA is cleared when a sample completes (completed_items increases)
+    it('clears sample_eta_seconds when completed_items increases (sample just completed)', async () => {
+      // AC (S-098 UAT): When completed_items increments, no sample is actively running so
+      // sample_eta_seconds must be cleared even if it was set by a prior inference_progress event.
+      const { wrapper, ws } = await mountWithETAJob()
+
+      // Set sample_eta_seconds via a job_progress event with ETA
+      ws.onmessage?.(new MessageEvent('message', {
+        data: JSON.stringify({
+          type: 'job_progress',
+          job_id: 'job-eta',
+          status: 'running',
+          total_items: 6,
+          completed_items: 0,
+          failed_items: 0,
+          pending_items: 6,
+          checkpoints_completed: 0,
+          total_checkpoints: 6,
+          sample_eta_seconds: 35.0,
+        }),
+      }))
+      await flushPromises()
+
+      // Now deliver a job_progress event where completed_items increases → sample just completed
+      ws.onmessage?.(new MessageEvent('message', {
+        data: JSON.stringify({
+          type: 'job_progress',
+          job_id: 'job-eta',
+          status: 'running',
+          total_items: 6,
+          completed_items: 1, // increased from 0
+          failed_items: 0,
+          pending_items: 5,
+          checkpoints_completed: 1,
+          total_checkpoints: 6,
+          // no sample_eta_seconds: next sample hasn't started yet
+        }),
+      }))
+      await flushPromises()
+
+      // sample_eta_seconds should be cleared because no sample is actively running
+      const panel = wrapper.findComponent({ name: 'JobProgressPanel' })
+      const progress = panel.props('jobProgress') as Record<string, { sample_eta_seconds?: number }>
+      expect(progress['job-eta']?.sample_eta_seconds).toBeUndefined()
+    })
+  })
+
   // AC3 (B-067): Progress bar initialization on first generation event
   describe('handleInferenceProgress: first generation progress bar initialization (B-067)', () => {
     const firstSampleJob: SampleJob = {

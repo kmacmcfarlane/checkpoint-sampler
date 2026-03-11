@@ -150,9 +150,9 @@ Older entries are condensed to titles only — see git history for full details.
 - Play/Pause text button replaced with circular icon button: green triangle (play) and pause bars (pause) SVGs, themed via `--play-icon-color` CSS variable
 - Refresh icon buttons added to Sample Set selector (sidebar) and Training Run selector (Generate Samples dialog) for manual list reload
 
-### S-098: ETA per sample and per job (moving average)
-- Per-sample ETA computed from step-based inference progress (elapsed × remaining/completed steps), broadcast via `inference_progress` WebSocket events for live updates during generation
-- Job-level ETA uses moving-average (10-sample window) of completed sample durations; both ETAs displayed in JobProgressPanel with human-readable formatting
+### S-098: ETA per sample and per job (moving average) (UAT rework)
+- Fixed per-sample ETA not displaying: backend now falls back to moving-average duration when elapsed exceeds average, ensuring `sample_eta_seconds` is always populated while a sample is running
+- Frontend preserves existing per-sample ETA across `job_progress` events that omit the field, preventing inference-progress ETAs from being overwritten
 
 ### S-097: Delete jobs with option to keep or delete sample data
 - Delete button on job cards opens a ConfirmDeleteDialog with "Also delete sample data" checkbox (default unchecked)

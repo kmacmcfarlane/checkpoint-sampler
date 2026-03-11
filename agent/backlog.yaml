@@ -16,7 +16,7 @@ stories:
   - id: S-098
     title: ETA per sample and per job (moving average)
     type: feature
-    status: uat_feedback
+    status: uat
     priority: 25
     complexity: medium
     requires: []
@@ -38,7 +38,6 @@ stories:
       - "Test ETA accuracy improves after several samples (moving average stabilizes)"
       - "Test ETA display with varying sample generation times"
       - "Test edge case: first sample has no prior average to work with"
-    review_feedback: Per-sample ETA not showing, only per-job ETA is displayed.
   - id: B-059
     title: "Training run discovery returns empty — both viewer and Generate Samples selectors show nothing"
     priority: 90

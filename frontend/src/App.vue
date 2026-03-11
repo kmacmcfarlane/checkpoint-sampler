@@ -348,7 +348,18 @@ function handleJobProgress(message: JobProgressMessage) {
       prevCheckpointProgress[message.job_id] = message.current_checkpoint_progress
     }
 
-    // Store checkpoint-level progress separately with ETA data from the backend
+    // Store checkpoint-level progress separately with ETA data from the backend.
+    // AC (S-098 UAT): Preserve existing sample_eta_seconds when the job_progress event does
+    // not include one — unless a sample just completed (completed_items increased), in which
+    // case we clear it because no sample is currently running.
+    // This ensures the ETA set by inference_progress events is not erased by the
+    // start-of-sample job_progress broadcast that arrives before inference begins.
+    const incomingSampleETA = message.sample_eta_seconds !== undefined
+      ? message.sample_eta_seconds
+      : (message.completed_items > prevCompleted
+        ? undefined
+        : jobProgress[message.job_id]?.sample_eta_seconds)
+
     jobProgress[message.job_id] = {
       checkpoints_completed: message.checkpoints_completed,
       total_checkpoints: message.total_checkpoints,
@@ -356,7 +367,7 @@ function handleJobProgress(message: JobProgressMessage) {
       current_checkpoint_progress: message.current_checkpoint_progress,
       current_checkpoint_total: message.current_checkpoint_total,
       checkpoint_completeness: message.checkpoint_completeness,
-      sample_eta_seconds: message.sample_eta_seconds,
+      sample_eta_seconds: incomingSampleETA,
       job_eta_seconds: message.job_eta_seconds,
       current_sample_params: message.current_sample_params,
     }
