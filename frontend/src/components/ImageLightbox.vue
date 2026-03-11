@@ -198,6 +198,12 @@ function onKeyDown(e: KeyboardEvent) {
     return
   }
 
+  // '?' toggles the keyboard shortcuts help panel
+  if (e.key === '?') {
+    toggleShortcuts()
+    return
+  }
+
   // Shift+ArrowLeft / Shift+ArrowRight navigate between grid images along the X axis (wrapping)
   if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && e.shiftKey) {
     e.preventDefault()
@@ -412,9 +418,9 @@ onUnmounted(() => {
     <div class="lightbox-shortcuts-area" @click.stop>
       <NButton
         class="lightbox-shortcuts-btn"
-        quaternary
+        secondary
         circle
-        size="small"
+        size="medium"
         aria-label="Toggle keyboard shortcuts"
         data-testid="lightbox-shortcuts-btn"
         @click="toggleShortcuts"
@@ -427,6 +433,7 @@ onUnmounted(() => {
         <div class="shortcuts-title">Keyboard Shortcuts</div>
         <ul class="shortcuts-list">
           <li><kbd>Esc</kbd> Close lightbox</li>
+          <li><kbd>?</kbd> Toggle this help panel</li>
           <li><kbd>Shift</kbd> + <kbd>←</kbd> <kbd>→</kbd> Navigate grid (X axis)</li>
           <li><kbd>Shift</kbd> + <kbd>↑</kbd> <kbd>↓</kbd> Navigate grid (Y axis)</li>
           <li><kbd>←</kbd> <kbd>→</kbd> Slider (when active)</li>
@@ -660,9 +667,11 @@ onUnmounted(() => {
 
 .lightbox-shortcuts-btn {
   /* stylelint-disable-next-line scale-unlimited/declaration-strict-value -- Intentional: lightbox overlay always has dark background regardless of theme */
-  color: rgba(255, 255, 255, 0.8);
-  font-size: 0.875rem;
-  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  /* stylelint-disable-next-line scale-unlimited/declaration-strict-value -- Intentional: lightbox overlay always has dark background regardless of theme */
+  background-color: rgba(255, 255, 255, 0.15) !important;
+  font-size: 1rem;
+  font-weight: 700;
 }
 
 .lightbox-shortcuts-panel {

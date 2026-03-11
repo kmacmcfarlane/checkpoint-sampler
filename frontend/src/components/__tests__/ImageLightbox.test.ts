@@ -1720,5 +1720,57 @@ describe('ImageLightbox', () => {
 
       expect(wrapper.emitted('close')).toBeFalsy()
     })
+
+    // AC: '?' hotkey toggles the shortcuts panel open
+    it('pressing ? key opens the shortcuts panel', async () => {
+      const wrapper = mount(ImageLightbox, { props: defaultProps })
+      await flushPromises()
+
+      // Panel should be hidden initially
+      expect(wrapper.find('[data-testid="lightbox-shortcuts-panel"]').exists()).toBe(false)
+
+      // Press '?' key
+      const event = new KeyboardEvent('keydown', { key: '?', bubbles: true, cancelable: true })
+      document.dispatchEvent(event)
+      await wrapper.vm.$nextTick()
+
+      // Panel should now be visible
+      expect(wrapper.find('[data-testid="lightbox-shortcuts-panel"]').exists()).toBe(true)
+
+      wrapper.unmount()
+    })
+
+    // AC: '?' hotkey toggles the shortcuts panel closed when already open
+    it('pressing ? key closes the shortcuts panel when it is open', async () => {
+      const wrapper = mount(ImageLightbox, { props: defaultProps })
+      await flushPromises()
+
+      // Open the panel via button click first
+      await wrapper.find('[data-testid="lightbox-shortcuts-btn"]').trigger('click')
+      await wrapper.vm.$nextTick()
+      expect(wrapper.find('[data-testid="lightbox-shortcuts-panel"]').exists()).toBe(true)
+
+      // Press '?' key to close
+      const event = new KeyboardEvent('keydown', { key: '?', bubbles: true, cancelable: true })
+      document.dispatchEvent(event)
+      await wrapper.vm.$nextTick()
+
+      // Panel should be hidden again
+      expect(wrapper.find('[data-testid="lightbox-shortcuts-panel"]').exists()).toBe(false)
+
+      wrapper.unmount()
+    })
+
+    // AC: shortcuts panel lists the '?' shortcut for toggling the help panel
+    it('shortcuts panel lists the ? shortcut for toggling help', async () => {
+      const wrapper = mount(ImageLightbox, { props: defaultProps })
+      await flushPromises()
+
+      await wrapper.find('[data-testid="lightbox-shortcuts-btn"]').trigger('click')
+      await wrapper.vm.$nextTick()
+
+      const panel = wrapper.find('[data-testid="lightbox-shortcuts-panel"]')
+      expect(panel.text()).toContain('Toggle this help panel')
+    })
   })
 })

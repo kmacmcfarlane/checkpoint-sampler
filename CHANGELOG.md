@@ -15,8 +15,9 @@ Older entries are condensed to titles only — see git history for full details.
 - "Validate" button on each job card in the Sample Jobs panel and in the controls slideout triggers on-demand validation and displays results in a dialog
 - Regenerate button in the validation dialog opens the Generate Samples dialog with pre-filled training run, study, and "generate missing samples only" checked
 
-### S-109: Keyboard navigation help overlay in lightbox
-- Lightbox now includes a "?" button (top-right) that toggles a keyboard shortcuts help panel listing Esc, Shift+Arrow grid navigation, and plain Arrow slider navigation
+### S-109: Keyboard navigation help overlay in lightbox (UAT rework)
+- Added `?` keyboard shortcut to toggle the help panel, addressing UAT feedback that the overlay had no discoverable trigger
+- Improved `?` button visibility: upgraded from `quaternary`/`small` to `secondary`/`medium` with explicit background color
 
 ### S-108: Configurable confirmation button text in ConfirmDeleteDialog
 - `ConfirmDeleteDialog` accepts an optional `confirmLabel` prop to customize the confirm button text, enabling reuse for non-delete confirmations (e.g., regeneration dialogs)

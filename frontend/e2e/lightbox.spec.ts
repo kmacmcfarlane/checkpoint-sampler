@@ -743,4 +743,28 @@ test.describe('keyboard shortcuts help overlay (S-109)', () => {
     await btn.click()
     await expect(panel).not.toBeVisible()
   })
+
+  // AC: '?' hotkey opens and closes the shortcuts panel (UAT feedback — user expected hotkey)
+  test('? hotkey toggles the shortcuts panel open and closed', async ({ page }) => {
+    await setupGridWithImages(page)
+
+    const firstImage = page.locator('.xy-grid [role="gridcell"] img').first()
+    await firstImage.click()
+
+    const lightbox = page.locator('[role="dialog"][aria-label="Image lightbox"]')
+    await expect(lightbox).toBeVisible()
+
+    const panel = page.locator('[data-testid="lightbox-shortcuts-panel"]')
+
+    // Panel is hidden by default
+    await expect(panel).not.toBeVisible()
+
+    // Press '?' to open the panel
+    await page.keyboard.press('?')
+    await expect(panel).toBeVisible()
+
+    // Press '?' again to close the panel
+    await page.keyboard.press('?')
+    await expect(panel).not.toBeVisible()
+  })
 })

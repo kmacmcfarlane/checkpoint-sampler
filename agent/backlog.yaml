@@ -213,7 +213,7 @@ stories:
   - id: S-109
     title: "Keyboard navigation help overlay in lightbox"
     priority: 25
-    status: uat_feedback
+    status: uat
     complexity: low
     requires: []
     acceptance:
@@ -229,8 +229,6 @@ stories:
       more discoverable.
       Source: developer.
       Key files: frontend/src/components/ImageLightbox.vue.
-    review_feedback: No visible way to trigger the keyboard help overlay. Tried h and ? hotkeys — neither works. No UI 
-      element visible. Not documented in README.
   - id: S-110
     title: "Resume completed_with_errors jobs (retry failed items)"
     priority: 30
