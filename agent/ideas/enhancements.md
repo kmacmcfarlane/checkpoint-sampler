@@ -97,3 +97,9 @@ Instead of waiting for each WebSocket event to update the sample ETA display, th
 * priority: very-low
 * source: developer
 Following the same pattern as VAE/TE MRU (S-113), sampler and scheduler pairs could also be stored per workflow template in localStorage for auto-fill on workflow selection.
+
+### Validate tooltip counts against validation result image data
+* status: needs_approval
+* priority: low
+* source: developer
+When validation has run and overrides the bead status, the tooltip could show image-level counts (e.g. "590/684 images") instead of directory-level checkpoint counts for more precision.

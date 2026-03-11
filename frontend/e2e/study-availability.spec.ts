@@ -99,6 +99,14 @@ test.describe('study availability and selector (S-086)', () => {
     expect(['none', 'partial', 'complete']).toContain(studyAvail.sample_status)
     // No sample directories exist in test fixtures, so status must be 'none'
     expect(studyAvail.sample_status).toBe('none')
+
+    // S-105: checkpoint count fields must be present and numeric
+    expect(typeof studyAvail.checkpoints_with_samples).toBe('number')
+    expect(typeof studyAvail.total_checkpoints).toBe('number')
+    // No sample directories exist, so checkpoints_with_samples should be 0
+    expect(studyAvail.checkpoints_with_samples).toBe(0)
+    // total_checkpoints should reflect the number of checkpoints in the training run
+    expect(studyAvail.total_checkpoints).toBeGreaterThan(0)
   })
 
   // S-088 AC4: sample_status field is present for every study in the response

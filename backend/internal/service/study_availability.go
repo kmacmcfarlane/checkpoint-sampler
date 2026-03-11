@@ -83,6 +83,8 @@ func (s *StudyAvailabilityService) GetAvailability(studies []model.Study, tr mod
 
 		totalCheckpoints := len(checkpointSet)
 		avail.HasSamples = matchCount > 0
+		avail.CheckpointsWithSamples = matchCount
+		avail.TotalCheckpoints = totalCheckpoints
 		switch {
 		case totalCheckpoints == 0 || matchCount == 0:
 			avail.SampleStatus = model.StudySampleStatusNone

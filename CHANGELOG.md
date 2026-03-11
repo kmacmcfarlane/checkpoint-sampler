@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-105: Tooltip on study bead showing checkpoint counts
+- Study availability API now returns `checkpoints_with_samples` and `total_checkpoints` counts alongside the existing `sample_status` field
+- Study beads in the Generate Samples dialog show a native tooltip on hover (e.g., "3/5 checkpoints have samples") for green (complete) and yellow (partial) beads
+
 ### S-110: Resume completed_with_errors jobs (retry failed items)
 - New `POST /api/sample-jobs/{id}/retry-failed` endpoint resets failed/skipped items to pending and resumes execution; guards against concurrent running jobs and non-`completed_with_errors` state
 - "Retry failed" button on JobProgressPanel for `completed_with_errors` jobs, replacing the need to create a new job to retry failures

@@ -30,4 +30,9 @@ type StudyAvailability struct {
 	// SampleStatus indicates whether the study has no samples, partial
 	// coverage, or complete coverage for the training run's checkpoints.
 	SampleStatus StudySampleStatus
+	// CheckpointsWithSamples is the number of training run checkpoints that
+	// have a matching sample directory under this study's output directory.
+	CheckpointsWithSamples int
+	// TotalCheckpoints is the total number of checkpoints in the training run.
+	TotalCheckpoints int
 }

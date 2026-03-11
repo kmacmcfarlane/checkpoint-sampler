@@ -2978,6 +2978,204 @@ describe('JobLaunchDialog', () => {
     })
   })
 
+  // S-105: Tooltip on study bead showing checkpoint counts
+  describe('study bead tooltip showing checkpoint counts (S-105)', () => {
+    it('green bead title shows checkpoint count string for complete status', async () => {
+      // AC: Hovering over a study bead shows a tooltip like "3/5 checkpoints have samples"
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+      const renderLabel = studySelect.props('renderLabel') as (option: Record<string, unknown>) => VNode
+
+      // Complete status: activity=green, checkpoint counts available
+      const vnode = renderLabel({
+        label: 'Complete Study',
+        value: 's1',
+        _sampleStatus: 'complete',
+        _dualBead: { activity: 'green', problem: null },
+        _checkpointCounts: { withSamples: 5, total: 5 },
+      })
+
+      const children = (vnode as { children?: unknown[] }).children as unknown[]
+      // activity bead + label = 2 children
+      expect(children).toHaveLength(2)
+      // The green bead's title should reflect the counts
+      const beadSpan = children[0] as { props?: { title?: string } }
+      expect(beadSpan.props?.title).toBe('5/5 checkpoints have samples')
+    })
+
+    it('yellow bead title shows checkpoint count string for partial status', async () => {
+      // AC: Tooltip reflects actual checkpoint counts
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+      const renderLabel = studySelect.props('renderLabel') as (option: Record<string, unknown>) => VNode
+
+      // Partial status: no activity bead, problem=yellow, checkpoint counts available
+      const vnode = renderLabel({
+        label: 'Partial Study',
+        value: 's2',
+        _sampleStatus: 'partial',
+        _dualBead: { activity: null, problem: 'yellow' },
+        _checkpointCounts: { withSamples: 3, total: 5 },
+      })
+
+      const children = (vnode as { children?: unknown[] }).children as unknown[]
+      // yellow bead + label = 2 children
+      expect(children).toHaveLength(2)
+      // The yellow bead's title should reflect the counts
+      const beadSpan = children[0] as { props?: { title?: string } }
+      expect(beadSpan.props?.title).toBe('3/5 checkpoints have samples')
+    })
+
+    it('red bead (failed) keeps "failed" title regardless of checkpoint counts', async () => {
+      // AC: For red bead (failed), counts don't apply
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+      const renderLabel = studySelect.props('renderLabel') as (option: Record<string, unknown>) => VNode
+
+      const vnode = renderLabel({
+        label: 'Failed Study',
+        value: 's3',
+        _sampleStatus: 'partial',
+        _dualBead: { activity: null, problem: 'red' },
+        _checkpointCounts: { withSamples: 2, total: 5 },
+      })
+
+      const children = (vnode as { children?: unknown[] }).children as unknown[]
+      expect(children).toHaveLength(2)
+      const beadSpan = children[0] as { props?: { title?: string } }
+      expect(beadSpan.props?.title).toBe('failed')
+    })
+
+    it('blue bead (running) keeps "running" title regardless of checkpoint counts', async () => {
+      // AC: For blue bead (running), counts don't apply
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+      const renderLabel = studySelect.props('renderLabel') as (option: Record<string, unknown>) => VNode
+
+      const vnode = renderLabel({
+        label: 'Running Study',
+        value: 's4',
+        _sampleStatus: 'partial',
+        _dualBead: { activity: 'blue', problem: null },
+        _checkpointCounts: { withSamples: 1, total: 5 },
+      })
+
+      const children = (vnode as { children?: unknown[] }).children as unknown[]
+      expect(children).toHaveLength(2)
+      const beadSpan = children[0] as { props?: { title?: string } }
+      expect(beadSpan.props?.title).toBe('running')
+    })
+
+    it('falls back to generic titles when checkpoint counts are not available', async () => {
+      // AC: When no counts available, bead still renders with fallback title
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+      const renderLabel = studySelect.props('renderLabel') as (option: Record<string, unknown>) => VNode
+
+      // Complete status but no _checkpointCounts
+      const vnodeComplete = renderLabel({
+        label: 'Complete Study',
+        value: 's1',
+        _sampleStatus: 'complete',
+        _dualBead: { activity: 'green', problem: null },
+        _checkpointCounts: null,
+      })
+      const greenBead = ((vnodeComplete as { children?: unknown[] }).children as unknown[])[0] as { props?: { title?: string } }
+      expect(greenBead.props?.title).toBe('complete')
+
+      // Partial status but no _checkpointCounts
+      const vnodePartial = renderLabel({
+        label: 'Partial Study',
+        value: 's2',
+        _sampleStatus: 'partial',
+        _dualBead: { activity: null, problem: 'yellow' },
+        _checkpointCounts: null,
+      })
+      const yellowBead = ((vnodePartial as { children?: unknown[] }).children as unknown[])[0] as { props?: { title?: string } }
+      expect(yellowBead.props?.title).toBe('incomplete')
+    })
+
+    it('study options include _checkpointCounts from availability data', async () => {
+      // AC: Tooltip reflects actual checkpoint counts for the selected training run
+      mockGetStudyAvailability.mockResolvedValue([
+        {
+          study_id: 'preset-1',
+          study_name: 'Quick Test',
+          has_samples: true,
+          sample_status: 'complete',
+          checkpoints_with_samples: 5,
+          total_checkpoints: 5,
+        },
+        {
+          study_id: 'preset-2',
+          study_name: 'Full Test',
+          has_samples: true,
+          sample_status: 'partial',
+          checkpoints_with_samples: 3,
+          total_checkpoints: 5,
+        },
+      ])
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      await flushPromises()
+
+      type StudyOption = { value: string; _checkpointCounts: { withSamples: number; total: number } | null }
+      const options = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+        .props('options') as StudyOption[]
+
+      expect(options.find(o => o.value === 'preset-1')?._checkpointCounts).toEqual({ withSamples: 5, total: 5 })
+      expect(options.find(o => o.value === 'preset-2')?._checkpointCounts).toEqual({ withSamples: 3, total: 5 })
+    })
+
+    it('study options have null _checkpointCounts when no availability data', async () => {
+      // Default mock: availability is empty — counts should be null
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      type StudyOption = { value: string; _checkpointCounts: { withSamples: number; total: number } | null }
+      const options = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+        .props('options') as StudyOption[]
+
+      for (const opt of options) {
+        expect(opt._checkpointCounts).toBeNull()
+      }
+    })
+  })
+
   // B-062: Training run bead shows correct color with study-scoped samples
   describe('training run bead with study-scoped samples (B-062)', () => {
     // Training run with has_samples: false (study-scoped directories not found at root level)

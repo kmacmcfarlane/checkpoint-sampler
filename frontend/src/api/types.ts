@@ -335,6 +335,10 @@ export interface StudyAvailability {
   has_samples: boolean
   /** Completeness status: 'none' = no samples, 'partial' = some checkpoints have samples, 'complete' = all checkpoints have samples */
   sample_status: StudySampleStatus
+  /** Number of training run checkpoints that have a matching sample directory for this study. */
+  checkpoints_with_samples: number
+  /** Total number of checkpoints in the training run. */
+  total_checkpoints: number
 }
 
 /** Demo dataset status response. */
