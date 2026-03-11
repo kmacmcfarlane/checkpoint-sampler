@@ -3615,3 +3615,527 @@ stories:
     testing:
       - "Test overlay appears only when debug mode is on"
       - "Test overlay content matches the expected parameters for the displayed image"
+  - id: B-070
+    title: "Main slider keyboard left/right arrows broken (regression)"
+    priority: 70
+    status: done
+    complexity: low
+    requires: []
+    acceptance:
+      - "FE: Pressing left/right arrow keys after clicking the slider knob moves the slider position"
+      - "FE: Arrow key navigation works on first focus (no extra clicks needed)"
+      - "FE: Unit tests for keyboard event handling on the main slider"
+    testing:
+      - "Click the main slider knob, press left/right arrows, verify position changes"
+      - "Check for event listener regressions in recent slider-related changes"
+    notes: |
+      Bug: Keyboard left/right arrows no longer work on the main slider, even after clicking
+      the slider knob to give it focus. This is a recent regression. Previously worked.
+      Key files: frontend/src/components/SliderControls.vue (or equivalent slider component).
+  - id: B-079
+    title: "Checkpoint validation status missing after generation (persists across refresh)"
+    type: bug
+    status: done
+    priority: 65
+    complexity: medium
+    requires:
+      - B-078
+    notes: |
+      After generating samples for a study, the Checkpoint Validation Status UI does not display
+      when returning to regenerate. This persists across page refreshes, so it is a data issue
+      rather than a reactivity bug. Affects both new and existing studies. Other existing sample
+      sets display correctly.
+    acceptance:
+      - "BE: Validation status data is returned correctly for all sample sets after generation"
+      - "FE: Checkpoint Validation Status UI displays for all studies with generated samples"
+      - "E2E: Generate samples for a study, verify validation status appears on regenerate view"
+    testing:
+      - "Test with brand-new study and with existing study that transitions from 0 to N samples"
+      - "Verify data persists correctly across page refreshes"
+  - id: B-067
+    title: "Inference progress bar missing on first sample generation"
+    priority: 65
+    status: done
+    complexity: low
+    requires: []
+    acceptance:
+      - "FE: Inference progress bar displays correctly for the first sample generation in a job"
+      - "FE: Progress bar behavior is consistent between the first and subsequent sample generations"
+      - "FE: Unit tests for progress bar initialization on first generation event"
+    testing:
+      - "Manually trigger a sample generation job and verify the progress bar appears during the first sample"
+      - "Check that WebSocket progress events are handled before the first inference starts"
+    notes: |
+      Bug: The per-sample inference progress bar in the Sample Jobs Dialog does not display
+      for the first generation, but works correctly for subsequent samples. Likely a timing
+      issue where the progress bar reactive state isn't initialized before the first progress
+      event arrives from the WebSocket.
+      Key files: frontend/src/components/JobProgressPanel.vue.
+  - id: B-084
+    title: "SQL error 'no such column: negative_prompt' during sample job execution"
+    priority: 60
+    status: done
+    complexity: medium
+    requires: []
+    acceptance:
+      - "Sample job execution completes without SQL errors when generating samples"
+      - "The sample_job_items table schema matches all column references in store SQL statements"
+    testing:
+      - "command: make test-e2e SPEC=validation-after-generation.spec.ts"
+    notes: |
+      QA sweep finding from B-068. The store layer references a `negative_prompt` column in
+      a SQL UPDATE statement for the `sample_job_items` table, but the database schema does
+      not include this column. Likely a schema migration was missed or the store code references
+      a column that was renamed or removed.
+      Log evidence: level=error msg="failed to update sample job item in database" component=store error="SQL logic error: no such column: negative_prompt (1)"
+  - id: B-080
+    title: "Job executor race condition: sql no rows during concurrent cancel/completion"
+    type: bug
+    priority: 60
+    status: done
+    complexity: low
+    requires: []
+    acceptance:
+      - "Job executor gracefully handles cancellation during item processing without logging errors"
+      - "No 'sql: no rows in result set' errors appear in logs when a running job is cancelled"
+    testing:
+      - "command: make test-e2e"
+    notes: |
+      When a job is cancelled (e.g., during E2E test afterEach cleanup) while the executor
+      is still processing items, the executor attempts to update/query job rows that have
+      already been removed or marked as cancelled. The executor does not check for cancellation
+      before each DB write. Error log: "failed to update item status to completed" with
+      "sql: no rows in result set" (3 occurrences during E2E runs).
+  - id: B-068
+    title: "Lightbox slider not synced with master slider on shift+arrow navigation"
+    priority: 60
+    status: done
+    complexity: medium
+    requires: []
+    acceptance:
+      - "FE: Changing the slider position in the lightbox updates the master slider and all other cell sliders"
+      - "FE: Using shift+arrow to switch between images in the lightbox keeps all sliders in sync"
+      - "FE: No images show different slider values than the rest after shift+arrow navigation"
+      - "FE: Unit tests for bidirectional slider sync between lightbox and master"
+    testing:
+      - "Open lightbox, move slider, verify master slider updates"
+      - "Use shift+arrow to navigate between images and check all sliders remain consistent"
+    notes: |
+      Bug: Moving the master slider updates individual cell positions, but moving the slider
+      in the lightbox does not propagate back to the master or other cells. Additionally,
+      shift+arrow navigation between images in the lightbox occasionally results in one image
+      having a different slider value from the rest.
+      Key files: frontend/src/components/ImageLightbox.vue, slider composable.
+  - id: B-073
+    title: "ComfyUI WS reconnect on disconnect / recover stuck jobs"
+    priority: 55
+    status: done
+    complexity: high
+    requires: []
+    acceptance:
+      - "BE: WebSocket connection to ComfyUI automatically reconnects on disconnect"
+      - "BE: After reconnect, executor polls ComfyUI history API to detect already-completed prompts"
+      - "BE: Jobs stuck in running state due to missed completion events are recovered"
+      - "BE: Unit tests for reconnect logic and history-based recovery"
+    testing:
+      - "Simulate WS disconnect mid-job and verify recovery after reconnect"
+      - "Verify stuck jobs are detected and completed via history API polling"
+    notes: |
+      If the WebSocket connection drops mid-job (e.g. ComfyUI restarts), the executor never
+      receives the completion event and the job stays stuck in running. A recovery mechanism
+      that polls the ComfyUI history API after reconnect to detect already-completed prompts
+      would make the system resilient to mid-job connection losses.
+      Source: developer.
+  - id: B-072
+    title: "Guard Start() API against concurrent running jobs"
+    priority: 50
+    status: done
+    complexity: low
+    requires: []
+    acceptance:
+      - "BE: SampleJobService.Start() checks for existing running jobs before starting a new one"
+      - "BE: Returns an error if a job is already running"
+      - "BE: Unit tests for concurrent start guard"
+    testing:
+      - "Call Start() while a job is running and verify error is returned"
+    notes: |
+      The SampleJobService.Start() method doesn't verify that no other job is already running.
+      While the executor now won't preempt, the DB can end up with two running jobs, which is
+      confusing. Start() should check for existing running jobs and return an error if one exists.
+      Source: developer.
+  - id: B-069
+    title: "Lightbox slider overlaps metadata button in bottom right"
+    priority: 45
+    status: done
+    complexity: low
+    requires: []
+    acceptance:
+      - "FE: Slider and metadata button in the lightbox do not overlap"
+      - "FE: Both controls are fully accessible and clickable without obstruction"
+      - "FE: Layout is correct across typical viewport sizes"
+    testing:
+      - "Open lightbox and verify slider does not visually overlap the metadata button"
+    notes: |
+      Bug: In the lightbox, the slider overlaps the metadata button in the bottom right corner.
+      CSS/layout fix needed to ensure proper spacing or positioning.
+      Key files: frontend/src/components/ImageLightbox.vue.
+  - id: B-076
+    title: "Database UNIQUE constraint on study names"
+    priority: 30
+    status: done
+    complexity: low
+    requires: []
+    acceptance:
+      - "DB: Migration adds UNIQUE constraint on studies.name column"
+      - "BE: Concurrent creation of studies with the same name is prevented at the DB level"
+      - "BE: Unit tests for unique constraint enforcement"
+    testing:
+      - "Attempt to insert two studies with the same name and verify DB error"
+    notes: |
+      Add a migration to add a UNIQUE constraint on studies.name to enforce uniqueness at the
+      database level, complementing the service-layer check and preventing race conditions in
+      concurrent-user scenarios.
+      Source: developer.
+  - id: B-071
+    title: "Deterministic pending-job pickup order (ORDER BY created_at)"
+    priority: 30
+    status: done
+    complexity: low
+    requires: []
+    acceptance:
+      - "BE: ListSampleJobs() store query orders pending jobs by created_at ASC for FIFO processing"
+      - "BE: Unit tests verify deterministic ordering of pending job retrieval"
+    testing:
+      - "Create multiple pending jobs and verify they are picked up in creation order"
+    notes: |
+      The ListSampleJobs() store query should ORDER BY created_at ASC to ensure FIFO processing
+      of pending jobs. Currently the SQLite query may return jobs in arbitrary order when multiple
+      jobs are pending.
+      Source: developer.
+  - id: B-074
+    title: "Atomic stop-and-transition in executor"
+    priority: 25
+    status: done
+    complexity: medium
+    requires: []
+    acceptance:
+      - "BE: Executor owns the DB status update to stopped after RequestStop (like completeJob does)"
+      - "BE: No window where DB and executor state diverge during stop"
+      - "BE: Unit tests for atomic stop-and-transition"
+    testing:
+      - "Stop a running job and verify DB and executor state are consistent at all points"
+    notes: |
+      Currently RequestStop clears executor state but the DB update to stopped happens in the
+      service layer separately. The executor could own the DB status update after stop (like
+      completeJob does), reducing the window where the DB and executor state diverge.
+      Source: developer.
+  - id: B-075
+    title: "Clamp TotalMissing in backend validation to prevent negative values"
+    priority: 25
+    status: done
+    complexity: low
+    requires: []
+    acceptance:
+      - "BE: TotalMissing = max(0, totalExpected - totalVerified) in validation.go"
+      - "BE: API never returns negative total_missing values"
+      - "BE: Unit tests for clamping behavior"
+    testing:
+      - "Test with edge case where totalVerified > totalExpected"
+    notes: |
+      TotalMissing = totalExpected - totalVerified in validation.go is not clamped at 0.
+      While per-checkpoint missing is clamped, the aggregate is not. Returning a negative
+      total_missing via the API is semantically incorrect.
+      Fix: result.TotalMissing = max(0, totalExpected - totalVerified).
+      Source: qa.
+  - id: B-077
+    title: "Tooltip for long checkpoint names in Current checkpoint progress line"
+    priority: 15
+    status: done
+    complexity: low
+    requires: []
+    acceptance:
+      - "FE: Long checkpoint names in the Current checkpoint progress line show ellipsis with a tooltip on hover"
+      - "FE: Tooltip displays the full checkpoint filename"
+      - "FE: Consistent with the tooltip treatment in B-052 completeness section"
+    testing:
+      - "Verify tooltip appears on hover for truncated checkpoint names in progress line"
+    notes: |
+      The "Current checkpoint:" progress line in JobProgressPanel shows raw checkpoint filenames
+      that could be long. Unlike the completeness section (fixed in B-052), this line has no
+      ellipsis/tooltip treatment. Add the same :title binding for consistency.
+      Source: developer.
+      Key files: frontend/src/components/JobProgressPanel.vue.
+  - id: B-081
+    title: "E2E: regen-confirmation.spec.ts 4 tests timing out in Generate Samples dialog"
+    type: bug
+    status: done
+    priority: 70
+    complexity: medium
+    requires: []
+    acceptance:
+      - "All 4 regen-confirmation E2E tests pass reliably"
+      - "Generate Samples dialog correctly shows Regenerate button when samples exist"
+    testing:
+      - "command: make test-e2e SPEC=regen-confirmation.spec.ts"
+    notes: |
+      All 4 tests in regen-confirmation.spec.ts time out at ~11s. The tests depend on 
+      the Generate Samples dialog flow reaching a state where the Regenerate button appears.
+      Root cause hypothesis: the validation scoping changes (B-078) may have changed how 
+      the dialog detects existing samples, or selectors may be stale after recent dialog changes.
+      Discovered during B-078 QA cycle — pre-existing/unrelated to B-078 changes.
+  - id: B-082
+    title: "E2E: sample-count-preview.spec.ts 2 tests timing out in Generate Samples dialog"
+    type: bug
+    status: done
+    priority: 70
+    complexity: medium
+    requires: []
+    acceptance:
+      - "Both sample-count-preview dialog E2E tests pass reliably"
+      - "Validation preview correctly displays sample counts in the Generate Samples dialog"
+    testing:
+      - "command: make test-e2e SPEC=sample-count-preview.spec.ts"
+    notes: |
+      Both tests in sample-count-preview.spec.ts time out at ~8.6s waiting for validation 
+      preview UI elements in the Generate Samples dialog.
+      Root cause hypothesis: the validation preview may now require the new scoped path 
+      to find samples, or selectors may be stale after recent dialog changes.
+      Discovered during B-078 QA cycle — pre-existing/unrelated to B-078 changes.
+  - id: B-085
+    title: "Studies created without workflow_template cause 'workflow not found: .json' errors at job execution"
+    priority: 60
+    status: done
+    complexity: low
+    requires: []
+    acceptance:
+      - "All E2E test study payloads that create sample jobs include workflow_template: 'test-workflow.json', vae: 'test-vae.safetensors',
+        text_encoder: 'test-clip.safetensors'"
+      - "Backend E2E fixture seeder includes workflow settings in the seeded fixture study"
+      - "Runtime error sweep shows zero 'workflow not found' errors after fix"
+    testing:
+      - "command: make test-e2e"
+    notes: |
+      S-112 moved workflow_template from the job payload to the study definition, but
+      job-delete.spec.ts STUDY_PAYLOAD and the backend E2E fixture seeder (fixture_seeder.go)
+      do not include workflow_template in their study payloads. When these tests create jobs,
+      the executor reads an empty workflow_template from the study, appends .json, and fails
+      to find a file named .json. 18 error-level log entries observed during E2E test runs.
+  - id: B-086
+    title: "E2E: S-116 activity bead not visible for running job in Generate Samples dialog"
+    type: bug
+    status: done
+    priority: 70
+    complexity: low
+    requires: []
+    acceptance:
+      - "Activity bead with title 'running' appears on the training run option in the Generate Samples dialog select dropdown
+        when a running job exists for that run"
+      - "E2E test reliably detects the bead within the configured timeout"
+    testing:
+      - "command: make test-e2e SPEC=generate-samples-beads.spec.ts"
+    notes: |
+      Failing test: frontend/e2e/generate-samples-beads.spec.ts > Generate Samples dual beads (S-116) > AC training run: blue activity bead when a running job exists.
+      The test expects a blue activity bead (data-testid="run-bead-activity") on the training run option when a job is running. May be a race condition between job creation and WebSocket/polling update propagating bead status.
+  - id: S-112
+    title: "Move workflow template, VAE, text encoder, shift into study definition"
+    type: enhancement
+    status: done
+    priority: 65
+    complexity: high
+    requires:
+      - B-078
+    notes: |
+      Workflow template, VAE, Text Encoder, and shift setting currently live outside the study
+      definition. Move them into the study model. This requires a DB schema change. Existing
+      sample sets will need regeneration since the manifest structure changes. Most recently used
+      values for workflow template should be selected by default when the dialog is not being
+      populated for a regeneration. VAE and text encoder MRU values are handled in S-113.
+    acceptance:
+      - "BE: Study model includes workflow_template, vae, text_encoder, and shift fields"
+      - "BE: DB schema migration adds new fields to studies table"
+      - "FE: Generate Samples dialog moves workflow template, VAE, text encoder, shift into study section"
+      - "FE: Most recently used workflow template is selected by default for new generations"
+      - "FE: When regenerating from job list or elsewhere, values are pre-filled from the study"
+      - "E2E: Create study with workflow settings, verify they persist and pre-fill on regenerate"
+    testing:
+      - "Verify that workflow settings are stored and retrieved correctly per study"
+      - "Test that pre-fill from external regenerate buttons overrides MRU defaults"
+  - id: S-111
+    title: "Test seed endpoint for sample jobs (E2E testing infra)"
+    priority: 50
+    status: done
+    complexity: medium
+    requires: []
+    acceptance:
+      - "BE: Test-only seed endpoint (e.g. /api/test/seed-jobs) creates sample jobs with specified statuses"
+      - "BE: Endpoint is only available in test mode"
+      - "BE: Unit tests for seed endpoint"
+      - "E2E: At least one E2E test uses the seed endpoint to verify job-related UI"
+    testing:
+      - "Call the seed endpoint and verify jobs appear in the job viewer with correct statuses"
+    notes: |
+      The E2E environment cannot create sample jobs because ComfyUI is not configured. A
+      test-only seed endpoint (similar to /api/test/reset) that can create sample jobs with
+      specified statuses would enable E2E testing of job-related UI features.
+      Source: qa.
+  - id: S-113
+    title: "MRU defaults for workflow/VAE/text encoder selections (local storage)"
+    type: enhancement
+    status: done
+    priority: 45
+    complexity: low
+    requires:
+      - S-112
+    notes: |
+      When a workflow is selected in the Generate Samples dialog, the most recently used VAE and
+      text encoder for that workflow should be auto-selected. MRU values are stored in local storage
+      as a map keyed by workflow template name. Only applies when the dialog is opened fresh (not
+      when pre-filled from a regeneration action).
+    acceptance:
+      - "FE: VAE and text encoder MRU values stored in local storage per workflow template"
+      - "FE: Selecting a workflow auto-fills VAE and text encoder from stored MRU values"
+      - "FE: MRU defaults do not override values when dialog is pre-filled from external action"
+      - "E2E: Select workflow, choose VAE/TE, generate, reopen dialog — MRU values restored"
+    testing:
+      - "Test local storage persistence across page refreshes"
+      - "Test that MRU does not interfere with pre-fill from regenerate buttons"
+  - id: S-115
+    title: "Generate Samples dialog — smart checkbox defaults"
+    type: enhancement
+    status: done
+    priority: 45
+    complexity: low
+    requires: []
+    notes: |
+      Improve default checkbox state in the Generate Samples dialog based on sample set completeness.
+      If the sample set is incomplete, check "Generate missing samples only" by default. If the
+      sample set is complete, leave "Clear existing samples for selected checkpoints" unchecked.
+    acceptance:
+      - "FE: 'Generate missing samples only' checked by default when sample set is incomplete"
+      - "FE: 'Clear existing samples' unchecked by default when sample set is complete"
+      - "E2E: Open dialog for incomplete set — missing-only checked; open for complete set — clear unchecked"
+    testing:
+      - "Test transition from complete to incomplete (e.g., after deleting some samples)"
+      - "Test that manual checkbox changes are respected and not overridden during the session"
+  - id: S-093
+    title: Confirmation dialog for regenerating a valid sample set
+    type: feature
+    status: done
+    priority: 25
+    complexity: low
+    requires: []
+    notes: |
+      When a user clicks Regenerate on a sample set that passes validation (all expected
+      samples exist), show a confirmation dialog asking if they are sure they want to
+      regenerate. Prevents accidental overwrite of valid sample data.
+      Key files: frontend/src/components/JobLaunchDialog.vue (or regeneration trigger component).
+    acceptance:
+      - "FE: Clicking Regenerate on a validated sample set shows a confirmation dialog"
+      - "FE: Dialog explains that all expected samples already exist and regeneration will overwrite them"
+      - "FE: Cancel aborts the operation, Confirm proceeds with regeneration"
+      - "FE: No confirmation dialog when the sample set has missing samples (incomplete validation)"
+      - "FE: Unit tests for confirmation dialog trigger logic"
+    testing:
+      - "Test confirmation appears for complete sample sets, does not appear for incomplete ones"
+      - "Test cancel and confirm paths"
+  - id: S-096
+    title: Delete dimension mapping preset
+    type: feature
+    status: done
+    priority: 25
+    complexity: low
+    requires:
+      - S-094
+    notes: |
+      Add or improve delete functionality for dimension mapping presets using the
+      standard confirmation dialog (S-094).
+      Key files: frontend/src/components/PresetSelector.vue.
+    acceptance:
+      - "FE: Delete button on dimension mapping preset shows the standard confirmation dialog"
+      - "FE: Confirming delete removes the preset"
+      - "FE: After deletion, the preset selector resets to no selection or the next available preset"
+      - "FE: Unit tests for delete confirmation flow"
+    testing:
+      - "Test deleting a preset that is currently selected"
+      - "Test deleting the last remaining preset"
+  - id: S-108
+    title: "Configurable confirmation button text in ConfirmDeleteDialog"
+    priority: 25
+    status: done
+    complexity: low
+    requires:
+      - S-094
+    acceptance:
+      - "FE: ConfirmDeleteDialog accepts a confirmLabel prop to customize the button text"
+      - "FE: Default remains 'Yes, Delete' when prop is not provided"
+      - "FE: Unit tests for custom button text"
+    testing:
+      - "Use the component with a custom confirmLabel and verify button text changes"
+    notes: |
+      The ConfirmDeleteDialog.vue component has a hardcoded "Yes, Delete" button, limiting
+      reuse for non-delete confirmations. Adding a confirmLabel prop would allow reusing it
+      for the regeneration confirmation dialog without creating an ad-hoc inline modal.
+      Source: developer.
+      Key files: frontend/src/components/ConfirmDeleteDialog.vue.
+  - id: S-117
+    title: "Validation results dialog with regenerate flow (job list + slideout)"
+    type: enhancement
+    status: done
+    priority: 25
+    complexity: medium
+    requires:
+      - B-078
+    notes: |
+      Add a "Validate" button to each job in the job list and in the main controls slideout panel.
+      Opens a dialog displaying validation results. The dialog includes a "Regenerate" button that
+      opens the Generate Samples dialog with pre-filled parameters (training run, study, params)
+      and "only generate missing samples" checked, closing the validation dialog in the process.
+    acceptance:
+      - "FE: Validate button on each job in job list"
+      - "FE: Validate button in main controls slideout panel"
+      - "FE: Validation results displayed in a dialog (not inline)"
+      - "FE: Regenerate button in validation dialog opens Generate Samples with pre-filled params"
+      - "FE: 'Generate missing samples only' checked when launching from validation dialog"
+      - "FE: Validation dialog closes when Generate Samples dialog opens"
+      - "E2E: Click validate on job, verify results dialog, click regenerate, verify pre-filled dialog"
+    testing:
+      - "Test with complete sample set (no regenerate needed), incomplete, and failed"
+      - "Verify pre-filled params match the job's training run, study, and generation settings"
+  - id: S-101
+    title: Study editor validation field highlighting
+    type: feature
+    status: done
+    priority: 15
+    complexity: low
+    requires: []
+    notes: |
+      Enhance the study editor to highlight the specific field(s) that have validation
+      errors. For duplicate values, highlight all but the first occurrence of the
+      duplicated value.
+      Key files: frontend/src/components/StudyEditor.vue.
+    acceptance:
+      - "FE: Fields with validation errors are visually highlighted (red border or similar)"
+      - "FE: For duplicate values, all duplicate occurrences except the first are highlighted"
+      - "FE: Highlight clears when the validation error is resolved"
+      - "FE: Unit tests for field highlighting with various validation error types"
+    testing:
+      - "Test highlighting for each validation error type (duplicates, invalid chars, empty required fields)"
+      - "Test that only the correct fields are highlighted, not all fields"
+      - "Test highlight clears on fix"
+  - id: W-007
+    title: "Automated panic detection in E2E log scan"
+    priority: 45
+    status: done
+    complexity: low
+    requires: []
+    acceptance:
+      - "OPS: Shell script or Makefile target that exits non-zero when panic: appears in E2E logs"
+      - "OPS: Integrated into make test-e2e or available as standalone target"
+      - "DOC: Usage documented in TEST_PRACTICES.md"
+    testing:
+      - "Inject a fake panic into test logs and verify the scan catches it"
+    notes: |
+      The QA agent currently searches E2E backend logs for panics manually. A lightweight
+      shell script or Makefile target that exits non-zero when panic: appears in E2E logs
+      would make panic-free criteria machine-verifiable.
+      Source: developer.
