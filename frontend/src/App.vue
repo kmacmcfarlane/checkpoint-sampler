@@ -360,11 +360,14 @@ function handleJobProgress(message: JobProgressMessage) {
       job_eta_seconds: message.job_eta_seconds,
       current_sample_params: message.current_sample_params,
     }
-    // AC4: When a job transitions to a terminal status, increment the refresh trigger
-    // so the JobLaunchDialog can update its training run options and status beads.
-    if (TERMINAL_STATUSES.has(message.status) && !TERMINAL_STATUSES.has(previousStatus)) {
+    // Increment refresh trigger whenever job status changes so the JobLaunchDialog
+    // can update training run options and status beads for any status transition
+    // (including pending → running, not just terminal statuses).
+    if (message.status !== previousStatus) {
       jobRefreshTrigger.value++
-      // Clear inference progress for completed jobs
+    }
+    // Clear inference progress for completed jobs
+    if (TERMINAL_STATUSES.has(message.status) && !TERMINAL_STATUSES.has(previousStatus)) {
       delete inferenceProgress[message.job_id]
       delete prevCheckpointProgress[message.job_id]
     }

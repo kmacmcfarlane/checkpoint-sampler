@@ -2906,8 +2906,10 @@ describe('JobLaunchDialog', () => {
       expect(options.find(o => o.value === 'preset-2')?._sampleStatus).toBe('complete')
     })
 
-    // B-062: Study bead overrides directory-level status with validation results
-    it('overrides study bead to partial when validation shows missing images', async () => {
+    // B-062 (reworked S-116): Study bead uses availability data only — NOT overridden by validation.
+    // Validation results affect checkbox defaults and completeness summary but NOT bead rendering.
+    // This fixes the inconsistency where selecting a different study changed sibling bead states.
+    it('study bead uses availability status only (not overridden by validation results)', async () => {
       // Backend availability says 'complete' (directory-level check), but validation shows missing images
       mockGetStudyAvailability.mockResolvedValue([
         {
@@ -2969,11 +2971,13 @@ describe('JobLaunchDialog', () => {
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await flushPromises()
 
-      // After validation: should override to 'partial' because total_missing > 0
+      // After validation: _sampleStatus remains 'complete' from availability (NOT overridden).
+      // The validation result is used for smart checkbox defaults, not bead rendering.
+      // This ensures study beads are consistent regardless of which study is currently selected.
       options = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
         .props('options') as Array<{ value: string; _sampleStatus: string }>
-      expect(options.find(o => o.value === 'preset-1')?._sampleStatus).toBe('partial')
-      // Non-selected study remains unchanged
+      expect(options.find(o => o.value === 'preset-1')?._sampleStatus).toBe('complete')
+      // Non-selected study also remains unchanged
       expect(options.find(o => o.value === 'preset-2')?._sampleStatus).toBe('none')
     })
   })
@@ -3176,14 +3180,14 @@ describe('JobLaunchDialog', () => {
     })
   })
 
-  // B-062: Training run bead shows correct color with study-scoped samples
+  // B-062 / S-116: Training run bead shows correct color with study-scoped samples
   describe('training run bead with study-scoped samples (B-062)', () => {
     // Training run with has_samples: false (study-scoped directories not found at root level)
-    // but with a completed job
-    it('shows no activity bead and no problem bead for completed job with study statuses (green requires all-complete)', async () => {
-      // A completed job doesn't directly trigger green on the training run bead;
-      // green requires ALL study statuses to be 'complete' via studyAvailability.
-      // Without studyAvailability data, the bead is null even with a completed job.
+    // but with a completed job → should show GREEN bead (job-based green fallback)
+    it('shows green activity bead for completed job even without studyAvailability data', async () => {
+      // S-116 fix: A completed job triggers green on the training run bead even when
+      // studyAvailability data is absent (non-selected run or initial load).
+      // This ensures training run beads work for ALL runs, not just the selected one.
       mockListSampleJobs.mockResolvedValue([{
         id: 'job-done',
         training_run_name: 'qwen/psai4rt-v0.3.0',
@@ -3204,9 +3208,10 @@ describe('JobLaunchDialog', () => {
       const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
       type DualBead = { activity: string | null; problem: string | null }
       const options = runSelect.props('options') as Array<{ label: string; value: number; _dualBead: DualBead }>
-      // runEmpty (id=1) has a completed job but no studyAvailability → activity=null (no green bead)
+      // runEmpty (id=1) has a completed job → activity=green (job-based fallback)
+      // This fixes: "training run shows no beads even though studies show green beads"
       const opt = options.find(o => o.value === 1)
-      expect(opt?._dualBead.activity).toBeNull()
+      expect(opt?._dualBead.activity).toBe('green')
       expect(opt?._dualBead.problem).toBeNull()
     })
 

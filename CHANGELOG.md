@@ -5,6 +5,12 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-116: Training run and study status beads in Generate Samples (UAT rework)
+- Training run green bead now falls back to completed job status when study availability data is absent, fixing beads not appearing for non-selected runs
+- Study beads use only directory-level availability data (not validation results) for consistent rendering regardless of which study is selected
+- Job refresh trigger fires on any status transition (not just terminal) so blue beads appear immediately when jobs start running
+- Dual beads (activity + problem slots simultaneously) now work correctly; bead rules documented in PRD section 5.5.1
+
 ### S-117: Validation results dialog with regenerate flow (job list + slideout)
 - "Validate" button on each job card in the Sample Jobs panel and in the controls slideout triggers on-demand validation and displays results in a dialog
 - Regenerate button in the validation dialog opens the Generate Samples dialog with pre-filled training run, study, and "generate missing samples only" checked

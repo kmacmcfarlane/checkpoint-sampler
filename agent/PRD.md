@@ -540,6 +540,37 @@ A single WebSocket endpoint pushes image-change events to connected clients. The
 
 The frontend uses [Naive UI](https://www.naiveui.com/) as its component library with dark/light theme support. See [docs/ui.md](/docs/ui.md) for detailed UI architecture.
 
+#### 5.5.1 Generate Samples dialog bead rules
+
+The Generate Samples dialog displays status beads on training run and study dropdown items. Each item shows up to **two independent beads** — one from the blue/green family and one from the red/yellow family.
+
+**Bead precedence:**
+- Blue takes priority over green (within the activity slot)
+- Red takes priority over yellow (within the problem slot)
+
+**Training Run Beads:**
+
+| Bead | Slot | Condition |
+|------|------|-----------|
+| Blue | Activity | Any job for this run is `running` or `pending` |
+| Green | Activity | All study sample sets are `complete` (via study availability API) **OR** any job has status `completed` (job-based fallback when availability data is absent) |
+| Red | Problem | Any job for this run has status `failed` |
+| Yellow | Problem | Any job for this run has status `completed_with_errors`, OR any study has `sample_status='partial'`, provided no running/pending jobs exist |
+
+**Study Beads:**
+
+| Bead | Slot | Condition |
+|------|------|-----------|
+| Blue | Activity | Any job for this training run × study is `running` or `pending` |
+| Green | Activity | Study `sample_status` is `complete` (from availability API) |
+| Red | Problem | Any job for this training run × study has status `failed` |
+| Yellow | Problem | Study `sample_status` is `partial` and no running/pending jobs for this study |
+
+**Implementation notes:**
+- Study beads use only `studyAvailability` data (directory-level) for consistent rendering across all studies regardless of which study is selected. Validation results affect checkbox defaults only.
+- Training run green beads fall back to job status when availability data is unavailable (e.g., for non-selected training runs in the dropdown).
+- The `jobRefreshTrigger` fires on any job status transition (not just terminal) so the dialog updates immediately when jobs start running.
+
 | Component | Purpose |
 |-----------|---------|
 | `AppDrawer` | Left-side slide-out panel containing controls (Training Run, Presets, Dimensions) |

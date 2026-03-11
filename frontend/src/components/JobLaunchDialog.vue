@@ -187,14 +187,11 @@ const trainingRunOptions = computed(() => {
       return getRunStatus(run) === 'empty'
     })
     .map(run => {
-      // Compute dual-bead for this training run:
-      // - Study statuses come from ALL studyAvailability entries for ALL training runs;
-      //   but since trainingRunOptions is not per-selected-run, we use the currently
-      //   loaded studyAvailability (which is for the selected training run).
-      //   For non-selected runs, we don't have availability data, so pass empty array.
-      //
-      // When a training run IS the selected run, use the loaded studyAvailability.
-      // For other runs, studyStatuses = [] (no green bead unless it's the selected run).
+      // Compute dual-bead for this training run.
+      // Study availability data is only loaded for the selected training run.
+      // For the selected run, pass the full availability data for accurate green bead detection.
+      // For non-selected runs, pass empty array — the getTrainingRunDualBead function
+      // falls back to job-based status inference (hasCompletedJob → green).
       const studyStatuses = run.id === selectedTrainingRunId.value
         ? studyAvailability.value.map(a => a.sample_status)
         : []
@@ -392,38 +389,23 @@ function toggleCheckpoint(filename: string) {
 //   Slot 1 (activity): blue = running/pending job for this study, green = sample_status='complete'
 //   Slot 2 (problem):  red = failed job for this study, yellow = sample_status='partial' without running jobs
 //
-// For the currently selected study, validation results override directory-level availability
-// to provide image-level accuracy (e.g. 590/684 → partial, not complete).
+// NOTE: Bead status uses ONLY studyAvailability data (directory-level) to ensure
+// consistent rendering across all studies regardless of which study is currently selected.
+// Validation results are NOT used for bead computation — they're used only for
+// checkbox defaults and the completeness summary below the study selector.
 const studyOptions = computed(() => {
   const runName = selectedTrainingRun.value?.name ?? ''
 
   return studies.value.map(p => {
     const avail = studyAvailability.value.find(a => a.study_id === p.id)
-    let sampleStatus = avail?.sample_status ?? 'none'
-
-    // Override with validation results for the currently selected study.
-    // The availability API only checks directory-level existence, which can report
-    // 'complete' even when individual images are missing. Validation provides
-    // image-level accuracy.
-    if (p.id === selectedStudy.value && validationResult.value) {
-      const vr = validationResult.value
-      if (vr.total_actual === 0) {
-        sampleStatus = 'none'
-      } else if (vr.total_missing > 0) {
-        sampleStatus = 'partial'
-      } else {
-        sampleStatus = 'complete'
-      }
-    }
+    const sampleStatus = avail?.sample_status ?? 'none'
 
     // Compute dual-bead for this study. Only possible when a training run is selected.
     const dualBead = runName
-      ? getStudyDualBead(runName, p.id, sampleJobs.value, sampleStatus as 'none' | 'partial' | 'complete')
+      ? getStudyDualBead(runName, p.id, sampleJobs.value, sampleStatus)
       : { activity: null, problem: null }
 
-    // Checkpoint counts for tooltip — use availability data when present.
-    // When validation overrides sampleStatus, the counts from availability still
-    // reflect directory-level presence (close enough for tooltip context).
+    // Checkpoint counts for tooltip
     const checkpointCounts = avail
       ? { withSamples: avail.checkpoints_with_samples, total: avail.total_checkpoints }
       : null

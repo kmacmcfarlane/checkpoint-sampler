@@ -20,6 +20,12 @@ Example:
 
 ## Ideas
 
+### Study-scoped E2E test fixtures
+* status: needs_approval
+* priority: low
+* source: developer
+Add study-scoped sample directories to test fixtures so E2E tests can verify study green/yellow beads (availability returning 'complete'/'partial'). Currently only job-status-based beads can be E2E tested.
+
 ### Screenshot diffing for thumbnail E2E tests
 * status: needs_approval
 * priority: very-low

@@ -32,16 +32,21 @@ export interface DualBead {
  * Training Run Bead Rules:
  *   Slot 1 (blue/green):
  *     - Blue: any job for this run is running or pending
- *     - Green: all study sample sets have sample_status='complete' (when availability data is present)
+ *     - Green: all study sample sets have sample_status='complete' (when availability data is
+ *       present), OR any job for this run has status 'completed' (as a fallback when study
+ *       availability data is unavailable, e.g. for non-selected training runs)
  *     - Blue wins over green
  *   Slot 2 (red/yellow):
  *     - Red: any job for this run has status 'failed'
- *     - Yellow: any job for this run has status 'completed_with_errors' (indicating missing samples)
+ *     - Yellow: any job for this run has status 'completed_with_errors' OR any study has
+ *       sample_status='partial', provided no running jobs exist
  *     - Red wins over yellow
  *
  * @param trainingRunName - The training run name to filter jobs by
  * @param jobs - All sample jobs (will be filtered to this training run)
- * @param studyStatuses - Sample status values for all studies for this training run (from availability API)
+ * @param studyStatuses - Sample status values for all studies for this training run (from
+ *   availability API). Pass empty array when availability data is not available; the function
+ *   will fall back to job-based status inference.
  */
 export function getTrainingRunDualBead(
   trainingRunName: string,
@@ -52,24 +57,28 @@ export function getTrainingRunDualBead(
 
   // --- Slot 1: Activity (blue/green) ---
   const hasRunning = runJobs.some(j => j.status === 'running' || j.status === 'pending')
+  // Green from availability: all studies complete (requires availability data)
   const allComplete = studyStatuses.length > 0 && studyStatuses.every(s => s === 'complete')
+  // Green from jobs: any completed job (fallback when availability data is absent)
+  const hasCompletedJob = runJobs.some(j => j.status === 'completed')
 
   let activity: ActivityBead = null
   if (hasRunning) {
     activity = 'blue'
-  } else if (allComplete) {
+  } else if (allComplete || hasCompletedJob) {
     activity = 'green'
   }
 
   // --- Slot 2: Problem (red/yellow) ---
   const hasFailed = runJobs.some(j => j.status === 'failed')
-  const hasPartial = runJobs.some(j => j.status === 'completed_with_errors')
+  const hasJobPartial = runJobs.some(j => j.status === 'completed_with_errors')
+  const hasStudyPartial = studyStatuses.some(s => s === 'partial')
   const hasRunningForYellow = runJobs.some(j => j.status === 'running' || j.status === 'pending')
 
   let problem: ProblemBead = null
   if (hasFailed) {
     problem = 'red'
-  } else if (hasPartial && !hasRunningForYellow) {
+  } else if ((hasJobPartial || hasStudyPartial) && !hasRunningForYellow) {
     // Yellow: incomplete sample sets without running jobs
     problem = 'yellow'
   }

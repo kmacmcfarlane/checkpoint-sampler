@@ -303,6 +303,81 @@ test.describe('Generate Samples dual beads (S-116)', () => {
     await page.keyboard.press('Escape')
   })
 
+  // AC: Green bead when all samples are complete (via completed job status fallback)
+  // This verifies the S-116 UAT fix: training runs now show green when a job completed
+  // successfully, even without study availability data (e.g., for non-selected runs).
+  test('AC training run: green activity bead when a completed job exists', async ({ page, request }) => {
+    // AC: Green bead = all study sample sets complete (job-based fallback: completed job)
+    await seedJobs(request, [{ status: 'completed', training_run_name: 'my-model' }])
+
+    await page.goto('/', { waitUntil: 'networkidle' })
+    await selectTrainingRun(page, 'my-model')
+    await expect(page.getByText('Dimensions')).toBeVisible()
+    await openGenerateSamplesDialog(page)
+    const dialog = getGenerateSamplesDialog(page)
+    await expect(dialog).toBeVisible()
+
+    // Wait for dialog data to fully load (training runs + jobs)
+    await page.waitForLoadState('networkidle')
+
+    // Open the training run dropdown and check for the green bead on "my-model"
+    const trainingRunSelect = dialog.locator('[data-testid="training-run-select"]')
+    await trainingRunSelect.click()
+    const popup = page.locator('.n-base-select-menu:visible')
+    await expect(popup).toBeVisible()
+
+    // Use exact text match for "my-model"
+    const option = popup.locator('.n-base-select-option').filter({ hasText: /^my-model$/ })
+    const activityBead = option.locator('[data-testid="run-bead-activity"]')
+    // AC: green bead for completed job (S-116 UAT fix: green shows for all runs via job fallback)
+    await expect(activityBead).toBeVisible()
+    await expect(activityBead).toHaveAttribute('title', 'complete')
+
+    // No problem bead for a successfully completed job
+    const problemBead = option.locator('[data-testid="run-bead-problem"]')
+    await expect(problemBead).toHaveCount(0)
+
+    await page.keyboard.press('Escape')
+  })
+
+  // AC: Dual beads — both activity and problem beads simultaneously
+  // Verifies that training runs can display TWO beads at once (one from each slot)
+  test('AC dual beads: training run shows both blue activity and red problem beads simultaneously', async ({ page, request }) => {
+    // Seed a running job (activity=blue) and a failed job (problem=red) for the same run
+    await seedJobs(request, [
+      { status: 'running', training_run_name: 'my-model' },
+      { status: 'failed', training_run_name: 'my-model' },
+    ])
+
+    await page.goto('/', { waitUntil: 'networkidle' })
+    await selectTrainingRun(page, 'my-model')
+    await expect(page.getByText('Dimensions')).toBeVisible()
+    await openGenerateSamplesDialog(page)
+    const dialog = getGenerateSamplesDialog(page)
+    await expect(dialog).toBeVisible()
+
+    // Wait for dialog data to fully load
+    await page.waitForLoadState('networkidle')
+
+    const trainingRunSelect = dialog.locator('[data-testid="training-run-select"]')
+    await trainingRunSelect.click()
+    const popup = page.locator('.n-base-select-menu:visible')
+    await expect(popup).toBeVisible()
+
+    const option = popup.locator('.n-base-select-option').filter({ hasText: /^my-model$/ })
+
+    // AC: Both beads visible simultaneously
+    const activityBead = option.locator('[data-testid="run-bead-activity"]')
+    await expect(activityBead).toBeVisible()
+    await expect(activityBead).toHaveAttribute('title', 'running')  // blue wins
+
+    const problemBead = option.locator('[data-testid="run-bead-problem"]')
+    await expect(problemBead).toBeVisible()
+    await expect(problemBead).toHaveAttribute('title', 'failed')  // red wins
+
+    await page.keyboard.press('Escape')
+  })
+
   // AC: FE: No beads when there are no jobs
   test('AC no beads: empty training run shows no beads', async ({ page }) => {
     // No jobs seeded — training run has no status beads

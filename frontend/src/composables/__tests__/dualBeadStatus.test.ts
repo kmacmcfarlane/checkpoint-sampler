@@ -59,12 +59,12 @@ describe('getTrainingRunDualBead', () => {
       expect(result.activity).toBe('green')
     })
 
-    it('returns activity=null when study statuses array is empty', () => {
+    it('returns activity=null when study statuses array is empty and no jobs', () => {
       const result = getTrainingRunDualBead('test-run', [], [])
       expect(result.activity).toBeNull()
     })
 
-    it('returns activity=null when some study statuses are not complete', () => {
+    it('returns activity=null when some study statuses are not complete and no jobs', () => {
       const result = getTrainingRunDualBead('test-run', [], ['complete', 'partial'])
       expect(result.activity).toBeNull()
     })
@@ -78,6 +78,25 @@ describe('getTrainingRunDualBead', () => {
       const otherJob = makeJob('running', { runName: 'other-run' })
       const result = getTrainingRunDualBead('test-run', [otherJob], [])
       expect(result.activity).toBeNull()
+    })
+
+    // AC: Green bead fallback — completed job when no study availability data (non-selected run)
+    it('returns activity=green when a completed job exists and study statuses are empty', () => {
+      // This covers non-selected training runs in the dropdown that lack availability data
+      const result = getTrainingRunDualBead('test-run', [makeJob('completed')], [])
+      expect(result.activity).toBe('green')
+    })
+
+    it('blue wins over green (running job + completed job)', () => {
+      // Blue priority: running job overrides green from completed job
+      const result = getTrainingRunDualBead('test-run', [makeJob('running'), makeJob('completed')], [])
+      expect(result.activity).toBe('blue')
+    })
+
+    it('returns activity=green from completed job even when some study statuses are partial', () => {
+      // Job-based green combines with availability: any completed job → green
+      const result = getTrainingRunDualBead('test-run', [makeJob('completed')], ['complete', 'partial'])
+      expect(result.activity).toBe('green')
     })
   })
 
@@ -133,6 +152,24 @@ describe('getTrainingRunDualBead', () => {
       const result = getTrainingRunDualBead('test-run', [otherJob], [])
       expect(result.problem).toBeNull()
     })
+
+    // AC: Yellow bead from study-level partial status (incomplete without running jobs)
+    it('returns problem=yellow when study statuses include partial and no running jobs', () => {
+      const result = getTrainingRunDualBead('test-run', [], ['partial', 'none'])
+      expect(result.problem).toBe('yellow')
+    })
+
+    it('returns problem=null when study statuses are partial but there is a running job', () => {
+      // Yellow suppressed when a job is running to fix the partial state
+      const result = getTrainingRunDualBead('test-run', [makeJob('running')], ['partial', 'none'])
+      expect(result.problem).toBeNull()
+    })
+
+    it('returns problem=red (not yellow) when study statuses are partial and job has failed', () => {
+      // Red wins over yellow from study partial status
+      const result = getTrainingRunDualBead('test-run', [makeJob('failed')], ['partial', 'none'])
+      expect(result.problem).toBe('red')
+    })
   })
 
   // AC: FE: Blue bead takes priority over green; red takes priority over yellow
@@ -143,12 +180,22 @@ describe('getTrainingRunDualBead', () => {
       expect(result.activity).toBe('blue')
     })
 
+    it('blue priority over green: running job overrides completed job (fallback green)', () => {
+      const result = getTrainingRunDualBead('test-run', [makeJob('running'), makeJob('completed')], [])
+      expect(result.activity).toBe('blue')
+    })
+
     it('red priority over yellow: failed job overrides completed_with_errors', () => {
       const result = getTrainingRunDualBead(
         'test-run',
         [makeJob('failed'), makeJob('completed_with_errors')],
         [],
       )
+      expect(result.problem).toBe('red')
+    })
+
+    it('red priority over yellow: failed job overrides partial study status', () => {
+      const result = getTrainingRunDualBead('test-run', [makeJob('failed')], ['partial'])
       expect(result.problem).toBe('red')
     })
   })

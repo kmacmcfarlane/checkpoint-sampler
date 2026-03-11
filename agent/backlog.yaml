@@ -464,7 +464,7 @@ stories:
   - id: S-116
     title: "Training run and study status beads in Generate Samples"
     type: enhancement
-    status: uat_feedback
+    status: uat
     priority: 50
     complexity: high
     requires: []
@@ -495,11 +495,6 @@ stories:
       - "Test priority rules: blue overrides green, red overrides yellow"
       - "Test bead state transitions as jobs start, complete, and fail"
       - "Investigate whether existing API data suffices or new endpoints are needed"
-    review_feedback: "Multiple bead issues: (1) Training run shows no beads even though studies under it show green beads.
-      (2) Study bead visibility is inconsistent — depends on which study is currently selected (e.g. selecting test-slow shows
-      green for both test and test-slow, but selecting test doesn't show green for test-slow). (3) Running jobs don't show
-      blue beads — blue should supersede green during regeneration. (4) No dual beads observed at all. Also: document bead
-      rules in PRD.md."
   - id: B-083
     title: "E2E: sample-count-preview.spec.ts 2 tests timing out after B-078 per-study validation scoping"
     type: bug
