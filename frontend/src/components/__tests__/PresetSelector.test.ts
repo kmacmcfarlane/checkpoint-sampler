@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises, type VueWrapper } from '@vue/test-utils'
 import { nextTick } from 'vue'
-import { NSelect, NButton, NModal } from 'naive-ui'
+import { NSelect, NButton, NModal, NInput } from 'naive-ui'
 import PresetSelector from '../PresetSelector.vue'
 import ConfirmDeleteDialog from '../ConfirmDeleteDialog.vue'
 import type { Preset, DimensionRole, FilterMode } from '../../api/types'
@@ -15,12 +15,6 @@ vi.mock('../../api/client', () => ({
     deletePreset: vi.fn(),
   },
 }))
-
-// Mock window.prompt
-const originalPrompt = globalThis.prompt
-beforeEach(() => {
-  globalThis.prompt = vi.fn()
-})
 
 import { apiClient } from '../../api/client'
 
@@ -85,6 +79,32 @@ async function cancelDeleteDialog(wrapper: ReturnType<typeof mount>) {
   const dialog = wrapper.findComponent(ConfirmDeleteDialog)
   expect(dialog.exists()).toBe(true)
   const cancelBtn = dialog.find('[data-testid="confirm-cancel-button"]')
+  expect(cancelBtn.exists()).toBe(true)
+  await cancelBtn.findComponent(NButton).trigger('click')
+  await flushPromises()
+}
+
+/**
+ * Open the save dialog and confirm with the given name.
+ * Clicks the Save button to open the modal, sets the input value, then confirms.
+ */
+async function confirmSaveDialog(wrapper: ReturnType<typeof mount>, name: string) {
+  const saveBtn = wrapper.find('[data-testid="preset-save-dialog-confirm"]')
+  expect(saveBtn.exists()).toBe(true)
+  const input = wrapper.findComponent(NInput)
+  expect(input.exists()).toBe(true)
+  // Set the input value via v-model update event
+  input.vm.$emit('update:value', name)
+  await nextTick()
+  await saveBtn.findComponent(NButton).trigger('click')
+  await flushPromises()
+}
+
+/**
+ * Cancel the save dialog via the Cancel button.
+ */
+async function cancelSaveDialog(wrapper: ReturnType<typeof mount>) {
+  const cancelBtn = wrapper.find('[data-testid="preset-save-dialog-cancel"]')
   expect(cancelBtn.exists()).toBe(true)
   await cancelBtn.findComponent(NButton).trigger('click')
   await flushPromises()
@@ -185,9 +205,11 @@ describe('PresetSelector', () => {
       updated_at: '2025-01-01T00:00:00Z',
     }
     mockCreatePreset.mockResolvedValue(createdPreset)
-    ;(globalThis.prompt as ReturnType<typeof vi.fn>).mockReturnValue('My Preset')
 
-    const wrapper = mount(PresetSelector, { props: defaultProps })
+    const wrapper = mount(PresetSelector, {
+      props: defaultProps,
+      global: { stubs: { Teleport: true } },
+    })
     await flushPromises()
 
     // Click New to establish a snapshot, then change assignments to make dirty
@@ -215,8 +237,17 @@ describe('PresetSelector', () => {
 
     const saveBtn = findButton(wrapper, 'Save preset')!
     expect(saveBtn.props('disabled')).toBe(false)
+
+    // Click Save opens the modal dialog
     await saveBtn.trigger('click')
-    await flushPromises()
+    await nextTick()
+
+    // Dialog should be shown
+    const modal = wrapper.find('[data-testid="preset-save-dialog"]')
+    expect(modal.exists()).toBe(true)
+
+    // Confirm with a name via the dialog
+    await confirmSaveDialog(wrapper, 'My Preset')
 
     expect(mockCreatePreset).toHaveBeenCalledWith('My Preset', {
       x: 'cfg',
@@ -228,11 +259,13 @@ describe('PresetSelector', () => {
     expect(emitted![0][0]).toEqual(createdPreset)
   })
 
-  it('save button does nothing when prompt is cancelled', async () => {
+  it('save button does nothing when dialog is cancelled', async () => {
     mockGetPresets.mockResolvedValue([])
-    ;(globalThis.prompt as ReturnType<typeof vi.fn>).mockReturnValue(null)
 
-    const wrapper = mount(PresetSelector, { props: defaultProps })
+    const wrapper = mount(PresetSelector, {
+      props: defaultProps,
+      global: { stubs: { Teleport: true } },
+    })
     await flushPromises()
 
     // Click New then modify to make dirty
@@ -256,9 +289,186 @@ describe('PresetSelector', () => {
 
     const saveBtn = findButton(wrapper, 'Save preset')!
     await saveBtn.trigger('click')
-    await flushPromises()
+    await nextTick()
+
+    // Dialog should be open; cancel it
+    await cancelSaveDialog(wrapper)
 
     expect(mockCreatePreset).not.toHaveBeenCalled()
+  })
+
+  // AC: FE: Save preset flow uses an NModal input dialog instead of window.prompt
+  describe('save name dialog', () => {
+    /** Helper to make the component dirty and open the save dialog. */
+    async function openSaveDialog(wrapper: ReturnType<typeof mount>) {
+      const newBtn = findButton(wrapper, 'New preset')!
+      await newBtn.trigger('click')
+      await nextTick()
+      const emptyAssignments = new Map<string, DimensionRole>([
+        ['cfg', 'none'],
+        ['prompt', 'none'],
+        ['seed', 'none'],
+      ])
+      const emptyFilterModes = new Map<string, FilterMode>([
+        ['cfg', 'single'],
+        ['prompt', 'single'],
+        ['seed', 'single'],
+      ])
+      await wrapper.setProps({ assignments: emptyAssignments, filterModes: emptyFilterModes })
+      await nextTick()
+      await wrapper.setProps({ assignments: defaultProps.assignments, filterModes: defaultProps.filterModes })
+      await nextTick()
+
+      const saveBtn = findButton(wrapper, 'Save preset')!
+      await saveBtn.trigger('click')
+      await nextTick()
+    }
+
+    // AC1: Save preset flow uses an NModal input dialog instead of window.prompt
+    it('clicking Save opens an NModal dialog with a text input', async () => {
+      mockGetPresets.mockResolvedValue([])
+      const wrapper = mount(PresetSelector, {
+        props: defaultProps,
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      await openSaveDialog(wrapper)
+
+      const modal = wrapper.find('[data-testid="preset-save-dialog"]')
+      expect(modal.exists()).toBe(true)
+      // Find the save dialog NModal (the second NModal; first belongs to ConfirmDeleteDialog)
+      const allModals = wrapper.findAllComponents(NModal)
+      const saveModal = allModals.find((m) => m.props('show') === true)
+      expect(saveModal).toBeDefined()
+
+      const input = wrapper.find('[data-testid="preset-save-dialog-input"]')
+      expect(input.exists()).toBe(true)
+    })
+
+    // AC2: Dialog is consistent with ConfirmDeleteDialog pattern (preset="card", cancel/confirm)
+    it('dialog has confirm and cancel buttons', async () => {
+      mockGetPresets.mockResolvedValue([])
+      const wrapper = mount(PresetSelector, {
+        props: defaultProps,
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      await openSaveDialog(wrapper)
+
+      expect(wrapper.find('[data-testid="preset-save-dialog-confirm"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="preset-save-dialog-cancel"]').exists()).toBe(true)
+    })
+
+    // AC3: Cancel action works correctly
+    it('cancel closes the dialog without calling createPreset', async () => {
+      mockGetPresets.mockResolvedValue([])
+      const wrapper = mount(PresetSelector, {
+        props: defaultProps,
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      await openSaveDialog(wrapper)
+
+      // Verify save dialog is open (find the modal that is currently shown)
+      const allModalsBeforeCancel = wrapper.findAllComponents(NModal)
+      const saveModalBeforeCancel = allModalsBeforeCancel.find((m) => m.props('show') === true)
+      expect(saveModalBeforeCancel).toBeDefined()
+
+      await cancelSaveDialog(wrapper)
+
+      expect(mockCreatePreset).not.toHaveBeenCalled()
+      // Modal should be closed: no NModal should have show=true
+      const allModalsAfterCancel = wrapper.findAllComponents(NModal)
+      const anyShownModal = allModalsAfterCancel.find((m) => m.props('show') === true)
+      expect(anyShownModal).toBeUndefined()
+    })
+
+    // Testing scenario: Empty name is rejected (confirm button disabled)
+    it('confirm button is disabled when the input is empty', async () => {
+      mockGetPresets.mockResolvedValue([])
+      const wrapper = mount(PresetSelector, {
+        props: defaultProps,
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      await openSaveDialog(wrapper)
+
+      const confirmBtn = wrapper.find('[data-testid="preset-save-dialog-confirm"]').findComponent(NButton)
+      // Input is empty by default — confirm should be disabled
+      expect(confirmBtn.props('disabled')).toBe(true)
+    })
+
+    // Testing scenario: Whitespace-only name is rejected (confirm button disabled)
+    it('confirm button is disabled when the input contains only whitespace', async () => {
+      mockGetPresets.mockResolvedValue([])
+      const wrapper = mount(PresetSelector, {
+        props: defaultProps,
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      await openSaveDialog(wrapper)
+
+      // Type whitespace only
+      const input = wrapper.findComponent(NInput)
+      input.vm.$emit('update:value', '   ')
+      await nextTick()
+
+      const confirmBtn = wrapper.find('[data-testid="preset-save-dialog-confirm"]').findComponent(NButton)
+      expect(confirmBtn.props('disabled')).toBe(true)
+    })
+
+    // Testing scenario: Non-empty name enables the confirm button
+    it('confirm button is enabled when a non-empty name is entered', async () => {
+      mockGetPresets.mockResolvedValue([])
+      const wrapper = mount(PresetSelector, {
+        props: defaultProps,
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      await openSaveDialog(wrapper)
+
+      // Type a valid name
+      const input = wrapper.findComponent(NInput)
+      input.vm.$emit('update:value', 'My Preset')
+      await nextTick()
+
+      const confirmBtn = wrapper.find('[data-testid="preset-save-dialog-confirm"]').findComponent(NButton)
+      expect(confirmBtn.props('disabled')).toBe(false)
+    })
+
+    // AC3: Confirm action works correctly — calls createPreset and closes dialog
+    it('confirming with a valid name calls createPreset and closes the dialog', async () => {
+      mockGetPresets.mockResolvedValue([])
+      const createdPreset: Preset = {
+        id: 'new-id',
+        name: 'Saved Name',
+        mapping: { x: 'cfg', y: 'prompt', combos: ['seed'] },
+        created_at: '2025-01-01T00:00:00Z',
+        updated_at: '2025-01-01T00:00:00Z',
+      }
+      mockCreatePreset.mockResolvedValue(createdPreset)
+
+      const wrapper = mount(PresetSelector, {
+        props: defaultProps,
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      await openSaveDialog(wrapper)
+      await confirmSaveDialog(wrapper, 'Saved Name')
+
+      expect(mockCreatePreset).toHaveBeenCalledWith('Saved Name', expect.objectContaining({ combos: expect.any(Array) }))
+      // Modal should be closed after confirm: no NModal should have show=true
+      const allModals = wrapper.findAllComponents(NModal)
+      const anyShownModal = allModals.find((m) => m.props('show') === true)
+      expect(anyShownModal).toBeUndefined()
+    })
   })
 
   // AC: Save button is disabled until the user has modified at least one field (dirty tracking)
@@ -736,9 +946,11 @@ describe('PresetSelector', () => {
         updated_at: '2025-01-01T00:00:00Z',
       }
       mockCreatePreset.mockResolvedValue(createdPreset)
-      ;(globalThis.prompt as ReturnType<typeof vi.fn>).mockReturnValue('My Preset')
 
-      const wrapper = mount(PresetSelector, { props: defaultProps })
+      const wrapper = mount(PresetSelector, {
+        props: defaultProps,
+        global: { stubs: { Teleport: true } },
+      })
       await flushPromises()
 
       // Click New and modify to make dirty
@@ -764,9 +976,10 @@ describe('PresetSelector', () => {
       let saveBtn = findButton(wrapper, 'Save preset')!
       expect(saveBtn.props('disabled')).toBe(false)
 
-      // Save the preset
+      // Click Save to open the dialog, then confirm with a name
       await saveBtn.trigger('click')
-      await flushPromises()
+      await nextTick()
+      await confirmSaveDialog(wrapper, 'My Preset')
 
       // After saving, snapshot is updated to current assignments; save should be disabled again
       saveBtn = findButton(wrapper, 'Save preset')!
@@ -1107,17 +1320,22 @@ describe('PresetSelector', () => {
         updated_at: '2025-06-01T00:00:00Z',
       }
       mockCreatePreset.mockResolvedValue(createdPreset)
-      ;(globalThis.prompt as ReturnType<typeof vi.fn>).mockReturnValue('New Preset')
 
-      const wrapper = mount(PresetSelector, { props: defaultProps })
+      const wrapper = mount(PresetSelector, {
+        props: defaultProps,
+        global: { stubs: { Teleport: true } },
+      })
       await flushPromises()
 
       await loadPresetAndMakeDirty(wrapper)
 
       const saveBtn = findButton(wrapper, 'Save preset')!
       expect(saveBtn.props('disabled')).toBe(false)
+
+      // Open save dialog and confirm
       await saveBtn.trigger('click')
-      await flushPromises()
+      await nextTick()
+      await confirmSaveDialog(wrapper, 'New Preset')
 
       // Should call createPreset, not updatePreset
       expect(mockCreatePreset).toHaveBeenCalledWith('New Preset', expect.objectContaining({ combos: expect.any(Array) }))
@@ -1129,7 +1347,4 @@ describe('PresetSelector', () => {
     })
   })
 
-  afterAll(() => {
-    globalThis.prompt = originalPrompt
-  })
 })

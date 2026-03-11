@@ -36,6 +36,35 @@ async function assignDimensionRole(page: Page, dimensionName: string, role: stri
   await selectNaiveOptionByLabel(page, `Mode for ${dimensionName}`, role)
 }
 
+/**
+ * Saves a preset via the NModal input dialog.
+ * Clicks the Save button to open the dialog, types the preset name, and confirms.
+ *
+ * AC: S-121: Save preset flow uses an NModal input dialog instead of window.prompt
+ */
+async function savePresetViaDialog(page: Page, presetName: string): Promise<void> {
+  const saveButton = page.locator('[aria-label="Save preset"]')
+  await expect(saveButton).toBeEnabled()
+  await saveButton.click()
+
+  // Wait for the save dialog to appear
+  const saveDialog = page.locator('[data-testid="preset-save-dialog"]')
+  await expect(saveDialog).toBeVisible()
+
+  // Fill in the preset name
+  const nameInput = saveDialog.locator('[data-testid="preset-save-dialog-input"] input')
+  await expect(nameInput).toBeVisible()
+  await nameInput.fill(presetName)
+
+  // Confirm save
+  const confirmButton = saveDialog.locator('[data-testid="preset-save-dialog-confirm"]')
+  await expect(confirmButton).toBeEnabled()
+  await confirmButton.click()
+
+  // Dialog should close
+  await expect(saveDialog).not.toBeVisible()
+}
+
 test.describe('sidebar PresetSelector New/Save/Delete workflow', () => {
   // AC: Each E2E test is independent -- reset database before each test
   test.beforeEach(async ({ page, request }) => {
@@ -89,7 +118,7 @@ test.describe('sidebar PresetSelector New/Save/Delete workflow', () => {
     await expect(saveButton).toBeEnabled()
   })
 
-  // AC: Save button creates a new preset via the prompt dialog
+  // AC: Save button creates a new preset via the NModal input dialog
   // AC: Existing preset load/delete behavior is preserved
   test('saves a new dimension preset and loads it back', async ({ page }) => {
     const presetName = `E2E Sidebar Preset ${Date.now()}`
@@ -102,20 +131,11 @@ test.describe('sidebar PresetSelector New/Save/Delete workflow', () => {
     await assignDimensionRole(page, 'checkpoint', 'X Axis')
     await assignDimensionRole(page, 'prompt_name', 'Y Axis')
 
-    // Save should be enabled
-    const saveButton = page.locator('[aria-label="Save preset"]')
-    await expect(saveButton).toBeEnabled()
-
-    // Register handler for the window.prompt dialog
-    page.on('dialog', async (dialog) => {
-      expect(dialog.type()).toBe('prompt')
-      await dialog.accept(presetName)
-    })
-
-    // Click Save
-    await saveButton.click()
+    // AC: S-121: Save via NModal dialog instead of window.prompt
+    await savePresetViaDialog(page, presetName)
 
     // After saving, the Save button should be disabled again (snapshot updated)
+    const saveButton = page.locator('[aria-label="Save preset"]')
     await expect(saveButton).toBeDisabled()
 
     // The newly created preset should now appear in the preset dropdown
@@ -146,15 +166,10 @@ test.describe('sidebar PresetSelector New/Save/Delete workflow', () => {
     await newButton.click()
     await assignDimensionRole(page, 'checkpoint', 'X Axis')
 
-    page.on('dialog', async (dialog) => {
-      if (dialog.type() === 'prompt') {
-        await dialog.accept(presetName)
-      }
-    })
+    // AC: S-121: Save via NModal dialog instead of window.prompt
+    await savePresetViaDialog(page, presetName)
 
     const saveButton = page.locator('[aria-label="Save preset"]')
-    await expect(saveButton).toBeEnabled()
-    await saveButton.click()
     await expect(saveButton).toBeDisabled()
 
     // Delete button should now be visible (preset is selected after save)
@@ -196,15 +211,10 @@ test.describe('sidebar PresetSelector New/Save/Delete workflow', () => {
     await newButton.click()
     await assignDimensionRole(page, 'checkpoint', 'X Axis')
 
-    page.on('dialog', async (dialog) => {
-      if (dialog.type() === 'prompt') {
-        await dialog.accept(presetName)
-      }
-    })
+    // AC: S-121: Save via NModal dialog instead of window.prompt
+    await savePresetViaDialog(page, presetName)
 
     const saveButton = page.locator('[aria-label="Save preset"]')
-    await expect(saveButton).toBeEnabled()
-    await saveButton.click()
     await expect(saveButton).toBeDisabled()
 
     // Update button should NOT be visible (assignments are clean after save)
@@ -251,27 +261,17 @@ test.describe('sidebar PresetSelector New/Save/Delete workflow', () => {
     const deleteButton = page.locator('[aria-label="Delete preset"]')
     const presetSelect = page.locator('.preset-select')
 
-    // Track which name the prompt dialog should accept
-    let nextPresetName = presetA
-    page.on('dialog', async (dialog) => {
-      if (dialog.type() === 'prompt') {
-        await dialog.accept(nextPresetName)
-      }
-    })
-
     // Create Preset A: assign checkpoint to X Axis
+    // AC: S-121: Save via NModal dialog instead of window.prompt
     await newButton.click()
     await assignDimensionRole(page, 'checkpoint', 'X Axis')
-    await expect(saveButton).toBeEnabled()
-    await saveButton.click()
+    await savePresetViaDialog(page, presetA)
     await expect(saveButton).toBeDisabled()
 
     // Create Preset B: click New, assign prompt_name to Y Axis
-    nextPresetName = presetB
     await newButton.click()
     await assignDimensionRole(page, 'prompt_name', 'Y Axis')
-    await expect(saveButton).toBeEnabled()
-    await saveButton.click()
+    await savePresetViaDialog(page, presetB)
     await expect(saveButton).toBeDisabled()
 
     // Now we have two presets. Preset B is currently selected (just saved).
@@ -321,14 +321,10 @@ test.describe('sidebar PresetSelector New/Save/Delete workflow', () => {
     await newButton.click()
     await assignDimensionRole(page, 'checkpoint', 'X Axis')
 
-    page.on('dialog', async (dialog) => {
-      if (dialog.type() === 'prompt') {
-        await dialog.accept(presetName)
-      }
-    })
+    // AC: S-121: Save via NModal dialog instead of window.prompt
+    await savePresetViaDialog(page, presetName)
 
     const saveButton = page.locator('[aria-label="Save preset"]')
-    await saveButton.click()
     await expect(saveButton).toBeDisabled()
 
     // Preset should be selected (Delete button is visible)
@@ -343,5 +339,74 @@ test.describe('sidebar PresetSelector New/Save/Delete workflow', () => {
 
     // Save should be disabled again (fresh baseline, no changes)
     await expect(saveButton).toBeDisabled()
+  })
+
+  // AC: S-121: FE: Save preset flow uses an NModal input dialog instead of window.prompt
+  test('S-121: Save opens an NModal dialog with a text input', async ({ page }) => {
+    // Click New then make dirty
+    const newButton = page.locator('[aria-label="New preset"]')
+    await newButton.click()
+    await assignDimensionRole(page, 'checkpoint', 'X Axis')
+
+    const saveButton = page.locator('[aria-label="Save preset"]')
+    await expect(saveButton).toBeEnabled()
+
+    // Click Save — should open NModal dialog, NOT a browser prompt
+    await saveButton.click()
+
+    // AC1: The NModal save dialog should be visible
+    const saveDialog = page.locator('[data-testid="preset-save-dialog"]')
+    await expect(saveDialog).toBeVisible()
+
+    // Dialog should have an input and confirm/cancel buttons
+    await expect(saveDialog.locator('[data-testid="preset-save-dialog-input"]')).toBeVisible()
+    await expect(saveDialog.locator('[data-testid="preset-save-dialog-confirm"]')).toBeVisible()
+    await expect(saveDialog.locator('[data-testid="preset-save-dialog-cancel"]')).toBeVisible()
+  })
+
+  // AC: S-121: FE: Cancel action works correctly
+  test('S-121: Cancelling the save dialog does not create a preset', async ({ page }) => {
+    // Make dirty
+    const newButton = page.locator('[aria-label="New preset"]')
+    await newButton.click()
+    await assignDimensionRole(page, 'checkpoint', 'X Axis')
+
+    const saveButton = page.locator('[aria-label="Save preset"]')
+    await saveButton.click()
+
+    const saveDialog = page.locator('[data-testid="preset-save-dialog"]')
+    await expect(saveDialog).toBeVisible()
+
+    // AC3: Cancel closes the dialog without saving
+    const cancelButton = saveDialog.locator('[data-testid="preset-save-dialog-cancel"]')
+    await cancelButton.click()
+
+    // Dialog should be gone
+    await expect(saveDialog).not.toBeVisible()
+
+    // Save button should still be enabled (preset was not created)
+    await expect(saveButton).toBeEnabled()
+  })
+
+  // Testing scenario: Empty name is rejected (confirm button disabled)
+  test('S-121: Confirm button is disabled when preset name is empty', async ({ page }) => {
+    // Make dirty
+    const newButton = page.locator('[aria-label="New preset"]')
+    await newButton.click()
+    await assignDimensionRole(page, 'checkpoint', 'X Axis')
+
+    const saveButton = page.locator('[aria-label="Save preset"]')
+    await saveButton.click()
+
+    const saveDialog = page.locator('[data-testid="preset-save-dialog"]')
+    await expect(saveDialog).toBeVisible()
+
+    // Confirm button should be disabled (input is empty)
+    const confirmButton = saveDialog.locator('[data-testid="preset-save-dialog-confirm"]')
+    await expect(confirmButton).toBeDisabled()
+
+    // Cancel to clean up
+    await saveDialog.locator('[data-testid="preset-save-dialog-cancel"]').click()
+    await expect(saveDialog).not.toBeVisible()
   })
 })

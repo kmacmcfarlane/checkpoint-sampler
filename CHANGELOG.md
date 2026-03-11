@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-121: Replace window.prompt for preset save with NModal input dialog
+- Preset save now uses an NModal input dialog instead of `window.prompt`, consistent with the ConfirmDeleteDialog pattern (card preset, confirm/cancel buttons, Enter/Escape keyboard support)
+- Empty and whitespace-only preset names are rejected (confirm button disabled)
+
 ### B-087: Fix root-owned dist/assets blocking host-side npm run build
 - Added named volume overlays (`frontend_dist:/app/dist`) in dev and test compose files, matching the existing `node_modules` isolation pattern to prevent root-owned writes to the host filesystem
 

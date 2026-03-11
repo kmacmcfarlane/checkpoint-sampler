@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
-import { NSelect, NButton } from 'naive-ui'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { NSelect, NButton, NModal, NInput } from 'naive-ui'
 import type { Preset, PresetMapping, DimensionRole, FilterMode } from '../api/types'
 import { apiClient } from '../api/client'
 import ConfirmDeleteDialog from './ConfirmDeleteDialog.vue'
@@ -33,6 +33,13 @@ const loading = ref(false)
 const saving = ref(false)
 const error = ref<string | null>(null)
 const attemptedAutoLoad = ref(false)
+
+/** Controls visibility of the save name dialog. */
+const showSaveDialog = ref(false)
+/** The preset name being typed in the save dialog. */
+const saveDialogName = ref('')
+/** Ref for the NInput inside the save dialog, used to auto-focus on open. */
+const saveDialogInputRef = ref<InstanceType<typeof NInput> | null>(null)
 
 /**
  * In-memory list of recently selected preset IDs, most-recently-used first.
@@ -214,10 +221,28 @@ function computeWarnings(preset: Preset): string[] {
   return warnings
 }
 
-async function onSave() {
-  const name = prompt('Preset name:')
+/**
+ * Called when the user clicks the Save button.
+ * Opens the save name dialog instead of using window.prompt.
+ */
+function onSave() {
+  saveDialogName.value = ''
+  showSaveDialog.value = true
+  // Auto-focus the input after the modal renders
+  nextTick(() => {
+    saveDialogInputRef.value?.focus()
+  })
+}
+
+/**
+ * Called when the user confirms the save name dialog.
+ * Performs the actual API call to create the preset.
+ */
+async function onConfirmSave() {
+  const name = saveDialogName.value.trim()
   if (!name) return
 
+  showSaveDialog.value = false
   saving.value = true
   error.value = null
   try {
@@ -236,6 +261,14 @@ async function onSave() {
   } finally {
     saving.value = false
   }
+}
+
+/**
+ * Called when the user cancels the save name dialog.
+ */
+function onCancelSave() {
+  showSaveDialog.value = false
+  saveDialogName.value = ''
 }
 
 const updating = ref(false)
@@ -428,6 +461,42 @@ function assignmentsToMapping(): PresetMapping {
       @confirm="onConfirmDelete"
       @cancel="onCancelDelete"
     />
+
+    <NModal
+      :show="showSaveDialog"
+      preset="card"
+      title="Save Preset"
+      style="max-width: 420px;"
+      :mask-closable="true"
+      data-testid="preset-save-dialog"
+      @update:show="(val) => { if (!val) onCancelSave() }"
+    >
+      <div class="save-dialog-body" data-testid="preset-save-dialog-body">
+        <NInput
+          ref="saveDialogInputRef"
+          v-model:value="saveDialogName"
+          placeholder="Preset name"
+          data-testid="preset-save-dialog-input"
+          @keydown="(e: KeyboardEvent) => { if (e.key === 'Enter') onConfirmSave(); else if (e.key === 'Escape') onCancelSave() }"
+        />
+      </div>
+      <div class="action-buttons">
+        <NButton
+          type="primary"
+          :disabled="!saveDialogName.trim()"
+          data-testid="preset-save-dialog-confirm"
+          @click="onConfirmSave"
+        >
+          Save
+        </NButton>
+        <NButton
+          data-testid="preset-save-dialog-cancel"
+          @click="onCancelSave"
+        >
+          Cancel
+        </NButton>
+      </div>
+    </NModal>
   </div>
 </template>
 
@@ -465,5 +534,15 @@ function assignmentsToMapping(): PresetMapping {
   color: var(--error-color);
   font-size: 0.875rem;
   margin: 0;
+}
+
+.save-dialog-body {
+  margin-bottom: 1.25rem;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
 }
 </style>

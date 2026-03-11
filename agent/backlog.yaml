@@ -563,7 +563,7 @@ stories:
   - id: S-121
     title: "Replace window.prompt for preset save with NModal input dialog"
     priority: 45
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:
