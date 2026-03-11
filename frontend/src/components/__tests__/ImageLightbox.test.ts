@@ -1643,4 +1643,82 @@ describe('ImageLightbox', () => {
       expect(wrapper.findComponent(DebugOverlay).exists()).toBe(false)
     })
   })
+
+  // --- Keyboard shortcuts help overlay (S-109) ---
+
+  describe('keyboard shortcuts help overlay', () => {
+    // AC1: Lightbox includes a keyboard shortcuts help button
+    it('renders the shortcuts help button in the lightbox', async () => {
+      const wrapper = mount(ImageLightbox, { props: defaultProps })
+      await flushPromises()
+
+      const btn = wrapper.find('[data-testid="lightbox-shortcuts-btn"]')
+      expect(btn.exists()).toBe(true)
+      expect(btn.attributes('aria-label')).toBe('Toggle keyboard shortcuts')
+    })
+
+    // AC3: Help panel is initially hidden (unobtrusive)
+    it('does not show shortcuts panel on initial render', async () => {
+      const wrapper = mount(ImageLightbox, { props: defaultProps })
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="lightbox-shortcuts-panel"]').exists()).toBe(false)
+    })
+
+    // AC4: Clicking help button shows the shortcuts panel
+    it('shows shortcuts panel when help button is clicked', async () => {
+      const wrapper = mount(ImageLightbox, { props: defaultProps })
+      await flushPromises()
+
+      await wrapper.find('[data-testid="lightbox-shortcuts-btn"]').trigger('click')
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.find('[data-testid="lightbox-shortcuts-panel"]').exists()).toBe(true)
+    })
+
+    // AC3: Help panel is dismissible by clicking the button again
+    it('hides shortcuts panel when help button is clicked a second time', async () => {
+      const wrapper = mount(ImageLightbox, { props: defaultProps })
+      await flushPromises()
+
+      const btn = wrapper.find('[data-testid="lightbox-shortcuts-btn"]')
+      await btn.trigger('click')
+      await wrapper.vm.$nextTick()
+      expect(wrapper.find('[data-testid="lightbox-shortcuts-panel"]').exists()).toBe(true)
+
+      await btn.trigger('click')
+      await wrapper.vm.$nextTick()
+      expect(wrapper.find('[data-testid="lightbox-shortcuts-panel"]').exists()).toBe(false)
+    })
+
+    // AC2: Panel lists expected keyboard shortcuts
+    it('shortcuts panel lists Escape, Shift+Arrow grid nav, and plain Arrow slider shortcuts', async () => {
+      const wrapper = mount(ImageLightbox, { props: defaultProps })
+      await flushPromises()
+
+      await wrapper.find('[data-testid="lightbox-shortcuts-btn"]').trigger('click')
+      await wrapper.vm.$nextTick()
+
+      const panel = wrapper.find('[data-testid="lightbox-shortcuts-panel"]')
+      const text = panel.text()
+
+      // AC: Lists all shortcuts
+      expect(text).toContain('Esc')
+      expect(text).toContain('Close lightbox')
+      expect(text).toContain('Shift')
+      expect(text).toContain('Navigate grid')
+      expect(text).toContain('Slider')
+    })
+
+    // AC3: Clicking shortcuts area does not close the lightbox
+    it('clicking the shortcuts area does not close the lightbox', async () => {
+      const wrapper = mount(ImageLightbox, { props: defaultProps })
+      await flushPromises()
+
+      const area = wrapper.find('.lightbox-shortcuts-area')
+      await area.trigger('click')
+
+      expect(wrapper.emitted('close')).toBeFalsy()
+    })
+  })
 })

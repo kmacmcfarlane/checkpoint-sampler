@@ -556,8 +556,9 @@ test.describe('lightbox mousedown origin guard (B-033)', () => {
     expect(backdropBox).not.toBeNull()
 
     // Use a position in the top-right area of the backdrop, away from the close button
-    // (top-left) and zoom controls
-    await page.mouse.click(backdropBox!.x + backdropBox!.width - 20, backdropBox!.y + 20)
+    // (top-left), zoom controls, and the keyboard shortcuts button (top-right corner).
+    // Offset 80px from the right to clear the shortcuts area (positioned at right: 12px).
+    await page.mouse.click(backdropBox!.x + backdropBox!.width - 80, backdropBox!.y + 20)
 
     // The lightbox should be closed
     await expect(lightbox).not.toBeVisible()
@@ -670,5 +671,76 @@ test.describe('lightbox slider and metadata panel layout (B-069)', () => {
     const metadataBottom = metadataBox!.y + metadataBox!.height
     const sliderTop = sliderBox!.y
     expect(metadataBottom).toBeLessThanOrEqual(sliderTop + 2) // 2px tolerance for sub-pixel rounding
+  })
+})
+
+test.describe('keyboard shortcuts help overlay (S-109)', () => {
+  test.beforeEach(async ({ request }) => {
+    await resetDatabase(request)
+  })
+
+  // AC1: Lightbox includes a keyboard shortcuts tooltip or help panel
+  test('shortcuts help button is visible in the lightbox', async ({ page }) => {
+    await setupGridWithImages(page)
+
+    const firstImage = page.locator('.xy-grid [role="gridcell"] img').first()
+    await firstImage.click()
+
+    const lightbox = page.locator('[role="dialog"][aria-label="Image lightbox"]')
+    await expect(lightbox).toBeVisible()
+
+    const shortcutsBtn = page.locator('[data-testid="lightbox-shortcuts-btn"]')
+    await expect(shortcutsBtn).toBeVisible()
+    await expect(shortcutsBtn).toHaveText('?')
+  })
+
+  // AC2: Lists all shortcuts (Escape, Shift+Arrow for grid nav, plain Arrow for slider)
+  test('shortcuts panel lists all keyboard shortcuts', async ({ page }) => {
+    await setupGridWithImages(page)
+
+    const firstImage = page.locator('.xy-grid [role="gridcell"] img').first()
+    await firstImage.click()
+
+    const lightbox = page.locator('[role="dialog"][aria-label="Image lightbox"]')
+    await expect(lightbox).toBeVisible()
+
+    // Open the shortcuts panel
+    await page.locator('[data-testid="lightbox-shortcuts-btn"]').click()
+
+    const panel = page.locator('[data-testid="lightbox-shortcuts-panel"]')
+    await expect(panel).toBeVisible()
+
+    // Verify all four shortcut groups are listed
+    const panelText = await panel.textContent()
+    expect(panelText).toContain('Esc')
+    expect(panelText).toContain('Close lightbox')
+    expect(panelText).toContain('Shift')
+    expect(panelText).toContain('Navigate grid')
+    expect(panelText).toContain('Slider')
+  })
+
+  // AC3: Help is unobtrusive (hidden by default) and dismissible (toggle off)
+  test('shortcuts panel is hidden by default and dismissible', async ({ page }) => {
+    await setupGridWithImages(page)
+
+    const firstImage = page.locator('.xy-grid [role="gridcell"] img').first()
+    await firstImage.click()
+
+    const lightbox = page.locator('[role="dialog"][aria-label="Image lightbox"]')
+    await expect(lightbox).toBeVisible()
+
+    const panel = page.locator('[data-testid="lightbox-shortcuts-panel"]')
+    const btn = page.locator('[data-testid="lightbox-shortcuts-btn"]')
+
+    // Panel is hidden by default
+    await expect(panel).not.toBeVisible()
+
+    // Click to show
+    await btn.click()
+    await expect(panel).toBeVisible()
+
+    // Click again to dismiss
+    await btn.click()
+    await expect(panel).not.toBeVisible()
   })
 })

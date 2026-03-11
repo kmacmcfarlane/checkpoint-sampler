@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-109: Keyboard navigation help overlay in lightbox
+- Lightbox now includes a "?" button (top-right) that toggles a keyboard shortcuts help panel listing Esc, Shift+Arrow grid navigation, and plain Arrow slider navigation
+
 ### S-108: Configurable confirmation button text in ConfirmDeleteDialog
 - `ConfirmDeleteDialog` accepts an optional `confirmLabel` prop to customize the confirm button text, enabling reuse for non-delete confirmations (e.g., regeneration dialogs)
 

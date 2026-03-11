@@ -81,6 +81,7 @@ const metadataError = ref<string | null>(null)
 const stringMetadata = ref<Record<string, string> | null>(null)
 const numericMetadata = ref<Record<string, number> | null>(null)
 const metadataOpen = ref(false)
+const shortcutsOpen = ref(false)
 
 const MIN_SCALE = 0.1
 const MAX_SCALE = 20
@@ -279,6 +280,10 @@ function toggleMetadata() {
   metadataOpen.value = !metadataOpen.value
 }
 
+function toggleShortcuts() {
+  shortcutsOpen.value = !shortcutsOpen.value
+}
+
 function formatJSON(value: string): string {
   try {
     return JSON.stringify(JSON.parse(value), null, 2)
@@ -403,6 +408,30 @@ onUnmounted(() => {
         aria-label="Zoom out"
         @click="zoomOut"
       >-</NButton>
+    </div>
+    <div class="lightbox-shortcuts-area" @click.stop>
+      <NButton
+        class="lightbox-shortcuts-btn"
+        quaternary
+        circle
+        size="small"
+        aria-label="Toggle keyboard shortcuts"
+        data-testid="lightbox-shortcuts-btn"
+        @click="toggleShortcuts"
+      >?</NButton>
+      <div
+        v-if="shortcutsOpen"
+        class="lightbox-shortcuts-panel"
+        data-testid="lightbox-shortcuts-panel"
+      >
+        <div class="shortcuts-title">Keyboard Shortcuts</div>
+        <ul class="shortcuts-list">
+          <li><kbd>Esc</kbd> Close lightbox</li>
+          <li><kbd>Shift</kbd> + <kbd>←</kbd> <kbd>→</kbd> Navigate grid (X axis)</li>
+          <li><kbd>Shift</kbd> + <kbd>↑</kbd> <kbd>↓</kbd> Navigate grid (Y axis)</li>
+          <li><kbd>←</kbd> <kbd>→</kbd> Slider (when active)</li>
+        </ul>
+      </div>
     </div>
     <div
       class="lightbox-content"
@@ -616,6 +645,71 @@ onUnmounted(() => {
   line-height: 1.4;
   max-height: 30vh;
   overflow-y: auto;
+}
+
+.lightbox-shortcuts-area {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 1002;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.lightbox-shortcuts-btn {
+  /* stylelint-disable-next-line scale-unlimited/declaration-strict-value -- Intentional: lightbox overlay always has dark background regardless of theme */
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.lightbox-shortcuts-panel {
+  background: rgba(20, 20, 20, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 0.25rem;
+  padding: 0.75rem 1rem;
+  min-width: 260px;
+}
+
+.shortcuts-title {
+  font-weight: 600;
+  font-size: 0.8125rem;
+  margin-bottom: 0.5rem;
+  /* stylelint-disable-next-line scale-unlimited/declaration-strict-value -- Intentional: lightbox overlay always has dark background regardless of theme */
+  color: #90caf9;
+}
+
+.shortcuts-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-size: 0.8125rem;
+  /* stylelint-disable-next-line scale-unlimited/declaration-strict-value -- Intentional: lightbox overlay always has dark background regardless of theme */
+  color: #e0e0e0;
+}
+
+.shortcuts-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+kbd {
+  display: inline-block;
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.2rem;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.1);
+  font-family: 'SF Mono', 'Consolas', 'Liberation Mono', monospace;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  /* stylelint-disable-next-line scale-unlimited/declaration-strict-value -- Intentional: lightbox overlay always has dark background regardless of theme */
+  color: #e0e0e0;
 }
 
 @media (max-width: 767px) {

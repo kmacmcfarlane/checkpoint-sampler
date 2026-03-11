@@ -489,7 +489,7 @@ stories:
   - id: S-109
     title: "Keyboard navigation help overlay in lightbox"
     priority: 25
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:
