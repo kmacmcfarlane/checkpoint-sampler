@@ -1037,16 +1037,15 @@ stories:
   - id: B-095
     title: "E2E: Dimension filtering combo filter tests fail (2 tests)"
     priority: 60
-    status: todo
+    status: closed
     complexity: low
     requires: []
     acceptance:
       - "Combo filter E2E tests pass reliably"
     testing:
       - "command: make test-e2e SPEC=dimension-filtering.spec.ts"
-    notes: |
-      Discovered during B-091 QA. 2 combo filter tests in dimension-filtering.spec.ts time out.
-      Root cause hypothesis: Combo filter deselection may have a UI update delay or the grid column count assertion races with re-render.
+    notes: |-
+      Closed as not reproducible. Tests pass reliably across 3 consecutive runs. The flakiness was likely caused by the same timing issues fixed by B-089 (savePresetViaDialog race condition) and B-091 (preset dirty tracking timing).
   - id: B-096
     title: "E2E: Filters slideout layout tests fail (2 tests)"
     priority: 60
