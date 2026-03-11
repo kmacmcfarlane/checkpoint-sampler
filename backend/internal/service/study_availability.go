@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/fileformat"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
 	"github.com/sirupsen/logrus"
 )
@@ -35,7 +36,7 @@ func NewStudyAvailabilityService(fs StudyAvailabilityFileSystem, sampleDir strin
 // GetAvailability returns the sample availability for a list of studies
 // relative to the given training run. For each study, it checks whether
 // any of the training run's checkpoint filenames exist as subdirectories
-// under the study's output directory ({sample_dir}/{study.Name}/).
+// under the study's output directory ({sample_dir}/{sanitized_run_name}/{study.ID}/).
 func (s *StudyAvailabilityService) GetAvailability(studies []model.Study, tr model.TrainingRun) ([]model.StudyAvailability, error) {
 	s.logger.WithFields(logrus.Fields{
 		"training_run": tr.Name,
@@ -56,7 +57,7 @@ func (s *StudyAvailabilityService) GetAvailability(studies []model.Study, tr mod
 			StudyName: study.Name,
 		}
 
-		studyDir := filepath.Join(s.sampleDir, study.Name)
+		studyDir := filepath.Join(s.sampleDir, fileformat.SanitizeTrainingRunName(tr.Name), study.ID)
 		checkpointDirs, err := s.fs.ListSubdirectories(studyDir)
 		if err != nil {
 			s.logger.WithFields(logrus.Fields{

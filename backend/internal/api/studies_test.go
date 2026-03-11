@@ -222,8 +222,9 @@ var _ = Describe("StudiesService", func() {
 			}
 
 			// StudyA has samples matching the checkpoint, StudyB does not
-			availFS.subdirs["/samples/StudyA"] = []string{"cp1.safetensors"}
-			availFS.subdirs["/samples/StudyB"] = []string{"other.safetensors"}
+			// Path pattern after B-078: {sampleDir}/{sanitized_run_name}/{study_id}
+			availFS.subdirs["/samples/model-run/s1"] = []string{"cp1.safetensors"}
+			availFS.subdirs["/samples/model-run/s2"] = []string{"other.safetensors"}
 
 			result, err := availStudies.Availability(ctx, &genstudies.AvailabilityPayload{TrainingRunID: 0})
 			Expect(err).NotTo(HaveOccurred())

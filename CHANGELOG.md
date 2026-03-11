@@ -21,9 +21,8 @@ Older entries are condensed to titles only — see git history for full details.
 ### S-108: Configurable confirmation button text in ConfirmDeleteDialog
 - `ConfirmDeleteDialog` accepts an optional `confirmLabel` prop to customize the confirm button text, enabling reuse for non-delete confirmations (e.g., regeneration dialogs)
 
-### S-105: Tooltip on study bead showing checkpoint counts
-- Study availability API now returns `checkpoints_with_samples` and `total_checkpoints` counts alongside the existing `sample_status` field
-- Study beads in the Generate Samples dialog show a native tooltip on hover (e.g., "3/5 checkpoints have samples") for green (complete) and yellow (partial) beads
+### S-105: Tooltip on study bead showing checkpoint counts (UAT rework)
+- Fixed study availability path: `GetAvailability()` now uses B-078 directory layout (`{sanitized_run_name}/{study_id}`) instead of the old `{study_name}` path, fixing checkpoint counts always showing 0/N
 
 ### S-110: Resume completed_with_errors jobs (retry failed items)
 - New `POST /api/sample-jobs/{id}/retry-failed` endpoint resets failed/skipped items to pending and resumes execution; guards against concurrent running jobs and non-`completed_with_errors` state
