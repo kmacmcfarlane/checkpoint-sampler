@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { NModal, NButton, NCheckbox } from 'naive-ui'
 
 const props = defineProps<{
@@ -13,7 +13,11 @@ const props = defineProps<{
   checkboxLabel?: string
   /** Initial checked state for the optional checkbox. */
   checkboxChecked?: boolean
+  /** Text for the confirm button. Defaults to 'Yes, Delete'. */
+  confirmLabel?: string
 }>()
+
+const confirmButtonLabel = computed(() => props.confirmLabel ?? 'Yes, Delete')
 
 // update:show: Emitted when the dialog requests a visibility change. Payload: boolean visibility state.
 // confirm: Emitted when the user clicks "Yes, Delete". Payload: boolean checkbox state (false when no checkbox).
@@ -85,7 +89,7 @@ function handleCancel() {
         data-testid="confirm-delete-button"
         @click="handleConfirm"
       >
-        Yes, Delete
+        {{ confirmButtonLabel }}
       </NButton>
       <NButton
         data-testid="confirm-cancel-button"

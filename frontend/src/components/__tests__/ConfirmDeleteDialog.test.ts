@@ -16,6 +16,7 @@ describe('ConfirmDeleteDialog', () => {
     description: string
     checkboxLabel: string
     checkboxChecked: boolean
+    confirmLabel: string
   }> = {}) {
     return mount(ConfirmDeleteDialog, {
       props: {
@@ -203,5 +204,21 @@ describe('ConfirmDeleteDialog', () => {
 
     const modal = wrapper.findComponent(NModal)
     expect(modal.props('maskClosable')).toBe(true)
+  })
+
+  // AC: FE: ConfirmDeleteDialog accepts a confirmLabel prop to customize the button text
+  it('renders default button text "Yes, Delete" when confirmLabel is not provided', () => {
+    const wrapper = mountDialog()
+
+    const confirmBtn = wrapper.find('[data-testid="confirm-delete-button"]')
+    expect(confirmBtn.text()).toBe('Yes, Delete')
+  })
+
+  // AC: FE: ConfirmDeleteDialog accepts a confirmLabel prop to customize the button text
+  it('renders custom button text when confirmLabel prop is provided', () => {
+    const wrapper = mountDialog({ confirmLabel: 'Yes, Regenerate' })
+
+    const confirmBtn = wrapper.find('[data-testid="confirm-delete-button"]')
+    expect(confirmBtn.text()).toBe('Yes, Regenerate')
   })
 })

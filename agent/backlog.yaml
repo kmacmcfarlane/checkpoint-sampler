@@ -470,7 +470,7 @@ stories:
   - id: S-108
     title: "Configurable confirmation button text in ConfirmDeleteDialog"
     priority: 25
-    status: todo
+    status: uat
     complexity: low
     requires:
       - S-094
