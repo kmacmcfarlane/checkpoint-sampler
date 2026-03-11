@@ -31,3 +31,9 @@ E2E tests manually type API payload field names (e.g., `workflow_filename` vs `w
 * priority: low
 * source: developer
 Add a startup validation step to the ComfyUI mock that verifies its PNG data passes Go's CRC check before tests run, preventing silent thumbnail failures if the PNG is ever modified again.
+
+### Fix playwright-report and test-results root ownership
+* status: needs_approval
+* priority: low
+* source: developer
+The `playwright` service in `docker-compose.test.yml` writes root-owned `frontend/playwright-report/` and `frontend/test-results/` to the host-mounted directory. These could be isolated to named volumes or the playwright service could use a `user:` directive to avoid the same class of root-ownership problem fixed by B-087.

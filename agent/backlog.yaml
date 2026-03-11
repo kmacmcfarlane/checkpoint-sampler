@@ -721,7 +721,7 @@ stories:
   - id: B-087
     title: "Fix root-owned dist/assets blocking host-side npm run build"
     priority: 25
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:

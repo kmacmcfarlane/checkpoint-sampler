@@ -70,6 +70,7 @@ services:
     volumes:
       - ./frontend:/app
       - test_frontend_node_modules:/app/node_modules
+      - test_frontend_dist:/app/dist
     depends_on:
       backend:
         condition: service_healthy
@@ -104,6 +105,7 @@ volumes:
   test_backend_data:
   test_samples_data:
   test_frontend_node_modules:
+  test_frontend_dist:
   test_go_cache:
   test_go_mod_cache:
   playwright_node_modules:

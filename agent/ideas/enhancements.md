@@ -98,6 +98,12 @@ Instead of waiting for each WebSocket event to update the sample ETA display, th
 * source: developer
 Following the same pattern as VAE/TE MRU (S-113), sampler and scheduler pairs could also be stored per workflow template in localStorage for auto-fill on workflow selection.
 
+### First-open keyboard shortcut hint in lightbox
+* status: needs_approval
+* priority: low
+* source: developer
+Show a brief "Press ? for keyboard help" tooltip on first lightbox open to make keyboard shortcut discoverability even clearer without relying on users finding the button.
+
 ### Validate tooltip counts against validation result image data
 * status: needs_approval
 * priority: low
