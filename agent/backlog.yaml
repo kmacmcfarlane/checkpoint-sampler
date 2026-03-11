@@ -423,7 +423,7 @@ stories:
   - id: S-105
     title: "Tooltip on study bead showing checkpoint counts"
     priority: 25
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:

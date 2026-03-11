@@ -405,5 +405,11 @@ var StudyAvailabilityResponse = Type("StudyAvailabilityResponse", func() {
 		Example("complete")
 		Enum("none", "partial", "complete")
 	})
-	Required("study_id", "study_name", "has_samples", "sample_status")
+	Attribute("checkpoints_with_samples", Int, "Number of training run checkpoints that have a matching sample directory for this study", func() {
+		Example(3)
+	})
+	Attribute("total_checkpoints", Int, "Total number of checkpoints in the training run", func() {
+		Example(5)
+	})
+	Required("study_id", "study_name", "has_samples", "sample_status", "checkpoints_with_samples", "total_checkpoints")
 })

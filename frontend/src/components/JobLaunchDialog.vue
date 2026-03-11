@@ -415,12 +415,20 @@ const studyOptions = computed(() => {
       ? getStudyDualBead(runName, p.id, sampleJobs.value, sampleStatus as 'none' | 'partial' | 'complete')
       : { activity: null, problem: null }
 
+    // Checkpoint counts for tooltip — use availability data when present.
+    // When validation overrides sampleStatus, the counts from availability still
+    // reflect directory-level presence (close enough for tooltip context).
+    const checkpointCounts = avail
+      ? { withSamples: avail.checkpoints_with_samples, total: avail.total_checkpoints }
+      : null
+
     return {
       label: p.name,
       value: p.id,
       // Metadata for bead rendering
       _sampleStatus: sampleStatus,
       _dualBead: dualBead,
+      _checkpointCounts: checkpointCounts,
     }
   })
 })
@@ -432,6 +440,12 @@ const studyOptions = computed(() => {
 // compilation context, so scoped CSS classes are NOT applied. All styles must be inlined.
 const renderStudyLabel: SelectRenderLabel = (option) => {
   const dualBead = (option as { _dualBead?: DualBead })._dualBead
+  const counts = (option as { _checkpointCounts?: { withSamples: number; total: number } | null })._checkpointCounts
+
+  // Build a human-readable checkpoint count tooltip, e.g. "3/5 checkpoints have samples"
+  const checkpointCountTitle = counts
+    ? `${counts.withSamples}/${counts.total} checkpoints have samples`
+    : null
 
   const children: VNode[] = []
 
@@ -440,14 +454,16 @@ const renderStudyLabel: SelectRenderLabel = (option) => {
     if (dualBead.activity === 'blue') {
       children.push(renderBeadSpan(DUAL_BEAD_COLORS.blue, 'running', 'study-bead-activity'))
     } else if (dualBead.activity === 'green') {
-      children.push(renderBeadSpan(DUAL_BEAD_COLORS.green, 'complete', 'study-bead-activity'))
+      // Complete: show checkpoint counts in title (e.g. "5/5 checkpoints have samples")
+      children.push(renderBeadSpan(DUAL_BEAD_COLORS.green, checkpointCountTitle ?? 'complete', 'study-bead-activity'))
     }
 
     // Slot 2: problem bead (red/yellow)
     if (dualBead.problem === 'red') {
       children.push(renderBeadSpan(DUAL_BEAD_COLORS.red, 'failed', 'study-bead-problem'))
     } else if (dualBead.problem === 'yellow') {
-      children.push(renderBeadSpan(DUAL_BEAD_COLORS.yellow, 'incomplete', 'study-bead-problem'))
+      // Partial: show checkpoint counts in title (e.g. "3/5 checkpoints have samples")
+      children.push(renderBeadSpan(DUAL_BEAD_COLORS.yellow, checkpointCountTitle ?? 'incomplete', 'study-bead-problem'))
     }
   }
 

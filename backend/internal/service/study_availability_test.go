@@ -78,6 +78,8 @@ var _ = Describe("StudyAvailabilityService", func() {
 			Expect(result[0].StudyName).To(Equal("MyStudy"))
 			Expect(result[0].HasSamples).To(BeFalse())
 			Expect(result[0].SampleStatus).To(Equal(model.StudySampleStatusNone))
+			Expect(result[0].CheckpointsWithSamples).To(Equal(0))
+			Expect(result[0].TotalCheckpoints).To(Equal(1))
 		})
 
 		It("marks has_samples=true and status=complete when all checkpoint dirs match", func() {
@@ -100,6 +102,8 @@ var _ = Describe("StudyAvailabilityService", func() {
 			Expect(result).To(HaveLen(1))
 			Expect(result[0].HasSamples).To(BeTrue())
 			Expect(result[0].SampleStatus).To(Equal(model.StudySampleStatusComplete))
+			Expect(result[0].CheckpointsWithSamples).To(Equal(2))
+			Expect(result[0].TotalCheckpoints).To(Equal(2))
 		})
 
 		It("marks has_samples=true and status=partial when only some checkpoint dirs match", func() {
@@ -123,6 +127,8 @@ var _ = Describe("StudyAvailabilityService", func() {
 			Expect(result).To(HaveLen(1))
 			Expect(result[0].HasSamples).To(BeTrue())
 			Expect(result[0].SampleStatus).To(Equal(model.StudySampleStatusPartial))
+			Expect(result[0].CheckpointsWithSamples).To(Equal(1))
+			Expect(result[0].TotalCheckpoints).To(Equal(3))
 		})
 
 		It("marks has_samples=false and status=none when only non-matching checkpoint dirs exist", func() {
