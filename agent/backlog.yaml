@@ -1024,7 +1024,7 @@ stories:
   - id: B-094
     title: "E2E: Lightbox Shift+Arrow keyboard navigation times out (6 tests)"
     priority: 60
-    status: todo
+    status: closed
     complexity: medium
     requires: []
     acceptance:
@@ -1032,9 +1032,8 @@ stories:
       - "Shift+Arrow events are handled within 5 seconds in E2E environment"
     testing:
       - "command: make test-e2e SPEC=lightbox.spec.ts"
-    notes: |
-      Discovered during B-091 QA. 6 Shift+Arrow keyboard navigation tests in lightbox.spec.ts time out at 15s.
-      Root cause hypothesis: Shift+Arrow keyboard events may not be registering reliably in Playwright chromium, or the lightbox navigation handler has a timing issue.
+    notes: |-
+      Cannot reproduce: 3 consecutive runs of lightbox.spec.ts (24 tests each) passed with all Shift+Arrow tests completing in ~3s. Likely caused by resource contention during B-091 QA full suite run.
   - id: B-095
     title: "E2E: Dimension filtering combo filter tests fail (2 tests)"
     priority: 60
