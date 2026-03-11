@@ -301,12 +301,23 @@ export async function savePresetViaDialog(page: Page, presetName: string): Promi
   await expect(nameInput).toBeVisible()
   await nameInput.fill(presetName)
 
-  // Confirm save
+  // Confirm save — wait for the POST /api/presets API response to complete before returning.
+  // The dialog closes at the START of onConfirmSave() (before the API call), so waiting only
+  // for the dialog to close is insufficient: dirty tracking (snapshotAssignments) runs after
+  // the API call resolves, causing a race where the Save button remains enabled briefly.
   const confirmButton = saveDialog.locator('[data-testid="preset-save-dialog-confirm"]')
   await expect(confirmButton).toBeEnabled()
-  await confirmButton.click()
+  await Promise.all([
+    page.waitForResponse(
+      resp =>
+        resp.url().includes('/api/presets') &&
+        resp.request().method() === 'POST' &&
+        resp.status() === 201,
+    ),
+    confirmButton.click(),
+  ])
 
-  // Dialog should close
+  // Dialog should close (the API response resolving triggers dialog close + state update)
   await expect(saveDialog).not.toBeVisible()
 }
 

@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-089: Flaky E2E: preset dirty tracking test fails on manual preset selection
+- `savePresetViaDialog` E2E helper now waits for the POST /api/presets API response before returning, fixing race where dirty-tracking state wasn't reset before assertion
+- Removed duplicate local `savePresetViaDialog` from sidebar-preset-selector.spec.ts in favor of the shared helper
+
 ### B-091: Flaky preset dirty tracking: Save button not disabled after save on manually selected preset
 - Updated E2E test to use NModal save dialog pattern (`savePresetViaDialog` helper) instead of deprecated `window.prompt` listener, eliminating the timing race that left the Save button enabled after save
 - Added `down -v` pre-clean to `make test-e2e` to prevent stale SQLite schema from interrupted runs

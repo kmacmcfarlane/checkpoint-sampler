@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { resetDatabase, selectTrainingRun, selectNaiveOptionByLabel } from './helpers'
+import { resetDatabase, savePresetViaDialog, selectTrainingRun, selectNaiveOptionByLabel } from './helpers'
 
 /**
  * E2E tests for the sidebar PresetSelector component (B-031).
@@ -36,34 +36,6 @@ async function assignDimensionRole(page: Page, dimensionName: string, role: stri
   await selectNaiveOptionByLabel(page, `Mode for ${dimensionName}`, role)
 }
 
-/**
- * Saves a preset via the NModal input dialog.
- * Clicks the Save button to open the dialog, types the preset name, and confirms.
- *
- * AC: S-121: Save preset flow uses an NModal input dialog instead of window.prompt
- */
-async function savePresetViaDialog(page: Page, presetName: string): Promise<void> {
-  const saveButton = page.locator('[aria-label="Save preset"]')
-  await expect(saveButton).toBeEnabled()
-  await saveButton.click()
-
-  // Wait for the save dialog to appear
-  const saveDialog = page.locator('[data-testid="preset-save-dialog"]')
-  await expect(saveDialog).toBeVisible()
-
-  // Fill in the preset name
-  const nameInput = saveDialog.locator('[data-testid="preset-save-dialog-input"] input')
-  await expect(nameInput).toBeVisible()
-  await nameInput.fill(presetName)
-
-  // Confirm save
-  const confirmButton = saveDialog.locator('[data-testid="preset-save-dialog-confirm"]')
-  await expect(confirmButton).toBeEnabled()
-  await confirmButton.click()
-
-  // Dialog should close
-  await expect(saveDialog).not.toBeVisible()
-}
 
 test.describe('sidebar PresetSelector New/Save/Delete workflow', () => {
   // AC: Each E2E test is independent -- reset database before each test

@@ -949,7 +949,7 @@ stories:
   - id: B-089
     title: "Flaky E2E: preset dirty tracking test fails on manual preset selection"
     priority: 60
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:
