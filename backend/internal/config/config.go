@@ -13,13 +13,14 @@ import (
 
 // yamlConfig is the raw YAML-tagged representation of the config file.
 type yamlConfig struct {
-	CheckpointDirs []string               `yaml:"checkpoint_dirs"`
-	SampleDir      string                 `yaml:"sample_dir"`
-	Port           *int                   `yaml:"port"`
-	IPAddress      string                 `yaml:"ip_address"`
-	DBPath         string                 `yaml:"db_path"`
-	ComfyUI        *yamlComfyUIConfig     `yaml:"comfyui"`
-	Thumbnails     *yamlThumbnailConfig   `yaml:"thumbnails"`
+	CheckpointDirs []string             `yaml:"checkpoint_dirs"`
+	SampleDir      string               `yaml:"sample_dir"`
+	Port           *int                 `yaml:"port"`
+	IPAddress      string               `yaml:"ip_address"`
+	DBPath         string               `yaml:"db_path"`
+	ComfyUI        *yamlComfyUIConfig   `yaml:"comfyui"`
+	Thumbnails     *yamlThumbnailConfig `yaml:"thumbnails"`
+	WsPingInterval *int                 `yaml:"ws_ping_interval"`
 }
 
 // yamlThumbnailConfig is the raw YAML-tagged representation of thumbnail config.
@@ -83,6 +84,10 @@ func parseAndValidate(raw yamlConfig) (*model.Config, error) {
 	if raw.DBPath == "" {
 		raw.DBPath = "./data/"
 	}
+	wsPingInterval := 30 // default: 30 seconds
+	if raw.WsPingInterval != nil {
+		wsPingInterval = *raw.WsPingInterval
+	}
 
 	// Validate checkpoint_dirs
 	if len(raw.CheckpointDirs) == 0 {
@@ -118,6 +123,11 @@ func parseAndValidate(raw yamlConfig) (*model.Config, error) {
 		return nil, fmt.Errorf("config: port must be between 1 and 65535, got %d", port)
 	}
 
+	// Validate ws_ping_interval (0 disables pings; negative values are invalid)
+	if wsPingInterval < 0 {
+		return nil, fmt.Errorf("config: ws_ping_interval must be >= 0, got %d", wsPingInterval)
+	}
+
 	// Validate IP address
 	if net.ParseIP(raw.IPAddress) == nil {
 		return nil, fmt.Errorf("config: invalid ip_address %q", raw.IPAddress)
@@ -149,6 +159,7 @@ func parseAndValidate(raw yamlConfig) (*model.Config, error) {
 		DBPath:         raw.DBPath,
 		ComfyUI:        comfyUI,
 		Thumbnails:     thumbnails,
+		WsPingInterval: wsPingInterval,
 	}, nil
 }
 

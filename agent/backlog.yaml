@@ -701,7 +701,7 @@ stories:
   - id: S-128
     title: "WebSocket heartbeat/ping-pong mechanism"
     priority: 45
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:
@@ -946,3 +946,35 @@ stories:
       - "Ensure fixture data includes training run names like 'qwen/Qwen2-VL' with directory separators. Verify on-disk directory
         is 'qwen_Qwen2-VL' (single level). Test both forward and backward slashes. Verify round-trip: write samples to sanitized
         dir, read back, confirm correct training run association."
+  - id: B-089
+    title: "Flaky E2E: preset dirty tracking test fails on manual preset selection"
+    priority: 60
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "After saving a preset via the Save button, the Save button becomes disabled within 2 seconds indicating the preset
+        is no longer dirty"
+      - "The E2E test preset-dirty-on-autoload.spec.ts:221 passes reliably on 5 consecutive runs"
+    testing:
+      - "command: make test-e2e SPEC=preset-dirty-on-autoload.spec.ts"
+    notes: |
+      Flaky E2E test found by QA during S-128 verification.
+      Failing test: preset-dirty-on-autoload.spec.ts > B-047: preset dirty tracking after auto-load > Update button appears after changing filter mode on manually selected preset
+      Error: expect(locator).toBeDisabled() — Save button remains enabled after save.
+      Root cause hypothesis: timing issue where save completes but dirty-tracking state is not reset before assertion.
+  - id: B-090
+    title: "Race condition: 'failed to get job for progress broadcast' during job lifecycle"
+    priority: 80
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "Job executor handles 'no rows' errors gracefully during progress broadcast without logging at error level"
+      - "Deleting a running or recently-completed job does not produce error-level log entries"
+    testing:
+      - "command: make test-e2e SPEC=job-delete.spec.ts"
+    notes: |
+      Runtime error sweep finding from S-128 QA.
+      Log evidence: level=error msg="failed to get job for progress broadcast" component=job_executor error="sql: no rows in result set"
+      Root cause hypothesis: during E2E tests that delete jobs, the job executor's progress broadcast goroutine attempts to fetch a job that has already been deleted. The broadcast loop does not check whether the job still exists before querying.

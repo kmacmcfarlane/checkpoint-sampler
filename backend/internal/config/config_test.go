@@ -331,6 +331,59 @@ sample_dir: "` + sampleDir + `"
 		})
 	})
 
+	Describe("WebSocket ping interval configuration", func() {
+		Context("when ws_ping_interval is specified", func() {
+			It("parses the value correctly", func() {
+				yamlStr := `
+checkpoint_dirs:
+  - "` + filepath.Join(tmpDir, "checkpoints") + `"
+sample_dir: "` + sampleDir + `"
+ws_ping_interval: 60
+`
+				cfg, err := config.LoadFromString(yamlStr)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(cfg.WsPingInterval).To(Equal(60))
+			})
+
+			It("accepts 0 to disable pings", func() {
+				yamlStr := `
+checkpoint_dirs:
+  - "` + filepath.Join(tmpDir, "checkpoints") + `"
+sample_dir: "` + sampleDir + `"
+ws_ping_interval: 0
+`
+				cfg, err := config.LoadFromString(yamlStr)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(cfg.WsPingInterval).To(Equal(0))
+			})
+
+			It("rejects a negative value", func() {
+				yamlStr := `
+checkpoint_dirs:
+  - "` + filepath.Join(tmpDir, "checkpoints") + `"
+sample_dir: "` + sampleDir + `"
+ws_ping_interval: -1
+`
+				_, err := config.LoadFromString(yamlStr)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("ws_ping_interval must be >= 0"))
+			})
+		})
+
+		Context("when ws_ping_interval is absent", func() {
+			It("defaults to 30 seconds", func() {
+				yamlStr := `
+checkpoint_dirs:
+  - "` + filepath.Join(tmpDir, "checkpoints") + `"
+sample_dir: "` + sampleDir + `"
+`
+				cfg, err := config.LoadFromString(yamlStr)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(cfg.WsPingInterval).To(Equal(30))
+			})
+		})
+	})
+
 	Describe("ComfyUI configuration", func() {
 		Context("when comfyui section is present", func() {
 			It("parses comfyui config with all fields", func() {
