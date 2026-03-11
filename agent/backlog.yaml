@@ -1049,7 +1049,7 @@ stories:
   - id: B-096
     title: "E2E: Filters slideout layout tests fail (2 tests)"
     priority: 60
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:

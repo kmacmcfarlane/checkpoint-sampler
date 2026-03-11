@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-096: E2E: Filters slideout layout tests fail (2 tests)
+- Replaced fragile Naive UI internal CSS class selector in `openFiltersDrawer` E2E helper with stable `data-testid="filters-drawer-content"` attribute, per TEST_PRACTICES.md section 6.7
+
 ### B-095: Close as not reproducible — dimension filtering combo filter E2E tests pass reliably
 - Combo filter tests in dimension-filtering.spec.ts pass reliably across multiple consecutive runs; flakiness was likely resolved by B-089 and B-091 timing fixes
 

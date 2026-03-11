@@ -41,7 +41,7 @@ function onFilterUpdate(dimensionName: string, selected: Set<string>) {
     @update:show="onUpdateShow"
   >
     <NDrawerContent title="Filters" closable>
-      <div class="filters-drawer__content">
+      <div class="filters-drawer__content" data-testid="filters-drawer-content">
         <DimensionFilter
           v-for="dim in dimensions"
           :key="dim.name"
