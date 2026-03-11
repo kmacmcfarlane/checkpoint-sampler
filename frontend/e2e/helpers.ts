@@ -282,6 +282,35 @@ export async function selectNaiveOption(page: Page, selectTestId: string, option
 }
 
 /**
+ * Saves a dimension preset via the NModal input dialog.
+ * Clicks the Save button to open the dialog, fills in the preset name, then confirms.
+ *
+ * AC: S-121: Save preset flow uses an NModal input dialog instead of window.prompt.
+ */
+export async function savePresetViaDialog(page: Page, presetName: string): Promise<void> {
+  const saveButton = page.locator('[aria-label="Save preset"]')
+  await expect(saveButton).toBeEnabled()
+  await saveButton.click()
+
+  // Wait for the save dialog to appear
+  const saveDialog = page.locator('[data-testid="preset-save-dialog"]')
+  await expect(saveDialog).toBeVisible()
+
+  // Fill in the preset name
+  const nameInput = saveDialog.locator('[data-testid="preset-save-dialog-input"] input')
+  await expect(nameInput).toBeVisible()
+  await nameInput.fill(presetName)
+
+  // Confirm save
+  const confirmButton = saveDialog.locator('[data-testid="preset-save-dialog-confirm"]')
+  await expect(confirmButton).toBeEnabled()
+  await confirmButton.click()
+
+  // Dialog should close
+  await expect(saveDialog).not.toBeVisible()
+}
+
+/**
  * Selects an option from a Naive UI NSelect dropdown identified by aria-label.
  * Used for dimension selects (e.g., aria-label="Mode for checkpoint").
  */

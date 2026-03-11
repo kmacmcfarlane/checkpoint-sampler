@@ -981,7 +981,7 @@ stories:
   - id: B-091
     title: "Flaky preset dirty tracking: Save button not disabled after save on manually selected preset"
     priority: 70
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:
@@ -994,3 +994,74 @@ stories:
       Failing test: frontend/e2e/preset-dirty-on-autoload.spec.ts > B-047: preset dirty tracking after auto-load > Update button appears after changing filter mode on manually selected preset
       Error: expect(locator).toBeDisabled() - Save button remains enabled after save instead of transitioning to disabled.
       Root cause hypothesis: timing issue where dirty-tracking state is not reset synchronously after save completes, or race between save response and UI state update.
+  - id: B-092
+    title: "E2E: Missing studies table and study_id column in test DB schema causes 40+ test failures"
+    priority: 80
+    status: todo
+    complexity: medium
+    requires: []
+    acceptance:
+      - "All E2E tests that query studies or sample_jobs.study_id pass without SQL schema errors"
+      - "Test database initialization includes all current migrations"
+      - "make test-e2e passes with zero schema-related failures"
+    testing:
+      - "command: make test-e2e"
+    notes: |
+      Discovered during B-091 QA. The test environment database is missing the studies table and study_id column on sample_jobs, causing 40 E2E test failures across preset-crud, regen-confirmation, retry-failed, sample-count-preview, and sample-generation specs.
+      Error: SQL logic error: no such table: studies (1) and SQL logic error: no such column: study_id (1).
+      Root cause hypothesis: A migration may not be running in the test environment, or the schema init/reset script is outdated and doesn't include the studies table migration.
+  - id: B-093
+    title: "E2E: Preset auto-load via localStorage fails — Delete button not visible after auto-load"
+    priority: 70
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "Preset auto-load via localStorage works reliably in E2E tests"
+      - "Delete button is visible after preset auto-loads from localStorage seed"
+    testing:
+      - "command: make test-e2e SPEC=preset-dirty-on-autoload.spec.ts"
+    notes: |
+      Discovered during B-091 QA. The addInitScript localStorage seeding for preset auto-load may be racing with the app's initialization, or the auto-load feature has a regression that prevents preset selection when localStorage is pre-seeded before navigation.
+      Failing test: preset-dirty-on-autoload.spec.ts > B-047: preset dirty tracking after auto-load > Update button appears after changing filter mode on auto-loaded preset
+      Error: expect(locator).toBeVisible() - Locator: locator('[aria-label="Delete preset"]') - Timeout: 5000ms - element(s) not found
+  - id: B-094
+    title: "E2E: Lightbox Shift+Arrow keyboard navigation times out (6 tests)"
+    priority: 60
+    status: todo
+    complexity: medium
+    requires: []
+    acceptance:
+      - "All 6 lightbox keyboard navigation E2E tests pass reliably"
+      - "Shift+Arrow events are handled within 5 seconds in E2E environment"
+    testing:
+      - "command: make test-e2e SPEC=lightbox.spec.ts"
+    notes: |
+      Discovered during B-091 QA. 6 Shift+Arrow keyboard navigation tests in lightbox.spec.ts time out at 15s.
+      Root cause hypothesis: Shift+Arrow keyboard events may not be registering reliably in Playwright chromium, or the lightbox navigation handler has a timing issue.
+  - id: B-095
+    title: "E2E: Dimension filtering combo filter tests fail (2 tests)"
+    priority: 60
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "Combo filter E2E tests pass reliably"
+    testing:
+      - "command: make test-e2e SPEC=dimension-filtering.spec.ts"
+    notes: |
+      Discovered during B-091 QA. 2 combo filter tests in dimension-filtering.spec.ts time out.
+      Root cause hypothesis: Combo filter deselection may have a UI update delay or the grid column count assertion races with re-render.
+  - id: B-096
+    title: "E2E: Filters slideout layout tests fail (2 tests)"
+    priority: 60
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "Filters slideout E2E tests pass reliably"
+    testing:
+      - "command: make test-e2e SPEC=filters-slideout-layout.spec.ts"
+    notes: |
+      Discovered during B-091 QA. 2 tests in filters-slideout-layout.spec.ts time out.
+      Root cause hypothesis: The Filters drawer may take longer than expected to open in E2E, or the drawer detection selector is fragile.

@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-091: Flaky preset dirty tracking: Save button not disabled after save on manually selected preset
+- Updated E2E test to use NModal save dialog pattern (`savePresetViaDialog` helper) instead of deprecated `window.prompt` listener, eliminating the timing race that left the Save button enabled after save
+- Added `down -v` pre-clean to `make test-e2e` to prevent stale SQLite schema from interrupted runs
+
 ### B-090: Race condition: 'failed to get job for progress broadcast' during job lifecycle
 - `broadcastJobProgress` now handles `sql.ErrNoRows` gracefully (WARN instead of ERROR), eliminating spurious error logs when a job is deleted mid-broadcast during E2E teardown or normal operation
 

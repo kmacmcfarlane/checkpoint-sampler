@@ -117,7 +117,10 @@ build-playwright:
 # Starts backend + frontend with test-fixtures/ data, waits until healthy, runs
 # playwright, then captures logs to .ralph/temp/e2e-logs/ and tears down.
 # Does not require make up-dev to be running.
+# Pre-cleans volumes (down -v) to prevent stale SQLite database schema from
+# a prior interrupted run causing "no such table" errors.
 test-e2e:
+	$(COMPOSE_TEST) down -v 2>/dev/null || true; \
 	$(COMPOSE_TEST) up -d --build --wait --remove-orphans backend frontend && \
 	$(COMPOSE_TEST) run --rm --remove-orphans playwright sh -c "npx playwright test $(SPEC)"; \
 	STATUS=$$?; \

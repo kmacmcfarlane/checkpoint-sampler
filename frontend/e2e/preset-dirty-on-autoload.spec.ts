@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { resetDatabase, selectTrainingRun, selectNaiveOptionByLabel } from './helpers'
+import { resetDatabase, selectTrainingRun, selectNaiveOptionByLabel, savePresetViaDialog } from './helpers'
 
 /**
  * E2E tests for B-047: Update button missing after changing selector type on preset load.
@@ -231,13 +231,11 @@ test.describe('B-047: preset dirty tracking after auto-load', () => {
 
     await changeDimensionMode(page, 'checkpoint', 'X Axis')
 
+    // AC: S-121: Save preset via NModal dialog (not window.prompt)
     const presetName = `B047-Manual-${Date.now()}`
-    page.once('dialog', async (dialog) => {
-      if (dialog.type() === 'prompt') await dialog.accept(presetName)
-    })
+    await savePresetViaDialog(page, presetName)
+
     const saveButton = page.locator('[aria-label="Save preset"]')
-    await expect(saveButton).toBeEnabled()
-    await saveButton.click()
     await expect(saveButton).toBeDisabled()
 
     // Now change prompt_name from Single to Multi

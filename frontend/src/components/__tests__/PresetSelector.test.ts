@@ -1138,6 +1138,56 @@ describe('PresetSelector', () => {
       // No longer dirty — Update button should hide
       expect(findButton(wrapper, 'Update preset')).toBeUndefined()
     })
+
+    // AC1, AC2 (B-091): After saving a manually selected (via dropdown) preset, Save button becomes disabled
+    it('save is disabled after saving a new preset from a manually selected preset context', async () => {
+      mockGetPresets.mockResolvedValue(samplePresets)
+      const createdPreset: Preset = {
+        id: 'new-id',
+        name: 'Forked Preset',
+        mapping: { x: 'prompt', y: 'cfg', combos: ['seed'] },
+        created_at: '2025-01-01T00:00:00Z',
+        updated_at: '2025-01-01T00:00:00Z',
+      }
+      mockCreatePreset.mockResolvedValue(createdPreset)
+
+      const wrapper = mount(PresetSelector, {
+        props: defaultProps,
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Manually select a preset via the dropdown (triggers pendingSnapshot)
+      const select = wrapper.findComponent(NSelect)
+      select.vm.$emit('update:value', 'p1')
+      await nextTick()
+      // Simulate parent applying the preset mapping and filter modes
+      await wrapper.setProps({ assignments: new Map(defaultProps.assignments), filterModes: new Map(defaultProps.filterModes) })
+      await nextTick()
+
+      // Clean state after load — save should be disabled
+      let saveBtn = findButton(wrapper, 'Save preset')!
+      expect(saveBtn.props('disabled')).toBe(true)
+
+      // Modify filter modes to make dirty (same as the failing E2E scenario)
+      const modifiedFilterModes = new Map(defaultProps.filterModes)
+      modifiedFilterModes.set('seed', 'multi')
+      await wrapper.setProps({ filterModes: modifiedFilterModes })
+      await nextTick()
+
+      // Save should be enabled (dirty)
+      saveBtn = findButton(wrapper, 'Save preset')!
+      expect(saveBtn.props('disabled')).toBe(false)
+
+      // Click Save to open the dialog, then confirm with a name
+      await saveBtn.trigger('click')
+      await nextTick()
+      await confirmSaveDialog(wrapper, 'Forked Preset')
+
+      // AC1, AC2 (B-091): After saving, snapshot is updated to current state; save should be disabled again
+      saveBtn = findButton(wrapper, 'Save preset')!
+      expect(saveBtn.props('disabled')).toBe(true)
+    })
   })
 
   // AC: Save and Delete buttons appear below the preset selector dropdown
