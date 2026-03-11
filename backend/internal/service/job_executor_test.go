@@ -1355,6 +1355,66 @@ var _ = Describe("JobExecutor", func() {
 		})
 	})
 
+	// S-102 (UAT rework): processItem must broadcast job_progress with current_sample_params
+	// immediately after submitting the prompt to ComfyUI so that the first sample's params are
+	// visible to WebSocket clients from the very start of generation, not only after the first
+	// sample completes.
+	Describe("processItem broadcasts job_progress with current_sample_params on start", func() {
+		It("broadcasts a job_progress event containing current_sample_params when a new item starts", func() {
+			// AC3: BE: WebSocket progress events include the current sample's generation parameters.
+			// AC: Fix for UAT rework — first sample params must be broadcast immediately on start.
+			job := model.SampleJob{
+				ID:           "job-params-start",
+				Status:       model.SampleJobStatusRunning,
+				WorkflowName: "test-workflow.json",
+			}
+			item := model.SampleJobItem{
+				ID:               "item-params-start-1",
+				JobID:            job.ID,
+				Status:           model.SampleJobItemStatusPending,
+				ComfyUIModelPath: "models/checkpoint.safetensors",
+				CheckpointFilename: "checkpoint.safetensors",
+				PromptName:       "forest",
+				CFG:              7.5,
+				Steps:            20,
+				SamplerName:      "euler",
+				Scheduler:        "normal",
+				Seed:             42,
+				Width:            512,
+				Height:           768,
+			}
+			mockStore.jobs[job.ID] = job
+			mockStore.items[job.ID] = []model.SampleJobItem{item}
+
+			executor.mu.Lock()
+			executor.activeJobID = job.ID
+			executor.activeItemID = item.ID
+			executor.mu.Unlock()
+
+			executor.processItem(job, item)
+
+			// At least one job_progress event should have been broadcast (the initial one from
+			// processItem itself, before the WS-driven completion).
+			Expect(mockHub.events).To(HaveLen(1))
+			broadcastedEvent := mockHub.events[0]
+			Expect(broadcastedEvent.Type).To(Equal(model.EventJobProgress))
+			Expect(broadcastedEvent.JobProgressData).NotTo(BeNil())
+
+			// The event must include current_sample_params populated from the active item.
+			params := broadcastedEvent.JobProgressData.CurrentSampleParams
+			Expect(params).NotTo(BeNil(), "current_sample_params must be set in the initial job_progress event so the first sample's params are visible immediately")
+			Expect(params.CheckpointFilename).To(Equal("checkpoint.safetensors"))
+			Expect(params.PromptName).To(Equal("forest"))
+			Expect(params.CFG).To(Equal(7.5))
+			Expect(params.Steps).To(Equal(20))
+			Expect(params.SamplerName).To(Equal("euler"))
+			Expect(params.Scheduler).To(Equal("normal"))
+			Expect(params.Seed).To(Equal(int64(42)))
+			Expect(params.Width).To(Equal(512))
+			Expect(params.Height).To(Equal(768))
+		})
+	})
+
 	// B-080: Graceful handling of sql.ErrNoRows during concurrent cancel/completion
 	Describe("Cancellation race condition handling", func() {
 		var testLogger *logrus.Logger

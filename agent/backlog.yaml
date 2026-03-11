@@ -111,7 +111,7 @@ stories:
   - id: S-102
     title: "Show full sample params for currently generating sample in job list"
     priority: 40
-    status: uat_feedback
+    status: uat
     complexity: medium
     requires: []
     acceptance:
@@ -129,8 +129,6 @@ stories:
       the job detail view. Includes checkpoint name, CFG, steps, sampler, etc.
       Key files: frontend/src/components/JobProgressPanel.vue,
       backend/internal/service/websocket.go (if params need to be added to progress events).
-    review_feedback: Params do not display for the first sample in a job, only for subsequent samples. Similar pattern 
-      to B-067 progress bar first-sample timing issue.
   - id: S-103
     title: "Expose more sidecar fields as numeric in metadata API"
     priority: 15

@@ -803,6 +803,12 @@ func (e *JobExecutor) processItem(job model.SampleJob, item model.SampleJobItem)
 		}
 	}
 
+	// Broadcast an initial job_progress event so WebSocket clients see the current
+	// sample's generation parameters immediately when a new item starts, rather
+	// than waiting for the item to complete.  This ensures current_sample_params
+	// is populated from the very first sample (not only from subsequent ones).
+	e.broadcastJobProgress(job.ID)
+
 	// Monitoring is handled via WebSocket events in handleComfyUIEvent
 }
 

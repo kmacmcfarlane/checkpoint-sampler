@@ -29,9 +29,9 @@ Older entries are condensed to titles only — see git history for full details.
 - New `POST /api/sample-jobs/{id}/retry-failed` endpoint resets failed/skipped items to pending and resumes execution; guards against concurrent running jobs and non-`completed_with_errors` state
 - "Retry failed" button on JobProgressPanel for `completed_with_errors` jobs, replacing the need to create a new job to retry failures
 
-### S-102: Show full sample params for currently generating sample in job list
-- WebSocket `job_progress` events now include `current_sample_params` with the active sample's generation parameters (checkpoint, prompt, CFG, steps, sampler, scheduler, seed, dimensions)
-- JobProgressPanel displays inline parameter details during active generation; section auto-hides when no sample is running
+### S-102: Show full sample params for currently generating sample in job list (UAT rework)
+- Fixed first-sample params not displaying: `processItem` now broadcasts `job_progress` with `current_sample_params` immediately when a new item starts, not only after completion
+- Same timing pattern as B-067 (inference progress bar missing on first sample)
 
 ### W-007: Automated panic detection in E2E log scan
 - `make test-e2e` now automatically scans backend logs for Go panics after each run; a passing Playwright suite with backend panics exits non-zero
