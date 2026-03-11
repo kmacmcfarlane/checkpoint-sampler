@@ -698,6 +698,61 @@ var _ = Describe("TrainingRunsService", func() {
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("not found"))
 			})
+
+			// B-078 UAT rework: training run names with slashes (e.g. "qwen/Qwen2-VL") must be
+			// sanitized before being used as a filesystem path component. The validation endpoint
+			// must look in "qwen_Qwen2-VL/{studyID}/" not "qwen/Qwen2-VL/{studyID}/".
+			It("sanitizes forward slashes in training run name when constructing scoped study dir", func() {
+				// Training run discovered via checkpoint source. Checkpoint files are at
+				// qwen/Qwen2-VL-step*.safetensors so the run name is "qwen/Qwen2-VL".
+				// Checkpoint filenames (basename only) are "Qwen2-VL-step*.safetensors".
+				cpFS.safetensors["/checkpoints"] = []string{
+					"qwen/Qwen2-VL-step00001000.safetensors",
+					"qwen/Qwen2-VL-step00002000.safetensors",
+				}
+				viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
+				cpDiscovery = service.NewDiscoveryService(cpFS, []string{"/checkpoints"}, sampleDir, logger)
+				scanner = service.NewScanner(scanFS, sampleDir, logger)
+				validator := service.NewValidationService(scanFS, sampleDir, logger)
+				studyGetter := newFakeStudyGetter()
+				studyGetter.studies[studyID] = model.Study{
+					ID:      studyID,
+					Name:    "Test Study",
+					Prompts: []model.NamedPrompt{{Name: "p1", Text: "prompt"}},
+					Steps:   []int{20},
+					CFGs:    []float64{7},
+					SamplerSchedulerPairs: []model.SamplerSchedulerPair{
+						{Sampler: "euler", Scheduler: "normal"},
+					},
+					Seeds: []int64{42},
+				}
+				svc := api.NewTrainingRunsService(viewerDiscovery, cpDiscovery, scanner, validator, nil, studyGetter)
+
+				// The job executor writes samples to the sanitized path:
+				// {sampleDir}/qwen_Qwen2-VL/{studyID}/{checkpoint_basename}/
+				// Checkpoint basenames: "Qwen2-VL-step00001000.safetensors" etc.
+				// Validation must look in the same sanitized path.
+				sanitizedStudyDir := sampleDir + "/qwen_Qwen2-VL/" + studyID
+				scanFS.files[sanitizedStudyDir+"/Qwen2-VL-step00001000.safetensors"] = []string{
+					"seed=42&_00001_.png",
+				}
+				scanFS.files[sanitizedStudyDir+"/Qwen2-VL-step00002000.safetensors"] = []string{
+					"seed=42&_00001_.png",
+				}
+
+				sid := studyID
+				result, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{ID: 0, StudyID: &sid})
+
+				Expect(err).NotTo(HaveOccurred())
+				// Training run name is "qwen/Qwen2-VL" (slash kept in DB/API; sanitized only for FS)
+				Expect(result.Checkpoints).To(HaveLen(2))
+				// Both checkpoints should find their samples via the sanitized path
+				Expect(result.Checkpoints[0].Verified).To(Equal(1))
+				Expect(result.Checkpoints[0].Missing).To(Equal(0))
+				Expect(result.Checkpoints[1].Verified).To(Equal(1))
+				Expect(result.Checkpoints[1].Missing).To(Equal(0))
+				Expect(result.TotalActual).To(Equal(2))
+			})
 		})
 	})
 })

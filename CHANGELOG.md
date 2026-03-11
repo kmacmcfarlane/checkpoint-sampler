@@ -119,7 +119,8 @@ Older entries are condensed to titles only — see git history for full details.
 - Added focus-based guard to skip document-level arrow handling when a non-MasterSlider slider (e.g. ZoomControl) has DOM focus
 
 ### B-078: Sample output directory restructure + per-training-run manifest + validation count scoping
-- Sample output directories restructured from `{study_name}/{checkpoint}/` to `{training_run_name}/{study_id}/{checkpoint}/`, scoping samples per training run and preventing cross-contamination when multiple training runs share the same study
+- Sample output directories restructured from `{study_name}/{checkpoint}/` to `{sanitized_training_run_name}/{study_id}/{checkpoint}/`, scoping samples per training run and preventing cross-contamination when multiple training runs share the same study
+- Training run names with directory separators (e.g. `qwen/Qwen2-VL`) sanitized to underscores for filesystem paths; DB/API retains original names
 - Validation counts now scoped to the selected training run + study combination, fixing inflated 36/1 and 8/1 count bugs
 - Demo dataset uses new `demo-model/demo-study/` layout; viewer discovery detects both 3-level (new) and 2-level (legacy) directory structures
 

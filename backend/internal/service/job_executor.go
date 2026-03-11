@@ -1032,10 +1032,13 @@ func (e *JobExecutor) handleItemCompletionAsync(jobID, itemID, promptID string) 
 	}
 
 	// Compute the study output directory prefix for the new per-training-run layout:
-	// {training_run_name}/{study_id}
-	// This scopes samples to both the selected training run and the selected study,
-	// fixing the 36/1 count bug where all training runs shared the same study directory.
-	studyOutputDir := job.TrainingRunName + "/" + job.StudyID
+	// {sanitized_training_run_name}/{study_id}
+	// The training run name is sanitized (slashes replaced with underscores) to ensure
+	// it forms a single directory level regardless of whether the name contains path
+	// separators (e.g. "qwen/Qwen2-VL" → "qwen_Qwen2-VL"). This scopes samples to both
+	// the selected training run and the selected study, fixing the 36/1 count bug where
+	// all training runs shared the same study directory.
+	studyOutputDir := fileformat.SanitizeTrainingRunName(job.TrainingRunName) + "/" + job.StudyID
 
 	// Generate output filename
 	filename := e.generateOutputFilename(*item)
@@ -1407,10 +1410,10 @@ func (e *JobExecutor) writeManifest(job model.SampleJob, items []model.SampleJob
 		return fmt.Errorf("marshaling manifest: %w", err)
 	}
 
-	// Write to study output directory: {sampleDir}/{training_run_name}/{study_id}/manifest.json
-	// This is the per-training-run layout that scopes manifests to both the training run
-	// and the selected study, matching the sample image directory structure.
-	studyOutputDir := job.TrainingRunName + "/" + job.StudyID
+	// Write to study output directory: {sampleDir}/{sanitized_training_run_name}/{study_id}/manifest.json
+	// The training run name is sanitized (slashes → underscores) to ensure a single directory
+	// level. This matches the per-training-run layout used for sample images.
+	studyOutputDir := fileformat.SanitizeTrainingRunName(job.TrainingRunName) + "/" + job.StudyID
 	dir := filepath.Join(e.sampleDir, studyOutputDir)
 	manifestPath := filepath.Join(dir, fileformat.ManifestFilename)
 	tempPath := manifestPath + ".tmp"
@@ -1808,8 +1811,10 @@ func (e *JobExecutor) broadcastJobProgress(jobID string) {
 		return
 	}
 
-	// Resolve the study output directory using training_run/study_id layout
-	studyOutputDir := job.TrainingRunName + "/" + job.StudyID
+	// Resolve the study output directory using sanitized_training_run/study_id layout.
+	// The training run name is sanitized (slashes → underscores) to match what was
+	// written to disk during job execution.
+	studyOutputDir := fileformat.SanitizeTrainingRunName(job.TrainingRunName) + "/" + job.StudyID
 
 	// Compute on-the-fly item counts by status and collect failed item details
 	type errorDetailInfo struct {

@@ -3370,6 +3370,38 @@ var _ = Describe("JobExecutor", func() {
 				"cpC.safetensors",
 			}))
 		})
+
+		// UAT rework B-078: training run names with slashes (e.g. "qwen/Qwen2-VL") must
+		// be sanitized to a single directory level when used in filesystem paths.
+		It("sanitizes forward slashes in training run name for filesystem path", func() {
+			job.TrainingRunName = "qwen/Qwen2-VL"
+			// The study lookup key stays as-is in mockStore from BeforeEach (study-manifest-1).
+			// We just need to verify the manifest is written at the sanitized path.
+
+			err := executor.writeManifest(job, items)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Forward slash in training run name must be replaced with underscore so
+			// "qwen/Qwen2-VL" becomes "qwen_Qwen2-VL" in the filesystem path.
+			sanitizedPath := "/test/samples/qwen_Qwen2-VL/study-manifest-1/manifest.json"
+			Expect(mockFS.writtenFiles).To(HaveKey(sanitizedPath),
+				"manifest should be written at sanitized path qwen_Qwen2-VL, not qwen/Qwen2-VL")
+
+			// The unsanitized path must NOT be created
+			unsanitizedPath := "/test/samples/qwen/Qwen2-VL/study-manifest-1/manifest.json"
+			Expect(mockFS.writtenFiles).NotTo(HaveKey(unsanitizedPath),
+				"manifest must not be written at slash-containing path")
+		})
+
+		It("sanitizes nested slashes in training run name for filesystem path", func() {
+			job.TrainingRunName = "my/nested/run"
+
+			err := executor.writeManifest(job, items)
+			Expect(err).NotTo(HaveOccurred())
+
+			sanitizedPath := "/test/samples/my_nested_run/study-manifest-1/manifest.json"
+			Expect(mockFS.writtenFiles).To(HaveKey(sanitizedPath))
+		})
 	})
 
 	// AC1: Manifest is written during job completion

@@ -412,7 +412,7 @@ stories:
   - id: B-078
     title: "Sample output directory restructure + per-training-run manifest + validation count scoping"
     type: bug
-    status: uat_feedback
+    status: uat
     priority: 90
     complexity: high
     requires: []
@@ -435,10 +435,6 @@ stories:
       - "Key edge cases: training run with no samples for a study, study with samples across multiple training runs, demo
         checkpoints should not appear for non-demo training runs"
       - "Verify that the 36/1 and 8/1 count bugs from the report are resolved"
-    review_feedback: Training run names can contain directory prefixes with slashes (e.g. qwen/Qwen2-VL). This causes 
-      ambiguous directory depth in [output_dir]. When writing/reading training run names to/from disk, replace all 
-      forward and backward slashes with underscore (_) to create a single directory level. Sanitization is 
-      filesystem-only — DB/API keeps the original name with slashes.
   - id: S-114
     title: "Pre-generate JPEG thumbnails for sample images"
     type: enhancement

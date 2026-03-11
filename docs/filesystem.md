@@ -61,28 +61,41 @@ The `sample_dir` contains subdirectories organized by training run and study. Ea
 
 ### Per-training-run layout (current)
 
-New jobs output into a 3-level hierarchy: `{sample_dir}/{training_run_name}/{study_id}/{checkpoint.safetensors}/`. This scopes samples to the exact training run and study combination, preventing cross-contamination when the same study name is used across multiple training runs.
+New jobs output into a 3-level hierarchy: `{sample_dir}/{sanitized_training_run_name}/{study_id}/{checkpoint.safetensors}/`. This scopes samples to the exact training run and study combination, preventing cross-contamination when the same study name is used across multiple training runs.
 
-A manifest file is written at the study level to capture the full job configuration: `{sample_dir}/{training_run_name}/{study_id}/manifest.json`.
+A manifest file is written at the study level to capture the full job configuration: `{sample_dir}/{sanitized_training_run_name}/{study_id}/manifest.json`.
+
+#### Training run name sanitization
+
+Training run names can contain directory-separator characters (e.g. `qwen/Qwen2-VL`) because they are derived from the relative path of checkpoint files within a checkpoint directory. When used as a filesystem directory name, all forward slashes (`/`) and backward slashes (`\`) are replaced with underscores (`_`) to ensure the name forms exactly **one** directory level.
+
+This sanitization is **filesystem-only**: the DB and API continue to store and return training run names with their original slashes intact.
+
+| Training run name (DB/API) | Filesystem directory name |
+|---------------------------|--------------------------|
+| `qwen/psai4rt-v0.3.0-no-reg` | `qwen_psai4rt-v0.3.0-no-reg` |
+| `qwen/Qwen2-VL` | `qwen_Qwen2-VL` |
+| `flux/my-flux-lora` | `flux_my-flux-lora` |
+| `simple-model` | `simple-model` (unchanged) |
 
 ```
 sample_dir: ~/ai/outputs/stable-diffusion/comfyui/
-├── qwen/
-│   └── psai4rt-v0.3.0-no-reg/
-│       ├── manifest.json                                     ← job manifest
+├── qwen_psai4rt-v0.3.0-no-reg/          ← sanitized from "qwen/psai4rt-v0.3.0-no-reg"
+│   └── <study-uuid>/
+│       ├── manifest.json                 ← job manifest
 │       ├── psai4rt-v0.3.0-no-reg.safetensors/
 │       │   ├── prompt_name=forest_portals&seed=420&cfg=1&_00001_.png
 │       │   └── ...
 │       └── psai4rt-v0.3.0-no-reg-step00004500.safetensors/
 │           └── ...
-└── flux/
-    └── my-flux-lora/
+└── flux_my-flux-lora/                    ← sanitized from "flux/my-flux-lora"
+    └── <study-uuid>/
         ├── manifest.json
         └── my-flux-lora-step00001000.safetensors/
             └── ...
 ```
 
-The training run name component is the base name of the training run (e.g. `qwen/psai4rt-v0.3.0-no-reg` for checkpoints discovered under `qwen/`). The study ID is the database UUID for the study.
+The study ID is the database UUID for the study.
 
 ### Demo dataset layout
 
