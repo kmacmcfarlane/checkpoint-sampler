@@ -3190,6 +3190,19 @@ var _ = Describe("JobExecutor", func() {
 		})
 	})
 
+	// AC: Job executor handles 'no rows' errors gracefully during progress broadcast
+	// AC: Deleting a running or recently-completed job does not produce error-level log entries
+	Describe("broadcastJobProgress with deleted job", func() {
+		It("returns gracefully when the job has been deleted (sql.ErrNoRows)", func() {
+			// Do NOT add the job to the store — GetSampleJob will return sql.ErrNoRows.
+			// The function must return without panicking and without emitting any hub events.
+			Expect(func() {
+				executor.broadcastJobProgress("nonexistent-job-id")
+			}).NotTo(Panic())
+			Expect(mockHub.events).To(BeEmpty())
+		})
+	})
+
 	// AC: The test reset endpoint pauses or synchronizes with the job executor
 	// to prevent SQL errors during table recreation.
 	Describe("Pause and Resume", func() {

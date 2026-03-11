@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-090: Race condition: 'failed to get job for progress broadcast' during job lifecycle
+- `broadcastJobProgress` now handles `sql.ErrNoRows` gracefully (WARN instead of ERROR), eliminating spurious error logs when a job is deleted mid-broadcast during E2E teardown or normal operation
+
 ### S-128: WebSocket heartbeat/ping-pong mechanism
 - Backend sends periodic WebSocket ping frames (default 30s interval) to keep idle connections alive through reverse proxies with short read timeouts
 - Ping interval configurable via `ws_ping_interval` in config.yaml; set to 0 to disable

@@ -1807,7 +1807,14 @@ func (e *JobExecutor) currentSampleParams(items []model.SampleJobItem) *model.Cu
 func (e *JobExecutor) broadcastJobProgress(jobID string) {
 	job, err := e.store.GetSampleJob(jobID)
 	if err != nil {
-		e.logger.WithError(err).Error("failed to get job for progress broadcast")
+		// sql.ErrNoRows means the job was deleted between the trigger and this
+		// broadcast (e.g. during E2E teardown). This is a benign race — log at
+		// WARN rather than ERROR to avoid spurious noise in test output.
+		if err == sql.ErrNoRows {
+			e.logger.WithField("job_id", jobID).Warn("job row not found during progress broadcast (deleted between trigger and broadcast)")
+		} else {
+			e.logger.WithError(err).Error("failed to get job for progress broadcast")
+		}
 		return
 	}
 

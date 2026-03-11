@@ -50,6 +50,9 @@ data/
 *.log
 logs/
 
+# Python
+venv/
+
 # Dataset placeholder for Docker Compose
 .dataset-placeholder/
 
@@ -62,3 +65,7 @@ config.yaml
 
 # Backlog tool uses python
 scripts/backlog/__pycache__/
+
+# dir-env
+.envrc
+.direnv/

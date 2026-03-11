@@ -966,7 +966,7 @@ stories:
   - id: B-090
     title: "Race condition: 'failed to get job for progress broadcast' during job lifecycle"
     priority: 80
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:
@@ -978,3 +978,19 @@ stories:
       Runtime error sweep finding from S-128 QA.
       Log evidence: level=error msg="failed to get job for progress broadcast" component=job_executor error="sql: no rows in result set"
       Root cause hypothesis: during E2E tests that delete jobs, the job executor's progress broadcast goroutine attempts to fetch a job that has already been deleted. The broadcast loop does not check whether the job still exists before querying.
+  - id: B-091
+    title: "Flaky preset dirty tracking: Save button not disabled after save on manually selected preset"
+    priority: 70
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "After saving a manually selected preset, the Save/Update button becomes disabled within 1 second"
+      - "The preset dirty-tracking state resets reliably after save for both auto-loaded and manually selected presets"
+    testing:
+      - "command: make test-e2e SPEC=preset-dirty-on-autoload.spec.ts"
+    notes: |
+      Pre-existing flaky E2E failure found during B-090 QA.
+      Failing test: frontend/e2e/preset-dirty-on-autoload.spec.ts > B-047: preset dirty tracking after auto-load > Update button appears after changing filter mode on manually selected preset
+      Error: expect(locator).toBeDisabled() - Save button remains enabled after save instead of transitioning to disabled.
+      Root cause hypothesis: timing issue where dirty-tracking state is not reset synchronously after save completes, or race between save response and UI state update.
