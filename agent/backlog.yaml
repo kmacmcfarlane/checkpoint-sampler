@@ -455,7 +455,7 @@ stories:
   - id: S-107
     title: "Integrate ConfirmDeleteDialog into preset delete flow"
     priority: 30
-    status: todo
+    status: closed
     complexity: low
     requires:
       - S-094
@@ -465,11 +465,8 @@ stories:
       - "FE: Unit tests for ConfirmDeleteDialog integration in PresetSelector"
     testing:
       - "Delete a preset and verify styled dialog appears"
-    notes: |
-      PresetSelector also uses window.confirm() for delete confirmation. Replace with
-      ConfirmDeleteDialog for a consistent deletion UX across the app.
-      Source: developer.
-      Key files: frontend/src/components/PresetSelector.vue.
+    notes: |-
+      Already implemented as part of S-096 (Delete dimension mapping preset UAT rework). PresetSelector.vue already uses ConfirmDeleteDialog with full unit test coverage.
   - id: S-108
     title: "Configurable confirmation button text in ConfirmDeleteDialog"
     priority: 25
