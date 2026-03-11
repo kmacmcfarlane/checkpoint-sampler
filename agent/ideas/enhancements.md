@@ -109,3 +109,9 @@ Show a brief "Press ? for keyboard help" tooltip on first lightbox open to make 
 * priority: low
 * source: developer
 When validation has run and overrides the bead status, the tooltip could show image-level counts (e.g. "590/684 images") instead of directory-level checkpoint counts for more precision.
+
+### Frontend WebSocket reconnect awareness after ping failure
+* status: needs_approval
+* priority: low
+* source: developer
+If the backend cancels the WS context on ping failure, the frontend should detect the disconnection and auto-reconnect with exponential backoff. Currently the frontend may silently lose its WS connection when ping-triggered cancellation occurs.

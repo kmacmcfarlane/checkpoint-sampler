@@ -2,20 +2,78 @@ package api
 
 import (
 	"context"
+	"time"
 
+	"github.com/gorilla/websocket"
 	genws "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/ws"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
+	"github.com/sirupsen/logrus"
+	goahttp "goa.design/goa/v3/http"
 )
+
+// PingableConn is implemented by a *websocket.Conn and is used to send WebSocket
+// ping control frames. It is defined as an interface so tests can inject a mock.
+type PingableConn interface {
+	WriteControl(messageType int, data []byte, deadline time.Time) error
+}
 
 // WSService implements the generated ws service interface.
 type WSService struct {
-	hub *service.Hub
+	hub            *service.Hub
+	pingInterval   time.Duration
+	logger         *logrus.Logger
 }
 
-// NewWSService creates a new WSService.
+// NewWSService creates a new WSService with no periodic pings.
+// Use NewWSServiceWithPing to configure a ping interval.
 func NewWSService(hub *service.Hub) *WSService {
 	return &WSService{hub: hub}
+}
+
+// NewWSServiceWithPing creates a new WSService that sends periodic WebSocket
+// ping frames at the given interval to keep idle connections alive beyond
+// proxy_read_timeout limits. A zero interval disables pings.
+func NewWSServiceWithPing(hub *service.Hub, pingInterval time.Duration, logger *logrus.Logger) *WSService {
+	return &WSService{
+		hub:          hub,
+		pingInterval: pingInterval,
+		logger:       logger,
+	}
+}
+
+// NewWSConnConfigurer returns a goahttp.ConnConfigureFunc that installs a
+// WebSocket ping goroutine on each new connection. The goroutine runs until
+// the context is cancelled or the connection fails to respond to a ping.
+//
+// It is used by NewHTTPHandler to wire the configurer into the generated
+// WebSocket server so that every upgraded connection gets a pinger.
+func NewWSConnConfigurer(pingInterval time.Duration, logger *logrus.Logger) goahttp.ConnConfigureFunc {
+	return func(conn *websocket.Conn, cancel context.CancelFunc) *websocket.Conn {
+		if pingInterval <= 0 {
+			return conn
+		}
+		go runPingLoop(conn, pingInterval, cancel, logger)
+		return conn
+	}
+}
+
+// runPingLoop sends periodic ping frames on conn at the given interval.
+// It cancels the context (triggering client disconnection) when a ping fails,
+// which happens when the connection is already closed.
+func runPingLoop(conn PingableConn, interval time.Duration, cancel context.CancelFunc, logger *logrus.Logger) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for range ticker.C {
+		deadline := time.Now().Add(10 * time.Second)
+		if err := conn.WriteControl(websocket.PingMessage, []byte{}, deadline); err != nil {
+			if logger != nil {
+				logger.WithError(err).Debug("websocket ping failed, closing connection")
+			}
+			cancel()
+			return
+		}
+	}
 }
 
 // Subscribe registers the caller as a WebSocket client and streams filesystem

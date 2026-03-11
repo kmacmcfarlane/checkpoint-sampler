@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-128: WebSocket heartbeat/ping-pong mechanism
+- Backend sends periodic WebSocket ping frames (default 30s interval) to keep idle connections alive through reverse proxies with short read timeouts
+- Ping interval configurable via `ws_ping_interval` in config.yaml; set to 0 to disable
+
 ### S-121: Replace window.prompt for preset save with NModal input dialog
 - Preset save now uses an NModal input dialog instead of `window.prompt`, consistent with the ConfirmDeleteDialog pattern (card preset, confirm/cancel buttons, Enter/Escape keyboard support)
 - Empty and whitespace-only preset names are rejected (confirm button disabled)

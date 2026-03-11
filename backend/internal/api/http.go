@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/gorilla/websocket"
 	gencheckpoints "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/checkpoints"
@@ -54,6 +55,11 @@ type HTTPHandlerConfig struct {
 	SwaggerUIDir           http.FileSystem
 	Logger                 *logrus.Logger
 	Debug                  bool
+
+	// WsPingInterval configures the WebSocket heartbeat ping interval.
+	// A positive duration enables periodic ping frames to keep idle connections
+	// alive through proxies with short read timeouts. Zero disables pings.
+	WsPingInterval time.Duration
 
 	// DBResetter is an optional dependency for the test-only reset endpoint.
 	// When non-nil and ENABLE_TEST_ENDPOINTS=true, DELETE /api/test/reset is
@@ -113,7 +119,14 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 	upgrader := &websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool { return true },
 	}
-	wsServer := genwssvr.New(cfg.WSEndpoints, mux, dec, enc, eh, nil, upgrader, nil)
+	// Install a per-connection ping goroutine via the Goa conn configurer hook.
+	// When WsPingInterval > 0 each upgraded connection gets a background goroutine
+	// that sends periodic ping frames to keep the tunnel alive through proxies.
+	var wsConfigurer *genwssvr.ConnConfigurer
+	if cfg.WsPingInterval > 0 {
+		wsConfigurer = genwssvr.NewConnConfigurer(NewWSConnConfigurer(cfg.WsPingInterval, cfg.Logger))
+	}
+	wsServer := genwssvr.New(cfg.WSEndpoints, mux, dec, enc, eh, nil, upgrader, wsConfigurer)
 
 	// Apply Debug middleware when debug mode is enabled (logs full request/response)
 	if cfg.Debug {

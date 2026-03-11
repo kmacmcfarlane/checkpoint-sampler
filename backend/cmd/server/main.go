@@ -166,7 +166,8 @@ func run() error {
 	checkpointsSvc := api.NewCheckpointsService(checkpointMetadataSvc)
 	imageMetadataSvc := service.NewImageMetadataService(fs, cfg.SampleDir, logger)
 	imagesSvc := api.NewImagesService(cfg.SampleDir, imageMetadataSvc, logger)
-	wsSvc := api.NewWSService(hub)
+	wsPingInterval := time.Duration(cfg.WsPingInterval) * time.Second
+	wsSvc := api.NewWSServiceWithPing(hub, wsPingInterval, logger)
 
 	// Create sample job service (requires ComfyUI model discovery for path matching)
 	var sampleJobsSvc *api.SampleJobsService
@@ -230,6 +231,7 @@ func run() error {
 		SwaggerUIDir:           http.Dir(swaggerUIDir()),
 		Logger:                 logger,
 		Debug:                  true,
+		WsPingInterval:         wsPingInterval,
 		DBResetter:             st,
 		BackgroundPauser:       bgPauser,
 		SampleDirCleaner:       sampleDirCleaner,

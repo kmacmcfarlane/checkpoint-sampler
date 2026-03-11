@@ -32,6 +32,12 @@ db_path: ./data/checkpoint-sampler.db
 #   max_resolution_y: 512
 #   jpeg_quality: 85
 
+# WebSocket heartbeat ping interval in seconds (optional, default: 30).
+# Periodic ping frames keep idle WebSocket connections alive through proxies
+# that enforce short read timeouts (e.g. nginx proxy_read_timeout).
+# Set to 0 to disable pings entirely.
+# ws_ping_interval: 30
+
 # ComfyUI connection settings for inference pipeline (optional).
 # If omitted, inference pipeline features are disabled in the UI.
 # The URL must include the scheme (http:// or https://).
