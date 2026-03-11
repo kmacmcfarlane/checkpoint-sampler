@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/fileformat"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
 	"github.com/sirupsen/logrus"
 )
@@ -22,8 +23,28 @@ const E2EFixtureStudyName = "E2E Fixture Study"
 // E2EFixtureTrainingRunName is the training run name that has fixture samples.
 const E2EFixtureTrainingRunName = "my-model"
 
+// E2ESlashFixtureStudyID is the fixed UUID for the slash-training-run fixture study.
+// Used by B-088 E2E tests to verify slash sanitization in directory paths.
+const E2ESlashFixtureStudyID = "e2efixture-0000-0000-0000-000000000002"
+
+// E2ESlashFixtureStudyName is the human-readable name of the slash fixture study.
+const E2ESlashFixtureStudyName = "E2E Slash Fixture Study"
+
+// E2ESlashFixtureTrainingRunName is a training run name containing a forward slash.
+// This simulates real-world training runs like "qwen/Qwen2-VL" whose checkpoints
+// live in a subdirectory of the checkpoint_dir.
+// The filesystem directory is the sanitized form: "test-run_my-model".
+const E2ESlashFixtureTrainingRunName = "test-run/my-model"
+
 // e2eFixtureCheckpoints lists the checkpoint filenames whose sample dirs are seeded.
 var e2eFixtureCheckpoints = []string{
+	"my-model-step00001000.safetensors",
+	"my-model-step00002000.safetensors",
+}
+
+// e2eSlashFixtureCheckpoints lists the checkpoint filenames for the slash training run fixture.
+// These match the files in test-fixtures/checkpoints/test-run/.
+var e2eSlashFixtureCheckpoints = []string{
 	"my-model-step00001000.safetensors",
 	"my-model-step00002000.safetensors",
 }
@@ -64,6 +85,14 @@ func (s *FixtureSeeder) SeedFixtures() error {
 
 	if err := s.seedFixtureSampleDirs(); err != nil {
 		return fmt.Errorf("seeding fixture sample directories: %w", err)
+	}
+
+	if err := s.seedSlashFixtureStudy(); err != nil {
+		return fmt.Errorf("seeding slash fixture study: %w", err)
+	}
+
+	if err := s.seedSlashFixtureSampleDirs(); err != nil {
+		return fmt.Errorf("seeding slash fixture sample directories: %w", err)
 	}
 
 	s.logger.Info("E2E fixture seeding completed")
@@ -107,11 +136,12 @@ func (s *FixtureSeeder) seedFixtureStudy() error {
 }
 
 // seedFixtureSampleDirs creates the sample directory structure for the fixture
-// study under {sampleDir}/{trainingRunName}/{studyID}/{checkpointFilename}/.
+// study under {sampleDir}/{sanitizedTrainingRunName}/{studyID}/{checkpointFilename}/.
 // Each checkpoint directory gets the expected number of empty PNG placeholder files.
 func (s *FixtureSeeder) seedFixtureSampleDirs() error {
+	sanitizedRunName := fileformat.SanitizeTrainingRunName(E2EFixtureTrainingRunName)
 	for _, cpFilename := range e2eFixtureCheckpoints {
-		cpDir := filepath.Join(s.sampleDir, E2EFixtureTrainingRunName, E2EFixtureStudyID, cpFilename)
+		cpDir := filepath.Join(s.sampleDir, sanitizedRunName, E2EFixtureStudyID, cpFilename)
 		if err := os.MkdirAll(cpDir, 0755); err != nil {
 			return fmt.Errorf("creating fixture sample dir %s: %w", cpDir, err)
 		}
@@ -128,6 +158,75 @@ func (s *FixtureSeeder) seedFixtureSampleDirs() error {
 			"checkpoint_dir": cpDir,
 			"png_count":      len(e2eFixturePNGFilenames),
 		}).Debug("fixture sample directory seeded")
+	}
+	return nil
+}
+
+// seedSlashFixtureStudy inserts the slash-fixture study into the database.
+// This study is associated with the "test-run/my-model" training run (which has
+// a slash in its name) and exercises the B-088 slash sanitization code path.
+func (s *FixtureSeeder) seedSlashFixtureStudy() error {
+	now := time.Now().UTC()
+	study := model.Study{
+		ID:   E2ESlashFixtureStudyID,
+		Name: E2ESlashFixtureStudyName,
+		Prompts: []model.NamedPrompt{
+			{Name: "landscape", Text: "a beautiful landscape"},
+			{Name: "portrait", Text: "a portrait"},
+		},
+		Steps:                 []int{1},
+		CFGs:                  []float64{7.0},
+		SamplerSchedulerPairs: []model.SamplerSchedulerPair{{Sampler: "euler", Scheduler: "normal"}},
+		Seeds:                 []int64{42},
+		Width:                 512,
+		Height:                512,
+		WorkflowTemplate:      "test-workflow.json",
+		VAE:                   "test-vae.safetensors",
+		TextEncoder:           "test-clip.safetensors",
+		CreatedAt:             now,
+		UpdatedAt:             now,
+	}
+
+	if err := s.store.CreateStudy(study); err != nil {
+		s.logger.WithError(err).Error("failed to seed slash fixture study")
+		return fmt.Errorf("creating slash fixture study: %w", err)
+	}
+
+	s.logger.WithFields(logrus.Fields{
+		"study_id":             E2ESlashFixtureStudyID,
+		"study_name":           E2ESlashFixtureStudyName,
+		"training_run_name":    E2ESlashFixtureTrainingRunName,
+	}).Info("slash fixture study seeded")
+	return nil
+}
+
+// seedSlashFixtureSampleDirs creates sample directories for the slash-containing
+// training run fixture. The training run name "test-run/my-model" is sanitized to
+// "test-run_my-model" for the filesystem path, demonstrating the B-088 fix.
+// Layout: {sampleDir}/test-run_my-model/{studyID}/{checkpointFilename}/
+func (s *FixtureSeeder) seedSlashFixtureSampleDirs() error {
+	// Sanitize the training run name: "test-run/my-model" → "test-run_my-model"
+	sanitizedRunName := fileformat.SanitizeTrainingRunName(E2ESlashFixtureTrainingRunName)
+	for _, cpFilename := range e2eSlashFixtureCheckpoints {
+		cpDir := filepath.Join(s.sampleDir, sanitizedRunName, E2ESlashFixtureStudyID, cpFilename)
+		if err := os.MkdirAll(cpDir, 0755); err != nil {
+			return fmt.Errorf("creating slash fixture sample dir %s: %w", cpDir, err)
+		}
+
+		for _, pngName := range e2eFixturePNGFilenames {
+			pngPath := filepath.Join(cpDir, pngName)
+			// Create minimal valid PNG (89 bytes: PNG signature + IHDR + IDAT + IEND)
+			if err := os.WriteFile(pngPath, minimalPNG(), 0644); err != nil {
+				return fmt.Errorf("creating slash fixture PNG %s: %w", pngPath, err)
+			}
+		}
+
+		s.logger.WithFields(logrus.Fields{
+			"training_run":   E2ESlashFixtureTrainingRunName,
+			"sanitized_name": sanitizedRunName,
+			"checkpoint_dir": cpDir,
+			"png_count":      len(e2eFixturePNGFilenames),
+		}).Debug("slash fixture sample directory seeded")
 	}
 	return nil
 }

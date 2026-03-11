@@ -925,7 +925,7 @@ stories:
   - id: B-088
     title: "Sanitize training run directory names (replace slashes with underscores)"
     type: bug
-    status: todo
+    status: uat
     priority: 85
     complexity: low
     requires: []

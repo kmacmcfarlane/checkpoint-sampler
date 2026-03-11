@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-088: Sanitize training run directory names (replace slashes with underscores)
+- Fixture seeder now uses `SanitizeTrainingRunName` when constructing sample output paths, making the sanitization explicit and consistent with production code paths
+- E2E test fixtures include a slash-containing training run (`test-run/my-model` → `test-run_my-model/`) with dedicated E2E coverage
+
 ### S-116: Training run and study status beads in Generate Samples (UAT rework)
 - Training run green bead now falls back to completed job status when study availability data is absent, fixing beads not appearing for non-selected runs
 - Study beads use only directory-level availability data (not validation results) for consistent rendering regardless of which study is selected
