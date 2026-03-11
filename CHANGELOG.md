@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-117: Validation results dialog with regenerate flow (job list + slideout)
+- "Validate" button on each job card in the Sample Jobs panel and in the controls slideout triggers on-demand validation and displays results in a dialog
+- Regenerate button in the validation dialog opens the Generate Samples dialog with pre-filled training run, study, and "generate missing samples only" checked
+
 ### S-109: Keyboard navigation help overlay in lightbox
 - Lightbox now includes a "?" button (top-right) that toggles a keyboard shortcuts help panel listing Esc, Shift+Arrow grid navigation, and plain Arrow slider navigation
 

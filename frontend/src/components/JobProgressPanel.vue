@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { NModal, NButton, NTag, NProgress, NSpace, NEmpty, NSpin } from 'naive-ui'
-import type { SampleJob, SampleJobStatus, CurrentSampleParams } from '../api/types'
+import type { SampleJob, SampleJobStatus, CurrentSampleParams, ValidationResult } from '../api/types'
+import { apiClient } from '../api/client'
 import ConfirmDeleteDialog from './ConfirmDeleteDialog.vue'
+import ValidationResultsDialog from './ValidationResultsDialog.vue'
 
 /** Completeness verification result for a single checkpoint. */
 interface CompletenessEntry {
@@ -52,10 +54,54 @@ const emit = defineEmits<{
   resume: [jobId: string]
   retryFailed: [jobId: string]
   regenerate: [job: SampleJob]
+  /** Emitted when the user clicks Regenerate inside the validation dialog. Signals that
+   *  "Generate missing samples only" should be pre-checked in the launch dialog. */
+  validateRegenerate: [job: SampleJob]
   delete: [id: string, deleteData: boolean]
   refresh: []
   close: []
 }>()
+
+/** State for the per-job validation dialog. */
+const validationDialogShow = ref(false)
+const validationDialogJob = ref<SampleJob | null>(null)
+const validationDialogResult = ref<ValidationResult | null>(null)
+const validationDialogError = ref<string | null>(null)
+const validationDialogLoading = ref(false)
+
+/** Open the validation dialog for a specific job. */
+async function handleValidate(job: SampleJob) {
+  validationDialogJob.value = job
+  validationDialogResult.value = null
+  validationDialogError.value = null
+  validationDialogLoading.value = true
+  validationDialogShow.value = true
+
+  try {
+    // Look up the training run ID from the checkpoint source
+    const runs = await apiClient.getCheckpointTrainingRuns()
+    const run = runs.find(r => r.name === job.training_run_name)
+    if (!run) {
+      validationDialogError.value = `Training run "${job.training_run_name}" not found`
+      return
+    }
+    const result = await apiClient.validateTrainingRun(run.id, job.study_id)
+    validationDialogResult.value = result
+  } catch (err: unknown) {
+    const message = err && typeof err === 'object' && 'message' in err
+      ? String((err as { message: string }).message)
+      : 'Validation failed'
+    validationDialogError.value = message
+  } finally {
+    validationDialogLoading.value = false
+  }
+}
+
+/** Handle Regenerate from the validation dialog: close dialog and emit validateRegenerate (AC4-6: S-117). */
+function handleValidationRegenerate(job: SampleJob) {
+  validationDialogShow.value = false
+  emit('validateRegenerate', job)
+}
 
 const sortedJobs = computed(() => {
   return [...props.jobs].sort((a, b) => {
@@ -404,6 +450,14 @@ function isTracebackExpanded(jobId: string, errorIdx: number): boolean {
               >
                 Regenerate
               </NButton>
+              <!-- AC: FE: Validate button on each job in job list -->
+              <NButton
+                size="tiny"
+                :data-testid="`job-${job.id}-validate`"
+                @click="handleValidate(job)"
+              >
+                Validate
+              </NButton>
               <NButton
                 size="tiny"
                 type="error"
@@ -667,6 +721,18 @@ function isTracebackExpanded(jobId: string, errorIdx: number): boolean {
     @update:show="(val) => { if (!val) handleDeleteCancel() }"
     @confirm="handleDeleteConfirm"
     @cancel="handleDeleteCancel"
+  />
+
+  <!-- AC: FE: Validation results dialog for per-job validation -->
+  <ValidationResultsDialog
+    :show="validationDialogShow"
+    :result="validationDialogResult"
+    :error="validationDialogError"
+    :loading="validationDialogLoading"
+    :job="validationDialogJob"
+    :title="validationDialogJob ? `Validation: ${validationDialogJob.training_run_name}` : 'Validation Results'"
+    @close="validationDialogShow = false"
+    @regenerate="handleValidationRegenerate"
   />
 </template>
 

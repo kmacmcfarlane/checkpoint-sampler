@@ -885,7 +885,7 @@ stories:
   - id: S-117
     title: "Validation results dialog with regenerate flow (job list + slideout)"
     type: enhancement
-    status: todo
+    status: uat
     priority: 25
     complexity: medium
     requires:

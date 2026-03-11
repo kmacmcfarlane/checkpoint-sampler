@@ -26,6 +26,8 @@ import ComfyUIStatus from './components/ComfyUIStatus.vue'
 import JobLaunchDialog from './components/JobLaunchDialog.vue'
 import JobProgressPanel from './components/JobProgressPanel.vue'
 import SettingsDialog from './components/SettingsDialog.vue'
+import ValidationResultsDialog from './components/ValidationResultsDialog.vue'
+import type { ValidationResult } from './api/types'
 
 const { theme, isDark, toggle: toggleTheme } = useTheme()
 const { savedData, savePresetSelection, clearPresetSelection } = usePresetPersistence()
@@ -43,6 +45,8 @@ const jobProgressPanelOpen = ref(false)
 const settingsDialogOpen = ref(false)
 /** Job to prefill into the JobLaunchDialog when regenerating. */
 const prefillJob = ref<SampleJob | null>(null)
+/** When true, the JobLaunchDialog pre-checks "Generate missing samples only". */
+const prefillMissingOnly = ref(false)
 /** AC5: Debug mode is session-only (ref, not persisted to localStorage). */
 const debugMode = ref(false)
 const sampleJobs = ref<SampleJob[]>([])
@@ -649,12 +653,14 @@ async function fetchSampleJobs() {
 /** Open the job launch dialog. */
 function openJobLaunchDialog() {
   prefillJob.value = null
+  prefillMissingOnly.value = false
   jobLaunchDialogOpen.value = true
 }
 
 /** AC2 (S-084): Open the job launch dialog from the sidebar "Generate Missing" button. */
 function handleGenerateMissing() {
   prefillJob.value = null
+  prefillMissingOnly.value = false
   jobLaunchDialogOpen.value = true
 }
 
@@ -662,6 +668,20 @@ function handleGenerateMissing() {
 function handleRegenerate(job: SampleJob) {
   jobProgressPanelOpen.value = false
   prefillJob.value = job
+  prefillMissingOnly.value = false
+  jobLaunchDialogOpen.value = true
+}
+
+/**
+ * AC4-6 (S-117): Open job launch dialog from validation results dialog.
+ * Pre-checks "Generate missing samples only" per AC5, and closes the validation dialog.
+ */
+function handleValidationRegenerate(job: SampleJob) {
+  // AC6: Validation dialog closes when Generate Samples dialog opens (handled in
+  // ValidationResultsDialog which emits 'regenerate', and we set the validation
+  // dialog show state to false from the respective component's close handler)
+  prefillJob.value = job
+  prefillMissingOnly.value = true
   jobLaunchDialogOpen.value = true
 }
 
@@ -744,6 +764,33 @@ const jobRefreshTrigger = ref(0)
 
 /** Terminal job statuses that indicate a job has finished. */
 const TERMINAL_STATUSES: Set<SampleJobStatus> = new Set(['completed', 'completed_with_errors', 'failed'])
+
+/** State for the slideout-level validation dialog (no job context). */
+const slideoutValidationDialogShow = ref(false)
+const slideoutValidationResult = ref<ValidationResult | null>(null)
+const slideoutValidationError = ref<string | null>(null)
+const slideoutValidationLoading = ref(false)
+
+/** Open the validation dialog from the controls slideout for the selected training run. */
+async function handleSlideoutValidate() {
+  if (!selectedTrainingRun.value) return
+  slideoutValidationResult.value = null
+  slideoutValidationError.value = null
+  slideoutValidationLoading.value = true
+  slideoutValidationDialogShow.value = true
+
+  try {
+    const result = await apiClient.validateTrainingRun(selectedTrainingRun.value.id)
+    slideoutValidationResult.value = result
+  } catch (err: unknown) {
+    const message = err && typeof err === 'object' && 'message' in err
+      ? String((err as { message: string }).message)
+      : 'Validation failed'
+    slideoutValidationError.value = message
+  } finally {
+    slideoutValidationLoading.value = false
+  }
+}
 </script>
 
 <template>
@@ -836,6 +883,18 @@ const TERMINAL_STATUSES: Set<SampleJobStatus> = new Set(['completed', 'completed
             @select="onTrainingRunSelect"
             @generate-missing="handleGenerateMissing"
           />
+          <!-- AC: FE: Validate button in main controls slideout panel -->
+          <div v-if="selectedTrainingRun && !scanning && !scanError" class="slideout-validate-row">
+            <NButton
+              size="small"
+              data-testid="slideout-validate-button"
+              :loading="slideoutValidationLoading"
+              :disabled="slideoutValidationLoading"
+              @click="handleSlideoutValidate"
+            >
+              Validate
+            </NButton>
+          </div>
         </div>
         <template v-if="selectedTrainingRun && !scanning && !scanError">
           <div class="drawer-section">
@@ -920,6 +979,7 @@ const TERMINAL_STATUSES: Set<SampleJobStatus> = new Set(['completed', 'completed
         v-model:show="jobLaunchDialogOpen"
         :refresh-trigger="jobRefreshTrigger"
         :prefill-job="prefillJob"
+        :prefill-missing-only="prefillMissingOnly"
         @success="onJobCreated"
       />
       <JobProgressPanel
@@ -932,6 +992,7 @@ const TERMINAL_STATUSES: Set<SampleJobStatus> = new Set(['completed', 'completed
         @resume="resumeJob"
         @retry-failed="retryFailedJob"
         @regenerate="handleRegenerate"
+        @validate-regenerate="handleValidationRegenerate"
         @delete="deleteJob"
         @refresh="fetchSampleJobs"
         @close="jobProgressPanelOpen = false"
@@ -942,6 +1003,17 @@ const TERMINAL_STATUSES: Set<SampleJobStatus> = new Set(['completed', 'completed
         :debug-mode="debugMode"
         @toggle-theme="toggleTheme"
         @update:debug-mode="debugMode = $event"
+      />
+      <!-- AC: FE: Validation results dialog for controls slideout validate (no job context) -->
+      <ValidationResultsDialog
+        :show="slideoutValidationDialogShow"
+        :result="slideoutValidationResult"
+        :error="slideoutValidationError"
+        :loading="slideoutValidationLoading"
+        :job="null"
+        :title="selectedTrainingRun ? `Validation: ${selectedTrainingRun.name}` : 'Validation Results'"
+        @close="slideoutValidationDialogShow = false"
+        @regenerate="handleValidationRegenerate"
       />
     </div>
   </NConfigProvider>
@@ -1060,6 +1132,10 @@ const TERMINAL_STATUSES: Set<SampleJobStatus> = new Set(['completed', 'completed
   padding-bottom: 1rem;
   margin-bottom: 1rem;
   border-bottom: 1px solid var(--border-color);
+}
+
+.slideout-validate-row {
+  margin-top: 0.5rem;
 }
 
 .drawer-section:last-child {

@@ -1,9 +1,10 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { NModal, NButton, NTag, NProgress, NEmpty } from 'naive-ui'
 import JobProgressPanel from '../JobProgressPanel.vue'
 import ConfirmDeleteDialog from '../ConfirmDeleteDialog.vue'
+import ValidationResultsDialog from '../ValidationResultsDialog.vue'
 import type { SampleJob } from '../../api/types'
 
 // enableAutoUnmount is configured globally in vitest.setup.ts
@@ -2325,6 +2326,98 @@ describe('JobProgressPanel', () => {
       expect(emitted).toBeDefined()
       expect(emitted).toHaveLength(1)
       expect(emitted![0]).toEqual(['job-retry'])
+    })
+  })
+
+  describe('validate button (S-117)', () => {
+    // AC1: FE: Validate button on each job in job list
+    it('shows validate button for every job regardless of status', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: sampleJobs },
+        global: { stubs: { Teleport: true } },
+      })
+
+      // All 4 jobs should have a validate button
+      expect(wrapper.find('[data-testid="job-job-1-validate"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="job-job-2-validate"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="job-job-3-validate"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="job-job-4-validate"]').exists()).toBe(true)
+    })
+
+    it('opens the ValidationResultsDialog when a validate button is clicked', async () => {
+      // Mock the apiClient used inside JobProgressPanel
+      const { apiClient } = await import('../../api/client')
+      vi.spyOn(apiClient, 'getCheckpointTrainingRuns').mockResolvedValue([
+        { id: 1, name: 'qwen/psai4rt-v0.3.0', checkpoint_count: 2, has_samples: true, checkpoints: [] },
+      ])
+      vi.spyOn(apiClient, 'validateTrainingRun').mockResolvedValue({
+        checkpoints: [],
+        expected_per_checkpoint: 0,
+        total_expected: 0,
+        total_verified: 0,
+        total_actual: 0,
+        total_missing: 0,
+      })
+
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: sampleJobs },
+        global: { stubs: { Teleport: true } },
+      })
+
+      // Initially the validation dialog should not be visible
+      const validationDialog = wrapper.findComponent(ValidationResultsDialog)
+      expect(validationDialog.props('show')).toBe(false)
+
+      // Click the validate button for job-1
+      const validateBtn = wrapper.find('[data-testid="job-job-1-validate"]')
+      await validateBtn.trigger('click')
+
+      // Dialog should now be shown
+      expect(validationDialog.props('show')).toBe(true)
+      expect(validationDialog.props('job')).toEqual(sampleJobs.find(j => j.id === 'job-1'))
+
+      vi.restoreAllMocks()
+    })
+
+    // AC6: Validation dialog closes when Generate Samples dialog opens (via validateRegenerate)
+    it('emits validateRegenerate and closes validation dialog when Regenerate is clicked in dialog', async () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: sampleJobs },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const { apiClient } = await import('../../api/client')
+      vi.spyOn(apiClient, 'getCheckpointTrainingRuns').mockResolvedValue([
+        { id: 1, name: 'qwen/psai4rt-v0.3.0', checkpoint_count: 2, has_samples: true, checkpoints: [] },
+      ])
+      vi.spyOn(apiClient, 'validateTrainingRun').mockResolvedValue({
+        checkpoints: [],
+        expected_per_checkpoint: 0,
+        total_expected: 0,
+        total_verified: 0,
+        total_actual: 0,
+        total_missing: 0,
+      })
+
+      // Open the validation dialog
+      await wrapper.find('[data-testid="job-job-1-validate"]').trigger('click')
+      await nextTick()
+
+      const validationDialog = wrapper.findComponent(ValidationResultsDialog)
+
+      // Simulate the regenerate event from the dialog
+      await validationDialog.vm.$emit('regenerate', sampleJobs[0])
+      await nextTick()
+
+      // AC6: Validation dialog should close
+      expect(validationDialog.props('show')).toBe(false)
+
+      // validateRegenerate event should be emitted with the job
+      const emitted = wrapper.emitted('validateRegenerate')
+      expect(emitted).toBeDefined()
+      expect(emitted![0][0]).toEqual(sampleJobs[0])
+
+      vi.restoreAllMocks()
     })
   })
 })

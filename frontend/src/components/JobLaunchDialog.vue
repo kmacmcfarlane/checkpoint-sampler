@@ -28,6 +28,12 @@ const props = defineProps<{
   refreshTrigger?: number
   /** When set, pre-populates the dialog with the given job's settings for regeneration. */
   prefillJob?: SampleJob | null
+  /**
+   * When true, the dialog pre-checks "Generate missing samples only" (missingOnly=true)
+   * and clears "Clear existing samples" (clearExisting=false) on prefill.
+   * Used when launching from the validation results dialog (AC5: S-117).
+   */
+  prefillMissingOnly?: boolean
 }>()
 
 // update:show: Emitted when the dialog is opened or closed. Payload: boolean visibility state.
@@ -690,9 +696,16 @@ function applyPrefill(job: SampleJob) {
     selectedCheckpoints.value = new Set(run.checkpoints.map(c => c.filename))
   }
 
-  // Auto-enable clear_existing for runs with existing samples
-  if (run.has_samples) {
-    clearExisting.value = true
+  if (props.prefillMissingOnly) {
+    // AC5 (S-117): When launched from the validation dialog, pre-check "Generate missing
+    // samples only" and do not clear existing samples.
+    missingOnly.value = true
+    clearExisting.value = false
+  } else {
+    // Auto-enable clear_existing for runs with existing samples
+    if (run.has_samples) {
+      clearExisting.value = true
+    }
   }
 }
 
