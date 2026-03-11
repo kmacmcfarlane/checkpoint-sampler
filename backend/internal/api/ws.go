@@ -135,6 +135,21 @@ func (c *streamClient) writePump() {
 			if d.JobETASeconds > 0 {
 				resp.JobEtaSeconds = &d.JobETASeconds
 			}
+			// Map current sample generation parameters (present only when actively running)
+			if d.CurrentSampleParams != nil {
+				p := d.CurrentSampleParams
+				resp.CurrentSampleParams = &genws.WSSampleParams{
+					CheckpointFilename: p.CheckpointFilename,
+					PromptName:         p.PromptName,
+					Cfg:                p.CFG,
+					Steps:              p.Steps,
+					SamplerName:        p.SamplerName,
+					Scheduler:          p.Scheduler,
+					Seed:               p.Seed,
+					Width:              p.Width,
+					Height:             p.Height,
+				}
+			}
 			// Map failed item details with structured error info
 			if len(d.FailedItemDetails) > 0 {
 				details := make([]*genws.WSFailedItemDetail, len(d.FailedItemDetails))

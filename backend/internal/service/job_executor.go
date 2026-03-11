@@ -1762,6 +1762,35 @@ func (e *JobExecutor) verifyCheckpointCompleteness(jobID string, studyOutputDir 
 	e.mu.Unlock()
 }
 
+// currentSampleParams returns the generation parameters for the currently active
+// sample job item, or nil if no item is currently running.
+// Must NOT be called while holding e.mu.
+func (e *JobExecutor) currentSampleParams(items []model.SampleJobItem) *model.CurrentSampleParams {
+	e.mu.Lock()
+	activeItemID := e.activeItemID
+	e.mu.Unlock()
+
+	if activeItemID == "" {
+		return nil
+	}
+	for _, item := range items {
+		if item.ID == activeItemID {
+			return &model.CurrentSampleParams{
+				CheckpointFilename: item.CheckpointFilename,
+				PromptName:         item.PromptName,
+				CFG:                item.CFG,
+				Steps:              item.Steps,
+				SamplerName:        item.SamplerName,
+				Scheduler:          item.Scheduler,
+				Seed:               item.Seed,
+				Width:              item.Width,
+				Height:             item.Height,
+			}
+		}
+	}
+	return nil
+}
+
 // broadcastJobProgress broadcasts a job progress event to WebSocket clients.
 // It computes the current item counts and checkpoint progress and sends them
 // as a structured job_progress event. When a checkpoint batch completes,
@@ -1904,6 +1933,9 @@ func (e *JobExecutor) broadcastJobProgress(jobID string) {
 		jobETASeconds = float64(remainingItems)*avgDuration.Seconds() + sampleETASeconds
 	}
 
+	// Collect current sample parameters for the active item (if any)
+	currentParams := e.currentSampleParams(items)
+
 	event := model.FSEvent{
 		Type: model.EventJobProgress,
 		Path: fmt.Sprintf("job_progress/%s", jobID),
@@ -1923,6 +1955,7 @@ func (e *JobExecutor) broadcastJobProgress(jobID string) {
 			FailedItemDetails:         failedItemDetails,
 			SampleETASeconds:          sampleETASeconds,
 			JobETASeconds:             jobETASeconds,
+			CurrentSampleParams:       currentParams,
 		},
 	}
 	e.hub.Broadcast(event)

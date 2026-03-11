@@ -244,7 +244,7 @@ stories:
   - id: S-102
     title: "Show full sample params for currently generating sample in job list"
     priority: 40
-    status: todo
+    status: uat
     complexity: medium
     requires: []
     acceptance:

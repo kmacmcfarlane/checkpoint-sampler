@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-102: Show full sample params for currently generating sample in job list
+- WebSocket `job_progress` events now include `current_sample_params` with the active sample's generation parameters (checkpoint, prompt, CFG, steps, sampler, scheduler, seed, dimensions)
+- JobProgressPanel displays inline parameter details during active generation; section auto-hides when no sample is running
+
 ### W-007: Automated panic detection in E2E log scan
 - `make test-e2e` now automatically scans backend logs for Go panics after each run; a passing Playwright suite with backend panics exits non-zero
 - Standalone `make check-e2e-panics` target for scanning saved E2E logs without re-running the suite

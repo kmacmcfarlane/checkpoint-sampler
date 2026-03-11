@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import { NConfigProvider, NButton, NTag } from 'naive-ui'
-import type { TrainingRun, DimensionRole, FilterMode, UnifiedDimensionMode, Preset, SampleJob, SampleJobStatus, JobProgressMessage, InferenceProgressMessage } from './api/types'
+import type { TrainingRun, DimensionRole, FilterMode, UnifiedDimensionMode, Preset, SampleJob, SampleJobStatus, JobProgressMessage, InferenceProgressMessage, CurrentSampleParams } from './api/types'
 import { apiClient } from './api/client'
 import { useDimensionMapping } from './composables/useDimensionMapping'
 import { useImagePreloader } from './composables/useImagePreloader'
@@ -260,6 +260,7 @@ const jobProgress = reactive<Record<string, {
   checkpoint_completeness?: Array<{ checkpoint: string; expected: number; verified: number; missing: number }>
   sample_eta_seconds?: number
   job_eta_seconds?: number
+  current_sample_params?: CurrentSampleParams
 }>>({})
 
 /** Per-sample inference progress keyed by job ID. */
@@ -353,6 +354,7 @@ function handleJobProgress(message: JobProgressMessage) {
       checkpoint_completeness: message.checkpoint_completeness,
       sample_eta_seconds: message.sample_eta_seconds,
       job_eta_seconds: message.job_eta_seconds,
+      current_sample_params: message.current_sample_params,
     }
     // AC4: When a job transitions to a terminal status, increment the refresh trigger
     // so the JobLaunchDialog can update its training run options and status beads.

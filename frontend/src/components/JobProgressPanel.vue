@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { NModal, NButton, NTag, NProgress, NSpace, NEmpty, NSpin } from 'naive-ui'
-import type { SampleJob, SampleJobStatus } from '../api/types'
+import type { SampleJob, SampleJobStatus, CurrentSampleParams } from '../api/types'
 import ConfirmDeleteDialog from './ConfirmDeleteDialog.vue'
 
 /** Completeness verification result for a single checkpoint. */
@@ -32,6 +32,8 @@ const props = defineProps<{
     sample_eta_seconds?: number
     /** Estimated seconds remaining for the entire job. */
     job_eta_seconds?: number
+    /** Generation parameters for the currently generating sample. */
+    current_sample_params?: CurrentSampleParams
   }>
   /** Per-sample inference progress keyed by job ID. Reset between samples. */
   inferenceProgress?: Record<string, InferenceProgress>
@@ -286,6 +288,11 @@ function getGroupedErrors(job: SampleJob): GroupedError[] {
   }))
 }
 
+/** Get current sample params for a job, or undefined if not available. */
+function getCurrentSampleParams(jobId: string): CurrentSampleParams | undefined {
+  return props.jobProgress?.[jobId]?.current_sample_params
+}
+
 /** Map of "jobId:errorIdx" to whether the traceback is expanded. */
 const expandedTracebacks = ref<Record<string, boolean>>({})
 
@@ -468,6 +475,44 @@ function isTracebackExpanded(jobId: string, errorIdx: number): boolean {
                   <span class="progress-label">Current progress:</span>
                   <span>{{ getJobProgress(job.id)?.current_checkpoint_progress }} / {{ getJobProgress(job.id)?.current_checkpoint_total }} images</span>
                 </p>
+                <!-- AC1: FE: Show full generation parameters for the currently generating sample -->
+                <div
+                  v-if="getCurrentSampleParams(job.id)"
+                  class="sample-params"
+                  :data-testid="`job-${job.id}-sample-params`"
+                >
+                  <p class="sample-params-heading">Current Sample Parameters:</p>
+                  <dl class="sample-params-list">
+                    <div class="sample-params-row">
+                      <dt class="sample-params-label">CFG</dt>
+                      <dd class="sample-params-value" :data-testid="`job-${job.id}-param-cfg`">{{ getCurrentSampleParams(job.id)?.cfg }}</dd>
+                    </div>
+                    <div class="sample-params-row">
+                      <dt class="sample-params-label">Steps</dt>
+                      <dd class="sample-params-value" :data-testid="`job-${job.id}-param-steps`">{{ getCurrentSampleParams(job.id)?.steps }}</dd>
+                    </div>
+                    <div class="sample-params-row">
+                      <dt class="sample-params-label">Sampler</dt>
+                      <dd class="sample-params-value" :data-testid="`job-${job.id}-param-sampler`">{{ getCurrentSampleParams(job.id)?.sampler_name }}</dd>
+                    </div>
+                    <div class="sample-params-row">
+                      <dt class="sample-params-label">Scheduler</dt>
+                      <dd class="sample-params-value" :data-testid="`job-${job.id}-param-scheduler`">{{ getCurrentSampleParams(job.id)?.scheduler }}</dd>
+                    </div>
+                    <div class="sample-params-row">
+                      <dt class="sample-params-label">Prompt</dt>
+                      <dd class="sample-params-value" :data-testid="`job-${job.id}-param-prompt-name`">{{ getCurrentSampleParams(job.id)?.prompt_name }}</dd>
+                    </div>
+                    <div class="sample-params-row">
+                      <dt class="sample-params-label">Seed</dt>
+                      <dd class="sample-params-value" :data-testid="`job-${job.id}-param-seed`">{{ getCurrentSampleParams(job.id)?.seed }}</dd>
+                    </div>
+                    <div class="sample-params-row">
+                      <dt class="sample-params-label">Size</dt>
+                      <dd class="sample-params-value" :data-testid="`job-${job.id}-param-size`">{{ getCurrentSampleParams(job.id)?.width }}×{{ getCurrentSampleParams(job.id)?.height }}</dd>
+                    </div>
+                  </dl>
+                </div>
                 <!-- AC: FE: Secondary progress bar for per-sample inference progress -->
                 <div
                   v-if="hasInferenceProgress(job.id)"
@@ -815,6 +860,49 @@ function isTracebackExpanded(jobId: string, errorIdx: number): boolean {
   color: var(--bg-color);
   border-radius: 0.25rem;
   font-size: 0.875rem;
+}
+
+.sample-params {
+  margin-top: 0.25rem;
+  padding: 0.375rem 0.5rem;
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
+  border-radius: 0.25rem;
+}
+
+.sample-params-heading {
+  margin: 0 0 0.25rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.sample-params-list {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.sample-params-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+}
+
+.sample-params-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  min-width: 4.5rem;
+  flex-shrink: 0;
+}
+
+.sample-params-value {
+  font-size: 0.75rem;
+  color: var(--text-color);
+  font-family: monospace;
+  word-break: break-all;
 }
 
 .completeness-section {

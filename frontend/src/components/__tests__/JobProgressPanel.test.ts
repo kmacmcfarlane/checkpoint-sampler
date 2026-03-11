@@ -1950,4 +1950,294 @@ describe('JobProgressPanel', () => {
       expect(ckptSpan.attributes('title')).toBe(shortName)
     })
   })
+
+  // AC1: FE: Job progress panel shows the full generation parameters for the currently generating sample
+  // AC2: FE: Parameters displayed include checkpoint name, CFG, steps, sampler, and other study params
+  // AC4: FE: Parameters update as the job progresses to the next sample
+  // AC5: FE: Unit tests for parameter display during active generation
+  describe('current sample params display', () => {
+    const runningJob: SampleJob = {
+      id: 'job-params',
+      training_run_name: 'test/params',
+      study_id: 'study-1',
+      study_name: 'Params Test',
+      workflow_name: 'flux.json',
+      vae: 'ae.safetensors',
+      clip: 'clip.safetensors',
+      status: 'running',
+      total_items: 20,
+      completed_items: 5,
+      failed_items: 0,
+      pending_items: 15,
+      created_at: '2025-01-01T00:00:00Z',
+      updated_at: '2025-01-01T00:00:00Z',
+    }
+
+    const sampleParams = {
+      checkpoint_filename: 'step-000020.safetensors',
+      prompt_name: 'forest',
+      cfg: 7.5,
+      steps: 30,
+      sampler_name: 'euler',
+      scheduler: 'normal',
+      seed: 42,
+      width: 1024,
+      height: 1024,
+    }
+
+    // AC1 + AC2: Sample params section is visible and shows all required fields
+    it('shows current sample params section when current_sample_params is present', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: {
+          show: true,
+          jobs: [runningJob],
+          jobProgress: {
+            'job-params': {
+              checkpoints_completed: 0,
+              total_checkpoints: 5,
+              current_checkpoint: 'step-000020.safetensors',
+              current_sample_params: sampleParams,
+            },
+          },
+        },
+        global: { stubs: { Teleport: true } },
+      })
+
+      // AC1: The params section must exist
+      const paramsSection = wrapper.find('[data-testid="job-job-params-sample-params"]')
+      expect(paramsSection.exists()).toBe(true)
+    })
+
+    // AC2: CFG displayed as floating-point value
+    it('displays CFG value', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: {
+          show: true,
+          jobs: [runningJob],
+          jobProgress: {
+            'job-params': {
+              checkpoints_completed: 0,
+              total_checkpoints: 5,
+              current_sample_params: sampleParams,
+            },
+          },
+        },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const cfgEl = wrapper.find('[data-testid="job-job-params-param-cfg"]')
+      expect(cfgEl.exists()).toBe(true)
+      expect(cfgEl.text()).toBe('7.5')
+    })
+
+    // AC2: Steps displayed as integer value
+    it('displays steps value', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: {
+          show: true,
+          jobs: [runningJob],
+          jobProgress: {
+            'job-params': {
+              checkpoints_completed: 0,
+              total_checkpoints: 5,
+              current_sample_params: sampleParams,
+            },
+          },
+        },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const stepsEl = wrapper.find('[data-testid="job-job-params-param-steps"]')
+      expect(stepsEl.exists()).toBe(true)
+      expect(stepsEl.text()).toBe('30')
+    })
+
+    // AC2: Sampler name displayed
+    it('displays sampler name', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: {
+          show: true,
+          jobs: [runningJob],
+          jobProgress: {
+            'job-params': {
+              checkpoints_completed: 0,
+              total_checkpoints: 5,
+              current_sample_params: sampleParams,
+            },
+          },
+        },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const samplerEl = wrapper.find('[data-testid="job-job-params-param-sampler"]')
+      expect(samplerEl.exists()).toBe(true)
+      expect(samplerEl.text()).toBe('euler')
+    })
+
+    // AC2: Scheduler displayed
+    it('displays scheduler', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: {
+          show: true,
+          jobs: [runningJob],
+          jobProgress: {
+            'job-params': {
+              checkpoints_completed: 0,
+              total_checkpoints: 5,
+              current_sample_params: sampleParams,
+            },
+          },
+        },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const schedulerEl = wrapper.find('[data-testid="job-job-params-param-scheduler"]')
+      expect(schedulerEl.exists()).toBe(true)
+      expect(schedulerEl.text()).toBe('normal')
+    })
+
+    // AC2: Prompt name displayed
+    it('displays prompt name', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: {
+          show: true,
+          jobs: [runningJob],
+          jobProgress: {
+            'job-params': {
+              checkpoints_completed: 0,
+              total_checkpoints: 5,
+              current_sample_params: sampleParams,
+            },
+          },
+        },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const promptEl = wrapper.find('[data-testid="job-job-params-param-prompt-name"]')
+      expect(promptEl.exists()).toBe(true)
+      expect(promptEl.text()).toBe('forest')
+    })
+
+    // AC2: Seed displayed
+    it('displays seed value', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: {
+          show: true,
+          jobs: [runningJob],
+          jobProgress: {
+            'job-params': {
+              checkpoints_completed: 0,
+              total_checkpoints: 5,
+              current_sample_params: sampleParams,
+            },
+          },
+        },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const seedEl = wrapper.find('[data-testid="job-job-params-param-seed"]')
+      expect(seedEl.exists()).toBe(true)
+      expect(seedEl.text()).toBe('42')
+    })
+
+    // AC2: Image dimensions displayed
+    it('displays width x height', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: {
+          show: true,
+          jobs: [runningJob],
+          jobProgress: {
+            'job-params': {
+              checkpoints_completed: 0,
+              total_checkpoints: 5,
+              current_sample_params: sampleParams,
+            },
+          },
+        },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const sizeEl = wrapper.find('[data-testid="job-job-params-param-size"]')
+      expect(sizeEl.exists()).toBe(true)
+      expect(sizeEl.text()).toBe('1024×1024')
+    })
+
+    // AC4: Params section is not shown when current_sample_params is absent
+    it('does not show sample params section when current_sample_params is absent', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: {
+          show: true,
+          jobs: [runningJob],
+          jobProgress: {
+            'job-params': {
+              checkpoints_completed: 0,
+              total_checkpoints: 5,
+              current_checkpoint: 'step-000020.safetensors',
+              // no current_sample_params
+            },
+          },
+        },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const paramsSection = wrapper.find('[data-testid="job-job-params-sample-params"]')
+      expect(paramsSection.exists()).toBe(false)
+    })
+
+    // AC4: Params update when job progresses — new params are reflected on re-render
+    it('updates displayed params when current_sample_params changes', async () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: {
+          show: true,
+          jobs: [runningJob],
+          jobProgress: {
+            'job-params': {
+              checkpoints_completed: 0,
+              total_checkpoints: 5,
+              current_sample_params: sampleParams,
+            },
+          },
+        },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const cfgEl = wrapper.find('[data-testid="job-job-params-param-cfg"]')
+      expect(cfgEl.text()).toBe('7.5')
+
+      // Simulate new sample starting with different params
+      await wrapper.setProps({
+        jobProgress: {
+          'job-params': {
+            checkpoints_completed: 0,
+            total_checkpoints: 5,
+            current_sample_params: {
+              ...sampleParams,
+              cfg: 3.5,
+              steps: 20,
+              seed: 99,
+            },
+          },
+        },
+      })
+
+      expect(wrapper.find('[data-testid="job-job-params-param-cfg"]').text()).toBe('3.5')
+      expect(wrapper.find('[data-testid="job-job-params-param-steps"]').text()).toBe('20')
+      expect(wrapper.find('[data-testid="job-job-params-param-seed"]').text()).toBe('99')
+    })
+
+    // AC5: Params section does not appear for non-running jobs even if jobProgress contains data
+    it('does not show params section when no jobProgress exists for the job', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: {
+          show: true,
+          jobs: [runningJob],
+          // no jobProgress at all
+        },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const paramsSection = wrapper.find('[data-testid="job-job-params-sample-params"]')
+      expect(paramsSection.exists()).toBe(false)
+    })
+  })
 })

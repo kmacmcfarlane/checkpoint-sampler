@@ -36,6 +36,20 @@ var WSFailedItemDetail = Type("WSFailedItemDetail", func() {
 	Required("checkpoint_filename", "error_message")
 })
 
+var WSSampleParams = Type("WSSampleParams", func() {
+	Description("Generation parameters for the sample currently being generated (only present when a sample is actively running)")
+	Attribute("checkpoint_filename", String, "Checkpoint filename being sampled (e.g. step-000010.safetensors)")
+	Attribute("prompt_name", String, "Named prompt slot in use (e.g. forest)")
+	Attribute("cfg", Float64, "Classifier-free guidance scale (floating-point)")
+	Attribute("steps", Int, "Number of sampler steps (integer)")
+	Attribute("sampler_name", String, "ComfyUI sampler name (e.g. euler)")
+	Attribute("scheduler", String, "ComfyUI scheduler name (e.g. normal)")
+	Attribute("seed", Int64, "Generation seed")
+	Attribute("width", Int, "Output image width in pixels")
+	Attribute("height", Int, "Output image height in pixels")
+	Required("checkpoint_filename", "prompt_name", "cfg", "steps", "sampler_name", "scheduler", "seed", "width", "height")
+})
+
 var FSEventResponse = Type("FSEventResponse", func() {
 	Description("A filesystem change event or job progress update pushed to WebSocket clients")
 	Attribute("type", String, "Event type", func() {
@@ -61,6 +75,7 @@ var FSEventResponse = Type("FSEventResponse", func() {
 	Attribute("failed_item_details", ArrayOf(WSFailedItemDetail), "Details of failed checkpoints with error info (only for job_progress events)")
 	Attribute("sample_eta_seconds", Float64, "Estimated seconds remaining for the current sample (only for job_progress events, 0 if unavailable)")
 	Attribute("job_eta_seconds", Float64, "Estimated seconds remaining for the entire job (only for job_progress events, 0 if unavailable)")
+	Attribute("current_sample_params", WSSampleParams, "Generation parameters for the currently generating sample (only present when a sample is actively running)")
 	// Inference progress fields (only present when type=inference_progress)
 	Attribute("prompt_id", String, "ComfyUI prompt ID (only for inference_progress events)")
 	Attribute("current_value", Int, "Current inference step (only for inference_progress events)")

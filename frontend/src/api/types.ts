@@ -342,6 +342,28 @@ export interface DemoStatus {
   installed: boolean
 }
 
+/** Generation parameters for the sample currently being generated. Present only when a sample is actively running. */
+export interface CurrentSampleParams {
+  /** Checkpoint filename being sampled (e.g. step-000010.safetensors). */
+  checkpoint_filename: string
+  /** Named prompt slot in use (e.g. forest). */
+  prompt_name: string
+  /** Classifier-free guidance scale (floating-point). */
+  cfg: number
+  /** Number of sampler steps (integer). */
+  steps: number
+  /** ComfyUI sampler name (e.g. euler). */
+  sampler_name: string
+  /** ComfyUI scheduler name (e.g. normal). */
+  scheduler: string
+  /** Generation seed. */
+  seed: number
+  /** Output image width in pixels. */
+  width: number
+  /** Output image height in pixels. */
+  height: number
+}
+
 /** WebSocket inference progress event (per-node progress from ComfyUI). */
 export interface InferenceProgressMessage {
   type: 'inference_progress'
@@ -372,4 +394,6 @@ export interface JobProgressMessage {
   sample_eta_seconds?: number
   /** Estimated seconds remaining for the entire job (0 if unavailable). */
   job_eta_seconds?: number
+  /** Generation parameters for the currently generating sample. Present only when a sample is actively running. */
+  current_sample_params?: CurrentSampleParams
 }

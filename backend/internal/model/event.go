@@ -24,6 +24,28 @@ type FSEvent struct {
 	InferenceProgressData *InferenceProgressEventData
 }
 
+// CurrentSampleParams holds the generation parameters for the sample currently being generated.
+// These are derived from the active SampleJobItem when a job_progress event is broadcast.
+type CurrentSampleParams struct {
+	// CheckpointFilename is the .safetensors file being sampled.
+	CheckpointFilename string
+	// PromptName is the named prompt slot in use (e.g. "forest").
+	PromptName string
+	// CFG is the classifier-free guidance scale (floating-point).
+	CFG float64
+	// Steps is the number of sampler steps (integer).
+	Steps int
+	// SamplerName is the ComfyUI sampler name (e.g. "euler").
+	SamplerName string
+	// Scheduler is the ComfyUI scheduler name (e.g. "normal").
+	Scheduler string
+	// Seed is the generation seed.
+	Seed int64
+	// Width and Height are the output image dimensions in pixels.
+	Width  int
+	Height int
+}
+
 // JobProgressEventData contains the data sent with a job_progress event.
 type JobProgressEventData struct {
 	JobID                      string
@@ -47,6 +69,9 @@ type JobProgressEventData struct {
 	// based on remaining items and the moving average of sample generation times.
 	// Zero means no estimate is available yet.
 	JobETASeconds float64
+	// CurrentSampleParams holds the generation parameters for the sample currently
+	// being generated. Nil when no sample is actively running.
+	CurrentSampleParams *CurrentSampleParams
 }
 
 // InferenceProgressEventData contains per-node inference progress from ComfyUI.

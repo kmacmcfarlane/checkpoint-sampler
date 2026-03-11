@@ -55,3 +55,9 @@ The pattern of capturing logrus output to a buffer to assert log levels (as used
 * priority: low
 * source: developer
 A test-only API endpoint to seed partial sample directories (e.g., `POST /api/test/seed-partial-samples?study_id=...`) would enable true E2E coverage of the AC1 incomplete-set path (hasMissingSamples=true) without running a full generation job. Currently the incomplete-set smart defaults are covered only by unit tests.
+
+### Slow-motion mock mode for E2E timing tests
+* status: needs_approval
+* priority: low
+* source: developer
+Add a configurable delay to the ComfyUI mock (e.g., via an env var) so E2E tests for in-flight state (like mid-generation params display) can reliably observe the running phase without relying on polling luck.
