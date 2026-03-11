@@ -177,6 +177,25 @@ func (s *SampleJobsService) Resume(ctx context.Context, p *gensamplejobs.ResumeP
 	return sampleJobToResponse(job, counts, []model.FailedItemDetail{}), nil
 }
 
+// RetryFailed re-queues all failed and skipped items in a completed_with_errors job.
+func (s *SampleJobsService) RetryFailed(ctx context.Context, p *gensamplejobs.RetryFailedPayload) (*gensamplejobs.SampleJobResponse, error) {
+	if !s.enabled {
+		return nil, gensamplejobs.MakeServiceUnavailable(fmt.Errorf("sample jobs not available: ComfyUI is not configured"))
+	}
+	job, err := s.svc.RetryFailed(p.ID)
+	if err != nil {
+		if isNotFound(err) {
+			return nil, gensamplejobs.MakeNotFound(err)
+		}
+		if isServiceUnavailable(err) {
+			return nil, gensamplejobs.MakeServiceUnavailable(err)
+		}
+		return nil, gensamplejobs.MakeInvalidState(err)
+	}
+	counts, _ := s.svc.GetItemCounts(p.ID)
+	return sampleJobToResponse(job, counts, []model.FailedItemDetail{}), nil
+}
+
 // Delete removes a sample job and all its items.
 // When p.DeleteData is true, also removes the generated sample files from disk.
 func (s *SampleJobsService) Delete(ctx context.Context, p *gensamplejobs.DeletePayload) error {

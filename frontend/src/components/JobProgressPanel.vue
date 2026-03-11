@@ -42,6 +42,7 @@ const props = defineProps<{
 
 // stop: Emitted when the user clicks Stop on a running job. Payload: the job ID string.
 // resume: Emitted when the user clicks Resume on a stopped job. Payload: the job ID string.
+// retryFailed: Emitted when the user clicks Retry failed on a completed_with_errors job. Payload: the job ID string.
 // regenerate: Emitted when the user clicks Regenerate on a completed or completed_with_errors job. Payload: the full SampleJob object.
 // delete: Emitted when the user confirms deletion. Payload: { id: string, deleteData: boolean }.
 // refresh: Emitted when the user clicks the Refresh button. No payload.
@@ -49,6 +50,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   stop: [jobId: string]
   resume: [jobId: string]
+  retryFailed: [jobId: string]
   regenerate: [job: SampleJob]
   delete: [id: string, deleteData: boolean]
   refresh: []
@@ -158,12 +160,20 @@ function canRegenerate(job: SampleJob): boolean {
   return job.status === 'completed' || job.status === 'completed_with_errors'
 }
 
+function canRetryFailed(job: SampleJob): boolean {
+  return job.status === 'completed_with_errors'
+}
+
 function handleStop(jobId: string) {
   emit('stop', jobId)
 }
 
 function handleResume(jobId: string) {
   emit('resume', jobId)
+}
+
+function handleRetryFailed(jobId: string) {
+  emit('retryFailed', jobId)
 }
 
 function handleRegenerate(job: SampleJob) {
@@ -375,6 +385,15 @@ function isTracebackExpanded(jobId: string, errorIdx: number): boolean {
                 @click="handleResume(job.id)"
               >
                 Resume
+              </NButton>
+              <NButton
+                v-if="canRetryFailed(job)"
+                size="tiny"
+                type="warning"
+                :data-testid="`job-${job.id}-retry-failed`"
+                @click="handleRetryFailed(job.id)"
+              >
+                Retry failed
               </NButton>
               <NButton
                 v-if="canRegenerate(job)"

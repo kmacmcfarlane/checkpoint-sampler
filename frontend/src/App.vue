@@ -690,6 +690,16 @@ async function resumeJob(jobId: string) {
   }
 }
 
+/** Retry failed items in a completed_with_errors job. */
+async function retryFailedJob(jobId: string) {
+  try {
+    await apiClient.retryFailedSampleJob(jobId)
+    await fetchSampleJobs()
+  } catch (err: unknown) {
+    console.warn('Failed to retry failed job items:', err)
+  }
+}
+
 /** Delete a sample job, optionally removing its sample data from disk. */
 async function deleteJob(jobId: string, deleteData: boolean) {
   try {
@@ -920,6 +930,7 @@ const TERMINAL_STATUSES: Set<SampleJobStatus> = new Set(['completed', 'completed
         :loading="jobsLoading"
         @stop="stopJob"
         @resume="resumeJob"
+        @retry-failed="retryFailedJob"
         @regenerate="handleRegenerate"
         @delete="deleteJob"
         @refresh="fetchSampleJobs"

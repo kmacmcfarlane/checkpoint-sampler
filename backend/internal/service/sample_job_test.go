@@ -733,6 +733,140 @@ var _ = Describe("SampleJobService", func() {
 		})
 	})
 
+	Describe("RetryFailed", func() {
+		It("resets failed and skipped items to pending and transitions job to running", func() {
+			job := model.SampleJob{
+				ID:     "job-1",
+				Status: model.SampleJobStatusCompletedWithErrors,
+			}
+			store.jobs[job.ID] = job
+			store.items[job.ID] = []model.SampleJobItem{
+				{ID: "i1", JobID: job.ID, Status: model.SampleJobItemStatusCompleted},
+				{ID: "i2", JobID: job.ID, Status: model.SampleJobItemStatusFailed, ErrorMessage: "VRAM error", ExceptionType: "RuntimeError"},
+				{ID: "i3", JobID: job.ID, Status: model.SampleJobItemStatusSkipped, ErrorMessage: "checkpoint not found in ComfyUI"},
+				{ID: "i4", JobID: job.ID, Status: model.SampleJobItemStatusCompleted},
+			}
+
+			result, err := svc.RetryFailed("job-1")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Status).To(Equal(model.SampleJobStatusRunning))
+
+			// Verify the job status was updated in the store
+			updated, err := svc.Get("job-1")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(updated.Status).To(Equal(model.SampleJobStatusRunning))
+
+			// Verify failed/skipped items are reset to pending
+			items := store.items[job.ID]
+			Expect(items[0].Status).To(Equal(model.SampleJobItemStatusCompleted)) // unchanged
+			Expect(items[1].Status).To(Equal(model.SampleJobItemStatusPending))   // was failed
+			Expect(items[1].ErrorMessage).To(BeEmpty())
+			Expect(items[1].ExceptionType).To(BeEmpty())
+			Expect(items[2].Status).To(Equal(model.SampleJobItemStatusPending))   // was skipped
+			Expect(items[2].ErrorMessage).To(BeEmpty())
+			Expect(items[3].Status).To(Equal(model.SampleJobItemStatusCompleted)) // unchanged
+		})
+
+		It("calls RequestResume on the executor", func() {
+			job := model.SampleJob{
+				ID:     "job-1",
+				Status: model.SampleJobStatusCompletedWithErrors,
+			}
+			store.jobs[job.ID] = job
+			store.items[job.ID] = []model.SampleJobItem{
+				{ID: "i1", JobID: job.ID, Status: model.SampleJobItemStatusFailed},
+			}
+
+			_, err := svc.RetryFailed("job-1")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(executor.resumeCalled).To(BeTrue())
+		})
+
+		DescribeTable("returns error when job is not completed_with_errors",
+			func(status model.SampleJobStatus) {
+				store.jobs["job-1"] = model.SampleJob{
+					ID:     "job-1",
+					Status: status,
+				}
+
+				_, err := svc.RetryFailed("job-1")
+				Expect(err).To(HaveOccurred(), "expected error for status %s", status)
+				Expect(err.Error()).To(ContainSubstring("cannot retry job"), "unexpected error for status %s", status)
+			},
+			Entry("pending", model.SampleJobStatusPending),
+			Entry("stopped", model.SampleJobStatusStopped),
+			Entry("completed", model.SampleJobStatusCompleted),
+			Entry("failed", model.SampleJobStatusFailed),
+		)
+
+		It("returns error when job status is running (blocked by another running job check)", func() {
+			// A running job triggers the "another job is already running" guard before
+			// we check the job's own status.
+			store.jobs["job-1"] = model.SampleJob{
+				ID:     "job-1",
+				Status: model.SampleJobStatusRunning,
+			}
+
+			_, err := svc.RetryFailed("job-1")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("another job is already running"))
+		})
+
+		It("returns error when job not found", func() {
+			_, err := svc.RetryFailed("nonexistent")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("not found"))
+		})
+
+		It("returns error when ComfyUI is not connected", func() {
+			executor.connected = false
+			job := model.SampleJob{
+				ID:     "job-1",
+				Status: model.SampleJobStatusCompletedWithErrors,
+			}
+			store.jobs[job.ID] = job
+
+			_, err := svc.RetryFailed("job-1")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("ComfyUI not connected"))
+		})
+
+		It("returns error when another job is already running", func() {
+			store.jobs["running-job"] = model.SampleJob{
+				ID:     "running-job",
+				Status: model.SampleJobStatusRunning,
+			}
+			store.jobs["job-1"] = model.SampleJob{
+				ID:     "job-1",
+				Status: model.SampleJobStatusCompletedWithErrors,
+			}
+
+			_, err := svc.RetryFailed("job-1")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("another job is already running"))
+		})
+
+		It("does not modify completed items during retry", func() {
+			job := model.SampleJob{
+				ID:     "job-1",
+				Status: model.SampleJobStatusCompletedWithErrors,
+			}
+			store.jobs[job.ID] = job
+			store.items[job.ID] = []model.SampleJobItem{
+				{ID: "i1", JobID: job.ID, Status: model.SampleJobItemStatusCompleted, OutputPath: "/samples/img.png"},
+				{ID: "i2", JobID: job.ID, Status: model.SampleJobItemStatusFailed},
+			}
+
+			_, err := svc.RetryFailed("job-1")
+			Expect(err).NotTo(HaveOccurred())
+
+			// Completed item should be unchanged
+			items := store.items[job.ID]
+			Expect(items[0].Status).To(Equal(model.SampleJobItemStatusCompleted))
+			Expect(items[0].OutputPath).To(Equal("/samples/img.png"))
+		})
+	})
+
 	Describe("Delete", func() {
 		// AC3: BE: Deleting a job without the data flag removes only the database record
 		It("deletes a job without removing sample data when deleteData=false", func() {

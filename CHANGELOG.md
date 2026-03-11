@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-110: Resume completed_with_errors jobs (retry failed items)
+- New `POST /api/sample-jobs/{id}/retry-failed` endpoint resets failed/skipped items to pending and resumes execution; guards against concurrent running jobs and non-`completed_with_errors` state
+- "Retry failed" button on JobProgressPanel for `completed_with_errors` jobs, replacing the need to create a new job to retry failures
+
 ### S-102: Show full sample params for currently generating sample in job list
 - WebSocket `job_progress` events now include `current_sample_params` with the active sample's generation parameters (checkpoint, prompt, CFG, steps, sampler, scheduler, seed, dimensions)
 - JobProgressPanel displays inline parameter details during active generation; section auto-hides when no sample is running

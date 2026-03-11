@@ -508,7 +508,7 @@ stories:
   - id: S-110
     title: "Resume completed_with_errors jobs (retry failed items)"
     priority: 30
-    status: todo
+    status: uat
     complexity: medium
     requires: []
     acceptance:

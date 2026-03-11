@@ -2240,4 +2240,91 @@ describe('JobProgressPanel', () => {
       expect(paramsSection.exists()).toBe(false)
     })
   })
+
+  // AC: FE: 'Retry failed' button on JobProgressPanel for completed_with_errors jobs
+  describe('retry failed button', () => {
+    const jobWithErrors: SampleJob = {
+      id: 'job-retry',
+      training_run_name: 'test/partial',
+      study_id: 'preset-1', study_name: 'Quick Test',
+      workflow_name: 'test.json',
+      vae: 'ae.safetensors',
+      clip: 'clip.safetensors',
+      status: 'completed_with_errors',
+      total_items: 10,
+      completed_items: 7,
+      failed_items: 3,
+      pending_items: 0,
+      created_at: '2025-01-01T04:00:00Z',
+      updated_at: '2025-01-01T04:00:00Z',
+    }
+
+    // AC: Retry failed button is visible for completed_with_errors jobs
+    it('shows retry-failed button for completed_with_errors jobs', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: [jobWithErrors] },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const retryButton = wrapper.find('[data-testid="job-job-retry-retry-failed"]')
+      expect(retryButton.exists()).toBe(true)
+    })
+
+    // AC: Retry failed button is NOT visible for other job statuses
+    it('does not show retry-failed button for running jobs', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: sampleJobs },
+        global: { stubs: { Teleport: true } },
+      })
+
+      // job-1 is running — no retry button
+      expect(wrapper.find('[data-testid="job-job-1-retry-failed"]').exists()).toBe(false)
+    })
+
+    it('does not show retry-failed button for stopped jobs', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: sampleJobs },
+        global: { stubs: { Teleport: true } },
+      })
+
+      // job-2 is stopped — no retry button
+      expect(wrapper.find('[data-testid="job-job-2-retry-failed"]').exists()).toBe(false)
+    })
+
+    it('does not show retry-failed button for completed jobs', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: sampleJobs },
+        global: { stubs: { Teleport: true } },
+      })
+
+      // job-3 is completed — no retry button
+      expect(wrapper.find('[data-testid="job-job-3-retry-failed"]').exists()).toBe(false)
+    })
+
+    it('does not show retry-failed button for failed jobs', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: sampleJobs },
+        global: { stubs: { Teleport: true } },
+      })
+
+      // job-4 is failed — no retry button
+      expect(wrapper.find('[data-testid="job-job-4-retry-failed"]').exists()).toBe(false)
+    })
+
+    // AC: Clicking Retry failed emits retryFailed event with job ID
+    it('emits retryFailed event with job ID when retry-failed button is clicked', async () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: [jobWithErrors] },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const retryButton = wrapper.find('[data-testid="job-job-retry-retry-failed"]').findComponent(NButton)
+      await retryButton.trigger('click')
+
+      const emitted = wrapper.emitted('retryFailed')
+      expect(emitted).toBeDefined()
+      expect(emitted).toHaveLength(1)
+      expect(emitted![0]).toEqual(['job-retry'])
+    })
+  })
 })

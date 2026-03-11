@@ -494,6 +494,116 @@ func (s *SampleJobService) Stop(id string) (model.SampleJob, error) {
 	return updatedJob, nil
 }
 
+// RetryFailed re-queues all failed and skipped items in a completed_with_errors job,
+// resets the job status to running, and requests the executor to resume processing.
+func (s *SampleJobService) RetryFailed(id string) (model.SampleJob, error) {
+	s.logger.WithField("sample_job_id", id).Trace("entering RetryFailed")
+	defer s.logger.Trace("returning from RetryFailed")
+
+	// Check if executor is available and connected
+	if s.executor == nil || !s.executor.IsConnected() {
+		s.logger.Warn("cannot retry job: ComfyUI not connected")
+		return model.SampleJob{}, fmt.Errorf("ComfyUI not connected")
+	}
+
+	// Guard: reject if another job is already running
+	hasRunning, err := s.store.HasRunningJob()
+	if err != nil {
+		s.logger.WithFields(logrus.Fields{
+			"sample_job_id": id,
+			"error":         err.Error(),
+		}).Error("failed to check for running jobs")
+		return model.SampleJob{}, fmt.Errorf("checking for running jobs: %w", err)
+	}
+	if hasRunning {
+		s.logger.WithField("sample_job_id", id).Warn("cannot retry job: another job is already running")
+		return model.SampleJob{}, fmt.Errorf("another job is already running")
+	}
+
+	job, err := s.store.GetSampleJob(id)
+	if err == sql.ErrNoRows {
+		s.logger.WithField("sample_job_id", id).Debug("sample job not found")
+		return model.SampleJob{}, fmt.Errorf("sample job %s not found", id)
+	}
+	if err != nil {
+		s.logger.WithFields(logrus.Fields{
+			"sample_job_id": id,
+			"error":         err.Error(),
+		}).Error("failed to fetch sample job")
+		return model.SampleJob{}, fmt.Errorf("fetching sample job: %w", err)
+	}
+	s.logger.WithField("sample_job_id", id).Debug("fetched sample job from store")
+
+	// Validate state transition: only completed_with_errors jobs can be retried
+	if job.Status != model.SampleJobStatusCompletedWithErrors {
+		s.logger.WithFields(logrus.Fields{
+			"sample_job_id":  id,
+			"current_status": job.Status,
+		}).Warn("cannot retry job: job is not completed_with_errors")
+		return model.SampleJob{}, fmt.Errorf("cannot retry job in status %s", job.Status)
+	}
+
+	// Fetch all items and reset failed/skipped ones to pending
+	items, err := s.store.ListSampleJobItems(id)
+	if err != nil {
+		s.logger.WithFields(logrus.Fields{
+			"sample_job_id": id,
+			"error":         err.Error(),
+		}).Error("failed to list sample job items")
+		return model.SampleJob{}, fmt.Errorf("listing sample job items: %w", err)
+	}
+
+	retriedCount := 0
+	now := time.Now().UTC()
+	for _, item := range items {
+		if item.Status == model.SampleJobItemStatusFailed || item.Status == model.SampleJobItemStatusSkipped {
+			item.Status = model.SampleJobItemStatusPending
+			item.ErrorMessage = ""
+			item.ExceptionType = ""
+			item.NodeType = ""
+			item.Traceback = ""
+			item.ComfyUIPromptID = ""
+			item.UpdatedAt = now
+			if updateErr := s.store.UpdateSampleJobItem(item); updateErr != nil {
+				s.logger.WithFields(logrus.Fields{
+					"sample_job_id":      id,
+					"sample_job_item_id": item.ID,
+					"error":              updateErr.Error(),
+				}).Error("failed to reset item status to pending")
+				return model.SampleJob{}, fmt.Errorf("resetting item %s: %w", item.ID, updateErr)
+			}
+			retriedCount++
+		}
+	}
+
+	s.logger.WithFields(logrus.Fields{
+		"sample_job_id": id,
+		"retried_count": retriedCount,
+	}).Info("reset failed/skipped items to pending")
+
+	// Update job status to running
+	job.Status = model.SampleJobStatusRunning
+	job.UpdatedAt = now
+
+	if err := s.store.UpdateSampleJob(job); err != nil {
+		s.logger.WithFields(logrus.Fields{
+			"sample_job_id": id,
+			"error":         err.Error(),
+		}).Error("failed to update sample job status")
+		return model.SampleJob{}, fmt.Errorf("updating sample job: %w", err)
+	}
+
+	// Request the executor to resume
+	if s.executor != nil {
+		if err := s.executor.RequestResume(id); err != nil {
+			s.logger.WithError(err).Warn("executor resume request failed")
+		}
+	}
+
+	s.logger.WithField("sample_job_id", id).Info("sample job retry started")
+	return job, nil
+}
+
 // Resume transitions a stopped job back to running status.
 func (s *SampleJobService) Resume(id string) (model.SampleJob, error) {
 	s.logger.WithField("sample_job_id", id).Trace("entering Resume")

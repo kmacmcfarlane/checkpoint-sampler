@@ -266,6 +266,13 @@ export class ApiClient {
     })
   }
 
+  /** POST /api/sample-jobs/{id}/retry-failed — retry only failed/skipped items in a completed_with_errors job. */
+  async retryFailedSampleJob(id: string): Promise<SampleJob> {
+    return this.request<SampleJob>(`/sample-jobs/${id}/retry-failed`, {
+      method: 'POST',
+    })
+  }
+
   /** GET /api/demo/status — check whether the demo dataset is installed. */
   async getDemoStatus(): Promise<DemoStatus> {
     return this.request<DemoStatus>('/demo/status')

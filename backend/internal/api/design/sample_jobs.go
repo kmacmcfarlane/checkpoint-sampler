@@ -112,6 +112,27 @@ var _ = Service("sample_jobs", func() {
 		})
 	})
 
+	Method("retry_failed", func() {
+		Description("Retry failed items in a completed_with_errors job by re-queuing only the failed and skipped items")
+		Payload(func() {
+			Attribute("id", String, "Sample job ID", func() {
+				Example("550e8400-e29b-41d4-a716-446655440000")
+			})
+			Required("id")
+		})
+		Result(SampleJobResponse)
+		Error("not_found", ErrorResult, "Sample job not found")
+		Error("invalid_state", ErrorResult, "Cannot retry job in current state")
+		Error("service_unavailable", ErrorResult, "ComfyUI service unavailable")
+		HTTP(func() {
+			POST("/api/sample-jobs/{id}/retry-failed")
+			Response(StatusOK)
+			Response("not_found", StatusNotFound)
+			Response("invalid_state", StatusBadRequest)
+			Response("service_unavailable", StatusServiceUnavailable)
+		})
+	})
+
 	Method("delete", func() {
 		Description("Delete a sample job and all its items. When delete_data is true, also removes the generated sample files from disk.")
 		Payload(func() {

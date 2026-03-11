@@ -294,6 +294,14 @@ var _ = Describe("SampleJobsService", func() {
 			Expect(serviceErr.ErrorName()).To(Equal("service_unavailable"))
 		})
 
+		It("RetryFailed returns service_unavailable ServiceError", func() {
+			_, err := disabledSvc.RetryFailed(ctx, &gensamplejobs.RetryFailedPayload{ID: "any-id"})
+			Expect(err).To(HaveOccurred())
+			serviceErr, ok := err.(errorNamer)
+			Expect(ok).To(BeTrue(), "error should implement ErrorNamer interface")
+			Expect(serviceErr.ErrorName()).To(Equal("service_unavailable"))
+		})
+
 		It("Delete returns internal_error ServiceError", func() {
 			err := disabledSvc.Delete(ctx, &gensamplejobs.DeletePayload{ID: "any-id"})
 			Expect(err).To(HaveOccurred())
