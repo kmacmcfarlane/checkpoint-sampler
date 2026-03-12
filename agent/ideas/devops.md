@@ -37,3 +37,9 @@ Add a startup validation step to the ComfyUI mock that verifies its PNG data pas
 * priority: low
 * source: developer
 The `playwright` service in `docker-compose.test.yml` writes root-owned `frontend/playwright-report/` and `frontend/test-results/` to the host-mounted directory. These could be isolated to named volumes or the playwright service could use a `user:` directive to avoid the same class of root-ownership problem fixed by B-087.
+
+### Accessibility audit as a separate CI step
+* status: needs_approval
+* priority: low
+* source: developer
+The axe E2E tests currently run as part of the full E2E suite. A dedicated accessibility audit step that runs accessibility.spec.ts before other E2E tests could catch regressions earlier in CI.

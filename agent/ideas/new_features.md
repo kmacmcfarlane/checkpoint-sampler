@@ -37,3 +37,9 @@ The shift input only appears when the selected workflow has a `shift` role. Addi
 * priority: low
 * source: developer
 Add a CLI or API endpoint to generate thumbnails for existing sample images that were captured before thumbnails were enabled, avoiding the need to re-run jobs.
+
+### ARIA keyboard navigation for XY grid
+* status: needs_approval
+* priority: low
+* source: developer
+Now that the XY grid has proper role="grid" structure with row/columnheader/rowheader/gridcell, implement ARIA keyboard navigation (arrow keys to move focus between cells) per the ARIA Grid pattern. This would make the grid fully navigable by keyboard/screen reader users.
