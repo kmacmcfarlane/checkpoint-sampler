@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### W-010: Automated audit for bare NSelect click patterns in E2E specs
+- New `make lint-e2e-helpers` target runs a shell script that flags bare `training-run-select` clicks bypassing the `selectTrainingRun` helper, preventing recurrence of NSelect race conditions (B-053, B-054)
+
 ### W-008: Widen accessibility test coverage to include grid state
 - Added populated-grid accessibility audit E2E tests (light + dark mode) that load a training run, assign axes, and scan the rendered grid
 - Fixed ARIA structure violations in XYGrid (role="row" wrappers with display:contents) and ZoomControl (imperative aria-label on NSlider thumb)
