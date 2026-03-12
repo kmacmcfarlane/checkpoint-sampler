@@ -38,6 +38,9 @@ ralph-auto-resume:
 ralph-auto-resume-once:
 	claude-sandbox --ralph --dangerously-skip-permissions --limit 1 --resume ${ARGS}
 
+backlog-status:
+	./scripts/backlog/backlog.py status
+
 backlog-not-done:
 	./scripts/backlog/backlog.py query --status todo,in_progress,review,testing,uat --fields id
 
