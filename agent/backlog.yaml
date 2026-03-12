@@ -892,16 +892,14 @@ stories:
   - id: W-021
     title: "Gitignore Playwright HTML report directory"
     priority: 25
-    status: todo
+    status: closed
     complexity: low
     requires: []
     acceptance:
       - "OPS: frontend/playwright-report/ is listed in .gitignore"
       - "OPS: No generated report artifacts are accidentally committed"
-    notes: |
-      The HTML reporter writes output to frontend/playwright-report/ by default. Confirm
-      this path is in .gitignore to avoid accidental commits of generated artifacts.
-      Source: developer.
+    notes: |-
+      frontend/playwright-report/ is already listed in .gitignore (line 23). No code changes needed.
     testing:
       - "Verify playwright-report/ is gitignored after generating a report"
   - id: W-022
