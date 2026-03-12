@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### W-018: Slow-motion mock mode for E2E timing tests
+- ComfyUI mock supports configurable delay via `COMFYUI_MOCK_DELAY_MS` env var and runtime `POST /mock/config` endpoint, enabling E2E tests to reliably observe in-flight job state
+- 3 new E2E tests verify mock config round-trip, running-phase UI observation (status tag, stop button, sample params), and stop-button functionality during slow-motion execution
+
 ### W-017: Incomplete-set E2E test infra (partial sample seeding)
 - New test-only `POST /api/test/seed-partial-samples` endpoint creates partial sample directory structures, enabling E2E coverage of the incomplete-set (`sample_status=partial`) code path without running a generation job
 - 5 new E2E tests verify partial/complete/none sample status and yellow problem bead UI behavior

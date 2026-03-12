@@ -843,7 +843,7 @@ stories:
   - id: W-018
     title: "Slow-motion mock mode for E2E timing tests"
     priority: 25
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:

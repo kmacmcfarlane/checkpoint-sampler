@@ -19,6 +19,8 @@
  *   GET  /history/:promptId        → returns history entry with a fake output image
  *   GET  /view                     → returns a minimal 1×1 PNG image
  *   POST /queue                    → cancel stub (returns 200)
+ *   POST /mock/config              → runtime configuration (delay_ms only; test-only)
+ *   GET  /mock/config              → return current runtime configuration
  *
  * WebSocket:
  *   WS /ws?clientId=<id>           → accepts WS connections; receives prompt_id via
@@ -35,9 +37,20 @@
  * test-fixtures. This allows CheckpointPathMatcher to resolve them and create
  * job items with valid ComfyUI model paths.
  *
+ * ## Slow-motion mode (W-018)
+ *
+ * The mock supports a configurable delay before sending the WS execution-complete
+ * events. This allows E2E tests to reliably observe the in-flight/running phase
+ * (e.g. mid-generation parameters display) without relying on polling luck.
+ *
+ * The delay can be configured two ways:
+ *   1. Startup: COMFYUI_MOCK_DELAY_MS env var (applies to all prompts from startup)
+ *   2. Runtime: POST /mock/config with {"delay_ms": N} (adjustable per-test at runtime)
+ *
  * Configured via environment variables:
- *   PORT  (default: 8188)
+ *   PORT                  (default: 8188)
  *   CHECKPOINT_FILENAMES  (comma-separated list; used in UNETLoader object_info)
+ *   COMFYUI_MOCK_DELAY_MS (default: 0; milliseconds to delay WS execution-complete)
  */
 
 'use strict';
@@ -54,8 +67,15 @@ const CHECKPOINT_FILENAMES = (process.env.CHECKPOINT_FILENAMES || '')
   .map(s => s.trim())
   .filter(Boolean);
 
+// Configurable delay before WS execution-complete events are sent.
+// Can be set at startup via COMFYUI_MOCK_DELAY_MS env var, or at runtime
+// via POST /mock/config {"delay_ms": N}. Default: 0 (no delay).
+let mockDelayMs = parseInt(process.env.COMFYUI_MOCK_DELAY_MS || '0', 10);
+if (isNaN(mockDelayMs) || mockDelayMs < 0) mockDelayMs = 0;
+
 console.log(`[comfyui-mock] Starting on port ${PORT}`);
 console.log(`[comfyui-mock] Known checkpoint files: ${CHECKPOINT_FILENAMES.join(', ')}`);
+console.log(`[comfyui-mock] Initial delay: ${mockDelayMs}ms`);
 
 // Minimal 1x1 white PNG (base64-encoded).
 // This is a structurally valid PNG with correct CRC checksums on all chunks.
@@ -97,10 +117,23 @@ wss.on('connection', (ws, req) => {
  *
  * ComfyUI signals completion by sending an "executing" event with node=null.
  * The backend executor listens for this event to trigger image download.
+ *
+ * The total delay before completion events is 100ms (HTTP-response guard) plus
+ * mockDelayMs (slow-motion mode, W-018). This allows E2E tests to observe the
+ * in-flight/running UI state by setting mockDelayMs to a large value.
  */
 function sendExecutionCompleteAsync(clientId, promptId) {
-  // Use a short delay so the HTTP response for POST /prompt returns before
-  // WS events arrive, matching real ComfyUI behaviour.
+  // Capture the current delay value at the time of the call so that a
+  // concurrent POST /mock/config does not affect in-flight prompts.
+  const delayMs = mockDelayMs;
+
+  // Use a short guard so the HTTP response for POST /prompt returns before
+  // WS events arrive (matching real ComfyUI behaviour), plus the configured
+  // slow-motion delay (default 0).
+  const initialDelay = 100 + delayMs;
+
+  console.log(`[comfyui-mock] Scheduling execution-complete for prompt_id=${promptId} delay=${initialDelay}ms`);
+
   setTimeout(() => {
     const ws = wsClients.get(clientId);
     if (!ws || ws.readyState !== 1 /* OPEN */) {
@@ -139,7 +172,7 @@ function sendExecutionCompleteAsync(clientId, promptId) {
       }));
       console.log(`[comfyui-mock] Sent execution complete for prompt_id=${promptId}`);
     }, (PROGRESS_STEPS + 1) * 10 + 20);
-  }, 100);
+  }, initialDelay);
 }
 
 // --- HTTP server -------------------------------------------------------------
@@ -186,6 +219,19 @@ const server = http.createServer((req, res) => {
   // --- POST /queue (cancel stub) ---
   if (method === 'POST' && pathname === '/queue') {
     return jsonResponse(res, 200, {});
+  }
+
+  // --- POST /mock/config (runtime configuration, W-018) ---
+  // Allows E2E tests to set mockDelayMs at runtime without restarting the container.
+  // Example: POST /mock/config {"delay_ms": 5000}  → enables slow-motion mode
+  //          POST /mock/config {"delay_ms": 0}      → resets to instant mode
+  if (method === 'POST' && pathname === '/mock/config') {
+    return handleMockConfig(req, res);
+  }
+
+  // --- GET /mock/config (read current runtime configuration) ---
+  if (method === 'GET' && pathname === '/mock/config') {
+    return jsonResponse(res, 200, { delay_ms: mockDelayMs });
   }
 
   // Fallback
@@ -331,6 +377,27 @@ function handleGetHistory(res, promptId) {
       },
       status: { status_str: 'success', completed: true },
     },
+  });
+}
+
+function handleMockConfig(req, res) {
+  let body = '';
+  req.on('data', chunk => { body += chunk.toString(); });
+  req.on('end', () => {
+    let payload;
+    try {
+      payload = JSON.parse(body);
+    } catch (e) {
+      return jsonResponse(res, 400, { error: 'invalid JSON' });
+    }
+
+    if (typeof payload.delay_ms !== 'number' || payload.delay_ms < 0) {
+      return jsonResponse(res, 400, { error: 'delay_ms must be a non-negative number' });
+    }
+
+    mockDelayMs = Math.floor(payload.delay_ms);
+    console.log(`[comfyui-mock] Runtime config updated: delay_ms=${mockDelayMs}`);
+    return jsonResponse(res, 200, { delay_ms: mockDelayMs });
   });
 }
 

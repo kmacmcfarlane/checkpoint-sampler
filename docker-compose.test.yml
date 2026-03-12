@@ -8,6 +8,10 @@ services:
       # Checkpoint filenames from test-fixtures/samples (used in UNETLoader object_info
       # so CheckpointPathMatcher can match them to ComfyUI model paths)
       - CHECKPOINT_FILENAMES=my-model-step00001000.safetensors,my-model-step00002000.safetensors
+      # Startup delay for WS execution-complete events (milliseconds).
+      # Default 0 keeps existing tests fast. Individual E2E tests can override
+      # this at runtime via POST /mock/config {"delay_ms": N} (W-018).
+      - COMFYUI_MOCK_DELAY_MS=0
     healthcheck:
       test: ["CMD", "sh", "-c", "wget -qO- http://127.0.0.1:8188/system_stats || exit 1"]
       interval: 5s
@@ -97,6 +101,9 @@ services:
       - playwright_node_modules:/app/node_modules
     environment:
       - PLAYWRIGHT_BASE_URL=http://frontend:3000
+      # URL for the ComfyUI mock service — used by slow-motion E2E tests (W-018)
+      # to set mock delay via POST /mock/config at runtime.
+      - COMFYUI_MOCK_URL=http://comfyui-mock:8188
     depends_on:
       frontend:
         condition: service_healthy
