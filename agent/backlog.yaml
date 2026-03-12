@@ -285,7 +285,7 @@ stories:
   - id: R-007
     title: "Remove orphaned ThemeToggle.vue component"
     priority: 10
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:

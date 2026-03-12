@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### R-007: Remove orphaned ThemeToggle.vue component
+- Deleted dead `ThemeToggle.vue` and its test file; theme toggle lives in the Settings dialog since S-091
+
 ### R-006: Shared validation constants between backend and frontend
 - Frontend now extracts disallowed study name characters from backend API error response instead of maintaining a duplicate constant; bootstrap default ensures inline validation works before first API call
 
