@@ -858,7 +858,7 @@ stories:
   - id: W-019
     title: "Add test-frontend and test-backend to Makefile .PHONY"
     priority: 15
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:

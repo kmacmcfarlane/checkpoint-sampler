@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### W-019: Add test-frontend and test-backend to Makefile .PHONY
+- Declared `test-frontend` and `test-backend` as `.PHONY` targets in the root Makefile for correctness
+
 ### S-127: MRU for sampler/scheduler pairs per workflow
 - Sampler/scheduler pairs are now remembered per workflow template in localStorage and auto-filled when re-selecting a workflow; existing study values are preserved when loading from the study selector
 

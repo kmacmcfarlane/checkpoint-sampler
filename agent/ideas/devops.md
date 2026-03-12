@@ -49,3 +49,9 @@ The axe E2E tests currently run as part of the full E2E suite. A dedicated acces
 * priority: low
 * source: developer
 Once the disallowed character set is stable, add `make lint-disallowed-chars` as a pre-merge CI check so it runs automatically when `disallowedNameChars` is modified, rather than relying on developers to run it manually.
+
+### E2E log directory creation reliability in make test-e2e
+* status: needs_approval
+* priority: low
+* source: qa
+The `mkdir -p .ralph/temp/e2e-logs` step in the Makefile test-e2e recipe may execute after teardown or fail silently. Verify the log capture step runs before `docker compose down -v` so logs are always available for the runtime error sweep.
