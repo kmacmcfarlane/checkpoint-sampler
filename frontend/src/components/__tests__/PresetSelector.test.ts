@@ -1397,4 +1397,310 @@ describe('PresetSelector', () => {
     })
   })
 
+  // AC1, AC2, AC3: Inline rename flow
+  describe('Rename button', () => {
+    /** Helper: select preset p1 and simulate parent applying mapping (clean state). */
+    async function selectPreset(wrapper: ReturnType<typeof mount>) {
+      const select = wrapper.findComponent(NSelect)
+      select.vm.$emit('update:value', 'p1')
+      await nextTick()
+      await wrapper.setProps({
+        assignments: new Map(defaultProps.assignments),
+        filterModes: new Map(defaultProps.filterModes),
+      })
+      await nextTick()
+    }
+
+    /** Open the rename dialog for the selected preset. */
+    async function openRenameDialog(wrapper: ReturnType<typeof mount>) {
+      const renameBtn = findButton(wrapper, 'Rename preset')!
+      expect(renameBtn).toBeDefined()
+      await renameBtn.trigger('click')
+      await nextTick()
+    }
+
+    // AC1: Inline rename affordance on the preset name field
+    it('Rename button appears when a preset is selected', async () => {
+      mockGetPresets.mockResolvedValue(samplePresets)
+      const wrapper = mount(PresetSelector, {
+        props: defaultProps,
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Not visible before selection
+      expect(findButton(wrapper, 'Rename preset')).toBeUndefined()
+
+      await selectPreset(wrapper)
+
+      // AC1: Rename button is now visible
+      expect(findButton(wrapper, 'Rename preset')).toBeDefined()
+    })
+
+    // AC1: Rename button is not visible when no preset is selected
+    it('Rename button is not visible when no preset is selected', async () => {
+      mockGetPresets.mockResolvedValue(samplePresets)
+      const wrapper = mount(PresetSelector, { props: defaultProps })
+      await flushPromises()
+
+      expect(findButton(wrapper, 'Rename preset')).toBeUndefined()
+    })
+
+    // AC1: Clicking Rename opens a dialog pre-filled with the current preset name
+    it('clicking Rename opens a dialog pre-filled with the current preset name', async () => {
+      mockGetPresets.mockResolvedValue(samplePresets)
+      const wrapper = mount(PresetSelector, {
+        props: defaultProps,
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      await selectPreset(wrapper)
+      await openRenameDialog(wrapper)
+
+      // AC1: The rename dialog is open
+      const renameDialog = wrapper.find('[data-testid="preset-rename-dialog"]')
+      expect(renameDialog.exists()).toBe(true)
+
+      // AC1: The dialog input is pre-filled with the current preset name ("Config A")
+      const allModals = wrapper.findAllComponents(NModal)
+      const renameModal = allModals.find((m) => m.props('show') === true)
+      expect(renameModal).toBeDefined()
+
+      // The input value should be the preset's current name
+      const allInputs = wrapper.findAllComponents(NInput)
+      // The rename dialog input is data-testid="preset-rename-dialog-input"
+      const renameInput = wrapper.find('[data-testid="preset-rename-dialog-input"]')
+      expect(renameInput.exists()).toBe(true)
+      // Find the NInput that corresponds to the rename dialog
+      const renameNInput = allInputs.find((inp) =>
+        inp.attributes('data-testid') === 'preset-rename-dialog-input'
+      )
+      expect(renameNInput).toBeDefined()
+      expect(renameNInput!.props('value')).toBe('Config A')
+    })
+
+    // AC1: Rename dialog has confirm and cancel buttons
+    it('rename dialog has confirm and cancel buttons', async () => {
+      mockGetPresets.mockResolvedValue(samplePresets)
+      const wrapper = mount(PresetSelector, {
+        props: defaultProps,
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      await selectPreset(wrapper)
+      await openRenameDialog(wrapper)
+
+      expect(wrapper.find('[data-testid="preset-rename-dialog-confirm"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="preset-rename-dialog-cancel"]').exists()).toBe(true)
+    })
+
+    // AC2: Renaming updates the preset without requiring Save-As
+    it('confirming rename calls updatePreset with new name and existing mapping', async () => {
+      mockGetPresets.mockResolvedValue(samplePresets)
+      const renamedPreset: Preset = {
+        ...samplePresets[0],
+        name: 'Renamed Config A',
+        updated_at: '2025-06-01T00:00:00Z',
+      }
+      mockUpdatePreset.mockResolvedValue(renamedPreset)
+
+      const wrapper = mount(PresetSelector, {
+        props: defaultProps,
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      await selectPreset(wrapper)
+      await openRenameDialog(wrapper)
+
+      // AC2: Update the name in the dialog
+      const renameNInput = wrapper.findAllComponents(NInput).find((inp) =>
+        inp.attributes('data-testid') === 'preset-rename-dialog-input'
+      )!
+      renameNInput.vm.$emit('update:value', 'Renamed Config A')
+      await nextTick()
+
+      // Confirm
+      const confirmBtn = wrapper.find('[data-testid="preset-rename-dialog-confirm"]')
+      await confirmBtn.findComponent(NButton).trigger('click')
+      await flushPromises()
+
+      // AC2: updatePreset called with preset id, new name, and existing mapping (no Save-As)
+      expect(mockUpdatePreset).toHaveBeenCalledWith(
+        'p1',
+        'Renamed Config A',
+        samplePresets[0].mapping,
+      )
+      expect(mockCreatePreset).not.toHaveBeenCalled()
+    })
+
+    // AC2: After confirming rename, the NSelect options show the updated name
+    it('after confirming rename, the NSelect options show the updated name', async () => {
+      mockGetPresets.mockResolvedValue(samplePresets)
+      const renamedPreset: Preset = {
+        ...samplePresets[0],
+        name: 'Renamed Config A',
+        updated_at: '2025-06-01T00:00:00Z',
+      }
+      mockUpdatePreset.mockResolvedValue(renamedPreset)
+
+      const wrapper = mount(PresetSelector, {
+        props: defaultProps,
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      await selectPreset(wrapper)
+      await openRenameDialog(wrapper)
+
+      const renameNInput = wrapper.findAllComponents(NInput).find((inp) =>
+        inp.attributes('data-testid') === 'preset-rename-dialog-input'
+      )!
+      renameNInput.vm.$emit('update:value', 'Renamed Config A')
+      await nextTick()
+
+      const confirmBtn = wrapper.find('[data-testid="preset-rename-dialog-confirm"]')
+      await confirmBtn.findComponent(NButton).trigger('click')
+      await flushPromises()
+
+      // AC2: The NSelect options should reflect the new name
+      const options = wrapper.findComponent(NSelect).props('options') as Array<{ label: string; value: string }>
+      const renamedOption = options.find((o) => o.value === 'p1')
+      expect(renamedOption?.label).toBe('Renamed Config A')
+    })
+
+    // AC2: After confirming rename, the save event is emitted
+    it('after confirming rename, save event is emitted with the renamed preset', async () => {
+      mockGetPresets.mockResolvedValue(samplePresets)
+      const renamedPreset: Preset = {
+        ...samplePresets[0],
+        name: 'Renamed Config A',
+        updated_at: '2025-06-01T00:00:00Z',
+      }
+      mockUpdatePreset.mockResolvedValue(renamedPreset)
+
+      const wrapper = mount(PresetSelector, {
+        props: defaultProps,
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      await selectPreset(wrapper)
+      await openRenameDialog(wrapper)
+
+      const renameNInput = wrapper.findAllComponents(NInput).find((inp) =>
+        inp.attributes('data-testid') === 'preset-rename-dialog-input'
+      )!
+      renameNInput.vm.$emit('update:value', 'Renamed Config A')
+      await nextTick()
+
+      const confirmBtn = wrapper.find('[data-testid="preset-rename-dialog-confirm"]')
+      await confirmBtn.findComponent(NButton).trigger('click')
+      await flushPromises()
+
+      // AC2: save event emitted with the renamed preset
+      const saveEmitted = wrapper.emitted('save')
+      expect(saveEmitted).toBeDefined()
+      expect(saveEmitted![0][0]).toEqual(renamedPreset)
+    })
+
+    // AC3: Cancelling the rename dialog does not call updatePreset
+    it('cancelling rename dialog does not call updatePreset', async () => {
+      mockGetPresets.mockResolvedValue(samplePresets)
+
+      const wrapper = mount(PresetSelector, {
+        props: defaultProps,
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      await selectPreset(wrapper)
+      await openRenameDialog(wrapper)
+
+      // Cancel without confirming
+      const cancelBtn = wrapper.find('[data-testid="preset-rename-dialog-cancel"]')
+      await cancelBtn.findComponent(NButton).trigger('click')
+      await flushPromises()
+
+      expect(mockUpdatePreset).not.toHaveBeenCalled()
+
+      // Modal should be closed
+      const allModals = wrapper.findAllComponents(NModal)
+      const anyShownModal = allModals.find((m) => m.props('show') === true)
+      expect(anyShownModal).toBeUndefined()
+    })
+
+    // AC3: Confirm button disabled when name is empty
+    it('confirm button is disabled when rename input is empty', async () => {
+      mockGetPresets.mockResolvedValue(samplePresets)
+
+      const wrapper = mount(PresetSelector, {
+        props: defaultProps,
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      await selectPreset(wrapper)
+      await openRenameDialog(wrapper)
+
+      // Clear the input
+      const renameNInput = wrapper.findAllComponents(NInput).find((inp) =>
+        inp.attributes('data-testid') === 'preset-rename-dialog-input'
+      )!
+      renameNInput.vm.$emit('update:value', '')
+      await nextTick()
+
+      const confirmBtn = wrapper.find('[data-testid="preset-rename-dialog-confirm"]').findComponent(NButton)
+      expect(confirmBtn.props('disabled')).toBe(true)
+    })
+
+    // AC3: Confirm button disabled when name is whitespace-only
+    it('confirm button is disabled when rename input is whitespace-only', async () => {
+      mockGetPresets.mockResolvedValue(samplePresets)
+
+      const wrapper = mount(PresetSelector, {
+        props: defaultProps,
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      await selectPreset(wrapper)
+      await openRenameDialog(wrapper)
+
+      const renameNInput = wrapper.findAllComponents(NInput).find((inp) =>
+        inp.attributes('data-testid') === 'preset-rename-dialog-input'
+      )!
+      renameNInput.vm.$emit('update:value', '   ')
+      await nextTick()
+
+      const confirmBtn = wrapper.find('[data-testid="preset-rename-dialog-confirm"]').findComponent(NButton)
+      expect(confirmBtn.props('disabled')).toBe(true)
+    })
+
+    // AC3: Confirm button enabled when a non-empty name is entered
+    it('confirm button is enabled when a non-empty name is entered in rename dialog', async () => {
+      mockGetPresets.mockResolvedValue(samplePresets)
+
+      const wrapper = mount(PresetSelector, {
+        props: defaultProps,
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      await selectPreset(wrapper)
+      await openRenameDialog(wrapper)
+
+      const renameNInput = wrapper.findAllComponents(NInput).find((inp) =>
+        inp.attributes('data-testid') === 'preset-rename-dialog-input'
+      )!
+      renameNInput.vm.$emit('update:value', 'New Name')
+      await nextTick()
+
+      const confirmBtn = wrapper.find('[data-testid="preset-rename-dialog-confirm"]').findComponent(NButton)
+      expect(confirmBtn.props('disabled')).toBe(false)
+    })
+  })
+
 })

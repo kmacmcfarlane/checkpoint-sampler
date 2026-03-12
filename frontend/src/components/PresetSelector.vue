@@ -273,6 +273,66 @@ function onCancelSave() {
 
 const updating = ref(false)
 
+/** Controls visibility of the rename dialog. */
+const showRenameDialog = ref(false)
+/** The preset name being typed in the rename dialog. */
+const renameDialogName = ref('')
+/** Ref for the NInput inside the rename dialog, used to auto-focus on open. */
+const renameDialogInputRef = ref<InstanceType<typeof NInput> | null>(null)
+
+/**
+ * Called when the user clicks the Rename button.
+ * Opens the rename dialog pre-filled with the current preset name.
+ */
+function onRename() {
+  if (!selectedId.value) return
+  const existing = presets.value.find((p) => p.id === selectedId.value)
+  if (!existing) return
+  renameDialogName.value = existing.name
+  showRenameDialog.value = true
+  nextTick(() => {
+    renameDialogInputRef.value?.focus()
+  })
+}
+
+/**
+ * Called when the user confirms the rename dialog.
+ * Updates the preset name via the API while keeping the existing mapping.
+ */
+async function onConfirmRename() {
+  const name = renameDialogName.value.trim()
+  if (!name || !selectedId.value) return
+
+  const existing = presets.value.find((p) => p.id === selectedId.value)
+  if (!existing) return
+
+  showRenameDialog.value = false
+  saving.value = true
+  error.value = null
+  try {
+    const preset = await apiClient.updatePreset(existing.id, name, existing.mapping)
+    const idx = presets.value.findIndex((p) => p.id === preset.id)
+    if (idx !== -1) presets.value[idx] = preset
+    emit('save', preset)
+  } catch (err: unknown) {
+    const message =
+      err && typeof err === 'object' && 'message' in err
+        ? String((err as { message: string }).message)
+        : 'Failed to rename preset'
+    error.value = message
+  } finally {
+    saving.value = false
+  }
+}
+
+/**
+ * Called when the user cancels the rename dialog.
+ */
+function onCancelRename() {
+  showRenameDialog.value = false
+  renameDialogName.value = ''
+}
+
 /** Controls visibility of the delete confirmation dialog. */
 const showDeleteDialog = ref(false)
 
@@ -441,6 +501,15 @@ function assignmentsToMapping(): PresetMapping {
       <NButton
         v-if="selectedId"
         size="small"
+        data-testid="preset-rename-button"
+        aria-label="Rename preset"
+        @click="onRename"
+      >
+        Rename
+      </NButton>
+      <NButton
+        v-if="selectedId"
+        size="small"
         type="error"
         data-testid="preset-delete-button"
         aria-label="Delete preset"
@@ -492,6 +561,42 @@ function assignmentsToMapping(): PresetMapping {
         <NButton
           data-testid="preset-save-dialog-cancel"
           @click="onCancelSave"
+        >
+          Cancel
+        </NButton>
+      </div>
+    </NModal>
+
+    <NModal
+      :show="showRenameDialog"
+      preset="card"
+      title="Rename Preset"
+      style="max-width: 420px;"
+      :mask-closable="true"
+      data-testid="preset-rename-dialog"
+      @update:show="(val) => { if (!val) onCancelRename() }"
+    >
+      <div class="save-dialog-body" data-testid="preset-rename-dialog-body">
+        <NInput
+          ref="renameDialogInputRef"
+          v-model:value="renameDialogName"
+          placeholder="Preset name"
+          data-testid="preset-rename-dialog-input"
+          @keydown="(e: KeyboardEvent) => { if (e.key === 'Enter') onConfirmRename(); else if (e.key === 'Escape') onCancelRename() }"
+        />
+      </div>
+      <div class="action-buttons">
+        <NButton
+          type="primary"
+          :disabled="!renameDialogName.trim()"
+          data-testid="preset-rename-dialog-confirm"
+          @click="onConfirmRename"
+        >
+          Rename
+        </NButton>
+        <NButton
+          data-testid="preset-rename-dialog-cancel"
+          @click="onCancelRename"
         >
           Cancel
         </NButton>

@@ -148,7 +148,7 @@ stories:
   - id: S-104
     title: "Rename preset inline"
     priority: 15
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:

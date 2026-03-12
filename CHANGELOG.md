@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-104: Rename preset inline
+- "Rename" button appears when a preset is selected, opens a dialog pre-filled with the current name; confirms via PUT (no Save-As needed)
+
 ### S-103: Expose more sidecar fields as numeric in metadata API
 - `numericSidecarFields` expanded from 3 to 6 entries: `width`, `height`, and `index` now route to `NumericFields` instead of `StringFields` in sidecar metadata parsing
 
