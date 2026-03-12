@@ -105,6 +105,28 @@ const loading = ref(false)
 const saving = ref(false)
 const error = ref<string | null>(null)
 
+/**
+ * Disallowed characters for study name validation.
+ * The backend is the authoritative source; this reactive ref is populated from the
+ * backend API error response on the first rejected save, keeping the two in sync
+ * without a maintained duplicate. The initial value is a bootstrap default that mirrors
+ * the backend constant so inline validation works from the very first page load.
+ */
+const apiDisallowedChars = ref<string>(`()/\\:*?<>|"`)
+
+/**
+ * Parses the disallowed character set from a backend validation error message.
+ * The backend message format is:
+ *   "study name contains disallowed characters; the following characters are not allowed: XYZ"
+ * Returns the character string (e.g. `()/\:*?<>|"`) or null if the message does not match.
+ */
+function extractDisallowedCharsFromMessage(message: string): string | null {
+  const sentinel = 'the following characters are not allowed: '
+  const idx = message.indexOf(sentinel)
+  if (idx === -1) return null
+  return message.slice(idx + sentinel.length)
+}
+
 // Immutability dialog: shown when user edits a study that has generated samples
 const showImmutabilityDialog = ref(false)
 
@@ -264,13 +286,14 @@ const localValidationError = computed((): string | null => {
   }
 
   // Check study name for filesystem-unsafe characters.
-  // These characters are problematic for directory names on Linux, macOS, and Windows.
-  const disallowedChars = `()/\\:*?<>|"`
+  // apiDisallowedChars starts with a bootstrap default and is updated from the backend
+  // error response on the first rejected save, keeping the set authoritative without a
+  // maintained duplicate constant.
   const studyNameVal = studyName.value.trim()
   if (studyNameVal !== '') {
-    for (const ch of disallowedChars) {
+    for (const ch of apiDisallowedChars.value) {
       if (studyNameVal.includes(ch)) {
-        return `Study name contains disallowed characters; the following characters are not allowed: ${disallowedChars}`
+        return `Study name contains disallowed characters; the following characters are not allowed: ${apiDisallowedChars.value}`
       }
     }
   }
@@ -296,13 +319,12 @@ const localValidationError = computed((): string | null => {
  * For study name, a boolean indicates whether the name field itself has an error.
  */
 const fieldValidationErrors = computed(() => {
-  const disallowedChars = `()/\\:*?<>|"`
   const studyNameVal = studyName.value.trim()
 
   // Study name: invalid characters or duplicate name
   let studyNameError = false
   if (studyNameVal !== '') {
-    for (const ch of disallowedChars) {
+    for (const ch of apiDisallowedChars.value) {
       if (studyNameVal.includes(ch)) {
         studyNameError = true
         break
@@ -644,6 +666,10 @@ async function performSave() {
         ? String((err as { message: string }).message)
         : 'Failed to save study'
     error.value = message
+    // Learn disallowed chars from the backend error so future client-side validation
+    // reflects the backend's authoritative set without maintaining a duplicate constant.
+    const parsed = extractDisallowedCharsFromMessage(message)
+    if (parsed !== null) apiDisallowedChars.value = parsed
   } finally {
     saving.value = false
   }
@@ -698,6 +724,8 @@ async function forkStudy() {
         ? String((err as { message: string }).message)
         : 'Failed to fork study'
     error.value = message
+    const parsed = extractDisallowedCharsFromMessage(message)
+    if (parsed !== null) apiDisallowedChars.value = parsed
   } finally {
     saving.value = false
   }

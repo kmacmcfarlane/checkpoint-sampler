@@ -268,7 +268,7 @@ stories:
   - id: R-006
     title: "Shared validation constants between backend and frontend"
     priority: 10
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:

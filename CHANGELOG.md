@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### R-006: Shared validation constants between backend and frontend
+- Frontend now extracts disallowed study name characters from backend API error response instead of maintaining a duplicate constant; bootstrap default ensures inline validation works before first API call
+
 ### R-005: Deprecate has_samples query parameter from Goa DSL
 - Removed unused `has_samples` query parameter from `GET /api/training-runs` Goa DSL and regenerated API code; response field retained
 

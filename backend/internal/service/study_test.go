@@ -548,6 +548,21 @@ var _ = Describe("StudyService", func() {
 		validPairs := []model.SamplerSchedulerPair{{Sampler: "euler", Scheduler: "simple"}}
 		validSeeds := []int64{420}
 
+		// AC: BE: Disallowed characters are surfaced in the API error response
+		It("error message contains the disallowed character set after the sentinel phrase", func() {
+			_, err := svc.Create(`bad/name`, "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512, "", "", "", nil)
+			Expect(err).To(HaveOccurred())
+			// The error message must contain the sentinel phrase followed by the characters,
+			// so the frontend can parse them without maintaining a duplicate constant.
+			Expect(err.Error()).To(ContainSubstring("the following characters are not allowed: "))
+			// Verify the actual disallowed set is included (spot-check a few characters)
+			Expect(err.Error()).To(ContainSubstring("/"))
+			Expect(err.Error()).To(ContainSubstring("\\"))
+			Expect(err.Error()).To(ContainSubstring(":"))
+			Expect(err.Error()).To(ContainSubstring("*"))
+			Expect(err.Error()).To(ContainSubstring("?"))
+		})
+
 		DescribeTable("validates study name filesystem safety",
 			func(tc filenameTestCase) {
 				_, err := svc.Create(tc.name, "", validPrompts, "", validSteps, validCFGs, validPairs, validSeeds, 512, 512, "", "", "", nil)

@@ -2122,7 +2122,9 @@ describe('StudyEditor', () => {
       expect(saveButton.props('disabled')).toBe(false)
     })
 
-    // AC: Study name validation rejects characters problematic for directory names
+    // AC: Study name validation rejects characters problematic for directory names.
+    // The frontend's disallowed char set (apiDisallowedChars) starts with a bootstrap
+    // default and is updated from the backend error response on rejected saves.
     it.each([
       ['(', 'study(1)'],
       [')', 'study)1'],
@@ -2169,6 +2171,40 @@ describe('StudyEditor', () => {
       // No validation error for safe characters
       const warningAlert = wrapper.find('[data-testid="local-validation-error"]')
       expect(warningAlert.exists()).toBe(false)
+    })
+
+    // AC: FE: Frontend reflects disallowed characters from the API rather than
+    //         maintaining a duplicate constant.
+    // When the backend returns a disallowed-characters error, the frontend updates
+    // its apiDisallowedChars ref from the error message, keeping them in sync
+    // without a separately maintained constant.
+    it('updates apiDisallowedChars from backend error response', async () => {
+      const updatedCharSet = `()/\\:*?<>|"!@`  // hypothetical future chars from backend
+      mockCreateStudy.mockRejectedValueOnce({
+        message: `study name contains disallowed characters; the following characters are not allowed: ${updatedCharSet}`,
+      })
+
+      const { wrapper, vm } = await mountWithValidForm()
+      const vmTyped = wrapper.vm as unknown as { apiDisallowedChars: string }
+
+      // Trigger a save that reaches the API (use a name without current disallowed chars
+      // so local validation passes, then the API rejects it with an updated char set)
+      const nameInput = asVue(wrapper.findComponent('[data-testid="study-name-input"]'))
+      nameInput.vm.$emit('update:value', 'SomeValidLookingName')
+      await nextTick()
+      vm.samplerSchedulerPairs = [{ sampler: 'euler', scheduler: 'simple' }]
+      await nextTick()
+
+      const saveButton = wrapper
+        .findAllComponents(NButton)
+        .find(b => b.text().includes('Save Study'))
+      if (saveButton) {
+        await saveButton.trigger('click')
+        await flushPromises()
+      }
+
+      // After the API error, apiDisallowedChars should reflect the backend's updated set
+      expect(vmTyped.apiDisallowedChars).toBe(updatedCharSet)
     })
   })
 
