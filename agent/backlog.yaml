@@ -355,7 +355,7 @@ stories:
   - id: W-009
     title: "Populate safetensors test fixtures with minimal valid headers"
     priority: 15
-    status: todo
+    status: closed
     complexity: low
     requires: []
     acceptance:
@@ -364,11 +364,8 @@ stories:
       - "E2E: No more 'reading header length: EOF' errors in checkpoint metadata scans"
     testing:
       - "Run E2E suite and verify no safetensors header parse errors in logs"
-    notes: |
-      The 0-byte .safetensors files in test-fixtures/ cause "reading header length: EOF" errors
-      on every checkpoint metadata scan. Adding a minimal valid safetensors header would eliminate
-      these log errors and provide more realistic test data.
-      Source: qa.
+    notes: |-
+      Duplicate of B-040 which already replaced 0-byte safetensors fixtures with valid 10-byte minimal headers (8-byte LE length prefix + empty JSON object). All 4 fixture files already contain valid headers. No code changes needed.
   - id: W-010
     title: "Automated audit for bare NSelect click patterns in E2E specs"
     priority: 25
