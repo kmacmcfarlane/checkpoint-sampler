@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### W-013: E2E test for keyboard auto-repeat slider navigation
+- New Playwright spec (`slider-keyboard-autorepeat.spec.ts`) with 4 tests exercising `page.keyboard.down()` auto-repeat on the master slider, catching stale-prop race conditions that JSDOM cannot reproduce
+
 ### W-012: Shift field E2E testing with AuraFlow workflow fixture
 - Added `test-workflow-auraflow.json` fixture with `cs_role: "shift"` node, enabling E2E tests for shift field visibility behavior
 - Three new E2E tests verify shift input appears/disappears based on workflow selection in the study editor

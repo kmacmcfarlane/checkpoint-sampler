@@ -756,7 +756,7 @@ stories:
   - id: W-013
     title: "E2E test for keyboard auto-repeat slider navigation"
     priority: 25
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:
