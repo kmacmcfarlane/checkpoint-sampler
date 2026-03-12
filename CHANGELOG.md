@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### W-015: Add Vite ws proxy EPIPE to QA_ALLOWED_ERRORS.md
+- Updated QA_ALLOWED_ERRORS.md to document `[vite] ws proxy socket error: Error: write EPIPE` as the primary EPIPE source during E2E runs, caused by Playwright closing WebSocket connections on page navigation
+
 ### W-014: App.test.ts window.innerWidth cleanup between tests
 - Top-level `afterEach` in App.test.ts now resets `window.innerWidth` to 1024, preventing narrow-screen test state from leaking across tests via `Object.defineProperty`
 

@@ -791,7 +791,7 @@ stories:
   - id: W-015
     title: "Add Vite ws proxy EPIPE to QA_ALLOWED_ERRORS.md"
     priority: 25
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:
