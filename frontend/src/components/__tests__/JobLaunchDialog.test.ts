@@ -162,6 +162,23 @@ const runningJob: SampleJob = {
   updated_at: '2025-01-01T00:00:00Z',
 }
 
+// Training run with a pending (queued) job (activity=blue via dual-bead)
+const pendingJob: SampleJob = {
+  id: 'job-pending',
+  training_run_name: 'qwen/psai4rt-v0.3.0',
+  study_id: 'preset-1', study_name: 'Quick Test',
+  workflow_name: 'qwen-image.json',
+  vae: 'ae.safetensors',
+  clip: 'clip_l.safetensors',
+  status: 'pending',
+  total_items: 10,
+  completed_items: 0,
+  failed_items: 0,
+  pending_items: 10,
+  created_at: '2025-01-01T00:00:00Z',
+  updated_at: '2025-01-01T00:00:00Z',
+}
+
 const allTrainingRuns = [runEmpty, runWithSamples, runRunning]
 
 // Helper validation results matching each training run's checkpoints.
@@ -338,6 +355,31 @@ describe('JobLaunchDialog', () => {
       // runRunning (id=3): has a running job → activity=blue
       const runningOpt = options.find(o => o.value === 3)
       expect(runningOpt?._dualBead.activity).toBe('blue')
+    })
+
+    // AC: queued path — a training run with a pending job shows activity=blue (queued state)
+    it('training run with pending job carries _dualBead activity=blue (queued path)', async () => {
+      // AC: Test covers the queued path (pending job) in bead status logic
+      mockListSampleJobs.mockResolvedValue([pendingJob])
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Show all runs to get all options
+      wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
+      await nextTick()
+
+      const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
+      type DualBead = { activity: string | null; problem: string | null }
+      const options = runSelect.props('options') as Array<{ label: string; value: number; _dualBead: DualBead }>
+
+      // runEmpty (id=1) has a pending job → queued state → activity=blue
+      const queuedOpt = options.find(o => o.value === 1)
+      expect(queuedOpt?._dualBead.activity).toBe('blue')
+      expect(queuedOpt?._dualBead.problem).toBeNull()
     })
 
     it('renderLabel function returns a VNode with activity bead and label text', async () => {

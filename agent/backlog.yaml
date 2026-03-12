@@ -301,7 +301,7 @@ stories:
   - id: W-005
     title: "Add queued status bead test case to JobLaunchDialog tests"
     priority: 25
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:

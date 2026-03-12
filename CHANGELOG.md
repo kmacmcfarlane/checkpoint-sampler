@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### W-005: Add queued status bead test case to JobLaunchDialog tests
+- Added pending/queued path test case completing 4-of-4 dual bead state coverage (empty, complete, running, queued)
+
 ### S-125: Separate display ordering from processing ordering for ListSampleJobs
 - UI-facing job list now returns newest-first (created_at DESC); executor FIFO pickup remains oldest-first (ASC)
 
