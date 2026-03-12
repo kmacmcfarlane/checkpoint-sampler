@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### W-011: Cross-story regression guard for character-set changes
+- New `make lint-disallowed-chars` target scans string literals in `.go`/`.ts`/`.vue` files for characters in the `disallowedNameChars` set, catching regressions when new characters are added to the disallowed study-name set
+- Fixed Goa design `Example("My Study (copy)")` → `Example("My Study - copy")` to comply with the current disallowed character set
+
 ### W-010: Automated audit for bare NSelect click patterns in E2E specs
 - New `make lint-e2e-helpers` target runs a shell script that flags bare `training-run-select` clicks bypassing the `selectTrainingRun` helper, preventing recurrence of NSelect race conditions (B-053, B-054)
 

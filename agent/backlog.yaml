@@ -388,7 +388,7 @@ stories:
   - id: W-011
     title: "Cross-story regression guard for character-set changes"
     priority: 25
-    status: todo
+    status: uat
     complexity: medium
     requires: []
     acceptance:

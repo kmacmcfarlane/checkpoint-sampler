@@ -303,7 +303,7 @@ var ForkStudyPayload = Type("ForkStudyPayload", func() {
 		Example("550e8400-e29b-41d4-a716-446655440000")
 	})
 	Attribute("name", String, "New study display name", func() {
-		Example("My Study (copy)")
+		Example("My Study - copy")
 		MinLength(1)
 	})
 	Attribute("prompt_prefix", String, "Text prepended to each prompt at generation time", func() {
