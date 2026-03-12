@@ -824,7 +824,7 @@ stories:
   - id: W-017
     title: "Incomplete-set E2E test infra (partial sample seeding)"
     priority: 25
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:

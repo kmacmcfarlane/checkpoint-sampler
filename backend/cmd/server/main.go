@@ -214,6 +214,9 @@ func run() error {
 	sampleDirCleaner := store.NewSampleDirCleaner(fs, cfg.SampleDir)
 	fixtureSeeder := store.NewFixtureSeeder(st, cfg.SampleDir, logger)
 
+	// Create partial sample seeder for the test-only seed-partial-samples endpoint
+	partialSampleSeeder := api.NewFilesystemPartialSampleSeeder(cfg.SampleDir, logger)
+
 	// Build the HTTP handler with all transport setup
 	// st satisfies the JobSeeder interface via its SeedSampleJobs method.
 	handler := api.NewHTTPHandler(api.HTTPHandlerConfig{
@@ -238,6 +241,7 @@ func run() error {
 		SampleDirCleaner:       sampleDirCleaner,
 		FixtureSeeder:          fixtureSeeder,
 		JobSeeder:              st,
+		PartialSampleSeeder:    partialSampleSeeder,
 	})
 
 	// Create HTTP server

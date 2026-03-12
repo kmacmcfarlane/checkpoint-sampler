@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### W-017: Incomplete-set E2E test infra (partial sample seeding)
+- New test-only `POST /api/test/seed-partial-samples` endpoint creates partial sample directory structures, enabling E2E coverage of the incomplete-set (`sample_status=partial`) code path without running a generation job
+- 5 new E2E tests verify partial/complete/none sample status and yellow problem bead UI behavior
+
 ### W-016: Shared logrus log-level assertion helper for backend tests
 - New `testutil.LogCapture` helper in `backend/internal/testutil/` replaces three ad-hoc patterns (inline for-loops, local `filterByLevel`, `bytes.Buffer` string matching) with a single reusable struct
 - Existing log-level tests in `filesystem_test.go`, `preset_test.go`, and `job_executor_test.go` refactored to use the helper

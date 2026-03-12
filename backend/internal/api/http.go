@@ -89,6 +89,12 @@ type HTTPHandlerConfig struct {
 	// specified statuses for E2E testing. When non-nil and
 	// ENABLE_TEST_ENDPOINTS=true, POST /api/test/seed-jobs is mounted.
 	JobSeeder JobSeeder
+
+	// PartialSampleSeeder is an optional dependency for seeding partial sample
+	// directory structures for E2E testing of the incomplete-set code path.
+	// When non-nil and ENABLE_TEST_ENDPOINTS=true,
+	// POST /api/test/seed-partial-samples is mounted.
+	PartialSampleSeeder PartialSampleSeeder
 }
 
 // NewHTTPHandler creates a fully wired http.Handler with all Goa services,
@@ -163,6 +169,9 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 	}
 	if cfg.JobSeeder != nil {
 		MountTestSeedJobsEndpoint(mux, cfg.JobSeeder, cfg.Logger)
+	}
+	if cfg.PartialSampleSeeder != nil {
+		MountTestSeedPartialSamplesEndpoint(mux, cfg.PartialSampleSeeder, cfg.Logger)
 	}
 
 	// Redirect /docs to /docs/ for the Swagger UI
