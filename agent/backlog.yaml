@@ -739,7 +739,7 @@ stories:
   - id: W-012
     title: "Shift field E2E testing with AuraFlow workflow fixture"
     priority: 25
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:

@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### W-012: Shift field E2E testing with AuraFlow workflow fixture
+- Added `test-workflow-auraflow.json` fixture with `cs_role: "shift"` node, enabling E2E tests for shift field visibility behavior
+- Three new E2E tests verify shift input appears/disappears based on workflow selection in the study editor
+
 ### W-011: Cross-story regression guard for character-set changes
 - New `make lint-disallowed-chars` target scans string literals in `.go`/`.ts`/`.vue` files for characters in the `disallowedNameChars` set, catching regressions when new characters are added to the disallowed study-name set
 - Fixed Goa design `Example("My Study (copy)")` → `Example("My Study - copy")` to comply with the current disallowed character set

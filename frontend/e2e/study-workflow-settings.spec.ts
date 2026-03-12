@@ -155,6 +155,73 @@ test.describe('study workflow settings (S-112)', () => {
     await expect(clipSelect).toContainText('test-clip.safetensors')
   })
 
+  // AC: Test verifies shift input appears when shift-role workflow is selected
+  test('shift input appears when AuraFlow workflow (with shift role) is selected', async ({ page }) => {
+    await openGenerateSamplesDialog(page)
+    await expect(getGenerateSamplesDialog(page)).toBeVisible()
+
+    await page.locator('[data-testid="manage-studies-button"]').click()
+    await expect(getManageStudiesDialog(page)).toBeVisible()
+
+    await page.locator('[data-testid="new-study-button"]').click()
+
+    // Shift input should NOT be visible before any workflow is selected
+    const shiftInput = page.locator('[data-testid="study-shift-input"]')
+    await expect(shiftInput).not.toBeVisible()
+
+    // AC: Select the AuraFlow workflow (which has a shift role)
+    await selectNaiveOption(page, 'study-workflow-template-select', 'test-workflow-auraflow.json')
+
+    // AC: Shift input should now be visible
+    await expect(shiftInput).toBeVisible()
+  })
+
+  // AC: Test verifies shift input is hidden when non-shift workflow is selected
+  test('shift input is hidden when non-shift workflow is selected', async ({ page }) => {
+    await openGenerateSamplesDialog(page)
+    await expect(getGenerateSamplesDialog(page)).toBeVisible()
+
+    await page.locator('[data-testid="manage-studies-button"]').click()
+    await expect(getManageStudiesDialog(page)).toBeVisible()
+
+    await page.locator('[data-testid="new-study-button"]').click()
+
+    const shiftInput = page.locator('[data-testid="study-shift-input"]')
+
+    // First select the AuraFlow workflow so shift becomes visible
+    await selectNaiveOption(page, 'study-workflow-template-select', 'test-workflow-auraflow.json')
+    await expect(shiftInput).toBeVisible()
+
+    // AC: Switch to the non-shift workflow — shift input should disappear
+    await selectNaiveOption(page, 'study-workflow-template-select', 'test-workflow.json')
+    await expect(shiftInput).not.toBeVisible()
+  })
+
+  // AC: (Optional) Switching back to AuraFlow re-shows the shift input
+  test('shift input reappears when switching back to AuraFlow workflow', async ({ page }) => {
+    await openGenerateSamplesDialog(page)
+    await expect(getGenerateSamplesDialog(page)).toBeVisible()
+
+    await page.locator('[data-testid="manage-studies-button"]').click()
+    await expect(getManageStudiesDialog(page)).toBeVisible()
+
+    await page.locator('[data-testid="new-study-button"]').click()
+
+    const shiftInput = page.locator('[data-testid="study-shift-input"]')
+
+    // Select AuraFlow — shift visible
+    await selectNaiveOption(page, 'study-workflow-template-select', 'test-workflow-auraflow.json')
+    await expect(shiftInput).toBeVisible()
+
+    // Switch to non-shift workflow — shift hidden
+    await selectNaiveOption(page, 'study-workflow-template-select', 'test-workflow.json')
+    await expect(shiftInput).not.toBeVisible()
+
+    // AC: Switch back to AuraFlow — shift visible again
+    await selectNaiveOption(page, 'study-workflow-template-select', 'test-workflow-auraflow.json')
+    await expect(shiftInput).toBeVisible()
+  })
+
   // AC: JobLaunchDialog no longer shows workflow/VAE/CLIP selectors; only training run + study needed
   test('job launch dialog only requires training run and study, no workflow/VAE/CLIP', async ({ page, request }) => {
     // AC: Submit button is enabled after selecting training run and study (no workflow/VAE/CLIP required)
