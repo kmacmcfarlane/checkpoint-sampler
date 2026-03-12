@@ -318,7 +318,7 @@ stories:
   - id: W-006
     title: "Expand QA_ALLOWED_ERRORS.md with all test environment artifacts"
     priority: 25
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:

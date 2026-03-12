@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### W-006: Expand QA_ALLOWED_ERRORS.md with all test environment artifacts
+- Added allowlist entries for database reset race conditions, safetensors metadata parse failures on test fixture stubs, and Vite WebSocket proxy EPIPE/ECONNREFUSED during E2E startup/teardown
+
 ### W-005: Add queued status bead test case to JobLaunchDialog tests
 - Added pending/queued path test case completing 4-of-4 dual bead state coverage (empty, complete, running, queued)
 
