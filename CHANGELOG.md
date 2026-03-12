@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### R-005: Deprecate has_samples query parameter from Goa DSL
+- Removed unused `has_samples` query parameter from `GET /api/training-runs` Goa DSL and regenerated API code; response field retained
+
 ### W-020: Explicit log-capture helper Makefile target
 - `make logs-snapshot` atomically starts the dev stack, captures 500 log lines per service to `.ralph/temp/logs-snapshot/`, and tears down with guaranteed cleanup
 

@@ -250,7 +250,7 @@ stories:
   - id: R-005
     title: "Deprecate has_samples query parameter from Goa DSL"
     priority: 10
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:

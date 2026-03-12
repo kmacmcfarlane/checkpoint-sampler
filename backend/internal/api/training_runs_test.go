@@ -151,7 +151,7 @@ var _ = Describe("TrainingRunsService", func() {
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
 			svc := makeSvc(nil, nil)
 
-			result, err := svc.List(context.Background(), &gentrainingruns.ListPayload{HasSamples: false, Source: "samples"})
+			result, err := svc.List(context.Background(), &gentrainingruns.ListPayload{Source: "samples"})
 
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result).To(HaveLen(0))
@@ -168,7 +168,7 @@ var _ = Describe("TrainingRunsService", func() {
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
 			svc := makeSvc(nil, nil)
 
-			result, err := svc.List(context.Background(), &gentrainingruns.ListPayload{HasSamples: false, Source: "samples"})
+			result, err := svc.List(context.Background(), &gentrainingruns.ListPayload{Source: "samples"})
 
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result).To(HaveLen(2))
@@ -189,7 +189,7 @@ var _ = Describe("TrainingRunsService", func() {
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
 			svc := makeSvc(nil, nil)
 
-			result, err := svc.List(context.Background(), &gentrainingruns.ListPayload{HasSamples: false, Source: "samples"})
+			result, err := svc.List(context.Background(), &gentrainingruns.ListPayload{Source: "samples"})
 
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result).To(HaveLen(1))
@@ -203,7 +203,7 @@ var _ = Describe("TrainingRunsService", func() {
 		})
 
 		// AC1: All listed runs have samples by definition
-		It("returns all runs regardless of has_samples parameter", func() {
+		It("returns all runs via samples source", func() {
 			viewerFS.subdirs[sampleDir] = []string{
 				"model-a.safetensors",
 				"model-b.safetensors",
@@ -213,8 +213,7 @@ var _ = Describe("TrainingRunsService", func() {
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
 			svc := makeSvc(nil, nil)
 
-			// has_samples=true should not filter anything — all runs have samples
-			result, err := svc.List(context.Background(), &gentrainingruns.ListPayload{HasSamples: true, Source: "samples"})
+			result, err := svc.List(context.Background(), &gentrainingruns.ListPayload{Source: "samples"})
 
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result).To(HaveLen(2))
@@ -234,7 +233,7 @@ var _ = Describe("TrainingRunsService", func() {
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
 			svc := makeSvc(nil, nil)
 
-			result, err := svc.List(context.Background(), &gentrainingruns.ListPayload{HasSamples: false, Source: "samples"})
+			result, err := svc.List(context.Background(), &gentrainingruns.ListPayload{Source: "samples"})
 
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result).To(HaveLen(1))
@@ -254,7 +253,7 @@ var _ = Describe("TrainingRunsService", func() {
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
 			svc := makeSvc(nil, nil)
 
-			result, err := svc.List(context.Background(), &gentrainingruns.ListPayload{HasSamples: false, Source: "checkpoints"})
+			result, err := svc.List(context.Background(), &gentrainingruns.ListPayload{Source: "checkpoints"})
 
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result).To(HaveLen(1))
@@ -274,7 +273,7 @@ var _ = Describe("TrainingRunsService", func() {
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
 			svc := makeSvc(nil, nil)
 
-			result, err := svc.List(context.Background(), &gentrainingruns.ListPayload{HasSamples: false, Source: "checkpoints"})
+			result, err := svc.List(context.Background(), &gentrainingruns.ListPayload{Source: "checkpoints"})
 
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result).To(HaveLen(2))
@@ -295,7 +294,7 @@ var _ = Describe("TrainingRunsService", func() {
 			svc := makeSvc(nil, nil)
 
 			// Source defaults to "samples" via Goa Default() — pass it explicitly
-			result, err := svc.List(context.Background(), &gentrainingruns.ListPayload{HasSamples: false, Source: "samples"})
+			result, err := svc.List(context.Background(), &gentrainingruns.ListPayload{Source: "samples"})
 
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result).To(HaveLen(1))
