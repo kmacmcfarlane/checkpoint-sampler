@@ -131,7 +131,8 @@ func run() error {
 		if cfg.Thumbnails != nil && cfg.Thumbnails.Enabled {
 			thumbGen = service.NewThumbnailGenerator(*cfg.Thumbnails, logger)
 		}
-		jobExecutor = service.NewJobExecutorWithThumbnails(st, httpClient, wsClient, workflowLoader, hub, cfg.SampleDir, fsWriter, fs, thumbGen, logger)
+		reconnectInterval := time.Duration(cfg.ComfyUI.ReconnectInterval) * time.Second
+		jobExecutor = service.NewJobExecutorWithThumbnails(st, httpClient, wsClient, workflowLoader, hub, cfg.SampleDir, fsWriter, fs, thumbGen, reconnectInterval, logger)
 		bgPauser = jobExecutor
 	} else {
 		// Create disabled service when ComfyUI is not configured

@@ -33,8 +33,9 @@ type yamlThumbnailConfig struct {
 
 // yamlComfyUIConfig is the raw YAML-tagged representation of ComfyUI config.
 type yamlComfyUIConfig struct {
-	URL         string `yaml:"url"`
-	WorkflowDir string `yaml:"workflow_dir"`
+	URL               string `yaml:"url"`
+	WorkflowDir       string `yaml:"workflow_dir"`
+	ReconnectInterval *int   `yaml:"reconnect_interval"`
 }
 
 // DefaultConfigPath is the default path to the configuration file.
@@ -208,6 +209,10 @@ func parseComfyUIConfig(raw *yamlComfyUIConfig) (*model.ComfyUIConfig, error) {
 	if raw.WorkflowDir != "" {
 		workflowDir = raw.WorkflowDir
 	}
+	reconnectInterval := 10 // default: 10 seconds
+	if raw.ReconnectInterval != nil {
+		reconnectInterval = *raw.ReconnectInterval
+	}
 
 	// Validate URL
 	parsedURL, err := parseAndValidateURL(rawURL)
@@ -215,9 +220,15 @@ func parseComfyUIConfig(raw *yamlComfyUIConfig) (*model.ComfyUIConfig, error) {
 		return nil, fmt.Errorf("config: comfyui.url: %w", err)
 	}
 
+	// Validate reconnect_interval (must be >= 1)
+	if reconnectInterval < 1 {
+		return nil, fmt.Errorf("config: comfyui.reconnect_interval must be at least 1, got %d", reconnectInterval)
+	}
+
 	return &model.ComfyUIConfig{
-		URL:         parsedURL,
-		WorkflowDir: workflowDir,
+		URL:               parsedURL,
+		WorkflowDir:       workflowDir,
+		ReconnectInterval: reconnectInterval,
 	}, nil
 }
 

@@ -15,8 +15,9 @@ type Config struct {
 // ComfyUIConfig represents the ComfyUI integration configuration.
 // This section is optional; if absent, ComfyUI features are disabled.
 type ComfyUIConfig struct {
-	URL         string
-	WorkflowDir string
+	URL                string
+	WorkflowDir        string
+	ReconnectInterval  int // seconds between WebSocket reconnect attempts; default 10
 }
 
 // ThumbnailConfig holds thumbnail generation settings.

@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -456,6 +457,55 @@ sample_dir: "` + sampleDir + `"
 				Expect(err).NotTo(HaveOccurred())
 				Expect(cfg.ComfyUI).To(BeNil())
 			})
+		})
+
+		Context("reconnect_interval configuration", func() {
+			It("parses a custom reconnect_interval", func() {
+				yamlStr := `
+checkpoint_dirs:
+  - "` + filepath.Join(tmpDir, "checkpoints") + `"
+sample_dir: "` + sampleDir + `"
+comfyui:
+  url: "http://localhost:8188"
+  reconnect_interval: 30
+`
+				cfg, err := config.LoadFromString(yamlStr)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(cfg.ComfyUI).NotTo(BeNil())
+				Expect(cfg.ComfyUI.ReconnectInterval).To(Equal(30))
+			})
+
+			It("defaults reconnect_interval to 10 when not specified", func() {
+				yamlStr := `
+checkpoint_dirs:
+  - "` + filepath.Join(tmpDir, "checkpoints") + `"
+sample_dir: "` + sampleDir + `"
+comfyui:
+  url: "http://localhost:8188"
+`
+				cfg, err := config.LoadFromString(yamlStr)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(cfg.ComfyUI).NotTo(BeNil())
+				Expect(cfg.ComfyUI.ReconnectInterval).To(Equal(10))
+			})
+
+			DescribeTable("rejects invalid reconnect_interval values",
+				func(value int, expectedErr string) {
+					yamlStr := fmt.Sprintf(`
+checkpoint_dirs:
+  - "`+filepath.Join(tmpDir, "checkpoints")+`"
+sample_dir: "`+sampleDir+`"
+comfyui:
+  url: "http://localhost:8188"
+  reconnect_interval: %d
+`, value)
+					_, err := config.LoadFromString(yamlStr)
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).To(ContainSubstring(expectedErr))
+				},
+				Entry("zero value", 0, "reconnect_interval must be at least 1"),
+				Entry("negative value", -5, "reconnect_interval must be at least 1"),
+			)
 		})
 
 		Context("comfyui URL validation", func() {

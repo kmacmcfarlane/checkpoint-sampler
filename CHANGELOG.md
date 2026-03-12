@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-124: Configurable ComfyUI reconnect interval
+- ComfyUI WebSocket reconnect interval is now configurable via `comfyui.reconnect_interval` in config.yaml (default remains 10 seconds)
+
 ### S-123: Display individual checkpoint filenames in job parameters panel
 - Job params panel now shows individual checkpoint filenames instead of just a count; falls back to count for pre-migration jobs
 - New `checkpoint_filenames` column (migration 19) stores the selected checkpoint list at job creation time

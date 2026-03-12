@@ -2826,6 +2826,7 @@ var _ = Describe("JobExecutor", func() {
 				localFS,
 				mockFSRead,
 				thumbGen,
+				10*time.Second,
 				logger,
 			)
 		})

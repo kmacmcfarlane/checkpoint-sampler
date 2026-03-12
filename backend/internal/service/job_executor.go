@@ -65,16 +65,17 @@ const sampleTimingWindowSize = 10
 
 // JobExecutor executes sample jobs in the background.
 type JobExecutor struct {
-	store          JobExecutorStore
-	comfyuiClient  ComfyUIClient
-	comfyuiWS      ComfyUIWS
-	workflowLoader WorkflowLoaderService
-	hub            EventHub
-	sampleDir      string
-	fsWriter       FileSystemWriter
-	fsReader       FileSystemReader
-	thumbGen       *ThumbnailGenerator // nil if thumbnail generation is disabled
-	logger         *logrus.Entry
+	store             JobExecutorStore
+	comfyuiClient     ComfyUIClient
+	comfyuiWS         ComfyUIWS
+	workflowLoader    WorkflowLoaderService
+	hub               EventHub
+	sampleDir         string
+	fsWriter          FileSystemWriter
+	fsReader          FileSystemReader
+	thumbGen          *ThumbnailGenerator // nil if thumbnail generation is disabled
+	reconnectInterval time.Duration
+	logger            *logrus.Entry
 
 	mu                       sync.Mutex
 	activeJobID              string
@@ -112,11 +113,12 @@ func NewJobExecutor(
 	fsReader FileSystemReader,
 	logger *logrus.Logger,
 ) *JobExecutor {
-	return NewJobExecutorWithThumbnails(store, comfyuiClient, comfyuiWS, workflowLoader, hub, sampleDir, fsWriter, fsReader, nil, logger)
+	return NewJobExecutorWithThumbnails(store, comfyuiClient, comfyuiWS, workflowLoader, hub, sampleDir, fsWriter, fsReader, nil, 10*time.Second, logger)
 }
 
 // NewJobExecutorWithThumbnails creates a new job executor with optional thumbnail generation.
 // Pass nil for thumbGen to disable thumbnail generation.
+// reconnectInterval controls how often the executor retries a disconnected ComfyUI WebSocket connection.
 func NewJobExecutorWithThumbnails(
 	store JobExecutorStore,
 	comfyuiClient ComfyUIClient,
@@ -127,6 +129,7 @@ func NewJobExecutorWithThumbnails(
 	fsWriter FileSystemWriter,
 	fsReader FileSystemReader,
 	thumbGen *ThumbnailGenerator,
+	reconnectInterval time.Duration,
 	logger *logrus.Logger,
 ) *JobExecutor {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -140,6 +143,7 @@ func NewJobExecutorWithThumbnails(
 		fsWriter:                 fsWriter,
 		fsReader:                 fsReader,
 		thumbGen:                 thumbGen,
+		reconnectInterval:        reconnectInterval,
 		logger:                   logger.WithField("component", "job_executor"),
 		checkpointCompleteness:   make(map[string]model.CheckpointCompletenessInfo),
 		ctx:                      ctx,
@@ -564,7 +568,7 @@ func (e *JobExecutor) run() {
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
-	reconnectTicker := time.NewTicker(10 * time.Second)
+	reconnectTicker := time.NewTicker(e.reconnectInterval)
 	defer reconnectTicker.Stop()
 
 	for {

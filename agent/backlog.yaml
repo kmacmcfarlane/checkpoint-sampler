@@ -622,7 +622,7 @@ stories:
   - id: S-124
     title: "Configurable ComfyUI reconnect interval"
     priority: 25
-    status: todo
+    status: uat
     complexity: low
     requires:
       - B-073
