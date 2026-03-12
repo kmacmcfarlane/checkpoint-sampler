@@ -873,7 +873,7 @@ stories:
   - id: W-020
     title: "Explicit log-capture helper Makefile target"
     priority: 15
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:

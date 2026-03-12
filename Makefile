@@ -1,4 +1,4 @@
-.PHONY: claude claude-resume claude-dangerous ralph ralph-resume ralph-auto ralph-auto-resume capture-runtime-context up down logs up-dev down-dev logs-dev gen test-frontend test-frontend-watch test-backend test-backend-watch lint-nginx up-test down-test build-playwright test-e2e test-e2e-logs down-e2e check-e2e-panics lint-e2e-helpers lint-disallowed-chars
+.PHONY: claude claude-resume claude-dangerous ralph ralph-resume ralph-auto ralph-auto-resume capture-runtime-context up down logs up-dev down-dev logs-dev gen test-frontend test-frontend-watch test-backend test-backend-watch lint-nginx up-test down-test build-playwright test-e2e test-e2e-logs down-e2e check-e2e-panics lint-e2e-helpers lint-disallowed-chars logs-snapshot
 
 COMPOSE_DEV = docker compose -p checkpoint-sampler-dev -f docker-compose.yml -f docker-compose.dev.yml
 COMPOSE_TEST = docker compose -p checkpoint-sampler-test -f docker-compose.test.yml
@@ -107,6 +107,7 @@ down-test:
 	$(COMPOSE_TEST) down -v
 
 E2E_LOG_DIR = .ralph/temp/e2e-logs
+LOGS_SNAPSHOT_DIR = .ralph/temp/logs-snapshot
 
 # Build the custom Playwright Docker image with npm dependencies pre-installed.
 # Run this once (or after package.json changes) to avoid npm ci overhead on each test run.
@@ -146,6 +147,19 @@ test-e2e-logs:
 
 down-e2e:
 	$(COMPOSE_TEST) down -v
+
+# Capture a log snapshot from the dev stack atomically: start, capture 500 lines, tear down.
+# Saves logs to .ralph/temp/logs-snapshot/backend.log and frontend.log.
+# Teardown runs even if log capture fails.
+logs-snapshot:
+	$(COMPOSE_DEV) down 2>/dev/null || true; \
+	$(COMPOSE_DEV) up -d --build --wait --remove-orphans backend frontend; \
+	STATUS=$$?; \
+	mkdir -p $(LOGS_SNAPSHOT_DIR) && \
+	$(COMPOSE_DEV) logs --tail=500 --no-color backend > $(LOGS_SNAPSHOT_DIR)/backend.log 2>&1; \
+	$(COMPOSE_DEV) logs --tail=500 --no-color frontend > $(LOGS_SNAPSHOT_DIR)/frontend.log 2>&1; \
+	$(COMPOSE_DEV) down; \
+	exit $$STATUS
 
 # Audit E2E spec files for bare training-run-select click patterns that bypass
 # the selectTrainingRun helper. Exits non-zero when violations are found.

@@ -341,11 +341,11 @@ Refer to TEST_PRACTICES.md sections 5.5 and 5.6 for the full guidance.
 
 Runtime error sweep (REQUIRED, non-blocking):
 After E2E tests complete, perform a runtime error sweep per TEST_PRACTICES.md section 5.7. Since `make test-e2e` tears down the stack automatically, capture logs using one of these two options:
-  a. Start the application briefly, capture logs, then tear down:
+  a. Use `make logs-snapshot` to atomically start the dev stack, capture the last 500 log lines, and
+     tear down. Logs are saved to `.ralph/temp/logs-snapshot/backend.log` and `frontend.log`. This is
+     the preferred method when E2E logs are not available:
      ```
-     make up-dev
-     docker compose logs --tail=500 --no-color 2>&1
-     make down
+     make logs-snapshot
      ```
   b. If E2E log output was explicitly captured (e.g., via `make test-e2e 2>&1 | tee`), review that output instead.
 - Filter captured logs for error/fatal level messages

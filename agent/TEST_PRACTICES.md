@@ -326,12 +326,16 @@ After completing section 5.5 (E2E smoke test), the QA expert must perform a runt
       - `.ralph/temp/e2e-logs/backend.log`
       - `.ralph/temp/e2e-logs/frontend.log`
       Review these files directly. This is the preferred option when E2E tests have been run.
-   b. Start the application briefly, capture logs, then tear down:
+      When E2E logs are not available, use `make logs-snapshot` (see option b).
+   b. Use `make logs-snapshot` to atomically start the dev stack, capture the last 500 log lines,
+      and tear down. Logs are saved to:
+      - `.ralph/temp/logs-snapshot/backend.log`
+      - `.ralph/temp/logs-snapshot/frontend.log`
       ```
-      make up-dev
-      docker compose logs --tail=500 --no-color 2>&1
-      make down
+      make logs-snapshot
       ```
+      This is the preferred approach when E2E logs are not available. Teardown is guaranteed even
+      if log capture fails.
 2. Filter for error-level and fatal-level messages:
    ```
    grep -iE 'level=(error|fatal|panic)|FATAL|PANIC|panic:'
