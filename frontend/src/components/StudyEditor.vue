@@ -15,6 +15,12 @@ const MRU_WORKFLOW_KEY = 'checkpoint-sampler:mru-workflow-template'
  */
 const MRU_WORKFLOW_VAE_TE_KEY = 'checkpoint-sampler:mru-workflow-vae-te'
 
+/**
+ * localStorage key for most-recently-used sampler/scheduler pairs per workflow template.
+ * Stored as a JSON-serialised map: Record<workflowName, Array<{ sampler: string, scheduler: string }>>.
+ */
+const MRU_WORKFLOW_SAMPLER_SCHEDULER_KEY = 'checkpoint-sampler:mru-workflow-sampler-scheduler'
+
 function getMruWorkflow(): string | null {
   try { return localStorage.getItem(MRU_WORKFLOW_KEY) } catch { return null }
 }
@@ -49,6 +55,32 @@ function saveMruVaeTe(workflowName: string, vae: string | null, textEncoder: str
     const map = getMruVaeTe()
     map[workflowName] = { vae, textEncoder }
     localStorage.setItem(MRU_WORKFLOW_VAE_TE_KEY, JSON.stringify(map))
+  } catch { /* ignore */ }
+}
+
+/** Returns the MRU sampler/scheduler pairs map from localStorage. */
+function getMruSamplerScheduler(): Record<string, Array<{ sampler: string; scheduler: string }>> {
+  try {
+    const raw = localStorage.getItem(MRU_WORKFLOW_SAMPLER_SCHEDULER_KEY)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw)
+    if (typeof parsed === 'object' && parsed !== null) return parsed as Record<string, Array<{ sampler: string; scheduler: string }>>
+    return {}
+  } catch { return {} }
+}
+
+/** Returns the MRU sampler/scheduler pairs for a given workflow name, or null if not stored. */
+function getMruSamplerSchedulerForWorkflow(workflowName: string): Array<{ sampler: string; scheduler: string }> | null {
+  const map = getMruSamplerScheduler()
+  return map[workflowName] ?? null
+}
+
+/** Saves the MRU sampler/scheduler pairs for a given workflow name. */
+function saveMruSamplerScheduler(workflowName: string, pairs: Array<{ sampler: string; scheduler: string }>): void {
+  try {
+    const map = getMruSamplerScheduler()
+    map[workflowName] = pairs
+    localStorage.setItem(MRU_WORKFLOW_SAMPLER_SCHEDULER_KEY, JSON.stringify(map))
   } catch { /* ignore */ }
 }
 
@@ -552,6 +584,8 @@ async function performSave() {
       saveMruWorkflow(workflowTemplate.value)
       // Save VAE and text encoder MRU for this workflow
       saveMruVaeTe(workflowTemplate.value, selectedVAE.value, selectedCLIP.value)
+      // Save sampler/scheduler pairs MRU for this workflow
+      saveMruSamplerScheduler(workflowTemplate.value, samplerSchedulerPairs.value)
     }
 
     const payload: CreateStudyPayload | UpdateStudyPayload = selectedStudyId.value
@@ -629,6 +663,8 @@ async function forkStudy() {
       saveMruWorkflow(workflowTemplate.value)
       // Save VAE and text encoder MRU for this workflow
       saveMruVaeTe(workflowTemplate.value, selectedVAE.value, selectedCLIP.value)
+      // Save sampler/scheduler pairs MRU for this workflow
+      saveMruSamplerScheduler(workflowTemplate.value, samplerSchedulerPairs.value)
     }
 
     const forkPayload: ForkStudyPayload = {
@@ -786,6 +822,11 @@ function onWorkflowTemplateChange(name: string | null) {
     if (mru) {
       selectedVAE.value = mru.vae
       selectedCLIP.value = mru.textEncoder
+    }
+    // AC1/AC2: Apply sampler/scheduler MRU for this workflow template
+    const samplerMru = getMruSamplerSchedulerForWorkflow(name)
+    if (samplerMru) {
+      samplerSchedulerPairs.value = samplerMru.map(p => ({ ...p }))
     }
   }
 }

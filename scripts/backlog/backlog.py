@@ -801,6 +801,32 @@ def cmd_archive(args) -> int:
     return 0
 
 
+def cmd_status(args) -> int:
+    """Show count of tickets grouped by status."""
+    backlog_path, done_path = args.backlog, args.done
+    counts: dict[str, int] = {}
+
+    sources: list[Path] = []
+    if args.source in ("active", "both"):
+        sources.append(backlog_path)
+    if args.source in ("done", "both"):
+        sources.append(done_path)
+
+    for path in sources:
+        data, _ = load_yaml(path)
+        for story in data.get("stories") or []:
+            status = story.get("status", "unknown")
+            counts[status] = counts.get(status, 0) + 1
+
+    if args.format == "json":
+        json.dump(counts, sys.stdout, ensure_ascii=False)
+        sys.stdout.write("\n")
+    else:
+        yaml = _make_yaml()
+        yaml.dump(counts, sys.stdout)
+    return 0
+
+
 def cmd_validate(args) -> int:
     backlog_path, done_path = args.backlog, args.done
     done_data = None
@@ -951,6 +977,21 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("archive", help="Move story to done file")
     p.add_argument("id", help="Story ID to archive")
 
+    # status
+    p = sub.add_parser("status", help="Show ticket counts grouped by status")
+    p.add_argument(
+        "--source",
+        choices=["active", "done", "both"],
+        default="active",
+        help="Which file(s) to count",
+    )
+    p.add_argument(
+        "--format",
+        choices=["yaml", "json"],
+        default=argparse.SUPPRESS,
+        help="Output format (overrides global --format)",
+    )
+
     # validate
     p = sub.add_parser("validate", help="Validate backlog schema")
     p.add_argument(
@@ -979,6 +1020,7 @@ def main() -> int:
         "set-text": cmd_set_text,
         "clear": cmd_clear,
         "archive": cmd_archive,
+        "status": cmd_status,
         "validate": cmd_validate,
     }
 
