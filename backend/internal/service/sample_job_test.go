@@ -427,6 +427,24 @@ var _ = Describe("SampleJobService", func() {
 			Entry("nonexistent filename results in empty job", []string{"nonexistent.safetensors"}, 0),
 		)
 
+		It("stores all checkpoint filenames in the job when no filter is provided", func() {
+			job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, false)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(job.CheckpointFilenames).To(ConsistOf("checkpoint1.safetensors", "checkpoint2.safetensors"))
+		})
+
+		It("stores only filtered checkpoint filenames when a filter is provided", func() {
+			job, err := svc.Create("test-run", checkpoints, "study-1", []string{"checkpoint1.safetensors"}, false, false)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(job.CheckpointFilenames).To(ConsistOf("checkpoint1.safetensors"))
+		})
+
+		It("stores empty checkpoint filenames list when filter matches no checkpoints", func() {
+			job, err := svc.Create("test-run", checkpoints, "study-1", []string{"nonexistent.safetensors"}, false, false)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(job.CheckpointFilenames).To(BeEmpty())
+		})
+
 		It("clears existing sample directories when clear_existing is true", func() {
 			dirRemover.removed = nil
 			_, err := svc.Create("test-run", checkpoints, "study-1", nil, true, false)

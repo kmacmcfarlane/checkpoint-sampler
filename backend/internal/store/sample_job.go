@@ -2,6 +2,7 @@ package store
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -11,20 +12,21 @@ import (
 
 // sampleJobEntity is the persistence representation of a sample job.
 type sampleJobEntity struct {
-	ID              string
-	TrainingRunName string
-	StudyID         string
-	StudyName       string
-	WorkflowName    string
-	VAE             sql.NullString
-	CLIP            sql.NullString
-	Shift           sql.NullFloat64
-	Status          string
-	TotalItems      int
-	CompletedItems  int
-	ErrorMessage    sql.NullString
-	CreatedAt       string // RFC3339
-	UpdatedAt       string // RFC3339
+	ID                  string
+	TrainingRunName     string
+	StudyID             string
+	StudyName           string
+	WorkflowName        string
+	VAE                 sql.NullString
+	CLIP                sql.NullString
+	Shift               sql.NullFloat64
+	CheckpointFilenames string // JSON-encoded []string
+	Status              string
+	TotalItems          int
+	CompletedItems      int
+	ErrorMessage        sql.NullString
+	CreatedAt           string // RFC3339
+	UpdatedAt           string // RFC3339
 }
 
 // sampleJobItemEntity is the persistence representation of a sample job item.
@@ -59,7 +61,7 @@ func (s *Store) ListSampleJobs() ([]model.SampleJob, error) {
 	s.logger.Trace("entering ListSampleJobs")
 	defer s.logger.Trace("returning from ListSampleJobs")
 
-	rows, err := s.db.Query(`SELECT id, training_run_name, study_id, study_name, workflow_name, vae, clip, shift, status, total_items, completed_items, error_message, created_at, updated_at
+	rows, err := s.db.Query(`SELECT id, training_run_name, study_id, study_name, workflow_name, vae, clip, shift, checkpoint_filenames, status, total_items, completed_items, error_message, created_at, updated_at
 		FROM sample_jobs ORDER BY created_at ASC`)
 	if err != nil {
 		s.logger.WithError(err).Error("failed to query sample jobs")
@@ -70,7 +72,7 @@ func (s *Store) ListSampleJobs() ([]model.SampleJob, error) {
 	var jobs []model.SampleJob
 	for rows.Next() {
 		var e sampleJobEntity
-		if err := rows.Scan(&e.ID, &e.TrainingRunName, &e.StudyID, &e.StudyName, &e.WorkflowName, &e.VAE, &e.CLIP, &e.Shift, &e.Status, &e.TotalItems, &e.CompletedItems, &e.ErrorMessage, &e.CreatedAt, &e.UpdatedAt); err != nil {
+		if err := rows.Scan(&e.ID, &e.TrainingRunName, &e.StudyID, &e.StudyName, &e.WorkflowName, &e.VAE, &e.CLIP, &e.Shift, &e.CheckpointFilenames, &e.Status, &e.TotalItems, &e.CompletedItems, &e.ErrorMessage, &e.CreatedAt, &e.UpdatedAt); err != nil {
 			s.logger.WithError(err).Error("failed to scan sample job row")
 			return nil, fmt.Errorf("scanning sample job row: %w", err)
 		}
@@ -111,9 +113,9 @@ func (s *Store) GetSampleJob(id string) (model.SampleJob, error) {
 
 	var e sampleJobEntity
 	err := s.db.QueryRow(
-		`SELECT id, training_run_name, study_id, study_name, workflow_name, vae, clip, shift, status, total_items, completed_items, error_message, created_at, updated_at
+		`SELECT id, training_run_name, study_id, study_name, workflow_name, vae, clip, shift, checkpoint_filenames, status, total_items, completed_items, error_message, created_at, updated_at
 		FROM sample_jobs WHERE id = ?`, id,
-	).Scan(&e.ID, &e.TrainingRunName, &e.StudyID, &e.StudyName, &e.WorkflowName, &e.VAE, &e.CLIP, &e.Shift, &e.Status, &e.TotalItems, &e.CompletedItems, &e.ErrorMessage, &e.CreatedAt, &e.UpdatedAt)
+	).Scan(&e.ID, &e.TrainingRunName, &e.StudyID, &e.StudyName, &e.WorkflowName, &e.VAE, &e.CLIP, &e.Shift, &e.CheckpointFilenames, &e.Status, &e.TotalItems, &e.CompletedItems, &e.ErrorMessage, &e.CreatedAt, &e.UpdatedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			s.logger.WithField("sample_job_id", id).Debug("sample job not found in database")
@@ -140,8 +142,8 @@ func (s *Store) CreateSampleJob(j model.SampleJob) error {
 	entity := sampleJobModelToEntity(j)
 
 	_, err := s.db.Exec(
-		`INSERT INTO sample_jobs (id, training_run_name, study_id, study_name, workflow_name, vae, clip, shift, status, total_items, completed_items, error_message, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO sample_jobs (id, training_run_name, study_id, study_name, workflow_name, vae, clip, shift, checkpoint_filenames, status, total_items, completed_items, error_message, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		entity.ID,
 		entity.TrainingRunName,
 		entity.StudyID,
@@ -150,6 +152,7 @@ func (s *Store) CreateSampleJob(j model.SampleJob) error {
 		entity.VAE,
 		entity.CLIP,
 		entity.Shift,
+		entity.CheckpointFilenames,
 		entity.Status,
 		entity.TotalItems,
 		entity.CompletedItems,
@@ -183,7 +186,7 @@ func (s *Store) UpdateSampleJob(j model.SampleJob) error {
 	entity := sampleJobModelToEntity(j)
 
 	result, err := s.db.Exec(
-		`UPDATE sample_jobs SET training_run_name = ?, study_id = ?, study_name = ?, workflow_name = ?, vae = ?, clip = ?, shift = ?, status = ?, total_items = ?, completed_items = ?, error_message = ?, updated_at = ?
+		`UPDATE sample_jobs SET training_run_name = ?, study_id = ?, study_name = ?, workflow_name = ?, vae = ?, clip = ?, shift = ?, checkpoint_filenames = ?, status = ?, total_items = ?, completed_items = ?, error_message = ?, updated_at = ?
 		WHERE id = ?`,
 		entity.TrainingRunName,
 		entity.StudyID,
@@ -192,6 +195,7 @@ func (s *Store) UpdateSampleJob(j model.SampleJob) error {
 		entity.VAE,
 		entity.CLIP,
 		entity.Shift,
+		entity.CheckpointFilenames,
 		entity.Status,
 		entity.TotalItems,
 		entity.CompletedItems,
@@ -492,21 +496,32 @@ func sampleJobEntityToModel(e sampleJobEntity) (model.SampleJob, error) {
 		shift = &e.Shift.Float64
 	}
 
+	var checkpointFilenames []string
+	if e.CheckpointFilenames != "" && e.CheckpointFilenames != "[]" {
+		if err := json.Unmarshal([]byte(e.CheckpointFilenames), &checkpointFilenames); err != nil {
+			return model.SampleJob{}, fmt.Errorf("parsing checkpoint_filenames: %w", err)
+		}
+	}
+	if checkpointFilenames == nil {
+		checkpointFilenames = []string{}
+	}
+
 	return model.SampleJob{
-		ID:              e.ID,
-		TrainingRunName: e.TrainingRunName,
-		StudyID:         e.StudyID,
-		StudyName:       e.StudyName,
-		WorkflowName:    e.WorkflowName,
-		VAE:             e.VAE.String,
-		CLIP:            e.CLIP.String,
-		Shift:           shift,
-		Status:          model.SampleJobStatus(e.Status),
-		TotalItems:      e.TotalItems,
-		CompletedItems:  e.CompletedItems,
-		ErrorMessage:    e.ErrorMessage.String,
-		CreatedAt:       createdAt,
-		UpdatedAt:       updatedAt,
+		ID:                  e.ID,
+		TrainingRunName:     e.TrainingRunName,
+		StudyID:             e.StudyID,
+		StudyName:           e.StudyName,
+		WorkflowName:        e.WorkflowName,
+		VAE:                 e.VAE.String,
+		CLIP:                e.CLIP.String,
+		Shift:               shift,
+		CheckpointFilenames: checkpointFilenames,
+		Status:              model.SampleJobStatus(e.Status),
+		TotalItems:          e.TotalItems,
+		CompletedItems:      e.CompletedItems,
+		ErrorMessage:        e.ErrorMessage.String,
+		CreatedAt:           createdAt,
+		UpdatedAt:           updatedAt,
 	}, nil
 }
 
@@ -519,21 +534,30 @@ func sampleJobModelToEntity(j model.SampleJob) sampleJobEntity {
 	}
 	errMsg := sql.NullString{String: j.ErrorMessage, Valid: j.ErrorMessage != ""}
 
+	checkpointFilenames := "[]"
+	if len(j.CheckpointFilenames) > 0 {
+		b, err := json.Marshal(j.CheckpointFilenames)
+		if err == nil {
+			checkpointFilenames = string(b)
+		}
+	}
+
 	return sampleJobEntity{
-		ID:              j.ID,
-		TrainingRunName: j.TrainingRunName,
-		StudyID:         j.StudyID,
-		StudyName:       j.StudyName,
-		WorkflowName:    j.WorkflowName,
-		VAE:             vae,
-		CLIP:            clip,
-		Shift:           shift,
-		Status:          string(j.Status),
-		TotalItems:      j.TotalItems,
-		CompletedItems:  j.CompletedItems,
-		ErrorMessage:    errMsg,
-		CreatedAt:       j.CreatedAt.UTC().Format(time.RFC3339),
-		UpdatedAt:       j.UpdatedAt.UTC().Format(time.RFC3339),
+		ID:                  j.ID,
+		TrainingRunName:     j.TrainingRunName,
+		StudyID:             j.StudyID,
+		StudyName:           j.StudyName,
+		WorkflowName:        j.WorkflowName,
+		VAE:                 vae,
+		CLIP:                clip,
+		Shift:               shift,
+		CheckpointFilenames: checkpointFilenames,
+		Status:              string(j.Status),
+		TotalItems:          j.TotalItems,
+		CompletedItems:      j.CompletedItems,
+		ErrorMessage:        errMsg,
+		CreatedAt:           j.CreatedAt.UTC().Format(time.RFC3339),
+		UpdatedAt:           j.UpdatedAt.UTC().Format(time.RFC3339),
 	}
 }
 

@@ -203,23 +203,30 @@ func (s *SampleJobService) Create(trainingRunName string, checkpoints []model.Ch
 	imagesPerCheckpoint := study.ImagesPerCheckpoint()
 	totalItems := len(checkpoints) * imagesPerCheckpoint
 
+	// Capture the checkpoint filenames selected for this job.
+	selectedFilenames := make([]string, len(checkpoints))
+	for i, cp := range checkpoints {
+		selectedFilenames[i] = cp.Filename
+	}
+
 	// Create the job — workflow, VAE, text encoder, and shift come from the study definition.
 	now := time.Now().UTC()
 	jobID := uuid.New().String()
 	job := model.SampleJob{
-		ID:              jobID,
-		TrainingRunName: trainingRunName,
-		StudyID:         studyID,
-		StudyName:       study.Name,
-		WorkflowName:    study.WorkflowTemplate,
-		VAE:             study.VAE,
-		CLIP:            study.TextEncoder,
-		Shift:           study.Shift,
-		Status:          model.SampleJobStatusPending,
-		TotalItems:      totalItems,
-		CompletedItems:  0,
-		CreatedAt:       now,
-		UpdatedAt:       now,
+		ID:                  jobID,
+		TrainingRunName:     trainingRunName,
+		StudyID:             studyID,
+		StudyName:           study.Name,
+		WorkflowName:        study.WorkflowTemplate,
+		VAE:                 study.VAE,
+		CLIP:                study.TextEncoder,
+		Shift:               study.Shift,
+		CheckpointFilenames: selectedFilenames,
+		Status:              model.SampleJobStatusPending,
+		TotalItems:          totalItems,
+		CompletedItems:      0,
+		CreatedAt:           now,
+		UpdatedAt:           now,
 	}
 
 	if err := s.store.CreateSampleJob(job); err != nil {

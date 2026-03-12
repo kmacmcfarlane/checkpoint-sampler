@@ -213,19 +213,25 @@ func (s *SampleJobsService) Delete(ctx context.Context, p *gensamplejobs.DeleteP
 }
 
 func sampleJobToResponse(j model.SampleJob, counts model.ItemStatusCounts, failedDetails []model.FailedItemDetail) *gensamplejobs.SampleJobResponse {
+	checkpointFilenames := j.CheckpointFilenames
+	if checkpointFilenames == nil {
+		checkpointFilenames = []string{}
+	}
+
 	resp := &gensamplejobs.SampleJobResponse{
-		ID:              j.ID,
-		TrainingRunName: j.TrainingRunName,
-		StudyID:         j.StudyID,
-		StudyName:       j.StudyName,
-		WorkflowName:    j.WorkflowName,
-		Status:          string(j.Status),
-		TotalItems:      j.TotalItems,
-		CompletedItems:  j.CompletedItems,
-		FailedItems:     counts.Failed,
-		PendingItems:    counts.Pending,
-		CreatedAt:       j.CreatedAt.UTC().Format(time.RFC3339),
-		UpdatedAt:       j.UpdatedAt.UTC().Format(time.RFC3339),
+		ID:                  j.ID,
+		TrainingRunName:     j.TrainingRunName,
+		StudyID:             j.StudyID,
+		StudyName:           j.StudyName,
+		WorkflowName:        j.WorkflowName,
+		CheckpointFilenames: checkpointFilenames,
+		Status:              string(j.Status),
+		TotalItems:          j.TotalItems,
+		CompletedItems:      j.CompletedItems,
+		FailedItems:         counts.Failed,
+		PendingItems:        counts.Pending,
+		CreatedAt:           j.CreatedAt.UTC().Format(time.RFC3339),
+		UpdatedAt:           j.UpdatedAt.UTC().Format(time.RFC3339),
 	}
 
 	if j.VAE != "" {

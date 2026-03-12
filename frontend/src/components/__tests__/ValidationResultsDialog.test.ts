@@ -15,6 +15,7 @@ const sampleJob: SampleJob = {
   workflow_name: 'flux.json',
   vae: 'ae.safetensors',
   clip: 'clip_l.safetensors',
+  checkpoint_filenames: [],
   status: 'completed',
   total_items: 4,
   completed_items: 4,

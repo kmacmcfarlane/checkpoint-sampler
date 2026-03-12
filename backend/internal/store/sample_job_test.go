@@ -383,6 +383,82 @@ var _ = Describe("SampleJob Store", func() {
 		})
 	})
 
+	Describe("CheckpointFilenames persistence", func() {
+		BeforeEach(func() {
+			createStudy("study-1")
+		})
+
+		It("persists and retrieves checkpoint_filenames field", func() {
+			now := time.Now().UTC().Truncate(time.Second)
+			job := model.SampleJob{
+				ID:                  "job-ckpt-filenames",
+				TrainingRunName:     "test-run",
+				StudyID:             "study-1",
+				StudyName:           "Test Study",
+				WorkflowName:        "flux-dev",
+				Status:              model.SampleJobStatusPending,
+				CheckpointFilenames: []string{"ckpt-step00001000.safetensors", "ckpt-step00002000.safetensors"},
+				TotalItems:          10,
+				CompletedItems:      0,
+				CreatedAt:           now,
+				UpdatedAt:           now,
+			}
+			err := s.CreateSampleJob(job)
+			Expect(err).NotTo(HaveOccurred())
+
+			retrieved, err := s.GetSampleJob(job.ID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(retrieved.CheckpointFilenames).To(ConsistOf("ckpt-step00001000.safetensors", "ckpt-step00002000.safetensors"))
+		})
+
+		It("stores empty slice when checkpoint_filenames is nil", func() {
+			now := time.Now().UTC().Truncate(time.Second)
+			job := model.SampleJob{
+				ID:                  "job-ckpt-nil",
+				TrainingRunName:     "test-run",
+				StudyID:             "study-1",
+				StudyName:           "Test Study",
+				WorkflowName:        "flux-dev",
+				Status:              model.SampleJobStatusPending,
+				CheckpointFilenames: nil,
+				TotalItems:          5,
+				CompletedItems:      0,
+				CreatedAt:           now,
+				UpdatedAt:           now,
+			}
+			err := s.CreateSampleJob(job)
+			Expect(err).NotTo(HaveOccurred())
+
+			retrieved, err := s.GetSampleJob(job.ID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(retrieved.CheckpointFilenames).To(BeEmpty())
+		})
+
+		It("persists checkpoint_filenames via ListSampleJobs", func() {
+			now := time.Now().UTC().Truncate(time.Second)
+			job := model.SampleJob{
+				ID:                  "job-ckpt-list",
+				TrainingRunName:     "test-run",
+				StudyID:             "study-1",
+				StudyName:           "Test Study",
+				WorkflowName:        "flux-dev",
+				Status:              model.SampleJobStatusPending,
+				CheckpointFilenames: []string{"model-step00004500.safetensors"},
+				TotalItems:          8,
+				CompletedItems:      0,
+				CreatedAt:           now,
+				UpdatedAt:           now,
+			}
+			err := s.CreateSampleJob(job)
+			Expect(err).NotTo(HaveOccurred())
+
+			jobs, err := s.ListSampleJobs()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(jobs).To(HaveLen(1))
+			Expect(jobs[0].CheckpointFilenames).To(ConsistOf("model-step00004500.safetensors"))
+		})
+	})
+
 	Describe("SampleJobItem CRUD operations", func() {
 		var sampleJob model.SampleJob
 		var sampleJobItem model.SampleJobItem

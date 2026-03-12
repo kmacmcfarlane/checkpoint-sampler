@@ -284,5 +284,12 @@ ALTER TABLE studies ADD COLUMN vae TEXT;
 ALTER TABLE studies ADD COLUMN text_encoder TEXT;
 ALTER TABLE studies ADD COLUMN shift REAL;`,
 		},
+		{
+			// Add checkpoint_filenames column to sample_jobs table.
+			// Stores a JSON-encoded array of checkpoint filenames selected at job creation.
+			// NULL / empty means all checkpoints in the training run were included.
+			Version: 19,
+			SQL:     `ALTER TABLE sample_jobs ADD COLUMN checkpoint_filenames TEXT NOT NULL DEFAULT '[]';`,
+		},
 	}
 }

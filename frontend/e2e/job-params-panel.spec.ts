@@ -135,10 +135,16 @@ test.describe('job card title click shows parameter detail panel (S-099)', () =>
     await expect(study).toBeVisible()
     await expect(study).toContainText('S-099 Params Test Study')
 
-    // Checkpoints count
+    // Checkpoints — S-123: individual filenames are displayed
     const checkpoints = page.locator(`[data-testid="job-${jobId}-param-checkpoints"]`)
     await expect(checkpoints).toBeVisible()
-    await expect(checkpoints).toContainText('total')
+    // The job was created for the 'my-model' training run which has 2 checkpoint files
+    const checkpointList = page.locator(`[data-testid="job-${jobId}-param-checkpoint-list"]`)
+    await expect(checkpointList).toBeVisible()
+    const filenames = page.locator(`[data-testid="job-${jobId}-param-checkpoint-filename"]`)
+    await expect(filenames).toHaveCount(2)
+    await expect(filenames.nth(0)).toContainText('.safetensors')
+    await expect(filenames.nth(1)).toContainText('.safetensors')
   })
 
   // AC3: Detail view is dismissible via the close button
@@ -183,5 +189,59 @@ test.describe('job card title click shows parameter detail panel (S-099)', () =>
     // AC3: Click title again to close
     await titleBtn.click()
     await expect(paramsPanel).not.toBeVisible()
+  })
+})
+
+test.describe('checkpoint filenames in job params panel (S-123)', () => {
+  test.setTimeout(60000)
+
+  test.beforeEach(async ({ page, request }) => {
+    await resetDatabase(request)
+    await page.goto('/', { waitUntil: 'networkidle' })
+  })
+
+  // AC4: FE: Job parameter detail panel displays individual checkpoint names
+  test('AC4: params panel displays individual checkpoint filenames', async ({ page, request }) => {
+    const studyId = await createStudyViaAPI(request)
+    const jobId = await createJobViaAPI(request, studyId)
+
+    await openJobProgressPanel(page)
+
+    const titleBtn = page.locator(`[data-testid="job-${jobId}-title"]`)
+    await expect(titleBtn).toBeVisible()
+    await titleBtn.click()
+
+    const paramsPanel = page.locator(`[data-testid="job-${jobId}-params"]`)
+    await expect(paramsPanel).toBeVisible()
+
+    // AC4: Individual checkpoint filenames should be displayed in a list
+    const checkpointList = page.locator(`[data-testid="job-${jobId}-param-checkpoint-list"]`)
+    await expect(checkpointList).toBeVisible()
+
+    const filenames = page.locator(`[data-testid="job-${jobId}-param-checkpoint-filename"]`)
+    await expect(filenames).toHaveCount(2)
+    // The 'my-model' training run has two checkpoint files in test-fixtures
+    await expect(filenames.nth(0)).toHaveText('my-model-step00001000.safetensors')
+    await expect(filenames.nth(1)).toHaveText('my-model-step00002000.safetensors')
+  })
+
+  // AC2: BE: SampleJob API response includes checkpoint filename list
+  test('AC2: API response includes checkpoint_filenames array', async ({ request }) => {
+    const studyId = await createStudyViaAPI(request)
+    const jobId = await createJobViaAPI(request, studyId)
+
+    const response = await request.get('/api/sample-jobs')
+    expect(response.status()).toBe(200)
+    const jobs = await response.json() as Array<Record<string, unknown>>
+    const job = jobs.find(j => j.id === jobId)
+    expect(job).toBeDefined()
+
+    // AC1+AC2: checkpoint_filenames is present and contains the expected filenames
+    const filenames = job!.checkpoint_filenames as string[]
+    expect(filenames).toBeDefined()
+    expect(Array.isArray(filenames)).toBe(true)
+    expect(filenames.length).toBe(2)
+    expect(filenames).toContain('my-model-step00001000.safetensors')
+    expect(filenames).toContain('my-model-step00002000.safetensors')
   })
 })

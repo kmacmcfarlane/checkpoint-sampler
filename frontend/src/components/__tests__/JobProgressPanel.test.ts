@@ -17,6 +17,7 @@ const sampleJobs: SampleJob[] = [
     workflow_name: 'qwen-image.json',
     vae: 'ae.safetensors',
     clip: 'clip_l.safetensors',
+    checkpoint_filenames: [],
     status: 'running',
     total_items: 100,
     completed_items: 40,
@@ -32,6 +33,7 @@ const sampleJobs: SampleJob[] = [
     workflow_name: 'sdxl-image.json',
     vae: 'vae.safetensors',
     clip: 'clip.safetensors',
+    checkpoint_filenames: [],
     status: 'stopped',
     total_items: 50,
     completed_items: 25,
@@ -47,6 +49,7 @@ const sampleJobs: SampleJob[] = [
     workflow_name: 'flux-image.json',
     vae: 'ae.safetensors',
     clip: 't5.safetensors',
+    checkpoint_filenames: [],
     status: 'completed',
     total_items: 200,
     completed_items: 200,
@@ -62,6 +65,7 @@ const sampleJobs: SampleJob[] = [
     workflow_name: 'test.json',
     vae: 'ae.safetensors',
     clip: 'clip.safetensors',
+    checkpoint_filenames: [],
     status: 'failed',
     total_items: 10,
     completed_items: 5,
@@ -2462,5 +2466,86 @@ describe('JobProgressPanel', () => {
         expect(deleteButton.exists()).toBe(expectedVisible)
       },
     )
+  })
+
+  describe('checkpoint filenames in params panel', () => {
+    const makeJob = (checkpointFilenames: string[]): SampleJob => ({
+      id: 'job-ckpt-test',
+      training_run_name: 'my/run',
+      study_id: 'study-1',
+      study_name: 'My Study',
+      workflow_name: 'flux.json',
+      vae: 'ae.safetensors',
+      clip: 'clip.safetensors',
+      checkpoint_filenames: checkpointFilenames,
+      status: 'completed',
+      total_items: 50,
+      completed_items: 50,
+      failed_items: 0,
+      pending_items: 0,
+      created_at: '2025-01-01T00:00:00Z',
+      updated_at: '2025-01-01T00:00:00Z',
+    })
+
+    async function openParamsPanel(wrapper: ReturnType<typeof mount>) {
+      const titleBtn = wrapper.find('[data-testid="job-job-ckpt-test-title"]')
+      await titleBtn.trigger('click')
+      await nextTick()
+    }
+
+    // AC: FE: Job parameter detail panel displays individual checkpoint names
+    it('displays individual checkpoint filenames when they are present', async () => {
+      const job = makeJob([
+        'model-step00004500.safetensors',
+        'model-step00004750.safetensors',
+      ])
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: [job] },
+        global: { stubs: { Teleport: true } },
+      })
+
+      await openParamsPanel(wrapper)
+
+      const list = wrapper.find('[data-testid="job-job-ckpt-test-param-checkpoint-list"]')
+      expect(list.exists()).toBe(true)
+
+      const items = wrapper.findAll('[data-testid="job-job-ckpt-test-param-checkpoint-filename"]')
+      expect(items).toHaveLength(2)
+      expect(items[0].text()).toBe('model-step00004500.safetensors')
+      expect(items[1].text()).toBe('model-step00004750.safetensors')
+    })
+
+    // AC: FE: When no specific checkpoints were selected, show a count instead
+    it('shows count fallback when checkpoint_filenames is empty', async () => {
+      const job = makeJob([])
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: [job] },
+        global: { stubs: { Teleport: true } },
+      })
+
+      await openParamsPanel(wrapper)
+
+      const list = wrapper.find('[data-testid="job-job-ckpt-test-param-checkpoint-list"]')
+      expect(list.exists()).toBe(false)
+
+      const checkpointsCell = wrapper.find('[data-testid="job-job-ckpt-test-param-checkpoints"]')
+      expect(checkpointsCell.exists()).toBe(true)
+      // Should show numeric count instead of individual names
+      expect(checkpointsCell.text()).toContain('total')
+    })
+
+    it('displays a single checkpoint filename when only one checkpoint was selected', async () => {
+      const job = makeJob(['single-model.safetensors'])
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: [job] },
+        global: { stubs: { Teleport: true } },
+      })
+
+      await openParamsPanel(wrapper)
+
+      const items = wrapper.findAll('[data-testid="job-job-ckpt-test-param-checkpoint-filename"]')
+      expect(items).toHaveLength(1)
+      expect(items[0].text()).toBe('single-model.safetensors')
+    })
   })
 })

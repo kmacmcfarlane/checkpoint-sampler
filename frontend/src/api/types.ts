@@ -246,6 +246,8 @@ export interface SampleJob {
   vae: string
   clip: string
   shift?: number
+  /** List of checkpoint filenames selected at job creation. Empty means all checkpoints were included. */
+  checkpoint_filenames: string[]
   status: SampleJobStatus
   total_items: number
   completed_items: number

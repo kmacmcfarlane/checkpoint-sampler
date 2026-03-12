@@ -521,7 +521,19 @@ function isTracebackExpanded(jobId: string, errorIdx: number): boolean {
               <div class="job-params-row">
                 <dt class="job-params-label">Checkpoints</dt>
                 <dd class="job-params-value" :data-testid="`job-${job.id}-param-checkpoints`">
-                  {{ hasCheckpointProgress(job.id) ? getJobProgress(job.id)?.total_checkpoints : job.total_items }} total
+                  <template v-if="job.checkpoint_filenames && job.checkpoint_filenames.length > 0">
+                    <ul class="checkpoint-filenames-list" :data-testid="`job-${job.id}-param-checkpoint-list`">
+                      <li
+                        v-for="filename in job.checkpoint_filenames"
+                        :key="filename"
+                        class="checkpoint-filename-item"
+                        :data-testid="`job-${job.id}-param-checkpoint-filename`"
+                      >{{ filename }}</li>
+                    </ul>
+                  </template>
+                  <template v-else>
+                    {{ hasCheckpointProgress(job.id) ? getJobProgress(job.id)?.total_checkpoints : job.total_items }} total
+                  </template>
                 </dd>
               </div>
             </dl>
@@ -1124,6 +1136,19 @@ function isTracebackExpanded(jobId: string, errorIdx: number): boolean {
   font-size: 0.8125rem;
   color: var(--text-color);
   font-family: monospace;
+  word-break: break-all;
+}
+
+.checkpoint-filenames-list {
+  margin: 0;
+  padding-left: 1rem;
+  list-style: disc;
+}
+
+.checkpoint-filename-item {
+  font-size: 0.8125rem;
+  font-family: monospace;
+  color: var(--text-color);
   word-break: break-all;
 }
 </style>

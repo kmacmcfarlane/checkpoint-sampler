@@ -110,6 +110,12 @@ Show a brief "Press ? for keyboard help" tooltip on first lightbox open to make 
 * source: developer
 When validation has run and overrides the bead status, the tooltip could show image-level counts (e.g. "590/684 images") instead of directory-level checkpoint counts for more precision.
 
+### Expose checkpoint filenames in WebSocket job_progress events
+* status: needs_approval
+* priority: low
+* source: developer
+The `checkpoint_filenames` field is currently only available via the REST API. If a user opens the job panel while a job is already running and only receives WebSocket updates, they would not see the filenames until a REST refresh. Adding `checkpoint_filenames` to the `JobProgressMessage` WS event would keep the UI fully up-to-date without polling.
+
 ### Frontend WebSocket reconnect awareness after ping failure
 * status: needs_approval
 * priority: low

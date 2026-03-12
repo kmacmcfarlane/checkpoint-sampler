@@ -601,7 +601,7 @@ stories:
   - id: S-123
     title: "Display individual checkpoint filenames in job parameters panel"
     priority: 25
-    status: todo
+    status: uat
     complexity: medium
     requires: []
     acceptance:

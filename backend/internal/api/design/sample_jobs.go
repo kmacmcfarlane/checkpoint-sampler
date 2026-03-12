@@ -197,6 +197,9 @@ var SampleJobResponse = Type("SampleJobResponse", func() {
 		Example(390)
 	})
 	Attribute("failed_item_details", ArrayOf(FailedItemDetailResponse), "Details of failed checkpoints (populated only when job has failed items)")
+	Attribute("checkpoint_filenames", ArrayOf(String), "List of checkpoint filenames selected at job creation (empty means all checkpoints were included)", func() {
+		Example([]string{"psai4rt-v0.3.0-no-reg-step00004500.safetensors", "psai4rt-v0.3.0-no-reg-step00004750.safetensors"})
+	})
 	Attribute("error_message", String, "Error details if failed")
 	Attribute("created_at", String, "Creation timestamp (RFC3339)", func() {
 		Example("2025-01-01T00:00:00Z")
@@ -204,7 +207,7 @@ var SampleJobResponse = Type("SampleJobResponse", func() {
 	Attribute("updated_at", String, "Last update timestamp (RFC3339)", func() {
 		Example("2025-01-01T00:00:00Z")
 	})
-	Required("id", "training_run_name", "study_id", "study_name", "workflow_name", "status", "total_items", "completed_items", "failed_items", "pending_items", "created_at", "updated_at")
+	Required("id", "training_run_name", "study_id", "study_name", "workflow_name", "status", "total_items", "completed_items", "failed_items", "pending_items", "checkpoint_filenames", "created_at", "updated_at")
 })
 
 var FailedItemDetailResponse = Type("FailedItemDetailResponse", func() {

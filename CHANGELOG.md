@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-123: Display individual checkpoint filenames in job parameters panel
+- Job params panel now shows individual checkpoint filenames instead of just a count; falls back to count for pre-migration jobs
+- New `checkpoint_filenames` column (migration 19) stores the selected checkpoint list at job creation time
+
 ### S-122: Restrict Delete button to non-running jobs; require stop-then-delete flow
 - Delete button hidden when job status is `running` to prevent data inconsistency from deleting mid-execution jobs
 
