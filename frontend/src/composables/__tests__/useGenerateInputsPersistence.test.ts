@@ -598,5 +598,101 @@ describe('useGenerateInputsPersistence', () => {
       // Should fall back to defaults because validation fails
       expect(getWorkflowIdForModelType('qwen_image')).toBeNull()
     })
+
+    it('returns defaults when modelTypeByRunId entry is not a string', () => {
+      const state = {
+        lastWorkflowId: null,
+        byModelType: {},
+        modelTypeByRunId: { '1': 42 }, // wrong type: number instead of string
+      }
+      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
+      const { getModelTypeForRun } = useGenerateInputsPersistence()
+      // Should fall back to defaults because validation fails
+      expect(getModelTypeForRun(1)).toBeNull()
+    })
+  })
+
+  // ── getModelTypeForRun / saveModelTypeForRun (S-119) ──────────────────────
+
+  describe('getModelTypeForRun', () => {
+    it('returns null when storage is empty', () => {
+      const { getModelTypeForRun } = useGenerateInputsPersistence()
+      expect(getModelTypeForRun(1)).toBeNull()
+    })
+
+    it('returns null when modelTypeByRunId is absent from stored state', () => {
+      const state: GenerateInputsState = { lastWorkflowId: null, byModelType: {} }
+      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
+      const { getModelTypeForRun } = useGenerateInputsPersistence()
+      expect(getModelTypeForRun(1)).toBeNull()
+    })
+
+    it('returns null when run ID is not in the cache', () => {
+      const state: GenerateInputsState = {
+        lastWorkflowId: null,
+        byModelType: {},
+        modelTypeByRunId: { '2': 'qwen_image' },
+      }
+      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
+      const { getModelTypeForRun } = useGenerateInputsPersistence()
+      expect(getModelTypeForRun(1)).toBeNull()
+    })
+
+    it('returns the cached model type for a run ID', () => {
+      const state: GenerateInputsState = {
+        lastWorkflowId: null,
+        byModelType: {},
+        modelTypeByRunId: { '1': 'qwen_image', '2': 'aura_flow' },
+      }
+      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
+      const { getModelTypeForRun } = useGenerateInputsPersistence()
+      expect(getModelTypeForRun(1)).toBe('qwen_image')
+      expect(getModelTypeForRun(2)).toBe('aura_flow')
+    })
+  })
+
+  describe('saveModelTypeForRun', () => {
+    it('saves the model type for a run ID', () => {
+      const { saveModelTypeForRun, getModelTypeForRun } = useGenerateInputsPersistence()
+      saveModelTypeForRun(1, 'qwen_image')
+      expect(getModelTypeForRun(1)).toBe('qwen_image')
+    })
+
+    it('saves independent model types for different run IDs', () => {
+      const { saveModelTypeForRun, getModelTypeForRun } = useGenerateInputsPersistence()
+      saveModelTypeForRun(1, 'qwen_image')
+      saveModelTypeForRun(2, 'aura_flow')
+      expect(getModelTypeForRun(1)).toBe('qwen_image')
+      expect(getModelTypeForRun(2)).toBe('aura_flow')
+    })
+
+    it('overwrites an existing entry for the same run ID', () => {
+      const { saveModelTypeForRun, getModelTypeForRun } = useGenerateInputsPersistence()
+      saveModelTypeForRun(1, 'qwen_image')
+      saveModelTypeForRun(1, 'aura_flow')
+      expect(getModelTypeForRun(1)).toBe('aura_flow')
+    })
+
+    it('preserves other stored fields when saving model type for a run', () => {
+      const state: GenerateInputsState = {
+        lastWorkflowId: 'qwen-image.json',
+        byModelType: { qwen_image: { vae: 'ae.safetensors', clip: null, shift: null } },
+      }
+      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
+
+      const { saveModelTypeForRun, getLastWorkflowId, getModelInputs } = useGenerateInputsPersistence()
+      saveModelTypeForRun(1, 'qwen_image')
+
+      expect(getLastWorkflowId()).toBe('qwen-image.json')
+      expect(getModelInputs('qwen_image')?.vae).toBe('ae.safetensors')
+    })
+
+    it('preserves existing modelTypeByRunId entries when adding a new one', () => {
+      const { saveModelTypeForRun, getModelTypeForRun } = useGenerateInputsPersistence()
+      saveModelTypeForRun(1, 'qwen_image')
+      saveModelTypeForRun(2, 'aura_flow')
+      // Ensure first entry is still present after adding second
+      expect(getModelTypeForRun(1)).toBe('qwen_image')
+    })
   })
 })

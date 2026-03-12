@@ -17,11 +17,18 @@
  *         workflowId: string | null,      — per-model-type workflow preference (AC3)
  *       }
  *     }
+ *     modelTypeByRunId: {
+ *       [runId: string]: string           — cached model type (ss_base_model_version) per training run ID
+ *     }
  *   }
  *
  * The modelType key is ss_base_model_version from the first checkpoint's safetensors
  * metadata. When a value is no longer available (e.g. a deleted VAE), the caller is
  * responsible for falling back to null/empty.
+ *
+ * modelTypeByRunId caches the resolved model type per training run so that the
+ * per-model-type workflow preference can be applied immediately on the next session
+ * without waiting for an async metadata fetch (S-119).
  */
 
 export const GENERATE_INPUTS_STORAGE_KEY = 'checkpoint-sampler:generate-inputs'
@@ -48,6 +55,13 @@ export interface GenerateInputsState {
    */
   hasSamplesFilter?: boolean | null
   byModelType: Record<string, PersistedModelInputs>
+  /**
+   * Cached model type (ss_base_model_version) keyed by training run ID (as string).
+   * Allows per-model-type workflow preferences to be applied speculatively on the next
+   * session without waiting for an async metadata fetch (S-119).
+   * Optional for backward compatibility.
+   */
+  modelTypeByRunId?: Record<string, string>
 }
 
 /** Returns the currently stored state, or a fresh default if missing/corrupt. */
@@ -81,6 +95,13 @@ function isValidState(v: unknown): v is GenerateInputsState {
   if (typeof obj.byModelType !== 'object' || obj.byModelType === null) return false
   for (const entry of Object.values(obj.byModelType as Record<string, unknown>)) {
     if (!isValidModelInputs(entry)) return false
+  }
+  // modelTypeByRunId is optional (backward-compatible); if present it must be a string→string map
+  if ('modelTypeByRunId' in obj && obj.modelTypeByRunId !== null && obj.modelTypeByRunId !== undefined) {
+    if (typeof obj.modelTypeByRunId !== 'object') return false
+    for (const val of Object.values(obj.modelTypeByRunId as Record<string, unknown>)) {
+      if (typeof val !== 'string') return false
+    }
   }
   return true
 }
@@ -203,6 +224,29 @@ export function useGenerateInputsPersistence() {
     saveState(state)
   }
 
+  /**
+   * Retrieve the cached model type for a training run (S-119).
+   * Returns null when not cached (metadata fetch is required).
+   */
+  function getModelTypeForRun(runId: number): string | null {
+    const state = loadState()
+    return state.modelTypeByRunId?.[String(runId)] ?? null
+  }
+
+  /**
+   * Cache the model type for a training run (S-119).
+   * Called after a successful metadata fetch so that subsequent sessions can
+   * apply the per-model-type workflow preference without an extra round-trip.
+   */
+  function saveModelTypeForRun(runId: number, modelType: string): void {
+    const state = loadState()
+    if (!state.modelTypeByRunId) {
+      state.modelTypeByRunId = {}
+    }
+    state.modelTypeByRunId[String(runId)] = modelType
+    saveState(state)
+  }
+
   return {
     getLastWorkflowId,
     saveWorkflowId,
@@ -216,5 +260,7 @@ export function useGenerateInputsPersistence() {
     saveModelInputs,
     getWorkflowIdForModelType,
     saveWorkflowIdForModelType,
+    getModelTypeForRun,
+    saveModelTypeForRun,
   }
 }

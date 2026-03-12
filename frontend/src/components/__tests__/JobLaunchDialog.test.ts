@@ -1529,6 +1529,217 @@ describe('JobLaunchDialog', () => {
     })
   })
 
+  // S-119: Per-model-type workflow restore on training run change
+  // AC1: Speculatively applied when model type is already cached
+  // AC2: Non-cached path still works correctly after metadata fetch
+  describe('per-model-type workflow speculative application (S-119)', () => {
+    // AC1: When model type is cached, the study matching the workflow preference is
+    // selected immediately without waiting for the metadata fetch to complete.
+    it('speculatively selects the study from cache before metadata fetch completes', async () => {
+      // AC: per-model-type workflow is speculatively applied when model type is already cached
+      // Pre-populate localStorage with:
+      //   - model type cache for runEmpty (id=1): 'qwen_image'
+      //   - per-model-type workflow preference for 'qwen_image': 'qwen-image.json'
+      const state: GenerateInputsState = {
+        lastWorkflowId: null,
+        byModelType: {
+          qwen_image: { vae: null, clip: null, shift: null, workflowId: 'qwen-image.json' },
+        },
+        modelTypeByRunId: { '1': 'qwen_image' },
+      }
+      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
+
+      // Delay metadata fetch so we can verify speculative selection before it resolves
+      let resolveMetadata!: () => void
+      mockGetCheckpointMetadata.mockReturnValue(
+        new Promise<{ metadata: Record<string, string> }>((resolve) => {
+          resolveMetadata = () => resolve({ metadata: { ss_base_model_version: 'qwen_image' } })
+        })
+      )
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select training run 1 (runEmpty)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      // Only flush one tick — metadata fetch is still pending
+      await nextTick()
+
+      // AC1: Study must already be selected speculatively from cache (before metadata returns)
+      const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+      expect(studySelect.props('value')).toBe('preset-1')
+
+      // Resolve the metadata fetch to clean up
+      resolveMetadata()
+      await flushPromises()
+    })
+
+    // AC2: When model type is not cached, the study is selected after metadata fetch completes.
+    it('applies per-model-type workflow after metadata fetch when model type is not cached', async () => {
+      // AC: behavior is unchanged when model type is not cached (waits for metadata fetch)
+      // Pre-populate with workflow preference only (no run-to-model-type cache)
+      const state: GenerateInputsState = {
+        lastWorkflowId: null,
+        byModelType: {
+          qwen_image: { vae: null, clip: null, shift: null, workflowId: 'qwen-image.json' },
+        },
+      }
+      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
+
+      // Metadata fetch returns 'qwen_image' model type
+      mockGetCheckpointMetadata.mockResolvedValue({
+        metadata: { ss_base_model_version: 'qwen_image' },
+      })
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // No study selected yet (training run not changed yet)
+      expect(wrapper.find('[data-testid="study-select"]').findComponent(NSelect).props('value')).toBeNull()
+
+      // Select training run 1 and let metadata fetch complete
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      await flushPromises()
+
+      // AC2: Study is selected after metadata fetch completed (non-cached path)
+      const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+      expect(studySelect.props('value')).toBe('preset-1')
+    })
+
+    it('does not override an already-selected study when applying per-model-type workflow', async () => {
+      // Pre-populate with model type cache AND workflow preference, but user had preset-2 selected
+      const state: GenerateInputsState = {
+        lastWorkflowId: null,
+        lastStudyId: 'preset-2', // user previously selected preset-2
+        byModelType: {
+          qwen_image: { vae: null, clip: null, shift: null, workflowId: 'qwen-image.json' },
+        },
+        modelTypeByRunId: { '1': 'qwen_image' },
+      }
+      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
+
+      mockGetCheckpointMetadata.mockResolvedValue({
+        metadata: { ss_base_model_version: 'qwen_image' },
+      })
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Study is restored from lastStudyId (preset-2)
+      const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+      expect(studySelect.props('value')).toBe('preset-2')
+
+      // Select training run 1 (has cached model type qwen_image → workflow qwen-image.json → preset-1)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      await flushPromises()
+
+      // applyPerModelTypeWorkflow should NOT override because selectedStudy is already 'preset-2'
+      expect(studySelect.props('value')).toBe('preset-2')
+    })
+
+    it('saves per-model-type workflow preference when study is selected with known model type', async () => {
+      // AC: unit test for speculative workflow application from cache
+      // Set up cached model type for run 1 so currentModelType is populated speculatively
+      const state: GenerateInputsState = {
+        lastWorkflowId: null,
+        byModelType: {},
+        modelTypeByRunId: { '1': 'qwen_image' },
+      }
+      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
+
+      // Delay metadata to ensure model type is set from cache before study is manually selected
+      let resolveMetadata!: () => void
+      mockGetCheckpointMetadata.mockReturnValue(
+        new Promise<{ metadata: Record<string, string> }>((resolve) => {
+          resolveMetadata = () => resolve({ metadata: { ss_base_model_version: 'qwen_image' } })
+        })
+      )
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select training run 1 (triggers speculative model type from cache)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      await nextTick()
+
+      // Manually select study preset-1 (workflow_template: 'qwen-image.json')
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
+      await nextTick()
+
+      // The per-model-type workflow preference should be saved
+      const stored = JSON.parse(localStorage.getItem(GENERATE_INPUTS_STORAGE_KEY) ?? '{}') as GenerateInputsState
+      expect(stored.byModelType?.['qwen_image']?.workflowId).toBe('qwen-image.json')
+
+      resolveMetadata()
+      await flushPromises()
+    })
+
+    it('saves the model type to the run cache after metadata fetch', async () => {
+      // No prior cache
+      const state: GenerateInputsState = {
+        lastWorkflowId: null,
+        byModelType: {},
+      }
+      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
+
+      mockGetCheckpointMetadata.mockResolvedValue({
+        metadata: { ss_base_model_version: 'qwen_image' },
+      })
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      await flushPromises()
+
+      // Model type should be cached after metadata fetch
+      const stored = JSON.parse(localStorage.getItem(GENERATE_INPUTS_STORAGE_KEY) ?? '{}') as GenerateInputsState
+      expect(stored.modelTypeByRunId?.['1']).toBe('qwen_image')
+    })
+
+    it('does not apply per-model-type workflow when no preference is stored', async () => {
+      // Cache has model type but no workflow preference for that model type
+      const state: GenerateInputsState = {
+        lastWorkflowId: null,
+        byModelType: {},
+        modelTypeByRunId: { '1': 'qwen_image' },
+      }
+      localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
+
+      mockGetCheckpointMetadata.mockResolvedValue({
+        metadata: { ss_base_model_version: 'qwen_image' },
+      })
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      await flushPromises()
+
+      // No workflow preference → study should not be auto-selected
+      const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+      expect(studySelect.props('value')).toBeNull()
+    })
+  })
+
   // AC4: When a job completes via WebSocket while the dialog is open,
   // training run options and status beads refresh automatically
   describe('auto-refresh on job completion (AC4)', () => {

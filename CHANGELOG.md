@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-119: Per-model-type workflow restore on training run change
+- Speculatively applies per-model-type workflow preference from localStorage cache when switching training runs, avoiding wait for async metadata fetch
+- Falls back to metadata fetch when cache is empty; cache is always refreshed in background to stay current
+
 ### S-118: Lightbox grid position indicator
 - Added "X / Y" position indicator at top-center of lightbox, visible when grid has multiple images
 - Indicator updates reactively on Shift+Arrow grid navigation; uses `pointer-events: none` to stay unobtrusive

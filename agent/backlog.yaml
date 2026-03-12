@@ -525,7 +525,7 @@ stories:
   - id: S-119
     title: "Per-model-type workflow restore on training run change"
     priority: 25
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:

@@ -96,6 +96,10 @@ const validationDefaultsApplied = ref(false)
 // Persistence composable
 const persistence = useGenerateInputsPersistence()
 
+// Current model type (ss_base_model_version) for the selected training run.
+// Populated either speculatively from the per-run cache or after a metadata fetch.
+const currentModelType = ref<string | null>(null)
+
 // Computed: the selected training run object
 const selectedTrainingRun = computed(() =>
   trainingRuns.value.find(r => r.id === selectedTrainingRunId.value) ?? null
@@ -248,9 +252,12 @@ const failedCheckpointMap = computed((): Map<string, string> => {
 })
 
 // Initialize checkpoint selections and restore persisted inputs when the training run changes
-watch(selectedTrainingRunId, async () => {
+watch(selectedTrainingRunId, async (runId) => {
   const skipAutoSelection = prefillActive.value
   prefillActive.value = false
+
+  // Reset model type for the new run
+  currentModelType.value = null
 
   // When prefill is active, skip all automatic state changes — the caller
   // (applyPrefill) has already set checkpoints, clearExisting, and form values.
@@ -279,8 +286,38 @@ watch(selectedTrainingRunId, async () => {
     // validationResult watcher (smart checkbox defaults per S-115).
     // After validation completes, it sets missingOnly=true for incomplete sets
     // and leaves clearExisting=false for complete sets.
-  }
 
+    if (runId !== null) {
+      // S-119: Speculatively apply per-model-type workflow if the model type is already
+      // cached from a previous session. This avoids waiting for the async metadata fetch.
+      const cachedModelType = persistence.getModelTypeForRun(runId)
+      if (cachedModelType !== null) {
+        currentModelType.value = cachedModelType
+        applyPerModelTypeWorkflow(cachedModelType)
+      }
+
+      // Fetch checkpoint metadata to confirm or populate the model type cache.
+      // Always runs regardless of cache hit to keep the cache fresh.
+      const firstCheckpoint = run.checkpoints[0]
+      try {
+        const metadataResult = await apiClient.getCheckpointMetadata(firstCheckpoint.filename)
+        const modelType = metadataResult.metadata['ss_base_model_version'] ?? null
+        if (modelType) {
+          persistence.saveModelTypeForRun(runId, modelType)
+          // AC2: Apply per-model-type workflow when model type was not previously cached
+          if (currentModelType.value === null) {
+            currentModelType.value = modelType
+            applyPerModelTypeWorkflow(modelType)
+          } else {
+            // Update currentModelType in case it differed from cache (e.g. run was replaced)
+            currentModelType.value = modelType
+          }
+        }
+      } catch {
+        // Metadata fetch failure is non-fatal; proceed with cached model type (if any)
+      }
+    }
+  }
 })
 
 // Fetch study sample availability when training run changes
@@ -354,6 +391,16 @@ watch(selectedTrainingRunId, (runId) => {
 // Persist study selection changes
 watch(selectedStudy, (studyId) => {
   persistence.saveStudyId(studyId)
+
+  // S-119: When a study is selected and the model type is known, persist the study's
+  // workflow template as the per-model-type workflow preference. This allows the correct
+  // study to be auto-selected on the next session when the model type is cached.
+  if (studyId !== null && currentModelType.value !== null) {
+    const study = studies.value.find(s => s.id === studyId)
+    if (study?.workflow_template) {
+      persistence.saveWorkflowIdForModelType(currentModelType.value, study.workflow_template)
+    }
+  }
 })
 
 function selectMissingCheckpoints() {
@@ -372,6 +419,25 @@ function selectAllCheckpoints() {
 
 function deselectAllCheckpoints() {
   selectedCheckpoints.value = new Set()
+}
+
+/**
+ * S-119: Apply the per-model-type workflow preference by auto-selecting the study
+ * whose workflow_template matches the stored preference for the given model type.
+ * Only applies when a matching study exists and no study is already selected.
+ */
+function applyPerModelTypeWorkflow(modelType: string) {
+  // Do not override an explicitly selected study
+  if (selectedStudy.value !== null) return
+
+  const preferredWorkflowId = persistence.getWorkflowIdForModelType(modelType)
+  if (!preferredWorkflowId) return
+
+  // Find a study whose workflow_template matches the preferred workflow
+  const matchingStudy = studies.value.find(s => s.workflow_template === preferredWorkflowId)
+  if (matchingStudy) {
+    selectedStudy.value = matchingStudy.id
+  }
 }
 
 function toggleCheckpoint(filename: string) {
@@ -638,6 +704,7 @@ function resetForm() {
   studyAvailability.value = []
   error.value = null
   confirmRegenOpen.value = false
+  currentModelType.value = null
 }
 
 /**
