@@ -682,7 +682,7 @@ stories:
   - id: S-127
     title: "MRU for sampler/scheduler pairs per workflow"
     priority: 15
-    status: todo
+    status: uat
     complexity: low
     requires:
       - S-113

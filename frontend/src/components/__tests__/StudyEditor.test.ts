@@ -2985,5 +2985,211 @@ describe('StudyEditor', () => {
     })
   })
 
+  describe('sampler/scheduler MRU per workflow template (S-127)', () => {
+    const MRU_KEY = 'checkpoint-sampler:mru-workflow-sampler-scheduler'
+
+    // AC1: Sampler and scheduler MRU values stored in localStorage per workflow template
+    it('saves sampler/scheduler pairs MRU per workflow when saving a study', async () => {
+      const createdStudy: Study = {
+        id: 'mru-sampler-study',
+        name: 'Sampler MRU Study',
+        prompt_prefix: '',
+        prompts: [{ name: 'test', text: 'test prompt' }],
+        negative_prompt: '',
+        steps: [30],
+        cfgs: [7.0],
+        sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'karras' }],
+        seeds: [42],
+        width: 1024,
+        height: 1024,
+        workflow_template: 'flux-dev.json',
+        vae: '',
+        text_encoder: '',
+        images_per_checkpoint: 1,
+        created_at: '2025-01-03T00:00:00Z',
+        updated_at: '2025-01-03T00:00:00Z',
+      }
+      mockCreateStudy.mockResolvedValue(createdStudy)
+
+      const wrapper = mount(StudyEditor)
+      await flushPromises()
+
+      const vm = wrapper.vm as unknown as {
+        samplerSchedulerPairs: Array<{ sampler: string; scheduler: string }>
+        prompts: Array<{ name: string; text: string }>
+      }
+
+      // Select workflow via NSelect event (triggers onWorkflowTemplateChange)
+      wrapper.find('[data-testid="study-workflow-template-select"]').findComponent(NSelect).vm.$emit('update:value', 'flux-dev.json')
+      await nextTick()
+
+      const nameInput = asVue(wrapper.findComponent('[data-testid="study-name-input"]'))
+      nameInput.vm.$emit('update:value', 'Sampler MRU Study')
+      vm.samplerSchedulerPairs = [{ sampler: 'euler', scheduler: 'karras' }]
+      vm.prompts = [{ name: 'test', text: 'test prompt' }]
+      await nextTick()
+
+      const saveButton = wrapper.findAllComponents(NButton).find(b => b.text().includes('Save Study'))!
+      await saveButton.trigger('click')
+      await flushPromises()
+
+      // AC1: MRU was saved to localStorage under the workflow name key
+      const rawMru = localStorage.getItem(MRU_KEY)
+      expect(rawMru).not.toBeNull()
+      const mru = JSON.parse(rawMru!)
+      expect(mru['flux-dev.json']).toEqual([{ sampler: 'euler', scheduler: 'karras' }])
+    })
+
+    // AC2: Selecting a workflow auto-fills sampler/scheduler from stored MRU values
+    it('auto-fills sampler/scheduler pairs from MRU when user selects a workflow', async () => {
+      // Pre-seed MRU for 'flux-dev.json'
+      localStorage.setItem(
+        MRU_KEY,
+        JSON.stringify({ 'flux-dev.json': [{ sampler: 'heun', scheduler: 'normal' }] }),
+      )
+
+      const wrapper = mount(StudyEditor)
+      await flushPromises()
+
+      // Simulate user selecting workflow via NSelect update:value event
+      wrapper.find('[data-testid="study-workflow-template-select"]').findComponent(NSelect).vm.$emit('update:value', 'flux-dev.json')
+      await nextTick()
+
+      // AC2: sampler/scheduler pairs should be auto-filled from MRU
+      const vm = wrapper.vm as unknown as { samplerSchedulerPairs: Array<{ sampler: string; scheduler: string }> }
+      expect(vm.samplerSchedulerPairs).toEqual([{ sampler: 'heun', scheduler: 'normal' }])
+    })
+
+    // AC2: When no MRU is stored for a workflow, sampler/scheduler pairs are not auto-filled
+    it('does not auto-fill sampler/scheduler pairs when no MRU is stored for the selected workflow', async () => {
+      localStorage.removeItem(MRU_KEY)
+
+      const wrapper = mount(StudyEditor)
+      await flushPromises()
+
+      wrapper.find('[data-testid="study-workflow-template-select"]').findComponent(NSelect).vm.$emit('update:value', 'flux-dev.json')
+      await nextTick()
+
+      // No MRU stored — pairs should remain at the default (empty after resetForm)
+      const vm = wrapper.vm as unknown as { samplerSchedulerPairs: Array<{ sampler: string; scheduler: string }> }
+      expect(vm.samplerSchedulerPairs).toEqual([])
+    })
+
+    // AC3: MRU defaults do not override values when dialog is pre-filled from external action
+    it('does not override study sampler/scheduler pairs with MRU when loading an existing study', async () => {
+      // Pre-seed MRU with different pairs for 'my-workflow.json'
+      localStorage.setItem(
+        MRU_KEY,
+        JSON.stringify({ 'my-workflow.json': [{ sampler: 'dpm_2', scheduler: 'exponential' }] }),
+      )
+
+      const wrapper = mount(StudyEditor)
+      await flushPromises()
+
+      // Load study (preset-1 has workflow='my-workflow.json', pairs=[euler/simple, heun/normal])
+      const select = wrapper.findAllComponents(NSelect)[0]
+      select.vm.$emit('update:value', 'preset-1')
+      await nextTick()
+
+      // AC3: The values from the study should be preserved, NOT the MRU values
+      const vm = wrapper.vm as unknown as { samplerSchedulerPairs: Array<{ sampler: string; scheduler: string }> }
+      expect(vm.samplerSchedulerPairs).toEqual([
+        { sampler: 'euler', scheduler: 'simple' },
+        { sampler: 'heun', scheduler: 'normal' },
+      ])
+    })
+
+    // AC2: Selecting a different workflow applies that workflow's MRU values
+    it('applies correct MRU per-workflow when switching between workflows', async () => {
+      localStorage.setItem(
+        MRU_KEY,
+        JSON.stringify({
+          'flux-dev.json': [{ sampler: 'euler', scheduler: 'karras' }],
+          'auraflow.json': [{ sampler: 'dpm_2', scheduler: 'exponential' }, { sampler: 'heun', scheduler: 'normal' }],
+        }),
+      )
+
+      const wrapper = mount(StudyEditor)
+      await flushPromises()
+
+      const workflowSelect = wrapper.find('[data-testid="study-workflow-template-select"]').findComponent(NSelect)
+      const vm = wrapper.vm as unknown as { samplerSchedulerPairs: Array<{ sampler: string; scheduler: string }> }
+
+      // Select first workflow
+      workflowSelect.vm.$emit('update:value', 'flux-dev.json')
+      await nextTick()
+      expect(vm.samplerSchedulerPairs).toEqual([{ sampler: 'euler', scheduler: 'karras' }])
+
+      // Switch to second workflow
+      workflowSelect.vm.$emit('update:value', 'auraflow.json')
+      await nextTick()
+      expect(vm.samplerSchedulerPairs).toEqual([
+        { sampler: 'dpm_2', scheduler: 'exponential' },
+        { sampler: 'heun', scheduler: 'normal' },
+      ])
+    })
+
+    // AC1: MRU is also saved when forking a study
+    it('saves sampler/scheduler pairs MRU per workflow when forking a study', async () => {
+      const forkedStudy: Study = {
+        id: 'forked-study',
+        name: 'Test Preset A - copy',
+        prompt_prefix: 'photo of a person, ',
+        prompts: [{ name: 'forest', text: 'a mystical forest' }],
+        negative_prompt: 'low quality',
+        steps: [1, 4, 8],
+        cfgs: [1.0, 3.0, 7.0],
+        sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'simple' }],
+        seeds: [42, 420],
+        width: 1024,
+        height: 1024,
+        workflow_template: 'my-workflow.json',
+        vae: 'ae.safetensors',
+        text_encoder: 'clip_l.safetensors',
+        images_per_checkpoint: 1,
+        created_at: '2025-01-03T00:00:00Z',
+        updated_at: '2025-01-03T00:00:00Z',
+      }
+      mockForkStudy.mockResolvedValue(forkedStudy)
+      mockStudyHasSamples.mockResolvedValue({ has_samples: true })
+
+      const wrapper = mount(StudyEditor, {
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Load preset-1 (has workflow_template = 'my-workflow.json')
+      const select = wrapper.findAllComponents(NSelect)[0]
+      select.vm.$emit('update:value', 'preset-1')
+      await nextTick()
+
+      // Trigger save (which will show immutability dialog since has_samples = true)
+      const saveButton = wrapper.findAllComponents(NButton).find(b => b.text().includes('Update Study'))!
+      await saveButton.trigger('click')
+      await flushPromises()
+
+      // Confirm fork via immutability dialog
+      const forkButton = wrapper.find('[data-testid="immutability-fork-button"]')
+      if (forkButton.exists()) {
+        await forkButton.trigger('click')
+      } else {
+        const allButtons = wrapper.findAllComponents(NButton)
+        const fork = allButtons.find(b => b.text().includes('Create New Study'))
+        expect(fork).toBeTruthy()
+        await fork!.trigger('click')
+      }
+      await flushPromises()
+
+      // MRU should have been saved for 'my-workflow.json'
+      const rawMru = localStorage.getItem(MRU_KEY)
+      expect(rawMru).not.toBeNull()
+      const mru = JSON.parse(rawMru!)
+      expect(mru['my-workflow.json']).toEqual([
+        { sampler: 'euler', scheduler: 'simple' },
+        { sampler: 'heun', scheduler: 'normal' },
+      ])
+    })
+  })
+
 })
 

@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-127: MRU for sampler/scheduler pairs per workflow
+- Sampler/scheduler pairs are now remembered per workflow template in localStorage and auto-filled when re-selecting a workflow; existing study values are preserved when loading from the study selector
+
 ### S-126: ETA countdown timer (client-side interpolation)
 - Job progress ETA now interpolates a smooth countdown between WebSocket events using `setInterval`, giving a "ticking down" UX instead of jumping between server pushes
 
