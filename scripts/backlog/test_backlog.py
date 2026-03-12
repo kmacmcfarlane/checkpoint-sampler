@@ -718,5 +718,121 @@ class TestCheckRequiresCLI(unittest.TestCase):
         self.assertEqual(ids, {"S-003", "S-005"})
 
 
+class TestStatusCLI(unittest.TestCase):
+    """Integration tests for the status command."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.backlog_path = os.path.join(self.tmpdir, "backlog.yaml")
+        self.done_path = os.path.join(self.tmpdir, "done.yaml")
+        yaml = YAML()
+        yaml.indent(mapping=2, sequence=4, offset=2)
+        self.yaml = yaml
+
+    def tearDown(self):
+        import shutil
+
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def _write(self, path, data):
+        with open(path, "w") as f:
+            self.yaml.dump(data, f)
+
+    def _base(self, stories):
+        return {
+            "schema_version": 2,
+            "project": "test",
+            "defaults": {"priority_order": "desc"},
+            "stories": stories,
+        }
+
+    def _story(self, sid, status):
+        return {
+            "id": sid,
+            "title": f"Story {sid}",
+            "priority": 50,
+            "status": status,
+            "requires": [],
+            "acceptance": ["FE: Test"],
+            "testing": ["command: echo ok"],
+        }
+
+    def _run(self, *extra_args):
+        cmd = [
+            sys.executable,
+            SCRIPT,
+            "--backlog",
+            self.backlog_path,
+            "--done",
+            self.done_path,
+        ] + list(extra_args)
+        return subprocess.run(cmd, capture_output=True, text=True)
+
+    def test_basic_counts(self):
+        self._write(self.backlog_path, self._base([
+            self._story("S-001", "todo"),
+            self._story("S-002", "todo"),
+            self._story("S-003", "in_progress"),
+            self._story("S-004", "review"),
+        ]))
+        self._write(self.done_path, self._base([]))
+        result = self._run("--format", "json", "status")
+        self.assertEqual(result.returncode, 0)
+        data = json.loads(result.stdout)
+        self.assertEqual(data, {"todo": 2, "in_progress": 1, "review": 1})
+
+    def test_empty_backlog(self):
+        self._write(self.backlog_path, self._base([]))
+        self._write(self.done_path, self._base([]))
+        result = self._run("--format", "json", "status")
+        self.assertEqual(result.returncode, 0)
+        data = json.loads(result.stdout)
+        self.assertEqual(data, {})
+
+    def test_source_both(self):
+        self._write(self.backlog_path, self._base([
+            self._story("S-001", "todo"),
+        ]))
+        self._write(self.done_path, self._base([
+            self._story("S-010", "done"),
+            self._story("S-011", "done"),
+        ]))
+        result = self._run("--format", "json", "status", "--source", "both")
+        self.assertEqual(result.returncode, 0)
+        data = json.loads(result.stdout)
+        self.assertEqual(data, {"todo": 1, "done": 2})
+
+    def test_source_done_only(self):
+        self._write(self.backlog_path, self._base([
+            self._story("S-001", "todo"),
+        ]))
+        self._write(self.done_path, self._base([
+            self._story("S-010", "done"),
+        ]))
+        result = self._run("--format", "json", "status", "--source", "done")
+        self.assertEqual(result.returncode, 0)
+        data = json.loads(result.stdout)
+        self.assertEqual(data, {"done": 1})
+
+    def test_yaml_output(self):
+        self._write(self.backlog_path, self._base([
+            self._story("S-001", "todo"),
+        ]))
+        self._write(self.done_path, self._base([]))
+        result = self._run("status")
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("todo: 1", result.stdout)
+
+    def test_format_subcommand_position(self):
+        self._write(self.backlog_path, self._base([
+            self._story("S-001", "todo"),
+        ]))
+        self._write(self.done_path, self._base([]))
+        result = self._run("status", "--format", "json")
+        self.assertEqual(result.returncode, 0)
+        data = json.loads(result.stdout)
+        self.assertEqual(data, {"todo": 1})
+
+
 if __name__ == "__main__":
     unittest.main()
