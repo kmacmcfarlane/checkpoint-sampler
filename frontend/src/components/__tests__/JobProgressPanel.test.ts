@@ -1251,31 +1251,32 @@ describe('JobProgressPanel', () => {
   // AC2: Confirmation dialog includes 'Also delete sample data' checkbox
   describe('delete button and confirmation dialog', () => {
     const jobToDelete: SampleJob = {
-      id: 'job-pending',
+      id: 'job-stopped',
       training_run_name: 'flux/delete-test',
       study_id: 'study-1',
       study_name: 'Delete Test',
       workflow_name: 'flux.json',
       vae: 'ae.safetensors',
       clip: 't5.safetensors',
-      status: 'pending',
+      status: 'stopped',
       total_items: 50,
-      completed_items: 0,
+      completed_items: 10,
       failed_items: 0,
-      pending_items: 50,
+      pending_items: 40,
       created_at: '2025-01-01T00:00:00Z',
       updated_at: '2025-01-01T00:00:00Z',
     }
 
-    // AC1: Delete button is shown on every job card regardless of status
-    it('shows a Delete button on every job card', () => {
+    // AC: FE: Delete button is hidden when job status is running; visible for all other statuses
+    it('hides Delete button only for running jobs', () => {
       const wrapper = mount(JobProgressPanel, {
         props: { show: true, jobs: sampleJobs },
         global: { stubs: { Teleport: true } },
       })
 
-      // All 4 sample jobs should have a delete button
-      expect(wrapper.find('[data-testid="job-job-1-delete"]').exists()).toBe(true)
+      // job-1 is running — Delete button must be hidden (AC1)
+      expect(wrapper.find('[data-testid="job-job-1-delete"]').exists()).toBe(false)
+      // job-2 is stopped, job-3 is completed, job-4 is failed — Delete button must be visible (AC3)
       expect(wrapper.find('[data-testid="job-job-2-delete"]').exists()).toBe(true)
       expect(wrapper.find('[data-testid="job-job-3-delete"]').exists()).toBe(true)
       expect(wrapper.find('[data-testid="job-job-4-delete"]').exists()).toBe(true)
@@ -1294,7 +1295,7 @@ describe('JobProgressPanel', () => {
       expect(dialog.props('show')).toBe(false)
 
       // Click the delete button
-      const deleteButton = wrapper.find('[data-testid="job-job-pending-delete"]').findComponent(NButton)
+      const deleteButton = wrapper.find('[data-testid="job-job-stopped-delete"]').findComponent(NButton)
       await deleteButton.trigger('click')
       await nextTick()
 
@@ -1332,7 +1333,7 @@ describe('JobProgressPanel', () => {
       })
 
       // Open the dialog
-      const deleteButton = wrapper.find('[data-testid="job-job-pending-delete"]').findComponent(NButton)
+      const deleteButton = wrapper.find('[data-testid="job-job-stopped-delete"]').findComponent(NButton)
       await deleteButton.trigger('click')
       await nextTick()
 
@@ -1344,7 +1345,7 @@ describe('JobProgressPanel', () => {
       const emitted = wrapper.emitted('delete')
       expect(emitted).toBeDefined()
       expect(emitted).toHaveLength(1)
-      expect(emitted![0]).toEqual(['job-pending', false])
+      expect(emitted![0]).toEqual(['job-stopped', false])
 
       // Dialog should be closed after confirm
       expect(dialog.props('show')).toBe(false)
@@ -1358,7 +1359,7 @@ describe('JobProgressPanel', () => {
       })
 
       // Open the dialog
-      const deleteButton = wrapper.find('[data-testid="job-job-pending-delete"]').findComponent(NButton)
+      const deleteButton = wrapper.find('[data-testid="job-job-stopped-delete"]').findComponent(NButton)
       await deleteButton.trigger('click')
       await nextTick()
 
@@ -1370,7 +1371,7 @@ describe('JobProgressPanel', () => {
       const emitted = wrapper.emitted('delete')
       expect(emitted).toBeDefined()
       expect(emitted).toHaveLength(1)
-      expect(emitted![0]).toEqual(['job-pending', true])
+      expect(emitted![0]).toEqual(['job-stopped', true])
     })
 
     // Cancelling the dialog closes it without emitting delete
@@ -1381,7 +1382,7 @@ describe('JobProgressPanel', () => {
       })
 
       // Open the dialog
-      const deleteButton = wrapper.find('[data-testid="job-job-pending-delete"]').findComponent(NButton)
+      const deleteButton = wrapper.find('[data-testid="job-job-stopped-delete"]').findComponent(NButton)
       await deleteButton.trigger('click')
       await nextTick()
 
@@ -2419,5 +2420,47 @@ describe('JobProgressPanel', () => {
 
       vi.restoreAllMocks()
     })
+  })
+
+  // AC: FE: Unit tests for Delete button visibility based on job status (S-122)
+  describe('delete button visibility based on job status', () => {
+    // AC: FE: Delete button is hidden when job status is running
+    // AC: FE: Delete button remains visible for all other job statuses
+    it.each([
+      ['running', false],
+      ['pending', true],
+      ['stopped', true],
+      ['completed', true],
+      ['completed_with_errors', true],
+      ['failed', true],
+    ] as [import('../../api/types').SampleJobStatus, boolean][])(
+      'Delete button visible=%s for status=%s',
+      (status, expectedVisible) => {
+        const job: SampleJob = {
+          id: 'job-visibility-test',
+          training_run_name: 'test/run',
+          study_id: 'study-1',
+          study_name: 'Visibility Test',
+          workflow_name: 'test.json',
+          vae: 'ae.safetensors',
+          clip: 't5.safetensors',
+          status,
+          total_items: 10,
+          completed_items: 0,
+          failed_items: 0,
+          pending_items: 10,
+          created_at: '2025-01-01T00:00:00Z',
+          updated_at: '2025-01-01T00:00:00Z',
+        }
+
+        const wrapper = mount(JobProgressPanel, {
+          props: { show: true, jobs: [job] },
+          global: { stubs: { Teleport: true } },
+        })
+
+        const deleteButton = wrapper.find('[data-testid="job-job-visibility-test-delete"]')
+        expect(deleteButton.exists()).toBe(expectedVisible)
+      },
+    )
   })
 })

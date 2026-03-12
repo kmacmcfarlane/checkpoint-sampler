@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-122: Restrict Delete button to non-running jobs; require stop-then-delete flow
+- Delete button hidden when job status is `running` to prevent data inconsistency from deleting mid-execution jobs
+
 ### S-119: Per-model-type workflow restore on training run change
 - Speculatively applies per-model-type workflow preference from localStorage cache when switching training runs, avoiding wait for async metadata fetch
 - Falls back to metadata fetch when cache is empty; cache is always refreshed in background to stay current
