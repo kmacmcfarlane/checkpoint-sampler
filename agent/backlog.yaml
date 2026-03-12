@@ -545,7 +545,7 @@ stories:
   - id: S-120
     title: "Filters drawer width configurable or auto-sized"
     priority: 15
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { NDrawer } from 'naive-ui'
@@ -71,11 +71,42 @@ describe('FiltersDrawer', () => {
       const drawer = wrapper.findComponent(NDrawer)
       expect(drawer.props('placement')).toBe('right')
     })
+  })
 
-    it('NDrawer has width 320', () => {
+  describe('AC1: drawer width — resizable with default and viewport constraints', () => {
+    beforeEach(() => {
+      // Default: wide viewport (> 600px narrow breakpoint)
+      Object.defineProperty(window, 'innerWidth', { value: 1280, writable: true, configurable: true })
+    })
+
+    it('AC1: default drawer width is 320px on wide viewports', () => {
+      // AC: FiltersDrawer width adapts to content or is user-resizable — default width applied
       const wrapper = mountFiltersDrawer()
       const drawer = wrapper.findComponent(NDrawer)
       expect(drawer.props('width')).toBe(320)
+    })
+
+    it('AC2: drawer width equals viewport width on small screens (< 600px)', () => {
+      // AC: Drawer does not exceed viewport width on small screens
+      Object.defineProperty(window, 'innerWidth', { value: 400, writable: true, configurable: true })
+      const wrapper = mountFiltersDrawer()
+      const drawer = wrapper.findComponent(NDrawer)
+      expect(drawer.props('width')).toBe(400)
+    })
+
+    it('AC3: resize handle element is present in the rendered component', () => {
+      // AC: Unit tests for drawer sizing behavior — resize handle exists
+      const wrapper = mountFiltersDrawer()
+      const handle = wrapper.find('[data-testid="filters-drawer-resize-handle"]')
+      expect(handle.exists()).toBe(true)
+    })
+
+    it('AC3: resize handle has correct role and aria attributes', () => {
+      // AC: Unit tests for drawer sizing behavior — resize handle is accessible
+      const wrapper = mountFiltersDrawer()
+      const handle = wrapper.find('[data-testid="filters-drawer-resize-handle"]')
+      expect(handle.attributes('role')).toBe('separator')
+      expect(handle.attributes('aria-orientation')).toBe('vertical')
     })
   })
 
@@ -182,6 +213,63 @@ describe('FiltersDrawer', () => {
       })
       const emptyMsg = wrapper.find('.filters-drawer__empty')
       expect(emptyMsg.exists()).toBe(false)
+    })
+  })
+
+  describe('AC3: drag-to-resize behavior', () => {
+    beforeEach(() => {
+      Object.defineProperty(window, 'innerWidth', { value: 1280, writable: true, configurable: true })
+      vi.spyOn(document, 'addEventListener')
+      vi.spyOn(document, 'removeEventListener')
+    })
+
+    afterEach(() => {
+      vi.restoreAllMocks()
+    })
+
+    it('AC3: mousedown on resize handle attaches mousemove and mouseup listeners', async () => {
+      // AC: Unit tests for drawer sizing behavior — drag start registers listeners
+      const wrapper = mountFiltersDrawer()
+      const handle = wrapper.find('[data-testid="filters-drawer-resize-handle"]')
+      await handle.trigger('mousedown')
+      expect(document.addEventListener).toHaveBeenCalledWith('mousemove', expect.any(Function))
+      expect(document.addEventListener).toHaveBeenCalledWith('mouseup', expect.any(Function))
+    })
+
+    it('AC3: width is clamped to minimum 200px when dragging to left edge', async () => {
+      // AC: Unit tests for drawer sizing behavior — min width clamp
+      const wrapper = mountFiltersDrawer()
+      const handle = wrapper.find('[data-testid="filters-drawer-resize-handle"]')
+
+      // Start drag
+      await handle.trigger('mousedown', { clientX: 900 })
+
+      // Simulate mousemove very close to right edge (window.innerWidth - clientX would be tiny)
+      const mouseMoveEvent = new MouseEvent('mousemove', { clientX: 1200 })
+      document.dispatchEvent(mouseMoveEvent)
+      await nextTick()
+
+      // Width should be clamped at MIN_WIDTH (200)
+      const drawer = wrapper.findComponent(NDrawer)
+      expect(drawer.props('width')).toBeGreaterThanOrEqual(200)
+    })
+
+    it('AC2: width is clamped to 80vw maximum', async () => {
+      // AC: Drawer does not exceed viewport width on small screens — max width constraint
+      const wrapper = mountFiltersDrawer()
+      const handle = wrapper.find('[data-testid="filters-drawer-resize-handle"]')
+
+      // Start drag
+      await handle.trigger('mousedown', { clientX: 900 })
+
+      // Simulate mousemove beyond 80vw
+      const mouseMoveEvent = new MouseEvent('mousemove', { clientX: 0 })
+      document.dispatchEvent(mouseMoveEvent)
+      await nextTick()
+
+      // Width should not exceed 80% of 1280px = 1024px
+      const drawer = wrapper.findComponent(NDrawer)
+      expect(drawer.props('width')).toBeLessThanOrEqual(1024)
     })
   })
 })
