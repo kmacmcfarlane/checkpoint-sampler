@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { NSlider } from 'naive-ui'
 
 const props = defineProps<{
@@ -24,6 +24,19 @@ const currentSize = computed({
 function onUpdate(value: number) {
   emit('update:cellSize', value)
 }
+
+// Naive UI NSlider does not forward aria-label to the internal role="slider" thumb element.
+// We use a ref on the wrapper and set aria-label imperatively on mount so that axe-core
+// and assistive technologies can identify the slider control.
+const sliderWrapperRef = ref<HTMLElement | null>(null)
+onMounted(() => {
+  if (sliderWrapperRef.value) {
+    const thumb = sliderWrapperRef.value.querySelector('[role="slider"]') as HTMLElement | null
+    if (thumb) {
+      thumb.setAttribute('aria-label', 'Grid cell zoom')
+    }
+  }
+})
 </script>
 
 <template>
@@ -31,16 +44,17 @@ function onUpdate(value: number) {
     <label class="zoom-control__label">
       Zoom
     </label>
-    <NSlider
-      :value="currentSize"
-      :min="MIN_SIZE"
-      :max="MAX_SIZE"
-      :step="10"
-      :tooltip="false"
-      class="zoom-control__slider"
-      aria-label="Grid cell zoom"
-      @update:value="onUpdate"
-    />
+    <div ref="sliderWrapperRef" class="zoom-control__slider-wrapper">
+      <NSlider
+        :value="currentSize"
+        :min="MIN_SIZE"
+        :max="MAX_SIZE"
+        :step="10"
+        :tooltip="false"
+        class="zoom-control__slider"
+        @update:value="onUpdate"
+      />
+    </div>
     <span class="zoom-control__value">{{ currentSize }}px</span>
   </div>
 </template>
@@ -60,6 +74,13 @@ function onUpdate(value: number) {
   font-weight: 600;
   font-size: 0.875rem;
   white-space: nowrap;
+}
+
+.zoom-control__slider-wrapper {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
 }
 
 .zoom-control__slider {

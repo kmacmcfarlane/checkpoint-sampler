@@ -403,26 +403,29 @@ onUnmounted(() => {
 
 <template>
   <div class="xy-grid-container" v-if="!hasNoAxes">
-    <div class="xy-grid" role="grid" :style="gridStyle">
-      <!-- Corner resize handle -->
-      <div
-        class="xy-grid__resize-handle"
-        role="button"
-        tabindex="0"
-        aria-label="Resize grid cells"
-        :class="{ 'xy-grid__resize-handle--dragging': isDragging }"
-        @mousedown="onResizeHandleMouseDown"
-      ></div>
-      <!-- Corner cell (when both X and Y present) -->
-      <div
-        v-if="xDimension && yDimension"
-        class="xy-grid__corner"
-        role="columnheader"
-        :style="{ gridRow: 1, gridColumn: 1 }"
-      ></div>
+    <!-- Resize handle lives outside role="grid" to avoid aria-required-children violation.
+         It is fixed-position so it is visually independent of the grid layout. -->
+    <div
+      class="xy-grid__resize-handle"
+      role="button"
+      tabindex="0"
+      aria-label="Resize grid cells"
+      :class="{ 'xy-grid__resize-handle--dragging': isDragging }"
+      @mousedown="onResizeHandleMouseDown"
+    ></div>
 
-      <!-- Column headers -->
-      <template v-if="xDimension">
+    <div class="xy-grid" role="grid" :style="gridStyle">
+      <!-- Header row: corner cell + column headers (role="row" with display:contents keeps CSS grid intact) -->
+      <div v-if="xDimension" role="row" class="xy-grid__row--header">
+        <!-- Corner cell (when both X and Y present) -->
+        <div
+          v-if="yDimension"
+          class="xy-grid__corner"
+          role="columnheader"
+          :style="{ gridRow: 1, gridColumn: 1 }"
+        ></div>
+
+        <!-- Column headers -->
         <div
           v-for="(xVal, idx) in xValues"
           :key="'ch-' + xVal"
@@ -433,11 +436,17 @@ onUnmounted(() => {
         >
           {{ xVal }}
         </div>
-      </template>
+      </div>
 
       <!-- Row headers + cells (Y dimension present) -->
       <template v-if="yDimension">
-        <template v-for="(yVal, yIdx) in yValues" :key="'y-' + yVal">
+        <!-- Each data row is wrapped in role="row" with display:contents to satisfy ARIA without breaking CSS grid -->
+        <div
+          v-for="(yVal, yIdx) in yValues"
+          :key="'y-' + yVal"
+          role="row"
+          class="xy-grid__row--data"
+        >
           <!-- Row header -->
           <div
             class="xy-grid__row-header"
@@ -500,34 +509,36 @@ onUnmounted(() => {
               @change="(v: string) => onSliderChange(undefined, yVal, v)"
             />
           </div>
-        </template>
+        </div>
       </template>
 
-      <!-- X-only cells (no Y dimension) -->
+      <!-- X-only cells (no Y dimension) — single data row -->
       <template v-else-if="xDimension">
-        <div
-          v-for="(xVal, xIdx) in xValues"
-          :key="'xonly-' + xVal"
-          class="xy-grid__cell"
-          role="gridcell"
-          :style="{ gridRow: rowBase, gridColumn: colIndex(xIdx) }"
-        >
-          <ImageCell
-            :relative-path="getImage(xVal, undefined)?.relative_path ?? null"
-            :thumbnail-path="getImage(xVal, undefined)?.thumbnail_path || undefined"
-            :slider-values="sliderDimension?.values"
-            :current-slider-value="getSliderValue(xVal, undefined)"
-            :debug-info="getDebugInfo(xVal, undefined)"
-            @click="(url: string) => onImageClick(xVal, undefined, url)"
-            @slider:change="(v: string) => onSliderChange(xVal, undefined, v)"
-          />
-          <SliderBar
-            v-if="sliderDimension"
-            :values="sliderDimension.values"
-            :current-value="getSliderValue(xVal, undefined)"
-            :label="`${sliderDimension.name} for ${xVal}`"
-            @change="(v: string) => onSliderChange(xVal, undefined, v)"
-          />
+        <div role="row" class="xy-grid__row--data">
+          <div
+            v-for="(xVal, xIdx) in xValues"
+            :key="'xonly-' + xVal"
+            class="xy-grid__cell"
+            role="gridcell"
+            :style="{ gridRow: rowBase, gridColumn: colIndex(xIdx) }"
+          >
+            <ImageCell
+              :relative-path="getImage(xVal, undefined)?.relative_path ?? null"
+              :thumbnail-path="getImage(xVal, undefined)?.thumbnail_path || undefined"
+              :slider-values="sliderDimension?.values"
+              :current-slider-value="getSliderValue(xVal, undefined)"
+              :debug-info="getDebugInfo(xVal, undefined)"
+              @click="(url: string) => onImageClick(xVal, undefined, url)"
+              @slider:change="(v: string) => onSliderChange(xVal, undefined, v)"
+            />
+            <SliderBar
+              v-if="sliderDimension"
+              :values="sliderDimension.values"
+              :current-value="getSliderValue(xVal, undefined)"
+              :label="`${sliderDimension.name} for ${xVal}`"
+              @change="(v: string) => onSliderChange(xVal, undefined, v)"
+            />
+          </div>
         </div>
       </template>
 
@@ -575,6 +586,13 @@ onUnmounted(() => {
 
 .xy-grid {
   position: relative;
+}
+
+/* ARIA row wrappers use display:contents so they are invisible to CSS grid layout
+   but present in the accessibility tree — satisfies aria-required-parent/children. */
+.xy-grid__row--header,
+.xy-grid__row--data {
+  display: contents;
 }
 
 .xy-grid__corner {

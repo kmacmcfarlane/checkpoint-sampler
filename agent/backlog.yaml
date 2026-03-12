@@ -338,7 +338,7 @@ stories:
   - id: W-008
     title: "Widen accessibility test coverage to include grid state"
     priority: 25
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:
