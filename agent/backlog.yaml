@@ -905,7 +905,7 @@ stories:
   - id: W-022
     title: "Fixture seeder idempotency guard"
     priority: 25
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:

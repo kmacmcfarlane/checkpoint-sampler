@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### W-022: Fixture seeder idempotency guard
+- `SeedFixtures()` now checks for existing fixture data before seeding, preventing silent state duplication if the DB cleaner fails mid-reset
+
 ### W-018: Slow-motion mock mode for E2E timing tests
 - ComfyUI mock supports configurable delay via `COMFYUI_MOCK_DELAY_MS` env var and runtime `POST /mock/config` endpoint, enabling E2E tests to reliably observe in-flight job state
 - 3 new E2E tests verify mock config round-trip, running-phase UI observation (status tag, stop button, sample params), and stop-button functionality during slow-motion execution

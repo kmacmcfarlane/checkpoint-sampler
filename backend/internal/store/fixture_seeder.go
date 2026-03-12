@@ -1,6 +1,7 @@
 package store
 
 import (
+	"database/sql"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -76,7 +77,19 @@ func NewFixtureSeeder(store *Store, sampleDir string, logger *logrus.Logger) *Fi
 
 // SeedFixtures seeds the E2E fixture study and sample directories.
 // It is called by the test reset endpoint after every DB reset.
+// It is idempotent: if the fixture study already exists in the database,
+// seeding is skipped to prevent silent state duplication if the cleaner
+// fails mid-reset.
 func (s *FixtureSeeder) SeedFixtures() error {
+	_, err := s.store.GetStudy(E2EFixtureStudyID)
+	if err == nil {
+		s.logger.WithField("study_id", E2EFixtureStudyID).Info("fixture data already present, skipping re-seeding")
+		return nil
+	}
+	if err != sql.ErrNoRows {
+		return fmt.Errorf("checking fixture study existence: %w", err)
+	}
+
 	s.logger.Info("seeding E2E fixture study and sample directories")
 
 	if err := s.seedFixtureStudy(); err != nil {
