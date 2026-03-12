@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, toRef } from 'vue'
 import { NModal, NButton, NTag, NProgress, NSpace, NEmpty, NSpin } from 'naive-ui'
 import type { SampleJob, SampleJobStatus, CurrentSampleParams, ValidationResult } from '../api/types'
 import { apiClient } from '../api/client'
 import ConfirmDeleteDialog from './ConfirmDeleteDialog.vue'
 import ValidationResultsDialog from './ValidationResultsDialog.vue'
+import { useJobEtaCountdowns } from '../composables/useCountdown'
 
 /** Completeness verification result for a single checkpoint. */
 interface CompletenessEntry {
@@ -102,6 +103,11 @@ function handleValidationRegenerate(job: SampleJob) {
   validationDialogShow.value = false
   emit('validateRegenerate', job)
 }
+
+// AC1: Interpolate ETA countdown between WebSocket events using setInterval.
+// AC2: Countdown resets when a new ETA value arrives from WebSocket.
+// AC3: Timers are cleaned up on component unmount (handled inside useJobEtaCountdowns).
+const { getDisplaySampleEta, getDisplayJobEta } = useJobEtaCountdowns(toRef(props, 'jobProgress'))
 
 const sortedJobs = computed(() => {
   return [...props.jobs].sort((a, b) => {
@@ -254,18 +260,20 @@ function formatDuration(seconds: number): string {
   return `${hours}h ${remainingMinutes}m`
 }
 
-/** Get the per-sample ETA string for a job, or undefined if not available. */
+/** Get the per-sample ETA string for a job, or undefined if not available.
+ *  Uses countdown-interpolated value for smooth UX between WebSocket events. */
 function getSampleETA(jobId: string): string | undefined {
-  const progress = props.jobProgress?.[jobId]
-  if (!progress?.sample_eta_seconds || progress.sample_eta_seconds <= 0) return undefined
-  return formatDuration(progress.sample_eta_seconds)
+  const seconds = getDisplaySampleEta(jobId)
+  if (seconds === undefined || seconds <= 0) return undefined
+  return formatDuration(seconds)
 }
 
-/** Get the per-job ETA string for a job, or undefined if not available. */
+/** Get the per-job ETA string for a job, or undefined if not available.
+ *  Uses countdown-interpolated value for smooth UX between WebSocket events. */
 function getJobETA(jobId: string): string | undefined {
-  const progress = props.jobProgress?.[jobId]
-  if (!progress?.job_eta_seconds || progress.job_eta_seconds <= 0) return undefined
-  return formatDuration(progress.job_eta_seconds)
+  const seconds = getDisplayJobEta(jobId)
+  if (seconds === undefined || seconds <= 0) return undefined
+  return formatDuration(seconds)
 }
 
 function getJobProgress(jobId: string) {

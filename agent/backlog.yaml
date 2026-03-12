@@ -662,7 +662,7 @@ stories:
   - id: S-126
     title: "ETA countdown timer (client-side interpolation)"
     priority: 15
-    status: todo
+    status: uat
     complexity: low
     requires:
       - S-098

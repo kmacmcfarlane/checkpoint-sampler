@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-126: ETA countdown timer (client-side interpolation)
+- Job progress ETA now interpolates a smooth countdown between WebSocket events using `setInterval`, giving a "ticking down" UX instead of jumping between server pushes
+
 ### S-120: Filters drawer width configurable or auto-sized
 - FiltersDrawer is now drag-to-resize via a left-edge handle (min 200px, max 80vw); defaults to full viewport width on screens narrower than 600px
 
