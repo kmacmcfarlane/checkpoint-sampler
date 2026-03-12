@@ -66,6 +66,7 @@ function onKeydown(event: KeyboardEvent) {
       :step="1"
       :tooltip="false"
       :keyboard="false"
+      :aria-label="label"
       style="flex: 1"
       @update:value="onUpdate"
     />

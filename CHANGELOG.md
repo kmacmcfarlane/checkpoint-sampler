@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### W-008: Widen accessibility test coverage to include grid state
+- Added populated-grid accessibility audit E2E tests (light + dark mode) that load a training run, assign axes, and scan the rendered grid
+- Fixed ARIA structure violations in XYGrid (role="row" wrappers with display:contents) and ZoomControl (imperative aria-label on NSlider thumb)
+
 ### W-006: Expand QA_ALLOWED_ERRORS.md with all test environment artifacts
 - Added allowlist entries for database reset race conditions, safetensors metadata parse failures on test fixture stubs, and Vite WebSocket proxy EPIPE/ECONNREFUSED during E2E startup/teardown
 
