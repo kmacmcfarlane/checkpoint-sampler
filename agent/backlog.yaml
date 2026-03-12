@@ -774,7 +774,7 @@ stories:
   - id: W-014
     title: "App.test.ts window.innerWidth cleanup between tests"
     priority: 25
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:

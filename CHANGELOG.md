@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### W-014: App.test.ts window.innerWidth cleanup between tests
+- Top-level `afterEach` in App.test.ts now resets `window.innerWidth` to 1024, preventing narrow-screen test state from leaking across tests via `Object.defineProperty`
+
 ### W-013: E2E test for keyboard auto-repeat slider navigation
 - New Playwright spec (`slider-keyboard-autorepeat.spec.ts`) with 4 tests exercising `page.keyboard.down()` auto-repeat on the master slider, catching stale-prop race conditions that JSDOM cannot reproduce
 

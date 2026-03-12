@@ -120,6 +120,7 @@ describe('App', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
     mockWebSocketInstances = []
+    Object.defineProperty(window, 'innerWidth', { value: 1024, configurable: true })
   })
 
   it('renders the application header without heading', async () => {
