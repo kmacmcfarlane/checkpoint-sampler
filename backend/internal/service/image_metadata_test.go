@@ -274,10 +274,15 @@ var _ = Describe("ImageMetadataService", func() {
 				Expect(result.StringFields).To(HaveKeyWithValue("prompt_text", "a dense forest at dawn"))
 				Expect(result.StringFields).To(HaveKeyWithValue("negative_prompt", "blurry"))
 				Expect(result.StringFields).To(HaveKeyWithValue("workflow_name", "flux_dev.json"))
-				// Numeric fields: seed, steps, cfg
+				// Numeric fields: seed, steps, cfg, width, height
 				Expect(result.NumericFields).To(HaveKey("seed"))
 				Expect(result.NumericFields).To(HaveKey("steps"))
 				Expect(result.NumericFields).To(HaveKey("cfg"))
+				Expect(result.NumericFields).To(HaveKeyWithValue("width", BeNumerically("==", 1024)))
+				Expect(result.NumericFields).To(HaveKeyWithValue("height", BeNumerically("==", 768)))
+				// width and height must NOT appear in StringFields
+				Expect(result.StringFields).NotTo(HaveKey("width"))
+				Expect(result.StringFields).NotTo(HaveKey("height"))
 				// PNG tEXt "prompt" key should NOT appear (we read sidecar, not PNG)
 				Expect(result.StringFields).NotTo(HaveKey("prompt"))
 			})
@@ -385,6 +390,9 @@ var _ = Describe("ImageMetadataService", func() {
 		Entry("seed is numeric", "seed", 42, true, 42.0, ""),
 		Entry("steps is numeric", "steps", 20, true, 20.0, ""),
 		Entry("cfg is numeric", "cfg", 7.5, true, 7.5, ""),
+		Entry("width is numeric", "width", 1024, true, 1024.0, ""),
+		Entry("height is numeric", "height", 768, true, 768.0, ""),
+		Entry("index is numeric", "index", 3, true, 3.0, ""),
 		Entry("prompt_name is string", "prompt_name", "forest", false, 0.0, "forest"),
 		Entry("sampler_name is string", "sampler_name", "euler", false, 0.0, "euler"),
 		Entry("workflow_name is string", "workflow_name", "flux.json", false, 0.0, "flux.json"),

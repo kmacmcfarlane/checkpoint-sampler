@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-103: Expose more sidecar fields as numeric in metadata API
+- `numericSidecarFields` expanded from 3 to 6 entries: `width`, `height`, and `index` now route to `NumericFields` instead of `StringFields` in sidecar metadata parsing
+
 ### W-022: Fixture seeder idempotency guard
 - `SeedFixtures()` now checks for existing fixture data before seeding, preventing silent state duplication if the DB cleaner fails mid-reset
 

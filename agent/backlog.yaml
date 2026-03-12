@@ -131,7 +131,7 @@ stories:
   - id: S-103
     title: "Expose more sidecar fields as numeric in metadata API"
     priority: 15
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:

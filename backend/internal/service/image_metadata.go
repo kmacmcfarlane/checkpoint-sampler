@@ -114,9 +114,12 @@ func (s *ImageMetadataService) GetMetadata(relPath string) (*model.ImageMetadata
 // numericSidecarFields is the set of sidecar JSON keys that are treated as
 // numeric (float64) values. All other keys are treated as strings.
 var numericSidecarFields = map[string]bool{
-	"seed":  true,
-	"steps": true,
-	"cfg":   true,
+	"seed":   true,
+	"steps":  true,
+	"cfg":    true,
+	"width":  true,
+	"height": true,
+	"index":  true,
 }
 
 // parseSidecarJSON reads a JSON sidecar file and returns its contents with
