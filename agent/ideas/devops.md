@@ -43,3 +43,9 @@ The `playwright` service in `docker-compose.test.yml` writes root-owned `fronten
 * priority: low
 * source: developer
 The axe E2E tests currently run as part of the full E2E suite. A dedicated accessibility audit step that runs accessibility.spec.ts before other E2E tests could catch regressions earlier in CI.
+
+### Add lint-disallowed-chars to CI pipeline
+* status: needs_approval
+* priority: low
+* source: developer
+Once the disallowed character set is stable, add `make lint-disallowed-chars` as a pre-merge CI check so it runs automatically when `disallowedNameChars` is modified, rather than relying on developers to run it manually.

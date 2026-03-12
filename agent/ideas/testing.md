@@ -31,3 +31,9 @@ Add study-scoped sample directories to test fixtures so E2E tests can verify stu
 * priority: very-low
 * source: developer
 The thumbnail E2E tests verify URLs but not visual correctness. A screenshot comparison tool could verify the grid actually renders thumbnail-sized images vs full-res images, catching cases where the URL is correct but the image fails to load.
+
+### TypeScript template literal scanning in disallowed-chars guard
+* status: needs_approval
+* priority: low
+* source: developer
+Extend `check-disallowed-chars.sh` to also scan TypeScript backtick template literals for disallowed chars in name-like contexts. Currently only double-quoted strings are scanned, so a regression using a template literal like `` `My Study ${copyNum} (revised)` `` would not be caught.
