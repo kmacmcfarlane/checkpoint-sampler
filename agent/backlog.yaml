@@ -582,7 +582,7 @@ stories:
   - id: S-122
     title: "Restrict Delete button to non-running jobs; require stop-then-delete flow"
     priority: 25
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:

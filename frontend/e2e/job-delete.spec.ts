@@ -59,6 +59,37 @@ async function createJobViaAPI(request: APIRequestContext, studyId: string): Pro
 }
 
 /**
+ * Waits for a job's Delete button to become visible by polling the Refresh button.
+ *
+ * S-122: The Delete button is hidden while a job is `running`. Jobs created via
+ * the API start as `pending` and are immediately picked up by the executor, which
+ * transitions them to `running`. In the E2E environment the ComfyUI mock completes
+ * jobs quickly (pending→running→completed in ~3s), but the UI may not have received
+ * the WebSocket completion event yet. This helper periodically clicks the Refresh
+ * button in the panel to re-fetch job data until the Delete button appears.
+ */
+async function waitForDeleteButton(page: import('@playwright/test').Page, jobId: string): Promise<import('@playwright/test').Locator> {
+  const deleteButton = page.locator(`[data-testid="job-${jobId}-delete"]`)
+  const refreshButton = page.locator('button').filter({ hasText: 'Refresh' })
+
+  // Poll: click Refresh up to 10 times (with 3s intervals) until Delete appears
+  for (let attempt = 0; attempt < 10; attempt++) {
+    if (await deleteButton.isVisible()) {
+      return deleteButton
+    }
+    // Click Refresh to re-fetch job data from the API
+    if (await refreshButton.isVisible()) {
+      await refreshButton.click()
+    }
+    await page.waitForTimeout(3000)
+  }
+
+  // Final check — fail with a clear assertion error if still not visible
+  await expect(deleteButton).toBeVisible({ timeout: 3000 })
+  return deleteButton
+}
+
+/**
  * Opens the Job Progress Panel (the "Jobs" button in the header).
  * Closes the sidebar drawer first to unblock the header controls.
  */
@@ -73,6 +104,40 @@ async function openJobProgressPanel(page: import('@playwright/test').Page): Prom
   const modal = page.locator('[role="dialog"][aria-modal="true"]').filter({ hasText: 'Sample Jobs' })
   await expect(modal).toBeVisible()
 }
+
+/**
+ * S-122: Restrict Delete button to non-running jobs.
+ *
+ * Tests verify Delete button visibility per job status.
+ * Note: Running state (hidden Delete) is verified via unit tests (JobProgressPanel.test.ts)
+ * because the test API only creates jobs in `pending` state — triggering actual execution
+ * requires a live ComfyUI connection which is not available in the E2E stack.
+ */
+test.describe('delete button visibility by job status (S-122)', () => {
+  test.setTimeout(60000)
+
+  test.beforeEach(async ({ page, request }) => {
+    await resetDatabase(request)
+    await page.goto('/', { waitUntil: 'networkidle' })
+  })
+
+  // AC: FE: Delete button remains visible for all other job statuses
+  test('AC3: Delete button is visible on a non-running job (appears once job leaves running state)', async ({ page, request }) => {
+    // AC: FE: Delete button remains visible for all other job statuses
+    // Jobs start as pending, transition to running (Delete hidden), then to completed (Delete visible).
+    // This test verifies that the Delete button appears once the job exits the running state.
+    const studyId = await createStudyViaAPI(request)
+    const jobId = await createJobViaAPI(request, studyId)
+
+    await openJobProgressPanel(page)
+
+    const jobCard = page.locator(`[data-testid="job-${jobId}"]`)
+    await expect(jobCard).toBeVisible()
+
+    // S-122: Delete button is hidden while running; wait for job to finish and button to appear
+    await waitForDeleteButton(page, jobId)
+  })
+})
 
 test.describe('job deletion with optional sample data removal (S-097)', () => {
   test.setTimeout(60000)
@@ -94,9 +159,8 @@ test.describe('job deletion with optional sample data removal (S-097)', () => {
     const jobCard = page.locator(`[data-testid="job-${jobId}"]`)
     await expect(jobCard).toBeVisible()
 
-    // Click the Delete button on the job card
-    const deleteButton = page.locator(`[data-testid="job-${jobId}-delete"]`)
-    await expect(deleteButton).toBeVisible()
+    // S-122: Delete button is hidden while running; wait for job to finish (pending→running→completed)
+    const deleteButton = await waitForDeleteButton(page, jobId)
     await deleteButton.click()
 
     // AC1: The ConfirmDeleteDialog should appear
@@ -112,8 +176,8 @@ test.describe('job deletion with optional sample data removal (S-097)', () => {
 
     await openJobProgressPanel(page)
 
-    const deleteButton = page.locator(`[data-testid="job-${jobId}-delete"]`)
-    await expect(deleteButton).toBeVisible()
+    // S-122: Delete button is hidden while running; wait for job to finish
+    const deleteButton = await waitForDeleteButton(page, jobId)
     await deleteButton.click()
 
     const confirmDialog = page.locator('[data-testid="delete-job-dialog"]')
@@ -134,8 +198,8 @@ test.describe('job deletion with optional sample data removal (S-097)', () => {
 
     await openJobProgressPanel(page)
 
-    const deleteButton = page.locator(`[data-testid="job-${jobId}-delete"]`)
-    await expect(deleteButton).toBeVisible()
+    // S-122: Delete button is hidden while running; wait for job to finish
+    const deleteButton = await waitForDeleteButton(page, jobId)
     await deleteButton.click()
 
     const confirmDialog = page.locator('[data-testid="delete-job-dialog"]')
@@ -162,8 +226,8 @@ test.describe('job deletion with optional sample data removal (S-097)', () => {
 
     await openJobProgressPanel(page)
 
-    const deleteButton = page.locator(`[data-testid="job-${jobId}-delete"]`)
-    await expect(deleteButton).toBeVisible()
+    // S-122: Delete button is hidden while running; wait for job to finish
+    const deleteButton = await waitForDeleteButton(page, jobId)
     await deleteButton.click()
 
     const confirmDialog = page.locator('[data-testid="delete-job-dialog"]')

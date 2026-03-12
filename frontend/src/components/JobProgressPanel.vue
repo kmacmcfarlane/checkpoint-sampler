@@ -210,6 +210,11 @@ function canRetryFailed(job: SampleJob): boolean {
   return job.status === 'completed_with_errors'
 }
 
+// AC: FE: Delete button is hidden when job status is running
+function canDelete(job: SampleJob): boolean {
+  return job.status !== 'running'
+}
+
 function handleStop(jobId: string) {
   emit('stop', jobId)
 }
@@ -459,6 +464,7 @@ function isTracebackExpanded(jobId: string, errorIdx: number): boolean {
                 Validate
               </NButton>
               <NButton
+                v-if="canDelete(job)"
                 size="tiny"
                 type="error"
                 :data-testid="`job-${job.id}-delete`"
