@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### W-016: Shared logrus log-level assertion helper for backend tests
+- New `testutil.LogCapture` helper in `backend/internal/testutil/` replaces three ad-hoc patterns (inline for-loops, local `filterByLevel`, `bytes.Buffer` string matching) with a single reusable struct
+- Existing log-level tests in `filesystem_test.go`, `preset_test.go`, and `job_executor_test.go` refactored to use the helper
+
 ### W-015: Add Vite ws proxy EPIPE to QA_ALLOWED_ERRORS.md
 - Updated QA_ALLOWED_ERRORS.md to document `[vite] ws proxy socket error: Error: write EPIPE` as the primary EPIPE source during E2E runs, caused by Playwright closing WebSocket connections on page navigation
 

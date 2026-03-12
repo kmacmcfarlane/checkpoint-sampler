@@ -1,16 +1,16 @@
 package store_test
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
-	"io"
 
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/store"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/testutil"
 )
 
 var _ = Describe("FileSystem", func() {
@@ -72,26 +72,21 @@ var _ = Describe("FileSystem", func() {
 
 		Context("log level for directory-not-found", func() {
 			var (
-				hookLogger *logrus.Logger
-				hook       *test.Hook
-				fsHook     *store.FileSystem
+				lc     *testutil.LogCapture
+				fsHook *store.FileSystem
 			)
 
 			BeforeEach(func() {
-				hookLogger, hook = test.NewNullLogger()
-				hookLogger.SetLevel(logrus.DebugLevel)
-				fsHook = store.NewFileSystem(hookLogger)
+				lc = testutil.NewLogCapture()
+				fsHook = store.NewFileSystem(lc.Logger)
 			})
 
 			It("logs at debug level (not error) when directory does not exist", func() {
-				hook.Reset()
+				lc.Reset()
 				_, _ = fsHook.ListPNGFiles(filepath.Join(tmpDir, "nonexistent"))
 
-				errorEntries := filterByLevel(hook.AllEntries(), logrus.ErrorLevel)
-				Expect(errorEntries).To(BeEmpty(), "expected no error-level log entries for a missing directory")
-
-				debugEntries := filterByLevel(hook.AllEntries(), logrus.DebugLevel)
-				Expect(debugEntries).NotTo(BeEmpty(), "expected at least one debug-level log entry for a missing directory")
+				Expect(lc.EntriesAtLevel(logrus.ErrorLevel)).To(BeEmpty(), "expected no error-level log entries for a missing directory")
+				Expect(lc.EntriesAtLevel(logrus.DebugLevel)).NotTo(BeEmpty(), "expected at least one debug-level log entry for a missing directory")
 			})
 		})
 	})
@@ -99,15 +94,13 @@ var _ = Describe("FileSystem", func() {
 	Describe("ListSafetensorsFiles", func() {
 		Context("log level for directory-not-found", func() {
 			var (
-				hookLogger *logrus.Logger
-				hook       *test.Hook
-				fsHook     *store.FileSystem
+				lc     *testutil.LogCapture
+				fsHook *store.FileSystem
 			)
 
 			BeforeEach(func() {
-				hookLogger, hook = test.NewNullLogger()
-				hookLogger.SetLevel(logrus.DebugLevel)
-				fsHook = store.NewFileSystem(hookLogger)
+				lc = testutil.NewLogCapture()
+				fsHook = store.NewFileSystem(lc.Logger)
 			})
 
 			It("returns error when root directory does not exist", func() {
@@ -116,14 +109,11 @@ var _ = Describe("FileSystem", func() {
 			})
 
 			It("logs at debug level (not error) when root directory does not exist", func() {
-				hook.Reset()
+				lc.Reset()
 				_, _ = fsHook.ListSafetensorsFiles(filepath.Join(tmpDir, "nonexistent"))
 
-				errorEntries := filterByLevel(hook.AllEntries(), logrus.ErrorLevel)
-				Expect(errorEntries).To(BeEmpty(), "expected no error-level log entries for a missing directory")
-
-				debugEntries := filterByLevel(hook.AllEntries(), logrus.DebugLevel)
-				Expect(debugEntries).NotTo(BeEmpty(), "expected at least one debug-level log entry for a missing directory")
+				Expect(lc.EntriesAtLevel(logrus.ErrorLevel)).To(BeEmpty(), "expected no error-level log entries for a missing directory")
+				Expect(lc.EntriesAtLevel(logrus.DebugLevel)).NotTo(BeEmpty(), "expected at least one debug-level log entry for a missing directory")
 			})
 
 			It("lists .safetensors files in an existing directory", func() {
@@ -140,15 +130,13 @@ var _ = Describe("FileSystem", func() {
 
 	Describe("OpenFile", func() {
 		var (
-			logger *logrus.Logger
-			hook   *test.Hook
+			lc     *testutil.LogCapture
 			fsHook *store.FileSystem
 		)
 
 		BeforeEach(func() {
-			logger, hook = test.NewNullLogger()
-			logger.SetLevel(logrus.DebugLevel)
-			fsHook = store.NewFileSystem(logger)
+			lc = testutil.NewLogCapture()
+			fsHook = store.NewFileSystem(lc.Logger)
 		})
 
 		It("returns the file reader when the file exists", func() {
@@ -168,14 +156,11 @@ var _ = Describe("FileSystem", func() {
 			})
 
 			It("logs at debug level, not error level", func() {
-				hook.Reset()
+				lc.Reset()
 				_, _ = fsHook.OpenFile(filepath.Join(tmpDir, "nonexistent.json"))
 
-				errorEntries := filterByLevel(hook.AllEntries(), logrus.ErrorLevel)
-				Expect(errorEntries).To(BeEmpty(), "expected no error-level log entries for a missing file")
-
-				debugEntries := filterByLevel(hook.AllEntries(), logrus.DebugLevel)
-				Expect(debugEntries).NotTo(BeEmpty(), "expected at least one debug-level log entry for a missing file")
+				Expect(lc.EntriesAtLevel(logrus.ErrorLevel)).To(BeEmpty(), "expected no error-level log entries for a missing file")
+				Expect(lc.EntriesAtLevel(logrus.DebugLevel)).NotTo(BeEmpty(), "expected at least one debug-level log entry for a missing file")
 			})
 		})
 
@@ -190,23 +175,12 @@ var _ = Describe("FileSystem", func() {
 					Skip("running as root; permission denial cannot be tested")
 				}
 
-				hook.Reset()
+				lc.Reset()
 				_, _ = fsHook.OpenFile(filePath)
 
-				errorEntries := filterByLevel(hook.AllEntries(), logrus.ErrorLevel)
-				Expect(errorEntries).NotTo(BeEmpty(), "expected an error-level log entry for a permission-denied failure")
+				Expect(lc.EntriesAtLevel(logrus.ErrorLevel)).NotTo(BeEmpty(), "expected an error-level log entry for a permission-denied failure")
 			})
 		})
 	})
 })
 
-// filterByLevel returns log entries that match the given level.
-func filterByLevel(entries []*logrus.Entry, level logrus.Level) []*logrus.Entry {
-	var out []*logrus.Entry
-	for _, e := range entries {
-		if e.Level == level {
-			out = append(out, e)
-		}
-	}
-	return out
-}

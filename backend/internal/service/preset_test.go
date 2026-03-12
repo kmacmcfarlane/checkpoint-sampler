@@ -8,10 +8,10 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
 
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/testutil"
 )
 
 // fakePresetStore is an in-memory test double for service.PresetStore.
@@ -211,13 +211,11 @@ var _ = Describe("PresetService", func() {
 	})
 
 	Describe("Logging", func() {
-		var (
-			hook *test.Hook
-		)
+		var lc *testutil.LogCapture
 
 		BeforeEach(func() {
-			logger, hook = test.NewNullLogger()
-			logger.SetLevel(logrus.TraceLevel)
+			lc = testutil.NewLogCapture()
+			logger = lc.Logger
 			store = newFakePresetStore()
 			svc = service.NewPresetService(store, logger)
 		})
@@ -225,86 +223,42 @@ var _ = Describe("PresetService", func() {
 		It("logs trace entry/exit for List", func() {
 			_, _ = svc.List()
 
-			var traceLogs []string
-			for _, entry := range hook.Entries {
-				if entry.Level == logrus.TraceLevel {
-					traceLogs = append(traceLogs, entry.Message)
-				}
-			}
-			Expect(traceLogs).To(ContainElement("entering List"))
-			Expect(traceLogs).To(ContainElement("returning from List"))
+			Expect(lc.MessagesAtLevel(logrus.TraceLevel)).To(ContainElement("entering List"))
+			Expect(lc.MessagesAtLevel(logrus.TraceLevel)).To(ContainElement("returning from List"))
 		})
 
 		It("logs info on successful create", func() {
 			_, _ = svc.Create("Test Preset", model.PresetMapping{Combos: []string{}})
 
-			var infoLogs []string
-			for _, entry := range hook.Entries {
-				if entry.Level == logrus.InfoLevel {
-					infoLogs = append(infoLogs, entry.Message)
-				}
-			}
-			Expect(infoLogs).To(ContainElement("preset created"))
+			Expect(lc.MessagesAtLevel(logrus.InfoLevel)).To(ContainElement("preset created"))
 		})
 
 		It("logs error when store fails", func() {
 			store.listErr = errors.New("database error")
 			_, _ = svc.List()
 
-			var errorLogs []string
-			for _, entry := range hook.Entries {
-				if entry.Level == logrus.ErrorLevel {
-					errorLogs = append(errorLogs, entry.Message)
-				}
-			}
-			Expect(errorLogs).To(ContainElement("failed to list presets"))
+			Expect(lc.MessagesAtLevel(logrus.ErrorLevel)).To(ContainElement("failed to list presets"))
 		})
 
 		It("logs debug for intermediate values", func() {
 			store.presets["test-id"] = model.Preset{ID: "test-id", Name: "Test"}
 			_, _ = svc.Update("test-id", "New Name", model.PresetMapping{Combos: []string{}})
 
-			var debugLogs []string
-			for _, entry := range hook.Entries {
-				if entry.Level == logrus.DebugLevel {
-					debugLogs = append(debugLogs, entry.Message)
-				}
-			}
-			Expect(debugLogs).To(ContainElement("fetched existing preset from store"))
+			Expect(lc.MessagesAtLevel(logrus.DebugLevel)).To(ContainElement("fetched existing preset from store"))
 		})
 
 		It("logs validation failures at warn level, not error", func() {
 			_, _ = svc.Create("", model.PresetMapping{Combos: []string{}})
 
-			var warnLogs []string
-			var errorLogs []string
-			for _, entry := range hook.Entries {
-				if entry.Level == logrus.WarnLevel {
-					warnLogs = append(warnLogs, entry.Message)
-				}
-				if entry.Level == logrus.ErrorLevel {
-					errorLogs = append(errorLogs, entry.Message)
-				}
-			}
-			Expect(warnLogs).To(ContainElement("preset name validation failed: name is empty"))
-			Expect(errorLogs).NotTo(ContainElement("preset name validation failed: name is empty"))
+			Expect(lc.MessagesAtLevel(logrus.WarnLevel)).To(ContainElement("preset name validation failed: name is empty"))
+			Expect(lc.MessagesAtLevel(logrus.ErrorLevel)).NotTo(ContainElement("preset name validation failed: name is empty"))
 		})
 
 		It("logs not found conditions at debug level, not error", func() {
 			_, _ = svc.Update("nonexistent", "Test", model.PresetMapping{Combos: []string{}})
 
-			var debugLogs []string
-			var errorLogs []string
-			for _, entry := range hook.Entries {
-				if entry.Level == logrus.DebugLevel {
-					debugLogs = append(debugLogs, entry.Message)
-				}
-				if entry.Level == logrus.ErrorLevel {
-					errorLogs = append(errorLogs, entry.Message)
-				}
-			}
-			Expect(debugLogs).To(ContainElement("preset not found"))
-			Expect(errorLogs).NotTo(ContainElement("preset not found"))
+			Expect(lc.MessagesAtLevel(logrus.DebugLevel)).To(ContainElement("preset not found"))
+			Expect(lc.MessagesAtLevel(logrus.ErrorLevel)).NotTo(ContainElement("preset not found"))
 		})
 	})
 })

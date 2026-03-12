@@ -1,7 +1,6 @@
 package service
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -10,10 +9,12 @@ import (
 
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/fileformat"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/testutil"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/sirupsen/logrus"
 )
+
 
 // Mock implementations
 
@@ -578,11 +579,7 @@ var _ = Describe("JobExecutor", func() {
 
 		It("logs at WARN (not ERROR) when UpdateSampleJob returns sql.ErrNoRows during auto-start", func() {
 			// AC: B-066 — benign race between poll and reset should not emit ERROR log
-			var logBuf bytes.Buffer
-			testLogger := logrus.New()
-			testLogger.SetOutput(&logBuf)
-			testLogger.SetFormatter(&logrus.TextFormatter{DisableColors: true})
-			testLogger.SetLevel(logrus.TraceLevel)
+			lc := testutil.NewLogCapture()
 
 			localExecutor := NewJobExecutor(
 				mockStore,
@@ -593,7 +590,7 @@ var _ = Describe("JobExecutor", func() {
 				"/test/samples",
 				mockFS,
 				mockFSRead,
-				testLogger,
+				lc.Logger,
 			)
 
 			job := model.SampleJob{
@@ -608,9 +605,8 @@ var _ = Describe("JobExecutor", func() {
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("auto-starting job"))
 
-			logOutput := logBuf.String()
-			Expect(logOutput).NotTo(ContainSubstring("level=error"))
-			Expect(logOutput).To(ContainSubstring("level=warning"))
+			Expect(lc.EntriesAtLevel(logrus.ErrorLevel)).To(BeEmpty(), "expected no error-level log entries for sql.ErrNoRows")
+			Expect(lc.EntriesAtLevel(logrus.WarnLevel)).NotTo(BeEmpty(), "expected at least one warning-level log entry for sql.ErrNoRows")
 
 			// Restore for cleanup
 			mockStore.updateJobError = nil
@@ -1417,16 +1413,11 @@ var _ = Describe("JobExecutor", func() {
 
 	// B-080: Graceful handling of sql.ErrNoRows during concurrent cancel/completion
 	Describe("Cancellation race condition handling", func() {
-		var testLogger *logrus.Logger
-		var logBuf bytes.Buffer
+		var lc *testutil.LogCapture
 		var localExecutor *JobExecutor
 
 		BeforeEach(func() {
-			logBuf.Reset()
-			testLogger = logrus.New()
-			testLogger.SetOutput(&logBuf)
-			testLogger.SetFormatter(&logrus.TextFormatter{DisableColors: true})
-			testLogger.SetLevel(logrus.TraceLevel)
+			lc = testutil.NewLogCapture()
 
 			localExecutor = NewJobExecutor(
 				mockStore,
@@ -1437,7 +1428,7 @@ var _ = Describe("JobExecutor", func() {
 				"/test/samples",
 				mockFS,
 				mockFSRead,
-				testLogger,
+				lc.Logger,
 			)
 			localExecutor.mu.Lock()
 			localExecutor.connected = true
@@ -1478,9 +1469,8 @@ var _ = Describe("JobExecutor", func() {
 
 			localExecutor.processItem(job, item)
 
-			logOutput := logBuf.String()
-			Expect(logOutput).NotTo(ContainSubstring("level=error"), "should not log ERROR when item deleted during cancel")
-			Expect(logOutput).To(ContainSubstring("level=warning"), "should log WARN when item deleted during cancel")
+			Expect(lc.EntriesAtLevel(logrus.ErrorLevel)).To(BeEmpty(), "should not log ERROR when item deleted during cancel")
+			Expect(lc.EntriesAtLevel(logrus.WarnLevel)).NotTo(BeEmpty(), "should log WARN when item deleted during cancel")
 
 			// Active state must be cleared so executor can pick up new work
 			localExecutor.mu.Lock()
@@ -1494,9 +1484,9 @@ var _ = Describe("JobExecutor", func() {
 		It("logs at WARN (not ERROR) when UpdateSampleJobItem returns sql.ErrNoRows during handleItemCompletionAsync status-to-completed update", func() {
 			// This is the primary bug scenario: item row deleted after image download but before completed status update
 			job := model.SampleJob{
-				ID:           "job-cancel-complete",
-				Status:       model.SampleJobStatusRunning,
-				TotalItems:   1,
+				ID:             "job-cancel-complete",
+				Status:         model.SampleJobStatusRunning,
+				TotalItems:     1,
 				CompletedItems: 0,
 			}
 			item := model.SampleJobItem{
@@ -1518,9 +1508,8 @@ var _ = Describe("JobExecutor", func() {
 
 			localExecutor.handleItemCompletionAsync(job.ID, item.ID, "test-prompt-id")
 
-			logOutput := logBuf.String()
-			Expect(logOutput).NotTo(ContainSubstring("level=error"), "should not log ERROR when item deleted during cancel")
-			Expect(logOutput).To(ContainSubstring("level=warning"), "should log WARN when item deleted during cancel")
+			Expect(lc.EntriesAtLevel(logrus.ErrorLevel)).To(BeEmpty(), "should not log ERROR when item deleted during cancel")
+			Expect(lc.EntriesAtLevel(logrus.WarnLevel)).NotTo(BeEmpty(), "should log WARN when item deleted during cancel")
 
 			// Restore
 			mockStore.updateItemError = nil
@@ -1534,9 +1523,8 @@ var _ = Describe("JobExecutor", func() {
 			// Call updateJobProgress for a non-existent job
 			localExecutor.updateJobProgress(jobID)
 
-			logOutput := logBuf.String()
-			Expect(logOutput).NotTo(ContainSubstring("level=error"), "should not log ERROR when job deleted during cancel")
-			Expect(logOutput).To(ContainSubstring("level=warning"), "should log WARN when job deleted during cancel")
+			Expect(lc.EntriesAtLevel(logrus.ErrorLevel)).To(BeEmpty(), "should not log ERROR when job deleted during cancel")
+			Expect(lc.EntriesAtLevel(logrus.WarnLevel)).NotTo(BeEmpty(), "should log WARN when job deleted during cancel")
 		})
 
 		It("logs at WARN (not ERROR) when UpdateSampleJob returns sql.ErrNoRows during updateJobProgress", func() {
@@ -1550,9 +1538,8 @@ var _ = Describe("JobExecutor", func() {
 
 			localExecutor.updateJobProgress(job.ID)
 
-			logOutput := logBuf.String()
-			Expect(logOutput).NotTo(ContainSubstring("level=error"), "should not log ERROR when job deleted during cancel")
-			Expect(logOutput).To(ContainSubstring("level=warning"), "should log WARN when job deleted during cancel")
+			Expect(lc.EntriesAtLevel(logrus.ErrorLevel)).To(BeEmpty(), "should not log ERROR when job deleted during cancel")
+			Expect(lc.EntriesAtLevel(logrus.WarnLevel)).NotTo(BeEmpty(), "should log WARN when job deleted during cancel")
 
 			// Restore
 			mockStore.updateJobError = nil
@@ -1569,9 +1556,8 @@ var _ = Describe("JobExecutor", func() {
 
 			localExecutor.completeJob(jobID)
 
-			logOutput := logBuf.String()
-			Expect(logOutput).NotTo(ContainSubstring("level=error"), "should not log ERROR when job deleted during cancel")
-			Expect(logOutput).To(ContainSubstring("level=warning"), "should log WARN when job deleted during cancel")
+			Expect(lc.EntriesAtLevel(logrus.ErrorLevel)).To(BeEmpty(), "should not log ERROR when job deleted during cancel")
+			Expect(lc.EntriesAtLevel(logrus.WarnLevel)).NotTo(BeEmpty(), "should log WARN when job deleted during cancel")
 
 			// Active state must be cleared
 			localExecutor.mu.Lock()
@@ -1596,9 +1582,8 @@ var _ = Describe("JobExecutor", func() {
 
 			localExecutor.completeJob(job.ID)
 
-			logOutput := logBuf.String()
-			Expect(logOutput).NotTo(ContainSubstring("level=error"), "should not log ERROR when job deleted during cancel")
-			Expect(logOutput).To(ContainSubstring("level=warning"), "should log WARN when job deleted during cancel")
+			Expect(lc.EntriesAtLevel(logrus.ErrorLevel)).To(BeEmpty(), "should not log ERROR when job deleted during cancel")
+			Expect(lc.EntriesAtLevel(logrus.WarnLevel)).NotTo(BeEmpty(), "should log WARN when job deleted during cancel")
 
 			// Active state must be cleared
 			localExecutor.mu.Lock()

@@ -807,7 +807,7 @@ stories:
   - id: W-016
     title: "Shared logrus log-level assertion helper for backend tests"
     priority: 25
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:
