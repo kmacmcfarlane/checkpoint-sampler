@@ -57,12 +57,28 @@ type sampleJobItemEntity struct {
 }
 
 // ListSampleJobs returns all sample jobs ordered by created_at ascending (oldest first, FIFO).
+// This ordering is used by the job executor for deterministic FIFO pickup.
 func (s *Store) ListSampleJobs() ([]model.SampleJob, error) {
 	s.logger.Trace("entering ListSampleJobs")
 	defer s.logger.Trace("returning from ListSampleJobs")
 
+	return s.listSampleJobsOrdered("ASC")
+}
+
+// ListSampleJobsDesc returns all sample jobs ordered by created_at descending (newest first).
+// This ordering is used for UI display so that recently created jobs appear at the top.
+func (s *Store) ListSampleJobsDesc() ([]model.SampleJob, error) {
+	s.logger.Trace("entering ListSampleJobsDesc")
+	defer s.logger.Trace("returning from ListSampleJobsDesc")
+
+	return s.listSampleJobsOrdered("DESC")
+}
+
+// listSampleJobsOrdered is the shared implementation for ListSampleJobs and ListSampleJobsDesc.
+// direction must be "ASC" or "DESC".
+func (s *Store) listSampleJobsOrdered(direction string) ([]model.SampleJob, error) {
 	rows, err := s.db.Query(`SELECT id, training_run_name, study_id, study_name, workflow_name, vae, clip, shift, checkpoint_filenames, status, total_items, completed_items, error_message, created_at, updated_at
-		FROM sample_jobs ORDER BY created_at ASC`)
+		FROM sample_jobs ORDER BY created_at ` + direction)
 	if err != nil {
 		s.logger.WithError(err).Error("failed to query sample jobs")
 		return nil, fmt.Errorf("querying sample jobs: %w", err)

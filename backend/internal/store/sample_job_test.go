@@ -266,6 +266,110 @@ var _ = Describe("SampleJob Store", func() {
 			})
 		})
 
+		Describe("ListSampleJobsDesc", func() {
+			It("returns empty slice when no jobs exist", func() {
+				result, err := s.ListSampleJobsDesc()
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result).To(HaveLen(0))
+			})
+
+			It("returns all sample jobs ordered by created_at descending (newest first)", func() {
+				now := time.Now().UTC().Truncate(time.Second)
+
+				job1 := model.SampleJob{
+					ID:              "job-desc-1",
+					TrainingRunName: "test-run",
+					StudyID:         "study-1",
+					StudyName:       "Test Study",
+					WorkflowName:    "flux-dev",
+					Status:          model.SampleJobStatusPending,
+					TotalItems:      1,
+					CompletedItems:  0,
+					CreatedAt:       now.Add(-2 * time.Hour),
+					UpdatedAt:       now.Add(-2 * time.Hour),
+				}
+				job2 := model.SampleJob{
+					ID:              "job-desc-2",
+					TrainingRunName: "test-run",
+					StudyID:         "study-1",
+					StudyName:       "Test Study",
+					WorkflowName:    "flux-dev",
+					Status:          model.SampleJobStatusPending,
+					TotalItems:      1,
+					CompletedItems:  0,
+					CreatedAt:       now.Add(-1 * time.Hour),
+					UpdatedAt:       now.Add(-1 * time.Hour),
+				}
+				job3 := model.SampleJob{
+					ID:              "job-desc-3",
+					TrainingRunName: "test-run",
+					StudyID:         "study-1",
+					StudyName:       "Test Study",
+					WorkflowName:    "flux-dev",
+					Status:          model.SampleJobStatusPending,
+					TotalItems:      1,
+					CompletedItems:  0,
+					CreatedAt:       now,
+					UpdatedAt:       now,
+				}
+
+				// Insert oldest first
+				Expect(s.CreateSampleJob(job1)).To(Succeed())
+				Expect(s.CreateSampleJob(job2)).To(Succeed())
+				Expect(s.CreateSampleJob(job3)).To(Succeed())
+
+				result, err := s.ListSampleJobsDesc()
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result).To(HaveLen(3))
+				// Should be ordered newest-first: job3, job2, job1
+				Expect(result[0].ID).To(Equal("job-desc-3"))
+				Expect(result[1].ID).To(Equal("job-desc-2"))
+				Expect(result[2].ID).To(Equal("job-desc-1"))
+			})
+
+			It("returns jobs in opposite order to ListSampleJobs", func() {
+				now := time.Now().UTC().Truncate(time.Second)
+
+				jobA := model.SampleJob{
+					ID:              "job-order-a",
+					TrainingRunName: "test-run",
+					StudyID:         "study-1",
+					StudyName:       "Test Study",
+					WorkflowName:    "flux-dev",
+					Status:          model.SampleJobStatusPending,
+					TotalItems:      1,
+					CompletedItems:  0,
+					CreatedAt:       now.Add(-1 * time.Hour),
+					UpdatedAt:       now.Add(-1 * time.Hour),
+				}
+				jobB := model.SampleJob{
+					ID:              "job-order-b",
+					TrainingRunName: "test-run",
+					StudyID:         "study-1",
+					StudyName:       "Test Study",
+					WorkflowName:    "flux-dev",
+					Status:          model.SampleJobStatusPending,
+					TotalItems:      1,
+					CompletedItems:  0,
+					CreatedAt:       now,
+					UpdatedAt:       now,
+				}
+
+				Expect(s.CreateSampleJob(jobA)).To(Succeed())
+				Expect(s.CreateSampleJob(jobB)).To(Succeed())
+
+				asc, err := s.ListSampleJobs()
+				Expect(err).NotTo(HaveOccurred())
+				Expect(asc).To(HaveLen(2))
+				Expect(asc[0].ID).To(Equal("job-order-a")) // oldest first (FIFO for executor)
+
+				desc, err := s.ListSampleJobsDesc()
+				Expect(err).NotTo(HaveOccurred())
+				Expect(desc).To(HaveLen(2))
+				Expect(desc[0].ID).To(Equal("job-order-b")) // newest first (for UI display)
+			})
+		})
+
 		Describe("GetSampleJob", func() {
 			BeforeEach(func() {
 				err := s.CreateSampleJob(sampleJob)

@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-125: Separate display ordering from processing ordering for ListSampleJobs
+- UI-facing job list now returns newest-first (created_at DESC); executor FIFO pickup remains oldest-first (ASC)
+
 ### S-124: Configurable ComfyUI reconnect interval
 - ComfyUI WebSocket reconnect interval is now configurable via `comfyui.reconnect_interval` in config.yaml (default remains 10 seconds)
 

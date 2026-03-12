@@ -16,6 +16,7 @@ import (
 // SampleJobStore defines the persistence operations the sample job service needs.
 type SampleJobStore interface {
 	ListSampleJobs() ([]model.SampleJob, error)
+	ListSampleJobsDesc() ([]model.SampleJob, error)
 	GetSampleJob(id string) (model.SampleJob, error)
 	HasRunningJob() (bool, error)
 	CreateSampleJob(j model.SampleJob) error
@@ -95,12 +96,12 @@ func (s *SampleJobService) SetExecutor(executor SampleJobExecutor) {
 	s.executor = executor
 }
 
-// List returns all sample jobs ordered by creation time (newest first).
+// List returns all sample jobs ordered by creation time (newest first) for UI display.
 func (s *SampleJobService) List() ([]model.SampleJob, error) {
 	s.logger.Trace("entering List")
 	defer s.logger.Trace("returning from List")
 
-	jobs, err := s.store.ListSampleJobs()
+	jobs, err := s.store.ListSampleJobsDesc()
 	if err != nil {
 		s.logger.WithError(err).Error("failed to list sample jobs")
 		return nil, fmt.Errorf("listing sample jobs: %w", err)

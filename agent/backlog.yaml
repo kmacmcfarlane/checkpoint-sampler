@@ -642,7 +642,7 @@ stories:
   - id: S-125
     title: "Separate display ordering from processing ordering for ListSampleJobs"
     priority: 25
-    status: todo
+    status: uat
     complexity: low
     requires:
       - B-071

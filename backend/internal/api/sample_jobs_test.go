@@ -47,6 +47,17 @@ func (f *fakeSampleJobStore) ListSampleJobs() ([]model.SampleJob, error) {
 	return result, nil
 }
 
+func (f *fakeSampleJobStore) ListSampleJobsDesc() ([]model.SampleJob, error) {
+	if f.listErr != nil {
+		return nil, f.listErr
+	}
+	var result []model.SampleJob
+	for _, j := range f.jobs {
+		result = append(result, j)
+	}
+	return result, nil
+}
+
 func (f *fakeSampleJobStore) GetSampleJob(id string) (model.SampleJob, error) {
 	if f.getErr != nil {
 		return model.SampleJob{}, f.getErr
