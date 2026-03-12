@@ -506,7 +506,7 @@ stories:
   - id: S-118
     title: "Lightbox grid position indicator"
     priority: 25
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:

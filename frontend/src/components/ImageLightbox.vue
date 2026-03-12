@@ -301,6 +301,12 @@ function formatJSON(value: string): string {
 /** Whether the slider bar should be shown. */
 const hasSlider = computed(() => props.sliderValues.length > 1 && props.cellKey !== null)
 
+/** Whether the grid position indicator should be shown (only when there are multiple images). */
+const showGridIndicator = computed(() => props.gridImages.length > 1)
+
+/** Human-readable position label, e.g. "3 / 12". */
+const gridPositionLabel = computed(() => `${props.gridIndex + 1} / ${props.gridImages.length}`)
+
 /** Handle slider value change in the lightbox. */
 function onLightboxSliderChange(value: string) {
   if (!props.cellKey) return
@@ -441,6 +447,12 @@ onUnmounted(() => {
       </div>
     </div>
     <div
+      v-if="showGridIndicator"
+      class="lightbox-grid-indicator"
+      data-testid="lightbox-grid-indicator"
+      aria-label="Grid position"
+    >{{ gridPositionLabel }}</div>
+    <div
       class="lightbox-content"
       @wheel="onWheel"
       @mousedown="onContentMouseDown"
@@ -534,6 +546,24 @@ onUnmounted(() => {
 .lightbox-zoom-btn {
   color: rgba(255, 255, 255, 0.8);
   font-size: 1rem;
+}
+
+.lightbox-grid-indicator {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1002;
+  background: rgba(0, 0, 0, 0.55);
+  /* stylelint-disable-next-line scale-unlimited/declaration-strict-value -- Intentional: lightbox overlay always has dark background regardless of theme */
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  padding: 0.2rem 0.6rem;
+  border-radius: 0.75rem;
+  pointer-events: none;
+  white-space: nowrap;
+  user-select: none;
 }
 
 .lightbox-content {

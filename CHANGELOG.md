@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-118: Lightbox grid position indicator
+- Added "X / Y" position indicator at top-center of lightbox, visible when grid has multiple images
+- Indicator updates reactively on Shift+Arrow grid navigation; uses `pointer-events: none` to stay unobtrusive
+
 ### B-096: E2E: Filters slideout layout tests fail (2 tests)
 - Replaced fragile Naive UI internal CSS class selector in `openFiltersDrawer` E2E helper with stable `data-testid="filters-drawer-content"` attribute, per TEST_PRACTICES.md section 6.7
 

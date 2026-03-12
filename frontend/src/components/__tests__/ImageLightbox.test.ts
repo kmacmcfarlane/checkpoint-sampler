@@ -1773,4 +1773,98 @@ describe('ImageLightbox', () => {
       expect(panel.text()).toContain('Toggle this help panel')
     })
   })
+
+  // --- Grid position indicator tests (S-118) ---
+
+  describe('grid position indicator', () => {
+    const makeGridImages = (count: number) =>
+      Array.from({ length: count }, (_, i) => ({
+        imageUrl: `/api/images/img${i}.png`,
+        cellKey: `key${i}`,
+        sliderValues: [],
+        currentSliderValue: '',
+        imagesBySliderValue: {},
+      }))
+
+    // AC: Indicator renders with correct position text
+    it('renders position indicator showing "1 / N" for the first image in a multi-image grid', async () => {
+      const gridImages = makeGridImages(5)
+      const wrapper = mount(ImageLightbox, {
+        props: { ...defaultProps, gridImages, gridIndex: 0 },
+      })
+      await flushPromises()
+
+      const indicator = wrapper.find('[data-testid="lightbox-grid-indicator"]')
+      expect(indicator.exists()).toBe(true)
+      expect(indicator.text()).toBe('1 / 5')
+    })
+
+    // AC: Indicator renders correct position for a middle image
+    it('renders position indicator with correct current position for mid-grid index', async () => {
+      const gridImages = makeGridImages(12)
+      const wrapper = mount(ImageLightbox, {
+        props: { ...defaultProps, gridImages, gridIndex: 2 },
+      })
+      await flushPromises()
+
+      const indicator = wrapper.find('[data-testid="lightbox-grid-indicator"]')
+      expect(indicator.exists()).toBe(true)
+      expect(indicator.text()).toBe('3 / 12')
+    })
+
+    // AC: Indicator renders correct position for the last image (edge case)
+    it('renders position indicator for the last image', async () => {
+      const gridImages = makeGridImages(4)
+      const wrapper = mount(ImageLightbox, {
+        props: { ...defaultProps, gridImages, gridIndex: 3 },
+      })
+      await flushPromises()
+
+      const indicator = wrapper.find('[data-testid="lightbox-grid-indicator"]')
+      expect(indicator.exists()).toBe(true)
+      expect(indicator.text()).toBe('4 / 4')
+    })
+
+    // AC: Indicator updates when gridIndex prop changes (Shift+Arrow navigation)
+    it('updates position text reactively when gridIndex prop changes', async () => {
+      const gridImages = makeGridImages(6)
+      const wrapper = mount(ImageLightbox, {
+        props: { ...defaultProps, gridImages, gridIndex: 0 },
+      })
+      await flushPromises()
+
+      let indicator = wrapper.find('[data-testid="lightbox-grid-indicator"]')
+      expect(indicator.text()).toBe('1 / 6')
+
+      // Simulate navigation to index 3
+      await wrapper.setProps({ gridIndex: 3 })
+      await wrapper.vm.$nextTick()
+
+      indicator = wrapper.find('[data-testid="lightbox-grid-indicator"]')
+      expect(indicator.text()).toBe('4 / 6')
+    })
+
+    // AC: Indicator is hidden when gridImages has 0 items
+    it('does not render indicator when gridImages is empty', async () => {
+      const wrapper = mount(ImageLightbox, {
+        props: { ...defaultProps, gridImages: [], gridIndex: 0 },
+      })
+      await flushPromises()
+
+      const indicator = wrapper.find('[data-testid="lightbox-grid-indicator"]')
+      expect(indicator.exists()).toBe(false)
+    })
+
+    // AC: Indicator is hidden when gridImages has exactly 1 item
+    it('does not render indicator when gridImages has only 1 item', async () => {
+      const gridImages = makeGridImages(1)
+      const wrapper = mount(ImageLightbox, {
+        props: { ...defaultProps, gridImages, gridIndex: 0 },
+      })
+      await flushPromises()
+
+      const indicator = wrapper.find('[data-testid="lightbox-grid-indicator"]')
+      expect(indicator.exists()).toBe(false)
+    })
+  })
 })
