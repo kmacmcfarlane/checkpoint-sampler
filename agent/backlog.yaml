@@ -400,18 +400,14 @@ stories:
       contain those characters and flag them before review.
       Source: developer.
   - id: B-078
-    title: "Sample output directory restructure + per-training-run manifest + validation count scoping"
+    title: "Two-dropdown sample set selector + study.ID path fixes"
     type: bug
     status: uat
     priority: 90
     complexity: high
     requires: []
-    notes: |
-      Current manifest.json at study level only allows one training run per study. Directory structure
-      must change to [outputs_dir]/[training_run_name]/[study_id]/ with manifest.json at that level
-      and checkpoint subdirectories beneath. Validation status currently counts samples across all
-      training runs and studies instead of scoping to the selected ones. Demo set structure must also
-      be updated. Existing samples require regeneration (no migration).
+    notes: |-
+      Split single Sample Set dropdown into two cascading dropdowns (Training Run → Study). Fixed study.ID→study.Name path bugs in study_availability.go and training_runs.go. Added TrainingRunDir/StudyLabel/StudyOutputDir decomposed fields to model, populated in viewer discovery, exposed via API. Frontend persists per-training-run study selection to localStorage. E2E helpers updated.
     acceptance:
       - "BE: Restructure sample output dirs to [outputs_dir]/[training_run_name]/[study_id]/[checkpoint]/"
       - "BE: Place manifest.json at the [outputs_dir]/[training_run_name]/[study_id]/ level"

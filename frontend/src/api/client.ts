@@ -81,14 +81,18 @@ export class ApiClient {
   }
 
   /** GET /api/training-runs/{id}/scan — scan directories and return image metadata. */
-  async scanTrainingRun(id: number): Promise<ScanResult> {
-    return this.request<ScanResult>(`/training-runs/${id}/scan`)
+  async scanTrainingRun(id: number, studyOutputDir?: string): Promise<ScanResult> {
+    const params = studyOutputDir ? `?study_name=${encodeURIComponent(studyOutputDir)}` : ''
+    return this.request<ScanResult>(`/training-runs/${id}/scan${params}`)
   }
 
   /** POST /api/training-runs/{id}/validate — validate sample set completeness. */
-  async validateTrainingRun(id: number, studyId?: string): Promise<ValidationResult> {
-    const query = studyId ? `?study_id=${encodeURIComponent(studyId)}` : ''
-    return this.request<ValidationResult>(`/training-runs/${id}/validate${query}`, {
+  async validateTrainingRun(id: number, studyId?: string, studyOutputDir?: string): Promise<ValidationResult> {
+    const params = new URLSearchParams()
+    if (studyId) params.set('study_id', studyId)
+    if (studyOutputDir) params.set('study_output_dir', studyOutputDir)
+    const qs = params.toString() ? `?${params}` : ''
+    return this.request<ValidationResult>(`/training-runs/${id}/validate${qs}`, {
       method: 'POST',
     })
   }

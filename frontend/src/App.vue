@@ -31,7 +31,10 @@ import type { ValidationResult } from './api/types'
 
 const { theme, isDark, toggle: toggleTheme } = useTheme()
 const { savedData, savePresetSelection, clearPresetSelection } = usePresetPersistence()
-const { lastTrainingRunId, saveLastTrainingRun } = useLastTrainingRun()
+const { lastTrainingRunId, saveLastTrainingRun, saveLastStudy } = useLastTrainingRun()
+
+/** The study output dir for the currently selected training run. */
+const selectedStudyOutputDir = ref('')
 
 const selectedTrainingRun = ref<TrainingRun | null>(null)
 const scanning = ref(false)
@@ -98,7 +101,7 @@ async function eagerAutoSelect() {
     const runs = await apiClient.getTrainingRuns()
     const run = runs.find((r) => r.id === trainingRunId)
     if (run) {
-      await onTrainingRunSelect(run)
+      await onTrainingRunSelect(run, run.study_output_dir || '')
     }
   } catch {
     // Silently ignore — TrainingRunSelector will retry when it mounts
@@ -231,7 +234,7 @@ async function rescanCurrentTrainingRun() {
   const run = selectedTrainingRun.value
   if (!run) return
   try {
-    const result = await apiClient.scanTrainingRun(run.id)
+    const result = await apiClient.scanTrainingRun(run.id, selectedStudyOutputDir.value || undefined)
     setScanResult(result)
     // Reinitialize combo selections: all values selected by default
     for (const key of Object.keys(comboSelections)) {
@@ -399,7 +402,9 @@ onUnmounted(() => {
   wsClient.offInferenceProgress(handleInferenceProgress)
 })
 
-async function onTrainingRunSelect(run: TrainingRun) {
+async function onTrainingRunSelect(run: TrainingRun, studyOutputDir: string) {
+  selectedStudyOutputDir.value = studyOutputDir
+
   // Skip redundant scan if the same training run is already selected and loaded
   if (selectedTrainingRun.value?.id === run.id && !scanning.value && !scanError.value && dimensions.value.length > 0) {
     return
@@ -422,7 +427,7 @@ async function onTrainingRunSelect(run: TrainingRun) {
   }
 
   try {
-    const result = await apiClient.scanTrainingRun(run.id)
+    const result = await apiClient.scanTrainingRun(run.id, studyOutputDir || undefined)
     setScanResult(result)
     // Initialize combo selections: all values selected by default
     for (const dim of result.dimensions) {
@@ -794,7 +799,7 @@ async function handleSlideoutValidate() {
   slideoutValidationDialogShow.value = true
 
   try {
-    const result = await apiClient.validateTrainingRun(selectedTrainingRun.value.id)
+    const result = await apiClient.validateTrainingRun(selectedTrainingRun.value.id, undefined, selectedStudyOutputDir.value || undefined)
     slideoutValidationResult.value = result
   } catch (err: unknown) {
     const message = err && typeof err === 'object' && 'message' in err
@@ -1025,7 +1030,7 @@ async function handleSlideoutValidate() {
         :error="slideoutValidationError"
         :loading="slideoutValidationLoading"
         :job="null"
-        :title="selectedTrainingRun ? `Validation: ${selectedTrainingRun.name}` : 'Validation Results'"
+        :title="selectedTrainingRun ? `Validation: ${selectedTrainingRun.study_label ? selectedTrainingRun.study_label + ' (' + (selectedTrainingRun.training_run_dir || selectedTrainingRun.name) + ')' : selectedTrainingRun.name}` : 'Validation Results'"
         @close="slideoutValidationDialogShow = false"
         @regenerate="handleValidationRegenerate"
       />

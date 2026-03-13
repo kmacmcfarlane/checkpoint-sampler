@@ -32,6 +32,7 @@ var _ = Service("training_runs", func() {
 				Minimum(0)
 			})
 			Attribute("study_id", String, "Optional study ID for study-aware validation (uses study images_per_checkpoint as expected count)")
+			Attribute("study_output_dir", String, "Study output directory for legacy validation scoping")
 			Required("id")
 		})
 		Result(ValidationResultResponse)
@@ -40,6 +41,7 @@ var _ = Service("training_runs", func() {
 		HTTP(func() {
 			POST("/api/training-runs/{id}/validate")
 			Param("study_id")
+			Param("study_output_dir")
 			Response(StatusOK)
 			Response("not_found", StatusNotFound)
 			Response("validation_failed", StatusInternalServerError)
@@ -85,6 +87,9 @@ var TrainingRunResponse = Type("TrainingRunResponse", func() {
 		Example(true)
 	})
 	Attribute("checkpoints", ArrayOf(CheckpointResponse), "Checkpoints in this training run (sorted by step number)")
+	Attribute("training_run_dir", String, "Top-level sample directory name (viewer source only)")
+	Attribute("study_label", String, "Study directory name (viewer source only)")
+	Attribute("study_output_dir", String, "Full study output directory prefix for scan/validation scoping (viewer source only)")
 	Required("id", "name", "checkpoint_count", "has_samples", "checkpoints")
 })
 

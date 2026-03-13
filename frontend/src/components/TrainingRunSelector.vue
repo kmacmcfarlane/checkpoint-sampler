@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { NSelect, NCheckbox, NButton } from 'naive-ui'
 import type { TrainingRun, CheckpointCompletenessInfo } from '../api/types'
 import { apiClient } from '../api/client'
 import { useGenerateInputsPersistence } from '../composables/useGenerateInputsPersistence'
+import { useLastTrainingRun } from '../composables/useLastTrainingRun'
 
 const props = defineProps<{
   /** Auto-select this training run ID if provided (used for restoring from localStorage). */
@@ -11,7 +12,8 @@ const props = defineProps<{
 }>()
 
 const trainingRuns = ref<TrainingRun[]>([])
-const selectedId = ref<number | null>(null)
+const selectedGroupKey = ref<string | null>(null)
+const selectedStudyOutputDir = ref<string | null>(null)
 const loading = ref(false)
 const error = ref<string | null>(null)
 const attemptedAutoSelect = ref(false)
@@ -23,6 +25,7 @@ const validationResults = ref<CheckpointCompletenessInfo[] | null>(null)
 const validationTotals = ref<{ total_expected: number; total_actual: number; total_missing: number } | null>(null)
 
 const persistence = useGenerateInputsPersistence()
+const { saveLastStudy, getLastStudy } = useLastTrainingRun()
 
 /**
  * AC1: hasSamplesFilter — show only training runs that have samples.
@@ -32,10 +35,8 @@ const persistence = useGenerateInputsPersistence()
  */
 const hasSamplesFilter = ref<boolean>(persistence.getHasSamplesFilter() ?? true)
 
-// select: Emitted when the user selects a training run from the dropdown, or on auto-select restore. Payload: the selected TrainingRun object.
-// generate-missing: Emitted when the user clicks "Generate Missing" after validation reveals missing samples.
 const emit = defineEmits<{
-  select: [trainingRun: TrainingRun]
+  select: [trainingRun: TrainingRun, studyOutputDir: string]
   'generate-missing': []
 }>()
 
@@ -47,20 +48,68 @@ const hasRunsWithoutSamples = computed(() =>
   trainingRuns.value.some((run) => !run.has_samples)
 )
 
-const selectOptions = computed(() => {
-  const filtered = hasSamplesFilter.value
+/** Filtered runs based on hasSamplesFilter. */
+const filteredRuns = computed(() => {
+  return hasSamplesFilter.value
     ? trainingRuns.value.filter((run) => run.has_samples)
     : trainingRuns.value
-  return filtered.map((run) => ({
-    label: run.name,
-    value: run.id,
+})
+
+/** Group runs by training_run_dir (or fall back to name for legacy/checkpoint-source). */
+const trainingRunGroups = computed(() => {
+  const groups = new Map<string, TrainingRun[]>()
+  for (const run of filteredRuns.value) {
+    const key = run.training_run_dir || run.name
+    if (!groups.has(key)) groups.set(key, [])
+    groups.get(key)!.push(run)
+  }
+  return groups
+})
+
+/** Options for the first dropdown (Training Run). */
+const groupOptions = computed(() => {
+  return Array.from(trainingRunGroups.value.keys()).map((key) => ({
+    label: key,
+    value: key,
   }))
+})
+
+/** Runs in the currently selected group. */
+const selectedGroupRuns = computed(() => {
+  if (!selectedGroupKey.value) return []
+  return trainingRunGroups.value.get(selectedGroupKey.value) ?? []
+})
+
+/** Options for the second dropdown (Study). */
+const studyOptions = computed(() => {
+  return selectedGroupRuns.value.map((run) => ({
+    label: run.study_label || run.name,
+    value: run.study_output_dir || '',
+  }))
+})
+
+/** Whether to show the study dropdown. Hidden when group has exactly 1 run with no study_label. */
+const showStudySelect = computed(() => {
+  const runs = selectedGroupRuns.value
+  if (runs.length === 0) return false
+  if (runs.length === 1 && !runs[0].study_label) return false
+  return true
+})
+
+/** The currently selected TrainingRun object. */
+const selectedTrainingRun = computed(() => {
+  if (!selectedGroupKey.value) return null
+  const runs = selectedGroupRuns.value
+  if (runs.length === 0) return null
+  if (!showStudySelect.value) return runs[0]
+  return runs.find((r) => (r.study_output_dir || '') === selectedStudyOutputDir.value) ?? null
 })
 
 async function fetchTrainingRuns() {
   loading.value = true
   error.value = null
-  selectedId.value = null
+  selectedGroupKey.value = null
+  selectedStudyOutputDir.value = null
   try {
     trainingRuns.value = await apiClient.getTrainingRuns()
     attemptAutoSelect()
@@ -85,10 +134,11 @@ function attemptAutoSelect() {
 
   const run = trainingRuns.value.find((r) => r.id === props.autoSelectRunId)
   if (run) {
-    selectedId.value = run.id
-    emit('select', run)
+    const groupKey = run.training_run_dir || run.name
+    selectedGroupKey.value = groupKey
+    selectedStudyOutputDir.value = run.study_output_dir || ''
+    emit('select', run, run.study_output_dir || '')
   }
-  // If run doesn't exist, do nothing (stale training run ID in localStorage)
 }
 
 /** Manual refresh of the training run list (triggered by the refresh icon button). */
@@ -109,19 +159,61 @@ async function refreshTrainingRuns() {
 
 onMounted(fetchTrainingRuns)
 
-function onSelect(value: number | null) {
+function onGroupSelect(value: string | null) {
   if (value === null) {
-    selectedId.value = null
+    selectedGroupKey.value = null
+    selectedStudyOutputDir.value = null
     return
   }
-  selectedId.value = value
-  // Clear previous validation results when switching sample sets
+  selectedGroupKey.value = value
+  // Clear previous validation results when switching
   validationResults.value = null
   validationError.value = null
   validationTotals.value = null
-  const run = trainingRuns.value.find((r) => r.id === value)
+
+  // Auto-select study: try persisted, then first available
+  const runs = trainingRunGroups.value.get(value) ?? []
+  if (runs.length === 0) return
+
+  if (runs.length === 1 && !runs[0].study_label) {
+    // Single run with no study — auto-select
+    selectedStudyOutputDir.value = runs[0].study_output_dir || ''
+    emit('select', runs[0], runs[0].study_output_dir || '')
+    return
+  }
+
+  // Try to restore persisted study selection
+  const persisted = getLastStudy(value)
+  const persistedRun = persisted !== null
+    ? runs.find((r) => (r.study_output_dir || '') === persisted)
+    : null
+
+  if (persistedRun) {
+    selectedStudyOutputDir.value = persisted!
+    emit('select', persistedRun, persisted!)
+  } else {
+    // Default to first study
+    const first = runs[0]
+    selectedStudyOutputDir.value = first.study_output_dir || ''
+    emit('select', first, first.study_output_dir || '')
+  }
+}
+
+function onStudySelect(value: string | null) {
+  if (value === null) return
+  selectedStudyOutputDir.value = value
+  // Clear previous validation results when switching studies
+  validationResults.value = null
+  validationError.value = null
+  validationTotals.value = null
+
+  const run = selectedGroupRuns.value.find((r) => (r.study_output_dir || '') === value)
   if (run) {
-    emit('select', run)
+    // Persist study selection per training run dir
+    if (selectedGroupKey.value) {
+      saveLastStudy(selectedGroupKey.value, value)
+    }
+    emit('select', run, value)
   }
 }
 
@@ -133,7 +225,8 @@ function onHasSamplesFilterChange(value: boolean) {
 
 // AC2: Validate button triggers completeness check against the selected sample set
 async function onValidate() {
-  if (selectedId.value === null) return
+  const run = selectedTrainingRun.value
+  if (!run) return
 
   validating.value = true
   validationError.value = null
@@ -141,7 +234,7 @@ async function onValidate() {
   validationTotals.value = null
 
   try {
-    const result = await apiClient.validateTrainingRun(selectedId.value)
+    const result = await apiClient.validateTrainingRun(run.id, undefined, selectedStudyOutputDir.value || undefined)
     validationResults.value = result.checkpoints
     validationTotals.value = {
       total_expected: result.total_expected,
@@ -169,8 +262,7 @@ function checkpointStatus(cp: CheckpointCompletenessInfo): 'pass' | 'warning' {
 
 <template>
   <div class="training-run-selector">
-    <!-- AC1: Rename "Training Run" to "Sample Set" -->
-    <label for="training-run-select">Sample Set</label>
+    <label for="training-run-select">Training Run</label>
     <NCheckbox
       v-if="hasRunsWithoutSamples"
       :checked="hasSamplesFilter"
@@ -180,10 +272,10 @@ function checkpointStatus(cp: CheckpointCompletenessInfo): 'pass' | 'warning' {
       Has Samples
     </NCheckbox>
     <NSelect
-      :value="selectedId"
-      :options="selectOptions"
+      :value="selectedGroupKey"
+      :options="groupOptions"
       :disabled="loading || trainingRuns.length === 0"
-      :placeholder="loading ? 'Loading...' : 'Select a sample set'"
+      :placeholder="loading ? 'Loading...' : 'Select a training run'"
       :loading="loading"
       :consistent-menu-width="false"
       :menu-props="{ style: 'min-width: 320px; max-width: min(600px, 100vw)' }"
@@ -191,7 +283,7 @@ function checkpointStatus(cp: CheckpointCompletenessInfo): 'pass' | 'warning' {
       class="training-run-select"
       data-testid="training-run-select"
       size="small"
-      @update:value="onSelect"
+      @update:value="onGroupSelect"
     />
     <!-- AC: Refresh icon button to manually reload the sample set list -->
     <NButton
@@ -209,8 +301,23 @@ function checkpointStatus(cp: CheckpointCompletenessInfo): 'pass' | 'warning' {
     </NButton>
     <p v-if="error" class="error" role="alert">{{ error }}</p>
   </div>
+  <!-- Study dropdown (hidden when group has exactly 1 run with no study label) -->
+  <div v-if="showStudySelect" class="study-selector">
+    <label for="study-select">Study</label>
+    <NSelect
+      :value="selectedStudyOutputDir"
+      :options="studyOptions"
+      :consistent-menu-width="false"
+      :menu-props="{ style: 'min-width: 200px; max-width: min(400px, 100vw)' }"
+      filterable
+      class="study-select"
+      data-testid="study-select"
+      size="small"
+      @update:value="onStudySelect"
+    />
+  </div>
   <!-- AC2: Validate button beneath the Sample Set selector -->
-  <div v-if="selectedId !== null" class="validate-section">
+  <div v-if="selectedTrainingRun !== null" class="validate-section">
     <NButton
       size="small"
       :loading="validating"
@@ -290,6 +397,23 @@ function checkpointStatus(cp: CheckpointCompletenessInfo): 'pass' | 'warning' {
   color: var(--error-color);
   font-size: 0.875rem;
   margin: 0;
+}
+
+.study-selector {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.study-selector label {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.study-select {
+  min-width: 150px;
+  flex: 1;
 }
 
 .validate-section {

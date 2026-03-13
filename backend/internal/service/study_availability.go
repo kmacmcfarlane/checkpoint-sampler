@@ -36,7 +36,7 @@ func NewStudyAvailabilityService(fs StudyAvailabilityFileSystem, sampleDir strin
 // GetAvailability returns the sample availability for a list of studies
 // relative to the given training run. For each study, it checks whether
 // any of the training run's checkpoint filenames exist as subdirectories
-// under the study's output directory ({sample_dir}/{sanitized_run_name}/{study.ID}/).
+// under the study's output directory ({sample_dir}/{sanitized_run_name}/{study.Name}/).
 func (s *StudyAvailabilityService) GetAvailability(studies []model.Study, tr model.TrainingRun) ([]model.StudyAvailability, error) {
 	s.logger.WithFields(logrus.Fields{
 		"training_run": tr.Name,
@@ -57,7 +57,7 @@ func (s *StudyAvailabilityService) GetAvailability(studies []model.Study, tr mod
 			StudyName: study.Name,
 		}
 
-		studyDir := filepath.Join(s.sampleDir, fileformat.SanitizeTrainingRunName(tr.Name), study.ID)
+		studyDir := filepath.Join(s.sampleDir, fileformat.SanitizeTrainingRunName(tr.Name), study.Name)
 		checkpointDirs, err := s.fs.ListSubdirectories(studyDir)
 		if err != nil {
 			s.logger.WithFields(logrus.Fields{
@@ -131,8 +131,8 @@ func (s *StudyAvailabilityService) StudyHasSamples(study model.Study) (bool, err
 
 	hasSamples := len(subdirs) > 0
 	s.logger.WithFields(logrus.Fields{
-		"study_name":  study.Name,
-		"has_samples": hasSamples,
+		"study_name":   study.Name,
+		"has_samples":  hasSamples,
 		"subdir_count": len(subdirs),
 	}).Debug("study has-samples check completed")
 

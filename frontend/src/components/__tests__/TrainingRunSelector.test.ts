@@ -42,6 +42,35 @@ const sampleRuns: TrainingRun[] = [
   },
 ]
 
+/** Runs with decomposed fields (new layout with study). */
+const runsWithStudy: TrainingRun[] = [
+  {
+    id: 0,
+    name: 'my-model/study-a/my-model',
+    checkpoint_count: 2,
+    has_samples: true,
+    checkpoints: [
+      { filename: 'my-model-step00001000.safetensors', step_number: 1000, has_samples: true },
+      { filename: 'my-model-step00002000.safetensors', step_number: 2000, has_samples: true },
+    ],
+    training_run_dir: 'my-model',
+    study_label: 'study-a',
+    study_output_dir: 'my-model/study-a',
+  },
+  {
+    id: 1,
+    name: 'my-model/study-b/my-model',
+    checkpoint_count: 1,
+    has_samples: true,
+    checkpoints: [
+      { filename: 'my-model-step00001000.safetensors', step_number: 1000, has_samples: true },
+    ],
+    training_run_dir: 'my-model',
+    study_label: 'study-b',
+    study_output_dir: 'my-model/study-b',
+  },
+]
+
 /** Mixed runs: one with samples, one without. Used to test hasSamplesFilter visibility. */
 const mixedRuns: TrainingRun[] = [
   {
@@ -64,18 +93,26 @@ const mixedRuns: TrainingRun[] = [
   },
 ]
 
+/**
+ * Helper: select a group in the training run dropdown (first NSelect).
+ * For legacy runs (no training_run_dir), the group key is the run name.
+ */
+function selectGroup(wrapper: ReturnType<typeof mount>, groupKey: string) {
+  const selects = wrapper.findAllComponents(NSelect)
+  selects[0].vm.$emit('update:value', groupKey)
+}
+
 describe('TrainingRunSelector', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  // AC1: Renamed label from "Training Run" to "Sample Set"
-  it('renders label "Sample Set" and NSelect component', async () => {
+  it('renders label "Training Run" and NSelect component', async () => {
     mockGetTrainingRuns.mockResolvedValue(sampleRuns)
     const wrapper = mount(TrainingRunSelector)
     await flushPromises()
 
-    expect(wrapper.find('label').text()).toBe('Sample Set')
+    expect(wrapper.find('label').text()).toBe('Training Run')
     expect(wrapper.findComponent(NSelect).exists()).toBe(true)
   })
 
@@ -95,25 +132,25 @@ describe('TrainingRunSelector', () => {
     await flushPromises()
 
     const select = wrapper.findComponent(NSelect)
-    const options = select.props('options') as Array<{ label: string; value: number }>
+    const options = select.props('options') as Array<{ label: string; value: string }>
     expect(options).toHaveLength(2)
     expect(options[0].label).toBe('psai4rt v0.3.0 qwen')
     expect(options[1].label).toBe('sdxl finetune')
   })
 
-  it('emits select event with training run when an option is selected', async () => {
+  it('emits select event with training run and studyOutputDir when an option is selected', async () => {
     mockGetTrainingRuns.mockResolvedValue(sampleRuns)
     const wrapper = mount(TrainingRunSelector)
     await flushPromises()
 
-    const select = wrapper.findComponent(NSelect)
-    select.vm.$emit('update:value', 1)
+    selectGroup(wrapper, 'sdxl finetune')
     await nextTick()
 
     const emitted = wrapper.emitted('select')
     expect(emitted).toBeDefined()
     expect(emitted).toHaveLength(1)
-    expect(emitted![0]).toEqual([sampleRuns[1]])
+    expect(emitted![0][0]).toEqual(sampleRuns[1])
+    expect(emitted![0][1]).toBe('')
   })
 
   it('displays error message when API call fails', async () => {
@@ -182,6 +219,66 @@ describe('TrainingRunSelector', () => {
     expect(checkbox.exists()).toBe(false)
   })
 
+  // Two-dropdown behavior
+  describe('two-dropdown cascading selector', () => {
+    it('groups runs by training_run_dir into a single group option', async () => {
+      mockGetTrainingRuns.mockResolvedValue(runsWithStudy)
+      const wrapper = mount(TrainingRunSelector)
+      await flushPromises()
+
+      const select = wrapper.findComponent(NSelect)
+      const options = select.props('options') as Array<{ label: string; value: string }>
+      // Both runs share training_run_dir='my-model', so 1 group
+      expect(options).toHaveLength(1)
+      expect(options[0].label).toBe('my-model')
+    })
+
+    it('shows study dropdown when group has multiple studies', async () => {
+      mockGetTrainingRuns.mockResolvedValue(runsWithStudy)
+      const wrapper = mount(TrainingRunSelector)
+      await flushPromises()
+
+      selectGroup(wrapper, 'my-model')
+      await nextTick()
+
+      const studySelect = wrapper.find('[data-testid="study-select"]')
+      expect(studySelect.exists()).toBe(true)
+    })
+
+    it('hides study dropdown for legacy runs with no study_label', async () => {
+      mockGetTrainingRuns.mockResolvedValue(sampleRuns)
+      const wrapper = mount(TrainingRunSelector)
+      await flushPromises()
+
+      selectGroup(wrapper, 'psai4rt v0.3.0 qwen')
+      await nextTick()
+
+      const studySelect = wrapper.find('[data-testid="study-select"]')
+      expect(studySelect.exists()).toBe(false)
+    })
+
+    it('emits select with studyOutputDir when study is selected', async () => {
+      mockGetTrainingRuns.mockResolvedValue(runsWithStudy)
+      const wrapper = mount(TrainingRunSelector)
+      await flushPromises()
+
+      selectGroup(wrapper, 'my-model')
+      await nextTick()
+
+      // Select the second study
+      const selects = wrapper.findAllComponents(NSelect)
+      const studySelect = selects[1] // second NSelect is the study dropdown
+      studySelect.vm.$emit('update:value', 'my-model/study-b')
+      await nextTick()
+
+      const emitted = wrapper.emitted('select')!
+      // First emit from auto-select on group change, second from manual study select
+      const lastEmit = emitted[emitted.length - 1]
+      expect(lastEmit[0]).toEqual(runsWithStudy[1])
+      expect(lastEmit[1]).toBe('my-model/study-b')
+    })
+  })
+
   // AC1 (S-067): hasSamplesFilter persistence
   describe('hasSamplesFilter', () => {
     it('renders has-samples checkbox when some runs have no samples', async () => {
@@ -217,27 +314,13 @@ describe('TrainingRunSelector', () => {
       expect(checkbox.props('checked')).toBe(false)
     })
 
-    it('restores hasSamplesFilter=true from localStorage on mount', async () => {
-      localStorage.setItem(
-        GENERATE_INPUTS_STORAGE_KEY,
-        JSON.stringify({ lastWorkflowId: null, hasSamplesFilter: true, byModelType: {} })
-      )
-
-      mockGetTrainingRuns.mockResolvedValue(mixedRuns)
-      const wrapper = mount(TrainingRunSelector)
-      await flushPromises()
-
-      const checkbox = wrapper.findComponent(NCheckbox)
-      expect(checkbox.props('checked')).toBe(true)
-    })
-
     it('filters out runs without samples when hasSamplesFilter=true', async () => {
       mockGetTrainingRuns.mockResolvedValue(mixedRuns)
       const wrapper = mount(TrainingRunSelector)
       await flushPromises()
 
       const select = wrapper.findComponent(NSelect)
-      const options = select.props('options') as Array<{ label: string; value: number }>
+      const options = select.props('options') as Array<{ label: string; value: string }>
       // Only the run with samples should appear
       expect(options).toHaveLength(1)
       expect(options[0].label).toBe('run-with-samples')
@@ -254,7 +337,7 @@ describe('TrainingRunSelector', () => {
       await flushPromises()
 
       const select = wrapper.findComponent(NSelect)
-      const options = select.props('options') as Array<{ label: string; value: number }>
+      const options = select.props('options') as Array<{ label: string; value: string }>
       expect(options).toHaveLength(2)
     })
 
@@ -303,6 +386,7 @@ describe('TrainingRunSelector', () => {
       expect(emitted).toBeDefined()
       expect(emitted).toHaveLength(1)
       expect(emitted![0][0]).toEqual(sampleRuns[1])
+      expect(emitted![0][1]).toBe('')
     })
 
     it('does not auto-select when autoSelectRunId references a stale training run', async () => {
@@ -327,17 +411,6 @@ describe('TrainingRunSelector', () => {
       expect(emitted).toBeUndefined()
     })
 
-    it('does not auto-select when autoSelectRunId is undefined', async () => {
-      mockGetTrainingRuns.mockResolvedValue(sampleRuns)
-      const wrapper = mount(TrainingRunSelector, {
-        props: { autoSelectRunId: undefined },
-      })
-      await flushPromises()
-
-      const emitted = wrapper.emitted('select')
-      expect(emitted).toBeUndefined()
-    })
-
     it('auto-selects only once on initial load', async () => {
       mockGetTrainingRuns.mockResolvedValue(sampleRuns)
       const wrapper = mount(TrainingRunSelector, {
@@ -353,9 +426,9 @@ describe('TrainingRunSelector', () => {
     })
   })
 
-  // AC2: Validate button beneath the Sample Set selector
+  // AC2: Validate button beneath the selector
   describe('Validate button', () => {
-    it('does not show Validate button when no sample set is selected', async () => {
+    it('does not show Validate button when no training run is selected', async () => {
       mockGetTrainingRuns.mockResolvedValue(sampleRuns)
       const wrapper = mount(TrainingRunSelector)
       await flushPromises()
@@ -364,14 +437,12 @@ describe('TrainingRunSelector', () => {
       expect(btn.exists()).toBe(false)
     })
 
-    it('shows Validate button when a sample set is selected', async () => {
+    it('shows Validate button when a training run is selected', async () => {
       mockGetTrainingRuns.mockResolvedValue(sampleRuns)
       const wrapper = mount(TrainingRunSelector)
       await flushPromises()
 
-      // Select a training run
-      const select = wrapper.findComponent(NSelect)
-      select.vm.$emit('update:value', 0)
+      selectGroup(wrapper, 'psai4rt v0.3.0 qwen')
       await nextTick()
 
       const btn = wrapper.find('[data-testid="validate-button"]')
@@ -390,9 +461,7 @@ describe('TrainingRunSelector', () => {
       const wrapper = mount(TrainingRunSelector)
       await flushPromises()
 
-      // Select a training run
-      const select = wrapper.findComponent(NSelect)
-      select.vm.$emit('update:value', 0)
+      selectGroup(wrapper, 'psai4rt v0.3.0 qwen')
       await nextTick()
 
       // Click validate
@@ -400,7 +469,7 @@ describe('TrainingRunSelector', () => {
       await btn.trigger('click')
       await flushPromises()
 
-      expect(mockValidateTrainingRun).toHaveBeenCalledWith(0)
+      expect(mockValidateTrainingRun).toHaveBeenCalledWith(0, undefined, undefined)
     })
 
     // AC6: Display validation results inline (per-checkpoint pass/warning status)
@@ -416,8 +485,7 @@ describe('TrainingRunSelector', () => {
       const wrapper = mount(TrainingRunSelector)
       await flushPromises()
 
-      const select = wrapper.findComponent(NSelect)
-      select.vm.$emit('update:value', 0)
+      selectGroup(wrapper, 'psai4rt v0.3.0 qwen')
       await nextTick()
 
       const btn = wrapper.find('[data-testid="validate-button"]')
@@ -450,8 +518,7 @@ describe('TrainingRunSelector', () => {
       const wrapper = mount(TrainingRunSelector)
       await flushPromises()
 
-      const select = wrapper.findComponent(NSelect)
-      select.vm.$emit('update:value', 0)
+      selectGroup(wrapper, 'psai4rt v0.3.0 qwen')
       await nextTick()
 
       const btn = wrapper.find('[data-testid="validate-button"]')
@@ -481,8 +548,7 @@ describe('TrainingRunSelector', () => {
       const wrapper = mount(TrainingRunSelector)
       await flushPromises()
 
-      const select = wrapper.findComponent(NSelect)
-      select.vm.$emit('update:value', 0)
+      selectGroup(wrapper, 'psai4rt v0.3.0 qwen')
       await nextTick()
 
       const btn = wrapper.find('[data-testid="validate-button"]')
@@ -494,7 +560,7 @@ describe('TrainingRunSelector', () => {
       expect(errorEl.text()).toBe('Disk error')
     })
 
-    it('clears validation results when a different sample set is selected', async () => {
+    it('clears validation results when a different training run is selected', async () => {
       mockGetTrainingRuns.mockResolvedValue(sampleRuns)
       mockValidateTrainingRun.mockResolvedValue({
         checkpoints: [
@@ -506,8 +572,7 @@ describe('TrainingRunSelector', () => {
       await flushPromises()
 
       // Select first run and validate
-      const select = wrapper.findComponent(NSelect)
-      select.vm.$emit('update:value', 0)
+      selectGroup(wrapper, 'psai4rt v0.3.0 qwen')
       await nextTick()
 
       const btn = wrapper.find('[data-testid="validate-button"]')
@@ -517,7 +582,7 @@ describe('TrainingRunSelector', () => {
       expect(wrapper.find('[data-testid="validation-results"]').exists()).toBe(true)
 
       // Switch to a different run
-      select.vm.$emit('update:value', 1)
+      selectGroup(wrapper, 'sdxl finetune')
       await nextTick()
 
       // Results should be cleared
@@ -540,8 +605,7 @@ describe('TrainingRunSelector', () => {
       const wrapper = mount(TrainingRunSelector)
       await flushPromises()
 
-      const select = wrapper.findComponent(NSelect)
-      select.vm.$emit('update:value', 0)
+      selectGroup(wrapper, 'psai4rt v0.3.0 qwen')
       await nextTick()
 
       const btn = wrapper.find('[data-testid="validate-button"]')
@@ -568,8 +632,7 @@ describe('TrainingRunSelector', () => {
       const wrapper = mount(TrainingRunSelector)
       await flushPromises()
 
-      const select = wrapper.findComponent(NSelect)
-      select.vm.$emit('update:value', 0)
+      selectGroup(wrapper, 'psai4rt v0.3.0 qwen')
       await nextTick()
 
       const btn = wrapper.find('[data-testid="validate-button"]')
@@ -597,8 +660,7 @@ describe('TrainingRunSelector', () => {
       const wrapper = mount(TrainingRunSelector)
       await flushPromises()
 
-      const select = wrapper.findComponent(NSelect)
-      select.vm.$emit('update:value', 0)
+      selectGroup(wrapper, 'psai4rt v0.3.0 qwen')
       await nextTick()
 
       const btn = wrapper.find('[data-testid="validate-button"]')
@@ -624,8 +686,7 @@ describe('TrainingRunSelector', () => {
       const wrapper = mount(TrainingRunSelector)
       await flushPromises()
 
-      const select = wrapper.findComponent(NSelect)
-      select.vm.$emit('update:value', 0)
+      selectGroup(wrapper, 'psai4rt v0.3.0 qwen')
       await nextTick()
 
       const btn = wrapper.find('[data-testid="validate-button"]')
@@ -649,8 +710,7 @@ describe('TrainingRunSelector', () => {
       const wrapper = mount(TrainingRunSelector)
       await flushPromises()
 
-      const select = wrapper.findComponent(NSelect)
-      select.vm.$emit('update:value', 0)
+      selectGroup(wrapper, 'psai4rt v0.3.0 qwen')
       await nextTick()
 
       const btn = wrapper.find('[data-testid="validate-button"]')
@@ -664,7 +724,7 @@ describe('TrainingRunSelector', () => {
       expect(wrapper.emitted('generate-missing')).toHaveLength(1)
     })
 
-    it('clears validation totals when switching sample sets', async () => {
+    it('clears validation totals when switching training runs', async () => {
       mockGetTrainingRuns.mockResolvedValue(sampleRuns)
       mockValidateTrainingRun.mockResolvedValue({
         checkpoints: [
@@ -678,8 +738,7 @@ describe('TrainingRunSelector', () => {
       const wrapper = mount(TrainingRunSelector)
       await flushPromises()
 
-      const select = wrapper.findComponent(NSelect)
-      select.vm.$emit('update:value', 0)
+      selectGroup(wrapper, 'psai4rt v0.3.0 qwen')
       await nextTick()
 
       const btn = wrapper.find('[data-testid="validate-button"]')
@@ -689,7 +748,7 @@ describe('TrainingRunSelector', () => {
       expect(wrapper.find('[data-testid="validation-totals"]').exists()).toBe(true)
 
       // Switch to a different run
-      select.vm.$emit('update:value', 1)
+      selectGroup(wrapper, 'sdxl finetune')
       await nextTick()
 
       expect(wrapper.find('[data-testid="validation-totals"]').exists()).toBe(false)

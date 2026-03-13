@@ -460,7 +460,7 @@ describe('ApiClient', () => {
       await client.validateTrainingRun(1, 'study with spaces & special=chars')
 
       expect(globalThis.fetch).toHaveBeenCalledWith(
-        'http://localhost:8080/api/training-runs/1/validate?study_id=study%20with%20spaces%20%26%20special%3Dchars',
+        'http://localhost:8080/api/training-runs/1/validate?study_id=study+with+spaces+%26+special%3Dchars',
         { method: 'POST' },
       )
     })

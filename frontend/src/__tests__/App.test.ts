@@ -569,7 +569,7 @@ describe('App', () => {
 
       // eagerAutoSelect should have called getTrainingRuns and scanTrainingRun
       // getTrainingRuns is called by both eagerAutoSelect and TrainingRunSelector.onMounted
-      expect(mockScanTrainingRun).toHaveBeenCalledWith(1)
+      expect(mockScanTrainingRun).toHaveBeenCalledWith(1, undefined)
     })
 
     it('shows header buttons immediately after eager auto-select on narrow screen', async () => {
@@ -709,7 +709,7 @@ describe('App', () => {
       expect(appDrawer.props('show')).toBe(true)
 
       // Training run should be selected (via either eager select or TrainingRunSelector)
-      expect(mockScanTrainingRun).toHaveBeenCalledWith(1)
+      expect(mockScanTrainingRun).toHaveBeenCalledWith(1, undefined)
 
       // Header buttons should be visible
       const generateBtn = wrapper.find('[data-testid="generate-samples-button"]')
@@ -747,7 +747,7 @@ describe('App', () => {
       await flushPromises()
 
       // Scan should have been triggered
-      expect(mockScanTrainingRun).toHaveBeenCalledWith(1)
+      expect(mockScanTrainingRun).toHaveBeenCalledWith(1, undefined)
 
       // getTrainingRuns should be called without arguments (no has_samples filter)
       for (const call of mockGetTrainingRuns.mock.calls) {
@@ -780,7 +780,7 @@ describe('App', () => {
         await flushPromises()
 
         // eagerAutoSelect should have triggered a scan even without a preset
-        expect(mockScanTrainingRun).toHaveBeenCalledWith(1)
+        expect(mockScanTrainingRun).toHaveBeenCalledWith(1, undefined)
       })
 
       it('shows header buttons after eager auto-select with standalone training run ID only', async () => {
@@ -834,11 +834,12 @@ describe('App', () => {
 
         // Simulate training run selection
         const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
-        selector.vm.$emit('select', mockTrainingRun)
+        selector.vm.$emit('select', mockTrainingRun, '')
         await flushPromises()
 
-        // Standalone key should be written with the selected run's ID
-        expect(localStorage.getItem('checkpoint-sampler-last-training-run')).toBe('1')
+        // Standalone key should be written with the selected run's ID (structured JSON format)
+        const stored = JSON.parse(localStorage.getItem('checkpoint-sampler-last-training-run')!)
+        expect(stored.runId).toBe(1)
       })
 
       it('TrainingRunSelector autoSelectRunId falls back to standalone key when no preset data', async () => {

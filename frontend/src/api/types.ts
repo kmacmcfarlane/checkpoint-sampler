@@ -33,6 +33,12 @@ export interface TrainingRun {
   checkpoint_count: number
   has_samples: boolean
   checkpoints: CheckpointInfo[]
+  /** Top-level sample directory name (viewer source only). */
+  training_run_dir?: string
+  /** Study directory name (viewer source only). */
+  study_label?: string
+  /** Full study output directory prefix for scan/validation scoping (viewer source only). */
+  study_output_dir?: string
 }
 
 /** An image returned from a scan. */

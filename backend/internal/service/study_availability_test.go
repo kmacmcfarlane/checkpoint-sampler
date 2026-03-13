@@ -59,10 +59,8 @@ var _ = Describe("StudyAvailabilityService", func() {
 	})
 
 	Describe("GetAvailability", func() {
-		// Path pattern after B-078 restructure:
-		// {sampleDir}/{SanitizeTrainingRunName(tr.Name)}/{study.ID}/
-		// e.g. training run "model", study ID "s1" → /samples/model/s1
-
+		// Path pattern: {sampleDir}/{SanitizeTrainingRunName(tr.Name)}/{study.Name}/
+		// e.g. training run "model", study name "MyStudy" → /samples/model/MyStudy
 		It("returns has_samples=false and status=none when no checkpoint directories exist under study", func() {
 			studies := []model.Study{
 				{ID: "s1", Name: "MyStudy"},
@@ -74,7 +72,7 @@ var _ = Describe("StudyAvailabilityService", func() {
 				},
 			}
 
-			// No subdirectories under /samples/model/s1
+			// No subdirectories under /samples/model/MyStudy
 			result, err := svc.GetAvailability(studies, tr)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result).To(HaveLen(1))
@@ -98,8 +96,8 @@ var _ = Describe("StudyAvailabilityService", func() {
 				},
 			}
 
-			// All checkpoint directories present under /samples/model/s1
-			fs.subdirs["/samples/model/s1"] = []string{"cp1.safetensors", "cp2.safetensors"}
+			// All checkpoint directories present under /samples/model/MyStudy
+			fs.subdirs["/samples/model/MyStudy"] = []string{"cp1.safetensors", "cp2.safetensors"}
 
 			result, err := svc.GetAvailability(studies, tr)
 			Expect(err).NotTo(HaveOccurred())
@@ -123,8 +121,8 @@ var _ = Describe("StudyAvailabilityService", func() {
 				},
 			}
 
-			// Only one of three checkpoints has a sample directory under /samples/model/s1
-			fs.subdirs["/samples/model/s1"] = []string{"cp1.safetensors"}
+			// Only one of three checkpoints has a sample directory under /samples/model/MyStudy
+			fs.subdirs["/samples/model/MyStudy"] = []string{"cp1.safetensors"}
 
 			result, err := svc.GetAvailability(studies, tr)
 			Expect(err).NotTo(HaveOccurred())
@@ -146,7 +144,7 @@ var _ = Describe("StudyAvailabilityService", func() {
 				},
 			}
 
-			fs.subdirs["/samples/model/s1"] = []string{"other-checkpoint.safetensors", "random-dir"}
+			fs.subdirs["/samples/model/MyStudy"] = []string{"other-checkpoint.safetensors", "random-dir"}
 
 			result, err := svc.GetAvailability(studies, tr)
 			Expect(err).NotTo(HaveOccurred())
@@ -168,12 +166,11 @@ var _ = Describe("StudyAvailabilityService", func() {
 				},
 			}
 
-			// StudyA (s1): all checkpoints present (complete)
-			fs.subdirs["/samples/model/s1"] = []string{"cp1.safetensors", "cp2.safetensors"}
-			// StudyB (s2): only one checkpoint (partial)
-			fs.subdirs["/samples/model/s2"] = []string{"cp1.safetensors"}
-			// StudyC (s3): no matching checkpoints (none)
-			fs.subdirs["/samples/model/s3"] = []string{"other-dir"}
+			fs.subdirs["/samples/model/StudyA"] = []string{"cp1.safetensors", "cp2.safetensors"}
+			// StudyB: only one checkpoint (partial)
+			fs.subdirs["/samples/model/StudyB"] = []string{"cp1.safetensors"}
+			// StudyC: no matching checkpoints (none)
+			fs.subdirs["/samples/model/StudyC"] = []string{"other-dir"}
 
 			result, err := svc.GetAvailability(studies, tr)
 			Expect(err).NotTo(HaveOccurred())
@@ -202,7 +199,7 @@ var _ = Describe("StudyAvailabilityService", func() {
 			}
 
 			// Even if there are directories, zero checkpoints means no matches possible
-			fs.subdirs["/samples/model/s1"] = []string{"cp1.safetensors"}
+			fs.subdirs["/samples/model/MyStudy"] = []string{"cp1.safetensors"}
 
 			result, err := svc.GetAvailability(studies, tr)
 			Expect(err).NotTo(HaveOccurred())
@@ -220,7 +217,7 @@ var _ = Describe("StudyAvailabilityService", func() {
 				Checkpoints: []model.Checkpoint{{Filename: "cp1.safetensors"}},
 			}
 
-			fs.errs["/samples/model/s1"] = fmt.Errorf("permission denied")
+			fs.errs["/samples/model/MyStudy"] = fmt.Errorf("permission denied")
 
 			_, err := svc.GetAvailability(studies, tr)
 			Expect(err).To(HaveOccurred())
@@ -250,7 +247,7 @@ var _ = Describe("StudyAvailabilityService", func() {
 			}
 
 			// Slashes in training run name are replaced with underscores
-			fs.subdirs["/samples/qwen_Qwen2-VL/s1"] = []string{"cp1.safetensors"}
+			fs.subdirs["/samples/qwen_Qwen2-VL/MyStudy"] = []string{"cp1.safetensors"}
 
 			result, err := svc.GetAvailability(studies, tr)
 			Expect(err).NotTo(HaveOccurred())

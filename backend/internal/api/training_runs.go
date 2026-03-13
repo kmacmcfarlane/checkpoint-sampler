@@ -61,13 +61,23 @@ func (s *TrainingRunsService) List(ctx context.Context, p *gentrainingruns.ListP
 			}
 		}
 
-		result = append(result, &gentrainingruns.TrainingRunResponse{
+		resp := &gentrainingruns.TrainingRunResponse{
 			ID:              i,
 			Name:            tr.Name,
 			CheckpointCount: len(tr.Checkpoints),
 			HasSamples:      tr.HasSamples,
 			Checkpoints:     checkpoints,
-		})
+		}
+		if tr.TrainingRunDir != "" {
+			resp.TrainingRunDir = &tr.TrainingRunDir
+		}
+		if tr.StudyLabel != "" {
+			resp.StudyLabel = &tr.StudyLabel
+		}
+		if tr.StudyOutputDir != "" {
+			resp.StudyOutputDir = &tr.StudyOutputDir
+		}
+		result = append(result, resp)
 	}
 
 	if result == nil {
@@ -109,11 +119,11 @@ func (s *TrainingRunsService) Validate(ctx context.Context, p *gentrainingruns.V
 		if err != nil {
 			return nil, gentrainingruns.MakeValidationFailed(fmt.Errorf("fetching study: %w", err))
 		}
-		// Build the scoped study output dir: {sanitized_trainingRunName}/{studyID}
+		// Build the scoped study output dir: {sanitized_trainingRunName}/{studyName}
 		// Training run names can contain slashes (e.g. "qwen/Qwen2-VL"), so the name
 		// must be sanitized to a single directory level before path construction.
 		// This matches exactly what the job executor writes when saving sample images.
-		scopedStudyDir := fileformat.SanitizeTrainingRunName(tr.Name) + "/" + study.ID
+		scopedStudyDir := fileformat.SanitizeTrainingRunName(tr.Name) + "/" + study.Name
 		result, err = s.validator.ValidateTrainingRunWithStudy(tr, study, scopedStudyDir)
 		if err != nil {
 			return nil, gentrainingruns.MakeValidationFailed(fmt.Errorf("validating training run %q with study: %w", tr.Name, err))
@@ -131,7 +141,12 @@ func (s *TrainingRunsService) Validate(ctx context.Context, p *gentrainingruns.V
 		}
 
 		tr := runs[p.ID]
-		studyName := service.StudyNameForRun(tr.Name)
+		var studyName string
+		if p.StudyOutputDir != nil && *p.StudyOutputDir != "" {
+			studyName = *p.StudyOutputDir
+		} else {
+			studyName = service.StudyNameForRun(tr.Name)
+		}
 		result, err = s.validator.ValidateTrainingRun(tr, studyName)
 		if err != nil {
 			return nil, gentrainingruns.MakeValidationFailed(fmt.Errorf("validating training run %q: %w", tr.Name, err))

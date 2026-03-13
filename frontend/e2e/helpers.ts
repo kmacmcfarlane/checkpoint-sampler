@@ -124,6 +124,22 @@ export async function selectTrainingRun(page: Page, runName: string): Promise<vo
 }
 
 /**
+ * Select a study from the Study dropdown (second cascading dropdown).
+ * Only needed when a training run has multiple studies. The study dropdown
+ * is hidden when a group has exactly one run with no study label.
+ */
+export async function selectStudy(page: Page, studyLabel: string): Promise<void> {
+  const selectTrigger = page.locator('[data-testid="study-select"]')
+  await expect(selectTrigger).toBeVisible()
+
+  const popupMenu = page.locator('.n-base-select-menu:visible')
+  await selectTrigger.click()
+  await expect(popupMenu).toBeVisible({ timeout: 3000 })
+  await popupMenu.getByText(studyLabel, { exact: true }).click()
+  await expect(popupMenu).not.toBeVisible()
+}
+
+/**
  * Closes the sidebar drawer if it is open.
  * On wide screens the drawer opens automatically and its mask blocks header buttons.
  * The close button has aria-label="close" (set by Naive UI's NBaseClose).

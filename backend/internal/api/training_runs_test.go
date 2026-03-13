@@ -570,11 +570,12 @@ var _ = Describe("TrainingRunsService", func() {
 			})
 
 			It("returns per-checkpoint completeness using correct scoped dir after generation", func() {
-				// After generation: samples exist at {sampleDir}/{trainingRunName}/{studyID}/{checkpoint}/
+				// After generation: samples exist at {sampleDir}/{trainingRunName}/{studyName}/{checkpoint}/
 				// Viewer discovery finds new-layout run (name embeds study output dir).
+				studyName := "Test Study"
 				viewerFS.subdirs[sampleDir] = []string{"model"}
-				viewerFS.subdirs[sampleDir+"/model"] = []string{studyID}
-				viewerFS.subdirs[sampleDir+"/model/"+studyID] = []string{
+				viewerFS.subdirs[sampleDir+"/model"] = []string{studyName}
+				viewerFS.subdirs[sampleDir+"/model/"+studyName] = []string{
 					"model-step00001000.safetensors",
 					"model-step00002000.safetensors",
 				}
@@ -601,11 +602,11 @@ var _ = Describe("TrainingRunsService", func() {
 				}
 				svc := api.NewTrainingRunsService(viewerDiscovery, cpDiscovery, scanner, validator, nil, studyGetter)
 
-				// Sample files in the scoped directory: {sampleDir}/model/study-abc/{checkpoint}/
-				scanFS.files[sampleDir+"/model/"+studyID+"/model-step00001000.safetensors"] = []string{
+				// Sample files in the scoped directory: {sampleDir}/model/Test Study/{checkpoint}/
+				scanFS.files[sampleDir+"/model/"+studyName+"/model-step00001000.safetensors"] = []string{
 					"seed=42&_00001_.png",
 				}
-				scanFS.files[sampleDir+"/model/"+studyID+"/model-step00002000.safetensors"] = []string{
+				scanFS.files[sampleDir+"/model/"+studyName+"/model-step00002000.safetensors"] = []string{
 					"seed=42&_00001_.png",
 				}
 
@@ -623,7 +624,7 @@ var _ = Describe("TrainingRunsService", func() {
 
 			It("correctly validates when only some checkpoints have been generated", func() {
 				// Only model-step00001000 has samples; model-step00002000 does not.
-				// Samples are placed at {sampleDir}/model/{studyID}/{checkpoint}/
+				// Samples are placed at {sampleDir}/model/{studyName}/{checkpoint}/
 				cpFS.safetensors["/checkpoints"] = []string{
 					"model-step00001000.safetensors",
 					"model-step00002000.safetensors",
@@ -647,8 +648,8 @@ var _ = Describe("TrainingRunsService", func() {
 				svc := api.NewTrainingRunsService(viewerDiscovery, cpDiscovery, scanner, validator, nil, studyGetter)
 
 				// Only the first checkpoint's scoped directory exists with samples.
-				// scopedStudyDir = "model/" + studyID → {sampleDir}/model/{studyID}/{checkpoint}/
-				scanFS.files[sampleDir+"/model/"+studyID+"/model-step00001000.safetensors"] = []string{
+				// scopedStudyDir = "model/" + studyName → {sampleDir}/model/{studyName}/{checkpoint}/
+				scanFS.files[sampleDir+"/model/Test Study/model-step00001000.safetensors"] = []string{
 					"seed=42&_00001_.png",
 				}
 				// model-step00002000 has no directory entry → verified=0
@@ -728,10 +729,10 @@ var _ = Describe("TrainingRunsService", func() {
 				svc := api.NewTrainingRunsService(viewerDiscovery, cpDiscovery, scanner, validator, nil, studyGetter)
 
 				// The job executor writes samples to the sanitized path:
-				// {sampleDir}/qwen_Qwen2-VL/{studyID}/{checkpoint_basename}/
+				// {sampleDir}/qwen_Qwen2-VL/{studyName}/{checkpoint_basename}/
 				// Checkpoint basenames: "Qwen2-VL-step00001000.safetensors" etc.
 				// Validation must look in the same sanitized path.
-				sanitizedStudyDir := sampleDir + "/qwen_Qwen2-VL/" + studyID
+				sanitizedStudyDir := sampleDir + "/qwen_Qwen2-VL/Test Study"
 				scanFS.files[sanitizedStudyDir+"/Qwen2-VL-step00001000.safetensors"] = []string{
 					"seed=42&_00001_.png",
 				}

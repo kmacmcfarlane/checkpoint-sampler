@@ -8,6 +8,15 @@ type TrainingRun struct {
 	Checkpoints []Checkpoint
 	// HasSamples is true if at least one checkpoint has a matching sample directory.
 	HasSamples bool
+	// TrainingRunDir is the top-level sample directory name (viewer-discovery only).
+	// New layout: "qwen_psai4rt-v0.3.0-no-reg". Legacy/checkpoint-source: "".
+	TrainingRunDir string
+	// StudyLabel is the study directory name within the training run dir (viewer-discovery only).
+	// New layout: "My Study". Legacy study: "my-study". Legacy root: "".
+	StudyLabel string
+	// StudyOutputDir is the full path prefix between sample_dir and checkpoint dirs.
+	// New layout: "my-model/My Study". Legacy study: "my-study". Legacy root: "".
+	StudyOutputDir string
 }
 
 // Checkpoint represents a single .safetensors checkpoint file within a training run.

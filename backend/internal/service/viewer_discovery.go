@@ -56,6 +56,14 @@ func (d *ViewerDiscoveryService) DiscoverViewable() ([]model.TrainingRun, error)
 	// Map: training run name → list of checkpoints
 	runMap := make(map[string][]model.Checkpoint)
 
+	// Map: training run name → decomposed metadata [trainingRunDir, studyLabel, studyOutputDir]
+	type runMeta struct {
+		trainingRunDir string
+		studyLabel     string
+		studyOutputDir string
+	}
+	metaMap := make(map[string]runMeta)
+
 	// List top-level entries under sample_dir
 	topEntries, err := d.fs.ListSubdirectories(d.sampleDir)
 	if err != nil {
@@ -71,6 +79,7 @@ func (d *ViewerDiscoveryService) DiscoverViewable() ([]model.TrainingRun, error)
 		if isCheckpointDirName(entry) {
 			// Legacy: checkpoint dir at root of sample_dir (no study)
 			d.addCheckpointDir(runMap, "", entry)
+			// Legacy root: all decomposed fields empty (set on first encounter via addCheckpointDir key)
 		} else {
 			// Non-safetensors dir: either training_run dir (new layout) or study dir (legacy).
 			// Scan one level down to determine which layout it is.
@@ -100,6 +109,16 @@ func (d *ViewerDiscoveryService) DiscoverViewable() ([]model.TrainingRun, error)
 				for _, cpEntry := range level1Entries {
 					if isCheckpointDirName(cpEntry) {
 						d.addCheckpointDir(runMap, entry, cpEntry)
+						// Store metadata on first encounter (addCheckpointDir builds the key)
+						baseName := stripCheckpointSuffixes(cpEntry)
+						runName := entry + "/" + baseName
+						if _, ok := metaMap[runName]; !ok {
+							metaMap[runName] = runMeta{
+								trainingRunDir: "",
+								studyLabel:     entry,
+								studyOutputDir: entry,
+							}
+						}
 					}
 				}
 			} else {
@@ -122,6 +141,15 @@ func (d *ViewerDiscoveryService) DiscoverViewable() ([]model.TrainingRun, error)
 					for _, cpEntry := range level2Entries {
 						if isCheckpointDirName(cpEntry) {
 							d.addCheckpointDir(runMap, studyOutputDir, cpEntry)
+							baseName := stripCheckpointSuffixes(cpEntry)
+							runName := studyOutputDir + "/" + baseName
+							if _, ok := metaMap[runName]; !ok {
+								metaMap[runName] = runMeta{
+									trainingRunDir: entry,
+									studyLabel:     studyIDEntry,
+									studyOutputDir: studyOutputDir,
+								}
+							}
 						}
 					}
 				}
@@ -150,10 +178,14 @@ func (d *ViewerDiscoveryService) DiscoverViewable() ([]model.TrainingRun, error)
 		// Assign max step value to final checkpoint if detectable
 		assignFinalCheckpointStep(checkpoints, name)
 
+		meta := metaMap[name]
 		runs = append(runs, model.TrainingRun{
-			Name:        name,
-			Checkpoints: checkpoints,
-			HasSamples:  true, // Always true for viewer-discovered runs
+			Name:           name,
+			Checkpoints:    checkpoints,
+			HasSamples:     true, // Always true for viewer-discovered runs
+			TrainingRunDir: meta.trainingRunDir,
+			StudyLabel:     meta.studyLabel,
+			StudyOutputDir: meta.studyOutputDir,
 		})
 	}
 

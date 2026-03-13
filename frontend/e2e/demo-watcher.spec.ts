@@ -13,7 +13,7 @@ import { resetDatabase, selectTrainingRun, selectNaiveOptionByLabel, uninstallDe
  * - S-078 UAT: Demo images render correctly (not broken/404) after the scanner
  *   includes the study name prefix in relative paths.
  *
- * The demo dataset creates a training-run-scoped run "demo-model/demo-study/demo-model"
+ * The demo dataset creates a training-run-scoped run "demo-model"
  * with checkpoint sample directories nested under sample_dir/demo-model/demo-study/.
  * Before this fix, the watcher would try to watch sample_dir/checkpoint.safetensors
  * instead of sample_dir/demo-model/demo-study/checkpoint.safetensors, causing errors.
@@ -38,7 +38,7 @@ test.describe('study-scoped watcher paths (B-042)', () => {
     await page.goto('/')
 
     // Select the study-scoped demo training run
-    await selectTrainingRun(page, 'demo-model/demo-study/demo-model')
+    await selectTrainingRun(page, 'demo-model')
 
     // After selection, the app should scan and show the Dimensions panel.
     // If the watcher failed to resolve the study-scoped paths, the backend
@@ -57,7 +57,7 @@ test.describe('study-scoped watcher paths (B-042)', () => {
     expect(response.ok()).toBeTruthy()
 
     const runs = await response.json()
-    const demoRun = runs.find((r: { name: string }) => r.name === 'demo-model/demo-study/demo-model')
+    const demoRun = runs.find((r: { training_run_dir: string }) => r.training_run_dir === 'demo-model')
     expect(demoRun).toBeDefined()
 
     // The demo run should have 3 checkpoints, all with samples
@@ -76,7 +76,7 @@ test.describe('study-scoped watcher paths (B-042)', () => {
     await page.goto('/')
 
     // Select the demo training run
-    await selectTrainingRun(page, 'demo-model/demo-study/demo-model')
+    await selectTrainingRun(page, 'demo-model')
 
     // Wait for dimension panel (scan complete)
     await expect(page.getByText('Dimensions')).toBeVisible()
@@ -112,7 +112,7 @@ test.describe('study-scoped watcher paths (B-042)', () => {
     const runsResponse = await request.get('/api/training-runs')
     expect(runsResponse.ok()).toBeTruthy()
     const runs = await runsResponse.json()
-    const demoRun = runs.find((r: { name: string }) => r.name === 'demo-model/demo-study/demo-model')
+    const demoRun = runs.find((r: { training_run_dir: string }) => r.training_run_dir === 'demo-model')
     expect(demoRun).toBeDefined()
 
     // Scan the demo run via GET /api/training-runs/{id}/scan
