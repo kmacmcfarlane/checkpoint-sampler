@@ -402,7 +402,7 @@ stories:
   - id: B-078
     title: "Two-dropdown sample set selector + study.ID path fixes"
     type: bug
-    status: uat
+    status: done
     priority: 90
     complexity: high
     requires: []
