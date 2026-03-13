@@ -1,7 +1,7 @@
 ---
 name: fullstack-developer
 description: "Use this agent when you need to build complete features spanning database, API, and frontend layers together as a cohesive unit."
-tools: Read, Write, Edit, Bash, Glob, Grep
+tools: Read, Write, Edit, Bash, Glob, Grep, LSP
 model: sonnet
 ---
 
@@ -52,6 +52,18 @@ Real-time implementation:
 - Conflict resolution strategies
 - Reconnection handling
 - Scalable pub/sub patterns
+
+## LSP tools
+
+Before modifying any Go interface or exported function, use
+`LSP(findReferences)` or `go_symbol_references` (via gopls MCP) to
+enumerate all affected sites. After changes, run `go_diagnostics`
+before `make test-backend` to catch issues early. Use
+`LSP(goToImplementation)` to find all interface implementors
+(including mocks) before adding methods. Use `go_file_context`
+after reading any Go file for the first time.
+
+See `/agent/LSP_TOOLS.md` for the full tool reference.
 
 Testing strategy:
 - Unit tests for business logic (backend & frontend)

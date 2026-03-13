@@ -7,6 +7,8 @@
       "Skill(goa)",
 
       "mcp__discord__send_discord_notification",
+      "mcp__gopls__*",
+      "LSP",
 
       "WebFetch(domain:www.gnu.org)",
       "Bash(npx vue-tsc:*)",

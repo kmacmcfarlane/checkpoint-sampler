@@ -10,6 +10,7 @@ Always read these at the start of each cycle:
 - /agent/AGENT_FLOW.md
 - /agent/TEST_PRACTICES.md
 - /agent/DEVELOPMENT_PRACTICES.md
+- /agent/LSP_TOOLS.md
 - /CHANGELOG.md
 
 The loop prompt is /agent/PROMPT.md. The Ralph runner is `ralph` (via claude-sandbox on PATH).

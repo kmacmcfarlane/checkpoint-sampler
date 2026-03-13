@@ -1,4 +1,4 @@
-.PHONY: claude claude-resume claude-dangerous ralph ralph-resume ralph-auto ralph-auto-resume capture-runtime-context up down logs up-dev down-dev logs-dev gen test-frontend test-frontend-watch test-backend test-backend-watch lint-nginx up-test down-test build-playwright test-e2e test-e2e-logs down-e2e check-e2e-panics lint-e2e-helpers lint-disallowed-chars logs-snapshot
+.PHONY: claude claude-resume claude-dangerous ralph ralph-resume ralph-auto ralph-auto-resume capture-runtime-context up down logs up-dev down-dev logs-dev gen test-frontend test-frontend-watch test-backend test-backend-watch lint-nginx up-test down-test build-playwright test-e2e test-e2e-logs down-e2e check-e2e-panics lint-e2e-helpers lint-disallowed-chars logs-snapshot check-tools
 
 COMPOSE_DEV = docker compose -p checkpoint-sampler-dev -f docker-compose.yml -f docker-compose.dev.yml
 COMPOSE_TEST = docker compose -p checkpoint-sampler-test -f docker-compose.test.yml
@@ -168,6 +168,13 @@ logs-snapshot:
 # the selectTrainingRun helper. Exits non-zero when violations are found.
 lint-e2e-helpers:
 	./scripts/check-e2e-select-helpers.sh
+
+# Check availability of LSP tooling (informational, not a gate).
+check-tools:
+	@echo "=== Tool availability ==="
+	@which gopls >/dev/null 2>&1 && echo "  gopls: $$(gopls version 2>&1 | head -1)" || echo "  gopls: not found"
+	@which typescript-language-server >/dev/null 2>&1 && echo "  ts-lsp: $$(typescript-language-server --version 2>&1)" || echo "  ts-lsp: not found"
+	@echo "=== Done ==="
 
 # Scan source files for string literals that contain characters in the disallowed
 # study-name set (defined in backend/internal/service/study.go).  Run this after

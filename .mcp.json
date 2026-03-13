@@ -7,6 +7,11 @@
       "env": {
         "DISCORD_WEBHOOK_URL": "${DISCORD_WEBHOOK_URL}"
       }
+    },
+    "gopls": {
+      "type": "stdio",
+      "command": "gopls",
+      "args": ["mcp"]
     }
   }
 }
