@@ -3,6 +3,7 @@ import {
   resetDatabase,
   cancelAllJobs,
   selectTrainingRun,
+  selectStudy,
   selectNaiveOptionByLabel,
   closeDrawer,
   openGenerateSamplesDialog,
@@ -37,6 +38,7 @@ import {
 interface SampleJobApiResponse {
   id: string
   study_id: string
+  study_name: string
   training_run_name: string
   status: string
   total_items: number
@@ -358,13 +360,13 @@ test.describe('thumbnail generation — end-to-end (AC1, AC5)', () => {
     const completedJob = await createAndRunJobToCompletion(page, request, studyName)
 
     // Discover all viewer training runs and find the one scoped to this study.
-    // Generated images are saved under {sampleDir}/{training_run}/{study_id}/{checkpoint}/.
-    // The viewer discovery returns these as a run named containing the study_id.
+    // Generated images are saved under {sampleDir}/{training_run}/{study_name}/{checkpoint}/.
+    // The viewer discovery returns these as a run whose name contains the study_name.
     const runsResponse = await request.get('/api/training-runs?source=samples')
     expect(runsResponse.status()).toBe(200)
     const runs = await runsResponse.json() as Array<{ id: number; name: string }>
-    // Find a run whose name contains the study_id — this is the study-scoped training run
-    const studyScopedRun = runs.find(r => r.name.includes(completedJob.study_id))
+    // Find a run whose name contains the study_name — this is the study-scoped training run
+    const studyScopedRun = runs.find(r => r.name.includes(completedJob.study_name))
     expect(studyScopedRun).toBeDefined()
 
     // Scan the study-scoped training run — generated images should have thumbnail_path set
@@ -396,22 +398,24 @@ test.describe('thumbnail generation — end-to-end (AC1, AC5)', () => {
     // Run a full sample generation job and wait for completion
     const completedJob = await createAndRunJobToCompletion(page, request, studyName)
 
-    // Find the study-scoped training run name (contains the study_id).
-    // Generated images live under {sampleDir}/{trainingRunName}/{studyId}/{checkpoint}/,
-    // so the viewer returns a run whose name contains the studyId.
+    // Find the study-scoped training run (contains the study_name).
+    // Generated images live under {sampleDir}/{trainingRunName}/{studyName}/{checkpoint}/,
+    // so the viewer returns a run whose name contains the studyName.
     const runsResponse = await request.get('/api/training-runs?source=samples')
     expect(runsResponse.status()).toBe(200)
-    const runs = await runsResponse.json() as Array<{ id: number; name: string }>
-    const studyScopedRun = runs.find(r => r.name.includes(completedJob.study_id))
+    const runs = await runsResponse.json() as Array<{ id: number; name: string; training_run_dir?: string; study_label?: string }>
+    const studyScopedRun = runs.find(r => r.name.includes(completedJob.study_name))
     expect(studyScopedRun).toBeDefined()
 
-    // The training run selector uses the full run name (including path components) as the
-    // option label. Pass the full name so selectTrainingRun finds the exact option.
-    const runFullName = studyScopedRun!.name
+    // The TrainingRunSelector UI groups runs by training_run_dir in the first dropdown,
+    // and shows study_label in the second dropdown. Select them separately.
+    const trainingRunDir = studyScopedRun!.training_run_dir ?? studyScopedRun!.name
+    const studyLabel = studyScopedRun!.study_label ?? completedJob.study_name
 
     // Reload the page so the grid re-fetches scan data with newly generated thumbnails
     await page.goto('/', { waitUntil: 'networkidle' })
-    await selectTrainingRun(page, runFullName)
+    await selectTrainingRun(page, trainingRunDir)
+    await selectStudy(page, studyLabel)
     await expect(page.getByText('Dimensions')).toBeVisible()
 
     // Set up the grid: checkpoint has 2 values (1000, 2000) → put it on X Axis.

@@ -38,9 +38,10 @@ async function flush() {
   }
 }
 
-const makeImage = (path: string, dims: Record<string, string>): ScanImage => ({
+const makeImage = (path: string, dims: Record<string, string>, thumbnailPath = ''): ScanImage => ({
   relative_path: path,
   dimensions: dims,
+  thumbnail_path: thumbnailPath,
 })
 
 describe('useImagePreloader', () => {
@@ -187,5 +188,77 @@ describe('useImagePreloader', () => {
 
     // All are in visible cells (all combos of seed x step), all slider positions
     expect(preloaded.size).toBe(4)
+  })
+
+  it('uses thumbnail URLs when thumbnail_path is available', async () => {
+    const images = ref<ScanImage[]>([
+      makeImage('a.png', { seed: '42' }, 'thumbs/a.jpg'),
+      makeImage('b.png', { seed: '123' }),
+    ])
+    const xDim = ref<ScanDimension | null>(null)
+    const yDim = ref<ScanDimension | null>(null)
+    const sliderDim = ref<ScanDimension | null>(null)
+    const combos = ref<Record<string, Set<string>>>({})
+
+    const { preloaded } = useImagePreloader(images, xDim, yDim, sliderDim, combos)
+    await flush()
+
+    // Image with thumbnail should preload via thumbnail URL
+    expect(preloaded.has('/api/images/thumbs/a.jpg')).toBe(true)
+    // Image without thumbnail falls back to full-res
+    expect(preloaded.has('/api/images/b.png')).toBe(true)
+    // Full-res URL of image with thumbnail should NOT be preloaded
+    expect(preloaded.has('/api/images/a.png')).toBe(false)
+  })
+
+  it('uses thumbnail URLs for slider-position preloading', async () => {
+    const xDim = ref<ScanDimension>({ name: 'seed', type: 'int', values: ['42'] })
+    const yDim = ref<ScanDimension | null>(null)
+    const sliderDim = ref<ScanDimension>({ name: 'cfg', type: 'int', values: ['3', '7'] })
+    const combos = ref<Record<string, Set<string>>>({})
+
+    const images = ref<ScanImage[]>([
+      makeImage('vis-cfg3.png', { seed: '42', cfg: '3' }, 'thumbs/vis-cfg3.jpg'),
+      makeImage('vis-cfg7.png', { seed: '42', cfg: '7' }, 'thumbs/vis-cfg7.jpg'),
+    ])
+
+    const { preloaded } = useImagePreloader(images, xDim, yDim, sliderDim, combos)
+    await flush()
+
+    expect(preloaded.has('/api/images/thumbs/vis-cfg3.jpg')).toBe(true)
+    expect(preloaded.has('/api/images/thumbs/vis-cfg7.jpg')).toBe(true)
+    // Full-res should not be preloaded
+    expect(preloaded.has('/api/images/vis-cfg3.png')).toBe(false)
+    expect(preloaded.has('/api/images/vis-cfg7.png')).toBe(false)
+  })
+
+  it('preloads horizontal neighbors (+/-3 X-axis positions)', async () => {
+    // 7 X values so we can test the +/-3 radius
+    const xDim = ref<ScanDimension>({
+      name: 'seed',
+      type: 'int',
+      values: ['1', '2', '3', '4', '5', '6', '7'],
+    })
+    const yDim = ref<ScanDimension>({ name: 'step', type: 'int', values: ['100'] })
+    const sliderDim = ref<ScanDimension | null>(null)
+    const combos = ref<Record<string, Set<string>>>({})
+
+    const images = ref<ScanImage[]>(
+      ['1', '2', '3', '4', '5', '6', '7'].map((s) =>
+        makeImage(`s${s}.png`, { seed: s, step: '100' }, `thumbs/s${s}.jpg`),
+      ),
+    )
+
+    const { preloaded } = useImagePreloader(images, xDim, yDim, sliderDim, combos)
+    await flush()
+
+    // All images should be preloaded via thumbnail URLs (they're horizontal neighbors of each other)
+    for (const s of ['1', '2', '3', '4', '5', '6', '7']) {
+      expect(preloaded.has(`/api/images/thumbs/s${s}.jpg`)).toBe(true)
+    }
+    // Full-res should not be preloaded
+    for (const s of ['1', '2', '3', '4', '5', '6', '7']) {
+      expect(preloaded.has(`/api/images/s${s}.png`)).toBe(false)
+    }
   })
 })

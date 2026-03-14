@@ -25,11 +25,11 @@ const sliderDimension: ScanDimension = {
 }
 
 const sampleImages: ScanImage[] = [
-  { relative_path: 'a/seed=42&step=500&cfg=3.png', dimensions: { seed: '42', step: '500', cfg: '3' } },
-  { relative_path: 'a/seed=123&step=500&cfg=3.png', dimensions: { seed: '123', step: '500', cfg: '3' } },
-  { relative_path: 'a/seed=42&step=1000&cfg=3.png', dimensions: { seed: '42', step: '1000', cfg: '3' } },
-  { relative_path: 'a/seed=123&step=1000&cfg=3.png', dimensions: { seed: '123', step: '1000', cfg: '3' } },
-  { relative_path: 'a/seed=42&step=500&cfg=7.png', dimensions: { seed: '42', step: '500', cfg: '7' } },
+  { relative_path: 'a/seed=42&step=500&cfg=3.png', dimensions: { seed: '42', step: '500', cfg: '3' }, thumbnail_path: '' },
+  { relative_path: 'a/seed=123&step=500&cfg=3.png', dimensions: { seed: '123', step: '500', cfg: '3' }, thumbnail_path: '' },
+  { relative_path: 'a/seed=42&step=1000&cfg=3.png', dimensions: { seed: '42', step: '1000', cfg: '3' }, thumbnail_path: '' },
+  { relative_path: 'a/seed=123&step=1000&cfg=3.png', dimensions: { seed: '123', step: '1000', cfg: '3' }, thumbnail_path: '' },
+  { relative_path: 'a/seed=42&step=500&cfg=7.png', dimensions: { seed: '42', step: '500', cfg: '7' }, thumbnail_path: '' },
 ]
 
 function mountGrid(overrides: Record<string, unknown> = {}) {
@@ -495,7 +495,7 @@ describe('XYGrid', () => {
       const singleX: ScanDimension = { name: 'seed', type: 'int', values: ['42'] }
       const singleY: ScanDimension = { name: 'step', type: 'int', values: ['500'] }
       const images: ScanImage[] = [
-        { relative_path: 'a/seed=42&step=500.png', dimensions: { seed: '42', step: '500' } },
+        { relative_path: 'a/seed=42&step=500.png', dimensions: { seed: '42', step: '500' }, thumbnail_path: '' },
       ]
       const wrapper = mountGrid({ xDimension: singleX, yDimension: singleY, images })
 
@@ -513,9 +513,9 @@ describe('XYGrid', () => {
       const singleX: ScanDimension = { name: 'seed', type: 'int', values: ['42'] }
       const threeY: ScanDimension = { name: 'step', type: 'int', values: ['100', '200', '300'] }
       const images: ScanImage[] = [
-        { relative_path: 'a/seed=42&step=100.png', dimensions: { seed: '42', step: '100' } },
-        { relative_path: 'a/seed=42&step=200.png', dimensions: { seed: '42', step: '200' } },
-        { relative_path: 'a/seed=42&step=300.png', dimensions: { seed: '42', step: '300' } },
+        { relative_path: 'a/seed=42&step=100.png', dimensions: { seed: '42', step: '100' }, thumbnail_path: '' },
+        { relative_path: 'a/seed=42&step=200.png', dimensions: { seed: '42', step: '200' }, thumbnail_path: '' },
+        { relative_path: 'a/seed=42&step=300.png', dimensions: { seed: '42', step: '300' }, thumbnail_path: '' },
       ]
       const wrapper = mountGrid({ xDimension: singleX, yDimension: threeY, images })
 
@@ -532,9 +532,9 @@ describe('XYGrid', () => {
       const threeX: ScanDimension = { name: 'seed', type: 'int', values: ['42', '123', '456'] }
       const singleY: ScanDimension = { name: 'step', type: 'int', values: ['500'] }
       const images: ScanImage[] = [
-        { relative_path: 'a/seed=42&step=500.png', dimensions: { seed: '42', step: '500' } },
-        { relative_path: 'a/seed=123&step=500.png', dimensions: { seed: '123', step: '500' } },
-        { relative_path: 'a/seed=456&step=500.png', dimensions: { seed: '456', step: '500' } },
+        { relative_path: 'a/seed=42&step=500.png', dimensions: { seed: '42', step: '500' }, thumbnail_path: '' },
+        { relative_path: 'a/seed=123&step=500.png', dimensions: { seed: '123', step: '500' }, thumbnail_path: '' },
+        { relative_path: 'a/seed=456&step=500.png', dimensions: { seed: '456', step: '500' }, thumbnail_path: '' },
       ]
       const wrapper = mountGrid({ xDimension: threeX, yDimension: singleY, images })
 
@@ -982,8 +982,8 @@ describe('XYGrid', () => {
 
     it('includes debugInfo in X-only GridNavItems when debug mode is on', async () => {
       const xOnlyImages: ScanImage[] = [
-        { relative_path: 'a/seed=42&cfg=3.png', dimensions: { seed: '42', cfg: '3' } },
-        { relative_path: 'a/seed=123&cfg=3.png', dimensions: { seed: '123', cfg: '3' } },
+        { relative_path: 'a/seed=42&cfg=3.png', dimensions: { seed: '42', cfg: '3' }, thumbnail_path: '' },
+        { relative_path: 'a/seed=123&cfg=3.png', dimensions: { seed: '123', cfg: '3' }, thumbnail_path: '' },
       ]
       const wrapper = mountGrid({ yDimension: null, images: xOnlyImages, debugMode: true })
 
@@ -1006,8 +1006,8 @@ describe('XYGrid', () => {
 
     it('includes debugInfo in Y-only GridNavItems when debug mode is on', async () => {
       const yOnlyImages: ScanImage[] = [
-        { relative_path: 'a/step=500&cfg=3.png', dimensions: { step: '500', cfg: '3' } },
-        { relative_path: 'a/step=1000&cfg=3.png', dimensions: { step: '1000', cfg: '3' } },
+        { relative_path: 'a/step=500&cfg=3.png', dimensions: { step: '500', cfg: '3' }, thumbnail_path: '' },
+        { relative_path: 'a/step=1000&cfg=3.png', dimensions: { step: '1000', cfg: '3' }, thumbnail_path: '' },
       ]
       const wrapper = mountGrid({ xDimension: null, images: yOnlyImages, debugMode: true })
 
@@ -1030,7 +1030,7 @@ describe('XYGrid', () => {
 
     it('includes debugInfo in flat-mode GridNavItems when debug mode is on', async () => {
       const flatImages: ScanImage[] = [
-        { relative_path: 'a/img1.png', dimensions: { cfg: '3' } },
+        { relative_path: 'a/img1.png', dimensions: { cfg: '3' }, thumbnail_path: '' },
       ]
       const wrapper = mountGrid({ xDimension: null, yDimension: null, images: flatImages, debugMode: true })
 

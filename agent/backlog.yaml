@@ -424,7 +424,7 @@ stories:
   - id: S-114
     title: "Pre-generate JPEG thumbnails for sample images"
     type: enhancement
-    status: uat_feedback
+    status: uat
     priority: 50
     complexity: medium
     requires: []
@@ -447,9 +447,6 @@ stories:
       - "Verify thumbnails are generated at correct resolution and quality"
       - "Test with thumbnail generation disabled — no thumbnails created, full-res served everywhere"
       - "Verify cache behavior improvement with 6x3 grid scrolling through checkpoints"
-    review_feedback: 'Thumbnails are generated on the backend, but the frontend is still loading full PNGs into the X/Y grid.
-      Expected behavior: load JPEG thumbnails in the grid view, switch to full PNG on click (lightbox), and pre-load the next
-      3 images in both horizontal directions in that row.'
   - id: S-116
     title: "Training run and study status beads in Generate Samples"
     type: enhancement
@@ -911,3 +908,25 @@ stories:
       - "command: make test-e2e SPEC=dimension-filtering.spec.ts"
     notes: |-
       Closed as not reproducible. Tests pass reliably across 3 consecutive runs. The flakiness was likely caused by the same timing issues fixed by B-089 (savePresetViaDialog race condition) and B-091 (preset dirty tracking timing).
+  - id: B-097
+    title: "21 E2E tests fail expecting 'Sample Set' label and two-dropdown training run selector"
+    priority: 60
+    status: todo
+    complexity: medium
+    requires: []
+    acceptance:
+      - "All 21 failing E2E tests pass after aligning either the UI label or the test expectations with current implementation"
+      - "viewer-discovery.spec.ts passes: sidebar training run selector shows correct label"
+      - "on-demand-validation.spec.ts passes: sidebar label matches current UI"
+      - "training-run-grid.spec.ts, preset-crud.spec.ts, regen-confirmation.spec.ts, sample-count-preview.spec.ts, sample-generation.spec.ts,
+        seed-partial-samples.spec.ts all pass"
+    testing:
+      - "command: make test-e2e"
+    notes: |
+      Pre-existing E2E regression across 11 spec files (21 tests). Tests expect a UI label
+      rename "Training Run" → "Sample Set" and a two-dropdown cascade selector pattern that
+      does not match the current UI. Root cause: tests were written for a version of the UI
+      that was reverted or not fully deployed. Affected specs: viewer-discovery, on-demand-validation,
+      training-run-grid, demo-settings, generate-samples-beads, narrow-screen-eager-select,
+      preset-crud, regen-confirmation, sample-count-preview, sample-generation, seed-partial-samples.
+      Error: `element(s) not found — Locator: getByText('Sample Set', { exact: true })`.

@@ -181,9 +181,9 @@ Older entries are condensed to titles only — see git history for full details.
 - New `dualBeadStatus.ts` composable with pure functions for bead state computation; existing Jobs nav button bead (`beadStatus.ts`) unchanged
 
 ### S-114: Pre-generate JPEG thumbnails for sample images (UAT rework)
-- Fixed corrupt IDAT CRC in ComfyUI mock PNG that silently prevented thumbnail generation; Go's `image.Decode` now succeeds on mock output
-- Added unit tests for thumbnail generation in job executor and scanner thumbnail path population
-- E2E tests verify end-to-end thumbnail generation and grid thumbnail URL usage
+- Frontend image preloader now downloads JPEG thumbnails instead of full-res PNGs for grid display; full-res images served only in lightbox
+- Added +/-3 horizontal neighbor preloading for smoother grid scrolling
+- Slider position maps (`getImagesBySliderValue`) prefer thumbnail URLs when available
 
 ### S-111: Test seed endpoint for sample jobs (E2E testing infra)
 - New `POST /api/test/seed-jobs` endpoint (gated on `ENABLE_TEST_ENDPOINTS=true`) creates sample jobs with specified statuses, enabling E2E testing of job-related UI without requiring ComfyUI
