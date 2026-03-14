@@ -334,7 +334,7 @@ stories:
   - id: S-118
     title: "Lightbox grid position indicator"
     priority: 45
-    status: uat_feedback
+    status: uat
     complexity: low
     requires: []
     acceptance:
@@ -350,8 +350,6 @@ stories:
     testing:
       - "Verify position indicator updates correctly when navigating with Shift+Arrow"
       - "Verify indicator handles edge cases (first/last cell in grid)"
-    review_feedback: Grid position indicator is not visible in the lightbox view. The indicator should show current 
-      position during Shift+Arrow navigation.
   - id: S-120
     title: "Filters drawer width configurable or auto-sized"
     priority: 15

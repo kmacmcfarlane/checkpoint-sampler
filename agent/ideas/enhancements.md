@@ -116,6 +116,12 @@ When validation has run and overrides the bead status, the tooltip could show im
 * source: developer
 The `checkpoint_filenames` field is currently only available via the REST API. If a user opens the job panel while a job is already running and only receives WebSocket updates, they would not see the filenames until a REST refresh. Adding `checkpoint_filenames` to the `JobProgressMessage` WS event would keep the UI fully up-to-date without polling.
 
+### Grid coordinate display in position indicator
+* status: needs_approval
+* priority: low
+* source: developer
+Instead of just "3 / 12" (flat index), show the current X/Y axis values (e.g., "cfg=7.5 · seed=420") so users know their exact position in the parameter space at a glance. Requires threading X/Y label data through GridNavItem.
+
 ### Frontend WebSocket reconnect awareness after ping failure
 * status: needs_approval
 * priority: low
