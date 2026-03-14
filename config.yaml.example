@@ -44,3 +44,4 @@ db_path: ./data/checkpoint-sampler.db
 # comfyui:
 #   url: http://localhost:8188
 #   workflow_dir: ./workflows
+#   reconnect_interval: 10  # Seconds between WebSocket reconnect attempts (default: 10)
