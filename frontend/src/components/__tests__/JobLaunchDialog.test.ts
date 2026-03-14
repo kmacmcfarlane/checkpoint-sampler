@@ -3299,8 +3299,8 @@ describe('JobLaunchDialog', () => {
       expect(beadSpan.props?.title).toBe('3/5 checkpoints have samples')
     })
 
-    it('red bead (failed) keeps "failed" title regardless of checkpoint counts', async () => {
-      // AC: For red bead (failed), counts don't apply
+    it('red bead (failed) shows checkpoint counts in title when available', async () => {
+      // AC: All colored beads (blue, green, yellow, red) should show checkpoint counts
       const wrapper = mount(JobLaunchDialog, {
         props: { show: true },
         global: { stubs: { Teleport: true } },
@@ -3321,11 +3321,11 @@ describe('JobLaunchDialog', () => {
       const children = (vnode as { children?: unknown[] }).children as unknown[]
       expect(children).toHaveLength(2)
       const beadSpan = children[0] as { props?: { title?: string } }
-      expect(beadSpan.props?.title).toBe('failed')
+      expect(beadSpan.props?.title).toBe('failed — 2/5 checkpoints have samples')
     })
 
-    it('blue bead (running) keeps "running" title regardless of checkpoint counts', async () => {
-      // AC: For blue bead (running), counts don't apply
+    it('blue bead (running) shows checkpoint counts in title when available', async () => {
+      // AC: All colored beads (blue, green, yellow, red) should show checkpoint counts
       const wrapper = mount(JobLaunchDialog, {
         props: { show: true },
         global: { stubs: { Teleport: true } },
@@ -3346,7 +3346,7 @@ describe('JobLaunchDialog', () => {
       const children = (vnode as { children?: unknown[] }).children as unknown[]
       expect(children).toHaveLength(2)
       const beadSpan = children[0] as { props?: { title?: string } }
-      expect(beadSpan.props?.title).toBe('running')
+      expect(beadSpan.props?.title).toBe('running — 1/5 checkpoints have samples')
     })
 
     it('falls back to generic titles when checkpoint counts are not available', async () => {
@@ -3381,6 +3381,28 @@ describe('JobLaunchDialog', () => {
       })
       const yellowBead = ((vnodePartial as { children?: unknown[] }).children as unknown[])[0] as { props?: { title?: string } }
       expect(yellowBead.props?.title).toBe('incomplete')
+
+      // Running status but no _checkpointCounts — should fall back to "running"
+      const vnodeRunning = renderLabel({
+        label: 'Running Study',
+        value: 's4',
+        _sampleStatus: 'running',
+        _dualBead: { activity: 'blue', problem: null },
+        _checkpointCounts: null,
+      })
+      const blueBead = ((vnodeRunning as { children?: unknown[] }).children as unknown[])[0] as { props?: { title?: string } }
+      expect(blueBead.props?.title).toBe('running')
+
+      // Failed status but no _checkpointCounts — should fall back to "failed"
+      const vnodeFailed = renderLabel({
+        label: 'Failed Study',
+        value: 's3',
+        _sampleStatus: 'failed',
+        _dualBead: { activity: null, problem: 'red' },
+        _checkpointCounts: null,
+      })
+      const redBead = ((vnodeFailed as { children?: unknown[] }).children as unknown[])[0] as { props?: { title?: string } }
+      expect(redBead.props?.title).toBe('failed')
     })
 
     it('study options include _checkpointCounts from availability data', async () => {

@@ -479,9 +479,10 @@ test.describe('Generate Samples dual beads (S-116)', () => {
     // (failed job → problem=red regardless of sampleStatus)
     const studyOption = studyPopup.locator('.n-base-select-option').filter({ hasText: new RegExp('Bead Study Failed') })
     const problemBead = studyOption.locator('[data-testid="study-bead-problem"]')
-    // AC: Red bead = failed job with missing samples
+    // AC: Red bead = failed job; tooltip shows checkpoint counts when available, e.g. "failed — 0/2 checkpoints have samples"
     await expect(problemBead).toBeVisible()
-    await expect(problemBead).toHaveAttribute('title', 'failed')
+    const redTitle = await problemBead.getAttribute('title')
+    expect(redTitle).toMatch(/^failed( — \d+\/\d+ checkpoints have samples)?$/)
 
     await page.keyboard.press('Escape')
   })
@@ -524,9 +525,10 @@ test.describe('Generate Samples dual beads (S-116)', () => {
     // The study with a running job should show a blue activity bead
     const studyOption = studyPopup.locator('.n-base-select-option').filter({ hasText: new RegExp('Bead Study Blue') })
     const activityBead = studyOption.locator('[data-testid="study-bead-activity"]')
-    // AC: Blue bead = running job for selected sample set
+    // AC: Blue bead = running job; tooltip shows checkpoint counts when available, e.g. "running — 0/2 checkpoints have samples"
     await expect(activityBead).toBeVisible()
-    await expect(activityBead).toHaveAttribute('title', 'running')
+    const blueTitle = await activityBead.getAttribute('title')
+    expect(blueTitle).toMatch(/^running( — \d+\/\d+ checkpoints have samples)?$/)
 
     await page.keyboard.press('Escape')
   })

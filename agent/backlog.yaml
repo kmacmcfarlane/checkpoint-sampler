@@ -66,7 +66,7 @@ stories:
   - id: S-105
     title: "Tooltip on study bead showing checkpoint counts"
     priority: 30
-    status: uat_feedback
+    status: uat
     complexity: low
     requires: []
     acceptance:
@@ -80,8 +80,6 @@ stories:
       have samples" for partial status to give the user more information without cluttering
       the dropdown label.
       Source: developer.
-    review_feedback: All colored beads (blue, green, yellow, red) should show checkpoint counts in the tooltip, not just
-      green beads.
   - id: S-106
     title: "Integrate ConfirmDeleteDialog into StudyEditor delete flow"
     priority: 45

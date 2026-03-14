@@ -155,7 +155,7 @@ Older entries are condensed to titles only — see git history for full details.
 - `ConfirmDeleteDialog` accepts an optional `confirmLabel` prop to customize the confirm button text, enabling reuse for non-delete confirmations (e.g., regeneration dialogs)
 
 ### S-105: Tooltip on study bead showing checkpoint counts (UAT rework)
-- Fixed study availability path: `GetAvailability()` now uses B-078 directory layout (`{sanitized_run_name}/{study_id}`) instead of the old `{study_name}` path, fixing checkpoint counts always showing 0/N
+- All four bead colors (blue, green, yellow, red) now show checkpoint counts in their tooltip; blue/red use format "running — 3/5 checkpoints have samples"
 
 ### S-110: Resume completed_with_errors jobs (retry failed items)
 - New `POST /api/sample-jobs/{id}/retry-failed` endpoint resets failed/skipped items to pending and resumes execution; guards against concurrent running jobs and non-`completed_with_errors` state

@@ -508,7 +508,9 @@ const renderStudyLabel: SelectRenderLabel = (option) => {
   if (dualBead) {
     // Slot 1: activity bead (blue/green)
     if (dualBead.activity === 'blue') {
-      children.push(renderBeadSpan(DUAL_BEAD_COLORS.blue, 'running', 'study-bead-activity'))
+      // Running: show checkpoint counts if available, e.g. "running — 3/5 checkpoints have samples"
+      const blueTitle = checkpointCountTitle ? `running — ${checkpointCountTitle}` : 'running'
+      children.push(renderBeadSpan(DUAL_BEAD_COLORS.blue, blueTitle, 'study-bead-activity'))
     } else if (dualBead.activity === 'green') {
       // Complete: show checkpoint counts in title (e.g. "5/5 checkpoints have samples")
       children.push(renderBeadSpan(DUAL_BEAD_COLORS.green, checkpointCountTitle ?? 'complete', 'study-bead-activity'))
@@ -516,7 +518,9 @@ const renderStudyLabel: SelectRenderLabel = (option) => {
 
     // Slot 2: problem bead (red/yellow)
     if (dualBead.problem === 'red') {
-      children.push(renderBeadSpan(DUAL_BEAD_COLORS.red, 'failed', 'study-bead-problem'))
+      // Failed: show checkpoint counts if available, e.g. "failed — 3/5 checkpoints have samples"
+      const redTitle = checkpointCountTitle ? `failed — ${checkpointCountTitle}` : 'failed'
+      children.push(renderBeadSpan(DUAL_BEAD_COLORS.red, redTitle, 'study-bead-problem'))
     } else if (dualBead.problem === 'yellow') {
       // Partial: show checkpoint counts in title (e.g. "3/5 checkpoints have samples")
       children.push(renderBeadSpan(DUAL_BEAD_COLORS.yellow, checkpointCountTitle ?? 'incomplete', 'study-bead-problem'))
