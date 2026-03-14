@@ -4281,3 +4281,270 @@ stories:
     testing:
       - "Verify ping frames are sent at configured interval"
       - "Verify idle connections remain open through proxy timeouts"
+  - id: B-060
+    title: "Drawer open/close resets dirty dimension mappings; axis role assignment should swap instead of block"
+    priority: 80
+    complexity: medium
+    status: done
+    requires: []
+    acceptance:
+      - "Opening and closing the left-side drawer does not reset dimension mappings that the user has modified since the last
+        preset load/save"
+      - "Assigning X/Y/Slider to a dimension that is already assigned to another dimension swaps the roles between the two
+        dimensions instead of hiding the option"
+      - "Existing E2E tests continue to pass"
+    testing:
+      - "command: make test-frontend"
+      - "command: make test-e2e"
+    notes: |
+      Two related UX issues in dimension mapping:
+      1. Drawer toggle reloads preset mappings, discarding user edits. The drawer should preserve in-memory dirty state.
+      2. S-089 unified selector hides axis options already held by another dimension (mutual exclusion). Instead, selecting an already-assigned axis role should swap — the old holder gets the new dimension's previous role.
+  - id: B-078
+    title: "Two-dropdown sample set selector + study.ID path fixes"
+    type: bug
+    status: done
+    priority: 90
+    complexity: high
+    requires: []
+    notes: |-
+      Split single Sample Set dropdown into two cascading dropdowns (Training Run → Study). Fixed study.ID→study.Name path bugs in study_availability.go and training_runs.go. Added TrainingRunDir/StudyLabel/StudyOutputDir decomposed fields to model, populated in viewer discovery, exposed via API. Frontend persists per-training-run study selection to localStorage. E2E helpers updated.
+    acceptance:
+      - "BE: Restructure sample output dirs to [outputs_dir]/[training_run_name]/[study_id]/[checkpoint]/"
+      - "BE: Place manifest.json at the [outputs_dir]/[training_run_name]/[study_id]/ level"
+      - "BE: Checkpoint validation status only shows checkpoints from the selected training run"
+      - "BE: Checkpoint validation status only shows sample counts from the selected study"
+      - "BE: Update demo fixture directory structure to match new layout"
+      - "FE: Update any frontend paths that reference sample locations"
+      - "E2E: Verify validation counts are correct for multi-training-run, multi-study scenarios"
+      - "DOC: Update filesystem.md with new directory structure"
+    testing:
+      - "Key edge cases: training run with no samples for a study, study with samples across multiple training runs, demo
+        checkpoints should not appear for non-demo training runs"
+      - "Verify that the 36/1 and 8/1 count bugs from the report are resolved"
+  - id: S-114
+    title: "Pre-generate JPEG thumbnails for sample images"
+    type: enhancement
+    status: done
+    priority: 50
+    complexity: medium
+    requires: []
+    notes: |
+      Browser disk cache evicts large sample images (3-4MB each) when scrolling through many
+      checkpoints, causing cache misses. Pre-generate JPEG thumbnails at sample creation time.
+      Thumbnail settings (max_resolution_x, max_resolution_y, jpeg_quality) configurable in
+      config.yaml. Thumbnail generation is optional (disabled by default or via config flag).
+      Thumbnails stored in a subdirectory within each checkpoint's sample directory. Frontend
+      serves thumbnails in grid view, full-res images in lightbox.
+    acceptance:
+      - "BE: Generate JPEG thumbnails during sample creation when enabled in config"
+      - "BE: Thumbnail settings (max_resolution_x, max_resolution_y, jpeg_quality) in config.yaml"
+      - "BE: Thumbnails stored in subdir of each checkpoint's sample directory"
+      - "BE: Thumbnail generation is optional via config flag"
+      - "FE: Grid view serves thumbnails instead of full-res images when available"
+      - "FE: Lightbox continues to serve full-resolution images"
+      - "DOC: Update config.yaml example with thumbnail settings"
+    testing:
+      - "Verify thumbnails are generated at correct resolution and quality"
+      - "Test with thumbnail generation disabled — no thumbnails created, full-res served everywhere"
+      - "Verify cache behavior improvement with 6x3 grid scrolling through checkpoints"
+  - id: S-102
+    title: "Show full sample params for currently generating sample in job list"
+    priority: 40
+    status: done
+    complexity: medium
+    requires: []
+    acceptance:
+      - "FE: Job progress panel shows the full generation parameters for the currently generating sample"
+      - "FE: Parameters displayed include checkpoint name, CFG, steps, sampler, and other study params"
+      - "BE: WebSocket progress events include or reference the current sample's generation parameters"
+      - "FE: Parameters update as the job progresses to the next sample"
+      - "FE: Unit tests for parameter display during active generation"
+    testing:
+      - "Trigger a generation job and verify all sample params are visible in the job card"
+      - "Check WebSocket events include necessary param data"
+    notes: |
+      Enhancement: The job list should include the full sample generation parameters for the
+      currently generating sample, so the user can see what's being generated without opening
+      the job detail view. Includes checkpoint name, CFG, steps, sampler, etc.
+      Key files: frontend/src/components/JobProgressPanel.vue,
+      backend/internal/service/websocket.go (if params need to be added to progress events).
+  - id: S-098
+    title: ETA per sample and per job (moving average)
+    type: feature
+    status: done
+    priority: 25
+    complexity: medium
+    requires: []
+    notes: |
+      Add estimated time of arrival for individual samples and overall job completion.
+      Uses a moving average of recent sample generation times to calculate ETA.
+      Key files: backend/internal/service/comfyui_executor.go (timing data),
+      backend/internal/service/websocket.go (ETA in progress events),
+      frontend/src/components/JobProgressPanel.vue (ETA display).
+    acceptance:
+      - "BE: Track per-sample generation time and compute moving average"
+      - "BE: Include per-sample ETA and per-job ETA in WebSocket progress events"
+      - "FE: JobProgressPanel displays ETA for the current sample being generated"
+      - "FE: JobProgressPanel displays overall job ETA based on remaining samples and moving average"
+      - "FE: ETA updates as each sample completes and the average adjusts"
+      - "BE: Unit tests for moving average calculation"
+      - "FE: Unit tests for ETA display"
+    testing:
+      - "Test ETA accuracy improves after several samples (moving average stabilizes)"
+      - "Test ETA display with varying sample generation times"
+      - "Test edge case: first sample has no prior average to work with"
+  - id: S-122
+    title: "Restrict Delete button to non-running jobs; require stop-then-delete flow"
+    priority: 25
+    status: done
+    complexity: low
+    requires: []
+    acceptance:
+      - "FE: Delete button is hidden when job status is running"
+      - "FE: User must stop a running job before deleting it"
+      - "FE: Delete button remains visible for all other job statuses"
+      - "FE: Unit tests for Delete button visibility based on job status"
+    notes: |
+      Currently the Delete button shows on running jobs, which could lead to data
+      inconsistency if the executor is mid-write when the DB record is removed. Hide
+      Delete when status is running to enforce a stop-then-delete flow.
+      Source: developer.
+    testing:
+      - "Verify Delete button not shown for running jobs"
+      - "Verify stop-then-delete flow works end to end"
+  - id: S-123
+    title: "Display individual checkpoint filenames in job parameters panel"
+    priority: 25
+    status: done
+    complexity: medium
+    requires: []
+    acceptance:
+      - "BE: Store list of checkpoint filenames selected at job creation in the database"
+      - "BE: SampleJob API response includes checkpoint filename list"
+      - "BE: DB schema migration adds checkpoint filenames field to sample_jobs table"
+      - "FE: Job parameter detail panel displays individual checkpoint names"
+      - "FE: Unit tests for checkpoint filename display"
+      - "BE: Unit tests for checkpoint filename storage and retrieval"
+    notes: |
+      The SampleJob API response does not currently include the list of checkpoint filenames
+      selected at job creation. Storing and returning this list would make the job parameter
+      detail panel richer (show individual checkpoint names instead of just a count).
+      Source: developer.
+    testing:
+      - "Verify checkpoint names are stored at job creation and returned in API"
+      - "Verify UI displays individual names, not just count"
+  - id: S-125
+    title: "Separate display ordering from processing ordering for ListSampleJobs"
+    priority: 25
+    status: done
+    complexity: low
+    requires:
+      - B-071
+    acceptance:
+      - "BE: UI-facing job list returns jobs newest-first (created_at DESC)"
+      - "BE: Executor job pickup uses oldest-first (created_at ASC) for FIFO"
+      - "BE: Separate queries or ORDER BY parameter distinguishes the two use cases"
+      - "BE: Unit tests for both ordering behaviors"
+    notes: |
+      The ListSampleJobs() function is used for both UI display (should be newest-first
+      for better UX) and job executor pickup (must be oldest-first for FIFO). Splitting
+      into two queries or adding an ORDER BY parameter would make intent clearer.
+      Source: developer.
+    testing:
+      - "Verify UI list shows newest first"
+      - "Verify executor picks up oldest pending job first"
+  - id: S-124
+    title: "Configurable ComfyUI reconnect interval"
+    priority: 25
+    status: done
+    complexity: low
+    requires:
+      - B-073
+    acceptance:
+      - "BE: ComfyUI WebSocket reconnect interval is configurable via config.yaml"
+      - "BE: Default interval remains 10 seconds when not configured"
+      - "BE: Unit tests for configurable reconnect interval"
+      - "DOC: Update config.yaml example with reconnect interval setting"
+    notes: |
+      The 10-second reconnect ticker for the ComfyUI WebSocket connection is hardcoded.
+      Exposing it as a config parameter would allow tuning for environments with slower
+      ComfyUI startup.
+      Source: developer.
+    testing:
+      - "Verify custom interval is respected when configured"
+      - "Verify default 10s interval when not configured"
+  - id: S-109
+    title: "Keyboard navigation help overlay in lightbox"
+    priority: 25
+    status: done
+    complexity: low
+    requires: []
+    acceptance:
+      - "FE: Lightbox includes a keyboard shortcuts tooltip or help panel"
+      - "FE: Lists all shortcuts (Escape, Shift+Arrow for grid nav, plain Arrow for slider)"
+      - "FE: Help is unobtrusive and dismissible"
+      - "FE: Unit tests for help overlay visibility"
+    testing:
+      - "Open lightbox and verify help overlay lists all shortcuts"
+    notes: |
+      Add a "Keyboard shortcuts" tooltip or help panel in the lightbox listing all shortcuts
+      (Escape, Shift+Arrow for grid nav, plain Arrow for slider). Makes keyboard navigation
+      more discoverable.
+      Source: developer.
+      Key files: frontend/src/components/ImageLightbox.vue.
+  - id: S-119
+    title: "Per-model-type workflow restore on training run change"
+    priority: 25
+    status: done
+    complexity: low
+    requires: []
+    acceptance:
+      - "FE: Per-model-type workflow is speculatively applied when model type is already cached"
+      - "FE: Behavior is unchanged when model type is not cached (waits for metadata fetch)"
+      - "FE: Unit tests for speculative workflow application from cache"
+    notes: |
+      Currently restoreModelInputs is called when the training run changes (after metadata
+      fetch). If the user opens the dialog and the training run is already known (from restore),
+      the per-model-type workflow won't be applied until after the metadata loads. Speculatively
+      apply the per-model-type workflow earlier if the model type is already cached from a
+      previous session.
+      Source: developer.
+    testing:
+      - "Verify cached model type triggers early workflow application"
+      - "Verify non-cached path still works correctly after metadata fetch"
+  - id: S-103
+    title: "Expose more sidecar fields as numeric in metadata API"
+    priority: 15
+    status: done
+    complexity: low
+    requires: []
+    acceptance:
+      - "BE: Fields like width, height, and index are returned as NumericFields in the sidecar metadata parser"
+      - "BE: Expanded numericSidecarFields set based on observed sidecar field conventions"
+      - "BE: Unit tests for new numeric field routing"
+    testing:
+      - "Query metadata API and verify width/height/index appear in NumericFields"
+    notes: |
+      Currently only seed, steps, and cfg are routed to NumericFields in the sidecar metadata
+      parser. Fields like width, height, and index are also numeric in practice but are returned
+      as strings. Expand the numericSidecarFields set.
+      Source: developer.
+  - id: S-104
+    title: "Rename preset inline"
+    priority: 15
+    status: done
+    complexity: low
+    requires: []
+    acceptance:
+      - "FE: Inline rename affordance on the preset name field"
+      - "FE: Renaming updates the preset without requiring Save-As"
+      - "FE: Unit tests for inline rename flow"
+    testing:
+      - "Click rename, change name, verify preset is updated without creating a duplicate"
+    notes: |
+      The Update button updates the mapping but reuses the existing name. A small "Rename"
+      affordance (inline edit on the name field) would let users change names without the
+      Save-As prompt.
+      Source: developer.
+      Key files: frontend/src/components/PresetSelector.vue.
