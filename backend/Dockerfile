@@ -7,7 +7,8 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 RUN go generate ./internal/api/...
-RUN go build -o server ./cmd/server
+ARG COMMIT_SHA=unknown
+RUN go build -ldflags "-X github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/buildinfo.CommitSHA=${COMMIT_SHA}" -o server ./cmd/server
 
 FROM alpine:3.21
 WORKDIR /app

@@ -27,4 +27,5 @@ type SidecarMetadata struct {
 	WorkflowName   string  `json:"workflow_name"`
 	JobID          string  `json:"job_id"`
 	Timestamp      string  `json:"timestamp"` // RFC3339 UTC
+	CommitSHA      string  `json:"commit_sha,omitempty"`
 }

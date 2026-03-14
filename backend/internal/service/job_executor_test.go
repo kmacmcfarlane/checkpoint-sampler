@@ -2640,6 +2640,7 @@ var _ = Describe("JobExecutor", func() {
 			Expect(meta.WorkflowName).To(Equal("flux_dev.json"))
 			Expect(meta.JobID).To(Equal("job-sidecar-1"))
 			Expect(meta.Timestamp).NotTo(BeEmpty())
+			Expect(meta.CommitSHA).To(Equal("unknown"))
 		})
 
 		It("uses atomic write: writes to temp file first then renames", func() {
@@ -3084,10 +3085,10 @@ var _ = Describe("JobExecutor", func() {
 			mockStore.items[job.ID] = items
 
 			// Set up filesystem mock so completeness check succeeds
-			// Path uses new layout: {sampleDir}/{trainingRunName}/{studyID}/{checkpoint}/
+			// Path uses new layout: {sampleDir}/{trainingRunName}/{studyName}/{checkpoint}/
 			file1 := executor.generateOutputFilename(items[0])
 			file2 := executor.generateOutputFilename(items[1])
-			checkpointDir := "/test/samples/test-model/study-broadcast/ckpt1.safetensors"
+			checkpointDir := "/test/samples/test-model/TestStudy/ckpt1.safetensors"
 			mockFSRead.dirs[checkpointDir] = true
 			mockFSRead.files[checkpointDir] = []string{file1, file2}
 
@@ -3433,8 +3434,8 @@ var _ = Describe("JobExecutor", func() {
 			err := executor.writeManifest(job, items)
 			Expect(err).NotTo(HaveOccurred())
 
-			// Manifest should be at {sampleDir}/{trainingRunName}/{studyID}/manifest.json
-			manifestPath := "/test/samples/my-model/study-manifest-1/manifest.json"
+			// Manifest should be at {sampleDir}/{trainingRunName}/{studyName}/manifest.json
+			manifestPath := "/test/samples/my-model/Manifest Study/manifest.json"
 			Expect(mockFS.writtenFiles).To(HaveKey(manifestPath))
 		})
 
@@ -3443,7 +3444,7 @@ var _ = Describe("JobExecutor", func() {
 			err := executor.writeManifest(job, items)
 			Expect(err).NotTo(HaveOccurred())
 
-			manifestPath := "/test/samples/my-model/study-manifest-1/manifest.json"
+			manifestPath := "/test/samples/my-model/Manifest Study/manifest.json"
 			data, ok := mockFS.writtenFiles[manifestPath]
 			Expect(ok).To(BeTrue())
 
@@ -3457,6 +3458,7 @@ var _ = Describe("JobExecutor", func() {
 			Expect(manifest.VAE).To(Equal("ae.safetensors"))
 			Expect(manifest.CLIP).To(Equal("clip_l.safetensors"))
 			Expect(manifest.Shift).To(Equal(&shift))
+			Expect(manifest.CommitSHA).To(Equal("unknown"))
 
 			// Study config snapshot
 			Expect(manifest.StudyID).To(Equal("study-manifest-1"))
@@ -3486,7 +3488,7 @@ var _ = Describe("JobExecutor", func() {
 			err := executor.writeManifest(job, items)
 			Expect(err).NotTo(HaveOccurred())
 
-			manifestPath := "/test/samples/my-model/study-manifest-1/manifest.json"
+			manifestPath := "/test/samples/my-model/Manifest Study/manifest.json"
 			tempPath := manifestPath + ".tmp"
 
 			// Temp file should not exist after rename
@@ -3523,7 +3525,7 @@ var _ = Describe("JobExecutor", func() {
 			err := executor.writeManifest(job, items)
 			Expect(err).NotTo(HaveOccurred())
 
-			manifestPath := "/test/samples/my-model/study-manifest-1/manifest.json"
+			manifestPath := "/test/samples/my-model/Manifest Study/manifest.json"
 			data := mockFS.writtenFiles[manifestPath]
 
 			var manifest fileformat.JobManifest
@@ -3549,12 +3551,12 @@ var _ = Describe("JobExecutor", func() {
 
 			// Forward slash in training run name must be replaced with underscore so
 			// "qwen/Qwen2-VL" becomes "qwen_Qwen2-VL" in the filesystem path.
-			sanitizedPath := "/test/samples/qwen_Qwen2-VL/study-manifest-1/manifest.json"
+			sanitizedPath := "/test/samples/qwen_Qwen2-VL/Manifest Study/manifest.json"
 			Expect(mockFS.writtenFiles).To(HaveKey(sanitizedPath),
 				"manifest should be written at sanitized path qwen_Qwen2-VL, not qwen/Qwen2-VL")
 
 			// The unsanitized path must NOT be created
-			unsanitizedPath := "/test/samples/qwen/Qwen2-VL/study-manifest-1/manifest.json"
+			unsanitizedPath := "/test/samples/qwen/Qwen2-VL/Manifest Study/manifest.json"
 			Expect(mockFS.writtenFiles).NotTo(HaveKey(unsanitizedPath),
 				"manifest must not be written at slash-containing path")
 		})
@@ -3565,7 +3567,7 @@ var _ = Describe("JobExecutor", func() {
 			err := executor.writeManifest(job, items)
 			Expect(err).NotTo(HaveOccurred())
 
-			sanitizedPath := "/test/samples/my_nested_run/study-manifest-1/manifest.json"
+			sanitizedPath := "/test/samples/my_nested_run/Manifest Study/manifest.json"
 			Expect(mockFS.writtenFiles).To(HaveKey(sanitizedPath))
 		})
 	})
@@ -3613,8 +3615,8 @@ var _ = Describe("JobExecutor", func() {
 			// processNextItem should find no pending items and call completeJob
 			executor.processNextItem()
 
-			// Verify manifest was written at {sampleDir}/{trainingRunName}/{studyID}/manifest.json
-			manifestPath := "/test/samples/complete-model/study-complete-manifest/manifest.json"
+			// Verify manifest was written at {sampleDir}/{trainingRunName}/{studyName}/manifest.json
+			manifestPath := "/test/samples/complete-model/Complete Study/manifest.json"
 			Expect(mockFS.writtenFiles).To(HaveKey(manifestPath))
 
 			// Verify manifest content

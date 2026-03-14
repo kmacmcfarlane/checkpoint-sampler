@@ -66,6 +66,7 @@ var _ = Describe("JobManifest", func() {
 			Expect(m.CLIP).To(Equal("clip_l.safetensors"))
 			Expect(m.Shift).To(Equal(&shift))
 			Expect(m.Timestamp).NotTo(BeEmpty())
+			Expect(m.CommitSHA).To(Equal("unknown"))
 		})
 
 		// AC2: Manifest includes study config, version, training run, checkpoint list, and all dimension values

@@ -4,7 +4,7 @@ tmp_dir = "tmp"
 [build]
   entrypoint = "./tmp/server"
   full_bin = "cd /app && ./backend/tmp/server"
-  cmd = "go build -o ./tmp/server ./cmd/server"
+  cmd = "go build -ldflags \"-X github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/buildinfo.CommitSHA=${COMMIT_SHA:-unknown}\" -o ./tmp/server ./cmd/server"
   delay = 1000
   exclude_dir = ["tmp", "internal/api/gen", "bin"]
   exclude_regex = ["_test\\.go$"]

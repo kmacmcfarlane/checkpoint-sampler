@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/buildinfo"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/fileformat"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
 	"github.com/sirupsen/logrus"
@@ -1042,13 +1043,13 @@ func (e *JobExecutor) handleItemCompletionAsync(jobID, itemID, promptID string) 
 	}
 
 	// Compute the study output directory prefix for the new per-training-run layout:
-	// {sanitized_training_run_name}/{study_id}
+	// {sanitized_training_run_name}/{study_name}
 	// The training run name is sanitized (slashes replaced with underscores) to ensure
 	// it forms a single directory level regardless of whether the name contains path
 	// separators (e.g. "qwen/Qwen2-VL" → "qwen_Qwen2-VL"). This scopes samples to both
 	// the selected training run and the selected study, fixing the 36/1 count bug where
 	// all training runs shared the same study directory.
-	studyOutputDir := fileformat.SanitizeTrainingRunName(job.TrainingRunName) + "/" + job.StudyID
+	studyOutputDir := fileformat.SanitizeTrainingRunName(job.TrainingRunName) + "/" + job.StudyName
 
 	// Generate output filename
 	filename := e.generateOutputFilename(*item)
@@ -1359,6 +1360,7 @@ func (e *JobExecutor) writeSidecar(imagePath string, job model.SampleJob, item m
 		WorkflowName:   job.WorkflowName,
 		JobID:          job.ID,
 		Timestamp:      time.Now().UTC().Format(time.RFC3339),
+		CommitSHA:      buildinfo.CommitSHA,
 	}
 
 	data, err := json.Marshal(meta)
@@ -1420,10 +1422,10 @@ func (e *JobExecutor) writeManifest(job model.SampleJob, items []model.SampleJob
 		return fmt.Errorf("marshaling manifest: %w", err)
 	}
 
-	// Write to study output directory: {sampleDir}/{sanitized_training_run_name}/{study_id}/manifest.json
+	// Write to study output directory: {sampleDir}/{sanitized_training_run_name}/{study_name}/manifest.json
 	// The training run name is sanitized (slashes → underscores) to ensure a single directory
 	// level. This matches the per-training-run layout used for sample images.
-	studyOutputDir := fileformat.SanitizeTrainingRunName(job.TrainingRunName) + "/" + job.StudyID
+	studyOutputDir := fileformat.SanitizeTrainingRunName(job.TrainingRunName) + "/" + job.StudyName
 	dir := filepath.Join(e.sampleDir, studyOutputDir)
 	manifestPath := filepath.Join(dir, fileformat.ManifestFilename)
 	tempPath := manifestPath + ".tmp"
@@ -1828,10 +1830,10 @@ func (e *JobExecutor) broadcastJobProgress(jobID string) {
 		return
 	}
 
-	// Resolve the study output directory using sanitized_training_run/study_id layout.
+	// Resolve the study output directory using sanitized_training_run/study_name layout.
 	// The training run name is sanitized (slashes → underscores) to match what was
 	// written to disk during job execution.
-	studyOutputDir := fileformat.SanitizeTrainingRunName(job.TrainingRunName) + "/" + job.StudyID
+	studyOutputDir := fileformat.SanitizeTrainingRunName(job.TrainingRunName) + "/" + job.StudyName
 
 	// Compute on-the-fly item counts by status and collect failed item details
 	type errorDetailInfo struct {

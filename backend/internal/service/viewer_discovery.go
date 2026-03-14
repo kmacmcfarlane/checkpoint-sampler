@@ -22,7 +22,7 @@ type ViewerFileSystem interface {
 //
 // Supported directory structures (newest-first priority):
 //
-//	sample_dir/{training_run_name}/{study_id}/{checkpoint.safetensors}/ → new per-training-run layout
+//	sample_dir/{training_run_name}/{study_name}/{checkpoint.safetensors}/ → new per-training-run layout
 //	sample_dir/{study_name}/{checkpoint.safetensors}/                   → legacy study layout
 //	sample_dir/{checkpoint.safetensors}/                                → legacy no-study layout
 //
@@ -94,7 +94,7 @@ func (d *ViewerDiscoveryService) DiscoverViewable() ([]model.TrainingRun, error)
 			}
 
 			// Check whether level-1 entries are checkpoint dirs (legacy study layout)
-			// or non-checkpoint dirs (new training_run layout with study_id subdirs).
+			// or non-checkpoint dirs (new training_run layout with study_name subdirs).
 			hasCheckpointSubdir := false
 			for _, l1Entry := range level1Entries {
 				if isCheckpointDirName(l1Entry) {
@@ -122,22 +122,22 @@ func (d *ViewerDiscoveryService) DiscoverViewable() ([]model.TrainingRun, error)
 					}
 				}
 			} else {
-				// New layout: {training_run_name}/{study_id}/{checkpoint.safetensors}/
-				// entry = training_run_name, l1Entry = study_id
-				for _, studyIDEntry := range level1Entries {
-					// Each study_id dir should contain checkpoint dirs
-					level2Dir := filepath.Join(d.sampleDir, entry, studyIDEntry)
+				// New layout: {training_run_name}/{study_name}/{checkpoint.safetensors}/
+				// entry = training_run_name, l1Entry = study_name
+				for _, studyNameEntry := range level1Entries {
+					// Each study_name dir should contain checkpoint dirs
+					level2Dir := filepath.Join(d.sampleDir, entry, studyNameEntry)
 					level2Entries, err := d.fs.ListSubdirectories(level2Dir)
 					if err != nil {
 						d.logger.WithFields(logrus.Fields{
 							"training_run": entry,
-							"study_id":     studyIDEntry,
+							"study_name":   studyNameEntry,
 							"error":        err.Error(),
 						}).Error("failed to list level-2 directory entries")
 						return nil, err
 					}
-					// The study output dir prefix used for scoping: training_run/study_id
-					studyOutputDir := entry + "/" + studyIDEntry
+					// The study output dir prefix used for scoping: training_run/study_name
+					studyOutputDir := entry + "/" + studyNameEntry
 					for _, cpEntry := range level2Entries {
 						if isCheckpointDirName(cpEntry) {
 							d.addCheckpointDir(runMap, studyOutputDir, cpEntry)
@@ -146,7 +146,7 @@ func (d *ViewerDiscoveryService) DiscoverViewable() ([]model.TrainingRun, error)
 							if _, ok := metaMap[runName]; !ok {
 								metaMap[runName] = runMeta{
 									trainingRunDir: entry,
-									studyLabel:     studyIDEntry,
+									studyLabel:     studyNameEntry,
 									studyOutputDir: studyOutputDir,
 								}
 							}
@@ -200,7 +200,7 @@ func (d *ViewerDiscoveryService) DiscoverViewable() ([]model.TrainingRun, error)
 
 // addCheckpointDir adds a checkpoint directory to the training run map.
 // studyOutputDir is the path prefix between sample_dir and the checkpoint dir.
-// For new layout: "{training_run_name}/{study_id}" (e.g., "my-model/abc-123")
+// For new layout: "{training_run_name}/{study_name}" (e.g., "my-model/my-study")
 // For legacy layout: "{study_name}" or "" (root-level checkpoints).
 // cpDirName is the checkpoint directory name (e.g., "model-step00001000.safetensors").
 func (d *ViewerDiscoveryService) addCheckpointDir(runMap map[string][]model.Checkpoint, studyOutputDir string, cpDirName string) {
@@ -239,7 +239,7 @@ func isCheckpointDirName(name string) bool {
 // training run name. This is the portion of the path between sample_dir and the
 // checkpoint base name, used to scope validation and scanning to the correct subdirectory.
 //
-// For new-layout runs like "training_run/study_id/model_base", returns "training_run/study_id".
+// For new-layout runs like "training_run/study_name/model_base", returns "training_run/study_name".
 // For legacy study-scoped runs like "study_name/model_base", returns "study_name".
 // For legacy (root-level) runs like "model_base", returns "".
 func StudyNameForRun(runName string) string {

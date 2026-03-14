@@ -602,7 +602,7 @@ var _ = Describe("TrainingRunsService", func() {
 				}
 				svc := api.NewTrainingRunsService(viewerDiscovery, cpDiscovery, scanner, validator, nil, studyGetter)
 
-				// Sample files in the scoped directory: {sampleDir}/model/Test Study/{checkpoint}/
+				// Sample files in the scoped directory: {sampleDir}/model/{studyName}/{checkpoint}/
 				scanFS.files[sampleDir+"/model/"+studyName+"/model-step00001000.safetensors"] = []string{
 					"seed=42&_00001_.png",
 				}

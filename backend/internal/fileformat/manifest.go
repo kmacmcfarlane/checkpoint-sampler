@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/buildinfo"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
 )
 
@@ -28,6 +29,7 @@ type JobManifest struct {
 	CLIP           string   `json:"clip,omitempty"`
 	Shift          *float64 `json:"shift,omitempty"`
 	Timestamp      string   `json:"timestamp"` // RFC3339 UTC
+	CommitSHA      string   `json:"commit_sha,omitempty"`
 
 	// Study config snapshot
 	StudyID       string                  `json:"study_id"`
@@ -87,6 +89,7 @@ func NewJobManifest(job model.SampleJob, study model.Study, checkpoints []string
 		CLIP:            job.CLIP,
 		Shift:           job.Shift,
 		Timestamp:       time.Now().UTC().Format(time.RFC3339),
+		CommitSHA:       buildinfo.CommitSHA,
 
 		StudyID:               study.ID,
 		StudyName:             study.Name,
