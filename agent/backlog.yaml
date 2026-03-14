@@ -424,7 +424,7 @@ stories:
   - id: S-114
     title: "Pre-generate JPEG thumbnails for sample images"
     type: enhancement
-    status: uat
+    status: uat_feedback
     priority: 50
     complexity: medium
     requires: []
@@ -447,6 +447,9 @@ stories:
       - "Verify thumbnails are generated at correct resolution and quality"
       - "Test with thumbnail generation disabled — no thumbnails created, full-res served everywhere"
       - "Verify cache behavior improvement with 6x3 grid scrolling through checkpoints"
+    review_feedback: 'Thumbnails are generated on the backend, but the frontend is still loading full PNGs into the X/Y grid.
+      Expected behavior: load JPEG thumbnails in the grid view, switch to full PNG on click (lightbox), and pre-load the next
+      3 images in both horizontal directions in that row.'
   - id: S-116
     title: "Training run and study status beads in Generate Samples"
     type: enhancement
@@ -553,25 +556,6 @@ stories:
       Key files: frontend/src/components/FiltersDrawer.vue.
     testing:
       - "Verify drawer handles long dimension values without truncation or overflow"
-  - id: S-121
-    title: "Replace window.prompt for preset save with NModal input dialog"
-    priority: 45
-    status: uat
-    complexity: low
-    requires: []
-    acceptance:
-      - "FE: Save preset flow uses an NModal input dialog instead of window.prompt"
-      - "FE: Dialog is consistent with ConfirmDeleteDialog pattern (S-094/S-095/S-096)"
-      - "FE: Cancel and confirm actions work correctly"
-      - "FE: Unit tests for the new modal dialog"
-    notes: |
-      The "Save preset" flow still uses window.prompt, which is inconsistent with the
-      ConfirmDeleteDialog pattern established in S-094/S-095/S-096. A proper NModal input
-      dialog would provide a more polished UX.
-      Source: developer.
-    testing:
-      - "Verify modal dialog replaces browser prompt for preset naming"
-      - "Verify empty/whitespace-only names are rejected"
   - id: S-122
     title: "Restrict Delete button to non-running jobs; require stop-then-delete flow"
     priority: 25
@@ -691,44 +675,6 @@ stories:
     testing:
       - "Verify sampler/scheduler are stored on generation and restored on workflow re-selection"
       - "Verify pre-filled values from regeneration are not overwritten by MRU"
-  - id: S-128
-    title: "WebSocket heartbeat/ping-pong mechanism"
-    priority: 45
-    status: uat
-    complexity: low
-    requires: []
-    acceptance:
-      - "BE: Backend sends periodic WebSocket ping frames to keep connections alive"
-      - "BE: Ping interval is configurable via config.yaml"
-      - "BE: Idle connections survive beyond proxy_read_timeout limits"
-      - "BE: Unit tests for ping frame scheduling"
-    notes: |
-      Implement periodic WebSocket ping frames from the backend to keep idle WebSocket
-      tunnels alive beyond the proxy_read_timeout limit and prevent browser-side idle
-      timeouts. Necessary follow-up to make WebSocket robust for long sessions with no
-      activity.
-      Source: developer.
-    testing:
-      - "Verify ping frames are sent at configured interval"
-      - "Verify idle connections remain open through proxy timeouts"
-  - id: B-087
-    title: "Fix root-owned dist/assets blocking host-side npm run build"
-    priority: 25
-    status: uat
-    complexity: low
-    requires: []
-    acceptance:
-      - "OPS: frontend/dist/ is not owned by root after Docker-based builds"
-      - "OPS: npm run build succeeds on host without permission errors"
-      - "OPS: dist/ added to .gitignore if not already present"
-    notes: |
-      The frontend/dist/assets/ directory is owned by root from a prior Docker-based build,
-      preventing npm run build from completing outside Docker. Fix by either adding dist/
-      to .gitignore cleanup or fixing the Dockerfile to use the correct UID.
-      Source: qa.
-    testing:
-      - "Verify npm run build works on host after Docker build"
-      - "Verify dist/ ownership is correct after Docker build"
   - id: W-012
     title: "Shift field E2E testing with AuraFlow workflow fixture"
     priority: 25
@@ -913,78 +859,6 @@ stories:
     testing:
       - "Verify double-seeding does not duplicate data"
       - "Verify seeding works correctly on clean database"
-  - id: B-088
-    title: "Sanitize training run directory names (replace slashes with underscores)"
-    type: bug
-    status: uat
-    priority: 85
-    complexity: low
-    requires: []
-    notes: |
-      Training run names can contain directory prefixes with slashes (e.g. qwen/Qwen2-VL),
-      causing ambiguous directory depth in [output_dir]. When constructing filesystem paths
-      for training run directories, replace all forward and backward slashes with underscore
-      (_) to create a single directory level. Sanitization is filesystem-only — DB/API keeps
-      the original name with slashes.
-      Key files: backend path-construction logic for sample output directories.
-    acceptance:
-      - "BE: Replace forward and backward slashes with _ when constructing training run directory paths"
-      - "BE: DB and API continue to store/return the original training run name with slashes"
-      - "BE: Reading existing sanitized directories maps back to the correct training run"
-      - "E2E: Test fixture data includes at least one training run name with slashes (subdir in checkpoint_dir)"
-      - "BE: Unit tests for slash sanitization in path construction"
-    testing:
-      - "Ensure fixture data includes training run names like 'qwen/Qwen2-VL' with directory separators. Verify on-disk directory
-        is 'qwen_Qwen2-VL' (single level). Test both forward and backward slashes. Verify round-trip: write samples to sanitized
-        dir, read back, confirm correct training run association."
-  - id: B-089
-    title: "Flaky E2E: preset dirty tracking test fails on manual preset selection"
-    priority: 60
-    status: uat
-    complexity: low
-    requires: []
-    acceptance:
-      - "After saving a preset via the Save button, the Save button becomes disabled within 2 seconds indicating the preset
-        is no longer dirty"
-      - "The E2E test preset-dirty-on-autoload.spec.ts:221 passes reliably on 5 consecutive runs"
-    testing:
-      - "command: make test-e2e SPEC=preset-dirty-on-autoload.spec.ts"
-    notes: |
-      Flaky E2E test found by QA during S-128 verification.
-      Failing test: preset-dirty-on-autoload.spec.ts > B-047: preset dirty tracking after auto-load > Update button appears after changing filter mode on manually selected preset
-      Error: expect(locator).toBeDisabled() — Save button remains enabled after save.
-      Root cause hypothesis: timing issue where save completes but dirty-tracking state is not reset before assertion.
-  - id: B-090
-    title: "Race condition: 'failed to get job for progress broadcast' during job lifecycle"
-    priority: 80
-    status: uat
-    complexity: low
-    requires: []
-    acceptance:
-      - "Job executor handles 'no rows' errors gracefully during progress broadcast without logging at error level"
-      - "Deleting a running or recently-completed job does not produce error-level log entries"
-    testing:
-      - "command: make test-e2e SPEC=job-delete.spec.ts"
-    notes: |
-      Runtime error sweep finding from S-128 QA.
-      Log evidence: level=error msg="failed to get job for progress broadcast" component=job_executor error="sql: no rows in result set"
-      Root cause hypothesis: during E2E tests that delete jobs, the job executor's progress broadcast goroutine attempts to fetch a job that has already been deleted. The broadcast loop does not check whether the job still exists before querying.
-  - id: B-091
-    title: "Flaky preset dirty tracking: Save button not disabled after save on manually selected preset"
-    priority: 70
-    status: uat
-    complexity: low
-    requires: []
-    acceptance:
-      - "After saving a manually selected preset, the Save/Update button becomes disabled within 1 second"
-      - "The preset dirty-tracking state resets reliably after save for both auto-loaded and manually selected presets"
-    testing:
-      - "command: make test-e2e SPEC=preset-dirty-on-autoload.spec.ts"
-    notes: |
-      Pre-existing flaky E2E failure found during B-090 QA.
-      Failing test: frontend/e2e/preset-dirty-on-autoload.spec.ts > B-047: preset dirty tracking after auto-load > Update button appears after changing filter mode on manually selected preset
-      Error: expect(locator).toBeDisabled() - Save button remains enabled after save instead of transitioning to disabled.
-      Root cause hypothesis: timing issue where dirty-tracking state is not reset synchronously after save completes, or race between save response and UI state update.
   - id: B-092
     title: "E2E: Missing studies table and study_id column in test DB schema causes 40+ test failures"
     priority: 80
@@ -1037,16 +911,3 @@ stories:
       - "command: make test-e2e SPEC=dimension-filtering.spec.ts"
     notes: |-
       Closed as not reproducible. Tests pass reliably across 3 consecutive runs. The flakiness was likely caused by the same timing issues fixed by B-089 (savePresetViaDialog race condition) and B-091 (preset dirty tracking timing).
-  - id: B-096
-    title: "E2E: Filters slideout layout tests fail (2 tests)"
-    priority: 60
-    status: uat
-    complexity: low
-    requires: []
-    acceptance:
-      - "Filters slideout E2E tests pass reliably"
-    testing:
-      - "command: make test-e2e SPEC=filters-slideout-layout.spec.ts"
-    notes: |
-      Discovered during B-091 QA. 2 tests in filters-slideout-layout.spec.ts time out.
-      Root cause hypothesis: The Filters drawer may take longer than expected to open in E2E, or the drawer detection selector is fragile.
