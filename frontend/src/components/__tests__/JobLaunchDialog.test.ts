@@ -1056,8 +1056,8 @@ describe('JobLaunchDialog', () => {
       type DualBead = { activity: string | null; problem: string | null }
       const options = runSelect.props('options') as Array<{ label: string; value: number; _dualBead: DualBead }>
       const errorRunOpt = options.find(o => o.value === 2)
-      // AC: completed_with_errors → problem=yellow (incomplete without running jobs)
-      expect(errorRunOpt?._dualBead.problem).toBe('yellow')
+      // S-116: yellow only comes from availability data (partial status), not from job status alone
+      expect(errorRunOpt?._dualBead.problem).toBeNull()
       expect(errorRunOpt?._dualBead.activity).toBeNull()
     })
 
@@ -3103,8 +3103,7 @@ describe('JobLaunchDialog', () => {
     })
 
     it('beads update when training run selection changes', async () => {
-      // First training run has complete samples for preset-1
-      mockGetStudyAvailability.mockResolvedValueOnce([
+      const run1Avail = [
         {
           study_id: 'preset-1',
           study_name: 'Quick Test',
@@ -3117,9 +3116,8 @@ describe('JobLaunchDialog', () => {
           has_samples: false,
           sample_status: 'none',
         },
-      ])
-      // Second training run has only partial for preset-1
-      mockGetStudyAvailability.mockResolvedValueOnce([
+      ]
+      const run2Avail = [
         {
           study_id: 'preset-1',
           study_name: 'Quick Test',
@@ -3132,7 +3130,15 @@ describe('JobLaunchDialog', () => {
           has_samples: true,
           sample_status: 'complete',
         },
-      ])
+      ]
+      // fetchAllRunsAvailability calls getStudyAvailability for each run on mount (3 runs),
+      // then the watcher calls it again when a run is selected.
+      mockGetStudyAvailability
+        .mockResolvedValueOnce(run1Avail)  // bulk: run 1
+        .mockResolvedValueOnce(run2Avail)  // bulk: run 2
+        .mockResolvedValueOnce([])         // bulk: run 3
+        .mockResolvedValueOnce(run1Avail)  // watcher: select run 1
+        .mockResolvedValueOnce(run2Avail)  // watcher: select run 2
 
       const wrapper = mount(JobLaunchDialog, {
         props: { show: true },
@@ -3437,10 +3443,8 @@ describe('JobLaunchDialog', () => {
   describe('training run bead with study-scoped samples (B-062)', () => {
     // Training run with has_samples: false (study-scoped directories not found at root level)
     // but with a completed job → should show GREEN bead (job-based green fallback)
-    it('shows green activity bead for completed job even without studyAvailability data', async () => {
-      // S-116 fix: A completed job triggers green on the training run bead even when
-      // studyAvailability data is absent (non-selected run or initial load).
-      // This ensures training run beads work for ALL runs, not just the selected one.
+    it('shows no green bead for completed job without studyAvailability data', async () => {
+      // S-116: green only comes from availability data (all studies complete), not job status
       mockListSampleJobs.mockResolvedValue([{
         id: 'job-done',
         training_run_name: 'qwen/psai4rt-v0.3.0',
@@ -3461,14 +3465,14 @@ describe('JobLaunchDialog', () => {
       const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
       type DualBead = { activity: string | null; problem: string | null }
       const options = runSelect.props('options') as Array<{ label: string; value: number; _dualBead: DualBead }>
-      // runEmpty (id=1) has a completed job → activity=green (job-based fallback)
-      // This fixes: "training run shows no beads even though studies show green beads"
+      // runEmpty (id=1) has a completed job but no availability data → no green bead
       const opt = options.find(o => o.value === 1)
-      expect(opt?._dualBead.activity).toBe('green')
+      expect(opt?._dualBead.activity).toBeNull()
       expect(opt?._dualBead.problem).toBeNull()
     })
 
-    it('shows yellow (problem) bead for completed_with_errors job even when has_samples is false', async () => {
+    it('shows no yellow bead for completed_with_errors job without availability data', async () => {
+      // S-116: yellow only comes from availability data (partial status), not job status
       mockListSampleJobs.mockResolvedValue([{
         id: 'job-partial',
         training_run_name: 'qwen/psai4rt-v0.3.0',
@@ -3489,9 +3493,9 @@ describe('JobLaunchDialog', () => {
       const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
       type DualBead = { activity: string | null; problem: string | null }
       const options = runSelect.props('options') as Array<{ label: string; value: number; _dualBead: DualBead }>
-      // runEmpty (id=1) has a completed_with_errors job → problem=yellow (incomplete without running)
+      // runEmpty (id=1) has a completed_with_errors job but no availability data → no yellow bead
       const opt = options.find(o => o.value === 1)
-      expect(opt?._dualBead.problem).toBe('yellow')
+      expect(opt?._dualBead.problem).toBeNull()
     })
 
     it('shows checkboxes for run with completed job even when has_samples is false', async () => {

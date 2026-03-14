@@ -53,6 +53,7 @@ const studies = ref<Study[]>([])
 
 // Study sample availability for the selected training run
 const studyAvailability = ref<StudyAvailability[]>([])
+const allRunsAvailability = ref<Map<number, StudyAvailability[]>>(new Map())
 
 // Study editor sub-dialog
 const studyEditorOpen = ref(false)
@@ -191,14 +192,12 @@ const trainingRunOptions = computed(() => {
       return getRunStatus(run) === 'empty'
     })
     .map(run => {
-      // Compute dual-bead for this training run.
-      // Study availability data is only loaded for the selected training run.
-      // For the selected run, pass the full availability data for accurate green bead detection.
-      // For non-selected runs, pass empty array — the getTrainingRunDualBead function
-      // falls back to job-based status inference (hasCompletedJob → green).
-      const studyStatuses = run.id === selectedTrainingRunId.value
-        ? studyAvailability.value.map(a => a.sample_status)
-        : []
+      // Use all-runs availability map for bead rendering.
+      // For the selected run, prefer the more-current studyAvailability (updated by the watcher).
+      const availData = run.id === selectedTrainingRunId.value
+        ? studyAvailability.value
+        : (allRunsAvailability.value.get(run.id) ?? [])
+      const studyStatuses = availData.map(a => a.sample_status)
       const dualBead = getTrainingRunDualBead(run.name, sampleJobs.value, studyStatuses)
 
       return {
@@ -326,7 +325,10 @@ watch(selectedTrainingRunId, async (runId) => {
   if (runId === null) return
 
   try {
-    studyAvailability.value = await apiClient.getStudyAvailability(runId)
+    const avail = await apiClient.getStudyAvailability(runId)
+    studyAvailability.value = avail
+    // Keep allRunsAvailability in sync for consistent bead rendering
+    allRunsAvailability.value = new Map(allRunsAvailability.value).set(runId, avail)
   } catch {
     // Non-fatal; proceed without availability data
     studyAvailability.value = []
@@ -661,10 +663,28 @@ async function fetchTrainingRunsAndJobs() {
     ])
     trainingRuns.value = runs
     sampleJobs.value = jobs
+
+    // Fetch availability for all runs in parallel for training run bead rendering
+    fetchAllRunsAvailability(runs)
   } catch {
     trainingRuns.value = []
     sampleJobs.value = []
   }
+}
+
+/** Fire-and-forget: fetch availability for all training runs in parallel. */
+async function fetchAllRunsAvailability(runs: TrainingRun[]) {
+  const entries = await Promise.all(
+    runs.map(async (run): Promise<[number, StudyAvailability[]]> => {
+      try {
+        const avail = await apiClient.getStudyAvailability(run.id)
+        return [run.id, avail]
+      } catch {
+        return [run.id, []]
+      }
+    }),
+  )
+  allRunsAvailability.value = new Map(entries)
 }
 
 /** Manual refresh of the training run list (triggered by the refresh icon button). */
