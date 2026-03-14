@@ -17,7 +17,7 @@ import {
  * Bead rules:
  *   Training Run:
  *     Slot 1 (activity): blue = running/pending job, green = all studies complete. Blue wins.
- *     Slot 2 (problem):  red = failed job, yellow = completed_with_errors without running. Red wins.
+ *     Slot 2 (problem):  red = failed job, yellow = study availability 'partial' without running. Red wins.
  *
  *   Study:
  *     Slot 1 (activity): blue = running/pending job for this study, green = complete status. Blue wins.
@@ -86,6 +86,28 @@ async function createStudy(request: APIRequestContext, name: string): Promise<st
   expect(resp.ok()).toBeTruthy()
   const study = await resp.json() as { id: string }
   return study.id
+}
+
+/**
+ * Seeds partial sample directories via the test-only endpoint.
+ * Used to set up study availability data (partial/complete) for bead tests.
+ */
+async function seedPartialSamples(
+  request: APIRequestContext,
+  trainingRunName: string,
+  studyId: string,
+  studyName: string,
+  checkpointFilenames: string[],
+): Promise<void> {
+  const resp = await request.post('/api/test/seed-partial-samples', {
+    data: {
+      training_run_name: trainingRunName,
+      study_id: studyId,
+      study_name: studyName,
+      checkpoint_filenames: checkpointFilenames,
+    },
+  })
+  expect(resp.status()).toBe(201)
 }
 
 /**
@@ -207,8 +229,13 @@ test.describe('Generate Samples dual beads (S-116)', () => {
 
   // AC: Yellow problem bead when there are incomplete sample sets without running jobs
   test('AC training run: yellow problem bead for completed_with_errors without running jobs', async ({ page, request }) => {
-    // AC: Yellow bead = incomplete sample sets without running jobs
-    await seedJobs(request, [{ status: 'completed_with_errors', training_run_name: 'my-model' }])
+    // AC: Yellow bead = study availability has 'partial' status without running jobs.
+    // The new bead logic (9434d25) requires actual availability data — job status alone
+    // is not sufficient. Create a study with partial samples to produce 'partial' availability.
+    const studyName = 'Yellow Bead Study'
+    const studyId = await createStudy(request, studyName)
+    await seedPartialSamples(request, 'my-model', studyId, studyName, ['my-model-step00001000.safetensors'])
+    await seedJobs(request, [{ status: 'completed_with_errors', training_run_name: 'my-model', study_id: studyId, study_name: studyName }])
 
     await page.goto('/', { waitUntil: 'networkidle' })
     await selectTrainingRun(page, 'my-model')
@@ -303,12 +330,19 @@ test.describe('Generate Samples dual beads (S-116)', () => {
     await page.keyboard.press('Escape')
   })
 
-  // AC: Green bead when all samples are complete (via completed job status fallback)
-  // This verifies the S-116 UAT fix: training runs now show green when a job completed
-  // successfully, even without study availability data (e.g., for non-selected runs).
+  // AC: Green bead when all samples are complete (availability data shows complete).
+  // The new bead logic (9434d25) requires actual availability data — completed job status
+  // alone is not sufficient. We seed complete samples to produce 'complete' availability.
   test('AC training run: green activity bead when a completed job exists', async ({ page, request }) => {
-    // AC: Green bead = all study sample sets complete (job-based fallback: completed job)
-    await seedJobs(request, [{ status: 'completed', training_run_name: 'my-model' }])
+    // AC: Green bead = at least one study with 'complete' availability and no 'partial'.
+    // Create a study and seed all checkpoints to produce 'complete' availability.
+    const studyName = 'Green Bead Study'
+    const studyId = await createStudy(request, studyName)
+    await seedPartialSamples(request, 'my-model', studyId, studyName, [
+      'my-model-step00001000.safetensors',
+      'my-model-step00002000.safetensors',
+    ])
+    await seedJobs(request, [{ status: 'completed', training_run_name: 'my-model', study_id: studyId, study_name: studyName }])
 
     await page.goto('/', { waitUntil: 'networkidle' })
     await selectTrainingRun(page, 'my-model')

@@ -110,19 +110,22 @@ test.describe('demo settings dialog (S-078)', () => {
   test('demo dataset is visible as a training run out of the box', async ({ page }) => {
     await page.goto('/')
 
-    // The demo training run should appear in the training run selector
-    // The demo creates a study named "demo-study" with checkpoint dirs,
-    // which the viewer discovers as "demo-study/demo-model"
+    // The demo training run should appear in the training run selector.
+    // The sidebar groups training runs by training_run_dir, so the demo
+    // appears as "demo-model" (the top-level directory name). The study
+    // "demo-study" appears in a second Study dropdown after selection.
     const selectTrigger = page.locator('[data-testid="training-run-select"]')
     await expect(selectTrigger).toBeVisible()
+    // Wait for loading to finish
+    await expect(selectTrigger.locator('.n-base-selection--disabled')).toHaveCount(0)
     await selectTrigger.click()
 
     const popupMenu = page.locator('.n-base-select-menu:visible')
     await expect(popupMenu).toBeVisible()
 
-    // Verify demo training run appears in the list.
-    // New layout: demo-model/demo-study/demo-model (training_run/study_id/model_base)
-    const demoOption = popupMenu.getByText('demo-model/demo-study/demo-model')
+    // Verify demo training run group appears in the list.
+    // The group key is the training_run_dir ("demo-model").
+    const demoOption = popupMenu.getByText('demo-model', { exact: true })
     await expect(demoOption).toBeVisible()
 
     // Close the popup

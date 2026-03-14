@@ -26,14 +26,14 @@ type fakePartialSampleSeeder struct {
 
 type partialSeedCall struct {
 	trainingRunName     string
-	studyID             string
+	studyName           string
 	checkpointFilenames []string
 }
 
-func (f *fakePartialSampleSeeder) SeedPartialSamples(trainingRunName, studyID string, checkpointFilenames []string) ([]string, error) {
+func (f *fakePartialSampleSeeder) SeedPartialSamples(trainingRunName, studyName string, checkpointFilenames []string) ([]string, error) {
 	f.calls = append(f.calls, partialSeedCall{
 		trainingRunName:     trainingRunName,
-		studyID:             studyID,
+		studyName:           studyName,
 		checkpointFilenames: checkpointFilenames,
 	})
 	return f.dirs, f.err
@@ -131,6 +131,7 @@ var _ = Describe("MountTestSeedPartialSamplesEndpoint", func() {
 			payload := api.SeedPartialSamplesRequest{
 				TrainingRunName: "my-model",
 				StudyID:         "study-abc",
+				StudyName:       "My Study",
 				CheckpointFilenames: []string{
 					"my-model-step00001000.safetensors",
 				},
@@ -149,7 +150,7 @@ var _ = Describe("MountTestSeedPartialSamplesEndpoint", func() {
 			Expect(resp.StatusCode).To(Equal(http.StatusCreated))
 			Expect(seeder.calls).To(HaveLen(1))
 			Expect(seeder.calls[0].trainingRunName).To(Equal("my-model"))
-			Expect(seeder.calls[0].studyID).To(Equal("study-abc"))
+			Expect(seeder.calls[0].studyName).To(Equal("My Study"))
 			Expect(seeder.calls[0].checkpointFilenames).To(ConsistOf("my-model-step00001000.safetensors"))
 		})
 
@@ -166,6 +167,7 @@ var _ = Describe("MountTestSeedPartialSamplesEndpoint", func() {
 			payload := api.SeedPartialSamplesRequest{
 				TrainingRunName:     "my-model",
 				StudyID:             "study-abc",
+				StudyName:           "My Study",
 				CheckpointFilenames: []string{"my-model-step00001000.safetensors"},
 			}
 			body, err := json.Marshal(payload)
@@ -197,6 +199,7 @@ var _ = Describe("MountTestSeedPartialSamplesEndpoint", func() {
 
 			payload := api.SeedPartialSamplesRequest{
 				StudyID:             "study-abc",
+				StudyName:           "My Study",
 				CheckpointFilenames: []string{"cp.safetensors"},
 			}
 			body, err := json.Marshal(payload)
@@ -214,7 +217,7 @@ var _ = Describe("MountTestSeedPartialSamplesEndpoint", func() {
 			Expect(seeder.calls).To(BeEmpty())
 		})
 
-		It("returns 400 when study_id is missing", func() {
+		It("returns 400 when study_name is missing", func() {
 			// AC: BE: Endpoint validates required fields
 			api.MountTestSeedPartialSamplesEndpoint(mux, seeder, logger)
 
@@ -269,6 +272,7 @@ var _ = Describe("MountTestSeedPartialSamplesEndpoint", func() {
 			payload := api.SeedPartialSamplesRequest{
 				TrainingRunName:     "my-model",
 				StudyID:             "study-abc",
+				StudyName:           "My Study",
 				CheckpointFilenames: []string{"cp.safetensors"},
 			}
 			body, err := json.Marshal(payload)
@@ -296,6 +300,7 @@ var _ = Describe("MountTestSeedPartialSamplesEndpoint", func() {
 			payload := api.SeedPartialSamplesRequest{
 				TrainingRunName:     "my-model",
 				StudyID:             "study-abc",
+				StudyName:           "My Study",
 				CheckpointFilenames: []string{},
 			}
 			body, err := json.Marshal(payload)
@@ -333,6 +338,7 @@ var _ = Describe("MountTestSeedPartialSamplesEndpoint", func() {
 			payload := api.SeedPartialSamplesRequest{
 				TrainingRunName: "my-model",
 				StudyID:         "study-abc",
+				StudyName:       "My Study",
 				CheckpointFilenames: []string{
 					"my-model-step00001000.safetensors",
 					"my-model-step00002000.safetensors",

@@ -18,8 +18,13 @@ import (
 type SeedPartialSamplesRequest struct {
 	// TrainingRunName is the name of the training run (used to derive the filesystem path).
 	TrainingRunName string `json:"training_run_name"`
-	// StudyID is the ID of the study whose sample directories will be seeded.
+	// StudyID is the ID of the study (kept for backward compat; not used for path derivation).
 	StudyID string `json:"study_id"`
+	// StudyName is the study's display name, used as the subdirectory under the training run.
+	// The sample output path is: {sample_dir}/{sanitized_run_name}/{study_name}/{checkpoint_filename}/
+	// This matches the layout used by the real job executor and the availability service.
+	// Required: the seeder uses this to determine where to create sample directories.
+	StudyName string `json:"study_name"`
 	// CheckpointFilenames is the subset of checkpoint filenames for which sample directories
 	// should be created. Not all checkpoints in the training run need to be listed here —
 	// the intent is to produce a partial set so that availability returns "partial".
@@ -35,7 +40,7 @@ type SeedPartialSamplesResponse struct {
 // PartialSampleSeeder is the interface required by the seed-partial-samples endpoint.
 // It creates partial sample directory structures on disk, bypassing the job executor.
 type PartialSampleSeeder interface {
-	SeedPartialSamples(trainingRunName, studyID string, checkpointFilenames []string) ([]string, error)
+	SeedPartialSamples(trainingRunName, studyName string, checkpointFilenames []string) ([]string, error)
 }
 
 // MountTestSeedPartialSamplesEndpoint conditionally registers
@@ -77,12 +82,12 @@ func MountTestSeedPartialSamplesEndpoint(mux interface{ Handle(string, string, h
 			http.Error(w, "training_run_name is required", http.StatusBadRequest)
 			return
 		}
-		if req.StudyID == "" {
-			http.Error(w, "study_id is required", http.StatusBadRequest)
+		if req.StudyName == "" {
+			http.Error(w, "study_name is required", http.StatusBadRequest)
 			return
 		}
 
-		createdDirs, err := seeder.SeedPartialSamples(req.TrainingRunName, req.StudyID, req.CheckpointFilenames)
+		createdDirs, err := seeder.SeedPartialSamples(req.TrainingRunName, req.StudyName, req.CheckpointFilenames)
 		if err != nil {
 			logger.WithError(err).Error("failed to seed partial sample directories")
 			http.Error(w, "failed to seed partial sample directories", http.StatusInternalServerError)
@@ -91,7 +96,7 @@ func MountTestSeedPartialSamplesEndpoint(mux interface{ Handle(string, string, h
 
 		logger.WithFields(logrus.Fields{
 			"training_run_name": req.TrainingRunName,
-			"study_id":          req.StudyID,
+			"study_name":        req.StudyName,
 			"checkpoint_count":  len(req.CheckpointFilenames),
 			"created_dirs":      len(createdDirs),
 		}).Info("partial sample directories seeded successfully")
@@ -121,12 +126,13 @@ func NewFilesystemPartialSampleSeeder(sampleDir string, logger *logrus.Logger) *
 }
 
 // SeedPartialSamples creates sample directories and placeholder PNG files for
-// the specified checkpoints under {sampleDir}/{sanitized_run_name}/{studyID}/.
+// the specified checkpoints under {sampleDir}/{sanitized_run_name}/{studyName}/.
 // It returns the list of directory paths that were created.
-func (s *FilesystemPartialSampleSeeder) SeedPartialSamples(trainingRunName, studyID string, checkpointFilenames []string) ([]string, error) {
+// The path layout matches the real job executor: {sampleDir}/{sanitized_run_name}/{study_name}/{checkpoint_filename}/
+func (s *FilesystemPartialSampleSeeder) SeedPartialSamples(trainingRunName, studyName string, checkpointFilenames []string) ([]string, error) {
 	s.logger.WithFields(logrus.Fields{
 		"training_run":     trainingRunName,
-		"study_id":         studyID,
+		"study_name":       studyName,
 		"checkpoint_count": len(checkpointFilenames),
 	}).Trace("entering SeedPartialSamples")
 	defer s.logger.Trace("returning from SeedPartialSamples")
@@ -135,7 +141,7 @@ func (s *FilesystemPartialSampleSeeder) SeedPartialSamples(trainingRunName, stud
 	createdDirs := make([]string, 0, len(checkpointFilenames))
 
 	for _, cpFilename := range checkpointFilenames {
-		cpDir := filepath.Join(s.sampleDir, sanitizedRunName, studyID, cpFilename)
+		cpDir := filepath.Join(s.sampleDir, sanitizedRunName, studyName, cpFilename)
 		if err := os.MkdirAll(cpDir, 0755); err != nil {
 			s.logger.WithFields(logrus.Fields{
 				"checkpoint_dir": cpDir,
@@ -163,7 +169,7 @@ func (s *FilesystemPartialSampleSeeder) SeedPartialSamples(trainingRunName, stud
 
 	s.logger.WithFields(logrus.Fields{
 		"training_run": trainingRunName,
-		"study_id":     studyID,
+		"study_name":   studyName,
 		"dirs_created": len(createdDirs),
 	}).Info("partial sample directories seeded")
 

@@ -86,11 +86,11 @@ test.describe('study CRUD via job launch dialog', () => {
     const dialog = getGenerateSamplesDialog(page)
     await expect(dialog).toBeVisible()
 
-    // The study select dropdown should be present
-    await expect(page.locator('[data-testid="study-select"]')).toBeVisible()
+    // The study select dropdown should be present within the dialog
+    await expect(dialog.locator('[data-testid="study-select"]')).toBeVisible()
 
     // The "Manage Studies" button should be visible
-    await expect(page.locator('[data-testid="manage-studies-button"]')).toBeVisible()
+    await expect(dialog.locator('[data-testid="manage-studies-button"]')).toBeVisible()
   })
 
   test('opens the study editor by clicking Manage Studies', async ({ page }) => {
@@ -147,8 +147,9 @@ test.describe('study CRUD via job launch dialog', () => {
     await expect(manageStudiesDialog).not.toBeVisible()
 
     // Back in the Generate Samples dialog, the newly saved study should be
-    // auto-selected in the job dialog dropdown
-    const jobDialogStudySelect = page.locator('[data-testid="study-select"]')
+    // auto-selected in the job dialog dropdown (scope to dialog to avoid sidebar duplicate)
+    const dialog = getGenerateSamplesDialog(page)
+    const jobDialogStudySelect = dialog.locator('[data-testid="study-select"]')
     await expect(jobDialogStudySelect).toContainText(uniqueStudyName)
   })
 
@@ -201,7 +202,9 @@ test.describe('study CRUD via job launch dialog', () => {
     await expect(getManageStudiesDialog(page)).not.toBeVisible()
 
     // The updated study should be auto-selected in the job dialog dropdown
-    const jobDialogStudySelect = page.locator('[data-testid="study-select"]')
+    // (scope to dialog to avoid sidebar duplicate)
+    const dialog = getGenerateSamplesDialog(page)
+    const jobDialogStudySelect = dialog.locator('[data-testid="study-select"]')
     await expect(jobDialogStudySelect).toContainText(updatedName)
 
     // Clean up: re-open the editor and delete the study
@@ -280,7 +283,9 @@ test.describe('study CRUD via job launch dialog', () => {
     await closeManageStudiesModal(page)
 
     // Back in the Generate Samples dialog, open the study dropdown
-    const jobDialogStudySelect = page.locator('[data-testid="study-select"]')
+    // (scope to dialog to avoid sidebar duplicate)
+    const dialog = getGenerateSamplesDialog(page)
+    const jobDialogStudySelect = dialog.locator('[data-testid="study-select"]')
     await jobDialogStudySelect.click()
     const studyPopup = page.locator('.n-base-select-menu:visible')
     await expect(studyPopup).toBeVisible()

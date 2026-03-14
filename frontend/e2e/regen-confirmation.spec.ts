@@ -79,7 +79,7 @@ const FIXTURE_STUDY_NAME = 'E2E Fixture Study'
  *
  * Uses the pre-seeded fixture study (seeded by the test reset endpoint) rather
  * than creating a new study through the UI, because validation needs to find
- * sample files at a study-scoped path ({sampleDir}/{trainingRun}/{studyID}/).
+ * sample files at a study-scoped path ({sampleDir}/{trainingRun}/{studyName}/).
  * The fixture study has known sample directories pre-created on disk, so
  * validation returns total_actual > 0 and total_missing = 0, enabling the
  * regeneration confirmation dialog to appear.

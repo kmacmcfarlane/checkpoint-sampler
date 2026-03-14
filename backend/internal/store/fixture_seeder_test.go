@@ -110,12 +110,13 @@ var _ = Describe("FixtureSeeder", func() {
 			err := seeder.SeedFixtures()
 			Expect(err).NotTo(HaveOccurred())
 
-			// Check that sample dirs were created for the fixture study
+			// Check that sample dirs were created for the fixture study.
+			// The path uses the study Name (not ID) to match the real job executor layout.
 			for _, cpFilename := range []string{
 				"my-model-step00001000.safetensors",
 				"my-model-step00002000.safetensors",
 			} {
-				cpDir := filepath.Join(sampleDir, "my-model", store.E2EFixtureStudyID, cpFilename)
+				cpDir := filepath.Join(sampleDir, "my-model", store.E2EFixtureStudyName, cpFilename)
 				_, err := os.Stat(cpDir)
 				Expect(err).NotTo(HaveOccurred(), "expected checkpoint dir %s to exist", cpDir)
 			}

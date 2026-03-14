@@ -204,7 +204,8 @@ test.describe('sample generation flow (with ComfyUI mock)', () => {
     await expect(getGenerateSamplesDialog(page)).toBeVisible()
 
     // The newly saved study should be auto-selected in the dialog
-    const studySelect = page.locator('[data-testid="study-select"]')
+    // Scope to dialog to avoid ambiguity with sidebar study-select
+    const studySelect = dialog.locator('[data-testid="study-select"]')
     await expect(studySelect).toContainText(studyName)
 
     // Step 7: Uncheck "Clear existing samples" if auto-checked.

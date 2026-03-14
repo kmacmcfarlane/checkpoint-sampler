@@ -42,17 +42,21 @@ async function createStudy(request: APIRequestContext, name: string): Promise<st
 /**
  * Seeds partial sample directories via the test-only endpoint.
  * Returns the list of created directory paths.
+ * @param studyName - The study's display name, used as the subdirectory for the filesystem layout.
+ * @param studyId - The study's ID (passed for backward compat but not used for path derivation).
  */
 async function seedPartialSamples(
   request: APIRequestContext,
   trainingRunName: string,
   studyId: string,
+  studyName: string,
   checkpointFilenames: string[],
 ): Promise<string[]> {
   const resp = await request.post('/api/test/seed-partial-samples', {
     data: {
       training_run_name: trainingRunName,
       study_id: studyId,
+      study_name: studyName,
       checkpoint_filenames: checkpointFilenames,
     },
   })
@@ -85,7 +89,8 @@ test.describe('seed-partial-samples endpoint (W-017)', () => {
   // AC2: BE: Endpoint is only available in test mode
   test('AC1+AC2: endpoint creates partial sample directories and returns their paths', async ({ request }) => {
     // AC: BE: Test-only API endpoint seeds partial sample directories for a study
-    const studyId = await createStudy(request, `Partial Seed Test ${Date.now()}`)
+    const studyName = `Partial Seed Test ${Date.now()}`
+    const studyId = await createStudy(request, studyName)
 
     // The training run "my-model" has 2 checkpoints in test-fixtures.
     // We seed only 1 of them to produce a partial set.
@@ -93,19 +98,21 @@ test.describe('seed-partial-samples endpoint (W-017)', () => {
       request,
       'my-model',
       studyId,
+      studyName,
       ['my-model-step00001000.safetensors'],
     )
 
     // AC1: Created directories are reported in the response
     expect(createdDirs).toHaveLength(1)
     expect(createdDirs[0]).toContain('my-model-step00001000.safetensors')
-    expect(createdDirs[0]).toContain(studyId)
+    expect(createdDirs[0]).toContain(studyName)
   })
 
   // AC3: E2E: At least one E2E test uses partial seeding to verify incomplete-set behavior
   test('AC3: partial seeding produces sample_status=partial in the availability API', async ({ request }) => {
     // AC: E2E: Partial seeding enables verification of incomplete-set UI behavior
-    const studyId = await createStudy(request, `Partial Status Test ${Date.now()}`)
+    const studyName = `Partial Status Test ${Date.now()}`
+    const studyId = await createStudy(request, studyName)
     const runId = await getTrainingRunId(request, 'my-model')
 
     // Before seeding: availability should report 'none' (no sample dirs exist)
@@ -130,6 +137,7 @@ test.describe('seed-partial-samples endpoint (W-017)', () => {
       request,
       'my-model',
       studyId,
+      studyName,
       ['my-model-step00001000.safetensors'],
     )
 
@@ -158,13 +166,15 @@ test.describe('seed-partial-samples endpoint (W-017)', () => {
   // and no running/pending jobs (incomplete set without in-flight activity).
   test('AC3: partial seeding enables verification of yellow study bead (incomplete-set UI behavior)', async ({ request, page }) => {
     // AC: E2E: At least one E2E test uses partial seeding to verify incomplete-set behavior
-    const studyId = await createStudy(request, `Yellow Bead Study ${Date.now()}`)
+    const studyName = `Yellow Bead Study ${Date.now()}`
+    const studyId = await createStudy(request, studyName)
 
     // Seed only 1 of 2 checkpoints → availability = 'partial'
     await seedPartialSamples(
       request,
       'my-model',
       studyId,
+      studyName,
       ['my-model-step00001000.safetensors'],
     )
 
@@ -246,7 +256,8 @@ test.describe('seed-partial-samples endpoint (W-017)', () => {
   // AC1: Seeding all checkpoints produces sample_status='complete' (full set)
   test('AC1: seeding all checkpoints produces sample_status=complete', async ({ request }) => {
     // AC: BE: Test-only API endpoint seeds partial (or full) sample directories for a study
-    const studyId = await createStudy(request, `Full Seed Test ${Date.now()}`)
+    const studyName = `Full Seed Test ${Date.now()}`
+    const studyId = await createStudy(request, studyName)
     const runId = await getTrainingRunId(request, 'my-model')
 
     // Seed both checkpoints in "my-model"
@@ -254,6 +265,7 @@ test.describe('seed-partial-samples endpoint (W-017)', () => {
       request,
       'my-model',
       studyId,
+      studyName,
       [
         'my-model-step00001000.safetensors',
         'my-model-step00002000.safetensors',
@@ -280,10 +292,11 @@ test.describe('seed-partial-samples endpoint (W-017)', () => {
   // AC1: Seeding an empty checkpoint list produces sample_status='none' (no set)
   test('AC1: seeding no checkpoints leaves sample_status=none', async ({ request }) => {
     // AC: BE: Endpoint handles empty checkpoint list gracefully
-    const studyId = await createStudy(request, `Empty Seed Test ${Date.now()}`)
+    const studyName = `Empty Seed Test ${Date.now()}`
+    const studyId = await createStudy(request, studyName)
     const runId = await getTrainingRunId(request, 'my-model')
 
-    const createdDirs = await seedPartialSamples(request, 'my-model', studyId, [])
+    const createdDirs = await seedPartialSamples(request, 'my-model', studyId, studyName, [])
     expect(createdDirs).toHaveLength(0)
 
     const resp = await request.get(`/api/studies/availability?training_run_id=${runId}`)

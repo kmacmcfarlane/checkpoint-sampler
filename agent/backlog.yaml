@@ -911,7 +911,7 @@ stories:
   - id: B-097
     title: "21 E2E tests fail expecting 'Sample Set' label and two-dropdown training run selector"
     priority: 60
-    status: todo
+    status: uat
     complexity: medium
     requires: []
     acceptance:

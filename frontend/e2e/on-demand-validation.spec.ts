@@ -5,8 +5,8 @@ import { resetDatabase, selectTrainingRun } from './helpers'
  * E2E tests for on-demand dataset validation (S-083).
  *
  * Verifies:
- * - AC1: Label renamed from "Training Run" to "Sample Set"
- * - AC2: Validate button appears beneath the Sample Set selector
+ * - AC1: Sidebar label reads "Training Run"
+ * - AC2: Validate button appears beneath the Training Run selector
  * - AC3: API endpoint triggers validation of the selected sample set
  * - AC5: Validation results returned (per-checkpoint completeness counts)
  * - AC6: Validation results displayed inline with pass/warning status
@@ -23,12 +23,10 @@ test.describe('on-demand dataset validation (S-083)', () => {
     await resetDatabase(request)
   })
 
-  // AC1: Label renamed from "Training Run" to "Sample Set"
-  test('sidebar label reads "Sample Set" instead of "Training Run"', async ({ page }) => {
+  // AC1: Sidebar label reads "Training Run"
+  test('sidebar label reads "Training Run"', async ({ page }) => {
     await page.goto('/')
-    await expect(page.getByText('Sample Set', { exact: true })).toBeVisible()
-    // The old label should not exist
-    await expect(page.getByText('Training Run', { exact: true })).toHaveCount(0)
+    await expect(page.getByText('Training Run', { exact: true })).toBeVisible()
   })
 
   // AC2: Validate button appears after selecting a sample set

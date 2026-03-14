@@ -149,12 +149,14 @@ func (s *FixtureSeeder) seedFixtureStudy() error {
 }
 
 // seedFixtureSampleDirs creates the sample directory structure for the fixture
-// study under {sampleDir}/{sanitizedTrainingRunName}/{studyID}/{checkpointFilename}/.
+// study under {sampleDir}/{sanitizedTrainingRunName}/{studyName}/{checkpointFilename}/.
 // Each checkpoint directory gets the expected number of empty PNG placeholder files.
+// The path uses the study NAME (not ID) to match the layout used by the real job
+// executor and the availability service.
 func (s *FixtureSeeder) seedFixtureSampleDirs() error {
 	sanitizedRunName := fileformat.SanitizeTrainingRunName(E2EFixtureTrainingRunName)
 	for _, cpFilename := range e2eFixtureCheckpoints {
-		cpDir := filepath.Join(s.sampleDir, sanitizedRunName, E2EFixtureStudyID, cpFilename)
+		cpDir := filepath.Join(s.sampleDir, sanitizedRunName, E2EFixtureStudyName, cpFilename)
 		if err := os.MkdirAll(cpDir, 0755); err != nil {
 			return fmt.Errorf("creating fixture sample dir %s: %w", cpDir, err)
 		}
@@ -216,12 +218,14 @@ func (s *FixtureSeeder) seedSlashFixtureStudy() error {
 // seedSlashFixtureSampleDirs creates sample directories for the slash-containing
 // training run fixture. The training run name "test-run/my-model" is sanitized to
 // "test-run_my-model" for the filesystem path, demonstrating the B-088 fix.
-// Layout: {sampleDir}/test-run_my-model/{studyID}/{checkpointFilename}/
+// Layout: {sampleDir}/test-run_my-model/{studyName}/{checkpointFilename}/
+// The path uses the study NAME (not ID) to match the layout used by the real job
+// executor and the availability service.
 func (s *FixtureSeeder) seedSlashFixtureSampleDirs() error {
 	// Sanitize the training run name: "test-run/my-model" → "test-run_my-model"
 	sanitizedRunName := fileformat.SanitizeTrainingRunName(E2ESlashFixtureTrainingRunName)
 	for _, cpFilename := range e2eSlashFixtureCheckpoints {
-		cpDir := filepath.Join(s.sampleDir, sanitizedRunName, E2ESlashFixtureStudyID, cpFilename)
+		cpDir := filepath.Join(s.sampleDir, sanitizedRunName, E2ESlashFixtureStudyName, cpFilename)
 		if err := os.MkdirAll(cpDir, 0755); err != nil {
 			return fmt.Errorf("creating slash fixture sample dir %s: %w", cpDir, err)
 		}

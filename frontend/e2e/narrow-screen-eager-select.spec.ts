@@ -169,11 +169,14 @@ test.describe('narrow screen eager auto-select', () => {
     // Step 4: Wait for scan to complete (header buttons appear)
     await expect(page.locator('[data-testid="generate-samples-button"]')).toBeVisible({ timeout: 10000 })
 
-    // Step 5: Verify the standalone key was written to localStorage
-    const storedId = await page.evaluate(() =>
+    // Step 5: Verify the standalone key was written to localStorage.
+    // The composable stores a JSON object { runId, studiesByRunDir }.
+    const storedValue = await page.evaluate(() =>
       localStorage.getItem('checkpoint-sampler-last-training-run'),
     )
-    expect(storedId).toBe(String(trainingRunId))
+    expect(storedValue).not.toBeNull()
+    const parsed = JSON.parse(storedValue!)
+    expect(parsed.runId).toBe(trainingRunId)
   })
 
   test('drawer reflects auto-selected run from standalone key when opened', async ({ page, request }) => {
