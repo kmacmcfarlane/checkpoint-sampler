@@ -250,7 +250,9 @@ E2E tests are the standard verification method for story acceptance. The QA expe
 make test-e2e
 ```
 
-`make test-e2e` is self-contained: it starts backend + frontend using the E2E compose stack with `test-fixtures/` data, runs all Playwright tests, then tears down automatically. No separate `make up-dev` is required.
+`make test-e2e` runs the E2E suite in parallel across sharded compose stacks (default 4 shards, override with `SHARDS=N`). The backend binary is pre-built in the Docker image — no codegen or compilation at startup. No separate `make up-dev` is required.
+
+For targeted iteration, use `make test-e2e-serial SPEC=<file>` to run a single spec file in a single stack. For test authoring with hot-reload, use `make test-e2e-live`.
 
 This verifies that the application starts, serves requests, and that user-facing behavior is correct end-to-end. A passing E2E run confirms:
 - The application starts without fatal errors (crash loops, missing dependencies, broken wiring)
@@ -366,8 +368,8 @@ Sweep findings never affect the story verdict. If the story's acceptance criteri
 Section 5.5 establishes E2E tests as the primary smoke test. This section provides additional details on E2E execution and failure triage.
 
 Key facts:
-- `make test-e2e` is fully self-contained: it starts backend + frontend using `docker-compose.test.yml` with `test-fixtures/` data, runs all Playwright tests, and tears down automatically. No separate `make up-dev` is required.
-- The E2E compose project (`checkpoint-sampler-test`) is isolated from the dev environment — running `make test-e2e` does not interfere with an active `make up-dev` session.
+- `make test-e2e` runs the full suite in parallel shards. `make test-e2e-serial` runs a single stack (supports `SPEC=`). Both use `docker-compose.test.yml` with `test-fixtures/` data and tear down automatically. No separate `make up-dev` is required.
+- E2E compose projects are isolated from the dev environment — running E2E tests does not interfere with an active `make up-dev` session.
 
 **Story-related E2E failures (blocking):**
 - If a failing test covers a user journey touched by this story's changes, the failure is blocking. Investigate, fix the code or update the test, and ensure it passes before approving the story.
@@ -415,7 +417,9 @@ Key facts:
 Tests should include inline comments linking to the acceptance criteria they verify. Format: `// AC: <acceptance criterion text or summary>`. This makes QA traceability verification faster. Both unit tests and E2E tests should follow this pattern.
 
 ### 6.6 Running E2E tests
-- Agent workflow (one-shot): `make test-e2e` (self-contained; starts the stack, runs tests, tears down).
+- **Parallel regression** (default): `make test-e2e` runs N sharded compose stacks in parallel (default 4, override with `SHARDS=N`). The backend binary is pre-built in the Docker image — no codegen or compilation at startup. Artifacts land in `.e2e/` (logs, blob reports, merged HTML report).
+- **Serial / targeted**: `make test-e2e-serial` runs a single stack. Supports `SPEC=<file>` for targeted runs (e.g., `make test-e2e-serial SPEC=smoke.spec.ts`). Logs go to `.ralph/temp/e2e-logs/`.
+- **Hot-reload development**: `make test-e2e-live` starts a persistent stack with hot-reload (air + codegen). Run specs against it with `make test-e2e-live-run SPEC=<file>`. Tear down with `make test-e2e-live-down`.
 - Playwright browsers are installed in the project's local `node_modules` — no global install needed.
 - Playwright outputs results in list reporter format for easy log scanning.
 

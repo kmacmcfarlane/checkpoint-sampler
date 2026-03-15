@@ -1,7 +1,8 @@
-.PHONY: claude claude-resume claude-dangerous ralph ralph-resume ralph-auto ralph-auto-resume capture-runtime-context up down logs up-dev down-dev logs-dev gen test-frontend test-frontend-watch test-backend test-backend-watch lint-nginx up-test down-test build-playwright test-e2e test-e2e-logs down-e2e check-e2e-panics lint-e2e-helpers lint-disallowed-chars logs-snapshot check-tools
+.PHONY: claude claude-resume claude-dangerous ralph ralph-resume ralph-auto ralph-auto-resume capture-runtime-context up down logs up-dev down-dev logs-dev gen test-frontend test-frontend-watch test-backend test-backend-watch lint-nginx up-test down-test build-playwright test-e2e test-e2e-serial test-e2e-live test-e2e-live-run test-e2e-live-down test-e2e-logs down-e2e check-e2e-panics lint-e2e-helpers lint-disallowed-chars logs-snapshot check-tools
 
 COMPOSE_DEV = docker compose -p checkpoint-sampler-dev -f docker-compose.yml -f docker-compose.dev.yml
 COMPOSE_TEST = docker compose -p checkpoint-sampler-test -f docker-compose.test.yml
+COMPOSE_E2E_LIVE = docker compose -p checkpoint-sampler-e2e-live -f docker-compose.test.yml -f docker-compose.e2e-live.yml
 
 claude:
 	claude-sandbox
@@ -117,13 +118,16 @@ LOGS_SNAPSHOT_DIR = .ralph/temp/logs-snapshot
 build-playwright:
 	$(COMPOSE_TEST) build playwright
 
-# Run Playwright E2E tests against a self-contained stack with test fixture data.
-# Starts backend + frontend with test-fixtures/ data, waits until healthy, runs
-# playwright, then captures logs to .ralph/temp/e2e-logs/ and tears down.
-# Does not require make up-dev to be running.
-# Pre-cleans volumes (down -v) to prevent stale SQLite database schema from
-# a prior interrupted run causing "no such table" errors.
+# Run Playwright E2E tests in parallel across N sharded stacks (default: 4 shards).
+# Each shard gets its own isolated docker-compose stack with a pre-built backend
+# binary (no codegen or compilation at startup). Artifacts go to .e2e/.
+# Override shard count: make test-e2e SHARDS=2
 test-e2e:
+	./scripts/e2e/e2e_parallel.sh $(or $(SHARDS),12)
+
+# Run Playwright E2E tests serially in a single stack (pre-built binary).
+# Supports SPEC= for targeted runs: make test-e2e-serial SPEC=smoke.spec.ts
+test-e2e-serial:
 	$(COMPOSE_TEST) down -v 2>/dev/null || true; \
 	$(COMPOSE_TEST) up -d --build --wait --remove-orphans backend frontend && \
 	$(COMPOSE_TEST) run --rm --remove-orphans playwright sh -c "npx playwright test $(SPEC)"; \
@@ -134,6 +138,20 @@ test-e2e:
 	$(COMPOSE_TEST) down -v; \
 	./scripts/check-e2e-panics.sh $(E2E_LOG_DIR) || STATUS=1; \
 	exit $$STATUS
+
+# Start a hot-reload E2E stack for test development. Stays up until torn down.
+# Use make test-e2e-live-run to execute specs against it.
+test-e2e-live:
+	$(COMPOSE_E2E_LIVE) up -d --build --wait --remove-orphans backend frontend
+
+# Run spec(s) against the live hot-reload stack.
+# Usage: make test-e2e-live-run SPEC=smoke.spec.ts
+test-e2e-live-run:
+	$(COMPOSE_E2E_LIVE) run --rm --remove-orphans playwright sh -c "npx playwright test $(SPEC)"
+
+# Tear down the live hot-reload E2E stack.
+test-e2e-live-down:
+	$(COMPOSE_E2E_LIVE) down -v
 
 # Scan E2E backend logs for Go panics. Exits non-zero when panic: is found.
 # Log directory defaults to .ralph/temp/e2e-logs. Override with: make check-e2e-panics LOG_DIR=<path>

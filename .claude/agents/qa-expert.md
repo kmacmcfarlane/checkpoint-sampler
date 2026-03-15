@@ -293,15 +293,16 @@ These are operational improvements within the QA agent's domain. Only file ideas
 
 E2E test execution (REQUIRED — primary smoke test and acceptance verification):
 E2E tests are the standard verification method for story acceptance. Run the Playwright E2E suite as the primary smoke test:
-- `make test-e2e` — starts backend + frontend in an isolated stack (checkpoint-sampler-test), runs all Playwright tests, then tears down automatically. No separate `make up-dev` is needed.
-- `make test-e2e SPEC=<filename>` — runs only the specified spec file(s) against the same stack. Use this for targeted iteration runs (see strategy below).
+- `make test-e2e` — parallel regression runner (default 4 shards). Pre-built backend binary starts instantly (no codegen/compilation at startup). Artifacts in `.e2e/`.
+- `make test-e2e-serial SPEC=<filename>` — single-stack serial runner for targeted iteration. Supports `SPEC=` for running specific spec file(s).
+- `make test-e2e-live` — start a persistent hot-reload stack for test authoring. Run specs with `make test-e2e-live-run SPEC=<file>`. Tear down with `make test-e2e-live-down`.
 - A passing E2E run satisfies the smoke test requirement — it confirms the application starts and serves requests end-to-end.
 - Record the number of tests run, passed, and failed in the E2E Test Results section of your verdict.
 
 Targeted E2E strategy (REQUIRED — minimizes iteration time):
 Running the full E2E suite takes ~5 minutes per run. Use this strategy to reduce wall-time during fix-and-rerun cycles:
-1. **First run**: Always run the full suite (`make test-e2e`) as the baseline smoke test.
-2. **Iteration runs** (fixing failures or authoring new tests): Run only the relevant spec file(s) using `make test-e2e SPEC=<filename.spec.ts>`. Multiple specs can be passed space-separated: `make test-e2e SPEC="file1.spec.ts file2.spec.ts"`.
+1. **First run**: Always run the full suite (`make test-e2e`) as the baseline smoke test (parallel).
+2. **Iteration runs** (fixing failures or authoring new tests): Run only the relevant spec file(s) using `make test-e2e-serial SPEC=<filename.spec.ts>`. Multiple specs can be passed space-separated: `make test-e2e-serial SPEC="file1.spec.ts file2.spec.ts"`. SPEC and sharding are mutually exclusive, so iteration runs use the serial target.
 3. **Final run**: After all fixes and new tests are written, run the full suite once more (`make test-e2e`) to confirm no regressions before approving.
 
 This means a typical cycle with fixes is: full run → N targeted runs → full run (2 full runs + N fast runs), instead of N+2 full runs.

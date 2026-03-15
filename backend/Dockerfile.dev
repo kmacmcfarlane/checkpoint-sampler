@@ -21,5 +21,12 @@ RUN mkdir -p /app/backend
 COPY go.mod go.sum ./backend/
 RUN cd /app/backend && go mod download
 
+# Pre-built binary for test/CI mode. In dev mode, the ./backend bind mount
+# shadows /app/backend so these layers are invisible — air works as before.
+COPY . /app/backend/
+RUN cd /app/backend && go generate ./internal/api/... && \
+    chmod -R a+rX /app/backend/internal/api/gen && \
+    go build -o /app/backend/bin/server ./cmd/server
+
 EXPOSE 8080
 CMD ["sh", "-c", "cd backend && go generate ./internal/api/... && air -c .air.toml"]

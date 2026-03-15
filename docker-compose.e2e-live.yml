@@ -1,0 +1,37 @@
+# Overlay on docker-compose.test.yml that restores hot-reload for E2E test
+# development. Usage:
+#   docker compose -f docker-compose.test.yml -f docker-compose.e2e-live.yml up -d --build
+#
+# Or via Makefile:
+#   make test-e2e-live          (start stack)
+#   make test-e2e-live-run SPEC=smoke.spec.ts  (run spec against live stack)
+#   make test-e2e-live-down     (tear down)
+
+services:
+  backend:
+    command: ["sh", "-c", "cd backend && go generate ./internal/api/... && air -c .air.toml"]
+    volumes:
+      - ./backend:/app/backend
+      - test_backend_data:/app/data
+      - ./test-fixtures/config-with-comfyui.yaml:/app/config.yaml:ro
+      - ./test-fixtures/checkpoints:/data/checkpoints:ro
+      - test_samples_data:/data/samples
+      - ./test-fixtures/workflows:/data/workflows:ro
+      - live_go_cache:/home/gouser/.cache/go-build
+      - live_go_mod_cache:/home/gouser/go/pkg/mod
+    environment:
+      - PORT=8080
+      - CONFIG_PATH=/app/config.yaml
+      - LOG_LEVEL=info
+      - ENABLE_TEST_ENDPOINTS=true
+      - GOPATH=/home/gouser/go
+      - GOCACHE=/home/gouser/.cache/go-build
+      - GOMODCACHE=/home/gouser/go/pkg/mod
+    healthcheck:
+      # Longer start_period since codegen + compilation happens at startup
+      start_period: 60s
+      retries: 20
+
+volumes:
+  live_go_cache:
+  live_go_mod_cache:

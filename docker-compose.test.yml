@@ -37,24 +37,19 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile.dev
+    command: ["./backend/bin/server"]
     user: "${UID:-1000}:${GID:-1000}"
     volumes:
-      - ./backend:/app/backend
       - test_backend_data:/app/data
       - ./test-fixtures/config-with-comfyui.yaml:/app/config.yaml:ro
       - ./test-fixtures/checkpoints:/data/checkpoints:ro
       - test_samples_data:/data/samples
       - ./test-fixtures/workflows:/data/workflows:ro
-      - test_go_cache:/home/gouser/.cache/go-build
-      - test_go_mod_cache:/home/gouser/go/pkg/mod
     environment:
       - PORT=8080
       - CONFIG_PATH=/app/config.yaml
       - LOG_LEVEL=info
       - ENABLE_TEST_ENDPOINTS=true
-      - GOPATH=/home/gouser/go
-      - GOCACHE=/home/gouser/.cache/go-build
-      - GOMODCACHE=/home/gouser/go/pkg/mod
     depends_on:
       comfyui-mock:
         condition: service_healthy
@@ -65,7 +60,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 20
-      start_period: 60s
+      start_period: 15s
 
   frontend:
     build:
@@ -89,6 +84,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile.playwright
+    user: "${UID:-1000}:${GID:-1000}"
     working_dir: /app
     # Chromium uses /dev/shm for renderer shared memory.  Docker's default is
     # 64 MB, which is too small for a 131-test suite running in one worker.
@@ -113,6 +109,4 @@ volumes:
   test_samples_data:
   test_frontend_node_modules:
   test_frontend_dist:
-  test_go_cache:
-  test_go_mod_cache:
   playwright_node_modules:
