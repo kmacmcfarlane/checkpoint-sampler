@@ -283,7 +283,7 @@ stories:
   - id: B-098
     title: Training run selector truncates long names (needs multi-line wrap)
     type: bug
-    status: todo
+    status: uat
     priority: 70
     complexity: low
     requires: []

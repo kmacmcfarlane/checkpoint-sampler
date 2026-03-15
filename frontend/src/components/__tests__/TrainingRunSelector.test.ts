@@ -755,6 +755,109 @@ describe('TrainingRunSelector', () => {
     })
   })
 
+  // B-098: Long name wrapping — options use renderLabel for multi-line display
+  describe('long name wrapping (B-098)', () => {
+    const longNameRun: TrainingRun = {
+      id: 99,
+      name: 'very-long-training-run-name-that-should-wrap-instead-of-truncating-with-ellipsis',
+      checkpoint_count: 1,
+      has_samples: true,
+      checkpoints: [
+        { filename: 'very-long-step00001000.safetensors', step_number: 1000, has_samples: true },
+      ],
+    }
+
+    // AC1: Training run selector wraps long names instead of truncating
+    it('NSelect has renderLabel prop for long name wrapping', async () => {
+      mockGetTrainingRuns.mockResolvedValue([longNameRun])
+      const wrapper = mount(TrainingRunSelector)
+      await flushPromises()
+
+      const select = wrapper.findComponent(NSelect)
+      const options = select.props('options') as Array<{ label: string; value: string }>
+      expect(options).toHaveLength(1)
+      expect(options[0].label).toBe(longNameRun.name)
+      // AC1 & AC2: renderLabel must be a prop on NSelect so Naive UI uses it for both
+      // the selected value display and the dropdown options
+      expect(typeof select.props('renderLabel')).toBe('function')
+    })
+
+    // AC2: Dropdown options also display full names without truncation
+    it('renderLabel prop produces a span with white-space: normal for full name display', async () => {
+      mockGetTrainingRuns.mockResolvedValue([longNameRun])
+      const wrapper = mount(TrainingRunSelector)
+      await flushPromises()
+
+      const select = wrapper.findComponent(NSelect)
+      const renderLabel = select.props('renderLabel') as ((opt: { label?: string }) => unknown) | undefined
+      expect(renderLabel).toBeDefined()
+
+      // Call renderLabel directly and verify it returns a VNode with wrapping styles
+      const vnode = renderLabel!({ label: longNameRun.name }) as {
+        props?: { style?: { whiteSpace?: string; wordBreak?: string } }
+        children?: unknown
+      }
+      expect(vnode).toBeDefined()
+      expect(vnode.props?.style?.whiteSpace).toBe('normal')
+      expect(vnode.props?.style?.wordBreak).toBe('break-word')
+    })
+
+    // AC4: Unit test for long name rendering — verify the full label text is preserved
+    it('preserves the full long name in the option label without truncation', async () => {
+      mockGetTrainingRuns.mockResolvedValue([longNameRun])
+      const wrapper = mount(TrainingRunSelector)
+      await flushPromises()
+
+      const select = wrapper.findComponent(NSelect)
+      const options = select.props('options') as Array<{ label: string }>
+      expect(options[0].label).toBe('very-long-training-run-name-that-should-wrap-instead-of-truncating-with-ellipsis')
+    })
+
+    // AC1 & AC2: Study NSelect also has renderLabel prop for wrapping
+    it('study NSelect has renderLabel prop for long study name wrapping', async () => {
+      const runsWithLongStudy: TrainingRun[] = [
+        {
+          id: 0,
+          name: 'long-model/this-is-a-very-long-study-name-that-should-wrap/long-model',
+          checkpoint_count: 1,
+          has_samples: true,
+          checkpoints: [
+            { filename: 'long-model-step00001000.safetensors', step_number: 1000, has_samples: true },
+          ],
+          training_run_dir: 'long-model',
+          study_label: 'this-is-a-very-long-study-name-that-should-wrap',
+          study_output_dir: 'long-model/this-is-a-very-long-study-name-that-should-wrap',
+        },
+        {
+          id: 1,
+          name: 'long-model/short/long-model',
+          checkpoint_count: 1,
+          has_samples: true,
+          checkpoints: [
+            { filename: 'long-model-step00001000.safetensors', step_number: 1000, has_samples: true },
+          ],
+          training_run_dir: 'long-model',
+          study_label: 'short',
+          study_output_dir: 'long-model/short',
+        },
+      ]
+      mockGetTrainingRuns.mockResolvedValue(runsWithLongStudy)
+      const wrapper = mount(TrainingRunSelector)
+      await flushPromises()
+
+      // Select the group to trigger study dropdown population
+      selectGroup(wrapper, 'long-model')
+      await nextTick()
+
+      const selects = wrapper.findAllComponents(NSelect)
+      const studySelect = selects[1]
+      const studyOptions = studySelect.props('options') as Array<{ label: string }>
+      expect(studyOptions).toHaveLength(2)
+      // AC1 & AC2: renderLabel is a prop on NSelect, not on individual options
+      expect(typeof studySelect.props('renderLabel')).toBe('function')
+    })
+  })
+
   // AC: Sample set selector has a refresh icon button to manually reload the list
   describe('refresh button', () => {
     it('renders a refresh icon button for the sample set selector', async () => {

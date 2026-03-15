@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-098: Training run selector truncates long names (needs multi-line wrap)
+- Use Naive UI's component-level `:render-label` prop on both NSelect dropdowns to wrap long training run and study names instead of truncating with ellipsis
+
 ### B-097: 21 E2E tests fail expecting 'Sample Set' label and two-dropdown training run selector
 - Aligned E2E test assertions with current UI: "Training Run" label (not "Sample Set"), dialog-scoped `study-select` locators, JSON localStorage format
 - Fixed backend fixture seeders and partial sample seeder to use `studyName` for filesystem paths, matching the real job executor layout

@@ -74,6 +74,12 @@ When a new migration adds a table, the developer must remember to update the tab
 * source: developer
 When a story introduces an intermediate dialog or changes a user flow (like S-093's confirmation dialog), the developer should proactively search for E2E specs that exercise the affected journey (e.g., `grep -r 'submitButton.click' frontend/e2e/`) and update them in the same story. This would prevent downstream E2E failures from being discovered during QA of a subsequent story.
 
+### Naive UI prop vs option-level rendering reference in DEVELOPMENT_PRACTICES.md
+* status: needs_approval
+* priority: low
+* source: developer
+Add a note to DEVELOPMENT_PRACTICES.md clarifying that Naive UI NSelect uses component-level props (`render-label`, `render-option`, `render-tag`) rather than per-option render functions, to prevent similar misapplications in the future. B-098 wasted a review cycle because the initial implementation placed `renderLabel` on option objects (a no-op).
+
 ### Pre-existing E2E failure tracking
 * status: needs_approval
 * priority: medium

@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, h } from 'vue'
 import { NSelect, NCheckbox, NButton } from 'naive-ui'
+import type { SelectRenderLabel } from 'naive-ui'
 import type { TrainingRun, CheckpointCompletenessInfo } from '../api/types'
 import { apiClient } from '../api/client'
 import { useGenerateInputsPersistence } from '../composables/useGenerateInputsPersistence'
@@ -65,6 +66,22 @@ const trainingRunGroups = computed(() => {
   }
   return groups
 })
+
+/**
+ * B-098: renderLabel renders option labels with white-space: normal so long names
+ * wrap to multiple lines instead of truncating with ellipsis.
+ * IMPORTANT: VNodes returned from renderLabel run outside Vue's scoped CSS context,
+ * so all styles must be inlined.
+ */
+const renderWrappedLabel: SelectRenderLabel = (option) =>
+  h('span', {
+    style: {
+      whiteSpace: 'normal',
+      wordBreak: 'break-word',
+      lineHeight: '1.4',
+    },
+    'data-testid': 'training-run-option-label',
+  }, String(option.label ?? ''))
 
 /** Options for the first dropdown (Training Run). */
 const groupOptions = computed(() => {
@@ -279,6 +296,7 @@ function checkpointStatus(cp: CheckpointCompletenessInfo): 'pass' | 'warning' {
       :loading="loading"
       :consistent-menu-width="false"
       :menu-props="{ style: 'min-width: 320px; max-width: min(600px, 100vw)' }"
+      :render-label="renderWrappedLabel"
       filterable
       class="training-run-select"
       data-testid="training-run-select"
@@ -309,6 +327,7 @@ function checkpointStatus(cp: CheckpointCompletenessInfo): 'pass' | 'warning' {
       :options="studyOptions"
       :consistent-menu-width="false"
       :menu-props="{ style: 'min-width: 200px; max-width: min(400px, 100vw)' }"
+      :render-label="renderWrappedLabel"
       filterable
       class="study-select"
       data-testid="study-select"
