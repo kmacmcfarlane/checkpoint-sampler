@@ -41,6 +41,8 @@ const props = defineProps<{
   /** Per-sample inference progress keyed by job ID. Reset between samples. */
   inferenceProgress?: Record<string, InferenceProgress>
   loading?: boolean
+  /** The ID of the job currently being stopped, or null. Used to show loading state on the stop button. */
+  stoppingJobId?: string | null
 }>()
 
 // stop: Emitted when the user clicks Stop on a running job. Payload: the job ID string.
@@ -431,6 +433,7 @@ function isTracebackExpanded(jobId: string, errorIdx: number): boolean {
                 v-if="canStop(job)"
                 size="tiny"
                 type="warning"
+                :loading="stoppingJobId === job.id"
                 :data-testid="`job-${job.id}-stop`"
                 @click="handleStop(job.id)"
               >

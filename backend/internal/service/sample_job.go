@@ -466,11 +466,22 @@ func (s *SampleJobService) Stop(id string) (model.SampleJob, error) {
 
 	// Delegate to executor: it cancels the in-flight ComfyUI prompt and atomically
 	// updates the DB status to stopped before clearing its own active state.
-	// The DB update no longer happens here — the executor owns it.
+	// If the executor rejects the stop (e.g. the job is not actively tracked by the
+	// executor because it hasn't been picked up yet or already finished), fall back
+	// to a direct DB update so the user can always stop a running job.
 	if s.executor != nil {
 		if err := s.executor.RequestStop(id); err != nil {
-			s.logger.WithError(err).Warn("executor stop request failed")
-			return model.SampleJob{}, fmt.Errorf("requesting stop: %w", err)
+			s.logger.WithError(err).Warn("executor stop request failed, falling back to direct DB update")
+			// Fall through to direct DB update below
+			job.Status = model.SampleJobStatusStopped
+			job.UpdatedAt = time.Now().UTC()
+			if err := s.store.UpdateSampleJob(job); err != nil {
+				s.logger.WithFields(logrus.Fields{
+					"sample_job_id": id,
+					"error":         err.Error(),
+				}).Error("failed to update sample job status")
+				return model.SampleJob{}, fmt.Errorf("updating sample job: %w", err)
+			}
 		}
 	} else {
 		// No executor configured (e.g. tests without executor); update DB directly as fallback.

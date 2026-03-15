@@ -377,7 +377,7 @@ stories:
   - id: B-103
     title: "Stop job shows no activity and stop+restart fails (invalid_state)"
     type: bug
-    status: todo
+    status: uat
     priority: 70
     complexity: medium
     requires: []

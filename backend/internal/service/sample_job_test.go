@@ -3,6 +3,7 @@ package service_test
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"io"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -727,6 +728,74 @@ var _ = Describe("SampleJobService", func() {
 			_, err := svc.Stop("nonexistent")
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("not found"))
+		})
+	})
+
+	// AC4: BE: Unit tests for stop+restart state transitions
+	Describe("Stop+Restart cycle", func() {
+		It("allows resume after stop completes via executor", func() {
+			job := model.SampleJob{
+				ID:     "job-1",
+				Status: model.SampleJobStatusRunning,
+			}
+			store.jobs[job.ID] = job
+
+			// Stop the job (executor simulates the DB update to stopped)
+			result, err := svc.Stop("job-1")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Status).To(Equal(model.SampleJobStatusStopped))
+			Expect(executor.stopCalled).To(BeTrue())
+
+			// Resume the stopped job
+			resumed, err := svc.Resume("job-1")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(resumed.Status).To(Equal(model.SampleJobStatusRunning))
+			Expect(executor.resumeCalled).To(BeTrue())
+		})
+
+		It("allows resume after stop falls back to direct DB update", func() {
+			job := model.SampleJob{
+				ID:     "job-1",
+				Status: model.SampleJobStatusRunning,
+			}
+			store.jobs[job.ID] = job
+
+			// Simulate executor rejecting the stop (e.g. activeJobID mismatch)
+			executor.stopErr = fmt.Errorf("job job-1 is not currently running")
+
+			// Stop should still succeed via fallback DB update
+			result, err := svc.Stop("job-1")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Status).To(Equal(model.SampleJobStatusStopped))
+			Expect(executor.stopCalled).To(BeTrue())
+
+			// Verify DB was updated to stopped
+			stored := store.jobs["job-1"]
+			Expect(stored.Status).To(Equal(model.SampleJobStatusStopped))
+
+			// Resume should work because the job is now properly stopped in the DB
+			resumed, err := svc.Resume("job-1")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(resumed.Status).To(Equal(model.SampleJobStatusRunning))
+		})
+
+		It("falls back to direct DB update when executor rejects stop", func() {
+			job := model.SampleJob{
+				ID:     "job-1",
+				Status: model.SampleJobStatusRunning,
+			}
+			store.jobs[job.ID] = job
+
+			// Executor rejects because it doesn't think the job is active
+			executor.stopErr = fmt.Errorf("job job-1 is not currently running")
+
+			result, err := svc.Stop("job-1")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Status).To(Equal(model.SampleJobStatusStopped))
+
+			// Verify the DB was updated
+			stored := store.jobs["job-1"]
+			Expect(stored.Status).To(Equal(model.SampleJobStatusStopped))
 		})
 	})
 

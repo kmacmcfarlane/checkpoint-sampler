@@ -54,6 +54,8 @@ const prefillMissingOnly = ref(false)
 const debugMode = ref(false)
 const sampleJobs = ref<SampleJob[]>([])
 const jobsLoading = ref(false)
+/** The ID of the job currently being stopped, or null when no stop is in progress. */
+const stoppingJobId = ref<string | null>(null)
 
 const WIDE_BREAKPOINT = 1024
 
@@ -704,11 +706,14 @@ function onJobCreated() {
 
 /** Stop a sample job. */
 async function stopJob(jobId: string) {
+  stoppingJobId.value = jobId
   try {
     await apiClient.stopSampleJob(jobId)
     await fetchSampleJobs()
   } catch (err: unknown) {
     console.warn('Failed to stop sample job:', err)
+  } finally {
+    stoppingJobId.value = null
   }
 }
 
@@ -999,6 +1004,7 @@ async function handleSlideoutValidate() {
         :job-progress="jobProgress"
         :inference-progress="inferenceProgress"
         :loading="jobsLoading"
+        :stopping-job-id="stoppingJobId"
         @stop="stopJob"
         @resume="resumeJob"
         @retry-failed="retryFailedJob"

@@ -197,6 +197,27 @@ describe('JobProgressPanel', () => {
     expect(emitted![0]).toEqual(['job-1'])
   })
 
+  // AC: FE: Stop button shows loading/activity state during operation
+  it('shows loading state on stop button when stoppingJobId matches', () => {
+    const wrapper = mount(JobProgressPanel, {
+      props: { show: true, jobs: sampleJobs, stoppingJobId: 'job-1' },
+      global: { stubs: { Teleport: true } },
+    })
+
+    const stopButton = wrapper.find('[data-testid="job-job-1-stop"]').findComponent(NButton)
+    expect(stopButton.props('loading')).toBe(true)
+  })
+
+  it('does not show loading state on stop button when stoppingJobId is null', () => {
+    const wrapper = mount(JobProgressPanel, {
+      props: { show: true, jobs: sampleJobs, stoppingJobId: null },
+      global: { stubs: { Teleport: true } },
+    })
+
+    const stopButton = wrapper.find('[data-testid="job-job-1-stop"]').findComponent(NButton)
+    expect(stopButton.props('loading')).toBe(false)
+  })
+
   it('emits resume event when resume button is clicked', async () => {
     const wrapper = mount(JobProgressPanel, {
       props: { show: true, jobs: sampleJobs },

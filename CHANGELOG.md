@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-103: Stop job shows no activity and stop+restart fails (invalid_state)
+- Backend `Stop()` now falls back to direct DB update when executor rejects, preventing jobs from getting stuck in "running" state
+- Stop button shows loading spinner during the async operation
+
 ### B-100: Lightbox displays JPEGs instead of full-quality PNGs
 - Fixed `getImagesBySliderValue` in XYGrid to always use full-resolution PNG paths for the lightbox slider, instead of preferring JPEG thumbnails
 
