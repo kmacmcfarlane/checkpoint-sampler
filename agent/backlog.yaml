@@ -177,7 +177,7 @@ stories:
   - id: S-118
     title: "Lightbox grid position indicator"
     priority: 45
-    status: uat_feedback
+    status: uat
     complexity: low
     requires: []
     acceptance:
@@ -193,8 +193,6 @@ stories:
     testing:
       - "Verify position indicator updates correctly when navigating with Shift+Arrow"
       - "Verify indicator handles edge cases (first/last cell in grid)"
-    review_feedback: Position indicator is not visible in the lightbox at all. The indicator should be visible when the 
-      lightbox is open.
   - id: W-021
     title: "Gitignore Playwright HTML report directory"
     priority: 25

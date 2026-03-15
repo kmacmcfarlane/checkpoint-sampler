@@ -553,11 +553,11 @@ onUnmounted(() => {
   top: 14px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 1002;
+  z-index: 1010;
   /* stylelint-disable-next-line scale-unlimited/declaration-strict-value -- Intentional: lightbox overlay always has dark background regardless of theme */
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(0, 0, 0, 0.65);
   /* stylelint-disable-next-line scale-unlimited/declaration-strict-value -- Intentional: lightbox overlay always has dark background regardless of theme */
-  border: 1px solid rgba(255, 255, 255, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.55);
   /* stylelint-disable-next-line scale-unlimited/declaration-strict-value -- Intentional: lightbox overlay always has dark background regardless of theme */
   color: #ffffff;
   font-size: 0.875rem;

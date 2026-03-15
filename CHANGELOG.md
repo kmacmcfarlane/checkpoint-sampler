@@ -103,7 +103,7 @@ Older entries are condensed to titles only — see git history for full details.
 
 ### S-118: Lightbox grid position indicator
 - Added "X / Y" position indicator at top-center of lightbox, visible when grid has multiple images
-- UAT rework: improved indicator visibility with frosted-glass styling (white-tinted background, visible border, bolder text with text-shadow)
+- UAT rework: dark semi-opaque pill background (`rgba(0,0,0,0.65)`) replaces near-invisible white; z-index raised to ensure indicator renders above all other lightbox elements
 
 ### B-096: E2E: Filters slideout layout tests fail (2 tests)
 - Replaced fragile Naive UI internal CSS class selector in `openFiltersDrawer` E2E helper with stable `data-testid="filters-drawer-content"` attribute, per TEST_PRACTICES.md section 6.7
