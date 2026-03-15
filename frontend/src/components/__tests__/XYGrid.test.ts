@@ -1052,6 +1052,85 @@ describe('XYGrid', () => {
     })
   })
 
+  describe('lightbox uses full-resolution PNG URLs (B-100 regression)', () => {
+    // AC: Lightbox imagesBySliderValue must use full-resolution PNG paths even when
+    // thumbnail_path is set, so the lightbox slider does not display JPEG thumbnails.
+
+    it('imagesBySliderValue uses relative_path (PNG) not thumbnail_path (JPEG) when thumbnails exist', async () => {
+      const imagesWithThumbnails: ScanImage[] = [
+        {
+          relative_path: 'a/seed=42&step=500&cfg=3.png',
+          dimensions: { seed: '42', step: '500', cfg: '3' },
+          thumbnail_path: 'a/thumb/seed=42&step=500&cfg=3.jpg',
+        },
+        {
+          relative_path: 'a/seed=42&step=500&cfg=7.png',
+          dimensions: { seed: '42', step: '500', cfg: '7' },
+          thumbnail_path: 'a/thumb/seed=42&step=500&cfg=7.jpg',
+        },
+      ]
+      const wrapper = mountGrid({
+        images: imagesWithThumbnails,
+        sliderDimension,
+        sliderValues: {},
+        defaultSliderValue: '3',
+      })
+
+      const imageCells = wrapper.findAllComponents(ImageCell)
+      expect(imageCells.length).toBeGreaterThan(0)
+      imageCells[0].vm.$emit('click', '/api/images/a/seed=42&step=500&cfg=3.png')
+      await wrapper.vm.$nextTick()
+
+      const emitted = wrapper.emitted('image:click')
+      expect(emitted).toBeDefined()
+      const payload = emitted![0][0] as ImageClickContext
+
+      // imagesBySliderValue must point to full-resolution PNGs, not JPEG thumbnails
+      expect(payload.imagesBySliderValue['3']).toBe('/api/images/a/seed=42&step=500&cfg=3.png')
+      expect(payload.imagesBySliderValue['7']).toBe('/api/images/a/seed=42&step=500&cfg=7.png')
+      // Must NOT contain JPEG thumbnail paths
+      expect(payload.imagesBySliderValue['3']).not.toContain('.jpg')
+      expect(payload.imagesBySliderValue['7']).not.toContain('.jpg')
+    })
+
+    it('gridImages imagesBySliderValue uses relative_path (PNG) not thumbnail_path (JPEG)', async () => {
+      const imagesWithThumbnails: ScanImage[] = [
+        {
+          relative_path: 'a/seed=42&step=500&cfg=3.png',
+          dimensions: { seed: '42', step: '500', cfg: '3' },
+          thumbnail_path: 'a/thumb/seed=42&step=500&cfg=3.jpg',
+        },
+        {
+          relative_path: 'a/seed=42&step=500&cfg=7.png',
+          dimensions: { seed: '42', step: '500', cfg: '7' },
+          thumbnail_path: 'a/thumb/seed=42&step=500&cfg=7.jpg',
+        },
+      ]
+      const wrapper = mountGrid({
+        images: imagesWithThumbnails,
+        sliderDimension,
+        sliderValues: {},
+        defaultSliderValue: '3',
+      })
+
+      const imageCells = wrapper.findAllComponents(ImageCell)
+      imageCells[0].vm.$emit('click', '/api/images/a/seed=42&step=500&cfg=3.png')
+      await wrapper.vm.$nextTick()
+
+      const emitted = wrapper.emitted('image:click')
+      expect(emitted).toBeDefined()
+      const payload = emitted![0][0] as ImageClickContext
+
+      // gridImages also carries imagesBySliderValue for navigation; these must be PNGs
+      for (const navItem of payload.gridImages) {
+        for (const url of Object.values(navItem.imagesBySliderValue)) {
+          expect(url).not.toContain('.jpg')
+          expect(url).toMatch(/\.png$/)
+        }
+      }
+    })
+  })
+
   describe('image:click emit payload shape', () => {
     // AC2: XYGrid image:click emit payload has cellKey, sliderValues, currentSliderValue,
     // imagesBySliderValue as defined by ImageClickContext

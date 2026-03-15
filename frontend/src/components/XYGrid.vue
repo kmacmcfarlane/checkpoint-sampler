@@ -149,8 +149,8 @@ function onSliderChange(xVal: string | undefined, yVal: string | undefined, valu
   emit('update:sliderValue', key, value)
 }
 
-/** Build a map from slider value → image URL for a given cell (all slider positions).
- *  Prefers thumbnail URLs when available for faster grid loading. */
+/** Build a map from slider value → full-resolution image URL for a given cell (all slider positions).
+ *  Always uses the full-resolution PNG path so the lightbox displays images at full quality. */
 function getImagesBySliderValue(xVal: string | undefined, yVal: string | undefined): Record<string, string> {
   if (!props.sliderDimension) return {}
   const sliderDimName = props.sliderDimension.name
@@ -163,9 +163,7 @@ function getImagesBySliderValue(xVal: string | undefined, yVal: string | undefin
     if (imgXVal !== xVal || imgYVal !== yVal) continue
     const sliderVal = img.dimensions[sliderDimName]
     if (sliderVal !== undefined && !(sliderVal in result)) {
-      result[sliderVal] = img.thumbnail_path
-        ? `/api/images/${img.thumbnail_path}`
-        : `/api/images/${img.relative_path}`
+      result[sliderVal] = `/api/images/${img.relative_path}`
     }
   }
   return result

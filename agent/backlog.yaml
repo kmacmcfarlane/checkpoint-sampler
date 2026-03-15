@@ -319,7 +319,7 @@ stories:
   - id: B-100
     title: Lightbox displays JPEGs instead of full-quality PNGs
     type: bug
-    status: todo
+    status: uat
     priority: 70
     complexity: low
     requires: []

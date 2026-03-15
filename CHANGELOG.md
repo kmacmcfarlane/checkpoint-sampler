@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-100: Lightbox displays JPEGs instead of full-quality PNGs
+- Fixed `getImagesBySliderValue` in XYGrid to always use full-resolution PNG paths for the lightbox slider, instead of preferring JPEG thumbnails
+
 ### B-099: Duplicate validate button in main controls slideout
 - Removed inline validate button and results display from TrainingRunSelector; only the dialog-opening validate button in the slideout remains
 
