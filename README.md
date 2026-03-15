@@ -184,6 +184,32 @@ Frontend tests use Vitest and can run directly if Node.js 22 is available:
 cd frontend && npx vitest run
 ```
 
+### E2E tests
+
+End-to-end tests use Playwright against an isolated docker-compose stack with test fixture data.
+
+**Serial (single stack):**
+
+```bash
+make test-e2e
+```
+
+**Parallel (N sharded stacks):**
+
+```bash
+make test-e2e-parallel            # 4 shards (default)
+make test-e2e-parallel SHARDS=2   # 2 shards
+```
+
+Each shard gets its own fully isolated compose stack (backend, frontend, comfyui-mock, SQLite DB). Playwright's `--shard` flag splits tests across stacks. Images are built once and shared across all shards.
+
+Artifacts are written to `.e2e/`:
+- `.e2e/logs/shard-{i}/` — backend and frontend logs per shard
+- `.e2e/blobs/shard-{i}/` — Playwright blob reports per shard
+- `.e2e/report/` — merged HTML report
+
+The script handles cleanup on Ctrl+C — all stacks are torn down automatically.
+
 ## Agent workflow
 
 This project includes a complete Claude Code agent workflow. See:

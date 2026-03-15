@@ -168,7 +168,7 @@ Use the Task tool to invoke a subagent. Pass the subagent's prompt (from its `.m
 
 These rules minimize wall-time and token cost without sacrificing quality:
 
-- **Targeted E2E runs**: The QA agent runs the full E2E suite (`make test-e2e`) for the first and last run only. Intermediate fix-and-rerun iterations use `make test-e2e SPEC=<file>` to run only the relevant spec file(s). This avoids ~5-minute full-suite overhead per iteration.
+- **Targeted E2E runs**: The QA agent runs the full E2E suite (`make test-e2e`) for the first and last run only. Intermediate fix-and-rerun iterations use `make test-e2e SPEC=<file>` to run only the relevant spec file(s). This avoids ~5-minute full-suite overhead per iteration. For faster local/CI runs outside the agent pipeline, `make test-e2e-parallel SHARDS=N` splits the suite across N isolated compose stacks (default 4).
 - **Unit test delegation**: The code-reviewer verifies `make test-backend` and `make test-frontend` pass. The QA agent trusts this verification and does not re-run unit tests unless E2E failures suggest a unit-level regression.
 - **Model tiering**: Use the cheapest model tier that meets quality needs (see section 2.2). Most structured/mechanical work (test execution, straightforward reviews) runs well on `sonnet`. Reserve `opus` for complex authoring, architectural decisions, and deep analysis.
 
