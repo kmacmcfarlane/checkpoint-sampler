@@ -32,6 +32,12 @@ Add study-scoped sample directories to test fixtures so E2E tests can verify stu
 * source: developer
 The thumbnail E2E tests verify URLs but not visual correctness. A screenshot comparison tool could verify the grid actually renders thumbnail-sized images vs full-res images, catching cases where the URL is correct but the image fails to load.
 
+### WebSocket event injection test endpoint for E2E bead tests
+* status: needs_approval
+* priority: low
+* source: qa
+Adding a `/api/test/set-job-status` endpoint would enable E2E tests to verify real-time bead updates triggered by WebSocket events, covering the UAT scenario (beads updating on job completion) end-to-end. Currently only achievable via unit tests.
+
 ### TypeScript template literal scanning in disallowed-chars guard
 * status: needs_approval
 * priority: low

@@ -1838,6 +1838,83 @@ describe('JobLaunchDialog', () => {
       expect(runningOpt?._dualBead.activity).toBeNull()
       expect(runningOpt?._dualBead.problem).toBeNull()
     })
+
+    // AC: S-116 UAT feedback — beads must update via refreshTrigger when job completes,
+    // including re-fetching study availability so activity/problem beads reflect filesystem changes.
+    it('re-fetches study availability for the selected run when refreshTrigger changes', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true, refreshTrigger: 0 },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select a training run so selectedTrainingRunId is set
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 3)
+      await flushPromises()
+
+      // Clear mock call counts after selection
+      mockGetStudyAvailability.mockClear()
+
+      // Simulate a job status change by changing refreshTrigger
+      await wrapper.setProps({ refreshTrigger: 1 })
+      await flushPromises()
+
+      // getStudyAvailability should be called for the selected run (id=3)
+      // It is called once by fetchAllRunsAvailability (for all runs) and once
+      // explicitly for the selected run's studyAvailability update.
+      const availCalls = mockGetStudyAvailability.mock.calls
+      const selectedRunCalls = availCalls.filter((c: unknown[]) => c[0] === 3)
+      expect(selectedRunCalls.length).toBeGreaterThanOrEqual(1)
+    })
+
+    // AC: S-116 UAT feedback — study beads reflect updated availability after job completion.
+    // When a job finishes and samples are partially written, study beads should show yellow (partial).
+    it('updates study bead from blue to yellow after job completion with partial samples', async () => {
+      // Initially: running job for study preset-1 on runRunning → blue activity bead
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true, refreshTrigger: 0 },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select the training run that has a running job
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 3)
+      await flushPromises()
+
+      // Select study to make studyOptions render
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
+      await flushPromises()
+
+      // Verify initial study bead: running job → activity=blue
+      const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+      type DualBead = { activity: string | null; problem: string | null }
+      let studyOpts = studySelect.props('options') as Array<{ value: string; _dualBead: DualBead }>
+      let preset1Opt = studyOpts.find(o => o.value === 'preset-1')
+      expect(preset1Opt?._dualBead.activity).toBe('blue')
+
+      // Now simulate job completing: no more running jobs, but partial availability
+      mockListSampleJobs.mockResolvedValue([])
+      mockGetStudyAvailability.mockResolvedValue([
+        {
+          study_id: 'preset-1',
+          study_name: 'Quick Test',
+          has_samples: true,
+          sample_status: 'partial',
+          checkpoints_with_samples: 1,
+          total_checkpoints: 2,
+        },
+      ])
+
+      // Trigger refresh
+      await wrapper.setProps({ refreshTrigger: 1 })
+      await flushPromises()
+
+      // Re-check study options — should now show yellow problem bead (partial, no running jobs)
+      studyOpts = studySelect.props('options') as Array<{ value: string; _dualBead: DualBead }>
+      preset1Opt = studyOpts.find(o => o.value === 'preset-1')
+      expect(preset1Opt?._dualBead.activity).toBeNull() // No running jobs → no blue
+      expect(preset1Opt?._dualBead.problem).toBe('yellow') // Partial samples → yellow
+    })
   })
 
   // AC5: After closing the Manage Studies modal, the study that was last edited

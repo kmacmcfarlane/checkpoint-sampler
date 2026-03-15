@@ -603,9 +603,24 @@ const canSubmit = computed(() => {
   )
 })
 
-// AC4: When refreshTrigger changes (job completed via WebSocket), refresh training run + job data
-watch(() => props.refreshTrigger, () => {
-  fetchTrainingRunsAndJobs()
+// AC4: When refreshTrigger changes (job status changed via WebSocket), refresh training run + job data
+// and re-fetch study availability for the selected run so bead states update in real-time
+// without requiring a page refresh (UAT feedback: S-116).
+watch(() => props.refreshTrigger, async () => {
+  await fetchTrainingRunsAndJobs()
+  // Re-fetch study availability for the selected run to update bead states.
+  // fetchAllRunsAvailability (called by fetchTrainingRunsAndJobs) updates allRunsAvailability
+  // but studyAvailability (used for the selected run's beads) must be refreshed separately.
+  if (selectedTrainingRunId.value !== null) {
+    try {
+      const avail = await apiClient.getStudyAvailability(selectedTrainingRunId.value)
+      studyAvailability.value = avail
+      // Keep allRunsAvailability in sync for consistent bead rendering
+      allRunsAvailability.value = new Map(allRunsAvailability.value).set(selectedTrainingRunId.value, avail)
+    } catch {
+      // Non-fatal; proceed with stale availability data
+    }
+  }
 })
 
 // When the dialog opens with a prefillJob, re-fetch data and apply prefill settings.

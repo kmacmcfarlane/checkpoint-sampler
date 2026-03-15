@@ -128,7 +128,7 @@ stories:
   - id: S-116
     title: "Training run and study status beads in Generate Samples"
     type: enhancement
-    status: uat_feedback
+    status: uat
     priority: 50
     complexity: high
     requires: []
@@ -159,9 +159,6 @@ stories:
       - "Test priority rules: blue overrides green, red overrides yellow"
       - "Test bead state transitions as jobs start, complete, and fail"
       - "Investigate whether existing API data suffices or new endpoints are needed"
-    review_feedback: Beads don't update after job completion without page refresh. Ran a partial job generating one 
-      checkpoint's samples — got blue bead while running but never got yellow bead afterwards until page refresh. Beads 
-      must update via WebSocket/polling when job completes.
   - id: B-083
     title: "E2E: sample-count-preview.spec.ts 2 tests timing out after B-078 per-study validation scoping"
     type: bug

@@ -137,11 +137,8 @@ Older entries are condensed to titles only — see git history for full details.
 - Fixture seeder now uses `SanitizeTrainingRunName` when constructing sample output paths, making the sanitization explicit and consistent with production code paths
 - E2E test fixtures include a slash-containing training run (`test-run/my-model` → `test-run_my-model/`) with dedicated E2E coverage
 
-### S-116: Training run and study status beads in Generate Samples (UAT rework)
-- Training run green bead now falls back to completed job status when study availability data is absent, fixing beads not appearing for non-selected runs
-- Study beads use only directory-level availability data (not validation results) for consistent rendering regardless of which study is selected
-- Job refresh trigger fires on any status transition (not just terminal) so blue beads appear immediately when jobs start running
-- Dual beads (activity + problem slots simultaneously) now work correctly; bead rules documented in PRD section 5.5.1
+### S-116: Training run and study status beads in Generate Samples (UAT rework 2)
+- `refreshTrigger` watcher now re-fetches study availability for the selected training run, so bead states update in real-time when jobs complete via WebSocket without requiring a page refresh
 
 ### S-117: Validation results dialog with regenerate flow (job list + slideout)
 - "Validate" button on each job card in the Sample Jobs panel and in the controls slideout triggers on-demand validation and displays results in a dialog
