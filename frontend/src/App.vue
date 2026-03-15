@@ -676,13 +676,6 @@ function openJobLaunchDialog() {
   jobLaunchDialogOpen.value = true
 }
 
-/** AC2 (S-084): Open the job launch dialog from the sidebar "Generate Missing" button. */
-function handleGenerateMissing() {
-  prefillJob.value = null
-  prefillMissingOnly.value = false
-  jobLaunchDialogOpen.value = true
-}
-
 /** Open the job launch dialog pre-populated with settings from a completed job. */
 function handleRegenerate(job: SampleJob) {
   jobProgressPanelOpen.value = false
@@ -900,7 +893,6 @@ async function handleSlideoutValidate() {
           <TrainingRunSelector
             :auto-select-run-id="savedData?.trainingRunId ?? lastTrainingRunId ?? null"
             @select="onTrainingRunSelect"
-            @generate-missing="handleGenerateMissing"
           />
           <!-- AC: FE: Validate button in main controls slideout panel -->
           <div v-if="selectedTrainingRun && !scanning && !scanError" class="slideout-validate-row">

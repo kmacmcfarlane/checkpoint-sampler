@@ -149,47 +149,52 @@ test.describe('S-084: sample count preview and missing-sample generation', () =>
     await expect(totals).not.toContainText('missing')
   })
 
-  // AC2: Sidebar validation totals appear after clicking Validate
-  test('sidebar shows validation totals after clicking Validate', async ({ page }) => {
+  // AC2: Validation results appear in the dialog after clicking the slideout Validate button.
+  // B-099: The inline validation totals in the sidebar were removed. Validation is now shown
+  // in the ValidationResultsDialog, opened by the slideout-validate-button.
+  test('slideout Validate button opens validation results dialog', async ({ page }) => {
     await page.goto('/')
 
     // Select a training run
     await selectTrainingRun(page, 'my-model')
 
-    // Click the Validate button
-    const validateBtn = page.locator('[data-testid="validate-button"]')
+    // Click the slideout Validate button
+    const validateBtn = page.locator('[data-testid="slideout-validate-button"]')
     await expect(validateBtn).toBeVisible()
     await validateBtn.click()
 
-    // Wait for validation totals to appear
-    const totals = page.locator('[data-testid="validation-totals"]')
-    await expect(totals).toBeVisible()
+    // The validation results dialog should open
+    const validationDialog = page.locator('[data-testid="validation-results-dialog"]')
+    await expect(validationDialog).toBeVisible({ timeout: 10000 })
 
-    // Both checkpoints have equal PNG counts, so totals show "N / N samples".
-    // Exact count varies because other E2E tests may generate additional images.
-    await expect(totals).toContainText(/\d+ \/ \d+ samples/)
+    // The dialog should show a summary section
+    const summary = validationDialog.locator('[data-testid="validation-dialog-summary"]')
+    await expect(summary).toBeVisible({ timeout: 10000 })
 
-    // No missing samples, so "missing" text should not appear
-    await expect(totals).not.toContainText('missing')
+    // Inline sidebar validation results should NOT exist (removed by B-099)
+    await expect(page.locator('[data-testid="validation-results"]')).toHaveCount(0)
   })
 
-  // AC2: "Generate Missing" button does NOT appear when no samples are missing
-  test('"Generate Missing" button does not appear when all samples are present', async ({ page }) => {
+  // AC2: "Generate Missing" button is not shown in the sidebar (B-099: removed from inline view).
+  // The regenerate flow now goes through the ValidationResultsDialog → Regenerate button.
+  test('"Generate Missing" button does not appear in sidebar after validate', async ({ page }) => {
     await page.goto('/')
 
     // Select a training run
     await selectTrainingRun(page, 'my-model')
 
-    // Click the Validate button
-    const validateBtn = page.locator('[data-testid="validate-button"]')
+    // The generate-missing-button should never appear in the sidebar (removed by B-099)
+    await expect(page.locator('[data-testid="generate-missing-button"]')).toHaveCount(0)
+
+    // Even after opening the slideout validate dialog, the sidebar should have no generate-missing
+    const validateBtn = page.locator('[data-testid="slideout-validate-button"]')
     await expect(validateBtn).toBeVisible()
     await validateBtn.click()
 
-    // Wait for validation results to appear
-    const results = page.locator('[data-testid="validation-results"]')
-    await expect(results).toBeVisible()
+    const validationDialog = page.locator('[data-testid="validation-results-dialog"]')
+    await expect(validationDialog).toBeVisible({ timeout: 10000 })
 
-    // "Generate Missing" button should NOT appear (0 missing samples)
+    // generate-missing-button should still not appear outside the dialog
     await expect(page.locator('[data-testid="generate-missing-button"]')).toHaveCount(0)
   })
 

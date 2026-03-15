@@ -50,6 +50,12 @@ The axe E2E tests currently run as part of the full E2E suite. A dedicated acces
 * source: developer
 Once the disallowed character set is stable, add `make lint-disallowed-chars` as a pre-merge CI check so it runs automatically when `disallowedNameChars` is modified, rather than relying on developers to run it manually.
 
+### E2E parallel shard DNS stability
+* status: needs_approval
+* priority: medium
+* source: qa
+The parallel E2E runner occasionally fails all shards due to Docker DNS not resolving the `frontend` hostname during simultaneous shard startup. Investigate adding a DNS readiness check or startup delay/retry in the shard orchestration before running tests.
+
 ### E2E log directory creation reliability in make test-e2e
 * status: needs_approval
 * priority: low

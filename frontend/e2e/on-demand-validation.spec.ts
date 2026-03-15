@@ -6,16 +6,20 @@ import { resetDatabase, selectTrainingRun } from './helpers'
  *
  * Verifies:
  * - AC1: Sidebar label reads "Training Run"
- * - AC2: Validate button appears beneath the Training Run selector
+ * - AC2: Validate button appears in the main controls slideout after selecting a training run
  * - AC3: API endpoint triggers validation of the selected sample set
  * - AC5: Validation results returned (per-checkpoint completeness counts)
- * - AC6: Validation results displayed inline with pass/warning status
+ * - AC6: Clicking Validate opens the validation results dialog (B-099: inline results removed)
  *
  * Test fixture data:
  *   - sample_dir contains:
  *       my-model-step00001000.safetensors/ (2 PNGs)
  *       my-model-step00002000.safetensors/ (2 PNGs)
  *   - Both checkpoints have equal file counts, so validation should show all complete.
+ *
+ * B-099: The inline validate button and inline results display in TrainingRunSelector were
+ * removed. The only validate button in the main controls is the slideout-validate-button
+ * which opens the ValidationResultsDialog.
  */
 
 test.describe('on-demand dataset validation (S-083)', () => {
@@ -29,18 +33,19 @@ test.describe('on-demand dataset validation (S-083)', () => {
     await expect(page.getByText('Training Run', { exact: true })).toBeVisible()
   })
 
-  // AC2: Validate button appears after selecting a sample set
+  // AC2: Validate button appears in the slideout after selecting a training run
+  // B-099: The inline validate-button was removed; only the slideout-validate-button remains.
   test('Validate button appears after selecting a sample set', async ({ page }) => {
     await page.goto('/')
 
-    // Before selection, validate button should not exist
-    await expect(page.locator('[data-testid="validate-button"]')).toHaveCount(0)
+    // Before selection, the slideout validate button should not exist
+    await expect(page.locator('[data-testid="slideout-validate-button"]')).toHaveCount(0)
 
     // Select a training run
     await selectTrainingRun(page, 'my-model')
 
-    // After selection, validate button should appear
-    const validateBtn = page.locator('[data-testid="validate-button"]')
+    // After selection, the slideout validate button should appear
+    const validateBtn = page.locator('[data-testid="slideout-validate-button"]')
     await expect(validateBtn).toBeVisible()
     await expect(validateBtn).toHaveText('Validate')
   })
@@ -72,36 +77,29 @@ test.describe('on-demand dataset validation (S-083)', () => {
     }
   })
 
-  // AC6: Display validation results inline with pass/warning status
-  test('clicking Validate shows per-checkpoint results inline', async ({ page }) => {
+  // AC6 (B-099): Clicking the slideout Validate button opens the ValidationResultsDialog.
+  // The old inline results display was removed by B-099; validation is now shown in a dialog.
+  test('clicking Validate opens the validation results dialog', async ({ page }) => {
     await page.goto('/')
 
     // Select a training run
     await selectTrainingRun(page, 'my-model')
 
-    // Click the Validate button
-    const validateBtn = page.locator('[data-testid="validate-button"]')
+    // Click the slideout Validate button
+    const validateBtn = page.locator('[data-testid="slideout-validate-button"]')
     await expect(validateBtn).toBeVisible()
     await validateBtn.click()
 
-    // Wait for validation results to appear
-    const results = page.locator('[data-testid="validation-results"]')
-    await expect(results).toBeVisible()
+    // Wait for the validation results dialog to open
+    const validationDialog = page.locator('[data-testid="validation-results-dialog"]')
+    await expect(validationDialog).toBeVisible({ timeout: 10000 })
 
-    // Both checkpoints in test fixtures have equal file counts,
-    // so both should show as pass (green checkmark, no warning class)
-    const checkpoints = results.locator('.validation-checkpoint')
-    await expect(checkpoints).toHaveCount(2)
+    // The dialog should contain a summary section
+    const summary = validationDialog.locator('[data-testid="validation-dialog-summary"]')
+    await expect(summary).toBeVisible({ timeout: 10000 })
 
-    // Each checkpoint row should show verified/expected counts
-    const firstCounts = checkpoints.first().locator('.validation-checkpoint-counts')
-    await expect(firstCounts).toBeVisible()
-    // The counts should be in the format "N/N" (e.g., "2/2")
-    const countsText = await firstCounts.textContent()
-    expect(countsText).toMatch(/^\d+\/\d+$/)
-
-    // No warning classes should be present (both checkpoints are complete)
-    await expect(results.locator('.validation-checkpoint--warning')).toHaveCount(0)
+    // Inline results should NOT exist (removed by B-099)
+    await expect(page.locator('[data-testid="validation-results"]')).toHaveCount(0)
   })
 
   // AC3: Validate endpoint returns 404 for invalid ID

@@ -162,6 +162,48 @@ test.describe('Validation Results Dialog (S-117)', () => {
     await expect(summary).toBeVisible({ timeout: 10000 })
   })
 
+  // B-099 AC1+AC2: Only one validate button exists in the main controls slideout (no inline button)
+  test('B-099: Exactly one validate button in the main controls slideout (no duplicate)', async ({ page }) => {
+    await page.goto('/', { waitUntil: 'networkidle' })
+
+    // Ensure the drawer is visible
+    const selectTrigger = page.locator('[data-testid="training-run-select"]')
+    await expect(selectTrigger).toBeVisible({ timeout: 10000 })
+    await expect(selectTrigger.locator('.n-base-selection--disabled')).toHaveCount(0)
+
+    // Click the select to open dropdown
+    const popupMenu = page.locator('.n-base-select-menu:visible')
+    const MAX_RETRIES = 3
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      await selectTrigger.click()
+      try {
+        await expect(popupMenu).toBeVisible({ timeout: 3000 })
+        break
+      } catch {
+        if (attempt === MAX_RETRIES) throw new Error('Could not open training run select')
+        await page.keyboard.press('Escape')
+        await page.waitForTimeout(300)
+      }
+    }
+    await popupMenu.getByText('my-model', { exact: true }).click()
+    await expect(popupMenu).not.toBeVisible()
+
+    // Wait for scan to complete
+    await expect(page.getByText('Dimensions')).toBeVisible({ timeout: 10000 })
+
+    // AC1: Only one validate button exists in the slideout (slideout-validate-button)
+    const slideoutValidateBtn = page.locator('[data-testid="slideout-validate-button"]')
+    await expect(slideoutValidateBtn).toHaveCount(1)
+    await expect(slideoutValidateBtn).toBeVisible()
+    await expect(slideoutValidateBtn).toHaveText('Validate')
+
+    // AC2: No inline validate button (validate-button testid removed by B-099)
+    await expect(page.locator('[data-testid="validate-button"]')).toHaveCount(0)
+
+    // AC2: No inline validation results display
+    await expect(page.locator('[data-testid="validation-results"]')).toHaveCount(0)
+  })
+
   // AC7 (E2E): Full flow: click validate, verify dialog, click regenerate, verify pre-filled
   test('AC7: Full flow - validate job → dialog → regenerate → pre-filled Generate Samples', async ({ page, request }) => {
     // Seed the fixture study into the DB so the job has a real study_id the dialog can find

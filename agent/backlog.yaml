@@ -302,7 +302,7 @@ stories:
   - id: B-099
     title: Duplicate validate button in main controls slideout
     type: bug
-    status: todo
+    status: uat
     priority: 70
     complexity: low
     requires: []
@@ -495,3 +495,21 @@ stories:
     testing:
       - "With a mix of complete and incomplete checkpoints, verify default selection state."
       - "Edge cases: all complete, all incomplete."
+  - id: B-108
+    title: "E2E parallel suite fails with ENOTFOUND/ECONNREFUSED in resetDatabase across all shards"
+    type: bug
+    status: todo
+    priority: 60
+    complexity: medium
+    requires: []
+    acceptance:
+      - "Parallel E2E run with 12 shards completes without ENOTFOUND/ECONNREFUSED errors in resetDatabase"
+      - "All shards can resolve the frontend hostname within the test startup window"
+    testing:
+      - "command: make test-e2e"
+    notes: |
+      When 12 Docker shards start simultaneously, Docker's embedded DNS resolver or network bridge
+      fails to register the 'frontend' hostname for some/all shards before tests begin. All tests
+      fail at the first beforeEach resetDatabase call with ENOTFOUND or ECONNREFUSED. This is an
+      infrastructure flakiness issue, not a code bug. Root cause is likely DNS propagation timing
+      in the Docker network bridge during simultaneous shard startup.

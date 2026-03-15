@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-099: Duplicate validate button in main controls slideout
+- Removed inline validate button and results display from TrainingRunSelector; only the dialog-opening validate button in the slideout remains
+
 ### B-098: Training run selector truncates long names (needs multi-line wrap)
 - Use Naive UI's component-level `:render-label` prop on both NSelect dropdowns to wrap long training run and study names instead of truncating with ellipsis
 
