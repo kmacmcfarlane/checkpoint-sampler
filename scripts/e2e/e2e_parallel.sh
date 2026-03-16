@@ -6,8 +6,8 @@
 # still runs with workers:1.
 #
 # The backend binary is pre-built in the Docker image (Dockerfile.dev bakes
-# codegen + compilation). No shared Go caches or staggered startup needed —
-# all shards start in parallel with instant backend startup.
+# codegen + compilation). Shards start in batches (BATCH_SIZE=4) to avoid
+# Docker DNS resolver races when many stacks start simultaneously (B-108).
 #
 # Usage:
 #   ./scripts/e2e/e2e_parallel.sh [SHARDS] [-- playwright args...]
@@ -100,8 +100,16 @@ start_shard() {
   echo "  [shard $i] Stack healthy"
 }
 
+# Stagger shard startup in batches to reduce pressure on Docker's embedded
+# DNS resolver. When all shards start simultaneously, DNS hostname registration
+# can race with container readiness checks, causing ENOTFOUND errors (B-108).
+BATCH_SIZE=4
 for i in $(seq 1 "$SHARDS"); do
   start_shard "$i" &
+  # After each batch, wait briefly before starting the next batch
+  if [ $(( i % BATCH_SIZE )) -eq 0 ] && [ "$i" -lt "$SHARDS" ]; then
+    sleep 2
+  fi
 done
 wait
 echo "=== All stacks healthy ==="
