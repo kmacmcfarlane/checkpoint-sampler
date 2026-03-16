@@ -276,6 +276,13 @@ var _ = Describe("WorkflowLoader", func() {
 			Expect(err.Error()).To(ContainSubstring("not found"))
 		})
 
+		// B-104: Reject empty workflow names with a descriptive error.
+		It("rejects empty workflow name", func() {
+			_, err := loader.Get(ctx, "")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("workflow name must not be empty"))
+		})
+
 		It("rejects path traversal attempts", func() {
 			_, err := loader.Get(ctx, "../etc/passwd")
 			Expect(err).To(HaveOccurred())

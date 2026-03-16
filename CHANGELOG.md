@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-104: Generate Samples validation shows 'workflow not found: .json' for all checkpoints
+- Reject empty workflow names early in `WorkflowLoader.Get()` and validate study has a workflow template in `SampleJobService.Create()`, preventing the misleading ".json" error
+
 ### B-103: Stop job shows no activity and stop+restart fails (invalid_state)
 - Backend `Stop()` now falls back to direct DB update when executor rejects, preventing jobs from getting stuck in "running" state
 - Stop button shows loading spinner during the async operation

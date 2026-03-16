@@ -283,7 +283,7 @@ stories:
   - id: B-098
     title: Training run selector truncates long names (needs multi-line wrap)
     type: bug
-    status: uat
+    status: uat_feedback
     priority: 70
     complexity: low
     requires: []
@@ -299,6 +299,10 @@ stories:
       - "FE: Unit tests for long name rendering"
     testing:
       - "Test with realistic long training run names. Verify both the selected value display and the dropdown options."
+    review_feedback: "Closed-state fix: the training run selector wraps long names in the dropdown options, but when the dropdown
+      is closed the selected value still truncates/spills out of the control. The closed control should scale vertically to
+      contain the full label text.\n\nDropdown width: allow the dropdown popup to expand up to 1024px wide when open (capped
+      at viewport width if the viewport is narrower than 1024px)."
   - id: B-099
     title: Duplicate validate button in main controls slideout
     type: bug
@@ -398,7 +402,7 @@ stories:
   - id: B-104
     title: "Generate Samples validation shows 'workflow not found: .json' for all checkpoints"
     type: bug
-    status: todo
+    status: uat
     priority: 70
     complexity: medium
     requires: []
@@ -513,3 +517,42 @@ stories:
       fail at the first beforeEach resetDatabase call with ENOTFOUND or ECONNREFUSED. This is an
       infrastructure flakiness issue, not a code bug. Root cause is likely DNS propagation timing
       in the Docker network bridge during simultaneous shard startup.
+  - id: S-130
+    title: Move X slider to bottom of viewport
+    type: enhancement
+    status: todo
+    priority: 30
+    complexity: low
+    requires: []
+    notes: >
+      Reposition the existing horizontal X slider to the very bottom edge of the viewport.
+      The slider should be hidden when no dimension mapping is assigned to the X axis.
+      FE-only layout/CSS change.
+      Source: user grooming session.
+    acceptance:
+      - "FE: X slider is pinned to the bottom edge of the viewport"
+      - "FE: X slider is hidden when no dimension mapping is assigned to the X axis"
+      - "FE: Layout remains clean with slider visible and hidden"
+      - "FE: Unit tests for slider visibility based on dimension mapping state"
+    testing:
+      - "Verify slider position at various viewport sizes. Test visibility toggle when dimension mapping is added/removed."
+  - id: S-131
+    title: Add Y slider on right side of viewport
+    type: enhancement
+    status: todo
+    priority: 30
+    complexity: low
+    requires: []
+    notes: >
+      Add a new vertical Y slider permanently positioned on the right edge of the viewport.
+      The slider should be hidden when no dimension mapping is assigned to the Y axis.
+      FE-only addition — similar pattern to the existing X slider.
+      Source: user grooming session.
+    acceptance:
+      - "FE: Vertical Y slider is pinned to the right edge of the viewport"
+      - "FE: Y slider is hidden when no dimension mapping is assigned to the Y axis"
+      - "FE: Layout remains clean with slider visible and hidden"
+      - "FE: Unit tests for Y slider rendering and visibility based on dimension mapping state"
+    testing:
+      - "Verify slider position at various viewport sizes. Test visibility toggle when dimension mapping is added/removed.
+        Test interaction between X and Y sliders when both visible."
