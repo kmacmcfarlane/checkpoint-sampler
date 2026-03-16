@@ -283,7 +283,7 @@ stories:
   - id: B-098
     title: Training run selector truncates long names (needs multi-line wrap)
     type: bug
-    status: uat_feedback
+    status: uat
     priority: 70
     complexity: low
     requires: []
@@ -299,10 +299,6 @@ stories:
       - "FE: Unit tests for long name rendering"
     testing:
       - "Test with realistic long training run names. Verify both the selected value display and the dropdown options."
-    review_feedback: "Closed-state fix: the training run selector wraps long names in the dropdown options, but when the dropdown
-      is closed the selected value still truncates/spills out of the control. The closed control should scale vertically to
-      contain the full label text.\n\nDropdown width: allow the dropdown popup to expand up to 1024px wide when open (capped
-      at viewport width if the viewport is narrower than 1024px)."
   - id: B-099
     title: Duplicate validate button in main controls slideout
     type: bug

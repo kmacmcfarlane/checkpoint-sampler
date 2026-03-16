@@ -122,6 +122,12 @@ The `checkpoint_filenames` field is currently only available via the REST API. I
 * source: developer
 Instead of just "3 / 12" (flat index), show the current X/Y axis values (e.g., "cfg=7.5 · seed=420") so users know their exact position in the parameter space at a glance. Requires threading X/Y label data through GridNavItem.
 
+### Truncation-aware tooltip on hover for long names
+* status: needs_approval
+* priority: very-low
+* source: developer
+For very long names in constrained layouts, a tooltip showing the full name on hover could complement the wrapping solution as a secondary affordance.
+
 ### Frontend WebSocket reconnect awareness after ping failure
 * status: needs_approval
 * priority: low

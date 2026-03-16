@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, h } from 'vue'
 import { NSelect, NCheckbox, NButton } from 'naive-ui'
-import type { SelectRenderLabel } from 'naive-ui'
+import type { SelectRenderLabel, SelectRenderTag } from 'naive-ui'
 import type { TrainingRun } from '../api/types'
 import { apiClient } from '../api/client'
 import { useGenerateInputsPersistence } from '../composables/useGenerateInputsPersistence'
@@ -74,6 +74,23 @@ const renderWrappedLabel: SelectRenderLabel = (option) =>
       lineHeight: '1.4',
     },
     'data-testid': 'training-run-option-label',
+  }, String(option.label ?? ''))
+
+/**
+ * B-098 UAT rework: renderTag renders the selected value in the closed-state trigger
+ * with white-space: normal so that long names wrap instead of being truncated.
+ * The NSelect trigger container will grow vertically to contain the wrapped text.
+ * IMPORTANT: VNodes run outside Vue's scoped CSS context — all styles must be inlined.
+ */
+const renderWrappedTag: SelectRenderTag = ({ option }) =>
+  h('span', {
+    style: {
+      whiteSpace: 'normal',
+      wordBreak: 'break-word',
+      lineHeight: '1.4',
+      display: 'block',
+    },
+    'data-testid': 'training-run-selected-tag',
   }, String(option.label ?? ''))
 
 /** Options for the first dropdown (Training Run). */
@@ -235,8 +252,9 @@ function onHasSamplesFilterChange(value: boolean) {
       :placeholder="loading ? 'Loading...' : 'Select a training run'"
       :loading="loading"
       :consistent-menu-width="false"
-      :menu-props="{ style: 'min-width: 320px; max-width: min(600px, 100vw)' }"
+      :menu-props="{ style: 'min-width: 320px; max-width: min(1024px, 100vw)' }"
       :render-label="renderWrappedLabel"
+      :render-tag="renderWrappedTag"
       filterable
       class="training-run-select"
       data-testid="training-run-select"
@@ -266,8 +284,9 @@ function onHasSamplesFilterChange(value: boolean) {
       :value="selectedStudyOutputDir"
       :options="studyOptions"
       :consistent-menu-width="false"
-      :menu-props="{ style: 'min-width: 200px; max-width: min(400px, 100vw)' }"
+      :menu-props="{ style: 'min-width: 200px; max-width: min(1024px, 100vw)' }"
       :render-label="renderWrappedLabel"
+      :render-tag="renderWrappedTag"
       filterable
       class="study-select"
       data-testid="study-select"

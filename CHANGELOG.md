@@ -19,7 +19,8 @@ Older entries are condensed to titles only — see git history for full details.
 - Removed inline validate button and results display from TrainingRunSelector; only the dialog-opening validate button in the slideout remains
 
 ### B-098: Training run selector truncates long names (needs multi-line wrap)
-- Use Naive UI's component-level `:render-label` prop on both NSelect dropdowns to wrap long training run and study names instead of truncating with ellipsis
+- Added `:render-tag` for closed-state wrapping (UAT rework: closed trigger now scales vertically) alongside existing `:render-label` for dropdown options
+- Dropdown popup max-width raised to 1024px (capped at viewport width) on both training run and study selects
 
 ### B-097: 21 E2E tests fail expecting 'Sample Set' label and two-dropdown training run selector
 - Aligned E2E test assertions with current UI: "Training Run" label (not "Sample Set"), dialog-scoped `study-select` locators, JSON localStorage format

@@ -200,6 +200,18 @@ describe('TrainingRunSelector', () => {
     expect(menuProps.style).toContain('max-width')
   })
 
+  it('NSelect menu-props allow dropdown to expand up to 1024px wide', async () => {
+    mockGetTrainingRuns.mockResolvedValue(sampleRuns)
+    const wrapper = mount(TrainingRunSelector)
+    await flushPromises()
+
+    const select = wrapper.findComponent(NSelect)
+    const menuProps = select.props('menuProps') as { style: string }
+    expect(menuProps).toBeDefined()
+    // AC: dropdown popup should expand up to 1024px (capped at viewport width)
+    expect(menuProps.style).toContain('1024px')
+  })
+
   it('calls getTrainingRuns without arguments on initial load', async () => {
     mockGetTrainingRuns.mockResolvedValue(sampleRuns)
     mount(TrainingRunSelector)
@@ -482,6 +494,38 @@ describe('TrainingRunSelector', () => {
       expect(options[0].label).toBe('very-long-training-run-name-that-should-wrap-instead-of-truncating-with-ellipsis')
     })
 
+    // AC: Closed-state selected value wraps via renderTag (UAT rework)
+    it('NSelect has renderTag prop so the closed-state selected value wraps', async () => {
+      mockGetTrainingRuns.mockResolvedValue([longNameRun])
+      const wrapper = mount(TrainingRunSelector)
+      await flushPromises()
+
+      const select = wrapper.findComponent(NSelect)
+      // renderTag controls how the selected value is displayed in the closed trigger
+      expect(typeof select.props('renderTag')).toBe('function')
+    })
+
+    // AC: renderTag produces a span with white-space: normal for closed-state wrapping
+    it('renderTag prop produces a span with white-space: normal for closed-state display', async () => {
+      mockGetTrainingRuns.mockResolvedValue([longNameRun])
+      const wrapper = mount(TrainingRunSelector)
+      await flushPromises()
+
+      const select = wrapper.findComponent(NSelect)
+      const renderTag = select.props('renderTag') as
+        | ((props: { option: { label?: string }; handleClose: () => void }) => unknown)
+        | undefined
+      expect(renderTag).toBeDefined()
+
+      // Call renderTag directly and verify it returns a VNode with wrapping styles
+      const vnode = renderTag!({
+        option: { label: longNameRun.name },
+        handleClose: () => {},
+      }) as { props?: { style?: { whiteSpace?: string; wordBreak?: string } } }
+      expect(vnode.props?.style?.whiteSpace).toBe('normal')
+      expect(vnode.props?.style?.wordBreak).toBe('break-word')
+    })
+
     // AC1 & AC2: Study NSelect also has renderLabel prop for wrapping
     it('study NSelect has renderLabel prop for long study name wrapping', async () => {
       const runsWithLongStudy: TrainingRun[] = [
@@ -524,6 +568,8 @@ describe('TrainingRunSelector', () => {
       expect(studyOptions).toHaveLength(2)
       // AC1 & AC2: renderLabel is a prop on NSelect, not on individual options
       expect(typeof studySelect.props('renderLabel')).toBe('function')
+      // AC: renderTag is also set on study NSelect so the closed-state wraps too
+      expect(typeof studySelect.props('renderTag')).toBe('function')
     })
   })
 
