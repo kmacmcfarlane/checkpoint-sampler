@@ -812,6 +812,42 @@ async function onStudySaved(study: Study) {
   studyEditorOpen.value = false
 }
 
+/**
+ * B-106: Handle in-place study regeneration. After the study has been updated,
+ * create a sample job with clear_existing=true for the currently selected
+ * training run. If no training run is selected, just close the editor and
+ * let the user select one.
+ */
+async function onStudyRegenerate(study: Study) {
+  await fetchStudies()
+  selectedStudy.value = study.id
+  studyEditorOpen.value = false
+
+  // If a training run is selected, auto-submit a regeneration job
+  if (selectedTrainingRun.value) {
+    loading.value = true
+    error.value = null
+    try {
+      const payload: CreateSampleJobPayload = {
+        training_run_name: selectedTrainingRun.value.name,
+        study_id: study.id,
+        clear_existing: true,
+      }
+      await apiClient.createSampleJob(payload)
+      emit('success')
+      close()
+    } catch (err: unknown) {
+      const message =
+        err && typeof err === 'object' && 'message' in err
+          ? String((err as { message: string }).message)
+          : 'Failed to create regeneration job'
+      error.value = message
+    } finally {
+      loading.value = false
+    }
+  }
+}
+
 async function onStudyDeleted(studyId: string) {
   if (selectedStudy.value === studyId) {
     selectedStudy.value = null
@@ -923,6 +959,7 @@ async function doSubmit() {
         :initial-study-id="selectedStudy"
         @study-saved="onStudySaved"
         @study-deleted="onStudyDeleted"
+        @study-regenerate="onStudyRegenerate"
       />
     </NModal>
 

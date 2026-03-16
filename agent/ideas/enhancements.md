@@ -128,6 +128,12 @@ Instead of just "3 / 12" (flat index), show the current X/Y axis values (e.g., "
 * source: developer
 For very long names in constrained layouts, a tooltip showing the full name on hover could complement the wrapping solution as a secondary affordance.
 
+### Multi-training-run study regeneration
+* status: needs_approval
+* priority: low
+* source: developer
+Currently, regeneration only creates a job for the selected training run. A future enhancement could scan the filesystem for all training runs with samples for the updated study and create jobs for each, fully satisfying "all sample sets using the study." This would require a new backend endpoint.
+
 ### Frontend WebSocket reconnect awareness after ping failure
 * status: needs_approval
 * priority: low

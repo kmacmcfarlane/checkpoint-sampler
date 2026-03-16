@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-106: Manage Study: Regenerate (update in place) doesn't launch a job
+- `StudyEditor` now emits `study-regenerate` after a successful in-place update; `JobLaunchDialog` handles it by creating a sample job with `clear_existing: true`
+- Job progress panel auto-opens after any job creation so the user sees activity immediately
+
 ### B-104: Generate Samples validation shows 'workflow not found: .json' for all checkpoints
 - Reject empty workflow names early in `WorkflowLoader.Get()` and validate study has a workflow template in `SampleJobService.Create()`, preventing the misleading ".json" error
 

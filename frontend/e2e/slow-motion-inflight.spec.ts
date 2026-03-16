@@ -126,11 +126,16 @@ async function pollJobStatus(
 }
 
 async function openJobProgressPanel(page: Page): Promise<void> {
+  const modal = page.locator('[role="dialog"][aria-modal="true"]').filter({ hasText: 'Sample Jobs' })
+  // B-106: the panel may already be open (auto-opened by onJobCreated after job creation).
+  // If already visible, skip the click to avoid the modal mask blocking the button.
+  const panelAlreadyOpen = await modal.isVisible({ timeout: 500 }).catch(() => false)
+  if (panelAlreadyOpen) return
+
   await closeDrawer(page)
   const jobsButton = page.locator('[aria-label="Toggle sample jobs panel"]')
   await expect(jobsButton).toBeVisible()
   await jobsButton.click()
-  const modal = page.locator('[role="dialog"][aria-modal="true"]').filter({ hasText: 'Sample Jobs' })
   await expect(modal).toBeVisible()
 }
 

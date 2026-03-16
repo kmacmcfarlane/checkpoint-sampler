@@ -157,11 +157,21 @@ export async function closeDrawer(page: Page): Promise<void> {
 /**
  * Opens the Generate Samples dialog from the header button.
  * Closes the sidebar drawer first to unblock the header controls.
+ * Also closes the Sample Jobs panel if it is open (B-106: the panel auto-opens
+ * after job creation, which would cause its modal mask to block header buttons).
  * Requires a training run to already be selected.
  */
 export async function openGenerateSamplesDialog(page: Page): Promise<void> {
   // Close the drawer so its mask doesn't intercept clicks on header buttons
   await closeDrawer(page)
+
+  // Close the Sample Jobs panel if it is open (its modal mask would block the
+  // generate-samples button; B-106 auto-opens the panel after job creation).
+  const jobsPanel = page.locator('[role="dialog"][aria-modal="true"]').filter({ hasText: 'Sample Jobs' })
+  if (await jobsPanel.isVisible({ timeout: 500 }).catch(() => false)) {
+    await page.keyboard.press('Escape')
+    await expect(jobsPanel).not.toBeVisible({ timeout: 3000 })
+  }
 
   const generateButton = page.locator('[data-testid="generate-samples-button"]')
   await expect(generateButton).toBeVisible()

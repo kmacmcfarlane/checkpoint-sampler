@@ -699,9 +699,11 @@ function handleValidationRegenerate(job: SampleJob) {
   jobLaunchDialogOpen.value = true
 }
 
-/** Handle successful job creation. */
+/** Handle successful job creation. Opens the job progress panel so the user sees job activity. */
 function onJobCreated() {
   fetchSampleJobs()
+  // B-106 AC3: Show job progress after job creation (including regeneration)
+  jobProgressPanelOpen.value = true
 }
 
 /** Stop a sample job. */

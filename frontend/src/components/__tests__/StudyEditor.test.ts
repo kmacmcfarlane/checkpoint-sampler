@@ -2684,6 +2684,89 @@ describe('StudyEditor', () => {
       expect(mockUpdateStudy).toHaveBeenCalled()
       expect(mockForkStudy).not.toHaveBeenCalled()
     })
+
+    // B-106 AC1/AC2: Re-generate emits study-regenerate event after successful save
+    it('emits study-regenerate with the updated study when "Re-generate Samples" succeeds', async () => {
+      mockStudyHasSamples.mockResolvedValue({ has_samples: true })
+      const updatedStudy: Study = {
+        ...studies[0],
+        updated_at: '2025-01-03T00:00:00Z',
+      }
+      mockUpdateStudy.mockResolvedValue(updatedStudy)
+
+      const wrapper = mount(StudyEditor, {
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select an existing study
+      const select = wrapper.findAllComponents(NSelect)[0]
+      select.vm.$emit('update:value', 'preset-1')
+      await nextTick()
+
+      // Click Update to trigger immutability check
+      const saveButton = wrapper
+        .findAllComponents(NButton)
+        .find((b) => b.text().includes('Update Study'))!
+      await saveButton.trigger('click')
+      await flushPromises()
+
+      // Click the regen button
+      const regenButton = wrapper.find('[data-testid="immutability-regen-button"]')
+      if (regenButton.exists()) {
+        await regenButton.trigger('click')
+      } else {
+        const allButtons = wrapper.findAllComponents(NButton)
+        const regen = allButtons.find(b => b.text().includes('Re-generate'))
+        expect(regen).toBeTruthy()
+        await regen!.trigger('click')
+      }
+      await flushPromises()
+
+      // AC1: study-regenerate emitted with the updated study
+      const emitted = wrapper.emitted('study-regenerate')
+      expect(emitted).toBeTruthy()
+      expect(emitted!.length).toBe(1)
+      expect(emitted![0][0]).toMatchObject({ id: 'preset-1' })
+    })
+
+    // B-106: study-regenerate NOT emitted when save fails
+    it('does not emit study-regenerate when the save fails', async () => {
+      mockStudyHasSamples.mockResolvedValue({ has_samples: true })
+      mockUpdateStudy.mockRejectedValue({ message: 'Save failed' })
+
+      const wrapper = mount(StudyEditor, {
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select an existing study
+      const select = wrapper.findAllComponents(NSelect)[0]
+      select.vm.$emit('update:value', 'preset-1')
+      await nextTick()
+
+      // Click Update to trigger immutability check
+      const saveButton = wrapper
+        .findAllComponents(NButton)
+        .find((b) => b.text().includes('Update Study'))!
+      await saveButton.trigger('click')
+      await flushPromises()
+
+      // Click the regen button
+      const regenButton = wrapper.find('[data-testid="immutability-regen-button"]')
+      if (regenButton.exists()) {
+        await regenButton.trigger('click')
+      } else {
+        const allButtons = wrapper.findAllComponents(NButton)
+        const regen = allButtons.find(b => b.text().includes('Re-generate'))
+        expect(regen).toBeTruthy()
+        await regen!.trigger('click')
+      }
+      await flushPromises()
+
+      // study-regenerate should NOT be emitted when save failed
+      expect(wrapper.emitted('study-regenerate')).toBeUndefined()
+    })
   })
 
   // S-112: Workflow template, VAE, CLIP, and shift fields in study definition

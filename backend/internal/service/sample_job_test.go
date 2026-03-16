@@ -503,6 +503,49 @@ var _ = Describe("SampleJobService", func() {
 			Expect(dirRemover.removed).To(BeEmpty())
 		})
 
+		// B-106 AC1/AC2: Study regeneration creates a job with clear_existing for all checkpoints.
+		// After an in-place study update, the frontend calls Create with clear_existing=true
+		// and no checkpoint filter to regenerate all samples.
+		Context("regeneration job creation (B-106)", func() {
+			It("creates a job with clear_existing that removes all checkpoint sample dirs", func() {
+				dirRemover.removed = nil
+				job, err := svc.Create("test-run", checkpoints, "study-1", nil, true, false)
+				Expect(err).NotTo(HaveOccurred())
+
+				// AC1: Job is created with correct study and training run
+				Expect(job.StudyID).To(Equal("study-1"))
+				Expect(job.TrainingRunName).To(Equal("test-run"))
+				Expect(job.Status).To(Equal(model.SampleJobStatusPending))
+
+				// AC2: clear_existing removes all checkpoint sample directories
+				Expect(dirRemover.removed).To(ConsistOf("checkpoint1.safetensors", "checkpoint2.safetensors"))
+
+				// All items are created (no filter applied)
+				items := store.items[job.ID]
+				Expect(items).To(HaveLen(16)) // 2 checkpoints × 8 items per checkpoint
+
+				// All checkpoint filenames are stored on the job
+				Expect(job.CheckpointFilenames).To(ConsistOf("checkpoint1.safetensors", "checkpoint2.safetensors"))
+			})
+
+			It("reads workflow, VAE, and CLIP from the updated study definition", func() {
+				// Simulate a study that was just updated in-place with new settings
+				updatedStudy := store.studies["study-1"]
+				updatedStudy.WorkflowTemplate = "new-workflow.json"
+				updatedStudy.VAE = "new-vae.safetensors"
+				updatedStudy.TextEncoder = "new-clip.safetensors"
+				store.studies["study-1"] = updatedStudy
+
+				job, err := svc.Create("test-run", checkpoints, "study-1", nil, true, false)
+				Expect(err).NotTo(HaveOccurred())
+
+				// Job uses the updated study settings
+				Expect(job.WorkflowName).To(Equal("new-workflow.json"))
+				Expect(job.VAE).To(Equal("new-vae.safetensors"))
+				Expect(job.CLIP).To(Equal("new-clip.safetensors"))
+			})
+		})
+
 		// AC5: missing-only generation logic
 		Context("with missing_only=true", func() {
 			var fileChecker *fakeOutputFileChecker

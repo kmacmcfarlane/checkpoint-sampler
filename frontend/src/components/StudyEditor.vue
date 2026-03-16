@@ -94,9 +94,12 @@ const props = withDefaults(defineProps<{
 
 // study-saved: Emitted after a study is created or updated. Payload: the saved Study.
 // study-deleted: Emitted after a study is deleted. Payload: the deleted study's ID (string).
+// study-regenerate: Emitted after an in-place update (regenerate) succeeds. Payload: the updated Study.
+//   Signals that the caller should create regeneration jobs for all sample sets using this study.
 const emit = defineEmits<{
   'study-saved': [study: Study]
   'study-deleted': [studyId: string]
+  'study-regenerate': [study: Study]
 }>()
 
 const studies = ref<Study[]>([])
@@ -731,10 +734,20 @@ async function forkStudy() {
   }
 }
 
-/** Re-generate: update the study in-place (samples will need to be regenerated). */
+/** Re-generate: update the study in-place, then signal that regeneration jobs are needed. */
 async function regenStudy() {
   showImmutabilityDialog.value = false
   await performSave()
+
+  // After a successful save, emit study-regenerate so the parent can create
+  // regeneration jobs with clear_existing for all sample sets using this study.
+  // performSave sets error.value on failure, so only emit when save succeeded.
+  if (!error.value && selectedStudyId.value) {
+    const saved = studies.value.find(s => s.id === selectedStudyId.value)
+    if (saved) {
+      emit('study-regenerate', saved)
+    }
+  }
 }
 
 function cancelImmutabilityDialog() {

@@ -56,6 +56,12 @@ Once the disallowed character set is stable, add `make lint-disallowed-chars` as
 * source: qa
 The parallel E2E runner occasionally fails all shards due to Docker DNS not resolving the `frontend` hostname during simultaneous shard startup. Investigate adding a DNS readiness check or startup delay/retry in the shard orchestration before running tests.
 
+### StudyHasSamples path alignment
+* status: needs_approval
+* priority: medium
+* source: qa
+The `StudyAvailabilityService.StudyHasSamples` method checks `{sampleDir}/{studyName}/` but samples are stored at `{sampleDir}/{runName}/{studyName}/`. This means the immutability dialog in StudyEditor is effectively unreachable through normal usage. Should align the path or document the intended behavior clearly.
+
 ### E2E log directory creation reliability in make test-e2e
 * status: needs_approval
 * priority: low

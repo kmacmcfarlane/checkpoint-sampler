@@ -314,11 +314,16 @@ test.describe('sample generation flow (with ComfyUI mock)', () => {
     const jobsButton = page.locator('[aria-label="Toggle sample jobs panel"]')
     await expect(jobsButton).toBeVisible()
 
-    // AC1: Open the Jobs panel and verify the job appears
-    await closeDrawer(page)
-    await jobsButton.click()
+    // AC1: Open the Jobs panel and verify the job appears.
+    // B-106: the panel may already be open (auto-opened by onJobCreated after job creation).
+    // If the panel is already visible, we skip the click; otherwise we open it.
     const jobsPanel = page.locator('[role="dialog"][aria-modal="true"]').filter({ hasText: 'Sample Jobs' })
-    await expect(jobsPanel).toBeVisible()
+    const panelAlreadyOpen = await jobsPanel.isVisible({ timeout: 500 }).catch(() => false)
+    if (!panelAlreadyOpen) {
+      await closeDrawer(page)
+      await jobsButton.click()
+      await expect(jobsPanel).toBeVisible()
+    }
 
     // The job should appear in the jobs panel with my-model as the training run name
     await expect(jobsPanel).toContainText('my-model', { timeout: 5000 })
@@ -435,13 +440,17 @@ test.describe('sample generation flow (with ComfyUI mock)', () => {
     )
     expect(finalJobs).not.toBeNull()
 
-    // Open the Jobs panel and verify the job shows progress information
-    await closeDrawer(page)
-    const jobsButton = page.locator('[aria-label="Toggle sample jobs panel"]')
-    await expect(jobsButton).toBeVisible()
-    await jobsButton.click()
+    // Open the Jobs panel and verify the job shows progress information.
+    // B-106: the panel may already be open (auto-opened by onJobCreated after job creation).
     const jobsPanel = page.locator('[role="dialog"][aria-modal="true"]').filter({ hasText: 'Sample Jobs' })
-    await expect(jobsPanel).toBeVisible()
+    const panelAlreadyOpen = await jobsPanel.isVisible({ timeout: 500 }).catch(() => false)
+    if (!panelAlreadyOpen) {
+      await closeDrawer(page)
+      const jobsButton = page.locator('[aria-label="Toggle sample jobs panel"]')
+      await expect(jobsButton).toBeVisible()
+      await jobsButton.click()
+      await expect(jobsPanel).toBeVisible()
+    }
 
     // Verify the job appears and shows completion status
     // (inference progress bar has already reset since the job completed, but

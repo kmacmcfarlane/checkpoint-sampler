@@ -438,7 +438,7 @@ stories:
   - id: B-106
     title: "Manage Study: Regenerate (update in place) doesn't launch a job"
     type: bug
-    status: todo
+    status: uat
     priority: 70
     complexity: medium
     requires: []

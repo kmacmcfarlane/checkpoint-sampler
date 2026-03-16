@@ -3914,4 +3914,131 @@ describe('JobLaunchDialog', () => {
       expect(mockCreateSampleJob).not.toHaveBeenCalled()
     })
   })
+
+  // B-106: Study regeneration (update in-place) launches a job
+  describe('study regeneration job creation (B-106)', () => {
+    // AC1: Regenerate launches a job for the selected training run
+    it('creates a sample job with clear_existing when study-regenerate is emitted', async () => {
+      const mockJob: SampleJob = {
+        id: 'regen-job-1',
+        training_run_name: runEmpty.name,
+        study_id: 'preset-1',
+        study_name: 'Quick Test',
+        workflow_name: 'qwen-image.json',
+        vae: 'ae.safetensors',
+        clip: 'clip_l.safetensors',
+        status: 'pending',
+        total_items: 10,
+        completed_items: 0,
+        failed_items: 0,
+        pending_items: 10,
+        checkpoint_filenames: [],
+        created_at: '2025-01-01T00:00:00Z',
+        updated_at: '2025-01-01T00:00:00Z',
+      }
+      mockCreateSampleJob.mockResolvedValue(mockJob)
+      // StudyEditor mount triggers another listStudies call
+      mockListStudies
+        .mockResolvedValueOnce(sampleStudies)  // dialog mount
+        .mockResolvedValueOnce(sampleStudies)  // StudyEditor own mount load
+        .mockResolvedValueOnce(sampleStudies)  // refresh after study-regenerate
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select a training run
+      const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
+      runSelect.vm.$emit('update:value', runEmpty.id)
+      await flushPromises()
+
+      // Open the study editor
+      const manageBtn = wrapper.findAllComponents(NButton).find(b => b.text().includes('Manage Studies'))
+      expect(manageBtn).toBeDefined()
+      await manageBtn!.trigger('click')
+      await flushPromises()
+
+      // Emit study-regenerate from the editor
+      const editor = wrapper.findComponent(StudyEditor)
+      expect(editor.exists()).toBe(true)
+      await editor.vm.$emit('study-regenerate', sampleStudies[0])
+      await flushPromises()
+
+      // AC1: Job created with clear_existing=true
+      expect(mockCreateSampleJob).toHaveBeenCalledTimes(1)
+      const call = mockCreateSampleJob.mock.calls[0][0]
+      expect(call.training_run_name).toBe(runEmpty.name)
+      expect(call.study_id).toBe('preset-1')
+      // AC2: clear_existing is true for regeneration
+      expect(call.clear_existing).toBe(true)
+
+      // AC3: success event emitted (triggers job progress panel in App.vue)
+      const emitted = wrapper.emitted('success')
+      expect(emitted).toBeTruthy()
+    })
+
+    // B-106: Regeneration handles API errors gracefully
+    it('shows error when regeneration job creation fails', async () => {
+      mockCreateSampleJob.mockRejectedValue({ message: 'ComfyUI unavailable' })
+      mockListStudies
+        .mockResolvedValueOnce(sampleStudies)
+        .mockResolvedValueOnce(sampleStudies)
+        .mockResolvedValueOnce(sampleStudies)
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select a training run
+      const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
+      runSelect.vm.$emit('update:value', runEmpty.id)
+      await flushPromises()
+
+      // Open editor and emit study-regenerate
+      const manageBtn = wrapper.findAllComponents(NButton).find(b => b.text().includes('Manage Studies'))
+      await manageBtn!.trigger('click')
+      await flushPromises()
+
+      const editor = wrapper.findComponent(StudyEditor)
+      await editor.vm.$emit('study-regenerate', sampleStudies[0])
+      await flushPromises()
+
+      // Error should be displayed
+      expect(wrapper.text()).toContain('ComfyUI unavailable')
+      // success event should NOT be emitted
+      expect(wrapper.emitted('success')).toBeUndefined()
+    })
+
+    // B-106: No job is created when no training run is selected
+    it('does not create a job when no training run is selected', async () => {
+      mockListStudies
+        .mockResolvedValueOnce(sampleStudies)
+        .mockResolvedValueOnce(sampleStudies)
+        .mockResolvedValueOnce(sampleStudies)
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Do NOT select a training run
+
+      // Open editor and emit study-regenerate
+      const manageBtn = wrapper.findAllComponents(NButton).find(b => b.text().includes('Manage Studies'))
+      await manageBtn!.trigger('click')
+      await flushPromises()
+
+      const editor = wrapper.findComponent(StudyEditor)
+      await editor.vm.$emit('study-regenerate', sampleStudies[0])
+      await flushPromises()
+
+      // No job creation attempted
+      expect(mockCreateSampleJob).not.toHaveBeenCalled()
+    })
+  })
 })
