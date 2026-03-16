@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-108: E2E parallel suite fails with ENOTFOUND/ECONNREFUSED in resetDatabase across all shards
+- Added `withRetry` exponential backoff to `resetDatabase` E2E helper for transient DNS/connection errors during parallel shard startup
+- Staggered shard startup in batches of 4 with 2s pause to reduce Docker DNS resolver pressure
+
 ### B-107: Manage Study: Checkpoint Status disappears after regenerate attempt
 - Guard study persistence watcher against null so `resetForm()` doesn't erase persisted study; restore persisted selections on dialog reopen (not just with prefillJob)
 

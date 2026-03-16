@@ -498,7 +498,7 @@ stories:
   - id: B-108
     title: "E2E parallel suite fails with ENOTFOUND/ECONNREFUSED in resetDatabase across all shards"
     type: bug
-    status: todo
+    status: uat
     priority: 60
     complexity: medium
     requires: []
@@ -552,3 +552,21 @@ stories:
     testing:
       - "Verify slider position at various viewport sizes. Test visibility toggle when dimension mapping is added/removed.
         Test interaction between X and Y sliders when both visible."
+  - id: B-109
+    title: "generate-samples-beads.spec.ts 'AC no beads' flaky — activity bead visible after resetDatabase"
+    type: bug
+    status: todo
+    priority: 50
+    complexity: low
+    requires: []
+    acceptance:
+      - "The 'AC no beads' test passes reliably when run after tests that seed jobs with activity status"
+      - "No activity bead is visible in the training run dropdown when no jobs exist after a database reset"
+    testing:
+      - "command: make test-e2e-serial SPEC=generate-samples-beads.spec.ts"
+    notes: |
+      Pre-existing E2E flake found during B-108 QA. After resetDatabase resets the database,
+      the frontend's in-memory job state may still display cached data from the prior test
+      when the training run dropdown is opened. The waitForLoadState('networkidle') call is
+      insufficient to ensure stale bead data is flushed. Root cause is likely stale reactive
+      state in the frontend after DB reset.

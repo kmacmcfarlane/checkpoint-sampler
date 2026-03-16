@@ -1,6 +1,37 @@
 import { type APIRequestContext, type Page, expect } from '@playwright/test'
 
 /**
+ * Retries an async operation with exponential backoff. Used to handle
+ * transient DNS (ENOTFOUND) and connection (ECONNREFUSED) errors that
+ * occur when Docker's embedded DNS resolver hasn't propagated service
+ * hostnames yet — common when many parallel compose stacks start
+ * simultaneously (B-108).
+ */
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  { maxAttempts = 5, initialDelayMs = 500, label = 'operation' } = {},
+): Promise<T> {
+  let lastError: unknown
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn()
+    } catch (error: unknown) {
+      lastError = error
+      const message = error instanceof Error ? error.message : String(error)
+      const isTransient = /ENOTFOUND|ECONNREFUSED|ECONNRESET|ETIMEDOUT|fetch failed/i.test(message)
+      if (!isTransient || attempt === maxAttempts) {
+        throw error
+      }
+      const delay = initialDelayMs * Math.pow(2, attempt - 1)
+      // eslint-disable-next-line no-console
+      console.warn(`[${label}] Attempt ${attempt}/${maxAttempts} failed (${message}), retrying in ${delay}ms...`)
+      await new Promise(resolve => setTimeout(resolve, delay))
+    }
+  }
+  throw lastError // unreachable, but satisfies TypeScript
+}
+
+/**
  * Resets the backend database to a clean initial state by calling the
  * test-only DELETE /api/test/reset endpoint. This endpoint is only available
  * when the backend is started with ENABLE_TEST_ENDPOINTS=true (set in
@@ -19,15 +50,29 @@ import { type APIRequestContext, type Page, expect } from '@playwright/test'
  * After the reset returns 200, we verify the backend is healthy by
  * hitting /health. This guards against races where a subsequent API call
  * arrives before the backend has fully stabilized after the reset.
+ *
+ * Retries with exponential backoff to handle transient DNS/connection
+ * errors when Docker's embedded DNS hasn't propagated hostnames yet
+ * (B-108: parallel E2E shards starting simultaneously).
  */
 export async function resetDatabase(request: APIRequestContext): Promise<void> {
-  const response = await request.delete('/api/test/reset')
-  expect(response.status()).toBe(200)
+  await withRetry(
+    async () => {
+      const response = await request.delete('/api/test/reset')
+      expect(response.status()).toBe(200)
+    },
+    { label: 'resetDatabase', maxAttempts: 5, initialDelayMs: 1000 },
+  )
 
   // Verify backend is healthy after reset — the executor has resumed and
   // the fresh schema is ready to serve requests.
-  const healthResponse = await request.get('/health')
-  expect(healthResponse.status()).toBe(200)
+  await withRetry(
+    async () => {
+      const healthResponse = await request.get('/health')
+      expect(healthResponse.status()).toBe(200)
+    },
+    { label: 'resetDatabase/health', maxAttempts: 3, initialDelayMs: 500 },
+  )
 }
 
 /**
