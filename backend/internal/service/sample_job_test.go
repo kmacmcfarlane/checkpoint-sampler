@@ -391,6 +391,29 @@ var _ = Describe("SampleJobService", func() {
 			Expect(err.Error()).To(ContainSubstring("not found"))
 		})
 
+		// B-104: Reject job creation when the study has no workflow template configured.
+		It("returns error when study has no workflow template", func() {
+			noWorkflowStudy := model.Study{
+				ID:       "study-no-wf",
+				Name:     "No Workflow Study",
+				Prompts:  []model.NamedPrompt{{Name: "prompt1", Text: "text1"}},
+				Steps:    []int{1},
+				CFGs:     []float64{1.0},
+				SamplerSchedulerPairs: []model.SamplerSchedulerPair{
+					{Sampler: "euler", Scheduler: "simple"},
+				},
+				Seeds:            []int64{42},
+				WorkflowTemplate: "", // Empty workflow template
+				Width:            512,
+				Height:           512,
+			}
+			store.studies[noWorkflowStudy.ID] = noWorkflowStudy
+
+			_, err := svc.Create("test-run", checkpoints, "study-no-wf", nil, false, false)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("no workflow template configured"))
+		})
+
 		It("marks items as skipped when checkpoint path matching fails", func() {
 			pathMatcher.paths = make(map[string]string) // Clear paths to simulate no matches
 

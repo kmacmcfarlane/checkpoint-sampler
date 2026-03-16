@@ -402,7 +402,7 @@ stories:
   - id: B-104
     title: "Generate Samples validation shows 'workflow not found: .json' for all checkpoints"
     type: bug
-    status: review
+    status: uat
     priority: 70
     complexity: medium
     requires: []

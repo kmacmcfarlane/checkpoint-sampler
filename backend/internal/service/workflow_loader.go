@@ -74,6 +74,13 @@ func (l *WorkflowLoader) Get(ctx context.Context, name string) (model.WorkflowTe
 	l.logger.WithField("name", name).Trace("entering Get")
 	defer l.logger.Trace("returning from Get")
 
+	// B-104: Reject empty workflow names early with a descriptive error rather
+	// than appending ".json" and failing with "workflow not found: .json".
+	if name == "" {
+		l.logger.Warn("empty workflow name")
+		return model.WorkflowTemplate{}, fmt.Errorf("workflow name must not be empty")
+	}
+
 	// Sanitize the name to prevent path traversal
 	if strings.Contains(name, "..") || strings.Contains(name, "/") || strings.Contains(name, "\\") {
 		l.logger.WithField("name", name).Warn("invalid workflow name")

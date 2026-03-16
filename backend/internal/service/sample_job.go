@@ -200,6 +200,14 @@ func (s *SampleJobService) Create(trainingRunName string, checkpoints []model.Ch
 	}
 	s.logger.WithField("study_id", studyID).Debug("fetched study from store")
 
+	// B-104: Validate that the study has a workflow template configured.
+	// Without a workflow template, the job executor cannot load a ComfyUI workflow,
+	// resulting in every item failing with "workflow not found: .json".
+	if study.WorkflowTemplate == "" {
+		s.logger.WithField("study_id", studyID).Warn("study has no workflow template configured")
+		return model.SampleJob{}, fmt.Errorf("study %q has no workflow template configured", study.Name)
+	}
+
 	// Calculate total items: checkpoints × images per checkpoint
 	imagesPerCheckpoint := study.ImagesPerCheckpoint()
 	totalItems := len(checkpoints) * imagesPerCheckpoint
