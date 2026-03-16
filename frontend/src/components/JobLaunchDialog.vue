@@ -390,9 +390,14 @@ watch(selectedTrainingRunId, (runId) => {
   }
 })
 
-// Persist study selection changes
+// Persist study selection changes.
+// B-107: Only persist non-null values so that resetForm() (which sets null)
+// does not erase the persisted study. This allows the show watcher to restore
+// the last selected study when the dialog is reopened after close().
 watch(selectedStudy, (studyId) => {
-  persistence.saveStudyId(studyId)
+  if (studyId !== null) {
+    persistence.saveStudyId(studyId)
+  }
 
   // S-119: When a study is selected and the model type is known, persist the study's
   // workflow template as the per-model-type workflow preference. This allows the correct
@@ -623,10 +628,12 @@ watch(() => props.refreshTrigger, async () => {
   }
 })
 
-// When the dialog opens with a prefillJob, re-fetch data and apply prefill settings.
-// This handles the case where the dialog was already mounted from a previous open.
+// When the dialog opens, re-fetch data and restore state.
+// B-107: Handle BOTH prefillJob and non-prefillJob reopening to prevent state
+// loss after close() resets the form (e.g. after a successful study regeneration
+// which calls close() and resetForm(), leaving the dialog blank on next open).
 watch(() => props.show, async (newShow) => {
-  if (!newShow || !props.prefillJob) return
+  if (!newShow) return
 
   // Re-fetch data to ensure latest state
   await Promise.all([
@@ -634,7 +641,35 @@ watch(() => props.show, async (newShow) => {
     fetchStudies(),
   ])
 
-  applyPrefill(props.prefillJob)
+  if (props.prefillJob) {
+    applyPrefill(props.prefillJob)
+    return
+  }
+
+  // B-107: Restore persisted selections when reopening without prefill.
+  // Only restore if the form is in a reset state (both selectors empty),
+  // to avoid overriding user selections on the initial mount open.
+  if (selectedTrainingRunId.value !== null || selectedStudy.value !== null) return
+
+  if (studies.value.length === 1) {
+    selectedStudy.value = studies.value[0].id
+  } else {
+    const lastStudyId = persistence.getLastStudyId()
+    if (lastStudyId !== null) {
+      const studyExists = studies.value.some(s => s.id === lastStudyId)
+      if (studyExists) {
+        selectedStudy.value = lastStudyId
+      }
+    }
+  }
+
+  const lastTrainingRunId = persistence.getLastTrainingRunId()
+  if (lastTrainingRunId !== null) {
+    const runExists = trainingRuns.value.some(r => r.id === lastTrainingRunId)
+    if (runExists) {
+      selectedTrainingRunId.value = lastTrainingRunId
+    }
+  }
 })
 
 onMounted(async () => {

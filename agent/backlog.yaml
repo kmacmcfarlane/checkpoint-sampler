@@ -458,7 +458,7 @@ stories:
   - id: B-107
     title: "Manage Study: Checkpoint Status disappears after regenerate attempt"
     type: bug
-    status: todo
+    status: uat
     priority: 70
     complexity: medium
     requires: []

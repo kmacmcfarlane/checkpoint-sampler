@@ -4041,4 +4041,173 @@ describe('JobLaunchDialog', () => {
       expect(mockCreateSampleJob).not.toHaveBeenCalled()
     })
   })
+
+  // B-107: State preservation after regenerate attempts
+  describe('state preservation after regenerate attempt (B-107)', () => {
+    // AC1: Checkpoint Status remains visible after a failed regenerate attempt
+    it('preserves Checkpoint Status when regeneration job creation fails', async () => {
+      mockCreateSampleJob.mockRejectedValue({ message: 'ComfyUI unavailable' })
+      mockValidateTrainingRun.mockResolvedValue(validationForRunEmpty)
+      mockListStudies
+        .mockResolvedValueOnce(sampleStudies)   // mount
+        .mockResolvedValueOnce(sampleStudies)   // StudyEditor mount
+        .mockResolvedValueOnce(sampleStudies)   // fetchStudies inside onStudyRegenerate
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select training run and study so that Checkpoint Status appears
+      const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
+      runSelect.vm.$emit('update:value', runEmpty.id)
+      await flushPromises()
+
+      const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+      studySelect.vm.$emit('update:value', sampleStudies[0].id)
+      await flushPromises()
+
+      // AC1: Checkpoint Status is visible before regeneration
+      expect(wrapper.find('[data-testid="checkpoint-picker"]').exists()).toBe(true)
+
+      // Open editor and trigger a failed regeneration
+      const manageBtn = wrapper.findAllComponents(NButton).find(b => b.text().includes('Manage Studies'))
+      await manageBtn!.trigger('click')
+      await flushPromises()
+
+      const editor = wrapper.findComponent(StudyEditor)
+      await editor.vm.$emit('study-regenerate', sampleStudies[0])
+      await flushPromises()
+
+      // AC2: Error is shown but Checkpoint Status is still visible
+      expect(wrapper.text()).toContain('ComfyUI unavailable')
+      expect(wrapper.find('[data-testid="checkpoint-picker"]').exists()).toBe(true)
+    })
+
+    // AC1: After successful regeneration + close + reopen, state is restored from persistence
+    it('restores Checkpoint Status after successful regeneration and dialog reopen', async () => {
+      const mockJob: SampleJob = {
+        id: 'regen-job-1',
+        training_run_name: runEmpty.name,
+        study_id: 'preset-1',
+        study_name: 'Quick Test',
+        workflow_name: 'qwen-image.json',
+        vae: 'ae.safetensors',
+        clip: 'clip_l.safetensors',
+        status: 'pending',
+        total_items: 10,
+        completed_items: 0,
+        failed_items: 0,
+        pending_items: 10,
+        checkpoint_filenames: [],
+        created_at: '2025-01-01T00:00:00Z',
+        updated_at: '2025-01-01T00:00:00Z',
+      }
+      mockCreateSampleJob.mockResolvedValue(mockJob)
+      mockValidateTrainingRun.mockResolvedValue(validationForRunEmpty)
+      // Mount + StudyEditor mount + onStudyRegenerate fetchStudies + show watcher re-fetch
+      mockListStudies.mockResolvedValue(sampleStudies)
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select training run and study
+      const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
+      runSelect.vm.$emit('update:value', runEmpty.id)
+      await flushPromises()
+
+      const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+      studySelect.vm.$emit('update:value', sampleStudies[0].id)
+      await flushPromises()
+
+      // Checkpoint Status visible before regeneration
+      expect(wrapper.find('[data-testid="checkpoint-picker"]').exists()).toBe(true)
+
+      // Open editor and trigger successful regeneration
+      const manageBtn = wrapper.findAllComponents(NButton).find(b => b.text().includes('Manage Studies'))
+      await manageBtn!.trigger('click')
+      await flushPromises()
+
+      const editor = wrapper.findComponent(StudyEditor)
+      await editor.vm.$emit('study-regenerate', sampleStudies[0])
+      await flushPromises()
+
+      // Dialog should have emitted close (via update:show=false)
+      expect(wrapper.emitted('update:show')).toBeTruthy()
+      const showEvents = wrapper.emitted('update:show')!
+      expect(showEvents[showEvents.length - 1]).toEqual([false])
+
+      // Simulate dialog reopen (parent sets show back to true without prefillJob)
+      await wrapper.setProps({ show: false })
+      await flushPromises()
+      await wrapper.setProps({ show: true, prefillJob: null })
+      await flushPromises()
+
+      // AC1: After reopen, training run and study should be restored from persistence,
+      // which triggers validation, making Checkpoint Status visible again
+      expect(wrapper.find('[data-testid="checkpoint-picker"]').exists()).toBe(true)
+    })
+
+    // AC3: Persisted study ID is not cleared when resetForm() sets selectedStudy to null
+    it('does not clear persisted study when dialog is closed via resetForm', async () => {
+      const mockJob: SampleJob = {
+        id: 'regen-job-1',
+        training_run_name: runEmpty.name,
+        study_id: 'preset-1',
+        study_name: 'Quick Test',
+        workflow_name: 'qwen-image.json',
+        vae: 'ae.safetensors',
+        clip: 'clip_l.safetensors',
+        status: 'pending',
+        total_items: 10,
+        completed_items: 0,
+        failed_items: 0,
+        pending_items: 10,
+        checkpoint_filenames: [],
+        created_at: '2025-01-01T00:00:00Z',
+        updated_at: '2025-01-01T00:00:00Z',
+      }
+      mockCreateSampleJob.mockResolvedValue(mockJob)
+      mockValidateTrainingRun.mockResolvedValue(validationForRunEmpty)
+      mockListStudies.mockResolvedValue(sampleStudies)
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select training run and study to populate persistence
+      const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
+      runSelect.vm.$emit('update:value', runEmpty.id)
+      await flushPromises()
+
+      const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+      studySelect.vm.$emit('update:value', sampleStudies[0].id)
+      await flushPromises()
+
+      // Verify persistence was written
+      const stateBeforeClose = JSON.parse(localStorage.getItem(GENERATE_INPUTS_STORAGE_KEY) ?? '{}')
+      expect(stateBeforeClose.lastStudyId).toBe('preset-1')
+      expect(stateBeforeClose.lastTrainingRunId).toBe(runEmpty.id)
+
+      // Trigger regeneration to cause close() + resetForm()
+      const manageBtn = wrapper.findAllComponents(NButton).find(b => b.text().includes('Manage Studies'))
+      await manageBtn!.trigger('click')
+      await flushPromises()
+
+      const editor = wrapper.findComponent(StudyEditor)
+      await editor.vm.$emit('study-regenerate', sampleStudies[0])
+      await flushPromises()
+
+      // AC3: After close()+resetForm(), persisted study and training run should NOT be cleared
+      const stateAfterClose = JSON.parse(localStorage.getItem(GENERATE_INPUTS_STORAGE_KEY) ?? '{}')
+      expect(stateAfterClose.lastStudyId).toBe('preset-1')
+      expect(stateAfterClose.lastTrainingRunId).toBe(runEmpty.id)
+    })
+  })
 })

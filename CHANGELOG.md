@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-107: Manage Study: Checkpoint Status disappears after regenerate attempt
+- Guard study persistence watcher against null so `resetForm()` doesn't erase persisted study; restore persisted selections on dialog reopen (not just with prefillJob)
+
 ### B-106: Manage Study: Regenerate (update in place) doesn't launch a job
 - `StudyEditor` now emits `study-regenerate` after a successful in-place update; `JobLaunchDialog` handles it by creating a sample job with `clear_existing: true`
 - Job progress panel auto-opens after any job creation so the user sees activity immediately
