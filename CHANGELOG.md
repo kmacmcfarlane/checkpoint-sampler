@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-111: debug-mode.spec.ts tests timeout clicking settings-button in parallel shard execution
+- Fixed `.app-header` z-index to stack above the fixed Y slider bar (`z-index: 90`), which was intercepting pointer events on header buttons
+- Added `dismissOverlays` helper in E2E tests to wait for NDrawer masks to fully disappear before clicking header elements
+
 ### S-131: Add Y slider on right side of viewport
 - Vertical Y slider pinned to the right viewport edge using `position: fixed`, hidden when no dimension is assigned to the Y axis
 - MasterSlider reused with `writing-mode: vertical-lr` CSS overrides for vertical orientation; selecting a value solos that Y row in the grid

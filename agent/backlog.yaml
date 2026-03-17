@@ -439,7 +439,7 @@ stories:
   - id: B-111
     title: "debug-mode.spec.ts tests timeout clicking settings-button in parallel shard execution"
     priority: 65
-    status: todo
+    status: uat
     complexity: medium
     requires: []
     acceptance:
