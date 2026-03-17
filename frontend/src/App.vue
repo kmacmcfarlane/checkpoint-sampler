@@ -616,6 +616,15 @@ const defaultSliderValue = computed(() => {
   return sliderDimension.value?.values[0] ?? ''
 })
 
+/** X axis slider value: the currently selected X dimension value shown in the bottom slider. */
+const xSliderValue = ref<string>('')
+
+/** Effective X slider value: xSliderValue if set, otherwise first value of xDimension. */
+const currentXSliderValue = computed(() => {
+  if (xSliderValue.value) return xSliderValue.value
+  return xDimension.value?.values[0] ?? ''
+})
+
 /** Cell size for grid zoom control. */
 const cellSize = ref(200)
 
@@ -634,6 +643,15 @@ watch(sliderDimension, (dim) => {
   }
 })
 
+// Reset X slider value and combo selection when X dimension changes
+watch(xDimension, (dim) => {
+  xSliderValue.value = dim?.values[0] ?? ''
+  if (dim) {
+    // Show all X values by default (no filtering)
+    comboSelections[dim.name] = new Set(dim.values)
+  }
+})
+
 /** Update a single cell's slider value. */
 function onSliderValueUpdate(cellKey: string, value: string) {
   sliderValues[cellKey] = value
@@ -645,6 +663,15 @@ function onMasterSliderChange(value: string) {
   // Clear per-cell overrides so all cells follow the master
   for (const key of Object.keys(sliderValues)) {
     delete sliderValues[key]
+  }
+}
+
+/** X axis slider: navigate to a specific X dimension value (solo that value in comboSelections). */
+function onXSliderChange(value: string) {
+  xSliderValue.value = value
+  const dim = xDimension.value
+  if (dim) {
+    comboSelections[dim.name] = new Set([value])
   }
 }
 
@@ -1014,7 +1041,7 @@ async function handleSlideoutValidate() {
           </div>
         </template>
       </AppDrawer>
-      <main class="app-main">
+      <main class="app-main" :class="{ 'app-main--x-slider-visible': !!xDimension }">
         <p v-if="!selectedTrainingRun">Select a training run to get started.</p>
         <template v-else>
           <p v-if="scanning">Scanning...</p>
@@ -1108,6 +1135,20 @@ async function handleSlideoutValidate() {
         @close="slideoutValidationDialogShow = false"
         @regenerate="handleValidationRegenerate"
       />
+      <!-- AC1: X slider pinned to bottom of viewport; AC2: hidden when no X dimension mapping -->
+      <div
+        v-if="xDimension"
+        class="x-slider-bar"
+        data-testid="x-slider-bar"
+      >
+        <MasterSlider
+          :values="xDimension.values"
+          :current-value="currentXSliderValue"
+          :dimension-name="xDimension.name"
+          data-testid="x-master-slider"
+          @change="onXSliderChange"
+        />
+      </div>
     </div>
   </NConfigProvider>
 </template>
@@ -1174,6 +1215,11 @@ async function handleSlideoutValidate() {
   flex: 1;
 }
 
+/* AC3: Add bottom padding when X slider is visible so content is not hidden behind it */
+.app-main--x-slider-visible {
+  padding-bottom: 5rem;
+}
+
 
 .error {
   color: var(--error-color);
@@ -1237,6 +1283,19 @@ async function handleSlideoutValidate() {
   padding-bottom: 0;
 }
 
+/* AC1: X slider pinned to the very bottom edge of the viewport */
+.x-slider-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 90;
+  background-color: var(--bg-surface);
+  border-top: 1px solid var(--border-color);
+  padding: 0.25rem 1rem;
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
+}
+
 @media (max-width: 767px) {
   .app-header {
     padding: 0.5rem;
@@ -1253,6 +1312,10 @@ async function handleSlideoutValidate() {
 
   .header-zoom {
     min-width: 120px;
+  }
+
+  .x-slider-bar {
+    padding: 0.25rem 0.5rem;
   }
 }
 </style>

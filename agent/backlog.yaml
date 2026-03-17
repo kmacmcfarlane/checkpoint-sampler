@@ -364,7 +364,7 @@ stories:
   - id: S-130
     title: Move X slider to bottom of viewport
     type: enhancement
-    status: todo
+    status: uat
     priority: 30
     complexity: low
     requires: []

@@ -43,8 +43,10 @@ test.describe('S-092: visual polish', () => {
     const masterSlider = page.locator('[aria-label="Master prompt_name slider"]')
     await expect(masterSlider).toBeVisible()
 
-    // AC: Play button exists (identified by aria-label, not text content)
-    const playButton = page.getByRole('button', { name: 'Play playback' })
+    // AC: Play button exists (identified by aria-label, not text content).
+    // Scoped to the masterSlider group to avoid strict-mode violation when the X slider
+    // bar (S-130) also renders a MasterSlider with its own Play button on the same page.
+    const playButton = masterSlider.getByRole('button', { name: 'Play playback' })
     await expect(playButton).toBeVisible()
 
     // AC2: The button should contain an SVG (icon), not plain text "Play"
@@ -60,20 +62,21 @@ test.describe('S-092: visual polish', () => {
     const masterSlider = page.locator('[aria-label="Master prompt_name slider"]')
     await expect(masterSlider).toBeVisible()
 
-    // Initially shows Play button (aria-label = 'Play playback')
-    const playButton = page.getByRole('button', { name: 'Play playback' })
+    // Initially shows Play button (aria-label = 'Play playback').
+    // Scoped to the masterSlider group (S-130: X slider bar adds a second MasterSlider).
+    const playButton = masterSlider.getByRole('button', { name: 'Play playback' })
     await expect(playButton).toBeVisible()
 
     // Start playback
     await playButton.click()
 
     // AC3: Play icon changes to pause icon (aria-label = 'Pause playback')
-    const pauseButton = page.getByRole('button', { name: 'Pause playback' })
+    const pauseButton = masterSlider.getByRole('button', { name: 'Pause playback' })
     await expect(pauseButton).toBeVisible()
 
     // Stop playback — icon reverts back to play
     await pauseButton.click()
-    await expect(page.getByRole('button', { name: 'Play playback' })).toBeVisible()
+    await expect(masterSlider.getByRole('button', { name: 'Play playback' })).toBeVisible()
   })
 
   // AC4: Sample set selector has a refresh icon button to manually reload the list

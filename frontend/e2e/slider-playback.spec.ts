@@ -66,8 +66,10 @@ test.describe('slider and playback controls', () => {
     // The slider dimension label should appear inside the master slider
     await expect(masterSlider).toContainText('prompt_name')
 
-    // The Play button should be visible (playback not yet started)
-    const playButton = page.getByRole('button', { name: 'Play playback' })
+    // The Play button should be visible (playback not yet started).
+    // Scoped to the masterSlider group to avoid strict-mode violations when the X slider
+    // bar (S-130) also renders a MasterSlider with its own Play button on the same page.
+    const playButton = masterSlider.getByRole('button', { name: 'Play playback' })
     await expect(playButton).toBeVisible()
   })
 
@@ -138,8 +140,9 @@ test.describe('slider and playback controls', () => {
     const initialValue = await valueDisplay.textContent()
     expect(initialValue?.trim()).toBe('landscape')
 
-    // Click the Play button to start playback
-    const playButton = page.getByRole('button', { name: 'Play playback' })
+    // Click the Play button to start playback.
+    // Scoped to the masterSlider group (see S-130: X slider bar adds a second MasterSlider).
+    const playButton = masterSlider.getByRole('button', { name: 'Play playback' })
     await expect(playButton).toBeVisible()
     await playButton.click()
 
@@ -176,15 +179,15 @@ test.describe('slider and playback controls', () => {
     const valueDisplay = masterSlider.locator('.master-slider__value')
     await expect(valueDisplay).toBeVisible()
 
-    // Start playback
-    const playButton = page.getByRole('button', { name: 'Play playback' })
+    // Start playback (scoped to masterSlider to avoid strict-mode violation with X slider bar).
+    const playButton = masterSlider.getByRole('button', { name: 'Play playback' })
     await playButton.click()
 
-    const pauseButton = page.getByRole('button', { name: 'Pause playback' })
+    const pauseButton = masterSlider.getByRole('button', { name: 'Pause playback' })
     await expect(pauseButton).toBeVisible()
 
     // Change playback speed to 0.25s so we can observe an advance before stopping
-    const speedSelect = page.locator('[aria-label="Playback speed"]')
+    const speedSelect = masterSlider.locator('[aria-label="Playback speed"]')
     await expect(speedSelect).toBeVisible()
     await speedSelect.click()
     const popupMenu = page.locator('.n-base-select-menu:visible')
@@ -198,8 +201,8 @@ test.describe('slider and playback controls', () => {
     // Stop playback by clicking Pause
     await pauseButton.click()
 
-    // After stopping, the Play button should reappear
-    await expect(page.getByRole('button', { name: 'Play playback' })).toBeVisible()
+    // After stopping, the Play button should reappear (scoped to masterSlider).
+    await expect(masterSlider.getByRole('button', { name: 'Play playback' })).toBeVisible()
 
     // The slider value should remain at "portrait" (no further advances)
     const valueAfterStop = await valueDisplay.textContent()

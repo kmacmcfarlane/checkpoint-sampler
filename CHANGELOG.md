@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-130: Move X slider to bottom of viewport
+- X axis slider pinned to the bottom edge of the viewport using `position: fixed`, hidden when no dimension is assigned to the X axis
+- MasterSlider reused for the bottom bar; selecting a value solos that X column in the grid
+
 ### S-129: Complete checkpoints not auto-checked in Generate Samples validation selector
 - Validation selector now unchecks complete checkpoints by default; only incomplete or unstarted checkpoints are pre-selected for generation
 - Added `prefillProtected` flag to prevent validation watcher from overriding explicit prefill selections

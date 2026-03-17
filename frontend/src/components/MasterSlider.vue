@@ -161,9 +161,22 @@ function onSliderFocus() {
   claimSliderFocus(sliderId)
 }
 
+/** Ref for the NSlider wrapper element, used to imperatively set aria-label on the
+ *  role="slider" thumb. Naive UI's NSlider does not forward aria-label to its internal
+ *  thumb element, so we apply it in onMounted (same pattern as ZoomControl). */
+const sliderWrapperRef = ref<HTMLElement | null>(null)
+
 onMounted(() => {
   registerSlider(sliderId)
   document.addEventListener('keydown', onDocumentKeydown)
+  // Imperatively set aria-label on the NSlider thumb (role="slider") so axe-core
+  // and assistive technologies can identify the slider control.
+  if (sliderWrapperRef.value) {
+    const thumb = sliderWrapperRef.value.querySelector('[role="slider"]') as HTMLElement | null
+    if (thumb) {
+      thumb.setAttribute('aria-label', `Master ${props.dimensionName}`)
+    }
+  }
 })
 
 onBeforeUnmount(() => {
@@ -179,17 +192,18 @@ onBeforeUnmount(() => {
       <label class="master-slider__label">
         {{ dimensionName }}
       </label>
-      <NSlider
-        :value="currentIndex"
-        :min="0"
-        :max="Math.max(0, values.length - 1)"
-        :step="1"
-        :tooltip="false"
-        :keyboard="false"
-        :aria-label="`Master ${dimensionName}`"
-        class="master-slider__slider"
-        @update:value="onUpdate"
-      />
+      <div ref="sliderWrapperRef" class="master-slider__slider-wrapper">
+        <NSlider
+          :value="currentIndex"
+          :min="0"
+          :max="Math.max(0, values.length - 1)"
+          :step="1"
+          :tooltip="false"
+          :keyboard="false"
+          class="master-slider__slider"
+          @update:value="onUpdate"
+        />
+      </div>
       <span class="master-slider__value">{{ currentValue }}</span>
       <NButton
         size="small"
@@ -254,9 +268,13 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 
-.master-slider__slider {
+.master-slider__slider-wrapper {
   flex: 1;
   min-width: 0;
+}
+
+.master-slider__slider {
+  width: 100%;
 }
 
 .master-slider__value {
