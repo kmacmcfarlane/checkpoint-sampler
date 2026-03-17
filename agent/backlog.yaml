@@ -96,7 +96,7 @@ stories:
   - id: S-110
     title: "Resume completed_with_errors jobs (retry failed items)"
     priority: 50
-    status: uat_feedback
+    status: uat
     complexity: medium
     requires: []
     acceptance:
@@ -111,9 +111,6 @@ stories:
       failed" button on the JobProgressPanel that directly re-queues only failed items in the
       same job would be more streamlined.
       Source: developer.
-    review_feedback: 'Clicking retry moves job to "Running" status but never actually sends missing sample jobs to ComfyUI
-      for generation. Tested with TR: qwen/psai4rt-v0.3.0-qwen-2512-1024-adafactor-constant-2e-6-steps-9000-timestep-qinglong_qwen-cap_drop-0,
-      Study: psy-cfg-check-1344.'
   - id: W-009
     title: "Populate safetensors test fixtures with minimal valid headers"
     priority: 15

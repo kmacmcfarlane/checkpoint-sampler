@@ -205,6 +205,7 @@ Older entries are condensed to titles only — see git history for full details.
 ### S-110: Resume completed_with_errors jobs (retry failed items)
 - New `POST /api/sample-jobs/{id}/retry-failed` endpoint resets failed/skipped items to pending and resumes execution; guards against concurrent running jobs and non-`completed_with_errors` state
 - "Retry failed" button on JobProgressPanel for `completed_with_errors` jobs, replacing the need to create a new job to retry failures
+- Fixed `RequestResume()` to adopt the job when no active job exists, so retried jobs are actually picked up by the executor loop
 
 ### S-102: Show full sample params for currently generating sample in job list (UAT rework)
 - Fixed first-sample params not displaying: `processItem` now broadcasts `job_progress` with `current_sample_params` immediately when a new item starts, not only after completion

@@ -2073,20 +2073,27 @@ func (e *JobExecutor) RequestStop(jobID string) error {
 	return nil
 }
 
-// RequestResume allows processing to continue for a stopped job.
-// If the executor has already released its state for the job (e.g. after a stop),
-// this is a no-op — the executor loop will pick up the job automatically on the next tick.
+// RequestResume allows processing to continue for a stopped or retried job.
+// If the executor has no active job, it adopts the requested job so the
+// executor loop will pick it up on the next tick. This is essential for
+// retry-failed flows where the job transitions from completed_with_errors
+// to running — without setting activeJobID, the executor loop would never
+// find it (it only auto-starts pending jobs, not running ones).
 func (e *JobExecutor) RequestResume(jobID string) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
 	e.logger.WithField("job_id", jobID).Info("resume requested for job")
 
-	// If activeJobID is empty or refers to a different job, the executor has already
-	// released its state (cleared by RequestStop). The executor loop will pick up the
-	// resumed job automatically on the next tick — nothing to do here.
+	// If another job is already active, reject the request.
 	if e.activeJobID != "" && e.activeJobID != jobID {
 		return fmt.Errorf("job %s is not currently active", jobID)
+	}
+
+	// If no job is active, adopt this one so processNextItem finds it.
+	if e.activeJobID == "" {
+		e.activeJobID = jobID
+		e.logger.WithField("job_id", jobID).Info("adopted job for resume processing")
 	}
 
 	e.stopRequested = false

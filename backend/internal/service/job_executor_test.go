@@ -1212,9 +1212,9 @@ var _ = Describe("JobExecutor", func() {
 			executor.mu.Unlock()
 		})
 
-		It("returns no error from RequestResume when executor state is already cleared (job was stopped)", func() {
-			// After a stop, activeJobID is empty. Resume should succeed (no-op) so the
-			// executor loop can pick up the job on the next tick.
+		It("adopts the job when RequestResume is called with no active job (retry-failed flow)", func() {
+			// After a completed_with_errors job is retried, activeJobID is empty.
+			// Resume must adopt the job so processNextItem finds it on the next tick.
 			executor.mu.Lock()
 			executor.activeJobID = ""
 			executor.stopRequested = false
@@ -1222,6 +1222,10 @@ var _ = Describe("JobExecutor", func() {
 
 			err := executor.RequestResume("job-1")
 			Expect(err).ToNot(HaveOccurred())
+
+			executor.mu.Lock()
+			Expect(executor.activeJobID).To(Equal("job-1"))
+			executor.mu.Unlock()
 		})
 
 		It("returns error when trying to stop non-running job", func() {
