@@ -56,9 +56,10 @@ test.describe('localStorage restoration on refresh (B-101)', () => {
     await expect(page.getByRole('button', { name: 'Toggle checkpoint metadata panel' })).toBeVisible({ timeout: 10000 })
   })
 
-  test('AC1: page refresh restores preset and dimension assignments', async ({ page }) => {
+  test('AC1: page refresh restores preset and dimension assignments (not reset to Single)', async ({ page }) => {
     // AC1: App restores last selected preset from localStorage on initial load.
-    // This verifies the dimension mapping (x/y/slider) is applied after refresh.
+    // This verifies the dimension mapping (x/y/slider) is applied after refresh
+    // and does NOT reset to 'Single' due to race condition (B-101 UAT fix).
 
     // Step 1: Navigate, select training run, and set up dimension assignments
     await page.goto('/')
@@ -85,10 +86,28 @@ test.describe('localStorage restoration on refresh (B-101)', () => {
     await expect(page.getByRole('button', { name: 'Toggle checkpoint metadata panel' })).toBeVisible({ timeout: 10000 })
 
     // Step 4: Verify the XYGrid renders with dimension headers matching the saved preset.
-    // The X axis headers (checkpoint values) and Y axis headers (prompt_name values)
-    // should be visible in the grid.
-    // Wait for the grid to render
+    // The grid should be visible (only renders when x/y dimensions are assigned).
     await expect(page.locator('.xy-grid')).toBeVisible({ timeout: 10000 })
+
+    // Step 5 (B-101 UAT fix): Open the drawer (if not already open) and verify
+    // dimension selectors show the correct assignment (X Axis, Y Axis) instead of
+    // 'Single'. This is the core race condition check: if the preset mapping was
+    // clobbered by a duplicate scan, all dimensions would show 'Single'.
+    const dimensionsHeading = page.getByText('Dimensions')
+    if (!await dimensionsHeading.isVisible()) {
+      await page.getByRole('button', { name: 'Toggle controls drawer' }).click()
+    }
+    await expect(dimensionsHeading).toBeVisible({ timeout: 5000 })
+
+    // checkpoint should still be X Axis (not 'Single' from the race condition)
+    const checkpointSelect = page.locator('[aria-label="Mode for checkpoint"]')
+    await expect(checkpointSelect).toBeVisible()
+    await expect(checkpointSelect).toContainText('X Axis')
+
+    // prompt_name should still be Y Axis
+    const promptSelect = page.locator('[aria-label="Mode for prompt_name"]')
+    await expect(promptSelect).toBeVisible()
+    await expect(promptSelect).toContainText('Y Axis')
   })
 
   test('AC3: selecting a training run persists it for next refresh', async ({ page }) => {

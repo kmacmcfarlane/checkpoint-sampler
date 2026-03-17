@@ -703,6 +703,64 @@ describe('App', () => {
       expect(mockScanTrainingRun).toHaveBeenCalledTimes(callsAfterMount)
     })
 
+    it('B-101 UAT: concurrent scan from TrainingRunSelector does not reset preset assignments', async () => {
+      // Race condition fix: when eagerAutoSelect starts a scan and TrainingRunSelector's
+      // onMounted emits select for the same run while the scan is still in progress,
+      // the guard in onTrainingRunSelect must skip the duplicate call. Without this fix,
+      // the duplicate call would start a second scan whose setScanResult wipes out
+      // the preset assignments applied by eagerRestorePreset.
+      Object.defineProperty(window, 'innerWidth', { value: 1200, configurable: true })
+      vi.stubGlobal('matchMedia', createMatchMediaMock(true))
+
+      const mockPreset = {
+        id: 'preset-abc',
+        name: 'My Preset',
+        mapping: { x: 'seed', y: 'cfg', combos: [] },
+        created_at: '2025-01-01T00:00:00Z',
+        updated_at: '2025-01-01T00:00:00Z',
+      }
+
+      setSavedPresetData(1, 'preset-abc')
+      mockGetPresets.mockResolvedValue([mockPreset])
+
+      // Use a deferred scan to control timing: the scan takes time,
+      // allowing TrainingRunSelector to emit select while scanning is true.
+      let resolveScan!: (value: unknown) => void
+      const deferredScan = new Promise((resolve) => { resolveScan = resolve })
+      const scanResult = {
+        images: [],
+        dimensions: [
+          { name: 'seed', values: ['42'] },
+          { name: 'cfg', values: ['7'] },
+        ],
+      }
+      // First scan call (from eagerAutoSelect) uses the deferred promise;
+      // any subsequent calls resolve immediately (should not happen with the fix).
+      mockScanTrainingRun.mockReturnValueOnce(deferredScan)
+      mockScanTrainingRun.mockResolvedValue(scanResult)
+
+      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+
+      // Flush getTrainingRuns calls so TrainingRunSelector can emit select.
+      // The scan is still pending (deferred).
+      await flushPromises()
+
+      // Now resolve the deferred scan and flush all remaining promises
+      // (including eagerRestorePreset which applies the preset).
+      resolveScan(scanResult)
+      await flushPromises()
+
+      // The fix ensures scanTrainingRun is called only once (the eager path).
+      // Without the fix, TrainingRunSelector's select would trigger a second scan.
+      expect(mockScanTrainingRun).toHaveBeenCalledTimes(1)
+
+      // Preset assignments should be applied: seed=x, cfg=y
+      const grid = wrapper.findComponent({ name: 'XYGrid' })
+      expect(grid.exists()).toBe(true)
+      expect(grid.props('xDimension')?.name).toBe('seed')
+      expect(grid.props('yDimension')?.name).toBe('cfg')
+    })
+
     it('wide screen behavior is unchanged: drawer auto-opens and training run auto-selects', async () => {
       // AC 4: On wide screens (>=1024px), behavior is unchanged
       Object.defineProperty(window, 'innerWidth', { value: 1200, configurable: true })

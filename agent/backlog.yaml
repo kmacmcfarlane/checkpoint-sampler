@@ -272,7 +272,7 @@ stories:
   - id: B-101
     title: App load/refresh doesn't restore TR, study, or preset from localStorage
     type: bug
-    status: uat_feedback
+    status: uat
     priority: 85
     complexity: medium
     requires: []
@@ -291,8 +291,6 @@ stories:
     testing:
       - "Test on both wide (side panel open) and narrow (side panel collapsed) viewports."
       - "Verify state persists across page refresh. Edge case: localStorage has stale data for a deleted training run."
-    review_feedback: "Race condition on refresh: sometimes TR/study/preset restore correctly but dimension mappings all reset
-      to 'Single'. The preset loads but its dimension mapping values are not applied reliably."
   - id: B-103
     title: "Stop job shows no activity and stop+restart fails (invalid_state)"
     type: bug
