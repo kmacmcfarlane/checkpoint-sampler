@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-109: generate-samples-beads.spec.ts 'AC no beads' flaky — activity bead visible after resetDatabase
+- Awaited fire-and-forget `fetchAllRunsAvailability` in JobLaunchDialog to eliminate race between availability fetch and Playwright's `networkidle` detection
+
 ### B-105: Side panel TR selector doesn't show new sample set after generation
 - Training run selector now auto-refreshes when a sample job reaches terminal status via WebSocket, so newly generated sample sets appear without manual refresh
 

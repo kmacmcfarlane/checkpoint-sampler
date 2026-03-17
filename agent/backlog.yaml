@@ -555,7 +555,7 @@ stories:
   - id: B-109
     title: "generate-samples-beads.spec.ts 'AC no beads' flaky — activity bead visible after resetDatabase"
     type: bug
-    status: todo
+    status: uat
     priority: 50
     complexity: low
     requires: []

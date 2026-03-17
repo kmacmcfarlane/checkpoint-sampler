@@ -719,14 +719,14 @@ async function fetchTrainingRunsAndJobs() {
     sampleJobs.value = jobs
 
     // Fetch availability for all runs in parallel for training run bead rendering
-    fetchAllRunsAvailability(runs)
+    await fetchAllRunsAvailability(runs)
   } catch {
     trainingRuns.value = []
     sampleJobs.value = []
   }
 }
 
-/** Fire-and-forget: fetch availability for all training runs in parallel. */
+/** Fetch availability for all training runs in parallel; awaited by fetchTrainingRunsAndJobs. */
 async function fetchAllRunsAvailability(runs: TrainingRun[]) {
   const entries = await Promise.all(
     runs.map(async (run): Promise<[number, StudyAvailability[]]> => {
