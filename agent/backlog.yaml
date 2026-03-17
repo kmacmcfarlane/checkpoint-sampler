@@ -574,7 +574,7 @@ stories:
     title: "E2E beads test spuriously finds activity bead on empty training run"
     type: bug
     priority: 50
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:

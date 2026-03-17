@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-110: E2E beads test spuriously finds activity bead on empty training run
+- Added API pre-flight guard (`GET /api/sample-jobs` → assert empty) before UI assertions to close the race window between `resetDatabase()` and bead visibility checks
+
 ### B-109: generate-samples-beads.spec.ts 'AC no beads' flaky — activity bead visible after resetDatabase
 - Awaited fire-and-forget `fetchAllRunsAvailability` in JobLaunchDialog to eliminate race between availability fetch and Playwright's `networkidle` detection
 

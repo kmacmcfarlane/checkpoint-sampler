@@ -412,9 +412,21 @@ test.describe('Generate Samples dual beads (S-116)', () => {
     await page.keyboard.press('Escape')
   })
 
-  // AC: FE: No stale job beads after database reset
-  test('AC no stale job beads: no blue, red, or yellow beads after database reset', async ({ page }) => {
-    // No jobs seeded — only fixture availability green bead may appear
+  // AC: FE: No beads when there are no jobs; no residual job state from prior tests
+  // AC: "The 'AC no beads: empty training run shows no beads' test passes reliably across all shards"
+  // AC: "No residual job state from prior tests leaks into this test"
+  test('AC no beads: empty training run shows no beads', async ({ page, request }) => {
+    // Explicit pre-flight guard: verify resetDatabase() fully cleared all jobs before
+    // navigating to the page. This closes the race window where a prior test's seeded
+    // job could still appear in the DB (e.g. executor writing back stale state after
+    // the reset). If this assertion fails, the DB was not cleanly reset — the test
+    // failure points directly at the isolation layer, not at the UI.
+    // AC: No residual job state from prior tests leaks into this test
+    const jobsResp = await request.get('/api/sample-jobs')
+    expect(jobsResp.ok()).toBeTruthy()
+    const jobs = await jobsResp.json() as Array<unknown>
+    expect(jobs).toHaveLength(0)
+
     await page.goto('/', { waitUntil: 'networkidle' })
     await selectTrainingRun(page, 'my-model')
     await expect(page.getByText('Dimensions')).toBeVisible()
@@ -422,7 +434,7 @@ test.describe('Generate Samples dual beads (S-116)', () => {
     const dialog = getGenerateSamplesDialog(page)
     await expect(dialog).toBeVisible()
 
-    // Wait for dialog data to fully load
+    // Wait for dialog data to fully load (training runs + jobs + availability)
     await page.waitForLoadState('networkidle')
 
     const trainingRunSelect = dialog.locator('[data-testid="training-run-select"]')
@@ -432,12 +444,15 @@ test.describe('Generate Samples dual beads (S-116)', () => {
 
     // Use regex for exact match (avoids matching "test-run/my-model")
     const option = popup.locator('.n-base-select-option').filter({ hasText: /^my-model$/ })
-    // AC: No blue (running/pending) bead — no stale job state after DB reset
-    // Green activity bead may appear from fixture study availability data — that's correct
+    // AC: No blue (running/pending) bead — no stale job state after DB reset.
+    // A green activity bead may appear from fixture study availability data — that is correct
+    // and expected (the fixture seeder creates sample dirs for 'my-model' after every reset).
+    // We explicitly forbid blue (running/pending) and red (failed) activity beads.
     const activityBead = option.locator('[data-testid="run-bead-activity"]')
     const activityCount = await activityBead.count()
     if (activityCount > 0) {
-      // If an activity bead is present, it must be green (from fixture availability), not blue (from stale jobs)
+      // Only a green 'complete' bead from fixture availability is acceptable here.
+      // Blue 'running'/'pending' beads indicate stale job state leaked from a prior test.
       await expect(activityBead).toHaveAttribute('title', 'complete')
     }
     // AC: No problem beads (no failed/partial jobs after reset)
