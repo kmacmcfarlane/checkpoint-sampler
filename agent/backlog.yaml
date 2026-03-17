@@ -455,7 +455,7 @@ stories:
   - id: B-112
     title: "accessibility.spec.ts dark mode populated grid test timeouts clicking settings-button"
     priority: 60
-    status: todo
+    status: uat
     complexity: medium
     requires: []
     acceptance:

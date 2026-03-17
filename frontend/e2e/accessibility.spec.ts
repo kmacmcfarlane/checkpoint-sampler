@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test'
 import { AxeBuilder } from '@axe-core/playwright'
-import { resetDatabase, selectTrainingRun, selectNaiveOptionByLabel, closeDrawer } from './helpers'
+import { resetDatabase, selectTrainingRun, selectNaiveOptionByLabel, closeDrawer, dismissOverlays } from './helpers'
 
 /**
  * Accessibility audit tests using axe-core.
@@ -34,6 +34,8 @@ function formatViolations(violations: Array<{ id: string; impact: string | null;
  *
  * Uses the close button in the drawer header (aria-label="close", set by NBaseClose).
  * Safe to call even if the drawer is closed.
+ * Calls dismissOverlays afterward to wait for NDrawer masks to fully disappear
+ * under resource contention (B-112).
  * See TEST_PRACTICES.md §6.9 (NDrawer mask interaction).
  */
 async function closeDrawerIfOpen(page: Page): Promise<void> {
@@ -42,8 +44,10 @@ async function closeDrawerIfOpen(page: Page): Promise<void> {
     await drawerCloseButton.click()
     // Wait for the drawer to close (close button disappears)
     await expect(drawerCloseButton).not.toBeVisible()
-    await page.waitForTimeout(300)
   }
+  // Wait for all NDrawer masks to fully disappear (B-112: 300ms was insufficient
+  // under parallel shard resource contention)
+  await dismissOverlays(page)
 }
 
 test.describe('accessibility audit', () => {
@@ -177,6 +181,8 @@ test.describe('accessibility audit', () => {
 
     // Close the sidebar drawer so its mask does not interfere with the axe scan
     await closeDrawer(page)
+    // Wait for all NDrawer masks to fully disappear (B-112)
+    await dismissOverlays(page)
 
     // Ensure we are in light mode
     const isDarkMode = await page.locator('.app.dark-mode').isVisible()
@@ -234,6 +240,8 @@ test.describe('accessibility audit', () => {
 
     // Close the sidebar drawer so its mask does not interfere with the theme toggle or axe scan
     await closeDrawer(page)
+    // Wait for all NDrawer masks to fully disappear (B-112)
+    await dismissOverlays(page)
 
     // Switch to dark mode via the Settings dialog
     const isDarkMode = await page.locator('.app.dark-mode').isVisible()

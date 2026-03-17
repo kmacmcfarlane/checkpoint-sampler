@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-112: accessibility.spec.ts dark mode populated grid test timeouts clicking settings-button
+- Extracted `dismissOverlays` helper to shared `helpers.ts` and applied it in accessibility.spec.ts before settings-button clicks, replacing the insufficient fixed 300ms wait
+
 ### B-111: debug-mode.spec.ts tests timeout clicking settings-button in parallel shard execution
 - Fixed `.app-header` z-index to stack above the fixed Y slider bar (`z-index: 90`), which was intercepting pointer events on header buttons
 - Added `dismissOverlays` helper in E2E tests to wait for NDrawer masks to fully disappear before clicking header elements

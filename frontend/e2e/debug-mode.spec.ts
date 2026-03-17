@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { resetDatabase, selectTrainingRun, selectNaiveOptionByLabel, closeDrawer } from './helpers'
+import { resetDatabase, selectTrainingRun, selectNaiveOptionByLabel, closeDrawer, dismissOverlays } from './helpers'
 
 /**
  * E2E tests for the Debug Mode overlay feature (story B-032, updated S-091).
@@ -15,29 +15,6 @@ import { resetDatabase, selectTrainingRun, selectNaiveOptionByLabel, closeDrawer
  *   - Each checkpoint has 2 sample images: prompt_name=landscape and prompt_name=portrait
  *   - Dimensions: cfg, checkpoint, prompt_name, seed
  */
-
-/**
- * Dismisses any overlays (NDrawer masks, modal dialogs, settings dialog)
- * that could intercept pointer events on header buttons. Under resource
- * contention in parallel shards, NDrawer close animations take longer
- * than the 300ms fixed wait in closeDrawer (B-111).
- */
-async function dismissOverlays(page: Page): Promise<void> {
-  // Dismiss any visible NDrawer masks — these intercept all pointer events
-  // while the drawer close animation is in progress.
-  const drawerMask = page.locator('.n-drawer-mask')
-  const maskCount = await drawerMask.count()
-  for (let i = 0; i < maskCount; i++) {
-    await expect(drawerMask.nth(i)).not.toBeVisible({ timeout: 5000 })
-  }
-
-  // Dismiss the settings dialog if left open by a prior test
-  const settingsDialog = page.locator('[data-testid="settings-dialog"]')
-  if (await settingsDialog.isVisible({ timeout: 200 }).catch(() => false)) {
-    await page.keyboard.press('Escape')
-    await expect(settingsDialog).not.toBeVisible()
-  }
-}
 
 async function openSettingsDialog(page: Page): Promise<void> {
   await dismissOverlays(page)

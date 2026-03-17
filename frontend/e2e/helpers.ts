@@ -200,6 +200,33 @@ export async function closeDrawer(page: Page): Promise<void> {
 }
 
 /**
+ * Dismisses any overlays (NDrawer masks, modal dialogs, settings dialog)
+ * that could intercept pointer events on header buttons. Under resource
+ * contention in parallel shards, NDrawer close animations take longer
+ * than the 300ms fixed wait in closeDrawer (B-111, B-112).
+ *
+ * Call this after closeDrawer and before clicking header buttons like
+ * the settings button. The 5s timeout on mask disappearance accommodates
+ * slow animations under CPU contention.
+ */
+export async function dismissOverlays(page: Page): Promise<void> {
+  // Dismiss any visible NDrawer masks — these intercept all pointer events
+  // while the drawer close animation is in progress.
+  const drawerMask = page.locator('.n-drawer-mask')
+  const maskCount = await drawerMask.count()
+  for (let i = 0; i < maskCount; i++) {
+    await expect(drawerMask.nth(i)).not.toBeVisible({ timeout: 5000 })
+  }
+
+  // Dismiss the settings dialog if left open by a prior test
+  const settingsDialog = page.locator('[data-testid="settings-dialog"]')
+  if (await settingsDialog.isVisible({ timeout: 200 }).catch(() => false)) {
+    await page.keyboard.press('Escape')
+    await expect(settingsDialog).not.toBeVisible()
+  }
+}
+
+/**
  * Opens the Generate Samples dialog from the header button.
  * Closes the sidebar drawer first to unblock the header controls.
  * Also closes the Sample Jobs panel if it is open (B-106: the panel auto-opens
