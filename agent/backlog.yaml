@@ -95,8 +95,8 @@ stories:
       Already implemented as part of S-096 (Delete dimension mapping preset UAT rework). PresetSelector.vue already uses ConfirmDeleteDialog with full unit test coverage.
   - id: S-110
     title: "Resume completed_with_errors jobs (retry failed items)"
-    priority: 30
-    status: uat
+    priority: 50
+    status: uat_feedback
     complexity: medium
     requires: []
     acceptance:
@@ -111,6 +111,9 @@ stories:
       failed" button on the JobProgressPanel that directly re-queues only failed items in the
       same job would be more streamlined.
       Source: developer.
+    review_feedback: 'Clicking retry moves job to "Running" status but never actually sends missing sample jobs to ComfyUI
+      for generation. Tested with TR: qwen/psai4rt-v0.3.0-qwen-2512-1024-adafactor-constant-2e-6-steps-9000-timestep-qinglong_qwen-cap_drop-0,
+      Study: psy-cfg-check-1344.'
   - id: W-009
     title: "Populate safetensors test fixtures with minimal valid headers"
     priority: 15
@@ -128,7 +131,7 @@ stories:
   - id: S-116
     title: "Training run and study status beads in Generate Samples"
     type: enhancement
-    status: uat
+    status: uat_feedback
     priority: 50
     complexity: high
     requires: []
@@ -159,6 +162,12 @@ stories:
       - "Test priority rules: blue overrides green, red overrides yellow"
       - "Test bead state transitions as jobs start, complete, and fail"
       - "Investigate whether existing API data suffices or new endpoints are needed"
+    review_feedback: "Three issues:\n1. Study bead shows green (\"19/19 checkpoints have samples\") when 10 samples are missing
+      (674/684). Bead logic counts checkpoints with ANY samples, not checkpoints with ALL samples. Should show orange/yellow
+      for incomplete.\n2. Add alert icon next to \"674 / 684 samples (10 missing)\" text when there are missing samples.\n\
+      3. Auto-select behavior on study selection (when TR already selected): if missing samples exist, pre-select only checkpoints
+      with missing samples and auto-check \"Generate missing samples only\" checkbox.\nExample: /data/samples/qwen_psai4rt-v0.3.0-qwen-2512-1024-adafactor-constant-2e-6-steps-9000-timestep-qinglong_qwen-cap_drop-0/psy-cfg-check-1344/
+      has 4 checkpoint dirs with missing samples."
   - id: B-083
     title: "E2E: sample-count-preview.spec.ts 2 tests timing out after B-078 per-study validation scoping"
     type: bug
@@ -174,25 +183,6 @@ stories:
       - "command: make test-e2e SPEC=sample-count-preview.spec.ts"
     notes: |-
       Duplicate of B-082. The fix (using pre-seeded fixture study instead of dynamically-created studies) was already applied to sample-count-preview.spec.ts as part of B-082. All 7 tests in the spec pass reliably.
-  - id: S-118
-    title: "Lightbox grid position indicator"
-    priority: 45
-    status: uat
-    complexity: low
-    requires: []
-    acceptance:
-      - "FE: Thumbnail strip or position indicator shows current grid position in lightbox"
-      - "FE: Position updates when navigating with Shift+Arrow keys"
-      - "FE: Indicator is unobtrusive and does not obscure image content"
-      - "FE: Unit tests for position indicator rendering and navigation updates"
-    notes: |
-      Show a thumbnail strip indicator in the lightbox so the user knows their position
-      in the grid while navigating with Shift+Arrow keys.
-      Source: developer.
-      Key files: frontend/src/components/ImageLightbox.vue.
-    testing:
-      - "Verify position indicator updates correctly when navigating with Shift+Arrow"
-      - "Verify indicator handles edge cases (first/last cell in grid)"
   - id: W-021
     title: "Gitignore Playwright HTML report directory"
     priority: 25
@@ -258,32 +248,10 @@ stories:
       - "command: make test-e2e SPEC=dimension-filtering.spec.ts"
     notes: |-
       Closed as not reproducible. Tests pass reliably across 3 consecutive runs. The flakiness was likely caused by the same timing issues fixed by B-089 (savePresetViaDialog race condition) and B-091 (preset dirty tracking timing).
-  - id: B-097
-    title: "21 E2E tests fail expecting 'Sample Set' label and two-dropdown training run selector"
-    priority: 60
-    status: uat
-    complexity: medium
-    requires: []
-    acceptance:
-      - "All 21 failing E2E tests pass after aligning either the UI label or the test expectations with current implementation"
-      - "viewer-discovery.spec.ts passes: sidebar training run selector shows correct label"
-      - "on-demand-validation.spec.ts passes: sidebar label matches current UI"
-      - "training-run-grid.spec.ts, preset-crud.spec.ts, regen-confirmation.spec.ts, sample-count-preview.spec.ts, sample-generation.spec.ts,
-        seed-partial-samples.spec.ts all pass"
-    testing:
-      - "command: make test-e2e"
-    notes: |
-      Pre-existing E2E regression across 11 spec files (21 tests). Tests expect a UI label
-      rename "Training Run" → "Sample Set" and a two-dropdown cascade selector pattern that
-      does not match the current UI. Root cause: tests were written for a version of the UI
-      that was reverted or not fully deployed. Affected specs: viewer-discovery, on-demand-validation,
-      training-run-grid, demo-settings, generate-samples-beads, narrow-screen-eager-select,
-      preset-crud, regen-confirmation, sample-count-preview, sample-generation, seed-partial-samples.
-      Error: `element(s) not found — Locator: getByText('Sample Set', { exact: true })`.
   - id: B-098
     title: Training run selector truncates long names (needs multi-line wrap)
     type: bug
-    status: uat
+    status: uat_feedback
     priority: 70
     complexity: low
     requires: []
@@ -299,45 +267,13 @@ stories:
       - "FE: Unit tests for long name rendering"
     testing:
       - "Test with realistic long training run names. Verify both the selected value display and the dropdown options."
-  - id: B-099
-    title: Duplicate validate button in main controls slideout
-    type: bug
-    status: uat
-    priority: 70
-    complexity: low
-    requires: []
-    notes: >
-      There are two validate buttons in the main controls slideout — one opens a dialog
-      and one shows an inline line. Remove the inline one.
-      Source: user UAT feedback.
-    acceptance:
-      - "FE: Only one validate button exists in the main controls slideout (the dialog-opening one)"
-      - "FE: Inline validate display is removed"
-      - "FE: Unit tests updated to reflect single button"
-    testing:
-      - "Verify only one validate button is present and it opens the dialog."
-  - id: B-100
-    title: Lightbox displays JPEGs instead of full-quality PNGs
-    type: bug
-    status: uat
-    priority: 70
-    complexity: low
-    requires: []
-    notes: >
-      The lightbox is serving JPEG images instead of the full-quality PNG originals.
-      The lightbox should use the original PNG files for full-quality display.
-      Source: user UAT feedback.
-    acceptance:
-      - "FE: Lightbox displays PNG images at full quality"
-      - "BE: Image serving endpoint returns PNGs for lightbox requests (or FE requests the correct format)"
-      - "FE: Unit tests for correct image URL in lightbox"
-    testing:
-      - "Verify lightbox image URLs point to PNG files and image quality matches the original."
+    review_feedback: Closed selector state overflows sidebar — long names spill out and overrun other UI elements when 
+      selector is not open. Needs to scale vertically instead of overflowing.
   - id: B-101
     title: App load/refresh doesn't restore TR, study, or preset from localStorage
     type: bug
-    status: uat
-    priority: 50
+    status: uat_feedback
+    priority: 85
     complexity: medium
     requires: []
     notes: >
@@ -355,25 +291,8 @@ stories:
     testing:
       - "Test on both wide (side panel open) and narrow (side panel collapsed) viewports."
       - "Verify state persists across page refresh. Edge case: localStorage has stale data for a deleted training run."
-  - id: B-102
-    title: Dimension mapping preset not auto-selected from localStorage on TR change
-    type: bug
-    status: uat
-    priority: 50
-    complexity: low
-    requires: []
-    notes: >
-      Selecting a training run doesn't auto-select the last used dimension mapping
-      preset for that training run and study combo. The MRU preset should be stored
-      in localStorage per TR+study key and restored on selection.
-      Source: user UAT feedback.
-    acceptance:
-      - "FE: Last used dimension mapping preset is stored in localStorage per training run + study combo"
-      - "FE: Selecting a training run auto-selects the stored preset for that TR+study"
-      - "FE: Unit tests for preset MRU storage and retrieval"
-    testing:
-      - "Select a preset, switch training runs, switch back — preset should be restored."
-      - "Edge case: stored preset no longer exists."
+    review_feedback: "Race condition on refresh: sometimes TR/study/preset restore correctly but dimension mappings all reset
+      to 'Single'. The preset loads but its dimension mapping values are not applied reliably."
   - id: B-103
     title: "Stop job shows no activity and stop+restart fails (invalid_state)"
     type: bug
@@ -395,46 +314,6 @@ stories:
     testing:
       - "Test stop on a running job, verify UI shows activity, verify job state after stop, then restart."
       - "The invalid_state error suggests the job state isn't being updated correctly on stop."
-  - id: B-104
-    title: "Generate Samples validation shows 'workflow not found: .json' for all checkpoints"
-    type: bug
-    status: uat
-    priority: 70
-    complexity: medium
-    requires: []
-    notes: >
-      When selecting a training run and study in Generate Samples, the validation list
-      shows "failed" next to each checkpoint with tooltip "failed to load workflow:
-      workflow not found: .json". The workflow name appears to be empty in the
-      substitution, resulting in a bare ".json" filename.
-      Source: user UAT feedback.
-    acceptance:
-      - "BE: Workflow name is correctly populated in validation check"
-      - "FE: Validation list shows correct status for each checkpoint"
-      - "BE: Unit tests for workflow name resolution in validation"
-    testing:
-      - "The empty workflow name suggests the study's workflow field is not being passed through correctly."
-      - "Check the validation endpoint's workflow resolution logic."
-  - id: B-105
-    title: Side panel TR selector doesn't show new sample set after generation
-    type: bug
-    status: uat
-    priority: 50
-    complexity: low
-    requires: []
-    notes: >
-      When a sample generation completes, the training run selector in the side panel
-      doesn't show the new sample set automatically. Clicking the refresh button
-      makes it appear. The selector should reactively update when new sample data
-      becomes available.
-      Source: user UAT feedback.
-    acceptance:
-      - "FE: Training run selector updates automatically after sample generation completes"
-      - "FE: No manual refresh needed to see new sample sets"
-      - "FE: Unit tests for reactive update after job completion"
-    testing:
-      - "Run a sample generation, observe the side panel selector during and after completion."
-      - "The new sample set should appear without clicking refresh."
   - id: B-106
     title: "Manage Study: Regenerate (update in place) doesn't launch a job"
     type: bug
@@ -478,7 +357,7 @@ stories:
   - id: S-129
     title: Complete checkpoints not auto-checked in Generate Samples validation selector
     type: enhancement
-    status: todo
+    status: testing
     priority: 30
     complexity: low
     requires: []
@@ -495,24 +374,6 @@ stories:
     testing:
       - "With a mix of complete and incomplete checkpoints, verify default selection state."
       - "Edge cases: all complete, all incomplete."
-  - id: B-108
-    title: "E2E parallel suite fails with ENOTFOUND/ECONNREFUSED in resetDatabase across all shards"
-    type: bug
-    status: uat
-    priority: 60
-    complexity: medium
-    requires: []
-    acceptance:
-      - "Parallel E2E run with 12 shards completes without ENOTFOUND/ECONNREFUSED errors in resetDatabase"
-      - "All shards can resolve the frontend hostname within the test startup window"
-    testing:
-      - "command: make test-e2e"
-    notes: |
-      When 12 Docker shards start simultaneously, Docker's embedded DNS resolver or network bridge
-      fails to register the 'frontend' hostname for some/all shards before tests begin. All tests
-      fail at the first beforeEach resetDatabase call with ENOTFOUND or ECONNREFUSED. This is an
-      infrastructure flakiness issue, not a code bug. Root cause is likely DNS propagation timing
-      in the Docker network bridge during simultaneous shard startup.
   - id: S-130
     title: Move X slider to bottom of viewport
     type: enhancement
