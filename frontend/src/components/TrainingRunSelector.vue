@@ -356,4 +356,33 @@ function onHasSamplesFilterChange(value: boolean) {
   min-width: 150px;
   flex: 1;
 }
+
+/*
+ * B-098 UAT rework: Override Naive UI NSelect trigger internals so the closed-state
+ * selector grows vertically when the selected name is long, instead of overflowing.
+ * These :deep() rules target Naive UI's internal .n-base-selection elements which are
+ * outside Vue's scoped CSS scope without the deep selector.
+ */
+.training-run-select :deep(.n-base-selection),
+.study-select :deep(.n-base-selection) {
+  height: auto !important;
+  min-height: var(--n-height);
+}
+
+.training-run-select :deep(.n-base-selection-tags),
+.study-select :deep(.n-base-selection-tags) {
+  flex-wrap: wrap;
+  height: auto !important;
+  min-height: var(--n-height);
+  padding-top: 3px;
+  padding-bottom: 3px;
+}
+
+.training-run-select :deep(.n-base-selection-label),
+.study-select :deep(.n-base-selection-label) {
+  height: auto !important;
+  min-height: var(--n-height);
+  white-space: normal;
+  word-break: break-word;
+}
 </style>

@@ -251,7 +251,7 @@ stories:
   - id: B-098
     title: Training run selector truncates long names (needs multi-line wrap)
     type: bug
-    status: uat_feedback
+    status: uat
     priority: 70
     complexity: low
     requires: []
@@ -267,8 +267,6 @@ stories:
       - "FE: Unit tests for long name rendering"
     testing:
       - "Test with realistic long training run names. Verify both the selected value display and the dropdown options."
-    review_feedback: Closed selector state overflows sidebar — long names spill out and overrun other UI elements when 
-      selector is not open. Needs to scale vertically instead of overflowing.
   - id: B-101
     title: App load/refresh doesn't restore TR, study, or preset from localStorage
     type: bug

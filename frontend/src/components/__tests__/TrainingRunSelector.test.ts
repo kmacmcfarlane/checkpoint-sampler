@@ -526,6 +526,19 @@ describe('TrainingRunSelector', () => {
       expect(vnode.props?.style?.wordBreak).toBe('break-word')
     })
 
+    // AC1 (UAT rework): training-run-select class is applied to NSelect so :deep() CSS
+    // overrides can force height: auto on Naive UI's internal .n-base-selection element,
+    // preventing closed-state overflow in the sidebar.
+    it('NSelect has training-run-select class as CSS anchor for :deep() height override', async () => {
+      mockGetTrainingRuns.mockResolvedValue([longNameRun])
+      const wrapper = mount(TrainingRunSelector)
+      await flushPromises()
+
+      const select = wrapper.findComponent(NSelect)
+      // The class is the hook used by :deep(.n-base-selection) to force height: auto
+      expect(select.classes()).toContain('training-run-select')
+    })
+
     // AC1 & AC2: Study NSelect also has renderLabel prop for wrapping
     it('study NSelect has renderLabel prop for long study name wrapping', async () => {
       const runsWithLongStudy: TrainingRun[] = [
@@ -570,6 +583,8 @@ describe('TrainingRunSelector', () => {
       expect(typeof studySelect.props('renderLabel')).toBe('function')
       // AC: renderTag is also set on study NSelect so the closed-state wraps too
       expect(typeof studySelect.props('renderTag')).toBe('function')
+      // AC (UAT rework): study-select class is the CSS anchor for :deep() height override
+      expect(studySelect.classes()).toContain('study-select')
     })
   })
 
