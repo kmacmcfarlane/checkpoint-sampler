@@ -38,6 +38,12 @@ The thumbnail E2E tests verify URLs but not visual correctness. A screenshot com
 * source: qa
 Adding a `/api/test/set-job-status` endpoint would enable E2E tests to verify real-time bead updates triggered by WebSocket events, covering the UAT scenario (beads updating on job completion) end-to-end. Currently only achievable via unit tests.
 
+### Audit other specs for closeDrawer-before-settings-button pattern
+* status: needs_approval
+* priority: low
+* source: developer
+`settings-appearance.spec.ts` and `demo-settings.spec.ts` also click the settings button after drawer interactions. They may have the same latent timing issue under parallel shard contention and could benefit from adding `dismissOverlays` calls.
+
 ### TypeScript template literal scanning in disallowed-chars guard
 * status: needs_approval
 * priority: low
