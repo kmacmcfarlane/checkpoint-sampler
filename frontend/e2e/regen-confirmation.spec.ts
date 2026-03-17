@@ -109,6 +109,13 @@ async function setupDialogForRegenerateWithCompleteValidation(
   const clearExistingCheckbox = page.locator('[data-testid="clear-existing-checkbox"]')
   await expect(clearExistingCheckbox).toBeVisible({ timeout: 15000 })
 
+  // S-129: Complete checkpoints are unchecked by default. Click "Select All" so the
+  // submit button is enabled for the confirmation dialog tests (AC3: user can manually
+  // select complete checkpoints for regeneration).
+  const selectAllBtn = page.locator('[data-testid="select-all-checkpoints"]')
+  await expect(selectAllBtn).toBeVisible()
+  await selectAllBtn.click()
+
   // Uncheck "Clear existing samples" to preserve the test fixture directories in
   // the shared samples volume. Without this, the confirmed regeneration job deletes
   // the my-model-step*.safetensors directories, breaking all subsequent E2E tests

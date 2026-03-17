@@ -88,6 +88,12 @@ const confirmRegenOpen = ref(false)
 // applyPrefill to control checkpoint selection instead.
 const prefillActive = ref(false)
 
+// When true, applyPrefill has explicitly set checkpoint selections and checkbox defaults.
+// The validationResult watcher must not override these choices, even after validation
+// returns for the prefilled training run + study combination (S-129).
+// Reset to false whenever the user changes the training run or study manually.
+const prefillProtected = ref(false)
+
 // When true, smart checkbox defaults have already been applied for the current
 // training run + study combination. Reset when the run or study changes so that
 // a fresh combo gets fresh defaults. Once set, manual user changes take effect
@@ -266,7 +272,10 @@ watch(selectedTrainingRunId, async (runId) => {
     missingOnly.value = false
   }
   validationResult.value = null
-  validationDefaultsApplied.value = false
+  // S-129: When prefill is active, mark defaults as already applied so the validationResult
+  // watcher does not override checkpoints/checkboxes set by applyPrefill.
+  // When not in prefill mode, reset so fresh smart defaults are applied once validation returns.
+  validationDefaultsApplied.value = skipAutoSelection
 
   const run = selectedTrainingRun.value
   if (!run || run.checkpoints.length === 0) return
@@ -338,7 +347,12 @@ watch(selectedTrainingRunId, async (runId) => {
 // Trigger validation when training run + study are both selected
 watch([selectedTrainingRunId, selectedStudy], async () => {
   validationResult.value = null
-  validationDefaultsApplied.value = false
+  // S-129: If prefill just set checkpoints/checkboxes, mark defaults as applied so
+  // the validationResult watcher does not override applyPrefill's explicit choices.
+  // If not in prefill mode, reset so smart defaults are applied once validation returns.
+  validationDefaultsApplied.value = prefillProtected.value
+  // Consume the prefill protection flag so subsequent user-triggered changes reset defaults
+  prefillProtected.value = false
   if (selectedTrainingRunId.value === null || selectedStudy.value === null) return
 
   validating.value = true
@@ -355,13 +369,14 @@ watch([selectedTrainingRunId, selectedStudy], async () => {
   }
 })
 
-// S-115: Apply smart checkbox defaults when validation results arrive.
+// S-115 / S-129: Apply smart defaults when validation results arrive.
 // - Incomplete sample set (some missing): check "Generate missing only", uncheck "Clear existing"
 // - Complete sample set (none missing): leave "Clear existing" unchecked (default)
+// - S-129: Pre-select only incomplete checkpoints (missing > 0); deselect complete checkpoints.
 //
 // Defaults are applied only once per training run + study combination
 // (guarded by validationDefaultsApplied). After the first application,
-// manual user changes to either checkbox are respected and not overridden.
+// manual user changes to checkboxes and checkpoint selections are respected and not overridden.
 watch(validationResult, (result) => {
   // Only apply defaults when validation has returned a result and defaults
   // have not yet been applied for this run+study combination.
@@ -378,6 +393,18 @@ watch(validationResult, (result) => {
     // clearExisting was reset to false when the training run changed, so no action needed.
     // Explicitly ensure clearExisting stays false (not auto-set by old code path).
     clearExisting.value = false
+  }
+
+  // S-129: Apply default checkpoint selection based on completion status.
+  // Only applies when the checkpoint picker is shown (run has existing samples).
+  // A checkpoint is "complete" when it has verified samples and none are missing (verified > 0 AND missing <= 0).
+  // Complete checkpoints are unchecked by default; incomplete or unstarted checkpoints are pre-selected.
+  // This avoids re-generating samples that already exist while still targeting gaps.
+  if (selectedRunHasSamples.value && result.checkpoints.length > 0) {
+    const incompleteOrUnstartedFilenames = result.checkpoints
+      .filter(c => !(c.verified > 0 && c.missing <= 0))
+      .map(c => c.checkpoint)
+    selectedCheckpoints.value = new Set(incompleteOrUnstartedFilenames)
   }
 
   validationDefaultsApplied.value = true
@@ -772,6 +799,7 @@ function resetForm() {
   missingOnly.value = false
   showAllRuns.value = true
   prefillActive.value = false
+  prefillProtected.value = false
   validationResult.value = null
   validationDefaultsApplied.value = false
   validating.value = false
@@ -803,6 +831,10 @@ function applyPrefill(job: SampleJob) {
   // Set prefillActive so the training run watcher skips auto-selection
   prefillActive.value = true
 
+  // Set prefillProtected so the validation result watcher does not override the
+  // checkpoint selections and checkbox defaults that applyPrefill is about to set (S-129).
+  prefillProtected.value = true
+
   // Set training run (this triggers the watch, but it will skip checkpoint auto-selection)
   selectedTrainingRunId.value = run.id
 
@@ -830,6 +862,7 @@ function applyPrefill(job: SampleJob) {
       clearExisting.value = true
     }
   }
+
 }
 
 function openStudyEditor() {

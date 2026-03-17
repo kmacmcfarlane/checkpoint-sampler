@@ -357,7 +357,7 @@ stories:
   - id: S-129
     title: Complete checkpoints not auto-checked in Generate Samples validation selector
     type: enhancement
-    status: testing
+    status: uat
     priority: 30
     complexity: low
     requires: []

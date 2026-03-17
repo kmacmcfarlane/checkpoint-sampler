@@ -139,3 +139,9 @@ Currently, regeneration only creates a job for the selected training run. A futu
 * priority: low
 * source: developer
 If the backend cancels the WS context on ping failure, the frontend should detect the disconnection and auto-reconnect with exponential backoff. Currently the frontend may silently lose its WS connection when ping-triggered cancellation occurs.
+
+### Checkbox selection persistence across dialog sessions
+* status: needs_approval
+* priority: low
+* source: developer
+When a user manually adjusts checkpoint selection and closes the dialog, the selection resets on the next open. Persisting manual checkpoint selection (like study/training run) could improve UX for repeated partial regeneration workflows.

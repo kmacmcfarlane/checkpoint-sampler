@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-129: Complete checkpoints not auto-checked in Generate Samples validation selector
+- Validation selector now unchecks complete checkpoints by default; only incomplete or unstarted checkpoints are pre-selected for generation
+- Added `prefillProtected` flag to prevent validation watcher from overriding explicit prefill selections
+
 ### B-110: E2E beads test spuriously finds activity bead on empty training run
 - Added API pre-flight guard (`GET /api/sample-jobs` → assert empty) before UI assertions to close the race window between `resetDatabase()` and bead visibility checks
 

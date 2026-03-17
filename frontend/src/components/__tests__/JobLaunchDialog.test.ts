@@ -1061,7 +1061,10 @@ describe('JobLaunchDialog', () => {
       expect(errorRunOpt?._dualBead.activity).toBeNull()
     })
 
-    it('pre-selects only failed checkpoints when completed_with_errors run is selected', async () => {
+    // AC: S-129 — When validation results arrive, pre-selection is based on completeness status.
+    // chk-a and chk-c are complete (missing=0) → unchecked; chk-b is incomplete (missing=1) → checked.
+    // This applies even when a checkpoint was previously failed (it may have been retried successfully).
+    it('pre-selects only incomplete checkpoints (missing > 0) when completed_with_errors run is selected', async () => {
       mockListSampleJobs.mockResolvedValue([completedWithErrorsJob])
       mockValidateTrainingRun.mockResolvedValue(validationForRunWithSamples)
 
@@ -1080,15 +1083,18 @@ describe('JobLaunchDialog', () => {
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await flushPromises()
 
-      // Check that only failed checkpoints (chk-a, chk-c) are pre-selected
+      // AC S-129: Only incomplete checkpoints (missing > 0) are pre-selected.
+      // chk-a (complete, missing=0) → unchecked even though it was previously failed
       const chkA = wrapper.find('[data-testid="checkpoint-row-chk-a.safetensors"]').findComponent(NCheckbox)
-      expect(chkA.props('checked')).toBe(true)
+      expect(chkA.props('checked')).toBe(false)
 
+      // chk-b (incomplete, missing=1) → checked
       const chkB = wrapper.find('[data-testid="checkpoint-row-chk-b.safetensors"]').findComponent(NCheckbox)
-      expect(chkB.props('checked')).toBe(false)
+      expect(chkB.props('checked')).toBe(true)
 
+      // chk-c (complete, missing=0) → unchecked even though it was previously failed
       const chkC = wrapper.find('[data-testid="checkpoint-row-chk-c.safetensors"]').findComponent(NCheckbox)
-      expect(chkC.props('checked')).toBe(true)
+      expect(chkC.props('checked')).toBe(false)
     })
 
     it('shows failed badge on checkpoints with errors', async () => {
@@ -1178,9 +1184,10 @@ describe('JobLaunchDialog', () => {
       expect(wrapper.find('[data-testid="checkpoint-validation-error"]').exists()).toBe(true)
     })
 
-    // S-115: With smart defaults, incomplete sets default to missing_only=true.
-    // The payload now carries missing_only instead of clear_existing.
-    it('sends missing_only=true and failed checkpoint filenames in payload for incomplete set', async () => {
+    // S-115 + S-129: With smart defaults, incomplete sets default to missing_only=true.
+    // S-129: The payload now carries only INCOMPLETE checkpoints (missing > 0), not the failed ones.
+    // chk-b is incomplete (missing=1) → selected; chk-a and chk-c are complete → not selected.
+    it('sends missing_only=true and incomplete checkpoint filenames in payload for incomplete set', async () => {
       mockListSampleJobs.mockResolvedValue([completedWithErrorsJob])
       mockValidateTrainingRun.mockResolvedValue(validationForRunWithSamples)
       mockCreateSampleJob.mockResolvedValue({
@@ -1189,10 +1196,10 @@ describe('JobLaunchDialog', () => {
         study_id: 'preset-1', study_name: 'Quick Test',
         workflow_name: 'qwen-image.json',
         status: 'pending',
-        total_items: 2,
+        total_items: 1,
         completed_items: 0,
         failed_items: 0,
-        pending_items: 2,
+        pending_items: 1,
         created_at: '2025-01-02T00:00:00Z',
         updated_at: '2025-01-02T00:00:00Z',
       })
@@ -1210,7 +1217,7 @@ describe('JobLaunchDialog', () => {
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await flushPromises()
 
-      // Submit (failed checkpoints pre-selected: chk-a, chk-c)
+      // Submit — only incomplete checkpoints (chk-b) pre-selected per S-129
       const buttons = wrapper.findAllComponents(NButton)
       const submitButton = buttons.find(b => b.text() === 'Regenerate Samples')
       await submitButton!.trigger('click')
@@ -1220,11 +1227,14 @@ describe('JobLaunchDialog', () => {
       // S-115: Smart defaults set missingOnly=true for incomplete sets → payload carries missing_only
       expect(call.missing_only).toBe(true)
       expect(call.clear_existing).toBeUndefined()
-      expect(call.checkpoint_filenames).toEqual(expect.arrayContaining(['chk-a.safetensors', 'chk-c.safetensors']))
-      expect(call.checkpoint_filenames).toHaveLength(2)
+      // AC S-129: Only incomplete checkpoint (chk-b, missing=1) is selected; complete ones are skipped
+      expect(call.checkpoint_filenames).toEqual(['chk-b.safetensors'])
+      expect(call.checkpoint_filenames).toHaveLength(1)
     })
 
-    it('selects all checkpoints for run with samples but no failures', async () => {
+    // AC S-129: Only incomplete checkpoints are pre-selected; complete ones are unchecked by default.
+    // validationForRunWithSamples: chk-a (complete), chk-b (incomplete), chk-c (complete)
+    it('pre-selects only incomplete checkpoints for run with samples but no failures', async () => {
       // No jobs with errors
       mockListSampleJobs.mockResolvedValue([])
       mockValidateTrainingRun.mockResolvedValue(validationForRunWithSamples)
@@ -1243,7 +1253,162 @@ describe('JobLaunchDialog', () => {
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await flushPromises()
 
-      // All checkpoints should be selected
+      // AC S-129: Complete checkpoints (missing=0) are NOT pre-selected
+      const chkA = wrapper.find('[data-testid="checkpoint-row-chk-a.safetensors"]').findComponent(NCheckbox)
+      expect(chkA.props('checked')).toBe(false)
+
+      // AC S-129: Incomplete checkpoints (missing > 0) remain pre-selected
+      const chkB = wrapper.find('[data-testid="checkpoint-row-chk-b.safetensors"]').findComponent(NCheckbox)
+      expect(chkB.props('checked')).toBe(true)
+
+      // AC S-129: Complete checkpoints (missing=0) are NOT pre-selected
+      const chkC = wrapper.find('[data-testid="checkpoint-row-chk-c.safetensors"]').findComponent(NCheckbox)
+      expect(chkC.props('checked')).toBe(false)
+    })
+  })
+
+  // S-129: Complete checkpoints not auto-checked in validation selector
+  describe('checkpoint default selection based on completion status (S-129)', () => {
+    // AC1: Complete checkpoints are unchecked by default
+    // AC2: Incomplete checkpoints remain checked by default
+    it('AC1+AC2: pre-selects only incomplete checkpoints; complete checkpoints are unchecked', async () => {
+      mockListSampleJobs.mockResolvedValue([])
+      mockValidateTrainingRun.mockResolvedValue(validationForRunWithSamples)
+      // validationForRunWithSamples: chk-a(complete), chk-b(incomplete), chk-c(complete)
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
+      await nextTick()
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      await flushPromises()
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
+      await flushPromises()
+
+      // AC1: chk-a (complete, missing=0) is unchecked by default
+      const chkA = wrapper.find('[data-testid="checkpoint-row-chk-a.safetensors"]').findComponent(NCheckbox)
+      expect(chkA.props('checked')).toBe(false)
+
+      // AC2: chk-b (incomplete, missing=1) is checked by default
+      const chkB = wrapper.find('[data-testid="checkpoint-row-chk-b.safetensors"]').findComponent(NCheckbox)
+      expect(chkB.props('checked')).toBe(true)
+
+      // AC1: chk-c (complete, missing=0) is unchecked by default
+      const chkC = wrapper.find('[data-testid="checkpoint-row-chk-c.safetensors"]').findComponent(NCheckbox)
+      expect(chkC.props('checked')).toBe(false)
+    })
+
+    // AC3: User can still manually check complete checkpoints for regeneration
+    it('AC3: user can manually check a complete checkpoint after defaults are applied', async () => {
+      mockListSampleJobs.mockResolvedValue([])
+      mockValidateTrainingRun.mockResolvedValue(validationForRunWithSamples)
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
+      await nextTick()
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      await flushPromises()
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
+      await flushPromises()
+
+      // Defaults applied: chk-a unchecked (complete), chk-b checked (incomplete), chk-c unchecked (complete)
+      const chkA = wrapper.find('[data-testid="checkpoint-row-chk-a.safetensors"]').findComponent(NCheckbox)
+      expect(chkA.props('checked')).toBe(false)
+
+      // AC3: Manually check chk-a (a complete checkpoint) — user override should work
+      chkA.vm.$emit('update:checked', true)
+      await nextTick()
+      expect(chkA.props('checked')).toBe(true)
+
+      // Other checkpoints remain unchanged
+      const chkB = wrapper.find('[data-testid="checkpoint-row-chk-b.safetensors"]').findComponent(NCheckbox)
+      expect(chkB.props('checked')).toBe(true)
+
+      const chkC = wrapper.find('[data-testid="checkpoint-row-chk-c.safetensors"]').findComponent(NCheckbox)
+      expect(chkC.props('checked')).toBe(false)
+    })
+
+    // Edge case: all checkpoints complete → none pre-selected by default
+    it('AC4 edge case: all checkpoints complete → none pre-selected by default', async () => {
+      const allCompleteValidation = {
+        checkpoints: [
+          { checkpoint: 'chk-a.safetensors', expected: 1, verified: 1, missing: 0 },
+          { checkpoint: 'chk-b.safetensors', expected: 1, verified: 1, missing: 0 },
+          { checkpoint: 'chk-c.safetensors', expected: 1, verified: 1, missing: 0 },
+        ],
+        expected_per_checkpoint: 1,
+        total_expected: 3,
+        total_verified: 3,
+        total_actual: 3,
+        total_missing: 0,
+      }
+      mockListSampleJobs.mockResolvedValue([])
+      mockValidateTrainingRun.mockResolvedValue(allCompleteValidation)
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
+      await nextTick()
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      await flushPromises()
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
+      await flushPromises()
+
+      // AC4 edge: all complete → none selected by default
+      const chkA = wrapper.find('[data-testid="checkpoint-row-chk-a.safetensors"]').findComponent(NCheckbox)
+      expect(chkA.props('checked')).toBe(false)
+
+      const chkB = wrapper.find('[data-testid="checkpoint-row-chk-b.safetensors"]').findComponent(NCheckbox)
+      expect(chkB.props('checked')).toBe(false)
+
+      const chkC = wrapper.find('[data-testid="checkpoint-row-chk-c.safetensors"]').findComponent(NCheckbox)
+      expect(chkC.props('checked')).toBe(false)
+    })
+
+    // Edge case: all checkpoints incomplete → all pre-selected by default
+    it('AC4 edge case: all checkpoints incomplete → all pre-selected by default', async () => {
+      const allIncompleteValidation = {
+        checkpoints: [
+          { checkpoint: 'chk-a.safetensors', expected: 5, verified: 0, missing: 5 },
+          { checkpoint: 'chk-b.safetensors', expected: 5, verified: 2, missing: 3 },
+          { checkpoint: 'chk-c.safetensors', expected: 5, verified: 1, missing: 4 },
+        ],
+        expected_per_checkpoint: 5,
+        total_expected: 15,
+        total_verified: 3,
+        total_actual: 3,
+        total_missing: 12,
+      }
+      mockListSampleJobs.mockResolvedValue([])
+      mockValidateTrainingRun.mockResolvedValue(allIncompleteValidation)
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
+      await nextTick()
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      await flushPromises()
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
+      await flushPromises()
+
+      // AC4 edge: all incomplete → all selected by default
       const chkA = wrapper.find('[data-testid="checkpoint-row-chk-a.safetensors"]').findComponent(NCheckbox)
       expect(chkA.props('checked')).toBe(true)
 
@@ -3660,7 +3825,11 @@ describe('JobLaunchDialog', () => {
       total_missing: 1,
     }
 
-    /** Helper to set up the dialog with a run-with-samples selected + all form fields filled. */
+    /** Helper to set up the dialog with a run-with-samples selected + all form fields filled.
+     * S-129: For the complete-validation case, no checkpoints are pre-selected by default.
+     * This helper clicks "Select All" to simulate the user manually selecting checkpoints
+     * before regeneration (AC3: user can still manually check complete checkpoints).
+     */
     async function mountAndFillRunWithSamples(validationResult: typeof validationComplete) {
       mockValidateTrainingRun.mockResolvedValue(validationResult)
       mockCreateSampleJob.mockResolvedValue({
@@ -3690,6 +3859,15 @@ describe('JobLaunchDialog', () => {
       await flushPromises()
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await flushPromises()
+
+      // S-129: Complete checkpoints are unchecked by default (AC1). Click "Select All" to
+      // simulate the user manually selecting all checkpoints for regeneration (AC3).
+      // This is required so the submit button is enabled for the confirmation dialog tests.
+      const selectAllBtn = wrapper.find('[data-testid="select-all-checkpoints"]')
+      if (selectAllBtn.exists()) {
+        await selectAllBtn.trigger('click')
+        await nextTick()
+      }
 
       return wrapper
     }
