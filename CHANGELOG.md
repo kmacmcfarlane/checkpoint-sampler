@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-105: Side panel TR selector doesn't show new sample set after generation
+- Training run selector now auto-refreshes when a sample job reaches terminal status via WebSocket, so newly generated sample sets appear without manual refresh
+
 ### B-102: Dimension mapping preset not auto-selected from localStorage on TR change
 - Preset persistence redesigned from single-entry to per-(TR+study) map in localStorage, so switching training runs preserves each combo's last-used preset
 - Backward-compatible migration from the old single-entry format

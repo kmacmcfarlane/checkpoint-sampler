@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
-import { nextTick } from 'vue'
+import { nextTick, ref } from 'vue'
 import { NSelect, NCheckbox } from 'naive-ui'
 import TrainingRunSelector from '../TrainingRunSelector.vue'
 import type { TrainingRun } from '../../api/types'
@@ -634,6 +634,88 @@ describe('TrainingRunSelector', () => {
       options = wrapper.findComponent(NSelect).props('options') as Array<{ label: string }>
       expect(options).toHaveLength(3)
       expect(options[2].label).toBe('new-run')
+    })
+  })
+
+  // AC1-3 (B-105): Training run selector reactively refreshes after job completion
+  describe('refreshTrigger prop (B-105)', () => {
+    it('does not trigger an extra refresh on initial render with refreshTrigger=0', async () => {
+      // AC3: Initial value should not cause a redundant fetch beyond onMounted
+      mockGetTrainingRuns.mockResolvedValue(sampleRuns)
+      mount(TrainingRunSelector, {
+        props: { refreshTrigger: 0 },
+      })
+      await flushPromises()
+
+      // Only one call from onMounted — the initial watcher call with oldVal=undefined is skipped
+      expect(mockGetTrainingRuns).toHaveBeenCalledTimes(1)
+    })
+
+    it('calls getTrainingRuns again when refreshTrigger increments', async () => {
+      // AC1: TR selector updates automatically when refreshTrigger changes
+      mockGetTrainingRuns.mockResolvedValue(sampleRuns)
+      const trigger = ref(0)
+
+      const wrapper = mount(TrainingRunSelector, {
+        props: { refreshTrigger: trigger.value },
+      })
+      await flushPromises()
+
+      expect(mockGetTrainingRuns).toHaveBeenCalledTimes(1)
+
+      // Simulate a job completing — parent increments the trigger
+      trigger.value++
+      await wrapper.setProps({ refreshTrigger: trigger.value })
+      await flushPromises()
+
+      // AC2: No manual refresh needed — the selector fetched automatically
+      expect(mockGetTrainingRuns).toHaveBeenCalledTimes(2)
+    })
+
+    it('shows new sample set in options after refreshTrigger increments', async () => {
+      // AC1: New sample set appears without manual refresh after job completion
+      const newRun: TrainingRun = {
+        id: 3,
+        name: 'newly-generated-run',
+        checkpoint_count: 1,
+        has_samples: true,
+        checkpoints: [{ filename: 'newly-generated.safetensors', step_number: 1000, has_samples: true }],
+      }
+      mockGetTrainingRuns.mockResolvedValueOnce(sampleRuns)
+      mockGetTrainingRuns.mockResolvedValueOnce([...sampleRuns, newRun])
+
+      const wrapper = mount(TrainingRunSelector, {
+        props: { refreshTrigger: 0 },
+      })
+      await flushPromises()
+
+      let options = wrapper.findComponent(NSelect).props('options') as Array<{ label: string }>
+      expect(options).toHaveLength(2)
+
+      // Simulate job completion — parent increments trigger
+      await wrapper.setProps({ refreshTrigger: 1 })
+      await flushPromises()
+
+      options = wrapper.findComponent(NSelect).props('options') as Array<{ label: string }>
+      expect(options).toHaveLength(3)
+      expect(options[2].label).toBe('newly-generated-run')
+    })
+
+    it('refreshes again on each subsequent increment of refreshTrigger', async () => {
+      // AC3: Multiple job completions each trigger their own refresh
+      mockGetTrainingRuns.mockResolvedValue(sampleRuns)
+      const wrapper = mount(TrainingRunSelector, {
+        props: { refreshTrigger: 0 },
+      })
+      await flushPromises()
+
+      await wrapper.setProps({ refreshTrigger: 1 })
+      await flushPromises()
+      await wrapper.setProps({ refreshTrigger: 2 })
+      await flushPromises()
+
+      // Initial load + 2 reactive refreshes
+      expect(mockGetTrainingRuns).toHaveBeenCalledTimes(3)
     })
   })
 })

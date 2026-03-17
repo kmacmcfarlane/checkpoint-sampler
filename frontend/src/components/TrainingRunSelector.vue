@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, h } from 'vue'
+import { ref, computed, onMounted, watch, h } from 'vue'
 import { NSelect, NCheckbox, NButton } from 'naive-ui'
 import type { SelectRenderLabel, SelectRenderTag } from 'naive-ui'
 import type { TrainingRun } from '../api/types'
@@ -10,6 +10,11 @@ import { useLastTrainingRun } from '../composables/useLastTrainingRun'
 const props = defineProps<{
   /** Auto-select this training run ID if provided (used for restoring from localStorage). */
   autoSelectRunId?: number | null
+  /**
+   * Increment this counter to trigger an automatic refresh of the training run list.
+   * Used by the parent to reactively refresh after a sample generation job completes.
+   */
+  refreshTrigger?: number
 }>()
 
 const trainingRuns = ref<TrainingRun[]>([])
@@ -176,6 +181,21 @@ async function refreshTrainingRuns() {
 }
 
 onMounted(fetchTrainingRuns)
+
+/**
+ * AC1-2 (B-105): Automatically refresh the training run list when a sample generation
+ * job completes. The parent increments refreshTrigger on each terminal job status
+ * transition so the selector shows newly generated sample sets without a manual refresh.
+ */
+watch(
+  () => props.refreshTrigger,
+  (newVal, oldVal) => {
+    // Skip the initial call (when the watcher fires on component mount with the initial value).
+    // We only refresh when the trigger actually increments after the initial load.
+    if (oldVal === undefined) return
+    refreshTrainingRuns()
+  },
+)
 
 function onGroupSelect(value: string | null) {
   if (value === null) {

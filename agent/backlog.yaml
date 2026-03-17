@@ -418,7 +418,7 @@ stories:
   - id: B-105
     title: Side panel TR selector doesn't show new sample set after generation
     type: bug
-    status: todo
+    status: uat
     priority: 50
     complexity: low
     requires: []

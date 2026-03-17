@@ -423,10 +423,12 @@ function handleJobProgress(message: JobProgressMessage) {
     if (message.status !== previousStatus) {
       jobRefreshTrigger.value++
     }
-    // Clear inference progress for completed jobs
+    // Clear inference progress for completed jobs; also signal TrainingRunSelector to refresh
+    // so newly generated sample sets appear automatically (AC1-2, B-105).
     if (TERMINAL_STATUSES.has(message.status) && !TERMINAL_STATUSES.has(previousStatus)) {
       delete inferenceProgress[message.job_id]
       delete prevCheckpointProgress[message.job_id]
+      trainingRunsRefreshTrigger.value++
     }
   } else {
     // New job, fetch the full list
@@ -834,6 +836,13 @@ const buttonBeadColor = computed((): string | null => {
 /** AC4: Counter incremented when a job completes via WebSocket to trigger dialog refresh. */
 const jobRefreshTrigger = ref(0)
 
+/**
+ * AC1-2 (B-105): Counter incremented when a job reaches a terminal status via WebSocket.
+ * Passed to TrainingRunSelector so it automatically refreshes after sample generation completes,
+ * making new sample sets visible without a manual refresh click.
+ */
+const trainingRunsRefreshTrigger = ref(0)
+
 /** Terminal job statuses that indicate a job has finished. */
 const TERMINAL_STATUSES: Set<SampleJobStatus> = new Set(['completed', 'completed_with_errors', 'failed'])
 
@@ -952,6 +961,7 @@ async function handleSlideoutValidate() {
         <div class="drawer-section">
           <TrainingRunSelector
             :auto-select-run-id="lastTrainingRunId ?? null"
+            :refresh-trigger="trainingRunsRefreshTrigger"
             @select="onTrainingRunSelect"
           />
           <!-- AC: FE: Validate button in main controls slideout panel -->
