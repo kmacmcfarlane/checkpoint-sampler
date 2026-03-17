@@ -358,7 +358,7 @@ stories:
   - id: B-102
     title: Dimension mapping preset not auto-selected from localStorage on TR change
     type: bug
-    status: todo
+    status: uat
     priority: 50
     complexity: low
     requires: []
@@ -570,3 +570,21 @@ stories:
       when the training run dropdown is opened. The waitForLoadState('networkidle') call is
       insufficient to ensure stale bead data is flushed. Root cause is likely stale reactive
       state in the frontend after DB reset.
+  - id: B-110
+    title: "E2E beads test spuriously finds activity bead on empty training run"
+    type: bug
+    priority: 50
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "The 'AC no beads: empty training run shows no beads' test passes reliably across all shards"
+      - "No residual job state from prior tests leaks into this test"
+    testing:
+      - "command: make test-e2e-serial SPEC=generate-samples-beads.spec.ts"
+    notes: |
+      Failing test: generate-samples-beads.spec.ts > AC no beads: empty training run shows no beads.
+      Error: expected 0 activity beads on 'my-model' run, got 1.
+      Root cause hypothesis: a prior test in the same shard left a pending/running job in the database
+      before this test's resetDatabase() call completed, so an activity bead is still displayed.
+      This is a test isolation or reset-timing issue.

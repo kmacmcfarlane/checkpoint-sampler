@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-102: Dimension mapping preset not auto-selected from localStorage on TR change
+- Preset persistence redesigned from single-entry to per-(TR+study) map in localStorage, so switching training runs preserves each combo's last-used preset
+- Backward-compatible migration from the old single-entry format
+
 ### B-101: App load/refresh doesn't restore TR, study, or preset from localStorage
 - Eager preset restoration in `App.vue` runs after training run auto-select, independent of drawer mount lifecycle — fixes narrow-screen state loss
 - Shared `computePresetWarnings` utility eliminates duplication between `App.vue` and `PresetSelector.vue`

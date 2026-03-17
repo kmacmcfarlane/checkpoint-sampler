@@ -34,11 +34,19 @@ test.describe('narrow screen eager auto-select', () => {
     expect(runs.length).toBeGreaterThan(0)
     const trainingRunId = runs[0].id
 
-    // Step 2: Set localStorage before page loads so eagerAutoSelect picks it up
+    // Step 2: Set localStorage before page loads so eagerAutoSelect picks it up.
+    // B-102: eagerAutoSelect reads exclusively from checkpoint-sampler-last-training-run,
+    // so both keys must be set.
     await page.addInitScript((runId: number) => {
+      // Training run key — required by eagerAutoSelect after B-102
+      localStorage.setItem(
+        'checkpoint-sampler-last-training-run',
+        JSON.stringify({ runId, studiesByRunDir: {} }),
+      )
+      // Preset key in new per-combo format (e2e-test-preset doesn't need to exist)
       localStorage.setItem(
         'checkpoint-sampler-last-preset',
-        JSON.stringify({ trainingRunId: runId, presetId: 'e2e-test-preset' }),
+        JSON.stringify({ presetsByKey: { [`${runId}|`]: 'e2e-test-preset' } }),
       )
     }, trainingRunId)
 
@@ -89,11 +97,18 @@ test.describe('narrow screen eager auto-select', () => {
     const trainingRunId = runs[0].id
     const trainingRunName = runs[0].name
 
-    // Step 2: Set localStorage before page loads
+    // Step 2: Set localStorage before page loads.
+    // B-102: eagerAutoSelect reads exclusively from checkpoint-sampler-last-training-run.
     await page.addInitScript((runId: number) => {
+      // Training run key — required by eagerAutoSelect after B-102
+      localStorage.setItem(
+        'checkpoint-sampler-last-training-run',
+        JSON.stringify({ runId, studiesByRunDir: {} }),
+      )
+      // Preset key in new per-combo format
       localStorage.setItem(
         'checkpoint-sampler-last-preset',
-        JSON.stringify({ trainingRunId: runId, presetId: 'e2e-test-preset' }),
+        JSON.stringify({ presetsByKey: { [`${runId}|`]: 'e2e-test-preset' } }),
       )
     }, trainingRunId)
 

@@ -70,12 +70,21 @@ test.describe('B-047: preset dirty tracking after auto-load', () => {
       combos: ['prompt_name'],
     })
 
-    // Step 3: Set localStorage so the preset auto-loads on page visit
+    // Step 3: Set localStorage so the preset auto-loads on page visit.
+    // B-102: eagerAutoSelect reads from checkpoint-sampler-last-training-run (not the preset key),
+    // so both keys must be set. The preset key uses the new per-combo format; legacy format
+    // is also accepted via migration but the training run key is now required.
     await page.addInitScript(
       ({ runId, pId }: { runId: number; pId: string }) => {
+        // New per-combo format for preset persistence
         localStorage.setItem(
           'checkpoint-sampler-last-preset',
-          JSON.stringify({ trainingRunId: runId, presetId: pId }),
+          JSON.stringify({ presetsByKey: { [`${runId}|`]: pId } }),
+        )
+        // Training run key required by eagerAutoSelect (B-102)
+        localStorage.setItem(
+          'checkpoint-sampler-last-training-run',
+          JSON.stringify({ runId, studiesByRunDir: {} }),
         )
       },
       { runId: trainingRunId, pId: presetId },
@@ -121,9 +130,15 @@ test.describe('B-047: preset dirty tracking after auto-load', () => {
 
     await page.addInitScript(
       ({ runId, pId }: { runId: number; pId: string }) => {
+        // New per-combo format for preset persistence (B-102)
         localStorage.setItem(
           'checkpoint-sampler-last-preset',
-          JSON.stringify({ trainingRunId: runId, presetId: pId }),
+          JSON.stringify({ presetsByKey: { [`${runId}|`]: pId } }),
+        )
+        // Training run key required by eagerAutoSelect (B-102)
+        localStorage.setItem(
+          'checkpoint-sampler-last-training-run',
+          JSON.stringify({ runId, studiesByRunDir: {} }),
         )
       },
       { runId: trainingRunId, pId: presetId },
@@ -160,9 +175,15 @@ test.describe('B-047: preset dirty tracking after auto-load', () => {
 
     await page.addInitScript(
       ({ runId, pId }: { runId: number; pId: string }) => {
+        // New per-combo format for preset persistence (B-102)
         localStorage.setItem(
           'checkpoint-sampler-last-preset',
-          JSON.stringify({ trainingRunId: runId, presetId: pId }),
+          JSON.stringify({ presetsByKey: { [`${runId}|`]: pId } }),
+        )
+        // Training run key required by eagerAutoSelect (B-102)
+        localStorage.setItem(
+          'checkpoint-sampler-last-training-run',
+          JSON.stringify({ runId, studiesByRunDir: {} }),
         )
       },
       { runId: trainingRunId, pId: presetId },
@@ -197,9 +218,15 @@ test.describe('B-047: preset dirty tracking after auto-load', () => {
 
     await page.addInitScript(
       ({ runId, pId }: { runId: number; pId: string }) => {
+        // New per-combo format for preset persistence (B-102)
         localStorage.setItem(
           'checkpoint-sampler-last-preset',
-          JSON.stringify({ trainingRunId: runId, presetId: pId }),
+          JSON.stringify({ presetsByKey: { [`${runId}|`]: pId } }),
+        )
+        // Training run key required by eagerAutoSelect (B-102)
+        localStorage.setItem(
+          'checkpoint-sampler-last-training-run',
+          JSON.stringify({ runId, studiesByRunDir: {} }),
         )
       },
       { runId: trainingRunId, pId: presetId },

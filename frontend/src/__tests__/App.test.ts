@@ -548,9 +548,15 @@ describe('App', () => {
     // from localStorage and triggers a scan on mount, regardless of drawer state.
 
     function setSavedPresetData(trainingRunId: number, presetId: string) {
+      // Set the preset in the new per-combo format (key: "trainingRunId|studyOutputDir")
       localStorage.setItem(
         'checkpoint-sampler-last-preset',
-        JSON.stringify({ trainingRunId, presetId }),
+        JSON.stringify({ presetsByKey: { [`${trainingRunId}|`]: presetId } }),
+      )
+      // Also set the standalone training run key so eagerAutoSelect can find the TR
+      localStorage.setItem(
+        'checkpoint-sampler-last-training-run',
+        JSON.stringify({ runId: trainingRunId, studiesByRunDir: {} }),
       )
     }
 

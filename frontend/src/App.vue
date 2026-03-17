@@ -31,7 +31,7 @@ import ValidationResultsDialog from './components/ValidationResultsDialog.vue'
 import type { ValidationResult } from './api/types'
 
 const { theme, isDark, toggle: toggleTheme } = useTheme()
-const { savedData, savePresetSelection, clearPresetSelection } = usePresetPersistence()
+const { getPresetIdForCombo, savePresetSelection, clearPresetForCombo } = usePresetPersistence()
 const { lastTrainingRunId, saveLastTrainingRun, saveLastStudy } = useLastTrainingRun()
 
 /** The study output dir for the currently selected training run. */
@@ -97,7 +97,7 @@ function collapseDrawerIfNarrow() {
  * This ensures eager loading works even when no preset has ever been saved.
  */
 async function eagerAutoSelect() {
-  const trainingRunId = savedData.value?.trainingRunId ?? lastTrainingRunId.value
+  const trainingRunId = lastTrainingRunId.value
   if (trainingRunId === null || trainingRunId === undefined) return
 
   try {
@@ -130,7 +130,9 @@ async function eagerAutoSelect() {
 const presetRestoredEagerly = ref(false)
 
 async function eagerRestorePreset() {
-  const presetId = savedData.value?.presetId
+  const run = selectedTrainingRun.value
+  if (!run) return
+  const presetId = getPresetIdForCombo(run.id, selectedStudyOutputDir.value)
   if (!presetId) return
 
   try {
@@ -141,8 +143,8 @@ async function eagerRestorePreset() {
       onPresetLoad(preset, warnings)
       presetRestoredEagerly.value = true
     } else {
-      // Preset no longer exists — clear stale persistence
-      clearPresetSelection()
+      // Preset no longer exists — clear stale persistence for this combo
+      clearPresetForCombo(run.id, selectedStudyOutputDir.value)
     }
   } catch {
     // Silently ignore — PresetSelector will retry when it mounts
@@ -455,6 +457,12 @@ async function onTrainingRunSelect(run: TrainingRun, studyOutputDir: string) {
   // auto-select works on the next page load even without a saved preset.
   saveLastTrainingRun(run.id)
 
+  // AC2: Reset the eager-restore flag so PresetSelector can auto-load the stored
+  // preset for the newly selected TR+study combo via autoLoadPresetIdForCurrentCombo.
+  presetRestoredEagerly.value = false
+  selectedPresetId.value = null
+  presetWarnings.value = []
+
   selectedTrainingRun.value = run
   scanning.value = true
   scanError.value = null
@@ -631,16 +639,14 @@ function onMasterSliderChange(value: string) {
 const dimensionNames = computed(() => dimensions.value.map((d) => d.name))
 
 /**
- * Determine if we should attempt auto-loading a preset via PresetSelector.
- * Only auto-load once per training run, only if the saved training run matches
- * the current one, and only if eagerRestorePreset() did not already apply it
- * (to avoid a redundant getPresets API call on wide screens where both paths fire).
+ * The preset ID to auto-load for the currently selected TR+study combo.
+ * Returns null when no preset is stored for the combo, or when the eager
+ * restore path already applied the preset (to avoid a redundant API call).
  */
-const shouldAutoLoadPreset = computed(() => {
-  if (presetRestoredEagerly.value) return false
-  if (!savedData.value) return false
-  if (!selectedTrainingRun.value) return false
-  return savedData.value.trainingRunId === selectedTrainingRun.value.id
+const autoLoadPresetIdForCurrentCombo = computed((): string | null => {
+  if (presetRestoredEagerly.value) return null
+  if (!selectedTrainingRun.value) return null
+  return getPresetIdForCombo(selectedTrainingRun.value.id, selectedStudyOutputDir.value)
 })
 
 /** Load a preset: apply matching dimension assignments, warn about unmatched. */
@@ -662,9 +668,9 @@ function onPresetLoad(preset: Preset, warnings: string[]) {
     }
   }
 
-  // Persist the selection to localStorage
+  // AC1: Persist the selection to localStorage keyed by TR+study combo
   if (selectedTrainingRun.value) {
-    savePresetSelection(selectedTrainingRun.value.id, preset.id)
+    savePresetSelection(selectedTrainingRun.value.id, selectedStudyOutputDir.value, preset.id)
   }
 }
 
@@ -672,7 +678,10 @@ function onPresetLoad(preset: Preset, warnings: string[]) {
 function onPresetNew() {
   presetWarnings.value = []
   selectedPresetId.value = null
-  clearPresetSelection()
+  // Clear the stored preset for the current TR+study combo
+  if (selectedTrainingRun.value) {
+    clearPresetForCombo(selectedTrainingRun.value.id, selectedStudyOutputDir.value)
+  }
 
   // Reset all dimension assignments to 'none'
   for (const dim of dimensions.value) {
@@ -684,19 +693,21 @@ function onPresetSave(preset: Preset) {
   presetWarnings.value = []
   selectedPresetId.value = preset.id
 
-  // Persist the new preset selection
+  // AC1: Persist the new preset selection keyed by TR+study combo
   if (selectedTrainingRun.value) {
-    savePresetSelection(selectedTrainingRun.value.id, preset.id)
+    savePresetSelection(selectedTrainingRun.value.id, selectedStudyOutputDir.value, preset.id)
   }
 }
 
 function onPresetDelete(presetId: string) {
   presetWarnings.value = []
 
-  // If the deleted preset was the selected one, clear the selection
+  // If the deleted preset was the selected one, clear the selection for the current combo
   if (selectedPresetId.value === presetId) {
     selectedPresetId.value = null
-    clearPresetSelection()
+    if (selectedTrainingRun.value) {
+      clearPresetForCombo(selectedTrainingRun.value.id, selectedStudyOutputDir.value)
+    }
   }
 }
 
@@ -940,7 +951,7 @@ async function handleSlideoutValidate() {
       <AppDrawer v-model:show="drawerOpen">
         <div class="drawer-section">
           <TrainingRunSelector
-            :auto-select-run-id="savedData?.trainingRunId ?? lastTrainingRunId ?? null"
+            :auto-select-run-id="lastTrainingRunId ?? null"
             @select="onTrainingRunSelect"
           />
           <!-- AC: FE: Validate button in main controls slideout panel -->
@@ -962,7 +973,7 @@ async function handleSlideoutValidate() {
               :assignments="assignments"
               :filter-modes="filterModes"
               :dimension-names="dimensionNames"
-              :auto-load-preset-id="shouldAutoLoadPreset ? savedData?.presetId ?? null : null"
+              :auto-load-preset-id="autoLoadPresetIdForCurrentCombo"
               @load="onPresetLoad"
               @save="onPresetSave"
               @delete="onPresetDelete"
