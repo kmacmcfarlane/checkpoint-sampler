@@ -2438,4 +2438,150 @@ describe('App', () => {
       expect(xMasterSlider!.props('dimensionName')).toBe('seed')
     })
   })
+
+  // S-131: Y slider pinned to right side of viewport
+  describe('Y axis right slider visibility (S-131)', () => {
+    const mockScanResultWithYDimension = {
+      images: [],
+      dimensions: [
+        { name: 'cfg', values: ['5', '7', '9'], type: 'int' },
+        { name: 'seed', values: ['42'], type: 'int' },
+      ],
+    }
+
+    const mockPresetWithY = {
+      id: 'preset-y',
+      name: 'Y Preset',
+      mapping: { y: 'cfg', combos: [] },
+      created_at: '2025-01-01T00:00:00Z',
+      updated_at: '2025-01-01T00:00:00Z',
+    }
+
+    const mockPresetWithXAndY = {
+      id: 'preset-xy',
+      name: 'XY Preset',
+      mapping: { x: 'seed', y: 'cfg', combos: [] },
+      created_at: '2025-01-01T00:00:00Z',
+      updated_at: '2025-01-01T00:00:00Z',
+    }
+
+    async function mountAndSelectWithPreset(
+      preset: typeof mockPresetWithY | typeof mockPresetWithXAndY,
+      scanResult: typeof mockScanResultWithYDimension,
+    ) {
+      mockScanTrainingRun.mockResolvedValue(scanResult)
+      mockGetPresets.mockResolvedValue([preset])
+
+      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      await flushPromises()
+
+      const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
+      selector.vm.$emit('select', mockTrainingRun)
+      await flushPromises()
+
+      return wrapper
+    }
+
+    // AC2: Y slider hidden when no dimension mapping is assigned to Y axis
+    it('AC2: Y slider bar is NOT rendered when no Y dimension is assigned', async () => {
+      mockScanTrainingRun.mockResolvedValue(mockScanResultWithYDimension)
+      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      await flushPromises()
+
+      // Select a training run — no preset applied, so yDimension is null
+      const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
+      selector.vm.$emit('select', mockTrainingRun)
+      await flushPromises()
+
+      // AC2: Y slider bar should be hidden when no Y dimension mapping
+      expect(wrapper.find('[data-testid="y-slider-bar"]').exists()).toBe(false)
+    })
+
+    // AC1/AC2: Y slider appears when Y dimension is assigned via preset
+    it('AC1/AC2: Y slider bar renders when a Y dimension mapping is assigned', async () => {
+      const wrapper = await mountAndSelectWithPreset(mockPresetWithY, mockScanResultWithYDimension)
+
+      // Apply the preset via the PresetSelector component
+      const presetSelector = wrapper.findComponent({ name: 'PresetSelector' })
+      presetSelector.vm.$emit('load', mockPresetWithY, [])
+      await flushPromises()
+
+      // AC1/AC2: Y slider bar should now be visible
+      expect(wrapper.find('[data-testid="y-slider-bar"]').exists()).toBe(true)
+    })
+
+    // AC2: Y slider hidden when Y dimension assignment is cleared
+    it('AC2: Y slider bar disappears when Y dimension assignment is removed', async () => {
+      const wrapper = await mountAndSelectWithPreset(mockPresetWithY, mockScanResultWithYDimension)
+
+      // Apply preset (assigns cfg to Y)
+      const presetSelector = wrapper.findComponent({ name: 'PresetSelector' })
+      presetSelector.vm.$emit('load', mockPresetWithY, [])
+      await flushPromises()
+      expect(wrapper.find('[data-testid="y-slider-bar"]').exists()).toBe(true)
+
+      // Re-find PresetSelector after flushPromises
+      const presetSelector2 = wrapper.findComponent({ name: 'PresetSelector' })
+
+      // Reset dimension assignments via PresetSelector 'new' event — clears all roles including Y
+      presetSelector2.vm.$emit('new')
+      await flushPromises()
+      await nextTick()
+
+      // AC2: Y slider bar should be hidden again (no Y dimension assignment)
+      expect(wrapper.find('[data-testid="y-slider-bar"]').exists()).toBe(false)
+    })
+
+    // AC4: MasterSlider is used inside the Y slider bar with correct props
+    it('AC4: MasterSlider inside Y slider bar receives yDimension values and name', async () => {
+      const wrapper = await mountAndSelectWithPreset(mockPresetWithY, mockScanResultWithYDimension)
+
+      // Apply preset
+      const presetSelector = wrapper.findComponent({ name: 'PresetSelector' })
+      presetSelector.vm.$emit('load', mockPresetWithY, [])
+      await flushPromises()
+
+      // Find the y-slider-bar
+      const ySliderBar = wrapper.find('[data-testid="y-slider-bar"]')
+      expect(ySliderBar.exists()).toBe(true)
+
+      // The MasterSlider inside y-slider-bar should have cfg dimension values
+      const masterSliders = wrapper.findAllComponents({ name: 'MasterSlider' })
+      // AC4: At least one MasterSlider has the y dimension values
+      const yMasterSlider = masterSliders.find(s => {
+        const vals = s.props('values') as string[]
+        return vals && vals.includes('5') && vals.includes('7') && vals.includes('9')
+      })
+      expect(yMasterSlider).toBeDefined()
+      expect(yMasterSlider!.props('dimensionName')).toBe('cfg')
+    })
+
+    // AC3: Both X and Y sliders can be visible simultaneously without layout issues
+    it('AC3: Both X and Y slider bars render together when both dimensions are assigned', async () => {
+      const wrapper = await mountAndSelectWithPreset(mockPresetWithXAndY, mockScanResultWithYDimension)
+
+      // Apply preset assigning both X (seed) and Y (cfg)
+      const presetSelector = wrapper.findComponent({ name: 'PresetSelector' })
+      presetSelector.vm.$emit('load', mockPresetWithXAndY, [])
+      await flushPromises()
+
+      // AC3: Both slider bars should be visible
+      expect(wrapper.find('[data-testid="x-slider-bar"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="y-slider-bar"]').exists()).toBe(true)
+    })
+
+    // AC3: app-main gets right padding class when Y slider is visible
+    it('AC3: app-main gets y-slider-visible class when Y dimension is assigned', async () => {
+      const wrapper = await mountAndSelectWithPreset(mockPresetWithY, mockScanResultWithYDimension)
+
+      // Apply preset
+      const presetSelector = wrapper.findComponent({ name: 'PresetSelector' })
+      presetSelector.vm.$emit('load', mockPresetWithY, [])
+      await flushPromises()
+
+      // AC3: The main content area should have the y-slider-visible class
+      const main = wrapper.find('.app-main')
+      expect(main.classes()).toContain('app-main--y-slider-visible')
+    })
+  })
 })

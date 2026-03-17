@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-131: Add Y slider on right side of viewport
+- Vertical Y slider pinned to the right viewport edge using `position: fixed`, hidden when no dimension is assigned to the Y axis
+- MasterSlider reused with `writing-mode: vertical-lr` CSS overrides for vertical orientation; selecting a value solos that Y row in the grid
+
 ### S-130: Move X slider to bottom of viewport
 - X axis slider pinned to the bottom edge of the viewport using `position: fixed`, hidden when no dimension is assigned to the X axis
 - MasterSlider reused for the bottom bar; selecting a value solos that X column in the grid

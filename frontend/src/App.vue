@@ -625,6 +625,15 @@ const currentXSliderValue = computed(() => {
   return xDimension.value?.values[0] ?? ''
 })
 
+/** Y axis slider value: the currently selected Y dimension value shown in the right slider. */
+const ySliderValue = ref<string>('')
+
+/** Effective Y slider value: ySliderValue if set, otherwise first value of yDimension. */
+const currentYSliderValue = computed(() => {
+  if (ySliderValue.value) return ySliderValue.value
+  return yDimension.value?.values[0] ?? ''
+})
+
 /** Cell size for grid zoom control. */
 const cellSize = ref(200)
 
@@ -652,6 +661,15 @@ watch(xDimension, (dim) => {
   }
 })
 
+// Reset Y slider value and combo selection when Y dimension changes
+watch(yDimension, (dim) => {
+  ySliderValue.value = dim?.values[0] ?? ''
+  if (dim) {
+    // Show all Y values by default (no filtering)
+    comboSelections[dim.name] = new Set(dim.values)
+  }
+})
+
 /** Update a single cell's slider value. */
 function onSliderValueUpdate(cellKey: string, value: string) {
   sliderValues[cellKey] = value
@@ -670,6 +688,15 @@ function onMasterSliderChange(value: string) {
 function onXSliderChange(value: string) {
   xSliderValue.value = value
   const dim = xDimension.value
+  if (dim) {
+    comboSelections[dim.name] = new Set([value])
+  }
+}
+
+/** Y axis slider: navigate to a specific Y dimension value (solo that value in comboSelections). */
+function onYSliderChange(value: string) {
+  ySliderValue.value = value
+  const dim = yDimension.value
   if (dim) {
     comboSelections[dim.name] = new Set([value])
   }
@@ -1041,7 +1068,7 @@ async function handleSlideoutValidate() {
           </div>
         </template>
       </AppDrawer>
-      <main class="app-main" :class="{ 'app-main--x-slider-visible': !!xDimension }">
+      <main class="app-main" :class="{ 'app-main--x-slider-visible': !!xDimension, 'app-main--y-slider-visible': !!yDimension }">
         <p v-if="!selectedTrainingRun">Select a training run to get started.</p>
         <template v-else>
           <p v-if="scanning">Scanning...</p>
@@ -1149,6 +1176,20 @@ async function handleSlideoutValidate() {
           @change="onXSliderChange"
         />
       </div>
+      <!-- AC1: Y slider pinned to right edge of viewport; AC2: hidden when no Y dimension mapping -->
+      <div
+        v-if="yDimension"
+        class="y-slider-bar"
+        data-testid="y-slider-bar"
+      >
+        <MasterSlider
+          :values="yDimension.values"
+          :current-value="currentYSliderValue"
+          :dimension-name="yDimension.name"
+          data-testid="y-master-slider"
+          @change="onYSliderChange"
+        />
+      </div>
     </div>
   </NConfigProvider>
 </template>
@@ -1218,6 +1259,11 @@ async function handleSlideoutValidate() {
 /* AC3: Add bottom padding when X slider is visible so content is not hidden behind it */
 .app-main--x-slider-visible {
   padding-bottom: 5rem;
+}
+
+/* AC3: Add right padding when Y slider is visible so content is not hidden behind it */
+.app-main--y-slider-visible {
+  padding-right: 5rem;
 }
 
 
@@ -1296,6 +1342,64 @@ async function handleSlideoutValidate() {
   box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
 }
 
+/* AC1: Y slider pinned to the right edge of the viewport (vertical orientation) */
+.y-slider-bar {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  z-index: 90;
+  background-color: var(--bg-surface);
+  border-left: 1px solid var(--border-color);
+  padding: 1rem 0.25rem;
+  box-shadow: -2px 0 8px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 4rem;
+}
+
+.y-slider-bar :deep(.master-slider) {
+  writing-mode: vertical-lr;
+  height: 100%;
+  width: auto;
+  border-bottom: none;
+  margin-bottom: 0;
+  padding: 0;
+}
+
+.y-slider-bar :deep(.master-slider__main) {
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  gap: 0.5rem;
+}
+
+.y-slider-bar :deep(.master-slider__slider-wrapper) {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.y-slider-bar :deep(.master-slider__slider) {
+  writing-mode: vertical-lr;
+  width: auto;
+  height: 100%;
+}
+
+.y-slider-bar :deep(.master-slider__label) {
+  writing-mode: vertical-lr;
+  white-space: nowrap;
+}
+
+.y-slider-bar :deep(.master-slider__value) {
+  writing-mode: vertical-lr;
+  white-space: nowrap;
+}
+
 @media (max-width: 767px) {
   .app-header {
     padding: 0.5rem;
@@ -1316,6 +1420,10 @@ async function handleSlideoutValidate() {
 
   .x-slider-bar {
     padding: 0.25rem 0.5rem;
+  }
+
+  .y-slider-bar {
+    padding: 0.5rem 0.25rem;
   }
 }
 </style>

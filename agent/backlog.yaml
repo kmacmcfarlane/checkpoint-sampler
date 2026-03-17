@@ -383,7 +383,7 @@ stories:
   - id: S-131
     title: Add Y slider on right side of viewport
     type: enhancement
-    status: todo
+    status: uat
     priority: 30
     complexity: low
     requires: []
@@ -436,3 +436,34 @@ stories:
       Root cause hypothesis: a prior test in the same shard left a pending/running job in the database
       before this test's resetDatabase() call completed, so an activity bead is still displayed.
       This is a test isolation or reset-timing issue.
+  - id: B-111
+    title: "debug-mode.spec.ts tests timeout clicking settings-button in parallel shard execution"
+    priority: 65
+    status: todo
+    complexity: medium
+    requires: []
+    acceptance:
+      - "debug-mode.spec.ts passes reliably across all parallel shards without timeout failures"
+      - "The settings button click succeeds within 15 seconds even when a prior test leaves state"
+    testing:
+      - "command: make test-e2e-serial SPEC=debug-mode.spec.ts"
+    notes: |
+      8 tests in debug-mode.spec.ts fail with timeout clicking [data-testid="settings-button"].
+      Root cause hypothesis: The settings button is occluded by an open drawer, overlay, or NDrawer mask
+      when debug-mode tests run in parallel shards. Shard-1 test ordering may leave an overlay blocking
+      clicks on header elements.
+  - id: B-112
+    title: "accessibility.spec.ts dark mode populated grid test timeouts clicking settings-button"
+    priority: 60
+    status: todo
+    complexity: medium
+    requires: []
+    acceptance:
+      - "accessibility.spec.ts dark mode test passes reliably across all parallel shards"
+      - "Settings dialog dark mode toggle is clickable without interference from prior test state"
+    testing:
+      - "command: make test-e2e-serial SPEC=accessibility.spec.ts"
+    notes: |
+      The dark mode populated grid accessibility test times out clicking [data-testid="settings-button"].
+      Root cause hypothesis: Same as B-111 — settings button is occluded in the test environment when
+      this test runs in shard 1. The test requires opening Settings dialog to toggle dark mode.
