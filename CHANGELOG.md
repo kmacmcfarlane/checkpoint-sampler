@@ -185,8 +185,9 @@ Older entries are condensed to titles only — see git history for full details.
 - Fixture seeder now uses `SanitizeTrainingRunName` when constructing sample output paths, making the sanitization explicit and consistent with production code paths
 - E2E test fixtures include a slash-containing training run (`test-run/my-model` → `test-run_my-model/`) with dedicated E2E coverage
 
-### S-116: Training run and study status beads in Generate Samples (UAT rework 2)
-- `refreshTrigger` watcher now re-fetches study availability for the selected training run, so bead states update in real-time when jobs complete via WebSocket without requiring a page refresh
+### S-116: Training run and study status beads in Generate Samples (UAT rework 3)
+- Study bead now shows yellow (partial) instead of green when validation detects missing sample files, even though all checkpoint directories exist
+- Warning icon (⚠) displayed next to sample count text when missing samples are detected
 
 ### S-117: Validation results dialog with regenerate flow (job list + slideout)
 - "Validate" button on each job card in the Sample Jobs panel and in the controls slideout triggers on-demand validation and displays results in a dialog

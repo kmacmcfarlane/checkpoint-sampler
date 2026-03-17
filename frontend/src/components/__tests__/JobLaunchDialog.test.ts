@@ -2449,6 +2449,10 @@ describe('JobLaunchDialog', () => {
       expect(totals.text()).toContain('18 / 20 samples')
       expect(totals.text()).toContain('2 missing')
 
+      // S-116 UAT: Alert icon shown when there are missing samples
+      const alertIcon = wrapper.find('[data-testid="validation-totals-alert-icon"]')
+      expect(alertIcon.exists()).toBe(true)
+
       // Per-checkpoint validation rows with counts
       const results = wrapper.find('[data-testid="validation-results"]')
       expect(results.exists()).toBe(true)
@@ -2680,6 +2684,10 @@ describe('JobLaunchDialog', () => {
       expect(totals.exists()).toBe(true)
       expect(totals.text()).toContain('10 / 10 samples')
       expect(totals.text()).not.toContain('missing')
+
+      // S-116 UAT: No alert icon when all samples are present
+      const alertIcon = wrapper.find('[data-testid="validation-totals-alert-icon"]')
+      expect(alertIcon.exists()).toBe(false)
     })
 
     it('clears checkpoint picker when training run is deselected', async () => {
@@ -3407,10 +3415,11 @@ describe('JobLaunchDialog', () => {
       expect(options.find(o => o.value === 'preset-2')?._sampleStatus).toBe('complete')
     })
 
-    // B-062 (reworked S-116): Study bead uses availability data only — NOT overridden by validation.
-    // Validation results affect checkbox defaults and completeness summary but NOT bead rendering.
-    // This fixes the inconsistency where selecting a different study changed sibling bead states.
-    it('study bead uses availability status only (not overridden by validation results)', async () => {
+    // S-116 UAT rework: When validation shows missing files but availability says 'complete',
+    // the selected study's bead status is refined to 'partial'. This provides accurate visual
+    // feedback — the green bead only shows when ALL expected files exist, not just when all
+    // checkpoint directories exist. Non-selected studies retain their availability-based status.
+    it('selected study bead overridden to partial when validation shows missing files', async () => {
       // Backend availability says 'complete' (directory-level check), but validation shows missing images
       mockGetStudyAvailability.mockResolvedValue([
         {
@@ -3463,7 +3472,7 @@ describe('JobLaunchDialog', () => {
       wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
       await flushPromises()
 
-      // Before study selection: availability says 'complete'
+      // Before study selection: availability says 'complete' (no validation yet)
       let options = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
         .props('options') as Array<{ value: string; _sampleStatus: string }>
       expect(options.find(o => o.value === 'preset-1')?._sampleStatus).toBe('complete')
@@ -3472,13 +3481,13 @@ describe('JobLaunchDialog', () => {
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await flushPromises()
 
-      // After validation: _sampleStatus remains 'complete' from availability (NOT overridden).
-      // The validation result is used for smart checkbox defaults, not bead rendering.
-      // This ensures study beads are consistent regardless of which study is currently selected.
+      // After validation: _sampleStatus for the selected study is refined to 'partial'
+      // because validation shows missing files (total_missing=94), even though availability
+      // reports 'complete' at the directory level.
       options = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
         .props('options') as Array<{ value: string; _sampleStatus: string }>
-      expect(options.find(o => o.value === 'preset-1')?._sampleStatus).toBe('complete')
-      // Non-selected study also remains unchanged
+      expect(options.find(o => o.value === 'preset-1')?._sampleStatus).toBe('partial')
+      // Non-selected study retains its availability-based status
       expect(options.find(o => o.value === 'preset-2')?._sampleStatus).toBe('none')
     })
   })

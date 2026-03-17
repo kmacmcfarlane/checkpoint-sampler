@@ -203,7 +203,21 @@ const trainingRunOptions = computed(() => {
       const availData = run.id === selectedTrainingRunId.value
         ? studyAvailability.value
         : (allRunsAvailability.value.get(run.id) ?? [])
-      const studyStatuses = availData.map(a => a.sample_status)
+      // UAT fix (S-116): Refine study statuses for the selected run using validation data.
+      // Same logic as the study bead override: if validation shows missing files for the
+      // selected study but availability says 'complete', treat it as 'partial'.
+      const studyStatuses = availData.map(a => {
+        if (
+          run.id === selectedTrainingRunId.value &&
+          a.study_id === selectedStudy.value &&
+          validationResult.value &&
+          a.sample_status === 'complete' &&
+          validationResult.value.total_missing > 0
+        ) {
+          return 'partial' as const
+        }
+        return a.sample_status
+      })
       const dualBead = getTrainingRunDualBead(run.name, sampleJobs.value, studyStatuses)
 
       return {
@@ -489,16 +503,30 @@ function toggleCheckpoint(filename: string) {
 //   Slot 1 (activity): blue = running/pending job for this study, green = sample_status='complete'
 //   Slot 2 (problem):  red = failed job for this study, yellow = sample_status='partial' without running jobs
 //
-// NOTE: Bead status uses ONLY studyAvailability data (directory-level) to ensure
-// consistent rendering across all studies regardless of which study is currently selected.
-// Validation results are NOT used for bead computation — they're used only for
-// checkbox defaults and the completeness summary below the study selector.
+// NOTE: Bead status uses studyAvailability data (directory-level) as the baseline,
+// with validation-level refinement for the selected study. When the selected study's
+// availability says 'complete' but validation reveals missing files, the bead status
+// is refined to 'partial' (S-116 UAT fix). Non-selected studies use availability only.
 const studyOptions = computed(() => {
   const runName = selectedTrainingRun.value?.name ?? ''
 
   return studies.value.map(p => {
     const avail = studyAvailability.value.find(a => a.study_id === p.id)
-    const sampleStatus = avail?.sample_status ?? 'none'
+    let sampleStatus = avail?.sample_status ?? 'none'
+
+    // UAT fix (S-116): Refine bead status for the selected study using validation
+    // results. The availability API only checks whether checkpoint directories exist,
+    // not whether all expected files are present. When validation shows missing files
+    // (total_missing > 0) but availability reports 'complete' (all dirs exist), override
+    // to 'partial' so the bead correctly shows yellow instead of green.
+    if (
+      p.id === selectedStudy.value &&
+      validationResult.value &&
+      sampleStatus === 'complete' &&
+      validationResult.value.total_missing > 0
+    ) {
+      sampleStatus = 'partial'
+    }
 
     // Compute dual-bead for this study. Only possible when a training run is selected.
     const dualBead = runName
@@ -1173,6 +1201,12 @@ async function doSubmit() {
         </div>
         <!-- Validation totals summary -->
         <div v-if="validationResult" class="validation-totals" data-testid="validation-totals">
+          <span
+            v-if="validationResult.total_missing > 0"
+            class="validation-totals-alert-icon"
+            data-testid="validation-totals-alert-icon"
+            title="Missing samples detected"
+          >&#x26A0;</span>
           <p class="validation-totals-text">
             {{ validationResult.total_actual }} / {{ validationResult.total_expected }} samples
             <span v-if="validationResult.total_missing > 0" class="validation-missing-text">
@@ -1399,6 +1433,12 @@ async function doSubmit() {
   align-items: center;
   gap: 0.5rem;
   flex-wrap: wrap;
+}
+
+.validation-totals-alert-icon {
+  color: var(--warning-color);
+  font-size: 1rem;
+  flex-shrink: 0;
 }
 
 .validation-totals-text {

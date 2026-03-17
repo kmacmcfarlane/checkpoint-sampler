@@ -128,7 +128,7 @@ stories:
   - id: S-116
     title: "Training run and study status beads in Generate Samples"
     type: enhancement
-    status: uat_feedback
+    status: uat
     priority: 50
     complexity: high
     requires: []
@@ -159,12 +159,6 @@ stories:
       - "Test priority rules: blue overrides green, red overrides yellow"
       - "Test bead state transitions as jobs start, complete, and fail"
       - "Investigate whether existing API data suffices or new endpoints are needed"
-    review_feedback: "Three issues:\n1. Study bead shows green (\"19/19 checkpoints have samples\") when 10 samples are missing
-      (674/684). Bead logic counts checkpoints with ANY samples, not checkpoints with ALL samples. Should show orange/yellow
-      for incomplete.\n2. Add alert icon next to \"674 / 684 samples (10 missing)\" text when there are missing samples.\n\
-      3. Auto-select behavior on study selection (when TR already selected): if missing samples exist, pre-select only checkpoints
-      with missing samples and auto-check \"Generate missing samples only\" checkbox.\nExample: /data/samples/qwen_psai4rt-v0.3.0-qwen-2512-1024-adafactor-constant-2e-6-steps-9000-timestep-qinglong_qwen-cap_drop-0/psy-cfg-check-1344/
-      has 4 checkpoint dirs with missing samples."
   - id: B-083
     title: "E2E: sample-count-preview.spec.ts 2 tests timing out after B-078 per-study validation scoping"
     type: bug
