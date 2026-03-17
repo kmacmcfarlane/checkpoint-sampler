@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { NSelect, NButton, NModal, NInput } from 'naive-ui'
 import type { Preset, PresetMapping, DimensionRole, FilterMode } from '../api/types'
 import { apiClient } from '../api/client'
+import { computePresetWarnings } from '../composables/presetWarnings'
 import ConfirmDeleteDialog from './ConfirmDeleteDialog.vue'
 
 const props = defineProps<{
@@ -205,20 +206,7 @@ function onNew() {
 }
 
 function computeWarnings(preset: Preset): string[] {
-  const warnings: string[] = []
-  const allPresetDims = new Set<string>()
-  if (preset.mapping.x) allPresetDims.add(preset.mapping.x)
-  if (preset.mapping.y) allPresetDims.add(preset.mapping.y)
-  if (preset.mapping.slider) allPresetDims.add(preset.mapping.slider)
-  for (const c of preset.mapping.combos) allPresetDims.add(c)
-
-  const currentDims = new Set(props.dimensionNames)
-  for (const dim of allPresetDims) {
-    if (!currentDims.has(dim)) {
-      warnings.push(dim)
-    }
-  }
-  return warnings
+  return computePresetWarnings(preset, props.dimensionNames)
 }
 
 /**

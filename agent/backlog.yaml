@@ -336,7 +336,7 @@ stories:
   - id: B-101
     title: App load/refresh doesn't restore TR, study, or preset from localStorage
     type: bug
-    status: todo
+    status: uat
     priority: 50
     complexity: medium
     requires: []

@@ -9,6 +9,7 @@ import { useWebSocket } from './composables/useWebSocket'
 import { useTheme } from './composables/useTheme'
 import { usePresetPersistence } from './composables/usePresetPersistence'
 import { useLastTrainingRun } from './composables/useLastTrainingRun'
+import { computePresetWarnings } from './composables/presetWarnings'
 import { getBeadStatus, BEAD_COLORS } from './composables/beadStatus'
 import type { BeadStatus } from './composables/beadStatus'
 import AppDrawer from './components/AppDrawer.vue'
@@ -104,9 +105,47 @@ async function eagerAutoSelect() {
     const run = runs.find((r) => r.id === trainingRunId)
     if (run) {
       await onTrainingRunSelect(run, run.study_output_dir || '')
+      // AC1/AC2 (B-101): After the training run is selected and scan completes,
+      // eagerly restore the saved preset so dimension assignments are applied
+      // without waiting for the drawer (PresetSelector) to mount/open.
+      await eagerRestorePreset()
     }
   } catch {
     // Silently ignore — TrainingRunSelector will retry when it mounts
+  }
+}
+
+/**
+ * AC1/AC2 (B-101): Eagerly restore the saved preset from localStorage.
+ * This ensures dimension assignments are applied on initial load even when the
+ * side panel (drawer) is collapsed on narrow screens. Without this, the preset
+ * is only loaded when PresetSelector mounts inside the drawer, which on narrow
+ * screens doesn't happen until the user opens the panel.
+ */
+/**
+ * Flag indicating that eagerRestorePreset() already fetched and applied a preset.
+ * When true, PresetSelector.attemptAutoLoad() can skip its redundant getPresets call
+ * by passing a null autoLoadPresetId.
+ */
+const presetRestoredEagerly = ref(false)
+
+async function eagerRestorePreset() {
+  const presetId = savedData.value?.presetId
+  if (!presetId) return
+
+  try {
+    const presets = await apiClient.getPresets()
+    const preset = presets.find((p) => p.id === presetId)
+    if (preset) {
+      const warnings = computePresetWarnings(preset, dimensionNames.value)
+      onPresetLoad(preset, warnings)
+      presetRestoredEagerly.value = true
+    } else {
+      // Preset no longer exists — clear stale persistence
+      clearPresetSelection()
+    }
+  } catch {
+    // Silently ignore — PresetSelector will retry when it mounts
   }
 }
 
@@ -592,10 +631,13 @@ function onMasterSliderChange(value: string) {
 const dimensionNames = computed(() => dimensions.value.map((d) => d.name))
 
 /**
- * Determine if we should attempt auto-loading a preset.
- * Only auto-load once per training run, and only if the saved training run matches the current one.
+ * Determine if we should attempt auto-loading a preset via PresetSelector.
+ * Only auto-load once per training run, only if the saved training run matches
+ * the current one, and only if eagerRestorePreset() did not already apply it
+ * (to avoid a redundant getPresets API call on wide screens where both paths fire).
  */
 const shouldAutoLoadPreset = computed(() => {
+  if (presetRestoredEagerly.value) return false
   if (!savedData.value) return false
   if (!selectedTrainingRun.value) return false
   return savedData.value.trainingRunId === selectedTrainingRun.value.id

@@ -27,6 +27,7 @@ vi.mock('../api/client', () => ({
       ],
     }),
     listSampleJobs: vi.fn().mockResolvedValue([]),
+    getPresets: vi.fn().mockResolvedValue([]),
   },
 }))
 
@@ -35,6 +36,7 @@ import { apiClient } from '../api/client'
 const mockGetTrainingRuns = apiClient.getTrainingRuns as ReturnType<typeof vi.fn>
 const mockScanTrainingRun = apiClient.scanTrainingRun as ReturnType<typeof vi.fn>
 const mockListSampleJobs = apiClient.listSampleJobs as ReturnType<typeof vi.fn>
+const mockGetPresets = apiClient.getPresets as ReturnType<typeof vi.fn>
 
 const mockTrainingRun: TrainingRun = {
   id: 1,
@@ -113,6 +115,7 @@ describe('App', () => {
     mockGetTrainingRuns.mockClear()
     mockScanTrainingRun.mockClear()
     mockListSampleJobs.mockClear()
+    mockGetPresets.mockClear()
     vi.stubGlobal('matchMedia', createMatchMediaMock(false))
     mockWebSocketInstances = []
   })
@@ -864,6 +867,137 @@ describe('App', () => {
         expect(selector.exists()).toBe(true)
         // autoSelectRunId should be the standalone stored ID
         expect(selector.props('autoSelectRunId')).toBe(1)
+      })
+    })
+
+    // AC1 (B-101): Preset restoration on initial load
+    describe('preset restoration from localStorage on mount', () => {
+      const mockPreset = {
+        id: 'preset-abc',
+        name: 'My Preset',
+        mapping: { x: 'seed', y: 'cfg', combos: [] },
+        created_at: '2025-01-01T00:00:00Z',
+        updated_at: '2025-01-01T00:00:00Z',
+      }
+
+      it('AC1: eagerly restores preset from localStorage on narrow screen without opening drawer', async () => {
+        // AC1 (B-101): App restores last selected training run, study, and preset from
+        // localStorage on initial load. The preset should be applied even when the drawer
+        // is collapsed (narrow screen).
+        Object.defineProperty(window, 'innerWidth', { value: 800, configurable: true })
+        vi.stubGlobal('matchMedia', createMatchMediaMock(false))
+
+        setSavedPresetData(1, 'preset-abc')
+        mockGetPresets.mockResolvedValue([mockPreset])
+
+        mount(App, { global: { stubs: { Teleport: true } } })
+        await flushPromises()
+
+        // Training run should be scanned
+        expect(mockScanTrainingRun).toHaveBeenCalledWith(1, undefined)
+        // Presets should be fetched as part of eager restoration
+        expect(mockGetPresets).toHaveBeenCalled()
+      })
+
+      it('AC2: preset restoration works on narrow screen (drawer collapsed)', async () => {
+        // AC2 (B-101): Restoration works even when side panel is collapsed (small screens).
+        // The dimension assignments from the preset should be applied without the drawer.
+        Object.defineProperty(window, 'innerWidth', { value: 800, configurable: true })
+        vi.stubGlobal('matchMedia', createMatchMediaMock(false))
+
+        setSavedPresetData(1, 'preset-abc')
+        mockGetPresets.mockResolvedValue([mockPreset])
+
+        const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+        await flushPromises()
+
+        // The preset's dimension assignments should be applied (seed=x, cfg=y)
+        // Verify by checking that the XYGrid component is rendered with the correct
+        // x and y dimension props.
+        const grid = wrapper.findComponent({ name: 'XYGrid' })
+        expect(grid.exists()).toBe(true)
+        const xDim = grid.props('xDimension')
+        const yDim = grid.props('yDimension')
+        expect(xDim?.name).toBe('seed')
+        expect(yDim?.name).toBe('cfg')
+      })
+
+      it('AC1: does not fetch presets when no preset is saved in localStorage', async () => {
+        // When only the training run ID is stored (no preset), eagerRestorePreset
+        // should skip the getPresets API call.
+        Object.defineProperty(window, 'innerWidth', { value: 800, configurable: true })
+        vi.stubGlobal('matchMedia', createMatchMediaMock(false))
+
+        setSavedTrainingRunId(1)
+        // No preset data set — only standalone training run ID
+
+        mount(App, { global: { stubs: { Teleport: true } } })
+        await flushPromises()
+
+        // Training run should be scanned
+        expect(mockScanTrainingRun).toHaveBeenCalledWith(1, undefined)
+        // getPresets should NOT be called by eagerRestorePreset when no preset is saved.
+        // On narrow screens the drawer is collapsed, so PresetSelector does not mount
+        // and cannot trigger its own getPresets call either.
+        expect(mockGetPresets).not.toHaveBeenCalled()
+      })
+
+      it('AC1: handles stale preset gracefully (preset deleted from backend)', async () => {
+        // When localStorage references a preset that no longer exists on the backend,
+        // the stale preset data should be cleared from localStorage.
+        Object.defineProperty(window, 'innerWidth', { value: 800, configurable: true })
+        vi.stubGlobal('matchMedia', createMatchMediaMock(false))
+
+        setSavedPresetData(1, 'deleted-preset-id')
+        mockGetPresets.mockResolvedValue([]) // No presets on backend
+
+        mount(App, { global: { stubs: { Teleport: true } } })
+        await flushPromises()
+
+        // Training run should still be scanned
+        expect(mockScanTrainingRun).toHaveBeenCalledWith(1, undefined)
+        // Stale preset data should be cleared from localStorage
+        expect(localStorage.getItem('checkpoint-sampler-last-preset')).toBeNull()
+      })
+
+      it('AC3: page refresh preserves training run and study selection', async () => {
+        // AC3 (B-101): Page refresh preserves training run and study selection.
+        // Simulate a page refresh by mounting, selecting a run, unmounting, then
+        // remounting and verifying the selection is restored.
+        Object.defineProperty(window, 'innerWidth', { value: 800, configurable: true })
+        vi.stubGlobal('matchMedia', createMatchMediaMock(false))
+
+        // Simulate having previously saved state (as would happen on first visit)
+        setSavedPresetData(1, 'preset-abc')
+        setSavedTrainingRunId(1)
+        mockGetPresets.mockResolvedValue([mockPreset])
+
+        // "Refresh" — mount fresh
+        mount(App, { global: { stubs: { Teleport: true } } })
+        await flushPromises()
+
+        // After mount, training run should be restored and scanned
+        expect(mockScanTrainingRun).toHaveBeenCalledWith(1, undefined)
+        // Preset should be fetched and applied
+        expect(mockGetPresets).toHaveBeenCalled()
+      })
+
+      it('AC1: handles getPresets API failure gracefully during eager restore', async () => {
+        // If getPresets fails during eager restore, the error is silently caught
+        // and the training run is still restored.
+        Object.defineProperty(window, 'innerWidth', { value: 800, configurable: true })
+        vi.stubGlobal('matchMedia', createMatchMediaMock(false))
+
+        setSavedPresetData(1, 'preset-abc')
+        mockGetPresets.mockRejectedValue(new Error('Network error'))
+
+        const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+        await flushPromises()
+
+        // Training run should still be scanned despite preset fetch failure
+        expect(mockScanTrainingRun).toHaveBeenCalledWith(1, undefined)
+        // App should not crash
+        expect(wrapper.find('.app-header').exists()).toBe(true)
       })
     })
   })

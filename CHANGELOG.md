@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-101: App load/refresh doesn't restore TR, study, or preset from localStorage
+- Eager preset restoration in `App.vue` runs after training run auto-select, independent of drawer mount lifecycle — fixes narrow-screen state loss
+- Shared `computePresetWarnings` utility eliminates duplication between `App.vue` and `PresetSelector.vue`
+
 ### B-108: E2E parallel suite fails with ENOTFOUND/ECONNREFUSED in resetDatabase across all shards
 - Added `withRetry` exponential backoff to `resetDatabase` E2E helper for transient DNS/connection errors during parallel shard startup
 - Staggered shard startup in batches of 4 with 2s pause to reduce Docker DNS resolver pressure
