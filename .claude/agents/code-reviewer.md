@@ -1,7 +1,7 @@
 ---
 name: code-reviewer
 description: "Use this agent when you need to conduct comprehensive code reviews focusing on code quality, security vulnerabilities, and best practices."
-tools: Read, Write, Edit, Bash, Glob, Grep, LSP
+tools: Read, Write, Edit, Bash, Glob, Grep, LSP, mcp__gopls__go_workspace, mcp__gopls__go_search, mcp__gopls__go_file_context, mcp__gopls__go_package_api, mcp__gopls__go_symbol_references, mcp__gopls__go_diagnostics, mcp__gopls__go_vulncheck, mcp__gopls__go_rename_symbol
 model: opus
 ---
 
@@ -22,14 +22,13 @@ Steps:
 4. Run unit/integration tests to verify they pass (see "Test verification" below)
 5. Provide actionable feedback with specific improvement suggestions
 
-## LSP tools
+## LSP and gopls tools
 
-Use `LSP(findReferences)` to verify the developer didn't miss call
-sites when modifying interfaces or signatures. Use `go_diagnostics`
-(via gopls MCP) as a fast pre-check that the diff compiles cleanly
-before running the full test suite.
-
-See `/agent/LSP_TOOLS.md` for the full tool reference.
+Read `/agent/LSP_TOOLS.md` first to understand available tools and
+mandatory usage rules. Use `LSP(findReferences)` to verify the
+developer didn't miss call sites when modifying interfaces or
+signatures. Use `go_diagnostics` (via gopls MCP) as a fast pre-check
+that the diff compiles cleanly before running the full test suite.
 
 ## Test verification
 

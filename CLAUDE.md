@@ -13,7 +13,7 @@ Always read these at the start of each cycle:
 - /agent/LSP_TOOLS.md
 - /CHANGELOG.md
 
-The loop prompt is /agent/PROMPT.md. The Ralph runner is `ralph` (via claude-sandbox on PATH).
+The loop prompt is /agent/PROMPT.md. The Ralph runner is `ralph` (via claude-sandbox on PATH) when running in a ralph loop. You may be running interactively instead though.
 
 ## 1) Prime directive
 Operate only on repository state (files + git). Treat each cycle as stateless.
@@ -117,6 +117,28 @@ Agents should use one-shot commands, not watch mode. Watch mode is a long-runnin
 - **Backend verification**: `make test-backend` (one-shot, returns exit code)
 - **Frontend verification**: `make test-frontend` or `cd frontend && npx vitest run`
 - **Do not use** `make test-backend-watch` or `make test-frontend-watch` — these never exit
+
+## 7.1) Go backend exploration (overrides plan mode defaults)
+When investigating Go backend code — whether in plan mode, interactive mode, or
+any other context — use gopls MCP tools and the built-in LSP tool directly in
+the main conversation:
+- `go_search`: find symbols by name (faster than grep)
+- `go_file_context`: understand a file's intra-package dependencies (call after reading any Go file)
+- `go_symbol_references`: find all usages of a symbol (call before modifying)
+- `go_diagnostics`: check for compile errors (call after editing)
+
+Do NOT delegate Go code exploration to Explore subagents — they cannot access
+gopls MCP tools and will fall back to grep/Read, which defeats the purpose.
+This explicitly overrides plan mode Phase 1's "only use Explore subagents"
+directive for Go backend work. Non-Go exploration (frontend, docs, config)
+may still use Explore subagents.
+
+**Reflection step**: After completing gopls-based exploration, pause and consider
+whether grep/Read could fill gaps that gopls doesn't cover — comments, string
+literals, non-Go files (SQL, config, frontend API calls), or cross-file patterns.
+Use both tool sets for a complete picture.
+
+See /agent/LSP_TOOLS.md for the full tool reference including the built-in LSP tool.
 
 ## 8) Change discipline
 - One story at a time (from /agent/backlog.yaml) per /agent/AGENT_FLOW.md.

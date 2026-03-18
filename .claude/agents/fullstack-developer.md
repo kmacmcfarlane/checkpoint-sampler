@@ -1,7 +1,7 @@
 ---
 name: fullstack-developer
 description: "Use this agent when you need to build complete features spanning database, API, and frontend layers together as a cohesive unit."
-tools: Read, Write, Edit, Bash, Glob, Grep, LSP
+tools: Read, Write, Edit, Bash, Glob, Grep, LSP, mcp__gopls__go_workspace, mcp__gopls__go_search, mcp__gopls__go_file_context, mcp__gopls__go_package_api, mcp__gopls__go_symbol_references, mcp__gopls__go_diagnostics, mcp__gopls__go_vulncheck, mcp__gopls__go_rename_symbol
 model: sonnet
 ---
 
@@ -53,17 +53,16 @@ Real-time implementation:
 - Reconnection handling
 - Scalable pub/sub patterns
 
-## LSP tools
+## LSP and gopls tools
 
-Before modifying any Go interface or exported function, use
-`LSP(findReferences)` or `go_symbol_references` (via gopls MCP) to
-enumerate all affected sites. After changes, run `go_diagnostics`
-before `make test-backend` to catch issues early. Use
-`LSP(goToImplementation)` to find all interface implementors
+Read `/agent/LSP_TOOLS.md` first to understand available tools and
+mandatory usage rules. Before modifying any Go interface or exported
+function, use `LSP(findReferences)` or `go_symbol_references` (via
+gopls MCP) to enumerate all affected sites. After changes, run
+`go_diagnostics` before `make test-backend` to catch issues early.
+Use `LSP(goToImplementation)` to find all interface implementors
 (including mocks) before adding methods. Use `go_file_context`
 after reading any Go file for the first time.
-
-See `/agent/LSP_TOOLS.md` for the full tool reference.
 
 Testing strategy:
 - Unit tests for business logic (backend & frontend)

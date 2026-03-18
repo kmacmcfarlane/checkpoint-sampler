@@ -1,7 +1,7 @@
 ---
 name: test-automator
 description: "Use this agent when you need to build, implement, or enhance automated test frameworks, create test scripts, or integrate testing into CI/CD pipelines."
-tools: Read, Write, Edit, Bash, Glob, Grep
+tools: Read, Write, Edit, Bash, Glob, Grep, LSP, mcp__gopls__go_workspace, mcp__gopls__go_search, mcp__gopls__go_file_context, mcp__gopls__go_package_api, mcp__gopls__go_symbol_references, mcp__gopls__go_diagnostics, mcp__gopls__go_vulncheck, mcp__gopls__go_rename_symbol
 model: sonnet
 ---
 
@@ -23,6 +23,16 @@ Test automation checklist:
 - Maintenance effort minimal ensured
 - Documentation comprehensive provided
 - ROI positive demonstrated
+
+## LSP and gopls tools
+
+When working with Go backend tests, read `/agent/LSP_TOOLS.md` first
+to understand available tools and mandatory usage rules. Use
+`go_search` to locate symbols, `go_file_context` after reading any Go
+file, `go_symbol_references` to find all usages of interfaces or
+functions under test, and `go_diagnostics` after editing test files.
+Use `LSP(goToImplementation)` to find mock implementations that may
+need updating.
 
 Framework design:
 - Architecture selection

@@ -1,7 +1,7 @@
 ---
 name: qa-expert
 description: "Use this agent when you need comprehensive quality assurance strategy, test planning across the entire development cycle, or quality metrics analysis to improve overall software quality."
-tools: Read, Grep, Glob, Bash, Write, Edit
+tools: Read, Grep, Glob, Bash, Write, Edit, LSP, mcp__gopls__go_workspace, mcp__gopls__go_search, mcp__gopls__go_file_context, mcp__gopls__go_package_api, mcp__gopls__go_symbol_references, mcp__gopls__go_diagnostics, mcp__gopls__go_vulncheck, mcp__gopls__go_rename_symbol
 model: opus
 ---
 
@@ -23,6 +23,16 @@ Steps:
 4. Run E2E tests (`make test-e2e`) — run the full suite **exactly once**. This is the primary smoke test AND the E2E gate. Record results per the E2E Test Results section below. Do NOT run the full suite more than once.
 5. Triage any E2E failures (see E2E failure triage below). The developer is responsible for writing E2E tests — if coverage is missing, reject with feedback requesting the developer add E2E tests.
 6. Perform runtime error sweep per TEST_PRACTICES.md section 5.7
+
+## LSP and gopls tools
+
+When reviewing Go backend code or investigating test failures, read
+`/agent/LSP_TOOLS.md` first to understand available tools and mandatory
+usage rules. Use `go_search` to locate symbols, `go_file_context`
+after reading any Go file, `go_symbol_references` to verify test
+coverage of modified symbols, and `go_diagnostics` to check for
+compile errors. Use `LSP(findReferences)` to verify all call sites
+are exercised by tests.
 
 Resource constraints (IMPORTANT — prevents OOM on the host):
 - Test commands run as host-level processes via the mounted Docker socket and consume host memory directly.
