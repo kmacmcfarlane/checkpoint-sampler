@@ -42,7 +42,7 @@ Emit this before any subagent dispatch or status change.
 ## Subagent dispatch
 
 Read the subagent prompt from `/.claude/agents/<name>.md` and invoke via the Task tool:
-- **fullstack-developer**: For `todo` and `in_progress` stories. Pass story ID, acceptance criteria, branch name, and any review_feedback. On success, extract the "Change Summary" section from the verdict and store it for downstream dispatch. The developer writes and runs unit/integration tests only (`make test-backend`, `make test-frontend`). E2E tests are the QA agent's responsibility.
+- **fullstack-developer**: For `todo` and `in_progress` stories. Assemble a **developer brief** (see below) and invoke via the Task tool. Extract the **complexity** field from the story (via `backlog.py get`) and select the model: use `sonnet` for `low` complexity, `opus` for `medium` or `high` complexity. Default to `sonnet` if complexity is not set. On success, extract the "Change Summary" section from the verdict and store it for downstream dispatch. The developer writes and runs unit/integration tests only (`make test-backend`, `make test-frontend`). E2E tests are the QA agent's responsibility.
 - **code-reviewer**: For `review` stories. Pass the **context bundle** (see below), story ID, acceptance criteria, branch name, and the **change summary** from the fullstack engineer. If no change summary is available, generate one from `git diff --name-only main..HEAD`. Extract the **complexity** field from the fullstack engineer's verdict and select the model accordingly: use `sonnet` for `low` complexity, `opus` for `medium` or `high` complexity. Default to `opus` if complexity is not reported. The reviewer verifies unit/integration tests pass. It does NOT run E2E tests.
 - **qa-expert**: For `testing` stories. Pass the **context bundle** (see below), story ID, acceptance criteria, branch name, path to /agent/QA_ALLOWED_ERRORS.md, and the **change summary** from the fullstack engineer. Extract the **complexity** field from the fullstack engineer's verdict and select the model accordingly: use `sonnet` for `low` or `medium` complexity, `opus` for `high` complexity. Default to `sonnet` if complexity is not reported. The QA agent is the sole owner of E2E tests — running, authoring, and maintaining them.
 - **debugger**: Invoke on demand when test failures or bugs are encountered.
@@ -88,6 +88,50 @@ Wrap each governance doc in a labeled section so the subagent can reference it:
 ```
 
 The orchestrator already reads these files at startup, so this adds no extra file reads — it just passes the content it already has.
+
+### Developer brief
+
+Before dispatching the fullstack-developer, assemble a **developer brief** and include it in the Agent prompt. This gives the developer the same governance context that the reviewer and QA expert receive, eliminating redundant file reads:
+
+1. **Story metadata**: ID, title, branch name, complexity (from `backlog.py get <id>`), queue
+2. **Acceptance criteria**: From `backlog.py get <id>`
+3. **Notes**: From `backlog.py get <id>` (if present — may contain design context, root cause, or implementation hints)
+4. **Review feedback**: If returning from review/QA (from `review_feedback` field)
+5. **Constraints reminder**: E2E tests are QA's responsibility; do not modify gen/ or mocks
+6. **Governance docs**: Same format as the context bundle — full contents of PRD.md, DEVELOPMENT_PRACTICES.md, TEST_PRACTICES.md
+
+Format in the Agent prompt:
+
+```
+## Story Brief
+
+**Story**: <id> — <title>
+**Branch**: <branch>
+**Complexity**: <complexity from backlog, or "not set">
+**Review feedback**: <if any, or "None">
+
+### Acceptance Criteria
+<from backlog>
+
+### Notes
+<from backlog, or "None">
+
+### Constraints
+- E2E tests are QA's responsibility — do NOT run `make test-e2e` (without SPEC=)
+- Do NOT modify files under internal/api/gen or **/mocks
+
+--- BEGIN PRD.md ---
+<contents>
+--- END PRD.md ---
+
+--- BEGIN DEVELOPMENT_PRACTICES.md ---
+<contents>
+--- END DEVELOPMENT_PRACTICES.md ---
+
+--- BEGIN TEST_PRACTICES.md ---
+<contents>
+--- END TEST_PRACTICES.md ---
+```
 
 ### Change summary passthrough
 

@@ -236,15 +236,13 @@ Based on the story's current status, invoke the appropriate subagent:
 
 #### Story status: `todo` or `in_progress`
 1. If currently `todo`: `backlog.py set <id> status in_progress`
-2. Invoke the **fullstack engineer** subagent with:
-   - Story ID, title, and acceptance criteria (from `backlog.py get <id>`)
-   - Any `review_feedback` (if returning from review/QA)
-   - Branch name
-3. The developer writes and runs unit/integration tests (`make test-backend`, `make test-frontend`). E2E tests are the QA agent's responsibility — the developer does NOT run `make test-e2e`.
-4. On success: extract the **Change Summary** from the fullstack engineer's verdict (see section 4.3.2). Then:
+2. Assemble the **developer brief** (see section 4.3.6) — story metadata, acceptance criteria, notes, review feedback, constraints, and governance doc contents.
+3. Invoke the **fullstack engineer** subagent with the developer brief.
+4. The developer writes and runs unit/integration tests (`make test-backend`, `make test-frontend`). E2E tests are the QA agent's responsibility — the developer does NOT run `make test-e2e`.
+5. On success: extract the **Change Summary** from the fullstack engineer's verdict (see section 4.3.2). Then:
    - `backlog.py set <id> status review`
    - `backlog.py clear <id> review_feedback`
-5. On failure/blocked:
+6. On failure/blocked:
    - `backlog.py set <id> status blocked`
    - `echo "<reason>" | backlog.py set-text <id> blocked_reason`
 
@@ -348,6 +346,54 @@ Subagents receiving the context bundle should use these contents directly and NO
 | qa-expert | Trusts code-reviewer verification (re-runs only if E2E failures suggest regression) | Sole owner: runs, writes, maintains (`make test-e2e`) |
 
 This separation ensures: (1) unit tests are verified once by the code-reviewer, not redundantly by QA; (2) E2E tests use the targeted strategy (section 2.3) to minimize full-suite runs.
+
+### 4.3.6 Developer brief
+
+Before dispatching the fullstack engineer, the orchestrator assembles a **developer brief** and includes it in the Agent prompt. This gives the developer the same governance context that the reviewer and QA expert receive via the context bundle (section 4.3.4), eliminating redundant file reads.
+
+The developer brief includes:
+
+1. **Story metadata**: ID, title, branch name, complexity (from `backlog.py get <id>`), queue
+2. **Acceptance criteria**: From `backlog.py get <id>`
+3. **Notes**: From `backlog.py get <id>` (if present — may contain design context, root cause analysis, or implementation hints)
+4. **Review feedback**: If returning from review/QA (from `review_feedback` field)
+5. **Constraints reminder**: E2E tests are QA's responsibility; do not modify gen/ or mocks
+6. **Governance doc contents**: Full text of `/agent/PRD.md`, `/agent/DEVELOPMENT_PRACTICES.md`, and `/agent/TEST_PRACTICES.md`
+
+Format in the Agent prompt:
+
+```
+## Story Brief
+
+**Story**: <id> — <title>
+**Branch**: <branch>
+**Complexity**: <complexity from backlog, or "not set">
+**Review feedback**: <if any, or "None">
+
+### Acceptance Criteria
+<from backlog>
+
+### Notes
+<from backlog, or "None">
+
+### Constraints
+- E2E tests are QA's responsibility — do NOT run `make test-e2e` (without SPEC=)
+- Do NOT modify files under internal/api/gen or **/mocks
+
+--- BEGIN PRD.md ---
+<contents>
+--- END PRD.md ---
+
+--- BEGIN DEVELOPMENT_PRACTICES.md ---
+<contents>
+--- END DEVELOPMENT_PRACTICES.md ---
+
+--- BEGIN TEST_PRACTICES.md ---
+<contents>
+--- END TEST_PRACTICES.md ---
+```
+
+The orchestrator already reads governance docs at startup (section 0), so this adds no extra file reads — it passes content it already has. The developer brief differs from the reviewer/QA context bundle in that it omits the diff and change summary (which don't exist yet for new work).
 
 ### 4.4 Update artifacts (orchestrator responsibility)
 
