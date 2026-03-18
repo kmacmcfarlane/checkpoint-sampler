@@ -247,7 +247,7 @@ stories:
   - id: R-008
     title: "Treat orphaned running items as resumable in processNextItem"
     type: refactor
-    status: todo
+    status: uat
     priority: 100
     complexity: medium
     requires: []

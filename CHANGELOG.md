@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### R-008: Treat orphaned running items as resumable in processNextItem
+- `processNextItem` now recovers orphaned running items (stuck after stop/resume or server restart) by resetting them to pending and reprocessing, instead of marking the job `completed_with_errors`
+
 ### B-113: e2e_sweep.sh integer comparison error and summary.txt not reliably written
 - Fixed `grep -c` producing non-integer output in `e2e_sweep.sh` by switching to `mapfile` + array length for shard counting
 - Added EXIT trap in `e2e_parallel.sh` to guarantee `summary.txt` is written even when Phase 5 report merge fails; wrapped Phase 5 in `set +e`/`set -e`

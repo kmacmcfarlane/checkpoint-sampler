@@ -2453,8 +2453,10 @@ var _ = Describe("JobExecutor", func() {
 			Expect(updatedJob.Status).To(Equal(model.SampleJobStatusCompletedWithErrors))
 		})
 
-		It("transitions job to completed_with_errors when items are stuck in running", func() {
-			// B-061: Edge case where an item was left in running status (e.g. ComfyUI disconnect)
+		It("recovers orphaned running item instead of marking job completed_with_errors", func() {
+			// R-008: Orphaned running items (no activeItemID) are now reset to pending
+			// and reprocessed, rather than being left stuck causing completed_with_errors.
+			// (Previously B-061 expected completed_with_errors for stuck running items.)
 			job := model.SampleJob{
 				ID:         "job-stuck-running",
 				Status:     model.SampleJobStatusRunning,
@@ -2463,17 +2465,23 @@ var _ = Describe("JobExecutor", func() {
 			mockStore.jobs[job.ID] = job
 			mockStore.items[job.ID] = []model.SampleJobItem{
 				{ID: "i1", JobID: job.ID, CheckpointFilename: "chk1.safetensors", Status: model.SampleJobItemStatusCompleted},
-				{ID: "i2", JobID: job.ID, CheckpointFilename: "chk1.safetensors", Status: model.SampleJobItemStatusRunning},
+				{ID: "i2", JobID: job.ID, CheckpointFilename: "chk1.safetensors", Status: model.SampleJobItemStatusRunning, ComfyUIModelPath: "models/test.safetensors"},
 			}
 
 			executor.mu.Lock()
 			executor.activeJobID = job.ID
+			executor.activeItemID = "" // No item in-flight — item is orphaned
 			executor.mu.Unlock()
 			executor.processNextItem()
 
-			// Job should be completed_with_errors, not completed
+			// Orphaned running item should be picked up for reprocessing (not left stuck)
+			executor.mu.Lock()
+			Expect(executor.activeItemID).To(Equal("i2"))
+			executor.mu.Unlock()
+
+			// Job should still be running (item is being reprocessed, not completed)
 			updatedJob := mockStore.jobs[job.ID]
-			Expect(updatedJob.Status).To(Equal(model.SampleJobStatusCompletedWithErrors))
+			Expect(updatedJob.Status).To(Equal(model.SampleJobStatusRunning))
 		})
 
 		It("broadcasts skipped items as failed in job_progress event", func() {
@@ -4094,5 +4102,261 @@ var _ = Describe("JobExecutor", func() {
 				false,
 			),
 		)
+	})
+
+	// R-008: Orphaned running items should be treated as resumable
+	Describe("Orphaned running item recovery", func() {
+		BeforeEach(func() {
+			executor.mu.Lock()
+			executor.connected = true
+			executor.mu.Unlock()
+		})
+
+		It("resets an orphaned running item to pending and reprocesses it", func() {
+			// AC: processNextItem treats orphaned running items as resumable when no item is in-flight
+			job := model.SampleJob{
+				ID:     "job-orphan-1",
+				Status: model.SampleJobStatusRunning,
+			}
+			orphanedItem := model.SampleJobItem{
+				ID:               "item-orphan-1",
+				JobID:            job.ID,
+				Status:           model.SampleJobItemStatusRunning, // Stuck in running (orphaned)
+				ComfyUIModelPath: "models/test.safetensors",
+			}
+			mockStore.jobs[job.ID] = job
+			mockStore.items[job.ID] = []model.SampleJobItem{orphanedItem}
+
+			// Simulate the executor tracking the job but with no active item
+			// (as would happen after resumeRunningJobs or RequestResume)
+			executor.mu.Lock()
+			executor.activeJobID = job.ID
+			executor.activeItemID = "" // No item in-flight
+			executor.mu.Unlock()
+
+			executor.processNextItem()
+
+			// Verify the orphaned item was reset to pending and then picked up for processing
+			// (processItem transitions it back to running and sets activeItemID)
+			updatedItem := mockStore.items[job.ID][0]
+			Expect(updatedItem.Status).To(Equal(model.SampleJobItemStatusRunning))
+
+			// Verify the executor picked up the item (activeItemID is set)
+			executor.mu.Lock()
+			Expect(executor.activeItemID).To(Equal("item-orphan-1"))
+			executor.mu.Unlock()
+		})
+
+		It("does not reset a genuinely in-flight item (activeItemID set)", func() {
+			// AC: Genuinely in-flight items (activeItemID set) are not affected
+			job := model.SampleJob{
+				ID:     "job-inflight-1",
+				Status: model.SampleJobStatusRunning,
+			}
+			runningItem := model.SampleJobItem{
+				ID:               "item-inflight-1",
+				JobID:            job.ID,
+				Status:           model.SampleJobItemStatusRunning,
+				ComfyUIModelPath: "models/test.safetensors",
+			}
+			mockStore.jobs[job.ID] = job
+			mockStore.items[job.ID] = []model.SampleJobItem{runningItem}
+
+			// Simulate the executor already processing this item
+			executor.mu.Lock()
+			executor.activeJobID = job.ID
+			executor.activeItemID = "item-inflight-1" // Item IS in-flight
+			executor.mu.Unlock()
+
+			executor.processNextItem()
+
+			// processNextItem should have returned early (activeItemID != "")
+			// The item should remain unchanged
+			updatedItem := mockStore.items[job.ID][0]
+			Expect(updatedItem.Status).To(Equal(model.SampleJobItemStatusRunning))
+		})
+
+		It("recovers orphaned running item after stop then resume", func() {
+			// AC: Stop then Resume flow correctly reprocesses the interrupted item
+			job := model.SampleJob{
+				ID:     "job-stop-resume-1",
+				Status: model.SampleJobStatusRunning,
+			}
+			// Item was running when stop happened — it stays running in DB
+			item := model.SampleJobItem{
+				ID:               "item-interrupted-1",
+				JobID:            job.ID,
+				Status:           model.SampleJobItemStatusRunning,
+				ComfyUIModelPath: "models/test.safetensors",
+			}
+			mockStore.jobs[job.ID] = job
+			mockStore.items[job.ID] = []model.SampleJobItem{item}
+
+			// 1. Simulate RequestStop clearing active state
+			executor.mu.Lock()
+			executor.activeJobID = ""
+			executor.activeItemID = ""
+			executor.activePromptID = ""
+			executor.mu.Unlock()
+
+			// 2. Update job to stopped status (as RequestStop does)
+			job.Status = model.SampleJobStatusStopped
+			mockStore.jobs[job.ID] = job
+
+			// 3. Simulate RequestResume: job goes back to running, executor adopts it
+			job.Status = model.SampleJobStatusRunning
+			mockStore.jobs[job.ID] = job
+			err := executor.RequestResume(job.ID)
+			Expect(err).ToNot(HaveOccurred())
+
+			// 4. processNextItem should find the orphaned running item and reprocess it
+			executor.processNextItem()
+
+			// Verify the item was picked up (processItem transitions it to running and submits)
+			executor.mu.Lock()
+			Expect(executor.activeItemID).To(Equal("item-interrupted-1"))
+			executor.mu.Unlock()
+		})
+
+		It("recovers orphaned running item after server restart", func() {
+			// AC: Server restart with orphaned running items correctly resumes processing
+			job := model.SampleJob{
+				ID:     "job-restart-1",
+				Status: model.SampleJobStatusRunning,
+			}
+			// Item was running when server crashed
+			item := model.SampleJobItem{
+				ID:               "item-crashed-1",
+				JobID:            job.ID,
+				Status:           model.SampleJobItemStatusRunning,
+				ComfyUIModelPath: "models/test.safetensors",
+			}
+			mockStore.jobs[job.ID] = job
+			mockStore.items[job.ID] = []model.SampleJobItem{item}
+
+			// 1. Simulate server restart: resumeRunningJobs adopts the running job
+			err := executor.resumeRunningJobs()
+			Expect(err).ToNot(HaveOccurred())
+
+			executor.mu.Lock()
+			Expect(executor.activeJobID).To(Equal("job-restart-1"))
+			executor.activeItemID = "" // No item is in-flight after restart
+			executor.mu.Unlock()
+
+			// Mark as connected so processNextItem processes
+			executor.mu.Lock()
+			executor.connected = true
+			executor.mu.Unlock()
+
+			// 2. processNextItem should find the orphaned running item and reprocess it
+			executor.processNextItem()
+
+			// Verify the item was picked up
+			executor.mu.Lock()
+			Expect(executor.activeItemID).To(Equal("item-crashed-1"))
+			executor.mu.Unlock()
+
+			// Verify item was reset to pending first, then processItem set it back to running
+			updatedItem := mockStore.items[job.ID][0]
+			Expect(updatedItem.Status).To(Equal(model.SampleJobItemStatusRunning))
+		})
+
+		It("does not affect normal happy-path flow (all pending to completed)", func() {
+			// AC: No regression — normal happy-path flow unchanged
+			job := model.SampleJob{
+				ID:     "job-happy-1",
+				Status: model.SampleJobStatusPending,
+			}
+			item1 := model.SampleJobItem{
+				ID:               "item-happy-1",
+				JobID:            job.ID,
+				Status:           model.SampleJobItemStatusPending,
+				ComfyUIModelPath: "models/test.safetensors",
+			}
+			item2 := model.SampleJobItem{
+				ID:               "item-happy-2",
+				JobID:            job.ID,
+				Status:           model.SampleJobItemStatusPending,
+				ComfyUIModelPath: "models/test2.safetensors",
+			}
+			mockStore.jobs[job.ID] = job
+			mockStore.items[job.ID] = []model.SampleJobItem{item1, item2}
+
+			// First call: auto-starts job and processes first item
+			executor.processNextItem()
+
+			updatedJob := mockStore.jobs[job.ID]
+			Expect(updatedJob.Status).To(Equal(model.SampleJobStatusRunning))
+
+			executor.mu.Lock()
+			Expect(executor.activeJobID).To(Equal(job.ID))
+			Expect(executor.activeItemID).To(Equal("item-happy-1"))
+			executor.mu.Unlock()
+
+			// Simulate first item completing (clear activeItemID, update item status)
+			executor.mu.Lock()
+			executor.activeItemID = ""
+			executor.mu.Unlock()
+			items := mockStore.items[job.ID]
+			items[0].Status = model.SampleJobItemStatusCompleted
+			mockStore.items[job.ID] = items
+
+			// Second call: processes second item
+			executor.processNextItem()
+
+			executor.mu.Lock()
+			Expect(executor.activeItemID).To(Equal("item-happy-2"))
+			executor.mu.Unlock()
+
+			// Simulate second item completing
+			executor.mu.Lock()
+			executor.activeItemID = ""
+			executor.mu.Unlock()
+			items = mockStore.items[job.ID]
+			items[1].Status = model.SampleJobItemStatusCompleted
+			mockStore.items[job.ID] = items
+
+			// Third call: no more items, job completes
+			executor.processNextItem()
+
+			updatedJob = mockStore.jobs[job.ID]
+			Expect(updatedJob.Status).To(Equal(model.SampleJobStatusCompleted))
+		})
+
+		It("prefers pending items over orphaned running items", func() {
+			// When both pending and running items exist, pending items take priority.
+			// This ensures normal ordering is preserved.
+			job := model.SampleJob{
+				ID:     "job-mixed-1",
+				Status: model.SampleJobStatusRunning,
+			}
+			orphanedItem := model.SampleJobItem{
+				ID:               "item-orphan-mixed",
+				JobID:            job.ID,
+				Status:           model.SampleJobItemStatusRunning,
+				ComfyUIModelPath: "models/test.safetensors",
+			}
+			pendingItem := model.SampleJobItem{
+				ID:               "item-pending-mixed",
+				JobID:            job.ID,
+				Status:           model.SampleJobItemStatusPending,
+				ComfyUIModelPath: "models/test2.safetensors",
+			}
+			mockStore.jobs[job.ID] = job
+			// Orphaned item comes first in the list, but pending should be picked first
+			mockStore.items[job.ID] = []model.SampleJobItem{orphanedItem, pendingItem}
+
+			executor.mu.Lock()
+			executor.activeJobID = job.ID
+			executor.activeItemID = ""
+			executor.mu.Unlock()
+
+			executor.processNextItem()
+
+			// Verify the pending item was picked (not the orphaned one)
+			executor.mu.Lock()
+			Expect(executor.activeItemID).To(Equal("item-pending-mixed"))
+			executor.mu.Unlock()
+		})
 	})
 })

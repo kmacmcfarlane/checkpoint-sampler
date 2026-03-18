@@ -661,11 +661,13 @@ func (e *JobExecutor) processNextItem() {
 		}
 	} else {
 		// AC: No explicit Start API call required — auto-start the first pending job.
-		// Note: running-job discovery is intentionally omitted here. Jobs become
-		// running only through this executor (via autoStartJob), and startup-time
-		// resumption is handled by resumeRunningJobs(). Scanning for running jobs
-		// in the polling loop would cause externally-seeded test jobs (which have
-		// no items) to be immediately completed.
+		// Note: running-job discovery is intentionally omitted here for *job-level*
+		// status. Jobs become running only through this executor (via autoStartJob),
+		// and startup-time resumption is handled by resumeRunningJobs(). Scanning
+		// for running jobs in the polling loop would cause externally-seeded test
+		// jobs (which have no items) to be immediately completed.
+		// Orphaned running *items* within an already-tracked job are handled
+		// separately in the item-scanning section below.
 		for i := range jobs {
 			if jobs[i].Status == model.SampleJobStatusPending {
 				runningJob = &jobs[i]
@@ -702,8 +704,39 @@ func (e *JobExecutor) processNextItem() {
 		}
 	}
 
+	// If no pending items, check for orphaned running items. An item is orphaned
+	// when it has status=running in the DB but activeItemID is empty (i.e. no item
+	// is genuinely in-flight). This happens after stop/resume, server restart, or
+	// any crash that leaves an item stuck in running status. The activeItemID guard
+	// at the top of processNextItem ensures we only reach here when no item is
+	// genuinely in-flight, so it is safe to reset the orphaned item to pending.
 	if nextItem == nil {
-		// No more pending items, mark job as completed
+		for i := range items {
+			if items[i].Status == model.SampleJobItemStatusRunning {
+				e.logger.WithFields(logrus.Fields{
+					"job_id":  runningJob.ID,
+					"item_id": items[i].ID,
+				}).Info("found orphaned running item, resetting to pending for reprocessing")
+				items[i].Status = model.SampleJobItemStatusPending
+				items[i].UpdatedAt = time.Now().UTC()
+				// Release lock before I/O, re-acquire after
+				e.mu.Unlock()
+				if err := e.store.UpdateSampleJobItem(items[i]); err != nil {
+					e.logger.WithFields(logrus.Fields{
+						"item_id": items[i].ID,
+						"error":   err.Error(),
+					}).Error("failed to reset orphaned running item to pending")
+					return
+				}
+				e.mu.Lock()
+				nextItem = &items[i]
+				break
+			}
+		}
+	}
+
+	if nextItem == nil {
+		// No pending or orphaned running items — mark job as completed
 		jobID := runningJob.ID
 		e.mu.Unlock()
 		e.completeJob(jobID)
