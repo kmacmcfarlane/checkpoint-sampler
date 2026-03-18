@@ -11,7 +11,8 @@
     "gopls": {
       "type": "stdio",
       "command": "gopls",
-      "args": ["mcp"]
+      "args": ["mcp"],
+      "cwd": "backend"
     }
   }
 }
