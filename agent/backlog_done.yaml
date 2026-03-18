@@ -5083,3 +5083,218 @@ stories:
     testing:
       - "Verify position indicator updates correctly when navigating with Shift+Arrow"
       - "Verify indicator handles edge cases (first/last cell in grid)"
+  - id: B-101
+    title: App load/refresh doesn't restore TR, study, or preset from localStorage
+    type: bug
+    status: done
+    priority: 85
+    complexity: medium
+    requires: []
+    notes: >
+      First opening the web app or refreshing does not load the last training run,
+      study, or dimension mapping preset until the side panel controls are opened.
+      On smaller displays where controls don't open by default, state is effectively
+      lost. Also, refreshing the app doesn't restore the previously selected training
+      run and study (should be in localStorage).
+      Source: user UAT feedback.
+    acceptance:
+      - "FE: App restores last selected training run, study, and preset from localStorage on initial load"
+      - "FE: Restoration works even when side panel is collapsed (small screens)"
+      - "FE: Page refresh preserves training run and study selection"
+      - "FE: Unit tests for localStorage restoration on mount"
+    testing:
+      - "Test on both wide (side panel open) and narrow (side panel collapsed) viewports."
+      - "Verify state persists across page refresh. Edge case: localStorage has stale data for a deleted training run."
+  - id: B-106
+    title: "Manage Study: Regenerate (update in place) doesn't launch a job"
+    type: bug
+    status: done
+    priority: 70
+    complexity: medium
+    requires: []
+    notes: >
+      The regenerate/update-in-place flow in Manage Study does not actually launch a
+      job to re-generate samples. It should launch a job for all sample sets using
+      that study with the option to clear existing data.
+      Source: user UAT feedback.
+    acceptance:
+      - "BE: Regenerate launches a job for all sample sets using the study"
+      - "BE: Job uses the clear-existing-data option"
+      - "FE: User sees job progress after confirming regeneration"
+      - "BE: Unit tests for regenerate job creation"
+    testing:
+      - "Update a study, confirm regeneration in the dialog, verify a job is created and begins processing."
+      - "Verify existing sample data is cleared before regeneration starts."
+  - id: B-109
+    title: "generate-samples-beads.spec.ts 'AC no beads' flaky — activity bead visible after resetDatabase"
+    type: bug
+    status: done
+    priority: 50
+    complexity: low
+    requires: []
+    acceptance:
+      - "The 'AC no beads' test passes reliably when run after tests that seed jobs with activity status"
+      - "No activity bead is visible in the training run dropdown when no jobs exist after a database reset"
+    testing:
+      - "command: make test-e2e-serial SPEC=generate-samples-beads.spec.ts"
+    notes: |
+      Pre-existing E2E flake found during B-108 QA. After resetDatabase resets the database,
+      the frontend's in-memory job state may still display cached data from the prior test
+      when the training run dropdown is opened. The waitForLoadState('networkidle') call is
+      insufficient to ensure stale bead data is flushed. Root cause is likely stale reactive
+      state in the frontend after DB reset.
+  - id: B-110
+    title: "E2E beads test spuriously finds activity bead on empty training run"
+    type: bug
+    priority: 50
+    status: done
+    complexity: low
+    requires: []
+    acceptance:
+      - "The 'AC no beads: empty training run shows no beads' test passes reliably across all shards"
+      - "No residual job state from prior tests leaks into this test"
+    testing:
+      - "command: make test-e2e-serial SPEC=generate-samples-beads.spec.ts"
+    notes: |
+      Failing test: generate-samples-beads.spec.ts > AC no beads: empty training run shows no beads.
+      Error: expected 0 activity beads on 'my-model' run, got 1.
+      Root cause hypothesis: a prior test in the same shard left a pending/running job in the database
+      before this test's resetDatabase() call completed, so an activity bead is still displayed.
+      This is a test isolation or reset-timing issue.
+  - id: B-111
+    title: "debug-mode.spec.ts tests timeout clicking settings-button in parallel shard execution"
+    priority: 65
+    status: done
+    complexity: medium
+    requires: []
+    acceptance:
+      - "debug-mode.spec.ts passes reliably across all parallel shards without timeout failures"
+      - "The settings button click succeeds within 15 seconds even when a prior test leaves state"
+    testing:
+      - "command: make test-e2e-serial SPEC=debug-mode.spec.ts"
+    notes: |
+      8 tests in debug-mode.spec.ts fail with timeout clicking [data-testid="settings-button"].
+      Root cause hypothesis: The settings button is occluded by an open drawer, overlay, or NDrawer mask
+      when debug-mode tests run in parallel shards. Shard-1 test ordering may leave an overlay blocking
+      clicks on header elements.
+  - id: B-112
+    title: "accessibility.spec.ts dark mode populated grid test timeouts clicking settings-button"
+    priority: 60
+    status: done
+    complexity: medium
+    requires: []
+    acceptance:
+      - "accessibility.spec.ts dark mode test passes reliably across all parallel shards"
+      - "Settings dialog dark mode toggle is clickable without interference from prior test state"
+    testing:
+      - "command: make test-e2e-serial SPEC=accessibility.spec.ts"
+    notes: |
+      The dark mode populated grid accessibility test times out clicking [data-testid="settings-button"].
+      Root cause hypothesis: Same as B-111 — settings button is occluded in the test environment when
+      this test runs in shard 1. The test requires opening Settings dialog to toggle dark mode.
+  - id: S-110
+    title: "Resume completed_with_errors jobs (retry failed items)"
+    priority: 50
+    status: done
+    complexity: medium
+    requires: []
+    acceptance:
+      - "FE: 'Retry failed' button on JobProgressPanel for completed_with_errors jobs"
+      - "BE: Retry re-queues only failed items in the same job"
+      - "BE: Unit tests for retry logic"
+      - "FE: Unit tests for retry button visibility and interaction"
+    testing:
+      - "Create a job with partial failures, click retry, verify only failed items are re-queued"
+    notes: |
+      Currently the regeneration flow for failed items requires launching a new job. A "retry
+      failed" button on the JobProgressPanel that directly re-queues only failed items in the
+      same job would be more streamlined.
+      Source: developer.
+  - id: S-116
+    title: "Training run and study status beads in Generate Samples"
+    type: enhancement
+    status: done
+    priority: 50
+    complexity: high
+    requires: []
+    notes: |
+      Add up to two status beads to training run and study items in the Generate Samples UI.
+      Each item can show a blue/green bead (blue wins) and a red/yellow bead (red wins).
+
+      Training Run Beads:
+      - Blue: running job for the sample set
+      - Green: all study sample sets are complete
+      - Yellow: incomplete sample sets without running jobs
+      - Red: failed job with missing samples
+
+      Study Beads:
+      - Blue: running job for selected sample set
+      - Green: selected sample set is complete
+      - Yellow: selected sample set exists but incomplete
+      - Red: failed job with missing samples
+
+      May require new BE API fields to expose aggregated job/completion status.
+    acceptance:
+      - "FE: Training run items display up to two beads based on status rules"
+      - "FE: Study items display up to two beads based on status rules"
+      - "FE: Blue bead takes priority over green; red takes priority over yellow"
+      - "BE: API exposes sufficient data for frontend to compute bead states (investigate if new fields needed)"
+      - "E2E: Verify bead states for running, complete, incomplete, and failed scenarios"
+    testing:
+      - "Test priority rules: blue overrides green, red overrides yellow"
+      - "Test bead state transitions as jobs start, complete, and fail"
+      - "Investigate whether existing API data suffices or new endpoints are needed"
+  - id: S-129
+    title: Complete checkpoints not auto-checked in Generate Samples validation selector
+    type: enhancement
+    status: done
+    priority: 30
+    complexity: low
+    requires: []
+    notes: >
+      When a training run and study are selected in Generate Samples, checkpoints
+      that are already complete should not be checked by default in the validation
+      selector. Only incomplete checkpoints should be pre-selected for generation.
+      Source: user UAT feedback.
+    acceptance:
+      - "FE: Complete checkpoints are unchecked by default in the validation selector"
+      - "FE: Incomplete checkpoints remain checked by default"
+      - "FE: User can still manually check complete checkpoints for regeneration"
+      - "FE: Unit tests for default checkbox state based on completion status"
+    testing:
+      - "With a mix of complete and incomplete checkpoints, verify default selection state."
+      - "Edge cases: all complete, all incomplete."
+  - id: S-130
+    title: Move X slider to bottom of viewport
+    type: enhancement
+    status: done
+    priority: 30
+    complexity: low
+    requires: []
+    notes: >-
+      Work rolled over into S-132 (X/Y axis sliders rework). Original scope was incorrect — sliders go at bottom/right of
+      viewport with animation controls moving to top.
+    acceptance:
+      - "FE: X slider is pinned to the bottom edge of the viewport"
+      - "FE: X slider is hidden when no dimension mapping is assigned to the X axis"
+      - "FE: Layout remains clean with slider visible and hidden"
+      - "FE: Unit tests for slider visibility based on dimension mapping state"
+    testing:
+      - "Verify slider position at various viewport sizes. Test visibility toggle when dimension mapping is added/removed."
+  - id: S-131
+    title: Add Y slider on right side of viewport
+    type: enhancement
+    status: done
+    priority: 30
+    complexity: low
+    requires: []
+    notes: >-
+      Work rolled over into S-132 (X/Y axis sliders rework). Combined with S-130 into a single rework story.
+    acceptance:
+      - "FE: Vertical Y slider is pinned to the right edge of the viewport"
+      - "FE: Y slider is hidden when no dimension mapping is assigned to the Y axis"
+      - "FE: Layout remains clean with slider visible and hidden"
+      - "FE: Unit tests for Y slider rendering and visibility based on dimension mapping state"
+    testing:
+      - "Verify slider position at various viewport sizes. Test visibility toggle when dimension mapping is added/removed.
+        Test interaction between X and Y sliders when both visible."
