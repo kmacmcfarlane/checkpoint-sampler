@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -134,20 +135,26 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 	}
 	wsServer := genwssvr.New(cfg.WSEndpoints, mux, dec, enc, eh, nil, upgrader, wsConfigurer)
 
-	// Apply Debug middleware when debug mode is enabled (logs full request/response)
+	// Apply Debug middleware when debug mode is enabled (logs full request/response).
+	// Heartbeat servers (health, comfyui) only get debug logging at trace level
+	// to reduce noise from frequent polling.
 	if cfg.Debug {
-		healthServer.Use(goahttpmiddleware.Debug(mux, os.Stdout))
-		docsServer.Use(goahttpmiddleware.Debug(mux, os.Stdout))
-		trainingRunsServer.Use(goahttpmiddleware.Debug(mux, os.Stdout))
-		presetsServer.Use(goahttpmiddleware.Debug(mux, os.Stdout))
-		studiesServer.Use(goahttpmiddleware.Debug(mux, os.Stdout))
-		sampleJobsServer.Use(goahttpmiddleware.Debug(mux, os.Stdout))
-		checkpointsServer.Use(goahttpmiddleware.Debug(mux, os.Stdout))
-		comfyuiServer.Use(goahttpmiddleware.Debug(mux, os.Stdout))
-		workflowsServer.Use(goahttpmiddleware.Debug(mux, os.Stdout))
-		// DO NOT LOG BINARY IMAGE DATA, IT'S ANNOYING imagesServer.Use(goahttpmiddleware.Debug(mux, os.Stdout))
-		wsServer.Use(goahttpmiddleware.Debug(mux, os.Stdout))
-		demoServer.Use(goahttpmiddleware.Debug(mux, os.Stdout))
+		debugMw := goahttpmiddleware.Debug(mux, os.Stdout)
+		docsServer.Use(debugMw)
+		trainingRunsServer.Use(debugMw)
+		presetsServer.Use(debugMw)
+		studiesServer.Use(debugMw)
+		sampleJobsServer.Use(debugMw)
+		checkpointsServer.Use(debugMw)
+		workflowsServer.Use(debugMw)
+		// DO NOT LOG BINARY IMAGE DATA, IT'S ANNOYING imagesServer.Use(debugMw)
+		wsServer.Use(debugMw)
+		demoServer.Use(debugMw)
+		// Heartbeat/polling servers: debug only at trace level
+		if cfg.Logger.IsLevelEnabled(logrus.TraceLevel) {
+			healthServer.Use(debugMw)
+			comfyuiServer.Use(debugMw)
+		}
 	}
 
 	healthServer.Mount(mux)
@@ -307,21 +314,63 @@ func imageMetadataRewriteMiddleware(next http.Handler) http.Handler {
 }
 
 // logrusAdapter adapts a logrus.Logger to the goamiddleware.Logger interface.
+// It demotes heartbeat/polling endpoints to trace level on both the request
+// and response log lines by tracking quiet request IDs.
 type logrusAdapter struct {
-	logger *logrus.Entry
+	logger   *logrus.Entry
+	quietIDs sync.Map // request ID → struct{} for in-flight quiet requests
+}
+
+// quietPaths are URL prefixes for heartbeat/polling endpoints that generate
+// high-frequency log noise. These are logged at trace level instead of info.
+var quietPaths = []string{
+	"/api/comfyui/status",
+	"/api/health",
 }
 
 func (a *logrusAdapter) Log(keyvals ...interface{}) error {
 	fields := logrus.Fields{}
+	var reqVal, idVal string
 	for i := 0; i < len(keyvals); i += 2 {
 		if i+1 < len(keyvals) {
 			key, ok := keyvals[i].(string)
 			if ok {
 				fields[key] = keyvals[i+1]
+				switch key {
+				case "req":
+					reqVal, _ = keyvals[i+1].(string)
+				case "id":
+					idVal, _ = keyvals[i+1].(string)
+				}
 			}
 		}
 	}
-	a.logger.WithFields(fields).Info("HTTP request")
+	entry := a.logger.WithFields(fields)
+
+	// Request line (has "req" key): check path and remember quiet IDs.
+	if reqVal != "" {
+		for _, p := range quietPaths {
+			if strings.Contains(reqVal, p) {
+				if idVal != "" {
+					a.quietIDs.Store(idVal, struct{}{})
+				}
+				entry.Trace("HTTP request")
+				return nil
+			}
+		}
+		entry.Info("HTTP request")
+		return nil
+	}
+
+	// Response line (no "req" key): check if this ID was quiet.
+	if idVal != "" {
+		if _, ok := a.quietIDs.LoadAndDelete(idVal); ok {
+			entry.Trace("HTTP request")
+			return nil
+		}
+	}
+
+	entry.Info("HTTP request")
 	return nil
 }
 

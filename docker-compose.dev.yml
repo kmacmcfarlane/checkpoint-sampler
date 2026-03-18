@@ -18,7 +18,7 @@ services:
     environment:
       - PORT=8080
       - CONFIG_PATH=/app/config.yaml
-      - LOG_LEVEL=trace
+      - LOG_LEVEL=info
       - COMMIT_SHA=${COMMIT_SHA:-unknown}
       - GOPATH=/home/gouser/go
       - GOCACHE=/home/gouser/.cache/go-build
