@@ -362,6 +362,12 @@ function onHasSamplesFilterChange(value: boolean) {
  * selector grows vertically when the selected name is long, instead of overflowing.
  * These :deep() rules target Naive UI's internal .n-base-selection elements which are
  * outside Vue's scoped CSS scope without the deep selector.
+ *
+ * Key insight: for filterable NSelect, the selected label renders inside
+ * .n-base-selection-label__render-label which is also .n-base-selection-overlay
+ * (position: absolute). An absolutely-positioned child cannot expand its parent,
+ * so we must change it to position: relative and let it flow normally. We also
+ * remove overflow: hidden from its wrapper so the text can wrap freely.
  */
 .training-run-select :deep(.n-base-selection),
 .study-select :deep(.n-base-selection) {
@@ -382,6 +388,30 @@ function onHasSamplesFilterChange(value: boolean) {
 .study-select :deep(.n-base-selection-label) {
   height: auto !important;
   min-height: var(--n-height);
+  align-items: flex-start;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+/*
+ * The render-label overlay is position: absolute by default, which means it floats
+ * over the parent without contributing to its height. Re-flow it so the parent grows.
+ */
+.training-run-select :deep(.n-base-selection-label__render-label),
+.study-select :deep(.n-base-selection-label__render-label) {
+  position: relative !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  flex: 1;
+  min-width: 0;
+  overflow: visible !important;
+}
+
+.training-run-select :deep(.n-base-selection-overlay__wrapper),
+.study-select :deep(.n-base-selection-overlay__wrapper) {
+  overflow: visible !important;
   white-space: normal;
   word-break: break-word;
 }

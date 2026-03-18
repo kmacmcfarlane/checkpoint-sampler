@@ -1238,6 +1238,7 @@ async function handleSlideoutValidate() {
   justify-content: space-between;
   gap: 0.5rem;
   flex-wrap: wrap;
+
   /* Ensure header stacks above the fixed Y slider bar (z-index 90)
      so header buttons remain clickable in the overlap region (B-111). */
   position: relative;

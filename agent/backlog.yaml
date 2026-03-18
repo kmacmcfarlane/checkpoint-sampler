@@ -190,7 +190,7 @@ stories:
   - id: B-098
     title: Training run selector truncates long names (needs multi-line wrap)
     type: bug
-    status: uat_feedback
+    status: uat
     priority: 85
     complexity: low
     requires: []
@@ -206,9 +206,6 @@ stories:
       - "FE: Unit tests for long name rendering"
     testing:
       - "Test with realistic long training run names. Verify both the selected value display and the dropdown options."
-    review_feedback: The wrapped label overflows the closed NSelect control, overlapping other siblings in the layout. 
-      The control should expand vertically to fully encapsulate the wrapped label text, not just wrap the text within a 
-      fixed-height control.
   - id: B-103
     title: "Stop job shows no activity and stop+restart fails (invalid_state)"
     type: bug
@@ -314,3 +311,21 @@ stories:
       - "Switching mappings while lightbox is open — sliders update correctly"
       - "Slider sync state after closing/reopening lightbox"
       - "Animation controls render correctly in new top position without regression"
+  - id: B-113
+    title: "e2e_sweep.sh integer comparison error and summary.txt not reliably written"
+    type: bug
+    priority: 50
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "Running make e2e-sweep after a full test run produces a valid sweep.txt file with correct shard count"
+      - "make test-e2e always produces .e2e/summary.txt and .e2e/sweep.txt even when Phase 5 produces non-zero stderr"
+    testing:
+      - "command: make test-e2e && cat .e2e/summary.txt && cat .e2e/sweep.txt"
+    notes: |
+      The e2e_sweep.sh script has a bash integer comparison bug on line 33 when the shard count
+      variable contains a trailing newline. Additionally, summary.txt/sweep.txt are not reliably
+      written when Phase 5 report merge triggers set -euo pipefail early exit via npm notice stderr.
+      Root cause: SHARDS variable passed to sweep script may have trailing newline or the shard
+      detection regex produces a non-integer. Source: QA sweep during B-098.
