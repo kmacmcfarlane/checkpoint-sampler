@@ -315,7 +315,7 @@ stories:
     title: "e2e_sweep.sh integer comparison error and summary.txt not reliably written"
     type: bug
     priority: 50
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:

@@ -45,6 +45,7 @@ if ! [[ "$SHARDS" =~ ^[0-9]+$ ]] || [ "$SHARDS" -lt 1 ]; then
 fi
 
 START_TIME=$SECONDS
+FAIL=0
 
 echo "=== E2E parallel: $SHARDS shard(s) ==="
 
@@ -72,7 +73,54 @@ on_interrupt() {
   exit 130
 }
 
-trap cleanup EXIT
+SUMMARY_WRITTEN=0
+
+generate_summary() {
+  # Guard: only write once (trap may fire after inline call)
+  [ "$SUMMARY_WRITTEN" -eq 1 ] && return 0
+  SUMMARY_WRITTEN=1
+
+  local elapsed=$(( SECONDS - START_TIME ))
+  local mins=$(( elapsed / 60 ))
+  local secs=$(( elapsed % 60 ))
+
+  local total_passed=0 total_failed=0 total_skipped=0
+  for i in $(seq 1 "$SHARDS"); do
+    local log="$E2E_DIR/logs/shard-${i}-playwright.log"
+    if [ -f "$log" ]; then
+      local passed failed skipped
+      passed=$(grep -oP '\d+(?= passed)' "$log" | tail -1 || true)
+      failed=$(grep -oP '\d+(?= failed)' "$log" | tail -1 || true)
+      skipped=$(grep -oP '\d+(?= skipped)' "$log" | tail -1 || true)
+      total_passed=$((total_passed + ${passed:-0}))
+      total_failed=$((total_failed + ${failed:-0}))
+      total_skipped=$((total_skipped + ${skipped:-0}))
+    fi
+  done
+  local total=$((total_passed + total_failed + total_skipped))
+  local result="passed"
+  [ "$FAIL" -ne 0 ] && result="failed"
+
+  mkdir -p "$E2E_DIR"
+  cat > "$E2E_DIR/summary.txt" <<EOF
+passed=$total_passed
+failed=$total_failed
+skipped=$total_skipped
+total=$total
+duration=${mins}m${secs}s
+shards=$SHARDS
+result=$result
+EOF
+  echo "E2E SUMMARY: $total_passed passed, $total_failed failed, $total_skipped skipped ($SHARDS shards, ${mins}m${secs}s)"
+}
+
+on_exit() {
+  # Always write summary.txt — even if Phase 5 triggered an early exit
+  generate_summary
+  cleanup
+}
+
+trap on_exit EXIT
 trap on_interrupt INT TERM
 
 # --- Clean previous artifacts ---
@@ -181,6 +229,10 @@ done
 echo ""
 echo "=== Phase 5: Merging reports ==="
 
+# Phase 5 is non-fatal: disable errexit so that npm notice stderr, broken pipes,
+# or merge failures cannot cause an early exit before summary.txt is written.
+set +e
+
 # Check if any blob reports were produced
 BLOB_COUNT=$(find "$E2E_DIR/blobs" -name "*.zip" -o -name "*.jsonl" 2>/dev/null | head -1 | wc -l)
 if [ "$BLOB_COUNT" -gt 0 ] || [ -n "$(ls -A "$E2E_DIR/blobs/shard-1/" 2>/dev/null)" ]; then
@@ -205,44 +257,15 @@ else
   echo "  No blob reports found — skipping merge"
 fi
 
+set -e
+
 # --- Phase 5.5: Generate machine-readable summary ---
-ELAPSED=$(( SECONDS - START_TIME ))
-MINS=$(( ELAPSED / 60 ))
-SECS=$(( ELAPSED % 60 ))
-
-generate_summary() {
-  local total_passed=0 total_failed=0 total_skipped=0
-  for i in $(seq 1 "$SHARDS"); do
-    local log="$E2E_DIR/logs/shard-${i}-playwright.log"
-    if [ -f "$log" ]; then
-      local passed failed skipped
-      passed=$(grep -oP '\d+(?= passed)' "$log" | tail -1)
-      failed=$(grep -oP '\d+(?= failed)' "$log" | tail -1)
-      skipped=$(grep -oP '\d+(?= skipped)' "$log" | tail -1)
-      total_passed=$((total_passed + ${passed:-0}))
-      total_failed=$((total_failed + ${failed:-0}))
-      total_skipped=$((total_skipped + ${skipped:-0}))
-    fi
-  done
-  local total=$((total_passed + total_failed + total_skipped))
-  local result="passed"
-  [ "$FAIL" -ne 0 ] && result="failed"
-
-  cat > "$E2E_DIR/summary.txt" <<EOF
-passed=$total_passed
-failed=$total_failed
-skipped=$total_skipped
-total=$total
-duration=${MINS}m${SECS}s
-shards=$SHARDS
-result=$result
-EOF
-  echo "E2E SUMMARY: $total_passed passed, $total_failed failed, $total_skipped skipped ($SHARDS shards, ${MINS}m${SECS}s)"
-}
-
 generate_summary
 
 # --- Summary banner ---
+ELAPSED=$(( SECONDS - START_TIME ))
+MINS=$(( ELAPSED / 60 ))
+SECS=$(( ELAPSED % 60 ))
 echo ""
 if [ "$FAIL" -eq 0 ]; then
   echo "=== ALL $SHARDS SHARDS PASSED in ${MINS}m${SECS}s ==="

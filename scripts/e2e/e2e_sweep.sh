@@ -27,8 +27,10 @@ PARENT_DIR="$(cd "$LOG_DIR/.." && pwd)"
 OUTPUT_FILE="$PARENT_DIR/sweep.txt"
 
 # Count shards by looking for shard-* directories
-SHARD_DIRS=$(find "$LOG_DIR" -maxdepth 1 -type d -name 'shard-*' 2>/dev/null | sort)
-SHARD_COUNT=$(echo "$SHARD_DIRS" | grep -c . 2>/dev/null || echo 0)
+mapfile -t SHARD_DIRS_ARR < <(find "$LOG_DIR" -maxdepth 1 -type d -name 'shard-*' 2>/dev/null | sort)
+SHARD_COUNT=${#SHARD_DIRS_ARR[@]}
+# Preserve newline-separated list for downstream loops
+SHARD_DIRS=$(printf '%s\n' "${SHARD_DIRS_ARR[@]}")
 
 if [ "$SHARD_COUNT" -eq 0 ]; then
   echo "E2E SWEEP: No shard directories found in $LOG_DIR — skipping"
