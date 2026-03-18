@@ -40,11 +40,12 @@ async function setupGridWithSlider(page: Page): Promise<void> {
 }
 
 /**
- * Returns the current displayed value of the master slider (the span next to the NSlider).
+ * Returns the current displayed value of the animation controls (the span showing the current value).
+ * S-132: The slider dimension is now displayed via AnimationControls (not MasterSlider).
  */
-async function getMasterSliderValue(page: Page): Promise<string> {
-  const masterSlider = page.locator('[aria-label="Master prompt_name slider"]')
-  const valueSpan = masterSlider.locator('.master-slider__value')
+async function getAnimationControlsValue(page: Page): Promise<string> {
+  const controls = page.locator('[data-testid="animation-controls"]')
+  const valueSpan = controls.locator('.animation-controls__value')
   return valueSpan.textContent().then((t) => (t ?? '').trim())
 }
 
@@ -58,7 +59,7 @@ test.describe('lightbox slider bidirectional sync (B-068)', () => {
     await setupGridWithSlider(page)
 
     // Record the initial master slider value
-    const initialMasterValue = await getMasterSliderValue(page)
+    const initialMasterValue = await getAnimationControlsValue(page)
     expect(initialMasterValue).toBeTruthy() // should be 'landscape' or 'portrait'
 
     // Open the lightbox by clicking the first grid image
@@ -90,7 +91,7 @@ test.describe('lightbox slider bidirectional sync (B-068)', () => {
     await expect(lightbox).not.toBeVisible()
 
     // The master slider value should have changed to reflect the new slider position
-    const newMasterValue = await getMasterSliderValue(page)
+    const newMasterValue = await getAnimationControlsValue(page)
     expect(newMasterValue).not.toBe(initialMasterValue)
   })
 
@@ -165,7 +166,7 @@ test.describe('lightbox slider bidirectional sync (B-068)', () => {
     const sliderValueText = await sliderValueSpan.textContent()
 
     // Verify the master slider value matches the lightbox slider
-    const masterValue = await getMasterSliderValue(page)
+    const masterValue = await getAnimationControlsValue(page)
     expect(sliderValueText?.trim()).toBe(masterValue)
   })
 
@@ -236,7 +237,7 @@ test.describe('lightbox slider bidirectional sync (B-068)', () => {
     await page.keyboard.press('Escape')
     await expect(lightbox).not.toBeVisible()
 
-    const masterValue = await getMasterSliderValue(page)
+    const masterValue = await getAnimationControlsValue(page)
     expect(masterValue).toBe('portrait')
   })
 })

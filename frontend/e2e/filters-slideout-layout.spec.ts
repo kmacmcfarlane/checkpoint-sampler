@@ -101,18 +101,18 @@ test.describe('S-082: filters slideout and layout relocation', () => {
     await expect(page.getByRole('button', { name: 'Toggle all filters' })).toHaveCount(0)
   })
 
-  // -- AC2: MasterSlider in header-center area --
+  // -- AC2: Animation controls in header-center area (reworked per S-132) --
 
-  test('AC2: MasterSlider is visible in the header area after assigning Slider dimension', async ({ page }) => {
+  test('AC2: Animation controls are visible in the header area after assigning Slider dimension', async ({ page }) => {
     await setupWithSlider(page)
 
-    // The master slider should be in the header (not in main content)
+    // The animation controls should be in the header (not in main content)
     const headerCenter = page.locator('.header-center')
     await expect(headerCenter).toBeVisible()
 
-    // The master slider component should be inside header-center
-    const masterSlider = page.locator('.header-center [aria-label="Master prompt_name slider"]')
-    await expect(masterSlider).toBeVisible()
+    // The animation controls component should be inside header-center
+    const animationControls = page.locator('.header-center [data-testid="animation-controls"]')
+    await expect(animationControls).toBeVisible()
   })
 
   // -- AC3: ZoomControl in header-controls area --

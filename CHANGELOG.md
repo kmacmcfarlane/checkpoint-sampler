@@ -5,6 +5,11 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-132: X/Y axis sliders rework — bottom/right positioning, dimension mappings, lightbox sync
+- Replaced header MasterSlider with playback-only AnimationControls (play/pause, loop, speed — no slider track)
+- X/Y sliders in lightbox now sync to main view sliders via new props and events on ImageLightbox
+- Both axis sliders hidden in main view and lightbox when no dimension is mapped to that axis
+
 ### R-008: Treat orphaned running items as resumable in processNextItem
 - `processNextItem` now recovers orphaned running items (stuck after stop/resume or server restart) by resetting them to pending and reprocessing, instead of marking the job `completed_with_errors`
 

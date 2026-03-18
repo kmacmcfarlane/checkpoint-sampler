@@ -60,51 +60,49 @@ test.describe('slider and playback controls', () => {
     await setupSlider(page)
 
     // The master slider group for "prompt_name" should now be visible
-    const masterSlider = page.locator('[aria-label="Master prompt_name slider"]')
-    await expect(masterSlider).toBeVisible()
+    const animationControls = page.locator('[data-testid="animation-controls"]')
+    await expect(animationControls).toBeVisible()
 
     // The slider dimension label should appear inside the master slider
-    await expect(masterSlider).toContainText('prompt_name')
+    await expect(animationControls).toContainText('prompt_name')
 
     // The Play button should be visible (playback not yet started).
     // Scoped to the masterSlider group to avoid strict-mode violations when the X slider
     // bar (S-130) also renders a MasterSlider with its own Play button on the same page.
-    const playButton = masterSlider.getByRole('button', { name: 'Play playback' })
+    const playButton = animationControls.getByRole('button', { name: 'Play playback' })
     await expect(playButton).toBeVisible()
   })
 
-  test('stepping the master slider with keyboard advances the displayed value', async ({ page }) => {
+  test('stepping a per-cell slider with keyboard advances the displayed value', async ({ page }) => {
     await setupSlider(page)
 
-    const masterSlider = page.locator('[aria-label="Master prompt_name slider"]')
-    await expect(masterSlider).toBeVisible()
+    // S-132: Slider dimension is now navigated via per-cell SliderBars (no header slider track)
+    const sliderBars = page.locator('.slider-bar')
+    const firstSliderBar = sliderBars.first()
+    await expect(firstSliderBar).toBeVisible()
 
     // Read the initial displayed value (first slider value: "landscape")
-    const valueDisplay = masterSlider.locator('.master-slider__value')
+    const valueDisplay = firstSliderBar.locator('.slider-bar__value')
     await expect(valueDisplay).toBeVisible()
     const initialValue = await valueDisplay.textContent()
     expect(initialValue?.trim()).toBe('landscape')
 
-    // Focus the master slider group and press ArrowRight to advance by one step
-    // AC1: Pressing right arrow after clicking the slider knob moves the slider position
-    await masterSlider.focus()
-    await masterSlider.press('ArrowRight')
+    // Focus the per-cell slider and press ArrowRight to advance by one step
+    await firstSliderBar.focus()
+    await firstSliderBar.press('ArrowRight')
 
     // The displayed value should now be "portrait" (second value)
     await expect(valueDisplay).toContainText('portrait')
 
     // Press ArrowLeft to step back
-    await masterSlider.press('ArrowLeft')
+    await firstSliderBar.press('ArrowLeft')
 
     // The displayed value should return to "landscape"
     await expect(valueDisplay).toContainText('landscape')
   })
 
-  test('stepping the master slider updates all image cells', async ({ page }) => {
+  test('stepping a per-cell slider updates its image cell', async ({ page }) => {
     await setupSlider(page)
-
-    const masterSlider = page.locator('[aria-label="Master prompt_name slider"]')
-    await expect(masterSlider).toBeVisible()
 
     // The grid should be visible with image cells
     await expect(page.locator('.xy-grid-container')).toBeVisible()
@@ -115,12 +113,11 @@ test.describe('slider and playback controls', () => {
     await expect(firstSliderBar).toBeVisible()
     await expect(firstSliderBar).toContainText('landscape')
 
-    // Step the master slider forward to "portrait" (plain ArrowRight)
-    // AC1: Pressing right arrow after clicking the slider knob moves the slider position
-    await masterSlider.focus()
-    await masterSlider.press('ArrowRight')
+    // Step the per-cell slider forward to "portrait" (ArrowRight on focus)
+    await firstSliderBar.focus()
+    await firstSliderBar.press('ArrowRight')
 
-    // All per-cell SliderBars should now show "portrait"
+    // The per-cell SliderBar should now show "portrait"
     await expect(firstSliderBar).toContainText('portrait')
 
     // There should be at least one column (checkpoint 1000) — verify image cell exists
@@ -130,10 +127,10 @@ test.describe('slider and playback controls', () => {
   test('starts playback and verifies automatic advancement through at least 2 steps', async ({ page }) => {
     await setupSlider(page)
 
-    const masterSlider = page.locator('[aria-label="Master prompt_name slider"]')
-    await expect(masterSlider).toBeVisible()
+    const animationControls = page.locator('[data-testid="animation-controls"]')
+    await expect(animationControls).toBeVisible()
 
-    const valueDisplay = masterSlider.locator('.master-slider__value')
+    const valueDisplay = animationControls.locator('.animation-controls__value')
     await expect(valueDisplay).toBeVisible()
 
     // Ensure we start at "landscape" (index 0)
@@ -142,7 +139,7 @@ test.describe('slider and playback controls', () => {
 
     // Click the Play button to start playback.
     // Scoped to the masterSlider group (see S-130: X slider bar adds a second MasterSlider).
-    const playButton = masterSlider.getByRole('button', { name: 'Play playback' })
+    const playButton = animationControls.getByRole('button', { name: 'Play playback' })
     await expect(playButton).toBeVisible()
     await playButton.click()
 
@@ -173,21 +170,21 @@ test.describe('slider and playback controls', () => {
   test('stops playback and verifies the slider holds its position', async ({ page }) => {
     await setupSlider(page)
 
-    const masterSlider = page.locator('[aria-label="Master prompt_name slider"]')
-    await expect(masterSlider).toBeVisible()
+    const animationControls = page.locator('[data-testid="animation-controls"]')
+    await expect(animationControls).toBeVisible()
 
-    const valueDisplay = masterSlider.locator('.master-slider__value')
+    const valueDisplay = animationControls.locator('.animation-controls__value')
     await expect(valueDisplay).toBeVisible()
 
     // Start playback (scoped to masterSlider to avoid strict-mode violation with X slider bar).
-    const playButton = masterSlider.getByRole('button', { name: 'Play playback' })
+    const playButton = animationControls.getByRole('button', { name: 'Play playback' })
     await playButton.click()
 
-    const pauseButton = masterSlider.getByRole('button', { name: 'Pause playback' })
+    const pauseButton = animationControls.getByRole('button', { name: 'Pause playback' })
     await expect(pauseButton).toBeVisible()
 
     // Change playback speed to 0.25s so we can observe an advance before stopping
-    const speedSelect = masterSlider.locator('[aria-label="Playback speed"]')
+    const speedSelect = animationControls.locator('[aria-label="Playback speed"]')
     await expect(speedSelect).toBeVisible()
     await speedSelect.click()
     const popupMenu = page.locator('.n-base-select-menu:visible')
@@ -202,7 +199,7 @@ test.describe('slider and playback controls', () => {
     await pauseButton.click()
 
     // After stopping, the Play button should reappear (scoped to masterSlider).
-    await expect(masterSlider.getByRole('button', { name: 'Play playback' })).toBeVisible()
+    await expect(animationControls.getByRole('button', { name: 'Play playback' })).toBeVisible()
 
     // The slider value should remain at "portrait" (no further advances)
     const valueAfterStop = await valueDisplay.textContent()

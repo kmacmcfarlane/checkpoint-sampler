@@ -3,10 +3,11 @@ import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
 import { NButton } from 'naive-ui'
 import { apiClient } from '../api/client'
 import SliderBar from './SliderBar.vue'
+import MasterSlider from './MasterSlider.vue'
 import DebugOverlay from './DebugOverlay.vue'
 import type { DebugCellInfo, GridNavItem } from './types'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   imageUrl: string
   /** Cell key (xVal|yVal) identifying which grid cell opened the lightbox. Null when no slider. */
   cellKey: string | null
@@ -31,15 +32,38 @@ const props = defineProps<{
   debugMode?: boolean
   /** Debug info for the current image. Shown when debugMode is true. */
   debugInfo?: DebugCellInfo
-}>()
+  /** Ordered X dimension values. Empty array when no X dimension assigned. */
+  xSliderValues?: string[]
+  /** Current X slider value. Empty string when no X dimension. */
+  currentXSliderValue?: string
+  /** X dimension name. Empty string when no X dimension. */
+  xDimensionName?: string
+  /** Ordered Y dimension values. Empty array when no Y dimension assigned. */
+  ySliderValues?: string[]
+  /** Current Y slider value. Empty string when no Y dimension. */
+  currentYSliderValue?: string
+  /** Y dimension name. Empty string when no Y dimension. */
+  yDimensionName?: string
+}>(), {
+  xSliderValues: () => [],
+  currentXSliderValue: '',
+  xDimensionName: '',
+  ySliderValues: () => [],
+  currentYSliderValue: '',
+  yDimensionName: '',
+})
 
 // close: Emitted when the lightbox is dismissed (Escape key, backdrop click, or close button). No payload.
 // slider-change: Emitted when the in-lightbox slider changes value. Payload: cell key and new slider value.
 // navigate: Emitted when the user navigates to a different grid image via Shift+Arrow (X or Y axis). Payload: new grid index.
+// x-slider-change: Emitted when the lightbox X slider changes value. Payload: new X value.
+// y-slider-change: Emitted when the lightbox Y slider changes value. Payload: new Y value.
 const emit = defineEmits<{
   close: []
   'slider-change': [cellKey: string, value: string]
   navigate: [index: number]
+  'x-slider-change': [value: string]
+  'y-slider-change': [value: string]
 }>()
 
 const scale = ref(1)
@@ -301,6 +325,12 @@ function formatJSON(value: string): string {
 /** Whether the slider bar should be shown. */
 const hasSlider = computed(() => props.sliderValues.length > 1 && props.cellKey !== null)
 
+/** Whether the X axis slider should be shown in the lightbox. */
+const hasXSlider = computed(() => props.xSliderValues.length > 1)
+
+/** Whether the Y axis slider should be shown in the lightbox. */
+const hasYSlider = computed(() => props.ySliderValues.length > 1)
+
 /** Whether the grid position indicator should be shown (only when there are multiple images). */
 const showGridIndicator = computed(() => props.gridImages.length > 1)
 
@@ -311,6 +341,16 @@ const gridPositionLabel = computed(() => `${props.gridIndex + 1} / ${props.gridI
 function onLightboxSliderChange(value: string) {
   if (!props.cellKey) return
   emit('slider-change', props.cellKey, value)
+}
+
+/** Handle X slider change in the lightbox — syncs to main view. */
+function onLightboxXSliderChange(value: string) {
+  emit('x-slider-change', value)
+}
+
+/** Handle Y slider change in the lightbox — syncs to main view. */
+function onLightboxYSliderChange(value: string) {
+  emit('y-slider-change', value)
 }
 
 /** Preload adjacent slider position images for instant feel. */
@@ -483,7 +523,35 @@ onUnmounted(() => {
         @change="onLightboxSliderChange"
       />
     </div>
-    <div class="metadata-panel" :class="{ 'metadata-panel--above-slider': hasSlider }" @click.stop>
+    <!-- AC: Lightbox X slider synced to main view X slider -->
+    <div
+      v-if="hasXSlider"
+      class="lightbox-x-slider-bar"
+      data-testid="lightbox-x-slider-bar"
+      @click.stop
+    >
+      <MasterSlider
+        :values="xSliderValues"
+        :current-value="currentXSliderValue"
+        :dimension-name="xDimensionName"
+        @change="onLightboxXSliderChange"
+      />
+    </div>
+    <!-- AC: Lightbox Y slider synced to main view Y slider -->
+    <div
+      v-if="hasYSlider"
+      class="lightbox-y-slider-bar"
+      data-testid="lightbox-y-slider-bar"
+      @click.stop
+    >
+      <MasterSlider
+        :values="ySliderValues"
+        :current-value="currentYSliderValue"
+        :dimension-name="yDimensionName"
+        @change="onLightboxYSliderChange"
+      />
+    </div>
+    <div class="metadata-panel" :class="{ 'metadata-panel--above-slider': hasSlider || hasXSlider }" @click.stop>
       <NButton
         class="metadata-toggle"
         size="small"
@@ -602,6 +670,73 @@ onUnmounted(() => {
   z-index: 1001;
   background: rgba(20, 20, 20, 0.85);
   padding: 0.5rem 1rem;
+}
+
+/* AC: Lightbox X slider pinned to bottom edge, mirroring main view layout */
+.lightbox-x-slider-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 1001;
+  background: rgba(20, 20, 20, 0.85);
+  padding: 0.25rem 1rem;
+}
+
+/* AC: Lightbox Y slider pinned to right edge, mirroring main view layout */
+.lightbox-y-slider-bar {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  z-index: 1001;
+  background: rgba(20, 20, 20, 0.85);
+  padding: 1rem 0.25rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 4rem;
+}
+
+.lightbox-y-slider-bar :deep(.master-slider) {
+  writing-mode: vertical-lr;
+  height: 100%;
+  width: auto;
+  border-bottom: none;
+  margin-bottom: 0;
+  padding: 0;
+}
+
+.lightbox-y-slider-bar :deep(.master-slider__main) {
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  gap: 0.5rem;
+}
+
+.lightbox-y-slider-bar :deep(.master-slider__slider-wrapper) {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lightbox-y-slider-bar :deep(.master-slider__slider) {
+  writing-mode: vertical-lr;
+  width: auto;
+  height: 100%;
+}
+
+.lightbox-y-slider-bar :deep(.master-slider__label) {
+  writing-mode: vertical-lr;
+  white-space: nowrap;
+}
+
+.lightbox-y-slider-bar :deep(.master-slider__value) {
+  writing-mode: vertical-lr;
+  white-space: nowrap;
 }
 
 .lightbox-debug-overlay {

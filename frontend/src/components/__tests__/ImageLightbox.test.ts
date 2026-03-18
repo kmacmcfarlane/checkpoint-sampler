@@ -1867,4 +1867,141 @@ describe('ImageLightbox', () => {
       expect(indicator.exists()).toBe(false)
     })
   })
+
+  // AC: FE: Lightbox X/Y sliders synced to main view X/Y sliders
+  describe('lightbox X/Y slider visibility and sync', () => {
+    // AC: FE: X slider hidden when no dimension mapped to X axis (lightbox)
+    it('does not render X slider bar when xSliderValues is empty', async () => {
+      const wrapper = mount(ImageLightbox, {
+        props: { ...defaultProps, xSliderValues: [], xDimensionName: '' },
+      })
+      await flushPromises()
+      expect(wrapper.find('[data-testid="lightbox-x-slider-bar"]').exists()).toBe(false)
+    })
+
+    // AC: FE: X slider hidden when only one value (not useful for navigation)
+    it('does not render X slider bar when xSliderValues has only one value', async () => {
+      const wrapper = mount(ImageLightbox, {
+        props: { ...defaultProps, xSliderValues: ['only'], currentXSliderValue: 'only', xDimensionName: 'checkpoint' },
+      })
+      await flushPromises()
+      expect(wrapper.find('[data-testid="lightbox-x-slider-bar"]').exists()).toBe(false)
+    })
+
+    // AC: FE: X slider visible when dimension mapped to X axis
+    it('renders X slider bar when xSliderValues has multiple values', async () => {
+      const wrapper = mount(ImageLightbox, {
+        props: {
+          ...defaultProps,
+          xSliderValues: ['step-1000', 'step-2000'],
+          currentXSliderValue: 'step-1000',
+          xDimensionName: 'checkpoint',
+        },
+      })
+      await flushPromises()
+      expect(wrapper.find('[data-testid="lightbox-x-slider-bar"]').exists()).toBe(true)
+    })
+
+    // AC: FE: Y slider hidden when no dimension mapped to Y axis (lightbox)
+    it('does not render Y slider bar when ySliderValues is empty', async () => {
+      const wrapper = mount(ImageLightbox, {
+        props: { ...defaultProps, ySliderValues: [], yDimensionName: '' },
+      })
+      await flushPromises()
+      expect(wrapper.find('[data-testid="lightbox-y-slider-bar"]').exists()).toBe(false)
+    })
+
+    // AC: FE: Y slider hidden when only one value
+    it('does not render Y slider bar when ySliderValues has only one value', async () => {
+      const wrapper = mount(ImageLightbox, {
+        props: { ...defaultProps, ySliderValues: ['only'], currentYSliderValue: 'only', yDimensionName: 'prompt' },
+      })
+      await flushPromises()
+      expect(wrapper.find('[data-testid="lightbox-y-slider-bar"]').exists()).toBe(false)
+    })
+
+    // AC: FE: Y slider visible when dimension mapped to Y axis
+    it('renders Y slider bar when ySliderValues has multiple values', async () => {
+      const wrapper = mount(ImageLightbox, {
+        props: {
+          ...defaultProps,
+          ySliderValues: ['landscape', 'portrait'],
+          currentYSliderValue: 'landscape',
+          yDimensionName: 'prompt_name',
+        },
+      })
+      await flushPromises()
+      expect(wrapper.find('[data-testid="lightbox-y-slider-bar"]').exists()).toBe(true)
+    })
+
+    // AC: FE: Lightbox X slider emits x-slider-change when changed
+    it('emits x-slider-change when X slider value changes', async () => {
+      const wrapper = mount(ImageLightbox, {
+        props: {
+          ...defaultProps,
+          xSliderValues: ['step-1000', 'step-2000', 'step-3000'],
+          currentXSliderValue: 'step-1000',
+          xDimensionName: 'checkpoint',
+        },
+      })
+      await flushPromises()
+
+      const xSliderBar = wrapper.find('[data-testid="lightbox-x-slider-bar"]')
+      expect(xSliderBar.exists()).toBe(true)
+
+      // The MasterSlider inside emits 'change'; our handler converts to 'x-slider-change'
+      const masterSlider = xSliderBar.findComponent({ name: 'MasterSlider' })
+      expect(masterSlider.exists()).toBe(true)
+      masterSlider.vm.$emit('change', 'step-2000')
+      await wrapper.vm.$nextTick()
+
+      const emitted = wrapper.emitted('x-slider-change')
+      expect(emitted).toBeDefined()
+      expect(emitted![0]).toEqual(['step-2000'])
+    })
+
+    // AC: FE: Lightbox Y slider emits y-slider-change when changed
+    it('emits y-slider-change when Y slider value changes', async () => {
+      const wrapper = mount(ImageLightbox, {
+        props: {
+          ...defaultProps,
+          ySliderValues: ['landscape', 'portrait'],
+          currentYSliderValue: 'landscape',
+          yDimensionName: 'prompt_name',
+        },
+      })
+      await flushPromises()
+
+      const ySliderBar = wrapper.find('[data-testid="lightbox-y-slider-bar"]')
+      expect(ySliderBar.exists()).toBe(true)
+
+      const masterSlider = ySliderBar.findComponent({ name: 'MasterSlider' })
+      expect(masterSlider.exists()).toBe(true)
+      masterSlider.vm.$emit('change', 'portrait')
+      await wrapper.vm.$nextTick()
+
+      const emitted = wrapper.emitted('y-slider-change')
+      expect(emitted).toBeDefined()
+      expect(emitted![0]).toEqual(['portrait'])
+    })
+
+    // AC: FE: Both X and Y sliders can be visible simultaneously
+    it('renders both X and Y slider bars when both dimensions are mapped', async () => {
+      const wrapper = mount(ImageLightbox, {
+        props: {
+          ...defaultProps,
+          xSliderValues: ['step-1000', 'step-2000'],
+          currentXSliderValue: 'step-1000',
+          xDimensionName: 'checkpoint',
+          ySliderValues: ['landscape', 'portrait'],
+          currentYSliderValue: 'landscape',
+          yDimensionName: 'prompt_name',
+        },
+      })
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="lightbox-x-slider-bar"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="lightbox-y-slider-bar"]').exists()).toBe(true)
+    })
+  })
 })

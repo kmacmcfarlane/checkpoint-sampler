@@ -274,7 +274,7 @@ stories:
   - id: S-132
     title: "X/Y axis sliders rework — bottom/right positioning, dimension mappings, lightbox sync"
     type: feature
-    status: todo
+    status: uat
     priority: 60
     complexity: high
     requires: []

@@ -18,6 +18,7 @@ import DimensionPanel from './components/DimensionPanel.vue'
 import XYGrid from './components/XYGrid.vue'
 import type { ImageClickContext, GridNavItem } from './components/types'
 import MasterSlider from './components/MasterSlider.vue'
+import AnimationControls from './components/AnimationControls.vue'
 import ZoomControl from './components/ZoomControl.vue'
 import FiltersDrawer from './components/FiltersDrawer.vue'
 import PresetSelector from './components/PresetSelector.vue'
@@ -961,14 +962,13 @@ async function handleSlideoutValidate() {
             data-testid="filters-button"
             @click="toggleFiltersDrawer"
           >Filters</NButton>
-          <div v-if="sliderDimension" class="header-master-slider">
-            <MasterSlider
-              :values="sliderDimension.values"
-              :current-value="defaultSliderValue"
-              :dimension-name="sliderDimension.name"
-              @change="onMasterSliderChange"
-            />
-          </div>
+          <AnimationControls
+            v-if="sliderDimension"
+            :values="sliderDimension.values"
+            :current-value="defaultSliderValue"
+            :dimension-name="sliderDimension.name"
+            @change="onMasterSliderChange"
+          />
         </div>
         <div class="header-controls">
           <ZoomControl
@@ -1105,9 +1105,17 @@ async function handleSlideoutValidate() {
         :grid-column-count="lightboxContext?.gridColumnCount ?? 0"
         :debug-mode="debugMode"
         :debug-info="lightboxContext?.debugInfo"
+        :x-slider-values="xDimension?.values ?? []"
+        :current-x-slider-value="currentXSliderValue"
+        :x-dimension-name="xDimension?.name ?? ''"
+        :y-slider-values="yDimension?.values ?? []"
+        :current-y-slider-value="currentYSliderValue"
+        :y-dimension-name="yDimension?.name ?? ''"
         @close="onLightboxClose"
         @slider-change="onLightboxSliderChange"
         @navigate="onLightboxNavigate"
+        @x-slider-change="onXSliderChange"
+        @y-slider-change="onYSliderChange"
       />
       <CheckpointMetadataPanel
         v-if="metadataPanelOpen && selectedTrainingRun"
@@ -1285,11 +1293,6 @@ async function handleSlideoutValidate() {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  flex: 1;
-  min-width: 0;
-}
-
-.header-master-slider {
   flex: 1;
   min-width: 0;
 }

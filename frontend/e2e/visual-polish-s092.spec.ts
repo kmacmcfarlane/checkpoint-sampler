@@ -37,16 +37,15 @@ test.describe('S-092: visual polish', () => {
   })
 
   // AC2: Slider animation play button shows a triangle icon (SVG) instead of text "Play"
+  // (S-132: Animation controls replaced the master slider in the header)
   test('play button shows SVG icon instead of text', async ({ page }) => {
     await setupSlider(page)
 
-    const masterSlider = page.locator('[aria-label="Master prompt_name slider"]')
-    await expect(masterSlider).toBeVisible()
+    const animationControls = page.locator('[data-testid="animation-controls"]')
+    await expect(animationControls).toBeVisible()
 
     // AC: Play button exists (identified by aria-label, not text content).
-    // Scoped to the masterSlider group to avoid strict-mode violation when the X slider
-    // bar (S-130) also renders a MasterSlider with its own Play button on the same page.
-    const playButton = masterSlider.getByRole('button', { name: 'Play playback' })
+    const playButton = animationControls.getByRole('button', { name: 'Play playback' })
     await expect(playButton).toBeVisible()
 
     // AC2: The button should contain an SVG (icon), not plain text "Play"
@@ -56,27 +55,27 @@ test.describe('S-092: visual polish', () => {
   })
 
   // AC3: Play icon changes to a pause icon when animation is active
+  // (S-132: Animation controls replaced the master slider in the header)
   test('play icon changes to pause icon when playback starts', async ({ page }) => {
     await setupSlider(page)
 
-    const masterSlider = page.locator('[aria-label="Master prompt_name slider"]')
-    await expect(masterSlider).toBeVisible()
+    const animationControls = page.locator('[data-testid="animation-controls"]')
+    await expect(animationControls).toBeVisible()
 
     // Initially shows Play button (aria-label = 'Play playback').
-    // Scoped to the masterSlider group (S-130: X slider bar adds a second MasterSlider).
-    const playButton = masterSlider.getByRole('button', { name: 'Play playback' })
+    const playButton = animationControls.getByRole('button', { name: 'Play playback' })
     await expect(playButton).toBeVisible()
 
     // Start playback
     await playButton.click()
 
     // AC3: Play icon changes to pause icon (aria-label = 'Pause playback')
-    const pauseButton = masterSlider.getByRole('button', { name: 'Pause playback' })
+    const pauseButton = animationControls.getByRole('button', { name: 'Pause playback' })
     await expect(pauseButton).toBeVisible()
 
     // Stop playback — icon reverts back to play
     await pauseButton.click()
-    await expect(masterSlider.getByRole('button', { name: 'Play playback' })).toBeVisible()
+    await expect(animationControls.getByRole('button', { name: 'Play playback' })).toBeVisible()
   })
 
   // AC4: Sample set selector has a refresh icon button to manually reload the list
