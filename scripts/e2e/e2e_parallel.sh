@@ -205,11 +205,44 @@ else
   echo "  No blob reports found — skipping merge"
 fi
 
-# --- Summary ---
+# --- Phase 5.5: Generate machine-readable summary ---
 ELAPSED=$(( SECONDS - START_TIME ))
 MINS=$(( ELAPSED / 60 ))
 SECS=$(( ELAPSED % 60 ))
 
+generate_summary() {
+  local total_passed=0 total_failed=0 total_skipped=0
+  for i in $(seq 1 "$SHARDS"); do
+    local log="$E2E_DIR/logs/shard-${i}-playwright.log"
+    if [ -f "$log" ]; then
+      local passed failed skipped
+      passed=$(grep -oP '\d+(?= passed)' "$log" | tail -1)
+      failed=$(grep -oP '\d+(?= failed)' "$log" | tail -1)
+      skipped=$(grep -oP '\d+(?= skipped)' "$log" | tail -1)
+      total_passed=$((total_passed + ${passed:-0}))
+      total_failed=$((total_failed + ${failed:-0}))
+      total_skipped=$((total_skipped + ${skipped:-0}))
+    fi
+  done
+  local total=$((total_passed + total_failed + total_skipped))
+  local result="passed"
+  [ "$FAIL" -ne 0 ] && result="failed"
+
+  cat > "$E2E_DIR/summary.txt" <<EOF
+passed=$total_passed
+failed=$total_failed
+skipped=$total_skipped
+total=$total
+duration=${MINS}m${SECS}s
+shards=$SHARDS
+result=$result
+EOF
+  echo "E2E SUMMARY: $total_passed passed, $total_failed failed, $total_skipped skipped ($SHARDS shards, ${MINS}m${SECS}s)"
+}
+
+generate_summary
+
+# --- Summary banner ---
 echo ""
 if [ "$FAIL" -eq 0 ]; then
   echo "=== ALL $SHARDS SHARDS PASSED in ${MINS}m${SECS}s ==="
@@ -231,5 +264,10 @@ else
     fi
   done
 fi
+
+# --- Phase 6: Runtime error sweep ---
+echo ""
+echo "=== Phase 6: Runtime error sweep ==="
+"$SCRIPT_DIR/e2e_sweep.sh" "$E2E_DIR/logs"
 
 exit $FAIL

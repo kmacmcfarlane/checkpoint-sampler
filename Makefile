@@ -1,4 +1,4 @@
-.PHONY: claude claude-resume claude-dangerous ralph ralph-resume ralph-auto ralph-auto-resume capture-runtime-context up down logs up-dev down-dev logs-dev gen test-frontend test-frontend-watch test-backend test-backend-watch lint-nginx up-test down-test build-playwright test-e2e test-e2e-serial test-e2e-live test-e2e-live-run test-e2e-live-down test-e2e-logs down-e2e check-e2e-panics lint-e2e-helpers lint-disallowed-chars logs-snapshot check-tools
+.PHONY: claude claude-resume claude-dangerous ralph ralph-resume ralph-auto ralph-auto-resume capture-runtime-context up down logs up-dev down-dev logs-dev gen test-frontend test-frontend-watch test-backend test-backend-watch lint-nginx up-test down-test build-playwright test-e2e test-e2e-serial test-e2e-live test-e2e-live-run test-e2e-live-down test-e2e-logs down-e2e check-e2e-panics e2e-sweep lint-e2e-helpers lint-disallowed-chars logs-snapshot check-tools
 
 COMPOSE_DEV = docker compose -p checkpoint-sampler-dev -f docker-compose.yml -f docker-compose.dev.yml
 COMPOSE_TEST = docker compose -p checkpoint-sampler-test -f docker-compose.test.yml
@@ -165,6 +165,11 @@ test-e2e-logs:
 	$(COMPOSE_TEST) logs --no-color backend > $(E2E_LOG_DIR)/backend.log 2>&1
 	$(COMPOSE_TEST) logs --no-color frontend > $(E2E_LOG_DIR)/frontend.log 2>&1
 	@echo "E2E logs saved to $(E2E_LOG_DIR)/"
+
+# Run the E2E runtime error sweep standalone against existing shard logs.
+# Override log directory: make e2e-sweep LOG_DIR=.e2e/logs
+e2e-sweep:
+	./scripts/e2e/e2e_sweep.sh $(or $(LOG_DIR),.e2e/logs)
 
 down-e2e:
 	$(COMPOSE_TEST) down -v

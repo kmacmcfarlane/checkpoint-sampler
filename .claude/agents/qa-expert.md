@@ -61,6 +61,10 @@ E2E tests are the standard verification method for story acceptance. Run the Pla
 - A passing E2E run satisfies the smoke test requirement — it confirms the application starts and serves requests end-to-end.
 - Record the number of tests run, passed, and failed in the E2E Test Results section of your verdict.
 
+After `make test-e2e` completes, read `.e2e/summary.txt` for test counts (passed, failed, skipped, total, duration, result).
+Read `.e2e/sweep.txt` for runtime error sweep results (sweep_result, findings).
+These files are machine-readable key=value format — use `cat` to read them directly.
+
 ## Targeted E2E strategy (REQUIRED — minimizes iteration time)
 
 Running the full E2E suite takes ~5 minutes per run. Use this strategy to reduce wall-time during fix-and-rerun cycles:
@@ -109,17 +113,13 @@ Refer to TEST_PRACTICES.md sections 5.5 and 5.6 for the full guidance.
 
 ## Runtime error sweep (REQUIRED, non-blocking)
 
-After E2E tests complete, perform a runtime error sweep per TEST_PRACTICES.md section 5.7. Since `make test-e2e` tears down the stack automatically, capture logs using one of these two options:
-  a. Use `make logs-snapshot` to atomically start the dev stack, capture the last 500 log lines, and
-     tear down. Logs are saved to `.ralph/temp/logs-snapshot/backend.log` and `frontend.log`. This is
-     the preferred method when E2E logs are not available:
-     ```
-     make logs-snapshot
-     ```
-  b. If E2E log output was explicitly captured (e.g., via `make test-e2e 2>&1 | tee`), review that output instead.
-- Filter captured logs for error/fatal level messages
-- Read /agent/QA_ALLOWED_ERRORS.md for the expected error allowlist — filter these out
-- Classify unexpected errors as bug tickets or improvement ideas
+The runtime error sweep runs automatically as part of `make test-e2e`. Results are in `.e2e/sweep.txt`.
+Read the file and include the results in your verdict. If `sweep_result=FINDINGS`, include each finding
+in the "Runtime Error Sweep" section. If `sweep_result=CLEAN`, report CLEAN.
+
+If `.e2e/sweep.txt` does not exist (e.g., running `make test-e2e-serial`), fall back to `make logs-snapshot`
+and manual log scanning per TEST_PRACTICES.md section 5.7.
+
 - Include the sweep results in your verdict under the "Runtime Error Sweep" section
 - IMPORTANT: The sweep does NOT affect the story verdict. If the story's acceptance criteria pass, the story is APPROVED. Sweep findings are reported separately for the orchestrator to process as new bug tickets.
 

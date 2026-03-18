@@ -323,6 +323,15 @@ After completing section 5.5 (E2E smoke test), the QA expert must perform a runt
 
 #### 5.7.1 Procedure
 
+When E2E tests are run via `make test-e2e` (parallel), the sweep runs automatically and results
+are written to `.e2e/sweep.txt`. The QA agent should read this file directly rather than manually
+scanning shard logs.
+
+For `make test-e2e-serial` or `make test-e2e-live-run`, the automated sweep is not available —
+fall back to `make logs-snapshot` and manual log scanning per the procedure below.
+
+**Manual sweep procedure** (when `.e2e/sweep.txt` is not available):
+
 1. Capture logs. Two options:
    a. Use the E2E logs captured automatically by `make test-e2e`. After a run, logs are written to:
       - `.ralph/temp/e2e-logs/backend.log`
@@ -348,6 +357,13 @@ After completing section 5.5 (E2E smoke test), the QA expert must perform a runt
    - **Bug**: An unexpected runtime error that indicates a defect. Report as a new bug ticket.
    - **Improvement**: A non-critical issue suggesting a code improvement (e.g., noisy logging for recoverable conditions). Report as an improvement idea for the appropriate file under `/agent/ideas/`.
 5. Report findings in the QA verdict using the structured format (see qa-expert.md).
+
+**Standalone sweep** (run against existing shard logs without re-running E2E):
+```
+make e2e-sweep
+# or with a custom log directory:
+make e2e-sweep LOG_DIR=.e2e/logs
+```
 
 #### 5.7.2 Bug ticket fields
 
