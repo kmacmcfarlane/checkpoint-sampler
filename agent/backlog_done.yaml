@@ -5298,3 +5298,66 @@ stories:
     testing:
       - "Verify slider position at various viewport sizes. Test visibility toggle when dimension mapping is added/removed.
         Test interaction between X and Y sliders when both visible."
+  - id: R-008
+    title: "Treat orphaned running items as resumable in processNextItem"
+    type: refactor
+    status: done
+    priority: 100
+    complexity: medium
+    requires: []
+    notes: >
+      Root-cause fix for B-103. When processNextItem runs with no item in-flight
+      (activeItemID == ""), any item in running status is orphaned. This happens
+      after stop/resume, server restart, or any crash that leaves an item stuck
+      in running. The fix: after scanning for pending items, fall back to orphaned
+      running items and reset them to pending before reprocessing. This is safe
+      because the activeItemID guard ensures no genuinely in-flight item is affected.
+      See state transition audit in plans/zippy-knitting-allen.md for full analysis.
+    acceptance:
+      - "BE: processNextItem treats orphaned running items as resumable when no item is in-flight (activeItemID == empty)"
+      - "BE: Stop then Resume flow correctly reprocesses the interrupted item instead of completing with errors"
+      - "BE: Server restart with orphaned running items correctly resumes processing"
+      - "BE: Unit tests cover stop/resume and server-restart scenarios with orphaned running items"
+      - "BE: No regression — normal happy-path flow (all items pending to completed) unchanged"
+    testing:
+      - "Unit test: create job with one running item and no activeItemID, call processNextItem, verify item is reset to pending
+        and reprocessed"
+      - "Unit test: simulate stop+resume sequence, verify orphaned running item is picked up on next tick"
+      - "Unit test: simulate server restart (resumeRunningJobs + processNextItem), verify orphaned running item is recovered"
+      - "Unit test: verify genuinely in-flight items (activeItemID set) are not affected"
+  - id: B-113
+    title: "e2e_sweep.sh integer comparison error and summary.txt not reliably written"
+    type: bug
+    priority: 50
+    status: done
+    complexity: low
+    requires: []
+    acceptance:
+      - "Running make e2e-sweep after a full test run produces a valid sweep.txt file with correct shard count"
+      - "make test-e2e always produces .e2e/summary.txt and .e2e/sweep.txt even when Phase 5 produces non-zero stderr"
+    testing:
+      - "command: make test-e2e && cat .e2e/summary.txt && cat .e2e/sweep.txt"
+    notes: |
+      The e2e_sweep.sh script has a bash integer comparison bug on line 33 when the shard count
+      variable contains a trailing newline. Additionally, summary.txt/sweep.txt are not reliably
+      written when Phase 5 report merge triggers set -euo pipefail early exit via npm notice stderr.
+      Root cause: SHARDS variable passed to sweep script may have trailing newline or the shard
+      detection regex produces a non-integer. Source: QA sweep during B-098.
+  - id: B-103
+    title: "Stop job shows no activity and stop+restart fails (invalid_state)"
+    type: bug
+    status: done
+    priority: 70
+    complexity: medium
+    requires: []
+    notes: >-
+      Fix deferred to R-008 (treat orphaned running items as resumable). Root cause confirmed: RequestStop leaves in-flight
+      item in running status; on resume processNextItem finds no pending items and immediately completes with errors.
+    acceptance:
+      - "BE: Stop job transitions state correctly and allows restart"
+      - "FE: Stop button shows loading/activity state during operation"
+      - "FE: After stop completes, job can be restarted successfully"
+      - "BE: Unit tests for stop+restart state transitions"
+    testing:
+      - "Test stop on a running job, verify UI shows activity, verify job state after stop, then restart."
+      - "The invalid_state error suggests the job state isn't being updated correctly on stop."

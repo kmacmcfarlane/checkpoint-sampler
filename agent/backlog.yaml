@@ -190,7 +190,7 @@ stories:
   - id: B-098
     title: Training run selector truncates long names (needs multi-line wrap)
     type: bug
-    status: uat
+    status: uat_feedback
     priority: 85
     complexity: low
     requires: []
@@ -206,28 +206,14 @@ stories:
       - "FE: Unit tests for long name rendering"
     testing:
       - "Test with realistic long training run names. Verify both the selected value display and the dropdown options."
-  - id: B-103
-    title: "Stop job shows no activity and stop+restart fails (invalid_state)"
-    type: bug
-    status: done
-    priority: 70
-    complexity: medium
-    requires: []
-    notes: >-
-      Fix deferred to R-008 (treat orphaned running items as resumable). Root cause confirmed: RequestStop leaves in-flight
-      item in running status; on resume processNextItem finds no pending items and immediately completes with errors.
-    acceptance:
-      - "BE: Stop job transitions state correctly and allows restart"
-      - "FE: Stop button shows loading/activity state during operation"
-      - "FE: After stop completes, job can be restarted successfully"
-      - "BE: Unit tests for stop+restart state transitions"
-    testing:
-      - "Test stop on a running job, verify UI shows activity, verify job state after stop, then restart."
-      - "The invalid_state error suggests the job state isn't being updated correctly on stop."
+    review_feedback: CSS wrapping overcorrected — collapsed selector shows one character per line instead of using 
+      available horizontal space for natural word wrapping. The multi-line approach is correct, but the CSS is forcing 
+      character-level wrapping. Should wrap naturally at word boundaries, fitting in 2-3 lines in collapsed state. 
+      Dropdown options should also show full wrapped names.
   - id: B-107
     title: "Manage Study: Checkpoint Status disappears after regenerate attempt"
     type: bug
-    status: uat
+    status: uat_feedback
     priority: 70
     complexity: medium
     requires: []
@@ -244,38 +230,15 @@ stories:
     testing:
       - "Update a study, trigger regenerate, then open Generate Samples — Checkpoint Status should still be visible."
       - "Test both successful and failed regeneration paths."
-  - id: R-008
-    title: "Treat orphaned running items as resumable in processNextItem"
-    type: refactor
-    status: uat
-    priority: 100
-    complexity: medium
-    requires: []
-    notes: >
-      Root-cause fix for B-103. When processNextItem runs with no item in-flight
-      (activeItemID == ""), any item in running status is orphaned. This happens
-      after stop/resume, server restart, or any crash that leaves an item stuck
-      in running. The fix: after scanning for pending items, fall back to orphaned
-      running items and reset them to pending before reprocessing. This is safe
-      because the activeItemID guard ensures no genuinely in-flight item is affected.
-      See state transition audit in plans/zippy-knitting-allen.md for full analysis.
-    acceptance:
-      - "BE: processNextItem treats orphaned running items as resumable when no item is in-flight (activeItemID == empty)"
-      - "BE: Stop then Resume flow correctly reprocesses the interrupted item instead of completing with errors"
-      - "BE: Server restart with orphaned running items correctly resumes processing"
-      - "BE: Unit tests cover stop/resume and server-restart scenarios with orphaned running items"
-      - "BE: No regression — normal happy-path flow (all items pending to completed) unchanged"
-    testing:
-      - "Unit test: create job with one running item and no activeItemID, call processNextItem, verify item is reset to pending
-        and reprocessed"
-      - "Unit test: simulate stop+resume sequence, verify orphaned running item is picked up on next tick"
-      - "Unit test: simulate server restart (resumeRunningJobs + processNextItem), verify orphaned running item is recovered"
-      - "Unit test: verify genuinely in-flight items (activeItemID set) are not affected"
+    review_feedback: "Regression: regenerate confirmation dialog no longer appears when updating a study with existing samples.
+      Original bug (checkpoint status disappearing) fix suppressed the prompt entirely. This story's scope has been narrowed
+      back to the original bug — ensure checkpoint status remains visible after regenerate attempts. The broader regenerate
+      flow (clear-existing as job param, regenerate confirmation on study update) is split into B-114 and B-115."
   - id: S-132
     title: "X/Y axis sliders rework — bottom/right positioning, dimension mappings, lightbox sync"
     type: feature
-    status: uat
-    priority: 60
+    status: uat_feedback
+    priority: 75
     complexity: high
     requires: []
     notes: |
@@ -311,21 +274,53 @@ stories:
       - "Switching mappings while lightbox is open — sliders update correctly"
       - "Slider sync state after closing/reopening lightbox"
       - "Animation controls render correctly in new top position without regression"
-  - id: B-113
-    title: "e2e_sweep.sh integer comparison error and summary.txt not reliably written"
+    review_feedback: 'Dimension mappings need 4 independent options: X Axis, Y Axis, X Slider, Y Slider. Currently only 3
+      (X Axis, Y Axis, Slider). X Axis and Y Axis currently control both grid axes AND sliders — these must be independently
+      mappable. Grid axes (X Axis, Y Axis) control grid placement only. Sliders (X Slider, Y Slider) control slider position
+      only. Lightbox sync is working correctly — no changes needed there.'
+  - id: B-114
+    title: "Clear-existing samples should be a job param applied at job start, not queue time"
     type: bug
-    priority: 50
-    status: uat
-    complexity: low
+    status: todo
+    priority: 55
+    complexity: medium
     requires: []
+    notes: >
+      The "clear existing samples" behavior should be a job parameter that takes effect
+      when the job first starts running, not when it's queued. On resume after failure,
+      clearing should NOT happen again. Verify the Generate Samples dialog's clear-existing
+      flag follows the same pattern. Source: user UAT feedback on B-107.
     acceptance:
-      - "Running make e2e-sweep after a full test run produces a valid sweep.txt file with correct shard count"
-      - "make test-e2e always produces .e2e/summary.txt and .e2e/sweep.txt even when Phase 5 produces non-zero stderr"
+      - "BE: Clear-existing is stored as a job parameter, not executed at queue time"
+      - "BE: Clearing happens once when the job transitions to running for the first time"
+      - "BE: Resuming a failed job does not re-clear existing samples"
+      - "FE: Generate Samples dialog clear-existing flag uses the same job param behavior"
+      - "BE: Unit tests for clear-at-start vs clear-at-queue and resume scenarios"
     testing:
-      - "command: make test-e2e && cat .e2e/summary.txt && cat .e2e/sweep.txt"
-    notes: |
-      The e2e_sweep.sh script has a bash integer comparison bug on line 33 when the shard count
-      variable contains a trailing newline. Additionally, summary.txt/sweep.txt are not reliably
-      written when Phase 5 report merge triggers set -euo pipefail early exit via npm notice stderr.
-      Root cause: SHARDS variable passed to sweep script may have trailing newline or the shard
-      detection regex produces a non-integer. Source: QA sweep during B-098.
+      - "Edge case: job fails mid-generation, some new samples exist alongside cleared slots. Resume should continue without
+        re-clearing."
+      - "Verify Generate Samples dialog queues jobs with the same clear-existing param behavior."
+  - id: B-115
+    title: "Regenerate confirmation dialog missing on study update"
+    type: bug
+    status: todo
+    priority: 55
+    complexity: medium
+    requires:
+      - B-114
+    notes: >
+      When updating a study that has existing generated samples for checkpoints, a confirmation
+      dialog should appear asking whether to regenerate affected samplesets. "Yes, regenerate"
+      queues jobs with clear-existing flag (using B-114's job param behavior). "No" just updates
+      the study without touching samples. Source: user UAT feedback on B-107.
+    acceptance:
+      - "FE: Updating a study with existing samples shows regenerate confirmation dialog"
+      - "FE: Dialog lists affected samplesets across checkpoints"
+      - "FE: 'Yes, regenerate' queues jobs with clear-existing job param for affected samplesets"
+      - "FE: 'No' updates the study without regenerating or clearing samples"
+      - "BE: Endpoint supports queuing regenerate jobs for affected samplesets on study update"
+      - "FE: Unit tests for dialog appearance, option handling, and job queuing"
+    testing:
+      - "Test with study that has samples across multiple checkpoints — all affected samplesets should appear in dialog."
+      - "Test 'No' path: samples untouched after study update."
+      - "Test 'Yes' path: verify jobs queued with clear-existing param per B-114 behavior."
