@@ -44,6 +44,12 @@ Adding a `/api/test/set-job-status` endpoint would enable E2E tests to verify re
 * source: developer
 `settings-appearance.spec.ts` and `demo-settings.spec.ts` also click the settings button after drawer interactions. They may have the same latent timing issue under parallel shard contention and could benefit from adding `dismissOverlays` calls.
 
+### Document NModal data-testid behavior in TEST_PRACTICES.md
+* status: needs_approval
+* priority: low
+* source: developer
+The `data-testid` set internally on an NModal component (inside the component's template) does NOT appear in the DOM due to Teleport mechanics, but `data-testid` set from outside on a component that has NModal as its root DOES appear (via fallthrough attrs). This counterintuitive behavior should be documented in TEST_PRACTICES.md to prevent future confusion and wasted debugging time.
+
 ### TypeScript template literal scanning in disallowed-chars guard
 * status: needs_approval
 * priority: low
