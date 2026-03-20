@@ -78,7 +78,8 @@ Older entries are condensed to titles only — see git history for full details.
 - Removed inline validate button and results display from TrainingRunSelector; only the dialog-opening validate button in the slideout remains
 
 ### B-098: Training run selector truncates long names (needs multi-line wrap)
-- Override `.n-base-selection-label__render-label` from `position: absolute` to `position: relative` so the NSelect control expands vertically to encapsulate wrapped text (UAT rework)
+- Collapse filter `<input>` to `width: 0` when selector is closed so the render-label overlay gets full flex space for natural word wrapping (UAT rework v2)
+- Added vertical padding to dropdown option items for readability with multi-line names
 
 ### B-097: 21 E2E tests fail expecting 'Sample Set' label and two-dropdown training run selector
 - Aligned E2E test assertions with current UI: "Training Run" label (not "Sample Set"), dialog-scoped `study-select` locators, JSON localStorage format

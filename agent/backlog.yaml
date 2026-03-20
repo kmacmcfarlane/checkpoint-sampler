@@ -190,7 +190,7 @@ stories:
   - id: B-098
     title: Training run selector truncates long names (needs multi-line wrap)
     type: bug
-    status: uat_feedback
+    status: uat
     priority: 85
     complexity: low
     requires: []
@@ -206,10 +206,6 @@ stories:
       - "FE: Unit tests for long name rendering"
     testing:
       - "Test with realistic long training run names. Verify both the selected value display and the dropdown options."
-    review_feedback: CSS wrapping overcorrected — collapsed selector shows one character per line instead of using 
-      available horizontal space for natural word wrapping. The multi-line approach is correct, but the CSS is forcing 
-      character-level wrapping. Should wrap naturally at word boundaries, fitting in 2-3 lines in collapsed state. 
-      Dropdown options should also show full wrapped names.
   - id: B-107
     title: "Manage Study: Checkpoint Status disappears after regenerate attempt"
     type: bug

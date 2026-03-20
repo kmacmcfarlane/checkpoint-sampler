@@ -358,16 +358,26 @@ function onHasSamplesFilterChange(value: boolean) {
 }
 
 /*
- * B-098 UAT rework: Override Naive UI NSelect trigger internals so the closed-state
- * selector grows vertically when the selected name is long, instead of overflowing.
- * These :deep() rules target Naive UI's internal .n-base-selection elements which are
- * outside Vue's scoped CSS scope without the deep selector.
+ * B-098 UAT rework (v2): Override Naive UI NSelect trigger internals so the
+ * closed-state selector grows vertically when the selected name is long.
  *
- * Key insight: for filterable NSelect, the selected label renders inside
- * .n-base-selection-label__render-label which is also .n-base-selection-overlay
- * (position: absolute). An absolutely-positioned child cannot expand its parent,
- * so we must change it to position: relative and let it flow normally. We also
- * remove overflow: hidden from its wrapper so the text can wrap freely.
+ * For filterable single-select, Naive UI renders:
+ *   .n-base-selection-label (inline-flex, height: var(--n-height))
+ *     <input class="n-base-selection-input" />   ← width: 100% in flex
+ *     .n-base-selection-label__render-label      ← position: absolute overlay
+ *       .n-base-selection-overlay__wrapper
+ *         [renderTag output]
+ *
+ * Problem: The label has a fixed height, and the overlay is position: absolute
+ * so it cannot expand the parent. The previous fix made the overlay relative,
+ * but then the input (width: 100%) stole all horizontal space.
+ *
+ * Solution:
+ *   1. Label: height: auto so it can grow vertically.
+ *   2. Input: width: 0 / flex: 0 so it takes no space when collapsed.
+ *   3. Overlay: position: relative so it participates in flex layout and
+ *      its height drives the parent's height.
+ *   4. Overlay wrapper: allow text to wrap naturally.
  */
 .training-run-select :deep(.n-base-selection),
 .study-select :deep(.n-base-selection) {
@@ -375,27 +385,35 @@ function onHasSamplesFilterChange(value: boolean) {
   min-height: var(--n-height);
 }
 
-.training-run-select :deep(.n-base-selection-tags),
-.study-select :deep(.n-base-selection-tags) {
-  flex-wrap: wrap;
-  height: auto !important;
-  min-height: var(--n-height);
-  padding-top: 3px;
-  padding-bottom: 3px;
-}
-
 .training-run-select :deep(.n-base-selection-label),
 .study-select :deep(.n-base-selection-label) {
   height: auto !important;
   min-height: var(--n-height);
-  align-items: flex-start;
-  padding-top: 4px;
-  padding-bottom: 4px;
+  align-items: center;
 }
 
 /*
- * The render-label overlay is position: absolute by default, which means it floats
- * over the parent without contributing to its height. Re-flow it so the parent grows.
+ * Collapse the filter <input> to zero width when the selector is closed
+ * (i.e. not active). Naive UI sets it to width: 100%, which steals all flex
+ * space from the render-label overlay and causes character-per-line wrapping.
+ * We only apply this when the root element does NOT have .n-base-selection--active,
+ * so typing still works normally when the dropdown is open.
+ */
+.training-run-select :deep(.n-base-selection:not(.n-base-selection--active) .n-base-selection-input),
+.study-select :deep(.n-base-selection:not(.n-base-selection--active) .n-base-selection-input) {
+  width: 0 !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  flex: 0 0 0 !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
+
+/*
+ * The render-label overlay is position: absolute by default, which means it
+ * cannot expand the parent. We re-flow it into the flex container so the
+ * parent grows to contain the wrapped text. The padding from the original
+ * --n-padding-single is added here since the absolute overlay had it.
  */
 .training-run-select :deep(.n-base-selection-label__render-label),
 .study-select :deep(.n-base-selection-label__render-label) {
@@ -407,12 +425,35 @@ function onHasSamplesFilterChange(value: boolean) {
   flex: 1;
   min-width: 0;
   overflow: visible !important;
+  padding: 4px 28px 4px 10px; /* right-pad preserves space for the arrow/suffix */
+  pointer-events: auto;
 }
 
 .training-run-select :deep(.n-base-selection-overlay__wrapper),
 .study-select :deep(.n-base-selection-overlay__wrapper) {
+  flex-basis: auto !important;
   overflow: visible !important;
-  white-space: normal;
+  white-space: normal !important;
   word-break: break-word;
+}
+
+/*
+ * B-098: Add vertical spacing between dropdown option items so multi-line
+ * wrapped names are easier to read and visually separated.
+ */
+.training-run-select :deep(.n-base-select-option),
+.study-select :deep(.n-base-select-option) {
+  min-height: calc(var(--n-option-height) + 4px);
+  align-items: flex-start;
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+}
+
+.training-run-select :deep(.n-base-select-option__content),
+.study-select :deep(.n-base-select-option__content) {
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: unset !important;
+  line-height: 1.4;
 }
 </style>
