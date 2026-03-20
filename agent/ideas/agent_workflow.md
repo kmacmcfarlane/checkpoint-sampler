@@ -85,3 +85,9 @@ Add a note to DEVELOPMENT_PRACTICES.md clarifying that Naive UI NSelect uses com
 * priority: medium
 * source: developer
 The E2E gate fails on any failure but has no mechanism to distinguish regressions from known pre-existing failures. Consider adding a `known_failures` list to the E2E test configuration or immediately filing a B- story when a failure is discovered, so carry-forward defects don't block unrelated stories.
+
+### Pre-sweep stability threshold for QA agent
+* status: needs_approval
+* priority: low
+* source: developer
+Before filing E2E failure bugs from a sweep, the QA agent should verify the failure is reproducible with a second targeted run (`make test-e2e SPEC=<file>`). A single-occurrence failure in a high-contention shard environment should not trigger a bug ticket without confirmation.

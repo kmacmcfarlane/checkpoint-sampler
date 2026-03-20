@@ -67,3 +67,9 @@ The `StudyAvailabilityService.StudyHasSamples` method checks `{sampleDir}/{study
 * priority: low
 * source: qa
 The `mkdir -p .ralph/temp/e2e-logs` step in the Makefile test-e2e recipe may execute after teardown or fail silently. Verify the log capture step runs before `docker compose down -v` so logs are always available for the runtime error sweep.
+
+### Automatic E2E baseline tracking per-story
+* status: needs_approval
+* priority: low
+* source: developer
+When the orchestrator commits a story, automatically record the passing E2E count in the commit message in a structured format. This would allow automated detection of stories that introduced new failures vs. pre-existing ones, reducing false-positive bug reports like B-117.
