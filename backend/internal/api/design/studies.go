@@ -105,6 +105,25 @@ var _ = Service("studies", func() {
 		})
 	})
 
+	Method("affected_runs", func() {
+		Description("Get training runs that have generated samples for a specific study. Returns a list of training runs with their checkpoint-level sample details.")
+		Payload(func() {
+			Attribute("id", String, "Study ID", func() {
+				Example("550e8400-e29b-41d4-a716-446655440000")
+			})
+			Required("id")
+		})
+		Result(ArrayOf(AffectedRunResponse))
+		Error("not_found", ErrorResult, "Study not found")
+		Error("internal_error", ErrorResult, "Internal server error")
+		HTTP(func() {
+			GET("/api/studies/{id}/affected-runs")
+			Response(StatusOK)
+			Response("not_found", StatusNotFound)
+			Response("internal_error", StatusInternalServerError)
+		})
+	})
+
 	Method("availability", func() {
 		Description("Get per-study sample availability for a training run. For each study, returns whether it has samples matching the training run's checkpoints.")
 		Payload(func() {
@@ -412,4 +431,18 @@ var StudyAvailabilityResponse = Type("StudyAvailabilityResponse", func() {
 		Example(5)
 	})
 	Required("study_id", "study_name", "has_samples", "sample_status", "checkpoints_with_samples", "total_checkpoints")
+})
+
+var AffectedRunResponse = Type("AffectedRunResponse", func() {
+	Description("A training run that has generated samples for a study")
+	Attribute("training_run_name", String, "Training run name", func() {
+		Example("qwen/psai4rt-v0.3.0-no-reg")
+	})
+	Attribute("checkpoints_with_samples", Int, "Number of checkpoints with sample directories", func() {
+		Example(3)
+	})
+	Attribute("total_checkpoints", Int, "Total number of checkpoints in the training run", func() {
+		Example(5)
+	})
+	Required("training_run_name", "checkpoints_with_samples", "total_checkpoints")
 })

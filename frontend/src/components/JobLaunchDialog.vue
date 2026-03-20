@@ -12,7 +12,7 @@ import {
   NTooltip,
 } from 'naive-ui'
 import type { SelectRenderLabel } from 'naive-ui'
-import type { TrainingRun, Study, StudyAvailability, CreateSampleJobPayload, SampleJob, ValidationResult } from '../api/types'
+import type { AffectedRun, TrainingRun, Study, StudyAvailability, CreateSampleJobPayload, SampleJob, ValidationResult } from '../api/types'
 import { apiClient } from '../api/client'
 import StudyEditor from './StudyEditor.vue'
 import { useGenerateInputsPersistence } from '../composables/useGenerateInputsPersistence'
@@ -909,38 +909,45 @@ async function onStudySaved(study: Study) {
 }
 
 /**
- * B-106: Handle in-place study regeneration. After the study has been updated,
- * create a sample job with clear_existing=true for the currently selected
- * training run. If no training run is selected, just close the editor and
- * let the user select one.
+ * B-115: Handle in-place study regeneration. The StudyEditor now provides
+ * the list of affected training runs (those with existing samples for this study).
+ * Creates a regeneration job with clear_existing=true for each affected run.
+ * If no affected runs are provided, falls back to the currently selected training run.
  */
-async function onStudyRegenerate(study: Study) {
+async function onStudyRegenerate(study: Study, affectedRuns: AffectedRun[]) {
   await fetchStudies()
   selectedStudy.value = study.id
   studyEditorOpen.value = false
 
-  // If a training run is selected, auto-submit a regeneration job
-  if (selectedTrainingRun.value) {
-    loading.value = true
-    error.value = null
-    try {
+  // Determine which training run names need regeneration jobs
+  const runNames = affectedRuns.length > 0
+    ? affectedRuns.map(r => r.training_run_name)
+    : selectedTrainingRun.value ? [selectedTrainingRun.value.name] : []
+
+  if (runNames.length === 0) return
+
+  loading.value = true
+  error.value = null
+  try {
+    // Create a regeneration job for each affected training run
+    for (const runName of runNames) {
       const payload: CreateSampleJobPayload = {
-        training_run_name: selectedTrainingRun.value.name,
+        training_run_name: runName,
         study_id: study.id,
         clear_existing: true,
       }
       await apiClient.createSampleJob(payload)
-      emit('success')
-      close()
-    } catch (err: unknown) {
-      const message =
-        err && typeof err === 'object' && 'message' in err
-          ? String((err as { message: string }).message)
-          : 'Failed to create regeneration job'
-      error.value = message
-    } finally {
-      loading.value = false
     }
+    emit('success')
+    close()
+  } catch (err: unknown) {
+    const message =
+      err && typeof err === 'object' && 'message' in err
+        ? String((err as { message: string }).message)
+        : 'Failed to create regeneration job'
+    error.value = message
+  } finally {
+    loading.value = false
   }
 }
 

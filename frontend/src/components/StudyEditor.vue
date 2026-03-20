@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, h } from 'vue'
 import { NInput, NInputNumber, NSelect, NButton, NDynamicInput, NDynamicTags, NTag, NCard, NSpace, NAlert, NModal } from 'naive-ui'
-import type { Study, NamedPrompt, SamplerSchedulerPair, CreateStudyPayload, UpdateStudyPayload, ForkStudyPayload, WorkflowSummary } from '../api/types'
+import type { Study, NamedPrompt, SamplerSchedulerPair, CreateStudyPayload, UpdateStudyPayload, ForkStudyPayload, WorkflowSummary, AffectedRun } from '../api/types'
 import { apiClient } from '../api/client'
 import { validateStudyImport } from './studyImportValidation'
 import ConfirmDeleteDialog from './ConfirmDeleteDialog.vue'
@@ -94,12 +94,12 @@ const props = withDefaults(defineProps<{
 
 // study-saved: Emitted after a study is created or updated. Payload: the saved Study.
 // study-deleted: Emitted after a study is deleted. Payload: the deleted study's ID (string).
-// study-regenerate: Emitted after an in-place update (regenerate) succeeds. Payload: the updated Study.
-//   Signals that the caller should create regeneration jobs for all sample sets using this study.
+// study-regenerate: Emitted after user confirms regeneration of affected samplesets.
+//   Payload: the updated Study and the list of affected training runs that need regeneration jobs.
 const emit = defineEmits<{
   'study-saved': [study: Study]
   'study-deleted': [studyId: string]
-  'study-regenerate': [study: Study]
+  'study-regenerate': [study: Study, affectedRuns: AffectedRun[]]
 }>()
 
 const studies = ref<Study[]>([])
@@ -132,6 +132,12 @@ function extractDisallowedCharsFromMessage(message: string): string | null {
 
 // Immutability dialog: shown when user edits a study that has generated samples
 const showImmutabilityDialog = ref(false)
+
+// Regenerate confirmation dialog: shown after study is saved in-place to confirm
+// regeneration of affected samplesets across training runs.
+const showRegenConfirmDialog = ref(false)
+const regenAffectedRuns = ref<AffectedRun[]>([])
+const regenStudySnapshot = ref<Study | null>(null)
 
 // Delete confirmation dialog
 const showDeleteDialog = ref(false)
@@ -734,20 +740,49 @@ async function forkStudy() {
   }
 }
 
-/** Re-generate: update the study in-place, then signal that regeneration jobs are needed. */
+/** Re-generate: update the study in-place, then show a confirmation dialog
+ *  listing affected samplesets across training runs before queuing regeneration jobs. */
 async function regenStudy() {
   showImmutabilityDialog.value = false
   await performSave()
 
-  // After a successful save, emit study-regenerate so the parent can create
-  // regeneration jobs with clear_existing for all sample sets using this study.
-  // performSave sets error.value on failure, so only emit when save succeeded.
+  // After a successful save, fetch affected runs and show the regenerate confirmation dialog.
+  // performSave sets error.value on failure, so only proceed when save succeeded.
   if (!error.value && selectedStudyId.value) {
     const saved = studies.value.find(s => s.id === selectedStudyId.value)
     if (saved) {
-      emit('study-regenerate', saved)
+      try {
+        const runs = await apiClient.getAffectedRuns(saved.id)
+        if (runs.length > 0) {
+          regenAffectedRuns.value = runs
+          regenStudySnapshot.value = saved
+          showRegenConfirmDialog.value = true
+        }
+        // If no affected runs, the study was saved but there are no samples to regenerate
+      } catch {
+        // If the affected runs check fails, still emit so the parent can handle it
+        // with the currently selected training run as a fallback.
+        emit('study-regenerate', saved, [])
+      }
     }
   }
+}
+
+/** User confirmed regeneration of affected samplesets. */
+function confirmRegenerate() {
+  showRegenConfirmDialog.value = false
+  if (regenStudySnapshot.value) {
+    emit('study-regenerate', regenStudySnapshot.value, regenAffectedRuns.value)
+  }
+  regenStudySnapshot.value = null
+  regenAffectedRuns.value = []
+}
+
+/** User declined regeneration — study is already saved, just close the dialog. */
+function declineRegenerate() {
+  showRegenConfirmDialog.value = false
+  regenStudySnapshot.value = null
+  regenAffectedRuns.value = []
 }
 
 function cancelImmutabilityDialog() {
@@ -1341,6 +1376,44 @@ function renderSeedTag(tag: string, index: number) {
           @click="cancelImmutabilityDialog"
         >
           Cancel
+        </NButton>
+      </NSpace>
+    </NModal>
+
+    <!-- Regenerate confirmation dialog: shown after in-place update to confirm
+         regeneration of affected samplesets across training runs. -->
+    <NModal
+      v-model:show="showRegenConfirmDialog"
+      preset="dialog"
+      title="Regenerate Affected Samplesets?"
+      :closable="true"
+      data-testid="regen-affected-dialog"
+    >
+      <p data-testid="regen-affected-description">
+        The study has been updated. The following training runs have existing samples
+        generated with this study that will need to be regenerated:
+      </p>
+      <ul data-testid="regen-affected-list" style="margin: 0.75rem 0; padding-left: 1.5rem;">
+        <li v-for="run in regenAffectedRuns" :key="run.training_run_name" data-testid="regen-affected-item">
+          <strong>{{ run.training_run_name }}</strong>
+          — {{ run.checkpoints_with_samples }}/{{ run.total_checkpoints }} checkpoints with samples
+        </li>
+      </ul>
+      <NSpace vertical :size="12" style="margin-top: 1rem;">
+        <NButton
+          type="warning"
+          block
+          data-testid="regen-affected-confirm-button"
+          @click="confirmRegenerate"
+        >
+          Yes, regenerate
+        </NButton>
+        <NButton
+          block
+          data-testid="regen-affected-decline-button"
+          @click="declineRegenerate"
+        >
+          No
         </NButton>
       </NSpace>
     </NModal>

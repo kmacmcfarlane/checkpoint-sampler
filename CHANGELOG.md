@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-115: Regenerate confirmation dialog missing on study update
+- New `GET /api/studies/{id}/affected-runs` endpoint returns training runs with samples for a study
+- Study update now shows a confirmation dialog listing affected training runs before queuing regeneration jobs with `clear_existing: true`
+
 ### B-114: Clear-existing samples should be a job param applied at job start, not queue time
 - `clear_existing` is now stored as a persistent job parameter and executed once when the job first transitions to `running`, not at queue time
 - Resuming a stopped/failed job no longer re-clears existing sample directories

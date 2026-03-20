@@ -291,7 +291,7 @@ stories:
   - id: B-115
     title: "Regenerate confirmation dialog missing on study update"
     type: bug
-    status: todo
+    status: uat
     priority: 55
     complexity: medium
     requires:
@@ -329,3 +329,85 @@ stories:
       Error: expect(found).toBe(false) — Expected: false, Received: true (job still returned by GET /api/sample-jobs after confirmation dialog closed).
       Root cause hypothesis: The confirmation dialog closes after the delete request is dispatched but the test's immediate request.get('/api/sample-jobs') check races against the in-flight DELETE HTTP request.
       Source: QA E2E run during B-114 verification.
+  - id: B-117
+    title: "E2E: study-versioning spec returns HTTP 400 on PUT /api/studies"
+    type: bug
+    status: todo
+    priority: 65
+    complexity: low
+    requires: []
+    acceptance:
+      - "PUT /api/studies/{id} returns 200 when updating steps with a valid payload"
+      - "The study-versioning E2E spec passes reliably"
+    testing:
+      - "command: make test-e2e-serial SPEC=study-versioning.spec.ts"
+    notes: |
+      E2E test study-versioning.spec.ts:89 fails with Expected: 200, Received: 400 on PUT.
+      Root cause hypothesis: The study update payload is missing required fields (sampler_scheduler_pairs,
+      workflow_template, etc.) or the backend validation logic changed and the test was not updated.
+      Source: QA E2E sweep during B-115.
+  - id: B-118
+    title: "E2E: job-delete spec fails to find delete button by data-testid"
+    type: bug
+    status: todo
+    priority: 65
+    complexity: low
+    requires: []
+    acceptance:
+      - "Job delete button is consistently locatable after the job list loads"
+      - "The job-delete E2E spec passes reliably across shards"
+    testing:
+      - "command: make test-e2e-serial SPEC=job-delete.spec.ts"
+    notes: |
+      E2E test job-delete.spec.ts:172 fails with element not found for data-testid with hardcoded UUID.
+      Root cause hypothesis: The job delete button data-testid uses a hardcoded UUID that does not match
+      the seeded job ID, or the job panel is not rendering within the timeout.
+      Source: QA E2E sweep during B-115.
+  - id: B-119
+    title: "E2E: debug-mode spec fails to find images in xy-grid for lightbox tests"
+    type: bug
+    status: todo
+    priority: 65
+    complexity: low
+    requires: []
+    acceptance:
+      - "Debug mode lightbox overlay tests pass reliably"
+      - "XY grid selectors in debug-mode.spec.ts match current component structure"
+    testing:
+      - "command: make test-e2e-serial SPEC=debug-mode.spec.ts"
+    notes: |
+      E2E test debug-mode.spec.ts:274 fails with selector '.xy-grid [role="gridcell"] img' not found.
+      Root cause hypothesis: The grid selector no longer matches the current DOM structure after S-132
+      XY axis sliders rework. Source: QA E2E sweep during B-115.
+  - id: B-120
+    title: "E2E: Multiple specs fail with Naive UI select popup timeout"
+    type: bug
+    status: todo
+    priority: 60
+    complexity: low
+    requires: []
+    acceptance:
+      - "Select dropdown helpers are reliable under parallel shard load"
+      - "regen-confirmation, checkpoint-default-selection, and study-name-validation E2E specs pass reliably"
+    testing:
+      - "command: make test-e2e-serial SPEC=regen-confirmation.spec.ts"
+    notes: |
+      Multiple specs timeout waiting for Naive UI select dropdown popup to render. Affects
+      regen-confirmation, checkpoint-default-selection, study-name-validation specs.
+      Root cause hypothesis: Race condition under parallel shard load or dropdown options not
+      seeded/loaded in time. Source: QA E2E sweep during B-115.
+  - id: B-121
+    title: "E2E: lightbox Y-axis keyboard navigation tests fail intermittently"
+    type: bug
+    status: todo
+    priority: 65
+    complexity: low
+    requires: []
+    acceptance:
+      - "Lightbox Y-axis keyboard navigation (Shift+Up/Down) tests pass reliably"
+    testing:
+      - "command: make test-e2e-serial SPEC=lightbox.spec.ts"
+    notes: |
+      E2E test lightbox.spec.ts:400 times out on Shift+ArrowDown navigation. Appears in 4+ failure
+      entries suggesting consistent failure, not random flakiness. Possibly related to S-132 XY axis
+      sliders rework. Source: QA E2E sweep during B-115.

@@ -1,4 +1,4 @@
-import type { ApiError, ApiErrorResponse, CheckpointMetadata, ComfyUIModelType, ComfyUIModels, ComfyUIStatus, CreateSampleJobPayload, CreateStudyPayload, DemoStatus, ForkStudyPayload, HasSamplesResponse, HealthStatus, ImageMetadata, Preset, PresetMapping, SampleJob, SampleJobDetail, Study, StudyAvailability, ScanResult, TrainingRun, UpdateStudyPayload, ValidationResult, WorkflowSummary } from './types'
+import type { AffectedRun, ApiError, ApiErrorResponse, CheckpointMetadata, ComfyUIModelType, ComfyUIModels, ComfyUIStatus, CreateSampleJobPayload, CreateStudyPayload, DemoStatus, ForkStudyPayload, HasSamplesResponse, HealthStatus, ImageMetadata, Preset, PresetMapping, SampleJob, SampleJobDetail, Study, StudyAvailability, ScanResult, TrainingRun, UpdateStudyPayload, ValidationResult, WorkflowSummary } from './types'
 
 const DEFAULT_BASE_URL = '/api'
 
@@ -208,6 +208,11 @@ export class ApiClient {
   /** GET /api/studies/{id}/has-samples — check if a study has generated samples. */
   async studyHasSamples(id: string): Promise<HasSamplesResponse> {
     return this.request<HasSamplesResponse>(`/studies/${id}/has-samples`)
+  }
+
+  /** GET /api/studies/{id}/affected-runs — get training runs with samples for this study. */
+  async getAffectedRuns(studyId: string): Promise<AffectedRun[]> {
+    return this.request<AffectedRun[]>(`/studies/${studyId}/affected-runs`)
   }
 
   /** GET /api/studies/availability?training_run_id={id} — get per-study sample availability for a training run. */

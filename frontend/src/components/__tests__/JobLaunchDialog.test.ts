@@ -4150,7 +4150,7 @@ describe('JobLaunchDialog', () => {
       // Emit study-regenerate from the editor
       const editor = wrapper.findComponent(StudyEditor)
       expect(editor.exists()).toBe(true)
-      await editor.vm.$emit('study-regenerate', sampleStudies[0])
+      await editor.vm.$emit('study-regenerate', sampleStudies[0], [{ training_run_name: runEmpty.name, checkpoints_with_samples: 2, total_checkpoints: 5 }])
       await flushPromises()
 
       // AC1: Job created with clear_existing=true
@@ -4191,7 +4191,7 @@ describe('JobLaunchDialog', () => {
       await flushPromises()
 
       const editor = wrapper.findComponent(StudyEditor)
-      await editor.vm.$emit('study-regenerate', sampleStudies[0])
+      await editor.vm.$emit('study-regenerate', sampleStudies[0], [{ training_run_name: runEmpty.name, checkpoints_with_samples: 2, total_checkpoints: 5 }])
       await flushPromises()
 
       // Error should be displayed
@@ -4200,8 +4200,8 @@ describe('JobLaunchDialog', () => {
       expect(wrapper.emitted('success')).toBeUndefined()
     })
 
-    // B-106: No job is created when no training run is selected
-    it('does not create a job when no training run is selected', async () => {
+    // B-115: No job is created when no affected runs and no training run is selected
+    it('does not create a job when no affected runs and no training run is selected', async () => {
       mockListStudies
         .mockResolvedValueOnce(sampleStudies)
         .mockResolvedValueOnce(sampleStudies)
@@ -4215,17 +4215,74 @@ describe('JobLaunchDialog', () => {
 
       // Do NOT select a training run
 
-      // Open editor and emit study-regenerate
+      // Open editor and emit study-regenerate with empty affected runs
       const manageBtn = wrapper.findAllComponents(NButton).find(b => b.text().includes('Manage Studies'))
       await manageBtn!.trigger('click')
       await flushPromises()
 
       const editor = wrapper.findComponent(StudyEditor)
-      await editor.vm.$emit('study-regenerate', sampleStudies[0])
+      await editor.vm.$emit('study-regenerate', sampleStudies[0], [])
       await flushPromises()
 
-      // No job creation attempted
+      // No job creation attempted (no affected runs, no selected training run)
       expect(mockCreateSampleJob).not.toHaveBeenCalled()
+    })
+
+    // B-115: Creates jobs for multiple affected runs
+    it('creates jobs for all affected runs in the list', async () => {
+      const mockJob: SampleJob = {
+        id: 'regen-job-multi',
+        training_run_name: runEmpty.name,
+        study_id: 'preset-1',
+        study_name: 'Quick Test',
+        workflow_name: 'qwen-image.json',
+        vae: 'ae.safetensors',
+        clip: 'clip_l.safetensors',
+        status: 'pending',
+        total_items: 10,
+        completed_items: 0,
+        failed_items: 0,
+        pending_items: 10,
+        checkpoint_filenames: [],
+        created_at: '2025-01-01T00:00:00Z',
+        updated_at: '2025-01-01T00:00:00Z',
+      }
+      mockCreateSampleJob.mockResolvedValue(mockJob)
+      mockListStudies
+        .mockResolvedValueOnce(sampleStudies)
+        .mockResolvedValueOnce(sampleStudies)
+        .mockResolvedValueOnce(sampleStudies)
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Open editor and emit study-regenerate with multiple affected runs
+      const manageBtn = wrapper.findAllComponents(NButton).find(b => b.text().includes('Manage Studies'))
+      await manageBtn!.trigger('click')
+      await flushPromises()
+
+      const editor = wrapper.findComponent(StudyEditor)
+      await editor.vm.$emit('study-regenerate', sampleStudies[0], [
+        { training_run_name: 'run-alpha', checkpoints_with_samples: 3, total_checkpoints: 5 },
+        { training_run_name: 'run-beta', checkpoints_with_samples: 2, total_checkpoints: 4 },
+      ])
+      await flushPromises()
+
+      // AC (B-115): Jobs created for each affected run with clear_existing
+      expect(mockCreateSampleJob).toHaveBeenCalledTimes(2)
+      expect(mockCreateSampleJob).toHaveBeenCalledWith(expect.objectContaining({
+        training_run_name: 'run-alpha',
+        study_id: 'preset-1',
+        clear_existing: true,
+      }))
+      expect(mockCreateSampleJob).toHaveBeenCalledWith(expect.objectContaining({
+        training_run_name: 'run-beta',
+        study_id: 'preset-1',
+        clear_existing: true,
+      }))
     })
   })
 
@@ -4264,7 +4321,7 @@ describe('JobLaunchDialog', () => {
       await flushPromises()
 
       const editor = wrapper.findComponent(StudyEditor)
-      await editor.vm.$emit('study-regenerate', sampleStudies[0])
+      await editor.vm.$emit('study-regenerate', sampleStudies[0], [{ training_run_name: runEmpty.name, checkpoints_with_samples: 2, total_checkpoints: 5 }])
       await flushPromises()
 
       // AC: Error is shown but Checkpoint Status is still visible
@@ -4320,7 +4377,7 @@ describe('JobLaunchDialog', () => {
       await flushPromises()
 
       const editor = wrapper.findComponent(StudyEditor)
-      await editor.vm.$emit('study-regenerate', sampleStudies[0])
+      await editor.vm.$emit('study-regenerate', sampleStudies[0], [{ training_run_name: runEmpty.name, checkpoints_with_samples: 2, total_checkpoints: 5 }])
       await flushPromises()
 
       // Dialog should have emitted close (via update:show=false)
@@ -4388,7 +4445,7 @@ describe('JobLaunchDialog', () => {
       await flushPromises()
 
       const editor = wrapper.findComponent(StudyEditor)
-      await editor.vm.$emit('study-regenerate', sampleStudies[0])
+      await editor.vm.$emit('study-regenerate', sampleStudies[0], [{ training_run_name: runEmpty.name, checkpoints_with_samples: 2, total_checkpoints: 5 }])
       await flushPromises()
 
       // AC: After close()+resetForm(), persisted study and training run should NOT be cleared
@@ -4547,7 +4604,7 @@ describe('JobLaunchDialog', () => {
       await flushPromises()
 
       const editor = wrapper.findComponent(StudyEditor)
-      await editor.vm.$emit('study-regenerate', sampleStudies[0])
+      await editor.vm.$emit('study-regenerate', sampleStudies[0], [{ training_run_name: runEmpty.name, checkpoints_with_samples: 2, total_checkpoints: 5 }])
       await flushPromises()
 
       // AC: Validation results content is preserved (same number of checkpoint rows)

@@ -297,4 +297,127 @@ var _ = Describe("StudiesService", func() {
 			Expect(result).To(BeEmpty())
 		})
 	})
+
+	Describe("AffectedRuns", func() {
+		var (
+			affectedStore   *fakeStudyStoreAPI
+			affectedFS      *fakeAvailabilityFSAPI
+			affectedDisc    *fakeDiscoverer
+			affectedStudies *api.StudiesService
+		)
+
+		BeforeEach(func() {
+			affectedStore = newFakeStudyStoreAPI()
+			affectedFS = newFakeAvailabilityFSAPI()
+			affectedDisc = &fakeDiscoverer{}
+			sampleChecker := &fakeSampleCheckerAPI{}
+			studySvc := service.NewStudyService(affectedStore, sampleChecker, logger)
+			availabilitySvc := service.NewStudyAvailabilityService(affectedFS, "/samples", logger)
+			affectedStudies = api.NewStudiesService(studySvc, availabilitySvc, affectedDisc)
+		})
+
+		It("returns training runs that have samples for the study", func() {
+			affectedStore.studies["s1"] = model.Study{ID: "s1", Name: "MyStudy"}
+
+			affectedDisc.runs = []model.TrainingRun{
+				{
+					Name:        "run-alpha",
+					Checkpoints: []model.Checkpoint{{Filename: "cp1.safetensors"}, {Filename: "cp2.safetensors"}},
+				},
+				{
+					Name:        "run-beta",
+					Checkpoints: []model.Checkpoint{{Filename: "cp3.safetensors"}},
+				},
+			}
+			// run-alpha has samples for MyStudy at cp1 only
+			affectedFS.subdirs["/samples/run-alpha/MyStudy"] = []string{"cp1.safetensors"}
+			// run-beta has no samples for MyStudy
+			affectedFS.subdirs["/samples/run-beta/MyStudy"] = []string{}
+
+			result, err := affectedStudies.AffectedRuns(ctx, &genstudies.AffectedRunsPayload{ID: "s1"})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result).To(HaveLen(1))
+			Expect(result[0].TrainingRunName).To(Equal("run-alpha"))
+			Expect(result[0].CheckpointsWithSamples).To(Equal(1))
+			Expect(result[0].TotalCheckpoints).To(Equal(2))
+		})
+
+		It("returns empty list when no training runs have samples for the study", func() {
+			affectedStore.studies["s1"] = model.Study{ID: "s1", Name: "MyStudy"}
+
+			affectedDisc.runs = []model.TrainingRun{
+				{
+					Name:        "run-alpha",
+					Checkpoints: []model.Checkpoint{{Filename: "cp1.safetensors"}},
+				},
+			}
+			affectedFS.subdirs["/samples/run-alpha/MyStudy"] = []string{}
+
+			result, err := affectedStudies.AffectedRuns(ctx, &genstudies.AffectedRunsPayload{ID: "s1"})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result).To(BeEmpty())
+		})
+
+		It("returns not_found error when study does not exist", func() {
+			_, err := affectedStudies.AffectedRuns(ctx, &genstudies.AffectedRunsPayload{ID: "nonexistent"})
+			Expect(err).To(HaveOccurred())
+
+			serviceErr, ok := err.(errorNamer)
+			Expect(ok).To(BeTrue())
+			Expect(serviceErr.ErrorName()).To(Equal("not_found"))
+		})
+
+		It("returns internal_error when discovery fails", func() {
+			affectedStore.studies["s1"] = model.Study{ID: "s1", Name: "MyStudy"}
+			affectedDisc.err = errors.New("filesystem unavailable")
+
+			_, err := affectedStudies.AffectedRuns(ctx, &genstudies.AffectedRunsPayload{ID: "s1"})
+			Expect(err).To(HaveOccurred())
+
+			serviceErr, ok := err.(errorNamer)
+			Expect(ok).To(BeTrue())
+			Expect(serviceErr.ErrorName()).To(Equal("internal_error"))
+		})
+
+		It("returns multiple affected runs with correct checkpoint counts", func() {
+			affectedStore.studies["s1"] = model.Study{ID: "s1", Name: "MyStudy"}
+
+			affectedDisc.runs = []model.TrainingRun{
+				{
+					Name:        "run-a",
+					Checkpoints: []model.Checkpoint{{Filename: "cp1.safetensors"}, {Filename: "cp2.safetensors"}, {Filename: "cp3.safetensors"}},
+				},
+				{
+					Name:        "run-b",
+					Checkpoints: []model.Checkpoint{{Filename: "cp4.safetensors"}, {Filename: "cp5.safetensors"}},
+				},
+			}
+			// run-a: 2 out of 3 checkpoints have samples
+			affectedFS.subdirs["/samples/run-a/MyStudy"] = []string{"cp1.safetensors", "cp3.safetensors"}
+			// run-b: all checkpoints have samples
+			affectedFS.subdirs["/samples/run-b/MyStudy"] = []string{"cp4.safetensors", "cp5.safetensors"}
+
+			result, err := affectedStudies.AffectedRuns(ctx, &genstudies.AffectedRunsPayload{ID: "s1"})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result).To(HaveLen(2))
+
+			// Sort by name for deterministic assertion
+			var runA, runB *genstudies.AffectedRunResponse
+			for _, r := range result {
+				switch r.TrainingRunName {
+				case "run-a":
+					runA = r
+				case "run-b":
+					runB = r
+				}
+			}
+			Expect(runA).NotTo(BeNil())
+			Expect(runA.CheckpointsWithSamples).To(Equal(2))
+			Expect(runA.TotalCheckpoints).To(Equal(3))
+
+			Expect(runB).NotTo(BeNil())
+			Expect(runB.CheckpointsWithSamples).To(Equal(2))
+			Expect(runB.TotalCheckpoints).To(Equal(2))
+		})
+	})
 })

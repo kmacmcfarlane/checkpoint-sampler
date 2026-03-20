@@ -209,6 +209,49 @@ func (s *StudiesService) Delete(ctx context.Context, p *genstudies.DeletePayload
 	return nil
 }
 
+// AffectedRuns returns training runs that have generated samples for a specific study.
+// For each training run, it reports how many checkpoints have sample directories.
+func (s *StudiesService) AffectedRuns(ctx context.Context, p *genstudies.AffectedRunsPayload) ([]*genstudies.AffectedRunResponse, error) {
+	// Verify the study exists
+	study, err := s.svc.Get(p.ID)
+	if err != nil {
+		if isNotFound(err) {
+			return nil, genstudies.MakeNotFound(err)
+		}
+		return nil, genstudies.MakeInternalError(fmt.Errorf("fetching study: %w", err))
+	}
+
+	// Discover all training runs
+	runs, err := s.discovery.Discover()
+	if err != nil {
+		return nil, genstudies.MakeInternalError(fmt.Errorf("discovering training runs: %w", err))
+	}
+
+	// For each training run, check if this study has samples
+	studies := []model.Study{study}
+	var result []*genstudies.AffectedRunResponse
+
+	for _, tr := range runs {
+		availabilities, err := s.availability.GetAvailability(studies, tr)
+		if err != nil {
+			return nil, genstudies.MakeInternalError(fmt.Errorf("checking availability for run %q: %w", tr.Name, err))
+		}
+		if len(availabilities) > 0 && availabilities[0].HasSamples {
+			result = append(result, &genstudies.AffectedRunResponse{
+				TrainingRunName:        tr.Name,
+				CheckpointsWithSamples: availabilities[0].CheckpointsWithSamples,
+				TotalCheckpoints:       availabilities[0].TotalCheckpoints,
+			})
+		}
+	}
+
+	if result == nil {
+		result = make([]*genstudies.AffectedRunResponse, 0)
+	}
+
+	return result, nil
+}
+
 // Availability returns per-study sample availability for a given training run.
 func (s *StudiesService) Availability(ctx context.Context, p *genstudies.AvailabilityPayload) ([]*genstudies.StudyAvailabilityResponse, error) {
 	studies, err := s.svc.List()

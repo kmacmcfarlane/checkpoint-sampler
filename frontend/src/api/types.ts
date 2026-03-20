@@ -353,6 +353,13 @@ export interface StudyAvailability {
   total_checkpoints: number
 }
 
+/** A training run that has generated samples for a study. */
+export interface AffectedRun {
+  training_run_name: string
+  checkpoints_with_samples: number
+  total_checkpoints: number
+}
+
 /** Demo dataset status response. */
 export interface DemoStatus {
   installed: boolean
