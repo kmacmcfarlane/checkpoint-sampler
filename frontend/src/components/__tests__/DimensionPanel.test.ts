@@ -98,17 +98,17 @@ describe('DimensionPanel', () => {
     expect(selects).toHaveLength(3)
   })
 
-  // AC1: Unified dropdown has options: X, Y, Slider, Single, Multi, Hide
-  it('unified selector has six options when no axes are assigned', () => {
+  // AC1: Unified dropdown has options: X Axis, Y Axis, X Slider, Y Slider, Slider, Single, Multi, Hide
+  it('unified selector has eight options when no axes are assigned', () => {
     const wrapper = mount(DimensionPanel, {
       props: { dimensions: sampleDimensions, assignments: makeAssignments(), filterModes: makeFilterModes() },
     })
 
     const selects = wrapper.findAllComponents(NSelect)
     const options = selects[0].props('options') as Array<{ value: string; label: string }>
-    expect(options).toHaveLength(6)
+    expect(options).toHaveLength(8)
     expect(options.map((o) => o.label)).toEqual([
-      'X Axis', 'Y Axis', 'Slider', 'Single', 'Multi', 'Hide',
+      'X Axis', 'Y Axis', 'X Slider', 'Y Slider', 'Slider', 'Single', 'Multi', 'Hide',
     ])
   })
 
@@ -414,7 +414,7 @@ describe('DimensionPanel', () => {
       const selects = wrapper.findAllComponents(NSelect)
       // prompt should still see all options including axis roles (parent handles swapping)
       const promptOptions = (selects[3].props('options') as Array<{ value: string }>).map((o) => o.value)
-      expect(promptOptions).toEqual(['x', 'y', 'slider', 'single', 'multi', 'hide'])
+      expect(promptOptions).toEqual(['x', 'y', 'x_slider', 'y_slider', 'slider', 'single', 'multi', 'hide'])
     })
 
     it('shows all axis options for every dimension regardless of current assignments', () => {

@@ -5,11 +5,19 @@ import { resetDatabase, selectTrainingRun, selectNaiveOptionByLabel, closeDrawer
  * E2E tests for S-132: X/Y axis sliders rework -- bottom/right positioning,
  * dimension mappings, lightbox sync, and animation controls.
  *
+ * Dimension mappings are now 4 independent options:
+ *   - X Axis: grid columns only
+ *   - Y Axis: grid rows only
+ *   - X Slider: bottom horizontal slider only
+ *   - Y Slider: right vertical slider only
+ *
  * Verifies:
  *   - AC: Animation controls positioned at top where master slider was
  *   - AC: X slider pinned to bottom, Y slider pinned to right
- *   - AC: X slider hidden when no X dimension mapped, Y slider hidden when no Y dimension mapped
+ *   - AC: X slider hidden when no X Slider dimension mapped
+ *   - AC: Y slider hidden when no Y Slider dimension mapped
  *   - AC: Lightbox X/Y sliders synced to main view sliders
+ *   - AC: X Axis assignment does NOT show X slider (independent mapping)
  *
  * Test fixture data:
  *   - Training run: "my-model"
@@ -41,8 +49,8 @@ test.describe('S-132: X/Y sliders rework', () => {
     await expect(playBtn).toBeVisible()
   })
 
-  // AC: FE: X slider hidden when no dimension mapped to X axis
-  test('AC: X slider bar is not visible when no X dimension is assigned', async ({ page }) => {
+  // AC: FE: X slider hidden when no dimension mapped to X Slider
+  test('AC: X slider bar is not visible when no X Slider dimension is assigned', async ({ page }) => {
     await page.goto('/')
     await selectTrainingRun(page, 'my-model')
     await expect(page.getByText('Dimensions')).toBeVisible()
@@ -52,12 +60,13 @@ test.describe('S-132: X/Y sliders rework', () => {
   })
 
   // AC: FE: Add horizontal X slider pinned to bottom edge of viewport
-  test('AC: X slider bar is visible and pinned at bottom when X dimension is assigned', async ({ page }) => {
+  test('AC: X slider bar is visible and pinned at bottom when X Slider dimension is assigned', async ({ page }) => {
     await page.goto('/')
     await selectTrainingRun(page, 'my-model')
     await expect(page.getByText('Dimensions')).toBeVisible()
 
-    await selectNaiveOptionByLabel(page, 'Mode for checkpoint', 'X Axis')
+    // AC: Use "X Slider" (not "X Axis") to control the bottom slider
+    await selectNaiveOptionByLabel(page, 'Mode for checkpoint', 'X Slider')
     await closeDrawer(page)
 
     const xSliderBar = page.locator('[data-testid="x-slider-bar"]')
@@ -70,8 +79,8 @@ test.describe('S-132: X/Y sliders rework', () => {
     expect(box!.y + box!.height).toBeCloseTo(viewport!.height, -1)
   })
 
-  // AC: FE: Y slider hidden when no dimension mapped to Y axis
-  test('AC: Y slider bar is not visible when no Y dimension is assigned', async ({ page }) => {
+  // AC: FE: Y slider hidden when no dimension mapped to Y Slider
+  test('AC: Y slider bar is not visible when no Y Slider dimension is assigned', async ({ page }) => {
     await page.goto('/')
     await selectTrainingRun(page, 'my-model')
     await expect(page.getByText('Dimensions')).toBeVisible()
@@ -81,12 +90,13 @@ test.describe('S-132: X/Y sliders rework', () => {
   })
 
   // AC: FE: Add vertical Y slider pinned to right edge of viewport
-  test('AC: Y slider bar is visible and pinned at right when Y dimension is assigned', async ({ page }) => {
+  test('AC: Y slider bar is visible and pinned at right when Y Slider dimension is assigned', async ({ page }) => {
     await page.goto('/')
     await selectTrainingRun(page, 'my-model')
     await expect(page.getByText('Dimensions')).toBeVisible()
 
-    await selectNaiveOptionByLabel(page, 'Mode for prompt_name', 'Y Axis')
+    // AC: Use "Y Slider" (not "Y Axis") to control the right slider
+    await selectNaiveOptionByLabel(page, 'Mode for prompt_name', 'Y Slider')
     await closeDrawer(page)
 
     const ySliderBar = page.locator('[data-testid="y-slider-bar"]')
@@ -99,13 +109,13 @@ test.describe('S-132: X/Y sliders rework', () => {
     expect(box!.x + box!.width).toBeCloseTo(viewport!.width, -1)
   })
 
-  // AC: FE: X slider disappears when X assignment is removed
-  test('AC: X slider bar disappears when X dimension assignment is removed', async ({ page }) => {
+  // AC: FE: X slider disappears when X Slider assignment is removed
+  test('AC: X slider bar disappears when X Slider dimension assignment is removed', async ({ page }) => {
     await page.goto('/')
     await selectTrainingRun(page, 'my-model')
     await expect(page.getByText('Dimensions')).toBeVisible()
 
-    await selectNaiveOptionByLabel(page, 'Mode for checkpoint', 'X Axis')
+    await selectNaiveOptionByLabel(page, 'Mode for checkpoint', 'X Slider')
     const xSliderBar = page.locator('[data-testid="x-slider-bar"]')
     await expect(xSliderBar).toBeVisible()
 
@@ -115,13 +125,13 @@ test.describe('S-132: X/Y sliders rework', () => {
     await expect(xSliderBar).not.toBeVisible()
   })
 
-  // AC: FE: Y slider disappears when Y assignment is removed
-  test('AC: Y slider bar disappears when Y dimension assignment is removed', async ({ page }) => {
+  // AC: FE: Y slider disappears when Y Slider assignment is removed
+  test('AC: Y slider bar disappears when Y Slider dimension assignment is removed', async ({ page }) => {
     await page.goto('/')
     await selectTrainingRun(page, 'my-model')
     await expect(page.getByText('Dimensions')).toBeVisible()
 
-    await selectNaiveOptionByLabel(page, 'Mode for prompt_name', 'Y Axis')
+    await selectNaiveOptionByLabel(page, 'Mode for prompt_name', 'Y Slider')
     const ySliderBar = page.locator('[data-testid="y-slider-bar"]')
     await expect(ySliderBar).toBeVisible()
 
@@ -131,14 +141,43 @@ test.describe('S-132: X/Y sliders rework', () => {
     await expect(ySliderBar).not.toBeVisible()
   })
 
-  // AC: FE: Lightbox X/Y sliders synced to main view X/Y sliders
-  test('AC: Lightbox shows X slider when X dimension is assigned', async ({ page }) => {
+  // AC: X Axis assignment does NOT show the X slider (independent mapping)
+  test('AC: X Axis assignment does NOT show X slider bar (independent mapping)', async ({ page }) => {
     await page.goto('/')
     await selectTrainingRun(page, 'my-model')
     await expect(page.getByText('Dimensions')).toBeVisible()
 
-    // Assign checkpoint to X axis
+    // Assign checkpoint to X Axis (grid placement only)
     await selectNaiveOptionByLabel(page, 'Mode for checkpoint', 'X Axis')
+    await closeDrawer(page)
+
+    // X Axis only controls grid columns, NOT the bottom slider
+    await expect(page.locator('[data-testid="x-slider-bar"]')).not.toBeVisible()
+  })
+
+  // AC: Y Axis assignment does NOT show the Y slider (independent mapping)
+  test('AC: Y Axis assignment does NOT show Y slider bar (independent mapping)', async ({ page }) => {
+    await page.goto('/')
+    await selectTrainingRun(page, 'my-model')
+    await expect(page.getByText('Dimensions')).toBeVisible()
+
+    // Assign prompt_name to Y Axis (grid placement only)
+    await selectNaiveOptionByLabel(page, 'Mode for prompt_name', 'Y Axis')
+    await closeDrawer(page)
+
+    // Y Axis only controls grid rows, NOT the right slider
+    await expect(page.locator('[data-testid="y-slider-bar"]')).not.toBeVisible()
+  })
+
+  // AC: FE: Lightbox X/Y sliders synced to main view X/Y sliders
+  test('AC: Lightbox shows X slider when X Slider dimension is assigned', async ({ page }) => {
+    await page.goto('/')
+    await selectTrainingRun(page, 'my-model')
+    await expect(page.getByText('Dimensions')).toBeVisible()
+
+    // Assign checkpoint to X Slider (for the bottom slider) and X Axis (for grid columns)
+    await selectNaiveOptionByLabel(page, 'Mode for checkpoint', 'X Slider')
+    await selectNaiveOptionByLabel(page, 'Mode for prompt_name', 'X Axis')
     await closeDrawer(page)
 
     // Wait for grid images
@@ -156,14 +195,15 @@ test.describe('S-132: X/Y sliders rework', () => {
     await expect(lightboxXSlider).toBeVisible()
   })
 
-  // AC: FE: Lightbox Y slider appears when Y dimension is assigned
-  test('AC: Lightbox shows Y slider when Y dimension is assigned', async ({ page }) => {
+  // AC: FE: Lightbox Y slider appears when Y Slider dimension is assigned
+  test('AC: Lightbox shows Y slider when Y Slider dimension is assigned', async ({ page }) => {
     await page.goto('/')
     await selectTrainingRun(page, 'my-model')
     await expect(page.getByText('Dimensions')).toBeVisible()
 
-    // Assign prompt_name to Y axis
-    await selectNaiveOptionByLabel(page, 'Mode for prompt_name', 'Y Axis')
+    // Assign prompt_name to Y Slider and checkpoint to X Axis (for grid)
+    await selectNaiveOptionByLabel(page, 'Mode for prompt_name', 'Y Slider')
+    await selectNaiveOptionByLabel(page, 'Mode for checkpoint', 'X Axis')
     await closeDrawer(page)
 
     // Wait for grid images
@@ -182,22 +222,14 @@ test.describe('S-132: X/Y sliders rework', () => {
   })
 
   // AC: FE: Lightbox does NOT show X/Y sliders when those dimensions are not assigned
-  test('AC: Lightbox hides X/Y sliders when no dimensions mapped', async ({ page }) => {
+  test('AC: Lightbox hides X/Y sliders when no slider dimensions mapped', async ({ page }) => {
     await page.goto('/')
     await selectTrainingRun(page, 'my-model')
     await expect(page.getByText('Dimensions')).toBeVisible()
 
-    // Assign something to Slider only (no X or Y)
-    await selectNaiveOptionByLabel(page, 'Mode for checkpoint', 'Slider')
-    await closeDrawer(page)
-
-    // In flat mode with slider, no grid images to click — skip this case
-    // Instead, assign to X to get a grid, but no Y
-    await page.goto('/')
-    await selectTrainingRun(page, 'my-model')
-    await expect(page.getByText('Dimensions')).toBeVisible()
+    // Assign checkpoint to X Axis (grid only, not slider) to get a grid
     await selectNaiveOptionByLabel(page, 'Mode for checkpoint', 'X Axis')
-    // No Y assignment
+    // No X Slider or Y Slider assignment
     await closeDrawer(page)
 
     const images = page.locator('.xy-grid [role="gridcell"] img')
@@ -208,9 +240,8 @@ test.describe('S-132: X/Y sliders rework', () => {
     const lightbox = page.locator('[role="dialog"][aria-label="Image lightbox"]')
     await expect(lightbox).toBeVisible()
 
-    // X slider should be present (X is assigned)
-    await expect(lightbox.locator('[data-testid="lightbox-x-slider-bar"]')).toBeVisible()
-    // Y slider should NOT be present (Y is not assigned)
+    // Neither X Slider nor Y Slider is assigned, so lightbox should not show them
+    expect(await lightbox.locator('[data-testid="lightbox-x-slider-bar"]').count()).toBe(0)
     expect(await lightbox.locator('[data-testid="lightbox-y-slider-bar"]').count()).toBe(0)
   })
 })

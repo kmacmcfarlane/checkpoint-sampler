@@ -2331,8 +2331,8 @@ describe('App', () => {
     })
   })
 
-  // S-130: X slider pinned to bottom of viewport
-  describe('X axis bottom slider visibility (S-130)', () => {
+  // S-132: X slider pinned to bottom of viewport (controlled by x_slider role, independent of x axis)
+  describe('X slider bottom visibility (S-132)', () => {
     const mockScanResultWithXDimension = {
       images: [],
       dimensions: [
@@ -2341,15 +2341,15 @@ describe('App', () => {
       ],
     }
 
-    const mockPresetWithX = {
-      id: 'preset-x',
-      name: 'X Preset',
-      mapping: { x: 'seed', combos: [] },
+    const mockPresetWithXSlider = {
+      id: 'preset-xs',
+      name: 'X Slider Preset',
+      mapping: { x_slider: 'seed', combos: [] },
       created_at: '2025-01-01T00:00:00Z',
       updated_at: '2025-01-01T00:00:00Z',
     }
 
-    async function mountAndSelectWithPreset(preset: typeof mockPresetWithX, scanResult: typeof mockScanResultWithXDimension) {
+    async function mountAndSelectWithPreset(preset: typeof mockPresetWithXSlider, scanResult: typeof mockScanResultWithXDimension) {
       mockScanTrainingRun.mockResolvedValue(scanResult)
       mockGetPresets.mockResolvedValue([preset])
 
@@ -2363,73 +2363,59 @@ describe('App', () => {
       return wrapper
     }
 
-    // AC2: X slider hidden when no dimension mapping is assigned to X axis
-    it('AC2: X slider bar is NOT rendered when no X dimension is assigned', async () => {
+    // AC: X slider hidden when no dimension mapping is assigned to X Slider
+    it('AC: X slider bar is NOT rendered when no X Slider dimension is assigned', async () => {
       mockScanTrainingRun.mockResolvedValue(mockScanResultWithXDimension)
       const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
       await flushPromises()
 
-      // Select a training run — no preset applied, so xDimension is null
       const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
       selector.vm.$emit('select', mockTrainingRun)
       await flushPromises()
 
-      // AC2: X slider bar should be hidden when no X dimension mapping
       expect(wrapper.find('[data-testid="x-slider-bar"]').exists()).toBe(false)
     })
 
-    // AC1/AC2: X slider appears when X dimension is assigned via preset
-    it('AC1/AC2: X slider bar renders when an X dimension mapping is assigned', async () => {
-      const wrapper = await mountAndSelectWithPreset(mockPresetWithX, mockScanResultWithXDimension)
+    // AC: X slider appears when X Slider dimension is assigned via preset
+    it('AC: X slider bar renders when an X Slider dimension mapping is assigned', async () => {
+      const wrapper = await mountAndSelectWithPreset(mockPresetWithXSlider, mockScanResultWithXDimension)
 
-      // Apply the preset via the PresetSelector component
       const presetSelector = wrapper.findComponent({ name: 'PresetSelector' })
-      presetSelector.vm.$emit('load', mockPresetWithX, [])
+      presetSelector.vm.$emit('load', mockPresetWithXSlider, [])
       await flushPromises()
 
-      // AC2: X slider bar should now be visible
       expect(wrapper.find('[data-testid="x-slider-bar"]').exists()).toBe(true)
     })
 
-    // AC2: X slider hidden when X dimension assignment is cleared
-    it('AC2: X slider bar disappears when X dimension assignment is removed', async () => {
-      const wrapper = await mountAndSelectWithPreset(mockPresetWithX, mockScanResultWithXDimension)
+    // AC: X slider hidden when X Slider dimension assignment is cleared
+    it('AC: X slider bar disappears when X Slider dimension assignment is removed', async () => {
+      const wrapper = await mountAndSelectWithPreset(mockPresetWithXSlider, mockScanResultWithXDimension)
 
-      // Apply preset (assigns seed to X)
       const presetSelector = wrapper.findComponent({ name: 'PresetSelector' })
-      presetSelector.vm.$emit('load', mockPresetWithX, [])
+      presetSelector.vm.$emit('load', mockPresetWithXSlider, [])
       await flushPromises()
       expect(wrapper.find('[data-testid="x-slider-bar"]').exists()).toBe(true)
 
-      // Re-find PresetSelector after flushPromises (in case wrapper became stale)
       const presetSelector2 = wrapper.findComponent({ name: 'PresetSelector' })
-
-      // Reset dimension assignments via PresetSelector 'new' event — clears all roles including X
       presetSelector2.vm.$emit('new')
       await flushPromises()
       await nextTick()
 
-      // AC2: X slider bar should be hidden again (no X dimension assignment)
       expect(wrapper.find('[data-testid="x-slider-bar"]').exists()).toBe(false)
     })
 
-    // AC4: MasterSlider is used inside the X slider bar with correct props
-    it('AC4: MasterSlider inside X slider bar receives xDimension values and name', async () => {
-      const wrapper = await mountAndSelectWithPreset(mockPresetWithX, mockScanResultWithXDimension)
+    // AC: MasterSlider is used inside the X slider bar with correct props
+    it('AC: MasterSlider inside X slider bar receives xSliderDimension values and name', async () => {
+      const wrapper = await mountAndSelectWithPreset(mockPresetWithXSlider, mockScanResultWithXDimension)
 
-      // Apply preset
       const presetSelector = wrapper.findComponent({ name: 'PresetSelector' })
-      presetSelector.vm.$emit('load', mockPresetWithX, [])
+      presetSelector.vm.$emit('load', mockPresetWithXSlider, [])
       await flushPromises()
 
-      // Find the x-slider-bar
       const xSliderBar = wrapper.find('[data-testid="x-slider-bar"]')
       expect(xSliderBar.exists()).toBe(true)
 
-      // The MasterSlider inside x-slider-bar should have seed dimension values
       const masterSliders = wrapper.findAllComponents({ name: 'MasterSlider' })
-      // Find the one inside x-slider-bar (the header one is for slider dimension which is not assigned here)
-      // AC4: At least one MasterSlider has the x dimension values
       const xMasterSlider = masterSliders.find(s => {
         const vals = s.props('values') as string[]
         return vals && vals.includes('42') && vals.includes('123')
@@ -2437,36 +2423,55 @@ describe('App', () => {
       expect(xMasterSlider).toBeDefined()
       expect(xMasterSlider!.props('dimensionName')).toBe('seed')
     })
+
+    // AC: X Axis assignment does NOT show the X slider (independent mapping)
+    it('AC: X slider bar is NOT rendered when only X Axis is assigned (no X Slider)', async () => {
+      const presetWithXAxisOnly = {
+        id: 'preset-x-axis',
+        name: 'X Axis Only',
+        mapping: { x: 'seed', combos: [] },
+        created_at: '2025-01-01T00:00:00Z',
+        updated_at: '2025-01-01T00:00:00Z',
+      }
+      const wrapper = await mountAndSelectWithPreset(presetWithXAxisOnly, mockScanResultWithXDimension)
+
+      const presetSelector = wrapper.findComponent({ name: 'PresetSelector' })
+      presetSelector.vm.$emit('load', presetWithXAxisOnly, [])
+      await flushPromises()
+
+      // X Axis only controls grid placement, NOT the slider
+      expect(wrapper.find('[data-testid="x-slider-bar"]').exists()).toBe(false)
+    })
   })
 
-  // S-131: Y slider pinned to right side of viewport
-  describe('Y axis right slider visibility (S-131)', () => {
+  // S-132: Y slider pinned to right side of viewport (controlled by y_slider role, independent of y axis)
+  describe('Y slider right visibility (S-132)', () => {
     const mockScanResultWithYDimension = {
       images: [],
       dimensions: [
         { name: 'cfg', values: ['5', '7', '9'], type: 'int' },
-        { name: 'seed', values: ['42'], type: 'int' },
+        { name: 'seed', values: ['42', '123'], type: 'int' },
       ],
     }
 
-    const mockPresetWithY = {
-      id: 'preset-y',
-      name: 'Y Preset',
-      mapping: { y: 'cfg', combos: [] },
+    const mockPresetWithYSlider = {
+      id: 'preset-ys',
+      name: 'Y Slider Preset',
+      mapping: { y_slider: 'cfg', combos: [] },
       created_at: '2025-01-01T00:00:00Z',
       updated_at: '2025-01-01T00:00:00Z',
     }
 
-    const mockPresetWithXAndY = {
-      id: 'preset-xy',
-      name: 'XY Preset',
-      mapping: { x: 'seed', y: 'cfg', combos: [] },
+    const mockPresetWithXSliderAndYSlider = {
+      id: 'preset-xys',
+      name: 'XY Slider Preset',
+      mapping: { x_slider: 'seed', y_slider: 'cfg', combos: [] },
       created_at: '2025-01-01T00:00:00Z',
       updated_at: '2025-01-01T00:00:00Z',
     }
 
     async function mountAndSelectWithPreset(
-      preset: typeof mockPresetWithY | typeof mockPresetWithXAndY,
+      preset: typeof mockPresetWithYSlider | typeof mockPresetWithXSliderAndYSlider,
       scanResult: typeof mockScanResultWithYDimension,
     ) {
       mockScanTrainingRun.mockResolvedValue(scanResult)
@@ -2482,72 +2487,59 @@ describe('App', () => {
       return wrapper
     }
 
-    // AC2: Y slider hidden when no dimension mapping is assigned to Y axis
-    it('AC2: Y slider bar is NOT rendered when no Y dimension is assigned', async () => {
+    // AC: Y slider hidden when no dimension mapping is assigned to Y Slider
+    it('AC: Y slider bar is NOT rendered when no Y Slider dimension is assigned', async () => {
       mockScanTrainingRun.mockResolvedValue(mockScanResultWithYDimension)
       const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
       await flushPromises()
 
-      // Select a training run — no preset applied, so yDimension is null
       const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
       selector.vm.$emit('select', mockTrainingRun)
       await flushPromises()
 
-      // AC2: Y slider bar should be hidden when no Y dimension mapping
       expect(wrapper.find('[data-testid="y-slider-bar"]').exists()).toBe(false)
     })
 
-    // AC1/AC2: Y slider appears when Y dimension is assigned via preset
-    it('AC1/AC2: Y slider bar renders when a Y dimension mapping is assigned', async () => {
-      const wrapper = await mountAndSelectWithPreset(mockPresetWithY, mockScanResultWithYDimension)
+    // AC: Y slider appears when Y Slider dimension is assigned via preset
+    it('AC: Y slider bar renders when a Y Slider dimension mapping is assigned', async () => {
+      const wrapper = await mountAndSelectWithPreset(mockPresetWithYSlider, mockScanResultWithYDimension)
 
-      // Apply the preset via the PresetSelector component
       const presetSelector = wrapper.findComponent({ name: 'PresetSelector' })
-      presetSelector.vm.$emit('load', mockPresetWithY, [])
+      presetSelector.vm.$emit('load', mockPresetWithYSlider, [])
       await flushPromises()
 
-      // AC1/AC2: Y slider bar should now be visible
       expect(wrapper.find('[data-testid="y-slider-bar"]').exists()).toBe(true)
     })
 
-    // AC2: Y slider hidden when Y dimension assignment is cleared
-    it('AC2: Y slider bar disappears when Y dimension assignment is removed', async () => {
-      const wrapper = await mountAndSelectWithPreset(mockPresetWithY, mockScanResultWithYDimension)
+    // AC: Y slider hidden when Y Slider dimension assignment is cleared
+    it('AC: Y slider bar disappears when Y Slider dimension assignment is removed', async () => {
+      const wrapper = await mountAndSelectWithPreset(mockPresetWithYSlider, mockScanResultWithYDimension)
 
-      // Apply preset (assigns cfg to Y)
       const presetSelector = wrapper.findComponent({ name: 'PresetSelector' })
-      presetSelector.vm.$emit('load', mockPresetWithY, [])
+      presetSelector.vm.$emit('load', mockPresetWithYSlider, [])
       await flushPromises()
       expect(wrapper.find('[data-testid="y-slider-bar"]').exists()).toBe(true)
 
-      // Re-find PresetSelector after flushPromises
       const presetSelector2 = wrapper.findComponent({ name: 'PresetSelector' })
-
-      // Reset dimension assignments via PresetSelector 'new' event — clears all roles including Y
       presetSelector2.vm.$emit('new')
       await flushPromises()
       await nextTick()
 
-      // AC2: Y slider bar should be hidden again (no Y dimension assignment)
       expect(wrapper.find('[data-testid="y-slider-bar"]').exists()).toBe(false)
     })
 
-    // AC4: MasterSlider is used inside the Y slider bar with correct props
-    it('AC4: MasterSlider inside Y slider bar receives yDimension values and name', async () => {
-      const wrapper = await mountAndSelectWithPreset(mockPresetWithY, mockScanResultWithYDimension)
+    // AC: MasterSlider is used inside the Y slider bar with correct props
+    it('AC: MasterSlider inside Y slider bar receives ySliderDimension values and name', async () => {
+      const wrapper = await mountAndSelectWithPreset(mockPresetWithYSlider, mockScanResultWithYDimension)
 
-      // Apply preset
       const presetSelector = wrapper.findComponent({ name: 'PresetSelector' })
-      presetSelector.vm.$emit('load', mockPresetWithY, [])
+      presetSelector.vm.$emit('load', mockPresetWithYSlider, [])
       await flushPromises()
 
-      // Find the y-slider-bar
       const ySliderBar = wrapper.find('[data-testid="y-slider-bar"]')
       expect(ySliderBar.exists()).toBe(true)
 
-      // The MasterSlider inside y-slider-bar should have cfg dimension values
       const masterSliders = wrapper.findAllComponents({ name: 'MasterSlider' })
-      // AC4: At least one MasterSlider has the y dimension values
       const yMasterSlider = masterSliders.find(s => {
         const vals = s.props('values') as string[]
         return vals && vals.includes('5') && vals.includes('7') && vals.includes('9')
@@ -2556,32 +2548,47 @@ describe('App', () => {
       expect(yMasterSlider!.props('dimensionName')).toBe('cfg')
     })
 
-    // AC3: Both X and Y sliders can be visible simultaneously without layout issues
-    it('AC3: Both X and Y slider bars render together when both dimensions are assigned', async () => {
-      const wrapper = await mountAndSelectWithPreset(mockPresetWithXAndY, mockScanResultWithYDimension)
+    // AC: Both X and Y sliders can be visible simultaneously without layout issues
+    it('AC: Both X and Y slider bars render together when both slider dimensions are assigned', async () => {
+      const wrapper = await mountAndSelectWithPreset(mockPresetWithXSliderAndYSlider, mockScanResultWithYDimension)
 
-      // Apply preset assigning both X (seed) and Y (cfg)
       const presetSelector = wrapper.findComponent({ name: 'PresetSelector' })
-      presetSelector.vm.$emit('load', mockPresetWithXAndY, [])
+      presetSelector.vm.$emit('load', mockPresetWithXSliderAndYSlider, [])
       await flushPromises()
 
-      // AC3: Both slider bars should be visible
       expect(wrapper.find('[data-testid="x-slider-bar"]').exists()).toBe(true)
       expect(wrapper.find('[data-testid="y-slider-bar"]').exists()).toBe(true)
     })
 
-    // AC3: app-main gets right padding class when Y slider is visible
-    it('AC3: app-main gets y-slider-visible class when Y dimension is assigned', async () => {
-      const wrapper = await mountAndSelectWithPreset(mockPresetWithY, mockScanResultWithYDimension)
+    // AC: app-main gets right padding class when Y Slider dimension is assigned
+    it('AC: app-main gets y-slider-visible class when Y Slider dimension is assigned', async () => {
+      const wrapper = await mountAndSelectWithPreset(mockPresetWithYSlider, mockScanResultWithYDimension)
 
-      // Apply preset
       const presetSelector = wrapper.findComponent({ name: 'PresetSelector' })
-      presetSelector.vm.$emit('load', mockPresetWithY, [])
+      presetSelector.vm.$emit('load', mockPresetWithYSlider, [])
       await flushPromises()
 
-      // AC3: The main content area should have the y-slider-visible class
       const main = wrapper.find('.app-main')
       expect(main.classes()).toContain('app-main--y-slider-visible')
+    })
+
+    // AC: Y Axis assignment does NOT show the Y slider (independent mapping)
+    it('AC: Y slider bar is NOT rendered when only Y Axis is assigned (no Y Slider)', async () => {
+      const presetWithYAxisOnly = {
+        id: 'preset-y-axis',
+        name: 'Y Axis Only',
+        mapping: { y: 'cfg', combos: [] },
+        created_at: '2025-01-01T00:00:00Z',
+        updated_at: '2025-01-01T00:00:00Z',
+      }
+      const wrapper = await mountAndSelectWithPreset(presetWithYAxisOnly, mockScanResultWithYDimension)
+
+      const presetSelector = wrapper.findComponent({ name: 'PresetSelector' })
+      presetSelector.vm.$emit('load', presetWithYAxisOnly, [])
+      await flushPromises()
+
+      // Y Axis only controls grid placement, NOT the slider
+      expect(wrapper.find('[data-testid="y-slider-bar"]').exists()).toBe(false)
     })
   })
 })

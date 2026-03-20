@@ -96,6 +96,12 @@ var PresetMappingResponse = Type("PresetMappingResponse", func() {
 	Attribute("slider", String, "Dimension assigned to slider", func() {
 		Example("checkpoint")
 	})
+	Attribute("x_slider", String, "Dimension assigned to X slider (bottom edge)", func() {
+		Example("steps")
+	})
+	Attribute("y_slider", String, "Dimension assigned to Y slider (right edge)", func() {
+		Example("seed")
+	})
 	Attribute("combos", ArrayOf(String), "Dimensions assigned to combo filters", func() {
 		Example([]string{"seed", "index"})
 	})
@@ -135,6 +141,12 @@ var PresetMappingPayload = Type("PresetMappingPayload", func() {
 	})
 	Attribute("slider", String, "Dimension assigned to slider", func() {
 		Example("checkpoint")
+	})
+	Attribute("x_slider", String, "Dimension assigned to X slider (bottom edge)", func() {
+		Example("steps")
+	})
+	Attribute("y_slider", String, "Dimension assigned to Y slider (right edge)", func() {
+		Example("seed")
 	})
 	Attribute("combos", ArrayOf(String), "Dimensions assigned to combo filters", func() {
 		Example([]string{"seed", "index"})

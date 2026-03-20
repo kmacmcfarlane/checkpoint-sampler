@@ -21,10 +21,12 @@ type presetEntity struct {
 
 // mappingJSON is the JSON shape stored in the mapping column.
 type mappingJSON struct {
-	X      string   `json:"x,omitempty"`
-	Y      string   `json:"y,omitempty"`
-	Slider string   `json:"slider,omitempty"`
-	Combos []string `json:"combos"`
+	X       string   `json:"x,omitempty"`
+	Y       string   `json:"y,omitempty"`
+	Slider  string   `json:"slider,omitempty"`
+	XSlider string   `json:"x_slider,omitempty"`
+	YSlider string   `json:"y_slider,omitempty"`
+	Combos  []string `json:"combos"`
 }
 
 // ListPresets returns all presets ordered by name.
@@ -222,10 +224,12 @@ func entityToModel(e presetEntity) (model.Preset, error) {
 		ID:   e.ID,
 		Name: e.Name,
 		Mapping: model.PresetMapping{
-			X:      m.X,
-			Y:      m.Y,
-			Slider: m.Slider,
-			Combos: m.Combos,
+			X:       m.X,
+			Y:       m.Y,
+			Slider:  m.Slider,
+			XSlider: m.XSlider,
+			YSlider: m.YSlider,
+			Combos:  m.Combos,
 		},
 		CreatedAt: createdAt,
 		UpdatedAt: updatedAt,
@@ -234,10 +238,12 @@ func entityToModel(e presetEntity) (model.Preset, error) {
 
 func modelMappingToJSON(m model.PresetMapping) ([]byte, error) {
 	j := mappingJSON{
-		X:      m.X,
-		Y:      m.Y,
-		Slider: m.Slider,
-		Combos: m.Combos,
+		X:       m.X,
+		Y:       m.Y,
+		Slider:  m.Slider,
+		XSlider: m.XSlider,
+		YSlider: m.YSlider,
+		Combos:  m.Combos,
 	}
 	if j.Combos == nil {
 		j.Combos = []string{}

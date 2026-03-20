@@ -6,7 +6,7 @@ import { resetDatabase, selectTrainingRun, selectNaiveOptionByLabel, closeDrawer
  *
  * Verifies:
  *   - AC1: X slider is pinned to the bottom edge of the viewport
- *   - AC2: X slider is hidden when no dimension mapping is assigned to the X axis
+ *   - AC2: X slider is hidden when no dimension mapping is assigned to the X Slider
  *   - AC3: Layout remains clean with slider visible and hidden
  *
  * Test fixture data:
@@ -19,12 +19,12 @@ test.describe('S-130: X slider pinned to bottom of viewport', () => {
     await resetDatabase(request)
   })
 
-  // AC2: X slider is hidden when no dimension mapping is assigned to X axis
+  // AC2: X slider is hidden when no dimension mapping is assigned to X Slider
   test('AC2: X slider bar is not visible when no X dimension is assigned', async ({ page }) => {
     await page.goto('/')
     await selectTrainingRun(page, 'my-model')
     await expect(page.getByText('Dimensions')).toBeVisible()
-    // Do NOT assign any dimension to X axis
+    // Do NOT assign any dimension to X Slider
     await closeDrawer(page)
 
     // AC2: X slider bar must not be present in the DOM
@@ -37,8 +37,8 @@ test.describe('S-130: X slider pinned to bottom of viewport', () => {
     await selectTrainingRun(page, 'my-model')
     await expect(page.getByText('Dimensions')).toBeVisible()
 
-    // Assign checkpoint to X axis
-    await selectNaiveOptionByLabel(page, 'Mode for checkpoint', 'X Axis')
+    // Assign checkpoint to X Slider
+    await selectNaiveOptionByLabel(page, 'Mode for checkpoint', 'X Slider')
     await closeDrawer(page)
 
     // AC1: X slider bar should be visible at the bottom
@@ -61,14 +61,14 @@ test.describe('S-130: X slider pinned to bottom of viewport', () => {
     await selectTrainingRun(page, 'my-model')
     await expect(page.getByText('Dimensions')).toBeVisible()
 
-    // Assign checkpoint to X axis
-    await selectNaiveOptionByLabel(page, 'Mode for checkpoint', 'X Axis')
+    // Assign checkpoint to X Slider
+    await selectNaiveOptionByLabel(page, 'Mode for checkpoint', 'X Slider')
 
     // Verify slider is visible
     const xSliderBar = page.locator('[data-testid="x-slider-bar"]')
     await expect(xSliderBar).toBeVisible()
 
-    // Remove X axis assignment (change to Single filter mode)
+    // Remove X Slider assignment (change to Single filter mode)
     await selectNaiveOptionByLabel(page, 'Mode for checkpoint', 'Single')
     await closeDrawer(page)
 
@@ -81,7 +81,7 @@ test.describe('S-130: X slider pinned to bottom of viewport', () => {
     await page.goto('/')
     await selectTrainingRun(page, 'my-model')
     await expect(page.getByText('Dimensions')).toBeVisible()
-    await selectNaiveOptionByLabel(page, 'Mode for checkpoint', 'X Axis')
+    await selectNaiveOptionByLabel(page, 'Mode for checkpoint', 'X Slider')
     await closeDrawer(page)
 
     // AC3: No horizontal scrollbar should appear (overflow-x: hidden)

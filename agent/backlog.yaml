@@ -233,7 +233,7 @@ stories:
   - id: S-132
     title: "X/Y axis sliders rework — bottom/right positioning, dimension mappings, lightbox sync"
     type: feature
-    status: uat_feedback
+    status: uat
     priority: 75
     complexity: high
     requires: []
@@ -270,10 +270,6 @@ stories:
       - "Switching mappings while lightbox is open — sliders update correctly"
       - "Slider sync state after closing/reopening lightbox"
       - "Animation controls render correctly in new top position without regression"
-    review_feedback: 'Dimension mappings need 4 independent options: X Axis, Y Axis, X Slider, Y Slider. Currently only 3
-      (X Axis, Y Axis, Slider). X Axis and Y Axis currently control both grid axes AND sliders — these must be independently
-      mappable. Grid axes (X Axis, Y Axis) control grid placement only. Sliders (X Slider, Y Slider) control slider position
-      only. Lightbox sync is working correctly — no changes needed there.'
   - id: B-114
     title: "Clear-existing samples should be a job param applied at job start, not queue time"
     type: bug

@@ -255,6 +255,12 @@ export function useDimensionMapping() {
   /** The dimension assigned to slider, or null. */
   const sliderDimension = computed(() => getDimensionForRole('slider'))
 
+  /** The dimension assigned to X slider (bottom edge), or null. */
+  const xSliderDimension = computed(() => getDimensionForRole('x_slider'))
+
+  /** The dimension assigned to Y slider (right edge), or null. */
+  const ySliderDimension = computed(() => getDimensionForRole('y_slider'))
+
   /**
    * Find the image matching a given set of dimension values.
    * Returns the first image whose dimensions match all specified key-value pairs.
@@ -355,6 +361,8 @@ export function useDimensionMapping() {
     xDimension,
     yDimension,
     sliderDimension,
+    xSliderDimension,
+    ySliderDimension,
     setScanResult,
     assignRole,
     setFilterMode,

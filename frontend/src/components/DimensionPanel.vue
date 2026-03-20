@@ -16,12 +16,14 @@ const emit = defineEmits<{
   'update:mode': [dimensionName: string, mode: UnifiedDimensionMode]
 }>()
 
-/** Base options for the unified selector. Axis roles are dynamically filtered
- *  based on mutual exclusion (only one dimension can hold X, Y, or Slider). */
+/** Base options for the unified selector. Each axis/slider role is independent:
+ *  X Axis and Y Axis control grid placement, X Slider and Y Slider control edge sliders. */
 const baseOptions: Array<{ value: UnifiedDimensionMode; label: string; group: string }> = [
   { value: 'x', label: 'X Axis', group: 'Axis' },
   { value: 'y', label: 'Y Axis', group: 'Axis' },
-  { value: 'slider', label: 'Slider', group: 'Axis' },
+  { value: 'x_slider', label: 'X Slider', group: 'Slider' },
+  { value: 'y_slider', label: 'Y Slider', group: 'Slider' },
+  { value: 'slider', label: 'Slider', group: 'Slider' },
   { value: 'single', label: 'Single', group: 'Filter' },
   { value: 'multi', label: 'Multi', group: 'Filter' },
   { value: 'hide', label: 'Hide', group: 'Filter' },
@@ -57,7 +59,7 @@ function getUnifiedMode(dimensionName: string): UnifiedDimensionMode {
   const dim = props.dimensions.find((d) => d.name === dimensionName)
   if (dim && isSingleValue(dim)) return 'hide'
   const role = props.assignments.get(dimensionName) ?? 'none'
-  if (role === 'x' || role === 'y' || role === 'slider') return role
+  if (role === 'x' || role === 'y' || role === 'slider' || role === 'x_slider' || role === 'y_slider') return role
   return props.filterModes.get(dimensionName) ?? 'single'
 }
 

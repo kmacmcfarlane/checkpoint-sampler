@@ -13,6 +13,8 @@ export function computePresetWarnings(preset: Preset, currentDimensionNames: str
   if (preset.mapping.x) allPresetDims.add(preset.mapping.x)
   if (preset.mapping.y) allPresetDims.add(preset.mapping.y)
   if (preset.mapping.slider) allPresetDims.add(preset.mapping.slider)
+  if (preset.mapping.x_slider) allPresetDims.add(preset.mapping.x_slider)
+  if (preset.mapping.y_slider) allPresetDims.add(preset.mapping.y_slider)
   for (const c of preset.mapping.combos) allPresetDims.add(c)
 
   const currentDims = new Set(currentDimensionNames)

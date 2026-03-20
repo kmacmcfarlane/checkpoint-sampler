@@ -63,17 +63,19 @@ export interface ScanResult {
 }
 
 /** UI role a dimension can be assigned to. */
-export type DimensionRole = 'x' | 'y' | 'slider' | 'none'
+export type DimensionRole = 'x' | 'y' | 'slider' | 'x_slider' | 'y_slider' | 'none'
 
 /** Filter mode for a dimension's value filter. */
 export type FilterMode = 'hide' | 'single' | 'multi'
 
 /**
  * Unified dimension mode combining axis assignment and filter mode into a single selector.
- * - 'x', 'y', 'slider': Assigns the dimension to that axis role (filter mode is implicitly 'multi').
+ * - 'x', 'y': Assigns the dimension to a grid axis role (filter mode is implicitly 'multi').
+ * - 'x_slider', 'y_slider': Assigns the dimension to an edge slider role (filter mode is implicitly 'multi').
+ * - 'slider': Assigns the dimension to the per-cell slider role (filter mode is implicitly 'multi').
  * - 'single', 'multi', 'hide': Dimension is not assigned to an axis; uses the specified filter mode.
  */
-export type UnifiedDimensionMode = 'x' | 'y' | 'slider' | 'single' | 'multi' | 'hide'
+export type UnifiedDimensionMode = 'x' | 'y' | 'slider' | 'x_slider' | 'y_slider' | 'single' | 'multi' | 'hide'
 
 /** Assignment of a dimension to a UI role. */
 export interface DimensionAssignment {
@@ -86,6 +88,8 @@ export interface PresetMapping {
   x?: string
   y?: string
   slider?: string
+  x_slider?: string
+  y_slider?: string
   combos: string[]
 }
 

@@ -247,6 +247,8 @@ const {
   xDimension,
   yDimension,
   sliderDimension,
+  xSliderDimension,
+  ySliderDimension,
   setScanResult,
   assignRole,
   setFilterMode,
@@ -514,7 +516,7 @@ async function onTrainingRunSelect(run: TrainingRun, studyOutputDir: string) {
  * Filter modes ('single', 'multi', 'hide') unassign the dimension and set the filter.
  */
 function onDimensionModeChange(dimensionName: string, mode: UnifiedDimensionMode) {
-  const AXIS_MODES: Set<string> = new Set(['x', 'y', 'slider'])
+  const AXIS_MODES: Set<string> = new Set(['x', 'y', 'slider', 'x_slider', 'y_slider'])
 
   // Capture effective mode before any changes for transition logic
   const prevMode = getFilterMode(dimensionName)
@@ -617,22 +619,22 @@ const defaultSliderValue = computed(() => {
   return sliderDimension.value?.values[0] ?? ''
 })
 
-/** X axis slider value: the currently selected X dimension value shown in the bottom slider. */
+/** X slider value: the currently selected value shown in the bottom slider. */
 const xSliderValue = ref<string>('')
 
-/** Effective X slider value: xSliderValue if set, otherwise first value of xDimension. */
+/** Effective X slider value: xSliderValue if set, otherwise first value of xSliderDimension. */
 const currentXSliderValue = computed(() => {
   if (xSliderValue.value) return xSliderValue.value
-  return xDimension.value?.values[0] ?? ''
+  return xSliderDimension.value?.values[0] ?? ''
 })
 
-/** Y axis slider value: the currently selected Y dimension value shown in the right slider. */
+/** Y slider value: the currently selected value shown in the right slider. */
 const ySliderValue = ref<string>('')
 
-/** Effective Y slider value: ySliderValue if set, otherwise first value of yDimension. */
+/** Effective Y slider value: ySliderValue if set, otherwise first value of ySliderDimension. */
 const currentYSliderValue = computed(() => {
   if (ySliderValue.value) return ySliderValue.value
-  return yDimension.value?.values[0] ?? ''
+  return ySliderDimension.value?.values[0] ?? ''
 })
 
 /** Cell size for grid zoom control. */
@@ -653,20 +655,18 @@ watch(sliderDimension, (dim) => {
   }
 })
 
-// Reset X slider value and combo selection when X dimension changes
-watch(xDimension, (dim) => {
+// Reset X slider value when X slider dimension changes
+watch(xSliderDimension, (dim) => {
   xSliderValue.value = dim?.values[0] ?? ''
   if (dim) {
-    // Show all X values by default (no filtering)
     comboSelections[dim.name] = new Set(dim.values)
   }
 })
 
-// Reset Y slider value and combo selection when Y dimension changes
-watch(yDimension, (dim) => {
+// Reset Y slider value when Y slider dimension changes
+watch(ySliderDimension, (dim) => {
   ySliderValue.value = dim?.values[0] ?? ''
   if (dim) {
-    // Show all Y values by default (no filtering)
     comboSelections[dim.name] = new Set(dim.values)
   }
 })
@@ -685,19 +685,19 @@ function onMasterSliderChange(value: string) {
   }
 }
 
-/** X axis slider: navigate to a specific X dimension value (solo that value in comboSelections). */
+/** X slider: navigate to a specific X slider dimension value (solo that value in comboSelections). */
 function onXSliderChange(value: string) {
   xSliderValue.value = value
-  const dim = xDimension.value
+  const dim = xSliderDimension.value
   if (dim) {
     comboSelections[dim.name] = new Set([value])
   }
 }
 
-/** Y axis slider: navigate to a specific Y dimension value (solo that value in comboSelections). */
+/** Y slider: navigate to a specific Y slider dimension value (solo that value in comboSelections). */
 function onYSliderChange(value: string) {
   ySliderValue.value = value
-  const dim = yDimension.value
+  const dim = ySliderDimension.value
   if (dim) {
     comboSelections[dim.name] = new Set([value])
   }
@@ -731,6 +731,10 @@ function onPresetLoad(preset: Preset, warnings: string[]) {
       assignRole(dim.name, 'y')
     } else if (m.slider === dim.name) {
       assignRole(dim.name, 'slider')
+    } else if (m.x_slider === dim.name) {
+      assignRole(dim.name, 'x_slider')
+    } else if (m.y_slider === dim.name) {
+      assignRole(dim.name, 'y_slider')
     } else {
       assignRole(dim.name, 'none')
     }
@@ -1068,7 +1072,7 @@ async function handleSlideoutValidate() {
           </div>
         </template>
       </AppDrawer>
-      <main class="app-main" :class="{ 'app-main--x-slider-visible': !!xDimension, 'app-main--y-slider-visible': !!yDimension }">
+      <main class="app-main" :class="{ 'app-main--x-slider-visible': !!xSliderDimension, 'app-main--y-slider-visible': !!ySliderDimension }">
         <p v-if="!selectedTrainingRun">Select a training run to get started.</p>
         <template v-else>
           <p v-if="scanning">Scanning...</p>
@@ -1105,12 +1109,12 @@ async function handleSlideoutValidate() {
         :grid-column-count="lightboxContext?.gridColumnCount ?? 0"
         :debug-mode="debugMode"
         :debug-info="lightboxContext?.debugInfo"
-        :x-slider-values="xDimension?.values ?? []"
+        :x-slider-values="xSliderDimension?.values ?? []"
         :current-x-slider-value="currentXSliderValue"
-        :x-dimension-name="xDimension?.name ?? ''"
-        :y-slider-values="yDimension?.values ?? []"
+        :x-dimension-name="xSliderDimension?.name ?? ''"
+        :y-slider-values="ySliderDimension?.values ?? []"
         :current-y-slider-value="currentYSliderValue"
-        :y-dimension-name="yDimension?.name ?? ''"
+        :y-dimension-name="ySliderDimension?.name ?? ''"
         @close="onLightboxClose"
         @slider-change="onLightboxSliderChange"
         @navigate="onLightboxNavigate"
@@ -1170,30 +1174,30 @@ async function handleSlideoutValidate() {
         @close="slideoutValidationDialogShow = false"
         @regenerate="handleValidationRegenerate"
       />
-      <!-- AC1: X slider pinned to bottom of viewport; AC2: hidden when no X dimension mapping -->
+      <!-- AC: X slider pinned to bottom of viewport; hidden when no X Slider dimension mapping -->
       <div
-        v-if="xDimension"
+        v-if="xSliderDimension"
         class="x-slider-bar"
         data-testid="x-slider-bar"
       >
         <MasterSlider
-          :values="xDimension.values"
+          :values="xSliderDimension.values"
           :current-value="currentXSliderValue"
-          :dimension-name="xDimension.name"
+          :dimension-name="xSliderDimension.name"
           data-testid="x-master-slider"
           @change="onXSliderChange"
         />
       </div>
-      <!-- AC1: Y slider pinned to right edge of viewport; AC2: hidden when no Y dimension mapping -->
+      <!-- AC: Y slider pinned to right edge of viewport; hidden when no Y Slider dimension mapping -->
       <div
-        v-if="yDimension"
+        v-if="ySliderDimension"
         class="y-slider-bar"
         data-testid="y-slider-bar"
       >
         <MasterSlider
-          :values="yDimension.values"
+          :values="ySliderDimension.values"
           :current-value="currentYSliderValue"
-          :dimension-name="yDimension.name"
+          :dimension-name="ySliderDimension.name"
           data-testid="y-master-slider"
           @change="onYSliderChange"
         />

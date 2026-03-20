@@ -13,8 +13,10 @@ type Preset struct {
 
 // PresetMapping defines the assignment of dimensions to UI roles.
 type PresetMapping struct {
-	X      string
-	Y      string
-	Slider string
-	Combos []string
+	X       string
+	Y       string
+	Slider  string
+	XSlider string
+	YSlider string
+	Combos  []string
 }

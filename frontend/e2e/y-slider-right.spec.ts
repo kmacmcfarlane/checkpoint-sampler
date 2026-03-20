@@ -6,7 +6,7 @@ import { resetDatabase, selectTrainingRun, selectNaiveOptionByLabel, closeDrawer
  *
  * Verifies:
  *   - AC1: Y slider is pinned to the right edge of the viewport
- *   - AC2: Y slider is hidden when no dimension mapping is assigned to the Y axis
+ *   - AC2: Y slider is hidden when no dimension mapping is assigned to the Y Slider
  *   - AC3: Layout remains clean with slider visible and hidden
  *
  * Test fixture data:
@@ -21,12 +21,12 @@ test.describe('S-131: Y slider pinned to right side of viewport', () => {
     await resetDatabase(request)
   })
 
-  // AC2: Y slider is hidden when no dimension mapping is assigned to Y axis
+  // AC2: Y slider is hidden when no dimension mapping is assigned to Y Slider
   test('AC2: Y slider bar is not visible when no Y dimension is assigned', async ({ page }) => {
     await page.goto('/')
     await selectTrainingRun(page, 'my-model')
     await expect(page.getByText('Dimensions')).toBeVisible()
-    // Do NOT assign any dimension to Y axis
+    // Do NOT assign any dimension to Y Slider
     await closeDrawer(page)
 
     // AC2: Y slider bar must not be present in the DOM
@@ -39,8 +39,8 @@ test.describe('S-131: Y slider pinned to right side of viewport', () => {
     await selectTrainingRun(page, 'my-model')
     await expect(page.getByText('Dimensions')).toBeVisible()
 
-    // Assign prompt_name to Y axis (has 2 values: landscape, portrait)
-    await selectNaiveOptionByLabel(page, 'Mode for prompt_name', 'Y Axis')
+    // Assign prompt_name to Y Slider (has 2 values: landscape, portrait)
+    await selectNaiveOptionByLabel(page, 'Mode for prompt_name', 'Y Slider')
     await closeDrawer(page)
 
     // AC1: Y slider bar should be visible at the right
@@ -63,14 +63,14 @@ test.describe('S-131: Y slider pinned to right side of viewport', () => {
     await selectTrainingRun(page, 'my-model')
     await expect(page.getByText('Dimensions')).toBeVisible()
 
-    // Assign prompt_name to Y axis
-    await selectNaiveOptionByLabel(page, 'Mode for prompt_name', 'Y Axis')
+    // Assign prompt_name to Y Slider
+    await selectNaiveOptionByLabel(page, 'Mode for prompt_name', 'Y Slider')
 
     // Verify slider is visible
     const ySliderBar = page.locator('[data-testid="y-slider-bar"]')
     await expect(ySliderBar).toBeVisible()
 
-    // Remove Y axis assignment (change to Single filter mode)
+    // Remove Y Slider assignment (change to Single filter mode)
     await selectNaiveOptionByLabel(page, 'Mode for prompt_name', 'Single')
     await closeDrawer(page)
 
@@ -83,7 +83,7 @@ test.describe('S-131: Y slider pinned to right side of viewport', () => {
     await page.goto('/')
     await selectTrainingRun(page, 'my-model')
     await expect(page.getByText('Dimensions')).toBeVisible()
-    await selectNaiveOptionByLabel(page, 'Mode for prompt_name', 'Y Axis')
+    await selectNaiveOptionByLabel(page, 'Mode for prompt_name', 'Y Slider')
     await closeDrawer(page)
 
     // AC3: No horizontal scrollbar should appear
@@ -106,8 +106,8 @@ test.describe('S-131: Y slider pinned to right side of viewport', () => {
     await expect(page.getByText('Dimensions')).toBeVisible()
 
     // Assign checkpoint to X and prompt_name to Y
-    await selectNaiveOptionByLabel(page, 'Mode for checkpoint', 'X Axis')
-    await selectNaiveOptionByLabel(page, 'Mode for prompt_name', 'Y Axis')
+    await selectNaiveOptionByLabel(page, 'Mode for checkpoint', 'X Slider')
+    await selectNaiveOptionByLabel(page, 'Mode for prompt_name', 'Y Slider')
     await closeDrawer(page)
 
     // AC3: Both slider bars should be visible

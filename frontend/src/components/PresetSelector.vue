@@ -433,6 +433,12 @@ function assignmentsToMapping(): PresetMapping {
       case 'slider':
         mapping.slider = dim
         break
+      case 'x_slider':
+        mapping.x_slider = dim
+        break
+      case 'y_slider':
+        mapping.y_slider = dim
+        break
       case 'none':
         mapping.combos.push(dim)
         break

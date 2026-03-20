@@ -262,13 +262,15 @@ describe('useDimensionMapping', () => {
   })
 
   describe('computed dimensions by role', () => {
-    it('returns null for unassigned x/y/slider', () => {
-      const { setScanResult, xDimension, yDimension, sliderDimension } = useDimensionMapping()
+    it('returns null for unassigned x/y/slider/xSlider/ySlider', () => {
+      const { setScanResult, xDimension, yDimension, sliderDimension, xSliderDimension, ySliderDimension } = useDimensionMapping()
       setScanResult(makeScanResult())
 
       expect(xDimension.value).toBeNull()
       expect(yDimension.value).toBeNull()
       expect(sliderDimension.value).toBeNull()
+      expect(xSliderDimension.value).toBeNull()
+      expect(ySliderDimension.value).toBeNull()
     })
 
     it('returns correct dimension for each role', () => {
@@ -283,6 +285,43 @@ describe('useDimensionMapping', () => {
       expect(xDimension.value?.name).toBe('index')
       expect(yDimension.value?.name).toBe('step')
       expect(sliderDimension.value?.name).toBe('seed')
+    })
+
+    it('returns correct dimension for x_slider and y_slider roles', () => {
+      const { setScanResult, assignRole, xSliderDimension, ySliderDimension } =
+        useDimensionMapping()
+      setScanResult(makeScanResult())
+
+      assignRole('index', 'x_slider')
+      assignRole('step', 'y_slider')
+
+      expect(xSliderDimension.value?.name).toBe('index')
+      expect(ySliderDimension.value?.name).toBe('step')
+    })
+
+    it('x_slider and y_slider are independent from x and y axis roles', () => {
+      const { setScanResult, assignRole, xDimension, yDimension, xSliderDimension, ySliderDimension } =
+        useDimensionMapping()
+      // Need a scan result with enough dimensions to assign all 4 roles
+      setScanResult({
+        images: [],
+        dimensions: [
+          { name: 'a', type: 'int', values: ['1', '2'] },
+          { name: 'b', type: 'int', values: ['3', '4'] },
+          { name: 'c', type: 'int', values: ['5', '6'] },
+          { name: 'd', type: 'int', values: ['7', '8'] },
+        ],
+      })
+
+      assignRole('a', 'x')
+      assignRole('b', 'y')
+      assignRole('c', 'x_slider')
+      assignRole('d', 'y_slider')
+
+      expect(xDimension.value?.name).toBe('a')
+      expect(yDimension.value?.name).toBe('b')
+      expect(xSliderDimension.value?.name).toBe('c')
+      expect(ySliderDimension.value?.name).toBe('d')
     })
   })
 

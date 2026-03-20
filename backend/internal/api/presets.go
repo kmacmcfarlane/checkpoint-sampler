@@ -85,6 +85,12 @@ func presetToResponse(p model.Preset) *genpresets.PresetResponse {
 	if p.Mapping.Slider != "" {
 		mapping.Slider = &p.Mapping.Slider
 	}
+	if p.Mapping.XSlider != "" {
+		mapping.XSlider = &p.Mapping.XSlider
+	}
+	if p.Mapping.YSlider != "" {
+		mapping.YSlider = &p.Mapping.YSlider
+	}
 	return &genpresets.PresetResponse{
 		ID:        p.ID,
 		Name:      p.Name,
@@ -106,6 +112,12 @@ func payloadToMapping(p *genpresets.PresetMappingPayload) model.PresetMapping {
 	}
 	if p.Slider != nil {
 		m.Slider = *p.Slider
+	}
+	if p.XSlider != nil {
+		m.XSlider = *p.XSlider
+	}
+	if p.YSlider != nil {
+		m.YSlider = *p.YSlider
 	}
 	return m
 }
