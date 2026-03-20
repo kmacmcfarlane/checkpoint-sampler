@@ -356,7 +356,7 @@ stories:
   - id: B-118
     title: "E2E: job-delete spec fails to find delete button by data-testid"
     type: bug
-    status: todo
+    status: uat
     priority: 65
     complexity: low
     requires: []

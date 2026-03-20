@@ -14,10 +14,39 @@ import { resetDatabase, closeDrawer } from './helpers'
  *
  * ## Test data setup
  *
- * Jobs are created directly via REST API to keep test setup simple.
- * Each test navigates to the Jobs panel, locates the job card, and verifies
- * the delete flow.
+ * Tests that verify delete UI behaviour (AC1–AC3 frontend) use the seed endpoint to
+ * create jobs directly in `completed` state. This avoids flakiness from the
+ * pending→running→completed transition race (B-118): the Delete button is hidden while
+ * a job is `running`, so tests that create real pending jobs must wait for the executor
+ * to complete them before the button becomes visible.
+ *
+ * The transition test (S-122 AC3) still creates a real pending job and polls for the
+ * Delete button to appear, verifying that the button becomes visible after execution.
+ *
+ * Jobs are deleted after each test via the API reset endpoint so no state leaks.
  */
+
+// B-118: Use seed endpoint to create jobs in a known terminal state (completed),
+// bypassing the executor. This eliminates the pending→running→completed race that
+// caused the Delete button to be hidden when the panel first opened.
+async function seedCompletedJob(request: APIRequestContext): Promise<string> {
+  const response = await request.post('/api/test/seed-jobs', {
+    data: [
+      {
+        training_run_name: 'my-model',
+        study_id: 'seed-study-001',
+        study_name: 'S-097 Delete Test Study',
+        workflow_name: 'test-workflow.json',
+        status: 'completed',
+        total_items: 1,
+        completed_items: 1,
+      },
+    ],
+  })
+  expect(response.status()).toBe(201)
+  const body = await response.json()
+  return (body.job_ids as string[])[0]
+}
 
 const STUDY_PAYLOAD = {
   name: 'S-097 Delete Test Study',
@@ -67,10 +96,13 @@ async function createJobViaAPI(request: APIRequestContext, studyId: string): Pro
  * jobs quickly (pending→running→completed in ~3s), but the UI may not have received
  * the WebSocket completion event yet. This helper periodically clicks the Refresh
  * button in the panel to re-fetch job data until the Delete button appears.
+ *
+ * B-118: Only used by the transition test (S-122 AC3). All other tests use
+ * seedCompletedJob() to create jobs directly in completed state.
  */
 async function waitForDeleteButton(page: import('@playwright/test').Page, jobId: string): Promise<import('@playwright/test').Locator> {
   const deleteButton = page.locator(`[data-testid="job-${jobId}-delete"]`)
-  const refreshButton = page.locator('button').filter({ hasText: 'Refresh' })
+  const refreshButton = page.locator('[role="dialog"][aria-modal="true"]').filter({ hasText: 'Sample Jobs' }).locator('button').filter({ hasText: 'Refresh' })
 
   // Poll: click Refresh up to 10 times (with 3s intervals) until Delete appears
   for (let attempt = 0; attempt < 10; attempt++) {
@@ -150,8 +182,9 @@ test.describe('job deletion with optional sample data removal (S-097)', () => {
   // AC1: Delete button on job cards shows the standard confirmation dialog
   test('AC1: clicking Delete button on a job card opens the ConfirmDeleteDialog', async ({ page, request }) => {
     // AC: FE: Delete button on job cards shows the standard confirmation dialog
-    const studyId = await createStudyViaAPI(request)
-    const jobId = await createJobViaAPI(request, studyId)
+    // B-118: Use seed endpoint to create a completed job so the Delete button is
+    // immediately visible without waiting for the executor transition.
+    const jobId = await seedCompletedJob(request)
 
     await openJobProgressPanel(page)
 
@@ -159,11 +192,15 @@ test.describe('job deletion with optional sample data removal (S-097)', () => {
     const jobCard = page.locator(`[data-testid="job-${jobId}"]`)
     await expect(jobCard).toBeVisible()
 
-    // S-122: Delete button is hidden while running; wait for job to finish (pending→running→completed)
-    const deleteButton = await waitForDeleteButton(page, jobId)
+    // The Delete button should be immediately visible for a completed job
+    const deleteButton = page.locator(`[data-testid="job-${jobId}-delete"]`)
+    await expect(deleteButton).toBeVisible()
     await deleteButton.click()
 
-    // AC1: The ConfirmDeleteDialog should appear
+    // AC1: The ConfirmDeleteDialog should appear.
+    // The data-testid="delete-job-dialog" is set on the <ConfirmDeleteDialog> component
+    // in JobProgressPanel.vue. Naive UI NModal forwards fallthrough attributes from
+    // parent components to the teleported card element, so this testid IS in the DOM.
     const confirmDialog = page.locator('[data-testid="delete-job-dialog"]')
     await expect(confirmDialog).toBeVisible()
   })
@@ -171,13 +208,13 @@ test.describe('job deletion with optional sample data removal (S-097)', () => {
   // AC2: Confirmation dialog includes 'Also delete sample data' checkbox (default off)
   test('AC2: confirmation dialog has "Also delete sample data" checkbox unchecked by default', async ({ page, request }) => {
     // AC: FE: Confirmation dialog includes 'Also delete sample data' checkbox (default off)
-    const studyId = await createStudyViaAPI(request)
-    const jobId = await createJobViaAPI(request, studyId)
+    // B-118: Use seed endpoint to create a completed job so the Delete button is immediately visible.
+    const jobId = await seedCompletedJob(request)
 
     await openJobProgressPanel(page)
 
-    // S-122: Delete button is hidden while running; wait for job to finish
-    const deleteButton = await waitForDeleteButton(page, jobId)
+    const deleteButton = page.locator(`[data-testid="job-${jobId}-delete"]`)
+    await expect(deleteButton).toBeVisible()
     await deleteButton.click()
 
     const confirmDialog = page.locator('[data-testid="delete-job-dialog"]')
@@ -193,13 +230,13 @@ test.describe('job deletion with optional sample data removal (S-097)', () => {
   // AC3: Cancelling the dialog does not delete the job
   test('AC3 (cancel): cancelling the dialog does not delete the job', async ({ page, request }) => {
     // AC: FE: Dialog cancellation leaves the job intact
-    const studyId = await createStudyViaAPI(request)
-    const jobId = await createJobViaAPI(request, studyId)
+    // B-118: Use seed endpoint to create a completed job so the Delete button is immediately visible.
+    const jobId = await seedCompletedJob(request)
 
     await openJobProgressPanel(page)
 
-    // S-122: Delete button is hidden while running; wait for job to finish
-    const deleteButton = await waitForDeleteButton(page, jobId)
+    const deleteButton = page.locator(`[data-testid="job-${jobId}-delete"]`)
+    await expect(deleteButton).toBeVisible()
     await deleteButton.click()
 
     const confirmDialog = page.locator('[data-testid="delete-job-dialog"]')
@@ -221,13 +258,13 @@ test.describe('job deletion with optional sample data removal (S-097)', () => {
   // AC3: BE: Confirming deletion without checkbox removes only the database record
   test('AC3 (confirm, no data): confirming without checking the checkbox deletes the job', async ({ page, request }) => {
     // AC: BE: Deleting a job without the data flag removes only the database record
-    const studyId = await createStudyViaAPI(request)
-    const jobId = await createJobViaAPI(request, studyId)
+    // B-118: Use seed endpoint to create a completed job so the Delete button is immediately visible.
+    const jobId = await seedCompletedJob(request)
 
     await openJobProgressPanel(page)
 
-    // S-122: Delete button is hidden while running; wait for job to finish
-    const deleteButton = await waitForDeleteButton(page, jobId)
+    const deleteButton = page.locator(`[data-testid="job-${jobId}-delete"]`)
+    await expect(deleteButton).toBeVisible()
     await deleteButton.click()
 
     const confirmDialog = page.locator('[data-testid="delete-job-dialog"]')
