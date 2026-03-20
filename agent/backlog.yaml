@@ -209,7 +209,7 @@ stories:
   - id: B-107
     title: "Manage Study: Checkpoint Status disappears after regenerate attempt"
     type: bug
-    status: uat_feedback
+    status: uat
     priority: 70
     complexity: medium
     requires: []
@@ -226,10 +226,6 @@ stories:
     testing:
       - "Update a study, trigger regenerate, then open Generate Samples — Checkpoint Status should still be visible."
       - "Test both successful and failed regeneration paths."
-    review_feedback: "Regression: regenerate confirmation dialog no longer appears when updating a study with existing samples.
-      Original bug (checkpoint status disappearing) fix suppressed the prompt entirely. This story's scope has been narrowed
-      back to the original bug — ensure checkpoint status remains visible after regenerate attempts. The broader regenerate
-      flow (clear-existing as job param, regenerate confirmation on study update) is split into B-114 and B-115."
   - id: S-132
     title: "X/Y axis sliders rework — bottom/right positioning, dimension mappings, lightbox sync"
     type: feature

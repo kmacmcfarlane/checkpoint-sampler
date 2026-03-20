@@ -58,7 +58,8 @@ Older entries are condensed to titles only — see git history for full details.
 - Staggered shard startup in batches of 4 with 2s pause to reduce Docker DNS resolver pressure
 
 ### B-107: Manage Study: Checkpoint Status disappears after regenerate attempt
-- Guard study persistence watcher against null so `resetForm()` doesn't erase persisted study; restore persisted selections on dialog reopen (not just with prefillJob)
+- Guard study persistence watcher against null so `resetForm()` doesn't erase persisted study; restore persisted selections on dialog reopen
+- UAT rework: added unit tests for cancelled confirmation, failed doSubmit, and validation content preservation
 
 ### B-106: Manage Study: Regenerate (update in place) doesn't launch a job
 - `StudyEditor` now emits `study-regenerate` after a successful in-place update; `JobLaunchDialog` handles it by creating a sample job with `clear_existing: true`

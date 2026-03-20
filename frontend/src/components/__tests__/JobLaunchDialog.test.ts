@@ -4231,7 +4231,7 @@ describe('JobLaunchDialog', () => {
 
   // B-107: State preservation after regenerate attempts
   describe('state preservation after regenerate attempt (B-107)', () => {
-    // AC1: Checkpoint Status remains visible after a failed regenerate attempt
+    // AC: Checkpoint Status remains visible after a failed regenerate attempt (via StudyEditor)
     it('preserves Checkpoint Status when regeneration job creation fails', async () => {
       mockCreateSampleJob.mockRejectedValue({ message: 'ComfyUI unavailable' })
       mockValidateTrainingRun.mockResolvedValue(validationForRunEmpty)
@@ -4255,7 +4255,7 @@ describe('JobLaunchDialog', () => {
       studySelect.vm.$emit('update:value', sampleStudies[0].id)
       await flushPromises()
 
-      // AC1: Checkpoint Status is visible before regeneration
+      // AC: Checkpoint Status is visible before regeneration
       expect(wrapper.find('[data-testid="checkpoint-picker"]').exists()).toBe(true)
 
       // Open editor and trigger a failed regeneration
@@ -4267,12 +4267,12 @@ describe('JobLaunchDialog', () => {
       await editor.vm.$emit('study-regenerate', sampleStudies[0])
       await flushPromises()
 
-      // AC2: Error is shown but Checkpoint Status is still visible
+      // AC: Error is shown but Checkpoint Status is still visible
       expect(wrapper.text()).toContain('ComfyUI unavailable')
       expect(wrapper.find('[data-testid="checkpoint-picker"]').exists()).toBe(true)
     })
 
-    // AC1: After successful regeneration + close + reopen, state is restored from persistence
+    // AC: After successful regeneration + close + reopen, state is restored from persistence
     it('restores Checkpoint Status after successful regeneration and dialog reopen', async () => {
       const mockJob: SampleJob = {
         id: 'regen-job-1',
@@ -4334,12 +4334,12 @@ describe('JobLaunchDialog', () => {
       await wrapper.setProps({ show: true, prefillJob: null })
       await flushPromises()
 
-      // AC1: After reopen, training run and study should be restored from persistence,
+      // AC: After reopen, training run and study should be restored from persistence,
       // which triggers validation, making Checkpoint Status visible again
       expect(wrapper.find('[data-testid="checkpoint-picker"]').exists()).toBe(true)
     })
 
-    // AC3: Persisted study ID is not cleared when resetForm() sets selectedStudy to null
+    // AC: Persisted study ID is not cleared when resetForm() sets selectedStudy to null
     it('does not clear persisted study when dialog is closed via resetForm', async () => {
       const mockJob: SampleJob = {
         id: 'regen-job-1',
@@ -4391,10 +4391,170 @@ describe('JobLaunchDialog', () => {
       await editor.vm.$emit('study-regenerate', sampleStudies[0])
       await flushPromises()
 
-      // AC3: After close()+resetForm(), persisted study and training run should NOT be cleared
+      // AC: After close()+resetForm(), persisted study and training run should NOT be cleared
       const stateAfterClose = JSON.parse(localStorage.getItem(GENERATE_INPUTS_STORAGE_KEY) ?? '{}')
       expect(stateAfterClose.lastStudyId).toBe('preset-1')
       expect(stateAfterClose.lastTrainingRunId).toBe(runEmpty.id)
+    })
+
+    // AC: Cancelled confirmation dialog does not corrupt state — validation results
+    // and form selections remain intact after the user dismisses the confirm dialog.
+    it('preserves Checkpoint Status after cancelling regeneration confirmation dialog', async () => {
+      // Use a complete validation to trigger the confirmation dialog
+      const validationComplete = {
+        checkpoints: [
+          { checkpoint: 'chk-a.safetensors', expected: 1, verified: 1, missing: 0 },
+          { checkpoint: 'chk-b.safetensors', expected: 1, verified: 1, missing: 0 },
+          { checkpoint: 'chk-c.safetensors', expected: 1, verified: 1, missing: 0 },
+        ],
+        expected_per_checkpoint: 1,
+        total_expected: 3,
+        total_verified: 3,
+        total_actual: 3,
+        total_missing: 0,
+      }
+      mockValidateTrainingRun.mockResolvedValue(validationComplete)
+      mockCreateSampleJob.mockResolvedValue({
+        id: 'job-regen',
+        training_run_name: runWithSamples.name,
+        study_id: 'preset-1',
+        study_name: 'Quick Test',
+        workflow_name: 'qwen-image.json',
+        status: 'pending',
+        total_items: 3,
+        completed_items: 0,
+        failed_items: 0,
+        pending_items: 3,
+        created_at: '2025-01-01T00:00:00Z',
+        updated_at: '2025-01-01T00:00:00Z',
+      })
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select run with samples and a study
+      wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
+      await nextTick()
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', runWithSamples.id)
+      await flushPromises()
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', sampleStudies[0].id)
+      await flushPromises()
+
+      // Checkpoint Status should be visible with validation results
+      expect(wrapper.find('[data-testid="checkpoint-picker"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="validation-results"]').exists()).toBe(true)
+
+      // Select all checkpoints so submit is enabled
+      const selectAllBtn = wrapper.find('[data-testid="select-all-checkpoints"]')
+      if (selectAllBtn.exists()) {
+        await selectAllBtn.trigger('click')
+        await nextTick()
+      }
+
+      // Click Regenerate to open confirmation dialog
+      const buttons = wrapper.findAllComponents(NButton)
+      const submitButton = buttons.find(b => b.text() === 'Regenerate Samples')
+      await submitButton!.trigger('click')
+      await nextTick()
+
+      // Confirmation dialog should be open
+      const confirmDialog = wrapper.findAllComponents(NModal).find(m => m.props('title') === 'Regenerate All Samples?')
+      expect(confirmDialog!.props('show')).toBe(true)
+
+      // Cancel the confirmation
+      const cancelButton = wrapper.find('[data-testid="confirm-regen-cancel-button"]')
+      await cancelButton.trigger('click')
+      await nextTick()
+
+      // AC: Checkpoint Status and validation results are still visible after cancel
+      expect(wrapper.find('[data-testid="checkpoint-picker"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="validation-results"]').exists()).toBe(true)
+      // AC: No API call was made
+      expect(mockCreateSampleJob).not.toHaveBeenCalled()
+    })
+
+    // AC: Failed API call in doSubmit does not corrupt Generate Samples state.
+    // Validation results, form selections, and checkpoint status remain visible.
+    it('preserves Checkpoint Status when doSubmit API call fails', async () => {
+      mockCreateSampleJob.mockRejectedValue({ message: 'Server error' })
+      mockValidateTrainingRun.mockResolvedValue(validationForRunEmpty)
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select training run (no samples) and study
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', runEmpty.id)
+      await flushPromises()
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', sampleStudies[0].id)
+      await flushPromises()
+
+      // Checkpoint Status visible before submit
+      expect(wrapper.find('[data-testid="checkpoint-picker"]').exists()).toBe(true)
+
+      // Click Generate Samples (no confirmation dialog for empty runs)
+      const buttons = wrapper.findAllComponents(NButton)
+      const submitButton = buttons.find(b => b.text() === 'Generate Samples')
+      await submitButton!.trigger('click')
+      await flushPromises()
+
+      // AC: Error shown but checkpoint status preserved
+      expect(wrapper.text()).toContain('Server error')
+      expect(wrapper.find('[data-testid="checkpoint-picker"]').exists()).toBe(true)
+      // AC: Form selections are preserved (not cleared by the error)
+      const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
+      expect(runSelect.props('value')).toBe(runEmpty.id)
+      const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+      expect(studySelect.props('value')).toBe(sampleStudies[0].id)
+    })
+
+    // AC: Validation result content (checkpoint counts) is preserved after failed
+    // study regeneration, not just the container element.
+    it('preserves validation result content after failed study regeneration', async () => {
+      mockCreateSampleJob.mockRejectedValue({ message: 'ComfyUI unavailable' })
+      mockValidateTrainingRun.mockResolvedValue(validationForRunEmpty)
+      mockListStudies
+        .mockResolvedValueOnce(sampleStudies)   // mount
+        .mockResolvedValueOnce(sampleStudies)   // StudyEditor mount
+        .mockResolvedValueOnce(sampleStudies)   // fetchStudies inside onStudyRegenerate
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select training run and study
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', runEmpty.id)
+      await flushPromises()
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', sampleStudies[0].id)
+      await flushPromises()
+
+      // Verify validation results are rendered (checkpoint rows)
+      const resultsBefore = wrapper.find('[data-testid="validation-results"]')
+      expect(resultsBefore.exists()).toBe(true)
+      const rowsBefore = wrapper.findAll('[data-testid^="checkpoint-row-"]')
+      expect(rowsBefore.length).toBe(2) // validationForRunEmpty has 2 checkpoints
+
+      // Open editor and trigger a failed regeneration
+      const manageBtn = wrapper.findAllComponents(NButton).find(b => b.text().includes('Manage Studies'))
+      await manageBtn!.trigger('click')
+      await flushPromises()
+
+      const editor = wrapper.findComponent(StudyEditor)
+      await editor.vm.$emit('study-regenerate', sampleStudies[0])
+      await flushPromises()
+
+      // AC: Validation results content is preserved (same number of checkpoint rows)
+      const resultsAfter = wrapper.find('[data-testid="validation-results"]')
+      expect(resultsAfter.exists()).toBe(true)
+      const rowsAfter = wrapper.findAll('[data-testid^="checkpoint-row-"]')
+      expect(rowsAfter.length).toBe(2)
     })
   })
 })
