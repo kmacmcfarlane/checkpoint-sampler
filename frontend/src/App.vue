@@ -1198,6 +1198,7 @@ async function handleSlideoutValidate() {
           :values="ySliderDimension.values"
           :current-value="currentYSliderValue"
           :dimension-name="ySliderDimension.name"
+          :vertical="true"
           data-testid="y-master-slider"
           @change="onYSliderChange"
         />
@@ -1371,46 +1372,7 @@ async function handleSlideoutValidate() {
   width: 4rem;
 }
 
-.y-slider-bar :deep(.master-slider) {
-  writing-mode: vertical-lr;
-  height: 100%;
-  width: auto;
-  border-bottom: none;
-  margin-bottom: 0;
-  padding: 0;
-}
-
-.y-slider-bar :deep(.master-slider__main) {
-  flex-direction: column;
-  align-items: center;
-  height: 100%;
-  gap: 0.5rem;
-}
-
-.y-slider-bar :deep(.master-slider__slider-wrapper) {
-  flex: 1;
-  min-width: 0;
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.y-slider-bar :deep(.master-slider__slider) {
-  writing-mode: vertical-lr;
-  width: auto;
-  height: 100%;
-}
-
-.y-slider-bar :deep(.master-slider__label) {
-  writing-mode: vertical-lr;
-  white-space: nowrap;
-}
-
-.y-slider-bar :deep(.master-slider__value) {
-  writing-mode: vertical-lr;
-  white-space: nowrap;
-}
+/* Vertical mode styles are handled by MasterSlider's vertical prop */
 
 @media (max-width: 767px) {
   .app-header {

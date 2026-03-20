@@ -78,6 +78,25 @@ test.describe('S-131: Y slider pinned to right side of viewport', () => {
     await expect(ySliderBar).not.toBeVisible()
   })
 
+  // AC: Y slider renders as a tall vertical slider (height > width)
+  test('AC: Y slider renders as a tall vertical slider with height greater than width', async ({ page }) => {
+    await page.goto('/')
+    await selectTrainingRun(page, 'my-model')
+    await expect(page.getByText('Dimensions')).toBeVisible()
+
+    // Assign prompt_name to Y Slider
+    await selectNaiveOptionByLabel(page, 'Mode for prompt_name', 'Y Slider')
+    await closeDrawer(page)
+
+    const ySliderBar = page.locator('[data-testid="y-slider-bar"]')
+    await expect(ySliderBar).toBeVisible()
+
+    // AC: The Y slider bar should be tall (height >> width), not horizontally collapsed
+    const box = await ySliderBar.boundingBox()
+    expect(box).not.toBeNull()
+    expect(box!.height).toBeGreaterThan(box!.width * 2) // height should be much greater than width
+  })
+
   // AC3: Layout is clean when Y slider is visible (no overflow, no overlap with content)
   test('AC3: Layout is clean when Y slider is visible', async ({ page }) => {
     await page.goto('/')

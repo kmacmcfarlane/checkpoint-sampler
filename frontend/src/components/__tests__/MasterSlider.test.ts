@@ -37,6 +37,39 @@ describe('MasterSlider', () => {
     expect(slider.exists()).toBe(true)
   })
 
+  // AC: Y slider must be a tall, vertical slider
+  it('passes vertical=false to NSlider by default', () => {
+    const wrapper = mountMaster()
+    const slider = wrapper.findComponent(NSlider)
+    expect(slider.props('vertical')).toBe(false)
+  })
+
+  it('passes vertical=true to NSlider when vertical prop is set', () => {
+    const wrapper = mountMaster({ vertical: true })
+    const slider = wrapper.findComponent(NSlider)
+    expect(slider.props('vertical')).toBe(true)
+  })
+
+  it('passes reverse=true to NSlider when vertical prop is set', () => {
+    const wrapper = mountMaster({ vertical: true })
+    const slider = wrapper.findComponent(NSlider)
+    expect(slider.props('reverse')).toBe(true)
+  })
+
+  it('applies vertical CSS classes when vertical prop is set', () => {
+    const wrapper = mountMaster({ vertical: true })
+    expect(wrapper.find('.master-slider--vertical').exists()).toBe(true)
+    expect(wrapper.find('.master-slider__main--vertical').exists()).toBe(true)
+    expect(wrapper.find('.master-slider__slider-wrapper--vertical').exists()).toBe(true)
+  })
+
+  it('does not apply vertical CSS classes by default', () => {
+    const wrapper = mountMaster()
+    expect(wrapper.find('.master-slider--vertical').exists()).toBe(false)
+    expect(wrapper.find('.master-slider__main--vertical').exists()).toBe(false)
+    expect(wrapper.find('.master-slider__slider-wrapper--vertical').exists()).toBe(false)
+  })
+
   it('displays the dimension name as label', () => {
     const wrapper = mountMaster({ dimensionName: 'checkpoint' })
     expect(wrapper.find('.master-slider__label').text()).toBe('checkpoint')

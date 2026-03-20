@@ -2548,6 +2548,23 @@ describe('App', () => {
       expect(yMasterSlider!.props('dimensionName')).toBe('cfg')
     })
 
+    // AC: Y slider MasterSlider has vertical=true for tall vertical rendering
+    it('AC: MasterSlider inside Y slider bar has vertical=true', async () => {
+      const wrapper = await mountAndSelectWithPreset(mockPresetWithYSlider, mockScanResultWithYDimension)
+
+      const presetSelector = wrapper.findComponent({ name: 'PresetSelector' })
+      presetSelector.vm.$emit('load', mockPresetWithYSlider, [])
+      await flushPromises()
+
+      const masterSliders = wrapper.findAllComponents({ name: 'MasterSlider' })
+      const yMasterSlider = masterSliders.find(s => {
+        const vals = s.props('values') as string[]
+        return vals && vals.includes('5') && vals.includes('7') && vals.includes('9')
+      })
+      expect(yMasterSlider).toBeDefined()
+      expect(yMasterSlider!.props('vertical')).toBe(true)
+    })
+
     // AC: Both X and Y sliders can be visible simultaneously without layout issues
     it('AC: Both X and Y slider bars render together when both slider dimensions are assigned', async () => {
       const wrapper = await mountAndSelectWithPreset(mockPresetWithXSliderAndYSlider, mockScanResultWithYDimension)

@@ -20,6 +20,7 @@ Older entries are condensed to titles only — see git history for full details.
 - Replaced header MasterSlider with playback-only AnimationControls (play/pause, loop, speed — no slider track)
 - 4 independent dimension mappings: X Axis (grid columns), Y Axis (grid rows), X Slider (bottom edge), Y Slider (right edge) — grid axes and sliders are independently assignable
 - X/Y sliders in lightbox sync to main view sliders; both hidden when no dimension is mapped to the respective slider role
+- Y slider now uses NSlider's native `vertical` prop for proper tall vertical rendering (UAT rework)
 
 ### R-008: Treat orphaned running items as resumable in processNextItem
 - `processNextItem` now recovers orphaned running items (stuck after stop/resume or server restart) by resetting them to pending and reprocessing, instead of marking the job `completed_with_errors`

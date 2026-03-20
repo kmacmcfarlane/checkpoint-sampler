@@ -9,14 +9,18 @@ import {
   isSliderActive,
 } from '../composables/useSliderKeyboardFocus'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   /** Ordered values to cycle through. */
   values: string[]
   /** Currently selected value for the master slider. */
   currentValue: string
   /** Dimension name for labelling. */
   dimensionName: string
-}>()
+  /** When true, renders the slider vertically (tall, drag up/down). Used for Y axis. */
+  vertical?: boolean
+}>(), {
+  vertical: false,
+})
 
 // change: Emitted when the slider value changes (arrow keys, slider drag, or playback tick).
 // Payload: the new string value from the values array.
@@ -187,12 +191,12 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="master-slider" role="group" :aria-label="`Master ${dimensionName} slider`" tabindex="0" @keydown="onKeydown" @focus="onSliderFocus" @click="onSliderFocus">
-    <div class="master-slider__main">
+  <div class="master-slider" :class="{ 'master-slider--vertical': vertical }" role="group" :aria-label="`Master ${dimensionName} slider`" tabindex="0" @keydown="onKeydown" @focus="onSliderFocus" @click="onSliderFocus">
+    <div class="master-slider__main" :class="{ 'master-slider__main--vertical': vertical }">
       <label class="master-slider__label">
         {{ dimensionName }}
       </label>
-      <div ref="sliderWrapperRef" class="master-slider__slider-wrapper">
+      <div ref="sliderWrapperRef" class="master-slider__slider-wrapper" :class="{ 'master-slider__slider-wrapper--vertical': vertical }">
         <NSlider
           :value="currentIndex"
           :min="0"
@@ -200,6 +204,8 @@ onBeforeUnmount(() => {
           :step="1"
           :tooltip="false"
           :keyboard="false"
+          :vertical="vertical"
+          :reverse="vertical"
           class="master-slider__slider"
           @update:value="onUpdate"
         />
@@ -300,6 +306,32 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+}
+
+/* Vertical mode: slider rendered tall with flex-direction column */
+.master-slider--vertical {
+  flex-direction: column;
+  height: 100%;
+  width: auto;
+  border-bottom: none;
+  margin-bottom: 0;
+  padding: 0;
+}
+
+.master-slider__main--vertical {
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  gap: 0.5rem;
+}
+
+.master-slider__slider-wrapper--vertical {
+  flex: 1;
+  min-height: 0;
+  width: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 @media (max-width: 767px) {

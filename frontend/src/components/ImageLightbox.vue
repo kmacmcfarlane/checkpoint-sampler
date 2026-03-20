@@ -548,6 +548,7 @@ onUnmounted(() => {
         :values="ySliderValues"
         :current-value="currentYSliderValue"
         :dimension-name="yDimensionName"
+        :vertical="true"
         @change="onLightboxYSliderChange"
       />
     </div>
@@ -698,46 +699,7 @@ onUnmounted(() => {
   width: 4rem;
 }
 
-.lightbox-y-slider-bar :deep(.master-slider) {
-  writing-mode: vertical-lr;
-  height: 100%;
-  width: auto;
-  border-bottom: none;
-  margin-bottom: 0;
-  padding: 0;
-}
-
-.lightbox-y-slider-bar :deep(.master-slider__main) {
-  flex-direction: column;
-  align-items: center;
-  height: 100%;
-  gap: 0.5rem;
-}
-
-.lightbox-y-slider-bar :deep(.master-slider__slider-wrapper) {
-  flex: 1;
-  min-width: 0;
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.lightbox-y-slider-bar :deep(.master-slider__slider) {
-  writing-mode: vertical-lr;
-  width: auto;
-  height: 100%;
-}
-
-.lightbox-y-slider-bar :deep(.master-slider__label) {
-  writing-mode: vertical-lr;
-  white-space: nowrap;
-}
-
-.lightbox-y-slider-bar :deep(.master-slider__value) {
-  writing-mode: vertical-lr;
-  white-space: nowrap;
-}
+/* Vertical mode styles are handled by MasterSlider's vertical prop */
 
 .lightbox-debug-overlay {
   position: fixed;

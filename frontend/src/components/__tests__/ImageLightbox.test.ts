@@ -1934,6 +1934,38 @@ describe('ImageLightbox', () => {
       expect(wrapper.find('[data-testid="lightbox-y-slider-bar"]').exists()).toBe(true)
     })
 
+    // AC: Y slider must be rendered as a vertical slider
+    it('passes vertical=true to Y slider MasterSlider in lightbox', async () => {
+      const wrapper = mount(ImageLightbox, {
+        props: {
+          ...defaultProps,
+          ySliderValues: ['landscape', 'portrait'],
+          currentYSliderValue: 'landscape',
+          yDimensionName: 'prompt_name',
+        },
+      })
+      await flushPromises()
+      const ySliderBar = wrapper.find('[data-testid="lightbox-y-slider-bar"]')
+      const masterSlider = ySliderBar.findComponent({ name: 'MasterSlider' })
+      expect(masterSlider.props('vertical')).toBe(true)
+    })
+
+    // AC: X slider should not be vertical
+    it('does not pass vertical=true to X slider MasterSlider in lightbox', async () => {
+      const wrapper = mount(ImageLightbox, {
+        props: {
+          ...defaultProps,
+          xSliderValues: ['step-1000', 'step-2000'],
+          currentXSliderValue: 'step-1000',
+          xDimensionName: 'checkpoint',
+        },
+      })
+      await flushPromises()
+      const xSliderBar = wrapper.find('[data-testid="lightbox-x-slider-bar"]')
+      const masterSlider = xSliderBar.findComponent({ name: 'MasterSlider' })
+      expect(masterSlider.props('vertical')).toBe(false)
+    })
+
     // AC: FE: Lightbox X slider emits x-slider-change when changed
     it('emits x-slider-change when X slider value changes', async () => {
       const wrapper = mount(ImageLightbox, {
