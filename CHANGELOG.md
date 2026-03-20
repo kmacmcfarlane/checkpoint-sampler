@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-118: E2E: job-delete spec fails to find delete button by data-testid
+- Replaced real job creation with seed endpoint in job-delete E2E tests to eliminate the pending→running→completed race condition that made the Delete button intermittently unfindable
+
 ### B-115: Regenerate confirmation dialog missing on study update
 - New `GET /api/studies/{id}/affected-runs` endpoint returns training runs with samples for a study
 - Study update now shows a confirmation dialog listing affected training runs before queuing regeneration jobs with `clear_existing: true`
