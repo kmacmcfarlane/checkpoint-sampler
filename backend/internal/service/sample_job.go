@@ -96,6 +96,24 @@ func (s *SampleJobService) SetExecutor(executor SampleJobExecutor) {
 	s.executor = executor
 }
 
+// clearSampleDirsForJob removes the sample directories for each checkpoint in the job.
+// This is called once when a job first transitions from pending to running.
+func (s *SampleJobService) clearSampleDirsForJob(job model.SampleJob) {
+	for _, cpFilename := range job.CheckpointFilenames {
+		if err := s.dirRemover.RemoveSampleDir(cpFilename); err != nil {
+			s.logger.WithFields(logrus.Fields{
+				"checkpoint_filename": cpFilename,
+				"error":               err.Error(),
+			}).Warn("failed to remove sample dir, continuing")
+		} else {
+			s.logger.WithFields(logrus.Fields{
+				"checkpoint_filename": cpFilename,
+				"sample_dir":          filepath.Join(s.sampleDir, cpFilename),
+			}).Info("cleared existing sample directory")
+		}
+	}
+}
+
 // List returns all sample jobs ordered by creation time (newest first) for UI display.
 func (s *SampleJobService) List() ([]model.SampleJob, error) {
 	s.logger.Trace("entering List")
@@ -168,23 +186,6 @@ func (s *SampleJobService) Create(trainingRunName string, checkpoints []model.Ch
 		}).Debug("filtered checkpoints by filename list")
 	}
 
-	// Clear existing sample directories when requested
-	if clearExisting && s.dirRemover != nil {
-		for _, cp := range checkpoints {
-			if err := s.dirRemover.RemoveSampleDir(cp.Filename); err != nil {
-				s.logger.WithFields(logrus.Fields{
-					"checkpoint_filename": cp.Filename,
-					"error":               err.Error(),
-				}).Warn("failed to remove sample dir, continuing")
-			} else {
-				s.logger.WithFields(logrus.Fields{
-					"checkpoint_filename": cp.Filename,
-					"sample_dir":          filepath.Join(s.sampleDir, cp.Filename),
-				}).Info("cleared existing sample directory")
-			}
-		}
-	}
-
 	// Fetch the study
 	study, err := s.store.GetStudy(studyID)
 	if err == sql.ErrNoRows {
@@ -231,6 +232,7 @@ func (s *SampleJobService) Create(trainingRunName string, checkpoints []model.Ch
 		CLIP:                study.TextEncoder,
 		Shift:               study.Shift,
 		CheckpointFilenames: selectedFilenames,
+		ClearExisting:       clearExisting,
 		Status:              model.SampleJobStatusPending,
 		TotalItems:          totalItems,
 		CompletedItems:      0,
@@ -426,8 +428,16 @@ func (s *SampleJobService) Start(id string) (model.SampleJob, error) {
 		return model.SampleJob{}, fmt.Errorf("cannot start job in status %s", job.Status)
 	}
 
-	// Update status to running
+	// B-114: Clear existing sample directories when the job first transitions
+	// to running (not at queue time). After clearing, reset the flag so that
+	// resuming a stopped/failed job does not re-clear.
+	if job.ClearExisting && s.dirRemover != nil {
+		s.clearSampleDirsForJob(job)
+	}
+
+	// Update status to running; reset ClearExisting so resume never re-clears
 	job.Status = model.SampleJobStatusRunning
+	job.ClearExisting = false
 	job.UpdatedAt = time.Now().UTC()
 
 	if err := s.store.UpdateSampleJob(job); err != nil {

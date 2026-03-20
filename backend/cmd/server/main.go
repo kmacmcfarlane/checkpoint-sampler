@@ -181,6 +181,7 @@ func run() error {
 
 		// Wire the executor and service together (avoiding circular dependency)
 		sampleJobSvc.SetExecutor(jobExecutor)
+		jobExecutor.SetDirRemover(dirRemover)
 
 		// Start the job executor (non-fatal if ComfyUI is unreachable)
 		if err := jobExecutor.Start(); err != nil {

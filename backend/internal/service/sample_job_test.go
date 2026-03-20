@@ -480,34 +480,28 @@ var _ = Describe("SampleJobService", func() {
 			Expect(job.CheckpointFilenames).To(BeEmpty())
 		})
 
-		It("clears existing sample directories when clear_existing is true", func() {
+		// B-114: clear_existing is stored as a job parameter, not executed at queue time
+		It("stores clear_existing flag on the job but does NOT clear directories at queue time", func() {
 			dirRemover.removed = nil
-			_, err := svc.Create("test-run", checkpoints, "study-1", nil, true, false)
+			job, err := svc.Create("test-run", checkpoints, "study-1", nil, true, false)
 			Expect(err).NotTo(HaveOccurred())
-			// Both checkpoints should have been cleared
-			Expect(dirRemover.removed).To(ConsistOf("checkpoint1.safetensors", "checkpoint2.safetensors"))
-		})
-
-		It("clears only the filtered checkpoints when both checkpoint_filenames and clear_existing are set", func() {
-			dirRemover.removed = nil
-			_, err := svc.Create("test-run", checkpoints, "study-1", []string{"checkpoint1.safetensors"}, true, false)
-			Expect(err).NotTo(HaveOccurred())
-			// Only checkpoint1 should have been cleared
-			Expect(dirRemover.removed).To(ConsistOf("checkpoint1.safetensors"))
-		})
-
-		It("does not clear directories when clear_existing is false", func() {
-			dirRemover.removed = nil
-			_, err := svc.Create("test-run", checkpoints, "study-1", nil, false, false)
-			Expect(err).NotTo(HaveOccurred())
+			// Directories should NOT be cleared during Create
 			Expect(dirRemover.removed).To(BeEmpty())
+			// Flag should be stored on the job
+			Expect(job.ClearExisting).To(BeTrue())
+		})
+
+		It("stores clear_existing=false when not requested", func() {
+			job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, false)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(job.ClearExisting).To(BeFalse())
 		})
 
 		// B-106 AC1/AC2: Study regeneration creates a job with clear_existing for all checkpoints.
 		// After an in-place study update, the frontend calls Create with clear_existing=true
 		// and no checkpoint filter to regenerate all samples.
 		Context("regeneration job creation (B-106)", func() {
-			It("creates a job with clear_existing that removes all checkpoint sample dirs", func() {
+			It("creates a job with clear_existing flag stored (clearing deferred to start)", func() {
 				dirRemover.removed = nil
 				job, err := svc.Create("test-run", checkpoints, "study-1", nil, true, false)
 				Expect(err).NotTo(HaveOccurred())
@@ -517,8 +511,9 @@ var _ = Describe("SampleJobService", func() {
 				Expect(job.TrainingRunName).To(Equal("test-run"))
 				Expect(job.Status).To(Equal(model.SampleJobStatusPending))
 
-				// AC2: clear_existing removes all checkpoint sample directories
-				Expect(dirRemover.removed).To(ConsistOf("checkpoint1.safetensors", "checkpoint2.safetensors"))
+				// B-114: clear_existing is stored as a param, not executed at queue time
+				Expect(job.ClearExisting).To(BeTrue())
+				Expect(dirRemover.removed).To(BeEmpty())
 
 				// All items are created (no filter applied)
 				items := store.items[job.ID]
@@ -746,6 +741,47 @@ var _ = Describe("SampleJobService", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.Status).To(Equal(model.SampleJobStatusRunning))
 		})
+
+		// B-114: Clear-existing is applied at job start, not queue time
+		Context("clear-existing at start (B-114)", func() {
+			It("clears sample directories when job transitions from pending to running with ClearExisting=true", func() {
+				dirRemover.removed = nil
+				job := model.SampleJob{
+					ID:                  "job-clear",
+					Status:              model.SampleJobStatusPending,
+					ClearExisting:       true,
+					CheckpointFilenames: []string{"cp1.safetensors", "cp2.safetensors"},
+				}
+				store.jobs[job.ID] = job
+
+				result, err := svc.Start("job-clear")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result.Status).To(Equal(model.SampleJobStatusRunning))
+
+				// Directories should be cleared during Start
+				Expect(dirRemover.removed).To(ConsistOf("cp1.safetensors", "cp2.safetensors"))
+
+				// ClearExisting should be reset to false so resume never re-clears
+				Expect(result.ClearExisting).To(BeFalse())
+				storedJob := store.jobs["job-clear"]
+				Expect(storedJob.ClearExisting).To(BeFalse())
+			})
+
+			It("does not clear directories when ClearExisting=false", func() {
+				dirRemover.removed = nil
+				job := model.SampleJob{
+					ID:                  "job-no-clear",
+					Status:              model.SampleJobStatusPending,
+					ClearExisting:       false,
+					CheckpointFilenames: []string{"cp1.safetensors"},
+				}
+				store.jobs[job.ID] = job
+
+				_, err := svc.Start("job-no-clear")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(dirRemover.removed).To(BeEmpty())
+			})
+		})
 	})
 
 	Describe("List", func() {
@@ -894,6 +930,23 @@ var _ = Describe("SampleJobService", func() {
 			_, err := svc.Resume("nonexistent")
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("not found"))
+		})
+
+		// B-114: Resuming a stopped job does NOT re-clear existing samples.
+		// The ClearExisting flag was already reset to false when the job first started.
+		It("does not re-clear sample directories on resume (B-114)", func() {
+			dirRemover.removed = nil
+			job := model.SampleJob{
+				ID:                  "job-resume",
+				Status:              model.SampleJobStatusStopped,
+				ClearExisting:       false, // already reset after first start
+				CheckpointFilenames: []string{"cp1.safetensors"},
+			}
+			store.jobs[job.ID] = job
+
+			_, err := svc.Resume("job-resume")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(dirRemover.removed).To(BeEmpty())
 		})
 	})
 

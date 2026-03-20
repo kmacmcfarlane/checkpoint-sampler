@@ -269,7 +269,7 @@ stories:
   - id: B-114
     title: "Clear-existing samples should be a job param applied at job start, not queue time"
     type: bug
-    status: todo
+    status: uat
     priority: 55
     complexity: medium
     requires: []
@@ -312,3 +312,20 @@ stories:
       - "Test with study that has samples across multiple checkpoints — all affected samplesets should appear in dialog."
       - "Test 'No' path: samples untouched after study update."
       - "Test 'Yes' path: verify jobs queued with clear-existing param per B-114 behavior."
+  - id: B-116
+    title: "job-delete.spec.ts AC3 flaky — delete confirmation races with API check"
+    type: bug
+    status: todo
+    priority: 50
+    complexity: low
+    requires: []
+    acceptance:
+      - "After confirming deletion in the dialog, the job is no longer returned by GET /api/sample-jobs within 5 seconds"
+      - "The E2E test waits for the DELETE response to complete before asserting the job is gone"
+    testing:
+      - "command: make test-e2e-serial SPEC=job-delete.spec.ts"
+    notes: |
+      Failing test: frontend/e2e/job-delete.spec.ts:222 > AC3 (confirm, no data): confirming without checking the checkbox deletes the job.
+      Error: expect(found).toBe(false) — Expected: false, Received: true (job still returned by GET /api/sample-jobs after confirmation dialog closed).
+      Root cause hypothesis: The confirmation dialog closes after the delete request is dispatched but the test's immediate request.get('/api/sample-jobs') check races against the in-flight DELETE HTTP request.
+      Source: QA E2E run during B-114 verification.

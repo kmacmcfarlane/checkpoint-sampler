@@ -21,6 +21,7 @@ type sampleJobEntity struct {
 	CLIP                sql.NullString
 	Shift               sql.NullFloat64
 	CheckpointFilenames string // JSON-encoded []string
+	ClearExisting       bool
 	Status              string
 	TotalItems          int
 	CompletedItems      int
@@ -77,7 +78,7 @@ func (s *Store) ListSampleJobsDesc() ([]model.SampleJob, error) {
 // listSampleJobsOrdered is the shared implementation for ListSampleJobs and ListSampleJobsDesc.
 // direction must be "ASC" or "DESC".
 func (s *Store) listSampleJobsOrdered(direction string) ([]model.SampleJob, error) {
-	rows, err := s.db.Query(`SELECT id, training_run_name, study_id, study_name, workflow_name, vae, clip, shift, checkpoint_filenames, status, total_items, completed_items, error_message, created_at, updated_at
+	rows, err := s.db.Query(`SELECT id, training_run_name, study_id, study_name, workflow_name, vae, clip, shift, checkpoint_filenames, clear_existing, status, total_items, completed_items, error_message, created_at, updated_at
 		FROM sample_jobs ORDER BY created_at ` + direction)
 	if err != nil {
 		s.logger.WithError(err).Error("failed to query sample jobs")
@@ -88,7 +89,7 @@ func (s *Store) listSampleJobsOrdered(direction string) ([]model.SampleJob, erro
 	var jobs []model.SampleJob
 	for rows.Next() {
 		var e sampleJobEntity
-		if err := rows.Scan(&e.ID, &e.TrainingRunName, &e.StudyID, &e.StudyName, &e.WorkflowName, &e.VAE, &e.CLIP, &e.Shift, &e.CheckpointFilenames, &e.Status, &e.TotalItems, &e.CompletedItems, &e.ErrorMessage, &e.CreatedAt, &e.UpdatedAt); err != nil {
+		if err := rows.Scan(&e.ID, &e.TrainingRunName, &e.StudyID, &e.StudyName, &e.WorkflowName, &e.VAE, &e.CLIP, &e.Shift, &e.CheckpointFilenames, &e.ClearExisting, &e.Status, &e.TotalItems, &e.CompletedItems, &e.ErrorMessage, &e.CreatedAt, &e.UpdatedAt); err != nil {
 			s.logger.WithError(err).Error("failed to scan sample job row")
 			return nil, fmt.Errorf("scanning sample job row: %w", err)
 		}
@@ -129,9 +130,9 @@ func (s *Store) GetSampleJob(id string) (model.SampleJob, error) {
 
 	var e sampleJobEntity
 	err := s.db.QueryRow(
-		`SELECT id, training_run_name, study_id, study_name, workflow_name, vae, clip, shift, checkpoint_filenames, status, total_items, completed_items, error_message, created_at, updated_at
+		`SELECT id, training_run_name, study_id, study_name, workflow_name, vae, clip, shift, checkpoint_filenames, clear_existing, status, total_items, completed_items, error_message, created_at, updated_at
 		FROM sample_jobs WHERE id = ?`, id,
-	).Scan(&e.ID, &e.TrainingRunName, &e.StudyID, &e.StudyName, &e.WorkflowName, &e.VAE, &e.CLIP, &e.Shift, &e.CheckpointFilenames, &e.Status, &e.TotalItems, &e.CompletedItems, &e.ErrorMessage, &e.CreatedAt, &e.UpdatedAt)
+	).Scan(&e.ID, &e.TrainingRunName, &e.StudyID, &e.StudyName, &e.WorkflowName, &e.VAE, &e.CLIP, &e.Shift, &e.CheckpointFilenames, &e.ClearExisting, &e.Status, &e.TotalItems, &e.CompletedItems, &e.ErrorMessage, &e.CreatedAt, &e.UpdatedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			s.logger.WithField("sample_job_id", id).Debug("sample job not found in database")
@@ -158,8 +159,8 @@ func (s *Store) CreateSampleJob(j model.SampleJob) error {
 	entity := sampleJobModelToEntity(j)
 
 	_, err := s.db.Exec(
-		`INSERT INTO sample_jobs (id, training_run_name, study_id, study_name, workflow_name, vae, clip, shift, checkpoint_filenames, status, total_items, completed_items, error_message, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO sample_jobs (id, training_run_name, study_id, study_name, workflow_name, vae, clip, shift, checkpoint_filenames, clear_existing, status, total_items, completed_items, error_message, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		entity.ID,
 		entity.TrainingRunName,
 		entity.StudyID,
@@ -169,6 +170,7 @@ func (s *Store) CreateSampleJob(j model.SampleJob) error {
 		entity.CLIP,
 		entity.Shift,
 		entity.CheckpointFilenames,
+		entity.ClearExisting,
 		entity.Status,
 		entity.TotalItems,
 		entity.CompletedItems,
@@ -202,7 +204,7 @@ func (s *Store) UpdateSampleJob(j model.SampleJob) error {
 	entity := sampleJobModelToEntity(j)
 
 	result, err := s.db.Exec(
-		`UPDATE sample_jobs SET training_run_name = ?, study_id = ?, study_name = ?, workflow_name = ?, vae = ?, clip = ?, shift = ?, checkpoint_filenames = ?, status = ?, total_items = ?, completed_items = ?, error_message = ?, updated_at = ?
+		`UPDATE sample_jobs SET training_run_name = ?, study_id = ?, study_name = ?, workflow_name = ?, vae = ?, clip = ?, shift = ?, checkpoint_filenames = ?, clear_existing = ?, status = ?, total_items = ?, completed_items = ?, error_message = ?, updated_at = ?
 		WHERE id = ?`,
 		entity.TrainingRunName,
 		entity.StudyID,
@@ -212,6 +214,7 @@ func (s *Store) UpdateSampleJob(j model.SampleJob) error {
 		entity.CLIP,
 		entity.Shift,
 		entity.CheckpointFilenames,
+		entity.ClearExisting,
 		entity.Status,
 		entity.TotalItems,
 		entity.CompletedItems,
@@ -532,6 +535,7 @@ func sampleJobEntityToModel(e sampleJobEntity) (model.SampleJob, error) {
 		CLIP:                e.CLIP.String,
 		Shift:               shift,
 		CheckpointFilenames: checkpointFilenames,
+		ClearExisting:       e.ClearExisting,
 		Status:              model.SampleJobStatus(e.Status),
 		TotalItems:          e.TotalItems,
 		CompletedItems:      e.CompletedItems,
@@ -568,6 +572,7 @@ func sampleJobModelToEntity(j model.SampleJob) sampleJobEntity {
 		CLIP:                clip,
 		Shift:               shift,
 		CheckpointFilenames: checkpointFilenames,
+		ClearExisting:       j.ClearExisting,
 		Status:              string(j.Status),
 		TotalItems:          j.TotalItems,
 		CompletedItems:      j.CompletedItems,

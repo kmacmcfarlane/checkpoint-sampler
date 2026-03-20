@@ -78,6 +78,8 @@ type JobExecutor struct {
 	reconnectInterval time.Duration
 	logger            *logrus.Entry
 
+	dirRemover        SampleDirRemover // optional; used for clear-existing at job start
+
 	mu                       sync.Mutex
 	activeJobID              string
 	activeItemID             string
@@ -154,6 +156,12 @@ func NewJobExecutorWithThumbnails(
 		sampleTiming:             NewMovingAverage(sampleTimingWindowSize),
 		timeNow:                  time.Now,
 	}
+}
+
+// SetDirRemover sets the sample directory remover used for clear-existing at job start.
+// This is optional; if not set, clear_existing jobs will skip filesystem cleanup.
+func (e *JobExecutor) SetDirRemover(remover SampleDirRemover) {
+	e.dirRemover = remover
 }
 
 // Start begins the background executor goroutine and resumes any running jobs.
@@ -541,7 +549,29 @@ func (e *JobExecutor) resumeRunningJobs() error {
 // Returns an error if the transition fails; on success the job's Status field is updated in place.
 func (e *JobExecutor) autoStartJob(job *model.SampleJob) error {
 	e.logger.WithField("job_id", job.ID).Info("auto-starting pending job")
+
+	// B-114: Clear existing sample directories on first start (not on resume).
+	// The flag is reset to false before persisting so that a stopped/failed job
+	// that is later resumed will not re-clear.
+	if job.ClearExisting && e.dirRemover != nil {
+		for _, cpFilename := range job.CheckpointFilenames {
+			if err := e.dirRemover.RemoveSampleDir(cpFilename); err != nil {
+				e.logger.WithFields(logrus.Fields{
+					"job_id":              job.ID,
+					"checkpoint_filename": cpFilename,
+					"error":               err.Error(),
+				}).Warn("failed to remove sample dir during auto-start, continuing")
+			} else {
+				e.logger.WithFields(logrus.Fields{
+					"job_id":              job.ID,
+					"checkpoint_filename": cpFilename,
+				}).Info("cleared existing sample directory during auto-start")
+			}
+		}
+	}
+
 	job.Status = model.SampleJobStatusRunning
+	job.ClearExisting = false // reset so resume never re-clears
 	job.UpdatedAt = time.Now().UTC()
 	if err := e.store.UpdateSampleJob(*job); err != nil {
 		// sql.ErrNoRows means the row was deleted between the poll and the update

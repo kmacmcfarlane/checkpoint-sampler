@@ -13,6 +13,7 @@ type SampleJob struct {
 	CLIP                string
 	Shift               *float64 // nullable for workflows without shift role
 	CheckpointFilenames []string // list of checkpoint filenames selected at job creation
+	ClearExisting       bool    // when true, clear sample dirs on first transition to running
 	Status              SampleJobStatus
 	TotalItems          int
 	CompletedItems      int

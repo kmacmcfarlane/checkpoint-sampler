@@ -291,5 +291,13 @@ ALTER TABLE studies ADD COLUMN shift REAL;`,
 			Version: 19,
 			SQL:     `ALTER TABLE sample_jobs ADD COLUMN checkpoint_filenames TEXT NOT NULL DEFAULT '[]';`,
 		},
+		{
+			// B-114: Add clear_existing column to sample_jobs table.
+			// Stores whether sample directories should be cleared when the job
+			// first transitions to running (not at queue time). Defaults to 0
+			// (false) for existing jobs so that resumed jobs never re-clear.
+			Version: 20,
+			SQL:     `ALTER TABLE sample_jobs ADD COLUMN clear_existing INTEGER NOT NULL DEFAULT 0;`,
+		},
 	}
 }

@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-114: Clear-existing samples should be a job param applied at job start, not queue time
+- `clear_existing` is now stored as a persistent job parameter and executed once when the job first transitions to `running`, not at queue time
+- Resuming a stopped/failed job no longer re-clears existing sample directories
+
 ### S-132: X/Y axis sliders rework — bottom/right positioning, dimension mappings, lightbox sync
 - Replaced header MasterSlider with playback-only AnimationControls (play/pause, loop, speed — no slider track)
 - 4 independent dimension mappings: X Axis (grid columns), Y Axis (grid rows), X Slider (bottom edge), Y Slider (right edge) — grid axes and sliders are independently assignable
