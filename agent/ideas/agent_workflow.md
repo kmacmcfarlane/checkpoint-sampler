@@ -91,3 +91,44 @@ The E2E gate fails on any failure but has no mechanism to distinguish regression
 * priority: low
 * source: developer
 Before filing E2E failure bugs from a sweep, the QA agent should verify the failure is reproducible with a second targeted run (`make test-e2e SPEC=<file>`). A single-occurrence failure in a high-contention shard environment should not trigger a bug ticket without confirmation.
+
+### Ralph multi-worker parallelism (cross-repo)
+* status: needs_approval
+* priority: high
+* source: orchestrator
+
+Ralph integration for concurrent story processing. Requires cross-repo coordination
+between claude-sandbox (worker management) and checkpoint-sampler (agent workflow).
+
+**Requirements:**
+- Ralph spawns N concurrent workers, each in its own git worktree (via scripts/worktree/worktree.py)
+- Each worker runs a single orchestrator cycle (one story) independently
+- Workers claim stories via backlog.py next-work --claim <worker-id> to prevent double-pickup
+- Worker lifecycle: spawn → claim story → create worktree → run orchestrator → merge → cleanup worktree → exit
+- Graceful shutdown: when quota exhausted or .ralph/stop touched, workers finish current subagent step then exit
+- Quota distribution: Ralph tracks cumulative cost across workers, stops spawning when approaching threshold
+- Log aggregation: each worker writes to .ralph/runlogs/rawlog_<timestamp>_worker<N>_iter<M>; runlog.json gains workerId field
+- Lock contention: N workers competing for agent/backlog.lock — ensure timeouts and retry logic prevent deadlocks
+- Stop-file semantics: .ralph/stop halts new worker spawns; existing workers drain gracefully
+- Worker crash recovery: Ralph detects dead workers (PID gone, worktree orphaned), restarts or marks for recovery via worktree.py detect-stale
+- Configuration: ralph.toml gains max_workers (default 1), quota_reserve_usd (budget headroom), worker_timeout (max wall-time per worker)
+
+**Cross-repo scope:**
+- claude-sandbox: Worker process spawning, PID tracking, quota monitoring, crash detection, ralph.toml schema update, log file routing
+- checkpoint-sampler: Agent workflow docs (AGENT_FLOW.md, PROMPT.md), stop-file multi-worker semantics, runlog.json schema update
+
+**Prerequisites:** W-023 (worktree lifecycle + backlog locking), W-024 (Docker isolation + merge handling)
+
+**Edge cases:**
+- All N workers pick stories that touch the same files — merge conflicts cascade
+- Quota exhausted mid-subagent — worker must not leave worktree in corrupt state
+- Ralph killed (SIGKILL) — orphaned workers continue running; next Ralph start must detect and manage them
+- Network partition during git push from worktree — retry with backoff, don't re-merge
+- Worker finishes but can't acquire backlog lock (another worker holds it for extended write) — timeout and retry
+
+**Testing considerations:**
+- Integration test: 2 workers claim different stories, run to completion, merge without conflict
+- Integration test: 2 workers produce merge conflict, one resolves trivially, other goes back to developer
+- Unit test: Ralph quota tracking stops spawning at threshold
+- Unit test: crash recovery detects orphaned worktree and reports it
+- Manual testing required for cross-repo coordination (user-driven)

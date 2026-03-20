@@ -418,3 +418,120 @@ stories:
       E2E test lightbox.spec.ts:400 times out on Shift+ArrowDown navigation. Appears in 4+ failure
       entries suggesting consistent failure, not random flakiness. Possibly related to S-132 XY axis
       sliders rework. Source: QA E2E sweep during B-115.
+  - id: W-023
+    title: "Worktree-based agent workflow — backlog locking, story claims, worktree lifecycle"
+    type: workflow
+    status: todo
+    priority: 80
+    complexity: high
+    requires: []
+    notes: |
+      Implement the foundational worktree-based workflow for the agent pipeline.
+      Three phases in this story:
+
+      Phase 1 — Backlog on main + locking:
+      - backlog.py acquires a file lock (agent/backlog.lock) for all read-modify-write operations
+      - backlog.py always reads/writes backlog.yaml on the main branch via --repo-root flag or BACKLOG_REPO_ROOT env var
+      - Concurrent callers block until lock is released
+
+      Phase 2 — Story claim mechanism:
+      - next-work gains --claim <worker-id> flag that atomically selects + sets in_progress + writes claimed_by
+      - If claim fails (already claimed), exits 2 and worker retries
+      - Lock file serializes concurrent claims
+
+      Phase 3 — Worktree manager script:
+      - New script scripts/worktree/worktree.py with subcommands: create, remove, list, detect-stale, recover
+      - create: makes .worktrees/<story-id>/ (gitignored), handles branch-already-exists
+      - detect-stale: scans .worktrees/ for orphans (story not in_progress/review/testing)
+      - recover: detects orphaned worktrees with uncommitted changes from dead processes
+
+      Edge cases to handle:
+      - Process death mid-story: worktree left with uncommitted changes, backlog status stale
+      - Quota exhaustion: next cycle must detect incomplete worktree and resume or clean up
+      - Branch already exists: create must handle branches left over from prior merges or failed attempts
+      - backlog.py path resolution: when CWD is a worktree, reads/writes must target main checkout
+      - next-work race condition: two workers call simultaneously — lock + claim serializes
+      - Stale worktree accumulation: detect-stale runs at cycle start to prevent unbounded growth
+    acceptance:
+      - "BE: backlog.py acquires file lock (agent/backlog.lock) for all read-modify-write operations; concurrent callers block
+        until lock released"
+      - "BE: backlog.py next-work gains --claim <worker-id> flag that atomically selects story, sets status in_progress, writes
+        claimed_by field; exits 2 if no unclaimed work"
+      - "BE: backlog.py always reads/writes backlog.yaml on main branch via --repo-root flag or BACKLOG_REPO_ROOT env var,
+        not worktree copy"
+      - "OPS: New script scripts/worktree/worktree.py with subcommands: create <story-id>, remove <story-id>, list, detect-stale,
+        recover"
+      - "OPS: worktree.py create makes .worktrees/<story-id>/ (gitignored), handles branch-already-exists case"
+      - "OPS: worktree.py detect-stale scans .worktrees/ and identifies worktrees whose story is not in_progress/review/testing"
+      - "OPS: worktree.py recover detects orphaned worktrees with uncommitted changes from dead process and reports for cleanup
+        or resumption"
+      - "DOC: AGENT_FLOW.md and PROMPT.md updated with worktree workflow including example commands for create/enter/cleanup/recover"
+      - "BE: Unit tests for backlog.py locking and claim mechanism"
+      - "OPS: Unit tests for worktree.py subcommands"
+    testing:
+      - "Concurrent backlog.py writes: two processes write simultaneously, verify lock prevents corruption"
+      - "Claim race: two workers call next-work --claim simultaneously, verify only one succeeds"
+      - "Stale detection: create worktree, set story to uat, verify detect-stale finds it"
+      - "Recovery: create worktree with uncommitted changes, verify recover reports it"
+      - "Branch exists: delete worktree but leave branch, verify create handles re-creation"
+      - "Path resolution: run backlog.py from worktree CWD, verify it reads/writes main checkout backlog"
+  - id: W-024
+    title: "Worktree isolation — Docker compose scoping, merge conflict handling, orchestrator update"
+    type: workflow
+    status: todo
+    priority: 70
+    complexity: high
+    requires:
+      - W-023
+    notes: |
+      Build on W-023 worktree foundation to enable fully isolated concurrent execution.
+      Three phases in this story:
+
+      Phase 4 — Docker compose isolation:
+      - Derive compose project name from story ID: checkpoint-sampler-<story-id>
+      - Override port mappings per worker (ephemeral ports or story-based offsets)
+      - Named volumes scoped per compose project (backend data, test data, node_modules)
+      - E2E test runs from worktrees use story-scoped compose project names
+
+      Phase 5 — Merge conflict handling:
+      - Orchestrator attempts trivial merge conflict resolution automatically (backlog.yaml, CHANGELOG.md)
+      - Non-trivial merge conflicts (code files) send story back to fullstack developer for resolution
+      - After developer resolves conflicts, story goes through normal review and QA cycle (not blocked)
+      - CHANGELOG conflicts resolved by re-generating the Unreleased section
+
+      Phase 6 — Orchestrator update:
+      - Orchestrator handles one story at a time in a worktree
+      - Orchestrator runs from main checkout, creates/enters worktree per story
+      - Subagents dispatched with worktree as CWD
+      - After QA approval, orchestrator merges from worktree to main, cleans up worktree
+
+      Edge cases to handle:
+      - Docker port collisions: two worktrees running tests simultaneously binding same ports
+      - Docker project name collisions: compose stacks must be fully namespaced by story ID
+      - Named volume collisions: backend_dev_data, test_backend_data must be scoped per project
+      - CHANGELOG conflicts: both stories add entries under Unreleased — orchestrator resolves
+      - Backlog conflicts: should not occur (W-023 targets main directly) but handle gracefully
+      - Overlapping code changes: two stories touch same file — non-trivial conflicts go to developer
+      - Process death during merge: branch exists, merge incomplete — next cycle detects and retries
+      - Main checkout state: after worktree merges to main, other worktrees may need to rebase
+      - Orchestrator handles one story at a time; parallelism comes from multiple Ralph workers (Phase 7)
+    acceptance:
+      - "OPS: Docker compose project names derived from story ID (checkpoint-sampler-<story-id>) to isolate containers, volumes,
+        networks per worktree"
+      - "OPS: Port mappings use ephemeral ports or story-based offsets to prevent collisions between concurrent compose stacks"
+      - "OPS: Named volumes scoped per compose project (backend data, test data, node_modules) — no cross-story contamination"
+      - "OPS: E2E test runs from worktrees use story-scoped compose project names, compatible with existing shard system"
+      - "BE: Orchestrator attempts trivial merge conflict resolution (backlog.yaml, CHANGELOG.md) automatically after merging
+        story branch to main"
+      - "BE: Non-trivial merge conflicts (code files) send story back to fullstack developer for resolution, then through
+        normal review → QA cycle (not marked as blocked)"
+      - "DOC: AGENT_FLOW.md updated with merge conflict handling policy and Docker isolation requirements"
+      - "DOC: PROMPT.md updated with orchestrator merge conflict resolution steps and compose project naming convention"
+      - "E2E: Verify two worktrees can run make test-backend concurrently without interference"
+    testing:
+      - "Port isolation: two compose stacks from different worktrees start simultaneously without port binding errors"
+      - "Volume isolation: data written by one worktree's compose stack not visible to another's"
+      - "Trivial merge: two worktrees both modify CHANGELOG.md, verify orchestrator auto-resolves"
+      - "Non-trivial merge: two worktrees modify same Go file, verify story goes back to developer (not blocked)"
+      - "E2E isolation: two worktrees run make test-e2e concurrently without container/volume collisions"
+      - "Merge death recovery: kill process during merge, verify next cycle detects and retries"
