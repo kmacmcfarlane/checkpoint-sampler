@@ -229,7 +229,7 @@ stories:
   - id: S-132
     title: "X/Y axis sliders rework — bottom/right positioning, dimension mappings, lightbox sync"
     type: feature
-    status: uat
+    status: uat_feedback
     priority: 75
     complexity: high
     requires: []
@@ -266,6 +266,8 @@ stories:
       - "Switching mappings while lightbox is open — sliders update correctly"
       - "Slider sync state after closing/reopening lightbox"
       - "Animation controls render correctly in new top position without regression"
+    review_feedback: Y slider on the right side is oriented horizontally and collapses due to limited horizontal space. 
+      It must be a tall, vertical slider so the user can drag up/down with the mouse or use up/down keyboard keys.
   - id: B-114
     title: "Clear-existing samples should be a job param applied at job start, not queue time"
     type: bug
