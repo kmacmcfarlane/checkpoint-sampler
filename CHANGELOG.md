@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-123: E2E: /data/samples directory path missing for scan requests during E2E tests
+- Added `DirectoryExists` guard in `ScanTrainingRun` to handle TOCTOU race where concurrent E2E resets remove sample directories between discovery and scan, preventing `no such file or directory` errors in the sweep
+
 ### B-122: E2E: /api/test/reset fails with UNIQUE constraint on schema_migrations during parallel shard runs
 - Added `sync.Mutex` to serialize concurrent reset endpoint requests, preventing race conditions when 12 E2E shards call `/api/test/reset` simultaneously
 - Changed `INSERT INTO` to `INSERT OR IGNORE INTO` for `schema_migrations` as defense-in-depth against duplicate version inserts

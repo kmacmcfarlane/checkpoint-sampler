@@ -585,7 +585,7 @@ stories:
   - id: B-123
     title: "E2E: /data/samples directory path missing for scan requests during E2E tests"
     type: bug
-    status: todo
+    status: uat
     priority: 50
     complexity: low
     requires: []
@@ -598,3 +598,23 @@ stories:
       - "E2E test fixtures include the required sample directory structure"
     testing:
       - "command: make test-e2e"
+  - id: B-124
+    title: "E2E: preset-per-combo-restore stale preset entry not cleaned from localStorage on TR selection"
+    type: bug
+    status: todo
+    priority: 60
+    complexity: low
+    requires: []
+    notes: |
+      When a stale (nonexistent) preset ID is stored in
+      localStorage.checkpoint-sampler-last-preset.presetsByKey[runId|]
+      and the training run loads, eagerRestorePreset does not clean up
+      the stale key after failing to find the preset in the API response.
+      Discovered during B-123 QA (1 of 340 E2E tests failing).
+    acceptance:
+      - "When eagerRestorePreset loads a TR and finds the stored preset ID does not exist in the presets API response, the
+        stale presetsByKey entry is deleted from localStorage"
+      - "After TR selection with a stale preset ID, the Delete preset button is not visible and the preset selector shows
+        'Select a preset'"
+    testing:
+      - "command: make test-e2e-serial SPEC=preset-per-combo-restore.spec.ts"

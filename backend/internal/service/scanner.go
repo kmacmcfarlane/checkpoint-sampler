@@ -81,15 +81,6 @@ func (s *Scanner) ScanTrainingRun(tr model.TrainingRun, studyName string) (*mode
 			continue
 		}
 
-		// Checkpoint dimension value
-		checkpointValue := strconv.Itoa(cp.StepNumber)
-
-		// Track checkpoint dimension value
-		if dimValues["checkpoint"] == nil {
-			dimValues["checkpoint"] = make(map[string]struct{})
-		}
-		dimValues["checkpoint"][checkpointValue] = struct{}{}
-
 		// Scan the sample directory for this checkpoint
 		var sampleDirPath string
 		if studyName != "" {
@@ -101,6 +92,27 @@ func (s *Scanner) ScanTrainingRun(tr model.TrainingRun, studyName string) (*mode
 			"checkpoint": cp.Filename,
 			"path":       sampleDirPath,
 		}).Debug("scanning checkpoint sample directory")
+
+		// Guard against TOCTOU races: viewer discovery marks all checkpoints HasSamples=true,
+		// but between discovery and scan a concurrent reset may have removed the directory.
+		// Treat a missing directory as 0 images rather than a fatal error.
+		if !s.fs.DirectoryExists(sampleDirPath) {
+			s.logger.WithFields(logrus.Fields{
+				"checkpoint": cp.Filename,
+				"path":       sampleDirPath,
+			}).Debug("checkpoint sample directory does not exist during scan, skipping")
+			continue
+		}
+
+		// Checkpoint dimension value — tracked only after confirming the directory exists.
+		checkpointValue := strconv.Itoa(cp.StepNumber)
+
+		// Track checkpoint dimension value
+		if dimValues["checkpoint"] == nil {
+			dimValues["checkpoint"] = make(map[string]struct{})
+		}
+		dimValues["checkpoint"][checkpointValue] = struct{}{}
+
 		files, err := s.fs.ListPNGFiles(sampleDirPath)
 		if err != nil {
 			s.logger.WithFields(logrus.Fields{

@@ -28,7 +28,13 @@ func newFakeScannerFS() *fakeScannerFS {
 }
 
 func (f *fakeScannerFS) DirectoryExists(path string) bool {
-	_, ok := f.files[path]
+	if _, ok := f.files[path]; ok {
+		return true
+	}
+	// A path registered in errs represents a directory that exists but produces
+	// a read error (e.g. permission denied). DirectoryExists must return true so
+	// the scanner proceeds to ListPNGFiles and surfaces the error.
+	_, ok := f.errs[path]
 	return ok
 }
 
@@ -296,6 +302,39 @@ var _ = Describe("Scanner", func() {
 
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("permission denied"))
+			})
+
+			// B-123: viewer discovery marks all checkpoints HasSamples=true, but a concurrent
+			// reset may remove the directory between discovery and scan (TOCTOU race).
+			// The scanner must skip missing directories gracefully (0 images) rather than
+			// returning an error that would surface as a scan_failed 500 in the E2E sweep.
+			It("skips missing checkpoint directory gracefully without error (TOCTOU guard)", func() {
+				tr := model.TrainingRun{
+					Name: "model",
+					Checkpoints: []model.Checkpoint{
+						{Filename: "model-step00001000.safetensors", StepNumber: 1000, HasSamples: true},
+						{Filename: "model-step00002000.safetensors", StepNumber: 2000, HasSamples: true},
+					},
+				}
+				// Only the first checkpoint directory exists; the second is missing
+				// (simulates a directory removed by CleanStudyDirs between discovery and scan).
+				fs.files["/samples/model-step00001000.safetensors"] = []string{
+					"seed=1&cfg=3&_00001_.png",
+				}
+				// model-step00002000 is intentionally absent from fs.files (not registered).
+
+				result, err := scanner.ScanTrainingRun(tr, "")
+
+				Expect(err).NotTo(HaveOccurred())
+				// Only images from the existing checkpoint are returned
+				Expect(result.Images).To(HaveLen(1))
+				Expect(result.Images[0].RelativePath).To(ContainSubstring("model-step00001000.safetensors"))
+				// checkpoint dimension still includes only the discovered checkpoint
+				dimMap := make(map[string]model.Dimension)
+				for _, d := range result.Dimensions {
+					dimMap[d.Name] = d
+				}
+				Expect(dimMap["checkpoint"].Values).To(ConsistOf("1000"))
 			})
 		})
 

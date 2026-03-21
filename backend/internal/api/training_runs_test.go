@@ -62,7 +62,13 @@ func (f *fakeScanFS) ListPNGFiles(dir string) ([]string, error) {
 }
 
 func (f *fakeScanFS) DirectoryExists(path string) bool {
-	_, ok := f.files[path]
+	if _, ok := f.files[path]; ok {
+		return true
+	}
+	// A path registered in errs represents a directory that exists but produces
+	// a read error (e.g. disk error). DirectoryExists must return true so the
+	// scanner proceeds to ListPNGFiles and surfaces the real error.
+	_, ok := f.errs[path]
 	return ok
 }
 
