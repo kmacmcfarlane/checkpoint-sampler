@@ -5,6 +5,12 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### R-009: Pinia state management refactor — reactive lightbox via useImageCubeStore
+- Introduced `useImageCubeStore` Pinia store as the single source of truth for the multi-dimensional image cube: dataset, dimension assignments, grid position (slider values, combo selections), and lightbox cursor
+- Lightbox image is now a computed derivation (`focusedImage`) that reactively updates when any slider changes — eliminates the stale-snapshot sync pattern (`lightboxContext`, `syncLightboxAfterSliderChange`, etc.)
+- `useDimensionMapping` rewritten as thin backward-compatible wrapper delegating to the store
+- App.vue reduced by ~70 lines: local slider/lightbox refs replaced with store state and actions
+
 ### B-118: E2E: job-delete spec fails to find delete button by data-testid
 - Replaced real job creation with seed endpoint in job-delete E2E tests to eliminate the pending→running→completed race condition that made the Delete button intermittently unfindable
 

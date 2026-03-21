@@ -12,11 +12,12 @@ import { useLastTrainingRun } from './composables/useLastTrainingRun'
 import { computePresetWarnings } from './composables/presetWarnings'
 import { getBeadStatus, BEAD_COLORS } from './composables/beadStatus'
 import type { BeadStatus } from './composables/beadStatus'
+import { useImageCubeStore } from './stores/imageCube'
 import AppDrawer from './components/AppDrawer.vue'
 import TrainingRunSelector from './components/TrainingRunSelector.vue'
 import DimensionPanel from './components/DimensionPanel.vue'
 import XYGrid from './components/XYGrid.vue'
-import type { ImageClickContext, GridNavItem } from './components/types'
+import type { ImageClickContext, DebugCellInfo } from './components/types'
 import MasterSlider from './components/MasterSlider.vue'
 import AnimationControls from './components/AnimationControls.vue'
 import ZoomControl from './components/ZoomControl.vue'
@@ -35,14 +36,27 @@ const { theme, isDark, toggle: toggleTheme } = useTheme()
 const { getPresetIdForCombo, savePresetSelection, clearPresetForCombo } = usePresetPersistence()
 const { lastTrainingRunId, saveLastTrainingRun, saveLastStudy } = useLastTrainingRun()
 
+const store = useImageCubeStore()
+
 /** The study output dir for the currently selected training run. */
 const selectedStudyOutputDir = ref('')
 
 const selectedTrainingRun = ref<TrainingRun | null>(null)
 const scanning = ref(false)
 const scanError = ref<string | null>(null)
-const lightboxImageUrl = ref<string | null>(null)
-const lightboxContext = ref<ImageClickContext | null>(null)
+
+/**
+ * Per-cell debug info captured when the lightbox is opened. Keyed by cellKey.
+ * This is debug-overlay state only — not part of the core image cube model.
+ */
+const cellDebugInfoMap = ref<Record<string, DebugCellInfo | undefined>>({})
+
+/** Debug info for the currently focused cell, derived from cellDebugInfoMap. */
+const focusedDebugInfo = computed<DebugCellInfo | undefined>(() => {
+  if (!store.focusedCellKey) return undefined
+  return cellDebugInfoMap.value[store.focusedCellKey]
+})
+
 const metadataPanelOpen = ref(false)
 const drawerOpen = ref(false)
 const jobLaunchDialogOpen = ref(false)
@@ -186,57 +200,44 @@ function toggleDrawer() {
 
 function onImageClick(context: ImageClickContext) {
   collapseDrawerIfNarrow()
-  lightboxImageUrl.value = context.imageUrl
-  lightboxContext.value = context
+  // Capture debug info for all grid cells from the click context snapshot
+  cellDebugInfoMap.value = {}
+  if (context.gridImages) {
+    for (const item of context.gridImages) {
+      if (item.cellKey) {
+        cellDebugInfoMap.value[item.cellKey] = item.debugInfo
+      }
+    }
+  }
+  // Also capture the clicked cell's own debugInfo (in case it's not in gridImages)
+  cellDebugInfoMap.value[context.cellKey] = context.debugInfo
+  store.focusCell(context.cellKey)
 }
 
 function onLightboxClose() {
-  lightboxImageUrl.value = null
-  lightboxContext.value = null
+  store.unfocusCell()
+  cellDebugInfoMap.value = {}
 }
 
 function onLightboxSliderChange(_cellKey: string, value: string) {
   // Propagate lightbox slider changes to the master slider (and clear per-cell overrides)
   // so all cells and the master slider stay in sync (AC1, AC2 — B-068).
-  onMasterSliderChange(value)
-  // Also update the lightbox image URL to reflect the new slider value
-  if (lightboxContext.value) {
-    const newUrl = lightboxContext.value.imagesBySliderValue[value]
-    if (newUrl) {
-      lightboxImageUrl.value = newUrl
-      lightboxContext.value = {
-        ...lightboxContext.value,
-        currentSliderValue: value,
-        imageUrl: newUrl,
-        debugInfo: lightboxContext.value.debugInfo
-          ? { ...lightboxContext.value.debugInfo, sliderValue: value }
-          : undefined,
-      }
+  // store.focusedImage computed auto-updates via store.defaultSliderValue.
+  store.setMasterSlider(value)
+  // Update debug info sliderValue if debug mode is active for the focused cell
+  const focusedKey = store.focusedCellKey
+  if (focusedKey && cellDebugInfoMap.value[focusedKey]) {
+    cellDebugInfoMap.value[focusedKey] = {
+      ...cellDebugInfoMap.value[focusedKey]!,
+      sliderValue: value,
     }
   }
 }
 
 function onLightboxNavigate(index: number) {
-  if (!lightboxContext.value) return
-  const gridImages = lightboxContext.value.gridImages
-  if (!gridImages || gridImages.length === 0) return
-  const clampedIndex = Math.max(0, Math.min(index, gridImages.length - 1))
-  const item: GridNavItem = gridImages[clampedIndex]
-  // Use the live master slider value instead of the stale snapshot value so all sliders
-  // stay in sync after Shift+Arrow navigation (AC2, AC3 — B-068).
-  const liveSliderValue = defaultSliderValue.value || item.currentSliderValue
-  const liveImageUrl = item.imagesBySliderValue[liveSliderValue] ?? item.imageUrl
-  lightboxImageUrl.value = liveImageUrl
-  lightboxContext.value = {
-    ...lightboxContext.value,
-    imageUrl: liveImageUrl,
-    cellKey: item.cellKey ?? lightboxContext.value.cellKey,
-    sliderValues: item.sliderValues,
-    currentSliderValue: liveSliderValue,
-    imagesBySliderValue: item.imagesBySliderValue,
-    gridIndex: clampedIndex,
-    debugInfo: item.debugInfo,
-  }
+  // Navigate to a different grid cell. store.focusedImage and store.focusedNavItem
+  // auto-update via store.focusedCellKey. debugInfo is tracked separately.
+  store.navigateGrid(index)
 }
 
 const {
@@ -255,7 +256,6 @@ const {
   getFilterMode,
   addImage,
   removeImage,
-  findImage,
 } = useDimensionMapping()
 
 /** Preset warnings for unmatched dimensions. */
@@ -264,14 +264,11 @@ const presetWarnings = ref<string[]>([])
 /** Currently selected preset ID (for tracking and persistence). */
 const selectedPresetId = ref<string | null>(null)
 
-/** Combo filter selections: dimension name → set of selected values. */
-const comboSelections = reactive<Record<string, Set<string>>>({})
+/** Combo filter selections: dimension name → set of selected values (from store). */
+const comboSelections = store.comboSelections
 
-/** Slider values per grid cell (key = "xVal|yVal"). */
-const sliderValues = reactive<Record<string, string>>({})
-
-/** Wrap reactive comboSelections as a computed ref for the preloader. */
-const comboSelectionsRef = computed(() => comboSelections as Record<string, Set<string>>)
+/** Wrap store comboSelections as a computed ref for the preloader. */
+const comboSelectionsRef = computed(() => store.comboSelections as Record<string, Set<string>>)
 
 /** Pre-cache images: slider positions for visible cells first, then remaining. */
 useImagePreloader(images, xDimension, yDimension, sliderDimension, comboSelectionsRef)
@@ -284,11 +281,11 @@ async function rescanCurrentTrainingRun() {
     const result = await apiClient.scanTrainingRun(run.id, selectedStudyOutputDir.value || undefined)
     setScanResult(result)
     // Reinitialize combo selections: all values selected by default
-    for (const key of Object.keys(comboSelections)) {
-      delete comboSelections[key]
+    for (const key of Object.keys(store.comboSelections)) {
+      delete store.comboSelections[key]
     }
     for (const dim of result.dimensions) {
-      comboSelections[dim.name] = new Set(dim.values)
+      store.comboSelections[dim.name] = new Set(dim.values)
     }
   } catch {
     // Silently ignore rescan failures from WebSocket events
@@ -484,13 +481,11 @@ async function onTrainingRunSelect(run: TrainingRun, studyOutputDir: string) {
   scanning.value = true
   scanError.value = null
 
-  // Reset combo selections and slider values
-  for (const key of Object.keys(comboSelections)) {
-    delete comboSelections[key]
+  // Reset combo selections and slider overrides
+  for (const key of Object.keys(store.comboSelections)) {
+    delete store.comboSelections[key]
   }
-  for (const key of Object.keys(sliderValues)) {
-    delete sliderValues[key]
-  }
+  store.cellSliderOverrides = {}
 
   try {
     const result = await apiClient.scanTrainingRun(run.id, studyOutputDir || undefined)
@@ -560,7 +555,7 @@ function onDimensionModeChange(dimensionName: string, mode: UnifiedDimensionMode
 
     // Adjust combo selections based on filter mode transitions
     if (filterMode === 'single' && prevMode !== 'single') {
-      const current = comboSelections[dimensionName]
+      const current = store.comboSelections[dimensionName]
       const dim = dimensions.value.find((d) => d.name === dimensionName)
       if (dim) {
         let singleVal = dim.values[0]
@@ -572,28 +567,28 @@ function onDimensionModeChange(dimensionName: string, mode: UnifiedDimensionMode
             }
           }
         }
-        comboSelections[dimensionName] = new Set(singleVal ? [singleVal] : [])
+        store.comboSelections[dimensionName] = new Set(singleVal ? [singleVal] : [])
       }
     }
 
     if (filterMode === 'hide') {
       const dim = dimensions.value.find((d) => d.name === dimensionName)
       if (dim) {
-        comboSelections[dimensionName] = new Set(dim.values)
+        store.comboSelections[dimensionName] = new Set(dim.values)
       }
     }
 
     if (filterMode === 'multi' && (prevMode === 'hide' || prevMode === 'single')) {
       const dim = dimensions.value.find((d) => d.name === dimensionName)
       if (dim) {
-        comboSelections[dimensionName] = new Set(dim.values)
+        store.comboSelections[dimensionName] = new Set(dim.values)
       }
     }
   }
 }
 
 function onFilterUpdate(dimensionName: string, selected: Set<string>) {
-  comboSelections[dimensionName] = selected
+  store.comboSelections[dimensionName] = selected
 }
 
 /** Handle header click from XYGrid: solo/unsolo a value in the dimension's filter. */
@@ -601,42 +596,24 @@ function onHeaderClick(dimensionName: string, value: string) {
   collapseDrawerIfNarrow()
   const dim = dimensions.value.find((d) => d.name === dimensionName)
   if (!dim) return
-  const current = comboSelections[dimensionName]
+  const current = store.comboSelections[dimensionName]
   // If only this value is selected, re-select all (unsolo)
   if (current && current.size === 1 && current.has(value)) {
-    comboSelections[dimensionName] = new Set(dim.values)
+    store.comboSelections[dimensionName] = new Set(dim.values)
   } else {
     // Solo: select only this value
-    comboSelections[dimensionName] = new Set([value])
+    store.comboSelections[dimensionName] = new Set([value])
   }
 }
 
-/** Master slider value ref. */
-const masterSliderValue = ref<string>('')
+/** Default slider value from store (master value or first value of slider dimension). */
+const defaultSliderValue = computed(() => store.defaultSliderValue)
 
-/** Default slider value: master value if set, otherwise first value of slider dimension. */
-const defaultSliderValue = computed(() => {
-  if (masterSliderValue.value) return masterSliderValue.value
-  return sliderDimension.value?.values[0] ?? ''
-})
+/** Effective X slider value from store. */
+const currentXSliderValue = computed(() => store.currentXSliderValue)
 
-/** X slider value: the currently selected value shown in the bottom slider. */
-const xSliderValue = ref<string>('')
-
-/** Effective X slider value: xSliderValue if set, otherwise first value of xSliderDimension. */
-const currentXSliderValue = computed(() => {
-  if (xSliderValue.value) return xSliderValue.value
-  return xSliderDimension.value?.values[0] ?? ''
-})
-
-/** Y slider value: the currently selected value shown in the right slider. */
-const ySliderValue = ref<string>('')
-
-/** Effective Y slider value: ySliderValue if set, otherwise first value of ySliderDimension. */
-const currentYSliderValue = computed(() => {
-  if (ySliderValue.value) return ySliderValue.value
-  return ySliderDimension.value?.values[0] ?? ''
-})
+/** Effective Y slider value from store. */
+const currentYSliderValue = computed(() => store.currentYSliderValue)
 
 /** Cell size for grid zoom control. */
 const cellSize = ref(200)
@@ -649,104 +626,61 @@ function toggleFiltersDrawer() {
 }
 
 // Reset master slider value when slider dimension changes
-watch(sliderDimension, (dim) => {
-  masterSliderValue.value = dim?.values[0] ?? ''
-  for (const key of Object.keys(sliderValues)) {
-    delete sliderValues[key]
-  }
+watch(() => store.sliderDimension, (dim) => {
+  store.masterSliderValue = dim?.values[0] ?? ''
+  store.cellSliderOverrides = {}
 })
 
 // Reset X slider value when X slider dimension changes
-watch(xSliderDimension, (dim) => {
-  xSliderValue.value = dim?.values[0] ?? ''
+watch(() => store.xSliderDimension, (dim) => {
+  store.xSliderValue = dim?.values[0] ?? ''
   if (dim) {
-    comboSelections[dim.name] = new Set(dim.values)
+    store.comboSelections[dim.name] = new Set(dim.values)
   }
 })
 
 // Reset Y slider value when Y slider dimension changes
-watch(ySliderDimension, (dim) => {
-  ySliderValue.value = dim?.values[0] ?? ''
+watch(() => store.ySliderDimension, (dim) => {
+  store.ySliderValue = dim?.values[0] ?? ''
   if (dim) {
-    comboSelections[dim.name] = new Set(dim.values)
+    store.comboSelections[dim.name] = new Set(dim.values)
   }
 })
 
-/** Update a single cell's slider value. */
+/** Update a single cell's slider value via the store. */
 function onSliderValueUpdate(cellKey: string, value: string) {
-  sliderValues[cellKey] = value
+  store.setCellSlider(cellKey, value)
 }
 
-/** Master slider changes all cell slider values in sync. */
+/** Master slider changes all cell slider values in sync via the store. */
 function onMasterSliderChange(value: string) {
-  masterSliderValue.value = value
-  // Clear per-cell overrides so all cells follow the master
-  for (const key of Object.keys(sliderValues)) {
-    delete sliderValues[key]
-  }
+  store.setMasterSlider(value)
 }
 
-/** X slider: navigate to a specific X slider dimension value (solo that value in comboSelections). */
+/** X slider: navigate to a specific X slider dimension value via the store. */
 function onXSliderChange(value: string) {
-  xSliderValue.value = value
-  const dim = xSliderDimension.value
-  if (dim) {
-    comboSelections[dim.name] = new Set([value])
-  }
+  store.setXSlider(value)
 }
 
-/** Y slider: navigate to a specific Y slider dimension value (solo that value in comboSelections). */
+/** Y slider: navigate to a specific Y slider dimension value via the store. */
 function onYSliderChange(value: string) {
-  ySliderValue.value = value
-  const dim = ySliderDimension.value
-  if (dim) {
-    comboSelections[dim.name] = new Set([value])
-  }
+  store.setYSlider(value)
 }
 
 /**
- * Update the lightbox image after an X or Y slider change.
- * Builds the full dimension values for the current cell and uses findImage
- * to locate the correct image, since X/Y slider dimensions are independent
- * of the X/Y axis dimensions that define grid cells.
+ * Lightbox-aware X slider handler: updates store state.
+ * store.focusedImage auto-updates reactively via currentXSliderValue.
  */
-function syncLightboxAfterSliderChange() {
-  if (!lightboxContext.value) return
-  // Parse the cell's axis values from the cellKey ("xAxisVal|yAxisVal")
-  const cellKey = lightboxContext.value.cellKey
-  if (!cellKey) return
-  const separatorIdx = cellKey.indexOf('|')
-  const xAxisVal = cellKey.substring(0, separatorIdx)
-  const yAxisVal = cellKey.substring(separatorIdx + 1)
-
-  // Build dimension query: axis values + slider values + master slider value
-  const query: Record<string, string> = {}
-  if (xDimension.value && xAxisVal) query[xDimension.value.name] = xAxisVal
-  if (yDimension.value && yAxisVal) query[yDimension.value.name] = yAxisVal
-  if (xSliderDimension.value) query[xSliderDimension.value.name] = currentXSliderValue.value
-  if (ySliderDimension.value) query[ySliderDimension.value.name] = currentYSliderValue.value
-  if (sliderDimension.value) query[sliderDimension.value.name] = defaultSliderValue.value
-
-  const img = findImage(query)
-  if (!img) return
-  const newUrl = `/api/images/${img.relative_path}`
-  lightboxImageUrl.value = newUrl
-  lightboxContext.value = {
-    ...lightboxContext.value,
-    imageUrl: newUrl,
-  }
-}
-
-/** Lightbox-aware X slider handler: updates grid state AND lightbox image. */
 function onLightboxXSliderChange(value: string) {
-  onXSliderChange(value)
-  syncLightboxAfterSliderChange()
+  store.setXSlider(value)
 }
 
-/** Lightbox-aware Y slider handler: updates grid state AND lightbox image. */
+/**
+ * Lightbox-aware Y slider handler: updates store state.
+ * store.focusedImage auto-updates reactively via currentYSliderValue.
+ */
 function onLightboxYSliderChange(value: string) {
-  onYSliderChange(value)
-  syncLightboxAfterSliderChange()
+  store.setYSlider(value)
 }
 
 /** All dimension names from the current scan. */
@@ -1130,7 +1064,7 @@ async function handleSlideoutValidate() {
               :images="images"
               :combo-selections="comboSelections"
               :slider-dimension="sliderDimension"
-              :slider-values="sliderValues"
+              :slider-values="store.cellSliderOverrides"
               :default-slider-value="defaultSliderValue"
               :cell-size="cellSize"
               :debug-mode="debugMode"
@@ -1176,18 +1110,18 @@ async function handleSlideoutValidate() {
         class="slider-corner-spacer"
       ></div>
       <ImageLightbox
-        v-if="lightboxImageUrl"
-        :image-url="lightboxImageUrl"
-        :cell-key="lightboxContext?.cellKey ?? null"
-        :slider-values="lightboxContext?.sliderValues ?? []"
-        :current-slider-value="lightboxContext?.currentSliderValue ?? ''"
-        :images-by-slider-value="lightboxContext?.imagesBySliderValue ?? {}"
+        v-if="store.focusedImage"
+        :image-url="store.focusedImage"
+        :cell-key="store.focusedNavItem?.cellKey ?? store.focusedCellKey"
+        :slider-values="store.focusedNavItem?.sliderValues ?? []"
+        :current-slider-value="store.focusedNavItem?.currentSliderValue ?? ''"
+        :images-by-slider-value="store.focusedNavItem?.imagesBySliderValue ?? {}"
         :slider-dimension-name="sliderDimension?.name ?? ''"
-        :grid-images="lightboxContext?.gridImages ?? []"
-        :grid-index="lightboxContext?.gridIndex ?? 0"
-        :grid-column-count="lightboxContext?.gridColumnCount ?? 0"
+        :grid-images="store.gridNavItems"
+        :grid-index="store.focusedGridIndex"
+        :grid-column-count="store.gridColumnCount"
         :debug-mode="debugMode"
-        :debug-info="lightboxContext?.debugInfo"
+        :debug-info="focusedDebugInfo"
         :x-slider-values="xSliderDimension?.values ?? []"
         :current-x-slider-value="currentXSliderValue"
         :x-dimension-name="xSliderDimension?.name ?? ''"

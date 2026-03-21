@@ -2075,10 +2075,34 @@ describe('App', () => {
 
   // AC2: debugInfo must be updated on grid navigation and slider change inside the lightbox
   describe('lightbox debugInfo state update', () => {
-    /** Build a minimal GridNavItem for testing navigation. */
+    // Scan result with two X values, one Y value, and a two-value slider dimension.
+    // Enables store.focusedImage to resolve real image URLs after focusCell().
+    const debugInfoScanResult = {
+      images: [
+        { relative_path: '42-500-cfg3.png', dimensions: { x_dim: '42', y_dim: '500', cfg: '3' } },
+        { relative_path: '42-500-cfg7.png', dimensions: { x_dim: '42', y_dim: '500', cfg: '7' } },
+        { relative_path: '123-500-cfg3.png', dimensions: { x_dim: '123', y_dim: '500', cfg: '3' } },
+        { relative_path: '123-500-cfg7.png', dimensions: { x_dim: '123', y_dim: '500', cfg: '7' } },
+      ],
+      dimensions: [
+        { name: 'x_dim', values: ['42', '123'], type: 'string' },
+        { name: 'y_dim', values: ['500'], type: 'string' },
+        { name: 'cfg', values: ['3', '7'], type: 'int' },
+      ],
+    }
+
+    const debugInfoPreset = {
+      id: 'debug-preset',
+      name: 'Debug Preset',
+      mapping: { x: 'x_dim', y: 'y_dim', slider: 'cfg', combos: [] },
+      created_at: '2025-01-01T00:00:00Z',
+      updated_at: '2025-01-01T00:00:00Z',
+    }
+
+    /** Build a minimal GridNavItem for testing navigation (for cellDebugInfoMap capture). */
     function makeNavItem(xVal: string, yVal: string, withDebug: boolean) {
       return {
-        imageUrl: `/api/images/${xVal}-${yVal}.png`,
+        imageUrl: `/api/images/${xVal}-${yVal}-cfg3.png`,
         cellKey: `${xVal}|${yVal}`,
         sliderValues: ['3', '7'],
         currentSliderValue: '3',
@@ -2092,7 +2116,8 @@ describe('App', () => {
       }
     }
 
-    /** Emit image:click on XYGrid to open the lightbox with debug context. */
+    /** Emit image:click on XYGrid to open the lightbox with debug context.
+     *  The click context also populates cellDebugInfoMap via onImageClick. */
     async function openLightboxWithDebug(wrapper: ReturnType<typeof mount>) {
       const xyGrid = wrapper.findComponent({ name: 'XYGrid' })
       const navItem0 = makeNavItem('42', '500', true)
@@ -2112,10 +2137,16 @@ describe('App', () => {
     }
 
     async function mountWithRun() {
+      mockScanTrainingRun.mockResolvedValue(debugInfoScanResult)
+      mockGetPresets.mockResolvedValue([debugInfoPreset])
       const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
       const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
       selector.vm.$emit('select', mockTrainingRun)
+      await flushPromises()
+      // Load preset to assign dimension roles (x, y, slider)
+      const presetSelector = wrapper.findComponent({ name: 'PresetSelector' })
+      presetSelector.vm.$emit('load', debugInfoPreset, [])
       await flushPromises()
       return wrapper
     }
@@ -2182,7 +2213,7 @@ describe('App', () => {
 
       const xyGrid = wrapper.findComponent({ name: 'XYGrid' })
       xyGrid.vm.$emit('image:click', {
-        imageUrl: '/api/images/42-500.png',
+        imageUrl: '/api/images/42-500-cfg3.png',
         cellKey: '42|500',
         sliderValues: ['3', '7'],
         currentSliderValue: '3',
@@ -2210,19 +2241,49 @@ describe('App', () => {
 
   // AC4 (B-068): Unit tests for bidirectional slider sync between lightbox and master
   describe('lightbox slider bidirectional sync (B-068)', () => {
+    // Scan result with x_dim=['x0','x1'], y_dim=['y0'], slider cfg=['val-a','val-b'].
+    // Image paths match the expected URLs used in the tests.
+    const sliderSyncScanResult = {
+      images: [
+        { relative_path: 'cell0-val-a.png', dimensions: { x_dim: 'x0', y_dim: 'y0', cfg: 'val-a' } },
+        { relative_path: 'cell0-val-b.png', dimensions: { x_dim: 'x0', y_dim: 'y0', cfg: 'val-b' } },
+        { relative_path: 'cell1-val-a.png', dimensions: { x_dim: 'x1', y_dim: 'y0', cfg: 'val-a' } },
+        { relative_path: 'cell1-val-b.png', dimensions: { x_dim: 'x1', y_dim: 'y0', cfg: 'val-b' } },
+      ],
+      dimensions: [
+        { name: 'x_dim', values: ['x0', 'x1'], type: 'string' },
+        { name: 'y_dim', values: ['y0'], type: 'string' },
+        { name: 'cfg', values: ['val-a', 'val-b'], type: 'string' },
+      ],
+    }
+
+    const sliderSyncPreset = {
+      id: 'slider-sync-preset',
+      name: 'Slider Sync Preset',
+      mapping: { x: 'x_dim', y: 'y_dim', slider: 'cfg', combos: [] },
+      created_at: '2025-01-01T00:00:00Z',
+      updated_at: '2025-01-01T00:00:00Z',
+    }
+
     async function mountWithRun() {
+      mockScanTrainingRun.mockResolvedValue(sliderSyncScanResult)
+      mockGetPresets.mockResolvedValue([sliderSyncPreset])
       const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
       const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
       selector.vm.$emit('select', mockTrainingRun)
       await flushPromises()
+      // Load preset to assign dimension roles (x, y, slider)
+      const presetSelector = wrapper.findComponent({ name: 'PresetSelector' })
+      presetSelector.vm.$emit('load', sliderSyncPreset, [])
+      await flushPromises()
       return wrapper
     }
 
-    /** Open the lightbox with a two-value slider. */
+    /** Open the lightbox by clicking cell 'x0|y0'. The store resolves the image live. */
     async function openLightboxWithSlider(wrapper: ReturnType<typeof mount>) {
       const xyGrid = wrapper.findComponent({ name: 'XYGrid' })
-      const navItem0 = {
+      xyGrid.vm.$emit('image:click', {
         imageUrl: '/api/images/cell0-val-a.png',
         cellKey: 'x0|y0',
         sliderValues: ['val-a', 'val-b'],
@@ -2231,20 +2292,22 @@ describe('App', () => {
           'val-a': '/api/images/cell0-val-a.png',
           'val-b': '/api/images/cell0-val-b.png',
         },
-      }
-      const navItem1 = {
-        imageUrl: '/api/images/cell1-val-a.png',
-        cellKey: 'x1|y0',
-        sliderValues: ['val-a', 'val-b'],
-        currentSliderValue: 'val-a',
-        imagesBySliderValue: {
-          'val-a': '/api/images/cell1-val-a.png',
-          'val-b': '/api/images/cell1-val-b.png',
-        },
-      }
-      xyGrid.vm.$emit('image:click', {
-        ...navItem0,
-        gridImages: [navItem0, navItem1],
+        gridImages: [
+          {
+            imageUrl: '/api/images/cell0-val-a.png',
+            cellKey: 'x0|y0',
+            sliderValues: ['val-a', 'val-b'],
+            currentSliderValue: 'val-a',
+            imagesBySliderValue: { 'val-a': '/api/images/cell0-val-a.png', 'val-b': '/api/images/cell0-val-b.png' },
+          },
+          {
+            imageUrl: '/api/images/cell1-val-a.png',
+            cellKey: 'x1|y0',
+            sliderValues: ['val-a', 'val-b'],
+            currentSliderValue: 'val-a',
+            imagesBySliderValue: { 'val-a': '/api/images/cell1-val-a.png', 'val-b': '/api/images/cell1-val-b.png' },
+          },
+        ],
         gridIndex: 0,
         gridColumnCount: 2,
       })
@@ -2259,15 +2322,15 @@ describe('App', () => {
 
       const lightbox = wrapper.findComponent({ name: 'ImageLightbox' })
       expect(lightbox.exists()).toBe(true)
-      // Confirm starting value
+      // Confirm starting value (first slider value from store)
       expect(lightbox.props('currentSliderValue')).toBe('val-a')
 
       // Simulate the lightbox emitting a slider change
       lightbox.vm.$emit('slider-change', 'x0|y0', 'val-b')
       await flushPromises()
 
-      // The lightbox's currentSliderValue is fed from defaultSliderValue (i.e. master state).
-      // After the lightbox slider-change, the master state is updated to 'val-b'.
+      // The lightbox's currentSliderValue is fed from store.focusedNavItem.currentSliderValue
+      // which reflects the live master slider value 'val-b' (AC1, AC2 — B-068).
       expect(lightbox.props('currentSliderValue')).toBe('val-b')
     })
 
@@ -2282,7 +2345,7 @@ describe('App', () => {
       lightbox.vm.$emit('slider-change', 'x0|y0', 'val-b')
       await flushPromises()
 
-      // The lightbox imageUrl should now point to the val-b image for cell0
+      // store.focusedImage auto-updates when master slider changes to 'val-b'
       expect(lightbox.props('imageUrl')).toBe('/api/images/cell0-val-b.png')
     })
 
@@ -2298,7 +2361,7 @@ describe('App', () => {
       await flushPromises()
 
       // Now navigate to the second grid image (index 1)
-      // The snapshot had currentSliderValue: 'val-a', but the live master is 'val-b'
+      // store.navigateGrid(1) focuses 'x1|y0'; store.focusedImage resolves using live master 'val-b'
       lightbox.vm.$emit('navigate', 1)
       await flushPromises()
 
