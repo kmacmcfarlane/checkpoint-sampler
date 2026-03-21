@@ -33,10 +33,11 @@ Two agent idea files (`agent/ideas/enhancements.md` and `agent/ideas/testing.md`
 Show a "3 of 12" or thumbnail strip indicator in the lightbox so the user knows their position in the grid while navigating with Shift+Arrow keys.
 
 ### Update gridImages on slider change in lightbox
-* status: needs_approval
+* status: resolved
 * priority: low
 * source: developer
 When the user changes the slider value in the lightbox, the gridImages snapshot could be refreshed so that navigating to adjacent cells shows the correct slider-matched image rather than the state captured at open time.
+*Resolved by R-009 — gridNavItems is now a reactive store computed, no more snapshots.*
 
 ### Per-model-type study auto-selection UI hint
 * status: needs_approval
@@ -145,3 +146,15 @@ If the backend cancels the WS context on ping failure, the frontend should detec
 * priority: low
 * source: developer
 When a user manually adjusts checkpoint selection and closes the dialog, the selection resets on the next open. Persisting manual checkpoint selection (like study/training run) could improve UX for repeated partial regeneration workflows.
+
+### XYGrid: read grid derivations from store instead of recomputing from props
+* status: needs_approval
+* priority: medium
+* source: reviewer
+XYGrid independently computes `filteredImages`, `imageIndex`, `xValues`, `yValues`, `getImagesBySliderValue`, and `buildGridNavItems` from props — all of which are already computed in `useImageCubeStore`. This is Phase 4 of the R-009 Pinia refactor plan, deferred during initial delivery. The duplication means any logic change must be mirrored in two places, and the two chains have already diverged subtly (the `filteredImages` empty-Set guard was inconsistent until the review fix). XYGrid should read these derivations from the store directly and become a thin rendering component.
+
+### Delete useDimensionMapping wrapper once all consumers use store directly
+* status: needs_approval
+* priority: low
+* source: reviewer
+`useDimensionMapping.ts` is now a thin read-only wrapper around `useImageCubeStore`. App.vue still imports it for backward compatibility. Once App.vue and any other consumers are migrated to use the store directly, the wrapper and its test file can be deleted. This is Phase 8 of the R-009 plan.
