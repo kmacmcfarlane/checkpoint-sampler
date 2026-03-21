@@ -8,6 +8,7 @@ import type {
   DimensionAssignment,
   FilterMode,
 } from '../api/types'
+import type { GridNavItem } from '../components/types'
 
 /**
  * Sort dimension values: integer dimensions sorted numerically, string dimensions lexicographically.
@@ -277,9 +278,7 @@ export const useImageCubeStore = defineStore('imageCube', () => {
   function setMasterSlider(value: string) {
     masterSliderValue.value = value
     // Clear per-cell overrides so all cells follow the master
-    for (const key of Object.keys(cellSliderOverrides.value)) {
-      delete cellSliderOverrides.value[key]
-    }
+    cellSliderOverrides.value = {}
   }
 
   function setCellSlider(cellKey: string, value: string) {
@@ -395,8 +394,8 @@ export const useImageCubeStore = defineStore('imageCube', () => {
 
   const hasNoAxes = computed(() => !xDimension.value && !yDimension.value)
 
-  const gridNavItems = computed(() => {
-    const items: { imageUrl: string; cellKey: string; sliderValues: string[]; currentSliderValue: string; imagesBySliderValue: Record<string, string> }[] = []
+  const gridNavItems = computed<GridNavItem[]>(() => {
+    const items: GridNavItem[] = []
     const sliderVals = sliderDimension.value?.values ?? []
 
     if (hasNoAxes.value) {
@@ -480,29 +479,11 @@ export const useImageCubeStore = defineStore('imageCube', () => {
   })
 
   /**
-   * The key derivation: resolves the focused cell's image URL from
-   * the current dimension positions. Always reactive — no stale snapshots.
+   * The key derivation: the focused cell's image URL, derived from gridNavItems.
+   * Always reactive, always consistent with what the grid displays — no stale snapshots.
    */
   const focusedImage = computed<string | null>(() => {
-    if (!focusedCellKey.value) return null
-    // Parse axis values from cellKey
-    const sepIdx = focusedCellKey.value.indexOf('|')
-    const xAxisVal = focusedCellKey.value.substring(0, sepIdx)
-    const yAxisVal = focusedCellKey.value.substring(sepIdx + 1)
-
-    // Build full dimension query
-    const query: Record<string, string> = {}
-    if (xDimension.value && xAxisVal) query[xDimension.value.name] = xAxisVal
-    if (yDimension.value && yAxisVal) query[yDimension.value.name] = yAxisVal
-    if (xSliderDimension.value) query[xSliderDimension.value.name] = currentXSliderValue.value
-    if (ySliderDimension.value) query[ySliderDimension.value.name] = currentYSliderValue.value
-    if (sliderDimension.value) {
-      const key = cellKey(xAxisVal || undefined, yAxisVal || undefined)
-      query[sliderDimension.value.name] = cellSliderOverrides.value[key] ?? defaultSliderValue.value
-    }
-
-    const img = findImage(query)
-    return img ? `/api/images/${img.relative_path}` : null
+    return focusedNavItem.value?.imageUrl ?? null
   })
 
   function focusCell(key: string) {

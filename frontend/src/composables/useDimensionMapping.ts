@@ -6,7 +6,7 @@ import type {
   DimensionAssignment,
   FilterMode,
 } from '../api/types'
-import type { Ref } from 'vue'
+import type { ComputedRef } from 'vue'
 import { computed } from 'vue'
 
 /**
@@ -19,20 +19,11 @@ export function useDimensionMapping() {
   const store = useImageCubeStore()
 
   return {
-    scanResult: computed({
-      get: () => store.scanResult,
-      set: (val) => { store.scanResult = val },
-    }),
+    scanResult: computed(() => store.scanResult),
     dimensions: computed<ScanDimension[]>(() => store.dimensions),
     images: computed<ScanImage[]>(() => store.images),
-    assignments: computed({
-      get: () => store.assignments,
-      set: (val) => { store.assignments = val },
-    }) as Ref<Map<string, DimensionRole>>,
-    filterModes: computed({
-      get: () => store.filterModes,
-      set: (val) => { store.filterModes = val },
-    }) as Ref<Map<string, FilterMode>>,
+    assignments: computed(() => store.assignments) as ComputedRef<Map<string, DimensionRole>>,
+    filterModes: computed(() => store.filterModes) as ComputedRef<Map<string, FilterMode>>,
     dimensionAssignments: computed<DimensionAssignment[]>(() => store.dimensionAssignments),
     xDimension: computed(() => store.xDimension),
     yDimension: computed(() => store.yDimension),

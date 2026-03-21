@@ -657,29 +657,13 @@ function onMasterSliderChange(value: string) {
   store.setMasterSlider(value)
 }
 
-/** X slider: navigate to a specific X slider dimension value via the store. */
+/** X slider change (main or lightbox): updates store state. */
 function onXSliderChange(value: string) {
   store.setXSlider(value)
 }
 
-/** Y slider: navigate to a specific Y slider dimension value via the store. */
+/** Y slider change (main or lightbox): updates store state. */
 function onYSliderChange(value: string) {
-  store.setYSlider(value)
-}
-
-/**
- * Lightbox-aware X slider handler: updates store state.
- * store.focusedImage auto-updates reactively via currentXSliderValue.
- */
-function onLightboxXSliderChange(value: string) {
-  store.setXSlider(value)
-}
-
-/**
- * Lightbox-aware Y slider handler: updates store state.
- * store.focusedImage auto-updates reactively via currentYSliderValue.
- */
-function onLightboxYSliderChange(value: string) {
   store.setYSlider(value)
 }
 
@@ -1131,8 +1115,8 @@ async function handleSlideoutValidate() {
         @close="onLightboxClose"
         @slider-change="onLightboxSliderChange"
         @navigate="onLightboxNavigate"
-        @x-slider-change="onLightboxXSliderChange"
-        @y-slider-change="onLightboxYSliderChange"
+        @x-slider-change="onXSliderChange"
+        @y-slider-change="onYSliderChange"
       />
       <CheckpointMetadataPanel
         v-if="metadataPanelOpen && selectedTrainingRun"

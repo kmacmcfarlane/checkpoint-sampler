@@ -62,7 +62,7 @@ const filteredImages = computed<ScanImage[]>(() => {
   return props.images.filter((img) => {
     for (const [dimName, selected] of Object.entries(props.comboSelections)) {
       const imgValue = img.dimensions[dimName]
-      if (imgValue !== undefined && !selected.has(imgValue)) {
+      if (selected.size > 0 && imgValue !== undefined && !selected.has(imgValue)) {
         return false
       }
     }
