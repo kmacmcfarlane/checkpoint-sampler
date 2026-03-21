@@ -536,7 +536,7 @@ stories:
   - id: R-009
     title: "Pinia state management refactor — useImageCubeStore"
     type: refactor
-    status: in_progress
+    status: uat
     priority: 75
     complexity: high
     requires: []
