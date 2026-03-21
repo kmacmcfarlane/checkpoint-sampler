@@ -261,31 +261,53 @@ function onKeyDown(e: KeyboardEvent) {
     return
   }
 
-  // Plain ArrowLeft/ArrowRight (without Shift) navigate the lightbox slider when it is visible
-  if (!hasSlider.value || !props.cellKey) return
-  // Use localSliderIndex (updated immediately on each key press) rather than
-  // re-deriving the index from props.currentSliderValue every time. The prop
-  // update from the parent is asynchronous (Vue batches re-renders), so under
-  // rapid/auto-repeat key presses props.currentSliderValue may still reflect
-  // the old value. localSliderIndex is updated synchronously here before the
-  // emit, so each subsequent key press correctly advances from the previously
-  // emitted position — fixing the "stuck" behaviour on non-uniform intervals.
-  const idx = localSliderIndex.value
-  if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+  // Plain ArrowUp / ArrowDown navigate the Y slider (when present)
+  if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && hasYSlider.value) {
     e.preventDefault()
-    e.stopImmediatePropagation()  // prevent MasterSlider document handler from also firing
-    if (idx > 0) {
-      const newIdx = idx - 1
-      localSliderIndex.value = newIdx
-      emit('slider-change', props.cellKey, props.sliderValues[newIdx])
+    e.stopImmediatePropagation()
+    const yIdx = props.ySliderValues.indexOf(props.currentYSliderValue)
+    if (e.key === 'ArrowUp' && yIdx < props.ySliderValues.length - 1) {
+      emit('y-slider-change', props.ySliderValues[yIdx + 1])
+    } else if (e.key === 'ArrowDown' && yIdx > 0) {
+      emit('y-slider-change', props.ySliderValues[yIdx - 1])
     }
-  } else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
-    e.preventDefault()
-    e.stopImmediatePropagation()  // prevent MasterSlider document handler from also firing
-    if (idx < props.sliderValues.length - 1) {
-      const newIdx = idx + 1
-      localSliderIndex.value = newIdx
-      emit('slider-change', props.cellKey, props.sliderValues[newIdx])
+    return
+  }
+
+  // Plain ArrowLeft / ArrowRight navigate the X slider first, then per-cell slider
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+    // X slider takes priority when present
+    if (hasXSlider.value) {
+      e.preventDefault()
+      e.stopImmediatePropagation()
+      const xIdx = props.xSliderValues.indexOf(props.currentXSliderValue)
+      if (e.key === 'ArrowLeft' && xIdx > 0) {
+        emit('x-slider-change', props.xSliderValues[xIdx - 1])
+      } else if (e.key === 'ArrowRight' && xIdx < props.xSliderValues.length - 1) {
+        emit('x-slider-change', props.xSliderValues[xIdx + 1])
+      }
+      return
+    }
+
+    // Fall back to per-cell slider if no X slider
+    if (hasSlider.value && props.cellKey) {
+      e.preventDefault()
+      e.stopImmediatePropagation()
+      // Use localSliderIndex (updated immediately on each key press) rather than
+      // re-deriving the index from props.currentSliderValue every time. The prop
+      // update from the parent is asynchronous (Vue batches re-renders), so under
+      // rapid/auto-repeat key presses props.currentSliderValue may still reflect
+      // the old value.
+      const idx = localSliderIndex.value
+      if (e.key === 'ArrowLeft' && idx > 0) {
+        const newIdx = idx - 1
+        localSliderIndex.value = newIdx
+        emit('slider-change', props.cellKey, props.sliderValues[newIdx])
+      } else if (e.key === 'ArrowRight' && idx < props.sliderValues.length - 1) {
+        const newIdx = idx + 1
+        localSliderIndex.value = newIdx
+        emit('slider-change', props.cellKey, props.sliderValues[newIdx])
+      }
     }
   }
 }
@@ -423,75 +445,112 @@ onUnmounted(() => {
 <template>
   <div
     class="lightbox-backdrop"
+    :class="{ 'lightbox--has-x-slider': hasXSlider || hasSlider, 'lightbox--has-y-slider': hasYSlider }"
     role="dialog"
     aria-label="Image lightbox"
     @mousedown="onBackdropMouseDown"
     @click="onBackdropClick"
   >
-    <NButton
-      class="lightbox-close"
-      quaternary
-      circle
-      size="large"
-      aria-label="Close lightbox"
-      @click="emit('close')"
-    >
-      &times;
-    </NButton>
-    <div class="lightbox-zoom-controls" aria-label="Zoom controls">
+    <!-- Row 1: Header bar spanning all columns -->
+    <div class="lightbox-header" @click.stop>
       <NButton
-        class="lightbox-zoom-btn"
+        class="lightbox-close"
         quaternary
-        size="small"
-        aria-label="Zoom in"
-        @click="zoomIn"
-      >+</NButton>
-      <NButton
-        class="lightbox-zoom-btn"
-        quaternary
-        size="small"
-        aria-label="Reset zoom"
-        @click="resetZoom"
-      >Reset</NButton>
-      <NButton
-        class="lightbox-zoom-btn"
-        quaternary
-        size="small"
-        aria-label="Zoom out"
-        @click="zoomOut"
-      >-</NButton>
-    </div>
-    <div class="lightbox-shortcuts-area" @click.stop>
-      <NButton
-        class="lightbox-shortcuts-btn"
-        secondary
         circle
-        size="medium"
-        aria-label="Toggle keyboard shortcuts"
-        data-testid="lightbox-shortcuts-btn"
-        @click="toggleShortcuts"
-      >?</NButton>
-      <div
-        v-if="shortcutsOpen"
-        class="lightbox-shortcuts-panel"
-        data-testid="lightbox-shortcuts-panel"
+        size="large"
+        aria-label="Close lightbox"
+        @click="emit('close')"
       >
-        <div class="shortcuts-title">Keyboard Shortcuts</div>
-        <ul class="shortcuts-list">
-          <li><kbd>Esc</kbd> Close lightbox</li>
-          <li><kbd>?</kbd> Toggle this help panel</li>
-          <li><kbd>Shift</kbd> + <kbd>←</kbd> <kbd>→</kbd> Navigate grid (X axis)</li>
-          <li><kbd>Shift</kbd> + <kbd>↑</kbd> <kbd>↓</kbd> Navigate grid (Y axis)</li>
-          <li><kbd>←</kbd> <kbd>→</kbd> Slider (when active)</li>
-        </ul>
+        &times;
+      </NButton>
+      <div class="lightbox-zoom-controls" aria-label="Zoom controls">
+        <NButton
+          class="lightbox-zoom-btn"
+          quaternary
+          size="small"
+          aria-label="Zoom in"
+          @click="zoomIn"
+        >+</NButton>
+        <NButton
+          class="lightbox-zoom-btn"
+          quaternary
+          size="small"
+          aria-label="Reset zoom"
+          @click="resetZoom"
+        >Reset</NButton>
+        <NButton
+          class="lightbox-zoom-btn"
+          quaternary
+          size="small"
+          aria-label="Zoom out"
+          @click="zoomOut"
+        >-</NButton>
+      </div>
+      <div
+        v-if="showGridIndicator"
+        class="lightbox-grid-indicator"
+        data-testid="lightbox-grid-indicator"
+        aria-label="Grid position"
+      >{{ gridPositionLabel }}</div>
+      <div class="lightbox-header-spacer"></div>
+      <NButton
+        class="lightbox-metadata-btn"
+        quaternary
+        size="small"
+        aria-label="Toggle metadata"
+        @click="toggleMetadata"
+      >
+        {{ metadataOpen ? 'Hide Metadata' : 'Metadata' }}
+      </NButton>
+      <div class="lightbox-shortcuts-area">
+        <NButton
+          class="lightbox-shortcuts-btn"
+          secondary
+          circle
+          size="medium"
+          aria-label="Toggle keyboard shortcuts"
+          data-testid="lightbox-shortcuts-btn"
+          @click="toggleShortcuts"
+        >?</NButton>
       </div>
     </div>
+
+    <!-- Shortcuts panel (overlays content, not part of grid flow) -->
     <div
-      v-if="showGridIndicator"
-      class="lightbox-grid-indicator"
-      data-testid="lightbox-grid-indicator"
-      aria-label="Grid position"
-    >{{ gridPositionLabel }}</div>
+      v-if="shortcutsOpen"
+      class="lightbox-shortcuts-panel"
+      data-testid="lightbox-shortcuts-panel"
+      @click.stop
+    >
+      <div class="shortcuts-title">Keyboard Shortcuts</div>
+      <ul class="shortcuts-list">
+        <li><kbd>Esc</kbd> Close lightbox</li>
+        <li><kbd>?</kbd> Toggle this help panel</li>
+        <li><kbd>Shift</kbd> + <kbd>←</kbd> <kbd>→</kbd> Navigate grid (X axis)</li>
+        <li><kbd>Shift</kbd> + <kbd>↑</kbd> <kbd>↓</kbd> Navigate grid (Y axis)</li>
+        <li><kbd>←</kbd> <kbd>→</kbd> Slider (when active)</li>
+      </ul>
+    </div>
+
+    <!-- Metadata panel (overlays content) -->
+    <div v-if="metadataOpen" class="metadata-panel" @click.stop>
+      <div class="metadata-content">
+        <div v-if="metadataLoading" class="metadata-loading">Loading metadata...</div>
+        <div v-else-if="metadataError" class="metadata-error">{{ metadataError }}</div>
+        <div v-else-if="stringMetadata && numericMetadata && Object.keys(stringMetadata).length === 0 && Object.keys(numericMetadata).length === 0" class="metadata-empty">
+          No metadata available
+        </div>
+        <div v-else-if="stringMetadata && numericMetadata" class="metadata-entries">
+          <div v-for="key in [...Object.keys(stringMetadata), ...Object.keys(numericMetadata)].sort()" :key="key" class="metadata-entry">
+            <div class="metadata-key">{{ key }}</div>
+            <pre v-if="key in numericMetadata" class="metadata-value">{{ numericMetadata[key] }}</pre>
+            <pre v-else class="metadata-value">{{ formatJSON(stringMetadata[key]) }}</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 2: Main content area (transparent, image shows through) -->
     <div
       class="lightbox-content"
       @wheel="onWheel"
@@ -509,35 +568,16 @@ onUnmounted(() => {
         draggable="false"
       />
     </div>
+
+    <!-- Debug overlay (floats over content) -->
     <DebugOverlay
       v-if="debugMode && debugInfo"
       :info="debugInfo"
       class="lightbox-debug-overlay"
       data-testid="lightbox-debug-overlay"
     />
-    <div v-if="hasSlider" class="lightbox-slider-panel" @click.stop>
-      <SliderBar
-        :values="sliderValues"
-        :current-value="currentSliderValue"
-        :label="sliderDimensionName || 'Slider'"
-        @change="onLightboxSliderChange"
-      />
-    </div>
-    <!-- AC: Lightbox X slider synced to main view X slider -->
-    <div
-      v-if="hasXSlider"
-      class="lightbox-x-slider-bar"
-      data-testid="lightbox-x-slider-bar"
-      @click.stop
-    >
-      <MasterSlider
-        :values="xSliderValues"
-        :current-value="currentXSliderValue"
-        :dimension-name="xDimensionName"
-        @change="onLightboxXSliderChange"
-      />
-    </div>
-    <!-- AC: Lightbox Y slider synced to main view Y slider -->
+
+    <!-- Row 2 right column: Y slider -->
     <div
       v-if="hasYSlider"
       class="lightbox-y-slider-bar"
@@ -552,34 +592,40 @@ onUnmounted(() => {
         @change="onLightboxYSliderChange"
       />
     </div>
-    <div class="metadata-panel" :class="{ 'metadata-panel--above-slider': hasSlider || hasXSlider }" @click.stop>
-      <NButton
-        class="metadata-toggle"
-        size="small"
-        aria-label="Toggle metadata"
-        @click="toggleMetadata"
-      >
-        {{ metadataOpen ? 'Hide Metadata' : 'Show Metadata' }}
-      </NButton>
-      <div v-if="metadataOpen" class="metadata-content">
-        <div v-if="metadataLoading" class="metadata-loading">Loading metadata...</div>
-        <div v-else-if="metadataError" class="metadata-error">{{ metadataError }}</div>
-        <div v-else-if="stringMetadata && numericMetadata && Object.keys(stringMetadata).length === 0 && Object.keys(numericMetadata).length === 0" class="metadata-empty">
-          No metadata available
-        </div>
-        <div v-else-if="stringMetadata && numericMetadata" class="metadata-entries">
-          <div v-for="key in [...Object.keys(stringMetadata), ...Object.keys(numericMetadata)].sort()" :key="key" class="metadata-entry">
-            <div class="metadata-key">{{ key }}</div>
-            <pre v-if="key in numericMetadata" class="metadata-value">{{ numericMetadata[key] }}</pre>
-            <pre v-else class="metadata-value">{{ formatJSON(stringMetadata[key]) }}</pre>
-          </div>
-        </div>
-      </div>
+
+    <!-- Row 3: X slider or per-cell slider -->
+    <div
+      v-if="hasXSlider"
+      class="lightbox-x-slider-bar"
+      data-testid="lightbox-x-slider-bar"
+      @click.stop
+    >
+      <MasterSlider
+        :values="xSliderValues"
+        :current-value="currentXSliderValue"
+        :dimension-name="xDimensionName"
+        @change="onLightboxXSliderChange"
+      />
     </div>
+    <div v-else-if="hasSlider" class="lightbox-slider-panel" @click.stop>
+      <SliderBar
+        :values="sliderValues"
+        :current-value="currentSliderValue"
+        :label="sliderDimensionName || 'Slider'"
+        @change="onLightboxSliderChange"
+      />
+    </div>
+
+    <!-- Bottom-right spacer when both X/slider and Y are present -->
+    <div
+      v-if="(hasXSlider || hasSlider) && hasYSlider"
+      class="lightbox-corner-spacer"
+    ></div>
   </div>
 </template>
 
 <style scoped>
+/* ---- Grid-based lightbox layout ---- */
 .lightbox-backdrop {
   position: fixed;
   top: 0;
@@ -587,26 +633,40 @@ onUnmounted(() => {
   width: 100vw;
   height: 100vh;
   background-color: rgba(0, 0, 0, 0.85);
+  z-index: 1000;
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: auto 1fr;
+  overflow: hidden;
+}
+
+/* When Y slider visible, add right column */
+.lightbox--has-y-slider {
+  grid-template-columns: 1fr 4rem;
+}
+
+/* When X/per-cell slider visible, add bottom row */
+.lightbox--has-x-slider {
+  grid-template-rows: auto 1fr auto;
+}
+
+/* ---- Row 1: Header bar ---- */
+.lightbox-header {
+  grid-column: 1 / -1;
   display: flex;
   align-items: center;
-  justify-content: center;
-  z-index: 1000;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  z-index: 1002;
 }
 
 .lightbox-close {
-  position: fixed;
-  top: 12px;
-  left: 12px;
-  z-index: 1002;
   font-size: 1.5rem;
   color: rgba(255, 255, 255, 0.8);
+  flex-shrink: 0;
 }
 
 .lightbox-zoom-controls {
-  position: fixed;
-  top: 12px;
-  left: 60px;
-  z-index: 1002;
   display: flex;
   gap: 4px;
   align-items: center;
@@ -618,11 +678,6 @@ onUnmounted(() => {
 }
 
 .lightbox-grid-indicator {
-  position: fixed;
-  top: 14px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 1010;
   /* stylelint-disable-next-line scale-unlimited/declaration-strict-value -- Intentional: lightbox overlay always has dark background regardless of theme */
   background: rgba(0, 0, 0, 0.65);
   /* stylelint-disable-next-line scale-unlimited/declaration-strict-value -- Intentional: lightbox overlay always has dark background regardless of theme */
@@ -634,7 +689,6 @@ onUnmounted(() => {
   font-variant-numeric: tabular-nums;
   padding: 0.3rem 0.875rem;
   border-radius: 1rem;
-  pointer-events: none;
   white-space: nowrap;
   user-select: none;
   /* stylelint-disable-next-line scale-unlimited/declaration-strict-value -- Intentional: lightbox overlay always has dark background regardless of theme */
@@ -642,100 +696,157 @@ onUnmounted(() => {
   letter-spacing: 0.02em;
 }
 
+.lightbox-header-spacer {
+  flex: 1;
+}
+
+.lightbox-metadata-btn {
+  color: rgba(255, 255, 255, 0.8);
+  flex-shrink: 0;
+}
+
+.lightbox-shortcuts-area {
+  flex-shrink: 0;
+}
+
+.lightbox-shortcuts-btn {
+  /* stylelint-disable-next-line scale-unlimited/declaration-strict-value -- Intentional: lightbox overlay always has dark background regardless of theme */
+  color: rgba(255, 255, 255, 0.9);
+  /* stylelint-disable-next-line scale-unlimited/declaration-strict-value -- Intentional: lightbox overlay always has dark background regardless of theme */
+  background-color: rgba(255, 255, 255, 0.15) !important;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+/* Shortcuts panel floats over content */
+.lightbox-shortcuts-panel {
+  position: fixed;
+  top: 3.5rem;
+  right: 0.75rem;
+  z-index: 1010;
+  background: rgba(20, 20, 20, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 0.25rem;
+  padding: 0.75rem 1rem;
+  min-width: 260px;
+}
+
+.shortcuts-title {
+  font-weight: 600;
+  font-size: 0.8125rem;
+  margin-bottom: 0.5rem;
+  /* stylelint-disable-next-line scale-unlimited/declaration-strict-value -- Intentional: lightbox overlay always has dark background regardless of theme */
+  color: #90caf9;
+}
+
+.shortcuts-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-size: 0.8125rem;
+  /* stylelint-disable-next-line scale-unlimited/declaration-strict-value -- Intentional: lightbox overlay always has dark background regardless of theme */
+  color: #e0e0e0;
+}
+
+.shortcuts-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+kbd {
+  display: inline-block;
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.2rem;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.1);
+  font-family: 'SF Mono', 'Consolas', 'Liberation Mono', monospace;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  /* stylelint-disable-next-line scale-unlimited/declaration-strict-value -- Intentional: lightbox overlay always has dark background regardless of theme */
+  color: #e0e0e0;
+}
+
+/* ---- Row 2: Content area ---- */
 .lightbox-content {
   overflow: hidden;
-  width: 100%;
-  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
+  min-height: 0;
 }
 
 .lightbox-image {
-  max-width: 90vw;
-  max-height: 90vh;
+  max-width: 90%;
+  max-height: 90%;
   transform-origin: center center;
   user-select: none;
 }
 
-/* Height of the slider panel (padding + content). Used to offset overlapping panels. */
-:root {
-  --lightbox-slider-panel-height: 3.5rem;
-}
-
-.lightbox-slider-panel {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 1001;
-  background: rgba(20, 20, 20, 0.85);
-  padding: 0.5rem 1rem;
-}
-
-/* AC: Lightbox X slider pinned to bottom edge, mirroring main view layout */
-.lightbox-x-slider-bar {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 1001;
-  background: rgba(20, 20, 20, 0.85);
-  padding: 0.25rem 1rem;
-}
-
-/* AC: Lightbox Y slider pinned to right edge, mirroring main view layout */
-.lightbox-y-slider-bar {
-  position: fixed;
-  top: 0;
-  bottom: 0;
-  right: 0;
-  z-index: 1001;
-  background: rgba(20, 20, 20, 0.85);
-  padding: 1rem 0.25rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: 4rem;
-}
-
-/* Vertical mode styles are handled by MasterSlider's vertical prop */
-
 .lightbox-debug-overlay {
-  position: fixed;
+  position: absolute;
   bottom: 4rem;
   left: 0;
-  right: auto;
   z-index: 1002;
   max-width: 300px;
   pointer-events: none;
 }
 
+/* ---- Row 2 right column: Y slider ---- */
+.lightbox-y-slider-bar {
+  background: rgba(20, 20, 20, 0.85);
+  border-left: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 1rem 0.25rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  user-select: none;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ---- Row 3: X slider / per-cell slider ---- */
+.lightbox-x-slider-bar {
+  background: rgba(20, 20, 20, 0.85);
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 0.25rem 1rem;
+  user-select: none;
+}
+
+.lightbox-slider-panel {
+  background: rgba(20, 20, 20, 0.85);
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 0.5rem 1rem;
+  user-select: none;
+}
+
+/* Bottom-right corner spacer */
+.lightbox-corner-spacer {
+  background: rgba(20, 20, 20, 0.85);
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  border-left: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+/* ---- Metadata panel (floats over content) ---- */
 .metadata-panel {
   position: fixed;
-  bottom: 0;
-  right: 0;
+  top: 3.5rem;
+  right: 0.75rem;
   max-width: 50vw;
   max-height: 60vh;
-  z-index: 1001;
+  z-index: 1010;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
 }
 
-/* Shift the metadata panel above the slider panel when the slider is visible. */
-.metadata-panel--above-slider {
-  bottom: var(--lightbox-slider-panel-height);
-}
-
-.metadata-toggle {
-  border-radius: 0.25rem 0.25rem 0 0;
-}
-
 .metadata-content {
   background: rgba(20, 20, 20, 0.95);
   border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 0.25rem 0 0 0;
+  border-radius: 0.25rem;
   padding: 0.75rem;
   overflow-y: auto;
   max-height: 50vh;
@@ -788,73 +899,6 @@ onUnmounted(() => {
   overflow-y: auto;
 }
 
-.lightbox-shortcuts-area {
-  position: fixed;
-  top: 12px;
-  right: 12px;
-  z-index: 1002;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
-}
-
-.lightbox-shortcuts-btn {
-  /* stylelint-disable-next-line scale-unlimited/declaration-strict-value -- Intentional: lightbox overlay always has dark background regardless of theme */
-  color: rgba(255, 255, 255, 0.9);
-  /* stylelint-disable-next-line scale-unlimited/declaration-strict-value -- Intentional: lightbox overlay always has dark background regardless of theme */
-  background-color: rgba(255, 255, 255, 0.15) !important;
-  font-size: 1rem;
-  font-weight: 700;
-}
-
-.lightbox-shortcuts-panel {
-  background: rgba(20, 20, 20, 0.95);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 0.25rem;
-  padding: 0.75rem 1rem;
-  min-width: 260px;
-}
-
-.shortcuts-title {
-  font-weight: 600;
-  font-size: 0.8125rem;
-  margin-bottom: 0.5rem;
-  /* stylelint-disable-next-line scale-unlimited/declaration-strict-value -- Intentional: lightbox overlay always has dark background regardless of theme */
-  color: #90caf9;
-}
-
-.shortcuts-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  font-size: 0.8125rem;
-  /* stylelint-disable-next-line scale-unlimited/declaration-strict-value -- Intentional: lightbox overlay always has dark background regardless of theme */
-  color: #e0e0e0;
-}
-
-.shortcuts-list li {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-}
-
-kbd {
-  display: inline-block;
-  padding: 0.1rem 0.35rem;
-  border-radius: 0.2rem;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  background: rgba(255, 255, 255, 0.1);
-  font-family: 'SF Mono', 'Consolas', 'Liberation Mono', monospace;
-  font-size: 0.75rem;
-  line-height: 1.4;
-  /* stylelint-disable-next-line scale-unlimited/declaration-strict-value -- Intentional: lightbox overlay always has dark background regardless of theme */
-  color: #e0e0e0;
-}
-
 @media (max-width: 767px) {
   .metadata-panel {
     max-width: 100vw;
@@ -870,9 +914,12 @@ kbd {
     box-sizing: border-box;
   }
 
-  .metadata-toggle {
-    border-radius: 0.25rem 0.25rem 0 0;
-    align-self: flex-end;
+  .lightbox-x-slider-bar {
+    padding: 0.25rem 0.5rem;
+  }
+
+  .lightbox-y-slider-bar {
+    padding: 0.5rem 0.25rem;
   }
 }
 </style>
