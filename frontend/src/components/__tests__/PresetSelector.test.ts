@@ -802,6 +802,37 @@ describe('PresetSelector', () => {
     expect(deleteEmitted![0][0]).toBe('p99-stale')
   })
 
+  // AC2 (B-124): Delete button not visible and selector shows placeholder after stale preset detection
+  it('AC2 (B-124): Delete button is not visible when autoLoadPresetId is stale (preset not found)', async () => {
+    // AC2: After TR selection with a stale preset ID, the Delete preset button must
+    // not be visible (no preset is "selected" in PresetSelector).
+    mockGetPresets.mockResolvedValue(samplePresets) // p99-stale does not exist
+    const wrapper = mount(PresetSelector, {
+      props: { ...defaultProps, autoLoadPresetId: 'p99-stale' },
+      global: { stubs: { Teleport: true } },
+    })
+    await flushPromises()
+
+    // Delete button must not be visible — selectedId stays null for stale presets
+    const deleteBtn = findButton(wrapper, 'Delete preset')
+    expect(deleteBtn).toBeUndefined()
+  })
+
+  // AC2 (B-124): Preset selector shows placeholder when stale preset is detected
+  it('AC2 (B-124): preset selector shows placeholder (no selected value) when stale preset is detected', async () => {
+    // AC2: The preset selector shows 'Select a preset' when the stale entry is cleared.
+    mockGetPresets.mockResolvedValue(samplePresets) // p99-stale does not exist
+    const wrapper = mount(PresetSelector, {
+      props: { ...defaultProps, autoLoadPresetId: 'p99-stale' },
+      global: { stubs: { Teleport: true } },
+    })
+    await flushPromises()
+
+    // NSelect value should be null (no preset selected)
+    const select = wrapper.findComponent(NSelect)
+    expect(select.props('value')).toBeNull()
+  })
+
   it('does not auto-load when autoLoadPresetId is null', async () => {
     mockGetPresets.mockResolvedValue(samplePresets)
     const wrapper = mount(PresetSelector, {

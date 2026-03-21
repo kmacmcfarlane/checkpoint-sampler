@@ -1027,6 +1027,87 @@ describe('App', () => {
         expect(localStorage.getItem('checkpoint-sampler-last-preset')).toBeNull()
       })
 
+      // AC1 (B-124): stale presetsByKey entry deleted when detected by PresetSelector
+      it('AC1 (B-124): stale preset entry is deleted from localStorage when PresetSelector reports it as nonexistent', async () => {
+        // When the drawer is open (wide screen), PresetSelector mounts and calls
+        // attemptAutoLoad which emits 'delete' for a stale preset ID.
+        // onPresetDelete must clear the localStorage combo entry even when
+        // selectedPresetId is null (i.e., eagerRestorePreset did not set it first).
+        Object.defineProperty(window, 'innerWidth', { value: 1200, configurable: true })
+        vi.stubGlobal('matchMedia', createMatchMediaMock(true))
+
+        setSavedPresetData(1, 'stale-preset-id')
+        mockGetPresets.mockResolvedValue([]) // stale-preset-id does not exist on backend
+
+        mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
+        await flushPromises()
+
+        // Stale entry must be removed: either the presetsByKey key is gone or the item is null
+        const stored = localStorage.getItem('checkpoint-sampler-last-preset')
+        if (stored !== null) {
+          const parsed = JSON.parse(stored)
+          expect(parsed.presetsByKey?.['1|']).toBeUndefined()
+        }
+        // Training run should still be scanned
+        expect(mockScanTrainingRun).toHaveBeenCalledWith(1, undefined)
+      })
+
+      // AC2 (B-124): after stale preset detection, PresetSelector shows 'Select a preset' (autoLoadPresetId is null)
+      it('AC2 (B-124): autoLoadPresetId for PresetSelector is null after stale preset is cleared', async () => {
+        // AC2: After TR selection with a stale preset ID, the preset selector shows
+        // 'Select a preset' (autoLoadPresetId passed to PresetSelector must be null).
+        Object.defineProperty(window, 'innerWidth', { value: 1200, configurable: true })
+        vi.stubGlobal('matchMedia', createMatchMediaMock(true))
+
+        setSavedPresetData(1, 'stale-preset-id')
+        mockGetPresets.mockResolvedValue([]) // stale-preset-id does not exist on backend
+
+        const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
+        await flushPromises()
+
+        // After stale detection and cleanup, PresetSelector must receive null autoLoadPresetId
+        // so it does not attempt to load a nonexistent preset.
+        const presetSelector = wrapper.findComponent({ name: 'PresetSelector' })
+        expect(presetSelector.exists()).toBe(true)
+        expect(presetSelector.props('autoLoadPresetId')).toBeNull()
+      })
+
+      // AC2 (B-124): onPresetDelete clears localStorage even when selectedPresetId !== presetId (stale case)
+      it('AC2 (B-124): onPresetDelete clears localStorage combo entry for stale preset when selectedPresetId is null', async () => {
+        // Regression test: the stale-preset path emits 'delete' with the stale ID while
+        // selectedPresetId is null (not yet set). The previous onPresetDelete guard checked
+        // selectedPresetId === presetId, which was always false for stale presets from
+        // localStorage, so the entry was never cleared via this path.
+        //
+        // On wide screen, both eagerRestorePreset and PresetSelector's attemptAutoLoad run.
+        // This test focuses on the PresetSelector 'delete' event path:
+        // after the scan completes, PresetSelector detects the stale preset and emits 'delete'.
+        // onPresetDelete must clear the combo localStorage entry.
+        Object.defineProperty(window, 'innerWidth', { value: 1200, configurable: true })
+        vi.stubGlobal('matchMedia', createMatchMediaMock(true))
+
+        setSavedPresetData(1, 'stale-preset-id')
+        mockGetPresets.mockResolvedValue([]) // stale preset not on backend
+
+        const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
+        await flushPromises()
+
+        // Directly emit 'delete' from the PresetSelector (simulating attemptAutoLoad
+        // detecting the stale preset ID and emitting 'delete').
+        // At this point selectedPresetId is null — the old guard would have skipped the clear.
+        const presetSelector = wrapper.findComponent({ name: 'PresetSelector' })
+        expect(presetSelector.exists()).toBe(true)
+        presetSelector.vm.$emit('delete', 'stale-preset-id')
+        await flushPromises()
+
+        // The combo entry must be cleared from localStorage
+        const stored = localStorage.getItem('checkpoint-sampler-last-preset')
+        if (stored !== null) {
+          const parsed = JSON.parse(stored)
+          expect(parsed.presetsByKey?.['1|']).toBeUndefined()
+        }
+      })
+
       it('AC3: page refresh preserves training run and study selection', async () => {
         // AC3 (B-101): Page refresh preserves training run and study selection.
         // Simulate a page refresh by mounting, selecting a run, unmounting, then

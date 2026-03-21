@@ -738,10 +738,17 @@ function onPresetSave(preset: Preset) {
 function onPresetDelete(presetId: string) {
   presetWarnings.value = []
 
-  // If the deleted preset was the selected one, clear the selection for the current combo
   if (selectedPresetId.value === presetId) {
     selectedPresetId.value = null
-    if (selectedTrainingRun.value) {
+  }
+
+  // AC1 (B-124): Clear the stored preset for this combo if it matches the deleted/stale ID.
+  // This handles both the explicit delete case (where selectedPresetId === presetId)
+  // and the stale-preset case where attemptAutoLoad emits 'delete' for a nonexistent
+  // preset ID found in localStorage (selectedPresetId is null in that case).
+  if (selectedTrainingRun.value) {
+    const storedId = getPresetIdForCombo(selectedTrainingRun.value.id, selectedStudyOutputDir.value)
+    if (storedId === presetId) {
       clearPresetForCombo(selectedTrainingRun.value.id, selectedStudyOutputDir.value)
     }
   }
