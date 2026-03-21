@@ -5,6 +5,11 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### W-023: Worktree-based agent workflow — backlog locking, story claims, worktree lifecycle
+- `backlog.py` gains file locking (`fcntl.flock`) for all mutating operations, `--repo-root` / `BACKLOG_REPO_ROOT` for worktree-aware path resolution, and `--claim <worker-id>` for atomic story claiming
+- New `scripts/worktree/worktree.py` with create, remove, list, detect-stale, and recover subcommands for managing per-story git worktrees under `.worktrees/`
+- AGENT_FLOW.md section 4.1.1 documents the parallel agent worktree workflow
+
 ### B-116: E2E: job-delete.spec.ts AC3 flaky — delete confirmation races with API check
 - Added `Promise.all` + `page.waitForResponse` to synchronize on the DELETE 204 response before asserting the job is gone, eliminating the race between the in-flight DELETE and the immediate GET check
 

@@ -102,13 +102,23 @@ Frontend (MUST run from /frontend, not the project root):
 
 Backlog CLI (preferred over direct YAML editing):
 - `python3 scripts/backlog/backlog.py next-work [--format json] [--fields ...]`
+- `python3 scripts/backlog/backlog.py next-work --claim <worker-id> --format json` (atomic claim)
 - `python3 scripts/backlog/backlog.py query --status todo --fields id,title,priority`
 - `python3 scripts/backlog/backlog.py get <id>`
 - `python3 scripts/backlog/backlog.py set <id> status <value>`
 - `python3 scripts/backlog/backlog.py next-id <S|B|R|W|M>`
 - `cat story.yaml | python3 scripts/backlog/backlog.py add`
 - `python3 scripts/backlog/backlog.py validate [--strict]`
+- Use `--repo-root <path>` or `BACKLOG_REPO_ROOT` env var when running from a worktree
 - See AGENT_FLOW.md section 0 for the full command reference.
+
+Worktree CLI (parallel agent execution):
+- `python3 scripts/worktree/worktree.py create <story-id>`
+- `python3 scripts/worktree/worktree.py remove <story-id> [--force] [--delete-branch]`
+- `python3 scripts/worktree/worktree.py list`
+- `python3 scripts/worktree/worktree.py detect-stale`
+- `python3 scripts/worktree/worktree.py recover`
+- See AGENT_FLOW.md section 4.1.1 for worktree workflow.
 
 ### Agent workflow (preferred sequence)
 Agents should use one-shot commands, not watch mode. Watch mode is a long-running process designed for human developers — agents need discrete pass/fail results per invocation.

@@ -35,6 +35,26 @@ Key commands:
 
 Output format: `--format yaml` (default) or `--format json`. `--format` works in both global position (before subcommand) and subcommand position (after subcommand). Exit codes: 0=success, 1=validation error, 2=not found, 3=file error.
 
+#### Backlog locking
+
+All read-modify-write operations (`set`, `set-text`, `clear`, `add`, `archive`, and `next-work --claim`) acquire an exclusive file lock at `agent/backlog.lock`. Concurrent callers block until the lock is released. This prevents race conditions when multiple agents access the backlog simultaneously.
+
+#### Worktree-aware path resolution
+
+When running inside a git worktree, `backlog.py` must read/write `backlog.yaml` from the **main checkout**, not the worktree copy. Use one of these mechanisms (in priority order):
+1. `--repo-root <path>` flag — explicit path to the main checkout
+2. `BACKLOG_REPO_ROOT` environment variable
+3. Auto-detect via `git rev-parse --show-toplevel` (default)
+
+#### Story claiming
+
+`next-work --claim <worker-id>` atomically selects the next eligible story **and** sets `status: in_progress` + `claimed_by: <worker-id>`, all under the file lock. This prevents two workers from claiming the same story:
+
+```bash
+# Atomic claim — selects story + sets in_progress + writes claimed_by
+python3 scripts/backlog/backlog.py --repo-root /path/to/main next-work --claim worker-1 --format json
+```
+
 ### Ticket ID prefixes
 
 | Prefix | Type | Description |
@@ -226,6 +246,53 @@ The orchestrator performs these steps each cycle:
 - If a story becomes blocked, do not merge down the branch
 - If the story reaches `uat`, the branch has already been merged into `main` (see section 4.5)
 - **UAT rework**: When a `uat_feedback` story transitions to `in_progress`, create a new feature branch from current `main`. The previous branch was already merged. Use the standard branch name (e.g., `S-123`); if it still exists from the prior merge, delete it first and recreate from `main`.
+
+### 4.1.1 Worktree-based workflow (parallel agents)
+
+When running multiple agents in parallel, each agent works in its own git worktree under `.worktrees/<story-id>/`. The worktree manager script (`scripts/worktree/worktree.py`) handles lifecycle:
+
+**Creating a worktree:**
+```bash
+# Create worktree for a story (handles branch-already-exists)
+python3 scripts/worktree/worktree.py create S-042
+# JSON output: {"story_id": "S-042", "path": ".worktrees/S-042", "branch": "story/S-042"}
+python3 scripts/worktree/worktree.py --format json create S-042
+```
+
+**Claiming work atomically:**
+```bash
+# In the main checkout: claim a story + create worktree
+STORY=$(python3 scripts/backlog/backlog.py --repo-root /path/to/main next-work --claim worker-1 --format json)
+STORY_ID=$(echo "$STORY" | python3 -c "import sys,json; print(json.load(sys.stdin)[0]['id'])")
+python3 scripts/worktree/worktree.py create "$STORY_ID"
+cd .worktrees/"$STORY_ID"
+```
+
+**Cleanup after story completion:**
+```bash
+# Remove worktree (fails if uncommitted changes present)
+python3 scripts/worktree/worktree.py remove S-042
+# Force remove + delete branch
+python3 scripts/worktree/worktree.py remove --force --delete-branch S-042
+```
+
+**Stale worktree detection (run at cycle start):**
+```bash
+# Find worktrees whose story is not in_progress/review/testing
+python3 scripts/worktree/worktree.py --format json detect-stale
+```
+
+**Recovering from dead processes:**
+```bash
+# Find orphaned worktrees with uncommitted changes
+python3 scripts/worktree/worktree.py --format json recover
+```
+
+**Key rules:**
+- `.worktrees/` is gitignored — worktrees are ephemeral local state
+- `backlog.py` always reads/writes from the main checkout via `--repo-root` or `BACKLOG_REPO_ROOT`
+- File lock at `agent/backlog.lock` serializes concurrent backlog access
+- `detect-stale` should run at the start of each cycle to prevent worktree accumulation
 
 ### 4.2 Check for requirements changes
 - Inspect the git commit history (or working set) for changes to the /agent/PRD.md or answers provided in /agent/QUESTIONS.md
