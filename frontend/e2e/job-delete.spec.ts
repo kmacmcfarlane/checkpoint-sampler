@@ -271,9 +271,20 @@ test.describe('job deletion with optional sample data removal (S-097)', () => {
     await expect(confirmDialog).toBeVisible()
 
     // Do NOT check the checkbox (keep default: off = don't delete sample data)
-    // Click "Yes, Delete"
+    // Click "Yes, Delete" — register the waitForResponse BEFORE clicking to avoid a race
+    // where the DELETE response arrives before the listener is set up.
     const confirmButton = confirmDialog.locator('[data-testid="confirm-delete-button"]')
-    await confirmButton.click()
+    // B-116: wait for the DELETE API response before checking GET /api/sample-jobs,
+    // otherwise the GET can race against the in-flight DELETE and see the job still present.
+    await Promise.all([
+      page.waitForResponse(
+        resp =>
+          resp.url().includes(`/api/sample-jobs/${jobId}`) &&
+          resp.request().method() === 'DELETE' &&
+          resp.status() === 204,
+      ),
+      confirmButton.click(),
+    ])
     await expect(confirmDialog).not.toBeVisible()
 
     // Job should be gone from the API

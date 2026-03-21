@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-116: E2E: job-delete.spec.ts AC3 flaky — delete confirmation races with API check
+- Added `Promise.all` + `page.waitForResponse` to synchronize on the DELETE 204 response before asserting the job is gone, eliminating the race between the in-flight DELETE and the immediate GET check
+
 ### B-120: E2E: Multiple specs fail with Naive UI select popup timeout
 - Centralized select dropdown popup interaction into a retry-capable `clickSelectAndWaitForPopup` helper, fixing flakiness in regen-confirmation, checkpoint-default-selection, and study-name-validation specs under parallel shard load
 

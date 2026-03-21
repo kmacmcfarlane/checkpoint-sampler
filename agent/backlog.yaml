@@ -315,7 +315,7 @@ stories:
   - id: B-116
     title: "job-delete.spec.ts AC3 flaky — delete confirmation races with API check"
     type: bug
-    status: todo
+    status: uat
     priority: 50
     complexity: low
     requires: []
