@@ -371,7 +371,7 @@ stories:
   - id: B-119
     title: "E2E: debug-mode spec fails to find images in xy-grid for lightbox tests"
     type: bug
-    status: todo
+    status: closed
     priority: 65
     complexity: low
     requires: []
