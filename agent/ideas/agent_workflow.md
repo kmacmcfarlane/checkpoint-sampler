@@ -132,3 +132,9 @@ between claude-sandbox (worker management) and checkpoint-sampler (agent workflo
 - Unit test: Ralph quota tracking stops spawning at threshold
 - Unit test: crash recovery detects orphaned worktree and reports it
 - Manual testing required for cross-repo coordination (user-driven)
+
+### Parallel agent orchestrator integration
+* status: needs_approval
+* priority: medium
+* source: developer
+The worktree + locking infrastructure (W-023) is now in place, but the orchestrator (PROMPT.md) still assumes single-agent sequential operation. A follow-up story should update the orchestrator to use `--claim` and worktrees when multiple agents are active, including the cycle-start stale detection and recovery flow.

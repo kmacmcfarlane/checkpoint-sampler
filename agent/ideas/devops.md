@@ -73,3 +73,9 @@ The `mkdir -p .ralph/temp/e2e-logs` step in the Makefile test-e2e recipe may exe
 * priority: low
 * source: developer
 When the orchestrator commits a story, automatically record the passing E2E count in the commit message in a structured format. This would allow automated detection of stories that introduced new failures vs. pre-existing ones, reducing false-positive bug reports like B-117.
+
+### Backlog and worktree test runner Makefile targets
+* status: needs_approval
+* priority: low
+* source: developer
+There is no `make test-backlog` or `make test-worktree` target — Python script tests must be run manually via `python3 -m unittest`. Adding Makefile targets would improve discoverability and consistency with `make test-backend` / `make test-frontend`.
