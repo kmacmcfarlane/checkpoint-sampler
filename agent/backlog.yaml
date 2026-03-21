@@ -533,3 +533,33 @@ stories:
       - "Non-trivial merge: two worktrees modify same Go file, verify story goes back to developer (not blocked)"
       - "E2E isolation: two worktrees run make test-e2e concurrently without container/volume collisions"
       - "Merge death recovery: kill process during merge, verify next cycle detects and retries"
+  - id: R-009
+    title: "Pinia state management refactor — useImageCubeStore"
+    type: refactor
+    status: in_progress
+    priority: 75
+    complexity: high
+    requires: []
+    notes: |
+      Extract scattered frontend state (45+ refs in App.vue) into Pinia stores.
+      Core store useImageCubeStore owns the multi-dimensional image dataset,
+      dimension roles, current viewing position, and lightbox cursor. Eliminates
+      snapshot-vs-reactive conflicts, manual sync handlers, and 16-prop drilling
+      into ImageLightbox. Secondary useJobStore extracts job management state.
+      Plan: /home/rt/.claude/plans/keen-crafting-key.md
+    acceptance:
+      - "Pinia installed and registered in main.ts"
+      - "useImageCubeStore owns scan result, dimension assignments, filter modes, combo selections, all slider values, and
+        lightbox focus cursor"
+      - "Lightbox image is a computed derivation from store state — no snapshot, no manual sync handlers"
+      - "ImageLightbox reads from store directly (prop count reduced from 16 to 5 or fewer)"
+      - "XYGrid reads grid derivations from store (filteredImages, imageIndex, xValues, yValues, gridNavItems)"
+      - "useJobStore extracts job-related state from App.vue"
+      - "useImagePreloader reads from store instead of 5 explicit Ref params"
+      - "useDimensionMapping.ts deleted — absorbed into store"
+      - "All existing tests migrated to createTestingPinia"
+      - "All tests pass, no type errors via vue-tsc"
+    testing:
+      - "All 1546+ existing tests pass after migration"
+      - "New store unit tests cover setScanResult, assignRole, slider actions, focusCell/unfocusCell, focusedImage derivation"
+      - "vue-tsc --noEmit passes with no errors"
