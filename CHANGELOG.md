@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-120: E2E: Multiple specs fail with Naive UI select popup timeout
+- Centralized select dropdown popup interaction into a retry-capable `clickSelectAndWaitForPopup` helper, fixing flakiness in regen-confirmation, checkpoint-default-selection, and study-name-validation specs under parallel shard load
+
 ### B-121: E2E: lightbox Y-axis keyboard navigation tests fail intermittently
 - Added Playwright auto-wait assertions before reading `getAttribute('src')` in lightbox keyboard navigation tests to eliminate async race conditions under CPU contention
 

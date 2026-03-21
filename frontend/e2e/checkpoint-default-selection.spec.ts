@@ -4,6 +4,7 @@ import {
   selectTrainingRun,
   openGenerateSamplesDialog,
   getGenerateSamplesDialog,
+  selectNaiveOptionInContainer,
   cancelAllJobs,
 } from './helpers'
 
@@ -49,21 +50,6 @@ const STEP2_CHECKPOINT = 'my-model-step00002000.safetensors'
 // ---------------------------------------------------------------------------
 // Local helpers
 // ---------------------------------------------------------------------------
-
-async function selectNaiveOptionInContainer(
-  page: Page,
-  container: ReturnType<typeof page.locator>,
-  selectTestId: string,
-  optionText: string,
-): Promise<void> {
-  const select = container.locator(`[data-testid="${selectTestId}"]`)
-  await expect(select).toBeVisible()
-  await select.click()
-  const popup = page.locator('.n-base-select-menu:visible')
-  await expect(popup).toBeVisible()
-  await popup.getByText(optionText, { exact: true }).click()
-  await expect(popup).not.toBeVisible()
-}
 
 /**
  * Creates a minimal study via the API and returns its ID.

@@ -169,6 +169,44 @@ export async function selectTrainingRun(page: Page, runName: string): Promise<vo
 }
 
 /**
+ * Clicks a select trigger and waits for the popup menu to appear, with retry.
+ *
+ * Naive UI's NSelect popup renders via Teleport outside the trigger element.
+ * Under parallel shard load — or while a drawer/modal transition is in progress —
+ * the first click may be swallowed before Naive UI registers it, so the popup
+ * never opens. This helper retries up to MAX_RETRIES times, dismissing any
+ * partial state with Escape between attempts.
+ *
+ * Returns the visible popup menu locator so callers can immediately interact
+ * with the rendered options.
+ */
+async function clickSelectAndWaitForPopup(
+  page: Page,
+  selectTrigger: ReturnType<typeof page.locator>,
+  label = 'select',
+): Promise<ReturnType<typeof page.locator>> {
+  const popupMenu = page.locator('.n-base-select-menu:visible')
+  const MAX_RETRIES = 3
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    await selectTrigger.click()
+    try {
+      await expect(popupMenu).toBeVisible({ timeout: 3000 })
+      return popupMenu
+    } catch {
+      if (attempt === MAX_RETRIES) {
+        throw new Error(
+          `clickSelectAndWaitForPopup(${label}): popup did not appear after ${MAX_RETRIES} click attempts`,
+        )
+      }
+      await page.keyboard.press('Escape')
+      await page.waitForTimeout(300)
+    }
+  }
+  // Unreachable but TypeScript requires a return
+  return popupMenu
+}
+
+/**
  * Select a study from the Study dropdown (second cascading dropdown).
  * Only needed when a training run has multiple studies. The study dropdown
  * is hidden when a group has exactly one run with no study label.
@@ -177,9 +215,7 @@ export async function selectStudy(page: Page, studyLabel: string): Promise<void>
   const selectTrigger = page.locator('[data-testid="study-select"]')
   await expect(selectTrigger).toBeVisible()
 
-  const popupMenu = page.locator('.n-base-select-menu:visible')
-  await selectTrigger.click()
-  await expect(popupMenu).toBeVisible({ timeout: 3000 })
+  const popupMenu = await clickSelectAndWaitForPopup(page, selectTrigger, 'study-select')
   await popupMenu.getByText(studyLabel, { exact: true }).click()
   await expect(popupMenu).not.toBeVisible()
 }
@@ -368,13 +404,37 @@ export async function addSamplerSchedulerPair(page: Page, sampler: string, sched
 /**
  * Selects an option from a Naive UI NSelect dropdown identified by data-testid.
  * The option may be a tag (filterable mode) or a regular option.
+ *
+ * Uses retry logic to handle popup open failures under parallel shard load
+ * or during drawer/modal transition animations.
  */
 export async function selectNaiveOption(page: Page, selectTestId: string, optionText: string): Promise<void> {
   const select = page.locator(`[data-testid="${selectTestId}"]`)
   await expect(select).toBeVisible()
-  await select.click()
-  const popup = page.locator('.n-base-select-menu:visible')
-  await expect(popup).toBeVisible()
+  const popup = await clickSelectAndWaitForPopup(page, select, selectTestId)
+  await popup.getByText(optionText, { exact: true }).click()
+  await expect(popup).not.toBeVisible()
+}
+
+/**
+ * Selects an option from a Naive UI NSelect dropdown within a specific container,
+ * identified by data-testid relative to that container.
+ *
+ * The popup menu renders outside the container (Naive UI Teleport), so the popup
+ * is always queried from the page root.
+ *
+ * Uses retry logic to handle popup open failures under parallel shard load
+ * or during drawer/modal transition animations.
+ */
+export async function selectNaiveOptionInContainer(
+  page: Page,
+  container: ReturnType<typeof page.locator>,
+  selectTestId: string,
+  optionText: string,
+): Promise<void> {
+  const select = container.locator(`[data-testid="${selectTestId}"]`)
+  await expect(select).toBeVisible()
+  const popup = await clickSelectAndWaitForPopup(page, select, selectTestId)
   await popup.getByText(optionText, { exact: true }).click()
   await expect(popup).not.toBeVisible()
 }
@@ -422,12 +482,14 @@ export async function savePresetViaDialog(page: Page, presetName: string): Promi
 /**
  * Selects an option from a Naive UI NSelect dropdown identified by aria-label.
  * Used for dimension selects (e.g., aria-label="Mode for checkpoint").
+ *
+ * Uses retry logic to handle popup open failures under parallel shard load
+ * or during drawer/modal transition animations.
  */
 export async function selectNaiveOptionByLabel(page: Page, selectAriaLabel: string, optionText: string): Promise<void> {
   const select = page.locator(`[aria-label="${selectAriaLabel}"]`)
-  await select.click()
-  const popupMenu = page.locator('.n-base-select-menu:visible')
-  await expect(popupMenu).toBeVisible()
+  await expect(select).toBeVisible()
+  const popupMenu = await clickSelectAndWaitForPopup(page, select, selectAriaLabel)
   await popupMenu.getByText(optionText, { exact: true }).click()
   await expect(popupMenu).not.toBeVisible()
 }

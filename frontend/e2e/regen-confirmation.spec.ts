@@ -2,10 +2,9 @@ import { test, expect, type Page } from '@playwright/test'
 import {
   resetDatabase,
   selectTrainingRun,
-  closeDrawer,
   openGenerateSamplesDialog,
   getGenerateSamplesDialog,
-  selectNaiveOption,
+  selectNaiveOptionInContainer,
   cancelAllJobs,
 } from './helpers'
 
@@ -40,27 +39,6 @@ import {
 // ---------------------------------------------------------------------------
 // Local helpers
 // ---------------------------------------------------------------------------
-
-/**
- * Selects a Naive UI NSelect option within a specific container (e.g. the dialog).
- * This avoids ambiguity when multiple elements share the same data-testid
- * (e.g. the sidebar and dialog both have data-testid="training-run-select").
- */
-async function selectNaiveOptionInContainer(
-  page: Page,
-  container: ReturnType<typeof page.locator>,
-  selectTestId: string,
-  optionText: string,
-): Promise<void> {
-  const select = container.locator(`[data-testid="${selectTestId}"]`)
-  await expect(select).toBeVisible()
-  await select.click()
-  // The popup menu renders outside the dialog (teleported), so query from page root
-  const popup = page.locator('.n-base-select-menu:visible')
-  await expect(popup).toBeVisible()
-  await popup.getByText(optionText, { exact: true }).click()
-  await expect(popup).not.toBeVisible()
-}
 
 /**
  * The fixture study name seeded into the DB by the test reset endpoint.

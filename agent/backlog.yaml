@@ -387,7 +387,7 @@ stories:
   - id: B-120
     title: "E2E: Multiple specs fail with Naive UI select popup timeout"
     type: bug
-    status: todo
+    status: uat
     priority: 60
     complexity: low
     requires: []
