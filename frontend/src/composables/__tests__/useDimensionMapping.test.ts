@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
+import { createPinia, setActivePinia } from 'pinia'
 import { useDimensionMapping, _resetForTesting } from '../useDimensionMapping'
 import type { ScanResult } from '../../api/types'
 
@@ -28,9 +29,8 @@ function makeScanResult(overrides?: Partial<ScanResult>): ScanResult {
 }
 
 describe('useDimensionMapping', () => {
-  // Reset module-scoped singleton state between tests to prevent cross-test contamination.
   beforeEach(() => {
-    _resetForTesting()
+    setActivePinia(createPinia())
   })
 
   describe('setScanResult', () => {
@@ -163,7 +163,6 @@ describe('useDimensionMapping', () => {
   })
 
   describe('filterModes', () => {
-    // AC3: Dimensions not assigned to X/Y/Slider default to Single
     it('initializes multi-value dimensions to single filter mode', () => {
       const { setScanResult, filterModes } = useDimensionMapping()
       setScanResult(makeScanResult())
@@ -173,10 +172,8 @@ describe('useDimensionMapping', () => {
       expect(filterModes.value.get('step')).toBe('single')
     })
 
-    // AC4: Dimensions with only one value default to Hide
     it('initializes single-value dimensions to hide filter mode', () => {
       const { setScanResult, filterModes } = useDimensionMapping()
-      // 'seed' has only one value ('42') in makeScanResult
       setScanResult(makeScanResult())
 
       expect(filterModes.value.get('seed')).toBe('hide')
@@ -229,7 +226,6 @@ describe('useDimensionMapping', () => {
   })
 
   describe('getFilterMode', () => {
-    // AC3: Dimensions not assigned to X/Y/Slider default to Single
     it('returns single for unassigned multi-value dimensions by default', () => {
       const { setScanResult, getFilterMode } = useDimensionMapping()
       setScanResult(makeScanResult())
@@ -237,7 +233,6 @@ describe('useDimensionMapping', () => {
       expect(getFilterMode('index')).toBe('single')
     })
 
-    // AC4: Dimensions with only one value default to Hide
     it('returns hide for unassigned single-value dimensions by default', () => {
       const { setScanResult, getFilterMode } = useDimensionMapping()
       setScanResult(makeScanResult())
@@ -302,7 +297,6 @@ describe('useDimensionMapping', () => {
     it('x_slider and y_slider are independent from x and y axis roles', () => {
       const { setScanResult, assignRole, xDimension, yDimension, xSliderDimension, ySliderDimension } =
         useDimensionMapping()
-      // Need a scan result with enough dimensions to assign all 4 roles
       setScanResult({
         images: [],
         dimensions: [
@@ -422,7 +416,6 @@ describe('useDimensionMapping', () => {
       const { setScanResult, filterModes, addImage } = useDimensionMapping()
       setScanResult(makeScanResult())
 
-      // AC4: New dimension with only one value defaults to 'hide'
       addImage({
         relative_path: 'dir3/index=0&seed=42&cfg=7.5.png',
         dimensions: { index: '0', seed: '42', step: '500', cfg: '7.5' },
@@ -484,7 +477,6 @@ describe('useDimensionMapping', () => {
       const { setScanResult, dimensions, removeImage } = useDimensionMapping()
       setScanResult(makeScanResult())
 
-      // Remove all images with step=1000
       removeImage('dir2/index=0&seed=42.png')
 
       const stepDim = dimensions.value.find((d) => d.name === 'step')
@@ -506,7 +498,6 @@ describe('useDimensionMapping', () => {
 
     it('removes dimension assignment when dimension disappears', () => {
       const { setScanResult, dimensions, assignments, removeImage } = useDimensionMapping()
-      // Create a scan result where removing images can eliminate a dimension
       setScanResult({
         images: [
           { relative_path: 'a.png', dimensions: { x: '1', unique: 'val' } },
@@ -556,15 +547,13 @@ describe('useDimensionMapping', () => {
     })
   })
 
-  // AC: Vite HMR hot reload preserves current dimension role assignments and filter modes
-  describe('singleton state (HMR resilience)', () => {
+  describe('singleton state (Pinia store shared across calls)', () => {
     it('returns the same state across multiple calls to useDimensionMapping', () => {
       const first = useDimensionMapping()
       first.setScanResult(makeScanResult())
       first.assignRole('index', 'x')
       first.setFilterMode('step', 'multi')
 
-      // Simulate what happens during HMR: useDimensionMapping() is called again
       const second = useDimensionMapping()
 
       expect(second.assignments.value.get('index')).toBe('x')
@@ -572,7 +561,6 @@ describe('useDimensionMapping', () => {
       expect(second.images.value).toHaveLength(3)
     })
 
-    // AC: Dimension mappings do not reset to 'single' on hot reload
     it('preserves role assignments when composable is re-invoked', () => {
       const first = useDimensionMapping()
       first.setScanResult(makeScanResult())

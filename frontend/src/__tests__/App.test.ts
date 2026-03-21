@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { nextTick } from 'vue'
+import { createPinia, setActivePinia } from 'pinia'
 import { NButton, NTag } from 'naive-ui'
 import App from '../App.vue'
 import TrainingRunSelector from '../components/TrainingRunSelector.vue'
@@ -111,6 +112,7 @@ function createMatchMediaMock(matches: boolean) {
 
 describe('App', () => {
   beforeEach(() => {
+    setActivePinia(createPinia())
     localStorage.clear()
     resetDimensionMapping()
     mockGetTrainingRuns.mockClear()
@@ -128,7 +130,7 @@ describe('App', () => {
   })
 
   it('renders the application header without heading', async () => {
-    const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+    const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
     await flushPromises()
     // AC: 'Checkpoint Sampler' heading is removed from the UI
     expect(wrapper.find('h1').exists()).toBe(false)
@@ -137,19 +139,19 @@ describe('App', () => {
   })
 
   it('renders placeholder content when no training run is selected', async () => {
-    const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+    const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
     await flushPromises()
     expect(wrapper.find('main').text()).toContain('Select a training run to get started.')
   })
 
   it('renders the TrainingRunSelector inside the drawer', async () => {
-    const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+    const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
     await flushPromises()
     expect(wrapper.find('.training-run-selector').exists()).toBe(true)
   })
 
   it('renders a hamburger toggle button in the header', async () => {
-    const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+    const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
     await flushPromises()
     const toggleBtn = wrapper.find('[aria-label="Toggle controls drawer"]')
     expect(toggleBtn.exists()).toBe(true)
@@ -159,7 +161,7 @@ describe('App', () => {
   it('toggles drawer open/closed when hamburger button is clicked', async () => {
     // Start narrow so drawer is closed by default
     Object.defineProperty(window, 'innerWidth', { value: 800, configurable: true })
-    const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+    const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
     await flushPromises()
 
     const toggleBtn = wrapper.findAllComponents(NButton).find(
@@ -183,7 +185,7 @@ describe('App', () => {
     const matchMediaMock = createMatchMediaMock(false)
     vi.stubGlobal('matchMedia', matchMediaMock)
 
-    const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+    const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
     await flushPromises()
 
     // The AppDrawer receives show=false on narrow screens
@@ -197,7 +199,7 @@ describe('App', () => {
     const matchMediaMock = createMatchMediaMock(true)
     vi.stubGlobal('matchMedia', matchMediaMock)
 
-    const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+    const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
     await flushPromises()
 
     const appDrawer = wrapper.findComponent({ name: 'AppDrawer' })
@@ -206,14 +208,14 @@ describe('App', () => {
   })
 
   it('app container has overflow-x hidden to prevent horizontal scrolling', async () => {
-    const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+    const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
     await flushPromises()
     const app = wrapper.find('.app')
     expect(app.exists()).toBe(true)
   })
 
   it('does not show WebSocket status indicator when no training run is selected', async () => {
-    const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+    const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
     await flushPromises()
 
     const statusTag = wrapper.findAllComponents(NTag).find(
@@ -231,7 +233,7 @@ describe('App', () => {
 
     it('Generate Samples button is visible even when no training run is selected', async () => {
       // UAT feedback: Generate Samples must ALWAYS be visible, not gated on run selection.
-      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
 
       const generateBtn = wrapper.find('[data-testid="generate-samples-button"]')
@@ -240,7 +242,7 @@ describe('App', () => {
 
     it('Jobs button is visible even when no training run is selected', async () => {
       // UAT feedback: Jobs must ALWAYS be visible, not gated on run selection.
-      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
 
       const jobsBtn = wrapper.findAllComponents(NButton).find(
@@ -251,7 +253,7 @@ describe('App', () => {
 
     it('Metadata button is NOT visible when no training run is selected', async () => {
       // UAT feedback: Only Metadata is gated on training run selection.
-      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
 
       const metadataBtn = wrapper.findAllComponents(NButton).find(
@@ -262,7 +264,7 @@ describe('App', () => {
 
     it('Metadata button appears after a training run is selected and scanned', async () => {
       // UAT feedback: Metadata remains gated on training run selection (but still appears after select).
-      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
 
       const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
@@ -280,7 +282,7 @@ describe('App', () => {
       Object.defineProperty(window, 'innerWidth', { value: 800, configurable: true })
       vi.stubGlobal('matchMedia', createMatchMediaMock(false))
 
-      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
 
       const generateBtn = wrapper.find('[data-testid="generate-samples-button"]')
@@ -292,7 +294,7 @@ describe('App', () => {
       Object.defineProperty(window, 'innerWidth', { value: 800, configurable: true })
       vi.stubGlobal('matchMedia', createMatchMediaMock(false))
 
-      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
 
       const jobsBtn = wrapper.findAllComponents(NButton).find(
@@ -303,7 +305,7 @@ describe('App', () => {
   })
 
   it('shows WebSocket status as "Disconnected" initially when training run is selected', async () => {
-    const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+    const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
     await flushPromises()
 
     // Select a training run by finding the selector and emitting select
@@ -324,7 +326,7 @@ describe('App', () => {
   })
 
   it('shows WebSocket status as "Live" when connection opens', async () => {
-    const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+    const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
     await flushPromises()
 
     // Select a training run
@@ -347,7 +349,7 @@ describe('App', () => {
   })
 
   it('shows WebSocket status as "Disconnected" when connection closes', async () => {
-    const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+    const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
     await flushPromises()
 
     // Select a training run
@@ -375,7 +377,7 @@ describe('App', () => {
   describe('Filters Slideout', () => {
     it('renders a Filters button in the header when training run has dimensions', async () => {
       // AC1: Filters button appears in header top bar area when a run is selected
-      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
 
       // Select a training run
@@ -391,7 +393,7 @@ describe('App', () => {
 
     it('does not render old inline filters section (no .filters-section in DOM)', async () => {
       // AC1: The old inline collapsible filters section is gone
-      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
 
       // Select a training run
@@ -406,7 +408,7 @@ describe('App', () => {
 
     it('renders FiltersDrawer component', async () => {
       // AC1: FiltersDrawer is present in the component tree
-      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
 
       const filtersDrawer = wrapper.findComponent({ name: 'FiltersDrawer' })
@@ -415,7 +417,7 @@ describe('App', () => {
 
     it('FiltersDrawer is closed by default', async () => {
       // AC1: Drawer starts closed — user must click Filters button to open it
-      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
 
       const filtersDrawer = wrapper.findComponent({ name: 'FiltersDrawer' })
@@ -424,7 +426,7 @@ describe('App', () => {
 
     it('clicking Filters button opens the FiltersDrawer', async () => {
       // AC1: Clicking the Filters button sets show=true on FiltersDrawer
-      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
 
       // Select a training run
@@ -441,7 +443,7 @@ describe('App', () => {
 
     it('clicking Filters button again closes the FiltersDrawer', async () => {
       // AC1: Toggle behavior: clicking again closes the drawer
-      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
 
       // Select a training run
@@ -462,7 +464,7 @@ describe('App', () => {
 
     it('Filters button aria-label is "Toggle filters drawer"', async () => {
       // AC5: Accessible label on the filters button
-      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
 
       const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
@@ -476,7 +478,7 @@ describe('App', () => {
 
   describe('Top bar layout: MasterSlider and ZoomControl', () => {
     async function mountAndSelect() {
-      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
       const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
       selector.vm.$emit('select', mockTrainingRun)
@@ -574,7 +576,7 @@ describe('App', () => {
 
       setSavedPresetData(1, 'preset-abc')
 
-      mount(App, { global: { stubs: { Teleport: true } } })
+      mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
 
       // eagerAutoSelect should have called getTrainingRuns and scanTrainingRun
@@ -590,7 +592,7 @@ describe('App', () => {
 
       setSavedPresetData(1, 'preset-abc')
 
-      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
 
       // Header buttons should be visible
@@ -621,7 +623,7 @@ describe('App', () => {
       vi.stubGlobal('matchMedia', createMatchMediaMock(false))
 
       // No localStorage data set
-      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
 
       // scanTrainingRun should NOT have been called by eagerAutoSelect
@@ -637,7 +639,7 @@ describe('App', () => {
 
       setSavedPresetData(999, 'preset-abc')
 
-      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
 
       // scanTrainingRun should NOT have been called since run 999 doesn't exist
@@ -654,7 +656,7 @@ describe('App', () => {
 
       setSavedPresetData(1, 'preset-abc')
 
-      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
 
       // On narrow screens the drawer is closed, so NDrawer may not render slot
@@ -683,7 +685,7 @@ describe('App', () => {
 
       setSavedPresetData(1, 'preset-abc')
 
-      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
 
       // eagerAutoSelect called scanTrainingRun once
@@ -740,7 +742,7 @@ describe('App', () => {
       mockScanTrainingRun.mockReturnValueOnce(deferredScan)
       mockScanTrainingRun.mockResolvedValue(scanResult)
 
-      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
 
       // Flush getTrainingRuns calls so TrainingRunSelector can emit select.
       // The scan is still pending (deferred).
@@ -769,7 +771,7 @@ describe('App', () => {
 
       setSavedPresetData(1, 'preset-abc')
 
-      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
 
       // Drawer should be open on wide screens
@@ -796,7 +798,7 @@ describe('App', () => {
       // for the second call (TrainingRunSelector.onMounted)
       mockGetTrainingRuns.mockRejectedValueOnce(new Error('Network error'))
 
-      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
 
       // App should not crash; header should still render (heading was removed in S-092)
@@ -811,7 +813,7 @@ describe('App', () => {
 
       setSavedPresetData(1, 'preset-abc')
 
-      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
 
       // Scan should have been triggered
@@ -844,7 +846,7 @@ describe('App', () => {
         // Set ONLY the standalone training run key — no preset key
         setSavedTrainingRunId(1)
 
-        mount(App, { global: { stubs: { Teleport: true } } })
+        mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
         await flushPromises()
 
         // eagerAutoSelect should have triggered a scan even without a preset
@@ -858,7 +860,7 @@ describe('App', () => {
 
         setSavedTrainingRunId(1)
 
-        const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+        const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
         await flushPromises()
 
         // Header buttons must be visible without a preset saved
@@ -878,7 +880,7 @@ describe('App', () => {
 
         setSavedTrainingRunId(999) // doesn't exist in mock (which returns id: 1)
 
-        const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+        const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
         await flushPromises()
 
         expect(mockScanTrainingRun).not.toHaveBeenCalled()
@@ -890,7 +892,7 @@ describe('App', () => {
         Object.defineProperty(window, 'innerWidth', { value: 800, configurable: true })
         vi.stubGlobal('matchMedia', createMatchMediaMock(false))
 
-        const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+        const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
         await flushPromises()
 
         // Open drawer so TrainingRunSelector is accessible
@@ -918,7 +920,7 @@ describe('App', () => {
 
         setSavedTrainingRunId(1)
 
-        const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+        const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
         await flushPromises()
 
         // Open the drawer
@@ -955,7 +957,7 @@ describe('App', () => {
         setSavedPresetData(1, 'preset-abc')
         mockGetPresets.mockResolvedValue([mockPreset])
 
-        mount(App, { global: { stubs: { Teleport: true } } })
+        mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
         await flushPromises()
 
         // Training run should be scanned
@@ -973,7 +975,7 @@ describe('App', () => {
         setSavedPresetData(1, 'preset-abc')
         mockGetPresets.mockResolvedValue([mockPreset])
 
-        const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+        const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
         await flushPromises()
 
         // The preset's dimension assignments should be applied (seed=x, cfg=y)
@@ -996,7 +998,7 @@ describe('App', () => {
         setSavedTrainingRunId(1)
         // No preset data set — only standalone training run ID
 
-        mount(App, { global: { stubs: { Teleport: true } } })
+        mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
         await flushPromises()
 
         // Training run should be scanned
@@ -1016,7 +1018,7 @@ describe('App', () => {
         setSavedPresetData(1, 'deleted-preset-id')
         mockGetPresets.mockResolvedValue([]) // No presets on backend
 
-        mount(App, { global: { stubs: { Teleport: true } } })
+        mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
         await flushPromises()
 
         // Training run should still be scanned
@@ -1038,7 +1040,7 @@ describe('App', () => {
         mockGetPresets.mockResolvedValue([mockPreset])
 
         // "Refresh" — mount fresh
-        mount(App, { global: { stubs: { Teleport: true } } })
+        mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
         await flushPromises()
 
         // After mount, training run should be restored and scanned
@@ -1056,7 +1058,7 @@ describe('App', () => {
         setSavedPresetData(1, 'preset-abc')
         mockGetPresets.mockRejectedValue(new Error('Network error'))
 
-        const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+        const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
         await flushPromises()
 
         // Training run should still be scanned despite preset fetch failure
@@ -1087,7 +1089,7 @@ describe('App', () => {
      * event, then allow tests to control drawer state from there.
      */
     async function mountAndSelectRun() {
-      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
 
       // Ensure the drawer is open so TrainingRunSelector is rendered (NDrawer hides
@@ -1252,7 +1254,7 @@ describe('App', () => {
       Object.defineProperty(window, 'innerWidth', { value: 1200, configurable: true })
       vi.stubGlobal('matchMedia', createMatchMediaMock(true))
 
-      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
 
       // Select a training run
@@ -1282,7 +1284,7 @@ describe('App', () => {
       Object.defineProperty(window, 'innerWidth', { value: 1200, configurable: true })
       vi.stubGlobal('matchMedia', createMatchMediaMock(true))
 
-      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
 
       // Select the empty training run
@@ -1334,7 +1336,7 @@ describe('App', () => {
       Object.defineProperty(window, 'innerWidth', { value: 1200, configurable: true })
       vi.stubGlobal('matchMedia', createMatchMediaMock(true))
 
-      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
 
       const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
@@ -1445,7 +1447,7 @@ describe('App', () => {
     async function mountWithRunningJob() {
       mockListSampleJobs.mockResolvedValue([runningJob])
 
-      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
 
       // Select a training run to start the WebSocket
@@ -1577,7 +1579,7 @@ describe('App', () => {
 
     async function mountWithFlipJob() {
       mockListSampleJobs.mockResolvedValue([runningJob])
-      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
 
       const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
@@ -1791,7 +1793,7 @@ describe('App', () => {
 
     async function mountWithETAJob() {
       mockListSampleJobs.mockResolvedValue([runningJob])
-      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
 
       const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
@@ -1926,7 +1928,7 @@ describe('App', () => {
 
     async function mountWithFirstSampleJob() {
       mockListSampleJobs.mockResolvedValue([firstSampleJob])
-      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
 
       const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
@@ -2110,7 +2112,7 @@ describe('App', () => {
     }
 
     async function mountWithRun() {
-      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
       const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
       selector.vm.$emit('select', mockTrainingRun)
@@ -2209,7 +2211,7 @@ describe('App', () => {
   // AC4 (B-068): Unit tests for bidirectional slider sync between lightbox and master
   describe('lightbox slider bidirectional sync (B-068)', () => {
     async function mountWithRun() {
-      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
       const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
       selector.vm.$emit('select', mockTrainingRun)
@@ -2353,7 +2355,7 @@ describe('App', () => {
       mockScanTrainingRun.mockResolvedValue(scanResult)
       mockGetPresets.mockResolvedValue([preset])
 
-      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
 
       const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
@@ -2366,7 +2368,7 @@ describe('App', () => {
     // AC: X slider hidden when no dimension mapping is assigned to X Slider
     it('AC: X slider bar is NOT rendered when no X Slider dimension is assigned', async () => {
       mockScanTrainingRun.mockResolvedValue(mockScanResultWithXDimension)
-      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
 
       const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
@@ -2477,7 +2479,7 @@ describe('App', () => {
       mockScanTrainingRun.mockResolvedValue(scanResult)
       mockGetPresets.mockResolvedValue([preset])
 
-      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
 
       const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
@@ -2490,7 +2492,7 @@ describe('App', () => {
     // AC: Y slider hidden when no dimension mapping is assigned to Y Slider
     it('AC: Y slider bar is NOT rendered when no Y Slider dimension is assigned', async () => {
       mockScanTrainingRun.mockResolvedValue(mockScanResultWithYDimension)
-      const wrapper = mount(App, { global: { stubs: { Teleport: true } } })
+      const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
 
       const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
