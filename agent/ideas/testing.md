@@ -55,3 +55,9 @@ The `data-testid` set internally on an NModal component (inside the component's 
 * priority: low
 * source: developer
 Extend `check-disallowed-chars.sh` to also scan TypeScript backtick template literals for disallowed chars in name-like contexts. Currently only double-quoted strings are scanned, so a regression using a template literal like `` `My Study ${copyNum} (revised)` `` would not be caught.
+
+### Lint for duplicated E2E helper code across spec files
+* status: needs_approval
+* priority: low
+* source: developer
+Add a lint rule or periodic audit that detects function duplication between E2E spec files and `frontend/e2e/helpers.ts`. The `selectNaiveOptionInContainer` function was duplicated in 9+ spec files, which meant a fix in helpers.ts wouldn't propagate. A deduplication check would catch this pattern earlier.
