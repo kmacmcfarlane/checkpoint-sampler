@@ -349,6 +349,35 @@ var _ = Describe("MountTestResetEndpoint", func() {
 			Expect(resp.StatusCode).To(Equal(http.StatusOK))
 			Expect(resetter.called).To(BeTrue())
 		})
+
+		// AC: The /api/test/reset endpoint completes successfully under parallel load
+		It("serializes concurrent reset requests", func() {
+			api.MountTestResetEndpoint(mux, resetter, nil, nil, nil, logger)
+
+			server := httptest.NewServer(mux)
+			defer server.Close()
+
+			// Fire 12 concurrent requests (matching 12-shard E2E load)
+			const numShards = 12
+			results := make(chan int, numShards)
+			for i := 0; i < numShards; i++ {
+				go func() {
+					defer GinkgoRecover()
+					req, err := http.NewRequest(http.MethodDelete, server.URL+"/api/test/reset", nil)
+					Expect(err).NotTo(HaveOccurred())
+					resp, err := http.DefaultClient.Do(req)
+					Expect(err).NotTo(HaveOccurred())
+					defer resp.Body.Close()
+					results <- resp.StatusCode
+				}()
+			}
+
+			// All requests should succeed (200)
+			for i := 0; i < numShards; i++ {
+				status := <-results
+				Expect(status).To(Equal(http.StatusOK))
+			}
+		})
 	})
 
 	Context("when ENABLE_TEST_ENDPOINTS is set to a non-true value", func() {

@@ -91,7 +91,7 @@ func Migrate(db *sql.DB, migrations []Migration) error {
 
 		now := time.Now().UTC().Format(time.RFC3339)
 		if _, err := tx.Exec(
-			"INSERT INTO schema_migrations (version, applied) VALUES (?, ?)",
+			"INSERT OR IGNORE INTO schema_migrations (version, applied) VALUES (?, ?)",
 			m.Version, now,
 		); err != nil {
 			tx.Rollback()
@@ -132,7 +132,7 @@ func isDuplicateColumnError(err error) bool {
 func recordMigrationOutsideTx(db *sql.DB, version int) error {
 	now := time.Now().UTC().Format(time.RFC3339)
 	_, err := db.Exec(
-		"INSERT INTO schema_migrations (version, applied) VALUES (?, ?)",
+		"INSERT OR IGNORE INTO schema_migrations (version, applied) VALUES (?, ?)",
 		version, now,
 	)
 	return err

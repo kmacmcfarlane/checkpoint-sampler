@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 	"os"
+	"sync"
 
 	"github.com/sirupsen/logrus"
 )
@@ -60,7 +61,14 @@ func MountTestResetEndpoint(mux interface{ Handle(string, string, http.HandlerFu
 
 	logger.Warn("test-only reset endpoint enabled (ENABLE_TEST_ENDPOINTS=true)")
 
+	// Serialize all reset requests so that concurrent E2E shards do not
+	// race on table drops, migrations, or schema_migrations inserts.
+	var resetMu sync.Mutex
+
 	mux.Handle("DELETE", "/api/test/reset", func(w http.ResponseWriter, r *http.Request) {
+		resetMu.Lock()
+		defer resetMu.Unlock()
+
 		logger.Info("test reset endpoint called -- resetting database and sample directory")
 
 		// Pause background processes to prevent SQL errors during table

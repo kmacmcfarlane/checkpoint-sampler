@@ -566,7 +566,7 @@ stories:
   - id: B-122
     title: "E2E: /api/test/reset fails with UNIQUE constraint on schema_migrations during parallel shard runs"
     type: bug
-    status: todo
+    status: uat
     priority: 60
     complexity: medium
     requires: []

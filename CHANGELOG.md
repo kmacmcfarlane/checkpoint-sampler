@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-122: E2E: /api/test/reset fails with UNIQUE constraint on schema_migrations during parallel shard runs
+- Added `sync.Mutex` to serialize concurrent reset endpoint requests, preventing race conditions when 12 E2E shards call `/api/test/reset` simultaneously
+- Changed `INSERT INTO` to `INSERT OR IGNORE INTO` for `schema_migrations` as defense-in-depth against duplicate version inserts
+
 ### W-024: Worktree isolation — Docker compose scoping, merge conflict handling, orchestrator update
 - Story-scoped Docker compose project names (`checkpoint-sampler-dev-<story-id>`) via `scripts/compose-project-name.sh` for full container/volume/network isolation between concurrent worktrees
 - `docker-compose.worktree.yml` overlay with `!override` ports for ephemeral port assignment, preventing port collisions
