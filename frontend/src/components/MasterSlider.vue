@@ -6,7 +6,6 @@ import {
   registerSlider,
   unregisterSlider,
   claimSliderFocus,
-  isSliderActive,
 } from '../composables/useSliderKeyboardFocus'
 
 const props = withDefaults(defineProps<{
@@ -42,15 +41,23 @@ function onUpdate(idx: number) {
   }
 }
 
+/** Keys that decrement/increment based on orientation. */
+const decrementKeys = computed(() =>
+  props.vertical ? ['ArrowUp'] : ['ArrowLeft'],
+)
+const incrementKeys = computed(() =>
+  props.vertical ? ['ArrowDown'] : ['ArrowRight'],
+)
+
 function onKeydown(event: KeyboardEvent) {
   if (props.values.length === 0) return
   const idx = currentIndex.value
-  if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') {
+  if (decrementKeys.value.includes(event.key)) {
     event.preventDefault()
     event.stopPropagation()
     const prevIdx = idx > 0 ? idx - 1 : props.values.length - 1
     emit('change', props.values[prevIdx])
-  } else if (event.key === 'ArrowRight' || event.key === 'ArrowUp') {
+  } else if (incrementKeys.value.includes(event.key)) {
     event.preventDefault()
     event.stopPropagation()
     const nextIdx = idx < props.values.length - 1 ? idx + 1 : 0
@@ -140,12 +147,15 @@ watch(() => props.values, () => {
  * when focus is elsewhere (e.g. on the page body or after clicking the NSlider
  * thumb). Skips when a text-input element or another slider (e.g. ZoomControl)
  * has focus to avoid interfering with typing or other slider controls.
- * Also skips when this instance is not the active keyboard owner
- * (another MasterSlider has focus).
+ *
+ * Each slider only handles keys matching its orientation (horizontal: Left/Right,
+ * vertical: Up/Down). This allows both X and Y sliders to coexist without the
+ * singleton focus system blocking one of them.
  */
 function onDocumentKeydown(event: KeyboardEvent) {
-  // Only the active slider instance handles document-level keyboard events
-  if (!isSliderActive(sliderId)) return
+  // Only handle keys that match this slider's orientation
+  const relevantKeys = [...decrementKeys.value, ...incrementKeys.value]
+  if (!relevantKeys.includes(event.key)) return
 
   const activeEl = document.activeElement as HTMLElement | null
   const tag = (activeEl?.tagName ?? '').toLowerCase()
@@ -205,7 +215,7 @@ onBeforeUnmount(() => {
           :tooltip="false"
           :keyboard="false"
           :vertical="vertical"
-          :reverse="vertical"
+          :reverse="false"
           class="master-slider__slider"
           @update:value="onUpdate"
         />

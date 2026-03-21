@@ -2577,16 +2577,16 @@ describe('App', () => {
       expect(wrapper.find('[data-testid="y-slider-bar"]').exists()).toBe(true)
     })
 
-    // AC: app-main gets right padding class when Y Slider dimension is assigned
-    it('AC: app-main gets y-slider-visible class when Y Slider dimension is assigned', async () => {
+    // AC: app container gets y-slider grid class when Y Slider dimension is assigned
+    it('AC: app gets has-y-slider class when Y Slider dimension is assigned', async () => {
       const wrapper = await mountAndSelectWithPreset(mockPresetWithYSlider, mockScanResultWithYDimension)
 
       const presetSelector = wrapper.findComponent({ name: 'PresetSelector' })
       presetSelector.vm.$emit('load', mockPresetWithYSlider, [])
       await flushPromises()
 
-      const main = wrapper.find('.app-main')
-      expect(main.classes()).toContain('app-main--y-slider-visible')
+      const app = wrapper.find('.app')
+      expect(app.classes()).toContain('app--has-y-slider')
     })
 
     // AC: Y Axis assignment does NOT show the Y slider (independent mapping)

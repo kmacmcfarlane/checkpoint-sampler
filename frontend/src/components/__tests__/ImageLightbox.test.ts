@@ -348,9 +348,9 @@ describe('ImageLightbox', () => {
     const wrapper = mount(ImageLightbox, { props: defaultProps })
     await flushPromises()
 
-    const toggle = wrapper.find('.metadata-toggle')
+    const toggle = wrapper.find('.lightbox-metadata-btn')
     expect(toggle.exists()).toBe(true)
-    expect(toggle.text()).toBe('Show Metadata')
+    expect(toggle.text()).toBe('Metadata')
   })
 
   it('shows metadata content when toggle is clicked', async () => {
@@ -362,7 +362,7 @@ describe('ImageLightbox', () => {
     const wrapper = mount(ImageLightbox, { props: defaultProps })
     await flushPromises()
 
-    const toggle = wrapper.find('.metadata-toggle')
+    const toggle = wrapper.find('.lightbox-metadata-btn')
     await toggle.trigger('click')
 
     expect(toggle.text()).toBe('Hide Metadata')
@@ -381,7 +381,7 @@ describe('ImageLightbox', () => {
     const wrapper = mount(ImageLightbox, { props: defaultProps })
     await flushPromises()
 
-    await wrapper.find('.metadata-toggle').trigger('click')
+    await wrapper.find('.lightbox-metadata-btn').trigger('click')
 
     const keys = wrapper.findAll('.metadata-key')
     expect(keys[0].text()).toBe('prompt')
@@ -397,7 +397,7 @@ describe('ImageLightbox', () => {
     const wrapper = mount(ImageLightbox, { props: defaultProps })
     await flushPromises()
 
-    await wrapper.find('.metadata-toggle').trigger('click')
+    await wrapper.find('.lightbox-metadata-btn').trigger('click')
 
     const value = wrapper.find('.metadata-value')
     // Should be formatted JSON
@@ -411,7 +411,7 @@ describe('ImageLightbox', () => {
     const wrapper = mount(ImageLightbox, { props: defaultProps })
     await flushPromises()
 
-    await wrapper.find('.metadata-toggle').trigger('click')
+    await wrapper.find('.lightbox-metadata-btn').trigger('click')
 
     expect(wrapper.find('.metadata-empty').exists()).toBe(true)
     expect(wrapper.find('.metadata-empty').text()).toBe('No metadata available')
@@ -428,7 +428,7 @@ describe('ImageLightbox', () => {
     const wrapper = mount(ImageLightbox, { props: defaultProps })
     // Don't flush - metadata is still loading
 
-    await wrapper.find('.metadata-toggle').trigger('click')
+    await wrapper.find('.lightbox-metadata-btn').trigger('click')
     expect(wrapper.find('.metadata-loading').exists()).toBe(true)
     expect(wrapper.find('.metadata-loading').text()).toBe('Loading metadata...')
 
@@ -444,7 +444,7 @@ describe('ImageLightbox', () => {
     const wrapper = mount(ImageLightbox, { props: defaultProps })
     await flushPromises()
 
-    await wrapper.find('.metadata-toggle').trigger('click')
+    await wrapper.find('.lightbox-metadata-btn').trigger('click')
 
     expect(wrapper.find('.metadata-error').exists()).toBe(true)
     expect(wrapper.find('.metadata-error').text()).toBe('Image not found')
@@ -473,7 +473,7 @@ describe('ImageLightbox', () => {
     await flushPromises()
 
     // Open metadata
-    await wrapper.find('.metadata-toggle').trigger('click')
+    await wrapper.find('.lightbox-metadata-btn').trigger('click')
     expect(wrapper.find('.metadata-content').exists()).toBe(true)
 
     // Zoom should still work on the content area
@@ -500,7 +500,7 @@ describe('ImageLightbox', () => {
     const wrapper = mount(ImageLightbox, { props: defaultProps })
     await flushPromises()
 
-    const toggle = wrapper.find('.metadata-toggle')
+    const toggle = wrapper.find('.lightbox-metadata-btn')
     expect(toggle.attributes('aria-label')).toBe('Toggle metadata')
   })
 
@@ -510,7 +510,7 @@ describe('ImageLightbox', () => {
     const wrapper = mount(ImageLightbox, { props: defaultProps })
     await flushPromises()
 
-    await wrapper.find('.metadata-toggle').trigger('click')
+    await wrapper.find('.lightbox-metadata-btn').trigger('click')
 
     // Click on the metadata panel should not close the lightbox
     const panel = wrapper.find('.metadata-panel')
@@ -528,7 +528,7 @@ describe('ImageLightbox', () => {
     const wrapper = mount(ImageLightbox, { props: defaultProps })
     await flushPromises()
 
-    await wrapper.find('.metadata-toggle').trigger('click')
+    await wrapper.find('.lightbox-metadata-btn').trigger('click')
 
     const value = wrapper.find('.metadata-value')
     expect(value.text()).toBe('plain text value')
@@ -543,7 +543,7 @@ describe('ImageLightbox', () => {
     const wrapper = mount(ImageLightbox, { props: defaultProps })
     await flushPromises()
 
-    await wrapper.find('.metadata-toggle').trigger('click')
+    await wrapper.find('.lightbox-metadata-btn').trigger('click')
 
     const entries = wrapper.findAll('.metadata-entry')
     // 1 string field + 3 numeric fields = 4 total
@@ -763,36 +763,12 @@ describe('ImageLightbox', () => {
       const wrapper = mount(ImageLightbox, { props: sliderProps })
       await flushPromises()
 
-      await wrapper.find('.metadata-toggle').trigger('click')
+      await wrapper.find('.lightbox-metadata-btn').trigger('click')
       expect(wrapper.find('.metadata-content').exists()).toBe(true)
     })
 
-    // AC: B-069 — metadata panel does not overlap the slider panel
-    it('adds above-slider class to metadata-panel when slider is visible (B-069)', async () => {
-      const wrapper = mount(ImageLightbox, { props: sliderProps })
-      await flushPromises()
-
-      const panel = wrapper.find('.metadata-panel')
-      expect(panel.classes()).toContain('metadata-panel--above-slider')
-    })
-
-    it('does not add above-slider class to metadata-panel when no slider (B-069)', async () => {
-      const wrapper = mount(ImageLightbox, { props: defaultProps })
-      await flushPromises()
-
-      const panel = wrapper.find('.metadata-panel')
-      expect(panel.classes()).not.toContain('metadata-panel--above-slider')
-    })
-
-    it('does not add above-slider class when cellKey is null even with slider values (B-069)', async () => {
-      const wrapper = mount(ImageLightbox, {
-        props: { ...sliderProps, cellKey: null },
-      })
-      await flushPromises()
-
-      const panel = wrapper.find('.metadata-panel')
-      expect(panel.classes()).not.toContain('metadata-panel--above-slider')
-    })
+    // Metadata panel is now positioned from the top-right via CSS grid layout,
+    // so the above-slider offset is no longer needed.
 
     it('does not render SliderBar when sliderValues has only one value', async () => {
       const wrapper = mount(ImageLightbox, {

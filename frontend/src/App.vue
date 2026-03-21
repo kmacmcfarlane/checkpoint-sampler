@@ -255,6 +255,7 @@ const {
   getFilterMode,
   addImage,
   removeImage,
+  findImage,
 } = useDimensionMapping()
 
 /** Preset warnings for unmatched dimensions. */
@@ -703,6 +704,51 @@ function onYSliderChange(value: string) {
   }
 }
 
+/**
+ * Update the lightbox image after an X or Y slider change.
+ * Builds the full dimension values for the current cell and uses findImage
+ * to locate the correct image, since X/Y slider dimensions are independent
+ * of the X/Y axis dimensions that define grid cells.
+ */
+function syncLightboxAfterSliderChange() {
+  if (!lightboxContext.value) return
+  // Parse the cell's axis values from the cellKey ("xAxisVal|yAxisVal")
+  const cellKey = lightboxContext.value.cellKey
+  if (!cellKey) return
+  const separatorIdx = cellKey.indexOf('|')
+  const xAxisVal = cellKey.substring(0, separatorIdx)
+  const yAxisVal = cellKey.substring(separatorIdx + 1)
+
+  // Build dimension query: axis values + slider values + master slider value
+  const query: Record<string, string> = {}
+  if (xDimension.value && xAxisVal) query[xDimension.value.name] = xAxisVal
+  if (yDimension.value && yAxisVal) query[yDimension.value.name] = yAxisVal
+  if (xSliderDimension.value) query[xSliderDimension.value.name] = currentXSliderValue.value
+  if (ySliderDimension.value) query[ySliderDimension.value.name] = currentYSliderValue.value
+  if (sliderDimension.value) query[sliderDimension.value.name] = defaultSliderValue.value
+
+  const img = findImage(query)
+  if (!img) return
+  const newUrl = `/api/images/${img.relative_path}`
+  lightboxImageUrl.value = newUrl
+  lightboxContext.value = {
+    ...lightboxContext.value,
+    imageUrl: newUrl,
+  }
+}
+
+/** Lightbox-aware X slider handler: updates grid state AND lightbox image. */
+function onLightboxXSliderChange(value: string) {
+  onXSliderChange(value)
+  syncLightboxAfterSliderChange()
+}
+
+/** Lightbox-aware Y slider handler: updates grid state AND lightbox image. */
+function onLightboxYSliderChange(value: string) {
+  onYSliderChange(value)
+  syncLightboxAfterSliderChange()
+}
+
 /** All dimension names from the current scan. */
 const dimensionNames = computed(() => dimensions.value.map((d) => d.name))
 
@@ -946,7 +992,7 @@ async function handleSlideoutValidate() {
 
 <template>
   <NConfigProvider :theme="theme">
-    <div class="app" :class="{ 'dark-mode': isDark }">
+    <div class="app" :class="{ 'dark-mode': isDark, 'app--has-x-slider': !!xSliderDimension, 'app--has-y-slider': !!ySliderDimension }">
       <header class="app-header">
         <div class="header-left">
           <NButton
@@ -1072,7 +1118,7 @@ async function handleSlideoutValidate() {
           </div>
         </template>
       </AppDrawer>
-      <main class="app-main" :class="{ 'app-main--x-slider-visible': !!xSliderDimension, 'app-main--y-slider-visible': !!ySliderDimension }">
+      <main class="app-main">
         <p v-if="!selectedTrainingRun">Select a training run to get started.</p>
         <template v-else>
           <p v-if="scanning">Scanning...</p>
@@ -1089,13 +1135,46 @@ async function handleSlideoutValidate() {
               :cell-size="cellSize"
               :debug-mode="debugMode"
               @update:slider-value="onSliderValueUpdate"
-              @update:cell-size="cellSize = $event"
               @image:click="onImageClick"
               @header:click="onHeaderClick"
             />
           </template>
         </template>
       </main>
+      <!-- Y slider: right edge, same row as main content -->
+      <div
+        v-if="ySliderDimension"
+        class="y-slider-bar"
+        data-testid="y-slider-bar"
+      >
+        <MasterSlider
+          :values="ySliderDimension.values"
+          :current-value="currentYSliderValue"
+          :dimension-name="ySliderDimension.name"
+          :vertical="true"
+          data-testid="y-master-slider"
+          @change="onYSliderChange"
+        />
+      </div>
+      <!-- X slider: bottom edge, below main content -->
+      <div
+        v-if="xSliderDimension"
+        class="x-slider-bar"
+        data-testid="x-slider-bar"
+      >
+        <MasterSlider
+          :values="xSliderDimension.values"
+          :current-value="currentXSliderValue"
+          :dimension-name="xSliderDimension.name"
+          data-testid="x-master-slider"
+          @change="onXSliderChange"
+        />
+      </div>
+      <!-- Bottom-right spacer when both sliders are present -->
+      <div
+        v-if="xSliderDimension && ySliderDimension"
+        class="slider-corner-spacer"
+      ></div>
       <ImageLightbox
         v-if="lightboxImageUrl"
         :image-url="lightboxImageUrl"
@@ -1118,8 +1197,8 @@ async function handleSlideoutValidate() {
         @close="onLightboxClose"
         @slider-change="onLightboxSliderChange"
         @navigate="onLightboxNavigate"
-        @x-slider-change="onXSliderChange"
-        @y-slider-change="onYSliderChange"
+        @x-slider-change="onLightboxXSliderChange"
+        @y-slider-change="onLightboxYSliderChange"
       />
       <CheckpointMetadataPanel
         v-if="metadataPanelOpen && selectedTrainingRun"
@@ -1174,35 +1253,6 @@ async function handleSlideoutValidate() {
         @close="slideoutValidationDialogShow = false"
         @regenerate="handleValidationRegenerate"
       />
-      <!-- AC: X slider pinned to bottom of viewport; hidden when no X Slider dimension mapping -->
-      <div
-        v-if="xSliderDimension"
-        class="x-slider-bar"
-        data-testid="x-slider-bar"
-      >
-        <MasterSlider
-          :values="xSliderDimension.values"
-          :current-value="currentXSliderValue"
-          :dimension-name="xSliderDimension.name"
-          data-testid="x-master-slider"
-          @change="onXSliderChange"
-        />
-      </div>
-      <!-- AC: Y slider pinned to right edge of viewport; hidden when no Y Slider dimension mapping -->
-      <div
-        v-if="ySliderDimension"
-        class="y-slider-bar"
-        data-testid="y-slider-bar"
-      >
-        <MasterSlider
-          :values="ySliderDimension.values"
-          :current-value="currentYSliderValue"
-          :dimension-name="ySliderDimension.name"
-          :vertical="true"
-          data-testid="y-master-slider"
-          @change="onYSliderChange"
-        />
-      </div>
     </div>
   </NConfigProvider>
 </template>
@@ -1222,12 +1272,23 @@ async function handleSlideoutValidate() {
 
   font-family: system-ui, -apple-system, sans-serif;
   max-width: 100vw;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
+  height: 100vh;
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: auto 1fr;
   background-color: var(--bg-color);
   color: var(--text-color);
-  overflow-x: hidden;
+  overflow: hidden;
+}
+
+/* When Y slider is visible, add a column for it */
+.app--has-y-slider {
+  grid-template-columns: 1fr 4rem;
+}
+
+/* When X slider is visible, add a row for it */
+.app--has-x-slider {
+  grid-template-rows: auto 1fr auto;
 }
 
 .app.dark-mode {
@@ -1244,6 +1305,7 @@ async function handleSlideoutValidate() {
 }
 
 .app-header {
+  grid-column: 1 / -1; /* span all columns */
   padding: 0.5rem 1rem;
   border-bottom: 1px solid var(--border-color);
   display: flex;
@@ -1251,11 +1313,6 @@ async function handleSlideoutValidate() {
   justify-content: space-between;
   gap: 0.5rem;
   flex-wrap: wrap;
-
-  /* Ensure header stacks above the fixed Y slider bar (z-index 90)
-     so header buttons remain clickable in the overlap region (B-111). */
-  position: relative;
-  z-index: 100;
 }
 
 .header-left {
@@ -1271,17 +1328,8 @@ async function handleSlideoutValidate() {
 
 .app-main {
   padding: 1rem;
-  flex: 1;
-}
-
-/* AC3: Add bottom padding when X slider is visible so content is not hidden behind it */
-.app-main--x-slider-visible {
-  padding-bottom: 5rem;
-}
-
-/* AC3: Add right padding when Y slider is visible so content is not hidden behind it */
-.app-main--y-slider-visible {
-  padding-right: 5rem;
+  overflow: auto;
+  min-height: 0;
 }
 
 
@@ -1342,26 +1390,17 @@ async function handleSlideoutValidate() {
   padding-bottom: 0;
 }
 
-/* AC1: X slider pinned to the very bottom edge of the viewport */
+/* X slider: bottom row of the grid layout */
 .x-slider-bar {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 90;
   background-color: var(--bg-surface);
   border-top: 1px solid var(--border-color);
   padding: 0.25rem 1rem;
   box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
+  user-select: none;
 }
 
-/* AC1: Y slider pinned to the right edge of the viewport (vertical orientation) */
+/* Y slider: right column of the grid layout */
 .y-slider-bar {
-  position: fixed;
-  top: 0;
-  bottom: 0;
-  right: 0;
-  z-index: 90;
   background-color: var(--bg-surface);
   border-left: 1px solid var(--border-color);
   padding: 1rem 0.25rem;
@@ -1369,7 +1408,16 @@ async function handleSlideoutValidate() {
   display: flex;
   flex-direction: column;
   align-items: center;
-  width: 4rem;
+  user-select: none;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Bottom-right corner spacer when both sliders are present */
+.slider-corner-spacer {
+  background-color: var(--bg-surface);
+  border-top: 1px solid var(--border-color);
+  border-left: 1px solid var(--border-color);
 }
 
 /* Vertical mode styles are handled by MasterSlider's vertical prop */

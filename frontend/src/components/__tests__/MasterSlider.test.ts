@@ -50,10 +50,10 @@ describe('MasterSlider', () => {
     expect(slider.props('vertical')).toBe(true)
   })
 
-  it('passes reverse=true to NSlider when vertical prop is set', () => {
+  it('passes reverse=false to NSlider when vertical (low values at bottom)', () => {
     const wrapper = mountMaster({ vertical: true })
     const slider = wrapper.findComponent(NSlider)
-    expect(slider.props('reverse')).toBe(true)
+    expect(slider.props('reverse')).toBe(false)
   })
 
   it('applies vertical CSS classes when vertical prop is set', () => {
@@ -179,10 +179,21 @@ describe('MasterSlider', () => {
       expect(emitted![0]).toEqual(['100'])
     })
 
-    it('emits change with next value on ArrowUp', async () => {
-      const wrapper = mountMaster({ currentValue: '500' })
+    it('emits change with previous value on ArrowUp (vertical slider — lower values lower on page)', async () => {
+      const wrapper = mountMaster({ currentValue: '500', vertical: true })
       const container = wrapper.find('.master-slider')
       await container.trigger('keydown', { key: 'ArrowUp' })
+
+      const emitted = wrapper.emitted('change')
+      expect(emitted).toBeDefined()
+      expect(emitted).toHaveLength(1)
+      expect(emitted![0]).toEqual(['100'])
+    })
+
+    it('emits change with next value on ArrowDown (vertical slider — lower values lower on page)', async () => {
+      const wrapper = mountMaster({ currentValue: '500', vertical: true })
+      const container = wrapper.find('.master-slider')
+      await container.trigger('keydown', { key: 'ArrowDown' })
 
       const emitted = wrapper.emitted('change')
       expect(emitted).toBeDefined()
@@ -190,15 +201,20 @@ describe('MasterSlider', () => {
       expect(emitted![0]).toEqual(['1000'])
     })
 
-    it('emits change with previous value on ArrowDown', async () => {
+    it('horizontal slider ignores ArrowUp/ArrowDown', async () => {
       const wrapper = mountMaster({ currentValue: '500' })
       const container = wrapper.find('.master-slider')
+      await container.trigger('keydown', { key: 'ArrowUp' })
       await container.trigger('keydown', { key: 'ArrowDown' })
+      expect(wrapper.emitted('change')).toBeUndefined()
+    })
 
-      const emitted = wrapper.emitted('change')
-      expect(emitted).toBeDefined()
-      expect(emitted).toHaveLength(1)
-      expect(emitted![0]).toEqual(['100'])
+    it('vertical slider ignores ArrowLeft/ArrowRight', async () => {
+      const wrapper = mountMaster({ currentValue: '500', vertical: true })
+      const container = wrapper.find('.master-slider')
+      await container.trigger('keydown', { key: 'ArrowLeft' })
+      await container.trigger('keydown', { key: 'ArrowRight' })
+      expect(wrapper.emitted('change')).toBeUndefined()
     })
 
     it('wraps forward: ArrowRight at last value emits first value', async () => {
@@ -664,8 +680,8 @@ describe('MasterSlider', () => {
     })
   })
 
-  // AC1, AC3, AC4: Multiple MasterSlider instances — only one captures keyboard input
-  describe('multiple instance keyboard conflict guard', () => {
+  // Orientation-based keyboard routing: horizontal (Left/Right) and vertical (Up/Down) sliders coexist
+  describe('orientation-based keyboard routing', () => {
     let wrapper1: ReturnType<typeof mountMaster> | null = null
     let wrapper2: ReturnType<typeof mountMaster> | null = null
 
@@ -674,70 +690,51 @@ describe('MasterSlider', () => {
       if (wrapper1) { wrapper1.unmount(); wrapper1 = null }
     })
 
-    // AC1: Only one captures keyboard input
-    it('only the last-mounted slider handles document-level arrow keys', async () => {
-      wrapper1 = mountMaster({ currentValue: '500', dimensionName: 'step' })
-      wrapper2 = mountMaster({ currentValue: '100', dimensionName: 'cfg' })
+    // Horizontal and vertical sliders respond to their own keys simultaneously
+    it('horizontal slider responds to ArrowRight, vertical slider responds to ArrowDown', async () => {
+      wrapper1 = mountMaster({ currentValue: '500', dimensionName: 'step' }) // horizontal
+      wrapper2 = mountMaster({ currentValue: '100', dimensionName: 'cfg', vertical: true }) // vertical
 
-      const event = new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true })
-      document.dispatchEvent(event)
+      // ArrowRight should only reach horizontal
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }))
       await nextTick()
 
-      // AC3: No duplicate key handling — wrapper1 (non-active) should NOT emit
-      expect(wrapper1.emitted('change')).toBeUndefined()
-
-      // wrapper2 (active, last mounted) should emit
-      const emitted = wrapper2.emitted('change')
-      expect(emitted).toBeDefined()
-      expect(emitted).toHaveLength(1)
-      expect(emitted![0]).toEqual(['500'])
-    })
-
-    // AC2: Priority system — clicking a slider claims focus
-    it('clicking a non-active slider transfers keyboard focus to it', async () => {
-      wrapper1 = mountMaster({ currentValue: '500', dimensionName: 'step' })
-      wrapper2 = mountMaster({ currentValue: '100', dimensionName: 'cfg' })
-
-      // Click on wrapper1 to claim focus
-      await wrapper1.find('.master-slider').trigger('click')
-
-      const event = new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true })
-      document.dispatchEvent(event)
-      await nextTick()
-
-      // wrapper1 should now be the active handler
-      const emitted1 = wrapper1.emitted('change')
-      expect(emitted1).toBeDefined()
-      expect(emitted1).toHaveLength(1)
-      expect(emitted1![0]).toEqual(['1000'])
-
-      // wrapper2 should NOT emit
+      expect(wrapper1.emitted('change')).toHaveLength(1)
+      expect(wrapper1.emitted('change')![0]).toEqual(['1000'])
       expect(wrapper2.emitted('change')).toBeUndefined()
-    })
 
-    // AC2: Focus can switch back and forth
-    it('focus transfers between instances via click', async () => {
-      wrapper1 = mountMaster({ currentValue: '500', dimensionName: 'step' })
-      wrapper2 = mountMaster({ currentValue: '100', dimensionName: 'cfg' })
-
-      // Click wrapper1 to claim focus
-      await wrapper1.find('.master-slider').trigger('click')
-
-      // Click wrapper2 to claim focus back
-      await wrapper2.find('.master-slider').trigger('click')
-
-      const event = new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true })
-      document.dispatchEvent(event)
+      // ArrowDown should only reach vertical (increment — lower values lower on page)
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }))
       await nextTick()
 
-      // wrapper2 is now active again
-      expect(wrapper1.emitted('change')).toBeUndefined()
-      const emitted2 = wrapper2.emitted('change')
-      expect(emitted2).toBeDefined()
-      expect(emitted2).toHaveLength(1)
+      expect(wrapper1.emitted('change')).toHaveLength(1) // still 1 — no new emission
+      expect(wrapper2.emitted('change')).toHaveLength(1)
+      expect(wrapper2.emitted('change')![0]).toEqual(['500'])
     })
 
-    // AC1: When the active slider is unmounted, the remaining one becomes active
+    // Horizontal slider ignores vertical keys at the document level
+    it('horizontal slider does not respond to ArrowUp/ArrowDown via document keydown', async () => {
+      wrapper1 = mountMaster({ currentValue: '500', dimensionName: 'step' })
+
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true }))
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }))
+      await nextTick()
+
+      expect(wrapper1.emitted('change')).toBeUndefined()
+    })
+
+    // Vertical slider ignores horizontal keys at the document level
+    it('vertical slider does not respond to ArrowLeft/ArrowRight via document keydown', async () => {
+      wrapper1 = mountMaster({ currentValue: '500', dimensionName: 'step', vertical: true })
+
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true }))
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }))
+      await nextTick()
+
+      expect(wrapper1.emitted('change')).toBeUndefined()
+    })
+
+    // When the active slider is unmounted, the remaining one becomes active
     it('when the active slider unmounts, the remaining slider becomes active', async () => {
       wrapper1 = mountMaster({ currentValue: '500', dimensionName: 'step' })
       wrapper2 = mountMaster({ currentValue: '100', dimensionName: 'cfg' })
@@ -757,51 +754,12 @@ describe('MasterSlider', () => {
       expect(emitted![0]).toEqual(['1000'])
     })
 
-    // AC3: No duplicate key handling — verify exactly one emission total
-    it('document arrow key fires exactly one change event across all instances', async () => {
+    // Verify direct keydown on the focused slider element still works regardless of orientation
+    it('direct arrow keydown on the slider element works for matching orientation', async () => {
       wrapper1 = mountMaster({ currentValue: '500', dimensionName: 'step' })
       wrapper2 = mountMaster({ currentValue: '100', dimensionName: 'cfg' })
 
-      const event = new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true })
-      document.dispatchEvent(event)
-      await nextTick()
-
-      const emissions1 = wrapper1.emitted('change') ?? []
-      const emissions2 = wrapper2.emitted('change') ?? []
-      const totalEmissions = emissions1.length + emissions2.length
-
-      // AC3: Exactly one slider should have handled the event
-      expect(totalEmissions).toBe(1)
-    })
-
-    // AC2: Focus claim via the focus event (tabbing to a slider)
-    it('focusing a slider via tab (focus event) claims keyboard ownership', async () => {
-      wrapper1 = mountMaster({ currentValue: '500', dimensionName: 'step' })
-      wrapper2 = mountMaster({ currentValue: '100', dimensionName: 'cfg' })
-
-      // Simulate focusing wrapper1 (e.g. via tab key)
-      await wrapper1.find('.master-slider').trigger('focus')
-
-      const event = new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true })
-      document.dispatchEvent(event)
-      await nextTick()
-
-      // wrapper1 is active after focus event
-      const emitted = wrapper1.emitted('change')
-      expect(emitted).toBeDefined()
-      expect(emitted).toHaveLength(1)
-
-      // wrapper2 did not emit
-      expect(wrapper2.emitted('change')).toBeUndefined()
-    })
-
-    // Verify direct keydown on the focused slider element still works regardless of singleton
-    it('direct arrow keydown on the slider element bypasses the singleton guard', async () => {
-      wrapper1 = mountMaster({ currentValue: '500', dimensionName: 'step' })
-      wrapper2 = mountMaster({ currentValue: '100', dimensionName: 'cfg' })
-
-      // wrapper2 is active. Directly trigger ArrowRight on wrapper1's container element.
-      // The @keydown handler on the div fires without the singleton check.
+      // Directly trigger ArrowRight on wrapper1's container element.
       const container1 = wrapper1.find('.master-slider')
       await container1.trigger('keydown', { key: 'ArrowRight' })
 
