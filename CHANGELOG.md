@@ -5,6 +5,12 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### W-024: Worktree isolation — Docker compose scoping, merge conflict handling, orchestrator update
+- Story-scoped Docker compose project names (`checkpoint-sampler-dev-<story-id>`) via `scripts/compose-project-name.sh` for full container/volume/network isolation between concurrent worktrees
+- `docker-compose.worktree.yml` overlay with `!override` ports for ephemeral port assignment, preventing port collisions
+- `scripts/worktree/merge_helper.py` auto-resolves trivial merge conflicts (CHANGELOG.md via union merge with dedup, backlog.yaml via theirs-acceptance); non-trivial conflicts route back to the developer through the normal review cycle
+- AGENT_FLOW.md sections 4.1.2 (Docker compose isolation) and 4.1.3 (merge conflict handling) document the workflow
+
 ### W-023: Worktree-based agent workflow — backlog locking, story claims, worktree lifecycle
 - `backlog.py` gains file locking (`fcntl.flock`) for all mutating operations, `--repo-root` / `BACKLOG_REPO_ROOT` for worktree-aware path resolution, and `--claim <worker-id>` for atomic story claiming
 - New `scripts/worktree/worktree.py` with create, remove, list, detect-stale, and recover subcommands for managing per-story git worktrees under `.worktrees/`

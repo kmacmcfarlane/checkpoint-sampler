@@ -79,3 +79,9 @@ When the orchestrator commits a story, automatically record the passing E2E coun
 * priority: low
 * source: developer
 There is no `make test-backlog` or `make test-worktree` target — Python script tests must be run manually via `python3 -m unittest`. Adding Makefile targets would improve discoverability and consistency with `make test-backend` / `make test-frontend`.
+
+### Serialize /api/test/reset endpoint for parallel E2E safety
+* status: needs_approval
+* priority: medium
+* source: qa
+The DB reset endpoint races under 12-shard parallel load, causing UNIQUE constraint failures on schema_migrations. Adding a mutex or SQLite-level serialization would eliminate the most common source of E2E flakiness. Related: B-122.

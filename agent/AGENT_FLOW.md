@@ -294,6 +294,83 @@ python3 scripts/worktree/worktree.py --format json recover
 - File lock at `agent/backlog.lock` serializes concurrent backlog access
 - `detect-stale` should run at the start of each cycle to prevent worktree accumulation
 
+### 4.1.2 Docker compose isolation (concurrent worktrees)
+
+When running concurrent agents in worktrees, Docker compose stacks must be fully isolated to prevent port collisions, volume cross-contamination, and container name conflicts.
+
+**Compose project naming:**
+
+The Makefile derives project names via `scripts/compose-project-name.sh`. When `STORY_ID` is set (or auto-detected from a `.worktrees/<id>/` path), compose project names are scoped:
+- `checkpoint-sampler-dev` becomes `checkpoint-sampler-dev-s-042`
+- `checkpoint-sampler-test` becomes `checkpoint-sampler-test-s-042`
+
+```bash
+# From a worktree, set STORY_ID to activate isolation
+export STORY_ID=S-042
+make test-backend   # Uses project: checkpoint-sampler-dev-s-042
+make test-e2e       # Shards use: checkpoint-sampler-e2e-s-042-1, -2, etc.
+```
+
+**Port isolation:**
+
+When `STORY_ID` is set, the Makefile includes `docker-compose.worktree.yml` as an overlay, which replaces fixed port mappings (e.g., `8080:8080`) with ephemeral ports (e.g., `8080` — Docker assigns a random host port). This prevents port binding collisions between concurrent stacks.
+
+**Volume isolation:**
+
+Docker compose automatically scopes named volumes by project name. With story-scoped project names, volumes like `backend_dev_data`, `test_backend_data`, `frontend_node_modules` become project-scoped (e.g., `checkpoint-sampler-dev-s-042_backend_dev_data`), preventing cross-story data contamination.
+
+**E2E test isolation:**
+
+The parallel E2E script (`scripts/e2e/e2e_parallel.sh`) uses `compose-project-name.sh` to derive a story-scoped prefix for shard project names. This allows two worktrees to run `make test-e2e` concurrently without container/volume collisions.
+
+**Key rules:**
+- Always set `STORY_ID` when running compose commands from a worktree
+- The `COMPOSE_PROJECT_OVERRIDE` env var overrides all automatic naming (escape hatch)
+- Named volumes are automatically scoped by compose project — no additional configuration needed
+- The test compose stack (`docker-compose.test.yml`) does not expose host ports, so port collisions only affect the dev stack
+
+### 4.1.3 Merge conflict handling
+
+When the orchestrator merges a story branch into main, conflicts may occur if another story was merged first. The merge helper script (`scripts/worktree/merge_helper.py`) classifies and resolves conflicts:
+
+**Trivial conflicts (auto-resolved):**
+- `CHANGELOG.md` — Both sides' entries are included via `--union` merge, with duplicate story entries deduplicated
+- `agent/backlog.yaml` — Incoming (story branch) version accepted; the orchestrator re-applies status changes via `backlog.py`
+
+**Non-trivial conflicts (developer intervention):**
+- Code files (`.go`, `.vue`, `.ts`, etc.) — Cannot be auto-resolved safely
+- Configuration files, test fixtures, etc.
+
+**Orchestrator merge workflow:**
+
+```bash
+# 1. Attempt merge
+git merge story/S-042
+
+# 2. If conflicts, run merge helper
+python3 scripts/worktree/merge_helper.py --repo-dir . --format json
+
+# 3. Check result
+#    status=resolved  → All conflicts auto-resolved, continue with commit
+#    status=unresolved → Non-trivial conflicts remain
+```
+
+**Non-trivial conflict resolution flow:**
+
+When non-trivial conflicts are detected, the orchestrator:
+1. Aborts the current merge: `git merge --abort`
+2. Sets the story back to `in_progress` with feedback describing the conflicts
+3. The fullstack developer resolves conflicts, then the story goes through the normal `review` -> `testing` cycle (NOT marked as `blocked`)
+
+This is intentionally different from `blocked` status: the developer can resolve the conflicts without external input. The story re-enters the normal pipeline for verification.
+
+**Merge death recovery:**
+
+If the orchestrator process dies during a merge:
+1. Next cycle detects an incomplete merge state via `git status`
+2. The orchestrator aborts the merge: `git merge --abort`
+3. The story is retried from its current status
+
 ### 4.2 Check for requirements changes
 - Inspect the git commit history (or working set) for changes to the /agent/PRD.md or answers provided in /agent/QUESTIONS.md
 

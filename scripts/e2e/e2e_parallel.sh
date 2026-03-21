@@ -28,6 +28,11 @@ cd "$PROJECT_DIR"
 COMPOSE_FILE="docker-compose.test.yml"
 E2E_DIR=".e2e"
 
+# Derive story-scoped project name prefix for worktree isolation (AC4).
+# In the main checkout (no STORY_ID), this is "checkpoint-sampler-e2e".
+# In a worktree (STORY_ID=S-042), this becomes "checkpoint-sampler-e2e-s-042".
+E2E_PROJECT_PREFIX="$("$SCRIPT_DIR/../compose-project-name.sh" checkpoint-sampler-e2e)"
+
 # --- Parse arguments ---
 SHARDS="${1:-12}"
 shift || true
@@ -58,11 +63,11 @@ cleanup() {
   echo ""
   echo "=== Tearing down all shard stacks ==="
   for i in $(seq 1 "$SHARDS"); do
-    docker compose -p "checkpoint-sampler-e2e-${i}" -f "$COMPOSE_FILE" down -v 2>/dev/null &
+    docker compose -p "${E2E_PROJECT_PREFIX}-${i}" -f "$COMPOSE_FILE" down -v 2>/dev/null &
   done
   wait
   # Also remove the build project if it exists
-  docker compose -p "checkpoint-sampler-e2e-build" -f "$COMPOSE_FILE" down -v 2>/dev/null || true
+  docker compose -p "${E2E_PROJECT_PREFIX}-build" -f "$COMPOSE_FILE" down -v 2>/dev/null || true
   echo "=== Teardown complete ==="
 }
 
@@ -132,7 +137,7 @@ mkdir -p "$E2E_DIR/logs" "$E2E_DIR/blobs" "$E2E_DIR/report"
 # --- Phase 1: Build images once ---
 echo ""
 echo "=== Phase 1: Building images ==="
-docker compose -p "checkpoint-sampler-e2e-build" -f "$COMPOSE_FILE" build
+docker compose -p "${E2E_PROJECT_PREFIX}-build" -f "$COMPOSE_FILE" build
 echo "=== Build complete ==="
 
 # --- Phase 2: Start all stacks in parallel ---
@@ -141,7 +146,7 @@ echo "=== Phase 2: Starting $SHARDS shard stack(s) ==="
 
 start_shard() {
   local i=$1
-  local project="checkpoint-sampler-e2e-${i}"
+  local project="${E2E_PROJECT_PREFIX}-${i}"
   echo "  [shard $i] Starting stack ($project)..."
   docker compose -p "$project" -f "$COMPOSE_FILE" up -d --build --wait --remove-orphans backend frontend 2>&1 | \
     sed "s/^/  [shard $i] /"
@@ -170,7 +175,7 @@ declare -A PIDS
 
 run_shard() {
   local i=$1
-  local project="checkpoint-sampler-e2e-${i}"
+  local project="${E2E_PROJECT_PREFIX}-${i}"
   local blob_dir
   blob_dir="$(pwd)/$E2E_DIR/blobs/shard-${i}"
   local shard_log="$(pwd)/$E2E_DIR/logs/shard-${i}-playwright.log"
@@ -212,7 +217,7 @@ echo "=== Phase 4: Capturing logs ==="
 for i in $(seq 1 "$SHARDS"); do
   local_log_dir="$E2E_DIR/logs/shard-${i}"
   mkdir -p "$local_log_dir"
-  project="checkpoint-sampler-e2e-${i}"
+  project="${E2E_PROJECT_PREFIX}-${i}"
 
   docker compose -p "$project" -f "$COMPOSE_FILE" logs --no-color backend > "$local_log_dir/backend.log" 2>&1
   docker compose -p "$project" -f "$COMPOSE_FILE" logs --no-color frontend > "$local_log_dir/frontend.log" 2>&1
@@ -245,7 +250,7 @@ if [ "$BLOB_COUNT" -gt 0 ] || [ -n "$(ls -A "$E2E_DIR/blobs/shard-1/" 2>/dev/nul
   done
 
   report_dir="$(pwd)/$E2E_DIR/report"
-  docker compose -p "checkpoint-sampler-e2e-1" -f "$COMPOSE_FILE" run --rm --remove-orphans \
+  docker compose -p "${E2E_PROJECT_PREFIX}-1" -f "$COMPOSE_FILE" run --rm --remove-orphans \
     -v "$merge_dir:/app/blob-report" \
     -v "$report_dir:/app/merged-report" \
     playwright sh -c "npx playwright merge-reports --reporter=html ./blob-report && cp -r playwright-report/. /app/merged-report/" 2>&1 | \

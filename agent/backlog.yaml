@@ -476,7 +476,7 @@ stories:
   - id: W-024
     title: "Worktree isolation — Docker compose scoping, merge conflict handling, orchestrator update"
     type: workflow
-    status: todo
+    status: uat
     priority: 70
     complexity: high
     requires:
@@ -563,3 +563,38 @@ stories:
       - "All 1546+ existing tests pass after migration"
       - "New store unit tests cover setScanResult, assignRole, slider actions, focusCell/unfocusCell, focusedImage derivation"
       - "vue-tsc --noEmit passes with no errors"
+  - id: B-122
+    title: "E2E: /api/test/reset fails with UNIQUE constraint on schema_migrations during parallel shard runs"
+    type: bug
+    status: todo
+    priority: 60
+    complexity: medium
+    requires: []
+    notes: |
+      The database reset endpoint re-runs migrations after clearing the DB, but
+      under high parallel load (12 shards), concurrent resets race on the
+      schema_migrations table's unique constraint. The migration runner may not
+      be fully transactional.
+      Root cause: concurrent access to /api/test/reset without serialization.
+    acceptance:
+      - "The /api/test/reset endpoint completes successfully under 12-shard parallel E2E load"
+      - "No UNIQUE constraint failed: schema_migrations.version errors appear in sweep output"
+      - "Migration recording is transactional or serialized"
+    testing:
+      - "command: make test-e2e"
+  - id: B-123
+    title: "E2E: /data/samples directory path missing for scan requests during E2E tests"
+    type: bug
+    status: todo
+    priority: 50
+    complexity: low
+    requires: []
+    notes: |
+      A scan test assumes sample data exists on disk at a path that isn't present
+      in the test fixture data mounted into the E2E container, or the test fixture
+      setup failed due to the DB reset issue (B-122).
+    acceptance:
+      - "No 'no such file or directory' errors for scan requests in E2E sweep"
+      - "E2E test fixtures include the required sample directory structure"
+    testing:
+      - "command: make test-e2e"

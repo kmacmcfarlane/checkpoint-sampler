@@ -47,6 +47,38 @@ python3 scripts/worktree/worktree.py remove <story-id>
 python3 scripts/worktree/worktree.py recover
 ```
 
+### Docker compose isolation (worktrees)
+
+All compose commands from a worktree MUST set `STORY_ID` to activate story-scoped project names and ephemeral ports. See AGENT_FLOW.md section 4.1.2 for details.
+
+```bash
+# Set STORY_ID before any make target that uses compose
+export STORY_ID=S-042
+make test-backend    # Project: checkpoint-sampler-dev-s-042 (ephemeral ports)
+make test-e2e        # Shards: checkpoint-sampler-e2e-s-042-1, -2, etc.
+```
+
+### Merge conflict resolution (finalization)
+
+When merging a story branch to main, if conflicts occur:
+
+```bash
+# 1. Attempt merge
+git merge story/S-042 --no-edit
+
+# 2. If exit code != 0 (conflicts), run merge helper
+python3 scripts/worktree/merge_helper.py --repo-dir . --format json
+
+# 3. Parse JSON result:
+#    {"status": "resolved", ...}  → git commit to complete merge
+#    {"status": "unresolved", "unresolved": ["file.go", ...]}
+#       → git merge --abort
+#       → Set story to in_progress with review_feedback describing conflicts
+#       → Developer resolves, then normal review → QA cycle
+```
+
+Trivial files (CHANGELOG.md, backlog.yaml) are auto-resolved. Non-trivial conflicts (code files) require the fullstack developer. The story is NOT marked as blocked — it goes through the normal rework flow.
+
 ## Story marker
 
 As soon as you select a story, emit an HTML comment so the user can identify the active story in the conversation:

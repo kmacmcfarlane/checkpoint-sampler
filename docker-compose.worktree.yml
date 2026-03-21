@@ -1,0 +1,21 @@
+# Overlay for worktree-isolated compose stacks.
+#
+# Removes fixed port mappings so multiple worktrees can run concurrently
+# without port collisions. Docker assigns ephemeral host ports automatically.
+#
+# Usage (via Makefile — automatic when STORY_ID is set):
+#   STORY_ID=S-042 make up-dev
+#
+# Or manually:
+#   docker compose -p checkpoint-sampler-dev-s-042 \
+#     -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.worktree.yml \
+#     up -d --build
+
+services:
+  backend:
+    ports: !override
+      - "8080"   # Ephemeral host port -> container 8080
+
+  frontend:
+    ports: !override
+      - "3000"   # Ephemeral host port -> container 3000

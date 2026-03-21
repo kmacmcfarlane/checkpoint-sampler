@@ -118,7 +118,14 @@ Worktree CLI (parallel agent execution):
 - `python3 scripts/worktree/worktree.py list`
 - `python3 scripts/worktree/worktree.py detect-stale`
 - `python3 scripts/worktree/worktree.py recover`
-- See AGENT_FLOW.md section 4.1.1 for worktree workflow.
+- `python3 scripts/worktree/merge_helper.py [--repo-dir <path>] [--format json|text]` (merge conflict resolution)
+- See AGENT_FLOW.md section 4.1.1-4.1.3 for worktree workflow, Docker isolation, and merge conflicts.
+
+Docker compose isolation (worktrees):
+- Set `STORY_ID=<id>` before make targets to activate story-scoped compose project names
+- `STORY_ID=S-042 make test-backend` — uses project `checkpoint-sampler-dev-s-042` with ephemeral ports
+- `COMPOSE_PROJECT_OVERRIDE=<name>` — manual override (escape hatch)
+- See AGENT_FLOW.md section 4.1.2 for details.
 
 ### Agent workflow (preferred sequence)
 Agents should use one-shot commands, not watch mode. Watch mode is a long-running process designed for human developers — agents need discrete pass/fail results per invocation.
