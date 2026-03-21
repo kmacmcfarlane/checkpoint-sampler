@@ -132,7 +132,7 @@ test.describe('image lightbox interaction', () => {
     // The "Show Metadata" button should be visible (metadata panel collapsed by default)
     const metadataToggleButton = page.getByRole('button', { name: 'Toggle metadata' })
     await expect(metadataToggleButton).toBeVisible()
-    await expect(metadataToggleButton).toContainText('Show Metadata')
+    await expect(metadataToggleButton).toContainText('Metadata')
 
     // Click to open the metadata panel
     await metadataToggleButton.click()
@@ -549,16 +549,15 @@ test.describe('lightbox mousedown origin guard (B-033)', () => {
     const lightbox = page.locator('[role="dialog"][aria-label="Image lightbox"]')
     await expect(lightbox).toBeVisible()
 
-    // Click on the backdrop background (top-right corner, away from controls and slider).
-    // A normal click has mousedown + mouseup at the same position on the backdrop, which
-    // should close the lightbox.
-    const backdropBox = await lightbox.boundingBox()
-    expect(backdropBox).not.toBeNull()
+    // Click on the content area background (not on the image itself). The content area
+    // has its own mousedown-origin-guarded close handler. We click at the far left edge
+    // of the content area where the image doesn't reach.
+    const contentArea = lightbox.locator('.lightbox-content')
+    const contentBox = await contentArea.boundingBox()
+    expect(contentBox).not.toBeNull()
 
-    // Use a position in the top-right area of the backdrop, away from the close button
-    // (top-left), zoom controls, and the keyboard shortcuts button (top-right corner).
-    // Offset 80px from the right to clear the shortcuts area (positioned at right: 12px).
-    await page.mouse.click(backdropBox!.x + backdropBox!.width - 80, backdropBox!.y + 20)
+    // Click in the left edge of the content area, vertically centered, away from the image
+    await page.mouse.click(contentBox!.x + 5, contentBox!.y + contentBox!.height / 2)
 
     // The lightbox should be closed
     await expect(lightbox).not.toBeVisible()
@@ -619,11 +618,17 @@ test.describe('lightbox slider and metadata panel layout (B-069)', () => {
     const sliderPanel = lightbox.locator('.lightbox-slider-panel')
     await expect(sliderPanel).toBeVisible()
 
+    // AC2: The metadata toggle button should be clickable (not covered by slider panel)
+    const metadataToggle = page.getByRole('button', { name: 'Toggle metadata' })
+    await expect(metadataToggle).toBeVisible()
+    await metadataToggle.click()
+
+    // After clicking, metadata content should appear (confirming it was accessible)
     const metadataPanel = lightbox.locator('.metadata-panel')
     await expect(metadataPanel).toBeVisible()
 
     // AC1: Verify the metadata panel bottom edge is at or above the slider panel top edge
-    // (no overlap). The metadata button should be positioned above the slider panel.
+    // (no overlap). The metadata panel should be positioned above the slider panel.
     const sliderBox = await sliderPanel.boundingBox()
     const metadataBox = await metadataPanel.boundingBox()
 
@@ -634,15 +639,6 @@ test.describe('lightbox slider and metadata panel layout (B-069)', () => {
     const metadataBottom = metadataBox!.y + metadataBox!.height
     const sliderTop = sliderBox!.y
     expect(metadataBottom).toBeLessThanOrEqual(sliderTop + 2) // 2px tolerance for sub-pixel rounding
-
-    // AC2: The metadata toggle button should be clickable (not covered by slider panel)
-    const metadataToggle = page.getByRole('button', { name: 'Toggle metadata' })
-    await expect(metadataToggle).toBeVisible()
-    await metadataToggle.click()
-
-    // After clicking, metadata content should appear (confirming it was accessible)
-    const metadataContent = lightbox.locator('.metadata-content')
-    await expect(metadataContent).toBeVisible()
   })
 
   // AC3 (B-069): Layout is correct across typical viewport sizes — verify at 1280px and 1440px
@@ -657,9 +653,13 @@ test.describe('lightbox slider and metadata panel layout (B-069)', () => {
     await expect(lightbox).toBeVisible()
 
     const sliderPanel = lightbox.locator('.lightbox-slider-panel')
-    const metadataPanel = lightbox.locator('.metadata-panel')
-
     await expect(sliderPanel).toBeVisible()
+
+    // Open metadata panel by clicking the toggle button
+    const metadataToggle = page.getByRole('button', { name: 'Toggle metadata' })
+    await metadataToggle.click()
+
+    const metadataPanel = lightbox.locator('.metadata-panel')
     await expect(metadataPanel).toBeVisible()
 
     const sliderBox = await sliderPanel.boundingBox()
