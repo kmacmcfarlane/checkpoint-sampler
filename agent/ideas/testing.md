@@ -56,6 +56,12 @@ The `data-testid` set internally on an NModal component (inside the component's 
 * source: developer
 Extend `check-disallowed-chars.sh` to also scan TypeScript backtick template literals for disallowed chars in name-like contexts. Currently only double-quoted strings are scanned, so a regression using a template literal like `` `My Study ${copyNum} (revised)` `` would not be caught.
 
+### Apply waitForResponse pattern to study-delete.spec.ts AC3
+* status: needs_approval
+* priority: low
+* source: developer
+The study-delete.spec.ts "confirm, no data" test has the identical race condition pattern (dialog close → immediate GET) as the one fixed in B-116 for job-delete.spec.ts. Proactively applying the same `page.waitForResponse` + `Promise.all` fix would prevent future flakiness reports.
+
 ### Lint for duplicated E2E helper code across spec files
 * status: needs_approval
 * priority: low
