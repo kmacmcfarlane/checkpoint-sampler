@@ -404,7 +404,7 @@ stories:
   - id: B-121
     title: "E2E: lightbox Y-axis keyboard navigation tests fail intermittently"
     type: bug
-    status: todo
+    status: uat
     priority: 65
     complexity: low
     requires: []

@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-121: E2E: lightbox Y-axis keyboard navigation tests fail intermittently
+- Added Playwright auto-wait assertions before reading `getAttribute('src')` in lightbox keyboard navigation tests to eliminate async race conditions under CPU contention
+
 ### R-009: Pinia state management refactor — reactive lightbox via useImageCubeStore
 - Introduced `useImageCubeStore` Pinia store as the single source of truth for the multi-dimensional image cube: dataset, dimension assignments, grid position (slider values, combo selections), and lightbox cursor
 - Lightbox image is now a computed derivation (`focusedImage`) that reactively updates when any slider changes — eliminates the stale-snapshot sync pattern (`lightboxContext`, `syncLightboxAfterSliderChange`, etc.)

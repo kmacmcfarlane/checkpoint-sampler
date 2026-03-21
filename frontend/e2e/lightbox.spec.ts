@@ -356,6 +356,8 @@ test.describe('lightbox keyboard navigation (Shift+Arrow)', () => {
     // Press Shift+ArrowLeft on the first image — should wrap to the last image
     await page.keyboard.press('Shift+ArrowLeft')
 
+    // Wait for image to update before reading (avoids async race under CPU contention)
+    await expect(fullSizeImage).not.toHaveAttribute('src', firstSrc!)
     const wrappedSrc = await fullSizeImage.getAttribute('src')
     expect(wrappedSrc).toContain('/api/images/')
     expect(wrappedSrc).not.toBe(firstSrc)
@@ -363,6 +365,8 @@ test.describe('lightbox keyboard navigation (Shift+Arrow)', () => {
     // Press Shift+ArrowRight on the last image — should wrap back to the first image
     await page.keyboard.press('Shift+ArrowRight')
 
+    // Wait for image to update before reading
+    await expect(fullSizeImage).toHaveAttribute('src', firstSrc!)
     const backToFirstSrc = await fullSizeImage.getAttribute('src')
     expect(backToFirstSrc).toBe(firstSrc)
   })
@@ -462,11 +466,15 @@ test.describe('lightbox Y-axis keyboard navigation (Shift+Up/Down)', () => {
     // Shift+ArrowDown at last row wraps to first row at same column
     await page.keyboard.press('Shift+ArrowDown')
 
+    // Wait for image to update before reading (avoids async race under CPU contention)
+    await expect(fullSizeImage).not.toHaveAttribute('src', bottomRowSrc!)
     const wrappedSrc = await fullSizeImage.getAttribute('src')
     expect(wrappedSrc).not.toBe(bottomRowSrc)
 
     // Pressing Shift+ArrowDown again wraps back to bottom row
     await page.keyboard.press('Shift+ArrowDown')
+    // Wait for image to update before reading
+    await expect(fullSizeImage).toHaveAttribute('src', bottomRowSrc!)
     const backToBottomSrc = await fullSizeImage.getAttribute('src')
     expect(backToBottomSrc).toBe(bottomRowSrc)
   })
@@ -488,6 +496,8 @@ test.describe('lightbox Y-axis keyboard navigation (Shift+Up/Down)', () => {
     // Shift+ArrowRight should still navigate X axis (same row, next column)
     await page.keyboard.press('Shift+ArrowRight')
 
+    // Wait for image to update before reading (avoids async race under CPU contention)
+    await expect(fullSizeImage).not.toHaveAttribute('src', initialSrc!)
     const newSrc = await fullSizeImage.getAttribute('src')
     expect(newSrc).not.toBe(initialSrc)
     expect(newSrc).toContain('/api/images/')
