@@ -419,7 +419,7 @@ stories:
   - id: W-023
     title: "Worktree-based agent workflow — backlog locking, story claims, worktree lifecycle"
     type: workflow
-    status: todo
+    status: uat
     priority: 80
     complexity: high
     requires: []

@@ -28,6 +28,25 @@ This returns the selected story with a `queue` field. Dispatch based on the queu
 
 Exit code 2 means no eligible work — touch `.ralph/stop` and exit.
 
+### Worktree-based parallel execution
+
+When running multiple agents in parallel, use worktrees for isolation. See AGENT_FLOW.md section 4.1.1 for details.
+
+```bash
+# Atomic claim + worktree creation
+STORY=$(backlog.py --repo-root /path/to/main next-work --claim worker-1 --format json)
+python3 scripts/worktree/worktree.py create <story-id>
+
+# At cycle start: detect stale worktrees
+python3 scripts/worktree/worktree.py detect-stale
+
+# After story completion: cleanup
+python3 scripts/worktree/worktree.py remove <story-id>
+
+# Recovery from dead process
+python3 scripts/worktree/worktree.py recover
+```
+
 ## Story marker
 
 As soon as you select a story, emit an HTML comment so the user can identify the active story in the conversation:

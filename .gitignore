@@ -65,11 +65,18 @@ config.yaml
 # Claude sandbox local mounts (gitignored; use .claude-sandbox.example.yaml as template)
 .claude-sandbox.yaml
 
-# Backlog tool uses python
+# Backlog and worktree tools use python
 scripts/backlog/__pycache__/
+scripts/worktree/__pycache__/
 
 # E2E parallel test artifacts
 .e2e/
+
+# Worktrees (agent parallel execution)
+.worktrees/
+
+# Backlog lock file (agent concurrency)
+agent/backlog.lock
 
 # dir-env
 .envrc

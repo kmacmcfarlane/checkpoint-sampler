@@ -834,5 +834,371 @@ class TestStatusCLI(unittest.TestCase):
         self.assertEqual(data, {"todo": 1})
 
 
+class TestClaimCLI(unittest.TestCase):
+    """Integration tests for next-work --claim flag."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.backlog_path = os.path.join(self.tmpdir, "backlog.yaml")
+        self.done_path = os.path.join(self.tmpdir, "done.yaml")
+        # Create agent dir for lock file
+        os.makedirs(os.path.join(self.tmpdir, "agent"), exist_ok=True)
+        self._write_yaml(
+            self.done_path,
+            {
+                "schema_version": 2,
+                "project": "test",
+                "defaults": {"priority_order": "desc"},
+                "stories": [],
+            },
+        )
+
+    def tearDown(self):
+        import shutil
+
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def _write_yaml(self, path, data):
+        yaml = YAML()
+        yaml.indent(mapping=2, sequence=4, offset=2)
+        with open(path, "w") as f:
+            yaml.dump(data, f)
+
+    def _read_yaml(self, path):
+        yaml = YAML()
+        with open(path) as f:
+            return yaml.load(f)
+
+    def _run(self, *extra_args):
+        cmd = [
+            sys.executable,
+            SCRIPT,
+            "--backlog",
+            self.backlog_path,
+            "--done",
+            self.done_path,
+            "--repo-root",
+            self.tmpdir,
+            "next-work",
+            "--format",
+            "json",
+        ] + list(extra_args)
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        return result
+
+    def _make_backlog(self, stories):
+        self._write_yaml(
+            self.backlog_path,
+            {
+                "schema_version": 2,
+                "project": "test",
+                "defaults": {"priority_order": "desc"},
+                "stories": stories,
+            },
+        )
+
+    def test_claim_sets_status_and_claimed_by(self):
+        """--claim atomically sets status=in_progress and claimed_by."""
+        self._make_backlog(
+            [
+                {
+                    "id": "S-001",
+                    "title": "Test story",
+                    "priority": 50,
+                    "status": "todo",
+                    "requires": [],
+                    "acceptance": ["FE: Test"],
+                    "testing": ["command: echo ok"],
+                },
+            ]
+        )
+        result = self._run("--claim", "worker-1")
+        self.assertEqual(result.returncode, 0)
+        data = json.loads(result.stdout)
+        self.assertEqual(data[0]["id"], "S-001")
+        self.assertEqual(data[0]["status"], "in_progress")
+        self.assertEqual(data[0]["claimed_by"], "worker-1")
+
+        # Verify the backlog file was actually modified
+        bl = self._read_yaml(self.backlog_path)
+        story = bl["stories"][0]
+        self.assertEqual(story["status"], "in_progress")
+        self.assertEqual(story["claimed_by"], "worker-1")
+
+    def test_claim_no_eligible_work(self):
+        """--claim with no eligible work exits 2."""
+        self._make_backlog(
+            [
+                {
+                    "id": "S-001",
+                    "title": "Done story",
+                    "priority": 50,
+                    "status": "done",
+                    "requires": [],
+                    "acceptance": ["FE: Test"],
+                    "testing": ["command: echo ok"],
+                },
+            ]
+        )
+        result = self._run("--claim", "worker-1")
+        self.assertEqual(result.returncode, 2)
+
+    def test_claim_selects_correct_queue_priority(self):
+        """--claim respects queue priority order (testing > review > todo)."""
+        self._make_backlog(
+            [
+                {
+                    "id": "S-001",
+                    "title": "Testing story",
+                    "priority": 10,
+                    "status": "testing",
+                    "requires": [],
+                    "acceptance": ["FE: Test"],
+                    "testing": ["command: echo ok"],
+                },
+                {
+                    "id": "S-002",
+                    "title": "Todo story",
+                    "priority": 90,
+                    "status": "todo",
+                    "requires": [],
+                    "acceptance": ["FE: Test"],
+                    "testing": ["command: echo ok"],
+                },
+            ]
+        )
+        result = self._run("--claim", "worker-1")
+        self.assertEqual(result.returncode, 0)
+        data = json.loads(result.stdout)
+        self.assertEqual(data[0]["id"], "S-001")
+        self.assertEqual(data[0]["queue"], "testing")
+
+    def test_without_claim_does_not_modify_backlog(self):
+        """Without --claim, next-work is read-only."""
+        self._make_backlog(
+            [
+                {
+                    "id": "S-001",
+                    "title": "Test story",
+                    "priority": 50,
+                    "status": "todo",
+                    "requires": [],
+                    "acceptance": ["FE: Test"],
+                    "testing": ["command: echo ok"],
+                },
+            ]
+        )
+        result = self._run()
+        self.assertEqual(result.returncode, 0)
+
+        # Verify backlog was NOT modified
+        bl = self._read_yaml(self.backlog_path)
+        story = bl["stories"][0]
+        self.assertEqual(story["status"], "todo")
+        self.assertNotIn("claimed_by", story)
+
+
+class TestLocking(unittest.TestCase):
+    """Tests for file locking mechanism."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        os.makedirs(os.path.join(self.tmpdir, "agent"), exist_ok=True)
+
+    def tearDown(self):
+        import shutil
+
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_lock_creates_lock_file(self):
+        """backlog_lock creates agent/backlog.lock."""
+        from backlog import backlog_lock
+
+        lock_dir = Path(self.tmpdir)
+        with backlog_lock(lock_dir):
+            lock_path = lock_dir / "agent" / "backlog.lock"
+            self.assertTrue(lock_path.exists())
+
+    def test_lock_released_after_context(self):
+        """Lock is released when context manager exits."""
+        import fcntl
+        from backlog import backlog_lock
+
+        lock_dir = Path(self.tmpdir)
+        lock_path = lock_dir / "agent" / "backlog.lock"
+
+        # Acquire and release
+        with backlog_lock(lock_dir):
+            pass
+
+        # Should be able to acquire again (non-blocking)
+        with open(lock_path, "w") as f:
+            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.flock(f, fcntl.LOCK_UN)
+
+    def test_sequential_claims_update_backlog(self):
+        """Sequential --claim calls each update the backlog file."""
+        backlog_path = os.path.join(self.tmpdir, "backlog.yaml")
+        done_path = os.path.join(self.tmpdir, "done.yaml")
+
+        yaml = YAML()
+        yaml.indent(mapping=2, sequence=4, offset=2)
+
+        with open(backlog_path, "w") as f:
+            yaml.dump({
+                "schema_version": 2,
+                "project": "test",
+                "defaults": {"priority_order": "desc"},
+                "stories": [
+                    {
+                        "id": "S-001",
+                        "title": "Story 1",
+                        "priority": 50,
+                        "status": "todo",
+                        "requires": [],
+                        "acceptance": ["FE: Test"],
+                        "testing": ["command: echo ok"],
+                    },
+                ],
+            }, f)
+
+        with open(done_path, "w") as f:
+            yaml.dump({
+                "schema_version": 2,
+                "project": "test",
+                "defaults": {"priority_order": "desc"},
+                "stories": [],
+            }, f)
+
+        cmd_base = [
+            sys.executable, SCRIPT,
+            "--backlog", backlog_path,
+            "--done", done_path,
+            "--repo-root", self.tmpdir,
+            "next-work", "--format", "json", "--claim",
+        ]
+
+        # First claim: picks up S-001 from todo queue
+        r1 = subprocess.run(cmd_base + ["worker-1"], capture_output=True, text=True)
+        self.assertEqual(r1.returncode, 0)
+        d1 = json.loads(r1.stdout)
+        self.assertEqual(d1[0]["queue"], "todo")
+        self.assertEqual(d1[0]["claimed_by"], "worker-1")
+
+        # Second claim: S-001 is now in_progress, picks it from in_progress queue
+        r2 = subprocess.run(cmd_base + ["worker-2"], capture_output=True, text=True)
+        self.assertEqual(r2.returncode, 0)
+        d2 = json.loads(r2.stdout)
+        self.assertEqual(d2[0]["queue"], "in_progress")
+        # Second claim overwrites claimed_by
+        self.assertEqual(d2[0]["claimed_by"], "worker-2")
+
+        # Verify final backlog state
+        with open(backlog_path) as f:
+            bl = yaml.load(f)
+        story = bl["stories"][0]
+        self.assertEqual(story["status"], "in_progress")
+        self.assertEqual(story["claimed_by"], "worker-2")
+
+
+class TestRepoRoot(unittest.TestCase):
+    """Tests for --repo-root and BACKLOG_REPO_ROOT resolution."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        agent_dir = os.path.join(self.tmpdir, "agent")
+        os.makedirs(agent_dir, exist_ok=True)
+
+        yaml = YAML()
+        yaml.indent(mapping=2, sequence=4, offset=2)
+
+        for fname, stories in [("backlog.yaml", [
+            {
+                "id": "S-001",
+                "title": "Test",
+                "priority": 50,
+                "status": "todo",
+                "requires": [],
+                "acceptance": ["FE: Test"],
+                "testing": ["command: echo ok"],
+            },
+        ]), ("backlog_done.yaml", [])]:
+            with open(os.path.join(agent_dir, fname), "w") as f:
+                yaml.dump({
+                    "schema_version": 2,
+                    "project": "test",
+                    "defaults": {"priority_order": "desc"},
+                    "stories": stories,
+                }, f)
+
+    def tearDown(self):
+        import shutil
+
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_repo_root_flag(self):
+        """--repo-root overrides auto-detected git root."""
+        cmd = [
+            sys.executable, SCRIPT,
+            "--repo-root", self.tmpdir,
+            "--format", "json",
+            "query", "--status", "todo",
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0)
+        data = json.loads(result.stdout)
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["id"], "S-001")
+
+    def test_env_var_repo_root(self):
+        """BACKLOG_REPO_ROOT env var resolves paths correctly."""
+        env = os.environ.copy()
+        env["BACKLOG_REPO_ROOT"] = self.tmpdir
+        cmd = [
+            sys.executable, SCRIPT,
+            "--format", "json",
+            "query", "--status", "todo",
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True, env=env)
+        self.assertEqual(result.returncode, 0)
+        data = json.loads(result.stdout)
+        self.assertEqual(len(data), 1)
+
+    def test_explicit_flag_beats_env_var(self):
+        """--repo-root takes precedence over BACKLOG_REPO_ROOT."""
+        # Create a second temp dir with different data
+        import shutil
+        tmpdir2 = tempfile.mkdtemp()
+        try:
+            agent_dir2 = os.path.join(tmpdir2, "agent")
+            os.makedirs(agent_dir2, exist_ok=True)
+            yaml = YAML()
+            yaml.indent(mapping=2, sequence=4, offset=2)
+            for fname in ("backlog.yaml", "backlog_done.yaml"):
+                with open(os.path.join(agent_dir2, fname), "w") as f:
+                    yaml.dump({
+                        "schema_version": 2,
+                        "project": "test2",
+                        "defaults": {"priority_order": "desc"},
+                        "stories": [],
+                    }, f)
+
+            env = os.environ.copy()
+            env["BACKLOG_REPO_ROOT"] = tmpdir2  # Points to empty backlog
+            cmd = [
+                sys.executable, SCRIPT,
+                "--repo-root", self.tmpdir,  # Points to backlog with S-001
+                "--format", "json",
+                "query", "--status", "todo",
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, env=env)
+            self.assertEqual(result.returncode, 0)
+            data = json.loads(result.stdout)
+            # Should use --repo-root (self.tmpdir) which has S-001
+            self.assertEqual(len(data), 1)
+        finally:
+            shutil.rmtree(tmpdir2, ignore_errors=True)
+
+
 if __name__ == "__main__":
     unittest.main()

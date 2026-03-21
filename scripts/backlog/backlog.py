@@ -5,6 +5,7 @@ Exit codes: 0=success, 1=validation error, 2=not found, 3=file error
 """
 
 import argparse
+import fcntl
 import json
 import os
 import re
@@ -12,6 +13,7 @@ import subprocess
 import sys
 import tempfile
 from collections.abc import Mapping, Sequence
+from contextlib import contextmanager
 from pathlib import Path
 
 from ruamel.yaml import YAML
@@ -41,6 +43,7 @@ OPTIONAL_STORY_FIELDS = (
     "review_feedback",
     "blocked_reason",
     "metrics",
+    "claimed_by",
 )
 
 SCALAR_SET_FIELDS = frozenset(
@@ -50,7 +53,7 @@ TEXT_SET_FIELDS = frozenset(
     {"review_feedback", "notes", "blocked_reason"}
 )
 CLEARABLE_FIELDS = frozenset(
-    {"review_feedback", "blocked_reason", "complexity", "notes"}
+    {"review_feedback", "blocked_reason", "complexity", "notes", "claimed_by"}
 )
 
 REQUIRED_TOP_LEVEL = ("schema_version", "project", "defaults", "stories")
@@ -99,6 +102,29 @@ def save_yaml_atomic(path: Path, data: CommentedMap, yaml_instance: YAML) -> Non
         raise
 
 
+@contextmanager
+def backlog_lock(lock_dir: Path, timeout: float = 30.0):
+    """Acquire an exclusive file lock for backlog read-modify-write operations.
+
+    The lock file is created at <lock_dir>/agent/backlog.lock. Concurrent
+    callers block until the lock is released (or timeout expires).
+    """
+    lock_path = lock_dir / "agent" / "backlog.lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    fd = None
+    try:
+        fd = open(lock_path, "w")
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        yield lock_path
+    finally:
+        if fd is not None:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_UN)
+            except OSError:
+                pass
+            fd.close()
+
+
 def git_root() -> Path:
     """Detect git root."""
     try:
@@ -119,8 +145,27 @@ def git_root() -> Path:
         sys.exit(3)
 
 
-def default_paths() -> tuple[Path, Path]:
-    root = git_root()
+def resolve_repo_root(repo_root_override: str | None = None) -> Path:
+    """Resolve the repository root for backlog file access.
+
+    Priority:
+    1. Explicit --repo-root argument
+    2. BACKLOG_REPO_ROOT environment variable
+    3. git rev-parse --show-toplevel (auto-detect)
+
+    This ensures backlog.py always reads/writes backlog.yaml on the main
+    checkout, not a worktree copy.
+    """
+    if repo_root_override:
+        return Path(repo_root_override).resolve()
+    env_root = os.environ.get("BACKLOG_REPO_ROOT")
+    if env_root:
+        return Path(env_root).resolve()
+    return git_root()
+
+
+def default_paths(repo_root_override: str | None = None) -> tuple[Path, Path]:
+    root = resolve_repo_root(repo_root_override)
     return root / "agent" / "backlog.yaml", root / "agent" / "backlog_done.yaml"
 
 
@@ -503,63 +548,81 @@ def cmd_next_work(args) -> int:
     3. In-progress: status=in_progress (with or without review_feedback)
     4. UAT feedback: status=uat_feedback
     5. New work: status=todo, not blocked, requires satisfied, bugs first
+
+    With --claim <worker-id>: atomically selects story, sets status=in_progress,
+    writes claimed_by=<worker-id>, and saves backlog.yaml. Exits 2 if no
+    unclaimed work is available.
     """
     backlog_path, done_path = args.backlog, args.done
-    bl_data, _ = load_yaml(backlog_path)
+    claim_worker = getattr(args, "claim", None)
+
+    # When claiming, we need a writable load (keep yaml instance for save)
+    bl_data, bl_yaml = load_yaml(backlog_path)
     active_stories = bl_data.get("stories") or []
 
     fields = [f.strip() for f in args.fields.split(",")] if args.fields else None
+
+    selected = None
+    queue = None
 
     # Queue 1: testing
     testing = [s for s in active_stories if s.get("status") == "testing"]
     if testing:
         selected = _select_highest_priority(testing)
-        _output_next_work(selected, "testing", args.format, fields)
-        return 0
+        queue = "testing"
 
     # Queue 2: review
-    review = [s for s in active_stories if s.get("status") == "review"]
-    if review:
-        selected = _select_highest_priority(review)
-        _output_next_work(selected, "review", args.format, fields)
-        return 0
+    if selected is None:
+        review = [s for s in active_stories if s.get("status") == "review"]
+        if review:
+            selected = _select_highest_priority(review)
+            queue = "review"
 
     # Queue 3: in-progress (all, sorted by priority)
-    in_progress = [s for s in active_stories if s.get("status") == "in_progress"]
-    if in_progress:
-        selected = _select_highest_priority(in_progress)
-        _output_next_work(selected, "in_progress", args.format, fields)
-        return 0
+    if selected is None:
+        in_progress = [s for s in active_stories if s.get("status") == "in_progress"]
+        if in_progress:
+            selected = _select_highest_priority(in_progress)
+            queue = "in_progress"
 
     # Queue 4: UAT feedback
-    uat_feedback = [
-        s for s in active_stories
-        if s.get("status") == "uat_feedback"
-    ]
-    if uat_feedback:
-        selected = _select_highest_priority(uat_feedback)
-        _output_next_work(selected, "uat_feedback", args.format, fields)
-        return 0
+    if selected is None:
+        uat_feedback = [
+            s for s in active_stories
+            if s.get("status") == "uat_feedback"
+        ]
+        if uat_feedback:
+            selected = _select_highest_priority(uat_feedback)
+            queue = "uat_feedback"
 
     # Queue 5: new work (todo)
-    todo = [s for s in active_stories if s.get("status") == "todo"]
-    todo = [s for s in todo if not s.get("blocked_reason")]
+    if selected is None:
+        todo = [s for s in active_stories if s.get("status") == "todo"]
+        todo = [s for s in todo if not s.get("blocked_reason")]
 
-    all_stories = _get_all_stories(backlog_path, done_path)
-    todo = [s for s in todo if _requires_satisfied(s, all_stories)]
+        all_stories = _get_all_stories(backlog_path, done_path)
+        todo = [s for s in todo if _requires_satisfied(s, all_stories)]
 
-    if not todo:
+        if todo:
+            # Bugs first
+            bugs = [s for s in todo if str(s.get("id", "")).startswith("B-")]
+            if bugs:
+                selected = _select_highest_priority(bugs)
+            else:
+                selected = _select_highest_priority(todo)
+            queue = "todo"
+
+    if selected is None:
         print("No eligible work found.", file=sys.stderr)
         return 2
 
-    # Bugs first
-    bugs = [s for s in todo if str(s.get("id", "")).startswith("B-")]
-    if bugs:
-        selected = _select_highest_priority(bugs)
-    else:
-        selected = _select_highest_priority(todo)
+    # Handle --claim: atomically set status and claimed_by
+    if claim_worker:
+        selected["status"] = "in_progress"
+        selected["claimed_by"] = claim_worker
+        save_yaml_atomic(backlog_path, bl_data, bl_yaml)
 
-    _output_next_work(selected, "todo", args.format, fields)
+    _output_next_work(selected, queue, args.format, fields)
     return 0
 
 
@@ -864,17 +927,20 @@ def cmd_validate(args) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    bl_default, done_default = default_paths()
-
     parser = argparse.ArgumentParser(
         prog="backlog.py",
         description="Backlog CRUD operations with round-trip YAML preservation",
     )
     parser.add_argument(
-        "--backlog", type=Path, default=bl_default, help="Path to active backlog YAML"
+        "--repo-root",
+        default=None,
+        help="Repository root for backlog file access (overrides BACKLOG_REPO_ROOT and auto-detect)",
     )
     parser.add_argument(
-        "--done", type=Path, default=done_default, help="Path to done/archive YAML"
+        "--backlog", type=Path, default=None, help="Path to active backlog YAML"
+    )
+    parser.add_argument(
+        "--done", type=Path, default=None, help="Path to done/archive YAML"
     )
     parser.add_argument(
         "--format",
@@ -942,6 +1008,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--fields", help="Comma-separated fields to include in output")
     p.add_argument(
+        "--claim",
+        metavar="WORKER_ID",
+        default=None,
+        help="Atomically claim the selected story: set status=in_progress and claimed_by=WORKER_ID",
+    )
+    p.add_argument(
         "--format",
         choices=["yaml", "json"],
         default=argparse.SUPPRESS,
@@ -1005,9 +1077,28 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+# Commands that perform read-modify-write and need file locking
+_MUTATING_COMMANDS = frozenset({
+    "next-work",  # with --claim
+    "add",
+    "set",
+    "set-text",
+    "clear",
+    "archive",
+})
+
+
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
+
+    # Resolve default paths from --repo-root / BACKLOG_REPO_ROOT / auto-detect
+    if args.backlog is None or args.done is None:
+        bl_default, done_default = default_paths(args.repo_root)
+        if args.backlog is None:
+            args.backlog = bl_default
+        if args.done is None:
+            args.done = done_default
 
     dispatch = {
         "query": cmd_query,
@@ -1029,7 +1120,18 @@ def main() -> int:
         parser.print_help()
         return 1
 
-    return handler(args)
+    # Determine if this command needs locking
+    needs_lock = args.command in _MUTATING_COMMANDS
+    # next-work only needs lock when --claim is used
+    if args.command == "next-work" and not getattr(args, "claim", None):
+        needs_lock = False
+
+    if needs_lock:
+        repo_root = resolve_repo_root(args.repo_root)
+        with backlog_lock(repo_root):
+            return handler(args)
+    else:
+        return handler(args)
 
 
 if __name__ == "__main__":
