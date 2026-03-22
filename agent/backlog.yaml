@@ -601,7 +601,7 @@ stories:
   - id: B-124
     title: "E2E: preset-per-combo-restore stale preset entry not cleaned from localStorage on TR selection"
     type: bug
-    status: todo
+    status: uat
     priority: 60
     complexity: low
     requires: []

@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-124: Stale preset localStorage entry not cleaned on training run selection
+- Fixed `onPresetDelete` in App.vue to clear the stored combo preset entry when `PresetSelector.attemptAutoLoad` emits `delete` for a nonexistent preset ID, regardless of whether `selectedPresetId` matches (it's `null` for stale presets)
+
 ### B-123: E2E: /data/samples directory path missing for scan requests during E2E tests
 - Added `DirectoryExists` guard in `ScanTrainingRun` to handle TOCTOU race where concurrent E2E resets remove sample directories between discovery and scan, preventing `no such file or directory` errors in the sweep
 
