@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/fileformat"
 	"github.com/sirupsen/logrus"
 )
 
@@ -172,21 +173,43 @@ func (fs *FileSystem) RemoveSampleDir(sampleDir string, checkpointFilename strin
 	return nil
 }
 
-// CheckpointSampleDirRemover implements service.SampleDirRemover by removing per-checkpoint
-// sample directories under a configured sample root directory.
-type CheckpointSampleDirRemover struct {
+// StudyOutputDirRemover implements service.SampleDirRemover by removing the entire
+// study output directory under {sampleDir}/{sanitizedRunName}/{studyName}/.
+// This recursively deletes all existing samples, thumbnails, and extraneous files.
+type StudyOutputDirRemover struct {
 	fs        *FileSystem
 	sampleDir string
 }
 
-// NewCheckpointSampleDirRemover creates a CheckpointSampleDirRemover.
-func NewCheckpointSampleDirRemover(fs *FileSystem, sampleDir string) *CheckpointSampleDirRemover {
-	return &CheckpointSampleDirRemover{fs: fs, sampleDir: sampleDir}
+// NewStudyOutputDirRemover creates a StudyOutputDirRemover.
+func NewStudyOutputDirRemover(fs *FileSystem, sampleDir string) *StudyOutputDirRemover {
+	return &StudyOutputDirRemover{fs: fs, sampleDir: sampleDir}
 }
 
-// RemoveSampleDir removes sample_dir/checkpointFilename/ for the given checkpoint.
-func (r *CheckpointSampleDirRemover) RemoveSampleDir(checkpointFilename string) error {
-	return r.fs.RemoveSampleDir(r.sampleDir, checkpointFilename)
+// RemoveStudyOutputDir removes {sampleDir}/{sanitizedRunName}/{studyName}/ and all contents.
+// The training run name is sanitized (slashes replaced with underscores) to match
+// the filesystem layout used by the job executor.
+// If the directory does not exist, this is a no-op (not an error).
+func (r *StudyOutputDirRemover) RemoveStudyOutputDir(trainingRunName string, studyName string) error {
+	sanitizedRunName := fileformat.SanitizeTrainingRunName(trainingRunName)
+	target := filepath.Join(r.sampleDir, sanitizedRunName, studyName)
+	r.fs.logger.WithFields(logrus.Fields{
+		"training_run_name":   trainingRunName,
+		"sanitized_run_name":  sanitizedRunName,
+		"study_name":          studyName,
+		"target":              target,
+	}).Trace("entering RemoveStudyOutputDir")
+	defer r.fs.logger.Trace("returning from RemoveStudyOutputDir")
+
+	if err := os.RemoveAll(target); err != nil {
+		r.fs.logger.WithFields(logrus.Fields{
+			"target": target,
+			"error":  err.Error(),
+		}).Error("failed to remove study output directory")
+		return fmt.Errorf("removing study output directory %s: %w", target, err)
+	}
+	r.fs.logger.WithField("target", target).Info("study output directory removed")
+	return nil
 }
 
 // ReadFile reads the entire contents of a file and returns it as a byte slice.

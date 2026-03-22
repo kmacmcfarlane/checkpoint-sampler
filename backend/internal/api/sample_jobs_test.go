@@ -144,7 +144,7 @@ func (f *fakePathMatcher) MatchCheckpointPath(filename string) (string, error) {
 // fakeSampleDirRemover is a test double for service.SampleDirRemover.
 type fakeSampleDirRemover struct{}
 
-func (f *fakeSampleDirRemover) RemoveSampleDir(checkpointFilename string) error {
+func (f *fakeSampleDirRemover) RemoveStudyOutputDir(trainingRunName string, studyName string) error {
 	return nil
 }
 

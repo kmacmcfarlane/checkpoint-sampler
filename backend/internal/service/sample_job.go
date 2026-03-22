@@ -39,9 +39,13 @@ type PathMatcher interface {
 	MatchCheckpointPath(filename string) (string, error)
 }
 
-// SampleDirRemover defines the interface for removing sample directories for a checkpoint.
+// SampleDirRemover defines the interface for removing the study output directory
+// when a job with clear_existing=true first transitions to running.
+// The entire study output directory ({sampleDir}/{sanitizedRunName}/{studyName}/)
+// is recursively deleted so that all existing samples, thumbnails, and extraneous
+// files are removed before the job runs.
 type SampleDirRemover interface {
-	RemoveSampleDir(checkpointFilename string) error
+	RemoveStudyOutputDir(trainingRunName string, studyName string) error
 }
 
 // SampleJobExecutor defines the interface for coordinating job execution.
@@ -96,21 +100,22 @@ func (s *SampleJobService) SetExecutor(executor SampleJobExecutor) {
 	s.executor = executor
 }
 
-// clearSampleDirsForJob removes the sample directories for each checkpoint in the job.
+// clearStudyOutputDir removes the entire study output directory for the job.
 // This is called once when a job first transitions from pending to running.
-func (s *SampleJobService) clearSampleDirsForJob(job model.SampleJob) {
-	for _, cpFilename := range job.CheckpointFilenames {
-		if err := s.dirRemover.RemoveSampleDir(cpFilename); err != nil {
-			s.logger.WithFields(logrus.Fields{
-				"checkpoint_filename": cpFilename,
-				"error":               err.Error(),
-			}).Warn("failed to remove sample dir, continuing")
-		} else {
-			s.logger.WithFields(logrus.Fields{
-				"checkpoint_filename": cpFilename,
-				"sample_dir":          filepath.Join(s.sampleDir, cpFilename),
-			}).Info("cleared existing sample directory")
-		}
+// The directory at {sampleDir}/{sanitizedRunName}/{studyName}/ is recursively
+// deleted, removing all existing samples, thumbnails, and extraneous files.
+func (s *SampleJobService) clearStudyOutputDir(job model.SampleJob) {
+	if err := s.dirRemover.RemoveStudyOutputDir(job.TrainingRunName, job.StudyName); err != nil {
+		s.logger.WithFields(logrus.Fields{
+			"training_run_name": job.TrainingRunName,
+			"study_name":        job.StudyName,
+			"error":             err.Error(),
+		}).Warn("failed to remove study output directory, continuing")
+	} else {
+		s.logger.WithFields(logrus.Fields{
+			"training_run_name": job.TrainingRunName,
+			"study_name":        job.StudyName,
+		}).Info("cleared study output directory")
 	}
 }
 
@@ -428,11 +433,11 @@ func (s *SampleJobService) Start(id string) (model.SampleJob, error) {
 		return model.SampleJob{}, fmt.Errorf("cannot start job in status %s", job.Status)
 	}
 
-	// B-114: Clear existing sample directories when the job first transitions
+	// B-114: Clear the study output directory when the job first transitions
 	// to running (not at queue time). After clearing, reset the flag so that
 	// resuming a stopped/failed job does not re-clear.
 	if job.ClearExisting && s.dirRemover != nil {
-		s.clearSampleDirsForJob(job)
+		s.clearStudyOutputDir(job)
 	}
 
 	// Update status to running; reset ClearExisting so resume never re-clears

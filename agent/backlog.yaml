@@ -229,7 +229,7 @@ stories:
   - id: B-114
     title: "Clear-existing samples should be a job param applied at job start, not queue time"
     type: bug
-    status: uat_feedback
+    status: uat
     priority: 70
     complexity: medium
     requires: []
@@ -248,9 +248,6 @@ stories:
       - "Edge case: job fails mid-generation, some new samples exist alongside cleared slots. Resume should continue without
         re-clearing."
       - "Verify Generate Samples dialog queues jobs with the same clear-existing param behavior."
-    review_feedback: Clear-existing did not actually delete existing samples, thumbnails, or extraneous directories from
-      the output dir. The clear behavior must recursively delete the entire output directory contents (not just known 
-      sample files) before the job runs. On resume after failure, clearing must NOT happen again.
   - id: B-115
     title: "Regenerate confirmation dialog missing on study update"
     type: bug

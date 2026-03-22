@@ -179,15 +179,15 @@ func (f *fakePathMatcher) MatchCheckpointPath(filename string) (string, error) {
 
 // fakeSampleDirRemover is a test double for service.SampleDirRemover.
 type fakeSampleDirRemover struct {
-	removed []string
+	removed []struct{ trainingRunName, studyName string }
 	err     error
 }
 
-func (f *fakeSampleDirRemover) RemoveSampleDir(checkpointFilename string) error {
+func (f *fakeSampleDirRemover) RemoveStudyOutputDir(trainingRunName string, studyName string) error {
 	if f.err != nil {
 		return f.err
 	}
-	f.removed = append(f.removed, checkpointFilename)
+	f.removed = append(f.removed, struct{ trainingRunName, studyName string }{trainingRunName, studyName})
 	return nil
 }
 
@@ -744,10 +744,12 @@ var _ = Describe("SampleJobService", func() {
 
 		// B-114: Clear-existing is applied at job start, not queue time
 		Context("clear-existing at start (B-114)", func() {
-			It("clears sample directories when job transitions from pending to running with ClearExisting=true", func() {
+			It("clears the study output directory when job transitions from pending to running with ClearExisting=true", func() {
 				dirRemover.removed = nil
 				job := model.SampleJob{
 					ID:                  "job-clear",
+					TrainingRunName:     "test-run",
+					StudyName:           "My Study",
 					Status:              model.SampleJobStatusPending,
 					ClearExisting:       true,
 					CheckpointFilenames: []string{"cp1.safetensors", "cp2.safetensors"},
@@ -758,8 +760,10 @@ var _ = Describe("SampleJobService", func() {
 				Expect(err).NotTo(HaveOccurred())
 				Expect(result.Status).To(Equal(model.SampleJobStatusRunning))
 
-				// Directories should be cleared during Start
-				Expect(dirRemover.removed).To(ConsistOf("cp1.safetensors", "cp2.safetensors"))
+				// The entire study output directory should be removed once (not per-checkpoint)
+				Expect(dirRemover.removed).To(HaveLen(1))
+				Expect(dirRemover.removed[0].trainingRunName).To(Equal("test-run"))
+				Expect(dirRemover.removed[0].studyName).To(Equal("My Study"))
 
 				// ClearExisting should be reset to false so resume never re-clears
 				Expect(result.ClearExisting).To(BeFalse())

@@ -174,7 +174,7 @@ func run() error {
 	var sampleJobsSvc *api.SampleJobsService
 	if cfg.ComfyUI != nil {
 		pathMatcher := service.NewCheckpointPathMatcher(modelDiscovery, logger)
-		dirRemover := store.NewCheckpointSampleDirRemover(fs, cfg.SampleDir)
+		dirRemover := store.NewStudyOutputDirRemover(fs, cfg.SampleDir)
 		sampleJobSvc := service.NewSampleJobService(st, pathMatcher, dirRemover, cfg.SampleDir, logger)
 		sampleJobSvc.SetFileChecker(&service.RealOutputFileChecker{})
 		sampleJobSvc.SetJobDataRemover(store.NewJobSampleDirRemover(fs, cfg.SampleDir))
