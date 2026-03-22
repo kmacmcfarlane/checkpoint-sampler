@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, h, type VNode } from 'vue'
+import { ref, computed, onMounted, watch, h, cloneVNode, type VNode } from 'vue'
 import {
   NModal,
   NSelect,
@@ -11,7 +11,7 @@ import {
   NTag,
   NTooltip,
 } from 'naive-ui'
-import type { SelectRenderLabel } from 'naive-ui'
+import type { SelectRenderLabel, SelectRenderOption } from 'naive-ui'
 import type { AffectedRun, TrainingRun, Study, StudyAvailability, CreateSampleJobPayload, SampleJob, ValidationResult } from '../api/types'
 import { apiClient } from '../api/client'
 import StudyEditor from './StudyEditor.vue'
@@ -638,6 +638,29 @@ const renderStudyLabel: SelectRenderLabel = (option) => {
   return h('div', { style: { display: 'flex', alignItems: 'center', gap: '0.5rem' } }, children)
 }
 
+/**
+ * S-133: zebra-stripe renderOption for the training-run dropdown.
+ * Naive UI renders the dropdown menu via Teleport (outside the component's DOM subtree)
+ * so scoped :deep() CSS cannot reach option elements. We use renderOption to clone each
+ * VNode and inject an alternating background style so every other row is lightly tinted.
+ * IMPORTANT: VNodes run outside Vue's scoped CSS context — all styles must be inlined.
+ */
+const renderZebraTrainingRunOption: SelectRenderOption = ({ node, option }) => {
+  const index = trainingRunOptions.value.findIndex((o) => o.value === option.value)
+  if (index < 0 || index % 2 === 0) return node
+  return cloneVNode(node, { style: { backgroundColor: 'var(--bg-surface)' } })
+}
+
+/**
+ * S-133: zebra-stripe renderOption for the study dropdown.
+ * Declared after studyOptions so the closure resolves correctly.
+ */
+const renderZebraStudyOption: SelectRenderOption = ({ node, option }) => {
+  const index = studyOptions.value.findIndex((o) => o.value === option.value)
+  if (index < 0 || index % 2 === 0) return node
+  return cloneVNode(node, { style: { backgroundColor: 'var(--bg-surface)' } })
+}
+
 const selectedStudyDetail = computed(() =>
   studies.value.find(p => p.id === selectedStudy.value)
 )
@@ -1169,6 +1192,7 @@ async function doSubmit() {
             v-model:value="selectedTrainingRunId"
             :options="trainingRunOptions"
             :render-label="renderTrainingRunLabel"
+            :render-option="renderZebraTrainingRunOption"
             placeholder="Select a training run"
             clearable
             filterable
@@ -1201,6 +1225,7 @@ async function doSubmit() {
             v-model:value="selectedStudy"
             :options="studyOptions"
             :render-label="renderStudyLabel"
+            :render-option="renderZebraStudyOption"
             placeholder="Select a study"
             clearable
             data-testid="study-select"

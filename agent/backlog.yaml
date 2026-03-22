@@ -430,7 +430,7 @@ stories:
   - id: S-133
     title: "Alternating row striping on training run selectors"
     type: enhancement
-    status: todo
+    status: uat
     priority: 50
     complexity: low
     requires: []

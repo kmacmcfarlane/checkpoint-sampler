@@ -4798,4 +4798,124 @@ describe('JobLaunchDialog', () => {
       expect(rowsAfter.length).toBe(2)
     })
   })
+
+  // S-133: Zebra striping on training run and study selectors
+  describe('zebra striping on TR selectors (S-133)', () => {
+    // AC: Training run selector dropdown has renderOption prop for zebra striping
+    it('training run NSelect has renderOption prop for zebra striping', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
+      expect(typeof runSelect.props('renderOption')).toBe('function')
+    })
+
+    // AC: Even-indexed TR options (0, 2, ...) return the node unchanged
+    it('renderOption returns node unchanged for even-indexed training run options', async () => {
+      // Show all three runs so we have indices 0, 1, 2
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
+      await nextTick()
+
+      const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
+      const renderOption = runSelect.props('renderOption') as (info: {
+        node: unknown
+        option: { value: number }
+        selected: boolean
+      }) => unknown
+
+      // Index 0 (even) — runEmpty (id=1) should return node unchanged
+      const sentinel = { type: 'div', props: {}, children: [] }
+      const result = renderOption({ node: sentinel, option: { value: runEmpty.id }, selected: false })
+      expect(result).toBe(sentinel)
+    })
+
+    // AC: Odd-indexed TR options (1, 3, ...) get a tinted background via cloneVNode
+    it('renderOption injects background style for odd-indexed training run options', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
+      await nextTick()
+
+      const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
+      const renderOption = runSelect.props('renderOption') as unknown as (info: {
+        node: unknown
+        option: { value: number }
+        selected: boolean
+      }) => { props?: { style?: { backgroundColor?: string } } }
+
+      // Index 1 (odd) — runWithSamples (id=2) should get a background style
+      const sentinel = { type: 'div', props: {}, children: [] }
+      const result = renderOption({ node: sentinel, option: { value: runWithSamples.id }, selected: false })
+      expect(result).not.toBe(sentinel)
+      expect(result.props?.style?.backgroundColor).toBeDefined()
+    })
+
+    // AC: Study selector also has renderOption prop for zebra striping
+    it('study NSelect has renderOption prop for zebra striping', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+      expect(typeof studySelect.props('renderOption')).toBe('function')
+    })
+
+    // AC: Even-indexed study options (0, 2, ...) return the node unchanged
+    it('renderOption returns node unchanged for even-indexed study options', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+      const renderOption = studySelect.props('renderOption') as unknown as (info: {
+        node: unknown
+        option: { value: string }
+        selected: boolean
+      }) => unknown
+
+      // Index 0 (even) — first study ('preset-1') should return node unchanged
+      const sentinel = { type: 'div', props: {}, children: [] }
+      const result = renderOption({ node: sentinel, option: { value: sampleStudies[0].id }, selected: false })
+      expect(result).toBe(sentinel)
+    })
+
+    // AC: Odd-indexed study options (1, 3, ...) get a tinted background via cloneVNode
+    it('renderOption injects background style for odd-indexed study options', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+      const renderOption = studySelect.props('renderOption') as unknown as (info: {
+        node: unknown
+        option: { value: string }
+        selected: boolean
+      }) => { props?: { style?: { backgroundColor?: string } } }
+
+      // Index 1 (odd) — second study should get a background style
+      const sentinel = { type: 'div', props: {}, children: [] }
+      const result = renderOption({ node: sentinel, option: { value: sampleStudies[1].id }, selected: false })
+      expect(result).not.toBe(sentinel)
+      expect(result.props?.style?.backgroundColor).toBeDefined()
+    })
+  })
 })

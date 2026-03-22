@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-133: Alternating row striping on training run selectors
+- Added zebra-stripe alternating row backgrounds to training run and study selector dropdowns in the Generate Samples dialog using Naive UI's `renderOption` with `cloneVNode` and the `--bg-surface` CSS variable
+
 ### B-126: Study Manager: VAE/TE not autopopulated on workflow auto-select + Shift not restored from preset
 - Extracted `applyMruForWorkflow()` so MRU defaults (VAE, text encoder, shift, sampler/scheduler) apply on both manual workflow select and auto-select via New Study
 - Extended MRU localStorage schema to include shift value alongside VAE/TE per workflow template, with backward compatibility for old entries
