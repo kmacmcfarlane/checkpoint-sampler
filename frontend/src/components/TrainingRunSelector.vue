@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, h } from 'vue'
+import { ref, computed, onMounted, watch, h, cloneVNode } from 'vue'
 import { NSelect, NCheckbox, NButton } from 'naive-ui'
-import type { SelectRenderLabel, SelectRenderTag } from 'naive-ui'
+import type { SelectRenderLabel, SelectRenderTag, SelectRenderOption } from 'naive-ui'
 import type { TrainingRun } from '../api/types'
 import { apiClient } from '../api/client'
 import { useGenerateInputsPersistence } from '../composables/useGenerateInputsPersistence'
@@ -106,6 +106,22 @@ const groupOptions = computed(() => {
   }))
 })
 
+/**
+ * S-133 / B-098 UAT rework: zebra-stripe renderOption for the training-run dropdown.
+ * Naive UI renders the dropdown menu in a Teleport (outside the component's DOM subtree)
+ * so scoped :deep() CSS does not reach the option elements. Instead we use the renderOption
+ * prop to clone each option VNode and inject an alternating background style so every other
+ * row is lightly tinted.
+ *
+ * IMPORTANT: VNodes returned from renderOption run outside Vue's scoped CSS context so all
+ * styles must be inlined.
+ */
+const renderZebraGroupOption: SelectRenderOption = ({ node, option }) => {
+  const index = groupOptions.value.findIndex((o) => o.value === option.value)
+  if (index < 0 || index % 2 === 0) return node
+  return cloneVNode(node, { style: { backgroundColor: 'rgba(128, 128, 128, 0.07)' } })
+}
+
 /** Runs in the currently selected group. */
 const selectedGroupRuns = computed(() => {
   if (!selectedGroupKey.value) return []
@@ -119,6 +135,16 @@ const studyOptions = computed(() => {
     value: run.study_output_dir || '',
   }))
 })
+
+/**
+ * S-133 / B-098 UAT rework: zebra-stripe renderOption for the study dropdown.
+ * Declared after studyOptions so the closure resolves correctly.
+ */
+const renderZebraStudyOption: SelectRenderOption = ({ node, option }) => {
+  const index = studyOptions.value.findIndex((o) => o.value === option.value)
+  if (index < 0 || index % 2 === 0) return node
+  return cloneVNode(node, { style: { backgroundColor: 'rgba(128, 128, 128, 0.07)' } })
+}
 
 /** Whether to show the study dropdown. Hidden when group has exactly 1 run with no study_label. */
 const showStudySelect = computed(() => {
@@ -275,6 +301,7 @@ function onHasSamplesFilterChange(value: boolean) {
       :menu-props="{ style: 'min-width: 320px; max-width: min(1024px, 100vw)' }"
       :render-label="renderWrappedLabel"
       :render-tag="renderWrappedTag"
+      :render-option="renderZebraGroupOption"
       filterable
       class="training-run-select"
       data-testid="training-run-select"
@@ -307,6 +334,7 @@ function onHasSamplesFilterChange(value: boolean) {
       :menu-props="{ style: 'min-width: 200px; max-width: min(1024px, 100vw)' }"
       :render-label="renderWrappedLabel"
       :render-tag="renderWrappedTag"
+      :render-option="renderZebraStudyOption"
       filterable
       class="study-select"
       data-testid="study-select"

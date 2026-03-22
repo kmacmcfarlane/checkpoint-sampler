@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-098: Training run selector — zebra stripe dropdown options
+- Added alternating row striping to training run and study selector dropdown options using Naive UI's `renderOption` prop with `cloneVNode` (inline style required due to Teleport rendering outside scoped CSS)
+
 ### B-115: Regenerate confirmation dialog missing on study update
 - Reworked immutability dialog from two-step flow (Fork/Regen/Cancel → separate confirmation) to a single three-option dialog: Clone (with editable name input), Regenerate Existing (saves and queues jobs with clear-existing), and Ignore (saves without touching samples)
 - Affected training runs are pre-loaded and displayed inline in the dialog

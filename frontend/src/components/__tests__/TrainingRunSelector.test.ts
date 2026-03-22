@@ -586,6 +586,114 @@ describe('TrainingRunSelector', () => {
       // AC (UAT rework): study-select class is the CSS anchor for :deep() height override
       expect(studySelect.classes()).toContain('study-select')
     })
+
+    // B-098 UAT rework: zebra stripe — training run dropdown
+    describe('zebra striping (B-098 UAT rework)', () => {
+      const threeRuns: TrainingRun[] = [
+        {
+          id: 0,
+          name: 'run-alpha',
+          checkpoint_count: 1,
+          has_samples: true,
+          checkpoints: [{ filename: 'run-alpha.safetensors', step_number: 1000, has_samples: true }],
+        },
+        {
+          id: 1,
+          name: 'run-beta',
+          checkpoint_count: 1,
+          has_samples: true,
+          checkpoints: [{ filename: 'run-beta.safetensors', step_number: 1000, has_samples: true }],
+        },
+        {
+          id: 2,
+          name: 'run-gamma',
+          checkpoint_count: 1,
+          has_samples: true,
+          checkpoints: [{ filename: 'run-gamma.safetensors', step_number: 1000, has_samples: true }],
+        },
+      ]
+
+      // AC: Training run selector dropdown has renderOption prop for zebra striping
+      it('NSelect has renderOption prop for zebra striping', async () => {
+        mockGetTrainingRuns.mockResolvedValue(threeRuns)
+        const wrapper = mount(TrainingRunSelector)
+        await flushPromises()
+
+        const select = wrapper.findComponent(NSelect)
+        expect(typeof select.props('renderOption')).toBe('function')
+      })
+
+      // AC: Even-indexed options (0, 2, ...) have no background style override
+      it('renderOption returns node unchanged for even-indexed options', async () => {
+        mockGetTrainingRuns.mockResolvedValue(threeRuns)
+        const wrapper = mount(TrainingRunSelector)
+        await flushPromises()
+
+        const select = wrapper.findComponent(NSelect)
+        const renderOption = select.props('renderOption') as unknown as (info: {
+          node: unknown
+          option: { value: string }
+          selected: boolean
+        }) => unknown
+
+        // Index 0 (even) — first run should return node unchanged
+        const sentinel = { type: 'div', props: {}, children: [] }
+        const result = renderOption({ node: sentinel, option: { value: 'run-alpha' }, selected: false })
+        expect(result).toBe(sentinel)
+      })
+
+      // AC: Odd-indexed options (1, 3, ...) get a tinted background via cloneVNode
+      it('renderOption injects background style for odd-indexed options', async () => {
+        mockGetTrainingRuns.mockResolvedValue(threeRuns)
+        const wrapper = mount(TrainingRunSelector)
+        await flushPromises()
+
+        const select = wrapper.findComponent(NSelect)
+        const renderOption = select.props('renderOption') as unknown as (info: {
+          node: unknown
+          option: { value: string }
+          selected: boolean
+        }) => { props?: { style?: { backgroundColor?: string } } }
+
+        // Index 1 (odd) — second run should get a background style
+        const sentinel = { type: 'div', props: {}, children: [] }
+        const result = renderOption({ node: sentinel, option: { value: 'run-beta' }, selected: false })
+        expect(result).not.toBe(sentinel)
+        expect(result.props?.style?.backgroundColor).toBeDefined()
+      })
+
+      // AC: Index-2 option is even and returns node unchanged
+      it('renderOption returns node unchanged for index-2 option (even)', async () => {
+        mockGetTrainingRuns.mockResolvedValue(threeRuns)
+        const wrapper = mount(TrainingRunSelector)
+        await flushPromises()
+
+        const select = wrapper.findComponent(NSelect)
+        const renderOption = select.props('renderOption') as unknown as (info: {
+          node: unknown
+          option: { value: string }
+          selected: boolean
+        }) => unknown
+
+        const sentinel = { type: 'div', props: {}, children: [] }
+        const result = renderOption({ node: sentinel, option: { value: 'run-gamma' }, selected: false })
+        expect(result).toBe(sentinel)
+      })
+
+      // AC: Study dropdown also has renderOption prop for zebra striping
+      it('study NSelect has renderOption prop for zebra striping', async () => {
+        mockGetTrainingRuns.mockResolvedValue(runsWithStudy)
+        const wrapper = mount(TrainingRunSelector)
+        await flushPromises()
+
+        selectGroup(wrapper, 'my-model')
+        await nextTick()
+
+        const selects = wrapper.findAllComponents(NSelect)
+        const studySelect = selects[1]
+        expect(typeof studySelect.props('renderOption')).toBe('function')
+      })
+    })
   })
 
   // AC: Sample set selector has a refresh icon button to manually reload the list
