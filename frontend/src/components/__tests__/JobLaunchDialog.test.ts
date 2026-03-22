@@ -158,6 +158,7 @@ const runningJob: SampleJob = {
   completed_items: 2,
   failed_items: 0,
   pending_items: 8,
+  checkpoint_filenames: [],
   created_at: '2025-01-01T00:00:00Z',
   updated_at: '2025-01-01T00:00:00Z',
 }
@@ -175,6 +176,7 @@ const pendingJob: SampleJob = {
   completed_items: 0,
   failed_items: 0,
   pending_items: 10,
+  checkpoint_filenames: [],
   created_at: '2025-01-01T00:00:00Z',
   updated_at: '2025-01-01T00:00:00Z',
 }
@@ -208,6 +210,27 @@ const validationForRunEmpty = {
   total_actual: 0,
   total_missing: 0,
 }
+
+// Study availability data indicating runWithSamples (id=2) has existing samples
+// for both presets. Used to make selectedStudyHasSamples return true for these studies.
+const studyAvailabilityWithSamples = [
+  {
+    study_id: 'preset-1',
+    study_name: 'Quick Test',
+    has_samples: true,
+    sample_status: 'partial',
+    checkpoints_with_samples: 2,
+    total_checkpoints: 3,
+  },
+  {
+    study_id: 'preset-2',
+    study_name: 'Full Test',
+    has_samples: true,
+    sample_status: 'partial',
+    checkpoints_with_samples: 1,
+    total_checkpoints: 3,
+  },
+]
 
 // enableAutoUnmount is configured globally in vitest.setup.ts
 
@@ -548,6 +571,7 @@ describe('JobLaunchDialog', () => {
       completed_items: 0,
       failed_items: 0,
       pending_items: 5,
+      checkpoint_filenames: [],
       created_at: '2025-01-01T00:00:00Z',
       updated_at: '2025-01-01T00:00:00Z',
     }
@@ -852,6 +876,10 @@ describe('JobLaunchDialog', () => {
   })
 
   describe('checkpoint picker for regeneration', () => {
+    beforeEach(() => {
+      mockGetStudyAvailability.mockResolvedValue(studyAvailabilityWithSamples)
+    })
+
     it('does not show checkpoint picker when empty run is selected', async () => {
       const wrapper = mount(JobLaunchDialog, {
         props: { show: true },
@@ -909,6 +937,10 @@ describe('JobLaunchDialog', () => {
   })
 
   describe('payload for regeneration', () => {
+    beforeEach(() => {
+      mockGetStudyAvailability.mockResolvedValue(studyAvailabilityWithSamples)
+    })
+
     // S-115: clearExisting now defaults to false (smart defaults based on validation).
     // When validation returns an empty/complete result (default mock), clearExisting stays false.
     it('sends clear_existing=false by default when a run with complete/empty samples is selected', async () => {
@@ -951,7 +983,8 @@ describe('JobLaunchDialog', () => {
       expect(call.checkpoint_filenames).toEqual(['chk-a.safetensors', 'chk-b.safetensors', 'chk-c.safetensors'])
     })
 
-    it('shows "Regenerate Samples" button text when run has samples', async () => {
+    it('shows "Regenerate Samples" button text when run has samples for the selected study', async () => {
+      // AC: Button shows "Regenerate Samples" when the selected study has existing samples
       const wrapper = mount(JobLaunchDialog, {
         props: { show: true },
         global: { stubs: { Teleport: true } },
@@ -961,7 +994,10 @@ describe('JobLaunchDialog', () => {
       wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
       await nextTick()
       wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
-      await nextTick()
+      await flushPromises()
+      // Select a study that has samples (availability mock returns partial for preset-1)
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
+      await flushPromises()
 
       const buttons = wrapper.findAllComponents(NButton)
       const regenerateButton = buttons.find(b => b.text() === 'Regenerate Samples')
@@ -981,6 +1017,103 @@ describe('JobLaunchDialog', () => {
       const buttons = wrapper.findAllComponents(NButton)
       const generateButton = buttons.find(b => b.text() === 'Generate Samples')
       expect(generateButton).toBeDefined()
+    })
+
+    // AC: B-125 — button label is study-scoped, not run-scoped.
+    // A run that has samples for study B should still show "Generate Samples" when study A (no samples) is selected.
+    it('shows "Generate Samples" when selected study has no samples even if run has samples for another study', async () => {
+      // Run 2 has samples for preset-2 only; preset-1 has no samples for this run
+      mockGetStudyAvailability.mockResolvedValue([
+        {
+          study_id: 'preset-1',
+          study_name: 'Quick Test',
+          has_samples: false,
+          sample_status: 'none',
+          checkpoints_with_samples: 0,
+          total_checkpoints: 3,
+        },
+        {
+          study_id: 'preset-2',
+          study_name: 'Full Test',
+          has_samples: true,
+          sample_status: 'complete',
+          checkpoints_with_samples: 3,
+          total_checkpoints: 3,
+        },
+      ])
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select the run with samples (runWithSamples, id=2, has_samples=true)
+      wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
+      await nextTick()
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      await flushPromises()
+
+      // Select preset-1 which has NO samples for this run
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
+      await flushPromises()
+
+      // AC: Button should show "Generate Samples" because preset-1 has no samples
+      const buttons = wrapper.findAllComponents(NButton)
+      const generateButton = buttons.find(b => b.text() === 'Generate Samples')
+      expect(generateButton).toBeDefined()
+      const regenerateButton = buttons.find(b => b.text() === 'Regenerate Samples')
+      expect(regenerateButton).toBeUndefined()
+    })
+
+    // AC: B-125 — switching to a study with samples shows "Regenerate Samples"
+    it('shows "Regenerate Samples" when switching to a study that has samples', async () => {
+      // preset-1 has no samples; preset-2 has samples
+      mockGetStudyAvailability.mockResolvedValue([
+        {
+          study_id: 'preset-1',
+          study_name: 'Quick Test',
+          has_samples: false,
+          sample_status: 'none',
+          checkpoints_with_samples: 0,
+          total_checkpoints: 3,
+        },
+        {
+          study_id: 'preset-2',
+          study_name: 'Full Test',
+          has_samples: true,
+          sample_status: 'partial',
+          checkpoints_with_samples: 2,
+          total_checkpoints: 3,
+        },
+      ])
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
+      await nextTick()
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      await flushPromises()
+
+      // First select preset-1 (no samples) — should show "Generate Samples"
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
+      await flushPromises()
+
+      let buttons = wrapper.findAllComponents(NButton)
+      expect(buttons.find(b => b.text() === 'Generate Samples')).toBeDefined()
+      expect(buttons.find(b => b.text() === 'Regenerate Samples')).toBeUndefined()
+
+      // Switch to preset-2 (has samples) — should now show "Regenerate Samples"
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-2')
+      await flushPromises()
+
+      buttons = wrapper.findAllComponents(NButton)
+      expect(buttons.find(b => b.text() === 'Regenerate Samples')).toBeDefined()
+      expect(buttons.find(b => b.text() === 'Generate Samples')).toBeUndefined()
     })
   })
 
@@ -1031,6 +1164,7 @@ describe('JobLaunchDialog', () => {
       completed_items: 1,
       failed_items: 2,
       pending_items: 0,
+      checkpoint_filenames: [],
       failed_item_details: [
         { checkpoint_filename: 'chk-a.safetensors', error_message: 'VRAM overflow' },
         { checkpoint_filename: 'chk-c.safetensors', error_message: 'timeout expired' },
@@ -1067,6 +1201,7 @@ describe('JobLaunchDialog', () => {
     it('pre-selects only incomplete checkpoints (missing > 0) when completed_with_errors run is selected', async () => {
       mockListSampleJobs.mockResolvedValue([completedWithErrorsJob])
       mockValidateTrainingRun.mockResolvedValue(validationForRunWithSamples)
+      mockGetStudyAvailability.mockResolvedValue(studyAvailabilityWithSamples)
 
       const wrapper = mount(JobLaunchDialog, {
         props: { show: true },
@@ -1100,6 +1235,7 @@ describe('JobLaunchDialog', () => {
     it('shows failed badge on checkpoints with errors', async () => {
       mockListSampleJobs.mockResolvedValue([completedWithErrorsJob])
       mockValidateTrainingRun.mockResolvedValue(validationForRunWithSamples)
+      mockGetStudyAvailability.mockResolvedValue(studyAvailabilityWithSamples)
 
       const wrapper = mount(JobLaunchDialog, {
         props: { show: true },
@@ -1127,6 +1263,7 @@ describe('JobLaunchDialog', () => {
     it('auto-enables missing_only when validation finds missing samples (incomplete set)', async () => {
       mockListSampleJobs.mockResolvedValue([completedWithErrorsJob])
       mockValidateTrainingRun.mockResolvedValue(validationForRunWithSamples)
+      mockGetStudyAvailability.mockResolvedValue(studyAvailabilityWithSamples)
 
       const wrapper = mount(JobLaunchDialog, {
         props: { show: true },
@@ -1154,6 +1291,7 @@ describe('JobLaunchDialog', () => {
     it('disables submit when all checkpoints are deselected', async () => {
       mockListSampleJobs.mockResolvedValue([completedWithErrorsJob])
       mockValidateTrainingRun.mockResolvedValue(validationForRunWithSamples)
+      mockGetStudyAvailability.mockResolvedValue(studyAvailabilityWithSamples)
 
       const wrapper = mount(JobLaunchDialog, {
         props: { show: true },
@@ -1190,6 +1328,7 @@ describe('JobLaunchDialog', () => {
     it('sends missing_only=true and incomplete checkpoint filenames in payload for incomplete set', async () => {
       mockListSampleJobs.mockResolvedValue([completedWithErrorsJob])
       mockValidateTrainingRun.mockResolvedValue(validationForRunWithSamples)
+      mockGetStudyAvailability.mockResolvedValue(studyAvailabilityWithSamples)
       mockCreateSampleJob.mockResolvedValue({
         id: 'job-regen',
         training_run_name: 'qwen/psai4rt-v0.4.0',
@@ -1238,6 +1377,7 @@ describe('JobLaunchDialog', () => {
       // No jobs with errors
       mockListSampleJobs.mockResolvedValue([])
       mockValidateTrainingRun.mockResolvedValue(validationForRunWithSamples)
+      mockGetStudyAvailability.mockResolvedValue(studyAvailabilityWithSamples)
 
       const wrapper = mount(JobLaunchDialog, {
         props: { show: true },
@@ -1269,6 +1409,10 @@ describe('JobLaunchDialog', () => {
 
   // S-129: Complete checkpoints not auto-checked in validation selector
   describe('checkpoint default selection based on completion status (S-129)', () => {
+    beforeEach(() => {
+      mockGetStudyAvailability.mockResolvedValue(studyAvailabilityWithSamples)
+    })
+
     // AC1: Complete checkpoints are unchecked by default
     // AC2: Incomplete checkpoints remain checked by default
     it('AC1+AC2: pre-selects only incomplete checkpoints; complete checkpoints are unchecked', async () => {
@@ -1422,6 +1566,10 @@ describe('JobLaunchDialog', () => {
 
   // S-115: Smart checkbox defaults based on sample set completeness
   describe('smart checkbox defaults (S-115)', () => {
+    beforeEach(() => {
+      mockGetStudyAvailability.mockResolvedValue(studyAvailabilityWithSamples)
+    })
+
     // AC1: When validation shows an incomplete sample set (some missing), missingOnly is checked by default.
     it('AC1: checks missing-only by default when sample set is incomplete', async () => {
       // validationForRunWithSamples has total_missing=1 → hasMissingSamples=true
@@ -2183,6 +2331,10 @@ describe('JobLaunchDialog', () => {
 
   // AC: Clicking Regenerate opens JobLaunchDialog pre-populated with the original job's settings
   describe('regenerate pre-population (prefillJob prop)', () => {
+    beforeEach(() => {
+      mockGetStudyAvailability.mockResolvedValue(studyAvailabilityWithSamples)
+    })
+
     const completedJob: SampleJob = {
       id: 'job-completed',
       training_run_name: 'qwen/psai4rt-v0.4.0',
@@ -2197,6 +2349,7 @@ describe('JobLaunchDialog', () => {
       completed_items: 100,
       failed_items: 0,
       pending_items: 0,
+      checkpoint_filenames: [],
       created_at: '2025-01-02T00:00:00Z',
       updated_at: '2025-01-02T00:00:00Z',
     }
@@ -2214,6 +2367,7 @@ describe('JobLaunchDialog', () => {
       completed_items: 1,
       failed_items: 2,
       pending_items: 0,
+      checkpoint_filenames: [],
       failed_item_details: [
         { checkpoint_filename: 'chk-a.safetensors', error_message: 'VRAM overflow' },
         { checkpoint_filename: 'chk-c.safetensors', error_message: 'timeout expired' },
@@ -2372,6 +2526,10 @@ describe('JobLaunchDialog', () => {
 
   // S-084: Validation preview and Generate Missing Samples
   describe('validation preview (S-084)', () => {
+    beforeEach(() => {
+      mockGetStudyAvailability.mockResolvedValue(studyAvailabilityWithSamples)
+    })
+
     it('does not fetch validation when only training run is selected (no study)', async () => {
       const wrapper = mount(JobLaunchDialog, {
         props: { show: true },
@@ -2810,6 +2968,10 @@ describe('JobLaunchDialog', () => {
   })
 
   describe('missing-only generation (S-084 AC4)', () => {
+    beforeEach(() => {
+      mockGetStudyAvailability.mockResolvedValue(studyAvailabilityWithSamples)
+    })
+
     it('shows missing-only checkbox when run has samples and validation is complete', async () => {
       mockValidateTrainingRun.mockResolvedValue(validationForRunWithSamples)
       const wrapper = mount(JobLaunchDialog, {
@@ -3783,6 +3945,15 @@ describe('JobLaunchDialog', () => {
         total_items: 10, completed_items: 10, failed_items: 0, pending_items: 0,
         created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-01T00:00:00Z',
       }])
+      // Study availability confirms preset-1 has samples for this run
+      mockGetStudyAvailability.mockResolvedValue([{
+        study_id: 'preset-1',
+        study_name: 'Quick Test',
+        has_samples: true,
+        sample_status: 'complete',
+        checkpoints_with_samples: 3,
+        total_checkpoints: 3,
+      }])
       mockValidateTrainingRun.mockResolvedValue(validationForRunWithSamples)
 
       const wrapper = mount(JobLaunchDialog, {
@@ -3806,6 +3977,10 @@ describe('JobLaunchDialog', () => {
 
   // S-093: Confirmation dialog for regenerating a fully-validated sample set
   describe('regeneration confirmation dialog (S-093)', () => {
+    beforeEach(() => {
+      mockGetStudyAvailability.mockResolvedValue(studyAvailabilityWithSamples)
+    })
+
     // Validation result where ALL expected samples exist (complete = no missing)
     const validationComplete = {
       checkpoints: [
@@ -3988,6 +4163,8 @@ describe('JobLaunchDialog', () => {
     // AC4: No confirmation for runs with NO samples at all (total_actual = 0)
     it('does not show confirmation dialog when no samples exist at all (total_actual = 0)', async () => {
       // Use the empty run (id=1, no has_samples) — no confirmation ever needed for generate-from-scratch
+      // Override beforeEach mock: run 1 has no study availability (no samples for any study)
+      mockGetStudyAvailability.mockResolvedValue([])
       mockValidateTrainingRun.mockResolvedValue(validationForRunEmpty)
       mockCreateSampleJob.mockResolvedValue({
         id: 'job-gen',
@@ -4288,6 +4465,10 @@ describe('JobLaunchDialog', () => {
 
   // B-107: State preservation after regenerate attempts
   describe('state preservation after regenerate attempt (B-107)', () => {
+    beforeEach(() => {
+      mockGetStudyAvailability.mockResolvedValue(studyAvailabilityWithSamples)
+    })
+
     // AC: Checkpoint Status remains visible after a failed regenerate attempt (via StudyEditor)
     it('preserves Checkpoint Status when regeneration job creation fails', async () => {
       mockCreateSampleJob.mockRejectedValue({ message: 'ComfyUI unavailable' })
@@ -4536,6 +4717,8 @@ describe('JobLaunchDialog', () => {
     // AC: Failed API call in doSubmit does not corrupt Generate Samples state.
     // Validation results, form selections, and checkpoint status remain visible.
     it('preserves Checkpoint Status when doSubmit API call fails', async () => {
+      // runEmpty has no samples; override beforeEach mock so availability returns empty
+      mockGetStudyAvailability.mockResolvedValue([])
       mockCreateSampleJob.mockRejectedValue({ message: 'Server error' })
       mockValidateTrainingRun.mockResolvedValue(validationForRunEmpty)
 

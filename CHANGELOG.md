@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-125: Generate Samples button label always says 'Regenerate' even with no samples
+- Button label is now study-scoped: shows "Generate Samples" when the selected study has no samples, "Regenerate Samples" when it does — previously used a run-level check that always showed "Regenerate" if any study had samples
+
 ### B-114: Clear-existing samples should be a job param applied at job start, not queue time
 - Changed `SampleDirRemover` interface from per-checkpoint removal to study-scoped directory removal (`RemoveStudyOutputDir`), fixing the bug where clear-existing targeted a non-existent legacy path and never actually deleted anything
 - The new `StudyOutputDirRemover` uses `os.RemoveAll` on `{sampleDir}/{sanitizedRunName}/{studyName}/` to recursively delete all samples, thumbnails, and extraneous files before the job runs

@@ -449,7 +449,7 @@ stories:
   - id: B-125
     title: "Generate Samples button label always says 'Regenerate' even with no samples"
     type: bug
-    status: todo
+    status: uat
     priority: 50
     complexity: low
     requires: []
@@ -486,3 +486,53 @@ stories:
     testing:
       - "Test workflow auto-select path vs manual select — both should populate VAE/TE identically"
       - "Test preset save/restore cycle includes shift value"
+  - id: B-127
+    title: "Red problem bead shows 'incomplete' instead of 'failed' for failed jobs (S-116 regression)"
+    type: bug
+    status: todo
+    priority: 65
+    complexity: medium
+    requires: []
+    acceptance:
+      - "When a training run has a job with status 'failed' or 'completed_with_errors', the problem bead shows title='failed'
+        (red), not title='incomplete' (yellow)"
+      - "When a training run only has incomplete sample coverage but no failed jobs, the problem bead shows title='incomplete'
+        (yellow)"
+    testing:
+      - "command: make test-e2e-serial SPEC=generate-samples-beads.spec.ts"
+  - id: B-128
+    title: "filters-slideout-layout.spec.ts flaky — checkpoint filter and zoom control intermittently not visible"
+    type: bug
+    status: todo
+    priority: 55
+    complexity: low
+    requires: []
+    acceptance:
+      - "Filters drawer tests pass reliably across all parallel shards without timing-dependent failures"
+      - "Checkpoint filter aria-label selector correctly identifies filter toggle buttons"
+    testing:
+      - "command: make test-e2e-serial SPEC=filters-slideout-layout.spec.ts"
+  - id: B-129
+    title: "drawer-auto-collapse.spec.ts column header click times out on narrow screen test"
+    type: bug
+    status: todo
+    priority: 55
+    complexity: low
+    requires: []
+    acceptance:
+      - "Drawer auto-collapse tests pass reliably for narrow screen (column header click path)"
+      - "Test uses a selector that is robust to narrow viewport rendering"
+    testing:
+      - "command: make test-e2e-serial SPEC=drawer-auto-collapse.spec.ts"
+  - id: B-130
+    title: "duplicate-validation.spec.ts Manage Studies dialog does not close after saving"
+    type: bug
+    status: todo
+    priority: 60
+    complexity: low
+    requires: []
+    acceptance:
+      - "Manage Studies dialog closes automatically after successfully saving a study"
+      - "Duplicate validation test reliably passes in both serial and parallel execution"
+    testing:
+      - "command: make test-e2e-serial SPEC=duplicate-validation.spec.ts"

@@ -229,12 +229,58 @@ const trainingRunOptions = computed(() => {
     })
 })
 
-// Whether the selected run has any existing samples or active jobs
+// Whether the selected run has any existing samples or active jobs (run-level check).
+// Used for checkpoint picker visibility, auto-selection, confirmation dialog, and payload construction.
 const selectedRunHasSamples = computed(() => {
   const run = selectedTrainingRun.value
   if (!run) return false
   const status = getRunStatus(run)
   return status === 'complete' || status === 'partial' || status === 'running' || status === 'queued'
+})
+
+// Whether the selected study (sampleset) has any existing samples or active jobs for the selected training run.
+// Scoped to the selected study so the button label accurately reflects whether THIS study has samples,
+// not whether the training run has samples for any other study.
+// Used ONLY for the button label ('Generate Samples' vs 'Regenerate Samples').
+//
+// When study availability data has loaded for the selected study, this check is definitive.
+// While availability is still loading (studyAvailability is empty), falls back to the run-level
+// check to avoid label flicker — the label updates reactively once availability data arrives.
+const selectedStudyHasSamples = computed(() => {
+  const run = selectedTrainingRun.value
+  if (!run) return false
+  const studyId = selectedStudy.value
+  if (!studyId) return false
+
+  // Check directory-level availability for the selected study (available after async fetch)
+  const avail = studyAvailability.value.find(a => a.study_id === studyId)
+  if (avail) {
+    // Availability data is present — use it definitively
+    if (avail.sample_status !== 'none') return true
+    // Availability says 'none'; also check for active jobs scoped to this study
+    const studyJobs = sampleJobs.value.filter(
+      j => j.training_run_name === run.name && j.study_id === studyId,
+    )
+    return studyJobs.some(j => j.status === 'running' || j.status === 'pending' || j.status === 'stopped')
+  }
+
+  // Study not found in availability data. Two cases:
+  // 1. studyAvailability is empty: data has not loaded yet — fall back to run-level to avoid
+  //    label flicker while the async fetch is in-flight. The computed re-evaluates reactively
+  //    once the fetch resolves.
+  // 2. studyAvailability has entries but not for this study: data has loaded and this study
+  //    simply has no samples (e.g. it was just created). Check active jobs only.
+  if (studyAvailability.value.length === 0) {
+    // Data still loading — use run-level as a transient placeholder
+    return getRunStatus(run) === 'complete' || getRunStatus(run) === 'partial' ||
+      getRunStatus(run) === 'running' || getRunStatus(run) === 'queued'
+  }
+
+  // Data loaded but study not in results — newly created study with no samples. Check jobs only.
+  const studyJobs = sampleJobs.value.filter(
+    j => j.training_run_name === run.name && j.study_id === studyId,
+  )
+  return studyJobs.some(j => j.status === 'running' || j.status === 'pending' || j.status === 'stopped')
 })
 
 // Checkpoints of the selected training run
@@ -1322,7 +1368,7 @@ async function doSubmit() {
           :loading="loading"
           @click="submit"
         >
-          {{ loading ? 'Creating...' : (selectedRunHasSamples ? 'Regenerate Samples' : 'Generate Samples') }}
+          {{ loading ? 'Creating...' : (selectedStudyHasSamples ? 'Regenerate Samples' : 'Generate Samples') }}
         </NButton>
         <NButton @click="close">
           Cancel

@@ -158,3 +158,9 @@ XYGrid independently computes `filteredImages`, `imageIndex`, `xValues`, `yValue
 * priority: low
 * source: reviewer
 `useDimensionMapping.ts` is now a thin read-only wrapper around `useImageCubeStore`. App.vue still imports it for backward compatibility. Once App.vue and any other consumers are migrated to use the store directly, the wrapper and its test file can be deleted. This is Phase 8 of the R-009 plan.
+
+### Auto-refresh study availability on study create/update/delete
+* status: needs_approval
+* priority: low
+* source: developer
+Currently `studyAvailability` is only refreshed when `selectedTrainingRunId` changes. If a study is created or deleted while the dialog is open, the availability data is stale until the user re-selects the training run. A `watch` on study store events or a refresh trigger after Manage Studies dialog close would keep the button label state current without user intervention.

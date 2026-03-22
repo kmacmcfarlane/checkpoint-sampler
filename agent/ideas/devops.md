@@ -85,3 +85,9 @@ There is no `make test-backlog` or `make test-worktree` target — Python script
 * priority: medium
 * source: qa
 The DB reset endpoint races under 12-shard parallel load, causing UNIQUE constraint failures on schema_migrations. Adding a mutex or SQLite-level serialization would eliminate the most common source of E2E flakiness. Related: B-122.
+
+### E2E shard DNS failure resilience
+* status: needs_approval
+* priority: low
+* source: qa
+Shard-3 suffered a complete DNS resolution failure (`ENOTFOUND frontend`) affecting all tests in that shard. Consider adding a startup health check that retries DNS resolution before the Playwright process starts, to surface infrastructure failures more clearly and potentially retry the shard.
