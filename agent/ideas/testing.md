@@ -67,3 +67,9 @@ The study-delete.spec.ts "confirm, no data" test has the identical race conditio
 * priority: low
 * source: developer
 Add a lint rule or periodic audit that detects function duplication between E2E spec files and `frontend/e2e/helpers.ts`. The `selectNaiveOptionInContainer` function was duplicated in 9+ spec files, which meant a fix in helpers.ts wouldn't propagate. A deduplication check would catch this pattern earlier.
+
+### E2E coverage for cloneStudy shift MRU path
+* status: needs_approval
+* priority: low
+* source: qa
+The `cloneStudy` function was updated to persist shift alongside `performSave`, but neither the existing MRU E2E spec nor `study-mru-autofill.spec.ts` covers the clone workflow path. A targeted test case would close this gap.
