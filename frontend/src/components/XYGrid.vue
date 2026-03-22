@@ -361,6 +361,7 @@ const flatGridStyle = computed(() => ({
           v-for="(xVal, idx) in xValues"
           :key="'ch-' + xVal"
           class="xy-grid__col-header"
+          data-testid="xy-grid-col-header"
           role="columnheader"
           :style="{ gridRow: 1, gridColumn: colIndex(idx) }"
           @click="onHeaderClick(xDimension!.name, xVal)"

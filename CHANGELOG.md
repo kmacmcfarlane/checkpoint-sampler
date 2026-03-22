@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-129: drawer-auto-collapse.spec.ts column header click times out on narrow screen test
+- Replaced CSS class selector with `data-testid="xy-grid-col-header"` and added DOM-attachment assertion before clicking, fixing intermittent timeout on narrow viewport E2E tests
+
 ### B-128: filters-slideout-layout.spec.ts flaky — checkpoint filter and zoom control intermittently not visible
 - Added `dismissOverlays` calls in `setupWithAxes`, `setupWithSlider`, and inline test bodies after `closeDrawer` to wait for the sidebar NDrawer mask animation to fully complete before clicking header buttons — under parallel shard CPU contention the 0.2s CSS leave transition could outlast the fixed 300ms delay in `closeDrawer`
 - Updated `openFiltersDrawer` helper to call `dismissOverlays` before clicking the filters button for the same reason

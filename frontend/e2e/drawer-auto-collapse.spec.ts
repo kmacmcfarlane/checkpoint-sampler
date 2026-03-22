@@ -104,8 +104,12 @@ test.describe('drawer auto-collapse on narrow screen', () => {
     const drawerContent = page.locator('.n-drawer')
     await expect(drawerContent).toBeVisible()
 
-    // Click a column header using force to bypass the drawer mask overlay
-    const colHeader = page.locator('.xy-grid__col-header').first()
+    // Wait for the column header to be attached to the DOM before clicking.
+    // Using data-testid instead of the CSS class selector for robustness on
+    // narrow viewports where layout shifts may affect CSS-based resolution.
+    const colHeader = page.locator('[data-testid="xy-grid-col-header"]').first()
+    await expect(colHeader).toBeAttached()
+    // Click with force to bypass the NDrawer mask overlay
     await colHeader.click({ force: true })
 
     // The drawer should auto-collapse

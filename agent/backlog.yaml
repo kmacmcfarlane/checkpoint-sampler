@@ -515,7 +515,7 @@ stories:
   - id: B-129
     title: "drawer-auto-collapse.spec.ts column header click times out on narrow screen test"
     type: bug
-    status: todo
+    status: uat
     priority: 55
     complexity: low
     requires: []
