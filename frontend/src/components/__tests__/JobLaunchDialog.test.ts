@@ -1173,7 +1173,8 @@ describe('JobLaunchDialog', () => {
       updated_at: '2025-01-02T00:00:00Z',
     }
 
-    it('shows yellow problem bead for training run with completed_with_errors jobs (partial samples)', async () => {
+    // AC B-127: completed_with_errors triggers red bead ('failed'), not yellow ('incomplete')
+    it('shows red problem bead for training run with completed_with_errors jobs', async () => {
       mockListSampleJobs.mockResolvedValue([completedWithErrorsJob])
 
       const wrapper = mount(JobLaunchDialog, {
@@ -1190,8 +1191,8 @@ describe('JobLaunchDialog', () => {
       type DualBead = { activity: string | null; problem: string | null }
       const options = runSelect.props('options') as Array<{ label: string; value: number; _dualBead: DualBead }>
       const errorRunOpt = options.find(o => o.value === 2)
-      // S-116: yellow only comes from availability data (partial status), not from job status alone
-      expect(errorRunOpt?._dualBead.problem).toBeNull()
+      // B-127: completed_with_errors shows red (failed), not null
+      expect(errorRunOpt?._dualBead.problem).toBe('red')
       expect(errorRunOpt?._dualBead.activity).toBeNull()
     })
 
@@ -3906,8 +3907,8 @@ describe('JobLaunchDialog', () => {
       expect(opt?._dualBead.problem).toBeNull()
     })
 
-    it('shows no yellow bead for completed_with_errors job without availability data', async () => {
-      // S-116: yellow only comes from availability data (partial status), not job status
+    // AC B-127: completed_with_errors shows red bead regardless of availability data
+    it('shows red problem bead for completed_with_errors job even without availability data', async () => {
       mockListSampleJobs.mockResolvedValue([{
         id: 'job-partial',
         training_run_name: 'qwen/psai4rt-v0.3.0',
@@ -3928,9 +3929,9 @@ describe('JobLaunchDialog', () => {
       const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
       type DualBead = { activity: string | null; problem: string | null }
       const options = runSelect.props('options') as Array<{ label: string; value: number; _dualBead: DualBead }>
-      // runEmpty (id=1) has a completed_with_errors job but no availability data → no yellow bead
+      // B-127: completed_with_errors shows red bead (same as failed)
       const opt = options.find(o => o.value === 1)
-      expect(opt?._dualBead.problem).toBeNull()
+      expect(opt?._dualBead.problem).toBe('red')
     })
 
     it('shows checkboxes for run with completed job even when has_samples is false', async () => {

@@ -23,6 +23,7 @@ function makeJob(
     completed_items: 5,
     failed_items: 0,
     pending_items: 5,
+    checkpoint_filenames: [],
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
   }
@@ -114,21 +115,20 @@ describe('getTrainingRunDualBead', () => {
       expect(result.problem).toBe('red')
     })
 
-    // AC: Red beats yellow
-    it('red wins over yellow (failed + completed_with_errors)', () => {
+    // AC: Both failed and completed_with_errors trigger red
+    it('returns problem=red when both failed and completed_with_errors jobs exist', () => {
       const result = getTrainingRunDualBead(
         'test-run',
         [makeJob('failed'), makeJob('completed_with_errors')],
         [],
       )
-      // AC: Red bead takes priority over yellow
       expect(result.problem).toBe('red')
     })
 
-    // Yellow only comes from study availability (partial status), not from job status alone
-    it('returns problem=null when completed_with_errors but no partial study status', () => {
+    // AC B-127: completed_with_errors triggers red bead (same as failed)
+    it('returns problem=red when completed_with_errors (treated as failed)', () => {
       const result = getTrainingRunDualBead('test-run', [makeJob('completed_with_errors')], [])
-      expect(result.problem).toBeNull()
+      expect(result.problem).toBe('red')
     })
 
     it('returns problem=null when all jobs completed successfully', () => {
@@ -162,6 +162,12 @@ describe('getTrainingRunDualBead', () => {
     it('returns problem=red (not yellow) when study statuses are partial and job has failed', () => {
       // Red wins over yellow from study partial status
       const result = getTrainingRunDualBead('test-run', [makeJob('failed')], ['partial', 'none'])
+      expect(result.problem).toBe('red')
+    })
+
+    // AC B-127: completed_with_errors with partial study status still shows red (not yellow)
+    it('returns problem=red when completed_with_errors and study statuses are partial', () => {
+      const result = getTrainingRunDualBead('test-run', [makeJob('completed_with_errors')], ['partial', 'none'])
       expect(result.problem).toBe('red')
     })
   })
@@ -263,6 +269,20 @@ describe('getStudyDualBead', () => {
     it('red wins over yellow: failed job with partial status', () => {
       const job = makeJob('failed', { runName: 'run-a', studyId: 'study-x' })
       // AC: Red bead takes priority over yellow
+      const result = getStudyDualBead('run-a', 'study-x', [job], 'partial')
+      expect(result.problem).toBe('red')
+    })
+
+    // AC B-127: completed_with_errors triggers red bead (same as failed)
+    it('returns problem=red when a job for this study has completed_with_errors', () => {
+      const job = makeJob('completed_with_errors', { runName: 'run-a', studyId: 'study-x' })
+      const result = getStudyDualBead('run-a', 'study-x', [job], 'none')
+      expect(result.problem).toBe('red')
+    })
+
+    // AC B-127: completed_with_errors with partial status still shows red (not yellow)
+    it('red wins over yellow: completed_with_errors job with partial status', () => {
+      const job = makeJob('completed_with_errors', { runName: 'run-a', studyId: 'study-x' })
       const result = getStudyDualBead('run-a', 'study-x', [job], 'partial')
       expect(result.problem).toBe('red')
     })

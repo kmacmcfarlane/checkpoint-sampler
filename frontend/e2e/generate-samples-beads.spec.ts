@@ -227,12 +227,11 @@ test.describe('Generate Samples dual beads (S-116)', () => {
     await page.keyboard.press('Escape')
   })
 
-  // AC: Yellow problem bead when there are incomplete sample sets without running jobs
-  test('AC training run: yellow problem bead for completed_with_errors without running jobs', async ({ page, request }) => {
-    // AC: Yellow bead = study availability has 'partial' status without running jobs.
-    // The new bead logic (9434d25) requires actual availability data — job status alone
-    // is not sufficient. Create a study with partial samples to produce 'partial' availability.
-    const studyName = 'Yellow Bead Study'
+  // AC B-127: completed_with_errors shows red 'failed' bead (not yellow 'incomplete')
+  test('AC training run: red problem bead for completed_with_errors (B-127 fix)', async ({ page, request }) => {
+    // AC: completed_with_errors is treated as 'failed' — red bead, not yellow.
+    // Even with partial sample availability, the job error status takes precedence.
+    const studyName = 'Failed Bead Study'
     const studyId = await createStudy(request, studyName)
     await seedPartialSamples(request, 'my-model', studyId, studyName, ['my-model-step00001000.safetensors'])
     await seedJobs(request, [{ status: 'completed_with_errors', training_run_name: 'my-model', study_id: studyId, study_name: studyName }])
@@ -255,13 +254,46 @@ test.describe('Generate Samples dual beads (S-116)', () => {
     // Use regex for exact match (avoids matching "test-run/my-model")
     const option = popup.locator('.n-base-select-option').filter({ hasText: /^my-model$/ })
     const problemBead = option.locator('[data-testid="run-bead-problem"]')
-    // AC: yellow bead for incomplete without running
+    // AC B-127: red bead for completed_with_errors (same as failed)
     await expect(problemBead).toBeVisible()
-    await expect(problemBead).toHaveAttribute('title', 'incomplete')
+    await expect(problemBead).toHaveAttribute('title', 'failed')
 
     // No activity bead since no running/pending jobs
     const activityBead = option.locator('[data-testid="run-bead-activity"]')
     await expect(activityBead).toHaveCount(0)
+
+    await page.keyboard.press('Escape')
+  })
+
+  // AC B-127: Yellow problem bead when only incomplete sample coverage (no failed jobs)
+  test('AC training run: yellow problem bead for partial availability without failed jobs', async ({ page, request }) => {
+    // AC: Yellow bead = partial sample availability with no failed/error jobs.
+    // A completed job with partial samples shows yellow (incomplete), not red.
+    const studyName = 'Partial Study'
+    const studyId = await createStudy(request, studyName)
+    await seedPartialSamples(request, 'my-model', studyId, studyName, ['my-model-step00001000.safetensors'])
+    // Seed a completed (not failed) job so partial availability shows yellow
+    await seedJobs(request, [{ status: 'completed', training_run_name: 'my-model', study_id: studyId, study_name: studyName }])
+
+    await page.goto('/', { waitUntil: 'networkidle' })
+    await selectTrainingRun(page, 'my-model')
+    await expect(page.getByText('Dimensions')).toBeVisible()
+    await openGenerateSamplesDialog(page)
+    const dialog = getGenerateSamplesDialog(page)
+    await expect(dialog).toBeVisible()
+
+    await page.waitForLoadState('networkidle')
+
+    const trainingRunSelect = dialog.locator('[data-testid="training-run-select"]')
+    await trainingRunSelect.click()
+    const popup = page.locator('.n-base-select-menu:visible')
+    await expect(popup).toBeVisible()
+
+    const option = popup.locator('.n-base-select-option').filter({ hasText: /^my-model$/ })
+    const problemBead = option.locator('[data-testid="run-bead-problem"]')
+    // AC B-127: yellow bead for incomplete sample coverage (no failed jobs)
+    await expect(problemBead).toBeVisible()
+    await expect(problemBead).toHaveAttribute('title', 'incomplete')
 
     await page.keyboard.press('Escape')
   })

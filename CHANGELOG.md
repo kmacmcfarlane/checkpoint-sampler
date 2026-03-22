@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-127: Red problem bead shows 'incomplete' instead of 'failed' for failed jobs (S-116 regression)
+- Fixed `completed_with_errors` job status to show red "failed" bead instead of yellow "incomplete" in the Generate Samples dialog's training run and study dropdowns
+
 ### B-125: Generate Samples button label always says 'Regenerate' even with no samples
 - Button label is now study-scoped: shows "Generate Samples" when the selected study has no samples, "Regenerate Samples" when it does — previously used a run-level check that always showed "Regenerate" if any study had samples
 

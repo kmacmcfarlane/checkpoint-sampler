@@ -489,7 +489,7 @@ stories:
   - id: B-127
     title: "Red problem bead shows 'incomplete' instead of 'failed' for failed jobs (S-116 regression)"
     type: bug
-    status: todo
+    status: uat
     priority: 65
     complexity: medium
     requires: []

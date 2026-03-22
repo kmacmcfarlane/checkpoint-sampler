@@ -20,7 +20,7 @@ export type ProblemBead = 'red' | 'yellow' | null
 export interface DualBead {
   /** Slot 1: blue (running) > green (all complete). Null when neither applies. */
   activity: ActivityBead
-  /** Slot 2: red (failed with missing samples) > yellow (incomplete without running jobs). Null when neither applies. */
+  /** Slot 2: red (failed/completed_with_errors) > yellow (incomplete without running jobs). Null when neither applies. */
   problem: ProblemBead
 }
 
@@ -35,8 +35,8 @@ export interface DualBead {
  *     - Green: at least one study has complete samples AND no studies have partial samples
  *     - Blue wins over green
  *   Slot 2 (red/yellow):
- *     - Red: any job for this run has status 'failed'
- *     - Yellow: any study has sample_status='partial', provided no running jobs exist
+ *     - Red: any job for this run has status 'failed' or 'completed_with_errors'
+ *     - Yellow: any study has sample_status='partial', provided no running/failed/error jobs exist
  *     - Red wins over yellow
  *
  * @param trainingRunName - The training run name to filter jobs by
@@ -66,7 +66,7 @@ export function getTrainingRunDualBead(
   }
 
   // --- Slot 2: Problem (red/yellow) ---
-  const hasFailed = runJobs.some(j => j.status === 'failed')
+  const hasFailed = runJobs.some(j => j.status === 'failed' || j.status === 'completed_with_errors')
   const hasStudyPartial = anyPartial
   const hasRunningForYellow = runJobs.some(j => j.status === 'running' || j.status === 'pending')
 
@@ -74,7 +74,7 @@ export function getTrainingRunDualBead(
   if (hasFailed) {
     problem = 'red'
   } else if (hasStudyPartial && !hasRunningForYellow) {
-    // Yellow: incomplete sample sets without running jobs
+    // Yellow: incomplete sample sets without running jobs (and no failed/error jobs)
     problem = 'yellow'
   }
 
@@ -92,8 +92,8 @@ export function getTrainingRunDualBead(
  *     - Green: sample_status for this study is 'complete'
  *     - Blue wins over green
  *   Slot 2 (red/yellow):
- *     - Red: any job for this training run × study has status 'failed'
- *     - Yellow: sample_status is 'partial' and no running jobs for this study
+ *     - Red: any job for this training run × study has status 'failed' or 'completed_with_errors'
+ *     - Yellow: sample_status is 'partial' and no running/failed/error jobs for this study
  *     - Red wins over yellow
  *
  * @param trainingRunName - The training run name
@@ -123,7 +123,7 @@ export function getStudyDualBead(
   }
 
   // --- Slot 2: Problem (red/yellow) ---
-  const hasFailed = studyJobs.some(j => j.status === 'failed')
+  const hasFailed = studyJobs.some(j => j.status === 'failed' || j.status === 'completed_with_errors')
   const hasPartial = sampleStatus === 'partial'
   const hasRunningForYellow = studyJobs.some(j => j.status === 'running' || j.status === 'pending')
 

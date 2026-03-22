@@ -162,7 +162,7 @@ function renderBeadSpan(color: string, title: string, testId: string): VNode {
 //
 // Renders up to two beads per training run using the dual-bead system:
 //   Slot 1 (activity): blue = running/pending job, green = all studies complete
-//   Slot 2 (problem):  red = failed job, yellow = incomplete without running jobs
+//   Slot 2 (problem):  red = failed/completed_with_errors job, yellow = incomplete without running jobs
 const renderTrainingRunLabel: SelectRenderLabel = (option) => {
   const dualBead = (option as { _dualBead?: DualBead })._dualBead
 
