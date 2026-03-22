@@ -279,6 +279,20 @@ func (m *mockFileSystemReader) DirectoryExists(path string) bool {
 	return m.dirs[path]
 }
 
+// mockDirRemover is a test double for SampleDirRemover (clear-existing at job start).
+type mockDirRemover struct {
+	calls []struct{ trainingRunName, studyName string }
+	err   error
+}
+
+func (m *mockDirRemover) RemoveStudyOutputDir(trainingRunName string, studyName string) error {
+	if m.err != nil {
+		return m.err
+	}
+	m.calls = append(m.calls, struct{ trainingRunName, studyName string }{trainingRunName, studyName})
+	return nil
+}
+
 var _ = Describe("JobExecutor", func() {
 	var (
 		executor    *JobExecutor
@@ -575,6 +589,56 @@ var _ = Describe("JobExecutor", func() {
 
 			// Restore for cleanup
 			mockStore.updateJobError = nil
+		})
+
+		// B-114: autoStartJob clears the study output directory on first start
+		It("clears study output directory during auto-start when ClearExisting=true", func() {
+			// AC: BE: Clearing happens once when the job transitions to running for the first time
+			remover := &mockDirRemover{}
+			executor.SetDirRemover(remover)
+
+			job := model.SampleJob{
+				ID:                  "job-clear-auto",
+				TrainingRunName:     "test-run/my-model",
+				StudyName:           "My Study",
+				Status:              model.SampleJobStatusPending,
+				ClearExisting:       true,
+				CheckpointFilenames: []string{"cp1.safetensors", "cp2.safetensors"},
+			}
+			mockStore.jobs[job.ID] = job
+
+			jobCopy := job
+			err := executor.autoStartJob(&jobCopy)
+			Expect(err).NotTo(HaveOccurred())
+
+			// The entire study output directory should be removed once (not per-checkpoint)
+			Expect(remover.calls).To(HaveLen(1))
+			Expect(remover.calls[0].trainingRunName).To(Equal("test-run/my-model"))
+			Expect(remover.calls[0].studyName).To(Equal("My Study"))
+
+			// ClearExisting should be reset to false in the persisted job
+			storedJob := mockStore.jobs["job-clear-auto"]
+			Expect(storedJob.ClearExisting).To(BeFalse())
+		})
+
+		// B-114: autoStartJob does NOT clear when ClearExisting=false (resume scenario)
+		It("does not clear during auto-start when ClearExisting=false", func() {
+			// AC: BE: Resuming a failed job does not re-clear existing samples
+			remover := &mockDirRemover{}
+			executor.SetDirRemover(remover)
+
+			job := model.SampleJob{
+				ID:                  "job-no-clear-auto",
+				Status:              model.SampleJobStatusPending,
+				ClearExisting:       false,
+				CheckpointFilenames: []string{"cp1.safetensors"},
+			}
+			mockStore.jobs[job.ID] = job
+
+			jobCopy := job
+			err := executor.autoStartJob(&jobCopy)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(remover.calls).To(BeEmpty())
 		})
 
 		It("logs at WARN (not ERROR) when UpdateSampleJob returns sql.ErrNoRows during auto-start", func() {

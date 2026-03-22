@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-114: Clear-existing samples should be a job param applied at job start, not queue time
+- Changed `SampleDirRemover` interface from per-checkpoint removal to study-scoped directory removal (`RemoveStudyOutputDir`), fixing the bug where clear-existing targeted a non-existent legacy path and never actually deleted anything
+- The new `StudyOutputDirRemover` uses `os.RemoveAll` on `{sampleDir}/{sanitizedRunName}/{studyName}/` to recursively delete all samples, thumbnails, and extraneous files before the job runs
+
 ### B-098: Training run selector — zebra stripe dropdown options
 - Added alternating row striping to training run and study selector dropdown options using Naive UI's `renderOption` prop with `cloneVNode` (inline style required due to Teleport rendering outside scoped CSS)
 
