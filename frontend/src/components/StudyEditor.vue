@@ -10,8 +10,8 @@ import ConfirmDeleteDialog from './ConfirmDeleteDialog.vue'
 const MRU_WORKFLOW_KEY = 'checkpoint-sampler:mru-workflow-template'
 
 /**
- * localStorage key for most-recently-used VAE and text encoder per workflow template.
- * Stored as a JSON-serialised map: Record<workflowName, { vae: string | null, textEncoder: string | null }>.
+ * localStorage key for most-recently-used VAE, text encoder, and shift per workflow template.
+ * Stored as a JSON-serialised map: Record<workflowName, { vae: string | null, textEncoder: string | null, shift?: number | null }>.
  */
 const MRU_WORKFLOW_VAE_TE_KEY = 'checkpoint-sampler:mru-workflow-vae-te'
 
@@ -32,28 +32,28 @@ function saveMruWorkflow(name: string | null): void {
   } catch { /* ignore */ }
 }
 
-/** Returns the MRU VAE/text-encoder map from localStorage. */
-function getMruVaeTe(): Record<string, { vae: string | null; textEncoder: string | null }> {
+/** Returns the MRU VAE/text-encoder/shift map from localStorage. */
+function getMruVaeTe(): Record<string, { vae: string | null; textEncoder: string | null; shift?: number | null }> {
   try {
     const raw = localStorage.getItem(MRU_WORKFLOW_VAE_TE_KEY)
     if (!raw) return {}
     const parsed = JSON.parse(raw)
-    if (typeof parsed === 'object' && parsed !== null) return parsed as Record<string, { vae: string | null; textEncoder: string | null }>
+    if (typeof parsed === 'object' && parsed !== null) return parsed as Record<string, { vae: string | null; textEncoder: string | null; shift?: number | null }>
     return {}
   } catch { return {} }
 }
 
-/** Returns the MRU VAE and text encoder for a given workflow name, or null if not stored. */
-function getMruVaeTeForWorkflow(workflowName: string): { vae: string | null; textEncoder: string | null } | null {
+/** Returns the MRU VAE, text encoder, and shift for a given workflow name, or null if not stored. */
+function getMruVaeTeForWorkflow(workflowName: string): { vae: string | null; textEncoder: string | null; shift?: number | null } | null {
   const map = getMruVaeTe()
   return map[workflowName] ?? null
 }
 
-/** Saves the MRU VAE and text encoder for a given workflow name. */
-function saveMruVaeTe(workflowName: string, vae: string | null, textEncoder: string | null): void {
+/** Saves the MRU VAE, text encoder, and shift for a given workflow name. */
+function saveMruVaeTe(workflowName: string, vae: string | null, textEncoder: string | null, shift: number | null): void {
   try {
     const map = getMruVaeTe()
-    map[workflowName] = { vae, textEncoder }
+    map[workflowName] = { vae, textEncoder, shift }
     localStorage.setItem(MRU_WORKFLOW_VAE_TE_KEY, JSON.stringify(map))
   } catch { /* ignore */ }
 }
@@ -569,11 +569,14 @@ function resetForm() {
   seeds.value = [42]
   width.value = 1024
   height.value = 1024
-  // MRU: apply most-recently-used workflow template when creating a new study
-  workflowTemplate.value = getMruWorkflow()
+  // MRU: apply most-recently-used workflow template and its associated
+  // VAE, text encoder, shift, and sampler/scheduler defaults when creating a new study.
+  const mruWorkflow = getMruWorkflow()
+  workflowTemplate.value = mruWorkflow
   selectedVAE.value = null
   selectedCLIP.value = null
   shiftValue.value = null
+  applyMruForWorkflow(mruWorkflow)
 }
 
 function createNewStudy() {
@@ -626,7 +629,7 @@ async function performSave() {
     if (workflowTemplate.value) {
       saveMruWorkflow(workflowTemplate.value)
       // Save VAE and text encoder MRU for this workflow
-      saveMruVaeTe(workflowTemplate.value, selectedVAE.value, selectedCLIP.value)
+      saveMruVaeTe(workflowTemplate.value, selectedVAE.value, selectedCLIP.value, shiftValue.value)
       // Save sampler/scheduler pairs MRU for this workflow
       saveMruSamplerScheduler(workflowTemplate.value, samplerSchedulerPairs.value)
     }
@@ -709,7 +712,7 @@ async function cloneStudy() {
     if (workflowTemplate.value) {
       saveMruWorkflow(workflowTemplate.value)
       // Save VAE and text encoder MRU for this workflow
-      saveMruVaeTe(workflowTemplate.value, selectedVAE.value, selectedCLIP.value)
+      saveMruVaeTe(workflowTemplate.value, selectedVAE.value, selectedCLIP.value, shiftValue.value)
       // Save sampler/scheduler pairs MRU for this workflow
       saveMruSamplerScheduler(workflowTemplate.value, samplerSchedulerPairs.value)
     }
@@ -880,11 +883,21 @@ function triggerImport() {
  */
 function onWorkflowTemplateChange(name: string | null) {
   workflowTemplate.value = name
+  applyMruForWorkflow(name)
+}
+
+/**
+ * Applies MRU defaults (VAE, text encoder, shift, sampler/scheduler) for
+ * the given workflow name. Called both from the manual workflow select handler
+ * and from resetForm when the MRU workflow is auto-selected.
+ */
+function applyMruForWorkflow(name: string | null) {
   if (name) {
     const mru = getMruVaeTeForWorkflow(name)
     if (mru) {
       selectedVAE.value = mru.vae
       selectedCLIP.value = mru.textEncoder
+      shiftValue.value = mru.shift ?? null
     }
     // AC1/AC2: Apply sampler/scheduler MRU for this workflow template
     const samplerMru = getMruSamplerSchedulerForWorkflow(name)

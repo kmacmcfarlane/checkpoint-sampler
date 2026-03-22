@@ -467,7 +467,7 @@ stories:
   - id: B-126
     title: "Study Manager: VAE/TE not autopopulated on workflow auto-select + Shift not restored from preset"
     type: bug
-    status: todo
+    status: uat
     priority: 50
     complexity: medium
     requires: []

@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-126: Study Manager: VAE/TE not autopopulated on workflow auto-select + Shift not restored from preset
+- Extracted `applyMruForWorkflow()` so MRU defaults (VAE, text encoder, shift, sampler/scheduler) apply on both manual workflow select and auto-select via New Study
+- Extended MRU localStorage schema to include shift value alongside VAE/TE per workflow template, with backward compatibility for old entries
+
 ### B-129: drawer-auto-collapse.spec.ts column header click times out on narrow screen test
 - Replaced CSS class selector with `data-testid="xy-grid-col-header"` and added DOM-attachment assertion before clicking, fixing intermittent timeout on narrow viewport E2E tests
 

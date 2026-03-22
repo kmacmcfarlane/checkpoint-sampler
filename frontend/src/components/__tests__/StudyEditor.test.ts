@@ -3098,7 +3098,7 @@ describe('StudyEditor', () => {
       const rawMru = localStorage.getItem('checkpoint-sampler:mru-workflow-vae-te')
       expect(rawMru).not.toBeNull()
       const mru = JSON.parse(rawMru!)
-      expect(mru['flux-image.json']).toEqual({ vae: 'ae.safetensors', textEncoder: 'clip_l.safetensors' })
+      expect(mru['flux-image.json']).toEqual({ vae: 'ae.safetensors', textEncoder: 'clip_l.safetensors', shift: null })
 
       localStorage.removeItem('checkpoint-sampler:mru-workflow-vae-te')
     })
@@ -3156,6 +3156,170 @@ describe('StudyEditor', () => {
       expect(vm.selectedCLIP).toBe('t5xxl.safetensors')
 
       localStorage.removeItem('checkpoint-sampler:mru-workflow-vae-te')
+    })
+
+    // B-126 AC1: VAE and TE fields autopopulate when workflow is auto-selected (resetForm / New Study)
+    it('auto-fills VAE, TE, and sampler/scheduler from MRU when workflow is auto-selected via New Study', async () => {
+      // Pre-seed MRU workflow template and per-workflow MRU values
+      localStorage.setItem('checkpoint-sampler:mru-workflow-template', 'flux-image.json')
+      localStorage.setItem(
+        'checkpoint-sampler:mru-workflow-vae-te',
+        JSON.stringify({ 'flux-image.json': { vae: 'ae.safetensors', textEncoder: 'clip_l.safetensors', shift: 2.5 } }),
+      )
+      localStorage.setItem(
+        'checkpoint-sampler:mru-workflow-sampler-scheduler',
+        JSON.stringify({ 'flux-image.json': [{ sampler: 'euler', scheduler: 'karras' }] }),
+      )
+
+      mockListWorkflows.mockResolvedValue(sampleWorkflows)
+      const wrapper = mount(StudyEditor)
+      await flushPromises()
+
+      // Load a study so we have a non-default form state
+      const select = wrapper.findAllComponents(NSelect)[0]
+      select.vm.$emit('update:value', 'preset-1')
+      await nextTick()
+
+      // Click New Study to trigger resetForm
+      const newStudyBtn = wrapper.findAllComponents(NButton).find(
+        b => b.text().includes('New Study')
+      )
+      expect(newStudyBtn).toBeTruthy()
+      await newStudyBtn!.trigger('click')
+      await nextTick()
+
+      // Verify MRU values were applied
+      const vm = wrapper.vm as unknown as {
+        workflowTemplate: string | null
+        selectedVAE: string | null
+        selectedCLIP: string | null
+        shiftValue: number | null
+        samplerSchedulerPairs: Array<{ sampler: string; scheduler: string }>
+      }
+      expect(vm.workflowTemplate).toBe('flux-image.json')
+      expect(vm.selectedVAE).toBe('ae.safetensors')
+      expect(vm.selectedCLIP).toBe('clip_l.safetensors')
+      expect(vm.shiftValue).toBe(2.5)
+      expect(vm.samplerSchedulerPairs).toEqual([{ sampler: 'euler', scheduler: 'karras' }])
+    })
+
+    // B-126 AC2: Shift value is persisted to and restored from MRU localStorage
+    it('persists shift to MRU and restores it when user selects a workflow', async () => {
+      // Pre-seed MRU with shift for 'auraflow-image.json'
+      localStorage.setItem(
+        'checkpoint-sampler:mru-workflow-vae-te',
+        JSON.stringify({ 'auraflow-image.json': { vae: 'aura-vae.safetensors', textEncoder: 't5xxl.safetensors', shift: 3.0 } }),
+      )
+
+      mockListWorkflows.mockResolvedValue(sampleWorkflows)
+      const wrapper = mount(StudyEditor)
+      await flushPromises()
+
+      // Simulate user selecting workflow via NSelect update:value event
+      wrapper.find('[data-testid="study-workflow-template-select"]').findComponent(NSelect).vm.$emit('update:value', 'auraflow-image.json')
+      await nextTick()
+
+      const vm = wrapper.vm as unknown as { shiftValue: number | null; selectedVAE: string | null; selectedCLIP: string | null }
+      expect(vm.shiftValue).toBe(3.0)
+      expect(vm.selectedVAE).toBe('aura-vae.safetensors')
+      expect(vm.selectedCLIP).toBe('t5xxl.safetensors')
+    })
+
+    // B-126 AC2: Shift value in MRU is saved alongside VAE/TE on study save
+    it('saves shift to MRU per workflow when saving a study', async () => {
+      const createdStudy: Study = {
+        id: 'mru-shift-study',
+        name: 'Shift MRU Study',
+        prompt_prefix: '',
+        prompts: [{ name: 'test', text: 'a test prompt' }],
+        negative_prompt: '',
+        steps: [30],
+        cfgs: [7.0],
+        sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'simple' }],
+        seeds: [42],
+        width: 1024,
+        height: 1024,
+        workflow_template: 'auraflow-image.json',
+        vae: 'ae.safetensors',
+        text_encoder: 'clip_l.safetensors',
+        shift: 4.5,
+        images_per_checkpoint: 1,
+        created_at: '2025-01-01T00:00:00Z',
+        updated_at: '2025-01-01T00:00:00Z',
+      }
+      mockCreateStudy.mockResolvedValue(createdStudy)
+      mockListWorkflows.mockResolvedValue(sampleWorkflows)
+
+      localStorage.removeItem('checkpoint-sampler:mru-workflow-vae-te')
+
+      const wrapper = mount(StudyEditor)
+      await flushPromises()
+
+      // Set form fields directly via vm to meet canSave requirements
+      const vm = wrapper.vm as unknown as {
+        workflowTemplate: string | null
+        selectedVAE: string | null
+        selectedCLIP: string | null
+        shiftValue: number | null
+        samplerSchedulerPairs: Array<{ sampler: string; scheduler: string }>
+        prompts: Array<{ name: string; text: string }>
+      }
+
+      // Simulate user selecting workflow (which sets workflowTemplate via handler)
+      wrapper.find('[data-testid="study-workflow-template-select"]').findComponent(NSelect).vm.$emit('update:value', 'auraflow-image.json')
+      await nextTick()
+
+      // Set VAE and CLIP
+      wrapper.find('[data-testid="study-vae-select"]').findComponent(NSelect).vm.$emit('update:value', 'ae.safetensors')
+      wrapper.find('[data-testid="study-clip-select"]').findComponent(NSelect).vm.$emit('update:value', 'clip_l.safetensors')
+      await nextTick()
+
+      // Set shift and required fields
+      vm.shiftValue = 4.5
+      vm.samplerSchedulerPairs = [{ sampler: 'euler', scheduler: 'simple' }]
+      vm.prompts = [{ name: 'test', text: 'a test prompt' }]
+
+      const nameInput = asVue(wrapper.findComponent('[data-testid="study-name-input"]'))
+      nameInput.vm.$emit('update:value', 'Shift MRU Study')
+      await nextTick()
+
+      // Save
+      const saveButton = wrapper.findAllComponents(NButton).find(b => b.text().includes('Save Study'))!
+      await saveButton.trigger('click')
+      await flushPromises()
+
+      // Verify MRU includes shift
+      const rawMru = localStorage.getItem('checkpoint-sampler:mru-workflow-vae-te')
+      expect(rawMru).not.toBeNull()
+      const mru = JSON.parse(rawMru!)
+      expect(mru['auraflow-image.json']).toEqual({
+        vae: 'ae.safetensors',
+        textEncoder: 'clip_l.safetensors',
+        shift: 4.5,
+      })
+    })
+
+    // B-126: Backward compat — MRU entries without shift field still work
+    it('handles MRU entries without shift field gracefully (backward compatibility)', async () => {
+      // Pre-seed MRU without shift (old format)
+      localStorage.setItem(
+        'checkpoint-sampler:mru-workflow-vae-te',
+        JSON.stringify({ 'flux-image.json': { vae: 'ae.safetensors', textEncoder: 'clip_l.safetensors' } }),
+      )
+
+      mockListWorkflows.mockResolvedValue(sampleWorkflows)
+      const wrapper = mount(StudyEditor)
+      await flushPromises()
+
+      // Simulate user selecting workflow
+      wrapper.find('[data-testid="study-workflow-template-select"]').findComponent(NSelect).vm.$emit('update:value', 'flux-image.json')
+      await nextTick()
+
+      const vm = wrapper.vm as unknown as { shiftValue: number | null; selectedVAE: string | null; selectedCLIP: string | null }
+      expect(vm.selectedVAE).toBe('ae.safetensors')
+      expect(vm.selectedCLIP).toBe('clip_l.safetensors')
+      // Shift should be null when not present in MRU (backward compat)
+      expect(vm.shiftValue).toBeNull()
     })
   })
 
