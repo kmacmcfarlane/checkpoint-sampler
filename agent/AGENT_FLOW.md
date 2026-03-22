@@ -732,32 +732,34 @@ If the `send_discord_notification` MCP tool is available, use it to notify the u
 
 Every message MUST start with the project name in brackets: `[project-name]`. The project name comes from the `project` field in backlog.yaml.
 
-Example: `[checkpoint-sampler] S-028: todo → in_progress. Starting XY grid corner-based cell resizing.`
+Example: `🚀 [checkpoint-sampler] S-028: todo → in_progress. Starting XY grid corner-based cell resizing.`
 
 ### 9.2 Status transition notifications
 
 Send a notification on every story status change:
 
-- **todo → in_progress**: `[project] <id>: todo → in_progress. Starting: <title>.`
-- **in_progress → review**: `[project] <id>: in_progress → review. Implementation complete: <brief summary of what changed>.`
-- **in_progress → blocked**: `[project] <id>: in_progress → blocked. <blocked_reason>.`
-- **review → testing**: `[project] <id>: review → testing. Code review approved.`
-- **review → in_progress**: `[project] <id>: review → in_progress. Changes requested: <1-2 sentence summary of feedback>.`
-- **testing → uat**: `[project] <id>: testing → uat. QA approved. <title> merged to main, awaiting user acceptance.`
-- **testing → in_progress**: `[project] <id>: testing → in_progress. QA found issues: <1-2 sentence summary of feedback>.`
-- **uat_feedback → in_progress**: `[project] <id>: uat_feedback → in_progress. UAT feedback received: <1-2 sentence summary of review_feedback>.`
+- **todo → in_progress**: `🚀 [project] <id>: todo → in_progress. Starting: <title>.`
+- **in_progress → review**: `📤 [project] <id>: in_progress → review. Implementation complete: <brief summary of what changed>.`
+- **in_progress → blocked**: `🚧 [project] <id>: in_progress → blocked. <blocked_reason>.`
+- **review → testing**: `✅ [project] <id>: review → testing. Code review approved.`
+- **review → in_progress**: `🔄 [project] <id>: review → in_progress. Changes requested: <1-2 sentence summary of feedback>.`
+- **testing → uat**: `🎉 [project] <id>: testing → uat. QA approved. <title> merged to main, awaiting user acceptance.`
+- **testing → in_progress**: `🔄 [project] <id>: testing → in_progress. QA found issues: <1-2 sentence summary of feedback>.`
+- **uat_feedback → in_progress**: `🔄 [project] <id>: uat_feedback → in_progress. UAT feedback received: <1-2 sentence summary of review_feedback>.`
 
 When a story is returned to `in_progress` (from review or testing), always include a concise summary of the feedback so the user understands what went wrong without needing to check the repo.
 
-- **QA sweep findings**: `[project] QA sweep: filed <N> new ticket(s): <B-NNN> (<title> — <1-2 sentence description>), <B-NNN> (<title> — <1-2 sentence description>). See backlog.yaml.`
+- **QA sweep findings**: `🐛 [project] QA sweep: filed <N> new ticket(s): <B-NNN> (<title> — <1-2 sentence description>), <B-NNN> (<title> — <1-2 sentence description>). See backlog.yaml.`
   - Sent only when the QA sweep produced new bug tickets (not for improvement ideas alone).
   - Sent immediately after the story status notification.
+- **New ideas filed**: `💡 [project] New ideas from <agent-name>: <title> — <brief description>, <title> — <brief description>.`
+  - Sent when process improvements or QA sweep ideas are added to agent/ideas/.
 
 ### 9.3 Other notifications
 
-- **Input needed**: Before displaying a claude permission request. `[project] Input needed — waiting for approval.`
-- **Story merged down**: If running in non-interactive mode, when committing and merging. `[project] <id>: Committed and merged to main.`
-- **Cycle ending with no work**: When no eligible stories remain. `[project] No eligible stories — backlog is empty or fully blocked.`
+- **Input needed**: Before displaying a claude permission request. `🔔 [project] Input needed — waiting for approval.`
+- **Story merged down**: If running in non-interactive mode, when committing and merging. `📦 [project] <id>: Committed and merged to main.`
+- **Cycle ending with no work**: When no eligible stories remain. `💤 [project] No eligible stories — backlog is empty or fully blocked.`
 
 ### 9.4 Rules
 

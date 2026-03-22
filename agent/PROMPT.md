@@ -26,7 +26,7 @@ This returns the selected story with a `queue` field. Dispatch based on the queu
 - `uat_feedback` → set in_progress, create new branch from main, invoke fullstack-developer subagent (review_feedback is already set)
 - `todo` → set status to in_progress, invoke fullstack-developer subagent
 
-Exit code 2 means no eligible work — touch `.ralph/stop` and exit.
+Exit code 2 means no eligible work — send discord notification (`💤 [project] No eligible stories — backlog is empty or fully blocked.`), touch `.ralph/stop` and exit.
 
 ### Worktree-based parallel execution
 
@@ -209,6 +209,8 @@ After each subagent completes, update backlog via `backlog.py`:
 
 Note: Agents never set `status: done`. The user manually moves stories from `uat` to `done` after acceptance.
 
+**Discord notifications (MANDATORY):** After every status change above, send a discord notification via `mcp__discord__send_discord_notification` using the message format and emojis defined in AGENT_FLOW.md section 9.2. Also send notifications when: no eligible work remains (section 9.3), and after committing/merging to main (section 9.3). Notifications are best-effort — if the tool fails, continue normally.
+
 ### Processing QA sweep findings
 
 After handling the QA story verdict (approved or rejected), check the QA verdict for a "Runtime Error Sweep" section:
@@ -216,9 +218,9 @@ After handling the QA story verdict (approved or rejected), check the QA verdict
 1. If sweep result is `FINDINGS`:
    - For each "New bug ticket": get next ID via `backlog.py next-id B`, then pipe the ticket YAML to `backlog.py add` (see AGENT_FLOW.md section 4.4.1 for the template).
    - For each "Improvement idea": route to the appropriate file under `/agent/ideas/` (see "Processing process improvement ideas" below for routing rules). Include `* status: needs_approval`, `* priority: <value>` (using the priority suggested by QA), and `* source: qa`, then send a discord notification:
-     `[project] New ideas from qa-expert sweep: <title> — <brief description>, <title> — <brief description>.`
+     `💡 [project] New ideas from qa-expert sweep: <title> — <brief description>, <title> — <brief description>.`
    - If any bug tickets were filed, send a discord notification:
-     `[project] QA sweep: filed N new ticket(s): B-NNN (title — brief description), ... See backlog.yaml.`
+     `🐛 [project] QA sweep: filed N new ticket(s): B-NNN (title — brief description), ... See backlog.yaml.`
 2. If sweep result is `CLEAN` or absent: no action needed.
 3. Include new backlog.yaml entries and agent/ideas/ updates in the story's commit.
 
@@ -234,7 +236,7 @@ After every subagent completes (fullstack-developer, qa-expert), check its respo
    - Testing infrastructure → `agent/ideas/testing.md`
    Format: `### <title>\n* status: needs_approval\n* priority: <value>\n* source: <developer|reviewer|qa|orchestrator>\n<description>`. Use the priority suggested by the subagent. The source maps from the subagent name: fullstack-developer → `developer`, code-reviewer → `reviewer`, qa-expert → `qa`.
 2. **MUST send a discord notification** summarizing ALL new ideas added to agent/ideas/:
-   `[project] New ideas from <agent-name>: <title> — <brief description>, <title> — <brief description>.`
+   `💡 [project] New ideas from <agent-name>: <title> — <brief description>, <title> — <brief description>.`
 3. Skip any category marked "None".
 
 Every addition to agent/ideas/ (whether from process improvements, QA sweep findings, or any other source) MUST trigger a Discord notification so the user is aware of new suggestions.
@@ -258,7 +260,7 @@ Note: `uat` → `done` is a user action. Agents never set `status: done`.
 
 ## Stop conditions
 
-- After a story reaches `uat` and is committed/merged to main, exit immediately. Do NOT call `next-work` again — each iteration handles exactly one story. Ralph will start a fresh iteration for the next story.
+- After a story reaches `uat` and is committed/merged to main, send discord notification (`📦 [project] <id>: Committed and merged to main.`) and exit immediately. Do NOT call `next-work` again — each iteration handles exactly one story. Ralph will start a fresh iteration for the next story.
 - If no eligible stories remain across any queue, make no changes, touch the stop file and exit. Note: `uat` stories are not eligible work — they are waiting for user acceptance. Only `uat_feedback` stories (with feedback in `review_feedback`) are eligible.
 - If blocked, record via `backlog.py set <id> status blocked` + `echo "<reason>" | backlog.py set-text <id> blocked_reason` and exit.
 
