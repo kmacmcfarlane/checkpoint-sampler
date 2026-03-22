@@ -4,6 +4,7 @@ import {
   selectTrainingRun,
   selectNaiveOptionByLabel,
   closeDrawer,
+  dismissOverlays,
   openFiltersDrawer,
   closeFiltersDrawer,
 } from './helpers'
@@ -26,7 +27,9 @@ import {
 
 /**
  * Selects the training run, assigns checkpoint to X and prompt_name to Slider,
- * then closes the sidebar drawer.
+ * then closes the sidebar drawer and waits for its mask overlay to fully disappear.
+ * The dismissOverlays call prevents the sidebar NDrawer mask from blocking
+ * subsequent header button clicks under parallel shard CPU contention.
  */
 async function setupWithSlider(page: Page): Promise<void> {
   await page.goto('/')
@@ -35,11 +38,14 @@ async function setupWithSlider(page: Page): Promise<void> {
   await selectNaiveOptionByLabel(page, 'Mode for checkpoint', 'X Axis')
   await selectNaiveOptionByLabel(page, 'Mode for prompt_name', 'Slider')
   await closeDrawer(page)
+  await dismissOverlays(page)
 }
 
 /**
  * Selects the training run, assigns checkpoint to X and prompt_name to Y,
- * then closes the sidebar drawer. This puts both dimensions in 'multi' filter mode.
+ * then closes the sidebar drawer and waits for its mask overlay to fully disappear.
+ * The dismissOverlays call prevents the sidebar NDrawer mask from blocking
+ * subsequent header button clicks under parallel shard CPU contention.
  */
 async function setupWithAxes(page: Page): Promise<void> {
   await page.goto('/')
@@ -48,6 +54,7 @@ async function setupWithAxes(page: Page): Promise<void> {
   await selectNaiveOptionByLabel(page, 'Mode for checkpoint', 'X Axis')
   await selectNaiveOptionByLabel(page, 'Mode for prompt_name', 'Y Axis')
   await closeDrawer(page)
+  await dismissOverlays(page)
 }
 
 test.describe('S-082: filters slideout and layout relocation', () => {
@@ -62,6 +69,10 @@ test.describe('S-082: filters slideout and layout relocation', () => {
     await selectTrainingRun(page, 'my-model')
     await expect(page.getByText('Dimensions')).toBeVisible()
     await closeDrawer(page)
+    // Wait for the sidebar NDrawer mask to fully disappear before asserting header button
+    // visibility — under parallel shard CPU contention the mask animation can outlast the
+    // fixed 300ms delay in closeDrawer, causing the mask to block pointer-event checks.
+    await dismissOverlays(page)
 
     const filtersButton = page.locator('[data-testid="filters-button"]')
     await expect(filtersButton).toBeVisible()
@@ -78,8 +89,10 @@ test.describe('S-082: filters slideout and layout relocation', () => {
     // The drawer should contain dimension filter entries -- filters are always expanded
     // (no per-dimension toggle button). Checkpoint is assigned to X axis (multi mode),
     // so its checkboxes should be visible.
-    const checkpointFilter = page.locator('[aria-label="Toggle checkpoint 1000"]')
-    await expect(checkpointFilter.first()).toBeVisible()
+    // Scoped to filters-drawer-content to avoid any ambiguous page-wide matches and
+    // ensure we are asserting on the checkbox inside the open filters drawer.
+    const checkpointFilter = page.locator('[data-testid="filters-drawer-content"] [aria-label="Toggle checkpoint 1000"]')
+    await expect(checkpointFilter).toBeVisible()
   })
 
   test('AC1: filters in drawer are always expanded (no toggle buttons)', async ({ page }) => {
@@ -159,8 +172,9 @@ test.describe('S-082: filters slideout and layout relocation', () => {
 
     // Open filters drawer and deselect one value
     await openFiltersDrawer(page)
-    const checkbox = page.locator('[aria-label="Toggle checkpoint 1000"]')
-    await checkbox.first().click()
+    // Scoped to filters-drawer-content for selector stability
+    const checkbox = page.locator('[data-testid="filters-drawer-content"] [aria-label="Toggle checkpoint 1000"]')
+    await checkbox.click()
 
     // Grid should update to show only 1 column
     await expect(colHeaders).toHaveCount(1)

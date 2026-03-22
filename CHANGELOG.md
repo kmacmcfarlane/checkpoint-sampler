@@ -5,6 +5,11 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-128: filters-slideout-layout.spec.ts flaky — checkpoint filter and zoom control intermittently not visible
+- Added `dismissOverlays` calls in `setupWithAxes`, `setupWithSlider`, and inline test bodies after `closeDrawer` to wait for the sidebar NDrawer mask animation to fully complete before clicking header buttons — under parallel shard CPU contention the 0.2s CSS leave transition could outlast the fixed 300ms delay in `closeDrawer`
+- Updated `openFiltersDrawer` helper to call `dismissOverlays` before clicking the filters button for the same reason
+- Scoped the `[aria-label="Toggle checkpoint 1000"]` selector to `[data-testid="filters-drawer-content"]` in all usages to eliminate ambiguous page-wide matching
+
 ### B-130: Manage Studies dialog does not close after saving
 - Fixed race condition where the study editor dialog close was delayed by the async `fetchStudies()` call, causing E2E test flakiness under parallel-shard load
 

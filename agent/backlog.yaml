@@ -503,7 +503,7 @@ stories:
   - id: B-128
     title: "filters-slideout-layout.spec.ts flaky — checkpoint filter and zoom control intermittently not visible"
     type: bug
-    status: todo
+    status: uat
     priority: 55
     complexity: low
     requires: []

@@ -498,8 +498,15 @@ export async function selectNaiveOptionByLabel(page: Page, selectAriaLabel: stri
  * Opens the right-side Filters drawer by clicking the "Filters" button in the header.
  * The button is only visible after a training run is selected and scanned.
  * Filters inside the drawer are always expanded (no individual toggle needed).
+ *
+ * Calls dismissOverlays before clicking to ensure the sidebar NDrawer mask has fully
+ * disappeared. Under parallel shard CPU contention, the sidebar mask leave-animation
+ * (0.2s CSS transition) can outlast the fixed 300ms delay in closeDrawer, making the
+ * mask an actionability blocker for the filters button click (B-128).
  */
 export async function openFiltersDrawer(page: Page): Promise<void> {
+  // Dismiss any lingering sidebar mask before clicking a header button
+  await dismissOverlays(page)
   const filtersButton = page.locator('[data-testid="filters-button"]')
   await expect(filtersButton).toBeVisible()
   await filtersButton.click()
