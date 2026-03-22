@@ -2552,8 +2552,10 @@ describe('StudyEditor', () => {
       expect(mockUpdateStudy).toHaveBeenCalled()
     })
 
-    it('forks study when "Create New Study" is clicked in immutability dialog', async () => {
+    // AC: FE: 'Clone' creates a copy of the study with user-editable name
+    it('clones study when "Clone" is clicked in immutability dialog', async () => {
       mockStudyHasSamples.mockResolvedValue({ has_samples: true })
+      mockGetAffectedRuns.mockResolvedValue([])
       const forkedStudy: Study = {
         ...studies[0],
         id: 'forked-1',
@@ -2578,16 +2580,15 @@ describe('StudyEditor', () => {
       await saveButton.trigger('click')
       await flushPromises()
 
-      // Click the fork button
-      const forkButton = wrapper.find('[data-testid="immutability-fork-button"]')
-      if (forkButton.exists()) {
-        await forkButton.trigger('click')
+      // Click the clone button
+      const cloneButton = wrapper.find('[data-testid="immutability-clone-button"]')
+      if (cloneButton.exists()) {
+        await cloneButton.trigger('click')
       } else {
-        // Find by button text if data-testid not found via DOM (NModal teleport)
         const allButtons = wrapper.findAllComponents(NButton)
-        const fork = allButtons.find(b => b.text().includes('Create New Study'))
-        expect(fork).toBeTruthy()
-        await fork!.trigger('click')
+        const clone = allButtons.find(b => b.text().includes('Clone'))
+        expect(clone).toBeTruthy()
+        await clone!.trigger('click')
       }
       await flushPromises()
 
@@ -2600,8 +2601,9 @@ describe('StudyEditor', () => {
       expect(mockUpdateStudy).not.toHaveBeenCalled()
     })
 
-    it('fork suffix does not contain disallowed characters', async () => {
+    it('clone suffix does not contain disallowed characters', async () => {
       mockStudyHasSamples.mockResolvedValue({ has_samples: true })
+      mockGetAffectedRuns.mockResolvedValue([])
       const forkedStudy: Study = {
         ...studies[0],
         id: 'forked-1',
@@ -2614,7 +2616,7 @@ describe('StudyEditor', () => {
       })
       await flushPromises()
 
-      // Select an existing study to trigger the fork flow
+      // Select an existing study to trigger the clone flow
       const select = wrapper.findAllComponents(NSelect)[0]
       select.vm.$emit('update:value', 'preset-1')
       await nextTick()
@@ -2626,35 +2628,40 @@ describe('StudyEditor', () => {
       await saveButton.trigger('click')
       await flushPromises()
 
-      // Click the fork button to trigger a fork
-      const forkButton = wrapper.find('[data-testid="immutability-fork-button"]')
-      if (forkButton.exists()) {
-        await forkButton.trigger('click')
+      // Click the clone button
+      const cloneButton = wrapper.find('[data-testid="immutability-clone-button"]')
+      if (cloneButton.exists()) {
+        await cloneButton.trigger('click')
       } else {
         const allButtons = wrapper.findAllComponents(NButton)
-        const fork = allButtons.find(b => b.text().includes('Create New Study'))
-        expect(fork).toBeTruthy()
-        await fork!.trigger('click')
+        const clone = allButtons.find(b => b.text().includes('Clone'))
+        expect(clone).toBeTruthy()
+        await clone!.trigger('click')
       }
       await flushPromises()
 
-      // Verify forkStudy was called (meaning the forked name passed validation)
+      // Verify forkStudy was called (meaning the cloned name passed validation)
       expect(mockForkStudy).toHaveBeenCalled()
       const calledName: string = mockForkStudy.mock.calls[0][0].name as string
-      // The forked name must not contain any disallowed characters
+      // The cloned name must not contain any disallowed characters
       const disallowedChars = `()/\\:*?<>|"`
       for (const ch of disallowedChars) {
         expect(calledName).not.toContain(ch)
       }
     })
 
-    it('updates study in-place when "Re-generate Samples" is clicked', async () => {
+    // AC: FE: 'Regenerate Existing' updates study in-place and emits study-regenerate
+    it('updates study in-place when "Regenerate Existing" is clicked', async () => {
       mockStudyHasSamples.mockResolvedValue({ has_samples: true })
       const updatedStudy: Study = {
         ...studies[0],
         updated_at: '2025-01-03T00:00:00Z',
       }
       mockUpdateStudy.mockResolvedValue(updatedStudy)
+      const affectedRuns = [
+        { training_run_name: 'run-a', checkpoints_with_samples: 3, total_checkpoints: 5 },
+      ]
+      mockGetAffectedRuns.mockResolvedValue(affectedRuns)
 
       const wrapper = mount(StudyEditor, {
         global: { stubs: { Teleport: true } },
@@ -2679,7 +2686,7 @@ describe('StudyEditor', () => {
         await regenButton.trigger('click')
       } else {
         const allButtons = wrapper.findAllComponents(NButton)
-        const regen = allButtons.find(b => b.text().includes('Re-generate'))
+        const regen = allButtons.find(b => b.text().includes('Regenerate Existing'))
         expect(regen).toBeTruthy()
         await regen!.trigger('click')
       }
@@ -2687,109 +2694,7 @@ describe('StudyEditor', () => {
 
       expect(mockUpdateStudy).toHaveBeenCalled()
       expect(mockForkStudy).not.toHaveBeenCalled()
-    })
-
-    // B-115: Re-generate shows confirmation dialog listing affected runs
-    it('shows regenerate confirmation dialog with affected runs after in-place update', async () => {
-      mockStudyHasSamples.mockResolvedValue({ has_samples: true })
-      const updatedStudy: Study = {
-        ...studies[0],
-        updated_at: '2025-01-03T00:00:00Z',
-      }
-      mockUpdateStudy.mockResolvedValue(updatedStudy)
-      mockGetAffectedRuns.mockResolvedValue([
-        { training_run_name: 'run-a', checkpoints_with_samples: 3, total_checkpoints: 5 },
-        { training_run_name: 'run-b', checkpoints_with_samples: 2, total_checkpoints: 2 },
-      ])
-
-      const wrapper = mount(StudyEditor, {
-        global: { stubs: { Teleport: true } },
-      })
-      await flushPromises()
-
-      // Select an existing study
-      const select = wrapper.findAllComponents(NSelect)[0]
-      select.vm.$emit('update:value', 'preset-1')
-      await nextTick()
-
-      // Click Update to trigger immutability check
-      const saveButton = wrapper
-        .findAllComponents(NButton)
-        .find((b) => b.text().includes('Update Study'))!
-      await saveButton.trigger('click')
-      await flushPromises()
-
-      // Click the regen button in immutability dialog
-      const regenButton = wrapper.find('[data-testid="immutability-regen-button"]')
-      if (regenButton.exists()) {
-        await regenButton.trigger('click')
-      } else {
-        const allButtons = wrapper.findAllComponents(NButton)
-        const regen = allButtons.find(b => b.text().includes('Re-generate'))
-        expect(regen).toBeTruthy()
-        await regen!.trigger('click')
-      }
-      await flushPromises()
-
-      // AC (B-115): Study is saved first
-      expect(mockUpdateStudy).toHaveBeenCalled()
-      // AC (B-115): Affected runs are fetched
-      expect(mockGetAffectedRuns).toHaveBeenCalledWith('preset-1')
-      // AC (B-115): study-regenerate NOT yet emitted (dialog shown, waiting for user)
-      expect(wrapper.emitted('study-regenerate')).toBeUndefined()
-    })
-
-    // B-115: "Yes, regenerate" emits study-regenerate with affected runs
-    it('emits study-regenerate with affected runs when user confirms regeneration', async () => {
-      mockStudyHasSamples.mockResolvedValue({ has_samples: true })
-      const updatedStudy: Study = {
-        ...studies[0],
-        updated_at: '2025-01-03T00:00:00Z',
-      }
-      mockUpdateStudy.mockResolvedValue(updatedStudy)
-      const affectedRuns = [
-        { training_run_name: 'run-a', checkpoints_with_samples: 3, total_checkpoints: 5 },
-      ]
-      mockGetAffectedRuns.mockResolvedValue(affectedRuns)
-
-      const wrapper = mount(StudyEditor, {
-        global: { stubs: { Teleport: true } },
-      })
-      await flushPromises()
-
-      const select = wrapper.findAllComponents(NSelect)[0]
-      select.vm.$emit('update:value', 'preset-1')
-      await nextTick()
-
-      const saveButton = wrapper
-        .findAllComponents(NButton)
-        .find((b) => b.text().includes('Update Study'))!
-      await saveButton.trigger('click')
-      await flushPromises()
-
-      // Click regen in immutability dialog
-      const regenButton = wrapper.find('[data-testid="immutability-regen-button"]')
-      if (regenButton.exists()) {
-        await regenButton.trigger('click')
-      } else {
-        const allButtons = wrapper.findAllComponents(NButton)
-        const regen = allButtons.find(b => b.text().includes('Re-generate'))
-        await regen!.trigger('click')
-      }
-      await flushPromises()
-
-      // Click "Yes, regenerate" in the regenerate confirmation dialog
-      const confirmBtn = wrapper.find('[data-testid="regen-affected-confirm-button"]')
-      if (confirmBtn.exists()) {
-        await confirmBtn.trigger('click')
-      } else {
-        const allButtons = wrapper.findAllComponents(NButton)
-        const confirm = allButtons.find(b => b.text().includes('Yes, regenerate'))
-        expect(confirm).toBeTruthy()
-        await confirm!.trigger('click')
-      }
-      await flushPromises()
-
+      // AC: FE: 'Yes, regenerate' queues jobs with clear-existing job param for affected samplesets
       const emitted = wrapper.emitted('study-regenerate')
       expect(emitted).toBeTruthy()
       expect(emitted!.length).toBe(1)
@@ -2797,69 +2702,9 @@ describe('StudyEditor', () => {
       expect(emitted![0][1]).toEqual(affectedRuns)
     })
 
-    // B-115: "No" updates the study without regenerating
-    it('does not emit study-regenerate when user declines regeneration', async () => {
+    // AC: FE: Dialog lists affected samplesets across checkpoints
+    it('displays affected run details in the immutability dialog', async () => {
       mockStudyHasSamples.mockResolvedValue({ has_samples: true })
-      const updatedStudy: Study = {
-        ...studies[0],
-        updated_at: '2025-01-03T00:00:00Z',
-      }
-      mockUpdateStudy.mockResolvedValue(updatedStudy)
-      mockGetAffectedRuns.mockResolvedValue([
-        { training_run_name: 'run-a', checkpoints_with_samples: 3, total_checkpoints: 5 },
-      ])
-
-      const wrapper = mount(StudyEditor, {
-        global: { stubs: { Teleport: true } },
-      })
-      await flushPromises()
-
-      const select = wrapper.findAllComponents(NSelect)[0]
-      select.vm.$emit('update:value', 'preset-1')
-      await nextTick()
-
-      const saveButton = wrapper
-        .findAllComponents(NButton)
-        .find((b) => b.text().includes('Update Study'))!
-      await saveButton.trigger('click')
-      await flushPromises()
-
-      // Click regen in immutability dialog
-      const regenButton = wrapper.find('[data-testid="immutability-regen-button"]')
-      if (regenButton.exists()) {
-        await regenButton.trigger('click')
-      } else {
-        const allButtons = wrapper.findAllComponents(NButton)
-        const regen = allButtons.find(b => b.text().includes('Re-generate'))
-        await regen!.trigger('click')
-      }
-      await flushPromises()
-
-      // Click "No" in the regenerate confirmation dialog
-      const declineBtn = wrapper.find('[data-testid="regen-affected-decline-button"]')
-      if (declineBtn.exists()) {
-        await declineBtn.trigger('click')
-      } else {
-        const allButtons = wrapper.findAllComponents(NButton)
-        const decline = allButtons.find(b => b.text() === 'No')
-        expect(decline).toBeTruthy()
-        await decline!.trigger('click')
-      }
-      await flushPromises()
-
-      // Study was saved (update called) but regeneration was NOT triggered
-      expect(mockUpdateStudy).toHaveBeenCalled()
-      expect(wrapper.emitted('study-regenerate')).toBeUndefined()
-    })
-
-    // B-115: Dialog lists affected samplesets across checkpoints
-    it('displays affected run details in the regenerate confirmation dialog', async () => {
-      mockStudyHasSamples.mockResolvedValue({ has_samples: true })
-      const updatedStudy: Study = {
-        ...studies[0],
-        updated_at: '2025-01-03T00:00:00Z',
-      }
-      mockUpdateStudy.mockResolvedValue(updatedStudy)
       mockGetAffectedRuns.mockResolvedValue([
         { training_run_name: 'my-model', checkpoints_with_samples: 3, total_checkpoints: 5 },
         { training_run_name: 'other-model', checkpoints_with_samples: 1, total_checkpoints: 3 },
@@ -2880,20 +2725,8 @@ describe('StudyEditor', () => {
       await saveButton.trigger('click')
       await flushPromises()
 
-      // Click regen in immutability dialog
-      const regenButton = wrapper.find('[data-testid="immutability-regen-button"]')
-      if (regenButton.exists()) {
-        await regenButton.trigger('click')
-      } else {
-        const allButtons = wrapper.findAllComponents(NButton)
-        const regen = allButtons.find(b => b.text().includes('Re-generate'))
-        await regen!.trigger('click')
-      }
-      await flushPromises()
-
       // Check dialog content lists both affected runs
-      const items = wrapper.findAll('[data-testid="regen-affected-item"]')
-      // Items may be in dialog or via Teleport stub
+      const items = wrapper.findAll('[data-testid="immutability-affected-item"]')
       if (items.length > 0) {
         expect(items.length).toBe(2)
         expect(items[0].text()).toContain('my-model')
@@ -2903,9 +2736,58 @@ describe('StudyEditor', () => {
       }
     })
 
+    // AC: FE: 'Ignore' updates the study without regenerating or clearing samples
+    it('updates study without regenerating when "Ignore" is clicked', async () => {
+      mockStudyHasSamples.mockResolvedValue({ has_samples: true })
+      const updatedStudy: Study = {
+        ...studies[0],
+        updated_at: '2025-01-03T00:00:00Z',
+      }
+      mockUpdateStudy.mockResolvedValue(updatedStudy)
+      mockGetAffectedRuns.mockResolvedValue([
+        { training_run_name: 'run-a', checkpoints_with_samples: 3, total_checkpoints: 5 },
+      ])
+
+      const wrapper = mount(StudyEditor, {
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const select = wrapper.findAllComponents(NSelect)[0]
+      select.vm.$emit('update:value', 'preset-1')
+      await nextTick()
+
+      const saveButton = wrapper
+        .findAllComponents(NButton)
+        .find((b) => b.text().includes('Update Study'))!
+      await saveButton.trigger('click')
+      await flushPromises()
+
+      // Click "Ignore" in the immutability dialog
+      const ignoreButton = wrapper.find('[data-testid="immutability-ignore-button"]')
+      if (ignoreButton.exists()) {
+        await ignoreButton.trigger('click')
+      } else {
+        const allButtons = wrapper.findAllComponents(NButton)
+        const ignore = allButtons.find(b => b.text() === 'Ignore')
+        expect(ignore).toBeTruthy()
+        await ignore!.trigger('click')
+      }
+      await flushPromises()
+
+      // Study was saved (update called) but regeneration was NOT triggered
+      expect(mockUpdateStudy).toHaveBeenCalled()
+      expect(wrapper.emitted('study-regenerate')).toBeUndefined()
+      // study-saved event IS emitted
+      expect(wrapper.emitted('study-saved')).toBeTruthy()
+    })
+
     // B-115: study-regenerate NOT emitted when save fails
     it('does not emit study-regenerate when the save fails', async () => {
       mockStudyHasSamples.mockResolvedValue({ has_samples: true })
+      mockGetAffectedRuns.mockResolvedValue([
+        { training_run_name: 'run-a', checkpoints_with_samples: 3, total_checkpoints: 5 },
+      ])
       mockUpdateStudy.mockRejectedValue({ message: 'Save failed' })
 
       const wrapper = mount(StudyEditor, {
@@ -2931,7 +2813,7 @@ describe('StudyEditor', () => {
         await regenButton.trigger('click')
       } else {
         const allButtons = wrapper.findAllComponents(NButton)
-        const regen = allButtons.find(b => b.text().includes('Re-generate'))
+        const regen = allButtons.find(b => b.text().includes('Regenerate Existing'))
         expect(regen).toBeTruthy()
         await regen!.trigger('click')
       }
@@ -2939,8 +2821,6 @@ describe('StudyEditor', () => {
 
       // study-regenerate should NOT be emitted when save failed
       expect(wrapper.emitted('study-regenerate')).toBeUndefined()
-      // getAffectedRuns should not be called when save failed
-      expect(mockGetAffectedRuns).not.toHaveBeenCalled()
     })
   })
 
@@ -3424,7 +3304,7 @@ describe('StudyEditor', () => {
     })
 
     // AC1: MRU is also saved when forking a study
-    it('saves sampler/scheduler pairs MRU per workflow when forking a study', async () => {
+    it('saves sampler/scheduler pairs MRU per workflow when cloning a study', async () => {
       const forkedStudy: Study = {
         id: 'forked-study',
         name: 'Test Preset A - copy',
@@ -3446,6 +3326,7 @@ describe('StudyEditor', () => {
       }
       mockForkStudy.mockResolvedValue(forkedStudy)
       mockStudyHasSamples.mockResolvedValue({ has_samples: true })
+      mockGetAffectedRuns.mockResolvedValue([])
 
       const wrapper = mount(StudyEditor, {
         global: { stubs: { Teleport: true } },
@@ -3462,15 +3343,15 @@ describe('StudyEditor', () => {
       await saveButton.trigger('click')
       await flushPromises()
 
-      // Confirm fork via immutability dialog
-      const forkButton = wrapper.find('[data-testid="immutability-fork-button"]')
-      if (forkButton.exists()) {
-        await forkButton.trigger('click')
+      // Confirm clone via immutability dialog
+      const cloneButton = wrapper.find('[data-testid="immutability-clone-button"]')
+      if (cloneButton.exists()) {
+        await cloneButton.trigger('click')
       } else {
         const allButtons = wrapper.findAllComponents(NButton)
-        const fork = allButtons.find(b => b.text().includes('Create New Study'))
-        expect(fork).toBeTruthy()
-        await fork!.trigger('click')
+        const clone = allButtons.find(b => b.text().includes('Clone'))
+        expect(clone).toBeTruthy()
+        await clone!.trigger('click')
       }
       await flushPromises()
 

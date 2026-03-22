@@ -130,14 +130,15 @@ function extractDisallowedCharsFromMessage(message: string): string | null {
   return message.slice(idx + sentinel.length)
 }
 
-// Immutability dialog: shown when user edits a study that has generated samples
+// Immutability dialog: shown when user edits a study that has generated samples.
+// Offers three choices: Clone, Regenerate Existing, or Ignore.
 const showImmutabilityDialog = ref(false)
-
-// Regenerate confirmation dialog: shown after study is saved in-place to confirm
-// regeneration of affected samplesets across training runs.
-const showRegenConfirmDialog = ref(false)
-const regenAffectedRuns = ref<AffectedRun[]>([])
-const regenStudySnapshot = ref<Study | null>(null)
+/** Editable clone name pre-filled as "<study name> (copy)". */
+const cloneName = ref('')
+/** Affected runs loaded when the immutability dialog opens. */
+const immutabilityAffectedRuns = ref<AffectedRun[]>([])
+/** True while affected runs are loading for the immutability dialog. */
+const loadingAffectedRuns = ref(false)
 
 // Delete confirmation dialog
 const showDeleteDialog = ref(false)
@@ -588,8 +589,19 @@ async function saveStudy() {
     try {
       const { has_samples } = await apiClient.studyHasSamples(selectedStudyId.value)
       if (has_samples) {
-        // Show immutability dialog instead of saving directly
+        // Pre-fill clone name and load affected runs before showing the dialog
+        cloneName.value = studyName.value.trim() + ' - copy'
+        immutabilityAffectedRuns.value = []
+        loadingAffectedRuns.value = true
         showImmutabilityDialog.value = true
+        // Load affected runs in the background while dialog is visible
+        try {
+          immutabilityAffectedRuns.value = await apiClient.getAffectedRuns(selectedStudyId.value)
+        } catch {
+          immutabilityAffectedRuns.value = []
+        } finally {
+          loadingAffectedRuns.value = false
+        }
         return
       }
     } catch {
@@ -684,8 +696,8 @@ async function performSave() {
   }
 }
 
-/** Fork: create a new study from the current one with the modified settings. */
-async function forkStudy() {
+/** Clone: create a new study from the current one using the user-editable clone name. */
+async function cloneStudy() {
   if (!selectedStudyId.value || !canSave.value) return
 
   showImmutabilityDialog.value = false
@@ -704,7 +716,7 @@ async function forkStudy() {
 
     const forkPayload: ForkStudyPayload = {
       source_id: selectedStudyId.value,
-      name: studyName.value.trim() + ' - copy',
+      name: cloneName.value.trim(),
       prompt_prefix: promptPrefix.value,
       prompts: validPrompts,
       negative_prompt: negativePrompt.value,
@@ -722,7 +734,7 @@ async function forkStudy() {
 
     const result = await apiClient.forkStudy(forkPayload)
 
-    // Add the new forked study to the list and select it
+    // Add the new cloned study to the list and select it
     studies.value.push(result)
     selectedStudyId.value = result.id
     studyName.value = result.name
@@ -731,7 +743,7 @@ async function forkStudy() {
     const message =
       err && typeof err === 'object' && 'message' in err
         ? String((err as { message: string }).message)
-        : 'Failed to fork study'
+        : 'Failed to clone study'
     error.value = message
     const parsed = extractDisallowedCharsFromMessage(message)
     if (parsed !== null) apiDisallowedChars.value = parsed
@@ -740,53 +752,28 @@ async function forkStudy() {
   }
 }
 
-/** Re-generate: update the study in-place, then show a confirmation dialog
- *  listing affected samplesets across training runs before queuing regeneration jobs. */
+/** Regenerate Existing: update the study in-place, then emit study-regenerate
+ *  with the affected runs that were already loaded when the dialog was opened. */
 async function regenStudy() {
+  // Capture affected runs before closing the dialog (they were pre-loaded)
+  const affectedRuns = [...immutabilityAffectedRuns.value]
   showImmutabilityDialog.value = false
   await performSave()
 
-  // After a successful save, fetch affected runs and show the regenerate confirmation dialog.
+  // After a successful save, emit study-regenerate with pre-loaded affected runs.
   // performSave sets error.value on failure, so only proceed when save succeeded.
   if (!error.value && selectedStudyId.value) {
     const saved = studies.value.find(s => s.id === selectedStudyId.value)
     if (saved) {
-      try {
-        const runs = await apiClient.getAffectedRuns(saved.id)
-        if (runs.length > 0) {
-          regenAffectedRuns.value = runs
-          regenStudySnapshot.value = saved
-          showRegenConfirmDialog.value = true
-        }
-        // If no affected runs, the study was saved but there are no samples to regenerate
-      } catch {
-        // If the affected runs check fails, still emit so the parent can handle it
-        // with the currently selected training run as a fallback.
-        emit('study-regenerate', saved, [])
-      }
+      emit('study-regenerate', saved, affectedRuns)
     }
   }
 }
 
-/** User confirmed regeneration of affected samplesets. */
-function confirmRegenerate() {
-  showRegenConfirmDialog.value = false
-  if (regenStudySnapshot.value) {
-    emit('study-regenerate', regenStudySnapshot.value, regenAffectedRuns.value)
-  }
-  regenStudySnapshot.value = null
-  regenAffectedRuns.value = []
-}
-
-/** User declined regeneration — study is already saved, just close the dialog. */
-function declineRegenerate() {
-  showRegenConfirmDialog.value = false
-  regenStudySnapshot.value = null
-  regenAffectedRuns.value = []
-}
-
-function cancelImmutabilityDialog() {
+/** Ignore: update the study without touching samples. */
+async function ignoreAndSave() {
   showImmutabilityDialog.value = false
+  await performSave()
 }
 
 function deleteStudy() {
@@ -1341,7 +1328,8 @@ function renderSeedTag(tag: string, index: number) {
       @confirm="performDeleteStudy"
     />
 
-    <!-- Immutability dialog: shown when user edits a study that has generated samples -->
+    <!-- Immutability dialog: shown when user edits a study that has generated samples.
+         Three options: Clone, Regenerate Existing, Ignore. -->
     <NModal
       v-model:show="showImmutabilityDialog"
       preset="dialog"
@@ -1353,68 +1341,72 @@ function renderSeedTag(tag: string, index: number) {
         This study already has generated samples on disk. Changing its configuration
         will invalidate those samples. Choose how to proceed:
       </p>
+
+      <!-- Affected runs list -->
+      <div v-if="loadingAffectedRuns" style="margin: 0.75rem 0; font-style: italic;" data-testid="immutability-loading-runs">
+        Loading affected training runs...
+      </div>
+      <div v-else-if="immutabilityAffectedRuns.length > 0" style="margin: 0.75rem 0;">
+        <strong>Affected training runs:</strong>
+        <ul data-testid="immutability-affected-list" style="margin: 0.5rem 0; padding-left: 1.5rem;">
+          <li v-for="run in immutabilityAffectedRuns" :key="run.training_run_name" data-testid="immutability-affected-item">
+            <strong>{{ run.training_run_name }}</strong>
+            — {{ run.checkpoints_with_samples }}/{{ run.total_checkpoints }} checkpoints with samples
+          </li>
+        </ul>
+      </div>
+
       <NSpace vertical :size="12" style="margin-top: 1rem;">
-        <NButton
-          type="primary"
-          block
-          data-testid="immutability-fork-button"
-          @click="forkStudy"
-        >
-          Create New Study (Fork)
-        </NButton>
+        <!-- Clone option -->
+        <div class="immutability-option" data-testid="immutability-clone-section">
+          <div class="immutability-option-row">
+            <NInput
+              v-model:value="cloneName"
+              placeholder="New study name"
+              size="medium"
+              style="flex: 1;"
+              data-testid="immutability-clone-name-input"
+            />
+            <NButton
+              type="primary"
+              :disabled="!cloneName.trim()"
+              data-testid="immutability-clone-button"
+              @click="cloneStudy"
+            >
+              Clone
+            </NButton>
+          </div>
+          <div class="immutability-option-hint">
+            Create a copy of the study with a new name. Existing samples are untouched.
+          </div>
+        </div>
+
+        <!-- Regenerate Existing option -->
         <NButton
           type="warning"
           block
           data-testid="immutability-regen-button"
           @click="regenStudy"
         >
-          Re-generate Samples (Update In-Place)
+          Regenerate Existing
         </NButton>
-        <NButton
-          block
-          data-testid="immutability-cancel-button"
-          @click="cancelImmutabilityDialog"
-        >
-          Cancel
-        </NButton>
-      </NSpace>
-    </NModal>
+        <div class="immutability-option-hint">
+          Update the study in-place and clear existing sample directories, then queue
+          regeneration jobs for all affected training runs.
+        </div>
 
-    <!-- Regenerate confirmation dialog: shown after in-place update to confirm
-         regeneration of affected samplesets across training runs. -->
-    <NModal
-      v-model:show="showRegenConfirmDialog"
-      preset="dialog"
-      title="Regenerate Affected Samplesets?"
-      :closable="true"
-      data-testid="regen-affected-dialog"
-    >
-      <p data-testid="regen-affected-description">
-        The study has been updated. The following training runs have existing samples
-        generated with this study that will need to be regenerated:
-      </p>
-      <ul data-testid="regen-affected-list" style="margin: 0.75rem 0; padding-left: 1.5rem;">
-        <li v-for="run in regenAffectedRuns" :key="run.training_run_name" data-testid="regen-affected-item">
-          <strong>{{ run.training_run_name }}</strong>
-          — {{ run.checkpoints_with_samples }}/{{ run.total_checkpoints }} checkpoints with samples
-        </li>
-      </ul>
-      <NSpace vertical :size="12" style="margin-top: 1rem;">
-        <NButton
-          type="warning"
-          block
-          data-testid="regen-affected-confirm-button"
-          @click="confirmRegenerate"
-        >
-          Yes, regenerate
-        </NButton>
+        <!-- Ignore option -->
         <NButton
           block
-          data-testid="regen-affected-decline-button"
-          @click="declineRegenerate"
+          data-testid="immutability-ignore-button"
+          @click="ignoreAndSave"
         >
-          No
+          Ignore
         </NButton>
+        <div class="immutability-option-hint">
+          Update the study without touching samples. Existing samples will not match
+          the study's new parameters.
+        </div>
       </NSpace>
     </NModal>
   </div>
@@ -1496,6 +1488,20 @@ function renderSeedTag(tag: string, index: number) {
   border: 1px solid var(--error-color);
   border-radius: 0.25rem;
   padding: 0.25rem;
+}
+
+/* Immutability dialog option layout */
+.immutability-option-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.immutability-option-hint {
+  font-size: 0.8125rem;
+  color: var(--text-color-secondary, #666);
+  margin-top: 0.25rem;
+  line-height: 1.4;
 }
 
 </style>

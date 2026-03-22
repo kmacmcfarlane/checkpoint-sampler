@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-115: Regenerate confirmation dialog missing on study update
+- Reworked immutability dialog from two-step flow (Fork/Regen/Cancel → separate confirmation) to a single three-option dialog: Clone (with editable name input), Regenerate Existing (saves and queues jobs with clear-existing), and Ignore (saves without touching samples)
+- Affected training runs are pre-loaded and displayed inline in the dialog
+
 ### B-124: Stale preset localStorage entry not cleaned on training run selection
 - Fixed `onPresetDelete` in App.vue to clear the stored combo preset entry when `PresetSelector.attemptAutoLoad` emits `delete` for a nonexistent preset ID, regardless of whether `selectedPresetId` matches (it's `null` for stale presets)
 

@@ -256,7 +256,7 @@ stories:
   - id: B-115
     title: "Regenerate confirmation dialog missing on study update"
     type: bug
-    status: uat_feedback
+    status: uat
     priority: 90
     complexity: medium
     requires:
@@ -277,14 +277,6 @@ stories:
       - "Test with study that has samples across multiple checkpoints — all affected samplesets should appear in dialog."
       - "Test 'No' path: samples untouched after study update."
       - "Test 'Yes' path: verify jobs queued with clear-existing param per B-114 behavior."
-    review_feedback: "Confirmation dialog did not appear at all when updating a study with existing samples. Full rework required
-      with three-option dialog:\n\n1. **Clone** — Create a copy of the study with a new name. Pre-fill name as \"<Current
-      Study Name> (copy)\" with an inline editable text field. Clicking \"Clone\" creates the new study.\n2. **Regenerate
-      Existing** — Regenerate all existing sample sets for the study. Uses clear-existing job param (B-114) to clear the entire
-      output dir before running. Queues jobs for all affected samplesets.\n3. **Ignore** — Update the study without touching
-      samples. Show a note that existing samples will not match the study's new parameters.\n\nThis dialog should appear when
-      saving/updating a study that has generated samples in its output directory. This dialog previously existed but was lost
-      as a regression."
   - id: B-117
     title: "E2E: study-versioning spec returns HTTP 400 on PUT /api/studies"
     type: bug

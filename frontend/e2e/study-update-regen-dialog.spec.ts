@@ -18,11 +18,11 @@ import {
  * immutability dialog via `studyHasSamples()`, which checks
  * `{sampleDir}/{studyName}/`. The job executor writes samples to
  * `{sampleDir}/{runName}/{studyName}/`. These paths differ, so the
- * immutability dialog cannot be reliably triggered in the E2E environment.
- * The full dialog flow (immutability -> regenerate confirmation -> job
- * creation) is comprehensively covered by unit tests in:
- *   - StudyEditor.test.ts (5 tests for dialog appearance, confirm, decline)
- *   - JobLaunchDialog.test.ts (affected runs job creation)
+ * three-option immutability dialog (Clone / Regenerate Existing / Ignore)
+ * cannot be reliably triggered in the E2E environment.
+ * The full dialog flow is comprehensively covered by unit tests in:
+ *   - StudyEditor.test.ts (dialog appearance, clone, regen, ignore, affected runs display)
+ *   - JobLaunchDialog.test.ts (affected runs job creation with clear_existing)
  *
  * ## Test data
  *
