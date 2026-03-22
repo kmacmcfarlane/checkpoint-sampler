@@ -948,10 +948,11 @@ function closeStudyEditor() {
 }
 
 async function onStudySaved(study: Study) {
+  // AC2: Close the study editor sub-modal immediately on save, before the fetch,
+  // so the dialog disappears without delay even under parallel-shard load (B-130).
+  studyEditorOpen.value = false
   await fetchStudies()
   selectedStudy.value = study.id
-  // AC2: Auto-close the study editor sub-modal after saving
-  studyEditorOpen.value = false
 }
 
 /**

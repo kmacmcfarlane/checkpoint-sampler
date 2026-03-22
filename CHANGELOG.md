@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-130: Manage Studies dialog does not close after saving
+- Fixed race condition where the study editor dialog close was delayed by the async `fetchStudies()` call, causing E2E test flakiness under parallel-shard load
+
 ### B-127: Red problem bead shows 'incomplete' instead of 'failed' for failed jobs (S-116 regression)
 - Fixed `completed_with_errors` job status to show red "failed" bead instead of yellow "incomplete" in the Generate Samples dialog's training run and study dropdowns
 

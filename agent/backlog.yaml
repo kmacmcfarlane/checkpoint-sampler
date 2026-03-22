@@ -527,7 +527,7 @@ stories:
   - id: B-130
     title: "duplicate-validation.spec.ts Manage Studies dialog does not close after saving"
     type: bug
-    status: todo
+    status: uat
     priority: 60
     complexity: low
     requires: []
