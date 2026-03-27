@@ -77,16 +77,13 @@ Root Makefile targets (work in both sandbox and host — preferred for agent use
 - `make logs-snapshot` (atomically start dev stack, capture 500 log lines to `.ralph/temp/logs-snapshot/`, tear down)
 - `make up-test` / `make down-test` (start/stop the test stack manually; same stack as test-e2e but without auto-teardown)
 
-Backend via compose (sandbox — when Go is not installed locally):
-- Codegen: `docker compose -p checkpoint-sampler-dev -f docker-compose.yml -f docker-compose.dev.yml run --rm -w /app/backend backend make gen`
-- One-shot: use root `make test-backend`
-
-Backend direct (host — requires Go installed):
+Backend direct (Go is installed locally in the sandbox via Dockerfile.claude-sandbox):
 - `cd backend && make gen`   (Goa codegen; must run before mocks when required)
 - `cd backend && make build`
 - `cd backend && make lint`
 - `cd backend && make test`
 - `cd backend && make run`
+- `make test-backend` also works (compose-based, useful for CI or when running from project root)
 
 Backend testing (as a rule of thumb; actual commands live in Makefiles):
 - ginkgo recursive with race where applicable, e.g.:
