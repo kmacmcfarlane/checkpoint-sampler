@@ -66,16 +66,43 @@ func (s *Store) ListSampleJobs() ([]model.SampleJob, error) {
 	return s.listSampleJobsOrdered("ASC")
 }
 
-// ListSampleJobsDesc returns all sample jobs ordered by created_at descending (newest first).
-// This ordering is used for UI display so that recently created jobs appear at the top.
+// ListSampleJobsDesc returns all sample jobs ordered by updated_at descending (most recently updated first).
+// This ordering is used for UI display so that recently active jobs appear at the top.
 func (s *Store) ListSampleJobsDesc() ([]model.SampleJob, error) {
 	s.logger.Trace("entering ListSampleJobsDesc")
 	defer s.logger.Trace("returning from ListSampleJobsDesc")
 
-	return s.listSampleJobsOrdered("DESC")
+	rows, err := s.db.Query(`SELECT id, training_run_name, study_id, study_name, workflow_name, vae, clip, shift, checkpoint_filenames, clear_existing, status, total_items, completed_items, error_message, created_at, updated_at
+		FROM sample_jobs ORDER BY updated_at DESC`)
+	if err != nil {
+		s.logger.WithError(err).Error("failed to query sample jobs")
+		return nil, fmt.Errorf("querying sample jobs: %w", err)
+	}
+	defer rows.Close()
+
+	var jobs []model.SampleJob
+	for rows.Next() {
+		var e sampleJobEntity
+		if err := rows.Scan(&e.ID, &e.TrainingRunName, &e.StudyID, &e.StudyName, &e.WorkflowName, &e.VAE, &e.CLIP, &e.Shift, &e.CheckpointFilenames, &e.ClearExisting, &e.Status, &e.TotalItems, &e.CompletedItems, &e.ErrorMessage, &e.CreatedAt, &e.UpdatedAt); err != nil {
+			s.logger.WithError(err).Error("failed to scan sample job row")
+			return nil, fmt.Errorf("scanning sample job row: %w", err)
+		}
+		j, err := sampleJobEntityToModel(e)
+		if err != nil {
+			s.logger.WithError(err).Error("failed to convert entity to model")
+			return nil, err
+		}
+		jobs = append(jobs, j)
+	}
+	if err := rows.Err(); err != nil {
+		s.logger.WithError(err).Error("error iterating sample jobs")
+		return nil, fmt.Errorf("iterating sample jobs: %w", err)
+	}
+	s.logger.WithField("job_count", len(jobs)).Debug("listed sample jobs from database")
+	return jobs, nil
 }
 
-// listSampleJobsOrdered is the shared implementation for ListSampleJobs and ListSampleJobsDesc.
+// listSampleJobsOrdered is used by ListSampleJobs (ASC order for executor FIFO pickup).
 // direction must be "ASC" or "DESC".
 func (s *Store) listSampleJobsOrdered(direction string) ([]model.SampleJob, error) {
 	rows, err := s.db.Query(`SELECT id, training_run_name, study_id, study_name, workflow_name, vae, clip, shift, checkpoint_filenames, clear_existing, status, total_items, completed_items, error_message, created_at, updated_at

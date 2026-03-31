@@ -469,7 +469,7 @@ stories:
   - id: B-133
     title: "Job updated_at not touched on status transitions; list sorts by created not updated"
     type: bug
-    status: todo
+    status: uat
     priority: 50
     complexity: low
     requires: []

@@ -1125,6 +1125,62 @@ var _ = Describe("SampleJobService", func() {
 		})
 	})
 
+	// B-133: updated_at must be stamped on every status transition so the job list
+	// can be sorted by most-recently-active rather than creation time.
+	Describe("updated_at is set on status transitions", func() {
+		DescribeTable("sets updated_at to a non-zero time on each status transition",
+			func(fromStatus model.SampleJobStatus, transition func(jobID string) error) {
+				// AC: BE: Job updated_at timestamp is set on every status transition
+				job := model.SampleJob{
+					ID:     "job-ts",
+					Status: fromStatus,
+				}
+				store.jobs[job.ID] = job
+
+				err := transition("job-ts")
+				Expect(err).NotTo(HaveOccurred())
+
+				stored := store.jobs["job-ts"]
+				Expect(stored.UpdatedAt.IsZero()).To(BeFalse(), "expected UpdatedAt to be set after transition from %s", fromStatus)
+			},
+			Entry("pending → running (Start)",
+				model.SampleJobStatusPending,
+				func(id string) error {
+					_, err := svc.Start(id)
+					return err
+				},
+			),
+			Entry("stopped → running (Resume)",
+				model.SampleJobStatusStopped,
+				func(id string) error {
+					_, err := svc.Resume(id)
+					return err
+				},
+			),
+			Entry("running → stopped (Stop, executor fallback)",
+				model.SampleJobStatusRunning,
+				func(id string) error {
+					// Use a failing executor so the service falls back to a direct DB update,
+					// which exercises the service-layer updated_at assignment.
+					executor.stopErr = fmt.Errorf("job %s is not currently running", id)
+					_, err := svc.Stop(id)
+					executor.stopErr = nil // reset for other tests
+					return err
+				},
+			),
+			Entry("completed_with_errors → running (RetryFailed)",
+				model.SampleJobStatusCompletedWithErrors,
+				func(id string) error {
+					store.items[id] = []model.SampleJobItem{
+						{ID: "ri1", JobID: id, Status: model.SampleJobItemStatusFailed},
+					}
+					_, err := svc.RetryFailed(id)
+					return err
+				},
+			),
+		)
+	})
+
 	Describe("Delete", func() {
 		// AC3: BE: Deleting a job without the data flag removes only the database record
 		It("deletes a job without removing sample data when deleteData=false", func() {

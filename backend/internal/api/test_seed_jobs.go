@@ -29,6 +29,12 @@ type SeedJobRequest struct {
 	TotalItems int `json:"total_items"`
 	// CompletedItems is the number of completed items.
 	CompletedItems int `json:"completed_items"`
+	// CreatedAt is an optional RFC3339 timestamp for the job creation time.
+	// When omitted the current time is used.
+	CreatedAt string `json:"created_at,omitempty"`
+	// UpdatedAt is an optional RFC3339 timestamp for the last-updated time.
+	// When omitted the current time is used.
+	UpdatedAt string `json:"updated_at,omitempty"`
 }
 
 // SeedJobsResponse is the response body for the seed jobs endpoint.
@@ -79,6 +85,20 @@ func MountTestSeedJobsEndpoint(mux interface{ Handle(string, string, http.Handle
 		jobIDs := make([]string, len(requests))
 		for i, req := range requests {
 			id := fmt.Sprintf("seed-job-%04d-%d", i+1, now.UnixNano())
+
+			createdAt := now
+			if req.CreatedAt != "" {
+				if t, err := time.Parse(time.RFC3339, req.CreatedAt); err == nil {
+					createdAt = t
+				}
+			}
+			updatedAt := now
+			if req.UpdatedAt != "" {
+				if t, err := time.Parse(time.RFC3339, req.UpdatedAt); err == nil {
+					updatedAt = t
+				}
+			}
+
 			jobs[i] = model.SampleJob{
 				ID:              id,
 				TrainingRunName: req.TrainingRunName,
@@ -88,8 +108,8 @@ func MountTestSeedJobsEndpoint(mux interface{ Handle(string, string, http.Handle
 				Status:          model.SampleJobStatus(req.Status),
 				TotalItems:      req.TotalItems,
 				CompletedItems:  req.CompletedItems,
-				CreatedAt:       now,
-				UpdatedAt:       now,
+				CreatedAt:       createdAt,
+				UpdatedAt:       updatedAt,
 			}
 			jobIDs[i] = id
 		}

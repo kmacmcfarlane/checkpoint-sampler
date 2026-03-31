@@ -113,7 +113,7 @@ const { getDisplaySampleEta, getDisplayJobEta } = useJobEtaCountdowns(toRef(prop
 
 const sortedJobs = computed(() => {
   return [...props.jobs].sort((a, b) => {
-    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
   })
 })
 
@@ -556,7 +556,9 @@ function isTracebackExpanded(jobId: string, errorIdx: number): boolean {
               <span class="separator">•</span>
               <span>Workflow: {{ job.workflow_name }}</span>
               <span class="separator">•</span>
-              <span>Created: {{ formatTimestamp(job.created_at) }}</span>
+              <span :data-testid="`job-${job.id}-created-at`">Created: {{ formatTimestamp(job.created_at) }}</span>
+              <span class="separator">•</span>
+              <span :data-testid="`job-${job.id}-updated-at`">Updated: {{ formatTimestamp(job.updated_at) }}</span>
             </p>
 
             <div class="job-progress">

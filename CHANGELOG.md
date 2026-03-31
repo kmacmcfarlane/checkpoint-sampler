@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-133: Job updated_at not touched on status transitions; list sorts by created not updated
+- Fixed job list sort order to use `updated_at DESC` instead of `created_at DESC` so recently active jobs appear at the top
+- Frontend now displays both "Created" and "Updated" timestamps in the job progress panel
+
 ### B-132: Validation passes with extra samples; no per-sample param verification
 - Fixed `ValidateTrainingRunWithStudy` and `ValidateTrainingRunWithManifest` to track extra samples (verified > expected) in new `Extra` / `TotalExtra` fields instead of silently clamping to zero — extra files now surface as a validation warning
 - Added per-sample param verification in `ValidateTrainingRunWithManifest`: reads each PNG's companion sidecar JSON and checks seed, CFG, steps, sampler/scheduler pair, and prompt name against the manifest's allowed values; mismatches surface via new `InvalidParams` / `TotalInvalidParams` fields
