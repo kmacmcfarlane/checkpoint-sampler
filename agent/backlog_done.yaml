@@ -5552,3 +5552,115 @@ stories:
       - "All 1546+ existing tests pass after migration"
       - "New store unit tests cover setScanResult, assignRole, slider actions, focusCell/unfocusCell, focusedImage derivation"
       - "vue-tsc --noEmit passes with no errors"
+  - id: B-114
+    title: "Clear-existing samples should be a job param applied at job start, not queue time"
+    type: bug
+    status: done
+    priority: 70
+    complexity: medium
+    requires: []
+    notes: >
+      The "clear existing samples" behavior should be a job parameter that takes effect
+      when the job first starts running, not when it's queued. On resume after failure,
+      clearing should NOT happen again. Verify the Generate Samples dialog's clear-existing
+      flag follows the same pattern. Source: user UAT feedback on B-107.
+    acceptance:
+      - "BE: Clear-existing is stored as a job parameter, not executed at queue time"
+      - "BE: Clearing happens once when the job transitions to running for the first time"
+      - "BE: Resuming a failed job does not re-clear existing samples"
+      - "FE: Generate Samples dialog clear-existing flag uses the same job param behavior"
+      - "BE: Unit tests for clear-at-start vs clear-at-queue and resume scenarios"
+    testing:
+      - "Edge case: job fails mid-generation, some new samples exist alongside cleared slots. Resume should continue without
+        re-clearing."
+      - "Verify Generate Samples dialog queues jobs with the same clear-existing param behavior."
+  - id: B-125
+    title: "Generate Samples button label always says 'Regenerate' even with no samples"
+    type: bug
+    status: done
+    priority: 50
+    complexity: low
+    requires: []
+    notes: |
+      The Generate Samples dialog button always displays "Regenerate Samples" regardless
+      of whether the sampleset has existing samples. Should show "Generate Samples" when
+      the sampleset is empty and "Regenerate Samples" when samples already exist.
+      Source: user bug report during grooming.
+    acceptance:
+      - "FE: Button shows 'Generate Samples' when the sampleset has no existing samples"
+      - "FE: Button shows 'Regenerate Samples' when the sampleset has existing samples"
+      - "FE: Unit tests for conditional button label"
+    testing:
+      - "Test with both empty samplesets and samplesets with existing generated images"
+  - id: B-126
+    title: "Study Manager: VAE/TE not autopopulated on workflow auto-select + Shift not restored from preset"
+    type: bug
+    status: done
+    priority: 50
+    complexity: medium
+    requires: []
+    notes: |
+      Two related study manager form state bugs:
+      1. When a workflow is automatically selected (on study load or TR selection), the VAE
+         and TE fields are not populated from workflow defaults. They do populate correctly
+         when the user manually clicks the workflow in the selector, suggesting the auto-select
+         path doesn't trigger the same value-propagation logic.
+      2. The Shift value is not restored from preset/localStorage, even though VAE and TE are.
+      Source: user bug report during grooming.
+    acceptance:
+      - "FE: VAE and TE fields autopopulate when workflow is auto-selected (same as manual select)"
+      - "FE: Shift value is persisted to and restored from preset/localStorage"
+      - "FE: Unit tests for auto-select value propagation and shift persistence"
+    testing:
+      - "Test workflow auto-select path vs manual select — both should populate VAE/TE identically"
+      - "Test preset save/restore cycle includes shift value"
+  - id: B-127
+    title: "Red problem bead shows 'incomplete' instead of 'failed' for failed jobs (S-116 regression)"
+    type: bug
+    status: done
+    priority: 65
+    complexity: medium
+    requires: []
+    acceptance:
+      - "When a training run has a job with status 'failed' or 'completed_with_errors', the problem bead shows title='failed'
+        (red), not title='incomplete' (yellow)"
+      - "When a training run only has incomplete sample coverage but no failed jobs, the problem bead shows title='incomplete'
+        (yellow)"
+    testing:
+      - "command: make test-e2e-serial SPEC=generate-samples-beads.spec.ts"
+  - id: B-128
+    title: "filters-slideout-layout.spec.ts flaky — checkpoint filter and zoom control intermittently not visible"
+    type: bug
+    status: done
+    priority: 55
+    complexity: low
+    requires: []
+    acceptance:
+      - "Filters drawer tests pass reliably across all parallel shards without timing-dependent failures"
+      - "Checkpoint filter aria-label selector correctly identifies filter toggle buttons"
+    testing:
+      - "command: make test-e2e-serial SPEC=filters-slideout-layout.spec.ts"
+  - id: B-129
+    title: "drawer-auto-collapse.spec.ts column header click times out on narrow screen test"
+    type: bug
+    status: done
+    priority: 55
+    complexity: low
+    requires: []
+    acceptance:
+      - "Drawer auto-collapse tests pass reliably for narrow screen (column header click path)"
+      - "Test uses a selector that is robust to narrow viewport rendering"
+    testing:
+      - "command: make test-e2e-serial SPEC=drawer-auto-collapse.spec.ts"
+  - id: B-130
+    title: "duplicate-validation.spec.ts Manage Studies dialog does not close after saving"
+    type: bug
+    status: done
+    priority: 60
+    complexity: low
+    requires: []
+    acceptance:
+      - "Manage Studies dialog closes automatically after successfully saving a study"
+      - "Duplicate validation test reliably passes in both serial and parallel execution"
+    testing:
+      - "command: make test-e2e-serial SPEC=duplicate-validation.spec.ts"
