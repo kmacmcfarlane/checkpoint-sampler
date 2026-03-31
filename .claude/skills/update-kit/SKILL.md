@@ -38,9 +38,10 @@ PARENT=$(dirname "$PROJECT_ROOT")
 PROJECT_NAME=$(basename "$PROJECT_ROOT")
 TEMPLATES="$PARENT/claude-templates/local-web-app"
 SKILLS="$PARENT/claude-skills"
+KIT="$PARENT/kmac-claude-kit"
 ```
 
-Verify sibling repos exist. If either is missing, report which and stop.
+Verify sibling repos exist. If any are missing, report which and continue with available repos (kmac-claude-kit is optional but recommended).
 
 ### Step 0.2: Dynamic template diff (replaces hardcoded file list)
 
@@ -239,6 +240,36 @@ If any new skills were synced upstream, update `agent/claude-kit-repo-map.md` to
 
 ---
 
+## Phase 2.5: Update kmac-claude-kit README
+
+The `kmac-claude-kit` repo contains the umbrella README that documents the entire toolkit — components, agent pipeline, tooling, workflow, and skills reference. This README must stay current as the toolkit evolves.
+
+### Step 2.5.1: Check for README drift
+
+If the `$KIT` repo exists, read `$KIT/README.md` and compare against the current state of:
+- **Components table**: Does it accurately describe each repo's purpose?
+- **Tree diagram**: Does it reflect the current project structure (agent docs, scripts, skills, MCP servers)?
+- **Agent pipeline**: Does it describe the current story lifecycle and subagent roles?
+- **Tooling section**: Are all scripts (backlog.py, worktree.py, merge_helper.py) documented?
+- **Skills reference table**: Does it list all skills currently in claude-skills?
+- **Workflow section**: Does it cover parallel execution, UAT grooming, upstream sync?
+
+### Step 2.5.2: Update if needed
+
+If any section is outdated or missing:
+1. Create a task: "Update kmac-claude-kit README"
+2. Read the current README, then rewrite the outdated sections based on the current state of the template, skills, and workflow docs you've already read during this sync
+3. Do NOT include project-specific content — the README describes the toolkit generically
+4. Commit with message format: `docs: update README — <brief summary of what changed>`
+
+### Step 2.5.3: Skip conditions
+
+Skip this phase if:
+- `$KIT` repo does not exist at the expected path
+- No template or skills changes were made in this sync run (README is likely still current)
+
+---
+
 ## Phase 3: Report & Verify
 
 ### Step 3.1: Final cross-repo genericization sweep
@@ -269,12 +300,16 @@ Show a concise summary organized by repo:
 - Added: 3 skills (backlog-yaml, backlog-entry, backlog-grooming)
 - Skipped (project-specific): 1 skill (comfyui-api)
 
-### Project (checkpoint-sampler)
+### kmac-claude-kit
+- README.md updated (agent pipeline, skills reference, tooling sections)
+
+### Project
 - Updated: agent/claude-kit-repo-map.md (added 3 skills to sync list)
 
 Remember to commit and push in:
   - /path/to/claude-templates
   - /path/to/claude-skills
+  - /path/to/kmac-claude-kit (if README changed)
   - /path/to/project (if repo map changed)
 ```
 
@@ -309,6 +344,7 @@ parent-directory/
   your-project/        (this project)
   claude-templates/    (template repo)
   claude-skills/       (skills repo)
+  kmac-claude-kit/     (umbrella repo, optional — for README sync)
   claude-sandbox/      (sandbox repo, optional)
 ```
 
