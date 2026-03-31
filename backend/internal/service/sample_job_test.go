@@ -179,15 +179,15 @@ func (f *fakePathMatcher) MatchCheckpointPath(filename string) (string, error) {
 
 // fakeSampleDirRemover is a test double for service.SampleDirRemover.
 type fakeSampleDirRemover struct {
-	removed []struct{ trainingRunName, studyName string }
+	removed []struct{ trainingRunName, studyName, checkpointFilename string }
 	err     error
 }
 
-func (f *fakeSampleDirRemover) RemoveStudyOutputDir(trainingRunName string, studyName string) error {
+func (f *fakeSampleDirRemover) RemoveCheckpointOutputDir(trainingRunName string, studyName string, checkpointFilename string) error {
 	if f.err != nil {
 		return f.err
 	}
-	f.removed = append(f.removed, struct{ trainingRunName, studyName string }{trainingRunName, studyName})
+	f.removed = append(f.removed, struct{ trainingRunName, studyName, checkpointFilename string }{trainingRunName, studyName, checkpointFilename})
 	return nil
 }
 
@@ -742,36 +742,73 @@ var _ = Describe("SampleJobService", func() {
 			Expect(result.Status).To(Equal(model.SampleJobStatusRunning))
 		})
 
-		// B-114: Clear-existing is applied at job start, not queue time
-		Context("clear-existing at start (B-114)", func() {
-			It("clears the study output directory when job transitions from pending to running with ClearExisting=true", func() {
+		// B-131: Clear-existing only removes selected checkpoint directories, not the whole study
+		Context("clear-existing at start (B-131)", func() {
+			It("clears only the selected checkpoint directories when ClearExisting=true with partial selection", func() {
+				// AC: BE: Clear-existing only deletes samples for the selected checkpoints
 				dirRemover.removed = nil
 				job := model.SampleJob{
-					ID:                  "job-clear",
+					ID:                  "job-clear-partial",
 					TrainingRunName:     "test-run",
 					StudyName:           "My Study",
 					Status:              model.SampleJobStatusPending,
 					ClearExisting:       true,
-					CheckpointFilenames: []string{"cp1.safetensors", "cp2.safetensors"},
+					CheckpointFilenames: []string{"cp1.safetensors"},
 				}
 				store.jobs[job.ID] = job
 
-				result, err := svc.Start("job-clear")
+				result, err := svc.Start("job-clear-partial")
 				Expect(err).NotTo(HaveOccurred())
 				Expect(result.Status).To(Equal(model.SampleJobStatusRunning))
 
-				// The entire study output directory should be removed once (not per-checkpoint)
+				// Only the selected checkpoint directory should be removed (not the whole study dir)
 				Expect(dirRemover.removed).To(HaveLen(1))
 				Expect(dirRemover.removed[0].trainingRunName).To(Equal("test-run"))
 				Expect(dirRemover.removed[0].studyName).To(Equal("My Study"))
+				Expect(dirRemover.removed[0].checkpointFilename).To(Equal("cp1.safetensors"))
 
 				// ClearExisting should be reset to false so resume never re-clears
 				Expect(result.ClearExisting).To(BeFalse())
-				storedJob := store.jobs["job-clear"]
+				storedJob := store.jobs["job-clear-partial"]
+				Expect(storedJob.ClearExisting).To(BeFalse())
+			})
+
+			It("clears all checkpoint directories when ClearExisting=true and all checkpoints are selected", func() {
+				// AC: BE: Selecting all checkpoints with clear-existing clears all samples (full coverage path)
+				dirRemover.removed = nil
+				job := model.SampleJob{
+					ID:                  "job-clear-all",
+					TrainingRunName:     "test-run",
+					StudyName:           "My Study",
+					Status:              model.SampleJobStatusPending,
+					ClearExisting:       true,
+					CheckpointFilenames: []string{"cp1.safetensors", "cp2.safetensors", "cp3.safetensors"},
+				}
+				store.jobs[job.ID] = job
+
+				result, err := svc.Start("job-clear-all")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result.Status).To(Equal(model.SampleJobStatusRunning))
+
+				// All three checkpoint directories should be removed (one call per checkpoint)
+				Expect(dirRemover.removed).To(HaveLen(3))
+				Expect(dirRemover.removed[0].checkpointFilename).To(Equal("cp1.safetensors"))
+				Expect(dirRemover.removed[1].checkpointFilename).To(Equal("cp2.safetensors"))
+				Expect(dirRemover.removed[2].checkpointFilename).To(Equal("cp3.safetensors"))
+				// All calls use the same training run and study
+				for _, call := range dirRemover.removed {
+					Expect(call.trainingRunName).To(Equal("test-run"))
+					Expect(call.studyName).To(Equal("My Study"))
+				}
+
+				// ClearExisting should be reset to false so resume never re-clears
+				Expect(result.ClearExisting).To(BeFalse())
+				storedJob := store.jobs["job-clear-all"]
 				Expect(storedJob.ClearExisting).To(BeFalse())
 			})
 
 			It("does not clear directories when ClearExisting=false", func() {
+				// AC: BE: Unselected checkpoints are not affected
 				dirRemover.removed = nil
 				job := model.SampleJob{
 					ID:                  "job-no-clear",

@@ -39,13 +39,14 @@ type PathMatcher interface {
 	MatchCheckpointPath(filename string) (string, error)
 }
 
-// SampleDirRemover defines the interface for removing the study output directory
+// SampleDirRemover defines the interface for removing sample output directories
 // when a job with clear_existing=true first transitions to running.
-// The entire study output directory ({sampleDir}/{sanitizedRunName}/{studyName}/)
-// is recursively deleted so that all existing samples, thumbnails, and extraneous
-// files are removed before the job runs.
+// Only the per-checkpoint subdirectories for the selected checkpoints are deleted,
+// preserving samples for checkpoints that were not included in the job.
 type SampleDirRemover interface {
-	RemoveStudyOutputDir(trainingRunName string, studyName string) error
+	// RemoveCheckpointOutputDir removes the output directory for a single checkpoint
+	// under the study directory: {sampleDir}/{sanitizedRunName}/{studyName}/{checkpointFilename}/
+	RemoveCheckpointOutputDir(trainingRunName string, studyName string, checkpointFilename string) error
 }
 
 // SampleJobExecutor defines the interface for coordinating job execution.
@@ -100,22 +101,26 @@ func (s *SampleJobService) SetExecutor(executor SampleJobExecutor) {
 	s.executor = executor
 }
 
-// clearStudyOutputDir removes the entire study output directory for the job.
+// clearCheckpointOutputDirs removes sample output directories for each selected checkpoint.
+// Only the per-checkpoint subdirectories included in the job are deleted, preserving
+// samples for checkpoints not part of this job.
 // This is called once when a job first transitions from pending to running.
-// The directory at {sampleDir}/{sanitizedRunName}/{studyName}/ is recursively
-// deleted, removing all existing samples, thumbnails, and extraneous files.
-func (s *SampleJobService) clearStudyOutputDir(job model.SampleJob) {
-	if err := s.dirRemover.RemoveStudyOutputDir(job.TrainingRunName, job.StudyName); err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"training_run_name": job.TrainingRunName,
-			"study_name":        job.StudyName,
-			"error":             err.Error(),
-		}).Warn("failed to remove study output directory, continuing")
-	} else {
-		s.logger.WithFields(logrus.Fields{
-			"training_run_name": job.TrainingRunName,
-			"study_name":        job.StudyName,
-		}).Info("cleared study output directory")
+func (s *SampleJobService) clearCheckpointOutputDirs(job model.SampleJob) {
+	for _, checkpointFilename := range job.CheckpointFilenames {
+		if err := s.dirRemover.RemoveCheckpointOutputDir(job.TrainingRunName, job.StudyName, checkpointFilename); err != nil {
+			s.logger.WithFields(logrus.Fields{
+				"training_run_name":   job.TrainingRunName,
+				"study_name":          job.StudyName,
+				"checkpoint_filename": checkpointFilename,
+				"error":               err.Error(),
+			}).Warn("failed to remove checkpoint output directory, continuing")
+		} else {
+			s.logger.WithFields(logrus.Fields{
+				"training_run_name":   job.TrainingRunName,
+				"study_name":          job.StudyName,
+				"checkpoint_filename": checkpointFilename,
+			}).Info("cleared checkpoint output directory")
+		}
 	}
 }
 
@@ -433,11 +438,13 @@ func (s *SampleJobService) Start(id string) (model.SampleJob, error) {
 		return model.SampleJob{}, fmt.Errorf("cannot start job in status %s", job.Status)
 	}
 
-	// B-114: Clear the study output directory when the job first transitions
-	// to running (not at queue time). After clearing, reset the flag so that
-	// resuming a stopped/failed job does not re-clear.
+	// B-131: Clear only the selected checkpoint output directories when the job
+	// first transitions to running (not at queue time). After clearing, reset
+	// the flag so that resuming a stopped/failed job does not re-clear.
+	// Only the per-checkpoint subdirectories for job.CheckpointFilenames are
+	// deleted; samples for other checkpoints in the study are preserved.
 	if job.ClearExisting && s.dirRemover != nil {
-		s.clearStudyOutputDir(job)
+		s.clearCheckpointOutputDirs(job)
 	}
 
 	// Update status to running; reset ClearExisting so resume never re-clears

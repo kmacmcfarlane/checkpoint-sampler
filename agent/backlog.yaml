@@ -427,7 +427,7 @@ stories:
   - id: B-131
     title: "Clear-existing deletes ALL samples in study, not just selected checkpoints"
     type: bug
-    status: todo
+    status: uat
     priority: 85
     complexity: medium
     requires: []

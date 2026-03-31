@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-131: Clear-existing deletes ALL samples in study, not just selected checkpoints
+- Fixed clear-existing to only delete samples for the selected checkpoints instead of the entire study directory, preserving samples for unselected checkpoints
+
 ### B-098: Training run selector truncates long names (needs multi-line wrap)
 - Fixed Generate Samples dialog training run and study selectors to wrap long names instead of truncating, using `renderTag` with inline `whiteSpace: normal` and `:deep()` CSS overrides on Naive UI NSelect internals
 - Fixed zebra-stripe backgrounds in the dialog to use literal `rgba()` values instead of CSS variables that don't resolve in Teleport-rendered VNodes

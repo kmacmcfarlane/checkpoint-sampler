@@ -550,24 +550,29 @@ func (e *JobExecutor) resumeRunningJobs() error {
 func (e *JobExecutor) autoStartJob(job *model.SampleJob) error {
 	e.logger.WithField("job_id", job.ID).Info("auto-starting pending job")
 
-	// B-114: Clear the entire study output directory on first start (not on resume).
-	// This recursively deletes all existing samples, thumbnails, and extraneous files.
+	// B-131: Clear only the selected checkpoint output directories on first start (not on resume).
+	// Only per-checkpoint subdirectories for job.CheckpointFilenames are removed;
+	// samples for other checkpoints in the study are preserved.
 	// The flag is reset to false before persisting so that a stopped/failed job
 	// that is later resumed will not re-clear.
 	if job.ClearExisting && e.dirRemover != nil {
-		if err := e.dirRemover.RemoveStudyOutputDir(job.TrainingRunName, job.StudyName); err != nil {
-			e.logger.WithFields(logrus.Fields{
-				"job_id":            job.ID,
-				"training_run_name": job.TrainingRunName,
-				"study_name":        job.StudyName,
-				"error":             err.Error(),
-			}).Warn("failed to remove study output directory during auto-start, continuing")
-		} else {
-			e.logger.WithFields(logrus.Fields{
-				"job_id":            job.ID,
-				"training_run_name": job.TrainingRunName,
-				"study_name":        job.StudyName,
-			}).Info("cleared study output directory during auto-start")
+		for _, checkpointFilename := range job.CheckpointFilenames {
+			if err := e.dirRemover.RemoveCheckpointOutputDir(job.TrainingRunName, job.StudyName, checkpointFilename); err != nil {
+				e.logger.WithFields(logrus.Fields{
+					"job_id":              job.ID,
+					"training_run_name":   job.TrainingRunName,
+					"study_name":          job.StudyName,
+					"checkpoint_filename": checkpointFilename,
+					"error":               err.Error(),
+				}).Warn("failed to remove checkpoint output directory during auto-start, continuing")
+			} else {
+				e.logger.WithFields(logrus.Fields{
+					"job_id":              job.ID,
+					"training_run_name":   job.TrainingRunName,
+					"study_name":          job.StudyName,
+					"checkpoint_filename": checkpointFilename,
+				}).Info("cleared checkpoint output directory during auto-start")
+			}
 		}
 	}
 

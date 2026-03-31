@@ -173,9 +173,9 @@ func (fs *FileSystem) RemoveSampleDir(sampleDir string, checkpointFilename strin
 	return nil
 }
 
-// StudyOutputDirRemover implements service.SampleDirRemover by removing the entire
-// study output directory under {sampleDir}/{sanitizedRunName}/{studyName}/.
-// This recursively deletes all existing samples, thumbnails, and extraneous files.
+// StudyOutputDirRemover implements service.SampleDirRemover by removing
+// per-checkpoint output directories under {sampleDir}/{sanitizedRunName}/{studyName}/{checkpointFilename}/.
+// Only the directories for selected checkpoints are deleted; the rest of the study is preserved.
 type StudyOutputDirRemover struct {
 	fs        *FileSystem
 	sampleDir string
@@ -186,29 +186,31 @@ func NewStudyOutputDirRemover(fs *FileSystem, sampleDir string) *StudyOutputDirR
 	return &StudyOutputDirRemover{fs: fs, sampleDir: sampleDir}
 }
 
-// RemoveStudyOutputDir removes {sampleDir}/{sanitizedRunName}/{studyName}/ and all contents.
+// RemoveCheckpointOutputDir removes {sampleDir}/{sanitizedRunName}/{studyName}/{checkpointFilename}/
+// and all its contents.
 // The training run name is sanitized (slashes replaced with underscores) to match
 // the filesystem layout used by the job executor.
 // If the directory does not exist, this is a no-op (not an error).
-func (r *StudyOutputDirRemover) RemoveStudyOutputDir(trainingRunName string, studyName string) error {
+func (r *StudyOutputDirRemover) RemoveCheckpointOutputDir(trainingRunName string, studyName string, checkpointFilename string) error {
 	sanitizedRunName := fileformat.SanitizeTrainingRunName(trainingRunName)
-	target := filepath.Join(r.sampleDir, sanitizedRunName, studyName)
+	target := filepath.Join(r.sampleDir, sanitizedRunName, studyName, checkpointFilename)
 	r.fs.logger.WithFields(logrus.Fields{
 		"training_run_name":   trainingRunName,
 		"sanitized_run_name":  sanitizedRunName,
 		"study_name":          studyName,
+		"checkpoint_filename": checkpointFilename,
 		"target":              target,
-	}).Trace("entering RemoveStudyOutputDir")
-	defer r.fs.logger.Trace("returning from RemoveStudyOutputDir")
+	}).Trace("entering RemoveCheckpointOutputDir")
+	defer r.fs.logger.Trace("returning from RemoveCheckpointOutputDir")
 
 	if err := os.RemoveAll(target); err != nil {
 		r.fs.logger.WithFields(logrus.Fields{
 			"target": target,
 			"error":  err.Error(),
-		}).Error("failed to remove study output directory")
-		return fmt.Errorf("removing study output directory %s: %w", target, err)
+		}).Error("failed to remove checkpoint output directory")
+		return fmt.Errorf("removing checkpoint output directory %s: %w", target, err)
 	}
-	r.fs.logger.WithField("target", target).Info("study output directory removed")
+	r.fs.logger.WithField("target", target).Info("checkpoint output directory removed")
 	return nil
 }
 
