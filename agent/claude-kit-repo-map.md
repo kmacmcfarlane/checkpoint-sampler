@@ -9,6 +9,9 @@ claude-skills repo. One skill name per line (matching the folder name
 under `.claude/skills/`).
 
 - playwright
+- backlog-yaml
+- backlog-entry
+- backlog-grooming
 
 ## Additional template files
 

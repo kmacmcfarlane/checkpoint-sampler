@@ -2,15 +2,13 @@
 name: update-kit
 description: Sync agent workflow files, subagent definitions, and skills from this project back to the upstream claude-templates, claude-skills, and claude-sandbox repos (part of kmac-claude-kit). Use when user says "sync upstream", "update templates", "update kit", "push changes to claude-templates", "propagate to claude-skills", or "sync skills". User-invoked only.
 disable-model-invocation: true
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion, TaskCreate, TaskUpdate
 argument-hint: "[files|skills|all]"
 ---
 
 # Update Kit
 
 Syncs changes from a kmac-claude-kit child project back to upstream repos. Works with any project scaffolded from the `local-web-app` template.
-
-The skill has built-in knowledge of all three upstream repo structures (see `references/repo-map.md`). Each project declares project-specific sync targets in `agent/claude-kit-repo-map.md`.
 
 ## Critical: Environment Check
 
@@ -28,196 +26,279 @@ Stop and tell the user:
 
 Do not attempt to proceed if the sibling repos are not accessible.
 
-## Step 1: Read Project Config
+---
 
-Read `agent/claude-kit-repo-map.md` in the project root. This file declares which skills originated in this project and should sync upstream, plus any extra files.
+## Phase 0: Scan & Plan
 
-**If the file does not exist**, tell the user and offer to create it with a starter template:
-
-```markdown
-# Claude Kit Repo Map
-
-Project-specific sync configuration for the `/update-kit` skill.
-
-## Skills that sync upstream (project → claude-skills)
-
-Skills that originated in this project and should be pushed to the
-claude-skills repo. One skill name per line (matching the folder name
-under `.claude/skills/`).
-
-(none)
-
-## Additional template files
-
-Extra files (beyond the universal set) that should sync to
-claude-templates. Most projects do not need this section.
-
-(none)
-```
-
-## Step 2: Generate Full Diff Summary
-
-Run this single command to diff ALL syncable files across all repos at once. Adapt the `UPSTREAM_SKILLS` variable to include the skill names from `agent/claude-kit-repo-map.md`.
+### Step 0.1: Resolve paths
 
 ```bash
-#!/usr/bin/env bash
-set -euo pipefail
-
 PROJECT_ROOT=$(git rev-parse --show-toplevel)
 PARENT=$(dirname "$PROJECT_ROOT")
+PROJECT_NAME=$(basename "$PROJECT_ROOT")
 TEMPLATES="$PARENT/claude-templates/local-web-app"
 SKILLS="$PARENT/claude-skills"
-SANDBOX="$PARENT/claude-sandbox"
-
-# --- claude-templates: universal file mapping ---
-echo "=== claude-templates ==="
-TEMPLATE_FILES=(
-  "agent/TEST_PRACTICES.md"
-  "agent/DEVELOPMENT_PRACTICES.md"
-  "agent/AGENT_FLOW.md"
-  "agent/PROMPT.md"
-  "agent/PROMPT_AUTO.md"
-  "agent/PROMPT_INTERACTIVE.md"
-  ".claude/agents/fullstack-developer.md"
-  ".claude/agents/code-reviewer.md"
-  ".claude/agents/qa-expert.md"
-  ".claude/agents/debugger.md"
-  ".claude/agents/security-auditor.md"
-)
-
-if [ -d "$TEMPLATES/agent" ]; then
-  for f in "${TEMPLATE_FILES[@]}"; do
-    src="$PROJECT_ROOT/$f"
-    dst="$TEMPLATES/$f"
-    if [ ! -f "$src" ]; then
-      echo "  [D] $f (missing in project, exists upstream)"
-    elif [ ! -f "$dst" ]; then
-      echo "  [A] $f (new — not yet upstream)"
-    elif diff -q "$src" "$dst" > /dev/null 2>&1; then
-      echo "  [=] $f"
-    else
-      echo "  [M] $f"
-    fi
-  done
-else
-  echo "  (repo not found at $TEMPLATES)"
-fi
-
-# --- claude-skills: per-project skill list ---
-echo ""
-echo "=== claude-skills ==="
-
-# SET THIS from agent/claude-kit-repo-map.md:
-UPSTREAM_SKILLS=(playwright)
-
-if [ -d "$SKILLS/skills" ]; then
-  for skill in "${UPSTREAM_SKILLS[@]}"; do
-    skill_dir="$PROJECT_ROOT/.claude/skills/$skill"
-    upstream_dir="$SKILLS/skills/$skill"
-    if [ ! -d "$skill_dir" ]; then
-      echo "  [D] $skill (listed in repo map but missing in project)"
-      continue
-    fi
-    if [ ! -d "$upstream_dir" ]; then
-      echo "  [A] $skill/ (new — not yet in claude-skills)"
-      continue
-    fi
-    changed=0
-    while IFS= read -r -d '' file; do
-      rel="${file#$skill_dir/}"
-      if [ ! -f "$upstream_dir/$rel" ]; then
-        echo "  [A] $skill/$rel (new file)"
-        changed=1
-      elif ! diff -q "$file" "$upstream_dir/$rel" > /dev/null 2>&1; then
-        echo "  [M] $skill/$rel"
-        changed=1
-      fi
-    done < <(find "$skill_dir" -type f -print0)
-    if [ "$changed" -eq 0 ]; then
-      echo "  [=] $skill/ (no changes)"
-    fi
-  done
-
-  # Scan for unlisted project-only skills
-  for skill_md in "$PROJECT_ROOT"/.claude/skills/*/SKILL.md; do
-    skill_name=$(basename "$(dirname "$skill_md")")
-    listed=0
-    for s in "${UPSTREAM_SKILLS[@]}"; do
-      [ "$s" = "$skill_name" ] && listed=1 && break
-    done
-    if [ "$listed" -eq 0 ] && [ ! -d "$SKILLS/skills/$skill_name" ]; then
-      echo "  [?] $skill_name/ (project-only, not in repo map — add to upstream?)"
-    fi
-  done
-else
-  echo "  (repo not found at $SKILLS)"
-fi
-
-# --- claude-sandbox ---
-echo ""
-echo "=== claude-sandbox ==="
-if [ -d "$SANDBOX/bin" ]; then
-  echo "  (no universal file mapping — sandbox syncs are project-specific)"
-else
-  echo "  (repo not found at $SANDBOX)"
-fi
 ```
 
-**Before running**: replace the `UPSTREAM_SKILLS=(...)` line with the actual skill names parsed from `agent/claude-kit-repo-map.md`.
+Verify sibling repos exist. If either is missing, report which and stop.
 
-## Step 3: Present Summary and Ask
+### Step 0.2: Dynamic template diff (replaces hardcoded file list)
 
-Show the complete output to the user. Then ask which repos they want to sync:
-
-> Changes found across repos:
->
-> **claude-templates** — 3 modified, 8 unchanged
-> **claude-skills** — 1 modified, 0 unchanged
-> **claude-sandbox** — no syncable files
->
-> Which would you like to sync?
-
-Options:
-1. claude-templates only
-2. claude-skills only
-3. All changed repos
-4. None (dry run only)
-
-If no changes exist anywhere, report that and stop.
-
-## Step 4: Apply Selected Changes
-
-For each repo the user selects:
-- **Template files**: Read project version, write to `claude-templates/local-web-app/<path>`
-- **Skills (new)**: Copy entire skill directory tree to `claude-skills/skills/<name>/`
-- **Skills (modified)**: Overwrite each changed file in the upstream skill directory
-
-If the user confirms a `[?]` project-only skill for upstream, also update `agent/claude-kit-repo-map.md` to add it to the sync list.
-
-**Never delete files from upstream repos** — only add or update. Flag `[D]` cases for the user to handle manually.
-
-## Step 5: Report
-
-After syncing, report per-repo and remind the user to commit:
+Recursively compare the project against the template, **excluding** known project-specific paths. Use this exclude list:
 
 ```
-Synced to claude-templates: 3 files updated
-Synced to claude-skills: 1 skill updated (playwright)
-claude-sandbox: no changes
+# Project-specific content — never sync to template
+agent/backlog.yaml          # Has project stories
+agent/backlog_done.yaml     # Has project completed stories
+agent/PRD.md                # Product requirements are project-specific
+agent/QA_ALLOWED_ERRORS.md  # Project-specific error allowlist
+agent/QUESTIONS.md          # Project-specific clarifications
+agent/ideas/                # Contains project-specific ideas (structure syncs, content doesn't)
+agent/claude-kit-repo-map.md # This IS the project-specific config
+CHANGELOG.md                # Project history
+config.yaml                 # Runtime config
+docker-compose*.yml         # Project compose files
+Makefile                    # Project build targets (root and backend/)
+backend/                    # Application code
+frontend/                   # Application code
+docs/                       # Project architecture docs
+.ralph/                     # Runtime state
+.worktrees/                 # Worktree state
+.e2e/                       # E2E artifacts
+node_modules/               # Dependencies
+__pycache__/                # Python cache
+```
+
+For each syncable path, classify:
+
+| Marker | Meaning |
+|--------|---------|
+| `[M]` | Modified — file exists in both, content differs |
+| `[A]` | Added — file exists in project but not template |
+| `[D]` | Deleted — file exists in template but not project |
+| `[=]` | Identical — no sync needed |
+
+Run a recursive diff across these syncable directory trees:
+- `agent/` (excluding items in the exclude list above)
+- `.claude/agents/`
+- `.claude/skills/`
+- `.claude/settings.json`
+- `.mcp.json`
+- `CLAUDE.md`
+- `.gitignore`
+- `scripts/` (all scripts)
+
+For the `agent/ideas/` directory specifically: sync the **directory structure and stub headers** (the idea category files), but NOT the idea entries themselves. Compare only the first 3 lines of each ideas file.
+
+### Step 0.3: Dynamic skills diff
+
+Scan ALL skills in the project (`.claude/skills/*/SKILL.md`) and compare against the upstream claude-skills repo. Do NOT rely on `claude-kit-repo-map.md` for the scan — discover skills dynamically.
+
+For each project skill:
+- If it exists upstream: diff all files in the skill directory → `[M]`, `[=]`
+- If it does NOT exist upstream: mark as `[A?]` (candidate for upstream — needs triage)
+- Read the skill's SKILL.md and check for project-specific content (project name, domain terms). Classify as "generic" or "project-specific".
+
+For each upstream-only skill (exists in claude-skills but not in project): mark as `[D?]` (informational — the project may not use this skill).
+
+### Step 0.4: Reverse-diff (template → project)
+
+Check for files that exist in the template but NOT in the project. These may be stale template files that the project has since deleted or restructured.
+
+Exclude template boilerplate that projects legitimately don't have (e.g., `cmd/README.md`, `.gitkeep` files, `agent/PROMPT_DEBUG.md`).
+
+Flag each as:
+- `[D-template]` — exists in template only; may need deletion if the project intentionally removed it
+
+### Step 0.5: Content-level diff triage
+
+For each `[M]` file, perform a quick diff analysis:
+
+1. Count lines added/removed/changed
+2. Check whether the **project version** contains project-specific terms (the project name, domain-specific words from PRD.md). Extract the project name from `agent/backlog.yaml`'s `project` field, and scan the first 20 lines of PRD.md for domain terms.
+3. Classify the diff:
+   - **Generic improvement**: Changes are purely generic (workflow, practices, patterns). → Sync directly.
+   - **Project-specific addition**: Changes reference project-specific features, components, or domain terms. → Skip or genericize.
+   - **Mixed**: Some changes are generic, some are project-specific. → Needs manual review.
+
+Present the classification with each `[M]` file in the summary.
+
+### Step 0.6: Present scan results and build plan
+
+Present the full scan results to the user, organized by repo:
+
+```
+## claude-templates
+
+### Template files
+[M] agent/AGENT_FLOW.md (generic improvement — 45 lines added, 12 removed)
+[M] agent/TEST_PRACTICES.md (mixed — 15 generic additions, 3 project-specific)
+[A] agent/BUG_REPORTING.md (new file, 76 lines)
+[D-template] agent/IDEAS.md (exists in template only — project uses ideas/ directory instead)
+[=] agent/PROMPT_AUTO.md
+...
+
+### Skills (in template)
+[A] .claude/skills/backlog-yaml/ (new skill — generic)
+[=] .claude/skills/playwright/
+...
+
+## claude-skills
+
+### Skills
+[M] skills/update-kit/SKILL.md (generic improvement — 2 lines changed)
+[A?] backlog-yaml/ (project-only, appears generic — recommend upstream)
+[A?] backlog-entry/ (project-only, appears generic — recommend upstream)
+[A?] comfyui-api/ (project-only, project-specific — skip)
+[=] skills/playwright/
+...
+```
+
+Then use **TaskCreate** to build a checklist. Create one task per file or logical group:
+
+- Group `[=]` files into a single "skip" note (no task needed)
+- Each `[M]` classified as "generic improvement" → task: "Sync <file> to template"
+- Each `[M]` classified as "mixed" → task: "Review and genericize <file>"
+- Each `[A]` → task: "Add <file> to template"
+- Each `[D-template]` → task: "Remove <file> from template (confirm with user)"
+- Each `[A?]` generic skill → task: "Sync <skill> to claude-skills"
+- Group "project-specific" skips into a single informational task
+
+Present the task list to the user and ask for confirmation before proceeding:
+
+> **Proposed sync plan: N tasks**
+>
+> Ready to proceed? You can adjust tasks before I start.
+
+---
+
+## Phase 1: Sync Template Files
+
+For each task involving template file sync:
+
+### Step 1.1: Copy or genericize
+
+- **Generic improvements** (`[M]` classified generic, or `[A]`): Copy the project file to the template location. Then run the genericization check (Step 1.2).
+- **Mixed files** (`[M]` classified mixed): Read both versions. Write the template version incorporating the generic improvements while stripping project-specific content. Replace:
+  - The project name (from `backlog.yaml` `project` field) with `myproject` or remove entirely
+  - Domain-specific examples with generic equivalents
+  - Project-specific file paths, config schemas, or component names with generic placeholders
+- **Deleted files** (`[D-template]`): Confirm with user, then `rm` from template.
+
+### Step 1.2: Post-sync genericization verification
+
+After writing each file to the template, run a verification scan:
+
+```bash
+# Extract project name from backlog.yaml
+PROJECT_NAME=$(python3 -c "
+from ruamel.yaml import YAML
+data = YAML().load(open('agent/backlog.yaml'))
+print(data.get('project', ''))
+")
+
+# Also extract domain terms from PRD.md (first 20 lines, nouns)
+# These are terms like product names, specific technologies, data formats
+
+# Scan the template file for project-specific content
+grep -in "$PROJECT_NAME" "$TEMPLATE_FILE"
+# Also grep for domain terms extracted above
+```
+
+If any hits are found, fix them before marking the task complete. Common replacements:
+- Project name → `myproject` or remove
+- Specific UI component examples → generic equivalents
+- Domain-specific data formats → `<data format>` placeholder
+- Specific endpoint paths → generic API examples
+
+### Step 1.3: Mark task complete
+
+After each file is synced and verified, update the task status to `completed`.
+
+---
+
+## Phase 2: Sync Skills
+
+### Step 2.1: Process each skill task
+
+For `[A?]` skills classified as generic:
+1. Copy the entire skill directory to `claude-skills/skills/<name>/`
+2. Copy to `claude-templates/local-web-app/.claude/skills/<name>/` as well (so new projects get the skill)
+3. Run genericization verification on each file in the skill
+
+For `[M]` skills:
+1. Overwrite each changed file in the upstream skill directory
+2. Run genericization verification
+
+For `[A?]` skills classified as project-specific:
+1. Skip — note in the summary that these were not synced
+
+### Step 2.2: Update repo map
+
+If any new skills were synced upstream, update `agent/claude-kit-repo-map.md` to add them to the sync list. This keeps the repo map accurate for future runs.
+
+---
+
+## Phase 3: Report & Verify
+
+### Step 3.1: Final cross-repo genericization sweep
+
+Run a single comprehensive grep across the **entire template directory** for the project name and domain terms:
+
+```bash
+grep -ri "$PROJECT_NAME" "$TEMPLATES/" --include="*.md" --include="*.json" --include="*.py" --include="*.sh" --include="*.yaml" --include="*.yml"
+```
+
+If any hits remain, fix them. This is the safety net — catches anything the per-file checks missed.
+
+### Step 3.2: Summary report
+
+Show a concise summary organized by repo:
+
+```
+## Sync Summary
+
+### claude-templates
+- Modified: 8 files
+- Added: 5 files
+- Removed: 1 file (IDEAS.md → replaced by ideas/ directory)
+- Skipped (project-specific): 3 files
+
+### claude-skills
+- Modified: 1 skill (update-kit)
+- Added: 3 skills (backlog-yaml, backlog-entry, backlog-grooming)
+- Skipped (project-specific): 1 skill (comfyui-api)
+
+### Project (checkpoint-sampler)
+- Updated: agent/claude-kit-repo-map.md (added 3 skills to sync list)
 
 Remember to commit and push in:
   - /path/to/claude-templates
   - /path/to/claude-skills
+  - /path/to/project (if repo map changed)
 ```
 
-## What NOT to Sync
+### Step 3.3: All tasks completed
+
+Verify all tasks are marked `completed`. If any remain, report them.
+
+---
+
+## What NOT to Sync (reference)
 
 Project-specific content that must never go upstream:
-- `agent/backlog.yaml`, `agent/PRD.md`, `agent/ideas/` (directory), `agent/QUESTIONS.md`
+- `agent/backlog.yaml`, `agent/backlog_done.yaml` (story content)
+- `agent/PRD.md` (product requirements)
+- `agent/QA_ALLOWED_ERRORS.md` (project-specific error allowlist)
+- `agent/QUESTIONS.md` (project-specific clarifications)
+- `agent/ideas/` content (idea entries — the directory structure and stub headers DO sync)
 - `agent/claude-kit-repo-map.md` (this IS the project-specific config)
-- `CHANGELOG.md`, `CLAUDE.md`
-- `config.yaml`, `docker-compose*.yml`, `Makefile`
-- Project application code (`backend/`, `frontend/`, `docs/`)
+- `CHANGELOG.md` (project history)
+- `CLAUDE.md` data persistence section (project-specific), tooling ecosystem links
+- `config.yaml`, `docker-compose*.yml`, `Makefile` (project-specific build/deploy)
+- Application code: `backend/`, `frontend/`, `docs/`
+
+**Note on CLAUDE.md**: This file is partially syncable. The structure, safety rules, architecture boundaries, and quick command patterns are generic. But sections like "Data persistence" (specific database schema references) and project-specific Makefile targets are not. Treat CLAUDE.md as a "mixed" file that always needs manual review.
 
 ## Troubleshooting
 
@@ -228,11 +309,8 @@ parent-directory/
   your-project/        (this project)
   claude-templates/    (template repo)
   claude-skills/       (skills repo)
-  claude-sandbox/      (sandbox repo)
+  claude-sandbox/      (sandbox repo, optional)
 ```
 
 ### Merge conflicts
 This skill does a one-way overwrite (project → upstream). If the upstream has changes not present in this project, those will be lost. Check `git diff` in the upstream repo before syncing if you suspect divergence.
-
-### Missing claude-kit-repo-map.md
-The skill will offer to create it. See Step 1 for the starter template.
