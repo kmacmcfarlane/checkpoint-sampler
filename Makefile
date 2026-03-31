@@ -15,39 +15,39 @@ COMPOSE_TEST = docker compose -p $(_PROJECT_TEST) -f docker-compose.test.yml
 COMPOSE_E2E_LIVE = docker compose -p $(_PROJECT_E2E_LIVE) -f docker-compose.test.yml -f docker-compose.e2e-live.yml
 
 claude:
-	claude-sandbox
+	claude-sandbox --docker-socket
 
 claude-resume:
-	claude-sandbox --resume
+	claude-sandbox --docker-socket --resume
 
 claude-dangerous:
-	claude-sandbox --dangerously-skip-permissions
+	claude-sandbox --docker-socket --dangerously-skip-permissions
 
 claude-resume-dangerous:
-	claude-sandbox --resume --dangerously-skip-permissions
+	claude-sandbox --docker-socket --resume --dangerously-skip-permissions
 
 ralph:
-	claude-sandbox --ralph --interactive ${ARGS}
+	claude-sandbox --docker-socket --ralph --interactive ${ARGS}
 
 ralph-dangerous:
-	claude-sandbox --ralph --interactive --dangerously-skip-permissions ${ARGS}
+	claude-sandbox --docker-socket --ralph --interactive --dangerously-skip-permissions ${ARGS}
 
 ralph-resume:
-	claude-sandbox --ralph --interactive --resume ${ARGS}
+	claude-sandbox --docker-socket --ralph --interactive --resume ${ARGS}
 
 ralph-auto:
-	claude-sandbox --ralph --dangerously-skip-permissions ${ARGS}
+	claude-sandbox --docker-socket --ralph --dangerously-skip-permissions ${ARGS}
 
 ralph-auto-once:
-	claude-sandbox --ralph --dangerously-skip-permissions --limit 1 ${ARGS}
+	claude-sandbox --docker-socket --ralph --dangerously-skip-permissions --limit 1 ${ARGS}
 
 # make ralph-auto-resume ARGS="<resume id>"
 ralph-auto-resume:
-	claude-sandbox --ralph --dangerously-skip-permissions --resume ${ARGS}
+	claude-sandbox --docker-socket --ralph --dangerously-skip-permissions --resume ${ARGS}
 
 # make ralph-auto-resume-once ARGS="<resume id>"
 ralph-auto-resume-once:
-	claude-sandbox --ralph --dangerously-skip-permissions --limit 1 --resume ${ARGS}
+	claude-sandbox --docker-socket --ralph --dangerously-skip-permissions --limit 1 --resume ${ARGS}
 
 backlog-status:
 	./scripts/backlog/backlog.py status
