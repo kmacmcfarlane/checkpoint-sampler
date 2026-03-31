@@ -258,39 +258,78 @@ var _ = Describe("StudyAvailabilityService", func() {
 	})
 
 	Describe("StudyHasSamples", func() {
-		It("returns false when study directory does not exist", func() {
+		// Samples are stored at {sampleDir}/{sanitized_run_name}/{study.Name}/{checkpoint}/
+		// So StudyHasSamples scans sampleDir for training-run subdirs, then checks
+		// {sampleDir}/{runDir}/{study.Name}/ for non-empty checkpoint dirs.
+
+		It("returns false when sample directory has no training run subdirectories", func() {
 			study := model.Study{ID: "s1", Name: "NoDir"}
-			// DirectoryExists returns false by default
+			// ListSubdirectories on the sample root returns nothing by default
 
 			hasSamples, err := svc.StudyHasSamples(study)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(hasSamples).To(BeFalse())
 		})
 
-		It("returns false when study directory exists but is empty", func() {
+		It("returns false when no training run has a study directory", func() {
 			study := model.Study{ID: "s1", Name: "EmptyStudy"}
-			fs.dirExist["/samples/EmptyStudy"] = true
-			fs.subdirs["/samples/EmptyStudy"] = []string{}
+			// A training run dir exists but has no study subdir for this study
+			fs.subdirs["/samples"] = []string{"my-run"}
+			// study dir /samples/my-run/EmptyStudy does not exist (dirExist default false)
 
 			hasSamples, err := svc.StudyHasSamples(study)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(hasSamples).To(BeFalse())
 		})
 
-		It("returns true when study directory has subdirectories", func() {
+		It("returns false when study directory exists but has no checkpoint subdirectories", func() {
+			study := model.Study{ID: "s1", Name: "EmptyStudy"}
+			fs.subdirs["/samples"] = []string{"my-run"}
+			fs.dirExist["/samples/my-run/EmptyStudy"] = true
+			fs.subdirs["/samples/my-run/EmptyStudy"] = []string{}
+
+			hasSamples, err := svc.StudyHasSamples(study)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(hasSamples).To(BeFalse())
+		})
+
+		It("returns true when at least one training run has checkpoint samples for the study", func() {
 			study := model.Study{ID: "s1", Name: "WithSamples"}
-			fs.dirExist["/samples/WithSamples"] = true
-			fs.subdirs["/samples/WithSamples"] = []string{"checkpoint1.safetensors"}
+			fs.subdirs["/samples"] = []string{"my-run"}
+			fs.dirExist["/samples/my-run/WithSamples"] = true
+			fs.subdirs["/samples/my-run/WithSamples"] = []string{"checkpoint1.safetensors"}
 
 			hasSamples, err := svc.StudyHasSamples(study)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(hasSamples).To(BeTrue())
 		})
 
-		It("returns error when listing directory fails", func() {
+		It("returns true when one of multiple training runs has samples for the study", func() {
+			study := model.Study{ID: "s1", Name: "WithSamples"}
+			fs.subdirs["/samples"] = []string{"run-a", "run-b"}
+			// run-a has no study dir; run-b does
+			fs.dirExist["/samples/run-b/WithSamples"] = true
+			fs.subdirs["/samples/run-b/WithSamples"] = []string{"cp1.safetensors", "cp2.safetensors"}
+
+			hasSamples, err := svc.StudyHasSamples(study)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(hasSamples).To(BeTrue())
+		})
+
+		It("returns error when listing the sample directory fails", func() {
 			study := model.Study{ID: "s1", Name: "ErrorStudy"}
-			fs.dirExist["/samples/ErrorStudy"] = true
-			fs.errs["/samples/ErrorStudy"] = fmt.Errorf("I/O error")
+			fs.errs["/samples"] = fmt.Errorf("disk read error")
+
+			_, err := svc.StudyHasSamples(study)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("disk read error"))
+		})
+
+		It("returns error when listing a study subdirectory within a run dir fails", func() {
+			study := model.Study{ID: "s1", Name: "ErrorStudy"}
+			fs.subdirs["/samples"] = []string{"my-run"}
+			fs.dirExist["/samples/my-run/ErrorStudy"] = true
+			fs.errs["/samples/my-run/ErrorStudy"] = fmt.Errorf("I/O error")
 
 			_, err := svc.StudyHasSamples(study)
 			Expect(err).To(HaveOccurred())

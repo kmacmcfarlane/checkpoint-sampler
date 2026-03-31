@@ -108,33 +108,50 @@ func (s *StudyAvailabilityService) GetAvailability(studies []model.Study, tr mod
 
 // StudyHasSamples checks whether a specific study has any generated samples
 // on disk. It returns true if the study's output directory contains at least
-// one subdirectory (which would be a checkpoint directory with sample images).
+// one subdirectory (which would be a checkpoint directory with sample images)
+// under any training run directory.
+//
+// Samples are stored at {sampleDir}/{sanitized_run_name}/{study.Name}/{checkpoint}/,
+// so this method scans all subdirectories of sampleDir (training run dirs) and
+// checks whether any of them contains a non-empty study subdirectory.
 func (s *StudyAvailabilityService) StudyHasSamples(study model.Study) (bool, error) {
 	s.logger.WithField("study_name", study.Name).Trace("entering StudyHasSamples")
 	defer s.logger.Trace("returning from StudyHasSamples")
 
-	studyDir := filepath.Join(s.sampleDir, study.Name)
-	if !s.fs.DirectoryExists(studyDir) {
-		s.logger.WithField("study_dir", studyDir).Debug("study directory does not exist")
-		return false, nil
-	}
-
-	subdirs, err := s.fs.ListSubdirectories(studyDir)
+	// List all training run directories under the sample root.
+	runDirs, err := s.fs.ListSubdirectories(s.sampleDir)
 	if err != nil {
 		s.logger.WithFields(logrus.Fields{
-			"study_name": study.Name,
-			"study_dir":  studyDir,
+			"sample_dir": s.sampleDir,
 			"error":      err.Error(),
-		}).Error("failed to list study directory")
-		return false, fmt.Errorf("listing study directory %q: %w", study.Name, err)
+		}).Error("failed to list sample directory for has-samples check")
+		return false, fmt.Errorf("listing sample directory: %w", err)
 	}
 
-	hasSamples := len(subdirs) > 0
-	s.logger.WithFields(logrus.Fields{
-		"study_name":   study.Name,
-		"has_samples":  hasSamples,
-		"subdir_count": len(subdirs),
-	}).Debug("study has-samples check completed")
+	for _, runDir := range runDirs {
+		studyDir := filepath.Join(s.sampleDir, runDir, study.Name)
+		if !s.fs.DirectoryExists(studyDir) {
+			continue
+		}
+		subdirs, err := s.fs.ListSubdirectories(studyDir)
+		if err != nil {
+			s.logger.WithFields(logrus.Fields{
+				"study_name": study.Name,
+				"study_dir":  studyDir,
+				"error":      err.Error(),
+			}).Error("failed to list study directory for has-samples check")
+			return false, fmt.Errorf("listing study directory %q: %w", studyDir, err)
+		}
+		if len(subdirs) > 0 {
+			s.logger.WithFields(logrus.Fields{
+				"study_name":   study.Name,
+				"run_dir":      runDir,
+				"subdir_count": len(subdirs),
+			}).Debug("study has-samples check: found samples")
+			return true, nil
+		}
+	}
 
-	return hasSamples, nil
+	s.logger.WithField("study_name", study.Name).Debug("study has-samples check: no samples found")
+	return false, nil
 }

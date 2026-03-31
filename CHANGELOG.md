@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-115: Regenerate confirmation dialog missing on study update
+- Fixed `StudyHasSamples()` to scan `{sampleDir}/{runDir}/{studyName}/` across all training run subdirectories instead of the nonexistent top-level `{sampleDir}/{studyName}/` path, which always returned false and prevented the immutability dialog from appearing on study update
+
 ### S-133: Alternating row striping on training run selectors
 - Added zebra-stripe alternating row backgrounds to training run and study selector dropdowns in the Generate Samples dialog using Naive UI's `renderOption` with `cloneVNode` and the `--bg-surface` CSS variable
 

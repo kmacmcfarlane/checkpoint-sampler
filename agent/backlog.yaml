@@ -231,7 +231,7 @@ stories:
   - id: B-115
     title: "Regenerate confirmation dialog missing on study update"
     type: bug
-    status: uat_feedback
+    status: uat
     priority: 90
     complexity: medium
     requires:
@@ -252,8 +252,6 @@ stories:
       - "Test with study that has samples across multiple checkpoints — all affected samplesets should appear in dialog."
       - "Test 'No' path: samples untouched after study update."
       - "Test 'Yes' path: verify jobs queued with clear-existing param per B-114 behavior."
-    review_feedback: Regenerate confirmation dialog does not appear when updating a study that has existing samplesets 
-      (partial). Study saves without dialog.
   - id: B-117
     title: "E2E: study-versioning spec returns HTTP 400 on PUT /api/studies"
     type: bug
