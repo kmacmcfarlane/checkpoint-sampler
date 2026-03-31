@@ -320,6 +320,10 @@ export interface CheckpointCompletenessInfo {
   expected: number
   verified: number
   missing: number
+  /** Number of sample images beyond the expected count (verified - expected when verified > expected). */
+  extra: number
+  /** Number of sample images whose sidecar params do not match the manifest. */
+  invalid_params: number
 }
 
 /** Result of validating sample set completeness for a training run. */
@@ -335,6 +339,10 @@ export interface ValidationResult {
   total_actual: number
   /** Total missing sample images across all checkpoints (total_expected - total_actual). */
   total_missing: number
+  /** Total sample images beyond the expected count across all checkpoints. */
+  total_extra: number
+  /** Total sample images whose sidecar params do not match the manifest. */
+  total_invalid_params: number
 }
 
 /** Sample completeness status for a study relative to a training run. */

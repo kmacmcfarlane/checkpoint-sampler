@@ -93,4 +93,8 @@ type CheckpointCompletenessInfo struct {
 	Expected   int
 	Verified   int
 	Missing    int
+	// Extra is the count of files found beyond the expected count (verified - expected when verified > expected).
+	Extra int
+	// InvalidParams is the count of samples whose sidecar JSON params do not match the manifest.
+	InvalidParams int
 }

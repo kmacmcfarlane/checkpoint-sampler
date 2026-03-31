@@ -1,9 +1,11 @@
 package service
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/fileformat"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
@@ -206,9 +208,12 @@ func (v *ValidationService) ValidateTrainingRunWithStudy(tr model.TrainingRun, s
 			}
 		}
 
-		missing := expectedPerCheckpoint - verified
-		if missing < 0 {
-			missing = 0
+		missing := 0
+		extra := 0
+		if verified < expectedPerCheckpoint {
+			missing = expectedPerCheckpoint - verified
+		} else if verified > expectedPerCheckpoint {
+			extra = verified - expectedPerCheckpoint
 		}
 
 		totalVerified += verified
@@ -218,6 +223,7 @@ func (v *ValidationService) ValidateTrainingRunWithStudy(tr model.TrainingRun, s
 			Expected:   expectedPerCheckpoint,
 			Verified:   verified,
 			Missing:    missing,
+			Extra:      extra,
 		})
 
 		if missing > 0 {
@@ -228,12 +234,21 @@ func (v *ValidationService) ValidateTrainingRunWithStudy(tr model.TrainingRun, s
 				"missing":    missing,
 			}).Warn("study validation found missing files")
 		}
+		if extra > 0 {
+			v.logger.WithFields(logrus.Fields{
+				"checkpoint": cp.Filename,
+				"expected":   expectedPerCheckpoint,
+				"verified":   verified,
+				"extra":      extra,
+			}).Warn("study validation found extra files beyond expected count")
+		}
 	}
 
 	result.TotalVerified = totalVerified
 	result.TotalActual = totalVerified
-	if diff := totalExpected - totalVerified; diff > 0 {
-		result.TotalMissing = diff
+	for _, cp := range result.Checkpoints {
+		result.TotalMissing += cp.Missing
+		result.TotalExtra += cp.Extra
 	}
 
 	v.logger.WithFields(logrus.Fields{
@@ -243,6 +258,7 @@ func (v *ValidationService) ValidateTrainingRunWithStudy(tr model.TrainingRun, s
 		"total_expected":   totalExpected,
 		"total_verified":   totalVerified,
 		"total_missing":    result.TotalMissing,
+		"total_extra":      result.TotalExtra,
 	}).Info("study validation completed")
 
 	return result, nil
@@ -294,8 +310,12 @@ func (v *ValidationService) ValidateTrainingRunWithManifest(tr model.TrainingRun
 		TotalExpected:         totalExpected,
 	}
 
+	// Build lookup sets from manifest params for per-sample validation.
+	manifestParams := buildManifestParamSets(manifest)
+
 	for _, cp := range tr.Checkpoints {
 		verified := 0
+		invalidParams := 0
 
 		// Always check the study output directory directly regardless of
 		// cp.HasSamples. The HasSamples flag is set by discovery based on
@@ -314,20 +334,53 @@ func (v *ValidationService) ValidateTrainingRunWithManifest(tr model.TrainingRun
 				return nil, fmt.Errorf("listing PNG files for checkpoint %q: %w", cp.Filename, err)
 			}
 			verified = len(files)
+
+			// Per-sample param verification: read each sidecar JSON and check
+			// that its params appear in the manifest's allowed value sets.
+			// If a sidecar does not exist, the sample is skipped (not counted
+			// as invalid) since older outputs may pre-date sidecar generation.
+			for _, f := range files {
+				sidecarPath := filepath.Join(sampleDirPath, strings.TrimSuffix(f, ".png")+".json")
+				invalid, notFound, err := v.isSidecarParamMismatch(sidecarPath, manifestParams)
+				if err != nil {
+					v.logger.WithFields(logrus.Fields{
+						"sidecar_path": sidecarPath,
+						"error":        err.Error(),
+					}).Debug("could not read sidecar file during manifest validation; treating as invalid params")
+					invalidParams++
+					continue
+				}
+				if notFound {
+					// No sidecar: skip verification for this sample.
+					continue
+				}
+				if invalid {
+					invalidParams++
+					v.logger.WithFields(logrus.Fields{
+						"checkpoint":   cp.Filename,
+						"sidecar_path": sidecarPath,
+					}).Warn("manifest validation found sample with params not matching manifest")
+				}
+			}
 		}
 
-		missing := expectedPerCheckpoint - verified
-		if missing < 0 {
-			missing = 0
+		missing := 0
+		extra := 0
+		if verified < expectedPerCheckpoint {
+			missing = expectedPerCheckpoint - verified
+		} else if verified > expectedPerCheckpoint {
+			extra = verified - expectedPerCheckpoint
 		}
 
 		totalVerified += verified
 
 		result.Checkpoints = append(result.Checkpoints, model.CheckpointCompletenessInfo{
-			Checkpoint: cp.Filename,
-			Expected:   expectedPerCheckpoint,
-			Verified:   verified,
-			Missing:    missing,
+			Checkpoint:    cp.Filename,
+			Expected:      expectedPerCheckpoint,
+			Verified:      verified,
+			Missing:       missing,
+			Extra:         extra,
+			InvalidParams: invalidParams,
 		})
 
 		if missing > 0 {
@@ -338,24 +391,117 @@ func (v *ValidationService) ValidateTrainingRunWithManifest(tr model.TrainingRun
 				"missing":    missing,
 			}).Warn("manifest validation found missing files")
 		}
+		if extra > 0 {
+			v.logger.WithFields(logrus.Fields{
+				"checkpoint": cp.Filename,
+				"expected":   expectedPerCheckpoint,
+				"verified":   verified,
+				"extra":      extra,
+			}).Warn("manifest validation found extra files beyond expected count")
+		}
 	}
 
 	result.TotalVerified = totalVerified
 	result.TotalActual = totalVerified
-	if diff := totalExpected - totalVerified; diff > 0 {
-		result.TotalMissing = diff
+	for _, cp := range result.Checkpoints {
+		result.TotalMissing += cp.Missing
+		result.TotalExtra += cp.Extra
+		result.TotalInvalidParams += cp.InvalidParams
 	}
 
 	v.logger.WithFields(logrus.Fields{
-		"training_run":     tr.Name,
-		"checkpoint_count": len(tr.Checkpoints),
-		"expected_per_cp":  expectedPerCheckpoint,
-		"total_expected":   totalExpected,
-		"total_verified":   totalVerified,
-		"total_missing":    result.TotalMissing,
+		"training_run":         tr.Name,
+		"checkpoint_count":     len(tr.Checkpoints),
+		"expected_per_cp":      expectedPerCheckpoint,
+		"total_expected":       totalExpected,
+		"total_verified":       totalVerified,
+		"total_missing":        result.TotalMissing,
+		"total_extra":          result.TotalExtra,
+		"total_invalid_params": result.TotalInvalidParams,
 	}).Info("manifest validation completed")
 
 	return result, nil
+}
+
+// manifestParamSets holds the allowed values from a manifest for per-sample verification.
+type manifestParamSets struct {
+	seeds     map[int64]struct{}
+	cfgs      map[float64]struct{}
+	steps     map[int]struct{}
+	pairs     map[string]struct{} // "sampler|scheduler"
+	prompts   map[string]struct{} // prompt names
+}
+
+// buildManifestParamSets constructs lookup sets from a manifest for O(1) membership tests.
+func buildManifestParamSets(m fileformat.JobManifest) manifestParamSets {
+	seeds := make(map[int64]struct{}, len(m.Seeds))
+	for _, s := range m.Seeds {
+		seeds[s] = struct{}{}
+	}
+	cfgs := make(map[float64]struct{}, len(m.CFGs))
+	for _, c := range m.CFGs {
+		cfgs[c] = struct{}{}
+	}
+	steps := make(map[int]struct{}, len(m.Steps))
+	for _, st := range m.Steps {
+		steps[st] = struct{}{}
+	}
+	pairs := make(map[string]struct{}, len(m.SamplerSchedulerPairs))
+	for _, p := range m.SamplerSchedulerPairs {
+		pairs[p.Sampler+"|"+p.Scheduler] = struct{}{}
+	}
+	prompts := make(map[string]struct{}, len(m.Prompts))
+	for _, p := range m.Prompts {
+		prompts[p.Name] = struct{}{}
+	}
+	return manifestParamSets{
+		seeds:   seeds,
+		cfgs:    cfgs,
+		steps:   steps,
+		pairs:   pairs,
+		prompts: prompts,
+	}
+}
+
+// isSidecarParamMismatch reads a sidecar JSON file and checks its generation params
+// against the manifest's allowed value sets.
+//
+// Returns (mismatch bool, notFound bool, err error):
+//   - mismatch=true when the sidecar exists but contains params outside the manifest.
+//   - notFound=true when the sidecar file does not exist (caller should skip verification).
+//   - err is non-nil only when the sidecar file exists but cannot be parsed.
+func (v *ValidationService) isSidecarParamMismatch(sidecarPath string, params manifestParamSets) (mismatch bool, notFound bool, err error) {
+	data, readErr := v.fs.ReadFile(sidecarPath)
+	if readErr != nil {
+		if os.IsNotExist(readErr) {
+			return false, true, nil
+		}
+		return false, false, fmt.Errorf("reading sidecar %q: %w", sidecarPath, readErr)
+	}
+
+	var sc fileformat.SidecarMetadata
+	if err := json.Unmarshal(data, &sc); err != nil {
+		return false, false, fmt.Errorf("parsing sidecar %q: %w", sidecarPath, err)
+	}
+
+	if _, ok := params.seeds[sc.Seed]; !ok {
+		return true, false, nil
+	}
+	if _, ok := params.cfgs[sc.CFG]; !ok {
+		return true, false, nil
+	}
+	if _, ok := params.steps[sc.Steps]; !ok {
+		return true, false, nil
+	}
+	pairKey := sc.SamplerName + "|" + sc.Scheduler
+	if _, ok := params.pairs[pairKey]; !ok {
+		return true, false, nil
+	}
+	if _, ok := params.prompts[sc.PromptName]; !ok {
+		return true, false, nil
+	}
+
+	return false, false, nil
 }
 
 // ReadManifest reads and parses a manifest from the study output directory.

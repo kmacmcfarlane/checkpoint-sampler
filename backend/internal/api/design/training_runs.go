@@ -161,7 +161,13 @@ var ValidationResultResponse = Type("ValidationResultResponse", func() {
 	Attribute("total_missing", Int, "Total missing sample images across all checkpoints (total_expected - total_actual)", func() {
 		Example(30)
 	})
-	Required("checkpoints", "expected_per_checkpoint", "total_expected", "total_verified", "total_actual", "total_missing")
+	Attribute("total_extra", Int, "Total sample images beyond the expected count across all checkpoints", func() {
+		Example(0)
+	})
+	Attribute("total_invalid_params", Int, "Total sample images whose sidecar params do not match the manifest", func() {
+		Example(0)
+	})
+	Required("checkpoints", "expected_per_checkpoint", "total_expected", "total_verified", "total_actual", "total_missing", "total_extra", "total_invalid_params")
 })
 
 var CheckpointCompletenessResponse = Type("CheckpointCompletenessResponse", func() {
@@ -178,5 +184,11 @@ var CheckpointCompletenessResponse = Type("CheckpointCompletenessResponse", func
 	Attribute("missing", Int, "Number of missing sample images (expected - verified)", func() {
 		Example(0)
 	})
-	Required("checkpoint", "expected", "verified", "missing")
+	Attribute("extra", Int, "Number of sample images beyond the expected count (verified - expected when verified > expected)", func() {
+		Example(0)
+	})
+	Attribute("invalid_params", Int, "Number of sample images whose sidecar params do not match the manifest", func() {
+		Example(0)
+	})
+	Required("checkpoint", "expected", "verified", "missing", "extra", "invalid_params")
 })

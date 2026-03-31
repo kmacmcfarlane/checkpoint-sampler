@@ -5,6 +5,13 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-132: Validation passes with extra samples; no per-sample param verification
+- Fixed `ValidateTrainingRunWithStudy` and `ValidateTrainingRunWithManifest` to track extra samples (verified > expected) in new `Extra` / `TotalExtra` fields instead of silently clamping to zero — extra files now surface as a validation warning
+- Added per-sample param verification in `ValidateTrainingRunWithManifest`: reads each PNG's companion sidecar JSON and checks seed, CFG, steps, sampler/scheduler pair, and prompt name against the manifest's allowed values; mismatches surface via new `InvalidParams` / `TotalInvalidParams` fields
+- Extended Goa API design and regenerated code to expose `extra`, `invalid_params`, `total_extra`, `total_invalid_params` in validation responses
+- Updated `ValidationResultsDialog` to display extra/param-mismatch warnings in the summary tag and per-checkpoint rows
+- Added unit tests: count-strict validation (extra samples detected), param-level verification (DescribeTable covering all six mismatching fields), missing sidecar skip, corrupt sidecar handling
+
 ### B-131: Clear-existing deletes ALL samples in study, not just selected checkpoints
 - Fixed clear-existing to only delete samples for the selected checkpoints instead of the entire study directory, preserving samples for unselected checkpoints
 

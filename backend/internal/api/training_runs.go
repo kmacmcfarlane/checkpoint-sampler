@@ -157,10 +157,12 @@ func (s *TrainingRunsService) Validate(ctx context.Context, p *gentrainingruns.V
 	checkpoints := make([]*gentrainingruns.CheckpointCompletenessResponse, len(result.Checkpoints))
 	for i, cp := range result.Checkpoints {
 		checkpoints[i] = &gentrainingruns.CheckpointCompletenessResponse{
-			Checkpoint: cp.Checkpoint,
-			Expected:   cp.Expected,
-			Verified:   cp.Verified,
-			Missing:    cp.Missing,
+			Checkpoint:    cp.Checkpoint,
+			Expected:      cp.Expected,
+			Verified:      cp.Verified,
+			Missing:       cp.Missing,
+			Extra:         cp.Extra,
+			InvalidParams: cp.InvalidParams,
 		}
 	}
 
@@ -171,6 +173,8 @@ func (s *TrainingRunsService) Validate(ctx context.Context, p *gentrainingruns.V
 		TotalVerified:         result.TotalVerified,
 		TotalActual:           result.TotalActual,
 		TotalMissing:          result.TotalMissing,
+		TotalExtra:            result.TotalExtra,
+		TotalInvalidParams:    result.TotalInvalidParams,
 	}, nil
 }
 

@@ -23,13 +23,24 @@ const emit = defineEmits<{
   regenerate: [job: SampleJob]
 }>()
 
-function getCheckpointStatus(missing: number): 'pass' | 'warning' {
-  return missing === 0 ? 'pass' : 'warning'
+function getCheckpointStatus(cp: { missing: number; extra: number; invalid_params: number }): 'pass' | 'warning' {
+  return cp.missing === 0 && cp.extra === 0 && cp.invalid_params === 0 ? 'pass' : 'warning'
 }
 
-function hasAnyMissing(): boolean {
+function hasAnyIssues(): boolean {
   if (!props.result) return false
-  return props.result.total_missing > 0
+  return props.result.total_missing > 0 || props.result.total_extra > 0 || props.result.total_invalid_params > 0
+}
+
+/** Returns a summary tag label and variant based on the overall validation status. */
+function validationStatusLabel(): { type: 'success' | 'warning'; text: string } {
+  const r = props.result!
+  const issues: string[] = []
+  if (r.total_missing > 0) issues.push(`${r.total_missing} missing`)
+  if (r.total_extra > 0) issues.push(`${r.total_extra} extra`)
+  if (r.total_invalid_params > 0) issues.push(`${r.total_invalid_params} param mismatch`)
+  if (issues.length === 0) return { type: 'success', text: 'Complete' }
+  return { type: 'warning', text: issues.join(', ') }
 }
 </script>
 
@@ -72,20 +83,11 @@ function hasAnyMissing(): boolean {
             {{ result.total_actual }} / {{ result.total_expected }} samples
           </span>
           <NTag
-            v-if="result.total_missing === 0"
-            type="success"
+            :type="validationStatusLabel().type"
             size="small"
-            data-testid="validation-dialog-status-complete"
+            :data-testid="validationStatusLabel().type === 'success' ? 'validation-dialog-status-complete' : 'validation-dialog-status-issues'"
           >
-            Complete
-          </NTag>
-          <NTag
-            v-else
-            type="warning"
-            size="small"
-            data-testid="validation-dialog-status-missing"
-          >
-            {{ result.total_missing }} missing
+            {{ validationStatusLabel().text }}
           </NTag>
         </div>
 
@@ -95,27 +97,29 @@ function hasAnyMissing(): boolean {
             v-for="cp in result.checkpoints"
             :key="cp.checkpoint"
             class="validation-checkpoint-row"
-            :class="{ 'validation-checkpoint-row--warning': getCheckpointStatus(cp.missing) === 'warning' }"
+            :class="{ 'validation-checkpoint-row--warning': getCheckpointStatus(cp) === 'warning' }"
             :data-testid="`validation-dialog-cp-${cp.checkpoint}`"
           >
             <span
               class="validation-status-icon"
               :class="{
-                'validation-status-icon--pass': getCheckpointStatus(cp.missing) === 'pass',
-                'validation-status-icon--warning': getCheckpointStatus(cp.missing) === 'warning',
+                'validation-status-icon--pass': getCheckpointStatus(cp) === 'pass',
+                'validation-status-icon--warning': getCheckpointStatus(cp) === 'warning',
               }"
             >
-              {{ getCheckpointStatus(cp.missing) === 'pass' ? '\u2713' : '\u26A0' }}
+              {{ getCheckpointStatus(cp) === 'pass' ? '\u2713' : '\u26A0' }}
             </span>
             <span class="validation-checkpoint-name" :title="cp.checkpoint">{{ cp.checkpoint }}</span>
             <span class="validation-checkpoint-counts" :data-testid="`validation-dialog-cp-counts-${cp.checkpoint}`">
               {{ cp.verified }}/{{ cp.expected }}
+              <span v-if="cp.extra > 0" class="validation-extra-badge" :data-testid="`validation-dialog-cp-extra-${cp.checkpoint}`">(+{{ cp.extra }})</span>
+              <span v-if="cp.invalid_params > 0" class="validation-invalid-badge" :data-testid="`validation-dialog-cp-invalid-${cp.checkpoint}`">{{ cp.invalid_params }} param mismatch</span>
             </span>
           </div>
         </div>
 
-        <!-- Regenerate footer hint when there are missing samples -->
-        <p v-if="hasAnyMissing() && job" class="validation-regenerate-hint">
+        <!-- Regenerate footer hint when there are any issues -->
+        <p v-if="hasAnyIssues() && job" class="validation-regenerate-hint">
           Click <strong>Regenerate</strong> to generate missing samples only.
         </p>
       </template>
@@ -192,5 +196,16 @@ function hasAnyMissing(): boolean {
   margin: 0.75rem 0 0;
   font-size: 0.8125rem;
   color: var(--text-secondary);
+}
+
+.validation-extra-badge {
+  color: var(--warning-color);
+  margin-left: 0.25rem;
+}
+
+.validation-invalid-badge {
+  color: var(--error-color);
+  margin-left: 0.25rem;
+  font-size: 0.75rem;
 }
 </style>

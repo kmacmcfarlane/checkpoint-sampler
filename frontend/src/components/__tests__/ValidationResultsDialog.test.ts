@@ -27,26 +27,58 @@ const sampleJob: SampleJob = {
 
 const completeValidationResult: ValidationResult = {
   checkpoints: [
-    { checkpoint: 'my-model-step00001000.safetensors', expected: 2, verified: 2, missing: 0 },
-    { checkpoint: 'my-model-step00002000.safetensors', expected: 2, verified: 2, missing: 0 },
+    { checkpoint: 'my-model-step00001000.safetensors', expected: 2, verified: 2, missing: 0, extra: 0, invalid_params: 0 },
+    { checkpoint: 'my-model-step00002000.safetensors', expected: 2, verified: 2, missing: 0, extra: 0, invalid_params: 0 },
   ],
   expected_per_checkpoint: 2,
   total_expected: 4,
   total_verified: 4,
   total_actual: 4,
   total_missing: 0,
+  total_extra: 0,
+  total_invalid_params: 0,
 }
 
 const incompleteValidationResult: ValidationResult = {
   checkpoints: [
-    { checkpoint: 'my-model-step00001000.safetensors', expected: 2, verified: 2, missing: 0 },
-    { checkpoint: 'my-model-step00002000.safetensors', expected: 2, verified: 1, missing: 1 },
+    { checkpoint: 'my-model-step00001000.safetensors', expected: 2, verified: 2, missing: 0, extra: 0, invalid_params: 0 },
+    { checkpoint: 'my-model-step00002000.safetensors', expected: 2, verified: 1, missing: 1, extra: 0, invalid_params: 0 },
   ],
   expected_per_checkpoint: 2,
   total_expected: 4,
   total_verified: 3,
   total_actual: 3,
   total_missing: 1,
+  total_extra: 0,
+  total_invalid_params: 0,
+}
+
+const extraSamplesResult: ValidationResult = {
+  checkpoints: [
+    { checkpoint: 'my-model-step00001000.safetensors', expected: 2, verified: 5, missing: 0, extra: 3, invalid_params: 0 },
+    { checkpoint: 'my-model-step00002000.safetensors', expected: 2, verified: 2, missing: 0, extra: 0, invalid_params: 0 },
+  ],
+  expected_per_checkpoint: 2,
+  total_expected: 4,
+  total_verified: 7,
+  total_actual: 7,
+  total_missing: 0,
+  total_extra: 3,
+  total_invalid_params: 0,
+}
+
+const invalidParamsResult: ValidationResult = {
+  checkpoints: [
+    { checkpoint: 'my-model-step00001000.safetensors', expected: 2, verified: 2, missing: 0, extra: 0, invalid_params: 1 },
+    { checkpoint: 'my-model-step00002000.safetensors', expected: 2, verified: 2, missing: 0, extra: 0, invalid_params: 0 },
+  ],
+  expected_per_checkpoint: 2,
+  total_expected: 4,
+  total_verified: 4,
+  total_actual: 4,
+  total_missing: 0,
+  total_extra: 0,
+  total_invalid_params: 1,
 }
 
 describe('ValidationResultsDialog', () => {
@@ -167,7 +199,7 @@ describe('ValidationResultsDialog', () => {
     expect(summary.text()).toContain('4 / 4 samples')
   })
 
-  it('shows "Complete" tag when total_missing is 0', () => {
+  it('shows "Complete" tag when there are no missing, extra, or invalid params', () => {
     const wrapper = mount(ValidationResultsDialog, {
       props: {
         show: true,
@@ -181,8 +213,8 @@ describe('ValidationResultsDialog', () => {
 
     const completeTag = wrapper.find('[data-testid="validation-dialog-status-complete"]')
     expect(completeTag.exists()).toBe(true)
-    const missingTag = wrapper.find('[data-testid="validation-dialog-status-missing"]')
-    expect(missingTag.exists()).toBe(false)
+    const issuesTag = wrapper.find('[data-testid="validation-dialog-status-issues"]')
+    expect(issuesTag.exists()).toBe(false)
   })
 
   it('shows "N missing" warning tag when total_missing > 0', () => {
@@ -197,11 +229,106 @@ describe('ValidationResultsDialog', () => {
       global: { stubs: { Teleport: true } },
     })
 
-    const missingTag = wrapper.find('[data-testid="validation-dialog-status-missing"]')
-    expect(missingTag.exists()).toBe(true)
-    expect(missingTag.text()).toContain('1 missing')
+    const issuesTag = wrapper.find('[data-testid="validation-dialog-status-issues"]')
+    expect(issuesTag.exists()).toBe(true)
+    expect(issuesTag.text()).toContain('1 missing')
     const completeTag = wrapper.find('[data-testid="validation-dialog-status-complete"]')
     expect(completeTag.exists()).toBe(false)
+  })
+
+  // AC: FE: Validation status correctly reflects per-sample param mismatches
+  it('shows warning tag with extra count when total_extra > 0', () => {
+    const wrapper = mount(ValidationResultsDialog, {
+      props: {
+        show: true,
+        result: extraSamplesResult,
+        error: null,
+        loading: false,
+        job: null,
+      },
+      global: { stubs: { Teleport: true } },
+    })
+
+    const issuesTag = wrapper.find('[data-testid="validation-dialog-status-issues"]')
+    expect(issuesTag.exists()).toBe(true)
+    expect(issuesTag.text()).toContain('3 extra')
+    const completeTag = wrapper.find('[data-testid="validation-dialog-status-complete"]')
+    expect(completeTag.exists()).toBe(false)
+  })
+
+  // AC: FE: Validation status correctly reflects per-sample param mismatches
+  it('shows warning tag with param mismatch count when total_invalid_params > 0', () => {
+    const wrapper = mount(ValidationResultsDialog, {
+      props: {
+        show: true,
+        result: invalidParamsResult,
+        error: null,
+        loading: false,
+        job: null,
+      },
+      global: { stubs: { Teleport: true } },
+    })
+
+    const issuesTag = wrapper.find('[data-testid="validation-dialog-status-issues"]')
+    expect(issuesTag.exists()).toBe(true)
+    expect(issuesTag.text()).toContain('1 param mismatch')
+    const completeTag = wrapper.find('[data-testid="validation-dialog-status-complete"]')
+    expect(completeTag.exists()).toBe(false)
+  })
+
+  // AC: FE: Extra samples shown at per-checkpoint level
+  it('shows extra badge on checkpoints with extra samples', () => {
+    const wrapper = mount(ValidationResultsDialog, {
+      props: {
+        show: true,
+        result: extraSamplesResult,
+        error: null,
+        loading: false,
+        job: null,
+      },
+      global: { stubs: { Teleport: true } },
+    })
+
+    const extraBadge = wrapper.find('[data-testid="validation-dialog-cp-extra-my-model-step00001000.safetensors"]')
+    expect(extraBadge.exists()).toBe(true)
+    expect(extraBadge.text()).toContain('+3')
+  })
+
+  // AC: FE: Param mismatch shown at per-checkpoint level
+  it('shows invalid params badge on checkpoints with param mismatches', () => {
+    const wrapper = mount(ValidationResultsDialog, {
+      props: {
+        show: true,
+        result: invalidParamsResult,
+        error: null,
+        loading: false,
+        job: null,
+      },
+      global: { stubs: { Teleport: true } },
+    })
+
+    const invalidBadge = wrapper.find('[data-testid="validation-dialog-cp-invalid-my-model-step00001000.safetensors"]')
+    expect(invalidBadge.exists()).toBe(true)
+    expect(invalidBadge.text()).toContain('param mismatch')
+  })
+
+  // AC: FE: Checkpoint row gets warning class when extra > 0
+  it('applies warning class to checkpoint rows with extra samples', () => {
+    const wrapper = mount(ValidationResultsDialog, {
+      props: {
+        show: true,
+        result: extraSamplesResult,
+        error: null,
+        loading: false,
+        job: null,
+      },
+      global: { stubs: { Teleport: true } },
+    })
+
+    const row = wrapper.find('[data-testid="validation-dialog-cp-my-model-step00001000.safetensors"]')
+    expect(row.classes()).toContain('validation-checkpoint-row--warning')
+    const row2 = wrapper.find('[data-testid="validation-dialog-cp-my-model-step00002000.safetensors"]')
+    expect(row2.classes()).not.toContain('validation-checkpoint-row--warning')
   })
 
   it('renders per-checkpoint rows with correct counts', () => {
@@ -316,7 +443,7 @@ describe('ValidationResultsDialog', () => {
     expect(emitted).toBeDefined()
   })
 
-  it('shows regenerate hint when there are missing samples and a job is provided', () => {
+  it('shows regenerate hint when there are validation issues and a job is provided', () => {
     const wrapper = mount(ValidationResultsDialog, {
       props: {
         show: true,

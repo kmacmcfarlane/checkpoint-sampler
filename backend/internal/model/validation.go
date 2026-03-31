@@ -22,4 +22,8 @@ type ValidationResult struct {
 	TotalActual int
 	// TotalMissing is the aggregate missing count across all checkpoints (TotalExpected - TotalActual).
 	TotalMissing int
+	// TotalExtra is the aggregate count of files beyond the expected count across all checkpoints.
+	TotalExtra int
+	// TotalInvalidParams is the aggregate count of samples whose sidecar JSON params do not match the manifest.
+	TotalInvalidParams int
 }
