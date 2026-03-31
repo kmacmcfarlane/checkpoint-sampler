@@ -408,7 +408,7 @@ stories:
   - id: S-133
     title: "Alternating row striping on training run selectors"
     type: enhancement
-    status: uat_feedback
+    status: uat
     priority: 30
     complexity: low
     requires: []
@@ -424,8 +424,6 @@ stories:
     testing:
       - "Verify striping is visible with both short and long training run names"
       - "Check that striping works correctly with the multi-line wrap from B-098"
-    review_feedback: Striping works in the side panel TR selector but is missing from the Generate Samples dialog TR 
-      selector.
   - id: B-131
     title: "Clear-existing deletes ALL samples in study, not just selected checkpoints"
     type: bug
