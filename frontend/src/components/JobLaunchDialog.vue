@@ -11,7 +11,7 @@ import {
   NTag,
   NTooltip,
 } from 'naive-ui'
-import type { SelectRenderLabel, SelectRenderOption } from 'naive-ui'
+import type { SelectRenderLabel, SelectRenderOption, SelectRenderTag } from 'naive-ui'
 import type { AffectedRun, TrainingRun, Study, StudyAvailability, CreateSampleJobPayload, SampleJob, ValidationResult } from '../api/types'
 import { apiClient } from '../api/client'
 import StudyEditor from './StudyEditor.vue'
@@ -184,10 +184,32 @@ const renderTrainingRunLabel: SelectRenderLabel = (option) => {
     }
   }
 
-  children.push(h('span', {}, String(option.label ?? '')))
+  children.push(h('span', {
+    style: {
+      whiteSpace: 'normal',
+      wordBreak: 'break-word',
+      lineHeight: '1.4',
+    },
+  }, String(option.label ?? '')))
 
-  return h('div', { style: { display: 'flex', alignItems: 'center', gap: '0.5rem' } }, children)
+  return h('div', { style: { display: 'flex', alignItems: 'flex-start', gap: '0.5rem' } }, children)
 }
+
+/**
+ * B-098: renderTag for the training-run select closed-state trigger.
+ * Controls how the selected value is shown when the dropdown is closed.
+ * IMPORTANT: VNodes run outside scoped CSS context — all styles must be inlined.
+ */
+const renderWrappedTrainingRunTag: SelectRenderTag = ({ option }) =>
+  h('span', {
+    style: {
+      whiteSpace: 'normal',
+      wordBreak: 'break-word',
+      lineHeight: '1.4',
+      display: 'block',
+    },
+    'data-testid': 'training-run-selected-tag',
+  }, String(option.label ?? ''))
 
 // Training run select options (filtered by showAllRuns)
 // Each option includes _dualBead metadata for the renderLabel function.
@@ -633,10 +655,31 @@ const renderStudyLabel: SelectRenderLabel = (option) => {
     }
   }
 
-  children.push(h('span', {}, String(option.label ?? '')))
+  children.push(h('span', {
+    style: {
+      whiteSpace: 'normal',
+      wordBreak: 'break-word',
+      lineHeight: '1.4',
+    },
+  }, String(option.label ?? '')))
 
-  return h('div', { style: { display: 'flex', alignItems: 'center', gap: '0.5rem' } }, children)
+  return h('div', { style: { display: 'flex', alignItems: 'flex-start', gap: '0.5rem' } }, children)
 }
+
+/**
+ * B-098: renderTag for the study select closed-state trigger.
+ * IMPORTANT: VNodes run outside scoped CSS context — all styles must be inlined.
+ */
+const renderWrappedStudyTag: SelectRenderTag = ({ option }) =>
+  h('span', {
+    style: {
+      whiteSpace: 'normal',
+      wordBreak: 'break-word',
+      lineHeight: '1.4',
+      display: 'block',
+    },
+    'data-testid': 'study-selected-tag',
+  }, String(option.label ?? ''))
 
 /**
  * S-133: zebra-stripe renderOption for the training-run dropdown.
@@ -648,7 +691,9 @@ const renderStudyLabel: SelectRenderLabel = (option) => {
 const renderZebraTrainingRunOption: SelectRenderOption = ({ node, option }) => {
   const index = trainingRunOptions.value.findIndex((o) => o.value === option.value)
   if (index < 0 || index % 2 === 0) return node
-  return cloneVNode(node, { style: { backgroundColor: 'var(--bg-surface)' } })
+  // Use a literal rgba value — CSS variables do not resolve in inline styles injected
+  // via renderOption (VNodes rendered outside scoped CSS context via Teleport).
+  return cloneVNode(node, { style: { backgroundColor: 'rgba(128, 128, 128, 0.07)' } })
 }
 
 /**
@@ -658,7 +703,7 @@ const renderZebraTrainingRunOption: SelectRenderOption = ({ node, option }) => {
 const renderZebraStudyOption: SelectRenderOption = ({ node, option }) => {
   const index = studyOptions.value.findIndex((o) => o.value === option.value)
   if (index < 0 || index % 2 === 0) return node
-  return cloneVNode(node, { style: { backgroundColor: 'var(--bg-surface)' } })
+  return cloneVNode(node, { style: { backgroundColor: 'rgba(128, 128, 128, 0.07)' } })
 }
 
 const selectedStudyDetail = computed(() =>
@@ -1192,7 +1237,10 @@ async function doSubmit() {
             v-model:value="selectedTrainingRunId"
             :options="trainingRunOptions"
             :render-label="renderTrainingRunLabel"
+            :render-tag="renderWrappedTrainingRunTag"
             :render-option="renderZebraTrainingRunOption"
+            :consistent-menu-width="false"
+            :menu-props="{ style: 'min-width: 320px; max-width: min(1024px, 100vw)' }"
             placeholder="Select a training run"
             clearable
             filterable
@@ -1225,7 +1273,10 @@ async function doSubmit() {
             v-model:value="selectedStudy"
             :options="studyOptions"
             :render-label="renderStudyLabel"
+            :render-tag="renderWrappedStudyTag"
             :render-option="renderZebraStudyOption"
+            :consistent-menu-width="false"
+            :menu-props="{ style: 'min-width: 200px; max-width: min(1024px, 100vw)' }"
             placeholder="Select a study"
             clearable
             data-testid="study-select"
@@ -1586,5 +1637,99 @@ async function doSubmit() {
   font-size: 0.9375rem;
   color: var(--text-color);
   line-height: 1.5;
+}
+
+/*
+ * B-098: Override Naive UI NSelect trigger internals so the closed-state selector
+ * grows vertically when the selected name is long.
+ *
+ * This mirrors the same override applied in TrainingRunSelector.vue and is
+ * required here because JobLaunchDialog has its own scoped CSS scope.
+ *
+ * For filterable single-select, Naive UI renders:
+ *   .n-base-selection-label (inline-flex, height: var(--n-height))
+ *     <input class="n-base-selection-input" />   ← width: 100% in flex
+ *     .n-base-selection-label__render-label      ← position: absolute overlay
+ *       .n-base-selection-overlay__wrapper
+ *         [renderTag output]
+ *
+ * Solution:
+ *   1. Label: height: auto so it can grow vertically.
+ *   2. Input: width: 0 / flex: 0 so it takes no space when collapsed.
+ *   3. Overlay: position: relative so it participates in flex layout.
+ *   4. Overlay wrapper: allow text to wrap naturally.
+ */
+.training-run-select-input :deep(.n-base-selection),
+.study-select :deep(.n-base-selection) {
+  height: auto !important;
+  min-height: var(--n-height);
+}
+
+.training-run-select-input :deep(.n-base-selection-label),
+.study-select :deep(.n-base-selection-label) {
+  height: auto !important;
+  min-height: var(--n-height);
+  align-items: center;
+}
+
+/*
+ * Collapse the filter <input> to zero width when the selector is closed
+ * (not active). This prevents the input from stealing horizontal space from
+ * the render-tag overlay.
+ */
+.training-run-select-input :deep(.n-base-selection:not(.n-base-selection--active) .n-base-selection-input),
+.study-select :deep(.n-base-selection:not(.n-base-selection--active) .n-base-selection-input) {
+  width: 0 !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  flex: 0 0 0 !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
+
+/*
+ * Re-flow the render-label overlay into flex so the parent grows to contain
+ * the wrapped text (it's position: absolute by default).
+ */
+.training-run-select-input :deep(.n-base-selection-label__render-label),
+.study-select :deep(.n-base-selection-label__render-label) {
+  position: relative !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  flex: 1;
+  min-width: 0;
+  overflow: visible !important;
+  padding: 4px 28px 4px 10px; /* right-pad preserves space for the arrow/suffix */
+  pointer-events: auto;
+}
+
+.training-run-select-input :deep(.n-base-selection-overlay__wrapper),
+.study-select :deep(.n-base-selection-overlay__wrapper) {
+  flex-basis: auto !important;
+  overflow: visible !important;
+  white-space: normal !important;
+  word-break: break-word;
+}
+
+/*
+ * B-098: Add vertical spacing between dropdown option items so multi-line
+ * wrapped names are easier to read and visually separated.
+ */
+.training-run-select-input :deep(.n-base-select-option),
+.study-select :deep(.n-base-select-option) {
+  min-height: calc(var(--n-option-height) + 4px);
+  align-items: flex-start;
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+}
+
+.training-run-select-input :deep(.n-base-select-option__content),
+.study-select :deep(.n-base-select-option__content) {
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: unset !important;
+  line-height: 1.4;
 }
 </style>

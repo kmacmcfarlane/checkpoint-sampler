@@ -4917,5 +4917,153 @@ describe('JobLaunchDialog', () => {
       expect(result).not.toBe(sentinel)
       expect(result.props?.style?.backgroundColor).toBeDefined()
     })
+
+    // AC: Zebra background uses a literal rgba value, not a CSS variable
+    // (CSS variables do not resolve in inline styles outside scoped CSS context)
+    it('renderOption uses an rgba literal for the zebra background, not a CSS variable', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
+      await nextTick()
+
+      const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
+      const renderOption = runSelect.props('renderOption') as unknown as (info: {
+        node: unknown
+        option: { value: number }
+        selected: boolean
+      }) => { props?: { style?: { backgroundColor?: string } } }
+
+      const sentinel = { type: 'div', props: {}, children: [] }
+      const result = renderOption({ node: sentinel, option: { value: runWithSamples.id }, selected: false })
+      // The background must be a literal color value (not a CSS variable like 'var(--bg-surface)')
+      expect(result.props?.style?.backgroundColor).not.toMatch(/^var\(/)
+    })
+  })
+
+  // B-098: Long name wrapping — training run selectors in GenSamples dialog
+  describe('long name wrapping in GenSamples dialog (B-098)', () => {
+    // AC: Training run NSelect has renderTag prop for closed-state wrapping
+    it('training run NSelect has renderTag prop for closed-state long name wrapping', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
+      expect(typeof runSelect.props('renderTag')).toBe('function')
+    })
+
+    // AC: renderTag on training run NSelect produces a span with white-space: normal
+    it('training run renderTag produces a span with white-space: normal for wrapping', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
+      const renderTag = runSelect.props('renderTag') as
+        | ((props: { option: { label?: string }; handleClose: () => void }) => unknown)
+        | undefined
+      expect(renderTag).toBeDefined()
+
+      // Call renderTag directly and verify wrapping styles
+      const vnode = renderTag!({
+        option: { label: 'very-long-training-run-name-that-should-wrap-instead-of-truncating' },
+        handleClose: () => {},
+      }) as { props?: { style?: { whiteSpace?: string; wordBreak?: string } } }
+      expect(vnode.props?.style?.whiteSpace).toBe('normal')
+      expect(vnode.props?.style?.wordBreak).toBe('break-word')
+    })
+
+    // AC: renderLabel on training run NSelect text span uses white-space: normal
+    it('training run renderLabel text span has white-space: normal for dropdown option wrapping', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
+      const renderLabel = runSelect.props('renderLabel') as (option: Record<string, unknown>) => unknown
+      expect(renderLabel).toBeDefined()
+
+      // Call renderLabel with no beads (just label text)
+      const vnode = renderLabel({
+        label: 'very-long-training-run-name-that-should-wrap',
+        value: 99,
+        _dualBead: { activity: null, problem: null },
+      }) as { children?: unknown[] }
+
+      // The last child should be the text span with wrapping styles
+      const children = vnode.children as Array<{ props?: { style?: { whiteSpace?: string } } }>
+      expect(Array.isArray(children)).toBe(true)
+      const textSpan = children[children.length - 1]
+      expect(textSpan.props?.style?.whiteSpace).toBe('normal')
+    })
+
+    // AC: Study NSelect has renderTag prop for closed-state wrapping
+    it('study NSelect has renderTag prop for closed-state long name wrapping', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+      expect(typeof studySelect.props('renderTag')).toBe('function')
+    })
+
+    // AC: renderTag on study NSelect produces a span with white-space: normal
+    it('study renderTag produces a span with white-space: normal for wrapping', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+      const renderTag = studySelect.props('renderTag') as
+        | ((props: { option: { label?: string }; handleClose: () => void }) => unknown)
+        | undefined
+      expect(renderTag).toBeDefined()
+
+      const vnode = renderTag!({
+        option: { label: 'this-is-a-very-long-study-name-that-should-wrap-instead-of-truncating' },
+        handleClose: () => {},
+      }) as { props?: { style?: { whiteSpace?: string; wordBreak?: string } } }
+      expect(vnode.props?.style?.whiteSpace).toBe('normal')
+      expect(vnode.props?.style?.wordBreak).toBe('break-word')
+    })
+
+    // AC: renderLabel on study NSelect text span uses white-space: normal
+    it('study renderLabel text span has white-space: normal for dropdown option wrapping', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+      const renderLabel = studySelect.props('renderLabel') as (option: Record<string, unknown>) => unknown
+      expect(renderLabel).toBeDefined()
+
+      const vnode = renderLabel({
+        label: 'this-is-a-very-long-study-name-that-should-wrap',
+        value: 'study-99',
+        _dualBead: { activity: null, problem: null },
+        _checkpointCounts: null,
+      }) as { children?: unknown[] }
+
+      const children = vnode.children as Array<{ props?: { style?: { whiteSpace?: string } } }>
+      expect(Array.isArray(children)).toBe(true)
+      const textSpan = children[children.length - 1]
+      expect(textSpan.props?.style?.whiteSpace).toBe('normal')
+    })
   })
 })

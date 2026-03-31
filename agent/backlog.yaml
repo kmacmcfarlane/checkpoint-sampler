@@ -190,7 +190,7 @@ stories:
   - id: B-098
     title: Training run selector truncates long names (needs multi-line wrap)
     type: bug
-    status: uat_feedback
+    status: uat
     priority: 85
     complexity: low
     requires: []
@@ -206,8 +206,6 @@ stories:
       - "FE: Unit tests for long name rendering"
     testing:
       - "Test with realistic long training run names. Verify both the selected value display and the dropdown options."
-    review_feedback: Generate Samples dialog TR selector still truncates long names instead of wrapping. Also needs 
-      striped backgrounds (striping works in side panel but not GenSamples dialog).
   - id: B-107
     title: "Manage Study: Checkpoint Status disappears after regenerate attempt"
     type: bug
