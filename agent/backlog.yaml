@@ -447,7 +447,7 @@ stories:
   - id: B-132
     title: "Validation passes with extra samples; no per-sample param verification"
     type: bug
-    status: todo
+    status: uat
     priority: 50
     complexity: medium
     requires: []
