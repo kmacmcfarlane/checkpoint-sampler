@@ -5,6 +5,11 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-134: Parallel E2E shard startup DNS failures causing cascading test failures
+- Added Phase 2.5 DNS/HTTP connectivity pre-flight in parallel E2E runner: each shard verifies Playwright container can reach `frontend:3000` before tests start, preventing ENOTFOUND cascades
+- Reduced shard batch size (4→3) and increased inter-batch stagger (2s→5s) to reduce Docker DNS pressure
+- Capped `withRetry` exponential backoff at 10s and increased `resetDatabase` retry window to ~54s total
+
 ### B-132: Validation passes with extra samples; no per-sample param verification
 - Reworked `ValidateTrainingRunWithManifest` to generate expected filenames from manifest parameter combinations (Cartesian product) instead of counting directory listings — foreign/copied samples no longer inflate the verified count
 - Extra (foreign) files on disk are now tracked separately and cause validation to report issues rather than silently passing

@@ -9,7 +9,7 @@ import { type APIRequestContext, type Page, expect } from '@playwright/test'
  */
 async function withRetry<T>(
   fn: () => Promise<T>,
-  { maxAttempts = 5, initialDelayMs = 500, label = 'operation' } = {},
+  { maxAttempts = 5, initialDelayMs = 500, maxDelayMs = 10000, label = 'operation' } = {},
 ): Promise<T> {
   let lastError: unknown
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -22,7 +22,9 @@ async function withRetry<T>(
       if (!isTransient || attempt === maxAttempts) {
         throw error
       }
-      const delay = initialDelayMs * Math.pow(2, attempt - 1)
+      // Exponential backoff capped at maxDelayMs to avoid excessively long
+      // waits when maxAttempts is high (B-134).
+      const delay = Math.min(initialDelayMs * Math.pow(2, attempt - 1), maxDelayMs)
       // eslint-disable-next-line no-console
       console.warn(`[${label}] Attempt ${attempt}/${maxAttempts} failed (${message}), retrying in ${delay}ms...`)
       await new Promise(resolve => setTimeout(resolve, delay))
@@ -56,12 +58,15 @@ async function withRetry<T>(
  * (B-108: parallel E2E shards starting simultaneously).
  */
 export async function resetDatabase(request: APIRequestContext): Promise<void> {
+  // Increased from 5/1000ms to 8/2000ms to survive prolonged DNS propagation
+  // delays when 12 parallel compose stacks saturate Docker's embedded DNS
+  // resolver (B-134). With 10s cap: 2+4+8+10+10+10+10 = ~54s total window.
   await withRetry(
     async () => {
       const response = await request.delete('/api/test/reset')
       expect(response.status()).toBe(200)
     },
-    { label: 'resetDatabase', maxAttempts: 5, initialDelayMs: 1000 },
+    { label: 'resetDatabase', maxAttempts: 8, initialDelayMs: 2000 },
   )
 
   // Verify backend is healthy after reset — the executor has resumed and
@@ -71,7 +76,7 @@ export async function resetDatabase(request: APIRequestContext): Promise<void> {
       const healthResponse = await request.get('/health')
       expect(healthResponse.status()).toBe(200)
     },
-    { label: 'resetDatabase/health', maxAttempts: 3, initialDelayMs: 500 },
+    { label: 'resetDatabase/health', maxAttempts: 5, initialDelayMs: 1000 },
   )
 }
 

@@ -6,8 +6,9 @@
 # still runs with workers:1.
 #
 # The backend binary is pre-built in the Docker image (Dockerfile.dev bakes
-# codegen + compilation). Shards start in batches (BATCH_SIZE=4) to avoid
+# codegen + compilation). Shards start in batches (BATCH_SIZE=3) to avoid
 # Docker DNS resolver races when many stacks start simultaneously (B-108).
+# A DNS pre-flight phase verifies connectivity before running tests (B-134).
 #
 # Usage:
 #   ./scripts/e2e/e2e_parallel.sh [SHARDS] [-- playwright args...]
@@ -156,16 +157,63 @@ start_shard() {
 # Stagger shard startup in batches to reduce pressure on Docker's embedded
 # DNS resolver. When all shards start simultaneously, DNS hostname registration
 # can race with container readiness checks, causing ENOTFOUND errors (B-108).
-BATCH_SIZE=4
+# Batch size reduced from 4 to 3 and stagger increased from 2s to 5s to
+# further reduce DNS pressure with 12 shards (B-134).
+BATCH_SIZE=3
 for i in $(seq 1 "$SHARDS"); do
   start_shard "$i" &
-  # After each batch, wait briefly before starting the next batch
+  # After each batch, wait before starting the next batch
   if [ $(( i % BATCH_SIZE )) -eq 0 ] && [ "$i" -lt "$SHARDS" ]; then
-    sleep 2
+    sleep 5
   fi
 done
 wait
 echo "=== All stacks healthy ==="
+
+# --- Phase 2.5: DNS / connectivity pre-flight ---
+# Even though Docker health checks passed for backend and frontend containers,
+# the Playwright container (started via `docker compose run` in Phase 3) resolves
+# hostnames through Docker's embedded DNS, which may lag under load from 12
+# simultaneous compose networks. This pre-flight verifies that each shard's
+# Playwright container can actually reach frontend:3000 before we start tests.
+# Without this, resetDatabase in beforeEach fails with ENOTFOUND (B-134).
+echo ""
+echo "=== Phase 2.5: Verifying DNS connectivity from Playwright containers ==="
+
+verify_shard_dns() {
+  local i=$1
+  local project="${E2E_PROJECT_PREFIX}-${i}"
+  local max_attempts=10
+  local attempt=1
+  local delay=2
+
+  while [ "$attempt" -le "$max_attempts" ]; do
+    if docker compose -p "$project" -f "$COMPOSE_FILE" run --rm --remove-orphans \
+      playwright sh -c "wget -qO- --timeout=5 http://frontend:3000 >/dev/null 2>&1" 2>/dev/null; then
+      echo "  [shard $i] DNS + HTTP connectivity verified (attempt $attempt)"
+      return 0
+    fi
+    echo "  [shard $i] Connectivity check failed (attempt $attempt/$max_attempts), retrying in ${delay}s..."
+    sleep "$delay"
+    attempt=$((attempt + 1))
+    # Linear backoff: 2, 4, 6, ... seconds
+    delay=$((delay + 2))
+  done
+
+  echo "  [shard $i] WARNING: DNS connectivity not verified after $max_attempts attempts"
+  return 1
+}
+
+PREFLIGHT_FAIL=0
+for i in $(seq 1 "$SHARDS"); do
+  verify_shard_dns "$i" &
+done
+# Wait for all pre-flight checks; failures are non-fatal (test retries may recover)
+wait || PREFLIGHT_FAIL=1
+if [ "$PREFLIGHT_FAIL" -ne 0 ]; then
+  echo "  WARNING: Some shards failed DNS pre-flight — tests may still recover via retries"
+fi
+echo "=== DNS pre-flight complete ==="
 
 # --- Phase 3: Run tests in parallel ---
 echo ""

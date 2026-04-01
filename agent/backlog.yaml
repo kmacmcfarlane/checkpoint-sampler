@@ -316,7 +316,7 @@ stories:
   - id: B-134
     title: "Parallel E2E shard startup DNS failures causing cascading test failures"
     type: bug
-    status: todo
+    status: uat
     priority: 65
     complexity: medium
     requires: []
