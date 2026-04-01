@@ -313,7 +313,7 @@ stories:
   - id: B-133
     title: "Job updated_at not touched on status transitions; list sorts by created not updated"
     type: bug
-    status: uat_feedback
+    status: uat
     priority: 30
     complexity: low
     requires: []
@@ -332,5 +332,3 @@ stories:
       - "Verify stopping and resuming a job updates updated_at"
       - "Verify job list order changes when a job is resumed (moves to top)"
       - "Check FE displays both timestamps"
-    review_feedback: When a job is touched and reorders to the top of the list (due to updated_at sort), the job list 
-      should auto-scroll so the item is visible at the top.

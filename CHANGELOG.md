@@ -20,6 +20,7 @@ Older entries are condensed to titles only — see git history for full details.
 ### B-133: Job updated_at not touched on status transitions; list sorts by created not updated
 - Fixed job list sort order to use `updated_at DESC` instead of `created_at DESC` so recently active jobs appear at the top
 - Frontend now displays both "Created" and "Updated" timestamps in the job progress panel
+- Added auto-scroll: when a job reorders to the top of the list (due to updated_at sort), the panel scrolls to show the new top item
 
 ### B-132: Validation passes with extra samples; no per-sample param verification
 - Fixed `ValidateTrainingRunWithStudy` and `ValidateTrainingRunWithManifest` to track extra samples (verified > expected) in new `Extra` / `TotalExtra` fields instead of silently clamping to zero — extra files now surface as a validation warning

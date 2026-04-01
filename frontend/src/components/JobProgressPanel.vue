@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, toRef } from 'vue'
+import { computed, ref, toRef, watch } from 'vue'
 import { NModal, NButton, NTag, NProgress, NSpace, NEmpty, NSpin } from 'naive-ui'
 import type { SampleJob, SampleJobStatus, CurrentSampleParams, ValidationResult } from '../api/types'
 import { apiClient } from '../api/client'
@@ -116,6 +116,43 @@ const sortedJobs = computed(() => {
     return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
   })
 })
+
+/** Ref to the sentinel element at the top of the job list. Used for auto-scroll on reorder. */
+const listTopSentinel = ref<HTMLElement | null>(null)
+
+/**
+ * AC (UAT feedback): When a job reorders to the top of the list due to
+ * updated_at sort, auto-scroll so the new top item is visible.
+ *
+ * We watch for changes in the first job's ID. On the initial render
+ * (previousTopId is null) we do not scroll — only react to subsequent
+ * reorders while the panel is open.
+ */
+let previousTopId: string | null = null
+watch(
+  () => sortedJobs.value[0]?.id,
+  (newTopId) => {
+    if (newTopId === undefined) {
+      previousTopId = null
+      return
+    }
+    if (previousTopId !== null && newTopId !== previousTopId && listTopSentinel.value) {
+      listTopSentinel.value.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+    previousTopId = newTopId
+  },
+)
+
+// Reset previousTopId whenever the panel is hidden so that reopening the panel
+// does not trigger a spurious scroll for whatever job happens to be first.
+watch(
+  () => props.show,
+  (show) => {
+    if (!show) {
+      previousTopId = null
+    }
+  },
+)
 
 /** Map of job IDs to whether their parameters panel is expanded. */
 const expandedParams = ref<Record<string, boolean>>({})
@@ -404,6 +441,8 @@ function isTracebackExpanded(jobId: string, errorIdx: number): boolean {
       </div>
 
       <NSpace v-else vertical :size="12">
+        <!-- Sentinel element: scrollIntoView target when job list reorders (UAT feedback B-133) -->
+        <div ref="listTopSentinel" data-testid="job-list-top-sentinel" style="height: 0; overflow: hidden;" aria-hidden="true" />
         <div
           v-for="job in sortedJobs"
           :key="job.id"
