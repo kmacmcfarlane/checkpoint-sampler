@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { resetDatabase, selectTrainingRun } from './helpers'
+import { resetDatabase, selectTrainingRun, openGenerateSamplesDialog, getGenerateSamplesDialog } from './helpers'
 
 /**
  * E2E tests for B-098 (UAT rework): Training run selector long-name wrapping.
@@ -73,5 +73,80 @@ test.describe('B-098: Training run selector wrapping', () => {
 
     // Dimensions panel should appear (scan completes successfully after selection)
     await expect(page.getByText('Dimensions')).toBeVisible()
+  })
+})
+
+test.describe('B-098 UAT rework v2: Gen Samples dialog study selector', () => {
+  test.beforeEach(async ({ request }) => {
+    await resetDatabase(request)
+  })
+
+  // AC (B-098 UAT rework v2): Study selector in Gen Samples dialog shows the selected
+  // study name when collapsed. The study NSelect must be filterable so that the
+  // renderTag/CSS overrides apply and the closed-state trigger renders correctly.
+  test('study-selected-tag span visible in closed trigger after selecting a study', async ({ page }) => {
+    await page.goto('/')
+    await selectTrainingRun(page, 'my-model')
+    await openGenerateSamplesDialog(page)
+
+    const dialog = getGenerateSamplesDialog(page)
+    await expect(dialog).toBeVisible()
+
+    // Select the training run inside the dialog
+    const dialogRunSelect = dialog.locator('[data-testid="training-run-select"]')
+    await dialogRunSelect.click()
+    const popupMenu = page.locator('.n-base-select-menu:visible')
+    await expect(popupMenu).toBeVisible()
+    await popupMenu.getByText('my-model', { exact: true }).click()
+    await expect(popupMenu).not.toBeVisible()
+
+    // Wait for study selector to appear and be ready
+    const studySelectTrigger = dialog.locator('[data-testid="study-select"]')
+    await expect(studySelectTrigger).toBeVisible()
+
+    // Select a study
+    await studySelectTrigger.click()
+    const studyPopup = page.locator('.n-base-select-menu:visible')
+    await expect(studyPopup).toBeVisible()
+    await studyPopup.locator('.n-base-select-option').first().click()
+    await expect(studyPopup).not.toBeVisible()
+
+    // AC: After selection, the closed-state trigger must contain the renderTag-generated
+    // span with data-testid="study-selected-tag". This verifies that:
+    //   1. The study select is filterable (enabling the renderTag path)
+    //   2. The selected study name is visible (not hidden by broken CSS)
+    const studySelectedTag = studySelectTrigger.locator('[data-testid="study-selected-tag"]')
+    await expect(studySelectedTag).toBeVisible()
+  })
+
+  // AC (B-098 UAT rework v2): The study selector in Gen Samples dialog does not grow
+  // taller than a single-row trigger when no study is selected (collapsed + empty state).
+  test('study selector in Gen Samples dialog has normal height when empty', async ({ page }) => {
+    await page.goto('/')
+    await selectTrainingRun(page, 'my-model')
+    await openGenerateSamplesDialog(page)
+
+    const dialog = getGenerateSamplesDialog(page)
+    await expect(dialog).toBeVisible()
+
+    // Select the training run so the study selector is visible
+    const dialogRunSelect = dialog.locator('[data-testid="training-run-select"]')
+    await dialogRunSelect.click()
+    const popupMenu = page.locator('.n-base-select-menu:visible')
+    await expect(popupMenu).toBeVisible()
+    await popupMenu.getByText('my-model', { exact: true }).click()
+    await expect(popupMenu).not.toBeVisible()
+
+    // Wait for study selector
+    const studySelectTrigger = dialog.locator('[data-testid="study-select"]')
+    await expect(studySelectTrigger).toBeVisible()
+
+    // AC: The study selector trigger height should not grow proportionally with the
+    // number of studies. A reasonable max height for an unselected trigger is 80px.
+    // (Naive UI's default single-select height is ~34px; with height-auto it may wrap
+    // to ~50px, but should never approach 80px without a selected value.)
+    const box = await studySelectTrigger.boundingBox()
+    expect(box).not.toBeNull()
+    expect(box!.height).toBeLessThan(80)
   })
 })

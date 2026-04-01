@@ -1279,6 +1279,7 @@ async function doSubmit() {
             :menu-props="{ style: 'min-width: 200px; max-width: min(1024px, 100vw)' }"
             placeholder="Select a study"
             clearable
+            filterable
             data-testid="study-select"
             class="study-select"
           />
@@ -1719,10 +1720,10 @@ async function doSubmit() {
  */
 .training-run-select-input :deep(.n-base-select-option),
 .study-select :deep(.n-base-select-option) {
-  min-height: calc(var(--n-option-height) + 4px);
+  min-height: calc(var(--n-option-height) + 8px);
   align-items: flex-start;
-  padding-top: 6px !important;
-  padding-bottom: 6px !important;
+  padding-top: 10px !important;
+  padding-bottom: 10px !important;
 }
 
 .training-run-select-input :deep(.n-base-select-option__content),

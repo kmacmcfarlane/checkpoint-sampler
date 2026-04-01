@@ -471,10 +471,10 @@ function onHasSamplesFilterChange(value: boolean) {
  */
 .training-run-select :deep(.n-base-select-option),
 .study-select :deep(.n-base-select-option) {
-  min-height: calc(var(--n-option-height) + 4px);
+  min-height: calc(var(--n-option-height) + 8px);
   align-items: flex-start;
-  padding-top: 6px !important;
-  padding-bottom: 6px !important;
+  padding-top: 10px !important;
+  padding-bottom: 10px !important;
 }
 
 .training-run-select :deep(.n-base-select-option__content),

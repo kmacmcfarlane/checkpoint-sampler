@@ -190,7 +190,7 @@ stories:
   - id: B-098
     title: Training run selector truncates long names (needs multi-line wrap)
     type: bug
-    status: uat_feedback
+    status: uat
     priority: 70
     complexity: low
     requires: []
@@ -206,10 +206,6 @@ stories:
       - "FE: Unit tests for long name rendering"
     testing:
       - "Test with realistic long training run names. Verify both the selected value display and the dropdown options."
-    review_feedback: "Rework needed:\n1. More vertical padding inside each dropdown option (both main TR selector and Gen
-      Samples dialog TR selector)\n2. Study selector in Gen Samples dialog is too tall when collapsed — grows with number
-      of studies as if all options take up space when closed\n3. Study selector does not show which study is selected when
-      collapsed"
   - id: B-107
     title: "Manage Study: Checkpoint Status disappears after regenerate attempt"
     type: bug

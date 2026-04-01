@@ -5065,5 +5065,20 @@ describe('JobLaunchDialog', () => {
       const textSpan = children[children.length - 1]
       expect(textSpan.props?.style?.whiteSpace).toBe('normal')
     })
+
+    // AC (B-098 UAT rework v2): Study NSelect is filterable so the input-collapse CSS
+    // trick works and the closed-state selected value renders correctly via renderTag.
+    it('study NSelect is filterable so closed-state display works consistently', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+      // AC: filterable enables the same DOM structure as the training-run selector so
+      // the CSS input-collapse and overlay-reflowing overrides apply correctly.
+      expect(studySelect.props('filterable')).toBe(true)
+    })
   })
 })

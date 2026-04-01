@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-098: Training run selector truncates long names (needs multi-line wrap)
+- Fixed study selector in Gen Samples dialog: added `filterable` prop so selected study name displays when collapsed and trigger height no longer grows with number of studies
+- Increased vertical padding on dropdown options (6px → 10px) in both TrainingRunSelector and JobLaunchDialog for better readability
+
 ### B-115: Regenerate confirmation dialog missing on study update
 - Clarified immutability dialog wording: buttons renamed to "Yes, regenerate" / "No, keep existing samples", scope explicitly limited to "this study only", and clearing timing noted as "when each job starts"
 
