@@ -313,3 +313,21 @@ stories:
       - "Verify stopping and resuming a job updates updated_at"
       - "Verify job list order changes when a job is resumed (moves to top)"
       - "Check FE displays both timestamps"
+  - id: B-134
+    title: "Parallel E2E shard startup DNS failures causing cascading test failures"
+    type: bug
+    status: todo
+    priority: 65
+    complexity: medium
+    requires: []
+    notes: >
+      When 12 shards start simultaneously, some shards complete Docker compose startup
+      but the Docker internal DNS has not yet propagated the frontend service hostname.
+      The resetDatabase call in beforeEach fails because it cannot resolve frontend:3000,
+      causing all tests in those shards to cascade fail. Observed in shards 1, 4, 5, 6
+      during B-115 QA run. Source: QA sweep during B-115.
+    acceptance:
+      - "All 12 shards resolve frontend hostname successfully within startup wait period"
+      - "E2E parallel pass rate above 95% across 3 consecutive runs"
+    testing:
+      - "Run make test-e2e 3 times consecutively and verify pass rate"
