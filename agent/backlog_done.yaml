@@ -5820,3 +5820,22 @@ stories:
       - "Non-trivial merge: two worktrees modify same Go file, verify story goes back to developer (not blocked)"
       - "E2E isolation: two worktrees run make test-e2e concurrently without container/volume collisions"
       - "Merge death recovery: kill process during merge, verify next cycle detects and retries"
+  - id: B-098
+    title: Training run selector truncates long names (needs multi-line wrap)
+    type: bug
+    status: done
+    priority: 70
+    complexity: low
+    requires: []
+    notes: >
+      Training run selector in the main controls slideout cuts off long training run
+      names with ellipsis. Names should wrap to multiple lines instead of truncating.
+      FE-only CSS fix on the NSelect component.
+      Source: user UAT feedback.
+    acceptance:
+      - "FE: Training run selector wraps long names to multiple lines instead of truncating"
+      - "FE: Dropdown options also display full names without truncation"
+      - "FE: Layout remains clean with wrapped names"
+      - "FE: Unit tests for long name rendering"
+    testing:
+      - "Test with realistic long training run names. Verify both the selected value display and the dropdown options."

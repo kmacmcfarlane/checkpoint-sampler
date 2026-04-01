@@ -187,25 +187,6 @@ stories:
       - "command: make test-e2e SPEC=dimension-filtering.spec.ts"
     notes: |-
       Closed as not reproducible. Tests pass reliably across 3 consecutive runs. The flakiness was likely caused by the same timing issues fixed by B-089 (savePresetViaDialog race condition) and B-091 (preset dirty tracking timing).
-  - id: B-098
-    title: Training run selector truncates long names (needs multi-line wrap)
-    type: bug
-    status: uat
-    priority: 70
-    complexity: low
-    requires: []
-    notes: >
-      Training run selector in the main controls slideout cuts off long training run
-      names with ellipsis. Names should wrap to multiple lines instead of truncating.
-      FE-only CSS fix on the NSelect component.
-      Source: user UAT feedback.
-    acceptance:
-      - "FE: Training run selector wraps long names to multiple lines instead of truncating"
-      - "FE: Dropdown options also display full names without truncation"
-      - "FE: Layout remains clean with wrapped names"
-      - "FE: Unit tests for long name rendering"
-    testing:
-      - "Test with realistic long training run names. Verify both the selected value display and the dropdown options."
   - id: B-107
     title: "Manage Study: Checkpoint Status disappears after regenerate attempt"
     type: bug
@@ -229,7 +210,7 @@ stories:
   - id: B-115
     title: "Regenerate confirmation dialog missing on study update"
     type: bug
-    status: uat
+    status: uat_feedback
     priority: 90
     complexity: medium
     requires:
@@ -250,6 +231,11 @@ stories:
       - "Test with study that has samples across multiple checkpoints — all affected samplesets should appear in dialog."
       - "Test 'No' path: samples untouched after study update."
       - "Test 'Yes' path: verify jobs queued with clear-existing param per B-114 behavior."
+    review_feedback: 'After clicking "Regenerate" in the confirmation dialog, the Generate Samples dialog should close and
+      the view should switch to the job list. Additionally, the first regenerate job failed with this error: "failed to save
+      image: ensuring directory: mkdir /data/samples/qwen_i4rt-v0.0.0-qwen-2512-1024-adafactor-constant-1.5e-5-steps-2500-timestep-qinglong_qwen-with_reg-state_model/test/model.safetensors:
+      file exists (1 checkpoint)model.safetensors" — the backend appears to be treating the checkpoint filename (model.safetensors)
+      as part of the directory path instead of stripping it.'
   - id: B-117
     title: "E2E: study-versioning spec returns HTTP 400 on PUT /api/studies"
     type: bug
