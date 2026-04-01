@@ -24,8 +24,8 @@ import {
  *
  * AC1 (FE): Updating a study with existing samples shows the immutability dialog.
  * AC2 (FE): Dialog lists affected samplesets (training runs with checkpoint counts).
- * AC3 (FE): "Regenerate Existing" queues jobs with clear_existing=true.
- * AC4 (FE): "Ignore" updates the study without queuing any jobs.
+ * AC3 (FE): "Yes, regenerate" queues jobs with clear_existing=true (clearing at job start, scoped to this study).
+ * AC4 (FE): "No, keep existing samples" updates the study without queuing any jobs.
  * AC5 (BE): The affected-runs API endpoint returns training runs with samples.
  *
  * ## Test data
@@ -247,9 +247,9 @@ test.describe('study update regen dialog (B-115)', () => {
     await expect(affectedItems.first()).toContainText('my-model')
   })
 
-  // AC4 (FE): "Ignore" updates the study without queuing any jobs
-  test('AC4: Ignore updates the study without queuing regeneration jobs', async ({ page, request }) => {
-    // AC: FE: 'No' updates the study without regenerating or clearing samples
+  // AC4 (FE): "No, keep existing samples" updates the study without queuing any jobs
+  test('AC4: "No, keep existing samples" updates the study without queuing regeneration jobs', async ({ page, request }) => {
+    // AC: FE: 'No, keep existing samples' updates the study without regenerating or clearing samples
     const studyName = `B-115 Ignore Test ${Date.now()}`
     const studyId = await createStudy(request, studyName)
 
@@ -273,7 +273,7 @@ test.describe('study update regen dialog (B-115)', () => {
     const immutabilityDialog = page.locator('[data-testid="immutability-dialog"]')
     await expect(immutabilityDialog).toBeVisible({ timeout: 10000 })
 
-    // Click "Ignore" — should save study without creating any sample jobs
+    // Click "No, keep existing samples" — should save study without creating any sample jobs
     const ignoreButton = page.locator('[data-testid="immutability-ignore-button"]')
     await expect(ignoreButton).toBeVisible()
     await ignoreButton.click()

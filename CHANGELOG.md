@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-115: Regenerate confirmation dialog missing on study update
+- Clarified immutability dialog wording: buttons renamed to "Yes, regenerate" / "No, keep existing samples", scope explicitly limited to "this study only", and clearing timing noted as "when each job starts"
+
 ### B-133: Job updated_at not touched on status transitions; list sorts by created not updated
 - Fixed job list sort order to use `updated_at DESC` instead of `created_at DESC` so recently active jobs appear at the top
 - Frontend now displays both "Created" and "Updated" timestamps in the job progress panel

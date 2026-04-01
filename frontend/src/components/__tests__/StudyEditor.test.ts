@@ -2650,8 +2650,8 @@ describe('StudyEditor', () => {
       }
     })
 
-    // AC: FE: 'Regenerate Existing' updates study in-place and emits study-regenerate
-    it('updates study in-place when "Regenerate Existing" is clicked', async () => {
+    // AC: FE: 'Yes, regenerate' updates study in-place and emits study-regenerate
+    it('updates study in-place when "Yes, regenerate" is clicked', async () => {
       mockStudyHasSamples.mockResolvedValue({ has_samples: true })
       const updatedStudy: Study = {
         ...studies[0],
@@ -2686,7 +2686,7 @@ describe('StudyEditor', () => {
         await regenButton.trigger('click')
       } else {
         const allButtons = wrapper.findAllComponents(NButton)
-        const regen = allButtons.find(b => b.text().includes('Regenerate Existing'))
+        const regen = allButtons.find(b => b.text().includes('Yes, regenerate'))
         expect(regen).toBeTruthy()
         await regen!.trigger('click')
       }
@@ -2736,8 +2736,8 @@ describe('StudyEditor', () => {
       }
     })
 
-    // AC: FE: 'Ignore' updates the study without regenerating or clearing samples
-    it('updates study without regenerating when "Ignore" is clicked', async () => {
+    // AC: FE: 'No, keep existing samples' updates the study without regenerating or clearing samples
+    it('updates study without regenerating when "No, keep existing samples" is clicked', async () => {
       mockStudyHasSamples.mockResolvedValue({ has_samples: true })
       const updatedStudy: Study = {
         ...studies[0],
@@ -2763,13 +2763,13 @@ describe('StudyEditor', () => {
       await saveButton.trigger('click')
       await flushPromises()
 
-      // Click "Ignore" in the immutability dialog
+      // Click "No, keep existing samples" in the immutability dialog
       const ignoreButton = wrapper.find('[data-testid="immutability-ignore-button"]')
       if (ignoreButton.exists()) {
         await ignoreButton.trigger('click')
       } else {
         const allButtons = wrapper.findAllComponents(NButton)
-        const ignore = allButtons.find(b => b.text() === 'Ignore')
+        const ignore = allButtons.find(b => b.text().includes('No, keep existing samples'))
         expect(ignore).toBeTruthy()
         await ignore!.trigger('click')
       }
@@ -2780,6 +2780,48 @@ describe('StudyEditor', () => {
       expect(wrapper.emitted('study-regenerate')).toBeUndefined()
       // study-saved event IS emitted
       expect(wrapper.emitted('study-saved')).toBeTruthy()
+    })
+
+    // B-115 rework: dialog wording makes scope clear (only this study, clearing at job start)
+    it('dialog wording mentions only this study and deferred clearing', async () => {
+      mockStudyHasSamples.mockResolvedValue({ has_samples: true })
+      mockGetAffectedRuns.mockResolvedValue([
+        { training_run_name: 'run-a', checkpoints_with_samples: 3, total_checkpoints: 5 },
+      ])
+
+      const wrapper = mount(StudyEditor, {
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const select = wrapper.findAllComponents(NSelect)[0]
+      select.vm.$emit('update:value', 'preset-1')
+      await nextTick()
+
+      const saveButton = wrapper
+        .findAllComponents(NButton)
+        .find((b) => b.text().includes('Update Study'))!
+      await saveButton.trigger('click')
+      await flushPromises()
+
+      // Verify "Yes, regenerate" button is shown (not "Regenerate Existing")
+      const regenButton = wrapper.find('[data-testid="immutability-regen-button"]')
+      expect(regenButton.exists()).toBe(true)
+      expect(regenButton.text()).toContain('Yes, regenerate')
+
+      // Verify the hint mentions "this study" scope and deferred clearing (when each job starts)
+      const regenHint = wrapper.find('[data-testid="immutability-regen-hint"]')
+      if (regenHint.exists()) {
+        expect(regenHint.text()).toContain('this study')
+        expect(regenHint.text()).toContain('when each job starts')
+      }
+
+      // Verify the affected runs list heading says "this study only"
+      const affectedList = wrapper.find('[data-testid="immutability-affected-list"]')
+      if (affectedList.exists()) {
+        const heading = wrapper.find('[data-testid="immutability-affected-list"]')?.element?.closest('div')
+        expect(heading?.textContent).toContain('this study only')
+      }
     })
 
     // B-115: study-regenerate NOT emitted when save fails
@@ -2813,7 +2855,7 @@ describe('StudyEditor', () => {
         await regenButton.trigger('click')
       } else {
         const allButtons = wrapper.findAllComponents(NButton)
-        const regen = allButtons.find(b => b.text().includes('Regenerate Existing'))
+        const regen = allButtons.find(b => b.text().includes('Yes, regenerate'))
         expect(regen).toBeTruthy()
         await regen!.trigger('click')
       }

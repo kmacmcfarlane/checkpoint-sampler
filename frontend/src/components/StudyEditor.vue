@@ -1342,7 +1342,7 @@ function renderSeedTag(tag: string, index: number) {
     />
 
     <!-- Immutability dialog: shown when user edits a study that has generated samples.
-         Three options: Clone, Regenerate Existing, Ignore. -->
+         Three options: Clone, Yes, regenerate (queue jobs with clear_existing), No (ignore). -->
     <NModal
       v-model:show="showImmutabilityDialog"
       preset="dialog"
@@ -1351,8 +1351,8 @@ function renderSeedTag(tag: string, index: number) {
       data-testid="immutability-dialog"
     >
       <p>
-        This study already has generated samples on disk. Changing its configuration
-        will invalidate those samples. Choose how to proceed:
+        This study already has generated samples. Changing its configuration will
+        invalidate those samples. What would you like to do?
       </p>
 
       <!-- Affected runs list -->
@@ -1360,7 +1360,7 @@ function renderSeedTag(tag: string, index: number) {
         Loading affected training runs...
       </div>
       <div v-else-if="immutabilityAffectedRuns.length > 0" style="margin: 0.75rem 0;">
-        <strong>Affected training runs:</strong>
+        <strong>Affected training runs (this study only):</strong>
         <ul data-testid="immutability-affected-list" style="margin: 0.5rem 0; padding-left: 1.5rem;">
           <li v-for="run in immutabilityAffectedRuns" :key="run.training_run_name" data-testid="immutability-affected-item">
             <strong>{{ run.training_run_name }}</strong>
@@ -1394,31 +1394,32 @@ function renderSeedTag(tag: string, index: number) {
           </div>
         </div>
 
-        <!-- Regenerate Existing option -->
+        <!-- Yes, regenerate option -->
         <NButton
           type="warning"
           block
           data-testid="immutability-regen-button"
           @click="regenStudy"
         >
-          Regenerate Existing
+          Yes, regenerate
         </NButton>
-        <div class="immutability-option-hint">
-          Update the study in-place and clear existing sample directories, then queue
-          regeneration jobs for all affected training runs.
+        <div class="immutability-option-hint" data-testid="immutability-regen-hint">
+          Update the study and queue regeneration jobs for the affected training runs listed
+          above. Only this study's existing samples will be cleared (when each job starts) —
+          other studies and training runs are not affected.
         </div>
 
-        <!-- Ignore option -->
+        <!-- No option (update without regenerating) -->
         <NButton
           block
           data-testid="immutability-ignore-button"
           @click="ignoreAndSave"
         >
-          Ignore
+          No, keep existing samples
         </NButton>
         <div class="immutability-option-hint">
-          Update the study without touching samples. Existing samples will not match
-          the study's new parameters.
+          Update the study without touching samples. Existing samples will no longer
+          match the study's updated parameters.
         </div>
       </NSpace>
     </NModal>

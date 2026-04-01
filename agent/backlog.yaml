@@ -233,7 +233,7 @@ stories:
   - id: B-115
     title: "Regenerate confirmation dialog missing on study update"
     type: bug
-    status: uat_feedback
+    status: uat
     priority: 90
     complexity: medium
     requires:
@@ -254,9 +254,6 @@ stories:
       - "Test with study that has samples across multiple checkpoints — all affected samplesets should appear in dialog."
       - "Test 'No' path: samples untouched after study update."
       - "Test 'Yes' path: verify jobs queued with clear-existing param per B-114 behavior."
-    review_feedback: "Rework needed:\n1. Regenerate should ONLY clear samplesets for the changed study (across training runs),
-      not other studies/TRs\n2. Clearing should happen at job start time, not when the dialog is confirmed\n3. Improve dialog
-      wording to make scope clear (user was concerned it might delete cross-study/TR samples)\nIgnore option works correctly."
   - id: B-117
     title: "E2E: study-versioning spec returns HTTP 400 on PUT /api/studies"
     type: bug
