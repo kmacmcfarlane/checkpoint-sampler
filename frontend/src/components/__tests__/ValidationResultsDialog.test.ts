@@ -53,30 +53,37 @@ const incompleteValidationResult: ValidationResult = {
   total_invalid_params: 0,
 }
 
+// AC: FE: Validation status correctly reflects extra (foreign) samples.
+// With the reworked validation, foreign (extra) files are NOT counted as verified.
+// The 2 expected files are verified, plus 3 extra foreign files → extra=3.
 const extraSamplesResult: ValidationResult = {
   checkpoints: [
-    { checkpoint: 'my-model-step00001000.safetensors', expected: 2, verified: 5, missing: 0, extra: 3, invalid_params: 0 },
+    { checkpoint: 'my-model-step00001000.safetensors', expected: 2, verified: 2, missing: 0, extra: 3, invalid_params: 0 },
     { checkpoint: 'my-model-step00002000.safetensors', expected: 2, verified: 2, missing: 0, extra: 0, invalid_params: 0 },
   ],
   expected_per_checkpoint: 2,
   total_expected: 4,
-  total_verified: 7,
+  total_verified: 4,
   total_actual: 7,
   total_missing: 0,
   total_extra: 3,
   total_invalid_params: 0,
 }
 
+// AC: FE: Validation status correctly reflects per-sample param mismatches.
+// With the reworked validation, a sample with invalid params is NOT counted as
+// verified — it is counted as missing and tracked in invalid_params separately.
 const invalidParamsResult: ValidationResult = {
   checkpoints: [
-    { checkpoint: 'my-model-step00001000.safetensors', expected: 2, verified: 2, missing: 0, extra: 0, invalid_params: 1 },
+    // 1 expected sample has a param mismatch → verified=1, missing=1, invalid_params=1
+    { checkpoint: 'my-model-step00001000.safetensors', expected: 2, verified: 1, missing: 1, extra: 0, invalid_params: 1 },
     { checkpoint: 'my-model-step00002000.safetensors', expected: 2, verified: 2, missing: 0, extra: 0, invalid_params: 0 },
   ],
   expected_per_checkpoint: 2,
   total_expected: 4,
-  total_verified: 4,
-  total_actual: 4,
-  total_missing: 0,
+  total_verified: 3,
+  total_actual: 3,
+  total_missing: 1,
   total_extra: 0,
   total_invalid_params: 1,
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -17,18 +18,20 @@ import (
 
 // fakeValidationFS implements service.ValidationFileSystem for testing.
 type fakeValidationFS struct {
-	files     map[string][]string
-	errs      map[string]error
-	fileData  map[string][]byte
-	readErrs  map[string]error
+	files       map[string][]string
+	errs        map[string]error
+	fileData    map[string][]byte
+	readErrs    map[string]error
+	existFiles  map[string]bool // tracks individual file existence for FileExists
 }
 
 func newFakeValidationFS() *fakeValidationFS {
 	return &fakeValidationFS{
-		files:    make(map[string][]string),
-		errs:     make(map[string]error),
-		fileData: make(map[string][]byte),
-		readErrs: make(map[string]error),
+		files:      make(map[string][]string),
+		errs:       make(map[string]error),
+		fileData:   make(map[string][]byte),
+		readErrs:   make(map[string]error),
+		existFiles: make(map[string]bool),
 	}
 }
 
@@ -42,6 +45,23 @@ func (f *fakeValidationFS) ListPNGFiles(dir string) ([]string, error) {
 func (f *fakeValidationFS) DirectoryExists(path string) bool {
 	_, ok := f.files[path]
 	return ok
+}
+
+// FileExists returns true if the file was explicitly registered via existFiles,
+// or if the file's basename is in the directory listing for its parent dir.
+func (f *fakeValidationFS) FileExists(path string) bool {
+	if explicit, ok := f.existFiles[path]; ok {
+		return explicit
+	}
+	// Fall back to checking the parent directory listing.
+	dir := filepath.Dir(path)
+	base := filepath.Base(path)
+	for _, name := range f.files[dir] {
+		if name == base {
+			return true
+		}
+	}
+	return false
 }
 
 func (f *fakeValidationFS) ReadFile(path string) ([]byte, error) {
@@ -604,10 +624,18 @@ var _ = Describe("ValidationService", func() {
 		})
 	})
 
-	// AC4: Validating a sample set uses the manifest as the source of truth for expected outputs
-	// AC5: Unit tests for manifest validation against manifest
+	// AC: Validating a sample set uses the manifest as the source of truth for expected outputs.
+	// B-132: count-strict validation and per-sample param verification.
 	Describe("ValidateTrainingRunWithManifest", func() {
-		var manifestData []byte
+		var (
+			manifestData []byte
+			// expectedFile1 and expectedFile2 are the canonical filenames for the two
+			// expected samples derived from the test manifest's parameter combinations:
+			// manifest: prompts=[prompt1,prompt2], steps=[20], cfgs=[7.0],
+			//           pairs=[euler/normal], seeds=[42]
+			expectedFile1 string // cfg=7.0&prompt=prompt1&sampler=euler&scheduler=normal&seed=42&steps=20.png
+			expectedFile2 string // cfg=7.0&prompt=prompt2&sampler=euler&scheduler=normal&seed=42&steps=20.png
+		)
 
 		BeforeEach(func() {
 			// Create a manifest with 2 images per checkpoint
@@ -636,12 +664,33 @@ var _ = Describe("ValidationService", func() {
 			var err error
 			manifestData, err = fileformat.MarshalManifest(manifest)
 			Expect(err).NotTo(HaveOccurred())
+
+			// Pre-compute the canonical expected filenames so tests use the real
+			// GenerateOutputFilename format rather than hardcoding the query string.
+			expectedFile1 = service.GenerateOutputFilename(model.SampleJobItem{
+				PromptName:  "prompt1",
+				Steps:       20,
+				CFG:         7.0,
+				SamplerName: "euler",
+				Scheduler:   "normal",
+				Seed:        42,
+			})
+			expectedFile2 = service.GenerateOutputFilename(model.SampleJobItem{
+				PromptName:  "prompt2",
+				Steps:       20,
+				CFG:         7.0,
+				SamplerName: "euler",
+				Scheduler:   "normal",
+				Seed:        42,
+			})
 		})
 
+		// AC: Validation iterates over expected param combinations; only matching samples count.
 		It("uses manifest images-per-checkpoint as expected count", func() {
 			fs.fileData["/samples/Test Study/manifest.json"] = manifestData
-			fs.files["/samples/Test Study/cp1.safetensors"] = []string{"a.png", "b.png"}
-			fs.files["/samples/Test Study/cp2.safetensors"] = []string{"a.png"}
+			// cp1 has both expected files; cp2 has only the first.
+			fs.files["/samples/Test Study/cp1.safetensors"] = []string{expectedFile1, expectedFile2}
+			fs.files["/samples/Test Study/cp2.safetensors"] = []string{expectedFile1}
 
 			tr := model.TrainingRun{
 				Name: "model",
@@ -698,10 +747,15 @@ var _ = Describe("ValidationService", func() {
 			Expect(err.Error()).To(ContainSubstring("parsing manifest"))
 		})
 
-		// B-132: extra files should be flagged (missing=0 but extra>0)
-		It("flags checkpoints with more files than expected as having extra samples", func() {
+		// B-132: foreign sample (wrong name, not part of expected set) does NOT count as verified.
+		// AC: Validation fails when sampleset has more samples than expected.
+		It("does not count foreign (unexpected) files as verified; tracks them as extra", func() {
 			fs.fileData["/samples/Test Study/manifest.json"] = manifestData
-			fs.files["/samples/Test Study/cp1.safetensors"] = []string{"a.png", "b.png", "c.png", "d.png", "e.png"}
+			// Both expected files are present, plus 3 foreign files not in the expected set.
+			fs.files["/samples/Test Study/cp1.safetensors"] = []string{
+				expectedFile1, expectedFile2,
+				"foreign1.png", "foreign2.png", "foreign3.png",
+			}
 
 			tr := model.TrainingRun{
 				Name: "model",
@@ -713,19 +767,45 @@ var _ = Describe("ValidationService", func() {
 
 			result, err := svc.ValidateTrainingRunWithManifest(tr, "Test Study")
 			Expect(err).NotTo(HaveOccurred())
+			// AC: verified counts only the 2 expected samples that exist.
 			Expect(result.Checkpoints[0].Expected).To(Equal(2))
-			Expect(result.Checkpoints[0].Verified).To(Equal(5))
+			Expect(result.Checkpoints[0].Verified).To(Equal(2))
 			Expect(result.Checkpoints[0].Missing).To(Equal(0))
-			// B-132: extra files must be tracked
+			// B-132: the 3 foreign files are tracked as extra.
 			Expect(result.Checkpoints[0].Extra).To(Equal(3))
 		})
 
-		// B-132: TotalExtra aggregate when all checkpoints have more files than expected
-		It("tracks TotalExtra when all checkpoints have more files than expected", func() {
+		// B-132: original bug — a copied sample with wrong metadata was counted as verified.
+		// After rework, only expected param combinations count as verified.
+		It("does not count a foreign sample with modified metadata as verified", func() {
 			fs.fileData["/samples/Test Study/manifest.json"] = manifestData
-			// manifest expects 2 per checkpoint (4 total), but both have 5 files each
-			fs.files["/samples/Test Study/cp1.safetensors"] = []string{"a.png", "b.png", "c.png", "d.png", "e.png"}
-			fs.files["/samples/Test Study/cp2.safetensors"] = []string{"a.png", "b.png", "c.png", "d.png", "e.png"}
+			// One expected file and one foreign (copied, modified) sample.
+			foreignFile := "copied-sample-with-wrong-params.png"
+			fs.files["/samples/Test Study/cp1.safetensors"] = []string{expectedFile1, foreignFile}
+
+			tr := model.TrainingRun{
+				Name: "model",
+				Checkpoints: []model.Checkpoint{
+					{Filename: "cp1.safetensors", StepNumber: 1000, HasSamples: true},
+				},
+				HasSamples: true,
+			}
+
+			result, err := svc.ValidateTrainingRunWithManifest(tr, "Test Study")
+			Expect(err).NotTo(HaveOccurred())
+			// Only the one expected file counts as verified.
+			Expect(result.Checkpoints[0].Verified).To(Equal(1))
+			Expect(result.Checkpoints[0].Missing).To(Equal(1)) // expectedFile2 is absent
+			// The foreign file is tracked as extra — it should not inflate the verified count.
+			Expect(result.Checkpoints[0].Extra).To(Equal(1))
+		})
+
+		// B-132: TotalExtra aggregate when all checkpoints have foreign files.
+		It("tracks TotalExtra when all checkpoints contain only foreign files", func() {
+			fs.fileData["/samples/Test Study/manifest.json"] = manifestData
+			// Neither checkpoint has the expected param-combination filenames.
+			fs.files["/samples/Test Study/cp1.safetensors"] = []string{"a.png", "b.png", "c.png"}
+			fs.files["/samples/Test Study/cp2.safetensors"] = []string{"d.png", "e.png", "f.png"}
 
 			tr := model.TrainingRun{
 				Name: "model",
@@ -738,14 +818,38 @@ var _ = Describe("ValidationService", func() {
 
 			result, err := svc.ValidateTrainingRunWithManifest(tr, "Test Study")
 			Expect(err).NotTo(HaveOccurred())
-			Expect(result.TotalExpected).To(Equal(4))   // 2 * 2 checkpoints
-			Expect(result.TotalVerified).To(Equal(10))  // 5 + 5
-			Expect(result.TotalMissing).To(Equal(0))
-			// B-132: extra files are tracked
-			Expect(result.TotalExtra).To(Equal(6)) // (5-2) + (5-2)
+			Expect(result.TotalExpected).To(Equal(4))  // 2 * 2 checkpoints
+			Expect(result.TotalVerified).To(Equal(0))  // no expected samples found
+			Expect(result.TotalMissing).To(Equal(4))   // all 2+2 expected are absent
+			// B-132: all 3+3 files are foreign and tracked as extra
+			Expect(result.TotalExtra).To(Equal(6))
 		})
 
-		It("handles checkpoints without legacy samples (HasSamples=false) but with study dir files", func() {
+		// B-132: count-strict — extra expected files AND some missing = both tracked.
+		It("tracks both extra foreign files and missing expected files simultaneously", func() {
+			fs.fileData["/samples/Test Study/manifest.json"] = manifestData
+			// expectedFile1 is present but expectedFile2 is absent; 2 extra foreign files exist.
+			fs.files["/samples/Test Study/cp1.safetensors"] = []string{
+				expectedFile1,
+				"foreign-a.png", "foreign-b.png",
+			}
+
+			tr := model.TrainingRun{
+				Name: "model",
+				Checkpoints: []model.Checkpoint{
+					{Filename: "cp1.safetensors", StepNumber: 1000, HasSamples: true},
+				},
+				HasSamples: true,
+			}
+
+			result, err := svc.ValidateTrainingRunWithManifest(tr, "Test Study")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Checkpoints[0].Verified).To(Equal(1))
+			Expect(result.Checkpoints[0].Missing).To(Equal(1))
+			Expect(result.Checkpoints[0].Extra).To(Equal(2))
+		})
+
+		It("handles checkpoints without legacy samples (HasSamples=false) but with study dir expected files", func() {
 			fs.fileData["/samples/Test Study/manifest.json"] = manifestData
 
 			tr := model.TrainingRun{
@@ -757,7 +861,8 @@ var _ = Describe("ValidationService", func() {
 				HasSamples: true,
 			}
 
-			fs.files["/samples/Test Study/cp1.safetensors"] = []string{"a.png", "b.png"}
+			// cp1 has both expected files; cp-final has none.
+			fs.files["/samples/Test Study/cp1.safetensors"] = []string{expectedFile1, expectedFile2}
 
 			result, err := svc.ValidateTrainingRunWithManifest(tr, "Test Study")
 			Expect(err).NotTo(HaveOccurred())
@@ -768,8 +873,8 @@ var _ = Describe("ValidationService", func() {
 			Expect(result.Checkpoints[1].Missing).To(Equal(2))
 		})
 
-		// B-049: Manifest validation ignores HasSamples and always checks study output dir
-		It("finds samples in study dir even when HasSamples=false", func() {
+		// B-049: Manifest validation ignores HasSamples and always checks study output dir.
+		It("finds expected samples in study dir even when HasSamples=false", func() {
 			fs.fileData["/samples/Test Study/manifest.json"] = manifestData
 
 			tr := model.TrainingRun{
@@ -782,9 +887,9 @@ var _ = Describe("ValidationService", func() {
 				HasSamples: false,
 			}
 
-			// Study output dir has files for both checkpoints
-			fs.files["/samples/Test Study/cp1.safetensors"] = []string{"a.png", "b.png"}
-			fs.files["/samples/Test Study/cp2.safetensors"] = []string{"a.png"}
+			// Study output dir has correct expected files for both checkpoints.
+			fs.files["/samples/Test Study/cp1.safetensors"] = []string{expectedFile1, expectedFile2}
+			fs.files["/samples/Test Study/cp2.safetensors"] = []string{expectedFile1}
 
 			result, err := svc.ValidateTrainingRunWithManifest(tr, "Test Study")
 			Expect(err).NotTo(HaveOccurred())
@@ -812,11 +917,31 @@ var _ = Describe("ValidationService", func() {
 			Expect(err.Error()).To(ContainSubstring("reading manifest"))
 		})
 
-		// B-132: per-sample param verification via sidecar JSON files
+		It("returns error when ListPNGFiles fails for a checkpoint directory", func() {
+			fs.fileData["/samples/Test Study/manifest.json"] = manifestData
+			fs.files["/samples/Test Study/cp1.safetensors"] = nil // directory exists
+			fs.errs["/samples/Test Study/cp1.safetensors"] = fmt.Errorf("disk I/O error")
+
+			tr := model.TrainingRun{
+				Name: "model",
+				Checkpoints: []model.Checkpoint{
+					{Filename: "cp1.safetensors", StepNumber: 1000, HasSamples: true},
+				},
+				HasSamples: true,
+			}
+
+			_, err := svc.ValidateTrainingRunWithManifest(tr, "Test Study")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("disk I/O error"))
+		})
+
+		// B-132: per-sample param verification via sidecar JSON files.
+		// Validation now iterates expected filenames and checks each sidecar.
 		Describe("per-sample param verification", func() {
 			var (
-				tr          model.TrainingRun
-				validSidecar []byte
+				tr           model.TrainingRun
+				validSidecar1 []byte
+				validSidecar2 []byte
 			)
 
 			BeforeEach(func() {
@@ -828,10 +953,11 @@ var _ = Describe("ValidationService", func() {
 					HasSamples: true,
 				}
 
-				// Build a sidecar whose params exactly match the manifest
+				// Build sidecars whose params exactly match the manifest.
 				// (manifest: prompts=[prompt1,prompt2], steps=[20], cfgs=[7.0],
 				//  pairs=[euler/normal], seeds=[42])
-				validSidecarData, err := json.Marshal(fileformat.SidecarMetadata{
+				var err error
+				validSidecar1, err = json.Marshal(fileformat.SidecarMetadata{
 					Checkpoint:  "cp1.safetensors",
 					PromptName:  "prompt1",
 					Seed:        42,
@@ -843,15 +969,7 @@ var _ = Describe("ValidationService", func() {
 					Height:      768,
 				})
 				Expect(err).NotTo(HaveOccurred())
-				validSidecar = validSidecarData
-			})
-
-			It("reports zero invalid params when all sidecars match the manifest", func() {
-				fs.fileData["/samples/Test Study/manifest.json"] = manifestData
-				fs.files["/samples/Test Study/cp1.safetensors"] = []string{"img1.png", "img2.png"}
-
-				// Build a second sidecar with prompt2 (also valid)
-				validSidecar2, err := json.Marshal(fileformat.SidecarMetadata{
+				validSidecar2, err = json.Marshal(fileformat.SidecarMetadata{
 					Checkpoint:  "cp1.safetensors",
 					PromptName:  "prompt2",
 					Seed:        42,
@@ -863,27 +981,41 @@ var _ = Describe("ValidationService", func() {
 					Height:      768,
 				})
 				Expect(err).NotTo(HaveOccurred())
+			})
 
-				fs.fileData["/samples/Test Study/cp1.safetensors/img1.json"] = validSidecar
-				fs.fileData["/samples/Test Study/cp1.safetensors/img2.json"] = validSidecar2
+			// AC: Validation checks each sample against per-sample JSON for exact param match.
+			It("reports zero invalid params when all sidecars match the manifest", func() {
+				fs.fileData["/samples/Test Study/manifest.json"] = manifestData
+				// Use the correct expected filenames.
+				fs.files["/samples/Test Study/cp1.safetensors"] = []string{expectedFile1, expectedFile2}
+
+				sidecarBase1 := expectedFile1[:len(expectedFile1)-4] // strip .png
+				sidecarBase2 := expectedFile2[:len(expectedFile2)-4]
+				fs.fileData["/samples/Test Study/cp1.safetensors/"+sidecarBase1+".json"] = validSidecar1
+				fs.fileData["/samples/Test Study/cp1.safetensors/"+sidecarBase2+".json"] = validSidecar2
 
 				result, err := svc.ValidateTrainingRunWithManifest(tr, "Test Study")
 				Expect(err).NotTo(HaveOccurred())
+				Expect(result.Checkpoints[0].Verified).To(Equal(2))
 				Expect(result.Checkpoints[0].InvalidParams).To(Equal(0))
 				Expect(result.TotalInvalidParams).To(Equal(0))
 			})
 
-			DescribeTable("flags a sample as invalid when a param does not match the manifest",
+			// AC: Param mismatch in sidecar — sample is not counted as verified, counted as invalidParams.
+			DescribeTable("flags expected sample as invalid when sidecar param does not match",
 				func(badField string, badSidecar fileformat.SidecarMetadata) {
 					fs.fileData["/samples/Test Study/manifest.json"] = manifestData
-					fs.files["/samples/Test Study/cp1.safetensors"] = []string{"img1.png"}
-
+					// Place the expected file on disk with a mismatched sidecar.
+					fs.files["/samples/Test Study/cp1.safetensors"] = []string{expectedFile1}
+					sidecarBase := expectedFile1[:len(expectedFile1)-4]
 					data, err := json.Marshal(badSidecar)
 					Expect(err).NotTo(HaveOccurred())
-					fs.fileData["/samples/Test Study/cp1.safetensors/img1.json"] = data
+					fs.fileData["/samples/Test Study/cp1.safetensors/"+sidecarBase+".json"] = data
 
 					result, err := svc.ValidateTrainingRunWithManifest(tr, "Test Study")
 					Expect(err).NotTo(HaveOccurred())
+					// AC: param mismatch means NOT verified.
+					Expect(result.Checkpoints[0].Verified).To(Equal(0), "field %s: expected 0 verified for param mismatch", badField)
 					Expect(result.Checkpoints[0].InvalidParams).To(Equal(1), "expected invalid param for field %s", badField)
 					Expect(result.TotalInvalidParams).To(Equal(1))
 				},
@@ -913,35 +1045,44 @@ var _ = Describe("ValidationService", func() {
 				}),
 			)
 
-			It("skips param verification when no sidecar file exists (missing sidecar is not invalid)", func() {
+			// When no sidecar exists for an expected file, the PNG still counts as verified.
+			// Older outputs may pre-date sidecar generation.
+			It("counts expected PNG as verified when no sidecar exists (legacy output)", func() {
 				fs.fileData["/samples/Test Study/manifest.json"] = manifestData
-				fs.files["/samples/Test Study/cp1.safetensors"] = []string{"img1.png"}
-				// No sidecar registered → fakeValidationFS.ReadFile returns ErrNotExist
+				// expectedFile1 is present but has no sidecar.
+				fs.files["/samples/Test Study/cp1.safetensors"] = []string{expectedFile1}
 
 				result, err := svc.ValidateTrainingRunWithManifest(tr, "Test Study")
 				Expect(err).NotTo(HaveOccurred())
+				// Without a sidecar, params cannot be verified → still counted as verified (legacy compat).
+				Expect(result.Checkpoints[0].Verified).To(Equal(1))
 				Expect(result.Checkpoints[0].InvalidParams).To(Equal(0))
 				Expect(result.TotalInvalidParams).To(Equal(0))
 			})
 
-			It("counts a sample as invalid when sidecar is corrupt (unparseable JSON)", func() {
+			// When sidecar JSON is unparseable, the expected sample is counted as invalidParams (not verified).
+			It("counts expected PNG as invalid when sidecar is corrupt (unparseable JSON)", func() {
 				fs.fileData["/samples/Test Study/manifest.json"] = manifestData
-				fs.files["/samples/Test Study/cp1.safetensors"] = []string{"img1.png"}
-				fs.fileData["/samples/Test Study/cp1.safetensors/img1.json"] = []byte("{not valid json")
+				fs.files["/samples/Test Study/cp1.safetensors"] = []string{expectedFile1}
+				sidecarBase := expectedFile1[:len(expectedFile1)-4]
+				fs.fileData["/samples/Test Study/cp1.safetensors/"+sidecarBase+".json"] = []byte("{not valid json")
 
 				result, err := svc.ValidateTrainingRunWithManifest(tr, "Test Study")
 				Expect(err).NotTo(HaveOccurred())
+				Expect(result.Checkpoints[0].Verified).To(Equal(0))
 				Expect(result.Checkpoints[0].InvalidParams).To(Equal(1))
 				Expect(result.TotalInvalidParams).To(Equal(1))
 			})
 
-			It("counts a sample as invalid when sidecar read fails with a non-not-found error", func() {
+			It("counts expected PNG as invalid when sidecar read fails with a non-not-found error", func() {
 				fs.fileData["/samples/Test Study/manifest.json"] = manifestData
-				fs.files["/samples/Test Study/cp1.safetensors"] = []string{"img1.png"}
-				fs.readErrs["/samples/Test Study/cp1.safetensors/img1.json"] = fmt.Errorf("disk I/O error")
+				fs.files["/samples/Test Study/cp1.safetensors"] = []string{expectedFile1}
+				sidecarBase := expectedFile1[:len(expectedFile1)-4]
+				fs.readErrs["/samples/Test Study/cp1.safetensors/"+sidecarBase+".json"] = fmt.Errorf("disk I/O error")
 
 				result, err := svc.ValidateTrainingRunWithManifest(tr, "Test Study")
 				Expect(err).NotTo(HaveOccurred())
+				Expect(result.Checkpoints[0].Verified).To(Equal(0))
 				Expect(result.Checkpoints[0].InvalidParams).To(Equal(1))
 				Expect(result.TotalInvalidParams).To(Equal(1))
 			})
@@ -957,17 +1098,18 @@ var _ = Describe("ValidationService", func() {
 				}
 
 				fs.fileData["/samples/Test Study/manifest.json"] = manifestData
-				fs.files["/samples/Test Study/cp1.safetensors"] = []string{"img1.png"}
-				fs.files["/samples/Test Study/cp2.safetensors"] = []string{"img2.png"}
+				fs.files["/samples/Test Study/cp1.safetensors"] = []string{expectedFile1}
+				fs.files["/samples/Test Study/cp2.safetensors"] = []string{expectedFile1}
 
-				// Both sidecars have a wrong seed
+				// Both have sidecars with a wrong seed (mismatch against manifest's seed=42).
 				badSidecar, err := json.Marshal(fileformat.SidecarMetadata{
 					PromptName: "prompt1", Seed: 999, CFG: 7.0, Steps: 20,
 					SamplerName: "euler", Scheduler: "normal",
 				})
 				Expect(err).NotTo(HaveOccurred())
-				fs.fileData["/samples/Test Study/cp1.safetensors/img1.json"] = badSidecar
-				fs.fileData["/samples/Test Study/cp2.safetensors/img2.json"] = badSidecar
+				sidecarBase := expectedFile1[:len(expectedFile1)-4]
+				fs.fileData["/samples/Test Study/cp1.safetensors/"+sidecarBase+".json"] = badSidecar
+				fs.fileData["/samples/Test Study/cp2.safetensors/"+sidecarBase+".json"] = badSidecar
 
 				result, err := svc.ValidateTrainingRunWithManifest(tr2, "Test Study")
 				Expect(err).NotTo(HaveOccurred())

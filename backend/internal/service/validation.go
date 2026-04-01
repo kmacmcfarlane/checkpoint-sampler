@@ -16,6 +16,7 @@ import (
 type ValidationFileSystem interface {
 	ListPNGFiles(dir string) ([]string, error)
 	DirectoryExists(path string) bool
+	FileExists(path string) bool
 	ReadFile(path string) ([]byte, error)
 }
 
@@ -268,7 +269,19 @@ func (v *ValidationService) ValidateTrainingRunWithStudy(tr model.TrainingRun, s
 // source of truth for expected outputs, rather than the live study config. The manifest
 // is read from {sampleDir}/{studyOutputDir}/manifest.json.
 //
-// AC4: Validating a sample set uses the manifest as the source of truth for expected outputs.
+// The validation approach:
+//  1. Generate all expected sample filenames from the manifest's parameter
+//     combinations (Cartesian product of prompts × steps × cfgs × pairs × seeds).
+//  2. For each checkpoint, check each expected sample:
+//     (a) the PNG file exists on disk,
+//     (b) the sidecar JSON file exists and its params exactly match the manifest.
+//  3. Files present in the directory but not matching any expected parameter
+//     combination are counted as "extra" (foreign samples). They are NOT counted
+//     as verified — only expected samples that fully pass the checks are verified.
+//
+// This is strict-count validation: extra foreign samples cause validation failure.
+//
+// AC: Validating a sample set uses the manifest as the source of truth for expected outputs.
 func (v *ValidationService) ValidateTrainingRunWithManifest(tr model.TrainingRun, studyOutputDir string) (*model.ValidationResult, error) {
 	v.logger.WithFields(logrus.Fields{
 		"training_run":     tr.Name,
@@ -303,6 +316,7 @@ func (v *ValidationService) ValidateTrainingRunWithManifest(tr model.TrainingRun
 	expectedPerCheckpoint := manifest.ImagesPerCheckpoint
 	totalExpected := expectedPerCheckpoint * len(tr.Checkpoints)
 	totalVerified := 0
+	totalActual := 0
 
 	result := &model.ValidationResult{
 		Checkpoints:           make([]model.CheckpointCompletenessInfo, 0, len(tr.Checkpoints)),
@@ -310,12 +324,18 @@ func (v *ValidationService) ValidateTrainingRunWithManifest(tr model.TrainingRun
 		TotalExpected:         totalExpected,
 	}
 
-	// Build lookup sets from manifest params for per-sample validation.
+	// Build the set of expected filenames from manifest parameter combinations.
+	// This is the validation set: only files matching these names (with valid
+	// sidecar params) are counted as verified.
+	expectedFilenames := buildExpectedFilenames(manifest)
+
+	// Build lookup sets from manifest params for per-sample sidecar verification.
 	manifestParams := buildManifestParamSets(manifest)
 
 	for _, cp := range tr.Checkpoints {
 		verified := 0
 		invalidParams := 0
+		actualCount := 0
 
 		// Always check the study output directory directly regardless of
 		// cp.HasSamples. The HasSamples flag is set by discovery based on
@@ -323,6 +343,8 @@ func (v *ValidationService) ValidateTrainingRunWithManifest(tr model.TrainingRun
 		// whether samples exist in this specific study output directory.
 		sampleDirPath := filepath.Join(v.sampleDir, studyOutputDir, cp.Filename)
 
+		// Build a set of actual files present on disk (for counting extra/foreign samples).
+		actualFilesOnDisk := map[string]struct{}{}
 		if v.fs.DirectoryExists(sampleDirPath) {
 			files, err := v.fs.ListPNGFiles(sampleDirPath)
 			if err != nil {
@@ -333,46 +355,73 @@ func (v *ValidationService) ValidateTrainingRunWithManifest(tr model.TrainingRun
 				}).Error("failed to list PNG files during manifest validation")
 				return nil, fmt.Errorf("listing PNG files for checkpoint %q: %w", cp.Filename, err)
 			}
-			verified = len(files)
-
-			// Per-sample param verification: read each sidecar JSON and check
-			// that its params appear in the manifest's allowed value sets.
-			// If a sidecar does not exist, the sample is skipped (not counted
-			// as invalid) since older outputs may pre-date sidecar generation.
 			for _, f := range files {
-				sidecarPath := filepath.Join(sampleDirPath, strings.TrimSuffix(f, ".png")+".json")
-				invalid, notFound, err := v.isSidecarParamMismatch(sidecarPath, manifestParams)
-				if err != nil {
-					v.logger.WithFields(logrus.Fields{
-						"sidecar_path": sidecarPath,
-						"error":        err.Error(),
-					}).Debug("could not read sidecar file during manifest validation; treating as invalid params")
-					invalidParams++
-					continue
-				}
-				if notFound {
-					// No sidecar: skip verification for this sample.
-					continue
-				}
-				if invalid {
-					invalidParams++
-					v.logger.WithFields(logrus.Fields{
-						"checkpoint":   cp.Filename,
-						"sidecar_path": sidecarPath,
-					}).Warn("manifest validation found sample with params not matching manifest")
-				}
+				actualFilesOnDisk[f] = struct{}{}
+			}
+			actualCount = len(files)
+		}
+
+		// Validate each expected sample by parameter combination.
+		for expectedFilename := range expectedFilenames {
+			pngPath := filepath.Join(sampleDirPath, expectedFilename)
+			if !v.fs.FileExists(pngPath) {
+				// Expected PNG is missing entirely.
+				v.logger.WithFields(logrus.Fields{
+					"checkpoint":        cp.Filename,
+					"expected_filename": expectedFilename,
+				}).Debug("manifest validation: expected PNG not found")
+				continue
+			}
+
+			// PNG exists — verify sidecar params.
+			sidecarPath := filepath.Join(sampleDirPath, strings.TrimSuffix(expectedFilename, ".png")+".json")
+			invalid, notFound, sidecarErr := v.isSidecarParamMismatch(sidecarPath, manifestParams)
+			if sidecarErr != nil {
+				v.logger.WithFields(logrus.Fields{
+					"checkpoint":   cp.Filename,
+					"sidecar_path": sidecarPath,
+					"error":        sidecarErr.Error(),
+				}).Debug("could not read sidecar file during manifest validation; treating as invalid params")
+				invalidParams++
+				continue
+			}
+			if notFound {
+				// PNG exists but no sidecar: skip param verification — count as verified.
+				// Older outputs may pre-date sidecar generation.
+				verified++
+				continue
+			}
+			if invalid {
+				invalidParams++
+				v.logger.WithFields(logrus.Fields{
+					"checkpoint":        cp.Filename,
+					"expected_filename": expectedFilename,
+					"sidecar_path":      sidecarPath,
+				}).Warn("manifest validation: expected sample has sidecar params not matching manifest")
+				continue
+			}
+			verified++
+		}
+
+		// Count foreign (unexpected) files: files present on disk that do not
+		// correspond to any expected parameter combination. These are NOT counted
+		// as verified; their presence indicates a contaminated sample set.
+		extra := 0
+		for f := range actualFilesOnDisk {
+			if _, expected := expectedFilenames[f]; !expected {
+				extra++
+				v.logger.WithFields(logrus.Fields{
+					"checkpoint":      cp.Filename,
+					"foreign_file":    f,
+					"checkpoint_dir":  sampleDirPath,
+				}).Warn("manifest validation: found foreign (unexpected) sample file")
 			}
 		}
 
-		missing := 0
-		extra := 0
-		if verified < expectedPerCheckpoint {
-			missing = expectedPerCheckpoint - verified
-		} else if verified > expectedPerCheckpoint {
-			extra = verified - expectedPerCheckpoint
-		}
+		missing := expectedPerCheckpoint - verified
 
 		totalVerified += verified
+		totalActual += actualCount
 
 		result.Checkpoints = append(result.Checkpoints, model.CheckpointCompletenessInfo{
 			Checkpoint:    cp.Filename,
@@ -385,24 +434,25 @@ func (v *ValidationService) ValidateTrainingRunWithManifest(tr model.TrainingRun
 
 		if missing > 0 {
 			v.logger.WithFields(logrus.Fields{
-				"checkpoint": cp.Filename,
-				"expected":   expectedPerCheckpoint,
-				"verified":   verified,
-				"missing":    missing,
-			}).Warn("manifest validation found missing files")
+				"checkpoint":     cp.Filename,
+				"expected":       expectedPerCheckpoint,
+				"verified":       verified,
+				"missing":        missing,
+				"invalid_params": invalidParams,
+			}).Warn("manifest validation found missing or invalid samples")
 		}
 		if extra > 0 {
 			v.logger.WithFields(logrus.Fields{
 				"checkpoint": cp.Filename,
 				"expected":   expectedPerCheckpoint,
-				"verified":   verified,
+				"actual":     actualCount,
 				"extra":      extra,
-			}).Warn("manifest validation found extra files beyond expected count")
+			}).Warn("manifest validation found foreign files beyond expected parameter set")
 		}
 	}
 
 	result.TotalVerified = totalVerified
-	result.TotalActual = totalVerified
+	result.TotalActual = totalActual
 	for _, cp := range result.Checkpoints {
 		result.TotalMissing += cp.Missing
 		result.TotalExtra += cp.Extra
@@ -415,12 +465,45 @@ func (v *ValidationService) ValidateTrainingRunWithManifest(tr model.TrainingRun
 		"expected_per_cp":      expectedPerCheckpoint,
 		"total_expected":       totalExpected,
 		"total_verified":       totalVerified,
+		"total_actual":         totalActual,
 		"total_missing":        result.TotalMissing,
 		"total_extra":          result.TotalExtra,
 		"total_invalid_params": result.TotalInvalidParams,
 	}).Info("manifest validation completed")
 
 	return result, nil
+}
+
+// buildExpectedFilenames generates the set of expected PNG filenames from a
+// manifest's parameter combinations (Cartesian product of prompts × steps × cfgs
+// × sampler/scheduler pairs × seeds). The returned map is keyed by filename
+// for O(1) membership tests.
+func buildExpectedFilenames(m fileformat.JobManifest) map[string]struct{} {
+	total := len(m.Prompts) * len(m.Steps) * len(m.CFGs) * len(m.SamplerSchedulerPairs) * len(m.Seeds)
+	if total == 0 {
+		return map[string]struct{}{}
+	}
+	result := make(map[string]struct{}, total)
+	for _, prompt := range m.Prompts {
+		for _, steps := range m.Steps {
+			for _, cfg := range m.CFGs {
+				for _, pair := range m.SamplerSchedulerPairs {
+					for _, seed := range m.Seeds {
+						filename := GenerateOutputFilename(model.SampleJobItem{
+							PromptName:  prompt.Name,
+							Steps:       steps,
+							CFG:         cfg,
+							SamplerName: pair.Sampler,
+							Scheduler:   pair.Scheduler,
+							Seed:        seed,
+						})
+						result[filename] = struct{}{}
+					}
+				}
+			}
+		}
+	}
+	return result
 }
 
 // manifestParamSets holds the allowed values from a manifest for per-sample verification.

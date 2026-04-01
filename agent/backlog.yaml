@@ -291,7 +291,7 @@ stories:
   - id: B-132
     title: "Validation passes with extra samples; no per-sample param verification"
     type: bug
-    status: uat_feedback
+    status: uat
     priority: 50
     complexity: medium
     requires: []
@@ -310,11 +310,6 @@ stories:
       - "Test with samplesets containing extra samples (should fail validation)"
       - "Test with samples that have mismatched params vs manifest.json (should fail)"
       - "Verify validation passes only when count matches AND all params match"
-    review_feedback: "Validation approach needs rework:\n1. Generate all expected samples by parameters — this is the validation
-      set\n2. Recursively look through the sampleset dir to verify: (a) sample with expected name exists, (b) JSON metadata
-      file exists and has expected params, (c) corresponding thumbnail exists\n3. Current bug: a copied sample with modified
-      JSON metadata got counted as an additional sample (showed 2/1) — the foreign sample should never be part of validation\n\
-      4. Do NOT count samples by directory listing — match against expected parameter combinations"
   - id: B-133
     title: "Job updated_at not touched on status transitions; list sorts by created not updated"
     type: bug
