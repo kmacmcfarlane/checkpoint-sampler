@@ -4342,6 +4342,11 @@ describe('JobLaunchDialog', () => {
       // AC3: success event emitted (triggers job progress panel in App.vue)
       const emitted = wrapper.emitted('success')
       expect(emitted).toBeTruthy()
+
+      // B-115: dialog should close after successful regeneration
+      const updateShow = wrapper.emitted('update:show')
+      expect(updateShow).toBeTruthy()
+      expect(updateShow![updateShow!.length - 1]).toEqual([false])
     })
 
     // B-106: Regeneration handles API errors gracefully
@@ -4379,7 +4384,8 @@ describe('JobLaunchDialog', () => {
     })
 
     // B-115: No job is created when no affected runs and no training run is selected
-    it('does not create a job when no affected runs and no training run is selected', async () => {
+    // AC: dialog still closes so user isn't stranded
+    it('does not create a job when no affected runs and no training run is selected, but closes dialog', async () => {
       mockListStudies
         .mockResolvedValueOnce(sampleStudies)
         .mockResolvedValueOnce(sampleStudies)
@@ -4404,6 +4410,10 @@ describe('JobLaunchDialog', () => {
 
       // No job creation attempted (no affected runs, no selected training run)
       expect(mockCreateSampleJob).not.toHaveBeenCalled()
+      // B-115: dialog should still close so user is not stranded
+      const updateShow = wrapper.emitted('update:show')
+      expect(updateShow).toBeTruthy()
+      expect(updateShow![updateShow!.length - 1]).toEqual([false])
     })
 
     // B-115: Creates jobs for multiple affected runs

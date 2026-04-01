@@ -1085,8 +1085,22 @@ var _ = Describe("JobExecutor", func() {
 			Expect(path).To(Equal("/test/samples/Test Study/checkpoint.safetensors/test.png"))
 		})
 
-		It("detects path traversal attempts", func() {
-			_, err := executor.getOutputPath("study", "../../../etc", "passwd")
+		It("strips directory components from checkpoint filename (B-115)", func() {
+			// filepath.Base strips traversal prefixes, so "../../../etc" becomes "etc"
+			path, err := executor.getOutputPath("study", "../../../etc", "passwd")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(path).To(Equal("/test/samples/study/etc/passwd"))
+		})
+
+		It("strips subdirectory paths from checkpoint filename (B-115)", func() {
+			// A checkpoint filename like "test/model.safetensors" should use only "model.safetensors"
+			path, err := executor.getOutputPath("my-run/my-study", "test/model.safetensors", "output.png")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(path).To(Equal("/test/samples/my-run/my-study/model.safetensors/output.png"))
+		})
+
+		It("detects path traversal in studyOutputDir", func() {
+			_, err := executor.getOutputPath("../../../etc", "checkpoint.safetensors", "passwd")
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("path traversal detected"))
 		})

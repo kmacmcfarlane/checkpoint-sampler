@@ -341,7 +341,8 @@ func (v *ValidationService) ValidateTrainingRunWithManifest(tr model.TrainingRun
 		// cp.HasSamples. The HasSamples flag is set by discovery based on
 		// the legacy path (sample_dir/<filename>/), which does not reflect
 		// whether samples exist in this specific study output directory.
-		sampleDirPath := filepath.Join(v.sampleDir, studyOutputDir, cp.Filename)
+		// B-115: use filepath.Base defensively to ensure only the filename is used
+		sampleDirPath := filepath.Join(v.sampleDir, studyOutputDir, filepath.Base(cp.Filename))
 
 		// Build a set of actual files present on disk (for counting extra/foreign samples).
 		actualFilesOnDisk := map[string]struct{}{}

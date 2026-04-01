@@ -66,6 +66,9 @@ async function createStudy(request: APIRequestContext, name: string): Promise<st
       seeds: [42],
       width: 512,
       height: 512,
+      workflow_template: 'test-workflow.json',
+      vae: 'ae.safetensors',
+      text_encoder: 'clip_l.safetensors',
     },
   })
   expect(resp.ok()).toBeTruthy()
@@ -245,6 +248,57 @@ test.describe('study update regen dialog (B-115)', () => {
     const affectedItems = page.locator('[data-testid="immutability-affected-item"]')
     await expect(affectedItems).toHaveCount(1, { timeout: 5000 })
     await expect(affectedItems.first()).toContainText('my-model')
+  })
+
+  // AC3 (FE): "Yes, regenerate" closes dialog and switches to job list
+  test('AC3: "Yes, regenerate" closes Generate Samples dialog and shows job list', async ({ page, request }) => {
+    // AC: FE: 'Yes, regenerate' queues jobs with clear-existing and closes dialog
+    const studyName = `B-115 Regen Close Test ${Date.now()}`
+    const studyId = await createStudy(request, studyName)
+
+    await seedPartialSamples(request, 'my-model', studyId, studyName, [
+      'my-model-step00001000.safetensors',
+    ])
+
+    await page.goto('/', { waitUntil: 'networkidle' })
+    await selectTrainingRun(page, 'my-model')
+    await expect(page.getByText('Dimensions')).toBeVisible()
+
+    await openGenerateSamplesDialog(page)
+    await openManageStudiesDialog(page)
+
+    await selectStudyInEditor(page, studyName)
+
+    const updateButton = page.locator('[data-testid="save-study-button"]')
+    await expect(updateButton).toContainText('Update Study')
+    await updateButton.click()
+
+    const immutabilityDialog = page.locator('[data-testid="immutability-dialog"]')
+    await expect(immutabilityDialog).toBeVisible({ timeout: 10000 })
+
+    // Wait for affected runs to load
+    await expect(page.locator('[data-testid="immutability-affected-list"]')).toBeVisible({ timeout: 5000 })
+
+    // Click "Yes, regenerate"
+    const regenButton = page.locator('[data-testid="immutability-regen-button"]')
+    await expect(regenButton).toBeVisible()
+    await regenButton.click()
+
+    // B-115: Both the immutability dialog and the Generate Samples dialog should close
+    await expect(immutabilityDialog).not.toBeVisible({ timeout: 10000 })
+    const generateDialog = page.locator('[role="dialog"][aria-modal="true"]').filter({ hasText: 'Generate Samples' })
+    await expect(generateDialog).not.toBeVisible({ timeout: 10000 })
+
+    // B-115: Job list (progress panel) should appear
+    const jobPanel = page.locator('[data-testid="job-progress-panel"]')
+    await expect(jobPanel).toBeVisible({ timeout: 10000 })
+
+    // Verify a regeneration job was created
+    const jobsResp = await request.get('/api/sample-jobs')
+    expect(jobsResp.ok()).toBeTruthy()
+    const jobs = await jobsResp.json() as Array<{ study_id: string; clear_existing: boolean }>
+    const studyJobs = jobs.filter(j => j.study_id === studyId)
+    expect(studyJobs.length).toBeGreaterThanOrEqual(1)
   })
 
   // AC4 (FE): "No, keep existing samples" updates the study without queuing any jobs

@@ -210,7 +210,7 @@ stories:
   - id: B-115
     title: "Regenerate confirmation dialog missing on study update"
     type: bug
-    status: uat_feedback
+    status: uat
     priority: 90
     complexity: medium
     requires:
@@ -231,11 +231,6 @@ stories:
       - "Test with study that has samples across multiple checkpoints — all affected samplesets should appear in dialog."
       - "Test 'No' path: samples untouched after study update."
       - "Test 'Yes' path: verify jobs queued with clear-existing param per B-114 behavior."
-    review_feedback: 'After clicking "Regenerate" in the confirmation dialog, the Generate Samples dialog should close and
-      the view should switch to the job list. Additionally, the first regenerate job failed with this error: "failed to save
-      image: ensuring directory: mkdir /data/samples/qwen_i4rt-v0.0.0-qwen-2512-1024-adafactor-constant-1.5e-5-steps-2500-timestep-qinglong_qwen-with_reg-state_model/test/model.safetensors:
-      file exists (1 checkpoint)model.safetensors" — the backend appears to be treating the checkpoint filename (model.safetensors)
-      as part of the directory path instead of stripping it.'
   - id: B-117
     title: "E2E: study-versioning spec returns HTTP 400 on PUT /api/studies"
     type: bug

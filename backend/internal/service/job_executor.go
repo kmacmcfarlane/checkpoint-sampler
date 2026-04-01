@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -1289,10 +1290,15 @@ func (e *JobExecutor) generateOutputFilename(item model.SampleJobItem) string {
 
 // getOutputPath constructs the full output path for an image.
 // The path is: {sampleDir}/{studyOutputDir}/{checkpointFilename}/{filename}
-// where studyOutputDir is typically "{studyName}/v{version}" for versioned studies.
+// where studyOutputDir is typically "{sanitizedRunName}/{studyName}" and
+// checkpointFilename is the bare filename (no directory components).
 // Returns an error if the path would escape the sample directory (path traversal protection).
 func (e *JobExecutor) getOutputPath(studyOutputDir string, checkpointFilename string, filename string) (string, error) {
-	checkpointDir := filepath.Join(e.sampleDir, studyOutputDir, checkpointFilename)
+	// B-115 fix: strip any directory components from the checkpoint filename.
+	// Discovery sets Filename = path.Base(relPath), but defensive coding ensures
+	// that even if a relative path leaks through, only the basename is used as
+	// the per-checkpoint subdirectory name.
+	checkpointDir := filepath.Join(e.sampleDir, studyOutputDir, filepath.Base(checkpointFilename))
 	outputPath := filepath.Join(checkpointDir, filename)
 
 	// Path traversal protection
@@ -1522,10 +1528,21 @@ func (e *JobExecutor) writeManifest(job model.SampleJob, items []model.SampleJob
 }
 
 // ensureDir creates a directory if it doesn't exist.
+// If a regular file exists at the path, it is removed first to allow
+// directory creation (B-115: handles stale files from old layouts or
+// checkpoint files that collide with expected directory names).
 func (e *JobExecutor) ensureDir(path string) error {
 	info, err := e.fsWriter.Stat(path)
-	if err == nil && info.IsDir() {
-		return nil
+	if err == nil {
+		if info.IsDir() {
+			return nil
+		}
+		// A regular file exists where we need a directory. Remove it so
+		// MkdirAll can create the directory tree.
+		e.logger.WithField("path", path).Warn("removing regular file that conflicts with expected directory")
+		if removeErr := os.Remove(path); removeErr != nil {
+			return fmt.Errorf("removing conflicting file at %s: %w", path, removeErr)
+		}
 	}
 	return e.fsWriter.MkdirAll(path, 0755)
 }
@@ -1760,7 +1777,8 @@ func (e *JobExecutor) verifyCheckpointCompleteness(jobID string, studyOutputDir 
 	}
 
 	// Check the checkpoint's sample directory on disk
-	checkpointDir := filepath.Join(e.sampleDir, studyOutputDir, checkpoint)
+	// B-115: use filepath.Base to ensure only the filename is used as directory name
+	checkpointDir := filepath.Join(e.sampleDir, studyOutputDir, filepath.Base(checkpoint))
 	if !e.fsReader.DirectoryExists(checkpointDir) {
 		e.logger.WithFields(logrus.Fields{
 			"job_id":         jobID,

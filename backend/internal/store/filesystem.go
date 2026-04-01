@@ -193,7 +193,8 @@ func NewStudyOutputDirRemover(fs *FileSystem, sampleDir string) *StudyOutputDirR
 // If the directory does not exist, this is a no-op (not an error).
 func (r *StudyOutputDirRemover) RemoveCheckpointOutputDir(trainingRunName string, studyName string, checkpointFilename string) error {
 	sanitizedRunName := fileformat.SanitizeTrainingRunName(trainingRunName)
-	target := filepath.Join(r.sampleDir, sanitizedRunName, studyName, checkpointFilename)
+	// B-115: use filepath.Base to ensure only the filename is used as directory name
+	target := filepath.Join(r.sampleDir, sanitizedRunName, studyName, filepath.Base(checkpointFilename))
 	r.fs.logger.WithFields(logrus.Fields{
 		"training_run_name":   trainingRunName,
 		"sanitized_run_name":  sanitizedRunName,

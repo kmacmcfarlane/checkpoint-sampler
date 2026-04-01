@@ -1039,7 +1039,12 @@ async function onStudyRegenerate(study: Study, affectedRuns: AffectedRun[]) {
     ? affectedRuns.map(r => r.training_run_name)
     : selectedTrainingRun.value ? [selectedTrainingRun.value.name] : []
 
-  if (runNames.length === 0) return
+  if (runNames.length === 0) {
+    // B-115: Even when no affected runs are found, close the dialog so the
+    // user isn't stranded in the Generate Samples view after confirming.
+    close()
+    return
+  }
 
   loading.value = true
   error.value = null
@@ -1053,6 +1058,8 @@ async function onStudyRegenerate(study: Study, affectedRuns: AffectedRun[]) {
       }
       await apiClient.createSampleJob(payload)
     }
+    // B-115: Close dialog and switch to job list after successful job creation.
+    // emit('success') triggers onJobCreated() in App.vue which opens the job panel.
     emit('success')
     close()
   } catch (err: unknown) {

@@ -423,6 +423,7 @@ function isTracebackExpanded(jobId: string, errorIdx: number): boolean {
     preset="card"
     title="Sample Jobs"
     style="max-width: 700px; max-height: 80vh; overflow-y: auto;"
+    data-testid="job-progress-panel"
     @update:show="emit('close')"
   >
     <template #header-extra>
