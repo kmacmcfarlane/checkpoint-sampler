@@ -5839,3 +5839,87 @@ stories:
       - "FE: Unit tests for long name rendering"
     testing:
       - "Test with realistic long training run names. Verify both the selected value display and the dropdown options."
+  - id: B-107
+    title: "Manage Study: Checkpoint Status disappears after regenerate attempt"
+    type: bug
+    status: done
+    priority: 70
+    complexity: medium
+    requires: []
+    notes: >
+      After attempting to regenerate existing samples with the confirmation dialog
+      after updating a study, the Checkpoint Status no longer appears in the
+      Generate Samples dialog. State appears to be corrupted by the failed
+      regenerate attempt.
+      Source: user UAT feedback.
+    acceptance:
+      - "FE: Checkpoint Status remains visible in Generate Samples after a regenerate attempt"
+      - "FE: Failed or cancelled regenerate does not corrupt Generate Samples state"
+      - "FE: Unit tests for state preservation after regenerate attempt"
+    testing:
+      - "Update a study, trigger regenerate, then open Generate Samples — Checkpoint Status should still be visible."
+      - "Test both successful and failed regeneration paths."
+  - id: B-115
+    title: "Regenerate confirmation dialog missing on study update"
+    type: bug
+    status: done
+    priority: 90
+    complexity: medium
+    requires:
+      - B-114
+    notes: >
+      When updating a study that has existing generated samples for checkpoints, a confirmation
+      dialog should appear asking whether to regenerate affected samplesets. "Yes, regenerate"
+      queues jobs with clear-existing flag (using B-114's job param behavior). "No" just updates
+      the study without touching samples. Source: user UAT feedback on B-107.
+    acceptance:
+      - "FE: Updating a study with existing samples shows regenerate confirmation dialog"
+      - "FE: Dialog lists affected samplesets across checkpoints"
+      - "FE: 'Yes, regenerate' queues jobs with clear-existing job param for affected samplesets"
+      - "FE: 'No' updates the study without regenerating or clearing samples"
+      - "BE: Endpoint supports queuing regenerate jobs for affected samplesets on study update"
+      - "FE: Unit tests for dialog appearance, option handling, and job queuing"
+    testing:
+      - "Test with study that has samples across multiple checkpoints — all affected samplesets should appear in dialog."
+      - "Test 'No' path: samples untouched after study update."
+      - "Test 'Yes' path: verify jobs queued with clear-existing param per B-114 behavior."
+  - id: B-133
+    title: "Job updated_at not touched on status transitions; list sorts by created not updated"
+    type: bug
+    status: done
+    priority: 30
+    complexity: low
+    requires: []
+    notes: |
+      When a job status changes (queued, running, stopped, resumed, completed, failed),
+      the updated_at timestamp should be set to current time. The job list should sort
+      by updated_at DESC instead of created_at DESC. Both created and updated timestamps
+      should be displayed in the job item view on the frontend.
+      Source: user bug report during grooming.
+    acceptance:
+      - "BE: Job updated_at timestamp is set on every status transition"
+      - "BE: Job list query sorts by updated_at DESC instead of created_at DESC"
+      - "FE: Job item view displays both created_at and updated_at timestamps"
+      - "BE: Unit tests for timestamp update on each status transition"
+    testing:
+      - "Verify stopping and resuming a job updates updated_at"
+      - "Verify job list order changes when a job is resumed (moves to top)"
+      - "Check FE displays both timestamps"
+  - id: B-134
+    title: "Parallel E2E shard startup DNS failures causing cascading test failures"
+    type: bug
+    status: done
+    priority: 65
+    complexity: medium
+    requires: []
+    notes: >
+      When 12 shards start simultaneously, some shards complete Docker compose startup
+      but the Docker internal DNS has not yet propagated the frontend service hostname.
+      The resetDatabase call in beforeEach fails because it cannot resolve frontend:3000,
+      causing all tests in those shards to cascade fail. Observed in shards 1, 4, 5, 6
+      during B-115 QA run. Source: QA sweep during B-115.
+    acceptance:
+      - "All 12 shards resolve frontend hostname successfully within startup wait period"
+      - "E2E parallel pass rate above 95% across 3 consecutive runs"
+    testing:
+      - "Run make test-e2e 3 times consecutively and verify pass rate"
