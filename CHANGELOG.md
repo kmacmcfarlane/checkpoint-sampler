@@ -5,6 +5,11 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-134: Validation dialog: display detailed per-checkpoint report
+- Replaced flat checkpoint rows with collapsible sections containing per-file-type breakdown tables (PNG samples, JSON metadata) with Expected/Valid/Missing/Invalid columns
+- Added summary breakdown table with totals row aggregating counts across all checkpoints
+- Extra/unexpected files are flagged at both summary and per-checkpoint levels
+
 ### S-135: Failed checkpoint indicator click navigates to failed job in Job List
 - Clicking a red (failed) bead on a training run or study in the Generate Samples dialog now closes the dialog, opens the Job List, and scrolls to the most recent failed job with its error details expanded
 

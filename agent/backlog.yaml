@@ -250,7 +250,7 @@ stories:
   - id: S-134
     title: "Validation dialog: display detailed per-checkpoint report"
     type: enhancement
-    status: todo
+    status: uat
     priority: 50
     complexity: medium
     requires:
