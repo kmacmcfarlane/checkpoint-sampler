@@ -5,6 +5,11 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-135: Training run with no checkpoint sample dirs causes grid error
+- Backend now returns empty images/dimensions (instead of propagating errors) when a training run has no checkpoint sample directories; logs a warning for operator visibility
+- Frontend displays a "No sample images found" empty state instead of a misleading grid placeholder
+- Fixed alreadyLoaded deduplication guard to treat empty-but-valid scans as completed state, preventing redundant re-scans
+
 ### B-134: Parallel E2E shard startup DNS failures causing cascading test failures
 - Added Phase 2.5 DNS/HTTP connectivity pre-flight in parallel E2E runner: each shard verifies Playwright container can reach `frontend:3000` before tests start, preventing ENOTFOUND cascades
 - Reduced shard batch size (4→3) and increased inter-batch stagger (2s→5s) to reduce Docker DNS pressure

@@ -2754,4 +2754,51 @@ describe('App', () => {
       expect(wrapper.find('[data-testid="y-slider-bar"]').exists()).toBe(false)
     })
   })
+
+  // B-135: training run with no checkpoint sample dirs returns empty images/dimensions
+  describe('missing checkpoint sample directories (B-135)', () => {
+    it('AC: shows no-samples message when scan returns empty images and dimensions', async () => {
+      // AC: Grid displays empty state (no error) when training run has no samples
+      Object.defineProperty(window, 'innerWidth', { value: 1200, configurable: true })
+      vi.stubGlobal('matchMedia', createMatchMediaMock(true))
+
+      mockScanTrainingRun.mockResolvedValueOnce({ images: [], dimensions: [] })
+
+      const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
+      await flushPromises()
+
+      const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
+      selector.vm.$emit('select', mockTrainingRun)
+      await flushPromises()
+
+      // AC: no-samples message is shown, no error element
+      expect(wrapper.find('[data-testid="no-samples-message"]').exists()).toBe(true)
+      expect(wrapper.find('.error').exists()).toBe(false)
+    })
+
+    it('AC: re-selecting the same run after an empty scan does not call scanTrainingRun again', async () => {
+      // AC: alreadyLoaded guard treats confirmed-empty scan as completed state (B-135)
+      Object.defineProperty(window, 'innerWidth', { value: 1200, configurable: true })
+      vi.stubGlobal('matchMedia', createMatchMediaMock(true))
+
+      mockScanTrainingRun.mockResolvedValue({ images: [], dimensions: [] })
+
+      const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
+      await flushPromises()
+
+      const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
+      selector.vm.$emit('select', mockTrainingRun)
+      await flushPromises()
+
+      const callsAfterFirstSelect = mockScanTrainingRun.mock.calls.length
+      expect(callsAfterFirstSelect).toBeGreaterThanOrEqual(1)
+
+      // Re-select the same run — should not trigger another scan
+      selector.vm.$emit('select', mockTrainingRun)
+      await flushPromises()
+
+      // Deduplication guard must prevent re-scan for empty-but-valid completed state
+      expect(mockScanTrainingRun).toHaveBeenCalledTimes(callsAfterFirstSelect)
+    })
+  })
 })

@@ -273,7 +273,7 @@ stories:
   - id: B-135
     title: "Training run with no checkpoint sample dirs causes grid error"
     type: bug
-    status: todo
+    status: uat
     priority: 70
     complexity: low
     requires: []

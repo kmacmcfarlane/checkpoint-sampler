@@ -76,10 +76,15 @@ func (s *Scanner) ScanTrainingRun(tr model.TrainingRun, studyName string) (*mode
 	}
 	imageMap := make(map[string]imageEntry)
 
+	// Count checkpoints eligible for scanning (HasSamples=true) and those with existing dirs.
+	eligibleCheckpoints := 0
+	foundDirs := 0
+
 	for _, cp := range tr.Checkpoints {
 		if !cp.HasSamples {
 			continue
 		}
+		eligibleCheckpoints++
 
 		// Scan the sample directory for this checkpoint
 		var sampleDirPath string
@@ -98,11 +103,13 @@ func (s *Scanner) ScanTrainingRun(tr model.TrainingRun, studyName string) (*mode
 		// Treat a missing directory as 0 images rather than a fatal error.
 		if !s.fs.DirectoryExists(sampleDirPath) {
 			s.logger.WithFields(logrus.Fields{
-				"checkpoint": cp.Filename,
-				"path":       sampleDirPath,
-			}).Debug("checkpoint sample directory does not exist during scan, skipping")
+				"checkpoint":   cp.Filename,
+				"path":         sampleDirPath,
+				"training_run": tr.Name,
+			}).Warn("checkpoint sample directory does not exist during scan, skipping")
 			continue
 		}
+		foundDirs++
 
 		// Checkpoint dimension value — tracked only after confirming the directory exists.
 		checkpointValue := strconv.Itoa(cp.StepNumber)
@@ -189,6 +196,17 @@ func (s *Scanner) ScanTrainingRun(tr model.TrainingRun, studyName string) (*mode
 				}
 			}
 		}
+	}
+
+	// Warn when no checkpoint sample directories were found for eligible checkpoints.
+	// This typically means the training run's samples have not been generated yet,
+	// or the sample directories were removed after discovery.
+	if eligibleCheckpoints > 0 && foundDirs == 0 {
+		s.logger.WithFields(logrus.Fields{
+			"training_run":         tr.Name,
+			"eligible_checkpoints": eligibleCheckpoints,
+			"study_name":           studyName,
+		}).Warn("no checkpoint sample directories found for training run; returning empty results")
 	}
 
 	// Collect images

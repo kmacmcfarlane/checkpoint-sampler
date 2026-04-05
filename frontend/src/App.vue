@@ -453,14 +453,16 @@ async function onTrainingRunSelect(run: TrainingRun, studyOutputDir: string) {
 
   // Skip redundant scan if the same training run is already selected.
   // Two cases:
-  //   1. Already loaded (not scanning, no error, dimensions available) — nothing to do.
+  //   1. Already loaded (not scanning, no error, dimensions available OR confirmed empty) — nothing to do.
+  //      A confirmed-empty scan (no error, not scanning, both arrays empty) is a valid completed state
+  //      and must not trigger a redundant re-scan (B-135).
   //   2. Currently scanning the same run — a concurrent scan is already in flight
   //      (e.g. eagerAutoSelect started a scan and TrainingRunSelector emitted select
   //      for the same run before the scan completed). Proceeding would launch a
   //      duplicate scan whose setScanResult would reset preset assignments applied
   //      by eagerRestorePreset (race condition: B-101 UAT fix).
   if (selectedTrainingRun.value?.id === run.id) {
-    const alreadyLoaded = !scanning.value && !scanError.value && dimensions.value.length > 0
+    const alreadyLoaded = !scanning.value && !scanError.value && (dimensions.value.length > 0 || images.value.length === 0)
     const scanInFlight = scanning.value
     if (alreadyLoaded || scanInFlight) {
       return
@@ -1048,6 +1050,11 @@ async function handleSlideoutValidate() {
         <template v-else>
           <p v-if="scanning">Scanning...</p>
           <p v-else-if="scanError" class="error" role="alert">{{ scanError }}</p>
+          <p
+            v-else-if="images.length === 0 && dimensions.length === 0"
+            class="no-samples"
+            data-testid="no-samples-message"
+          >No sample images found. Sample images will appear here once generated.</p>
           <template v-else>
             <XYGrid
               :x-dimension="xDimension"
@@ -1260,6 +1267,12 @@ async function handleSlideoutValidate() {
 
 .error {
   color: var(--error-color);
+}
+
+.no-samples {
+  color: var(--text-secondary);
+  padding: 2rem;
+  text-align: center;
 }
 
 .warning {

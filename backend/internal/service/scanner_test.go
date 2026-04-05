@@ -288,6 +288,85 @@ var _ = Describe("Scanner", func() {
 			})
 		})
 
+		// B-135: missing checkpoint sample directories must return empty results (no error).
+		Context("missing checkpoint sample directories", func() {
+			It("returns empty images and dimensions when all checkpoint dirs are missing", func() {
+				tr := model.TrainingRun{
+					Name: "model",
+					Checkpoints: []model.Checkpoint{
+						{Filename: "model-step00001000.safetensors", StepNumber: 1000, HasSamples: true},
+						{Filename: "model-step00002000.safetensors", StepNumber: 2000, HasSamples: true},
+					},
+				}
+				// No dirs registered in fs — all checkpoint sample dirs are missing.
+
+				result, err := scanner.ScanTrainingRun(tr, "")
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result.Images).To(BeEmpty())
+				Expect(result.Dimensions).To(BeEmpty())
+			})
+
+			It("returns empty images and dimensions when all dirs missing with study name", func() {
+				tr := model.TrainingRun{
+					Name: "my-study/model",
+					Checkpoints: []model.Checkpoint{
+						{Filename: "model-step00001000.safetensors", StepNumber: 1000, HasSamples: true},
+					},
+				}
+				// Study-scoped dir not registered — missing.
+
+				result, err := scanner.ScanTrainingRun(tr, "my-study")
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result.Images).To(BeEmpty())
+				Expect(result.Dimensions).To(BeEmpty())
+			})
+
+			It("returns partial results when only some checkpoint dirs exist", func() {
+				tr := model.TrainingRun{
+					Name: "model",
+					Checkpoints: []model.Checkpoint{
+						{Filename: "model-step00001000.safetensors", StepNumber: 1000, HasSamples: true},
+						{Filename: "model-step00002000.safetensors", StepNumber: 2000, HasSamples: true},
+					},
+				}
+				// Only the first checkpoint dir exists.
+				fs.files["/samples/model-step00001000.safetensors"] = []string{
+					"seed=1&_00001_.png",
+				}
+				// model-step00002000 dir is absent.
+
+				result, err := scanner.ScanTrainingRun(tr, "")
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result.Images).To(HaveLen(1))
+
+				dimMap := make(map[string]model.Dimension)
+				for _, d := range result.Dimensions {
+					dimMap[d.Name] = d
+				}
+				// Only the existing checkpoint appears in the checkpoint dimension.
+				Expect(dimMap["checkpoint"].Values).To(ConsistOf("1000"))
+			})
+
+			// B-135: A training run with zero checkpoints must also return empty results (no error).
+			// Although superficially similar to Context("empty results") above, this covers the
+			// missing-checkpoint-dirs code path where HasSamples is never evaluated.
+				It("returns empty results for training run with no checkpoints", func() {
+					tr := model.TrainingRun{
+						Name:        "model",
+						Checkpoints: []model.Checkpoint{},
+					}
+
+					result, err := scanner.ScanTrainingRun(tr, "")
+
+					Expect(err).NotTo(HaveOccurred())
+					Expect(result.Images).To(BeEmpty())
+					Expect(result.Dimensions).To(BeEmpty())
+				})
+		})
+
 		Context("error handling", func() {
 			It("returns error when listing PNG files fails", func() {
 				tr := model.TrainingRun{
