@@ -3,11 +3,29 @@
 # Place this file in your project root (next to .env.claude-sandbox).
 # Requires 'yq' to be installed on the host.
 #
+
+# Host access — control which host resources are mounted into the container.
+# Each can also be enabled via CLI flags (--ssh, --git, --docker-socket, --aws)
+# or environment variables (CLAUDE_SANDBOX_HOST_ACCESS_*_ENABLED=1).
+# Precedence: CLI flag > env var > YAML.
+hostAccess:
+  # Mount ~/.ssh/ read-only (SSH keys for git remotes)
+  ssh:
+    enabled: true
+  # Mount ~/.gitconfig read-only (git identity)
+  git:
+    enabled: true
+  # Mount /var/run/docker.sock (host Docker daemon access)
+  dockerSocket:
+    enabled: true
+  # Mount ~/.aws/ read-only (AWS CLI/SDK credentials)
+  aws:
+    enabled: false
+
 # Each mount entry has:
 #   host:      absolute path on the host (required)
 #   container: absolute path inside the container (required)
 #   writable:  boolean, default false (mounts :ro unless true)
-
 mounts: []
   # - host: /home/myuser/my-models/stable-diffusion
   #   container: /data/checkpoints
