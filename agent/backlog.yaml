@@ -228,7 +228,7 @@ stories:
   - id: B-132
     title: "Validation passes with extra samples; no per-sample param verification"
     type: bug
-    status: uat_feedback
+    status: uat
     priority: 50
     complexity: medium
     requires: []
@@ -247,16 +247,6 @@ stories:
       - "Test with samplesets containing extra samples (should fail validation)"
       - "Test with samples that have mismatched params vs manifest.json (should fail)"
       - "Verify validation passes only when count matches AND all params match"
-    review_feedback: "Validation needs a complete rewrite. Current issues found during UAT:\n\n1. Deleting a sample file shows
-      0/0 with green check (should fail — we expect samples)\n2. Modifying filenames doesn't change counts (not checking actual
-      files)\n\nNew validation approach:\n1. Generate the full set of expected filenames for each checkpoint based on study
-      config and generation parameters\n2. For each checkpoint, validate every expected sample:\n   - JSON metadata file:
-      must exist with expected name, params must match expected params\n   - PNG file: must exist with expected name\n   -
-      Thumbnail file: must exist in `thumbnails` subdir with expected name\n3. Flag extra/unexpected files in the directory
-      that don't match any expected filename\n4. Generate a detailed validation report:\n   - Per checkpoint: expected sample
-      count, valid/missing/invalid counts for PNG files, JSON metadata files, and thumbnail files\n   - Total expected, valid,
-      missing, and invalid counts for the entire sample set\n\nThis is the BE-only scope. FE display of the new report is
-      tracked separately in S-134."
   - id: S-134
     title: "Validation dialog: display detailed per-checkpoint report"
     type: enhancement

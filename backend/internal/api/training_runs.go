@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	gentrainingruns "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/training_runs"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/fileformat"
@@ -86,21 +87,33 @@ func (s *TrainingRunsService) List(ctx context.Context, p *gentrainingruns.ListP
 	return result, nil
 }
 
+// isManifestNotFound returns true if the error indicates a missing manifest file.
+// B-132: Used to decide whether to fall back from manifest-based to count-based validation.
+func isManifestNotFound(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "manifest not found")
+}
+
 // Validate checks the completeness of sample images for a training run.
-// When study_id is provided, uses the study's images-per-checkpoint as the expected count.
-// Otherwise falls back to the max-file-count heuristic.
+//
+// B-132: Validation now prefers manifest-based verification which checks each
+// expected sample by filename, verifies per-sample sidecar JSON params against
+// the manifest, and flags foreign (unexpected) files. This replaces the old
+// count-only approach that could not detect modified filenames or param mismatches.
+//
+// When study_id is provided:
+//  1. Try manifest-based validation (ValidateTrainingRunWithManifest) first.
+//  2. Fall back to study-config-based validation (ValidateTrainingRunWithStudy)
+//     only when no manifest.json exists yet (pre-generation).
+//
+// When no study_id is provided (viewer path):
+//  1. Try manifest-based validation using the study output dir derived from the run name.
+//  2. Fall back to the legacy max-file-count heuristic (ValidateTrainingRun).
 func (s *TrainingRunsService) Validate(ctx context.Context, p *gentrainingruns.ValidatePayload) (*gentrainingruns.ValidationResultResponse, error) {
 	var result *model.ValidationResult
 
 	if p.StudyID != nil && *p.StudyID != "" && s.studyGetter != nil {
 		// Study-aware validation path: discover training runs using the checkpoint
 		// source (same source the frontend uses for the Generate Samples dialog).
-		// This ensures the training run ID matches what the frontend sent.
-		// The viewer-discovery source cannot be used here because:
-		//   1. Before generation it returns no runs (ID mismatch → not_found).
-		//   2. After generation the run name embeds the study output dir
-		//      (e.g. "my-model/study-abc/my-model") and appending study.ID
-		//      would produce an incorrect double-nested path.
 		runs, err := s.checkpointDiscovery.Discover()
 		if err != nil {
 			return nil, gentrainingruns.MakeValidationFailed(fmt.Errorf("discovering checkpoint training runs: %w", err))
@@ -124,13 +137,24 @@ func (s *TrainingRunsService) Validate(ctx context.Context, p *gentrainingruns.V
 		// must be sanitized to a single directory level before path construction.
 		// This matches exactly what the job executor writes when saving sample images.
 		scopedStudyDir := fileformat.SanitizeTrainingRunName(tr.Name) + "/" + study.Name
-		result, err = s.validator.ValidateTrainingRunWithStudy(tr, study, scopedStudyDir)
+
+		// B-132: Prefer manifest-based validation (per-sample filename + param verification).
+		// Fall back to study-config-based count validation only when no manifest exists.
+		result, err = s.validator.ValidateTrainingRunWithManifest(tr, scopedStudyDir)
 		if err != nil {
-			return nil, gentrainingruns.MakeValidationFailed(fmt.Errorf("validating training run %q with study: %w", tr.Name, err))
+			// If the error indicates a missing manifest, fall back to study-based validation.
+			// This happens before the first generation when no manifest.json exists yet.
+			if isManifestNotFound(err) {
+				result, err = s.validator.ValidateTrainingRunWithStudy(tr, study, scopedStudyDir)
+				if err != nil {
+					return nil, gentrainingruns.MakeValidationFailed(fmt.Errorf("validating training run %q with study: %w", tr.Name, err))
+				}
+			} else {
+				return nil, gentrainingruns.MakeValidationFailed(fmt.Errorf("validating training run %q with manifest: %w", tr.Name, err))
+			}
 		}
 	} else {
-		// Legacy validation (no study context): discover from viewer source and
-		// use the max-file-count heuristic.
+		// Viewer validation path (no study context from the caller).
 		runs, err := s.viewerDiscovery.DiscoverViewable()
 		if err != nil {
 			return nil, gentrainingruns.MakeValidationFailed(fmt.Errorf("discovering viewable training runs: %w", err))
@@ -147,9 +171,28 @@ func (s *TrainingRunsService) Validate(ctx context.Context, p *gentrainingruns.V
 		} else {
 			studyName = service.StudyNameForRun(tr.Name)
 		}
-		result, err = s.validator.ValidateTrainingRun(tr, studyName)
-		if err != nil {
-			return nil, gentrainingruns.MakeValidationFailed(fmt.Errorf("validating training run %q: %w", tr.Name, err))
+
+		// B-132: Prefer manifest-based validation when a study output dir is available.
+		// Fall back to the legacy count heuristic for pre-generation or non-study runs.
+		if studyName != "" {
+			result, err = s.validator.ValidateTrainingRunWithManifest(tr, studyName)
+			if err != nil {
+				if isManifestNotFound(err) {
+					// No manifest yet — fall back to legacy count heuristic.
+					result, err = s.validator.ValidateTrainingRun(tr, studyName)
+					if err != nil {
+						return nil, gentrainingruns.MakeValidationFailed(fmt.Errorf("validating training run %q: %w", tr.Name, err))
+					}
+				} else {
+					return nil, gentrainingruns.MakeValidationFailed(fmt.Errorf("validating training run %q with manifest: %w", tr.Name, err))
+				}
+			}
+		} else {
+			// No study context at all — legacy root-level validation.
+			result, err = s.validator.ValidateTrainingRun(tr, studyName)
+			if err != nil {
+				return nil, gentrainingruns.MakeValidationFailed(fmt.Errorf("validating training run %q: %w", tr.Name, err))
+			}
 		}
 	}
 

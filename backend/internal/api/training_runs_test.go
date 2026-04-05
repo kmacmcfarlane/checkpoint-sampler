@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api"
 	gentrainingruns "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/training_runs"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/fileformat"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
 )
@@ -43,14 +45,18 @@ func (f *fakeViewerDiscoveryFS) DirectoryExists(path string) bool {
 
 // fakeScanFS implements service.ScannerFileSystem for testing.
 type fakeScanFS struct {
-	files map[string][]string
-	errs  map[string]error
+	files      map[string][]string
+	errs       map[string]error
+	fileData   map[string][]byte   // file path -> content for ReadFile
+	existFiles map[string]bool     // explicit file existence for FileExists
 }
 
 func newFakeScanFS() *fakeScanFS {
 	return &fakeScanFS{
-		files: make(map[string][]string),
-		errs:  make(map[string]error),
+		files:      make(map[string][]string),
+		errs:       make(map[string]error),
+		fileData:   make(map[string][]byte),
+		existFiles: make(map[string]bool),
 	}
 }
 
@@ -73,11 +79,26 @@ func (f *fakeScanFS) DirectoryExists(path string) bool {
 }
 
 func (f *fakeScanFS) FileExists(path string) bool {
+	if explicit, ok := f.existFiles[path]; ok {
+		return explicit
+	}
+	// Check if the file's basename is in the directory listing for its parent dir.
+	dir := filepath.Dir(path)
+	base := filepath.Base(path)
+	for _, name := range f.files[dir] {
+		if name == base {
+			return true
+		}
+	}
 	return false
 }
 
 func (f *fakeScanFS) ReadFile(path string) ([]byte, error) {
-	return nil, os.ErrNotExist
+	data, ok := f.fileData[path]
+	if !ok {
+		return nil, os.ErrNotExist
+	}
+	return data, nil
 }
 
 // fakeCheckpointDiscoveryFS implements service.CheckpointFileSystem for testing.
@@ -760,5 +781,334 @@ var _ = Describe("TrainingRunsService", func() {
 				Expect(result.TotalActual).To(Equal(2))
 			})
 		})
+	})
+})
+
+// B-132: API-level tests for manifest-first validation routing.
+// These tests verify the Validate endpoint prefers manifest-based validation
+// (per-sample filename + param verification) over count-based validation.
+var _ = Describe("TrainingRunsService manifest validation routing (B-132)", func() {
+	var (
+		viewerFS        *fakeViewerDiscoveryFS
+		scanFS          *fakeScanFS
+		cpFS            *fakeCheckpointDiscoveryFS
+		viewerDiscovery *service.ViewerDiscoveryService
+		cpDiscovery     *service.DiscoveryService
+		scanner         *service.Scanner
+		logger          *logrus.Logger
+		sampleDir       string
+	)
+
+	BeforeEach(func() {
+		sampleDir = "/samples"
+		viewerFS = newFakeViewerDiscoveryFS()
+		scanFS = newFakeScanFS()
+		cpFS = newFakeCheckpointDiscoveryFS()
+		logger = logrus.New()
+		logger.SetOutput(io.Discard)
+	})
+
+	// B-132: When a manifest exists, the study-aware path uses manifest validation
+	// which checks filenames and sidecar params instead of just counting PNG files.
+	It("uses manifest validation when manifest exists (study_id path)", func() {
+		studyID := "study-abc"
+		studyName := "Test Study"
+
+		// Checkpoint discovery
+		cpFS.safetensors["/checkpoints"] = []string{
+			"model-step00001000.safetensors",
+		}
+		viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
+		cpDiscovery = service.NewDiscoveryService(cpFS, []string{"/checkpoints"}, sampleDir, logger)
+		scanner = service.NewScanner(scanFS, sampleDir, logger)
+		validator := service.NewValidationService(scanFS, sampleDir, logger)
+		studyGetter := newFakeStudyGetter()
+		studyGetter.studies[studyID] = model.Study{
+			ID:      studyID,
+			Name:    studyName,
+			Prompts: []model.NamedPrompt{{Name: "p1", Text: "prompt"}},
+			Steps:   []int{20},
+			CFGs:    []float64{7},
+			SamplerSchedulerPairs: []model.SamplerSchedulerPair{
+				{Sampler: "euler", Scheduler: "normal"},
+			},
+			Seeds: []int64{42},
+		}
+		svc := api.NewTrainingRunsService(viewerDiscovery, cpDiscovery, scanner, validator, nil, studyGetter)
+
+		// Build the manifest with the same params as the study
+		manifest := fileformat.JobManifest{
+			JobID:           "job-1",
+			TrainingRunName: "model",
+			StudyName:       studyName,
+			Prompts:         []fileformat.ManifestNamedPrompt{{Name: "p1", Text: "prompt"}},
+			Steps:           []int{20},
+			CFGs:            []float64{7},
+			SamplerSchedulerPairs: []fileformat.ManifestSamplerSchedulerPair{
+				{Sampler: "euler", Scheduler: "normal"},
+			},
+			Seeds:               []int64{42},
+			ImagesPerCheckpoint: 1,
+			Checkpoints:         []string{"model-step00001000.safetensors"},
+		}
+		manifestData, err := fileformat.MarshalManifest(manifest)
+		Expect(err).NotTo(HaveOccurred())
+
+		// scopedStudyDir = "model/" + studyName
+		scopedStudyDir := sampleDir + "/model/" + studyName
+		scanFS.fileData[scopedStudyDir+"/manifest.json"] = manifestData
+
+		// The expected filename from the manifest's param combination
+		expectedFile := service.GenerateOutputFilename(model.SampleJobItem{
+			PromptName: "p1", Steps: 20, CFG: 7,
+			SamplerName: "euler", Scheduler: "normal", Seed: 42,
+		})
+
+		// Place the expected file plus a foreign file in the checkpoint dir
+		cpDir := scopedStudyDir + "/model-step00001000.safetensors"
+		scanFS.files[cpDir] = []string{expectedFile, "foreign.png"}
+
+		sid := studyID
+		result, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{ID: 0, StudyID: &sid})
+
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.Checkpoints).To(HaveLen(1))
+		// B-132: Manifest validation checks filenames — only expectedFile counts as verified.
+		// The foreign file is flagged as extra, not counted as verified.
+		Expect(result.Checkpoints[0].Verified).To(Equal(1))
+		Expect(result.Checkpoints[0].Extra).To(Equal(1))
+		Expect(result.Checkpoints[0].Missing).To(Equal(0))
+	})
+
+	// B-132: When a manifest exists, foreign (unexpected) samples cause validation to
+	// report them as extra — this is the fix for the original bug where extra samples
+	// were invisible to validation.
+	It("detects extra samples that would be invisible with count-only validation", func() {
+		studyID := "study-abc"
+		studyName := "Test Study"
+
+		cpFS.safetensors["/checkpoints"] = []string{
+			"model-step00001000.safetensors",
+		}
+		viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
+		cpDiscovery = service.NewDiscoveryService(cpFS, []string{"/checkpoints"}, sampleDir, logger)
+		scanner = service.NewScanner(scanFS, sampleDir, logger)
+		validator := service.NewValidationService(scanFS, sampleDir, logger)
+		studyGetter := newFakeStudyGetter()
+		studyGetter.studies[studyID] = model.Study{
+			ID:      studyID,
+			Name:    studyName,
+			Prompts: []model.NamedPrompt{{Name: "p1", Text: "prompt"}},
+			Steps:   []int{20},
+			CFGs:    []float64{7},
+			SamplerSchedulerPairs: []model.SamplerSchedulerPair{
+				{Sampler: "euler", Scheduler: "normal"},
+			},
+			Seeds: []int64{42},
+		}
+		svc := api.NewTrainingRunsService(viewerDiscovery, cpDiscovery, scanner, validator, nil, studyGetter)
+
+		manifest := fileformat.JobManifest{
+			JobID:           "job-1",
+			TrainingRunName: "model",
+			StudyName:       studyName,
+			Prompts:         []fileformat.ManifestNamedPrompt{{Name: "p1", Text: "prompt"}},
+			Steps:           []int{20},
+			CFGs:            []float64{7},
+			SamplerSchedulerPairs: []fileformat.ManifestSamplerSchedulerPair{
+				{Sampler: "euler", Scheduler: "normal"},
+			},
+			Seeds:               []int64{42},
+			ImagesPerCheckpoint: 1,
+			Checkpoints:         []string{"model-step00001000.safetensors"},
+		}
+		manifestData, err := fileformat.MarshalManifest(manifest)
+		Expect(err).NotTo(HaveOccurred())
+
+		scopedStudyDir := sampleDir + "/model/" + studyName
+		scanFS.fileData[scopedStudyDir+"/manifest.json"] = manifestData
+
+		// The expected file is MISSING. Only foreign files exist.
+		cpDir := scopedStudyDir + "/model-step00001000.safetensors"
+		scanFS.files[cpDir] = []string{"foreign1.png", "foreign2.png", "foreign3.png"}
+
+		sid := studyID
+		result, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{ID: 0, StudyID: &sid})
+
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.Checkpoints).To(HaveLen(1))
+		// B-132: The expected sample is missing, and foreign files are tracked as extra.
+		// Count-only validation would have shown 3/1 (over-verified).
+		// Manifest validation correctly shows 0/1 verified + 3 extra.
+		Expect(result.Checkpoints[0].Verified).To(Equal(0))
+		Expect(result.Checkpoints[0].Missing).To(Equal(1))
+		Expect(result.Checkpoints[0].Extra).To(Equal(3))
+	})
+
+	// B-132: Viewer path also prefers manifest validation when study output dir exists.
+	It("uses manifest validation for viewer path with study-scoped run", func() {
+		// Viewer discovers a study-scoped run
+		viewerFS.subdirs[sampleDir] = []string{"my-model"}
+		viewerFS.subdirs[sampleDir+"/my-model"] = []string{"Test Study"}
+		viewerFS.subdirs[sampleDir+"/my-model/Test Study"] = []string{
+			"model-step00001000.safetensors",
+		}
+		viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
+		cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, sampleDir, logger)
+		scanner = service.NewScanner(scanFS, sampleDir, logger)
+		validator := service.NewValidationService(scanFS, sampleDir, logger)
+		svc := api.NewTrainingRunsService(viewerDiscovery, cpDiscovery, scanner, validator, nil, nil)
+
+		// Build manifest
+		manifest := fileformat.JobManifest{
+			JobID:           "job-1",
+			TrainingRunName: "model",
+			StudyName:       "Test Study",
+			Prompts:         []fileformat.ManifestNamedPrompt{{Name: "p1", Text: "prompt"}},
+			Steps:           []int{20},
+			CFGs:            []float64{7},
+			SamplerSchedulerPairs: []fileformat.ManifestSamplerSchedulerPair{
+				{Sampler: "euler", Scheduler: "normal"},
+			},
+			Seeds:               []int64{42},
+			ImagesPerCheckpoint: 1,
+			Checkpoints:         []string{"model-step00001000.safetensors"},
+		}
+		manifestData, err := fileformat.MarshalManifest(manifest)
+		Expect(err).NotTo(HaveOccurred())
+
+		// The viewer-discovered run name is "my-model/Test Study/model"
+		// StudyNameForRun returns "my-model/Test Study"
+		studyOutputDir := sampleDir + "/my-model/Test Study"
+		scanFS.fileData[studyOutputDir+"/manifest.json"] = manifestData
+
+		expectedFile := service.GenerateOutputFilename(model.SampleJobItem{
+			PromptName: "p1", Steps: 20, CFG: 7,
+			SamplerName: "euler", Scheduler: "normal", Seed: 42,
+		})
+
+		cpDir := studyOutputDir + "/model-step00001000.safetensors"
+		scanFS.files[cpDir] = []string{expectedFile, "extra.png"}
+
+		result, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{ID: 0})
+
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.Checkpoints).To(HaveLen(1))
+		// Manifest validation detects the foreign file as extra
+		Expect(result.Checkpoints[0].Verified).To(Equal(1))
+		Expect(result.Checkpoints[0].Extra).To(Equal(1))
+	})
+
+	// B-132: Manifest validation detects param mismatches through the API layer.
+	It("reports invalid params when sidecar does not match manifest (study_id path)", func() {
+		studyID := "study-abc"
+		studyName := "Test Study"
+
+		cpFS.safetensors["/checkpoints"] = []string{
+			"model-step00001000.safetensors",
+		}
+		viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
+		cpDiscovery = service.NewDiscoveryService(cpFS, []string{"/checkpoints"}, sampleDir, logger)
+		scanner = service.NewScanner(scanFS, sampleDir, logger)
+		validator := service.NewValidationService(scanFS, sampleDir, logger)
+		studyGetter := newFakeStudyGetter()
+		studyGetter.studies[studyID] = model.Study{
+			ID:      studyID,
+			Name:    studyName,
+			Prompts: []model.NamedPrompt{{Name: "p1", Text: "prompt"}},
+			Steps:   []int{20},
+			CFGs:    []float64{7},
+			SamplerSchedulerPairs: []model.SamplerSchedulerPair{
+				{Sampler: "euler", Scheduler: "normal"},
+			},
+			Seeds: []int64{42},
+		}
+		svc := api.NewTrainingRunsService(viewerDiscovery, cpDiscovery, scanner, validator, nil, studyGetter)
+
+		manifest := fileformat.JobManifest{
+			JobID:           "job-1",
+			TrainingRunName: "model",
+			StudyName:       studyName,
+			Prompts:         []fileformat.ManifestNamedPrompt{{Name: "p1", Text: "prompt"}},
+			Steps:           []int{20},
+			CFGs:            []float64{7},
+			SamplerSchedulerPairs: []fileformat.ManifestSamplerSchedulerPair{
+				{Sampler: "euler", Scheduler: "normal"},
+			},
+			Seeds:               []int64{42},
+			ImagesPerCheckpoint: 1,
+			Checkpoints:         []string{"model-step00001000.safetensors"},
+		}
+		manifestData, err := fileformat.MarshalManifest(manifest)
+		Expect(err).NotTo(HaveOccurred())
+
+		scopedStudyDir := sampleDir + "/model/" + studyName
+		scanFS.fileData[scopedStudyDir+"/manifest.json"] = manifestData
+
+		expectedFile := service.GenerateOutputFilename(model.SampleJobItem{
+			PromptName: "p1", Steps: 20, CFG: 7,
+			SamplerName: "euler", Scheduler: "normal", Seed: 42,
+		})
+
+		cpDir := scopedStudyDir + "/model-step00001000.safetensors"
+		scanFS.files[cpDir] = []string{expectedFile}
+
+		// B-132: Sidecar has wrong seed (999 vs manifest's 42) — param mismatch
+		import_json_pkg := `{"checkpoint":"model-step00001000.safetensors","prompt_name":"p1","seed":999,"cfg":7,"steps":20,"sampler_name":"euler","scheduler":"normal","width":1024,"height":768}`
+		sidecarBase := expectedFile[:len(expectedFile)-4] // strip .png
+		scanFS.fileData[cpDir+"/"+sidecarBase+".json"] = []byte(import_json_pkg)
+
+		sid := studyID
+		result, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{ID: 0, StudyID: &sid})
+
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.Checkpoints).To(HaveLen(1))
+		// B-132: Param mismatch — not verified, counted as invalid.
+		Expect(result.Checkpoints[0].Verified).To(Equal(0))
+		Expect(result.Checkpoints[0].InvalidParams).To(Equal(1))
+		Expect(result.TotalInvalidParams).To(Equal(1))
+	})
+
+	// B-132: Falls back to study-based validation when no manifest exists.
+	It("falls back to study count validation when manifest is absent (study_id path)", func() {
+		studyID := "study-abc"
+		studyName := "Test Study"
+
+		cpFS.safetensors["/checkpoints"] = []string{
+			"model-step00001000.safetensors",
+		}
+		viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
+		cpDiscovery = service.NewDiscoveryService(cpFS, []string{"/checkpoints"}, sampleDir, logger)
+		scanner = service.NewScanner(scanFS, sampleDir, logger)
+		validator := service.NewValidationService(scanFS, sampleDir, logger)
+		studyGetter := newFakeStudyGetter()
+		studyGetter.studies[studyID] = model.Study{
+			ID:      studyID,
+			Name:    studyName,
+			Prompts: []model.NamedPrompt{{Name: "p1", Text: "prompt"}},
+			Steps:   []int{20},
+			CFGs:    []float64{7},
+			SamplerSchedulerPairs: []model.SamplerSchedulerPair{
+				{Sampler: "euler", Scheduler: "normal"},
+			},
+			Seeds: []int64{42},
+		}
+		svc := api.NewTrainingRunsService(viewerDiscovery, cpDiscovery, scanner, validator, nil, studyGetter)
+
+		// No manifest.json in scanFS.fileData — will trigger manifest-not-found fallback
+
+		// Study expects 1 image per checkpoint. Place 1 file.
+		scopedStudyDir := sampleDir + "/model/" + studyName
+		scanFS.files[scopedStudyDir+"/model-step00001000.safetensors"] = []string{"any-file.png"}
+
+		sid := studyID
+		result, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{ID: 0, StudyID: &sid})
+
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.Checkpoints).To(HaveLen(1))
+		// Falls back to study-based count validation: expected=1, verified=1
+		Expect(result.ExpectedPerCheckpoint).To(Equal(1))
+		Expect(result.Checkpoints[0].Verified).To(Equal(1))
+		Expect(result.Checkpoints[0].Missing).To(Equal(0))
 	})
 })
