@@ -856,7 +856,7 @@ const missingCheckpointFilenames = computed((): string[] => {
 const checkpointValidationError = computed((): string | null => {
   if (!selectedRunHasSamples.value) return null
   if (selectedRunCheckpoints.value.length === 0) return null
-  if (selectedCheckpoints.value.size === 0) return 'Select at least one checkpoint to regenerate'
+  if (selectedCheckpoints.value.size === 0) return 'Select at least one checkpoint to generate'
   return null
 })
 
@@ -1651,6 +1651,7 @@ async function doSubmit() {
   flex-shrink: 0;
   color: var(--text-secondary);
   font-size: 0.8125rem;
+  margin-left: 0.5rem;
 }
 
 .failed-checkpoint-tag {

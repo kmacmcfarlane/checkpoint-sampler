@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-136: Generate Samples minor UI tweaks (whitespace + validation message)
+- Added left-margin whitespace between checkpoint name and sample count in the Generate Samples dialog
+- Changed validation message to "Select at least one checkpoint to generate" with red styling via `--error-color`
+
 ### S-137: Validation dialog: add refresh button
 - Added a Refresh button to the validation dialog that re-runs the validation API call and updates displayed results without closing and reopening the dialog
 - Button shows loading/disabled state during the API call; works in both the job progress panel and slideout validation contexts

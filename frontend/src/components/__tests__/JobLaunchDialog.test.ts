@@ -1407,6 +1407,62 @@ describe('JobLaunchDialog', () => {
       expect(wrapper.find('[data-testid="checkpoint-validation-error"]').exists()).toBe(true)
     })
 
+    // S-136 AC: Validation message text reads 'Select at least one checkpoint to generate'
+    it('shows correct validation message text when all checkpoints are deselected', async () => {
+      mockListSampleJobs.mockResolvedValue([completedWithErrorsJob])
+      mockValidateTrainingRun.mockResolvedValue(validationForRunWithSamples)
+      mockGetStudyAvailability.mockResolvedValue(studyAvailabilityWithSamples)
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
+      await nextTick()
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      await flushPromises()
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
+      await flushPromises()
+
+      wrapper.find('[data-testid="deselect-all-checkpoints"]').trigger('click')
+      await nextTick()
+
+      const errorEl = wrapper.find('[data-testid="checkpoint-validation-error"]')
+      expect(errorEl.exists()).toBe(true)
+      // AC: Validation message text reads 'Select at least one checkpoint to generate'
+      expect(errorEl.text()).toBe('Select at least one checkpoint to generate')
+    })
+
+    // S-136 AC: Validation message is styled red (field-error class)
+    it('applies field-error CSS class to validation message for red styling', async () => {
+      mockListSampleJobs.mockResolvedValue([completedWithErrorsJob])
+      mockValidateTrainingRun.mockResolvedValue(validationForRunWithSamples)
+      mockGetStudyAvailability.mockResolvedValue(studyAvailabilityWithSamples)
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
+      await nextTick()
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      await flushPromises()
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
+      await flushPromises()
+
+      wrapper.find('[data-testid="deselect-all-checkpoints"]').trigger('click')
+      await nextTick()
+
+      const errorEl = wrapper.find('[data-testid="checkpoint-validation-error"]')
+      expect(errorEl.exists()).toBe(true)
+      // AC: Validation message has field-error class which applies var(--error-color) red styling
+      expect(errorEl.classes()).toContain('field-error')
+    })
+
     // S-115 + S-129: With smart defaults, incomplete sets default to missing_only=true.
     // S-129: The payload now carries only INCOMPLETE checkpoints (missing > 0), not the failed ones.
     // chk-b is incomplete (missing=1) → selected; chk-a and chk-c are complete → not selected.

@@ -331,7 +331,7 @@ stories:
   - id: S-136
     title: "Generate Samples minor UI tweaks (whitespace + validation message)"
     type: enhancement
-    status: todo
+    status: uat
     priority: 30
     complexity: low
     requires: []
