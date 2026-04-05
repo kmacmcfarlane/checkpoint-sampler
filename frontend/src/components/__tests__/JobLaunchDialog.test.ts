@@ -478,6 +478,90 @@ describe('JobLaunchDialog', () => {
     })
   })
 
+  describe('status bead rendering via renderTag (closed/collapsed state)', () => {
+    // AC: Bead status indicators are visible on closed/collapsed Training Run selector
+    it('sets the renderTag prop on the training run select', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
+      expect(typeof runSelect.props('renderTag')).toBe('function')
+    })
+
+    // AC: Bead status indicators are visible on closed/collapsed Study selector
+    it('sets the renderTag prop on the study select', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+      expect(typeof studySelect.props('renderTag')).toBe('function')
+    })
+
+    // AC: Unit tests for bead rendering in closed selector state — training run with activity bead
+    it.each([
+      { activity: 'blue', problem: null, expectedChildren: 2, desc: 'activity=blue renders bead + label' },
+      { activity: 'green', problem: null, expectedChildren: 2, desc: 'activity=green renders bead + label' },
+      { activity: null, problem: 'red', expectedChildren: 2, desc: 'problem=red renders bead + label' },
+      { activity: null, problem: 'yellow', expectedChildren: 2, desc: 'problem=yellow renders bead + label' },
+      { activity: 'blue', problem: 'red', expectedChildren: 3, desc: 'both beads render activity + problem + label' },
+      { activity: null, problem: null, expectedChildren: 1, desc: 'no beads renders label only' },
+    ])('training run renderTag: $desc', async ({ activity, problem, expectedChildren }) => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
+      const renderTag = runSelect.props('renderTag') as (ctx: { option: Record<string, unknown>; handleClose: () => void }) => VNode
+
+      const vnode = renderTag({
+        option: { label: 'test-run', value: 1, _dualBead: { activity, problem } },
+        handleClose: () => {},
+      })
+
+      expect(vnode).toBeTruthy()
+      const children = (vnode as { children?: unknown[] }).children
+      expect(Array.isArray(children)).toBe(true)
+      expect((children as unknown[]).length).toBe(expectedChildren)
+    })
+
+    // AC: Unit tests for bead rendering in closed selector state — study
+    it.each([
+      { activity: 'blue', problem: null, expectedChildren: 2, desc: 'activity=blue renders bead + label' },
+      { activity: 'green', problem: null, expectedChildren: 2, desc: 'activity=green renders bead + label' },
+      { activity: null, problem: 'red', expectedChildren: 2, desc: 'problem=red renders bead + label' },
+      { activity: null, problem: 'yellow', expectedChildren: 2, desc: 'problem=yellow renders bead + label' },
+      { activity: 'blue', problem: 'red', expectedChildren: 3, desc: 'both beads render activity + problem + label' },
+      { activity: null, problem: null, expectedChildren: 1, desc: 'no beads renders label only' },
+    ])('study renderTag: $desc', async ({ activity, problem, expectedChildren }) => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+      const renderTag = studySelect.props('renderTag') as (ctx: { option: Record<string, unknown>; handleClose: () => void }) => VNode
+
+      const vnode = renderTag({
+        option: { label: 'Quick Test', value: 'preset-1', _dualBead: { activity, problem } },
+        handleClose: () => {},
+      })
+
+      expect(vnode).toBeTruthy()
+      const children = (vnode as { children?: unknown[] }).children
+      expect(Array.isArray(children)).toBe(true)
+      expect((children as unknown[]).length).toBe(expectedChildren)
+    })
+  })
+
   it('populates study select with all studies', async () => {
     const wrapper = mount(JobLaunchDialog, {
       props: { show: true },
@@ -4968,7 +5052,7 @@ describe('JobLaunchDialog', () => {
       expect(typeof runSelect.props('renderTag')).toBe('function')
     })
 
-    // AC: renderTag on training run NSelect produces a span with white-space: normal
+    // AC: renderTag on training run NSelect produces a label span with white-space: normal (B-136: beads wrapped in flex div)
     it('training run renderTag produces a span with white-space: normal for wrapping', async () => {
       const wrapper = mount(JobLaunchDialog, {
         props: { show: true },
@@ -4978,17 +5062,22 @@ describe('JobLaunchDialog', () => {
 
       const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
       const renderTag = runSelect.props('renderTag') as
-        | ((props: { option: { label?: string }; handleClose: () => void }) => unknown)
+        | ((props: { option: Record<string, unknown>; handleClose: () => void }) => unknown)
         | undefined
       expect(renderTag).toBeDefined()
 
-      // Call renderTag directly and verify wrapping styles
+      // B-136: renderTag now returns a flex div containing bead(s) + label span.
+      // With no beads (_dualBead null/no activity or problem), the div has 1 child: the label span.
       const vnode = renderTag!({
-        option: { label: 'very-long-training-run-name-that-should-wrap-instead-of-truncating' },
+        option: { label: 'very-long-training-run-name-that-should-wrap-instead-of-truncating', _dualBead: { activity: null, problem: null } },
         handleClose: () => {},
-      }) as { props?: { style?: { whiteSpace?: string; wordBreak?: string } } }
-      expect(vnode.props?.style?.whiteSpace).toBe('normal')
-      expect(vnode.props?.style?.wordBreak).toBe('break-word')
+      }) as { children?: unknown[] }
+      const children = vnode.children as Array<{ props?: { style?: { whiteSpace?: string; wordBreak?: string } } }>
+      expect(Array.isArray(children)).toBe(true)
+      // The last child is always the label text span
+      const labelSpan = children[children.length - 1]
+      expect(labelSpan.props?.style?.whiteSpace).toBe('normal')
+      expect(labelSpan.props?.style?.wordBreak).toBe('break-word')
     })
 
     // AC: renderLabel on training run NSelect text span uses white-space: normal
@@ -5029,7 +5118,7 @@ describe('JobLaunchDialog', () => {
       expect(typeof studySelect.props('renderTag')).toBe('function')
     })
 
-    // AC: renderTag on study NSelect produces a span with white-space: normal
+    // AC: renderTag on study NSelect produces a label span with white-space: normal (B-136: beads wrapped in flex div)
     it('study renderTag produces a span with white-space: normal for wrapping', async () => {
       const wrapper = mount(JobLaunchDialog, {
         props: { show: true },
@@ -5039,16 +5128,22 @@ describe('JobLaunchDialog', () => {
 
       const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
       const renderTag = studySelect.props('renderTag') as
-        | ((props: { option: { label?: string }; handleClose: () => void }) => unknown)
+        | ((props: { option: Record<string, unknown>; handleClose: () => void }) => unknown)
         | undefined
       expect(renderTag).toBeDefined()
 
+      // B-136: renderTag now returns a flex div containing bead(s) + label span.
+      // With no beads (_dualBead null/no activity or problem), the div has 1 child: the label span.
       const vnode = renderTag!({
-        option: { label: 'this-is-a-very-long-study-name-that-should-wrap-instead-of-truncating' },
+        option: { label: 'this-is-a-very-long-study-name-that-should-wrap-instead-of-truncating', _dualBead: { activity: null, problem: null } },
         handleClose: () => {},
-      }) as { props?: { style?: { whiteSpace?: string; wordBreak?: string } } }
-      expect(vnode.props?.style?.whiteSpace).toBe('normal')
-      expect(vnode.props?.style?.wordBreak).toBe('break-word')
+      }) as { children?: unknown[] }
+      const children = vnode.children as Array<{ props?: { style?: { whiteSpace?: string; wordBreak?: string } } }>
+      expect(Array.isArray(children)).toBe(true)
+      // The last child is always the label text span
+      const labelSpan = children[children.length - 1]
+      expect(labelSpan.props?.style?.whiteSpace).toBe('normal')
+      expect(labelSpan.props?.style?.wordBreak).toBe('break-word')
     })
 
     // AC: renderLabel on study NSelect text span uses white-space: normal

@@ -293,7 +293,7 @@ stories:
   - id: B-136
     title: "Colored beads not displayed when Training Run / Study selectors are closed"
     type: bug
-    status: todo
+    status: uat
     priority: 45
     complexity: low
     requires: []

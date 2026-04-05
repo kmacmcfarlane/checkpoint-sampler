@@ -198,18 +198,40 @@ const renderTrainingRunLabel: SelectRenderLabel = (option) => {
 /**
  * B-098: renderTag for the training-run select closed-state trigger.
  * Controls how the selected value is shown when the dropdown is closed.
+ * B-136: Also renders dual-bead status indicators in the closed state so beads
+ * are visible regardless of whether the dropdown is open or closed.
  * IMPORTANT: VNodes run outside scoped CSS context — all styles must be inlined.
  */
-const renderWrappedTrainingRunTag: SelectRenderTag = ({ option }) =>
-  h('span', {
+const renderWrappedTrainingRunTag: SelectRenderTag = ({ option }) => {
+  const dualBead = (option as { _dualBead?: DualBead })._dualBead
+  const children: VNode[] = []
+
+  if (dualBead) {
+    if (dualBead.activity === 'blue') {
+      children.push(renderBeadSpan(DUAL_BEAD_COLORS.blue, 'running', 'run-tag-bead-activity'))
+    } else if (dualBead.activity === 'green') {
+      children.push(renderBeadSpan(DUAL_BEAD_COLORS.green, 'complete', 'run-tag-bead-activity'))
+    }
+    if (dualBead.problem === 'red') {
+      children.push(renderBeadSpan(DUAL_BEAD_COLORS.red, 'failed', 'run-tag-bead-problem'))
+    } else if (dualBead.problem === 'yellow') {
+      children.push(renderBeadSpan(DUAL_BEAD_COLORS.yellow, 'incomplete', 'run-tag-bead-problem'))
+    }
+  }
+
+  children.push(h('span', {
     style: {
       whiteSpace: 'normal',
       wordBreak: 'break-word',
       lineHeight: '1.4',
-      display: 'block',
     },
     'data-testid': 'training-run-selected-tag',
-  }, String(option.label ?? ''))
+  }, String(option.label ?? '')))
+
+  return h('div', {
+    style: { display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' },
+  }, children)
+}
 
 // Training run select options (filtered by showAllRuns)
 // Each option includes _dualBead metadata for the renderLabel function.
@@ -668,18 +690,40 @@ const renderStudyLabel: SelectRenderLabel = (option) => {
 
 /**
  * B-098: renderTag for the study select closed-state trigger.
+ * B-136: Also renders dual-bead status indicators in the closed state so beads
+ * are visible regardless of whether the dropdown is open or closed.
  * IMPORTANT: VNodes run outside scoped CSS context — all styles must be inlined.
  */
-const renderWrappedStudyTag: SelectRenderTag = ({ option }) =>
-  h('span', {
+const renderWrappedStudyTag: SelectRenderTag = ({ option }) => {
+  const dualBead = (option as { _dualBead?: DualBead })._dualBead
+  const children: VNode[] = []
+
+  if (dualBead) {
+    if (dualBead.activity === 'blue') {
+      children.push(renderBeadSpan(DUAL_BEAD_COLORS.blue, 'running', 'study-tag-bead-activity'))
+    } else if (dualBead.activity === 'green') {
+      children.push(renderBeadSpan(DUAL_BEAD_COLORS.green, 'complete', 'study-tag-bead-activity'))
+    }
+    if (dualBead.problem === 'red') {
+      children.push(renderBeadSpan(DUAL_BEAD_COLORS.red, 'failed', 'study-tag-bead-problem'))
+    } else if (dualBead.problem === 'yellow') {
+      children.push(renderBeadSpan(DUAL_BEAD_COLORS.yellow, 'incomplete', 'study-tag-bead-problem'))
+    }
+  }
+
+  children.push(h('span', {
     style: {
       whiteSpace: 'normal',
       wordBreak: 'break-word',
       lineHeight: '1.4',
-      display: 'block',
     },
     'data-testid': 'study-selected-tag',
-  }, String(option.label ?? ''))
+  }, String(option.label ?? '')))
+
+  return h('div', {
+    style: { display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' },
+  }, children)
+}
 
 /**
  * S-133: zebra-stripe renderOption for the training-run dropdown.

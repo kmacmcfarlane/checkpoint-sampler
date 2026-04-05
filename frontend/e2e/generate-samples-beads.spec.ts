@@ -151,12 +151,14 @@ async function openDialogWithRun(page: Page): Promise<ReturnType<typeof getGener
 
 /**
  * Counts bead elements in the training run select trigger (the selected value display).
- * The bead spans are rendered by renderLabel and have data-testid attributes.
+ * The bead spans are rendered by renderTag (closed state) and have data-testid attributes.
+ * B-136: Closed-state beads use data-testid="run-tag-bead-activity" / "run-tag-bead-problem"
+ * to distinguish from open-dropdown beads ("run-bead-activity" / "run-bead-problem").
  */
 async function getTrainingRunBeadInTrigger(dialog: ReturnType<typeof getGenerateSamplesDialog>, beadType: 'activity' | 'problem') {
-  // The selected value in NSelect is rendered via renderLabel in the trigger area
+  // The selected value in NSelect is rendered via renderTag (closed state)
   const triggerArea = dialog.locator('[data-testid="training-run-select"] .n-base-selection')
-  return triggerArea.locator(`[data-testid="run-bead-${beadType}"]`)
+  return triggerArea.locator(`[data-testid="run-tag-bead-${beadType}"]`)
 }
 
 /**
@@ -746,6 +748,106 @@ test.describe('Generate Samples dual beads (S-116)', () => {
     await expect(alertIcon).toHaveAttribute('title', 'Missing samples detected')
 
     await page.keyboard.press('Escape')
+  })
+
+  // ---------------------------------------------------------------------------
+  // B-136: Closed/collapsed selector bead visibility
+  // ---------------------------------------------------------------------------
+
+  // AC B-136: Bead status indicators are visible on closed/collapsed Training Run selector
+  test('B-136 AC: blue activity bead visible in closed training run trigger after selection', async ({ page, request }) => {
+    // Seed a running job so the training run shows a blue activity bead
+    await seedJobs(request, [{ status: 'running', training_run_name: 'my-model' }])
+
+    const dialog = await openDialogWithRun(page)
+    await page.waitForLoadState('networkidle')
+
+    // The dropdown is now closed — the closed-state trigger (renderTag) must show the bead
+    const triggerArea = dialog.locator('[data-testid="training-run-select"] .n-base-selection')
+    const activityBead = triggerArea.locator('[data-testid="run-tag-bead-activity"]')
+    // AC B-136: activity bead visible in closed/collapsed state
+    await expect(activityBead).toBeVisible()
+    await expect(activityBead).toHaveAttribute('title', 'running')
+  })
+
+  // AC B-136: Red problem bead visible in closed training run trigger
+  test('B-136 AC: red problem bead visible in closed training run trigger after selection', async ({ page, request }) => {
+    // Seed a failed job so the training run shows a red problem bead
+    await seedJobs(request, [{ status: 'failed', training_run_name: 'my-model' }])
+
+    const dialog = await openDialogWithRun(page)
+    await page.waitForLoadState('networkidle')
+
+    // The dropdown is now closed — the closed-state trigger (renderTag) must show the bead
+    const triggerArea = dialog.locator('[data-testid="training-run-select"] .n-base-selection')
+    const problemBead = triggerArea.locator('[data-testid="run-tag-bead-problem"]')
+    // AC B-136: problem bead visible in closed/collapsed state
+    await expect(problemBead).toBeVisible()
+    await expect(problemBead).toHaveAttribute('title', 'failed')
+  })
+
+  // AC B-136: Bead status indicators are visible on closed/collapsed Study selector
+  test('B-136 AC: red problem bead visible in closed study trigger after selection', async ({ page, request }) => {
+    const studyName = `B136 Study Closed Bead ${Date.now()}`
+    const studyId = await createStudy(request, studyName)
+
+    // Seed a failed job for this study so it shows a red problem bead
+    await seedJobs(request, [{
+      status: 'failed',
+      training_run_name: 'my-model',
+      study_id: studyId,
+      study_name: studyName,
+    }])
+
+    const dialog = await openDialogWithRun(page)
+    await page.waitForLoadState('networkidle')
+
+    // Open the study dropdown and select the study with a red problem bead
+    const studySelect = dialog.locator('[data-testid="study-select"]')
+    await studySelect.click()
+    const studyPopup = page.locator('.n-base-select-menu:visible')
+    await expect(studyPopup).toBeVisible()
+    await studyPopup.getByText(studyName, { exact: true }).click()
+    await expect(studyPopup).not.toBeVisible()
+
+    // The dropdown is now closed — the closed-state trigger (renderTag) must show the bead
+    const studyTrigger = dialog.locator('[data-testid="study-select"] .n-base-selection')
+    const problemBead = studyTrigger.locator('[data-testid="study-tag-bead-problem"]')
+    // AC B-136: study problem bead visible in closed/collapsed state
+    await expect(problemBead).toBeVisible()
+    await expect(problemBead).toHaveAttribute('title', 'failed')
+  })
+
+  // AC B-136: Blue activity bead visible in closed study trigger
+  test('B-136 AC: blue activity bead visible in closed study trigger after selection', async ({ page, request }) => {
+    const studyName = `B136 Study Blue Bead ${Date.now()}`
+    const studyId = await createStudy(request, studyName)
+
+    // Seed a running job for this study so it shows a blue activity bead
+    await seedJobs(request, [{
+      status: 'running',
+      training_run_name: 'my-model',
+      study_id: studyId,
+      study_name: studyName,
+    }])
+
+    const dialog = await openDialogWithRun(page)
+    await page.waitForLoadState('networkidle')
+
+    // Open the study dropdown and select the study with a blue activity bead
+    const studySelect = dialog.locator('[data-testid="study-select"]')
+    await studySelect.click()
+    const studyPopup = page.locator('.n-base-select-menu:visible')
+    await expect(studyPopup).toBeVisible()
+    await studyPopup.getByText(studyName, { exact: true }).click()
+    await expect(studyPopup).not.toBeVisible()
+
+    // The dropdown is now closed — the closed-state trigger (renderTag) must show the bead
+    const studyTrigger = dialog.locator('[data-testid="study-select"] .n-base-selection')
+    const activityBead = studyTrigger.locator('[data-testid="study-tag-bead-activity"]')
+    // AC B-136: study activity bead visible in closed/collapsed state
+    await expect(activityBead).toBeVisible()
+    await expect(activityBead).toHaveAttribute('title', 'running')
   })
 
   // UAT fix 2 (negative case): Alert icon is absent when all samples are present.

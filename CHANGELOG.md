@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-136: Colored beads not displayed when Training Run / Study selectors are closed
+- Fixed `renderTag` functions for Training Run and Study NSelect components to render dual-bead status indicators (activity/problem) in the closed/collapsed trigger state, matching the existing open-dropdown behavior
+
 ### B-135: Training run with no checkpoint sample dirs causes grid error
 - Backend now returns empty images/dimensions (instead of propagating errors) when a training run has no checkpoint sample directories; logs a warning for operator visibility
 - Frontend displays a "No sample images found" empty state instead of a misleading grid placeholder
