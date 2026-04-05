@@ -930,6 +930,11 @@ async function handleSlideoutValidate() {
     slideoutValidationLoading.value = false
   }
 }
+
+/** Re-run validation for the slideout dialog without closing it. */
+async function handleSlideoutValidationRefresh() {
+  await handleSlideoutValidate()
+}
 </script>
 
 <template>
@@ -1200,6 +1205,7 @@ async function handleSlideoutValidate() {
         :job="null"
         :title="selectedTrainingRun ? `Validation: ${selectedTrainingRun.study_label ? selectedTrainingRun.study_label + ' (' + (selectedTrainingRun.training_run_dir || selectedTrainingRun.name) + ')' : selectedTrainingRun.name}` : 'Validation Results'"
         @close="slideoutValidationDialogShow = false"
+        @refresh="handleSlideoutValidationRefresh"
         @regenerate="handleValidationRegenerate"
       />
     </div>

@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-137: Validation dialog: add refresh button
+- Added a Refresh button to the validation dialog that re-runs the validation API call and updates displayed results without closing and reopening the dialog
+- Button shows loading/disabled state during the API call; works in both the job progress panel and slideout validation contexts
+
 ### S-134: Validation dialog: display detailed per-checkpoint report
 - Replaced flat checkpoint rows with collapsible sections containing per-file-type breakdown tables (PNG samples, JSON metadata) with Expected/Valid/Missing/Invalid columns
 - Added summary breakdown table with totals row aggregating counts across all checkpoints

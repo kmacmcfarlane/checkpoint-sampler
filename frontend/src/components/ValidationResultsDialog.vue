@@ -19,9 +19,11 @@ const props = defineProps<{
 
 // close: Emitted when the dialog is dismissed.
 // regenerate: Emitted when the user clicks Regenerate. Payload: the job whose settings should be prefilled.
+// refresh: Emitted when the user clicks Refresh to re-run validation.
 const emit = defineEmits<{
   close: []
   regenerate: [job: SampleJob]
+  refresh: []
 }>()
 
 /** Determines the overall status icon/class for a checkpoint row. */
@@ -118,6 +120,15 @@ const expandedCheckpoints = computed<string[]>(() => {
     @update:show="emit('close')"
   >
     <template #header-extra>
+      <NButton
+        size="small"
+        :loading="loading"
+        :disabled="loading"
+        data-testid="validation-refresh-button"
+        @click="emit('refresh')"
+      >
+        Refresh
+      </NButton>
       <NButton
         v-if="job"
         size="small"

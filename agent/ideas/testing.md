@@ -73,3 +73,9 @@ Add a lint rule or periodic audit that detects function duplication between E2E 
 * priority: low
 * source: qa
 The `cloneStudy` function was updated to persist shift alongside `performSave`, but neither the existing MRU E2E spec nor `study-mru-autofill.spec.ts` covers the clone workflow path. A targeted test case would close this gap.
+
+### E2E sweep script should filter info-level HTTP request logs
+* status: needs_approval
+* priority: low
+* source: qa
+The e2e_sweep script matched HTTP info-level request/response log lines as "findings". Restricting sweep matching to `level=error` or `level=warn` lines would eliminate false positives and make the sweep output actionable.

@@ -102,6 +102,12 @@ async function handleValidate(job: SampleJob) {
   }
 }
 
+/** Re-run validation for the current dialog job without closing the dialog. */
+async function handleValidationRefresh() {
+  if (!validationDialogJob.value) return
+  await handleValidate(validationDialogJob.value)
+}
+
 /** Handle Regenerate from the validation dialog: close dialog and emit validateRegenerate (AC4-6: S-117). */
 function handleValidationRegenerate(job: SampleJob) {
   validationDialogShow.value = false
@@ -828,6 +834,7 @@ function isTracebackExpanded(jobId: string, errorIdx: number): boolean {
     :job="validationDialogJob"
     :title="validationDialogJob ? `Validation: ${validationDialogJob.training_run_name}` : 'Validation Results'"
     @close="validationDialogShow = false"
+    @refresh="handleValidationRefresh"
     @regenerate="handleValidationRegenerate"
   />
 </template>

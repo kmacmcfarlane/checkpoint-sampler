@@ -349,7 +349,7 @@ stories:
   - id: S-137
     title: "Validation dialog: add refresh button"
     type: enhancement
-    status: todo
+    status: uat
     priority: 35
     complexity: low
     requires: []

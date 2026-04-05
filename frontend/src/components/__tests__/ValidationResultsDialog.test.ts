@@ -443,6 +443,81 @@ describe('ValidationResultsDialog', () => {
     expect(emitted).toBeDefined()
   })
 
+  // AC: FE: Refresh button is visible in the validation dialog
+  it('shows Refresh button in the header', () => {
+    const wrapper = mount(ValidationResultsDialog, {
+      props: {
+        show: true,
+        result: completeValidationResult,
+        error: null,
+        loading: false,
+        job: null,
+      },
+      global: { stubs: { Teleport: true } },
+    })
+
+    const refreshBtn = wrapper.find('[data-testid="validation-refresh-button"]')
+    expect(refreshBtn.exists()).toBe(true)
+    expect(refreshBtn.text()).toContain('Refresh')
+  })
+
+  // AC: FE: Clicking refresh re-triggers validation and updates displayed results
+  it('emits refresh when Refresh button is clicked', async () => {
+    const wrapper = mount(ValidationResultsDialog, {
+      props: {
+        show: true,
+        result: completeValidationResult,
+        error: null,
+        loading: false,
+        job: null,
+      },
+      global: { stubs: { Teleport: true } },
+    })
+
+    const refreshBtn = wrapper.find('[data-testid="validation-refresh-button"]')
+    await refreshBtn.trigger('click')
+
+    const emitted = wrapper.emitted('refresh')
+    expect(emitted).toBeDefined()
+    expect(emitted).toHaveLength(1)
+  })
+
+  // AC: FE: Loading state is shown during refresh
+  it('shows loading state on Refresh button when loading=true', () => {
+    const wrapper = mount(ValidationResultsDialog, {
+      props: {
+        show: true,
+        result: null,
+        error: null,
+        loading: true,
+        job: null,
+      },
+      global: { stubs: { Teleport: true } },
+    })
+
+    const refreshBtn = wrapper.find('[data-testid="validation-refresh-button"]')
+    expect(refreshBtn.exists()).toBe(true)
+    expect(refreshBtn.attributes('disabled')).toBeDefined()
+  })
+
+  // AC: FE: Refresh button is enabled when not loading
+  it('Refresh button is enabled when not loading', () => {
+    const wrapper = mount(ValidationResultsDialog, {
+      props: {
+        show: true,
+        result: completeValidationResult,
+        error: null,
+        loading: false,
+        job: null,
+      },
+      global: { stubs: { Teleport: true } },
+    })
+
+    const refreshBtn = wrapper.find('[data-testid="validation-refresh-button"]')
+    expect(refreshBtn.exists()).toBe(true)
+    expect(refreshBtn.attributes('disabled')).toBeUndefined()
+  })
+
   it('shows regenerate hint when there are validation issues and a job is provided', () => {
     const wrapper = mount(ValidationResultsDialog, {
       props: {
