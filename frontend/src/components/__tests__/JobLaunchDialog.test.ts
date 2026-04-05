@@ -3819,7 +3819,7 @@ describe('JobLaunchDialog', () => {
       const children = (vnode as { children?: unknown[] }).children as unknown[]
       expect(children).toHaveLength(2)
       const beadSpan = children[0] as { props?: { title?: string } }
-      expect(beadSpan.props?.title).toBe('failed — 2/5 checkpoints have samples')
+      expect(beadSpan.props?.title).toBe('failed — 2/5 checkpoints have samples — click to view job')
     })
 
     it('blue bead (running) shows checkpoint counts in title when available', async () => {
@@ -3891,7 +3891,7 @@ describe('JobLaunchDialog', () => {
       const blueBead = ((vnodeRunning as { children?: unknown[] }).children as unknown[])[0] as { props?: { title?: string } }
       expect(blueBead.props?.title).toBe('running')
 
-      // Failed status but no _checkpointCounts — should fall back to "failed"
+      // Failed status but no _checkpointCounts — should fall back to "failed — click to view job"
       const vnodeFailed = renderLabel({
         label: 'Failed Study',
         value: 's3',
@@ -3900,7 +3900,7 @@ describe('JobLaunchDialog', () => {
         _checkpointCounts: null,
       })
       const redBead = ((vnodeFailed as { children?: unknown[] }).children as unknown[])[0] as { props?: { title?: string } }
-      expect(redBead.props?.title).toBe('failed')
+      expect(redBead.props?.title).toBe('failed — click to view job')
     })
 
     it('study options include _checkpointCounts from availability data', async () => {
@@ -5186,4 +5186,181 @@ describe('JobLaunchDialog', () => {
       expect(studySelect.props('filterable')).toBe(true)
     })
   })
+
+  // AC: S-135 — Failed checkpoint indicator click navigates to failed job
+  describe('failed bead navigation', () => {
+    const failedJob: SampleJob = {
+      id: 'job-failed-1',
+      training_run_name: 'qwen/psai4rt-v0.4.0',
+      study_id: 'preset-1', study_name: 'Quick Test',
+      workflow_name: 'qwen-image.json',
+      vae: 'ae.safetensors',
+      clip: 'clip_l.safetensors',
+      status: 'failed',
+      total_items: 10,
+      completed_items: 5,
+      failed_items: 5,
+      pending_items: 0,
+      checkpoint_filenames: [],
+      created_at: '2025-01-03T00:00:00Z',
+      updated_at: '2025-01-03T00:00:00Z',
+    }
+
+    // AC: FE: Clicking failed checkpoint indicator closes Generate Samples dialog
+    it('emits navigate-to-failed-job with job ID when red training run bead is clicked', async () => {
+      mockListSampleJobs.mockResolvedValue([failedJob])
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Show all runs
+      wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
+      await nextTick()
+
+      // Verify the run option has a red problem bead
+      const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
+      type DualBead = { activity: string | null; problem: string | null }
+      const options = runSelect.props('options') as Array<{ label: string; value: number; _dualBead: DualBead }>
+      const failedRunOpt = options.find(o => o.value === 2)
+      expect(failedRunOpt?._dualBead.problem).toBe('red')
+
+      // AC: Verify the render function produces a clickable red bead
+      const renderLabel = runSelect.props('renderLabel') as (option: Record<string, unknown>) => VNode
+      const rendered = renderLabel(failedRunOpt as unknown as Record<string, unknown>)
+      // The rendered VNode should have children including the red bead with an onClick handler
+      const children = rendered.children as VNode[]
+      const redBead = children.find((c: VNode) =>
+        c.props?.['data-testid'] === 'run-bead-problem'
+      )
+      expect(redBead).toBeDefined()
+      expect(redBead?.props?.onClick).toBeTypeOf('function')
+
+      // Simulate click on the red bead
+      redBead?.props?.onClick(new Event('click'))
+      await nextTick()
+
+      // AC: Should emit navigate-to-failed-job with the failed job's ID
+      expect(wrapper.emitted('navigate-to-failed-job')).toBeTruthy()
+      expect(wrapper.emitted('navigate-to-failed-job')![0]).toEqual(['job-failed-1'])
+    })
+
+    // AC: FE: Clicking failed study bead navigates to the correct failed job
+    it('emits navigate-to-failed-job with job ID when red study bead is clicked', async () => {
+      mockListSampleJobs.mockResolvedValue([failedJob])
+      mockGetStudyAvailability.mockResolvedValue([
+        { study_id: 'preset-1', study_name: 'Quick Test', sample_status: 'none', checkpoints_with_samples: 0, total_checkpoints: 3 },
+      ])
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Show all runs and select the run with failed job
+      wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
+      await nextTick()
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      await flushPromises()
+
+      // Check study options have red bead
+      const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+      type DualBead = { activity: string | null; problem: string | null }
+      const studyOpts = studySelect.props('options') as Array<{ label: string; value: string; _dualBead: DualBead }>
+      const failedStudyOpt = studyOpts.find(o => o.value === 'preset-1')
+      expect(failedStudyOpt?._dualBead.problem).toBe('red')
+
+      // AC: Verify the study render function produces a clickable red bead
+      const renderLabel = studySelect.props('renderLabel') as (option: Record<string, unknown>) => VNode
+      const rendered = renderLabel(failedStudyOpt as unknown as Record<string, unknown>)
+      const children = rendered.children as VNode[]
+      const redBead = children.find((c: VNode) =>
+        c.props?.['data-testid'] === 'study-bead-problem'
+      )
+      expect(redBead).toBeDefined()
+      expect(redBead?.props?.onClick).toBeTypeOf('function')
+
+      // Simulate click on the red bead
+      redBead?.props?.onClick(new Event('click'))
+      await nextTick()
+
+      // AC: Should emit navigate-to-failed-job with the failed job's ID
+      expect(wrapper.emitted('navigate-to-failed-job')).toBeTruthy()
+      expect(wrapper.emitted('navigate-to-failed-job')![0]).toEqual(['job-failed-1'])
+    })
+
+    // AC: FE: When multiple failed jobs exist, navigates to the most recent one
+    it('navigates to the most recently updated failed job when multiple failed jobs exist', async () => {
+      const olderFailedJob: SampleJob = {
+        ...failedJob,
+        id: 'job-failed-old',
+        updated_at: '2025-01-01T00:00:00Z',
+      }
+      const newerFailedJob: SampleJob = {
+        ...failedJob,
+        id: 'job-failed-new',
+        updated_at: '2025-01-05T00:00:00Z',
+      }
+      mockListSampleJobs.mockResolvedValue([olderFailedJob, newerFailedJob])
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
+      await nextTick()
+
+      const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
+      type DualBead = { activity: string | null; problem: string | null }
+      const options = runSelect.props('options') as Array<{ label: string; value: number; _dualBead: DualBead }>
+      const failedRunOpt = options.find(o => o.value === 2)
+
+      const renderLabel = runSelect.props('renderLabel') as (option: Record<string, unknown>) => VNode
+      const rendered = renderLabel(failedRunOpt as unknown as Record<string, unknown>)
+      const children = rendered.children as VNode[]
+      const redBead = children.find((c: VNode) =>
+        c.props?.['data-testid'] === 'run-bead-problem'
+      )
+
+      redBead?.props?.onClick(new Event('click'))
+      await nextTick()
+
+      // AC: Should navigate to the NEWER failed job (most recent updated_at)
+      expect(wrapper.emitted('navigate-to-failed-job')![0]).toEqual(['job-failed-new'])
+    })
+
+    // AC: Red bead title includes "click to view job" hint
+    it('red bead title includes navigation hint', async () => {
+      mockListSampleJobs.mockResolvedValue([failedJob])
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
+      await nextTick()
+
+      const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
+      type DualBead = { activity: string | null; problem: string | null }
+      const options = runSelect.props('options') as Array<{ label: string; value: number; _dualBead: DualBead }>
+      const failedRunOpt = options.find(o => o.value === 2)
+
+      const renderLabel = runSelect.props('renderLabel') as (option: Record<string, unknown>) => VNode
+      const rendered = renderLabel(failedRunOpt as unknown as Record<string, unknown>)
+      const children = rendered.children as VNode[]
+      const redBead = children.find((c: VNode) =>
+        c.props?.['data-testid'] === 'run-bead-problem'
+      )
+
+      expect(redBead?.props?.title).toContain('click to view job')
+    })
+  })
+
 })

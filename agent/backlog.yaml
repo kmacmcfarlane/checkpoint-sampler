@@ -311,7 +311,7 @@ stories:
   - id: S-135
     title: "Failed checkpoint indicator click navigates to failed job in Job List"
     type: enhancement
-    status: todo
+    status: uat
     priority: 55
     complexity: medium
     requires: []

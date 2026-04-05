@@ -258,7 +258,7 @@ test.describe('Generate Samples dual beads (S-116)', () => {
     const problemBead = option.locator('[data-testid="run-bead-problem"]')
     // AC B-127: red bead for completed_with_errors (same as failed)
     await expect(problemBead).toBeVisible()
-    await expect(problemBead).toHaveAttribute('title', 'failed')
+    await expect(problemBead).toHaveAttribute('title', /failed/)
 
     // No activity bead since no running/pending jobs
     const activityBead = option.locator('[data-testid="run-bead-activity"]')
@@ -325,7 +325,7 @@ test.describe('Generate Samples dual beads (S-116)', () => {
     const problemBead = option.locator('[data-testid="run-bead-problem"]')
     // AC: red bead for failed job
     await expect(problemBead).toBeVisible()
-    await expect(problemBead).toHaveAttribute('title', 'failed')
+    await expect(problemBead).toHaveAttribute('title', /failed/)
 
     await page.keyboard.press('Escape')
   })
@@ -359,7 +359,7 @@ test.describe('Generate Samples dual beads (S-116)', () => {
     // Should show red, not yellow (red wins)
     const problemBead = option.locator('[data-testid="run-bead-problem"]')
     await expect(problemBead).toBeVisible()
-    await expect(problemBead).toHaveAttribute('title', 'failed')
+    await expect(problemBead).toHaveAttribute('title', /failed/)
 
     await page.keyboard.press('Escape')
   })
@@ -441,7 +441,7 @@ test.describe('Generate Samples dual beads (S-116)', () => {
 
     const problemBead = option.locator('[data-testid="run-bead-problem"]')
     await expect(problemBead).toBeVisible()
-    await expect(problemBead).toHaveAttribute('title', 'failed')  // red wins
+    await expect(problemBead).toHaveAttribute('title', /failed/)  // red wins
 
     await page.keyboard.press('Escape')
   })
@@ -538,7 +538,7 @@ test.describe('Generate Samples dual beads (S-116)', () => {
     // AC: Red bead = failed job; tooltip shows checkpoint counts when available, e.g. "failed — 0/2 checkpoints have samples"
     await expect(problemBead).toBeVisible()
     const redTitle = await problemBead.getAttribute('title')
-    expect(redTitle).toMatch(/^failed( — \d+\/\d+ checkpoints have samples)?$/)
+    expect(redTitle).toMatch(/^failed( — \d+\/\d+ checkpoints have samples)?( — click to view job)?$/)
 
     await page.keyboard.press('Escape')
   })
@@ -783,7 +783,7 @@ test.describe('Generate Samples dual beads (S-116)', () => {
     const problemBead = triggerArea.locator('[data-testid="run-tag-bead-problem"]')
     // AC B-136: problem bead visible in closed/collapsed state
     await expect(problemBead).toBeVisible()
-    await expect(problemBead).toHaveAttribute('title', 'failed')
+    await expect(problemBead).toHaveAttribute('title', /failed/)
   })
 
   // AC B-136: Bead status indicators are visible on closed/collapsed Study selector
@@ -815,7 +815,7 @@ test.describe('Generate Samples dual beads (S-116)', () => {
     const problemBead = studyTrigger.locator('[data-testid="study-tag-bead-problem"]')
     // AC B-136: study problem bead visible in closed/collapsed state
     await expect(problemBead).toBeVisible()
-    await expect(problemBead).toHaveAttribute('title', 'failed')
+    await expect(problemBead).toHaveAttribute('title', /failed/)
   })
 
   // AC B-136: Blue activity bead visible in closed study trigger

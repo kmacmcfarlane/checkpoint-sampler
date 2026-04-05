@@ -72,6 +72,8 @@ const sampleJobs = ref<SampleJob[]>([])
 const jobsLoading = ref(false)
 /** The ID of the job currently being stopped, or null when no stop is in progress. */
 const stoppingJobId = ref<string | null>(null)
+/** AC: S-135: The job ID to scroll to and expand in the JobProgressPanel. Set when navigating from a failed bead. */
+const scrollToJobId = ref<string | null>(null)
 
 const WIDE_BREAKPOINT = 1024
 
@@ -797,6 +799,19 @@ function handleValidationRegenerate(job: SampleJob) {
   jobLaunchDialogOpen.value = true
 }
 
+/**
+ * AC: S-135: Navigate to a failed job in the Job List.
+ * Closes the Generate Samples dialog, opens the Job Progress panel,
+ * and scrolls to the specific failed job with its error details expanded.
+ */
+async function handleNavigateToFailedJob(jobId: string) {
+  jobLaunchDialogOpen.value = false
+  await fetchSampleJobs()
+  jobProgressPanelOpen.value = true
+  // Set scrollToJobId after data is loaded and panel is open so the watcher can find the job element
+  scrollToJobId.value = jobId
+}
+
 /** Handle successful job creation. Opens the job progress panel so the user sees job activity. */
 function onJobCreated() {
   fetchSampleJobs()
@@ -1150,6 +1165,7 @@ async function handleSlideoutValidate() {
         :prefill-job="prefillJob"
         :prefill-missing-only="prefillMissingOnly"
         @success="onJobCreated"
+        @navigate-to-failed-job="handleNavigateToFailedJob"
       />
       <JobProgressPanel
         :show="jobProgressPanelOpen"
@@ -1158,6 +1174,7 @@ async function handleSlideoutValidate() {
         :inference-progress="inferenceProgress"
         :loading="jobsLoading"
         :stopping-job-id="stoppingJobId"
+        :scroll-to-job-id="scrollToJobId"
         @stop="stopJob"
         @resume="resumeJob"
         @retry-failed="retryFailedJob"
@@ -1165,7 +1182,7 @@ async function handleSlideoutValidate() {
         @validate-regenerate="handleValidationRegenerate"
         @delete="deleteJob"
         @refresh="fetchSampleJobs"
-        @close="jobProgressPanelOpen = false"
+        @close="jobProgressPanelOpen = false; scrollToJobId = null"
       />
       <SettingsDialog
         v-model:show="settingsDialogOpen"

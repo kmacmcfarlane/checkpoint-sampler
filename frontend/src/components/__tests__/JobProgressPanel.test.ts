@@ -2569,4 +2569,79 @@ describe('JobProgressPanel', () => {
       expect(items[0].text()).toBe('single-model.safetensors')
     })
   })
+
+  // AC: S-135 — scrollToJobId prop auto-expands error section and scrolls to job
+  describe('scrollToJobId navigation', () => {
+    const failedJobWithErrors: SampleJob = {
+      id: 'job-fail-nav',
+      training_run_name: 'test/failed',
+      study_id: 'preset-1', study_name: 'Quick Test',
+      workflow_name: 'test.json',
+      vae: 'ae.safetensors',
+      clip: 'clip.safetensors',
+      checkpoint_filenames: [],
+      status: 'failed',
+      total_items: 10,
+      completed_items: 5,
+      failed_items: 5,
+      pending_items: 0,
+      error_message: 'ComfyUI connection lost',
+      failed_item_details: [
+        { checkpoint_filename: 'chk-a.safetensors', error_message: 'VRAM overflow' },
+      ],
+      created_at: '2025-01-01T03:00:00Z',
+      updated_at: '2025-01-01T03:00:00Z',
+    }
+
+    // AC: FE: Failed job card expands to show failure details
+    it('auto-expands error section when scrollToJobId is set', async () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: [failedJobWithErrors], scrollToJobId: null },
+        global: { stubs: { Teleport: true } },
+      })
+
+      // Error section should start collapsed
+      expect(wrapper.find('[data-testid="job-job-fail-nav-error-details"]').exists()).toBe(false)
+
+      // Set scrollToJobId to navigate to the failed job
+      await wrapper.setProps({ scrollToJobId: 'job-fail-nav' })
+      await nextTick()
+
+      // AC: Error section should now be expanded
+      expect(wrapper.find('[data-testid="job-job-fail-nav-error-details"]').exists()).toBe(true)
+    })
+
+    // AC: FE: Job List opens and scrolls to the specific failed job
+    it('calls scrollIntoView on the target job element', async () => {
+      const scrollIntoViewMock = vi.fn()
+      // Mock scrollIntoView on Element prototype so document.querySelector result has it
+      Element.prototype.scrollIntoView = scrollIntoViewMock
+
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: [failedJobWithErrors], scrollToJobId: null },
+        global: { stubs: { Teleport: true } },
+        attachTo: document.body,
+      })
+
+      await wrapper.setProps({ scrollToJobId: 'job-fail-nav' })
+      await nextTick()
+
+      expect(scrollIntoViewMock).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' })
+    })
+
+    // AC: Does not scroll/expand when panel is hidden
+    it('does not scroll when panel is not visible', async () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: false, jobs: [failedJobWithErrors], scrollToJobId: null },
+        global: { stubs: { Teleport: true } },
+      })
+
+      await wrapper.setProps({ scrollToJobId: 'job-fail-nav' })
+      await nextTick()
+
+      // Error section should remain collapsed since panel is hidden
+      expect(wrapper.find('[data-testid="job-job-fail-nav-error-details"]').exists()).toBe(false)
+    })
+  })
+
 })

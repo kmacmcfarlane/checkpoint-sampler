@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, toRef, watch } from 'vue'
+import { computed, ref, toRef, watch, nextTick } from 'vue'
 import { NModal, NButton, NTag, NProgress, NSpace, NEmpty, NSpin } from 'naive-ui'
 import type { SampleJob, SampleJobStatus, CurrentSampleParams, ValidationResult } from '../api/types'
 import { apiClient } from '../api/client'
@@ -43,6 +43,8 @@ const props = defineProps<{
   loading?: boolean
   /** The ID of the job currently being stopped, or null. Used to show loading state on the stop button. */
   stoppingJobId?: string | null
+  /** When set, auto-scrolls to this job and expands its error details. Set by parent when navigating from a failed bead. */
+  scrollToJobId?: string | null
 }>()
 
 // stop: Emitted when the user clicks Stop on a running job. Payload: the job ID string.
@@ -150,6 +152,29 @@ watch(
   (show) => {
     if (!show) {
       previousTopId = null
+    }
+  },
+)
+
+/**
+ * AC: When scrollToJobId changes to a valid job ID, expand its error section and scroll to it.
+ * This enables navigation from the failed checkpoint bead in the Generate Samples dialog.
+ */
+watch(
+  () => props.scrollToJobId,
+  async (jobId) => {
+    if (!jobId || !props.show) return
+    // Expand the error section for this job
+    expandedErrors.value = {
+      ...expandedErrors.value,
+      [jobId]: true,
+    }
+    // Wait for DOM to update with the expanded error section
+    await nextTick()
+    // Scroll to the job card
+    const jobElement = document.querySelector(`[data-testid="job-${jobId}"]`)
+    if (jobElement) {
+      jobElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
   },
 )

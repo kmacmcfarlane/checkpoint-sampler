@@ -38,9 +38,11 @@ const props = defineProps<{
 
 // update:show: Emitted when the dialog is opened or closed. Payload: boolean visibility state.
 // success: Emitted after a sample job is successfully created. No payload.
+// navigate-to-failed-job: Emitted when the user clicks a red (failed) bead. Payload: job ID of the most recent failed job for that context.
 const emit = defineEmits<{
   'update:show': [value: boolean]
   success: []
+  'navigate-to-failed-job': [jobId: string]
 }>()
 
 const loading = ref(false)
@@ -115,6 +117,35 @@ const selectedTrainingRun = computed(() =>
 // Compute status per training run based on job list and sample presence.
 // Uses job data as the primary indicator because run.has_samples only checks
 // root-level sample directories, not study-scoped ones ({sample_dir}/{study}/{checkpoint}/).
+/**
+ * AC: Find the most recent failed job for a training run, optionally scoped to a study.
+ * Returns the job ID or null if no failed job exists.
+ */
+function findMostRecentFailedJobId(trainingRunName: string, studyId?: string): string | null {
+  const failedJobs = sampleJobs.value
+    .filter(j => {
+      if (j.training_run_name !== trainingRunName) return false
+      if (j.status !== 'failed' && j.status !== 'completed_with_errors') return false
+      if (studyId && j.study_id !== studyId) return false
+      return true
+    })
+    .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+  return failedJobs.length > 0 ? failedJobs[0].id : null
+}
+
+/**
+ * AC: Handle click on a red (failed) bead. Emits navigate-to-failed-job with the job ID,
+ * which closes the dialog and navigates to the failed job in the Job List.
+ */
+function handleFailedBeadClick(e: Event, trainingRunName: string, studyId?: string) {
+  e.stopPropagation()
+  e.preventDefault()
+  const jobId = findMostRecentFailedJobId(trainingRunName, studyId)
+  if (jobId) {
+    emit('navigate-to-failed-job', jobId)
+  }
+}
+
 function getRunStatus(run: TrainingRun): TrainingRunStatus {
   const runJobs = sampleJobs.value.filter(j => j.training_run_name === run.name)
   const hasRunning = runJobs.some(j => j.status === 'running')
@@ -137,7 +168,7 @@ function getRunStatus(run: TrainingRun): TrainingRunStatus {
  * Returns null (no element) when color is null.
  * IMPORTANT: All styles must be inlined — renderLabel VNodes run outside scoped CSS context.
  */
-function renderBeadSpan(color: string, title: string, testId: string): VNode {
+function renderBeadSpan(color: string, title: string, testId: string, onClick?: (e: Event) => void): VNode {
   return h('span', {
     'data-testid': testId,
     style: {
@@ -147,8 +178,10 @@ function renderBeadSpan(color: string, title: string, testId: string): VNode {
       borderRadius: '50%',
       flexShrink: '0',
       backgroundColor: color,
+      cursor: onClick ? 'pointer' : undefined,
     },
     title,
+    onClick: onClick || undefined,
   })
 }
 
@@ -177,8 +210,11 @@ const renderTrainingRunLabel: SelectRenderLabel = (option) => {
     }
 
     // Slot 2: problem bead (red/yellow)
+    // AC: Clicking red bead navigates to failed job in Job List
     if (dualBead.problem === 'red') {
-      children.push(renderBeadSpan(DUAL_BEAD_COLORS.red, 'failed', 'run-bead-problem'))
+      const runName = String(option.label ?? '')
+      children.push(renderBeadSpan(DUAL_BEAD_COLORS.red, 'failed — click to view job', 'run-bead-problem',
+        (e: Event) => handleFailedBeadClick(e, runName)))
     } else if (dualBead.problem === 'yellow') {
       children.push(renderBeadSpan(DUAL_BEAD_COLORS.yellow, 'incomplete', 'run-bead-problem'))
     }
@@ -212,8 +248,11 @@ const renderWrappedTrainingRunTag: SelectRenderTag = ({ option }) => {
     } else if (dualBead.activity === 'green') {
       children.push(renderBeadSpan(DUAL_BEAD_COLORS.green, 'complete', 'run-tag-bead-activity'))
     }
+    // AC: Clicking red bead navigates to failed job in Job List
     if (dualBead.problem === 'red') {
-      children.push(renderBeadSpan(DUAL_BEAD_COLORS.red, 'failed', 'run-tag-bead-problem'))
+      const runName = String(option.label ?? '')
+      children.push(renderBeadSpan(DUAL_BEAD_COLORS.red, 'failed — click to view job', 'run-tag-bead-problem',
+        (e: Event) => handleFailedBeadClick(e, runName)))
     } else if (dualBead.problem === 'yellow') {
       children.push(renderBeadSpan(DUAL_BEAD_COLORS.yellow, 'incomplete', 'run-tag-bead-problem'))
     }
@@ -667,10 +706,14 @@ const renderStudyLabel: SelectRenderLabel = (option) => {
     }
 
     // Slot 2: problem bead (red/yellow)
+    // AC: Clicking red bead navigates to failed job in Job List
     if (dualBead.problem === 'red') {
       // Failed: show checkpoint counts if available, e.g. "failed — 3/5 checkpoints have samples"
-      const redTitle = checkpointCountTitle ? `failed — ${checkpointCountTitle}` : 'failed'
-      children.push(renderBeadSpan(DUAL_BEAD_COLORS.red, redTitle, 'study-bead-problem'))
+      const redTitle = checkpointCountTitle ? `failed — ${checkpointCountTitle} — click to view job` : 'failed — click to view job'
+      const runName = selectedTrainingRun.value?.name ?? ''
+      const studyId = String(option.value ?? '')
+      children.push(renderBeadSpan(DUAL_BEAD_COLORS.red, redTitle, 'study-bead-problem',
+        (e: Event) => handleFailedBeadClick(e, runName, studyId)))
     } else if (dualBead.problem === 'yellow') {
       // Partial: show checkpoint counts in title (e.g. "3/5 checkpoints have samples")
       children.push(renderBeadSpan(DUAL_BEAD_COLORS.yellow, checkpointCountTitle ?? 'incomplete', 'study-bead-problem'))
@@ -704,8 +747,12 @@ const renderWrappedStudyTag: SelectRenderTag = ({ option }) => {
     } else if (dualBead.activity === 'green') {
       children.push(renderBeadSpan(DUAL_BEAD_COLORS.green, 'complete', 'study-tag-bead-activity'))
     }
+    // AC: Clicking red bead navigates to failed job in Job List
     if (dualBead.problem === 'red') {
-      children.push(renderBeadSpan(DUAL_BEAD_COLORS.red, 'failed', 'study-tag-bead-problem'))
+      const runName = selectedTrainingRun.value?.name ?? ''
+      const studyId = String(option.value ?? '')
+      children.push(renderBeadSpan(DUAL_BEAD_COLORS.red, 'failed — click to view job', 'study-tag-bead-problem',
+        (e: Event) => handleFailedBeadClick(e, runName, studyId)))
     } else if (dualBead.problem === 'yellow') {
       children.push(renderBeadSpan(DUAL_BEAD_COLORS.yellow, 'incomplete', 'study-tag-bead-problem'))
     }
