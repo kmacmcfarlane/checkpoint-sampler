@@ -43,3 +43,9 @@ Add a CLI or API endpoint to generate thumbnails for existing sample images that
 * priority: low
 * source: developer
 Now that the XY grid has proper role="grid" structure with row/columnheader/rowheader/gridcell, implement ARIA keyboard navigation (arrow keys to move focus between cells) per the ARIA Grid pattern. This would make the grid fully navigable by keyboard/screen reader users.
+
+### Per-file-type backend validation tracking
+* status: needs_approval
+* priority: low
+* source: developer
+The backend validation currently only tracks aggregate counts per checkpoint. Adding separate counts for PNG, JSON sidecar, and thumbnail files would enable a more granular per-file-type breakdown in the frontend without deriving values.
