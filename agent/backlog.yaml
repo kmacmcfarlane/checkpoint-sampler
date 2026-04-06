@@ -225,76 +225,11 @@ stories:
       E2E test debug-mode.spec.ts:274 fails with selector '.xy-grid [role="gridcell"] img' not found.
       Root cause hypothesis: The grid selector no longer matches the current DOM structure after S-132
       XY axis sliders rework. Source: QA E2E sweep during B-115.
-  - id: B-132
-    title: "Validation passes with extra samples; no per-sample param verification"
-    type: bug
-    status: uat
-    priority: 50
-    complexity: medium
-    requires: []
-    notes: |
-      Validation can pass when there are more samples in a sampleset than expected.
-      This should trigger a validation failure. Additionally, validation currently
-      only checks sample count, but should verify each sample has the exact expected
-      params by checking manifest.json and per-sample JSON metadata files.
-      Source: user bug report during grooming.
-    acceptance:
-      - "BE: Validation fails when sampleset has more samples than expected"
-      - "BE: Validation checks each sample against manifest.json and per-sample JSON for exact param match"
-      - "FE: Validation status correctly reflects per-sample param mismatches"
-      - "BE: Unit tests for count-strict validation and param-level verification"
-    testing:
-      - "Test with samplesets containing extra samples (should fail validation)"
-      - "Test with samples that have mismatched params vs manifest.json (should fail)"
-      - "Verify validation passes only when count matches AND all params match"
-  - id: S-134
-    title: "Validation dialog: display detailed per-checkpoint report"
-    type: enhancement
-    status: uat
-    priority: 50
-    complexity: medium
-    requires:
-      - B-132
-    notes: >
-      Update the validation dialog frontend to display the detailed validation report
-      returned by the reworked BE validation endpoint (B-132). Show per-checkpoint
-      breakdowns with expected, valid, missing, and invalid counts for PNG, JSON metadata,
-      and thumbnail files. Also display total summary counts and flag any extra unexpected
-      files found.
-    acceptance:
-      - "FE: Validation dialog displays per-checkpoint breakdown (expected, valid, missing, invalid for each file type)"
-      - "FE: Total summary row shows aggregate counts across all checkpoints"
-      - "FE: Extra/unexpected files are flagged in the report"
-      - "FE: Unit tests for report display with various validation states"
-    testing:
-      - "Test with validation reports containing mixed states: some checkpoints fully valid, some with missing files, some
-        with param mismatches, and some with extra files"
-      - "Verify the dialog handles empty reports (no checkpoints) gracefully"
-  - id: B-135
-    title: "Training run with no checkpoint sample dirs causes grid error"
-    type: bug
-    status: uat
-    priority: 70
-    complexity: low
-    requires: []
-    notes: >
-      Selecting a training run whose sample set directory exists (with manifest.json)
-      but has no checkpoint subdirectories causes a filesystem error to propagate to the
-      frontend grid display. The backend should handle missing checkpoint dirs gracefully
-      by logging a warning and returning empty images/dimensions.
-    acceptance:
-      - "BE: Scanning a training run with no checkpoint dirs returns empty images and dimensions instead of an error"
-      - "BE: A warning is logged when checkpoint dirs are missing"
-      - "FE: Grid displays empty state (no error) when training run has no samples"
-      - "BE: Unit tests for missing checkpoint directory handling"
-    testing:
-      - "Test with a training run directory that has manifest.json but no checkpoint subdirectories"
-      - "Verify no error propagates to the API response"
   - id: B-136
     title: "Colored beads not displayed when Training Run / Study selectors are closed"
     type: bug
-    status: uat
-    priority: 45
+    status: uat_feedback
+    priority: 30
     complexity: low
     requires: []
     notes: >
@@ -308,11 +243,16 @@ stories:
       - "FE: Unit tests for bead rendering in both open and closed selector states"
     testing:
       - "Verify beads render correctly with various states (pending, complete, failed) in both open and closed selector positions"
+    review_feedback: The beads in the Training Run selector are on their own full-width row instead of inline with the 
+      label text, causing the label to wrap to the next line when the selector is closed. Beads should be vertically 
+      centered on the same text line as the label in both open and closed states — matching how the Study selector 
+      already renders beads inline with the selector value. This applies to both the Training Run and Study selectors in
+      the Generate Samples dialog.
   - id: S-135
     title: "Failed checkpoint indicator click navigates to failed job in Job List"
     type: enhancement
-    status: uat
-    priority: 55
+    status: uat_feedback
+    priority: 30
     complexity: medium
     requires: []
     notes: >
@@ -328,40 +268,7 @@ stories:
       - "Test the full navigation flow: click failure indicator, verify dialog closes, job list opens, correct job is scrolled
         into view with expanded failure details"
       - "Edge case: verify behavior when the failed job has been cleared from the list"
-  - id: S-136
-    title: "Generate Samples minor UI tweaks (whitespace + validation message)"
-    type: enhancement
-    status: uat
-    priority: 30
-    complexity: low
-    requires: []
-    notes: >
-      Two small UI fixes in Generate Samples:
-      1. Add left-margin whitespace between checkpoint name and sample count (e.g. "10/10")
-      2. Change validation message "No checkpoints selected Select at least one checkpoint
-         to regenerate" to red color and update text to "Select at least one checkpoint to generate"
-    acceptance:
-      - "FE: Visible whitespace (left-margin) between checkpoint name and sample count"
-      - "FE: Validation message text is red and reads 'Select at least one checkpoint to generate'"
-      - "FE: Unit tests for updated validation message text and styling"
-    testing:
-      - "Ensure the validation message appears when no checkpoints are selected and disappears when at least one is selected"
-  - id: S-137
-    title: "Validation dialog: add refresh button"
-    type: enhancement
-    status: uat
-    priority: 35
-    complexity: low
-    requires: []
-    notes: >
-      Add a refresh button to the validation dialog that re-runs the validation
-      API call and updates the displayed results without closing and reopening
-      the dialog.
-    acceptance:
-      - "FE: Refresh button is visible in the validation dialog"
-      - "FE: Clicking refresh re-triggers validation and updates displayed results"
-      - "FE: Loading state is shown during refresh"
-      - "FE: Unit tests for refresh button behavior"
-    testing:
-      - "Verify refresh re-fetches validation data and results update afterward"
-      - "Test that loading state displays during the API call"
+    review_feedback: "The red failed indicator on a checkpoint's item row in the Generate Samples dialog does not navigate
+      to the Job List when clicked. Instead it just shows a popover with the error message, and clicking selects or deselects
+      the checkpoint in the list. The expected behavior is: clicking the failed indicator should close the Generate Samples
+      dialog, open the Job List, and scroll to the specific failed job with its failure details expanded."
