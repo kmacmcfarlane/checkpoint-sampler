@@ -413,13 +413,17 @@ Based on the story's current status, invoke the appropriate subagent:
    - **Change summary** extracted from the fullstack engineer's verdict (see section 4.3.2)
 3. The QA expert is the sole owner of E2E tests. It will run `make test-e2e` as part of its verification. This command is self-contained — it starts an isolated backend + frontend stack (`checkpoint-sampler-test`), runs all Playwright tests, and tears down automatically. The orchestrator does NOT need to ensure `make up-dev` is running before dispatching to QA for E2E tests.
 4. Parse the QA verdict for the story result, E2E test results, and runtime error sweep findings.
-5. **E2E gate**: The full E2E suite (`make test-e2e`) must pass with zero failures before the story can transition to `uat`. If any E2E tests fail, the QA expert must either fix the tests (if pre-existing/unrelated) or reject the story back to `in_progress`. A story MUST NOT advance to `uat` with known E2E failures.
+5. **E2E gate**: The full E2E suite (`make test-e2e`) must pass with zero failures before the story can transition to `uat`. If any E2E tests fail due to the story's changes, the QA expert must reject the story back to `in_progress`. If any E2E tests fail due to pre-existing/unrelated issues, the QA expert must file a B-ticket for each failure and fix the test or underlying issue so the suite passes — skipping or disabling tests is not permitted. A story MUST NOT advance to `uat` with any E2E failures. There is no concept of "known failures" or tolerance for pre-existing breakage.
+   - **QA iteration limit**: If a story has been rejected by QA twice (2 full QA cycles resulting in REJECTED verdicts) and still cannot pass the E2E gate, the QA expert must set the verdict to BLOCKED instead of REJECTED on the third cycle. The orchestrator will set `status: blocked` with a `blocked_reason` explaining the persistent E2E failures. This prevents infinite rejection loops.
 6. If approved: `backlog.py set <id> status uat` (finalization per section 4.5)
-7. If issues found:
+7. If issues found (REJECTED):
    - `backlog.py set <id> status in_progress`
    - `echo "<feedback>" | backlog.py set-text <id> review_feedback`
-8. After the story status transition, process any sweep findings per section 4.4.1.
-9. After the story status transition, process any E2E failure bug tickets per section 4.4.2.
+8. If BLOCKED (persistent failures after multiple QA cycles):
+   - `backlog.py set <id> status blocked`
+   - `echo "<blocked reason from QA verdict>" | backlog.py set-text <id> blocked_reason`
+9. After the story status transition, process any sweep findings per section 4.4.1.
+10. After the story status transition, process any E2E failure bug tickets per section 4.4.2.
 
 ### 4.3.2 Change summary extraction and passthrough
 
@@ -602,7 +606,7 @@ When the QA expert's verdict includes an "E2E Test Results" section with `Status
 
 1. **Story-related E2E failures**: The QA expert is expected to have already attempted to fix or investigate these during its verification cycle. If they caused rejection, the story's `review_feedback` will describe the issue — no separate ticket is needed.
 
-2. **New E2E bug tickets**: For each unrelated (pre-existing) E2E failure reported by QA as a bug ticket (see /agent/BUG_REPORTING.md for quality requirements):
+2. **New E2E bug tickets**: For each unrelated E2E failure reported by QA as a bug ticket (see /agent/BUG_REPORTING.md for quality requirements). Note: QA must have already fixed or corrected the failing tests so the suite passes — these tickets track the underlying issues, not open failures:
    - Get the next available ID: `python3 scripts/backlog/backlog.py next-id B`
    - Create the ticket YAML and pipe to `backlog.py add` (same pattern as section 4.4.1).
    - `notes` must include the failing test name, error output, and root cause hypothesis (see section 4.3.3 for format).
@@ -679,7 +683,7 @@ A story may be set to `status: uat` only if all are true:
 4) Lint/typecheck passes where applicable (per story scope).
 5) Code review passed (story went through `review` → `testing` transition).
 6) QA testing passed (QA expert reports APPROVED).
-7) **E2E gate**: The full E2E suite (`make test-e2e`) passes with zero failures. No story may advance to `uat` with known E2E test failures.
+7) **E2E gate**: The full E2E suite (`make test-e2e`) passes with zero failures. No story may advance to `uat` with any E2E test failures. There is no concept of "known failures" — all failures must be resolved (fixed or filed as B-tickets and the tests corrected) before approval.
 8) No scope violations:
     - no generated code edits in internal/api/gen or **/mocks or inside node_modules or any other generated/external code
     - no unofficial workarounds for stubbed features

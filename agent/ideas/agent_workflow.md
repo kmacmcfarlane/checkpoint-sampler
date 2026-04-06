@@ -81,10 +81,10 @@ When a story introduces an intermediate dialog or changes a user flow (like S-09
 Add a note to DEVELOPMENT_PRACTICES.md clarifying that Naive UI NSelect uses component-level props (`render-label`, `render-option`, `render-tag`) rather than per-option render functions, to prevent similar misapplications in the future. B-098 wasted a review cycle because the initial implementation placed `renderLabel` on option objects (a no-op).
 
 ### Pre-existing E2E failure tracking
-* status: needs_approval
+* status: superseded
 * priority: medium
 * source: developer
-The E2E gate fails on any failure but has no mechanism to distinguish regressions from known pre-existing failures. Consider adding a `known_failures` list to the E2E test configuration or immediately filing a B- story when a failure is discovered, so carry-forward defects don't block unrelated stories.
+Superseded by W-025: the workflow now enforces zero tolerance for pre-existing failures. QA must file B-tickets and fix all failures — no concept of "known failures" list.
 
 ### Pre-sweep stability threshold for QA agent
 * status: needs_approval

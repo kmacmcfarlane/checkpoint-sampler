@@ -5,6 +5,11 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### W-025: Workflow: enforce no pre-existing E2E failures — block or file bugs
+- Removed all "fix or skip" and "known failures" tolerance from workflow docs (AGENT_FLOW.md, TEST_PRACTICES.md, qa-expert.md)
+- QA must now file B-tickets for unrelated E2E failures and fix them — no skipping or disabling permitted
+- Added QA iteration limit: after 2 rejected QA cycles, story is BLOCKED instead of bouncing indefinitely
+
 ### R-011: Serialize /api/test/reset endpoint for parallel E2E safety
 - Rewrote `ResetDB()` to use a pinned `*sql.Conn` with `BEGIN EXCLUSIVE` transaction, serializing concurrent reset calls at the SQLite level and eliminating UNIQUE constraint failures on `schema_migrations` under 12-shard parallel E2E load
 

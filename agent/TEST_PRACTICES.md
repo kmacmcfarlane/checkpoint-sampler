@@ -269,7 +269,7 @@ The full E2E suite must pass with **zero failures** before any story transitions
 
 - The QA expert must run `make test-e2e` and verify all tests pass.
 - If any E2E tests fail due to the story's changes, the story is rejected back to `in_progress` with feedback describing the failures.
-- If any E2E tests fail due to pre-existing/unrelated issues, the QA expert must fix or skip those tests (with documented skip reasons and filed bug tickets) before approving the story. The final `make test-e2e` run must show zero failures.
+- If any E2E tests fail due to pre-existing/unrelated issues, the QA expert must file a B-ticket for each failure and either fix the underlying issue or fix the test so the suite passes. Skipping or disabling tests to work around failures is not permitted. The final `make test-e2e` run must show zero failures.
 - E2E pass/fail counts must be recorded in the QA verdict's "E2E Test Results" section.
 
 This gate was introduced by B-048 after discovering that E2E test failures can cascade silently across spec files due to shared test fixture state (e.g., sample directories deleted by one test affecting all subsequent tests).
@@ -390,8 +390,8 @@ Key facts:
 **Story-related E2E failures (blocking):**
 - If a failing test covers a user journey touched by this story's changes, the failure is blocking. Investigate, fix the code or update the test, and ensure it passes before approving the story.
 
-**Pre-existing / unrelated E2E failures (non-blocking):**
-- If a failing test covers a user journey NOT touched by this story, do not reject the story. Record the failure and file it as a bug ticket via the runtime error sweep mechanism.
+**Pre-existing / unrelated E2E failures (must be resolved before approval):**
+- If a failing test covers a user journey NOT touched by this story, do not reject the story for the unrelated failure itself. However, the E2E gate still requires zero failures. The QA expert must file a B-ticket for each unrelated failure and either fix the underlying issue or fix the test so the suite passes. There is no concept of "known failures" or tolerance for carrying E2E failures forward across stories.
 
 ## 6) End-to-End (E2E) testing practices — Playwright
 

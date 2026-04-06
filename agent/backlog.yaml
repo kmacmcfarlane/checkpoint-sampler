@@ -350,7 +350,7 @@ stories:
   - id: W-025
     title: "Workflow: enforce no pre-existing E2E failures — block or file bugs"
     type: workflow
-    status: todo
+    status: uat
     priority: 50
     complexity: medium
     requires: []
