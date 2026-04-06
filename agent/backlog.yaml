@@ -266,7 +266,7 @@ stories:
   - id: R-010
     title: "Reconcile StudyHasSamples path to match actual sample directory structure"
     type: refactor
-    status: todo
+    status: uat
     priority: 50
     complexity: medium
     requires: []

@@ -144,3 +144,9 @@ The worktree + locking infrastructure (W-023) is now in place, but the orchestra
 * priority: medium
 * source: developer
 Create an integration test that runs the full orchestrator merge flow (create two branches, merge one, create conflict, verify merge helper resolves it) to validate the end-to-end workflow documented in AGENT_FLOW.md 4.1.3.
+
+### Backlog deduplication check before story assignment
+* status: needs_approval
+* priority: medium
+* source: developer
+R-010 was filed to address the same root cause as B-115 but was not closed when B-115 shipped. The orchestrator should check if a story's acceptance criteria are already satisfied before dispatching work, or flag stories whose notes reference a root cause addressed by a recently completed story.
