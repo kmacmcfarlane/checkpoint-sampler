@@ -308,7 +308,7 @@ stories:
   - id: S-138
     title: "WebSocket heartbeat/ping-pong mechanism"
     type: story
-    status: todo
+    status: uat
     priority: 30
     complexity: low
     requires: []

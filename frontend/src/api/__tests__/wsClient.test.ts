@@ -625,6 +625,29 @@ describe('WSClient', () => {
   })
 
   describe('auto-reconnect', () => {
+    // AC: FE: Frontend detects disconnection from missed pings and auto-reconnects.
+    // The browser WebSocket implementation handles ping/pong at the protocol level
+    // automatically. When the backend sends a ping and does not receive a pong, it
+    // closes the connection. The browser fires onclose, which this client handles by
+    // scheduling a reconnect. This test verifies that a server-initiated close
+    // (simulating a missed-pong timeout on the backend) triggers reconnection.
+    it('auto-reconnects when the server closes the connection (simulating missed-ping timeout)', () => {
+      const client = createClient()
+      client.connect()
+      mockInstances[0].simulateOpen()
+
+      // Simulate server closing the connection (e.g. backend detected missed pong)
+      mockInstances[0].simulateClose()
+
+      expect(mockInstances).toHaveLength(1)
+      vi.advanceTimersByTime(100)
+      expect(mockInstances).toHaveLength(2)
+
+      // Verify the new connection is also open and functional
+      mockInstances[1].simulateOpen()
+      expect(client.connected).toBe(true)
+    })
+
     it('reconnects after connection close with initial delay', () => {
       const client = createClient()
       client.connect()

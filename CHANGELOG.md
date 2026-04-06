@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-138: WebSocket heartbeat/ping-pong mechanism
+- Backend sends periodic WebSocket ping frames (configurable via `ws_ping_interval`, default 30s) to keep idle connections alive beyond proxy read timeouts; connection is cleaned up on ping write failure
+- Frontend auto-reconnects when the backend closes a dead connection, with unit test traceability for the ping-timeout reconnection path
+
 ### R-012: XYGrid: read grid derivations from store instead of recomputing from props
 - Removed 7 props and 5 duplicated computed properties from XYGrid, reading all grid derivations (filteredImages, imageIndex, xValues, yValues, etc.) from useImageCubeStore instead
 - Eliminates divergence risk between XYGrid's local computation and the store's canonical values (Phase 4 of R-009 Pinia refactor)
