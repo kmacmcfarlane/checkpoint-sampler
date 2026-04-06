@@ -5,7 +5,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { NButton, NTag } from 'naive-ui'
 import App from '../App.vue'
 import TrainingRunSelector from '../components/TrainingRunSelector.vue'
-import type { TrainingRun, SampleJob } from '../api/types'
+import type { TrainingRun, SampleJob, Preset } from '../api/types'
 import { _resetForTesting as resetDimensionMapping } from '../composables/useDimensionMapping'
 
 vi.mock('../api/client', () => ({
@@ -1402,6 +1402,7 @@ describe('App', () => {
         workflow_name: 'default',
         vae: '',
         clip: '',
+        checkpoint_filenames: [],
         status,
         total_items: 10,
         completed_items: 5,
@@ -1511,6 +1512,7 @@ describe('App', () => {
       workflow_name: 'default',
       vae: '',
       clip: '',
+      checkpoint_filenames: [],
       status: 'running',
       total_items: 10,
       completed_items: 2,
@@ -1649,6 +1651,7 @@ describe('App', () => {
       workflow_name: 'default',
       vae: '',
       clip: '',
+      checkpoint_filenames: [],
       status: 'running',
       total_items: 8,
       completed_items: 0,
@@ -1863,6 +1866,7 @@ describe('App', () => {
       workflow_name: 'default',
       vae: '',
       clip: '',
+      checkpoint_filenames: [],
       status: 'running',
       total_items: 6,
       completed_items: 0,
@@ -1998,6 +2002,7 @@ describe('App', () => {
       workflow_name: 'default',
       vae: '',
       clip: '',
+      checkpoint_filenames: [],
       status: 'running',
       total_items: 5,
       completed_items: 0,
@@ -2495,7 +2500,7 @@ describe('App', () => {
       updated_at: '2025-01-01T00:00:00Z',
     }
 
-    async function mountAndSelectWithPreset(preset: typeof mockPresetWithXSlider, scanResult: typeof mockScanResultWithXDimension) {
+    async function mountAndSelectWithPreset(preset: Preset, scanResult: typeof mockScanResultWithXDimension) {
       mockScanTrainingRun.mockResolvedValue(scanResult)
       mockGetPresets.mockResolvedValue([preset])
 
@@ -2572,7 +2577,7 @@ describe('App', () => {
 
     // AC: X Axis assignment does NOT show the X slider (independent mapping)
     it('AC: X slider bar is NOT rendered when only X Axis is assigned (no X Slider)', async () => {
-      const presetWithXAxisOnly = {
+      const presetWithXAxisOnly: Preset = {
         id: 'preset-x-axis',
         name: 'X Axis Only',
         mapping: { x: 'seed', combos: [] },
@@ -2617,7 +2622,7 @@ describe('App', () => {
     }
 
     async function mountAndSelectWithPreset(
-      preset: typeof mockPresetWithYSlider | typeof mockPresetWithXSliderAndYSlider,
+      preset: Preset,
       scanResult: typeof mockScanResultWithYDimension,
     ) {
       mockScanTrainingRun.mockResolvedValue(scanResult)
@@ -2737,7 +2742,7 @@ describe('App', () => {
 
     // AC: Y Axis assignment does NOT show the Y slider (independent mapping)
     it('AC: Y slider bar is NOT rendered when only Y Axis is assigned (no Y Slider)', async () => {
-      const presetWithYAxisOnly = {
+      const presetWithYAxisOnly: Preset = {
         id: 'preset-y-axis',
         name: 'Y Axis Only',
         mapping: { y: 'cfg', combos: [] },

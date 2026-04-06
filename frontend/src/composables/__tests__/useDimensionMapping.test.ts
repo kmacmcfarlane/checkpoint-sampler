@@ -1,23 +1,28 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useDimensionMapping, _resetForTesting } from '../useDimensionMapping'
-import type { ScanResult } from '../../api/types'
+import type { ScanImage, ScanResult } from '../../api/types'
+
+/** Helper to build a ScanImage with default thumbnail_path. */
+function img(partial: { relative_path: string; dimensions: Record<string, string> }): ScanImage {
+  return { ...partial, thumbnail_path: '' }
+}
 
 function makeScanResult(overrides?: Partial<ScanResult>): ScanResult {
   return {
     images: [
-      {
+      img({
         relative_path: 'dir1/index=0&seed=42.png',
         dimensions: { index: '0', seed: '42', step: '500' },
-      },
-      {
+      }),
+      img({
         relative_path: 'dir1/index=1&seed=42.png',
         dimensions: { index: '1', seed: '42', step: '500' },
-      },
-      {
+      }),
+      img({
         relative_path: 'dir2/index=0&seed=42.png',
         dimensions: { index: '0', seed: '42', step: '1000' },
-      },
+      }),
     ],
     dimensions: [
       { name: 'index', type: 'int', values: ['0', '1'] },
@@ -362,10 +367,10 @@ describe('useDimensionMapping', () => {
       setScanResult(makeScanResult())
       expect(images.value).toHaveLength(3)
 
-      addImage({
+      addImage(img({
         relative_path: 'dir3/index=2&seed=42.png',
         dimensions: { index: '2', seed: '42', step: '1500' },
-      })
+      }))
 
       expect(images.value).toHaveLength(4)
       expect(images.value.find((i) => i.relative_path === 'dir3/index=2&seed=42.png')).toBeDefined()
@@ -375,10 +380,10 @@ describe('useDimensionMapping', () => {
       const { setScanResult, dimensions, addImage } = useDimensionMapping()
       setScanResult(makeScanResult())
 
-      addImage({
+      addImage(img({
         relative_path: 'dir3/index=5&seed=42.png',
         dimensions: { index: '5', seed: '42', step: '500' },
-      })
+      }))
 
       const indexDim = dimensions.value.find((d) => d.name === 'index')
       expect(indexDim?.values).toContain('5')
@@ -388,10 +393,10 @@ describe('useDimensionMapping', () => {
       const { setScanResult, dimensions, addImage } = useDimensionMapping()
       setScanResult(makeScanResult())
 
-      addImage({
+      addImage(img({
         relative_path: 'dir3/index=5&seed=42.png',
         dimensions: { index: '5', seed: '42', step: '750' },
-      })
+      }))
 
       const stepDim = dimensions.value.find((d) => d.name === 'step')
       expect(stepDim?.values).toEqual(['500', '750', '1000'])
@@ -401,10 +406,10 @@ describe('useDimensionMapping', () => {
       const { setScanResult, dimensions, assignments, addImage } = useDimensionMapping()
       setScanResult(makeScanResult())
 
-      addImage({
+      addImage(img({
         relative_path: 'dir3/index=0&seed=42&cfg=7.5.png',
         dimensions: { index: '0', seed: '42', step: '500', cfg: '7.5' },
-      })
+      }))
 
       const cfgDim = dimensions.value.find((d) => d.name === 'cfg')
       expect(cfgDim).toBeDefined()
@@ -416,10 +421,10 @@ describe('useDimensionMapping', () => {
       const { setScanResult, filterModes, addImage } = useDimensionMapping()
       setScanResult(makeScanResult())
 
-      addImage({
+      addImage(img({
         relative_path: 'dir3/index=0&seed=42&cfg=7.5.png',
         dimensions: { index: '0', seed: '42', step: '500', cfg: '7.5' },
-      })
+      }))
 
       expect(filterModes.value.get('cfg')).toBe('hide')
     })
@@ -430,10 +435,10 @@ describe('useDimensionMapping', () => {
       assignRole('index', 'x')
       assignRole('step', 'y')
 
-      addImage({
+      addImage(img({
         relative_path: 'dir3/index=5&seed=42.png',
         dimensions: { index: '5', seed: '42', step: '1500' },
-      })
+      }))
 
       expect(assignments.value.get('index')).toBe('x')
       expect(assignments.value.get('step')).toBe('y')
@@ -443,10 +448,10 @@ describe('useDimensionMapping', () => {
       const { setScanResult, images, addImage } = useDimensionMapping()
       setScanResult(makeScanResult())
 
-      addImage({
+      addImage(img({
         relative_path: 'dir1/index=0&seed=42.png',
         dimensions: { index: '0', seed: '42', step: '500', extra: 'new' },
-      })
+      }))
 
       expect(images.value).toHaveLength(3)
       const updated = images.value.find((i) => i.relative_path === 'dir1/index=0&seed=42.png')
@@ -455,10 +460,10 @@ describe('useDimensionMapping', () => {
 
     it('does nothing when no scan result exists', () => {
       const { images, addImage } = useDimensionMapping()
-      addImage({
+      addImage(img({
         relative_path: 'dir/test.png',
         dimensions: { a: '1' },
-      })
+      }))
       expect(images.value).toHaveLength(0)
     })
   })
@@ -500,8 +505,8 @@ describe('useDimensionMapping', () => {
       const { setScanResult, dimensions, assignments, removeImage } = useDimensionMapping()
       setScanResult({
         images: [
-          { relative_path: 'a.png', dimensions: { x: '1', unique: 'val' } },
-          { relative_path: 'b.png', dimensions: { x: '2' } },
+          img({ relative_path: 'a.png', dimensions: { x: '1', unique: 'val' } }),
+          img({ relative_path: 'b.png', dimensions: { x: '2' } }),
         ],
         dimensions: [
           { name: 'x', type: 'int', values: ['1', '2'] },
@@ -519,8 +524,8 @@ describe('useDimensionMapping', () => {
       const { setScanResult, filterModes, removeImage } = useDimensionMapping()
       setScanResult({
         images: [
-          { relative_path: 'a.png', dimensions: { x: '1', unique: 'val' } },
-          { relative_path: 'b.png', dimensions: { x: '2' } },
+          img({ relative_path: 'a.png', dimensions: { x: '1', unique: 'val' } }),
+          img({ relative_path: 'b.png', dimensions: { x: '2' } }),
         ],
         dimensions: [
           { name: 'x', type: 'int', values: ['1', '2'] },

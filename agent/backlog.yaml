@@ -373,7 +373,7 @@ stories:
   - id: W-026
     title: "Fix pre-existing TS errors and enforce zero-error TypeScript gate in agent pipeline"
     type: workflow
-    status: todo
+    status: uat
     priority: 50
     complexity: medium
     requires: []

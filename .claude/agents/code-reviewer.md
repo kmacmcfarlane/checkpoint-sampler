@@ -35,6 +35,8 @@ Run unit and integration tests to verify they pass:
 - `make test-backend` — Go unit/integration tests
 - `make test-frontend` — Vitest frontend tests
 
+For stories with frontend changes, also run `cd frontend && npx vue-tsc --noEmit` and verify **zero TypeScript errors**. If TS errors exist, reject the ticket back to the developer with the specific errors listed.
+
 Do NOT run `make test-e2e`. E2E testing is the QA agent's sole responsibility. If you have concerns about E2E coverage, note them in your "Deferred to QA" section.
 
 ## Code review focus areas

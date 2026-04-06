@@ -215,7 +215,7 @@ onMounted(fetchTrainingRuns)
  */
 watch(
   () => props.refreshTrigger,
-  (newVal, oldVal) => {
+  (_newVal, oldVal) => {
     // Skip the initial call (when the watcher fires on component mount with the initial value).
     // We only refresh when the trigger actually increments after the initial load.
     if (oldVal === undefined) return

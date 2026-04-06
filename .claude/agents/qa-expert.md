@@ -19,6 +19,7 @@ Steps:
 1. Read the change summary to understand what changed and where tests should exist
 2. Review existing test coverage against acceptance criteria
 3. Unit/integration tests: The code-reviewer has already verified that `make test-backend` and `make test-frontend` pass. Do NOT re-run them unless E2E failures suggest a unit-level regression.
+3a. For stories with frontend changes, run `cd frontend && npx vue-tsc --noEmit` and verify **zero TypeScript errors**. If TS errors exist, reject the ticket back to the developer. The code reviewer should have caught this, but QA is the final gate.
 4. Run E2E tests (`make test-e2e`) — run the full suite **exactly once**. This is the primary smoke test AND the E2E gate. Record results per the E2E Test Results section below. Do NOT run the full suite more than once.
 5. Triage any E2E failures (see E2E failure triage below). The developer is responsible for writing E2E tests — if coverage is missing, reject with feedback requesting the developer add E2E tests.
 6. Perform runtime error sweep per TEST_PRACTICES.md section 5.7

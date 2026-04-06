@@ -206,6 +206,9 @@ func (s *PresetService) Create(name string, mapping model.PresetMapping) (model.
 #### 4.7.1 Linting
 The developer must run `npm run lint` (or equivalent) as part of implementation verification before submitting for review. This catches TypeScript type errors and ESLint issues before they reach the review or QA phase. The code reviewer must also verify lint passes.
 
+#### 4.7.2 TypeScript type checking
+The developer must run `cd frontend && npx vue-tsc --noEmit` with **zero errors** before submitting for review. This catches type-level regressions that ESLint alone does not cover (e.g., missing required properties, incompatible types across module boundaries). The code reviewer and QA agent must reject tickets that introduce TypeScript compiler errors.
+
 ### 4.8 CSS variable usage
 Use the project's canonical CSS variables for all color properties. Do not use hard-coded color values. The canonical variables are:
 - `--text-color`, `--text-secondary` — text colors

@@ -13,6 +13,7 @@ describe('parseImagePath', () => {
         seed: '420',
         cfg: '1',
       },
+      thumbnail_path: '',
     })
   })
 

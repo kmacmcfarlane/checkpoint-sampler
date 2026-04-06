@@ -74,5 +74,6 @@ export function parseImagePath(
   return {
     relative_path: path,
     dimensions,
+    thumbnail_path: '',
   }
 }

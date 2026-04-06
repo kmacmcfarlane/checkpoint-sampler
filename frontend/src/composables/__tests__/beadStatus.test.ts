@@ -19,6 +19,7 @@ function makeJob(status: SampleJob['status'], runName = 'test-run'): SampleJob {
     workflow_name: 'default',
     vae: '',
     clip: '',
+    checkpoint_filenames: [],
     status,
     total_items: 10,
     completed_items: 5,

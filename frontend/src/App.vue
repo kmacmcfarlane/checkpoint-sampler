@@ -34,7 +34,7 @@ import type { ValidationResult } from './api/types'
 
 const { theme, isDark, toggle: toggleTheme } = useTheme()
 const { getPresetIdForCombo, savePresetSelection, clearPresetForCombo } = usePresetPersistence()
-const { lastTrainingRunId, saveLastTrainingRun, saveLastStudy } = useLastTrainingRun()
+const { lastTrainingRunId, saveLastTrainingRun } = useLastTrainingRun()
 
 const store = useImageCubeStore()
 
