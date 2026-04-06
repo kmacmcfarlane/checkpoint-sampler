@@ -560,6 +560,105 @@ describe('JobLaunchDialog', () => {
       expect(Array.isArray(children)).toBe(true)
       expect((children as unknown[]).length).toBe(expectedChildren)
     })
+
+    // AC: B-136 inline layout — training run renderTag container must not wrap beads to a new row
+    it('training run renderTag container uses flexWrap nowrap to keep beads inline with label', async () => {
+      // AC: Bead status indicators are visible on closed/collapsed Training Run selector (inline, same row as label)
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
+      const renderTag = runSelect.props('renderTag') as (ctx: { option: Record<string, unknown>; handleClose: () => void }) => VNode
+
+      const vnode = renderTag({
+        option: { label: 'test-run', value: 1, _dualBead: { activity: 'blue', problem: 'red' } },
+        handleClose: () => {},
+      })
+
+      // Container div must use flexWrap: 'nowrap' so beads stay on the same line as the label
+      const containerProps = (vnode as { props?: { style?: Record<string, string> } }).props
+      expect(containerProps?.style?.flexWrap).toBe('nowrap')
+
+      // Label span (last child) must have flex: '1' so it fills remaining space without pushing beads down
+      const children = (vnode as { children?: unknown[] }).children as unknown[]
+      const labelSpan = children[children.length - 1] as { props?: { style?: Record<string, string> } }
+      expect(labelSpan.props?.style?.flex).toBe('1')
+    })
+
+    // AC: B-136 inline layout — study renderTag container must not wrap beads to a new row
+    it('study renderTag container uses flexWrap nowrap to keep beads inline with label', async () => {
+      // AC: Bead status indicators are visible on closed/collapsed Study selector (inline, same row as label)
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+      const renderTag = studySelect.props('renderTag') as (ctx: { option: Record<string, unknown>; handleClose: () => void }) => VNode
+
+      const vnode = renderTag({
+        option: { label: 'Quick Test', value: 'preset-1', _dualBead: { activity: 'green', problem: 'yellow' } },
+        handleClose: () => {},
+      })
+
+      // Container div must use flexWrap: 'nowrap' so beads stay on the same line as the label
+      const containerProps = (vnode as { props?: { style?: Record<string, string> } }).props
+      expect(containerProps?.style?.flexWrap).toBe('nowrap')
+
+      // Label span (last child) must have flex: '1' so it fills remaining space without pushing beads down
+      const children = (vnode as { children?: unknown[] }).children as unknown[]
+      const labelSpan = children[children.length - 1] as { props?: { style?: Record<string, string> } }
+      expect(labelSpan.props?.style?.flex).toBe('1')
+    })
+
+    // AC: B-136 bead data-testid attributes in closed state distinguish from open-dropdown beads
+    it('training run renderTag beads use run-tag-bead-* testids (closed state)', async () => {
+      // AC: Closed-state beads use data-testid="run-tag-bead-activity" / "run-tag-bead-problem"
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
+      const renderTag = runSelect.props('renderTag') as (ctx: { option: Record<string, unknown>; handleClose: () => void }) => VNode
+
+      const vnode = renderTag({
+        option: { label: 'test-run', value: 1, _dualBead: { activity: 'green', problem: 'yellow' } },
+        handleClose: () => {},
+      })
+
+      const children = (vnode as { children?: unknown[] }).children as Array<{ props?: Record<string, string> }>
+      // children[0] = activity bead, children[1] = problem bead, children[2] = label span
+      expect(children[0].props?.['data-testid']).toBe('run-tag-bead-activity')
+      expect(children[1].props?.['data-testid']).toBe('run-tag-bead-problem')
+    })
+
+    // AC: B-136 bead data-testid attributes in closed state distinguish from open-dropdown beads
+    it('study renderTag beads use study-tag-bead-* testids (closed state)', async () => {
+      // AC: Closed-state beads use data-testid="study-tag-bead-activity" / "study-tag-bead-problem"
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
+      const renderTag = studySelect.props('renderTag') as (ctx: { option: Record<string, unknown>; handleClose: () => void }) => VNode
+
+      const vnode = renderTag({
+        option: { label: 'Quick Test', value: 'preset-1', _dualBead: { activity: 'blue', problem: 'red' } },
+        handleClose: () => {},
+      })
+
+      const children = (vnode as { children?: unknown[] }).children as Array<{ props?: Record<string, string> }>
+      expect(children[0].props?.['data-testid']).toBe('study-tag-bead-activity')
+      expect(children[1].props?.['data-testid']).toBe('study-tag-bead-problem')
+    })
   })
 
   it('populates study select with all studies', async () => {

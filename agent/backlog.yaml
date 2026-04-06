@@ -228,7 +228,7 @@ stories:
   - id: B-136
     title: "Colored beads not displayed when Training Run / Study selectors are closed"
     type: bug
-    status: uat_feedback
+    status: uat
     priority: 30
     complexity: low
     requires: []
@@ -243,11 +243,6 @@ stories:
       - "FE: Unit tests for bead rendering in both open and closed selector states"
     testing:
       - "Verify beads render correctly with various states (pending, complete, failed) in both open and closed selector positions"
-    review_feedback: The beads in the Training Run selector are on their own full-width row instead of inline with the 
-      label text, causing the label to wrap to the next line when the selector is closed. Beads should be vertically 
-      centered on the same text line as the label in both open and closed states — matching how the Study selector 
-      already renders beads inline with the selector value. This applies to both the Training Run and Study selectors in
-      the Generate Samples dialog.
   - id: S-135
     title: "Failed checkpoint indicator click navigates to failed job in Job List"
     type: enhancement

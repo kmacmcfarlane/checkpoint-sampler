@@ -237,6 +237,10 @@ const renderTrainingRunLabel: SelectRenderLabel = (option) => {
  * B-136: Also renders dual-bead status indicators in the closed state so beads
  * are visible regardless of whether the dropdown is open or closed.
  * IMPORTANT: VNodes run outside scoped CSS context — all styles must be inlined.
+ *
+ * Layout: flexWrap: 'nowrap' keeps beads on the same line as the label text.
+ * The label span uses flex: 1 / minWidth: 0 so it fills remaining space and
+ * wraps internally rather than pushing beads onto a separate row.
  */
 const renderWrappedTrainingRunTag: SelectRenderTag = ({ option }) => {
   const dualBead = (option as { _dualBead?: DualBead })._dualBead
@@ -263,12 +267,14 @@ const renderWrappedTrainingRunTag: SelectRenderTag = ({ option }) => {
       whiteSpace: 'normal',
       wordBreak: 'break-word',
       lineHeight: '1.4',
+      flex: '1',
+      minWidth: '0',
     },
     'data-testid': 'training-run-selected-tag',
   }, String(option.label ?? '')))
 
   return h('div', {
-    style: { display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' },
+    style: { display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'nowrap' },
   }, children)
 }
 
@@ -736,6 +742,10 @@ const renderStudyLabel: SelectRenderLabel = (option) => {
  * B-136: Also renders dual-bead status indicators in the closed state so beads
  * are visible regardless of whether the dropdown is open or closed.
  * IMPORTANT: VNodes run outside scoped CSS context — all styles must be inlined.
+ *
+ * Layout: flexWrap: 'nowrap' keeps beads on the same line as the label text.
+ * The label span uses flex: 1 / minWidth: 0 so it fills remaining space and
+ * wraps internally rather than pushing beads onto a separate row.
  */
 const renderWrappedStudyTag: SelectRenderTag = ({ option }) => {
   const dualBead = (option as { _dualBead?: DualBead })._dualBead
@@ -763,12 +773,14 @@ const renderWrappedStudyTag: SelectRenderTag = ({ option }) => {
       whiteSpace: 'normal',
       wordBreak: 'break-word',
       lineHeight: '1.4',
+      flex: '1',
+      minWidth: '0',
     },
     'data-testid': 'study-selected-tag',
   }, String(option.label ?? '')))
 
   return h('div', {
-    style: { display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' },
+    style: { display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'nowrap' },
   }, children)
 }
 
