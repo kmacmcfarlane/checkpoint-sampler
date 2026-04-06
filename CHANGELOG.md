@@ -20,6 +20,8 @@ Older entries are condensed to titles only — see git history for full details.
 
 ### S-135: Failed checkpoint indicator click navigates to failed job in Job List
 - Clicking a red (failed) bead on a training run or study in the Generate Samples dialog now closes the dialog, opens the Job List, and scrolls to the most recent failed job with its error details expanded
+- Clicking the "failed" badge on individual checkpoint rows in the Generate Samples dialog also navigates to the failed job (rework: badge click was previously a no-op that toggled the checkbox)
+- Fixed cross-study scoping: failed checkpoint badges now only appear for jobs matching the currently selected study
 
 ### B-136: Colored beads not displayed when Training Run / Study selectors are closed
 - Fixed `renderTag` functions for Training Run and Study NSelect components to render dual-bead status indicators (activity/problem) in the closed/collapsed trigger state, matching the existing open-dropdown behavior

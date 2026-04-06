@@ -146,6 +146,21 @@ function handleFailedBeadClick(e: Event, trainingRunName: string, studyId?: stri
   }
 }
 
+/**
+ * AC: S-135: Handle click on the "failed" badge next to a checkpoint row.
+ * Uses the currently selected training run and study to find the most recent
+ * failed job, then emits navigate-to-failed-job to close the dialog and
+ * navigate to the job in the Job List.
+ */
+function handleFailedCheckpointBadgeClick() {
+  const runName = selectedTrainingRun.value?.name
+  if (!runName) return
+  const jobId = findMostRecentFailedJobId(runName, selectedStudy.value ?? undefined)
+  if (jobId) {
+    emit('navigate-to-failed-job', jobId)
+  }
+}
+
 function getRunStatus(run: TrainingRun): TrainingRunStatus {
   const runJobs = sampleJobs.value.filter(j => j.training_run_name === run.name)
   const hasRunning = runJobs.some(j => j.status === 'running')
@@ -381,9 +396,15 @@ const failedCheckpointMap = computed((): Map<string, string> => {
   const run = selectedTrainingRun.value
   if (!run) return new Map()
 
-  // Find the most recent completed_with_errors job for this run
+  // Find the most recent completed_with_errors job for this run, scoped to the selected study.
+  // Must match the same study filter used by handleFailedCheckpointBadgeClick / findMostRecentFailedJobId
+  // to avoid showing badges for jobs belonging to a different study.
   const errorJobs = sampleJobs.value
-    .filter(j => j.training_run_name === run.name && j.status === 'completed_with_errors')
+    .filter(j =>
+      j.training_run_name === run.name &&
+      j.status === 'completed_with_errors' &&
+      (!selectedStudy.value || j.study_id === selectedStudy.value),
+    )
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
   if (errorJobs.length === 0) return new Map()
@@ -1491,13 +1512,14 @@ async function doSubmit() {
                   <NTag
                     size="tiny"
                     type="error"
-                    class="failed-checkpoint-tag"
+                    class="failed-checkpoint-tag failed-checkpoint-tag--clickable"
                     :data-testid="`checkpoint-failed-badge-${cp.checkpoint}`"
+                    @click.stop.prevent="handleFailedCheckpointBadgeClick"
                   >
                     failed
                   </NTag>
                 </template>
-                {{ failedCheckpointMap.get(cp.checkpoint) }}
+                {{ failedCheckpointMap.get(cp.checkpoint) }} — click to view job
               </NTooltip>
             </NCheckbox>
             <!-- Display-only row for runs without samples -->
@@ -1668,6 +1690,10 @@ async function doSubmit() {
 
 .failed-checkpoint-tag {
   margin-left: 0.5rem;
+}
+
+.failed-checkpoint-tag--clickable {
+  cursor: pointer;
 }
 
 .validation-totals {

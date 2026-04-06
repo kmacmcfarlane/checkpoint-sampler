@@ -5516,6 +5516,104 @@ describe('JobLaunchDialog', () => {
 
       expect(redBead?.props?.title).toContain('click to view job')
     })
+
+    // Shared factory: creates a completed_with_errors job with customizable id and study
+    function createCweJob(id: string, overrides?: Partial<SampleJob>): SampleJob {
+      return {
+        id,
+        training_run_name: 'qwen/psai4rt-v0.4.0',
+        study_id: 'preset-1', study_name: 'Quick Test',
+        workflow_name: 'qwen-image.json',
+        vae: 'ae.safetensors',
+        clip: 'clip_l.safetensors',
+        status: 'completed_with_errors',
+        total_items: 3,
+        completed_items: 1,
+        failed_items: 2,
+        pending_items: 0,
+        checkpoint_filenames: [],
+        failed_item_details: [
+          { checkpoint_filename: 'chk-a.safetensors', error_message: 'VRAM overflow' },
+        ],
+        created_at: '2025-01-02T00:00:00Z',
+        updated_at: '2025-01-02T00:00:00Z',
+        ...overrides,
+      }
+    }
+
+    // Shared setup: mounts dialog with a CWE job, selects the run and study, returns wrapper
+    async function setupCweWrapper(job: SampleJob, studyId = 'preset-1') {
+      mockListSampleJobs.mockResolvedValue([job])
+      mockValidateTrainingRun.mockResolvedValue(validationForRunWithSamples)
+      mockGetStudyAvailability.mockResolvedValue(studyAvailabilityWithSamples)
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
+      await nextTick()
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      await flushPromises()
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', studyId)
+      await flushPromises()
+
+      return wrapper
+    }
+
+    // AC: FE: Clicking failed checkpoint badge emits navigate-to-failed-job
+    it('emits navigate-to-failed-job when clicking the failed checkpoint badge', async () => {
+      const wrapper = await setupCweWrapper(createCweJob('job-cwe-nav'))
+
+      const failedBadge = wrapper.find('[data-testid="checkpoint-failed-badge-chk-a.safetensors"]')
+      expect(failedBadge.exists()).toBe(true)
+
+      await failedBadge.trigger('click')
+
+      // AC: Should emit navigate-to-failed-job with the completed_with_errors job's ID
+      expect(wrapper.emitted('navigate-to-failed-job')).toBeTruthy()
+      expect(wrapper.emitted('navigate-to-failed-job')![0]).toEqual(['job-cwe-nav'])
+    })
+
+    // AC: FE: Clicking failed checkpoint badge does not toggle the checkbox
+    it('does not toggle checkpoint selection when clicking the failed badge', async () => {
+      const wrapper = await setupCweWrapper(createCweJob('job-cwe-no-toggle'))
+
+      const chkA = wrapper.find('[data-testid="checkpoint-row-chk-a.safetensors"]').findComponent(NCheckbox)
+      const checkedBefore = chkA.props('checked')
+
+      const failedBadge = wrapper.find('[data-testid="checkpoint-failed-badge-chk-a.safetensors"]')
+      await failedBadge.trigger('click')
+
+      // Checkbox state should remain unchanged
+      const chkAAfter = wrapper.find('[data-testid="checkpoint-row-chk-a.safetensors"]').findComponent(NCheckbox)
+      expect(chkAAfter.props('checked')).toBe(checkedBefore)
+    })
+
+    // AC: FE: Failed checkpoint badge has clickable cursor style
+    it('failed checkpoint badge has clickable class for pointer cursor', async () => {
+      const wrapper = await setupCweWrapper(createCweJob('job-cwe-style'))
+
+      const failedBadge = wrapper.find('[data-testid="checkpoint-failed-badge-chk-a.safetensors"]')
+      expect(failedBadge.exists()).toBe(true)
+      expect(failedBadge.classes()).toContain('failed-checkpoint-tag--clickable')
+    })
+
+    // AC: S-135 cross-study scoping — badge must NOT appear when the CWE job belongs to a different study
+    it('does not show failed badge when completed_with_errors job belongs to a different study', async () => {
+      // Job belongs to preset-2 but user selects preset-1
+      const cweJobOtherStudy = createCweJob('job-cwe-other-study', {
+        study_id: 'preset-2',
+        study_name: 'Other Study',
+      })
+      const wrapper = await setupCweWrapper(cweJobOtherStudy, 'preset-1')
+
+      // The failed badge should NOT exist because the CWE job is scoped to a different study
+      const failedBadge = wrapper.find('[data-testid="checkpoint-failed-badge-chk-a.safetensors"]')
+      expect(failedBadge.exists()).toBe(false)
+    })
   })
 
 })

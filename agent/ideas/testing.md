@@ -79,3 +79,9 @@ The `cloneStudy` function was updated to persist shift alongside `performSave`, 
 * priority: low
 * source: qa
 The e2e_sweep script matched HTTP info-level request/response log lines as "findings". Restricting sweep matching to `level=error` or `level=warn` lines would eliminate false positives and make the sweep output actionable.
+
+### Extend seed-jobs endpoint to support failed_item_details
+* status: needs_approval
+* priority: low
+* source: qa
+Adding an optional `failed_item_details` array to the `SeedJobRequest` payload would enable E2E tests to trigger and verify the checkpoint-level failed badge click in the Generate Samples dialog. Currently this requires real job execution with ComfyUI errors, limiting E2E coverage to the training-run-level bead path only.

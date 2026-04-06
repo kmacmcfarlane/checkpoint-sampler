@@ -246,7 +246,7 @@ stories:
   - id: S-135
     title: "Failed checkpoint indicator click navigates to failed job in Job List"
     type: enhancement
-    status: uat_feedback
+    status: uat
     priority: 30
     complexity: medium
     requires: []
@@ -263,10 +263,6 @@ stories:
       - "Test the full navigation flow: click failure indicator, verify dialog closes, job list opens, correct job is scrolled
         into view with expanded failure details"
       - "Edge case: verify behavior when the failed job has been cleared from the list"
-    review_feedback: "The red failed indicator on a checkpoint's item row in the Generate Samples dialog does not navigate
-      to the Job List when clicked. Instead it just shows a popover with the error message, and clicking selects or deselects
-      the checkpoint in the list. The expected behavior is: clicking the failed indicator should close the Generate Samples
-      dialog, open the Job List, and scroll to the specific failed job with its failure details expanded."
   - id: R-010
     title: "Reconcile StudyHasSamples path to match actual sample directory structure"
     type: refactor
