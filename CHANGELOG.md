@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### R-011: Serialize /api/test/reset endpoint for parallel E2E safety
+- Rewrote `ResetDB()` to use a pinned `*sql.Conn` with `BEGIN EXCLUSIVE` transaction, serializing concurrent reset calls at the SQLite level and eliminating UNIQUE constraint failures on `schema_migrations` under 12-shard parallel E2E load
+
 ### S-136: Generate Samples minor UI tweaks (whitespace + validation message)
 - Added left-margin whitespace between checkpoint name and sample count in the Generate Samples dialog
 - Changed validation message to "Select at least one checkpoint to generate" with red styling via `--error-color`

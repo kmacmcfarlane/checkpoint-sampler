@@ -687,6 +687,38 @@ var _ = Describe("ResetDB", func() {
 		)
 		Expect(err).NotTo(HaveOccurred())
 	})
+
+	// AC: BE: Unit test verifies concurrent reset calls don't produce errors
+	// AC: BE: UNIQUE constraint failures on schema_migrations are eliminated under parallel load
+	It("handles 12 concurrent reset calls without errors", func() {
+		const numShards = 12
+		errs := make(chan error, numShards)
+
+		for i := 0; i < numShards; i++ {
+			go func() {
+				defer GinkgoRecover()
+				errs <- s.ResetDB()
+			}()
+		}
+
+		for i := 0; i < numShards; i++ {
+			err := <-errs
+			Expect(err).NotTo(HaveOccurred())
+		}
+
+		// Verify the database is in a valid state after concurrent resets
+		var count int
+		err := s.DB().QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&count)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(count).To(BeNumerically(">", 0), "schema_migrations should have migration records")
+
+		// Verify we can still write to the database
+		_, err = s.DB().Exec(
+			"INSERT INTO presets (id, name, mapping, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+			"after-concurrent-reset", "test", `{}`, "2025-01-01T00:00:00Z", "2025-01-01T00:00:00Z",
+		)
+		Expect(err).NotTo(HaveOccurred())
+	})
 })
 
 var _ = Describe("New", func() {

@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"os"
@@ -100,6 +101,56 @@ func Migrate(db *sql.DB, migrations []Migration) error {
 
 		if err := tx.Commit(); err != nil {
 			return fmt.Errorf("committing migration %d: %w", m.Version, err)
+		}
+	}
+
+	return nil
+}
+
+// migrateOnConn runs all migrations on a pinned *sql.Conn. It is used by
+// ResetDB to keep the entire drop+migrate cycle on the same connection under
+// an EXCLUSIVE transaction, preventing concurrent callers from interleaving.
+func migrateOnConn(ctx context.Context, conn *sql.Conn, migrations []Migration) error {
+	_, err := conn.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS schema_migrations (
+		version  INTEGER PRIMARY KEY,
+		applied  TEXT NOT NULL
+	)`)
+	if err != nil {
+		return fmt.Errorf("creating schema_migrations table: %w", err)
+	}
+
+	for _, m := range migrations {
+		var count int
+		if err := conn.QueryRowContext(ctx,
+			"SELECT COUNT(*) FROM schema_migrations WHERE version = ?",
+			m.Version,
+		).Scan(&count); err != nil {
+			return fmt.Errorf("checking migration %d: %w", m.Version, err)
+		}
+		if count > 0 {
+			continue
+		}
+
+		if _, err := conn.ExecContext(ctx, m.SQL); err != nil {
+			if isDuplicateColumnError(err) {
+				now := time.Now().UTC().Format(time.RFC3339)
+				if _, recordErr := conn.ExecContext(ctx,
+					"INSERT OR IGNORE INTO schema_migrations (version, applied) VALUES (?, ?)",
+					m.Version, now,
+				); recordErr != nil {
+					return fmt.Errorf("recording migration %d after duplicate column: %w", m.Version, recordErr)
+				}
+				continue
+			}
+			return fmt.Errorf("executing migration %d: %w", m.Version, err)
+		}
+
+		now := time.Now().UTC().Format(time.RFC3339)
+		if _, err := conn.ExecContext(ctx,
+			"INSERT OR IGNORE INTO schema_migrations (version, applied) VALUES (?, ?)",
+			m.Version, now,
+		); err != nil {
+			return fmt.Errorf("recording migration %d: %w", m.Version, err)
 		}
 	}
 

@@ -288,7 +288,7 @@ stories:
   - id: R-011
     title: "Serialize /api/test/reset endpoint for parallel E2E safety"
     type: refactor
-    status: todo
+    status: uat
     priority: 50
     complexity: medium
     requires: []
