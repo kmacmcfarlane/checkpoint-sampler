@@ -328,7 +328,7 @@ stories:
   - id: R-012
     title: "XYGrid: read grid derivations from store instead of recomputing from props"
     type: refactor
-    status: todo
+    status: uat
     priority: 40
     complexity: medium
     requires: []

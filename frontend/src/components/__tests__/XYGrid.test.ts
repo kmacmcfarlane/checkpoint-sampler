@@ -1,10 +1,15 @@
-import { describe, it, expect, vi, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
+import type { Pinia } from 'pinia'
 import XYGrid from '../XYGrid.vue'
 import SliderBar from '../SliderBar.vue'
 import ImageCell from '../ImageCell.vue'
-import type { ScanDimension, ScanImage } from '../../api/types'
+import { useImageCubeStore } from '../../stores/imageCube'
+import type { ScanDimension, ScanImage, ScanResult } from '../../api/types'
 import type { ImageClickContext } from '../types'
+
+// enableAutoUnmount is configured globally in vitest.setup.ts
 
 const xDimension: ScanDimension = {
   name: 'seed',
@@ -32,21 +37,89 @@ const sampleImages: ScanImage[] = [
   { relative_path: 'a/seed=42&step=500&cfg=7.png', dimensions: { seed: '42', step: '500', cfg: '7' }, thumbnail_path: '' },
 ]
 
-function mountGrid(overrides: Record<string, unknown> = {}) {
+/** Default ScanResult with X, Y, and slider dimensions. */
+function defaultScanResult(overrideImages?: ScanImage[], overrideDimensions?: ScanDimension[]): ScanResult {
+  return {
+    images: overrideImages ?? sampleImages,
+    dimensions: overrideDimensions ?? [xDimension, yDimension, sliderDimension],
+  }
+}
+
+interface MountOptions {
+  /** If false, no X role is assigned (Y-only or flat). Default: true. */
+  assignX?: boolean
+  /** If false, no Y role is assigned (X-only or flat). Default: true. */
+  assignY?: boolean
+  /** If true, assign slider role to cfg dimension. Default: false. */
+  assignSlider?: boolean
+  /** Custom images to use in the scan result. */
+  images?: ScanImage[]
+  /** Custom dimensions to use in the scan result. */
+  dimensions?: ScanDimension[]
+  /** Combo filter selections to apply. */
+  comboSelections?: Record<string, Set<string>>
+  /** Master slider value. */
+  masterSliderValue?: string
+  /** Cell slider overrides. */
+  cellSliderOverrides?: Record<string, string>
+  /** Cell size prop. */
+  cellSize?: number
+  /** Debug mode prop. */
+  debugMode?: boolean
+}
+
+let pinia: Pinia
+
+function mountGrid(options: MountOptions = {}) {
+  const {
+    assignX = true,
+    assignY = true,
+    assignSlider = false,
+    images,
+    dimensions,
+    comboSelections,
+    masterSliderValue,
+    cellSliderOverrides,
+    cellSize = 200,
+    debugMode,
+  } = options
+
+  const store = useImageCubeStore()
+  store.setScanResult(defaultScanResult(images, dimensions))
+
+  if (assignX) store.assignRole('seed', 'x')
+  if (assignY) store.assignRole('step', 'y')
+  if (assignSlider) store.assignRole('cfg', 'slider')
+
+  if (comboSelections) {
+    for (const [key, val] of Object.entries(comboSelections)) {
+      store.comboSelections[key] = val
+    }
+  }
+
+  if (masterSliderValue !== undefined) {
+    store.setMasterSlider(masterSliderValue)
+  }
+
+  if (cellSliderOverrides) {
+    for (const [key, val] of Object.entries(cellSliderOverrides)) {
+      store.cellSliderOverrides[key] = val
+    }
+  }
+
   return mount(XYGrid, {
     props: {
-      xDimension,
-      yDimension,
-      images: sampleImages,
-      comboSelections: {},
-      sliderDimension: null,
-      sliderValues: {},
-      defaultSliderValue: '',
-      cellSize: 200,
-      ...overrides,
+      cellSize,
+      ...(debugMode !== undefined ? { debugMode } : {}),
     },
+    global: { plugins: [pinia] },
   })
 }
+
+beforeEach(() => {
+  pinia = createPinia()
+  setActivePinia(pinia)
+})
 
 afterEach(() => {
   vi.restoreAllMocks()
@@ -106,7 +179,7 @@ describe('XYGrid', () => {
 
   describe('with X dimension only', () => {
     it('renders columns without row headers', () => {
-      const wrapper = mountGrid({ yDimension: null })
+      const wrapper = mountGrid({ assignY: false })
 
       expect(wrapper.findAll('[role="rowheader"]')).toHaveLength(0)
       const cells = wrapper.findAll('[role="gridcell"]')
@@ -114,7 +187,7 @@ describe('XYGrid', () => {
     })
 
     it('renders column headers', () => {
-      const wrapper = mountGrid({ yDimension: null })
+      const wrapper = mountGrid({ assignY: false })
       const headers = wrapper.findAll('[role="columnheader"]')
       expect(headers).toHaveLength(2)
     })
@@ -122,7 +195,7 @@ describe('XYGrid', () => {
 
   describe('with Y dimension only', () => {
     it('renders rows without column headers', () => {
-      const wrapper = mountGrid({ xDimension: null })
+      const wrapper = mountGrid({ assignX: false })
 
       // No column headers since no X dimension
       expect(wrapper.findAll('.xy-grid__col-header')).toHaveLength(0)
@@ -131,7 +204,7 @@ describe('XYGrid', () => {
     })
 
     it('renders one cell per Y value', () => {
-      const wrapper = mountGrid({ xDimension: null })
+      const wrapper = mountGrid({ assignX: false })
       const cells = wrapper.findAll('[role="gridcell"]')
       expect(cells).toHaveLength(2)
     })
@@ -140,9 +213,10 @@ describe('XYGrid', () => {
   describe('with no dimensions assigned', () => {
     it('shows message when no images and no axes', () => {
       const wrapper = mountGrid({
-        xDimension: null,
-        yDimension: null,
+        assignX: false,
+        assignY: false,
         images: [],
+        dimensions: [],
       })
 
       expect(wrapper.find('.xy-grid-empty').exists()).toBe(true)
@@ -150,7 +224,7 @@ describe('XYGrid', () => {
     })
 
     it('shows flat image list when images exist but no axes', () => {
-      const wrapper = mountGrid({ xDimension: null, yDimension: null })
+      const wrapper = mountGrid({ assignX: false, assignY: false })
 
       expect(wrapper.find('.xy-grid-flat').exists()).toBe(true)
       const cells = wrapper.findAll('.xy-grid-flat__cell')
@@ -189,12 +263,10 @@ describe('XYGrid', () => {
   describe('slider dimension integration', () => {
     it('shows images for default slider value (first value)', () => {
       const wrapper = mountGrid({
-        sliderDimension,
-        sliderValues: {},
-        defaultSliderValue: '3',
+        assignSlider: true,
       })
 
-      // Default slider value is '3' (first value)
+      // Default slider value is '3' (first value of cfg dimension)
       // Should show images with cfg=3
       const imgs = wrapper.findAll('img')
       for (const img of imgs) {
@@ -205,9 +277,8 @@ describe('XYGrid', () => {
 
     it('shows images for specified slider value', () => {
       const wrapper = mountGrid({
-        sliderDimension,
-        sliderValues: { '42|500': '7' }, // override for seed=42, step=500
-        defaultSliderValue: '3',
+        assignSlider: true,
+        cellSliderOverrides: { '42|500': '7' }, // override for seed=42, step=500
       })
 
       // Cell at seed=42, step=500 should show cfg=7
@@ -218,9 +289,7 @@ describe('XYGrid', () => {
 
     it('renders SliderBar per cell when slider dimension is assigned', () => {
       const wrapper = mountGrid({
-        sliderDimension,
-        sliderValues: {},
-        defaultSliderValue: '3',
+        assignSlider: true,
       })
 
       const sliders = wrapper.findAllComponents(SliderBar)
@@ -230,9 +299,7 @@ describe('XYGrid', () => {
 
     it('emits update:sliderValue when individual slider changes', async () => {
       const wrapper = mountGrid({
-        sliderDimension,
-        sliderValues: {},
-        defaultSliderValue: '3',
+        assignSlider: true,
       })
 
       const sliders = wrapper.findAllComponents(SliderBar)
@@ -246,10 +313,7 @@ describe('XYGrid', () => {
     })
 
     it('does not render SliderBar when no slider dimension', () => {
-      const wrapper = mountGrid({
-        sliderDimension: null,
-        sliderValues: {},
-      })
+      const wrapper = mountGrid()
 
       const sliders = wrapper.findAllComponents(SliderBar)
       expect(sliders).toHaveLength(0)
@@ -294,7 +358,7 @@ describe('XYGrid', () => {
     })
 
     it('emits header:click with correct dimension name for X-only grid', async () => {
-      const wrapper = mountGrid({ yDimension: null })
+      const wrapper = mountGrid({ assignY: false })
       const headers = wrapper.findAll('.xy-grid__col-header')
       expect(headers.length).toBe(2)
 
@@ -476,12 +540,10 @@ describe('XYGrid', () => {
       let colHeaders = wrapper.findAll('.xy-grid__col-header')
       expect(colHeaders).toHaveLength(1)
 
-      // Change to show all values
-      await wrapper.setProps({
-        comboSelections: {
-          seed: new Set(['42', '123']),
-        },
-      })
+      // Change store comboSelections directly
+      const store = useImageCubeStore()
+      store.comboSelections['seed'] = new Set(['42', '123'])
+      await wrapper.vm.$nextTick()
 
       // Now should show both columns
       colHeaders = wrapper.findAll('.xy-grid__col-header')
@@ -496,7 +558,7 @@ describe('XYGrid', () => {
       const images: ScanImage[] = [
         { relative_path: 'a/seed=42&step=500.png', dimensions: { seed: '42', step: '500' }, thumbnail_path: '' },
       ]
-      const wrapper = mountGrid({ xDimension: singleX, yDimension: singleY, images })
+      const wrapper = mountGrid({ dimensions: [singleX, singleY], images })
 
       expect(wrapper.findAll('[role="gridcell"]')).toHaveLength(1)
       expect(wrapper.findAll('[role="columnheader"]')).toHaveLength(2) // corner + 1 header
@@ -516,7 +578,7 @@ describe('XYGrid', () => {
         { relative_path: 'a/seed=42&step=200.png', dimensions: { seed: '42', step: '200' }, thumbnail_path: '' },
         { relative_path: 'a/seed=42&step=300.png', dimensions: { seed: '42', step: '300' }, thumbnail_path: '' },
       ]
-      const wrapper = mountGrid({ xDimension: singleX, yDimension: threeY, images })
+      const wrapper = mountGrid({ dimensions: [singleX, threeY], images })
 
       expect(wrapper.findAll('[role="gridcell"]')).toHaveLength(3)
       expect(wrapper.findAll('[role="rowheader"]')).toHaveLength(3)
@@ -535,7 +597,7 @@ describe('XYGrid', () => {
         { relative_path: 'a/seed=123&step=500.png', dimensions: { seed: '123', step: '500' }, thumbnail_path: '' },
         { relative_path: 'a/seed=456&step=500.png', dimensions: { seed: '456', step: '500' }, thumbnail_path: '' },
       ]
-      const wrapper = mountGrid({ xDimension: threeX, yDimension: singleY, images })
+      const wrapper = mountGrid({ dimensions: [threeX, singleY], images })
 
       expect(wrapper.findAll('[role="gridcell"]')).toHaveLength(3)
       expect(wrapper.findAll('.xy-grid__col-header')).toHaveLength(3)
@@ -577,7 +639,7 @@ describe('XYGrid', () => {
     })
 
     it('X-only grid uses CSS Grid without row header column', () => {
-      const wrapper = mountGrid({ yDimension: null })
+      const wrapper = mountGrid({ assignY: false })
       const grid = wrapper.find('[role="grid"]')
       const style = grid.attributes('style') ?? ''
 
@@ -588,7 +650,7 @@ describe('XYGrid', () => {
     })
 
     it('Y-only grid uses CSS Grid without column header row', () => {
-      const wrapper = mountGrid({ xDimension: null })
+      const wrapper = mountGrid({ assignX: false })
       const grid = wrapper.find('[role="grid"]')
       const style = grid.attributes('style') ?? ''
 
@@ -599,7 +661,7 @@ describe('XYGrid', () => {
     })
 
     it('flat mode uses CSS Grid with consistent cell sizing', () => {
-      const wrapper = mountGrid({ xDimension: null, yDimension: null })
+      const wrapper = mountGrid({ assignX: false, assignY: false })
       const flatGrid = wrapper.find('.xy-grid-flat__grid')
       const style = flatGrid.attributes('style') ?? ''
 
@@ -645,9 +707,7 @@ describe('XYGrid', () => {
     it('shows slider value in debug overlay when slider dimension is assigned', () => {
       const wrapper = mountGrid({
         debugMode: true,
-        sliderDimension,
-        sliderValues: {},
-        defaultSliderValue: '3',
+        assignSlider: true,
       })
 
       const firstOverlay = wrapper.findAll('[data-testid="debug-overlay"]')[0]
@@ -686,7 +746,7 @@ describe('XYGrid', () => {
     })
 
     it('renders debug overlays in X-only grid', () => {
-      const wrapper = mountGrid({ yDimension: null, debugMode: true })
+      const wrapper = mountGrid({ assignY: false, debugMode: true })
 
       const overlays = wrapper.findAll('[data-testid="debug-overlay"]')
       // X-only: 2 cells
@@ -698,7 +758,7 @@ describe('XYGrid', () => {
     })
 
     it('renders debug overlays in Y-only grid', () => {
-      const wrapper = mountGrid({ xDimension: null, debugMode: true })
+      const wrapper = mountGrid({ assignX: false, debugMode: true })
 
       const overlays = wrapper.findAll('[data-testid="debug-overlay"]')
       // Y-only: 2 cells
@@ -710,7 +770,7 @@ describe('XYGrid', () => {
     })
 
     it('renders debug overlays in flat mode', () => {
-      const wrapper = mountGrid({ xDimension: null, yDimension: null, debugMode: true })
+      const wrapper = mountGrid({ assignX: false, assignY: false, debugMode: true })
 
       const overlays = wrapper.findAll('[data-testid="debug-overlay"]')
       // Flat mode should have overlays on all visible cells
@@ -788,7 +848,12 @@ describe('XYGrid', () => {
         { relative_path: 'a/seed=42&cfg=3.png', dimensions: { seed: '42', cfg: '3' }, thumbnail_path: '' },
         { relative_path: 'a/seed=123&cfg=3.png', dimensions: { seed: '123', cfg: '3' }, thumbnail_path: '' },
       ]
-      const wrapper = mountGrid({ yDimension: null, images: xOnlyImages, debugMode: true })
+      const wrapper = mountGrid({
+        assignY: false,
+        images: xOnlyImages,
+        dimensions: [xDimension, sliderDimension],
+        debugMode: true,
+      })
 
       const imageCells = wrapper.findAllComponents(ImageCell)
       imageCells[0].vm.$emit('click', '/api/images/a/seed=42&cfg=3.png')
@@ -812,7 +877,12 @@ describe('XYGrid', () => {
         { relative_path: 'a/step=500&cfg=3.png', dimensions: { step: '500', cfg: '3' }, thumbnail_path: '' },
         { relative_path: 'a/step=1000&cfg=3.png', dimensions: { step: '1000', cfg: '3' }, thumbnail_path: '' },
       ]
-      const wrapper = mountGrid({ xDimension: null, images: yOnlyImages, debugMode: true })
+      const wrapper = mountGrid({
+        assignX: false,
+        images: yOnlyImages,
+        dimensions: [yDimension, sliderDimension],
+        debugMode: true,
+      })
 
       const imageCells = wrapper.findAllComponents(ImageCell)
       imageCells[0].vm.$emit('click', '/api/images/a/step=500&cfg=3.png')
@@ -835,7 +905,13 @@ describe('XYGrid', () => {
       const flatImages: ScanImage[] = [
         { relative_path: 'a/img1.png', dimensions: { cfg: '3' }, thumbnail_path: '' },
       ]
-      const wrapper = mountGrid({ xDimension: null, yDimension: null, images: flatImages, debugMode: true })
+      const wrapper = mountGrid({
+        assignX: false,
+        assignY: false,
+        images: flatImages,
+        dimensions: [sliderDimension],
+        debugMode: true,
+      })
 
       const imageCells = wrapper.findAllComponents(ImageCell)
       expect(imageCells.length).toBeGreaterThan(0)
@@ -874,9 +950,8 @@ describe('XYGrid', () => {
       ]
       const wrapper = mountGrid({
         images: imagesWithThumbnails,
-        sliderDimension,
-        sliderValues: {},
-        defaultSliderValue: '3',
+        dimensions: [xDimension, yDimension, sliderDimension],
+        assignSlider: true,
       })
 
       const imageCells = wrapper.findAllComponents(ImageCell)
@@ -911,9 +986,8 @@ describe('XYGrid', () => {
       ]
       const wrapper = mountGrid({
         images: imagesWithThumbnails,
-        sliderDimension,
-        sliderValues: {},
-        defaultSliderValue: '3',
+        dimensions: [xDimension, yDimension, sliderDimension],
+        assignSlider: true,
       })
 
       const imageCells = wrapper.findAllComponents(ImageCell)
@@ -940,9 +1014,7 @@ describe('XYGrid', () => {
     it('emits image:click with correct ImageClickContext shape when a cell image is clicked', async () => {
       // Arrange: mount with X+Y dimensions and a slider dimension so all payload fields are populated
       const wrapper = mountGrid({
-        sliderDimension,
-        sliderValues: {},
-        defaultSliderValue: '3',
+        assignSlider: true,
       })
 
       // Act: trigger click on the first ImageCell (seed=42, step=500)
@@ -975,7 +1047,7 @@ describe('XYGrid', () => {
       expect(typeof payload.currentSliderValue).toBe('string')
       expect(payload.currentSliderValue).toBe('3')
 
-      // imagesBySliderValue: map from slider value → image URL for all slider positions in this cell
+      // imagesBySliderValue: map from slider value -> image URL for all slider positions in this cell
       expect(payload).toHaveProperty('imagesBySliderValue')
       expect(typeof payload.imagesBySliderValue).toBe('object')
       // Both cfg=3 and cfg=7 images exist for seed=42, step=500
@@ -1005,11 +1077,7 @@ describe('XYGrid', () => {
 
     it('emits image:click with empty sliderValues and imagesBySliderValue when no slider dimension', async () => {
       // AC2: Verify payload shape when slider dimension is not assigned
-      const wrapper = mountGrid({
-        sliderDimension: null,
-        sliderValues: {},
-        defaultSliderValue: '',
-      })
+      const wrapper = mountGrid()
 
       const imageCells = wrapper.findAllComponents(ImageCell)
       expect(imageCells.length).toBeGreaterThan(0)

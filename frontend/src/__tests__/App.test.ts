@@ -7,6 +7,7 @@ import App from '../App.vue'
 import TrainingRunSelector from '../components/TrainingRunSelector.vue'
 import type { TrainingRun, SampleJob, Preset } from '../api/types'
 import { _resetForTesting as resetDimensionMapping } from '../composables/useDimensionMapping'
+import { useImageCubeStore } from '../stores/imageCube'
 
 vi.mock('../api/client', () => ({
   apiClient: {
@@ -760,8 +761,9 @@ describe('App', () => {
       // Preset assignments should be applied: seed=x, cfg=y
       const grid = wrapper.findComponent({ name: 'XYGrid' })
       expect(grid.exists()).toBe(true)
-      expect(grid.props('xDimension')?.name).toBe('seed')
-      expect(grid.props('yDimension')?.name).toBe('cfg')
+      const store = useImageCubeStore()
+      expect(store.xDimension?.name).toBe('seed')
+      expect(store.yDimension?.name).toBe('cfg')
     })
 
     it('wide screen behavior is unchanged: drawer auto-opens and training run auto-selects', async () => {
@@ -979,14 +981,12 @@ describe('App', () => {
         await flushPromises()
 
         // The preset's dimension assignments should be applied (seed=x, cfg=y)
-        // Verify by checking that the XYGrid component is rendered with the correct
-        // x and y dimension props.
+        // Verify by checking the store state (XYGrid reads from store, not props).
         const grid = wrapper.findComponent({ name: 'XYGrid' })
         expect(grid.exists()).toBe(true)
-        const xDim = grid.props('xDimension')
-        const yDim = grid.props('yDimension')
-        expect(xDim?.name).toBe('seed')
-        expect(yDim?.name).toBe('cfg')
+        const store = useImageCubeStore()
+        expect(store.xDimension?.name).toBe('seed')
+        expect(store.yDimension?.name).toBe('cfg')
       })
 
       it('AC1: does not fetch presets when no preset is saved in localStorage', async () => {

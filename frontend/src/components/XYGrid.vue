@@ -1,19 +1,11 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { ScanDimension, ScanImage } from '../api/types'
+import { useImageCubeStore } from '../stores/imageCube'
 import type { DebugCellInfo, GridNavItem, ImageClickContext } from './types'
 import ImageCell from './ImageCell.vue'
 import SliderBar from './SliderBar.vue'
 
 const props = withDefaults(defineProps<{
-  xDimension: ScanDimension | null
-  yDimension: ScanDimension | null
-  images: ScanImage[]
-  comboSelections: Record<string, Set<string>>
-  sliderDimension: ScanDimension | null
-  sliderValues: Record<string, string>
-  /** Default slider value when no per-cell override exists (set by master slider). */
-  defaultSliderValue: string
   /** Cell size in pixels (both width and height). */
   cellSize: number
   /** When true, each cell renders a debug overlay showing filtering parameters. */
@@ -31,6 +23,16 @@ const emit = defineEmits<{
   'header:click': [dimensionName: string, value: string]
 }>()
 
+const store = useImageCubeStore()
+
+// --- Store-backed derivations (no local recomputation) ---
+const xDimension = computed(() => store.xDimension)
+const yDimension = computed(() => store.yDimension)
+const sliderDimension = computed(() => store.sliderDimension)
+const xValues = computed(() => store.xValues)
+const yValues = computed(() => store.yValues)
+const hasNoAxes = computed(() => store.hasNoAxes)
+
 // --- Cell dimensions controlled by zoom ---
 const cellWidth = computed(() => props.cellSize)
 const cellHeight = computed(() => props.cellSize)
@@ -39,92 +41,25 @@ function onHeaderClick(dimensionName: string, value: string) {
   emit('header:click', dimensionName, value)
 }
 
-/** X axis values to render as columns (filtered by combo selections). */
-const xValues = computed(() => {
-  const dim = props.xDimension
-  if (!dim) return []
-  const selections = props.comboSelections[dim.name]
-  if (!selections || selections.size === 0) return dim.values
-  return dim.values.filter((v) => selections.has(v))
-})
-
-/** Y axis values to render as rows (filtered by combo selections). */
-const yValues = computed(() => {
-  const dim = props.yDimension
-  if (!dim) return []
-  const selections = props.comboSelections[dim.name]
-  if (!selections || selections.size === 0) return dim.values
-  return dim.values.filter((v) => selections.has(v))
-})
-
-/** Filter images based on combo filter selections. Slider filtering is per-cell in imageIndex. */
-const filteredImages = computed<ScanImage[]>(() => {
-  return props.images.filter((img) => {
-    for (const [dimName, selected] of Object.entries(props.comboSelections)) {
-      const imgValue = img.dimensions[dimName]
-      if (selected.size > 0 && imgValue !== undefined && !selected.has(imgValue)) {
-        return false
-      }
-    }
-    return true
-  })
-})
-
-/** Build a lookup key from dimension values. */
-function imageKey(xVal: string | undefined, yVal: string | undefined): string {
-  return `${xVal ?? ''}|${yVal ?? ''}`
+/** Get the image for a specific x/y combination (store-backed). */
+function getImage(xVal: string | undefined, yVal: string | undefined) {
+  return store.getImage(xVal, yVal)
 }
 
-/** Index filtered images for fast lookup by x/y dimension values. */
-const imageIndex = computed<Map<string, ScanImage>>(() => {
-  const index = new Map<string, ScanImage>()
-  const xDimName = props.xDimension?.name
-  const yDimName = props.yDimension?.name
-
-  for (const img of filteredImages.value) {
-    const xVal = xDimName ? img.dimensions[xDimName] : undefined
-    const yVal = yDimName ? img.dimensions[yDimName] : undefined
-
-    // Check slider dimension
-    if (props.sliderDimension) {
-      const sliderDimName = props.sliderDimension.name
-      const sliderVal = img.dimensions[sliderDimName]
-      const key = imageKey(xVal, yVal)
-      const expectedSliderVal = props.sliderValues[key] ?? props.defaultSliderValue
-      if (sliderVal !== undefined && sliderVal !== expectedSliderVal) {
-        continue
-      }
-    }
-
-    const key = imageKey(xVal, yVal)
-    // First match wins (images are already deduplicated by scanner)
-    if (!index.has(key)) {
-      index.set(key, img)
-    }
-  }
-  return index
-})
-
-/** Get the image for a specific x/y combination. */
-function getImage(xVal: string | undefined, yVal: string | undefined): ScanImage | null {
-  return imageIndex.value.get(imageKey(xVal, yVal)) ?? null
-}
-
-/** Get the current slider value for a given cell. */
+/** Get the current slider value for a given cell (store-backed). */
 function getSliderValue(xVal: string | undefined, yVal: string | undefined): string {
-  const key = imageKey(xVal, yVal)
-  return props.sliderValues[key] ?? props.defaultSliderValue
+  return store.getCellSliderValue(xVal, yVal)
 }
 
 /** Build debug info for a cell when debug mode is active. */
 function getDebugInfo(xVal: string | undefined, yVal: string | undefined): DebugCellInfo | undefined {
   if (!props.debugMode) return undefined
   const comboEntries: Record<string, string[]> = {}
-  for (const [dimName, selected] of Object.entries(props.comboSelections)) {
+  for (const [dimName, selected] of Object.entries(store.comboSelections)) {
     // Exclude X and Y dimensions from combo display (already shown separately)
-    if (dimName === props.xDimension?.name || dimName === props.yDimension?.name) continue
+    if (dimName === xDimension.value?.name || dimName === yDimension.value?.name) continue
     // Exclude slider dimension (already shown separately)
-    if (dimName === props.sliderDimension?.name) continue
+    if (dimName === sliderDimension.value?.name) continue
     if (selected.size > 0) {
       comboEntries[dimName] = Array.from(selected)
     }
@@ -132,122 +67,57 @@ function getDebugInfo(xVal: string | undefined, yVal: string | undefined): Debug
   return {
     xValue: xVal,
     yValue: yVal,
-    sliderValue: props.sliderDimension ? getSliderValue(xVal, yVal) : undefined,
-    sliderDimensionName: props.sliderDimension?.name,
+    sliderValue: sliderDimension.value ? getSliderValue(xVal, yVal) : undefined,
+    sliderDimensionName: sliderDimension.value?.name,
     comboSelections: comboEntries,
   }
 }
 
 /** Handle slider change for a cell. */
 function onSliderChange(xVal: string | undefined, yVal: string | undefined, value: string) {
-  const key = imageKey(xVal, yVal)
+  const key = store.cellKey(xVal, yVal)
   emit('update:sliderValue', key, value)
-}
-
-/** Build a map from slider value → full-resolution image URL for a given cell (all slider positions).
- *  Always uses the full-resolution PNG path so the lightbox displays images at full quality. */
-function getImagesBySliderValue(xVal: string | undefined, yVal: string | undefined): Record<string, string> {
-  if (!props.sliderDimension) return {}
-  const sliderDimName = props.sliderDimension.name
-  const xDimName = props.xDimension?.name
-  const yDimName = props.yDimension?.name
-  const result: Record<string, string> = {}
-  for (const img of filteredImages.value) {
-    const imgXVal = xDimName ? img.dimensions[xDimName] : undefined
-    const imgYVal = yDimName ? img.dimensions[yDimName] : undefined
-    if (imgXVal !== xVal || imgYVal !== yVal) continue
-    const sliderVal = img.dimensions[sliderDimName]
-    if (sliderVal !== undefined && !(sliderVal in result)) {
-      result[sliderVal] = `/api/images/${img.relative_path}`
-    }
-  }
-  return result
 }
 
 /**
  * Build the ordered list of all visible grid cells that have images,
- * for lightbox grid navigation.
+ * for lightbox grid navigation. Extends store gridNavItems with debugInfo.
  */
 function buildGridNavItems(): GridNavItem[] {
-  const items: GridNavItem[] = []
-  const sliderVals = props.sliderDimension?.values ?? []
+  const storeItems = store.gridNavItems
+  if (!props.debugMode) return storeItems
 
-  if (hasNoAxes.value) {
-    // Flat mode: one synthetic cell
-    for (const img of flatImages.value) {
-      const url = `/api/images/${img.relative_path}`
-      items.push({
-        imageUrl: url,
-        cellKey: '|',
-        sliderValues: sliderVals,
-        currentSliderValue: getSliderValue(undefined, undefined),
-        imagesBySliderValue: getImagesBySliderValue(undefined, undefined),
-        debugInfo: getDebugInfo(undefined, undefined),
-      })
+  // Enrich with debugInfo by parsing cellKey back to x/y values
+  return storeItems.map((item) => {
+    const [xVal, yVal] = parseCellKey(item.cellKey)
+    return {
+      ...item,
+      debugInfo: getDebugInfo(xVal, yVal),
     }
-  } else if (props.xDimension && props.yDimension) {
-    // X+Y grid: row-major order (y outer, x inner)
-    for (const yVal of yValues.value) {
-      for (const xVal of xValues.value) {
-        const img = getImage(xVal, yVal)
-        if (!img) continue
-        const url = `/api/images/${img.relative_path}`
-        items.push({
-          imageUrl: url,
-          cellKey: imageKey(xVal, yVal),
-          sliderValues: sliderVals,
-          currentSliderValue: getSliderValue(xVal, yVal),
-          imagesBySliderValue: getImagesBySliderValue(xVal, yVal),
-          debugInfo: getDebugInfo(xVal, yVal),
-        })
-      }
-    }
-  } else if (props.xDimension) {
-    // X-only
-    for (const xVal of xValues.value) {
-      const img = getImage(xVal, undefined)
-      if (!img) continue
-      const url = `/api/images/${img.relative_path}`
-      items.push({
-        imageUrl: url,
-        cellKey: imageKey(xVal, undefined),
-        sliderValues: sliderVals,
-        currentSliderValue: getSliderValue(xVal, undefined),
-        imagesBySliderValue: getImagesBySliderValue(xVal, undefined),
-        debugInfo: getDebugInfo(xVal, undefined),
-      })
-    }
-  } else if (props.yDimension) {
-    // Y-only
-    for (const yVal of yValues.value) {
-      const img = getImage(undefined, yVal)
-      if (!img) continue
-      const url = `/api/images/${img.relative_path}`
-      items.push({
-        imageUrl: url,
-        cellKey: imageKey(undefined, yVal),
-        sliderValues: sliderVals,
-        currentSliderValue: getSliderValue(undefined, yVal),
-        imagesBySliderValue: getImagesBySliderValue(undefined, yVal),
-        debugInfo: getDebugInfo(undefined, yVal),
-      })
-    }
-  }
+  })
+}
 
-  return items
+/** Parse a cellKey ("xVal|yVal") back into x and y values. */
+function parseCellKey(key: string | null): [string | undefined, string | undefined] {
+  if (!key) return [undefined, undefined]
+  const sep = key.indexOf('|')
+  if (sep < 0) return [undefined, undefined]
+  const x = key.substring(0, sep)
+  const y = key.substring(sep + 1)
+  return [x || undefined, y || undefined]
 }
 
 /** Emit an image:click event with full cell context. */
 function onImageClick(xVal: string | undefined, yVal: string | undefined, imageUrl: string) {
-  const key = imageKey(xVal, yVal)
-  const sliderVals = props.sliderDimension?.values ?? []
+  const key = store.cellKey(xVal, yVal)
+  const sliderVals = sliderDimension.value?.values ?? []
   const currentSliderVal = getSliderValue(xVal, yVal)
-  const imagesBySliderValue = getImagesBySliderValue(xVal, yVal)
+  const imagesBySliderValue = store.getImagesBySliderValue(xVal, yVal)
   const gridImages = buildGridNavItems()
   const gridIndex = gridImages.findIndex((item) => item.cellKey === key && item.imageUrl === imageUrl)
   // Column count for Y-axis keyboard navigation: number of visible X values.
   // 0 when there is no X dimension (Y-only or flat mode).
-  const gridColumnCount = props.xDimension ? xValues.value.length : 0
+  const gridColumnCount = store.gridColumnCount
   emit('image:click', {
     imageUrl,
     cellKey: key,
@@ -261,31 +131,28 @@ function onImageClick(xVal: string | undefined, yVal: string | undefined, imageU
   })
 }
 
-/** Check whether there are no axis assignments. */
-const hasNoAxes = computed(() => !props.xDimension && !props.yDimension)
-
 /** When no axes are assigned, show all filtered images in a flat list. */
-const flatImages = computed<ScanImage[]>(() => {
+const flatImages = computed(() => {
   if (!hasNoAxes.value) return []
   // Apply slider filter to flat images too
-  if (props.sliderDimension) {
-    const sliderDimName = props.sliderDimension.name
-    const expectedVal = props.sliderValues['|'] ?? props.defaultSliderValue
-    return filteredImages.value.filter((img) => {
+  if (sliderDimension.value) {
+    const sliderDimName = sliderDimension.value.name
+    const expectedVal = store.getCellSliderValue(undefined, undefined)
+    return store.filteredImages.filter((img) => {
       const val = img.dimensions[sliderDimName]
       return val === undefined || val === expectedVal
     })
   }
-  return filteredImages.value
+  return store.filteredImages
 })
 
 // --- CSS Grid placement helpers ---
 
 /** Column offset: data columns start at 2 when row headers present, else 1. */
-const colBase = computed(() => (props.yDimension ? 2 : 1))
+const colBase = computed(() => (yDimension.value ? 2 : 1))
 
 /** Row offset: data rows start at 2 when column headers present, else 1. */
-const rowBase = computed(() => (props.xDimension ? 2 : 1))
+const rowBase = computed(() => (xDimension.value ? 2 : 1))
 
 /** CSS grid-column for the i-th X value (0-based). */
 function colIndex(i: number): number {
@@ -300,12 +167,12 @@ function rowIndex(j: number): number {
 /** Computed grid-template-columns. */
 const gridTemplateColumns = computed(() => {
   const parts: string[] = []
-  if (props.yDimension) parts.push('auto')
-  if (props.xDimension) {
+  if (yDimension.value) parts.push('auto')
+  if (xDimension.value) {
     for (let i = 0; i < xValues.value.length; i++) {
       parts.push(`${cellWidth.value}px`)
     }
-  } else if (props.yDimension) {
+  } else if (yDimension.value) {
     parts.push(`${cellWidth.value}px`)
   }
   return parts.join(' ')
@@ -314,12 +181,12 @@ const gridTemplateColumns = computed(() => {
 /** Computed grid-template-rows. */
 const gridTemplateRows = computed(() => {
   const parts: string[] = []
-  if (props.xDimension) parts.push('auto')
-  if (props.yDimension) {
+  if (xDimension.value) parts.push('auto')
+  if (yDimension.value) {
     for (let j = 0; j < yValues.value.length; j++) {
       parts.push(`${cellHeight.value}px`)
     }
-  } else if (props.xDimension) {
+  } else if (xDimension.value) {
     parts.push(`${cellHeight.value}px`)
   }
   return parts.join(' ')

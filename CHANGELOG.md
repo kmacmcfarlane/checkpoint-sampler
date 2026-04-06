@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### R-012: XYGrid: read grid derivations from store instead of recomputing from props
+- Removed 7 props and 5 duplicated computed properties from XYGrid, reading all grid derivations (filteredImages, imageIndex, xValues, yValues, etc.) from useImageCubeStore instead
+- Eliminates divergence risk between XYGrid's local computation and the store's canonical values (Phase 4 of R-009 Pinia refactor)
+
 ### W-026: Fix pre-existing TS errors and enforce zero-error TypeScript gate in agent pipeline
 - Fixed all pre-existing vue-tsc errors across frontend test files (missing `checkpoint_filenames`, `thumbnail_path`, `total_extra`/`total_invalid_params` fields, unused variables, loosely-typed function parameters)
 - Added `vue-tsc --noEmit` zero-error gate to DEVELOPMENT_PRACTICES.md, code-reviewer.md, and qa-expert.md so TS errors are caught at every pipeline stage

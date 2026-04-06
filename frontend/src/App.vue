@@ -1077,13 +1077,6 @@ async function handleSlideoutValidationRefresh() {
           >No sample images found. Sample images will appear here once generated.</p>
           <template v-else>
             <XYGrid
-              :x-dimension="xDimension"
-              :y-dimension="yDimension"
-              :images="images"
-              :combo-selections="comboSelections"
-              :slider-dimension="sliderDimension"
-              :slider-values="store.cellSliderOverrides"
-              :default-slider-value="defaultSliderValue"
               :cell-size="cellSize"
               :debug-mode="debugMode"
               @update:slider-value="onSliderValueUpdate"
