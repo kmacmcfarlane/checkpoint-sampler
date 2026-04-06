@@ -150,3 +150,15 @@ Create an integration test that runs the full orchestrator merge flow (create tw
 * priority: medium
 * source: developer
 R-010 was filed to address the same root cause as B-115 but was not closed when B-115 shipped. The orchestrator should check if a story's acceptance criteria are already satisfied before dispatching work, or flag stories whose notes reference a root cause addressed by a recently completed story.
+
+### Complete testing→blocked transition documentation
+* status: needs_approval
+* priority: low
+* source: qa
+Add the `testing → blocked` row to the status transitions table in AGENT_FLOW.md section 1.1, add the corresponding Discord notification template in section 9.2, and update section 4.4.2 step 5 to mention BLOCKED alongside approved/rejected. Minor polish gaps from W-025.
+
+### Clarify QA cycle-count signal
+* status: needs_approval
+* priority: low
+* source: qa
+The `review_feedback` field is shared between code reviewer and QA feedback, making QA cycle counting ambiguous. Consider adding a dedicated `qa_cycle_count` field or separate `qa_feedback` field so QA agents can reliably count prior QA cycles without conflating code reviewer feedback.
