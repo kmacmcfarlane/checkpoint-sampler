@@ -6025,3 +6025,150 @@ stories:
     testing:
       - "Verify refresh re-fetches validation data and results update afterward"
       - "Test that loading state displays during the API call"
+  - id: W-025
+    title: "Workflow: enforce no pre-existing E2E failures — block or file bugs"
+    type: workflow
+    status: done
+    priority: 50
+    complexity: medium
+    requires: []
+    notes: >
+      There should be no pre-existing E2E test failures carried forward. Update the agent
+      workflow to enforce two rules: (1) If a ticket cannot pass E2E testing after multiple
+      iterations, QA should move it to blocked status rather than letting it linger. (2) If
+      an E2E failure is truly unrelated to the ticket under test, the QA agent must file a
+      bug ticket (B-prefix) to the backlog for that failure rather than ignoring it or
+      treating it as a known issue. Remove any concept of "known failures" or tolerance for
+      pre-existing E2E breakage.
+    acceptance:
+      - "DOC: AGENT_FLOW.md updated — QA agent must block tickets that fail E2E after multiple iterations"
+      - "DOC: QA agent definition updated — unrelated E2E failures must be filed as B-tickets immediately"
+      - "DOC: No concept of 'known failures' or 'pre-existing failures' tolerance in workflow docs"
+      - "DOC: qa-expert.md updated with explicit instructions for both scenarios"
+    testing:
+      - "Review qa-expert.md and AGENT_FLOW.md to confirm both blocking and bug-filing paths are documented"
+      - "Verify no workflow docs reference tolerating or skipping known E2E failures"
+  - id: W-026
+    title: "Fix pre-existing TS errors and enforce zero-error TypeScript gate in agent pipeline"
+    type: workflow
+    status: done
+    priority: 50
+    complexity: medium
+    requires: []
+    notes: >
+      Two parts: (a) Fix the 28 pre-existing vue-tsc errors in SamplePresetEditor.test.ts
+      (.vm and .props on WrapperLike) and any other TS errors across the frontend. (b) Update
+      agent workflow docs so that TypeScript compiler/linter errors are resolved by the
+      developer agent before moving a ticket to review. Either the code reviewer or QA agent
+      should fail the ticket back to the developer when TypeScript errors exist. This ensures
+      TS errors don't accumulate and mask new regressions.
+    acceptance:
+      - "FE: All pre-existing vue-tsc errors in test files are resolved (zero TS errors)"
+      - "DOC: AGENT_FLOW.md or DEVELOPMENT_PRACTICES.md updated — developer must run vue-tsc with zero errors before moving
+        to review"
+      - "DOC: code-reviewer.md updated — reviewer must fail tickets back to developer if TS errors exist"
+      - "DOC: qa-expert.md updated — QA must reject tickets with TS compiler errors"
+      - "FE: vue-tsc check passes cleanly across the entire frontend"
+    testing:
+      - "Run vue-tsc --noEmit across the frontend and verify zero errors"
+      - "Review agent definition files to confirm the TS gate is documented in all three agent roles"
+  - id: R-011
+    title: "Serialize /api/test/reset endpoint for parallel E2E safety"
+    type: refactor
+    status: done
+    priority: 50
+    complexity: medium
+    requires: []
+    notes: >
+      The DB reset endpoint races under 12-shard parallel E2E load, causing UNIQUE constraint
+      failures on schema_migrations. This is the most common source of E2E flakiness. Add a
+      mutex or SQLite-level serialization to the reset endpoint so concurrent shard resets
+      don't corrupt the migrations table.
+    acceptance:
+      - "BE: /api/test/reset uses a mutex or serialized transaction to prevent concurrent reset races"
+      - "BE: UNIQUE constraint failures on schema_migrations are eliminated under parallel load"
+      - "BE: Unit test verifies concurrent reset calls don't produce errors"
+      - "E2E: Full 12-shard parallel run completes without reset-related failures"
+    testing:
+      - "Run make test-e2e multiple times (3+) to confirm flakiness rate drops"
+      - "Check serialization doesn't introduce deadlocks or excessive wait times under normal shard counts"
+  - id: S-138
+    title: "WebSocket heartbeat/ping-pong mechanism"
+    type: story
+    status: done
+    priority: 30
+    complexity: low
+    requires: []
+    notes: >
+      Implement periodic WebSocket ping frames from the backend to keep idle WebSocket
+      connections alive beyond proxy_read_timeout limits and prevent browser-side idle
+      timeouts. Without this, users on long sessions with no activity silently lose
+      real-time updates (job progress, bead status changes) with no visible indication.
+    acceptance:
+      - "BE: Backend sends periodic WebSocket ping frames on a configurable interval"
+      - "BE: Connection is cleaned up if pong is not received within timeout"
+      - "FE: Frontend detects disconnection from missed pings and auto-reconnects"
+      - "BE: Unit tests for ping/pong lifecycle and timeout cleanup"
+    testing:
+      - "Verify ping interval doesn't cause excessive traffic"
+      - "Test that a connection behind a proxy with a short read timeout stays alive across the ping interval"
+  - id: S-135
+    title: "Failed checkpoint indicator click navigates to failed job in Job List"
+    type: enhancement
+    status: done
+    priority: 30
+    complexity: medium
+    requires: []
+    notes: >
+      In Generate Samples, when a checkpoint shows a failure indicator, clicking it
+      should close the Generate Samples dialog, open the Job List, and scroll to the
+      specific failed job (expanding its failure details in the job card).
+    acceptance:
+      - "FE: Clicking failed checkpoint indicator closes Generate Samples dialog"
+      - "FE: Job List opens and scrolls to the specific failed job"
+      - "FE: Failed job card expands to show failure details"
+      - "FE: Unit tests for navigation flow from failed checkpoint to job list"
+    testing:
+      - "Test the full navigation flow: click failure indicator, verify dialog closes, job list opens, correct job is scrolled
+        into view with expanded failure details"
+      - "Edge case: verify behavior when the failed job has been cleared from the list"
+  - id: R-012
+    title: "XYGrid: read grid derivations from store instead of recomputing from props"
+    type: refactor
+    status: done
+    priority: 40
+    complexity: medium
+    requires: []
+    notes: >
+      XYGrid independently computes filteredImages, imageIndex, xValues, yValues,
+      getImagesBySliderValue, and buildGridNavItems from props — all already computed in
+      useImageCubeStore. The two computation chains have already diverged subtly (inconsistent
+      empty-Set guard). This is Phase 4 of the R-009 Pinia refactor plan. XYGrid should read
+      these derivations from the store directly and become a thin rendering component,
+      eliminating the duplication and divergence risk.
+    acceptance:
+      - "FE: XYGrid reads filteredImages, imageIndex, xValues, yValues from useImageCubeStore"
+      - "FE: XYGrid no longer independently computes values that exist in the store"
+      - "FE: Existing XYGrid unit tests pass with store-backed data"
+      - "FE: No visual or behavioral regression in grid rendering"
+    testing:
+      - "Verify grid renders identically before and after refactor across various dimension/slider combinations"
+      - "Check that removing the duplicated computation doesn't break edge cases like empty filter sets"
+  - id: B-136
+    title: "Colored beads not displayed when Training Run / Study selectors are closed"
+    type: bug
+    status: done
+    priority: 30
+    complexity: low
+    requires: []
+    notes: >
+      In Generate Samples, the Training Run and Study selectors show colored bead
+      status indicators when expanded/open, but the beads are not visible when the
+      selectors are in their closed/collapsed state. Beads should be visible in both
+      states.
+    acceptance:
+      - "FE: Bead status indicators are visible on closed/collapsed Training Run selector"
+      - "FE: Bead status indicators are visible on closed/collapsed Study selector"
+      - "FE: Unit tests for bead rendering in both open and closed selector states"
+    testing:
+      - "Verify beads render correctly with various states (pending, complete, failed) in both open and closed selector positions"
