@@ -5,6 +5,11 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### R-013: Implement State Snapshot for filesystem selectors
+- Training run and study selector API endpoints now serve from an in-memory FSState snapshot instead of rescanning the filesystem on every request, significantly reducing response times
+- Snapshot is populated at startup and refreshed reactively via fsnotify with 500ms debounce; watcher recursively monitors all subdirectories and dynamically adds new ones on creation
+- E2E tests updated to poll for eventual consistency after demo dataset installation (FSState refresh is asynchronous)
+
 ### B-137: Scheduler and sampler dropdowns empty in Study Editor
 - Added static fallback lists for samplers and schedulers when ComfyUI is unavailable or returns empty data, ensuring dropdowns are never empty
 

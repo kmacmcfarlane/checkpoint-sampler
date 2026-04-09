@@ -16,6 +16,13 @@ type SampleJobsService struct {
 	svc       *service.SampleJobService
 	discovery *service.DiscoveryService
 	enabled   bool
+	fsState   *service.FSState
+}
+
+// SetFSState configures the service to serve training run lists from the
+// in-memory FSState snapshot instead of re-scanning the filesystem on each request.
+func (s *SampleJobsService) SetFSState(state *service.FSState) {
+	s.fsState = state
 }
 
 // NewSampleJobsService returns a new SampleJobsService.
@@ -81,10 +88,16 @@ func (s *SampleJobsService) Create(ctx context.Context, p *gensamplejobs.CreateS
 	if !s.enabled {
 		return nil, gensamplejobs.MakeInvalidPayload(fmt.Errorf("sample jobs not available: ComfyUI is not configured"))
 	}
-	// Discover training runs to get checkpoints
-	runs, err := s.discovery.Discover()
-	if err != nil {
-		return nil, gensamplejobs.MakeInvalidPayload(fmt.Errorf("discovering training runs: %w", err))
+	// Discover training runs to get checkpoints (from snapshot when available).
+	var runs []model.TrainingRun
+	if s.fsState != nil {
+		runs = s.fsState.CheckpointRuns()
+	} else {
+		var discErr error
+		runs, discErr = s.discovery.Discover()
+		if discErr != nil {
+			return nil, gensamplejobs.MakeInvalidPayload(fmt.Errorf("discovering training runs: %w", discErr))
+		}
 	}
 
 	// Find the training run by name

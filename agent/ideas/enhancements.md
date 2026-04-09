@@ -176,3 +176,9 @@ Decouple the WebSocket `Hub` from event generation by introducing an internal Go
 * priority: medium
 * source: developer
 Add a comprehensive `Validate()` method to the configuration loading process. This should provide highly descriptive error messages (helping both humans and agents) when required directories are missing, permissions are incorrect, or TOML values are invalid, failing fast at startup rather than at runtime.
+
+### DemoAPIService should trigger FSState re-populate after install/uninstall
+* status: needs_approval
+* priority: low
+* source: qa
+Currently the FSState cache is stale for up to 1s after demo install/uninstall. If DemoAPIService accepted an FSState dependency and called Populate() after install/uninstall, demo runs would appear in the API immediately without polling. This is optional since the debounced fsnotify refresh handles it within ~600ms, but would improve the user experience for any UI that lists training runs right after demo install.

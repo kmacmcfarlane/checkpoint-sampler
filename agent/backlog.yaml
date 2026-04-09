@@ -271,7 +271,7 @@ stories:
   - id: R-013
     title: "Implement State Snapshot for filesystem selectors"
     priority: 50
-    status: todo
+    status: uat
     complexity: medium
     requires: []
     acceptance:

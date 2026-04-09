@@ -20,11 +20,18 @@ type StudiesService struct {
 	svc          *service.StudyService
 	availability *service.StudyAvailabilityService
 	discovery    TrainingRunDiscoverer
+	fsState      *service.FSState
 }
 
 // NewStudiesService returns a new StudiesService.
 func NewStudiesService(svc *service.StudyService, availability *service.StudyAvailabilityService, discovery TrainingRunDiscoverer) *StudiesService {
 	return &StudiesService{svc: svc, availability: availability, discovery: discovery}
+}
+
+// SetFSState configures the service to serve training run lists from the
+// in-memory FSState snapshot instead of re-scanning the filesystem on each request.
+func (s *StudiesService) SetFSState(state *service.FSState) {
+	s.fsState = state
 }
 
 // List returns all saved studies.
@@ -221,10 +228,16 @@ func (s *StudiesService) AffectedRuns(ctx context.Context, p *genstudies.Affecte
 		return nil, genstudies.MakeInternalError(fmt.Errorf("fetching study: %w", err))
 	}
 
-	// Discover all training runs
-	runs, err := s.discovery.Discover()
-	if err != nil {
-		return nil, genstudies.MakeInternalError(fmt.Errorf("discovering training runs: %w", err))
+	// Discover all training runs (from snapshot when available).
+	var runs []model.TrainingRun
+	if s.fsState != nil {
+		runs = s.fsState.CheckpointRuns()
+	} else {
+		var discErr error
+		runs, discErr = s.discovery.Discover()
+		if discErr != nil {
+			return nil, genstudies.MakeInternalError(fmt.Errorf("discovering training runs: %w", discErr))
+		}
 	}
 
 	// For each training run, check if this study has samples
@@ -259,9 +272,15 @@ func (s *StudiesService) Availability(ctx context.Context, p *genstudies.Availab
 		return nil, genstudies.MakeInternalError(fmt.Errorf("listing studies: %w", err))
 	}
 
-	runs, err := s.discovery.Discover()
-	if err != nil {
-		return nil, genstudies.MakeInternalError(fmt.Errorf("discovering training runs: %w", err))
+	var runs []model.TrainingRun
+	if s.fsState != nil {
+		runs = s.fsState.CheckpointRuns()
+	} else {
+		var discErr error
+		runs, discErr = s.discovery.Discover()
+		if discErr != nil {
+			return nil, genstudies.MakeInternalError(fmt.Errorf("discovering training runs: %w", discErr))
+		}
 	}
 
 	if p.TrainingRunID < 0 || p.TrainingRunID >= len(runs) {

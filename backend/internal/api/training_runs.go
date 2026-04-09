@@ -25,6 +25,7 @@ type TrainingRunsService struct {
 	validator            *service.ValidationService
 	watcher              *service.Watcher
 	studyGetter          StudyGetter
+	fsState              *service.FSState
 }
 
 // NewTrainingRunsService returns a new TrainingRunsService.
@@ -32,22 +33,38 @@ func NewTrainingRunsService(viewerDiscovery *service.ViewerDiscoveryService, che
 	return &TrainingRunsService{viewerDiscovery: viewerDiscovery, checkpointDiscovery: checkpointDiscovery, scanner: scanner, validator: validator, watcher: watcher, studyGetter: studyGetter}
 }
 
+// SetFSState configures the service to serve training run lists from the
+// in-memory FSState snapshot instead of re-scanning the filesystem on each request.
+func (s *TrainingRunsService) SetFSState(state *service.FSState) {
+	s.fsState = state
+}
+
 // List returns training runs discovered from either sample output directories
 // (source=samples, the default for the viewer) or checkpoint files
 // (source=checkpoints, for the Generate Samples dialog).
+// When an FSState snapshot is configured, results are served from the in-memory
+// cache (populated at startup, updated reactively via fsnotify).
 func (s *TrainingRunsService) List(ctx context.Context, p *gentrainingruns.ListPayload) ([]*gentrainingruns.TrainingRunResponse, error) {
 	var runs []model.TrainingRun
 	var err error
 
 	if p.Source == "checkpoints" {
-		runs, err = s.checkpointDiscovery.Discover()
-		if err != nil {
-			return nil, gentrainingruns.MakeDiscoveryFailed(fmt.Errorf("discovering checkpoint training runs: %w", err))
+		if s.fsState != nil {
+			runs = s.fsState.CheckpointRuns()
+		} else {
+			runs, err = s.checkpointDiscovery.Discover()
+			if err != nil {
+				return nil, gentrainingruns.MakeDiscoveryFailed(fmt.Errorf("discovering checkpoint training runs: %w", err))
+			}
 		}
 	} else {
-		runs, err = s.viewerDiscovery.DiscoverViewable()
-		if err != nil {
-			return nil, gentrainingruns.MakeDiscoveryFailed(fmt.Errorf("discovering viewable training runs: %w", err))
+		if s.fsState != nil {
+			runs = s.fsState.ViewableRuns()
+		} else {
+			runs, err = s.viewerDiscovery.DiscoverViewable()
+			if err != nil {
+				return nil, gentrainingruns.MakeDiscoveryFailed(fmt.Errorf("discovering viewable training runs: %w", err))
+			}
 		}
 	}
 
@@ -114,9 +131,15 @@ func (s *TrainingRunsService) Validate(ctx context.Context, p *gentrainingruns.V
 	if p.StudyID != nil && *p.StudyID != "" && s.studyGetter != nil {
 		// Study-aware validation path: discover training runs using the checkpoint
 		// source (same source the frontend uses for the Generate Samples dialog).
-		runs, err := s.checkpointDiscovery.Discover()
-		if err != nil {
-			return nil, gentrainingruns.MakeValidationFailed(fmt.Errorf("discovering checkpoint training runs: %w", err))
+		var runs []model.TrainingRun
+		var err error
+		if s.fsState != nil {
+			runs = s.fsState.CheckpointRuns()
+		} else {
+			runs, err = s.checkpointDiscovery.Discover()
+			if err != nil {
+				return nil, gentrainingruns.MakeValidationFailed(fmt.Errorf("discovering checkpoint training runs: %w", err))
+			}
 		}
 
 		if p.ID < 0 || p.ID >= len(runs) {
@@ -155,9 +178,15 @@ func (s *TrainingRunsService) Validate(ctx context.Context, p *gentrainingruns.V
 		}
 	} else {
 		// Viewer validation path (no study context from the caller).
-		runs, err := s.viewerDiscovery.DiscoverViewable()
-		if err != nil {
-			return nil, gentrainingruns.MakeValidationFailed(fmt.Errorf("discovering viewable training runs: %w", err))
+		var runs []model.TrainingRun
+		var err error
+		if s.fsState != nil {
+			runs = s.fsState.ViewableRuns()
+		} else {
+			runs, err = s.viewerDiscovery.DiscoverViewable()
+			if err != nil {
+				return nil, gentrainingruns.MakeValidationFailed(fmt.Errorf("discovering viewable training runs: %w", err))
+			}
 		}
 
 		if p.ID < 0 || p.ID >= len(runs) {
@@ -225,9 +254,15 @@ func (s *TrainingRunsService) Validate(ctx context.Context, p *gentrainingruns.V
 // discovered dimensions. The study name is auto-derived from the training run name
 // (viewer-discovered runs include the study prefix in their name).
 func (s *TrainingRunsService) Scan(ctx context.Context, p *gentrainingruns.ScanPayload) (*gentrainingruns.ScanResultResponse, error) {
-	runs, err := s.viewerDiscovery.DiscoverViewable()
-	if err != nil {
-		return nil, gentrainingruns.MakeScanFailed(fmt.Errorf("discovering viewable training runs: %w", err))
+	var runs []model.TrainingRun
+	var err error
+	if s.fsState != nil {
+		runs = s.fsState.ViewableRuns()
+	} else {
+		runs, err = s.viewerDiscovery.DiscoverViewable()
+		if err != nil {
+			return nil, gentrainingruns.MakeScanFailed(fmt.Errorf("discovering viewable training runs: %w", err))
+		}
 	}
 
 	if p.ID < 0 || p.ID >= len(runs) {

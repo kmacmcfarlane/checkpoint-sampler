@@ -141,17 +141,40 @@ func run() error {
 		workflowsSvc = api.NewWorkflowService(nil)
 	}
 
+	// Create and populate the in-memory filesystem state snapshot. This caches
+	// training run discovery results so that selector API endpoints serve from
+	// memory instead of rescanning the filesystem on every request.
+	fsState := service.NewFSState(discovery, viewerDiscovery, logger)
+	if err := fsState.Populate(); err != nil {
+		logger.WithError(err).Warn("initial FSState population failed, selectors will use empty snapshot until first filesystem event")
+	}
+
+	// Start reactive filesystem watching for the snapshot. A separate fsnotify
+	// watcher monitors checkpoint_dirs and sample_dir for structural changes
+	// (new/removed directories) and triggers snapshot refreshes with debouncing.
+	fsStateNotifier, err := service.NewFSNotifier()
+	if err != nil {
+		return fmt.Errorf("creating FSState filesystem notifier: %w", err)
+	}
+	defer fsStateNotifier.Close()
+
+	watchDirs := append([]string{cfg.SampleDir}, cfg.CheckpointDirs...)
+	fsState.StartWatching(fsStateNotifier, watchDirs)
+	defer fsState.Stop()
+
 	// Create service implementations
 	healthSvc := api.NewHealthService()
 	docsSvc := api.NewDocsService(spec)
 	validationSvc := service.NewValidationService(fs, cfg.SampleDir, logger)
 	trainingRunsSvc := api.NewTrainingRunsService(viewerDiscovery, discovery, scanner, validationSvc, watcher, st)
+	trainingRunsSvc.SetFSState(fsState)
 	presetSvc := service.NewPresetService(st, logger)
 	presetsSvc := api.NewPresetsService(presetSvc)
 	studyAvailSvc := service.NewStudyAvailabilityService(fs, cfg.SampleDir, logger)
 	studyDirRemover := store.NewStudyDirRemover(fs, cfg.SampleDir)
 	studySvc := service.NewStudyService(st, studyAvailSvc, logger).WithSampleRemover(studyDirRemover)
 	studiesSvc := api.NewStudiesService(studySvc, studyAvailSvc, discovery)
+	studiesSvc.SetFSState(fsState)
 	demoSvc := service.NewDemoService(fs, st, cfg.SampleDir, logger)
 	demoAPISvc := api.NewDemoAPIService(demoSvc)
 
@@ -191,10 +214,12 @@ func run() error {
 		defer jobExecutor.Stop()
 
 		sampleJobsSvc = api.NewSampleJobsService(sampleJobSvc, discovery)
+		sampleJobsSvc.SetFSState(fsState)
 	} else {
 		// Create a disabled service when ComfyUI is not configured
 		// dirRemover is nil since there are no jobs to clear
 		sampleJobsSvc = api.NewSampleJobsService(nil, discovery)
+		sampleJobsSvc.SetFSState(fsState)
 	}
 
 	// Create Goa endpoints

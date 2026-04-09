@@ -143,12 +143,19 @@ test.describe('B-078: validation count scoping', () => {
     expect(result.total_actual).toBe(0)
     expect(result.total_verified).toBe(0)
 
-    // Confirm demo run exists separately via viewer discovery (installed correctly)
-    const viewerRunsResp = await request.get('/api/training-runs')
-    expect(viewerRunsResp.ok()).toBeTruthy()
-    const viewerRuns = await viewerRunsResp.json()
-    const demoRun = viewerRuns.find((r: { name: string }) => r.name === 'demo-model/demo-study/demo-model')
-    expect(demoRun).toBeDefined()
+    // Confirm demo run exists separately via viewer discovery (installed correctly).
+    // R-013: The training-runs endpoint now serves from the in-memory FSState snapshot.
+    // The snapshot refreshes reactively after filesystem events (debounced 500ms).
+    // Poll until the demo run appears in the viewer list to account for this async refresh.
+    await expect.poll(
+      async () => {
+        const viewerRunsResp = await request.get('/api/training-runs')
+        if (!viewerRunsResp.ok()) return undefined
+        const viewerRuns = await viewerRunsResp.json()
+        return viewerRuns.find((r: { name: string }) => r.name === 'demo-model/demo-study/demo-model')
+      },
+      { timeout: 5000, intervals: [200, 300, 500, 1000] },
+    ).toBeDefined()
   })
 
   /**

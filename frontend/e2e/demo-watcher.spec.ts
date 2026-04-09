@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, type APIRequestContext } from '@playwright/test'
 import { resetDatabase, selectTrainingRun, selectNaiveOptionByLabel, uninstallDemo } from './helpers'
 
 /**
@@ -31,10 +31,31 @@ test.afterEach(async ({ request }) => {
   await uninstallDemo(request)
 })
 
+/**
+ * Waits for the demo training run to appear in the viewer runs API response.
+ * R-013: The training-runs endpoint now serves from the in-memory FSState snapshot.
+ * After demo install, the snapshot refreshes reactively (debounced 500ms). This
+ * helper polls until the run appears before tests proceed.
+ */
+async function waitForDemoRunInAPI(request: APIRequestContext): Promise<void> {
+  await expect.poll(
+    async () => {
+      const resp = await request.get('/api/training-runs')
+      if (!resp.ok()) return undefined
+      const runs = await resp.json()
+      return runs.find((r: { training_run_dir?: string }) => r.training_run_dir === 'demo-model')
+    },
+    { timeout: 5000, intervals: [200, 300, 500, 1000] },
+  ).toBeDefined()
+}
+
 test.describe('study-scoped watcher paths (B-042)', () => {
   // AC1: Selecting the demo training run does not produce 'failed to watch directory' errors
   // AC2: File watcher correctly resolves nested study directory paths
-  test('selecting the demo training run loads successfully without watcher errors', async ({ page }) => {
+  test('selecting the demo training run loads successfully without watcher errors', async ({ page, request }) => {
+    // R-013: Wait for FSState snapshot to include the demo run before navigating.
+    await waitForDemoRunInAPI(request)
+
     await page.goto('/')
 
     // Select the study-scoped demo training run
@@ -53,6 +74,9 @@ test.describe('study-scoped watcher paths (B-042)', () => {
 
   // AC2: Verify that the demo training run has study-scoped checkpoint structure via API
   test('demo training run API returns study-scoped checkpoints with samples', async ({ request }) => {
+    // R-013: Poll until the demo run appears in the snapshot.
+    await waitForDemoRunInAPI(request)
+
     const response = await request.get('/api/training-runs')
     expect(response.ok()).toBeTruthy()
 
@@ -72,7 +96,10 @@ test.describe('study-scoped watcher paths (B-042)', () => {
   // S-078 UAT rework: Verify demo images render (not broken/404)
   // The scanner must include the study name prefix ("demo-study/") in relative
   // paths so that /api/images/{relPath} resolves to the correct file.
-  test('demo images render in the grid without broken paths (S-078 UAT)', async ({ page }) => {
+  test('demo images render in the grid without broken paths (S-078 UAT)', async ({ page, request }) => {
+    // R-013: Wait for FSState snapshot to include the demo run before navigating.
+    await waitForDemoRunInAPI(request)
+
     await page.goto('/')
 
     // Select the demo training run
@@ -108,6 +135,9 @@ test.describe('study-scoped watcher paths (B-042)', () => {
 
   // S-078 UAT rework: Verify demo image API paths resolve correctly
   test('demo image API returns 200 for study-scoped paths (S-078 UAT)', async ({ request }) => {
+    // R-013: Poll until the demo run appears in the snapshot before querying.
+    await waitForDemoRunInAPI(request)
+
     // List training runs to find the demo run ID
     const runsResponse = await request.get('/api/training-runs')
     expect(runsResponse.ok()).toBeTruthy()
