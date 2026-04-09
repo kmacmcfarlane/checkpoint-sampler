@@ -250,7 +250,7 @@ stories:
   - id: B-137
     title: "Scheduler and sampler dropdowns empty in Study Editor"
     type: bug
-    status: todo
+    status: uat
     priority: 70
     complexity: low
     requires: []

@@ -153,6 +153,116 @@ describe('StudyEditor', () => {
     expect(mockGetComfyUIModels).toHaveBeenCalledWith('scheduler')
   })
 
+  // AC: Sampler dropdown in Study Editor displays all available sampler options
+  it('populates sampler NSelect options from ComfyUI API response', async () => {
+    const wrapper = mount(StudyEditor)
+    await flushPromises()
+
+    // The second NDynamicInput holds sampler/scheduler pairs
+    const dynamicInputs = wrapper.findAllComponents(NDynamicInput)
+    const pairsDynamicInput = dynamicInputs[1]
+    // Confirm the samplerOptions computed prop flows through to the NSelect via the vm
+    const vm = wrapper.vm as unknown as {
+      samplerOptions: Array<{ label: string; value: string }>
+    }
+    expect(vm.samplerOptions).toHaveLength(mockSamplers.models.length)
+    expect(vm.samplerOptions.map((o) => o.value)).toEqual(mockSamplers.models)
+    // Ensure the NDynamicInput for pairs is present (options flow through slot props at runtime)
+    expect(pairsDynamicInput.exists()).toBe(true)
+  })
+
+  // AC: Scheduler dropdown in Study Editor displays all available scheduler options
+  it('populates scheduler NSelect options from ComfyUI API response', async () => {
+    const wrapper = mount(StudyEditor)
+    await flushPromises()
+
+    const vm = wrapper.vm as unknown as {
+      schedulerOptions: Array<{ label: string; value: string }>
+    }
+    expect(vm.schedulerOptions).toHaveLength(mockSchedulers.models.length)
+    expect(vm.schedulerOptions.map((o) => o.value)).toEqual(mockSchedulers.models)
+  })
+
+  // AC: Sampler dropdown uses static fallback when ComfyUI returns empty list
+  it('uses static fallback sampler list when ComfyUI API returns empty models', async () => {
+    mockGetComfyUIModels.mockImplementation((type: string) => {
+      if (type === 'sampler') return Promise.resolve({ models: [] })
+      if (type === 'scheduler') return Promise.resolve(mockSchedulers)
+      return Promise.resolve({ models: [] })
+    })
+
+    const wrapper = mount(StudyEditor)
+    await flushPromises()
+
+    const vm = wrapper.vm as unknown as {
+      samplerOptions: Array<{ label: string; value: string }>
+    }
+    // Fallback list must contain common sampler names
+    expect(vm.samplerOptions.length).toBeGreaterThan(0)
+    const values = vm.samplerOptions.map((o) => o.value)
+    expect(values).toContain('euler')
+    expect(values).toContain('heun')
+  })
+
+  // AC: Scheduler dropdown uses static fallback when ComfyUI returns empty list
+  it('uses static fallback scheduler list when ComfyUI API returns empty models', async () => {
+    mockGetComfyUIModels.mockImplementation((type: string) => {
+      if (type === 'sampler') return Promise.resolve(mockSamplers)
+      if (type === 'scheduler') return Promise.resolve({ models: [] })
+      return Promise.resolve({ models: [] })
+    })
+
+    const wrapper = mount(StudyEditor)
+    await flushPromises()
+
+    const vm = wrapper.vm as unknown as {
+      schedulerOptions: Array<{ label: string; value: string }>
+    }
+    // Fallback list must contain common scheduler names
+    expect(vm.schedulerOptions.length).toBeGreaterThan(0)
+    const values = vm.schedulerOptions.map((o) => o.value)
+    expect(values).toContain('karras')
+    expect(values).toContain('normal')
+  })
+
+  // AC: Sampler dropdown uses static fallback when ComfyUI API call throws
+  it('uses static fallback sampler list when ComfyUI API throws an error', async () => {
+    mockGetComfyUIModels.mockImplementation((type: string) => {
+      if (type === 'sampler') return Promise.reject(new Error('ComfyUI unavailable'))
+      if (type === 'scheduler') return Promise.resolve(mockSchedulers)
+      return Promise.resolve({ models: [] })
+    })
+
+    const wrapper = mount(StudyEditor)
+    await flushPromises()
+
+    const vm = wrapper.vm as unknown as {
+      samplerOptions: Array<{ label: string; value: string }>
+    }
+    expect(vm.samplerOptions.length).toBeGreaterThan(0)
+    const values = vm.samplerOptions.map((o) => o.value)
+    expect(values).toContain('euler')
+  })
+
+  // AC: Scheduler dropdown uses static fallback when ComfyUI API call throws
+  it('uses static fallback scheduler list when ComfyUI API throws an error', async () => {
+    mockGetComfyUIModels.mockImplementation((type: string) => {
+      if (type === 'sampler') return Promise.resolve(mockSamplers)
+      if (type === 'scheduler') return Promise.reject(new Error('ComfyUI unavailable'))
+      return Promise.resolve({ models: [] })
+    })
+
+    const wrapper = mount(StudyEditor)
+    await flushPromises()
+
+    const vm = wrapper.vm as unknown as {
+      schedulerOptions: Array<{ label: string; value: string }>
+    }
+    expect(vm.schedulerOptions.length).toBeGreaterThan(0)
+    const values = vm.schedulerOptions.map((o) => o.value)
+    expect(values).toContain('karras')
+  })
+
   it('loads preset data when preset is selected', async () => {
     const wrapper = mount(StudyEditor)
     await flushPromises()

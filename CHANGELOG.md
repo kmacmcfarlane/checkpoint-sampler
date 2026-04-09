@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-137: Scheduler and sampler dropdowns empty in Study Editor
+- Added static fallback lists for samplers and schedulers when ComfyUI is unavailable or returns empty data, ensuring dropdowns are never empty
+
 ### S-138: WebSocket heartbeat/ping-pong mechanism
 - Backend sends periodic WebSocket ping frames (configurable via `ws_ping_interval`, default 30s) to keep idle connections alive beyond proxy read timeouts; connection is cleaned up on ping write failure
 - Frontend auto-reconnects when the backend closes a dead connection, with unit test traceability for the ping-timeout reconnection path

@@ -159,6 +159,54 @@ const selectedVAE = ref<string | null>(null)
 const selectedCLIP = ref<string | null>(null)
 const shiftValue = ref<number | null>(null)
 
+/**
+ * Static fallback sampler list for when ComfyUI is unavailable or returns no options.
+ * Covers the standard KSampler options shipped with ComfyUI.
+ */
+const FALLBACK_SAMPLERS: string[] = [
+  'euler',
+  'euler_cfg_pp',
+  'euler_ancestral',
+  'euler_ancestral_cfg_pp',
+  'heun',
+  'heunpp2',
+  'dpm_2',
+  'dpm_2_ancestral',
+  'lms',
+  'dpm_fast',
+  'dpm_adaptive',
+  'dpmpp_2s_ancestral',
+  'dpmpp_sde',
+  'dpmpp_sde_gpu',
+  'dpmpp_2m',
+  'dpmpp_2m_sde',
+  'dpmpp_2m_sde_gpu',
+  'dpmpp_3m_sde',
+  'dpmpp_3m_sde_gpu',
+  'ddpm',
+  'lcm',
+  'ipndm',
+  'ipndm_v',
+  'deis',
+  'ddim',
+  'uni_pc',
+  'uni_pc_bh2',
+]
+
+/**
+ * Static fallback scheduler list for when ComfyUI is unavailable or returns no options.
+ * Covers the standard KSampler schedulers shipped with ComfyUI.
+ */
+const FALLBACK_SCHEDULERS: string[] = [
+  'normal',
+  'karras',
+  'exponential',
+  'sgm_uniform',
+  'simple',
+  'ddim_uniform',
+  'beta',
+]
+
 // Available options from ComfyUI
 const availableSamplers = ref<string[]>([])
 const availableSchedulers = ref<string[]>([])
@@ -486,20 +534,22 @@ async function fetchStudies() {
 async function fetchSamplers() {
   try {
     const result = await apiClient.getComfyUIModels('sampler')
-    availableSamplers.value = result.models
+    // Fall back to static list when ComfyUI is unavailable or returns no options
+    availableSamplers.value = result.models.length > 0 ? result.models : FALLBACK_SAMPLERS
   } catch {
-    // Silently fail - ComfyUI might not be available
-    availableSamplers.value = []
+    // ComfyUI might not be available — use static fallback list so the dropdown is not empty
+    availableSamplers.value = FALLBACK_SAMPLERS
   }
 }
 
 async function fetchSchedulers() {
   try {
     const result = await apiClient.getComfyUIModels('scheduler')
-    availableSchedulers.value = result.models
+    // Fall back to static list when ComfyUI is unavailable or returns no options
+    availableSchedulers.value = result.models.length > 0 ? result.models : FALLBACK_SCHEDULERS
   } catch {
-    // Silently fail - ComfyUI might not be available
-    availableSchedulers.value = []
+    // ComfyUI might not be available — use static fallback list so the dropdown is not empty
+    availableSchedulers.value = FALLBACK_SCHEDULERS
   }
 }
 

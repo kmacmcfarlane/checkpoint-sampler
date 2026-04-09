@@ -7,7 +7,7 @@ export default defineConfig({
   retries: 0,
   workers: 1,
   reporter: [['list'], ['html', { open: 'never' }]],
-  timeout: 15000,
+  timeout: 30000,
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000',
     headless: true,

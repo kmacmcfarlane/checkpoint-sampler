@@ -143,34 +143,56 @@ export async function selectTrainingRun(page: Page, runName: string): Promise<vo
   // Wait for the select to finish loading — Naive UI adds the
   // .n-base-selection--disabled class while loading is true.
   // We wait for that class to disappear before clicking.
-  await expect(selectTrigger.locator('.n-base-selection--disabled')).toHaveCount(0)
+  // Use an extended timeout (15s) because under 12-shard parallel load the
+  // frontend can take longer than the default 5s to finish its initial fetch.
+  await expect(selectTrigger.locator('.n-base-selection--disabled')).toHaveCount(0, { timeout: 15000 })
 
-  // Retry clicking the trigger up to 3 times. The NDrawer's slide-in
-  // animation can cause the first click to be swallowed before the drawer
-  // content is fully interactive. Each retry waits briefly, then dismisses
-  // any stale focus state with Escape before re-clicking.
+  // Retry the full open→select flow up to MAX_RETRIES times.
+  // Under 12-shard parallel load the popup can dismiss unexpectedly between
+  // the trigger click and the option click due to CPU starvation or a transient
+  // Naive UI re-render. Each outer retry reopens the popup from scratch.
   const popupMenu = page.locator('.n-base-select-menu:visible')
-  const MAX_RETRIES = 3
+  const MAX_RETRIES = 5
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    // Step 1: open the popup, retrying once if the first click is swallowed.
     await selectTrigger.click()
-    try {
-      await expect(popupMenu).toBeVisible({ timeout: 3000 })
-      break // popup appeared, exit the retry loop
-    } catch {
-      if (attempt === MAX_RETRIES) {
-        // Final attempt failed — throw a clear error
-        throw new Error(
-          `selectTrainingRun: popup menu did not appear after ${MAX_RETRIES} click attempts on [data-testid="training-run-select"]`
-        )
-      }
-      // Dismiss any partial state (e.g. focused input without popup) before retrying
+    const popupVisible = await expect(popupMenu).toBeVisible({ timeout: 4000 }).then(() => true).catch(() => false)
+    if (!popupVisible) {
+      // First click was swallowed — dismiss any partial state and retry the open step.
       await page.keyboard.press('Escape')
       await page.waitForTimeout(300)
+      await selectTrigger.click()
+      try {
+        await expect(popupMenu).toBeVisible({ timeout: 4000 })
+      } catch {
+        if (attempt === MAX_RETRIES) {
+          throw new Error(
+            `selectTrainingRun: popup menu did not appear after ${MAX_RETRIES} attempts on [data-testid="training-run-select"]`
+          )
+        }
+        await page.keyboard.press('Escape')
+        await page.waitForTimeout(300)
+        continue // try the whole open→select flow again
+      }
+    }
+
+    // Step 2: click the option. If the popup dismisses before the click lands
+    // (CPU starvation causing a race), retry the entire flow.
+    try {
+      await popupMenu.getByText(runName, { exact: true }).click({ timeout: 5000 })
+      await expect(popupMenu).not.toBeVisible({ timeout: 3000 })
+      return // success
+    } catch {
+      if (attempt === MAX_RETRIES) {
+        throw new Error(
+          `selectTrainingRun: failed to click option "${runName}" after ${MAX_RETRIES} attempts`
+        )
+      }
+      // Popup dismissed before we could click — dismiss stale state and retry.
+      await page.keyboard.press('Escape').catch(() => undefined)
+      await page.waitForTimeout(500)
     }
   }
-
-  await popupMenu.getByText(runName, { exact: true }).click()
-  await expect(popupMenu).not.toBeVisible()
 }
 
 /**
