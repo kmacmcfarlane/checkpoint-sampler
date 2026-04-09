@@ -91,3 +91,9 @@ The DB reset endpoint races under 12-shard parallel load, causing UNIQUE constra
 * priority: low
 * source: qa
 Shard-3 suffered a complete DNS resolution failure (`ENOTFOUND frontend`) affecting all tests in that shard. Consider adding a startup health check that retries DNS resolution before the Playwright process starts, to surface infrastructure failures more clearly and potentially retry the shard.
+
+### Reduce default E2E shard count or add per-host override
+* status: needs_approval
+* priority: medium
+* source: qa
+The Makefile hardcodes 12 shards, which can exhaust host resources (12 shards × ~6 containers = ~72 containers). Under load, CPU starvation causes Naive UI popup race conditions and timeout failures. A lower default (4-6 shards) or a `SHARDS_HOST` env var read from a local `.env` file would prevent recurrence.
