@@ -159,8 +159,20 @@ XYGrid independently computes `filteredImages`, `imageIndex`, `xValues`, `yValue
 * source: reviewer
 `useDimensionMapping.ts` is now a thin read-only wrapper around `useImageCubeStore`. App.vue still imports it for backward compatibility. Once App.vue and any other consumers are migrated to use the store directly, the wrapper and its test file can be deleted. This is Phase 8 of the R-009 plan.
 
-### Auto-refresh study availability on study create/update/delete
+### Centralized Path Sanitization
 * status: needs_approval
-* priority: low
+* priority: high
 * source: developer
-Currently `studyAvailability` is only refreshed when `selectedTrainingRunId` changes. If a study is created or deleted while the dialog is open, the availability data is stale until the user re-selects the training run. A `watch` on study store events or a refresh trigger after Manage Studies dialog close would keep the button label state current without user intervention.
+Implement a dedicated `pathutil` package to ensure all filesystem operations (especially `os.RemoveAll` and `os.Open`) are strictly bound to the configured root directories. This prevents potential path traversal vulnerabilities by verifying the absolute resulting path always starts with the absolute root path.
+
+### Domain Event Bus
+* status: needs_approval
+* priority: medium
+* source: developer
+Decouple the WebSocket `Hub` from event generation by introducing an internal Go event bus. This allows the Hub to be a simple subscriber and enables other system components (logging, auditing, metadata updates) to react to filesystem events without tight coupling to the WebSocket logic.
+
+### Robust Startup Configuration Validation
+* status: needs_approval
+* priority: medium
+* source: developer
+Add a comprehensive `Validate()` method to the configuration loading process. This should provide highly descriptive error messages (helping both humans and agents) when required directories are missing, permissions are incorrect, or TOML values are invalid, failing fast at startup rather than at runtime.

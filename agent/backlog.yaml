@@ -268,3 +268,22 @@ stories:
     testing:
       - "Check what changed in the scheduler/sampler data flow — options may come from backend API or a static list. Test
         both the fetch path and the binding to NSelect options prop."
+  - id: R-013
+    title: "Implement State Snapshot for filesystem selectors"
+    priority: 50
+    status: todo
+    complexity: medium
+    requires: []
+    acceptance:
+      - "BE: Implement in-memory FSState snapshot for training runs and studies"
+      - "BE: Populate snapshot on backend startup"
+      - "BE: Update snapshot reactively via existing fsnotify watcher"
+      - "BE: Update API endpoints for training run and study selectors to serve from snapshot"
+      - "BE: Verify that selector API response time is significantly reduced"
+      - "BE: Unit tests for snapshot updates and API delivery"
+    notes: |
+      Solves runtime lag in training run and study selectors by replacing recursive filesystem scans with an in-memory snapshot. 
+      Updates are handled reactively by the existing watcher.
+      Key files: backend/internal/service/scanner.go, backend/internal/service/watcher.go, backend/internal/service/hub.go.
+    testing:
+      - "command: make test-backend"
