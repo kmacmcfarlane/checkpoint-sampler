@@ -53,48 +53,50 @@ claude-templates/
 - The `local-web-app/` prefix is required when constructing upstream paths
 - 11 files are synced: 6 agent docs + 5 subagent definitions
 
-## claude-skills
+## claude-plugins (skills marketplace — source of truth)
 
-- **Repo**: `kmacmcfarlane/claude-skills`
-- **Expected local path**: Sibling to project root (`../claude-skills`)
-- **Marker**: `skills/` directory exists
-- **Purpose**: Reusable Claude Code skills shared across projects.
+- **Repo**: `kmacmcfarlane/claude-plugins`
+- **Expected local path**: Sibling to project root (`../claude-plugins`)
+- **Marker**: `.claude-plugin/marketplace.json` exists
+- **Purpose**: Plugin marketplace bundling reusable Claude Code skills into installable plugins. Replaces the deprecated `claude-skills` repo.
 
 ### Structure
 
 ```
-claude-skills/
+claude-plugins/
 ├── README.md
 ├── LICENSE
-├── bin/
-│   ├── install-claude-skills-user      (installs all skills to ~/.claude/skills/)
-│   └── install-claude-skills-project   (installs all skills to <project>/.claude/skills/)
-└── skills/
-    ├── create-skill/          (meta-skill for creating new skills)
-    │   ├── SKILL.md
-    │   └── references/
-    ├── goa/                   (Goa API framework)
-    │   ├── SKILL.md
-    │   └── references/
-    ├── musubi-tuner/          (LoRA training)
-    │   ├── SKILL.md
-    │   └── references/
-    ├── playwright/            (E2E testing)
-    │   ├── SKILL.md
-    │   └── references/
-    ├── update-kit/            (this skill)
-    │   ├── SKILL.md
-    │   └── references/
-    └── <future-skills>/
-        ├── SKILL.md
-        └── references/
+├── .claude-plugin/
+│   └── marketplace.json       (declares plugin namespaces)
+└── plugins/
+    ├── claude-kit/            (the dev tooling plugin — what this skill syncs to)
+    │   └── skills/
+    │       ├── create-skill/          (meta-skill for creating new skills)
+    │       │   ├── SKILL.md
+    │       │   └── references/
+    │       ├── goa/                   (Goa API framework)
+    │       ├── musubi-tuner/          (LoRA training)
+    │       ├── playwright/            (E2E testing)
+    │       ├── backlog-yaml/          (backlog CLI reference)
+    │       ├── backlog-entry/         (interactive ticket creation)
+    │       ├── backlog-grooming/      (UAT review sessions)
+    │       ├── update-kit/            (this skill)
+    │       │   ├── SKILL.md
+    │       │   └── references/
+    │       ├── sandbox/               (claude-sandbox config)
+    │       └── sync-claude-kit-skills (internal sync helper)
+    ├── mcfacehead/            (homelab infrastructure namespace)
+    │   └── skills/...
+    └── ai-scripts/            (ai-scripts namespace)
+        └── skills/...
 ```
 
 ### Key facts
-- Each skill is a directory under `skills/` containing at minimum `SKILL.md`
-- Install scripts copy skill directories into projects (no symlinks)
+- Each skill is a directory under `plugins/<namespace>/skills/` containing at minimum `SKILL.md`
 - Skill directory names must match the `name` field in SKILL.md frontmatter
-- When syncing upstream, copy the entire directory tree
+- When syncing upstream, copy the entire directory tree to `plugins/claude-kit/skills/<name>/`
+- The legacy `claude-skills/` repo is **deprecated** — do NOT sync to it. If a `../claude-skills/` directory exists, ignore it.
+- After pushing changes to claude-plugins, projects subscribed to the marketplace can install/update affected skills with the `/plugins` slash command in Claude Code.
 
 ## claude-sandbox
 
@@ -130,7 +132,7 @@ claude-sandbox/
 
 Each child project maintains `agent/claude-kit-repo-map.md` (lives in the project, NOT in this skill). It declares:
 
-1. **Which skills sync upstream** — skills that originated in this project and should be pushed to claude-skills
+1. **Which skills sync upstream** — skills that originated in this project and should be pushed to claude-plugins (`plugins/claude-kit/skills/`)
 2. **Additional template files** — extra files beyond the 11 universal ones for claude-templates
 3. **Sandbox files** — if a project ever needs to sync files to claude-sandbox (uncommon)
 

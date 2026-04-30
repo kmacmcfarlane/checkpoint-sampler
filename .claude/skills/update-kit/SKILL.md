@@ -1,6 +1,6 @@
 ---
 name: update-kit
-description: Sync agent workflow files, subagent definitions, and skills from this project back to the upstream claude-templates, claude-skills, and claude-sandbox repos (part of kmac-claude-kit). Use when user says "sync upstream", "update templates", "update kit", "push changes to claude-templates", "propagate to claude-skills", or "sync skills". User-invoked only.
+description: Sync agent workflow files, subagent definitions, and skills from this project back to the upstream claude-templates, claude-plugins (skills marketplace), and claude-sandbox repos (part of claude-kit). Use when user says "sync upstream", "update templates", "update kit", "push changes to claude-templates", "propagate skills", or "sync skills". User-invoked only.
 disable-model-invocation: true
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion, TaskCreate, TaskUpdate
 argument-hint: "[files|skills|all]"
@@ -37,11 +37,13 @@ PROJECT_ROOT=$(git rev-parse --show-toplevel)
 PARENT=$(dirname "$PROJECT_ROOT")
 PROJECT_NAME=$(basename "$PROJECT_ROOT")
 TEMPLATES="$PARENT/claude-templates/local-web-app"
-SKILLS="$PARENT/claude-skills"
-KIT="$PARENT/kmac-claude-kit"
+# claude-plugins is the marketplace and source of truth for skills.
+# The legacy `claude-skills` repo is deprecated and must not be touched.
+SKILLS="$PARENT/claude-plugins/plugins/claude-kit/skills"
+KIT="$PARENT/claude-kit"
 ```
 
-Verify sibling repos exist. If any are missing, report which and continue with available repos (kmac-claude-kit is optional but recommended).
+Verify sibling repos exist. If any are missing, report which and continue with available repos (claude-kit is optional but recommended). If you find a `claude-skills` directory at `$PARENT/claude-skills`, **ignore it** — it is the deprecated standalone-skills repo, superseded by the claude-plugins marketplace.
 
 ### Step 0.2: Dynamic template diff (replaces hardcoded file list)
 
@@ -93,14 +95,14 @@ For the `agent/ideas/` directory specifically: sync the **directory structure an
 
 ### Step 0.3: Dynamic skills diff
 
-Scan ALL skills in the project (`.claude/skills/*/SKILL.md`) and compare against the upstream claude-skills repo. Do NOT rely on `claude-kit-repo-map.md` for the scan — discover skills dynamically.
+Scan ALL skills in the project (`.claude/skills/*/SKILL.md`) and compare against the `claude-kit` plugin in claude-plugins (`$SKILLS`). Do NOT rely on `claude-kit-repo-map.md` for the scan — discover skills dynamically.
 
 For each project skill:
 - If it exists upstream: diff all files in the skill directory → `[M]`, `[=]`
 - If it does NOT exist upstream: mark as `[A?]` (candidate for upstream — needs triage)
 - Read the skill's SKILL.md and check for project-specific content (project name, domain terms). Classify as "generic" or "project-specific".
 
-For each upstream-only skill (exists in claude-skills but not in project): mark as `[D?]` (informational — the project may not use this skill).
+For each upstream-only skill (exists in claude-plugins but not in project): mark as `[D?]` (informational — the project may not use this skill).
 
 ### Step 0.4: Reverse-diff (template → project)
 
@@ -144,14 +146,14 @@ Present the full scan results to the user, organized by repo:
 [=] .claude/skills/playwright/
 ...
 
-## claude-skills
+## claude-plugins (claude-kit plugin → skills/)
 
 ### Skills
-[M] skills/update-kit/SKILL.md (generic improvement — 2 lines changed)
+[M] update-kit/SKILL.md (generic improvement — 2 lines changed)
 [A?] backlog-yaml/ (project-only, appears generic — recommend upstream)
 [A?] backlog-entry/ (project-only, appears generic — recommend upstream)
 [A?] comfyui-api/ (project-only, project-specific — skip)
-[=] skills/playwright/
+[=] playwright/
 ...
 ```
 
@@ -162,7 +164,7 @@ Then use **TaskCreate** to build a checklist. Create one task per file or logica
 - Each `[M]` classified as "mixed" → task: "Review and genericize <file>"
 - Each `[A]` → task: "Add <file> to template"
 - Each `[D-template]` → task: "Remove <file> from template (confirm with user)"
-- Each `[A?]` generic skill → task: "Sync <skill> to claude-skills"
+- Each `[A?]` generic skill → task: "Sync <skill> to claude-plugins (claude-kit plugin)"
 - Group "project-specific" skips into a single informational task
 
 Present the task list to the user and ask for confirmation before proceeding:
@@ -223,7 +225,7 @@ After each file is synced and verified, update the task status to `completed`.
 ### Step 2.1: Process each skill task
 
 For `[A?]` skills classified as generic:
-1. Copy the entire skill directory to `claude-skills/skills/<name>/`
+1. Copy the entire skill directory to `$SKILLS/<name>/` (i.e. `claude-plugins/plugins/claude-kit/skills/<name>/` — the marketplace source of truth)
 2. Copy to `claude-templates/local-web-app/.claude/skills/<name>/` as well (so new projects get the skill)
 3. Run genericization verification on each file in the skill
 
@@ -240,9 +242,9 @@ If any new skills were synced upstream, update `agent/claude-kit-repo-map.md` to
 
 ---
 
-## Phase 2.5: Update kmac-claude-kit README
+## Phase 2.5: Update claude-kit README
 
-The `kmac-claude-kit` repo contains the umbrella README that documents the entire toolkit — components, agent pipeline, tooling, workflow, and skills reference. This README must stay current as the toolkit evolves.
+The `claude-kit` repo (formerly `kmac-claude-kit`) contains the umbrella README that documents the entire toolkit — components, agent pipeline, tooling, workflow, and skills reference. This README must stay current as the toolkit evolves.
 
 ### Step 2.5.1: Check for README drift
 
@@ -251,7 +253,7 @@ If the `$KIT` repo exists, read `$KIT/README.md` and compare against the current
 - **Tree diagram**: Does it reflect the current project structure (agent docs, scripts, skills, MCP servers)?
 - **Agent pipeline**: Does it describe the current story lifecycle and subagent roles?
 - **Tooling section**: Are all scripts (backlog.py, worktree.py, merge_helper.py) documented?
-- **Skills reference table**: Does it list all skills currently in claude-skills?
+- **Skills reference table**: Does it list all skills currently in claude-plugins (`claude-kit` plugin)?
 - **Workflow section**: Does it cover parallel execution, UAT grooming, upstream sync?
 
 ### Step 2.5.2: Update if needed
@@ -295,12 +297,12 @@ Show a concise summary organized by repo:
 - Removed: 1 file (IDEAS.md → replaced by ideas/ directory)
 - Skipped (project-specific): 3 files
 
-### claude-skills
+### claude-plugins (claude-kit plugin)
 - Modified: 1 skill (update-kit)
 - Added: 3 skills (backlog-yaml, backlog-entry, backlog-grooming)
 - Skipped (project-specific): 1 skill (comfyui-api)
 
-### kmac-claude-kit
+### claude-kit
 - README.md updated (agent pipeline, skills reference, tooling sections)
 
 ### Project
@@ -308,9 +310,11 @@ Show a concise summary organized by repo:
 
 Remember to commit and push in:
   - /path/to/claude-templates
-  - /path/to/claude-skills
-  - /path/to/kmac-claude-kit (if README changed)
+  - /path/to/claude-plugins   ← marketplace; NOT the deprecated claude-skills repo
+  - /path/to/claude-kit (if README changed)
   - /path/to/project (if repo map changed)
+
+After pushing claude-plugins, projects subscribed to the marketplace can install or update the affected skills with the `/plugins` slash command in Claude Code (it pulls the latest from the marketplace).
 ```
 
 ### Step 3.3: All tasks completed
@@ -343,10 +347,12 @@ The sibling repos must be checked out alongside this project:
 parent-directory/
   your-project/        (this project)
   claude-templates/    (template repo)
-  claude-skills/       (skills repo)
-  kmac-claude-kit/     (umbrella repo, optional — for README sync)
+  claude-plugins/      (skills marketplace — source of truth)
+  claude-kit/          (umbrella repo, optional — for README sync)
   claude-sandbox/      (sandbox repo, optional)
 ```
+
+Note: a legacy `claude-skills/` directory may exist alongside these. It is **deprecated** in favor of the claude-plugins marketplace — do not sync to it.
 
 ### Merge conflicts
 This skill does a one-way overwrite (project → upstream). If the upstream has changes not present in this project, those will be lost. Check `git diff` in the upstream repo before syncing if you suspect divergence.
