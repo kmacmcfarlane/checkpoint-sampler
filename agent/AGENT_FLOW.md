@@ -134,6 +134,74 @@ A story may declare a `requires` field listing the IDs of stories that must be c
 - `requires` dependencies are transitive in effect: if S-009 requires S-008, and S-008 requires S-007, then S-009 cannot start until both S-007 and S-008 are done or uat.
 - A story may be both `requires`-gated and `blocked` — these are independent conditions.
 
+#### Spike-reviewed gates (`requires_reviewed`)
+
+A story may declare `requires_reviewed: [S-xxx]` to indicate it is blocked until
+the listed stories reach `done` status (not just `uat`). This is stronger than
+`requires` and is used when downstream stories depend on the **user's review and
+approval** of a spike's output — not just the spike's completion.
+
+- `requires_reviewed` stories are not eligible until all listed dependencies have
+  `status: done`.
+- Use case: research spikes produce recommendations that the user must evaluate
+  before implementation stories can begin.
+
+#### Ticket modes (`ticket_mode`)
+
+Stories have a `ticket_mode` that controls dispatch:
+
+- **`autonomous`** (default, field omitted): Runs fully via Ralph. Normal lifecycle.
+- **`interactive`**: Requires real-time user participation throughout. Ralph skips
+  entirely (`--non-interactive` flag).
+- **`mixed`**: Has autonomous and interactive phases. Ralph picks these up and
+  executes the autonomous portion only.
+
+##### Mixed-mode workflow
+
+1. Ralph claims the story normally (todo → in_progress).
+2. Fullstack engineer works all AC that do NOT have the `[INTERACTIVE]` prefix.
+3. Story proceeds to review normally (in_progress → review).
+4. Code reviewer validates: all non-interactive AC are complete and meet quality bar.
+5. After reviewer approval of autonomous AC:
+   - Orchestrator sets `status: blocked`
+   - Orchestrator sets `blocked_reason: "Autonomous phase complete. Interactive
+     session needed for: <list of [INTERACTIVE] AC>"`
+6. Story remains blocked until user starts an interactive session.
+7. In interactive session: user unblocks (status → in_progress), remaining
+   `[INTERACTIVE]` AC are completed, normal lifecycle resumes.
+
+##### AC convention for mixed stories
+
+Interactive acceptance criteria MUST be prefixed with `[INTERACTIVE]`:
+
+```yaml
+acceptance:
+  - "DOC: Recommendation doc at docs/spike-output.md"
+  - "DOC: Evaluates approaches on criteria X, Y, Z"
+  - "[INTERACTIVE] DOC: Proof-of-concept execution with user credentials"
+```
+
+The `[INTERACTIVE]` prefix is the machine-readable boundary. The fullstack
+engineer and reviewer use it to determine which AC belong to which phase.
+
+##### Research spikes
+
+Research spikes follow the **autonomous research + user review** model:
+
+1. **Autonomous phase**: the agent runs autonomously (Ralph mode). It performs web
+   searches (via subagents), evaluates libraries, and produces a recommendation
+   document in `docs/`.
+2. **Review phase**: the spike enters `uat` via the normal story lifecycle. The user
+   reviews the recommendation document and either approves (`done`) or provides
+   feedback (`uat_feedback`) for iteration.
+3. **Gate release**: downstream stories using `requires_reviewed` become eligible
+   only after the user moves the spike to `done`.
+
+Spikes with `ticket_mode: mixed` run their autonomous research through the full
+review cycle, then block for the interactive PoC phase. Fully autonomous spikes
+(no `ticket_mode` or `ticket_mode: autonomous`) proceed through the entire
+lifecycle without blocking.
+
 ### 1.3 Review feedback
 
 When a code reviewer or QA expert returns a story to `in_progress`, they record feedback in the `review_feedback` field of the story in backlog.yaml. This field is a free-text string describing what needs to change. The fullstack engineer reads this field when resuming work on the story and clears it when setting status to `review` again.

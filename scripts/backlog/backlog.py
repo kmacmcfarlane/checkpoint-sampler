@@ -44,10 +44,14 @@ OPTIONAL_STORY_FIELDS = (
     "blocked_reason",
     "metrics",
     "claimed_by",
+    "requires_reviewed",
+    "ticket_mode",
 )
 
+VALID_TICKET_MODES = frozenset({"autonomous", "interactive", "mixed"})
+
 SCALAR_SET_FIELDS = frozenset(
-    {"status", "priority", "complexity", "blocked_reason", "title"}
+    {"status", "priority", "complexity", "blocked_reason", "title", "ticket_mode"}
 )
 TEXT_SET_FIELDS = frozenset(
     {"review_feedback", "notes", "blocked_reason"}
@@ -270,18 +274,65 @@ def _requires_satisfied(story: CommentedMap, all_stories: list[CommentedMap]) ->
 
     satisfied_statuses = frozenset({"done", "uat", "uat_feedback", "closed"})
 
-    def _check(story_id: str, visited: set[str]) -> bool:
-        if story_id in visited:
+    def _check(story_id: str, path: set[str]) -> bool:
+        if story_id in path:
             return False  # Circular dependency
-        visited.add(story_id)
+        path.add(story_id)
         if status_map.get(story_id) not in satisfied_statuses:
+            path.discard(story_id)
             return False
         for dep_id in requires_map.get(story_id, []):
-            if not _check(dep_id, visited):
+            if not _check(dep_id, path):
+                path.discard(story_id)
                 return False
+        path.discard(story_id)
         return True
 
     for req_id in requires:
+        if not _check(req_id, set()):
+            return False
+    return True
+
+
+def _requires_reviewed_satisfied(story: CommentedMap, all_stories: list[CommentedMap]) -> bool:
+    """Check if all requires_reviewed dependencies are satisfied (status: done or closed only).
+
+    Unlike _requires_satisfied, this requires the dependency to have been fully
+    reviewed by the user (status: done), not just merged to main (uat).
+    Used for spike stories whose output must be reviewed before dependents can start.
+
+    Handles transitive dependencies and circular dependency detection.
+    """
+    requires_reviewed = story.get("requires_reviewed")
+    if not isinstance(requires_reviewed, list) or len(requires_reviewed) == 0:
+        return True
+
+    status_map = {s.get("id"): s.get("status") for s in all_stories if s.get("id")}
+    requires_map: dict[str, list] = {}
+    for s in all_stories:
+        sid = s.get("id")
+        if sid:
+            reqs = s.get("requires_reviewed")
+            reqs = reqs if isinstance(reqs, list) else []
+            requires_map[sid] = reqs
+
+    satisfied_statuses = frozenset({"done", "closed"})
+
+    def _check(story_id: str, path: set[str]) -> bool:
+        if story_id in path:
+            return False  # Circular dependency
+        path.add(story_id)
+        if status_map.get(story_id) not in satisfied_statuses:
+            path.discard(story_id)
+            return False
+        for dep_id in requires_map.get(story_id, []):
+            if not _check(dep_id, path):
+                path.discard(story_id)
+                return False
+        path.discard(story_id)
+        return True
+
+    for req_id in requires_reviewed:
         if not _check(req_id, set()):
             return False
     return True
@@ -338,6 +389,16 @@ def validate_story(
     if "requires" in story and not isinstance(story["requires"], list):
         errors.append(f"{sid}: 'requires' must be a list")
 
+    if "requires_reviewed" in story and not isinstance(story["requires_reviewed"], list):
+        errors.append(f"{sid}: 'requires_reviewed' must be a list")
+
+    if "ticket_mode" in story and story["ticket_mode"] is not None:
+        if story["ticket_mode"] not in VALID_TICKET_MODES:
+            errors.append(
+                f"{sid}: invalid ticket_mode '{story['ticket_mode']}' "
+                f"(valid: {', '.join(sorted(VALID_TICKET_MODES))})"
+            )
+
     if "acceptance" in story:
         if not isinstance(story["acceptance"], list) or len(story["acceptance"]) == 0:
             errors.append(f"{sid}: 'acceptance' must be a non-empty list")
@@ -357,6 +418,11 @@ def validate_story(
             for req in story["requires"]:
                 if req not in all_known_ids:
                     warnings.append(f"{sid}: requires '{req}' not found in any backlog")
+
+        if all_known_ids and "requires_reviewed" in story and isinstance(story["requires_reviewed"], list):
+            for req in story["requires_reviewed"]:
+                if req not in all_known_ids:
+                    warnings.append(f"{sid}: requires_reviewed '{req}' not found in any backlog")
 
         known_fields = set(REQUIRED_STORY_FIELDS) | set(OPTIONAL_STORY_FIELDS)
         for key in story:
@@ -468,8 +534,22 @@ def cmd_query(args) -> int:
     if args.check_requires:
         all_stories = _get_all_stories(backlog_path, done_path)
         results = [s for s in results if _requires_satisfied(s, all_stories)]
+        results = [s for s in results if _requires_reviewed_satisfied(s, all_stories)]
+
+    if args.exclude_interactive:
+        results = [s for s in results if s.get("ticket_mode") != "interactive"]
 
     fields = [f.strip() for f in args.fields.split(",")] if args.fields else None
+
+    # Compute virtual 'blocked_by' field if requested
+    if fields and "blocked_by" in fields:
+        all_stories = _get_all_stories(backlog_path, done_path)
+        for story in results:
+            deps = _compute_blocked_by(story, all_stories)
+            story["blocked_by"] = ", ".join(
+                f"{d['id']}({d['gate']},{d['status']})" for d in deps
+            ) if deps else ""
+
     output_stories(results, args.format, fields)
     return 0
 
@@ -602,6 +682,13 @@ def cmd_next_work(args) -> int:
 
         all_stories = _get_all_stories(backlog_path, done_path)
         todo = [s for s in todo if _requires_satisfied(s, all_stories)]
+        todo = [s for s in todo if _requires_reviewed_satisfied(s, all_stories)]
+
+        # In non-interactive mode, skip stories with ticket_mode=interactive
+        # (mixed stories are eligible — they run their autonomous phase)
+        non_interactive = getattr(args, "non_interactive", False)
+        if non_interactive:
+            todo = [s for s in todo if s.get("ticket_mode") != "interactive"]
 
         if todo:
             # Bugs first
@@ -752,6 +839,14 @@ def cmd_set(args) -> int:
                 file=sys.stderr,
             )
             return 1
+    elif field == "ticket_mode":
+        if value not in VALID_TICKET_MODES:
+            print(
+                f"ERROR: Invalid ticket_mode '{value}' "
+                f"(valid: {', '.join(sorted(VALID_TICKET_MODES))})",
+                file=sys.stderr,
+            )
+            return 1
 
     story[field] = value
 
@@ -864,29 +959,96 @@ def cmd_archive(args) -> int:
     return 0
 
 
+def _compute_blocked_by(story: CommentedMap, all_stories: list[CommentedMap]) -> list[dict]:
+    """Return list of unsatisfied dependencies with reason."""
+    blocked_by = []
+    status_map = {s.get("id"): s.get("status") for s in all_stories if s.get("id")}
+    satisfied_statuses = frozenset({"done", "uat", "uat_feedback", "closed"})
+    reviewed_statuses = frozenset({"done", "closed"})
+
+    for req_id in story.get("requires") or []:
+        st = status_map.get(req_id)
+        if st not in satisfied_statuses:
+            blocked_by.append({"id": req_id, "gate": "requires", "status": st or "missing"})
+
+    for req_id in story.get("requires_reviewed") or []:
+        st = status_map.get(req_id)
+        if st not in reviewed_statuses:
+            blocked_by.append({"id": req_id, "gate": "requires_reviewed", "status": st or "missing"})
+
+    return blocked_by
+
+
 def cmd_status(args) -> int:
-    """Show count of tickets grouped by status."""
+    """Show backlog status with dependency-aware breakdown."""
     backlog_path, done_path = args.backlog, args.done
+
+    data, _ = load_yaml(backlog_path)
+    active_stories = data.get("stories") or []
+    all_stories = _get_all_stories(backlog_path, done_path)
+
     counts: dict[str, int] = {}
+    todo_ready = []
+    todo_waiting = []
 
-    sources: list[Path] = []
-    if args.source in ("active", "both"):
-        sources.append(backlog_path)
-    if args.source in ("done", "both"):
-        sources.append(done_path)
+    for story in active_stories:
+        status = story.get("status", "unknown")
+        counts[status] = counts.get(status, 0) + 1
 
-    for path in sources:
-        data, _ = load_yaml(path)
-        for story in data.get("stories") or []:
-            status = story.get("status", "unknown")
-            counts[status] = counts.get(status, 0) + 1
+        if status == "todo":
+            if (
+                not story.get("blocked_reason")
+                and _requires_satisfied(story, all_stories)
+                and _requires_reviewed_satisfied(story, all_stories)
+            ):
+                todo_ready.append(story)
+            else:
+                todo_waiting.append(story)
+
+    # Sort ready by priority descending
+    todo_ready.sort(key=lambda s: int(s.get("priority", 0)), reverse=True)
 
     if args.format == "json":
-        json.dump(counts, sys.stdout, ensure_ascii=False)
+        output = dict(counts)
+        output["_todo_ready"] = len(todo_ready)
+        output["_todo_waiting"] = len(todo_waiting)
+        output["_ready_next"] = [
+            {"id": s.get("id"), "title": s.get("title"), "priority": s.get("priority")}
+            for s in todo_ready[:5]
+        ]
+        json.dump(output, sys.stdout, ensure_ascii=False)
         sys.stdout.write("\n")
     else:
-        yaml = _make_yaml()
-        yaml.dump(counts, sys.stdout)
+        total = sum(counts.values())
+        print("Backlog Status")
+        print("=" * 40)
+        status_order = ["in_progress", "review", "testing", "uat", "uat_feedback", "blocked"]
+        for st in status_order:
+            if counts.get(st, 0) > 0:
+                print(f"  {st:16s} {counts[st]:3d}")
+        print(f"  {'todo (ready)':16s} {len(todo_ready):3d}")
+        print(f"  {'todo (waiting)':16s} {len(todo_waiting):3d}")
+        print(f"  {'-' * 28}")
+        print(f"  {'Total':16s} {total:3d}")
+        print()
+        if todo_ready:
+            print("Ready (next up):")
+            for s in todo_ready[:5]:
+                sid = s.get("id", "?")
+                title = s.get("title", "")[:45]
+                pri = s.get("priority", 0)
+                mode = s.get("ticket_mode", "")
+                mode_tag = f" [{mode}]" if mode else ""
+                print(f"  {sid:7s} {title:45s} (pri {pri}){mode_tag}")
+        print()
+        if todo_waiting:
+            print("Waiting (deps unsatisfied):")
+            for s in todo_waiting[:5]:
+                sid = s.get("id", "?")
+                title = s.get("title", "")[:35]
+                deps = _compute_blocked_by(s, all_stories)
+                dep_str = ", ".join(f"{d['id']}({d['gate']},{d['status']})" for d in deps[:3])
+                print(f"  {sid:7s} {title:35s} ← {dep_str}")
     return 0
 
 
@@ -976,7 +1138,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--check-requires",
         action="store_true",
         default=False,
-        help="Exclude stories whose requires dependencies are not satisfied (done/uat)",
+        help="Exclude stories whose requires/requires_reviewed dependencies are not satisfied",
+    )
+    p.add_argument(
+        "--exclude-interactive",
+        action="store_true",
+        default=False,
+        help="Exclude stories with interactive: true",
     )
 
     # get
@@ -1018,6 +1186,12 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["yaml", "json"],
         default=argparse.SUPPRESS,
         help="Output format (overrides global --format)",
+    )
+    p.add_argument(
+        "--non-interactive",
+        action="store_true",
+        default=False,
+        help="Exclude stories with interactive: true (for autonomous Ralph mode)",
     )
 
     # add

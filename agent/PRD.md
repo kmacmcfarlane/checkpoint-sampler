@@ -7,6 +7,7 @@ Checkpoint Sampler is a locally-running web-based image viewer for evaluating st
 **Primary use cases:**
 1. Compare sample images across checkpoints, prompts, seeds, CFG values, and other parameters to evaluate training progress and select the best checkpoint.
 2. Generate sample images automatically by orchestrating ComfyUI inference across all checkpoints in a training run with configurable sampling parameters.
+3. Evaluate LoRA training runs by sampling with a user-selected base model and sweeping across LoRA strength parameters.
 
 **Access model:** Local-first. No authentication. Accessible from any machine on the LAN.
 
@@ -16,18 +17,26 @@ Checkpoint Sampler is a locally-running web-based image viewer for evaluating st
 
 The tool reads from two distinct directory trees configured in YAML:
 
-- **`checkpoint_dirs`**: A list of directories to recursively scan for `.safetensors` checkpoint files. These are the source of truth for discovering training runs.
+- **`checkpoint_dirs`**: A list of directories to recursively scan for `.safetensors` checkpoint files (full models). These are the source of truth for discovering checkpoint training runs.
+- **`lora_dirs`**: A list of directories to recursively scan for `.safetensors` LoRA files. These are the source of truth for discovering LoRA training runs. Optional — if omitted, no LoRA runs are discovered.
+- **`base_model_dir`**: Directory containing base models for LoRA inference. Used to populate the base model selector in the job launch UI. Optional — falls back to `checkpoint_dirs[0]` if omitted.
 - **`sample_dir`**: A single directory where ComfyUI sample image output directories live. Each subdirectory is named after the checkpoint filename (exact match) and contains the generated sample images.
 
-Both are exposed to the backend container via Docker volume mounts. The backend restricts all filesystem access to within these configured directories.
+All directories are exposed to the backend container via Docker volume mounts. The backend restricts all filesystem access to within these configured directories.
 
 See [docs/filesystem.md](/docs/filesystem.md) for the full directory structure and naming conventions.
 
 ### 2.2 Training run
 
-A group of checkpoint files sharing a common base name, auto-discovered from the filesystem. Training runs are selectable in the UI.
+A group of `.safetensors` files sharing a common base name, auto-discovered from the filesystem. Training runs are selectable in the UI.
 
-**Auto-discovery**: The tool recursively scans all `checkpoint_dirs` for `.safetensors` files. It groups checkpoint files into training runs by stripping suffixes from the filename:
+**Training run kind:** Each training run has a `kind` field indicating its type:
+- **`checkpoint`**: Full model checkpoints discovered from `checkpoint_dirs`.
+- **`lora`**: LoRA adapter files discovered from `lora_dirs`.
+
+Kind is determined by which directory set discovered the run, not by file metadata.
+
+**Auto-discovery**: The tool recursively scans all `checkpoint_dirs` (for checkpoint runs) and `lora_dirs` (for LoRA runs) for `.safetensors` files. It groups files into training runs by stripping suffixes from the filename:
 
 1. Remove `.safetensors` extension
 2. Remove step suffix: `-step<NNNNN>` (e.g., `-step00004500`)
@@ -103,9 +112,11 @@ Checkpoint Sampler uses ComfyUI as its inference backend. Rather than implementi
 
 **Connection:** Configured via `comfyui.host` and `comfyui.port` in `config.yaml`. Defaults to `localhost:8188`.
 
-**Model discovery:** Available VAEs, text encoders (CLIPs), UNETs, samplers, and schedulers are queried from ComfyUI's `/object_info/{node_type}` API endpoint. This guarantees the UI shows exactly what ComfyUI can load — no separate directory scanning needed.
+**Model discovery:** Available VAEs, text encoders (CLIPs), UNETs, LoRAs, samplers, and schedulers are queried from ComfyUI's `/object_info/{node_type}` API endpoint. This guarantees the UI shows exactly what ComfyUI can load — no separate directory scanning needed.
 
-**Checkpoint path matching:** Training run checkpoints discovered by checkpoint-sampler must also be accessible to ComfyUI (via ComfyUI's `extra_model_paths.yaml`). When creating a sample job, checkpoint filenames are matched against ComfyUI's available model list to determine the correct ComfyUI-relative path for workflow substitution.
+**Checkpoint path matching:** Training run checkpoints discovered by checkpoint-sampler must also be accessible to ComfyUI (via ComfyUI's `extra_model_paths.yaml`). When creating a sample job, checkpoint filenames are matched against ComfyUI's available model list to determine the correct ComfyUI-relative path for workflow substitution. For LoRA runs, filenames are matched against ComfyUI's LoRA model list instead of the UNET list.
+
+**Base model selection (LoRA):** When launching a job for a LoRA training run, the user selects a base model from ComfyUI's available UNET models. The base model is stored on the job and used for the `unet_loader` cs_role substitution, while the LoRA file is used for the `lora_loader` role.
 
 ### 2.9 Workflow templates
 
@@ -115,7 +126,8 @@ ComfyUI API-format JSON files stored on disk in a configured `workflow_dir`. Eac
 
 | cs_role | Substituted fields | Source |
 |---------|-------------------|--------|
-| `unet_loader` | `unet_name` or `ckpt_name` | Per checkpoint in training run (auto-matched) |
+| `unet_loader` | `unet_name` or `ckpt_name` | Per checkpoint (checkpoint runs) or job-level base model (LoRA runs) |
+| `lora_loader` | `lora_name`, `strength_model`, `strength_clip` | Per LoRA checkpoint (auto-matched) + strength from preset (iterated) |
 | `clip_loader` | `clip_name` | Job-level setting (user selects from ComfyUI's available CLIPs) |
 | `vae_loader` | `vae_name` | Job-level setting (user selects from ComfyUI's available VAEs) |
 | `sampler` | `seed`, `steps`, `cfg`, `sampler_name`, `scheduler` | Sample preset (iterated across all combinations) |
@@ -124,6 +136,8 @@ ComfyUI API-format JSON files stored on disk in a configured `workflow_dir`. Eac
 | `shift` | `shift` | Job-level setting (e.g., AuraFlow shift parameter) |
 | `latent_image` | `width`, `height` | Sample preset |
 | `save_image` | `filename_prefix` | Controlled by checkpoint-sampler (not user-configurable) |
+
+**LoRA workflow templates:** Workflows that include a `lora_loader` role are LoRA-capable. The job launch UI filters available workflows by training run kind — LoRA runs only show LoRA-capable workflows, checkpoint runs show workflows without `lora_loader`. See `workflows/qwen-image-lora.json` for an example.
 
 **Validation:** A workflow template must have at least a `save_image` role. All other roles are optional — if a role is absent, the corresponding job-level setting is hidden in the UI.
 
@@ -138,19 +152,24 @@ Named parameter sets for image generation, stored in the database. Distinct from
 - **Samplers**: List of sampler names to iterate (e.g., `["euler", "res_multistep"]`)
 - **Schedulers**: List of scheduler names to iterate (e.g., `["simple", "normal"]`)
 - **Seeds**: List of seed values to iterate (e.g., `[420, 421, 422]`)
+- **LoRA strength pairs**: List of `{strength_model, strength_clip}` pairs to iterate (e.g., `[{1.0, 1.0}, {0.75, 0.75}]`). Analogous to sampler/scheduler pairs. Default: `[{1.0, 1.0}]`. Only used when sampling LoRA training runs; ignored for checkpoint runs.
 - **Width / Height**: Image dimensions (single values, not iterated)
 
-**Images per checkpoint:** `len(prompts) × len(steps) × len(cfgs) × len(samplers) × len(schedulers) × len(seeds)`. Displayed in the UI when building a preset.
+**Images per checkpoint (checkpoint runs):** `len(prompts) × len(steps) × len(cfgs) × len(sampler_scheduler_pairs) × len(seeds)`. Displayed in the UI when building a preset.
+
+**Images per checkpoint (LoRA runs):** `len(prompts) × len(steps) × len(cfgs) × len(sampler_scheduler_pairs) × len(seeds) × len(lora_strength_pairs)`. The strength pairs add an extra dimension to the Cartesian product.
 
 ### 2.11 Sample jobs
 
 A sample job generates images for every checkpoint in a training run using a sample preset and workflow template.
 
-**Job creation:** The user selects a training run (typically one without existing samples), a workflow template, a sample preset, and job-level settings (VAE, CLIP, shift). The system expands the preset parameters into individual work items: one per checkpoint × parameter combination.
+**Job creation:** The user selects a training run (typically one without existing samples), a workflow template, a sample preset, and job-level settings (VAE, CLIP, shift). For LoRA training runs, the user also selects a base model from ComfyUI's available UNETs. The system expands the preset parameters into individual work items: one per checkpoint × parameter combination (including LoRA strength pairs for LoRA runs).
 
 **Execution:** Work items are submitted to ComfyUI sequentially (one at a time to avoid queue congestion). For each completed image, checkpoint-sampler downloads the output via ComfyUI's `/view` API and saves it to `sample_dir/{checkpoint_filename}/{query_encoded_params}.png`. This integrates seamlessly with the existing filesystem scanner.
 
-**Output filenames:** The query-encoded filename includes all iterated parameters as dimensions: `prompt_name={name}&steps={n}&cfg={n}&sampler_name={s}&scheduler={s}&seed={n}.png`. Single-value settings (negative prompt, width, height, shift, VAE, CLIP) are not included since they don't vary within a job.
+**Output filenames:** The query-encoded filename includes all iterated parameters as dimensions: `prompt_name={name}&steps={n}&cfg={n}&sampler_name={s}&scheduler={s}&seed={n}.png`. For LoRA runs, `strength_model` and `strength_clip` are also included. Single-value settings (negative prompt, width, height, shift, VAE, CLIP) are not included since they don't vary within a job.
+
+**Output directory (LoRA):** LoRA sample output uses an extra directory level for the base model: `sample_dir/{training_run}/{study}/{base_model_name}/{lora_checkpoint.safetensors}/`. The `base_model_name` is the filename of the selected base model (sans extension). This separates samples generated with different base models.
 
 **Progress:** Tracked at two levels:
 1. **Checkpoint level:** How many checkpoints have all their images completed out of the total.
@@ -463,10 +482,20 @@ A sample job generates images for every checkpoint in a training run using a sam
 Server-side YAML file (`config.yaml` at the project root, or path specified via `CONFIG_PATH` environment variable).
 
 ```yaml
-# Directories to recursively scan for .safetensors checkpoint files.
+# Directories to recursively scan for .safetensors checkpoint files (full models).
 # Multiple directories can be specified.
 checkpoint_dirs:
   - /data/checkpoints
+
+# Directories to recursively scan for .safetensors LoRA files (optional).
+# Multiple directories can be specified. If omitted, no LoRA runs are discovered.
+lora_dirs:
+  - /data/loras
+
+# Directory containing base models for LoRA inference (optional).
+# Used to populate the base model selector in the job launch UI.
+# Falls back to checkpoint_dirs[0] if omitted.
+base_model_dir: /data/models
 
 # Directory where sample image output directories live.
 # Each subdirectory is named after the checkpoint filename (exact match).
@@ -493,9 +522,10 @@ workflow_dir: ./workflows
 
 ### Configuration notes
 
-- `checkpoint_dirs` and `sample_dir` use container-internal paths (`/data/...`) mapped to host directories via Docker Compose volume mounts (see `docker-compose.yml`). The actual host paths are configured via environment variables (`CHECKPOINT_DIR`, `SAMPLE_DIR`).
-- `checkpoint_dirs` and `sample_dir` act as security boundaries. The backend rejects any path traversal outside these directories.
-- Training runs are auto-discovered by scanning `checkpoint_dirs` for `.safetensors` files and grouping by base name (see section 2.2). No per-run configuration is needed.
+- `checkpoint_dirs`, `lora_dirs`, `base_model_dir`, and `sample_dir` use container-internal paths (`/data/...`) mapped to host directories via Docker Compose volume mounts (see `docker-compose.yml`). The actual host paths are configured via environment variables.
+- `checkpoint_dirs`, `lora_dirs`, `base_model_dir`, and `sample_dir` act as security boundaries. The backend rejects any path traversal outside these directories.
+- Training runs are auto-discovered by scanning `checkpoint_dirs` and `lora_dirs` for `.safetensors` files and grouping by base name (see section 2.2). No per-run configuration is needed. Kind is assigned based on which directory set discovered the run.
+- `lora_dirs` and `base_model_dir` are optional. If `lora_dirs` is omitted, no LoRA training runs are discovered. If `base_model_dir` is omitted, `checkpoint_dirs[0]` is used for base model browsing.
 - Filename dimensions are auto-discovered from query-encoded filenames. The checkpoint dimension is auto-extracted from checkpoint filename suffixes. No dimension configuration is needed.
 - Dimension types are inferred: values that parse as integers are sorted numerically, otherwise lexicographically.
 - `comfyui` settings are optional. If omitted, inference pipeline features are disabled in the UI.
@@ -519,7 +549,7 @@ Follows the layered backend architecture defined in `/docs/architecture.md`.
 
 | Layer | Responsibilities |
 |-------|-----------------|
-| **model** | Image, Dimension, DimensionValue, DimensionMapping, Preset, TrainingRun, SamplePreset, SampleJob, SampleJobItem, Workflow |
+| **model** | Image, Dimension, DimensionValue, DimensionMapping, Preset, TrainingRun (with Kind), SamplePreset, SampleJob, SampleJobItem, Workflow, LoraStrengthPair |
 | **service** | Filesystem scanning, filename parsing, dimension extraction, image lookup, preset CRUD, WebSocket hub, file watching, ComfyUI client, workflow template management, sample preset CRUD, job orchestration and execution |
 | **store** | SQLite for presets, sample presets, and jobs; filesystem for images, directory scanning, and workflow templates |
 | **api** | Goa v3 REST endpoints, image serving endpoint, WebSocket upgrade endpoint, ComfyUI proxy endpoints, Swagger UI |
@@ -627,7 +657,7 @@ The job executor runs as a background goroutine. It processes one work item at a
 | DELETE | `/api/presets/{id}` | Delete a preset |
 | GET | `/api/ws` | WebSocket endpoint for live image update and job progress events |
 | GET | `/api/comfyui/status` | Check ComfyUI connection status |
-| GET | `/api/comfyui/models` | List available models by type (`?type=vae\|clip\|unet\|sampler\|scheduler`) |
+| GET | `/api/comfyui/models` | List available models by type (`?type=vae\|clip\|unet\|lora\|sampler\|scheduler`) |
 | GET | `/api/workflows` | List available workflow templates |
 | GET | `/api/workflows/{name}` | Get workflow template details and cs_role info |
 | GET | `/api/sample-presets` | List sample setting presets |
@@ -680,6 +710,7 @@ The API is defined design-first using Goa v3 DSL. Swagger UI is served at `/docs
 | training_run_name | TEXT | Training run identifier |
 | sample_preset_id | TEXT | FK to sample_presets |
 | workflow_name | TEXT | Workflow template filename |
+| base_model | TEXT | Base model path for LoRA jobs (empty for checkpoint jobs) |
 | vae | TEXT | Selected VAE (ComfyUI path) |
 | clip | TEXT | Selected CLIP/text encoder (ComfyUI path) |
 | shift | REAL | AuraFlow shift value (nullable if workflow has no shift role) |
@@ -696,7 +727,10 @@ The API is defined design-first using Goa v3 DSL. Swagger UI is served at `/docs
 | id | TEXT (UUID) | Primary key |
 | job_id | TEXT | FK to sample_jobs |
 | checkpoint_filename | TEXT | Checkpoint file being sampled |
-| comfyui_model_path | TEXT | ComfyUI-relative model path |
+| comfyui_model_path | TEXT | ComfyUI-relative model path (UNET for checkpoint jobs, base model for LoRA jobs) |
+| lora_model_path | TEXT | ComfyUI-relative LoRA path (empty for checkpoint jobs) |
+| strength_model | REAL | LoRA model strength (default 1.0) |
+| strength_clip | REAL | LoRA clip strength (default 1.0) |
 | prompt_name | TEXT | Prompt name from preset |
 | prompt_text | TEXT | Prompt text |
 | steps | INTEGER | Step count |
@@ -713,7 +747,7 @@ The API is defined design-first using Goa v3 DSL. Swagger UI is served at `/docs
 
 ### In-memory (per scan)
 
-- **TrainingRun**: name (base name after stripping suffixes), list of Checkpoint entries
+- **TrainingRun**: name (base name after stripping suffixes), kind (checkpoint or lora), list of Checkpoint entries
 - **Checkpoint**: filename, step/epoch number, has_samples flag, sample directory path (if exists)
 - **Image**: relative path (within sample_dir), parsed dimensions (map of dimension name to value)
 - **Dimension**: name, type, set of discovered values, assigned UI role
@@ -734,3 +768,7 @@ The API is defined design-first using Goa v3 DSL. Swagger UI is served at `/docs
 - **Parallel ComfyUI submission**: Submit multiple prompts concurrently for faster throughput (requires careful VRAM management).
 - **Remote ComfyUI instances**: Support connecting to multiple ComfyUI instances for distributed generation.
 - **Workflow editor**: Visual workflow editing within checkpoint-sampler (currently workflows are edited in ComfyUI and exported).
+- **Multiple LoRAs per generation**: Stack multiple LoRA adapters in a single workflow (requires `lora_loaders` plural cs_role and UI for LoRA stacking).
+- **LyCORIS / LoHa adapter support**: Extend TrainingRunKind with additional adapter types; `ss_network_module` metadata can distinguish them.
+- **Auto-detect base model from metadata**: Parse `ss_base_model_version` from safetensors header and map to known model filenames for suggested defaults.
+- **Base model as sampling dimension**: Sample the same LoRA with different base models in one job, making base model a filterable dimension.

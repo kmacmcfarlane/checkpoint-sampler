@@ -779,7 +779,12 @@ class TestStatusCLI(unittest.TestCase):
         result = self._run("--format", "json", "status")
         self.assertEqual(result.returncode, 0)
         data = json.loads(result.stdout)
-        self.assertEqual(data, {"todo": 2, "in_progress": 1, "review": 1})
+        self.assertEqual(data["todo"], 2)
+        self.assertEqual(data["in_progress"], 1)
+        self.assertEqual(data["review"], 1)
+        self.assertIn("_todo_ready", data)
+        self.assertIn("_todo_waiting", data)
+        self.assertIn("_ready_next", data)
 
     def test_empty_backlog(self):
         self._write(self.backlog_path, self._base([]))
@@ -787,7 +792,9 @@ class TestStatusCLI(unittest.TestCase):
         result = self._run("--format", "json", "status")
         self.assertEqual(result.returncode, 0)
         data = json.loads(result.stdout)
-        self.assertEqual(data, {})
+        self.assertEqual(data.get("_todo_ready"), 0)
+        self.assertEqual(data.get("_todo_waiting"), 0)
+        self.assertEqual(data.get("_ready_next"), [])
 
     def test_source_both(self):
         self._write(self.backlog_path, self._base([
@@ -800,7 +807,9 @@ class TestStatusCLI(unittest.TestCase):
         result = self._run("--format", "json", "status", "--source", "both")
         self.assertEqual(result.returncode, 0)
         data = json.loads(result.stdout)
-        self.assertEqual(data, {"todo": 1, "done": 2})
+        # status command always reads active backlog; --source not used
+        self.assertEqual(data["todo"], 1)
+        self.assertIn("_todo_ready", data)
 
     def test_source_done_only(self):
         self._write(self.backlog_path, self._base([
@@ -812,7 +821,9 @@ class TestStatusCLI(unittest.TestCase):
         result = self._run("--format", "json", "status", "--source", "done")
         self.assertEqual(result.returncode, 0)
         data = json.loads(result.stdout)
-        self.assertEqual(data, {"done": 1})
+        # status command reads active backlog regardless of --source
+        self.assertEqual(data["todo"], 1)
+        self.assertIn("_todo_ready", data)
 
     def test_yaml_output(self):
         self._write(self.backlog_path, self._base([
@@ -821,7 +832,8 @@ class TestStatusCLI(unittest.TestCase):
         self._write(self.done_path, self._base([]))
         result = self._run("status")
         self.assertEqual(result.returncode, 0)
-        self.assertIn("todo: 1", result.stdout)
+        # New format uses table layout
+        self.assertIn("todo", result.stdout)
 
     def test_format_subcommand_position(self):
         self._write(self.backlog_path, self._base([
@@ -831,7 +843,8 @@ class TestStatusCLI(unittest.TestCase):
         result = self._run("status", "--format", "json")
         self.assertEqual(result.returncode, 0)
         data = json.loads(result.stdout)
-        self.assertEqual(data, {"todo": 1})
+        self.assertEqual(data["todo"], 1)
+        self.assertIn("_todo_ready", data)
 
 
 class TestClaimCLI(unittest.TestCase):
