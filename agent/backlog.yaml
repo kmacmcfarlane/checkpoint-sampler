@@ -289,7 +289,7 @@ stories:
       - "command: make test-backend"
   - id: S-139
     title: "Spike: LoRA sampling support — research and planning"
-    status: in_progress
+    status: done
     priority: 90
     complexity: medium
     ticket_mode: interactive
