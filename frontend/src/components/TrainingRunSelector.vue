@@ -66,13 +66,40 @@ const trainingRunGroups = computed(() => {
 })
 
 /**
+ * S-148: Render a kind badge (LoRA/Checkpoint) for a training run option.
+ * Only shows the badge for LoRA runs since checkpoint is the default/common kind.
+ * IMPORTANT: VNodes run outside scoped CSS context — all styles must be inlined.
+ */
+function renderKindBadge(kind: string | undefined): ReturnType<typeof h> | null {
+  if (kind !== 'lora') return null
+  return h('span', {
+    'data-testid': 'training-run-kind-badge',
+    style: {
+      display: 'inline-block',
+      padding: '0 6px',
+      fontSize: '11px',
+      lineHeight: '18px',
+      borderRadius: '3px',
+      backgroundColor: 'rgba(99, 125, 255, 0.15)',
+      color: '#637dff',
+      fontWeight: '600',
+      flexShrink: '0',
+      whiteSpace: 'nowrap',
+    },
+  }, 'LoRA')
+}
+
+/**
  * B-098: renderLabel renders option labels with white-space: normal so long names
  * wrap to multiple lines instead of truncating with ellipsis.
+ * S-148: Also renders a LoRA badge when the training run kind is 'lora'.
  * IMPORTANT: VNodes returned from renderLabel run outside Vue's scoped CSS context,
  * so all styles must be inlined.
  */
-const renderWrappedLabel: SelectRenderLabel = (option) =>
-  h('span', {
+const renderWrappedLabel: SelectRenderLabel = (option) => {
+  const kind = (option as { _kind?: string })._kind
+  const badge = renderKindBadge(kind)
+  const label = h('span', {
     style: {
       whiteSpace: 'normal',
       wordBreak: 'break-word',
@@ -81,29 +108,51 @@ const renderWrappedLabel: SelectRenderLabel = (option) =>
     'data-testid': 'training-run-option-label',
   }, String(option.label ?? ''))
 
+  if (!badge) return label
+  return h('div', {
+    style: { display: 'flex', alignItems: 'flex-start', gap: '0.5rem' },
+  }, [badge, label])
+}
+
 /**
  * B-098 UAT rework: renderTag renders the selected value in the closed-state trigger
  * with white-space: normal so that long names wrap instead of being truncated.
  * The NSelect trigger container will grow vertically to contain the wrapped text.
  * IMPORTANT: VNodes run outside Vue's scoped CSS context — all styles must be inlined.
  */
-const renderWrappedTag: SelectRenderTag = ({ option }) =>
-  h('span', {
+const renderWrappedTag: SelectRenderTag = ({ option }) => {
+  const kind = (option as { _kind?: string })._kind
+  const badge = renderKindBadge(kind)
+  const label = h('span', {
     style: {
       whiteSpace: 'normal',
       wordBreak: 'break-word',
       lineHeight: '1.4',
-      display: 'block',
+      flex: '1',
+      minWidth: '0',
     },
     'data-testid': 'training-run-selected-tag',
   }, String(option.label ?? ''))
 
+  if (!badge) return label
+  return h('div', {
+    style: { display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'nowrap' },
+  }, [badge, label])
+}
+
 /** Options for the first dropdown (Training Run). */
 const groupOptions = computed(() => {
-  return Array.from(trainingRunGroups.value.keys()).map((key) => ({
-    label: key,
-    value: key,
-  }))
+  return Array.from(trainingRunGroups.value.entries()).map(([key, runs]) => {
+    // Determine the kind for the group. If all runs share the same kind, use it.
+    // If mixed (shouldn't normally happen), default to 'checkpoint'.
+    const kinds = new Set(runs.map(r => r.kind).filter(Boolean))
+    const kind = kinds.size === 1 ? [...kinds][0] : 'checkpoint'
+    return {
+      label: key,
+      value: key,
+      _kind: kind,
+    }
+  })
 })
 
 /**

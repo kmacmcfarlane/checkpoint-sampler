@@ -15,6 +15,7 @@ vi.mock('../api/client', () => ({
       {
         id: 1,
         name: 'test-run',
+        kind: 'checkpoint',
         checkpoint_count: 1,
         has_samples: true,
         checkpoints: [
@@ -44,6 +45,7 @@ const mockGetPresets = apiClient.getPresets as ReturnType<typeof vi.fn>
 const mockTrainingRun: TrainingRun = {
   id: 1,
   name: 'test-run',
+  kind: 'checkpoint',
   checkpoint_count: 1,
   has_samples: true,
   checkpoints: [
@@ -1353,6 +1355,7 @@ describe('App', () => {
       const emptyRun: TrainingRun = {
         id: 2,
         name: 'empty-run',
+        kind: 'checkpoint',
         checkpoint_count: 1,
         has_samples: false,
         checkpoints: [
@@ -1388,6 +1391,7 @@ describe('App', () => {
     const emptyRun: TrainingRun = {
       id: 2,
       name: 'empty-run',
+      kind: 'checkpoint',
       checkpoint_count: 1,
       has_samples: false,
       checkpoints: [],

@@ -2388,7 +2388,7 @@ describe('JobProgressPanel', () => {
       // Mock the apiClient used inside JobProgressPanel
       const { apiClient } = await import('../../api/client')
       vi.spyOn(apiClient, 'getCheckpointTrainingRuns').mockResolvedValue([
-        { id: 1, name: 'qwen/psai4rt-v0.3.0', checkpoint_count: 2, has_samples: true, checkpoints: [] },
+        { id: 1, name: 'qwen/psai4rt-v0.3.0', kind: 'checkpoint' as const, checkpoint_count: 2, has_samples: true, checkpoints: [] },
       ])
       vi.spyOn(apiClient, 'validateTrainingRun').mockResolvedValue({
         checkpoints: [],
@@ -2430,7 +2430,7 @@ describe('JobProgressPanel', () => {
 
       const { apiClient } = await import('../../api/client')
       vi.spyOn(apiClient, 'getCheckpointTrainingRuns').mockResolvedValue([
-        { id: 1, name: 'qwen/psai4rt-v0.3.0', checkpoint_count: 2, has_samples: true, checkpoints: [] },
+        { id: 1, name: 'qwen/psai4rt-v0.3.0', kind: 'checkpoint' as const, checkpoint_count: 2, has_samples: true, checkpoints: [] },
       ])
       vi.spyOn(apiClient, 'validateTrainingRun').mockResolvedValue({
         checkpoints: [],

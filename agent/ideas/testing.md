@@ -80,6 +80,12 @@ The `cloneStudy` function was updated to persist shift alongside `performSave`, 
 * source: qa
 The e2e_sweep script matched HTTP info-level request/response log lines as "findings". Restricting sweep matching to `level=error` or `level=warn` lines would eliminate false positives and make the sweep output actionable.
 
+### Add LoRA metadata resolution error to QA_ALLOWED_ERRORS.md
+* status: needs_approval
+* priority: low
+* source: qa
+Until B-139 (LoRA checkpoint metadata resolution only searches checkpoint_dirs) is fixed, the error log line for failed LoRA checkpoint resolution should be added to QA_ALLOWED_ERRORS.md to prevent false positive sweep findings in future QA cycles.
+
 ### Extend seed-jobs endpoint to support failed_item_details
 * status: needs_approval
 * priority: low

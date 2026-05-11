@@ -5,6 +5,9 @@
 checkpoint_dirs:
   - /data/checkpoints
 
+lora_dirs:
+  - /data/loras
+
 sample_dir: /data/samples
 
 port: 8080

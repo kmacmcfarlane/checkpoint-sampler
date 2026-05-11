@@ -12,7 +12,7 @@ import {
   NTooltip,
 } from 'naive-ui'
 import type { SelectRenderLabel, SelectRenderOption, SelectRenderTag } from 'naive-ui'
-import type { AffectedRun, TrainingRun, Study, StudyAvailability, CreateSampleJobPayload, SampleJob, ValidationResult } from '../api/types'
+import type { AffectedRun, TrainingRun, Study, StudyAvailability, CreateSampleJobPayload, SampleJob, ValidationResult, WorkflowSummary } from '../api/types'
 import { apiClient } from '../api/client'
 import StudyEditor from './StudyEditor.vue'
 import { useGenerateInputsPersistence } from '../composables/useGenerateInputsPersistence'
@@ -70,6 +70,14 @@ const refreshingTrainingRuns = ref(false)
 const selectedTrainingRunId = ref<number | null>(null)
 const selectedStudy = ref<string | null>(null)
 
+// S-148: Base model selection for LoRA training runs
+const selectedBaseModel = ref<string | null>(null)
+const baseModelOptions = ref<string[]>([])
+const loadingBaseModels = ref(false)
+
+// S-148: Workflow templates (fetched once, filtered by training run kind)
+const workflows = ref<WorkflowSummary[]>([])
+
 // Checkpoint selection for regeneration
 const selectedCheckpoints = ref<Set<string>>(new Set())
 
@@ -112,6 +120,33 @@ const currentModelType = ref<string | null>(null)
 // Computed: the selected training run object
 const selectedTrainingRun = computed(() =>
   trainingRuns.value.find(r => r.id === selectedTrainingRunId.value) ?? null
+)
+
+// S-148: Whether the selected training run is a LoRA run
+const isLoraRun = computed(() => selectedTrainingRun.value?.kind === 'lora')
+
+// S-148: Filter studies to show only those with compatible workflow templates.
+// LoRA runs require workflows with a lora_loader cs_role.
+// Checkpoint runs should only show workflows without lora_loader.
+const filteredStudies = computed(() => {
+  if (workflows.value.length === 0) return studies.value
+  const loraWorkflows = new Set(
+    workflows.value
+      .filter(w => w.roles['lora_loader'] !== undefined)
+      .map(w => w.name),
+  )
+  return studies.value.filter(s => {
+    if (!s.workflow_template) return true // studies without a workflow are shown everywhere
+    if (isLoraRun.value) {
+      return loraWorkflows.has(s.workflow_template)
+    }
+    return !loraWorkflows.has(s.workflow_template)
+  })
+})
+
+// S-148: Base model dropdown options
+const baseModelSelectOptions = computed(() =>
+  baseModelOptions.value.map(m => ({ label: m, value: m })),
 )
 
 // Compute status per training run based on job list and sample presence.
@@ -200,6 +235,30 @@ function renderBeadSpan(color: string, title: string, testId: string, onClick?: 
   })
 }
 
+/**
+ * S-148: Render a kind badge (LoRA) for a training run option.
+ * Only shows the badge for LoRA runs since checkpoint is the default/common kind.
+ * IMPORTANT: VNodes run outside scoped CSS context — all styles must be inlined.
+ */
+function renderKindBadge(kind: string | undefined): VNode | null {
+  if (kind !== 'lora') return null
+  return h('span', {
+    'data-testid': 'training-run-kind-badge',
+    style: {
+      display: 'inline-block',
+      padding: '0 6px',
+      fontSize: '11px',
+      lineHeight: '18px',
+      borderRadius: '3px',
+      backgroundColor: 'rgba(99, 125, 255, 0.15)',
+      color: '#637dff',
+      fontWeight: '600',
+      flexShrink: '0',
+      whiteSpace: 'nowrap',
+    },
+  }, 'LoRA')
+}
+
 // renderLabel function for the training run NSelect.
 // NSelect does not support a #option slot — custom option rendering must be
 // done via the renderLabel prop (a render function returning VNodeChild).
@@ -211,10 +270,16 @@ function renderBeadSpan(color: string, title: string, testId: string, onClick?: 
 // Renders up to two beads per training run using the dual-bead system:
 //   Slot 1 (activity): blue = running/pending job, green = all studies complete
 //   Slot 2 (problem):  red = failed/completed_with_errors job, yellow = incomplete without running jobs
+// S-148: Also renders a LoRA kind badge when the training run kind is 'lora'.
 const renderTrainingRunLabel: SelectRenderLabel = (option) => {
   const dualBead = (option as { _dualBead?: DualBead })._dualBead
+  const kind = (option as { _kind?: string })._kind
 
   const children: VNode[] = []
+
+  // S-148: Kind badge first
+  const badge = renderKindBadge(kind)
+  if (badge) children.push(badge)
 
   if (dualBead) {
     // Slot 1: activity bead (blue/green)
@@ -259,7 +324,12 @@ const renderTrainingRunLabel: SelectRenderLabel = (option) => {
  */
 const renderWrappedTrainingRunTag: SelectRenderTag = ({ option }) => {
   const dualBead = (option as { _dualBead?: DualBead })._dualBead
+  const kind = (option as { _kind?: string })._kind
   const children: VNode[] = []
+
+  // S-148: Kind badge first
+  const badge = renderKindBadge(kind)
+  if (badge) children.push(badge)
 
   if (dualBead) {
     if (dualBead.activity === 'blue') {
@@ -329,6 +399,7 @@ const trainingRunOptions = computed(() => {
         value: run.id,
         // Custom rendering via renderLabel
         _dualBead: dualBead,
+        _kind: run.kind,
       }
     })
 })
@@ -433,6 +504,15 @@ watch(selectedTrainingRunId, async (runId) => {
 
   // Reset model type for the new run
   currentModelType.value = null
+
+  // S-148: Reset base model selection and fetch base models for LoRA runs
+  if (!skipAutoSelection) {
+    selectedBaseModel.value = null
+  }
+  const selectedRun = trainingRuns.value.find(r => r.id === runId)
+  if (selectedRun?.kind === 'lora') {
+    fetchBaseModels()
+  }
 
   // When prefill is active, skip all automatic state changes — the caller
   // (applyPrefill) has already set checkpoints, clearExisting, and form values.
@@ -666,7 +746,7 @@ function toggleCheckpoint(filename: string) {
 const studyOptions = computed(() => {
   const runName = selectedTrainingRun.value?.name ?? ''
 
-  return studies.value.map(p => {
+  return filteredStudies.value.map(p => {
     const avail = studyAvailability.value.find(a => a.study_id === p.id)
     let sampleStatus = avail?.sample_status ?? 'none'
 
@@ -894,11 +974,12 @@ const checkpointValidationError = computed((): string | null => {
 })
 
 const canSubmit = computed(() => {
-  return (
-    selectedTrainingRunId.value !== null &&
-    selectedStudy.value !== null &&
-    checkpointValidationError.value === null
-  )
+  if (selectedTrainingRunId.value === null) return false
+  if (selectedStudy.value === null) return false
+  if (checkpointValidationError.value !== null) return false
+  // S-148: LoRA runs require a base model selection
+  if (isLoraRun.value && !selectedBaseModel.value) return false
+  return true
 })
 
 // AC4: When refreshTrigger changes (job status changed via WebSocket), refresh training run + job data
@@ -1004,18 +1085,34 @@ onMounted(async () => {
 
 async function fetchTrainingRunsAndJobs() {
   try {
-    const [runs, jobs] = await Promise.all([
+    const [runs, jobs, wfs] = await Promise.all([
       apiClient.getCheckpointTrainingRuns(),
       apiClient.listSampleJobs(),
+      apiClient.listWorkflows(),
     ])
     trainingRuns.value = runs
     sampleJobs.value = jobs
+    workflows.value = wfs
 
     // Fetch availability for all runs in parallel for training run bead rendering
     await fetchAllRunsAvailability(runs)
   } catch {
     trainingRuns.value = []
     sampleJobs.value = []
+    workflows.value = []
+  }
+}
+
+/** S-148: Fetch available base models from ComfyUI for LoRA run base model selection. */
+async function fetchBaseModels() {
+  loadingBaseModels.value = true
+  try {
+    const result = await apiClient.getComfyUIModels('unet')
+    baseModelOptions.value = result.models
+  } catch {
+    baseModelOptions.value = []
+  } finally {
+    loadingBaseModels.value = false
   }
 }
 
@@ -1073,6 +1170,9 @@ function resetForm() {
   error.value = null
   confirmRegenOpen.value = false
   currentModelType.value = null
+  // S-148: Reset LoRA-specific state
+  selectedBaseModel.value = null
+  baseModelOptions.value = []
 }
 
 /**
@@ -1115,6 +1215,11 @@ function applyPrefill(job: SampleJob) {
   } else if (run.has_samples) {
     // For completed jobs, select all checkpoints
     selectedCheckpoints.value = new Set(run.checkpoints.map(c => c.filename))
+  }
+
+  // S-148: Restore base model from the prefilled job for LoRA runs
+  if (run.kind === 'lora' && job.base_model) {
+    selectedBaseModel.value = job.base_model
   }
 
   if (props.prefillMissingOnly) {
@@ -1258,6 +1363,11 @@ async function doSubmit() {
     const payload: CreateSampleJobPayload = {
       training_run_name: selectedTrainingRun.value.name,
       study_id: selectedStudy.value!,
+    }
+
+    // S-148: Include base_model for LoRA jobs
+    if (isLoraRun.value && selectedBaseModel.value) {
+      payload.base_model = selectedBaseModel.value
     }
 
     if (selectedRunHasSamples.value) {
@@ -1424,6 +1534,24 @@ async function doSubmit() {
         </div>
       </div>
 
+      <!-- S-148: Base model selector — shown only for LoRA training runs -->
+      <div v-if="isLoraRun" class="form-field" data-testid="base-model-field">
+        <label for="base-model-select">Base Model</label>
+        <NSelect
+          id="base-model-select"
+          v-model:value="selectedBaseModel"
+          :options="baseModelSelectOptions"
+          :loading="loadingBaseModels"
+          :disabled="loadingBaseModels"
+          :consistent-menu-width="false"
+          :menu-props="{ style: 'min-width: 320px; max-width: min(1024px, 100vw)' }"
+          placeholder="Select a base model (UNET)"
+          clearable
+          filterable
+          data-testid="base-model-select"
+        />
+      </div>
+
       <!-- Checkpoint validation status list — shown when training run + study are selected and validation completes.
            Matches the validate-style display from the main controls slideout (checkmark/warning icons, found/expected counts).
            For runs with existing samples, checkboxes allow selecting checkpoints for regeneration.
@@ -1562,7 +1690,8 @@ async function doSubmit() {
       <NDivider />
 
       <div class="summary" data-testid="job-summary">
-        <p><strong>Training Run:</strong> {{ selectedTrainingRun?.name ?? 'N/A' }}</p>
+        <p><strong>Training Run:</strong> {{ selectedTrainingRun?.name ?? 'N/A' }}{{ isLoraRun ? ' (LoRA)' : '' }}</p>
+        <p v-if="isLoraRun"><strong>Base Model:</strong> {{ selectedBaseModel ?? 'N/A' }}</p>
         <p><strong>Checkpoints:</strong> {{ totalCheckpoints }}</p>
         <p v-if="selectedRunHasSamples">
           <strong>Checkpoints to regenerate:</strong> {{ targetedCheckpointCount === totalCheckpoints ? 'All' : targetedCheckpointCount }}

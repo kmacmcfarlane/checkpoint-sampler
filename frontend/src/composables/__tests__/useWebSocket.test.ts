@@ -48,6 +48,7 @@ function makeTrainingRun(overrides: Partial<TrainingRun> = {}): TrainingRun {
   return {
     id: 1,
     name: 'test-run',
+    kind: 'checkpoint' as const,
     checkpoint_count: 2,
     has_samples: true,
     checkpoints: [

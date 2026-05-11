@@ -43,6 +43,7 @@ services:
       - test_backend_data:/app/data
       - ./test-fixtures/config-with-comfyui.yaml:/app/config.yaml:ro
       - ./test-fixtures/checkpoints:/data/checkpoints:ro
+      - ./test-fixtures/loras:/data/loras:ro
       - test_samples_data:/data/samples
       - ./test-fixtures/workflows:/data/workflows:ro
     environment:

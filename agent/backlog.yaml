@@ -489,7 +489,7 @@ stories:
 
   - id: S-148
     title: "Frontend: LoRA training run badge and job launch UX"
-    status: todo
+    status: uat
     priority: 60
     complexity: high
     requires:
@@ -557,3 +557,15 @@ stories:
       - Sidebar preset selector behavior changes (3 tests)
       - Various single failures across 20+ other spec files
       This blocks S-140 and all subsequent LoRA stories. Must be resolved before pipeline can resume.
+  - id: B-139
+    title: "LoRA checkpoint metadata resolution only searches checkpoint_dirs"
+    status: todo
+    priority: 50
+    complexity: low
+    requires: []
+    acceptance:
+      - "Backend checkpoint metadata resolution searches both checkpoint_dirs and lora_dirs when resolving checkpoint filenames"
+      - "No error-level log is emitted when LoRA checkpoint files are resolved from lora_dirs"
+    testing:
+      - "command: make test-backend"
+      - "command: make test-e2e"

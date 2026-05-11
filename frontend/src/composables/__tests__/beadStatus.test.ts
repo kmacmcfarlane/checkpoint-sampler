@@ -5,6 +5,7 @@ import type { TrainingRun, SampleJob } from '../../api/types'
 const baseRun: TrainingRun = {
   id: 1,
   name: 'test-run',
+  kind: 'checkpoint',
   checkpoint_count: 1,
   has_samples: false,
   checkpoints: [],

@@ -44,6 +44,7 @@ const runEmpty: TrainingRun = {
   id: 1,
   name: 'qwen/psai4rt-v0.3.0',
   checkpoint_count: 5,
+    kind: 'checkpoint',
   has_samples: false,
   checkpoints: [
     { filename: 'checkpoint1.safetensors', step_number: 1000, has_samples: false },
@@ -56,6 +57,7 @@ const runWithSamples: TrainingRun = {
   id: 2,
   name: 'qwen/psai4rt-v0.4.0',
   checkpoint_count: 3,
+    kind: 'checkpoint',
   has_samples: true,
   checkpoints: [
     { filename: 'chk-a.safetensors', step_number: 1000, has_samples: true },
@@ -69,6 +71,7 @@ const runRunning: TrainingRun = {
   id: 3,
   name: 'qwen/psai4rt-v0.5.0',
   checkpoint_count: 2,
+    kind: 'checkpoint',
   has_samples: false,
   checkpoints: [
     { filename: 'chk-x.safetensors', step_number: 500, has_samples: false },
@@ -93,6 +96,13 @@ const sampleWorkflows: WorkflowSummary[] = [
     validation_state: 'invalid',
     roles: {},
     warnings: ['Missing required roles'],
+  },
+  // S-148: LoRA-capable workflow (has lora_loader cs_role)
+  {
+    name: 'qwen-image-lora.json',
+    validation_state: 'valid',
+    roles: { save_image: ['9'], unet_loader: ['4'], lora_loader: ['10'] },
+    warnings: [],
   },
 ]
 
@@ -143,8 +153,32 @@ const sampleStudies: Study[] = [
   },
 ]
 
+// S-148: Study using the LoRA workflow template
+const loraStudy: Study = {
+  id: 'lora-study-1',
+  name: 'LoRA Quick Test',
+  prompt_prefix: '',
+  prompts: [{ name: 'test', text: 'a photo' }],
+  negative_prompt: '',
+  steps: [20],
+  cfgs: [7.0],
+  sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
+  seeds: [42],
+  width: 1024,
+  height: 1024,
+  workflow_template: 'qwen-image-lora.json',
+  vae: 'ae.safetensors',
+  text_encoder: 'clip_l.safetensors',
+  images_per_checkpoint: 1,
+  created_at: '2025-01-01T00:00:00Z',
+  updated_at: '2025-01-01T00:00:00Z',
+}
+
+const allStudiesWithLora = [...sampleStudies, loraStudy]
+
 const vaeModels = ['ae.safetensors', 'vae-ft-mse.safetensors']
 const clipModels = ['clip_l.safetensors', 't5xxl_fp16.safetensors']
+const unetModels = ['flux1-dev.safetensors', 'sd15-base.safetensors']
 
 const runningJob: SampleJob = {
   id: 'job-running',
@@ -181,7 +215,21 @@ const pendingJob: SampleJob = {
   updated_at: '2025-01-01T00:00:00Z',
 }
 
+// S-148: LoRA training run
+const runLora: TrainingRun = {
+  id: 4,
+  name: 'my-lora-adapter-v1',
+  kind: 'lora',
+  checkpoint_count: 2,
+  has_samples: false,
+  checkpoints: [
+    { filename: 'lora-step1000.safetensors', step_number: 1000, has_samples: false },
+    { filename: 'lora-step2000.safetensors', step_number: 2000, has_samples: false },
+  ],
+}
+
 const allTrainingRuns = [runEmpty, runWithSamples, runRunning]
+const allTrainingRunsWithLora = [runEmpty, runWithSamples, runRunning, runLora]
 
 // Helper validation results matching each training run's checkpoints.
 // The checkpoint picker now uses validation results (not raw training run checkpoints),
@@ -5613,6 +5661,261 @@ describe('JobLaunchDialog', () => {
       // The failed badge should NOT exist because the CWE job is scoped to a different study
       const failedBadge = wrapper.find('[data-testid="checkpoint-failed-badge-chk-a.safetensors"]')
       expect(failedBadge.exists()).toBe(false)
+    })
+  })
+
+  // S-148: LoRA training run badge and job launch UX
+  describe('LoRA training run support (S-148)', () => {
+
+    // AC: Training run list shows LoRA/Checkpoint badge based on kind field
+    it('includes _kind metadata in training run options for badge rendering', async () => {
+      mockGetCheckpointTrainingRuns.mockResolvedValue(allTrainingRunsWithLora)
+      mockListStudies.mockResolvedValue(allStudiesWithLora)
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Find the training run NSelect by data-testid parent
+      const trainingRunSelectWrapper = wrapper.find('[data-testid="training-run-select"]')
+      expect(trainingRunSelectWrapper.exists()).toBe(true)
+
+      // Get the NSelect component within the testid wrapper
+      const selects = wrapper.findAllComponents(NSelect)
+      const trainingRunSelect = selects[0]
+      const optionData = trainingRunSelect.props('options') as Array<Record<string, unknown>>
+
+      // LoRA training run should have _kind = 'lora'
+      const loraOption = optionData.find(o => o.value === runLora.id)
+      expect(loraOption).toBeDefined()
+      expect(loraOption!._kind).toBe('lora')
+
+      // Checkpoint runs should have _kind = 'checkpoint'
+      const checkpointOption = optionData.find(o => o.value === runEmpty.id)
+      expect(checkpointOption).toBeDefined()
+      expect(checkpointOption!._kind).toBe('checkpoint')
+    })
+
+    // AC: Job launch dialog shows base model dropdown when training run kind is lora
+    it('shows base model dropdown when LoRA training run is selected', async () => {
+      mockGetCheckpointTrainingRuns.mockResolvedValue(allTrainingRunsWithLora)
+      mockListStudies.mockResolvedValue(allStudiesWithLora)
+      mockGetComfyUIModels.mockImplementation((type: string) => {
+        if (type === 'vae') return Promise.resolve({ models: vaeModels })
+        if (type === 'clip') return Promise.resolve({ models: clipModels })
+        if (type === 'unet') return Promise.resolve({ models: unetModels })
+        return Promise.resolve({ models: [] })
+      })
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Initially no base model field visible
+      expect(wrapper.find('[data-testid="base-model-field"]').exists()).toBe(false)
+
+      // Select the LoRA training run
+      const selects = wrapper.findAllComponents(NSelect)
+      const trainingRunSelect = selects[0]
+      await trainingRunSelect.vm.$emit('update:value', runLora.id)
+      await flushPromises()
+
+      // Base model dropdown should now be visible
+      expect(wrapper.find('[data-testid="base-model-field"]').exists()).toBe(true)
+
+      // Should have fetched UNET models
+      expect(mockGetComfyUIModels).toHaveBeenCalledWith('unet')
+    })
+
+    // AC: Job launch dialog hides base model dropdown for checkpoint training runs
+    it('hides base model dropdown for checkpoint training runs', async () => {
+      mockGetCheckpointTrainingRuns.mockResolvedValue(allTrainingRunsWithLora)
+      mockListStudies.mockResolvedValue(allStudiesWithLora)
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select a checkpoint training run
+      const selects = wrapper.findAllComponents(NSelect)
+      const trainingRunSelect = selects[0]
+      await trainingRunSelect.vm.$emit('update:value', runEmpty.id)
+      await flushPromises()
+
+      // Base model dropdown should NOT be visible
+      expect(wrapper.find('[data-testid="base-model-field"]').exists()).toBe(false)
+    })
+
+    // AC: Workflow template dropdown filters to show only lora-capable workflows for LoRA runs
+    it('filters study options to show only LoRA-compatible studies for LoRA runs', async () => {
+      mockGetCheckpointTrainingRuns.mockResolvedValue(allTrainingRunsWithLora)
+      mockListStudies.mockResolvedValue(allStudiesWithLora)
+      mockGetComfyUIModels.mockImplementation((type: string) => {
+        if (type === 'unet') return Promise.resolve({ models: unetModels })
+        return Promise.resolve({ models: [] })
+      })
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select the LoRA training run
+      const selects = wrapper.findAllComponents(NSelect)
+      const trainingRunSelect = selects[0]
+      await trainingRunSelect.vm.$emit('update:value', runLora.id)
+      await flushPromises()
+
+      // Study select should only show the LoRA study (qwen-image-lora.json)
+      // and the study without a workflow_template (preset-2 has empty workflow_template)
+      const studySelect = selects[1]
+      const studyOpts = studySelect.props('options') as Array<Record<string, unknown>>
+      const studyLabels = studyOpts.map(o => o.label)
+
+      // LoRA study should be present
+      expect(studyLabels).toContain('LoRA Quick Test')
+      // Studies with non-LoRA workflows should be filtered out
+      expect(studyLabels).not.toContain('Quick Test')
+      // Studies without a workflow_template are shown everywhere
+      expect(studyLabels).toContain('Full Test')
+    })
+
+    // AC: Checkpoint runs filter out LoRA-capable workflows
+    it('filters out LoRA-capable studies for checkpoint training runs', async () => {
+      mockGetCheckpointTrainingRuns.mockResolvedValue(allTrainingRunsWithLora)
+      mockListStudies.mockResolvedValue(allStudiesWithLora)
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select a checkpoint training run
+      const selects = wrapper.findAllComponents(NSelect)
+      const trainingRunSelect = selects[0]
+      await trainingRunSelect.vm.$emit('update:value', runEmpty.id)
+      await flushPromises()
+
+      // Study select should NOT show the LoRA study
+      const studySelect = selects[1]
+      const studyOpts = studySelect.props('options') as Array<Record<string, unknown>>
+      const studyLabels = studyOpts.map(o => o.label)
+
+      expect(studyLabels).not.toContain('LoRA Quick Test')
+      expect(studyLabels).toContain('Quick Test')
+      expect(studyLabels).toContain('Full Test')
+    })
+
+    // AC: Job creation payload includes base_model field for LoRA jobs
+    it('includes base_model in job creation payload for LoRA runs', async () => {
+      mockGetCheckpointTrainingRuns.mockResolvedValue(allTrainingRunsWithLora)
+      mockListStudies.mockResolvedValue(allStudiesWithLora)
+      mockGetComfyUIModels.mockImplementation((type: string) => {
+        if (type === 'unet') return Promise.resolve({ models: unetModels })
+        return Promise.resolve({ models: [] })
+      })
+      mockCreateSampleJob.mockResolvedValue({ id: 'job-1', status: 'pending' })
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select LoRA training run
+      const selects = wrapper.findAllComponents(NSelect)
+      await selects[0].vm.$emit('update:value', runLora.id)
+      await flushPromises()
+
+      // Select LoRA study
+      await selects[1].vm.$emit('update:value', 'lora-study-1')
+      await flushPromises()
+
+      // Select base model - need to find the base model select (third NSelect)
+      const allSelects = wrapper.findAllComponents(NSelect)
+      const baseModelSelect = allSelects.find(s =>
+        s.element.closest('[data-testid="base-model-field"]'),
+      )
+      expect(baseModelSelect).toBeDefined()
+      await baseModelSelect!.vm.$emit('update:value', 'flux1-dev.safetensors')
+      await nextTick()
+
+      // Submit the job
+      const buttons = wrapper.findAllComponents(NButton)
+      const submitButton = buttons.find(b => b.text().includes('Generate'))
+      expect(submitButton).toBeDefined()
+      await submitButton!.trigger('click')
+      await flushPromises()
+
+      // Verify the payload includes base_model
+      expect(mockCreateSampleJob).toHaveBeenCalledWith(
+        expect.objectContaining({
+          training_run_name: 'my-lora-adapter-v1',
+          study_id: 'lora-study-1',
+          base_model: 'flux1-dev.safetensors',
+        }),
+      )
+    })
+
+    // AC: LoRA runs require base model selection to submit
+    it('disables submit button when LoRA run has no base model selected', async () => {
+      mockGetCheckpointTrainingRuns.mockResolvedValue(allTrainingRunsWithLora)
+      mockListStudies.mockResolvedValue(allStudiesWithLora)
+      mockGetComfyUIModels.mockImplementation((type: string) => {
+        if (type === 'unet') return Promise.resolve({ models: unetModels })
+        return Promise.resolve({ models: [] })
+      })
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select LoRA training run
+      const selects = wrapper.findAllComponents(NSelect)
+      await selects[0].vm.$emit('update:value', runLora.id)
+      await flushPromises()
+
+      // Select LoRA study
+      await selects[1].vm.$emit('update:value', 'lora-study-1')
+      await flushPromises()
+
+      // Do NOT select a base model — submit should be disabled
+      const buttons = wrapper.findAllComponents(NButton)
+      const submitButton = buttons.find(b => b.text().includes('Generate'))
+      expect(submitButton).toBeDefined()
+      expect(submitButton!.props('disabled')).toBe(true)
+    })
+
+    // AC: Checkpoint jobs do NOT include base_model in payload
+    it('does not include base_model in payload for checkpoint runs', async () => {
+      mockGetCheckpointTrainingRuns.mockResolvedValue(allTrainingRunsWithLora)
+      mockListStudies.mockResolvedValue(allStudiesWithLora)
+      mockCreateSampleJob.mockResolvedValue({ id: 'job-1', status: 'pending' })
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select checkpoint training run and study
+      const selects = wrapper.findAllComponents(NSelect)
+      await selects[0].vm.$emit('update:value', runEmpty.id)
+      await flushPromises()
+      await selects[1].vm.$emit('update:value', 'preset-1')
+      await flushPromises()
+
+      // Submit
+      const buttons = wrapper.findAllComponents(NButton)
+      const submitButton = buttons.find(b => b.text().includes('Generate'))
+      await submitButton!.trigger('click')
+      await flushPromises()
+
+      // Verify no base_model in payload
+      const payload = mockCreateSampleJob.mock.calls[0][0]
+      expect(payload.base_model).toBeUndefined()
     })
   })
 

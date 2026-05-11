@@ -22,6 +22,7 @@ const sampleRuns: TrainingRun[] = [
     id: 0,
     name: 'psai4rt v0.3.0 qwen',
     checkpoint_count: 3,
+    kind: 'checkpoint',
     has_samples: true,
     checkpoints: [
       { filename: 'psai4rt-v0.3.0-step00001000.safetensors', step_number: 1000, has_samples: true },
@@ -33,6 +34,7 @@ const sampleRuns: TrainingRun[] = [
     id: 1,
     name: 'sdxl finetune',
     checkpoint_count: 1,
+    kind: 'checkpoint',
     has_samples: true,
     checkpoints: [
       { filename: 'sdxl-finetune.safetensors', step_number: -1, has_samples: true },
@@ -46,6 +48,7 @@ const runsWithStudy: TrainingRun[] = [
     id: 0,
     name: 'my-model/study-a/my-model',
     checkpoint_count: 2,
+    kind: 'checkpoint',
     has_samples: true,
     checkpoints: [
       { filename: 'my-model-step00001000.safetensors', step_number: 1000, has_samples: true },
@@ -59,6 +62,7 @@ const runsWithStudy: TrainingRun[] = [
     id: 1,
     name: 'my-model/study-b/my-model',
     checkpoint_count: 1,
+    kind: 'checkpoint',
     has_samples: true,
     checkpoints: [
       { filename: 'my-model-step00001000.safetensors', step_number: 1000, has_samples: true },
@@ -75,6 +79,7 @@ const mixedRuns: TrainingRun[] = [
     id: 10,
     name: 'run-with-samples',
     checkpoint_count: 1,
+    kind: 'checkpoint',
     has_samples: true,
     checkpoints: [
       { filename: 'run-with-samples.safetensors', step_number: 1000, has_samples: true },
@@ -84,6 +89,7 @@ const mixedRuns: TrainingRun[] = [
     id: 11,
     name: 'run-without-samples',
     checkpoint_count: 1,
+    kind: 'checkpoint',
     has_samples: false,
     checkpoints: [
       { filename: 'run-without-samples.safetensors', step_number: 1000, has_samples: false },
@@ -442,6 +448,7 @@ describe('TrainingRunSelector', () => {
       id: 99,
       name: 'very-long-training-run-name-that-should-wrap-instead-of-truncating-with-ellipsis',
       checkpoint_count: 1,
+    kind: 'checkpoint',
       has_samples: true,
       checkpoints: [
         { filename: 'very-long-step00001000.safetensors', step_number: 1000, has_samples: true },
@@ -546,6 +553,7 @@ describe('TrainingRunSelector', () => {
           id: 0,
           name: 'long-model/this-is-a-very-long-study-name-that-should-wrap/long-model',
           checkpoint_count: 1,
+    kind: 'checkpoint',
           has_samples: true,
           checkpoints: [
             { filename: 'long-model-step00001000.safetensors', step_number: 1000, has_samples: true },
@@ -558,6 +566,7 @@ describe('TrainingRunSelector', () => {
           id: 1,
           name: 'long-model/short/long-model',
           checkpoint_count: 1,
+    kind: 'checkpoint',
           has_samples: true,
           checkpoints: [
             { filename: 'long-model-step00001000.safetensors', step_number: 1000, has_samples: true },
@@ -594,6 +603,7 @@ describe('TrainingRunSelector', () => {
           id: 0,
           name: 'run-alpha',
           checkpoint_count: 1,
+    kind: 'checkpoint',
           has_samples: true,
           checkpoints: [{ filename: 'run-alpha.safetensors', step_number: 1000, has_samples: true }],
         },
@@ -601,6 +611,7 @@ describe('TrainingRunSelector', () => {
           id: 1,
           name: 'run-beta',
           checkpoint_count: 1,
+    kind: 'checkpoint',
           has_samples: true,
           checkpoints: [{ filename: 'run-beta.safetensors', step_number: 1000, has_samples: true }],
         },
@@ -608,6 +619,7 @@ describe('TrainingRunSelector', () => {
           id: 2,
           name: 'run-gamma',
           checkpoint_count: 1,
+    kind: 'checkpoint',
           has_samples: true,
           checkpoints: [{ filename: 'run-gamma.safetensors', step_number: 1000, has_samples: true }],
         },
@@ -736,6 +748,7 @@ describe('TrainingRunSelector', () => {
         id: 2,
         name: 'new-run',
         checkpoint_count: 1,
+    kind: 'checkpoint',
         has_samples: true,
         checkpoints: [{ filename: 'new-run.safetensors', step_number: 1000, has_samples: true }],
       }
@@ -801,6 +814,7 @@ describe('TrainingRunSelector', () => {
         id: 3,
         name: 'newly-generated-run',
         checkpoint_count: 1,
+    kind: 'checkpoint',
         has_samples: true,
         checkpoints: [{ filename: 'newly-generated.safetensors', step_number: 1000, has_samples: true }],
       }
@@ -839,6 +853,55 @@ describe('TrainingRunSelector', () => {
 
       // Initial load + 2 reactive refreshes
       expect(mockGetTrainingRuns).toHaveBeenCalledTimes(3)
+    })
+  })
+
+  // S-148: LoRA kind badge in training run options
+  describe('LoRA kind badge (S-148)', () => {
+    const loraRun: TrainingRun = {
+      id: 20,
+      name: 'my-lora-adapter',
+      kind: 'lora',
+      checkpoint_count: 1,
+      has_samples: true,
+      checkpoints: [
+        { filename: 'lora-step1000.safetensors', step_number: 1000, has_samples: true },
+      ],
+    }
+
+    // AC: Training run list shows LoRA badge based on kind field
+    it('includes _kind metadata in group options for LoRA runs', async () => {
+      mockGetTrainingRuns.mockResolvedValue([...sampleRuns, loraRun])
+      const wrapper = mount(TrainingRunSelector)
+      await flushPromises()
+
+      const select = wrapper.findComponent(NSelect)
+      const options = select.props('options') as Array<Record<string, unknown>>
+
+      // The LoRA run's group should have _kind = 'lora'
+      const loraGroup = options.find(o => o.value === 'my-lora-adapter')
+      expect(loraGroup).toBeDefined()
+      expect(loraGroup!._kind).toBe('lora')
+
+      // Regular checkpoint runs should have _kind = 'checkpoint'
+      const checkpointGroup = options.find(o => o.value === 'psai4rt v0.3.0 qwen')
+      expect(checkpointGroup).toBeDefined()
+      expect(checkpointGroup!._kind).toBe('checkpoint')
+    })
+
+    // AC: Checkpoint runs do not show LoRA badge
+    it('does not include lora _kind for checkpoint-only runs', async () => {
+      mockGetTrainingRuns.mockResolvedValue(sampleRuns)
+      const wrapper = mount(TrainingRunSelector)
+      await flushPromises()
+
+      const select = wrapper.findComponent(NSelect)
+      const options = select.props('options') as Array<Record<string, unknown>>
+
+      // All options should have _kind = 'checkpoint'
+      for (const option of options) {
+        expect(option._kind).toBe('checkpoint')
+      }
     })
   })
 })

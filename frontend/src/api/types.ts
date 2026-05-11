@@ -26,10 +26,14 @@ export interface CheckpointInfo {
   has_samples: boolean
 }
 
+/** Training run kind: checkpoint (full model) or lora (LoRA adapter). */
+export type TrainingRunKind = 'checkpoint' | 'lora'
+
 /** An auto-discovered training run. */
 export interface TrainingRun {
   id: number
   name: string
+  kind: TrainingRunKind
   checkpoint_count: number
   has_samples: boolean
   checkpoints: CheckpointInfo[]
@@ -133,7 +137,7 @@ export interface ComfyUIModels {
 }
 
 /** Valid ComfyUI model types. */
-export type ComfyUIModelType = 'vae' | 'clip' | 'unet' | 'sampler' | 'scheduler'
+export type ComfyUIModelType = 'vae' | 'clip' | 'unet' | 'lora' | 'sampler' | 'scheduler'
 
 /** A named prompt with a name and text. */
 export interface NamedPrompt {
@@ -256,6 +260,8 @@ export interface SampleJob {
   vae: string
   clip: string
   shift?: number
+  /** Base model path for LoRA jobs (empty for checkpoint jobs). */
+  base_model?: string
   /** List of checkpoint filenames selected at job creation. Empty means all checkpoints were included. */
   checkpoint_filenames: string[]
   status: SampleJobStatus
@@ -295,6 +301,8 @@ export interface CreateSampleJobPayload {
   clear_existing?: boolean
   /** When true, only generate samples that are missing on disk (skips items whose output file already exists). */
   missing_only?: boolean
+  /** Base model path for LoRA jobs (required when training run kind is 'lora'). */
+  base_model?: string
 }
 
 /** Workflow template summary. */
