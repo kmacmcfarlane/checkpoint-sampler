@@ -603,6 +603,126 @@ var _ = Describe("Scanner", func() {
 	})
 })
 
+// S-147: LoRA directory structure — scanner uses studyName that includes base model dir
+var _ = Describe("Scanner LoRA base model directory", func() {
+	var (
+		fs        *fakeScannerFS
+		scanner   *service.Scanner
+		sampleDir string
+		logger    *logrus.Logger
+	)
+
+	BeforeEach(func() {
+		sampleDir = "/samples"
+		fs = newFakeScannerFS()
+		logger = logrus.New()
+		logger.SetOutput(io.Discard)
+		scanner = service.NewScanner(fs, sampleDir, logger)
+	})
+
+	Context("when study name includes base model directory (LoRA layout)", func() {
+		It("scans images from LoRA directory structure", func() {
+			// LoRA layout: sample_dir/my-lora/study-abc/sd15/lora-step00001000.safetensors/
+			tr := model.TrainingRun{
+				Name: "my-lora/study-abc/sd15/lora",
+				Checkpoints: []model.Checkpoint{
+					{Filename: "lora-step00001000.safetensors", StepNumber: 1000, HasSamples: true},
+				},
+			}
+			// studyName = "my-lora/study-abc/sd15" (includes base model dir)
+			fs.files["/samples/my-lora/study-abc/sd15/lora-step00001000.safetensors"] = []string{
+				"seed=1&cfg=3&strength_model=0.8&strength_clip=0.8&_00001_.png",
+			}
+
+			result, err := scanner.ScanTrainingRun(tr, "my-lora/study-abc/sd15")
+
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Images).To(HaveLen(1))
+		})
+
+		It("includes full LoRA path prefix in relative path", func() {
+			tr := model.TrainingRun{
+				Name: "my-lora/study-abc/sd15/lora",
+				Checkpoints: []model.Checkpoint{
+					{Filename: "lora-step00001000.safetensors", StepNumber: 1000, HasSamples: true},
+				},
+			}
+			fs.files["/samples/my-lora/study-abc/sd15/lora-step00001000.safetensors"] = []string{
+				"seed=42&cfg=7&_00001_.png",
+			}
+
+			result, err := scanner.ScanTrainingRun(tr, "my-lora/study-abc/sd15")
+
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Images[0].RelativePath).To(Equal(
+				"my-lora/study-abc/sd15/lora-step00001000.safetensors/seed=42&cfg=7&_00001_.png"))
+		})
+
+		It("discovers LoRA strength dimensions from filenames", func() {
+			tr := model.TrainingRun{
+				Name: "my-lora/study-abc/sd15/lora",
+				Checkpoints: []model.Checkpoint{
+					{Filename: "lora-step00001000.safetensors", StepNumber: 1000, HasSamples: true},
+				},
+			}
+			fs.files["/samples/my-lora/study-abc/sd15/lora-step00001000.safetensors"] = []string{
+				"seed=1&strength_model=0.8&strength_clip=0.8&_00001_.png",
+				"seed=1&strength_model=1.0&strength_clip=1.0&_00001_.png",
+			}
+
+			result, err := scanner.ScanTrainingRun(tr, "my-lora/study-abc/sd15")
+
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Images).To(HaveLen(2))
+
+			dimMap := make(map[string]model.Dimension)
+			for _, d := range result.Dimensions {
+				dimMap[d.Name] = d
+			}
+			Expect(dimMap).To(HaveKey("strength_model"))
+			Expect(dimMap["strength_model"].Values).To(ConsistOf("0.8", "1.0"))
+			Expect(dimMap).To(HaveKey("strength_clip"))
+		})
+
+		It("handles missing LoRA checkpoint directory gracefully", func() {
+			tr := model.TrainingRun{
+				Name: "my-lora/study-abc/sd15/lora",
+				Checkpoints: []model.Checkpoint{
+					{Filename: "lora-step00001000.safetensors", StepNumber: 1000, HasSamples: true},
+				},
+			}
+			// No directory registered — simulates missing LoRA output
+
+			result, err := scanner.ScanTrainingRun(tr, "my-lora/study-abc/sd15")
+
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Images).To(BeEmpty())
+		})
+	})
+
+	// S-147: Regression — non-LoRA paths unchanged
+	Context("non-LoRA regression", func() {
+		It("non-LoRA paths remain unchanged with new layout", func() {
+			tr := model.TrainingRun{
+				Name: "my-run/study-abc/my-run",
+				Checkpoints: []model.Checkpoint{
+					{Filename: "my-run-step00001000.safetensors", StepNumber: 1000, HasSamples: true},
+				},
+			}
+			fs.files["/samples/my-run/study-abc/my-run-step00001000.safetensors"] = []string{
+				"seed=1&cfg=3&_00001_.png",
+			}
+
+			result, err := scanner.ScanTrainingRun(tr, "my-run/study-abc")
+
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Images).To(HaveLen(1))
+			Expect(result.Images[0].RelativePath).To(Equal(
+				"my-run/study-abc/my-run-step00001000.safetensors/seed=1&cfg=3&_00001_.png"))
+		})
+	})
+})
+
 // AC: S-114 — Scanner populates ThumbnailPath when thumbnails are enabled and file exists
 var _ = Describe("ScanTrainingRun thumbnail path population", func() {
 	var (

@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-147: Output path: base model directory level for LoRA samples
+- ViewerDiscoveryService now detects 4-level LoRA directory layout: `{training_run}/{study}/{base_model_name}/{checkpoint.safetensors}/`
+- Non-LoRA 3-level discovery paths unchanged (regression-safe); `StudyNameForRun` transparently handles both depths via `path.Dir`
+
 ### S-146: Job execution: LoRA workflow substitution
 - `substituteNode` handles `CSRoleLoraLoader`: sets `lora_name`, `strength_model`, `strength_clip` from item fields
 - `substituteNode` for `unet_loader`: uses `job.BaseModel` for LoRA jobs instead of `item.ComfyUIModelPath`

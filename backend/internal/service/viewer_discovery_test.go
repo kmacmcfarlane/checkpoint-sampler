@@ -445,6 +445,141 @@ var _ = Describe("ViewerDiscoveryService", func() {
 				Expect(service.StudyNameForRun(runs[0].Name)).To(Equal("demo-model/demo-study"))
 			})
 		})
+
+		// S-147: LoRA layout: {training_run}/{study}/{base_model_name}/{checkpoint.safetensors}/
+		Context("LoRA per-training-run layout with base model directory", func() {
+			It("discovers training runs from 4-level LoRA hierarchy", func() {
+				// LoRA layout: sample_dir/my-lora/study-abc/sd15/my-lora-step00001000.safetensors/
+				fs.subdirs["/samples"] = []string{"my-lora"}
+				fs.subdirs["/samples/my-lora"] = []string{"study-abc"}
+				fs.subdirs["/samples/my-lora/study-abc"] = []string{"sd15"}
+				fs.subdirs["/samples/my-lora/study-abc/sd15"] = []string{
+					"my-lora-step00001000.safetensors",
+					"my-lora-step00002000.safetensors",
+				}
+				svc = service.NewViewerDiscoveryService(fs, "/samples", logger)
+
+				runs, err := svc.DiscoverViewable()
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(runs).To(HaveLen(1))
+				Expect(runs[0].Name).To(Equal("my-lora/study-abc/sd15/my-lora"))
+				Expect(runs[0].Checkpoints).To(HaveLen(2))
+				Expect(runs[0].HasSamples).To(BeTrue())
+				Expect(runs[0].TrainingRunDir).To(Equal("my-lora"))
+				Expect(runs[0].StudyLabel).To(Equal("study-abc"))
+				Expect(runs[0].StudyOutputDir).To(Equal("my-lora/study-abc/sd15"))
+			})
+
+			It("handles multiple base models under the same study", func() {
+				fs.subdirs["/samples"] = []string{"my-lora"}
+				fs.subdirs["/samples/my-lora"] = []string{"study-abc"}
+				fs.subdirs["/samples/my-lora/study-abc"] = []string{"sd15", "sdxl"}
+				fs.subdirs["/samples/my-lora/study-abc/sd15"] = []string{
+					"my-lora-step00001000.safetensors",
+				}
+				fs.subdirs["/samples/my-lora/study-abc/sdxl"] = []string{
+					"my-lora-step00001000.safetensors",
+				}
+				svc = service.NewViewerDiscoveryService(fs, "/samples", logger)
+
+				runs, err := svc.DiscoverViewable()
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(runs).To(HaveLen(2))
+				Expect(runs[0].Name).To(Equal("my-lora/study-abc/sd15/my-lora"))
+				Expect(runs[0].StudyOutputDir).To(Equal("my-lora/study-abc/sd15"))
+				Expect(runs[1].Name).To(Equal("my-lora/study-abc/sdxl/my-lora"))
+				Expect(runs[1].StudyOutputDir).To(Equal("my-lora/study-abc/sdxl"))
+			})
+
+			It("handles mixed LoRA and non-LoRA checkpoints under the same study", func() {
+				// A study dir can contain both checkpoint dirs (non-LoRA) and base model dirs (LoRA)
+				fs.subdirs["/samples"] = []string{"my-run"}
+				fs.subdirs["/samples/my-run"] = []string{"study-abc"}
+				fs.subdirs["/samples/my-run/study-abc"] = []string{
+					"my-run-step00001000.safetensors", // non-LoRA checkpoint
+					"sd15",                             // LoRA base model dir
+				}
+				fs.subdirs["/samples/my-run/study-abc/sd15"] = []string{
+					"lora-step00001000.safetensors",
+				}
+				svc = service.NewViewerDiscoveryService(fs, "/samples", logger)
+
+				runs, err := svc.DiscoverViewable()
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(runs).To(HaveLen(2))
+				// Non-LoRA run
+				Expect(runs[0].Name).To(Equal("my-run/study-abc/my-run"))
+				Expect(runs[0].StudyOutputDir).To(Equal("my-run/study-abc"))
+				// LoRA run
+				Expect(runs[1].Name).To(Equal("my-run/study-abc/sd15/lora"))
+				Expect(runs[1].StudyOutputDir).To(Equal("my-run/study-abc/sd15"))
+			})
+
+			It("returns StudyNameForRun that scopes to training_run/study/base_model for LoRA", func() {
+				fs.subdirs["/samples"] = []string{"my-lora"}
+				fs.subdirs["/samples/my-lora"] = []string{"study-abc"}
+				fs.subdirs["/samples/my-lora/study-abc"] = []string{"sd15"}
+				fs.subdirs["/samples/my-lora/study-abc/sd15"] = []string{
+					"my-lora-step00001000.safetensors",
+				}
+				svc = service.NewViewerDiscoveryService(fs, "/samples", logger)
+
+				runs, err := svc.DiscoverViewable()
+				Expect(err).NotTo(HaveOccurred())
+				Expect(runs).To(HaveLen(1))
+
+				// StudyNameForRun returns "my-lora/study-abc/sd15" for LoRA runs
+				studyOutputDir := service.StudyNameForRun(runs[0].Name)
+				Expect(studyOutputDir).To(Equal("my-lora/study-abc/sd15"))
+			})
+
+			It("handles empty base model directory gracefully", func() {
+				fs.subdirs["/samples"] = []string{"my-lora"}
+				fs.subdirs["/samples/my-lora"] = []string{"study-abc"}
+				fs.subdirs["/samples/my-lora/study-abc"] = []string{"empty-base-model"}
+				fs.subdirs["/samples/my-lora/study-abc/empty-base-model"] = []string{}
+				svc = service.NewViewerDiscoveryService(fs, "/samples", logger)
+
+				runs, err := svc.DiscoverViewable()
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(runs).To(BeEmpty())
+			})
+
+			It("returns error when listing level-3 directory fails", func() {
+				fs.subdirs["/samples"] = []string{"my-lora"}
+				fs.subdirs["/samples/my-lora"] = []string{"study-abc"}
+				fs.subdirs["/samples/my-lora/study-abc"] = []string{"broken-base-model"}
+				fs.errs["/samples/my-lora/study-abc/broken-base-model"] = fmt.Errorf("level-3 io error")
+				svc = service.NewViewerDiscoveryService(fs, "/samples", logger)
+
+				_, err := svc.DiscoverViewable()
+
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("level-3 io error"))
+			})
+
+			It("extracts base_model_name from realistic path (filename sans extension)", func() {
+				// Realistic: base model "v1-5-pruned-emaonly" from v1-5-pruned-emaonly.safetensors
+				fs.subdirs["/samples"] = []string{"my-lora"}
+				fs.subdirs["/samples/my-lora"] = []string{"study-abc"}
+				fs.subdirs["/samples/my-lora/study-abc"] = []string{"v1-5-pruned-emaonly"}
+				fs.subdirs["/samples/my-lora/study-abc/v1-5-pruned-emaonly"] = []string{
+					"my-lora-step00001000.safetensors",
+				}
+				svc = service.NewViewerDiscoveryService(fs, "/samples", logger)
+
+				runs, err := svc.DiscoverViewable()
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(runs).To(HaveLen(1))
+				Expect(runs[0].Name).To(Equal("my-lora/study-abc/v1-5-pruned-emaonly/my-lora"))
+				Expect(runs[0].StudyOutputDir).To(Equal("my-lora/study-abc/v1-5-pruned-emaonly"))
+			})
+		})
 	})
 
 	Describe("StudyNameForRun", func() {
@@ -462,6 +597,10 @@ var _ = Describe("ViewerDiscoveryService", func() {
 
 		It("handles multiple path segments (general case)", func() {
 			Expect(service.StudyNameForRun("a/b/c")).To(Equal("a/b"))
+		})
+
+		It("returns training_run/study/base_model for 4-level LoRA layout", func() {
+			Expect(service.StudyNameForRun("my-lora/study-abc/sd15/my-lora")).To(Equal("my-lora/study-abc/sd15"))
 		})
 	})
 })

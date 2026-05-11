@@ -467,7 +467,7 @@ stories:
 
   - id: S-147
     title: "Output path: base model directory level for LoRA samples"
-    status: todo
+    status: uat
     priority: 65
     complexity: medium
     requires:

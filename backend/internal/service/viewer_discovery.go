@@ -3,6 +3,7 @@ package service
 import (
 	"path"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -22,13 +23,16 @@ type ViewerFileSystem interface {
 //
 // Supported directory structures (newest-first priority):
 //
-//	sample_dir/{training_run_name}/{study_name}/{checkpoint.safetensors}/ → new per-training-run layout
-//	sample_dir/{study_name}/{checkpoint.safetensors}/                   → legacy study layout
-//	sample_dir/{checkpoint.safetensors}/                                → legacy no-study layout
+//	sample_dir/{training_run_name}/{study_name}/{base_model_name}/{checkpoint.safetensors}/ → LoRA layout
+//	sample_dir/{training_run_name}/{study_name}/{checkpoint.safetensors}/                   → new per-training-run layout
+//	sample_dir/{study_name}/{checkpoint.safetensors}/                                       → legacy study layout
+//	sample_dir/{checkpoint.safetensors}/                                                    → legacy no-study layout
 //
 // Detection: a non-safetensors directory at root level that contains sub-directories
 // that are ALSO non-safetensors (rather than safetensors) is treated as a training_run
 // directory (new layout). Otherwise it is treated as a study directory (legacy layout).
+// Within the new layout, if a study directory contains non-safetensors subdirectories,
+// those are treated as base model directories (LoRA layout) and scanned one level deeper.
 //
 // A directory is considered a checkpoint directory if its name ends with ".safetensors".
 type ViewerDiscoveryService struct {
@@ -95,13 +99,7 @@ func (d *ViewerDiscoveryService) DiscoverViewable() ([]model.TrainingRun, error)
 
 			// Check whether level-1 entries are checkpoint dirs (legacy study layout)
 			// or non-checkpoint dirs (new training_run layout with study_name subdirs).
-			hasCheckpointSubdir := false
-			for _, l1Entry := range level1Entries {
-				if isCheckpointDirName(l1Entry) {
-					hasCheckpointSubdir = true
-					break
-				}
-			}
+			hasCheckpointSubdir := slices.ContainsFunc(level1Entries, isCheckpointDirName)
 
 			if hasCheckpointSubdir {
 				// Legacy study layout: {study_name}/{checkpoint.safetensors}/
@@ -123,9 +121,11 @@ func (d *ViewerDiscoveryService) DiscoverViewable() ([]model.TrainingRun, error)
 				}
 			} else {
 				// New layout: {training_run_name}/{study_name}/{checkpoint.safetensors}/
+				// LoRA layout: {training_run_name}/{study_name}/{base_model_name}/{checkpoint.safetensors}/
 				// entry = training_run_name, l1Entry = study_name
 				for _, studyNameEntry := range level1Entries {
-					// Each study_name dir should contain checkpoint dirs
+					// Each study_name dir should contain checkpoint dirs (non-LoRA)
+					// or base_model dirs (LoRA) that in turn contain checkpoint dirs.
 					level2Dir := filepath.Join(d.sampleDir, entry, studyNameEntry)
 					level2Entries, err := d.fs.ListSubdirectories(level2Dir)
 					if err != nil {
@@ -136,18 +136,49 @@ func (d *ViewerDiscoveryService) DiscoverViewable() ([]model.TrainingRun, error)
 						}).Error("failed to list level-2 directory entries")
 						return nil, err
 					}
-					// The study output dir prefix used for scoping: training_run/study_name
-					studyOutputDir := entry + "/" + studyNameEntry
-					for _, cpEntry := range level2Entries {
-						if isCheckpointDirName(cpEntry) {
-							d.addCheckpointDir(runMap, studyOutputDir, cpEntry)
-							baseName := stripCheckpointSuffixes(cpEntry)
+
+					for _, l2Entry := range level2Entries {
+						if isCheckpointDirName(l2Entry) {
+							// Non-LoRA: {training_run}/{study}/{checkpoint.safetensors}/
+							studyOutputDir := entry + "/" + studyNameEntry
+							d.addCheckpointDir(runMap, studyOutputDir, l2Entry)
+							baseName := stripCheckpointSuffixes(l2Entry)
 							runName := studyOutputDir + "/" + baseName
 							if _, ok := metaMap[runName]; !ok {
 								metaMap[runName] = runMeta{
 									trainingRunDir: entry,
 									studyLabel:     studyNameEntry,
 									studyOutputDir: studyOutputDir,
+								}
+							}
+						} else {
+							// LoRA: {training_run}/{study}/{base_model_name}/{checkpoint.safetensors}/
+							// l2Entry = base_model_name
+							level3Dir := filepath.Join(d.sampleDir, entry, studyNameEntry, l2Entry)
+							level3Entries, err := d.fs.ListSubdirectories(level3Dir)
+							if err != nil {
+								d.logger.WithFields(logrus.Fields{
+									"training_run":    entry,
+									"study_name":      studyNameEntry,
+									"base_model_name": l2Entry,
+									"error":           err.Error(),
+								}).Error("failed to list level-3 directory entries (LoRA base model)")
+								return nil, err
+							}
+							// studyOutputDir for LoRA includes base_model_name
+							loraStudyOutputDir := entry + "/" + studyNameEntry + "/" + l2Entry
+							for _, cpEntry := range level3Entries {
+								if isCheckpointDirName(cpEntry) {
+									d.addCheckpointDir(runMap, loraStudyOutputDir, cpEntry)
+									baseName := stripCheckpointSuffixes(cpEntry)
+									runName := loraStudyOutputDir + "/" + baseName
+									if _, ok := metaMap[runName]; !ok {
+										metaMap[runName] = runMeta{
+											trainingRunDir: entry,
+											studyLabel:     studyNameEntry,
+											studyOutputDir: loraStudyOutputDir,
+										}
+									}
 								}
 							}
 						}
