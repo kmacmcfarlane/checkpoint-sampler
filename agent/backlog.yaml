@@ -559,7 +559,7 @@ stories:
       This blocks S-140 and all subsequent LoRA stories. Must be resolved before pipeline can resume.
   - id: B-139
     title: "LoRA checkpoint metadata resolution only searches checkpoint_dirs"
-    status: todo
+    status: uat
     priority: 50
     complexity: low
     requires: []

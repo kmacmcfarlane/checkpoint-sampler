@@ -22,14 +22,16 @@ type CheckpointMetadataReader interface {
 type CheckpointMetadataService struct {
 	reader         CheckpointMetadataReader
 	checkpointDirs []string
+	loraDirs       []string
 	logger         *logrus.Entry
 }
 
 // NewCheckpointMetadataService creates a checkpoint metadata service.
-func NewCheckpointMetadataService(reader CheckpointMetadataReader, checkpointDirs []string, logger *logrus.Logger) *CheckpointMetadataService {
+func NewCheckpointMetadataService(reader CheckpointMetadataReader, checkpointDirs []string, loraDirs []string, logger *logrus.Logger) *CheckpointMetadataService {
 	return &CheckpointMetadataService{
 		reader:         reader,
 		checkpointDirs: checkpointDirs,
+		loraDirs:       loraDirs,
 		logger:         logger.WithField("component", "checkpoint_metadata"),
 	}
 }
@@ -78,9 +80,14 @@ func (s *CheckpointMetadataService) GetMetadata(filename string) (map[string]str
 	return metadata, nil
 }
 
-// resolveCheckpointFile finds the first matching checkpoint file across all checkpoint_dirs.
+// resolveCheckpointFile finds the first matching checkpoint file across all checkpoint_dirs
+// and lora_dirs. checkpoint_dirs are searched first.
 func (s *CheckpointMetadataService) resolveCheckpointFile(filename string) (string, error) {
-	for _, dir := range s.checkpointDirs {
+	allDirs := make([]string, 0, len(s.checkpointDirs)+len(s.loraDirs))
+	allDirs = append(allDirs, s.checkpointDirs...)
+	allDirs = append(allDirs, s.loraDirs...)
+
+	for _, dir := range allDirs {
 		// Walk the directory to find the file
 		var found string
 		_ = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
@@ -91,7 +98,7 @@ func (s *CheckpointMetadataService) resolveCheckpointFile(filename string) (stri
 				return nil
 			}
 			if info.Name() == filename {
-				// Verify resolved path stays within checkpoint dir
+				// Verify resolved path stays within the search dir
 				cleanDir := filepath.Clean(dir)
 				cleanPath := filepath.Clean(path)
 				if strings.HasPrefix(cleanPath, cleanDir+string(filepath.Separator)) || cleanPath == cleanDir {

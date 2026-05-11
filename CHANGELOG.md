@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-139: LoRA checkpoint metadata resolution only searches checkpoint_dirs
+- `CheckpointMetadataService` now searches both `checkpoint_dirs` and `lora_dirs` when resolving checkpoint filenames for metadata parsing, with checkpoint_dirs taking precedence
+
 ### S-148: Frontend: LoRA training run badge and job launch UX
 - Training run selectors display a "LoRA" badge for LoRA training runs; checkpoint runs show no badge (default kind)
 - Job launch dialog conditionally shows a base model dropdown (populated from ComfyUI UNET models) when a LoRA training run is selected

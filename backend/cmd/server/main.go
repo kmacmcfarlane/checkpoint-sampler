@@ -188,7 +188,7 @@ func run() error {
 			logger.Info("demo dataset auto-installed on first run")
 		}
 	}
-	checkpointMetadataSvc := service.NewCheckpointMetadataService(fs, cfg.CheckpointDirs, logger)
+	checkpointMetadataSvc := service.NewCheckpointMetadataService(fs, cfg.CheckpointDirs, cfg.LoraDirs, logger)
 	checkpointsSvc := api.NewCheckpointsService(checkpointMetadataSvc)
 	imageMetadataSvc := service.NewImageMetadataService(fs, cfg.SampleDir, logger)
 	imagesSvc := api.NewImagesService(cfg.SampleDir, imageMetadataSvc, logger)
