@@ -353,7 +353,7 @@ stories:
 
   - id: S-142
     title: "Workflow template: add lora_loader cs_role"
-    status: todo
+    status: uat
     priority: 75
     complexity: low
     requires:

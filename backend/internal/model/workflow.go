@@ -31,6 +31,7 @@ const (
 	CSRoleNegativePrompt CSRole = "negative_prompt"
 	CSRoleShift          CSRole = "shift"
 	CSRoleLatentImage    CSRole = "latent_image"
+	CSRoleLoraLoader     CSRole = "lora_loader"
 )
 
 // KnownCSRoles returns all known cs_role values.
@@ -45,6 +46,7 @@ func KnownCSRoles() []CSRole {
 		CSRoleNegativePrompt,
 		CSRoleShift,
 		CSRoleLatentImage,
+		CSRoleLoraLoader,
 	}
 }
 

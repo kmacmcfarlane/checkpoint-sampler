@@ -131,9 +131,9 @@ build-playwright:
 # Run Playwright E2E tests in parallel across N sharded stacks (default: 4 shards).
 # Each shard gets its own isolated docker-compose stack with a pre-built backend
 # binary (no codegen or compilation at startup). Artifacts go to .e2e/.
-# Override shard count: make test-e2e SHARDS=2
+# Override shard count: make test-e2e SHARDS=8
 test-e2e:
-	./scripts/e2e/e2e_parallel.sh $(or $(SHARDS),12)
+	./scripts/e2e/e2e_parallel.sh $(or $(SHARDS),4)
 
 # Run Playwright E2E tests serially in a single stack (pre-built binary).
 # Supports SPEC= for targeted runs: make test-e2e-serial SPEC=smoke.spec.ts

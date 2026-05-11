@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-142: Workflow template: add lora_loader cs_role
+- Added `CSRoleLoraLoader` constant to model and `KnownCSRoles()` registry; WorkflowLoader now recognizes `lora_loader` nodes in workflow templates as an optional role
+- Reduced default E2E shard count from 12 to 4 to resolve resource contention flakiness
+
 ### S-141: Discovery: scan lora_dirs and assign TrainingRunKind
 - DiscoveryService now scans both `checkpoint_dirs` and `lora_dirs`, assigning `TrainingRunKindCheckpoint` or `TrainingRunKindLoRA` based on directory source
 - Same suffix-stripping logic (step/epoch) applies to LoRA files; FSState watch dirs include lora_dirs

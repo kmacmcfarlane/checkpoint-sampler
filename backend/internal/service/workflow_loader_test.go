@@ -336,6 +336,7 @@ var _ = Describe("WorkflowLoader", func() {
 			Entry("negative_prompt", "negative_prompt"),
 			Entry("shift", "shift"),
 			Entry("latent_image", "latent_image"),
+			Entry("lora_loader", "lora_loader"),
 			Entry("save_image", "save_image"),
 		)
 
@@ -453,8 +454,9 @@ var _ = Describe("WorkflowLoader", func() {
 				"5": map[string]interface{}{"_meta": map[string]interface{}{"cs_role": "sampler"}},
 				"6": map[string]interface{}{"_meta": map[string]interface{}{"cs_role": "positive_prompt"}},
 				"7": map[string]interface{}{"_meta": map[string]interface{}{"cs_role": "negative_prompt"}},
-				"8": map[string]interface{}{"_meta": map[string]interface{}{"cs_role": "shift"}},
-				"9": map[string]interface{}{"_meta": map[string]interface{}{"cs_role": "latent_image"}},
+				"8":  map[string]interface{}{"_meta": map[string]interface{}{"cs_role": "shift"}},
+				"9":  map[string]interface{}{"_meta": map[string]interface{}{"cs_role": "latent_image"}},
+				"10": map[string]interface{}{"_meta": map[string]interface{}{"cs_role": "lora_loader"}},
 			}
 			data, _ := json.Marshal(workflow)
 			os.WriteFile(filepath.Join(workflowDir, "complete.json"), data, 0644)
@@ -462,7 +464,7 @@ var _ = Describe("WorkflowLoader", func() {
 			wf, err := loader.Get(ctx, "complete.json")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(wf.ValidationState).To(Equal(model.ValidationStateValid))
-			Expect(wf.Roles).To(HaveLen(9))
+			Expect(wf.Roles).To(HaveLen(10))
 		})
 	})
 })
