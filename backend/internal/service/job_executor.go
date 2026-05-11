@@ -1119,7 +1119,15 @@ func (e *JobExecutor) handleItemCompletionAsync(jobID, itemID, promptID string) 
 	// separators (e.g. "qwen/Qwen2-VL" → "qwen_Qwen2-VL"). This scopes samples to both
 	// the selected training run and the selected study, fixing the 36/1 count bug where
 	// all training runs shared the same study directory.
+	//
+	// For LoRA jobs, an additional base model directory level is inserted:
+	// {sanitized_training_run_name}/{study_name}/{base_model_name}
+	// where base_model_name is the filename of the base model without its extension.
 	studyOutputDir := fileformat.SanitizeTrainingRunName(job.TrainingRunName) + "/" + job.StudyName
+	if job.BaseModel != "" {
+		baseModelName := strings.TrimSuffix(filepath.Base(job.BaseModel), filepath.Ext(job.BaseModel))
+		studyOutputDir = studyOutputDir + "/" + baseModelName
+	}
 
 	// Generate output filename
 	filename := e.generateOutputFilename(*item)
@@ -1230,7 +1238,17 @@ func (e *JobExecutor) substituteNode(workflow map[string]interface{}, nodeID str
 
 	switch model.CSRole(role) {
 	case model.CSRoleUNETLoader:
-		inputs["unet_name"] = item.ComfyUIModelPath
+		// For LoRA jobs, the unet_loader receives the base model path from the job;
+		// for checkpoint jobs, it receives the per-item ComfyUI model path.
+		if job.BaseModel != "" {
+			inputs["unet_name"] = job.BaseModel
+		} else {
+			inputs["unet_name"] = item.ComfyUIModelPath
+		}
+	case model.CSRoleLoraLoader:
+		inputs["lora_name"] = item.LoraModelPath
+		inputs["strength_model"] = item.StrengthModel
+		inputs["strength_clip"] = item.StrengthClip
 	case model.CSRoleCLIPLoader:
 		if job.CLIP != "" {
 			inputs["clip_name"] = job.CLIP
@@ -1261,8 +1279,8 @@ func (e *JobExecutor) substituteNode(workflow map[string]interface{}, nodeID str
 		inputs["height"] = item.Height
 		inputs["batch_size"] = 1
 	case model.CSRoleSaveImage:
-		// Generate a prefix for the output filename
-		prefix := e.generateFilenamePrefix(item)
+		// Generate a prefix for the output filename, accounting for base model in LoRA jobs
+		prefix := e.generateFilenamePrefixForJob(job, item)
 		inputs["filename_prefix"] = prefix
 	default:
 		e.logger.WithFields(logrus.Fields{
@@ -1274,11 +1292,15 @@ func (e *JobExecutor) substituteNode(workflow map[string]interface{}, nodeID str
 	return nil
 }
 
-// generateFilenamePrefix generates a prefix for ComfyUI's save_image node.
-func (e *JobExecutor) generateFilenamePrefix(item model.SampleJobItem) string {
-	// Use a simple prefix that includes the checkpoint filename
-	// ComfyUI will append a counter and timestamp
+// generateFilenamePrefixForJob generates a prefix for ComfyUI's save_image node.
+// For LoRA jobs (where job.BaseModel is set), the base model name is embedded
+// in the prefix so ComfyUI output files are scoped to the base model.
+func (e *JobExecutor) generateFilenamePrefixForJob(job model.SampleJob, item model.SampleJobItem) string {
 	checkpointBase := strings.TrimSuffix(item.CheckpointFilename, filepath.Ext(item.CheckpointFilename))
+	if job.BaseModel != "" {
+		baseModelName := strings.TrimSuffix(filepath.Base(job.BaseModel), filepath.Ext(job.BaseModel))
+		return fmt.Sprintf("sample_%s_%s", baseModelName, checkpointBase)
+	}
 	return fmt.Sprintf("sample_%s", checkpointBase)
 }
 

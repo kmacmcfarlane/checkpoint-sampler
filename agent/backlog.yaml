@@ -447,7 +447,7 @@ stories:
 
   - id: S-146
     title: "Job execution: LoRA workflow substitution"
-    status: todo
+    status: uat
     priority: 70
     complexity: medium
     requires:

@@ -5,6 +5,12 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-146: Job execution: LoRA workflow substitution
+- `substituteNode` handles `CSRoleLoraLoader`: sets `lora_name`, `strength_model`, `strength_clip` from item fields
+- `substituteNode` for `unet_loader`: uses `job.BaseModel` for LoRA jobs instead of `item.ComfyUIModelPath`
+- `handleItemCompletionAsync` inserts base model name directory level for LoRA output paths: `{run}/{study}/{base_model_name}/{lora_checkpoint}/`
+- `generateFilenamePrefixForJob` embeds base model name in save_image prefix for LoRA jobs
+
 ### S-145: Job creation: LoRA path matching, base model, strength expansion
 - LoraPathMatcher queries ComfyUI's LoRA model list (via `object_info/LoraLoader`) for filename-to-path matching, separate from the UNET path matcher used for checkpoint runs
 - `expandJobItems` includes `lora_strength_pairs` in the Cartesian product for LoRA training runs; non-LoRA jobs skip strength expansion

@@ -1054,6 +1054,73 @@ var _ = Describe("JobExecutor", func() {
 			Expect(inputs8["height"]).To(Equal(768))
 			Expect(inputs8["batch_size"]).To(Equal(1))
 		})
+
+		// AC: BE: substituteWorkflow handles CSRoleLoraLoader (sets lora_name, strength_model, strength_clip)
+		It("substitutes lora_loader with lora path and strength values", func() {
+			job := model.SampleJob{ID: "job-lora-1"}
+			item := model.SampleJobItem{
+				LoraModelPath: "loras/my_lora.safetensors",
+				StrengthModel: 0.8,
+				StrengthClip:  0.7,
+			}
+
+			// Add lora_loader node
+			mockLoader.workflow.Workflow["10"] = map[string]interface{}{
+				"inputs": map[string]interface{}{},
+				"_meta": map[string]interface{}{
+					"cs_role": "lora_loader",
+				},
+			}
+			mockLoader.workflow.Roles["lora_loader"] = []string{"10"}
+
+			result, err := executor.substituteWorkflow(mockLoader.workflow, job, item)
+			Expect(err).ToNot(HaveOccurred())
+
+			node10 := result["10"].(map[string]interface{})
+			inputs10 := node10["inputs"].(map[string]interface{})
+			Expect(inputs10["lora_name"]).To(Equal("loras/my_lora.safetensors"))
+			Expect(inputs10["strength_model"]).To(Equal(0.8))
+			Expect(inputs10["strength_clip"]).To(Equal(0.7))
+		})
+
+		// AC: BE: For LoRA jobs, unet_loader role uses job.BaseModel instead of item.ComfyUIModelPath
+		It("substitutes unet_loader with job.BaseModel for LoRA jobs", func() {
+			job := model.SampleJob{
+				ID:        "job-lora-2",
+				BaseModel: "models/unet/flux1-dev.safetensors",
+			}
+			item := model.SampleJobItem{
+				// ComfyUIModelPath is empty for LoRA items; base model comes from the job
+				ComfyUIModelPath: "",
+				LoraModelPath:    "loras/my_lora.safetensors",
+			}
+
+			result, err := executor.substituteWorkflow(mockLoader.workflow, job, item)
+			Expect(err).ToNot(HaveOccurred())
+
+			node1 := result["1"].(map[string]interface{})
+			inputs1 := node1["inputs"].(map[string]interface{})
+			// AC: unet_loader should use the job-level base model path
+			Expect(inputs1["unet_name"]).To(Equal("models/unet/flux1-dev.safetensors"))
+		})
+
+		// AC: BE: For checkpoint jobs (no BaseModel), unet_loader uses item.ComfyUIModelPath
+		It("substitutes unet_loader with item.ComfyUIModelPath for checkpoint jobs", func() {
+			job := model.SampleJob{
+				ID:        "job-checkpoint-1",
+				BaseModel: "", // empty = checkpoint job
+			}
+			item := model.SampleJobItem{
+				ComfyUIModelPath: "models/checkpoints/checkpoint.safetensors",
+			}
+
+			result, err := executor.substituteWorkflow(mockLoader.workflow, job, item)
+			Expect(err).ToNot(HaveOccurred())
+
+			node1 := result["1"].(map[string]interface{})
+			inputs1 := node1["inputs"].(map[string]interface{})
+			Expect(inputs1["unet_name"]).To(Equal("models/checkpoints/checkpoint.safetensors"))
+		})
 	})
 
 	Describe("generateOutputFilename", func() {
@@ -1075,6 +1142,71 @@ var _ = Describe("JobExecutor", func() {
 			Expect(filename).To(ContainSubstring("scheduler=normal"))
 			Expect(filename).To(ContainSubstring("seed=12345"))
 			Expect(filename).To(HaveSuffix(".png"))
+		})
+
+		// AC: BE: Output filenames include strength_model and strength_clip in query encoding for LoRA runs
+		It("includes strength_model and strength_clip for LoRA items", func() {
+			item := model.SampleJobItem{
+				PromptName:    "test-prompt",
+				Steps:         20,
+				CFG:           7.5,
+				SamplerName:   "euler",
+				Scheduler:     "normal",
+				Seed:          12345,
+				LoraModelPath: "loras/my_lora.safetensors",
+				StrengthModel: 0.80,
+				StrengthClip:  0.75,
+			}
+
+			filename := executor.generateOutputFilename(item)
+			Expect(filename).To(ContainSubstring("strength_model=0.80"))
+			Expect(filename).To(ContainSubstring("strength_clip=0.75"))
+			Expect(filename).To(HaveSuffix(".png"))
+		})
+
+		It("does not include strength dimensions for checkpoint items (no LoraModelPath)", func() {
+			item := model.SampleJobItem{
+				PromptName:  "test-prompt",
+				Steps:       20,
+				CFG:         7.5,
+				SamplerName: "euler",
+				Scheduler:   "normal",
+				Seed:        12345,
+				// No LoraModelPath set
+				StrengthModel: 1.0,
+				StrengthClip:  1.0,
+			}
+
+			filename := executor.generateOutputFilename(item)
+			Expect(filename).NotTo(ContainSubstring("strength_model"))
+			Expect(filename).NotTo(ContainSubstring("strength_clip"))
+		})
+	})
+
+	// AC: BE: generateFilenamePrefix accounts for base model in path
+	Describe("generateFilenamePrefixForJob", func() {
+		It("returns simple prefix for checkpoint jobs (no BaseModel)", func() {
+			job := model.SampleJob{BaseModel: ""}
+			item := model.SampleJobItem{CheckpointFilename: "my_lora_000010.safetensors"}
+
+			prefix := executor.generateFilenamePrefixForJob(job, item)
+			Expect(prefix).To(Equal("sample_my_lora_000010"))
+		})
+
+		It("includes base model name in prefix for LoRA jobs", func() {
+			job := model.SampleJob{BaseModel: "models/unet/flux1-dev.safetensors"}
+			item := model.SampleJobItem{CheckpointFilename: "my_lora_000010.safetensors"}
+
+			prefix := executor.generateFilenamePrefixForJob(job, item)
+			Expect(prefix).To(Equal("sample_flux1-dev_my_lora_000010"))
+		})
+
+		It("handles base model path with subdirectories correctly", func() {
+			job := model.SampleJob{BaseModel: "/data/models/flux/flux1-dev-fp8.safetensors"}
+			item := model.SampleJobItem{CheckpointFilename: "checkpoint-000020.safetensors"}
+
+			prefix := executor.generateFilenamePrefixForJob(job, item)
+			Expect(prefix).To(Equal("sample_flux1-dev-fp8_checkpoint-000020"))
 		})
 	})
 
