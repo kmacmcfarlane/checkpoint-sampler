@@ -182,3 +182,9 @@ Add a comprehensive `Validate()` method to the configuration loading process. Th
 * priority: low
 * source: qa
 Currently the FSState cache is stale for up to 1s after demo install/uninstall. If DemoAPIService accepted an FSState dependency and called Populate() after install/uninstall, demo runs would appear in the API immediately without polling. This is optional since the debounced fsnotify refresh handles it within ~600ms, but would improve the user experience for any UI that lists training runs right after demo install.
+
+### LoRA output path in broadcastJobProgress/verifyCheckpointCompleteness
+* status: needs_approval
+* priority: medium
+* source: developer
+The `studyOutputDir` in `broadcastJobProgress` does not account for the base model directory level for LoRA jobs, so completeness checks scan the wrong path. Should be aligned with the fix in `handleItemCompletionAsync` — add `if job.BaseModel != "" { studyOutputDir += "/" + baseModelName }` at line ~1945 and update associated tests.
