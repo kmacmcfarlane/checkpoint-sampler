@@ -179,7 +179,7 @@ var _ = Describe("SampleJobsService", func() {
 		logger.SetOutput(io.Discard) // Silence logs in tests
 
 		// Create discovery service with minimal setup
-		discovery = service.NewDiscoveryService(fs, []string{}, "", logger)
+		discovery = service.NewDiscoveryService(fs, []string{}, nil, "", logger)
 
 		// Create sample job service
 		sampleJobSvc := service.NewSampleJobService(store, pathMatcher, &fakeSampleDirRemover{}, "/samples", logger)

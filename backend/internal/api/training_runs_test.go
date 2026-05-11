@@ -174,7 +174,7 @@ var _ = Describe("TrainingRunsService", func() {
 		It("returns empty slice when no sample directories found", func() {
 			viewerFS.subdirs[sampleDir] = []string{}
 			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
-			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, sampleDir, logger)
+			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, nil, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
 			svc := makeSvc(nil, nil)
 
@@ -191,7 +191,7 @@ var _ = Describe("TrainingRunsService", func() {
 				"model-b.safetensors",
 			}
 			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
-			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, sampleDir, logger)
+			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, nil, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
 			svc := makeSvc(nil, nil)
 
@@ -212,7 +212,7 @@ var _ = Describe("TrainingRunsService", func() {
 				"model-step00002000.safetensors",
 			}
 			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
-			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, sampleDir, logger)
+			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, nil, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
 			svc := makeSvc(nil, nil)
 
@@ -236,7 +236,7 @@ var _ = Describe("TrainingRunsService", func() {
 				"model-b.safetensors",
 			}
 			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
-			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, sampleDir, logger)
+			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, nil, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
 			svc := makeSvc(nil, nil)
 
@@ -256,7 +256,7 @@ var _ = Describe("TrainingRunsService", func() {
 				"model-step00002000.safetensors",
 			}
 			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
-			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, sampleDir, logger)
+			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, nil, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
 			svc := makeSvc(nil, nil)
 
@@ -276,7 +276,7 @@ var _ = Describe("TrainingRunsService", func() {
 				"qwen/psai4rt-v0.3.0.safetensors",
 			}
 			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
-			cpDiscovery = service.NewDiscoveryService(cpFS, []string{"/checkpoints"}, sampleDir, logger)
+			cpDiscovery = service.NewDiscoveryService(cpFS, []string{"/checkpoints"}, nil, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
 			svc := makeSvc(nil, nil)
 
@@ -296,7 +296,7 @@ var _ = Describe("TrainingRunsService", func() {
 			// model-a has a sample directory, model-b does not
 			cpFS.dirs[sampleDir+"/model-a.safetensors"] = true
 			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
-			cpDiscovery = service.NewDiscoveryService(cpFS, []string{"/checkpoints"}, sampleDir, logger)
+			cpDiscovery = service.NewDiscoveryService(cpFS, []string{"/checkpoints"}, nil, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
 			svc := makeSvc(nil, nil)
 
@@ -316,7 +316,7 @@ var _ = Describe("TrainingRunsService", func() {
 				"viewer-model.safetensors",
 			}
 			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
-			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, sampleDir, logger)
+			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, nil, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
 			svc := makeSvc(nil, nil)
 
@@ -335,7 +335,7 @@ var _ = Describe("TrainingRunsService", func() {
 				"model.safetensors",
 			}
 			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
-			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, sampleDir, logger)
+			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, nil, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
 			svc := makeSvc(nil, nil)
 
@@ -350,7 +350,7 @@ var _ = Describe("TrainingRunsService", func() {
 				"model.safetensors",
 			}
 			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
-			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, sampleDir, logger)
+			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, nil, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
 			svc := makeSvc(nil, nil)
 
@@ -364,7 +364,7 @@ var _ = Describe("TrainingRunsService", func() {
 				"model-step00001000.safetensors",
 			}
 			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
-			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, sampleDir, logger)
+			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, nil, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
 			svc := makeSvc(nil, nil)
 
@@ -386,7 +386,7 @@ var _ = Describe("TrainingRunsService", func() {
 				"model-step00001000.safetensors",
 			}
 			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
-			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, sampleDir, logger)
+			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, nil, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
 			svc := makeSvc(nil, nil)
 
@@ -406,7 +406,7 @@ var _ = Describe("TrainingRunsService", func() {
 				"model-step00001000.safetensors",
 			}
 			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
-			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, sampleDir, logger)
+			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, nil, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
 			svc := makeSvc(nil, nil)
 
@@ -424,7 +424,7 @@ var _ = Describe("TrainingRunsService", func() {
 				"model-step00002000.safetensors",
 			}
 			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
-			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, sampleDir, logger)
+			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, nil, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
 			svc := makeSvc(nil, nil)
 
@@ -457,7 +457,7 @@ var _ = Describe("TrainingRunsService", func() {
 				"model.safetensors",
 			}
 			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
-			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, sampleDir, logger)
+			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, nil, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
 			validator := service.NewValidationService(scanFS, sampleDir, logger)
 			svc := api.NewTrainingRunsService(viewerDiscovery, cpDiscovery, scanner, validator, nil, nil)
@@ -476,7 +476,7 @@ var _ = Describe("TrainingRunsService", func() {
 				"model-step00002000.safetensors",
 			}
 			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
-			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, sampleDir, logger)
+			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, nil, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
 			validator := service.NewValidationService(scanFS, sampleDir, logger)
 			svc := api.NewTrainingRunsService(viewerDiscovery, cpDiscovery, scanner, validator, nil, nil)
@@ -506,7 +506,7 @@ var _ = Describe("TrainingRunsService", func() {
 				"model-step00002000.safetensors",
 			}
 			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
-			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, sampleDir, logger)
+			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, nil, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
 			validator := service.NewValidationService(scanFS, sampleDir, logger)
 			svc := api.NewTrainingRunsService(viewerDiscovery, cpDiscovery, scanner, validator, nil, nil)
@@ -534,7 +534,7 @@ var _ = Describe("TrainingRunsService", func() {
 				"model-step00001000.safetensors",
 			}
 			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
-			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, sampleDir, logger)
+			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, nil, sampleDir, logger)
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
 			validator := service.NewValidationService(scanFS, sampleDir, logger)
 			svc := api.NewTrainingRunsService(viewerDiscovery, cpDiscovery, scanner, validator, nil, nil)
@@ -568,7 +568,7 @@ var _ = Describe("TrainingRunsService", func() {
 					"model-step00002000.safetensors",
 				}
 				viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
-				cpDiscovery = service.NewDiscoveryService(cpFS, []string{"/checkpoints"}, sampleDir, logger)
+				cpDiscovery = service.NewDiscoveryService(cpFS, []string{"/checkpoints"}, nil, sampleDir, logger)
 				scanner = service.NewScanner(scanFS, sampleDir, logger)
 				validator := service.NewValidationService(scanFS, sampleDir, logger)
 				studyGetter := newFakeStudyGetter()
@@ -612,7 +612,7 @@ var _ = Describe("TrainingRunsService", func() {
 					"model-step00002000.safetensors",
 				}
 				viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
-				cpDiscovery = service.NewDiscoveryService(cpFS, []string{"/checkpoints"}, sampleDir, logger)
+				cpDiscovery = service.NewDiscoveryService(cpFS, []string{"/checkpoints"}, nil, sampleDir, logger)
 				scanner = service.NewScanner(scanFS, sampleDir, logger)
 				validator := service.NewValidationService(scanFS, sampleDir, logger)
 				studyGetter := newFakeStudyGetter()
@@ -657,7 +657,7 @@ var _ = Describe("TrainingRunsService", func() {
 					"model-step00002000.safetensors",
 				}
 				viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
-				cpDiscovery = service.NewDiscoveryService(cpFS, []string{"/checkpoints"}, sampleDir, logger)
+				cpDiscovery = service.NewDiscoveryService(cpFS, []string{"/checkpoints"}, nil, sampleDir, logger)
 				scanner = service.NewScanner(scanFS, sampleDir, logger)
 				validator := service.NewValidationService(scanFS, sampleDir, logger)
 				studyGetter := newFakeStudyGetter()
@@ -696,7 +696,7 @@ var _ = Describe("TrainingRunsService", func() {
 			It("returns not_found when study_id does not match any study", func() {
 				cpFS.safetensors["/checkpoints"] = []string{"model.safetensors"}
 				viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
-				cpDiscovery = service.NewDiscoveryService(cpFS, []string{"/checkpoints"}, sampleDir, logger)
+				cpDiscovery = service.NewDiscoveryService(cpFS, []string{"/checkpoints"}, nil, sampleDir, logger)
 				scanner = service.NewScanner(scanFS, sampleDir, logger)
 				validator := service.NewValidationService(scanFS, sampleDir, logger)
 				studyGetter := newFakeStudyGetter()
@@ -712,7 +712,7 @@ var _ = Describe("TrainingRunsService", func() {
 			It("returns not_found for out-of-range ID with checkpoint discovery", func() {
 				cpFS.safetensors["/checkpoints"] = []string{"model.safetensors"}
 				viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
-				cpDiscovery = service.NewDiscoveryService(cpFS, []string{"/checkpoints"}, sampleDir, logger)
+				cpDiscovery = service.NewDiscoveryService(cpFS, []string{"/checkpoints"}, nil, sampleDir, logger)
 				scanner = service.NewScanner(scanFS, sampleDir, logger)
 				validator := service.NewValidationService(scanFS, sampleDir, logger)
 				studyGetter := newFakeStudyGetter()
@@ -738,7 +738,7 @@ var _ = Describe("TrainingRunsService", func() {
 					"qwen/Qwen2-VL-step00002000.safetensors",
 				}
 				viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
-				cpDiscovery = service.NewDiscoveryService(cpFS, []string{"/checkpoints"}, sampleDir, logger)
+				cpDiscovery = service.NewDiscoveryService(cpFS, []string{"/checkpoints"}, nil, sampleDir, logger)
 				scanner = service.NewScanner(scanFS, sampleDir, logger)
 				validator := service.NewValidationService(scanFS, sampleDir, logger)
 				studyGetter := newFakeStudyGetter()
@@ -819,7 +819,7 @@ var _ = Describe("TrainingRunsService manifest validation routing (B-132)", func
 			"model-step00001000.safetensors",
 		}
 		viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
-		cpDiscovery = service.NewDiscoveryService(cpFS, []string{"/checkpoints"}, sampleDir, logger)
+		cpDiscovery = service.NewDiscoveryService(cpFS, []string{"/checkpoints"}, nil, sampleDir, logger)
 		scanner = service.NewScanner(scanFS, sampleDir, logger)
 		validator := service.NewValidationService(scanFS, sampleDir, logger)
 		studyGetter := newFakeStudyGetter()
@@ -891,7 +891,7 @@ var _ = Describe("TrainingRunsService manifest validation routing (B-132)", func
 			"model-step00001000.safetensors",
 		}
 		viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
-		cpDiscovery = service.NewDiscoveryService(cpFS, []string{"/checkpoints"}, sampleDir, logger)
+		cpDiscovery = service.NewDiscoveryService(cpFS, []string{"/checkpoints"}, nil, sampleDir, logger)
 		scanner = service.NewScanner(scanFS, sampleDir, logger)
 		validator := service.NewValidationService(scanFS, sampleDir, logger)
 		studyGetter := newFakeStudyGetter()
@@ -954,7 +954,7 @@ var _ = Describe("TrainingRunsService manifest validation routing (B-132)", func
 			"model-step00001000.safetensors",
 		}
 		viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
-		cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, sampleDir, logger)
+		cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, nil, sampleDir, logger)
 		scanner = service.NewScanner(scanFS, sampleDir, logger)
 		validator := service.NewValidationService(scanFS, sampleDir, logger)
 		svc := api.NewTrainingRunsService(viewerDiscovery, cpDiscovery, scanner, validator, nil, nil)
@@ -1008,7 +1008,7 @@ var _ = Describe("TrainingRunsService manifest validation routing (B-132)", func
 			"model-step00001000.safetensors",
 		}
 		viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
-		cpDiscovery = service.NewDiscoveryService(cpFS, []string{"/checkpoints"}, sampleDir, logger)
+		cpDiscovery = service.NewDiscoveryService(cpFS, []string{"/checkpoints"}, nil, sampleDir, logger)
 		scanner = service.NewScanner(scanFS, sampleDir, logger)
 		validator := service.NewValidationService(scanFS, sampleDir, logger)
 		studyGetter := newFakeStudyGetter()
@@ -1078,7 +1078,7 @@ var _ = Describe("TrainingRunsService manifest validation routing (B-132)", func
 			"model-step00001000.safetensors",
 		}
 		viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
-		cpDiscovery = service.NewDiscoveryService(cpFS, []string{"/checkpoints"}, sampleDir, logger)
+		cpDiscovery = service.NewDiscoveryService(cpFS, []string{"/checkpoints"}, nil, sampleDir, logger)
 		scanner = service.NewScanner(scanFS, sampleDir, logger)
 		validator := service.NewValidationService(scanFS, sampleDir, logger)
 		studyGetter := newFakeStudyGetter()

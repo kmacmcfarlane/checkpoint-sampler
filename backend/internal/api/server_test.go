@@ -52,7 +52,7 @@ var _ = Describe("Server integration", func() {
 
 		healthSvc := api.NewHealthService()
 		docsSvc := api.NewDocsService(specJSON)
-		cpDiscovery := service.NewDiscoveryService(&fakeCheckpointFileSystem{}, []string{}, sampleDir, logger)
+		cpDiscovery := service.NewDiscoveryService(&fakeCheckpointFileSystem{}, []string{}, nil, sampleDir, logger)
 		trainingRunsSvc := api.NewTrainingRunsService(viewerDiscovery, cpDiscovery, scanner, nil, nil, nil)
 
 		healthEndpoints := genhealth.NewEndpoints(healthSvc)

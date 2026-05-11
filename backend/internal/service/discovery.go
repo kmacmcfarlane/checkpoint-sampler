@@ -25,79 +25,98 @@ type CheckpointFileSystem interface {
 	DirectoryExists(path string) bool
 }
 
-// DiscoveryService discovers training runs by scanning checkpoint directories.
+// DiscoveryService discovers training runs by scanning checkpoint and LoRA directories.
 type DiscoveryService struct {
 	fs             CheckpointFileSystem
 	checkpointDirs []string
+	loraDirs       []string
 	sampleDir      string
 	logger         *logrus.Entry
 }
 
 // NewDiscoveryService creates a discovery service.
-func NewDiscoveryService(fs CheckpointFileSystem, checkpointDirs []string, sampleDir string, logger *logrus.Logger) *DiscoveryService {
+func NewDiscoveryService(fs CheckpointFileSystem, checkpointDirs []string, loraDirs []string, sampleDir string, logger *logrus.Logger) *DiscoveryService {
 	return &DiscoveryService{
 		fs:             fs,
 		checkpointDirs: checkpointDirs,
+		loraDirs:       loraDirs,
 		sampleDir:      sampleDir,
 		logger:         logger.WithField("component", "discovery"),
 	}
 }
 
-// Discover scans all checkpoint directories and returns auto-discovered training runs.
+// Discover scans all checkpoint and LoRA directories and returns auto-discovered training runs.
 func (d *DiscoveryService) Discover() ([]model.TrainingRun, error) {
 	d.logger.Trace("entering Discover")
 	defer d.logger.Trace("returning from Discover")
 
+	// dirSource tracks which Kind to assign to runs from each scanned directory group.
+	type dirSource struct {
+		dirs []string
+		kind model.TrainingRunKind
+		label string // for error messages (e.g. "checkpoint_dirs", "lora_dirs")
+	}
+	sources := []dirSource{
+		{dirs: d.checkpointDirs, kind: model.TrainingRunKindCheckpoint, label: "checkpoint_dirs"},
+		{dirs: d.loraDirs, kind: model.TrainingRunKindLoRA, label: "lora_dirs"},
+	}
+
 	// Map: training run name → list of checkpoints
 	runMap := make(map[string][]model.Checkpoint)
+	// Map: training run name → kind (determined by directory source)
+	kindMap := make(map[string]model.TrainingRunKind)
 
-	for dirIdx, checkpointDir := range d.checkpointDirs {
-		d.logger.WithFields(logrus.Fields{
-			"dir_index": dirIdx,
-			"path":      checkpointDir,
-		}).Debug("scanning checkpoint directory")
-		files, err := d.fs.ListSafetensorsFiles(checkpointDir)
-		if err != nil {
+	for _, src := range sources {
+		for dirIdx, dir := range src.dirs {
 			d.logger.WithFields(logrus.Fields{
 				"dir_index": dirIdx,
-				"path":      checkpointDir,
-				"error":     err.Error(),
-			}).Error("failed to list safetensors files")
-			return nil, fmt.Errorf("scanning checkpoint_dirs[%d] %q: %w", dirIdx, checkpointDir, err)
-		}
-		d.logger.WithFields(logrus.Fields{
-			"dir_index":  dirIdx,
-			"file_count": len(files),
-		}).Debug("found safetensors files")
-
-		for _, relPath := range files {
-			filename := path.Base(relPath)
-			baseName := stripCheckpointSuffixes(filename)
-
-			// Include directory path for grouping
-			dir := path.Dir(relPath)
-			var runName string
-			if dir == "." {
-				runName = baseName
-			} else {
-				runName = dir + "/" + baseName
+				"path":      dir,
+				"kind":      string(src.kind),
+			}).Debug("scanning directory")
+			files, err := d.fs.ListSafetensorsFiles(dir)
+			if err != nil {
+				d.logger.WithFields(logrus.Fields{
+					"dir_index": dirIdx,
+					"path":      dir,
+					"error":     err.Error(),
+				}).Error("failed to list safetensors files")
+				return nil, fmt.Errorf("scanning %s[%d] %q: %w", src.label, dirIdx, dir, err)
 			}
+			d.logger.WithFields(logrus.Fields{
+				"dir_index":  dirIdx,
+				"file_count": len(files),
+			}).Debug("found safetensors files")
 
-			stepNum := extractStepNumber(filename)
+			for _, relPath := range files {
+				filename := path.Base(relPath)
+				baseName := stripCheckpointSuffixes(filename)
 
-			// Check if sample directory exists
-			sampleDirPath := filepath.Join(d.sampleDir, filename)
-			hasSamples := d.fs.DirectoryExists(sampleDirPath)
+				// Include directory path for grouping
+				dir := path.Dir(relPath)
+				var runName string
+				if dir == "." {
+					runName = baseName
+				} else {
+					runName = dir + "/" + baseName
+				}
 
-			checkpoint := model.Checkpoint{
-				Filename:           filename,
-				RelativePath:       relPath,
-				CheckpointDirIndex: dirIdx,
-				StepNumber:         stepNum,
-				HasSamples:         hasSamples,
+				stepNum := extractStepNumber(filename)
+
+				// Check if sample directory exists
+				sampleDirPath := filepath.Join(d.sampleDir, filename)
+				hasSamples := d.fs.DirectoryExists(sampleDirPath)
+
+				checkpoint := model.Checkpoint{
+					Filename:           filename,
+					RelativePath:       relPath,
+					CheckpointDirIndex: dirIdx,
+					StepNumber:         stepNum,
+					HasSamples:         hasSamples,
+				}
+
+				runMap[runName] = append(runMap[runName], checkpoint)
+				kindMap[runName] = src.kind
 			}
-
-			runMap[runName] = append(runMap[runName], checkpoint)
 		}
 	}
 
@@ -132,6 +151,7 @@ func (d *DiscoveryService) Discover() ([]model.TrainingRun, error) {
 
 		runs = append(runs, model.TrainingRun{
 			Name:        name,
+			Kind:        kindMap[name],
 			Checkpoints: checkpoints,
 			HasSamples:  hasSamples,
 		})

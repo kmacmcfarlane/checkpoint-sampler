@@ -84,7 +84,7 @@ var _ = Describe("NewHTTPHandler", func() {
 	) {
 		// Service layer services
 		viewerDiscoverySvc := service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
-		discoverySvc := service.NewDiscoveryService(newFakeCheckpointFS(), []string{"/checkpoints"}, sampleDir, logger)
+		discoverySvc := service.NewDiscoveryService(newFakeCheckpointFS(), []string{"/checkpoints"}, nil, sampleDir, logger)
 		scannerSvc := service.NewScanner(scanFS, sampleDir, logger)
 		presetSvc := service.NewPresetService(newFakePresetStore(), logger)
 		studySvc := service.NewStudyService(newFakeStudyStoreAPI(), &fakeSampleCheckerAPI{}, logger)

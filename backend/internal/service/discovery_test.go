@@ -7,6 +7,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/sirupsen/logrus"
 
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
 )
 
@@ -52,7 +53,7 @@ var _ = Describe("DiscoveryService", func() {
 					"qwen/model-v1-step00004500.safetensors",
 					"qwen/model-v1-step00005000.safetensors",
 				}
-				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, "/samples", logger)
+				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, nil, "/samples", logger)
 
 				runs, err := discovery.Discover()
 
@@ -68,7 +69,7 @@ var _ = Describe("DiscoveryService", func() {
 					"model-v2-000104.safetensors",
 					"model-v2-000208.safetensors",
 				}
-				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, "/samples", logger)
+				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, nil, "/samples", logger)
 
 				runs, err := discovery.Discover()
 
@@ -84,7 +85,7 @@ var _ = Describe("DiscoveryService", func() {
 					"model-a-step00001000.safetensors",
 					"model-b.safetensors",
 				}
-				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, "/samples", logger)
+				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, nil, "/samples", logger)
 
 				runs, err := discovery.Discover()
 
@@ -103,7 +104,7 @@ var _ = Describe("DiscoveryService", func() {
 				fs.files["/checkpoints"] = []string{
 					"model-step00004500.safetensors",
 				}
-				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, "/samples", logger)
+				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, nil, "/samples", logger)
 
 				runs, err := discovery.Discover()
 
@@ -115,7 +116,7 @@ var _ = Describe("DiscoveryService", func() {
 				fs.files["/checkpoints"] = []string{
 					"model-000104.safetensors",
 				}
-				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, "/samples", logger)
+				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, nil, "/samples", logger)
 
 				runs, err := discovery.Discover()
 
@@ -127,7 +128,7 @@ var _ = Describe("DiscoveryService", func() {
 				fs.files["/checkpoints"] = []string{
 					"model.safetensors",
 				}
-				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, "/samples", logger)
+				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, nil, "/samples", logger)
 
 				runs, err := discovery.Discover()
 
@@ -141,7 +142,7 @@ var _ = Describe("DiscoveryService", func() {
 					"model-step00001000.safetensors",
 					"model-step00000500.safetensors",
 				}
-				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, "/samples", logger)
+				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, nil, "/samples", logger)
 
 				runs, err := discovery.Discover()
 
@@ -163,7 +164,7 @@ var _ = Describe("DiscoveryService", func() {
 				}
 				fs.dirs["/samples/model-step00001000.safetensors"] = true
 				// model-step00002000.safetensors has no sample dir
-				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, "/samples", logger)
+				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, nil, "/samples", logger)
 
 				runs, err := discovery.Discover()
 
@@ -182,7 +183,7 @@ var _ = Describe("DiscoveryService", func() {
 				fs.files["/checkpoints"] = []string{
 					"model.safetensors",
 				}
-				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, "/samples", logger)
+				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, nil, "/samples", logger)
 
 				runs, err := discovery.Discover()
 
@@ -199,7 +200,7 @@ var _ = Describe("DiscoveryService", func() {
 				fs.files["/checkpoints2"] = []string{
 					"model-b.safetensors",
 				}
-				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints1", "/checkpoints2"}, "/samples", logger)
+				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints1", "/checkpoints2"}, nil, "/samples", logger)
 
 				runs, err := discovery.Discover()
 
@@ -214,7 +215,7 @@ var _ = Describe("DiscoveryService", func() {
 				fs.files["/checkpoints2"] = []string{
 					"other.safetensors",
 				}
-				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints1", "/checkpoints2"}, "/samples", logger)
+				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints1", "/checkpoints2"}, nil, "/samples", logger)
 
 				runs, err := discovery.Discover()
 
@@ -232,7 +233,7 @@ var _ = Describe("DiscoveryService", func() {
 		Context("empty directories", func() {
 			It("returns empty results when no safetensors files found", func() {
 				fs.files["/checkpoints"] = []string{}
-				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, "/samples", logger)
+				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, nil, "/samples", logger)
 
 				runs, err := discovery.Discover()
 
@@ -248,7 +249,7 @@ var _ = Describe("DiscoveryService", func() {
 					"alpha.safetensors",
 					"middle.safetensors",
 				}
-				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, "/samples", logger)
+				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, nil, "/samples", logger)
 
 				runs, err := discovery.Discover()
 
@@ -266,7 +267,7 @@ var _ = Describe("DiscoveryService", func() {
 					"sub/dir/model.safetensors",
 					"sub/dir/model-step00001000.safetensors",
 				}
-				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, "/samples", logger)
+				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, nil, "/samples", logger)
 
 				runs, err := discovery.Discover()
 
@@ -283,12 +284,176 @@ var _ = Describe("DiscoveryService", func() {
 				}
 				// Sample dir matches the filename, not the full path
 				fs.dirs["/samples/model-step00001000.safetensors"] = true
-				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, "/samples", logger)
+				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, nil, "/samples", logger)
 
 				runs, err := discovery.Discover()
 
 				Expect(err).NotTo(HaveOccurred())
 				Expect(runs[0].Checkpoints[0].HasSamples).To(BeTrue())
+			})
+		})
+
+		Context("Kind assignment", func() {
+			It("assigns TrainingRunKindCheckpoint to runs from checkpoint_dirs", func() {
+				fs.files["/checkpoints"] = []string{
+					"model-a.safetensors",
+					"model-a-step00001000.safetensors",
+				}
+				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, nil, "/samples", logger)
+
+				runs, err := discovery.Discover()
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(runs).To(HaveLen(1))
+				Expect(runs[0].Kind).To(Equal(model.TrainingRunKindCheckpoint))
+			})
+
+			It("assigns TrainingRunKindLoRA to runs from lora_dirs", func() {
+				fs.files["/loras"] = []string{
+					"my-lora.safetensors",
+					"my-lora-step00001000.safetensors",
+				}
+				discovery = service.NewDiscoveryService(fs, nil, []string{"/loras"}, "/samples", logger)
+
+				runs, err := discovery.Discover()
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(runs).To(HaveLen(1))
+				Expect(runs[0].Kind).To(Equal(model.TrainingRunKindLoRA))
+			})
+
+			It("assigns correct Kind when both checkpoint and lora dirs are scanned", func() {
+				fs.files["/checkpoints"] = []string{
+					"checkpoint-model.safetensors",
+				}
+				fs.files["/loras"] = []string{
+					"lora-adapter.safetensors",
+				}
+				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, []string{"/loras"}, "/samples", logger)
+
+				runs, err := discovery.Discover()
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(runs).To(HaveLen(2))
+				// Sorted by name: checkpoint-model, lora-adapter
+				Expect(runs[0].Name).To(Equal("checkpoint-model"))
+				Expect(runs[0].Kind).To(Equal(model.TrainingRunKindCheckpoint))
+				Expect(runs[1].Name).To(Equal("lora-adapter"))
+				Expect(runs[1].Kind).To(Equal(model.TrainingRunKindLoRA))
+			})
+		})
+
+		Context("LoRA directory scanning", func() {
+			It("scans lora_dirs separately from checkpoint_dirs", func() {
+				fs.files["/checkpoints"] = []string{
+					"model-a.safetensors",
+				}
+				fs.files["/loras"] = []string{
+					"lora-b.safetensors",
+				}
+				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, []string{"/loras"}, "/samples", logger)
+
+				runs, err := discovery.Discover()
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(runs).To(HaveLen(2))
+			})
+
+			It("applies step suffix stripping to LoRA files", func() {
+				fs.files["/loras"] = []string{
+					"my-lora.safetensors",
+					"my-lora-step00001000.safetensors",
+					"my-lora-step00002000.safetensors",
+				}
+				discovery = service.NewDiscoveryService(fs, nil, []string{"/loras"}, "/samples", logger)
+
+				runs, err := discovery.Discover()
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(runs).To(HaveLen(1))
+				Expect(runs[0].Name).To(Equal("my-lora"))
+				Expect(runs[0].Checkpoints).To(HaveLen(3))
+			})
+
+			It("applies epoch suffix stripping to LoRA files", func() {
+				fs.files["/loras"] = []string{
+					"my-lora.safetensors",
+					"my-lora-000104.safetensors",
+					"my-lora-000208.safetensors",
+				}
+				discovery = service.NewDiscoveryService(fs, nil, []string{"/loras"}, "/samples", logger)
+
+				runs, err := discovery.Discover()
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(runs).To(HaveLen(1))
+				Expect(runs[0].Name).To(Equal("my-lora"))
+				Expect(runs[0].Checkpoints).To(HaveLen(3))
+			})
+
+			It("groups LoRA files by relative directory path", func() {
+				fs.files["/loras"] = []string{
+					"project-a/lora-v1.safetensors",
+					"project-a/lora-v1-step00001000.safetensors",
+					"project-b/lora-v2.safetensors",
+				}
+				discovery = service.NewDiscoveryService(fs, nil, []string{"/loras"}, "/samples", logger)
+
+				runs, err := discovery.Discover()
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(runs).To(HaveLen(2))
+				Expect(runs[0].Name).To(Equal("project-a/lora-v1"))
+				Expect(runs[0].Kind).To(Equal(model.TrainingRunKindLoRA))
+				Expect(runs[1].Name).To(Equal("project-b/lora-v2"))
+				Expect(runs[1].Kind).To(Equal(model.TrainingRunKindLoRA))
+			})
+
+			It("handles multiple lora_dirs", func() {
+				fs.files["/loras1"] = []string{
+					"lora-a.safetensors",
+				}
+				fs.files["/loras2"] = []string{
+					"lora-b.safetensors",
+				}
+				discovery = service.NewDiscoveryService(fs, nil, []string{"/loras1", "/loras2"}, "/samples", logger)
+
+				runs, err := discovery.Discover()
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(runs).To(HaveLen(2))
+				Expect(runs[0].Kind).To(Equal(model.TrainingRunKindLoRA))
+				Expect(runs[1].Kind).To(Equal(model.TrainingRunKindLoRA))
+			})
+
+			It("returns empty results when lora_dirs is nil", func() {
+				discovery = service.NewDiscoveryService(fs, nil, nil, "/samples", logger)
+
+				runs, err := discovery.Discover()
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(runs).To(BeEmpty())
+			})
+
+			It("includes LoRA runs in FSState snapshot alongside checkpoint runs", func() {
+				fs.files["/checkpoints"] = []string{
+					"checkpoint-model.safetensors",
+				}
+				fs.files["/loras"] = []string{
+					"lora-adapter.safetensors",
+				}
+				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, []string{"/loras"}, "/samples", logger)
+
+				runs, err := discovery.Discover()
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(runs).To(HaveLen(2))
+				// Both runs should be in the result
+				names := make([]string, len(runs))
+				for i, r := range runs {
+					names[i] = r.Name
+				}
+				Expect(names).To(ContainElements("checkpoint-model", "lora-adapter"))
 			})
 		})
 	})

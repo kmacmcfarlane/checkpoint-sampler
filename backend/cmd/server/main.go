@@ -89,7 +89,7 @@ func run() error {
 
 	// Create filesystem, discovery, and scanner services
 	fs := store.NewFileSystem(logger)
-	discovery := service.NewDiscoveryService(fs, cfg.CheckpointDirs, cfg.SampleDir, logger)
+	discovery := service.NewDiscoveryService(fs, cfg.CheckpointDirs, cfg.LoraDirs, cfg.SampleDir, logger)
 	viewerDiscovery := service.NewViewerDiscoveryService(fs, cfg.SampleDir, logger)
 
 	// Determine thumbnail settings
@@ -159,6 +159,7 @@ func run() error {
 	defer fsStateNotifier.Close()
 
 	watchDirs := append([]string{cfg.SampleDir}, cfg.CheckpointDirs...)
+	watchDirs = append(watchDirs, cfg.LoraDirs...)
 	fsState.StartWatching(fsStateNotifier, watchDirs)
 	defer fsState.Stop()
 

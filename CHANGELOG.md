@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-141: Discovery: scan lora_dirs and assign TrainingRunKind
+- DiscoveryService now scans both `checkpoint_dirs` and `lora_dirs`, assigning `TrainingRunKindCheckpoint` or `TrainingRunKindLoRA` based on directory source
+- Same suffix-stripping logic (step/epoch) applies to LoRA files; FSState watch dirs include lora_dirs
+
 ### S-140: Config + model foundations for LoRA support
 - Added `lora_dirs` (list, optional) and `base_model_dir` (single path, optional) to config schema with directory existence validation; backward-compatible when omitted
 - Added `TrainingRunKind` type with `checkpoint` and `lora` constants; `TrainingRun.Kind` field distinguishes how a run was discovered

@@ -331,7 +331,7 @@ stories:
 
   - id: S-141
     title: "Discovery: scan lora_dirs and assign TrainingRunKind"
-    status: todo
+    status: uat
     priority: 80
     complexity: medium
     requires:
