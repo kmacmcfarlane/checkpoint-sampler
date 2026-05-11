@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises, type VueWrapper } from '@vue/test-utils'
 import { nextTick } from 'vue'
-import { NSelect, NButton, NInput, NInputNumber, NDynamicInput, NDynamicTags, NTag, NModal } from 'naive-ui'
+import { NSelect, NButton, NInput, NDynamicInput, NDynamicTags, NTag, NModal } from 'naive-ui'
 import StudyEditor from '../StudyEditor.vue'
 import ConfirmDeleteDialog from '../ConfirmDeleteDialog.vue'
 import { validateStudyImport } from '../studyImportValidation'
@@ -63,6 +63,7 @@ const studies: Study[] = [
     workflow_template: 'my-workflow.json',
     vae: 'ae.safetensors',
     text_encoder: 'clip_l.safetensors',
+    lora_strength_pairs: [{ strength_model: 1.0, strength_clip: 1.0 }],
     images_per_checkpoint: 72, // 2*3*3*2*2 = 72
     created_at: '2025-01-01T00:00:00Z',
     updated_at: '2025-01-01T00:00:00Z',
@@ -85,6 +86,7 @@ const studies: Study[] = [
     workflow_template: '',
     vae: '',
     text_encoder: '',
+    lora_strength_pairs: [{ strength_model: 1.0, strength_clip: 1.0 }],
     images_per_checkpoint: 1,
     created_at: '2025-01-02T00:00:00Z',
     updated_at: '2025-01-02T00:00:00Z',
@@ -128,8 +130,8 @@ describe('StudyEditor', () => {
     await flushPromises()
 
     expect(wrapper.findComponent(NInput).exists()).toBe(true)
-    // Two NDynamicInput: one for prompts, one for sampler/scheduler pairs
-    expect(wrapper.findAllComponents(NDynamicInput)).toHaveLength(2)
+    // Three NDynamicInput: prompts, sampler/scheduler pairs, LoRA strength pairs
+    expect(wrapper.findAllComponents(NDynamicInput)).toHaveLength(3)
     expect(wrapper.findAllComponents(NDynamicTags)).toHaveLength(3)
   })
 
@@ -277,10 +279,10 @@ describe('StudyEditor', () => {
     const negativeInput = asVue(wrapper.findComponent('[data-testid="negative-prompt-input"]'))
     expect(negativeInput.props('value')).toBe('low quality')
 
-    const widthInput = wrapper.findAllComponents(NInputNumber)[0]
+    const widthInput = asVue(wrapper.findComponent('[data-testid="study-width-input"]'))
     expect(widthInput.props('value')).toBe(1024)
 
-    const heightInput = wrapper.findAllComponents(NInputNumber)[1]
+    const heightInput = asVue(wrapper.findComponent('[data-testid="study-height-input"]'))
     expect(heightInput.props('value')).toBe(1024)
   })
 
@@ -346,6 +348,7 @@ describe('StudyEditor', () => {
       workflow_template: '',
       vae: '',
       text_encoder: '',
+      lora_strength_pairs: [{ strength_model: 1.0, strength_clip: 1.0 }],
       images_per_checkpoint: 1,
       created_at: '2025-01-03T00:00:00Z',
       updated_at: '2025-01-03T00:00:00Z',
@@ -392,6 +395,7 @@ describe('StudyEditor', () => {
       steps: [30],
       cfgs: [7.0],
       sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
+      lora_strength_pairs: [{ strength_model: 1.0, strength_clip: 1.0 }],
       seeds: [42],
       width: 1024,
       height: 1024,
@@ -440,6 +444,7 @@ describe('StudyEditor', () => {
         { sampler: 'euler', scheduler: 'simple' },
         { sampler: 'heun', scheduler: 'normal' },
       ],
+      lora_strength_pairs: [{ strength_model: 1.0, strength_clip: 1.0 }],
       seeds: [42, 420],
       width: 1024,
       height: 1024,
@@ -834,6 +839,7 @@ describe('StudyEditor', () => {
       workflow_template: '',
       vae: '',
       text_encoder: '',
+      lora_strength_pairs: [{ strength_model: 1.0, strength_clip: 1.0 }],
       images_per_checkpoint: 1,
       created_at: '2025-01-03T00:00:00Z',
       updated_at: '2025-01-03T00:00:00Z',
@@ -1193,6 +1199,7 @@ describe('StudyEditor', () => {
         workflow_template: '',
         vae: '',
         text_encoder: '',
+        lora_strength_pairs: [{ strength_model: 1.0, strength_clip: 1.0 }],
         images_per_checkpoint: 2,
         created_at: '2025-01-03T00:00:00Z',
         updated_at: '2025-01-03T00:00:00Z',
@@ -1238,6 +1245,198 @@ describe('StudyEditor', () => {
           ],
         }),
       )
+    })
+  })
+
+  // AC: Study editor has LoRA strength pairs section (model + clip columns)
+  describe('LoRA strength pairs', () => {
+    it('renders LoRA strength pairs section with default pair {1.0, 1.0}', async () => {
+      const wrapper = mount(StudyEditor)
+      await flushPromises()
+
+      // The third NDynamicInput holds LoRA strength pairs
+      const dynamicInputs = wrapper.findAllComponents(NDynamicInput)
+      expect(dynamicInputs).toHaveLength(3)
+      const loraPairsInput = dynamicInputs[2]
+      expect(loraPairsInput.exists()).toBe(true)
+
+      // Default state has one pair with model=1.0, clip=1.0
+      const vm = wrapper.vm as unknown as {
+        loraStrengthPairs: Array<{ strength_model: number; strength_clip: number }>
+      }
+      expect(vm.loraStrengthPairs).toEqual([{ strength_model: 1.0, strength_clip: 1.0 }])
+    })
+
+    // AC: Default pair is {1.0, 1.0}
+    it('resets LoRA strength pairs to default when creating a new study', async () => {
+      const wrapper = mount(StudyEditor)
+      await flushPromises()
+
+      // Select a study first
+      const select = wrapper.findAllComponents(NSelect)[0]
+      select.vm.$emit('update:value', 'preset-1')
+      await nextTick()
+
+      // Click New Study
+      const newButton = asVue(wrapper.findComponent('[data-testid="new-study-button"]'))
+      await newButton.trigger('click')
+      await nextTick()
+
+      const vm = wrapper.vm as unknown as {
+        loraStrengthPairs: Array<{ strength_model: number; strength_clip: number }>
+      }
+      expect(vm.loraStrengthPairs).toEqual([{ strength_model: 1.0, strength_clip: 1.0 }])
+    })
+
+    // AC: Strength pairs use same add/remove UX pattern as sampler/scheduler pairs
+    it('loads LoRA strength pairs from study when selected', async () => {
+      const studyWithLora: Study = {
+        ...studies[0],
+        lora_strength_pairs: [
+          { strength_model: 0.8, strength_clip: 0.6 },
+          { strength_model: 1.0, strength_clip: 1.0 },
+        ],
+      }
+      mockListStudies.mockResolvedValue([studyWithLora, studies[1]])
+      const wrapper = mount(StudyEditor)
+      await flushPromises()
+
+      const select = wrapper.findAllComponents(NSelect)[0]
+      select.vm.$emit('update:value', 'preset-1')
+      await nextTick()
+
+      const vm = wrapper.vm as unknown as {
+        loraStrengthPairs: Array<{ strength_model: number; strength_clip: number }>
+      }
+      expect(vm.loraStrengthPairs).toEqual([
+        { strength_model: 0.8, strength_clip: 0.6 },
+        { strength_model: 1.0, strength_clip: 1.0 },
+      ])
+    })
+
+    // AC: Total images per checkpoint calculation includes strength pair count
+    it('includes LoRA strength pairs in total images computation', async () => {
+      const wrapper = mount(StudyEditor)
+      await flushPromises()
+
+      const vm = wrapper.vm as unknown as {
+        loraStrengthPairs: Array<{ strength_model: number; strength_clip: number }>
+        computedTotalImages: number
+        prompts: Array<{ name: string; text: string }>
+        steps: number[]
+        cfgs: number[]
+        samplerSchedulerPairs: Array<{ sampler: string; scheduler: string }>
+        seeds: number[]
+      }
+
+      // Set up known dimensions: 1 prompt, 1 step, 1 cfg, 1 sampler pair, 1 seed = base 1
+      vm.prompts = [{ name: 'test', text: 'test' }]
+      vm.steps = [30]
+      vm.cfgs = [7.0]
+      vm.samplerSchedulerPairs = [{ sampler: 'euler', scheduler: 'normal' }]
+      vm.seeds = [42]
+      await nextTick()
+
+      // With 1 LoRA pair, total = 1 * 1 = 1
+      vm.loraStrengthPairs = [{ strength_model: 1.0, strength_clip: 1.0 }]
+      await nextTick()
+      expect(vm.computedTotalImages).toBe(1)
+
+      // With 3 LoRA pairs, total = 1 * 3 = 3
+      vm.loraStrengthPairs = [
+        { strength_model: 0.5, strength_clip: 0.5 },
+        { strength_model: 0.75, strength_clip: 0.75 },
+        { strength_model: 1.0, strength_clip: 1.0 },
+      ]
+      await nextTick()
+      expect(vm.computedTotalImages).toBe(3)
+
+      // With 0 LoRA pairs, total = base (1)
+      vm.loraStrengthPairs = []
+      await nextTick()
+      expect(vm.computedTotalImages).toBe(1)
+    })
+
+    it('includes lora_strength_pairs in save payload', async () => {
+      const newStudy: Study = {
+        id: 'new-1',
+        name: 'LoRA Study',
+        prompt_prefix: '',
+        prompts: [{ name: 'test', text: 'test prompt' }],
+        negative_prompt: '',
+        steps: [30],
+        cfgs: [7.0],
+        sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
+        lora_strength_pairs: [{ strength_model: 0.8, strength_clip: 0.6 }],
+        seeds: [42],
+        width: 1024,
+        height: 1024,
+        workflow_template: '',
+        vae: '',
+        text_encoder: '',
+        images_per_checkpoint: 1,
+        created_at: '2025-01-01T00:00:00Z',
+        updated_at: '2025-01-01T00:00:00Z',
+      }
+      mockCreateStudy.mockResolvedValue(newStudy)
+
+      const wrapper = mount(StudyEditor)
+      await flushPromises()
+
+      // Fill in form
+      const nameInput = asVue(wrapper.findComponent('[data-testid="study-name-input"]'))
+      nameInput.vm.$emit('update:value', 'LoRA Study')
+      await nextTick()
+
+      // Set prompts
+      const vm = wrapper.vm as unknown as {
+        prompts: Array<{ name: string; text: string }>
+        samplerSchedulerPairs: Array<{ sampler: string; scheduler: string }>
+        loraStrengthPairs: Array<{ strength_model: number; strength_clip: number }>
+      }
+      vm.prompts = [{ name: 'test', text: 'test prompt' }]
+      vm.samplerSchedulerPairs = [{ sampler: 'euler', scheduler: 'normal' }]
+      vm.loraStrengthPairs = [{ strength_model: 0.8, strength_clip: 0.6 }]
+      await nextTick()
+
+      const saveButton = wrapper
+        .findAllComponents(NButton)
+        .find((b) => b.text().includes('Save Study'))!
+      await saveButton.trigger('click')
+      await flushPromises()
+
+      expect(mockCreateStudy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          lora_strength_pairs: [{ strength_model: 0.8, strength_clip: 0.6 }],
+        }),
+      )
+    })
+
+    it('detects duplicate LoRA strength pairs in local validation', async () => {
+      const wrapper = mount(StudyEditor)
+      await flushPromises()
+
+      const vm = wrapper.vm as unknown as {
+        loraStrengthPairs: Array<{ strength_model: number; strength_clip: number }>
+        localValidationError: string | null
+      }
+      vm.loraStrengthPairs = [
+        { strength_model: 0.8, strength_clip: 0.6 },
+        { strength_model: 0.8, strength_clip: 0.6 },
+      ]
+      await nextTick()
+
+      expect(vm.localValidationError).toContain('Duplicate LoRA strength pair')
+    })
+
+    // AC: Strength pairs section is visible regardless of training run kind
+    it('renders LoRA strength pairs section unconditionally (no training run kind guard)', async () => {
+      const wrapper = mount(StudyEditor)
+      await flushPromises()
+
+      // Verify the section is visible by checking for the data-testid
+      const loraPairsSection = wrapper.find('[data-testid="lora-strength-pairs"]')
+      expect(loraPairsSection.exists()).toBe(true)
     })
   })
 
@@ -1314,6 +1513,7 @@ describe('StudyEditor', () => {
         workflow_template: '',
         vae: '',
         text_encoder: '',
+        lora_strength_pairs: [{ strength_model: 1.0, strength_clip: 1.0 }],
         images_per_checkpoint: 1,
         created_at: '2025-01-03T00:00:00Z',
         updated_at: '2025-01-03T00:00:00Z',
@@ -1942,7 +2142,7 @@ describe('StudyEditor', () => {
         expect(select.props('value')).toBeNull()
 
         // Width/height updated
-        const widthInput = wrapper.findAllComponents(NInputNumber)[0]
+        const widthInput = asVue(wrapper.findComponent('[data-testid="study-width-input"]'))
         expect(widthInput.props('value')).toBe(768)
       })
 
@@ -3096,6 +3296,7 @@ describe('StudyEditor', () => {
         workflow_template: 'flux-image.json',
         vae: 'ae.safetensors',
         text_encoder: 'clip_l.safetensors',
+        lora_strength_pairs: [{ strength_model: 1.0, strength_clip: 1.0 }],
         images_per_checkpoint: 1,
         created_at: '2025-01-03T00:00:00Z',
         updated_at: '2025-01-03T00:00:00Z',
@@ -3207,6 +3408,7 @@ describe('StudyEditor', () => {
         workflow_template: 'flux-image.json',
         vae: 'ae.safetensors',
         text_encoder: 'clip_l.safetensors',
+        lora_strength_pairs: [{ strength_model: 1.0, strength_clip: 1.0 }],
         images_per_checkpoint: 1,
         created_at: '2025-01-03T00:00:00Z',
         updated_at: '2025-01-03T00:00:00Z',
@@ -3395,6 +3597,7 @@ describe('StudyEditor', () => {
         vae: 'ae.safetensors',
         text_encoder: 'clip_l.safetensors',
         shift: 4.5,
+        lora_strength_pairs: [{ strength_model: 1.0, strength_clip: 1.0 }],
         images_per_checkpoint: 1,
         created_at: '2025-01-01T00:00:00Z',
         updated_at: '2025-01-01T00:00:00Z',
@@ -3495,6 +3698,7 @@ describe('StudyEditor', () => {
         workflow_template: 'flux-dev.json',
         vae: '',
         text_encoder: '',
+        lora_strength_pairs: [{ strength_model: 1.0, strength_clip: 1.0 }],
         images_per_checkpoint: 1,
         created_at: '2025-01-03T00:00:00Z',
         updated_at: '2025-01-03T00:00:00Z',
@@ -3636,6 +3840,7 @@ describe('StudyEditor', () => {
         workflow_template: 'my-workflow.json',
         vae: 'ae.safetensors',
         text_encoder: 'clip_l.safetensors',
+        lora_strength_pairs: [{ strength_model: 1.0, strength_clip: 1.0 }],
         images_per_checkpoint: 1,
         created_at: '2025-01-03T00:00:00Z',
         updated_at: '2025-01-03T00:00:00Z',

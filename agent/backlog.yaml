@@ -513,7 +513,7 @@ stories:
 
   - id: S-149
     title: "Frontend: LoRA strength pairs editor in study/preset UI"
-    status: todo
+    status: uat
     priority: 60
     complexity: medium
     requires:

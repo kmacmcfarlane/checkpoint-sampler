@@ -5,6 +5,11 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-149: Frontend: LoRA strength pairs editor in study/preset UI
+- Study editor gains a LoRA Strength Pairs section with add/remove UX matching sampler/scheduler pairs; default pair is {1.0, 1.0}
+- Total images per checkpoint calculation now multiplies by the strength pair count for LoRA runs
+- Import/export, clone, and duplicate validation all support the new field
+
 ### B-139: LoRA checkpoint metadata resolution only searches checkpoint_dirs
 - `CheckpointMetadataService` now searches both `checkpoint_dirs` and `lora_dirs` when resolving checkpoint filenames for metadata parsing, with checkpoint_dirs taking precedence
 

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, h } from 'vue'
 import { NInput, NInputNumber, NSelect, NButton, NDynamicInput, NDynamicTags, NTag, NCard, NSpace, NAlert, NModal } from 'naive-ui'
-import type { Study, NamedPrompt, SamplerSchedulerPair, CreateStudyPayload, UpdateStudyPayload, ForkStudyPayload, WorkflowSummary, AffectedRun } from '../api/types'
+import type { Study, NamedPrompt, SamplerSchedulerPair, LoraStrengthPair, CreateStudyPayload, UpdateStudyPayload, ForkStudyPayload, WorkflowSummary, AffectedRun } from '../api/types'
 import { apiClient } from '../api/client'
 import { validateStudyImport } from './studyImportValidation'
 import ConfirmDeleteDialog from './ConfirmDeleteDialog.vue'
@@ -151,6 +151,7 @@ const negativePrompt = ref('')
 const steps = ref<number[]>([30])
 const cfgs = ref<number[]>([7.0])
 const samplerSchedulerPairs = ref<SamplerSchedulerPair[]>([])
+const loraStrengthPairs = ref<LoraStrengthPair[]>([{ strength_model: 1.0, strength_clip: 1.0 }])
 const seeds = ref<number[]>([42])
 const width = ref(1024)
 const height = ref(1024)
@@ -280,13 +281,15 @@ const numericInputProps = {
 
 const computedTotalImages = computed(() => {
   const validPrompts = prompts.value.filter(p => p != null && p.name && p.text)
-  return (
+  const base =
     validPrompts.length *
     steps.value.length *
     cfgs.value.length *
     samplerSchedulerPairs.value.length *
     seeds.value.length
-  )
+  // LoRA strength pairs add an extra dimension to the Cartesian product
+  const loraPairCount = loraStrengthPairs.value.length
+  return loraPairCount > 0 ? base * loraPairCount : base
 })
 
 /**
@@ -332,6 +335,16 @@ const localValidationError = computed((): string | null => {
       return `Duplicate sampler/scheduler pair: ${pair.sampler} / ${pair.scheduler}`
     }
     seenPairs.add(key)
+  }
+
+  // Check for duplicate LoRA strength pairs
+  const seenLoraPairs = new Set<string>()
+  for (const pair of loraStrengthPairs.value) {
+    const key = `${pair.strength_model}/${pair.strength_clip}`
+    if (seenLoraPairs.has(key)) {
+      return `Duplicate LoRA strength pair: model=${pair.strength_model}, clip=${pair.strength_clip}`
+    }
+    seenLoraPairs.add(key)
   }
 
   // Check for duplicate seeds
@@ -459,6 +472,19 @@ const fieldValidationErrors = computed(() => {
     }
   }
 
+  // Duplicate LoRA strength pairs: highlight all but the first occurrence
+  const seenLoraPairs = new Map<string, number>()
+  const loraPairErrorIndices = new Set<number>()
+  for (let i = 0; i < loraStrengthPairs.value.length; i++) {
+    const pair = loraStrengthPairs.value[i]
+    const key = `${pair.strength_model}/${pair.strength_clip}`
+    if (seenLoraPairs.has(key)) {
+      loraPairErrorIndices.add(i)
+    } else {
+      seenLoraPairs.set(key, i)
+    }
+  }
+
   // Duplicate seeds: highlight all but the first occurrence
   const seenSeeds = new Map<number, number>()
   const seedErrorIndices = new Set<number>()
@@ -477,6 +503,7 @@ const fieldValidationErrors = computed(() => {
     stepIndices: stepErrorIndices,
     cfgIndices: cfgErrorIndices,
     pairIndices: pairErrorIndices,
+    loraPairIndices: loraPairErrorIndices,
     seedIndices: seedErrorIndices,
   }
 })
@@ -599,6 +626,9 @@ function loadStudy(study: Study) {
   steps.value = [...study.steps]
   cfgs.value = [...study.cfgs]
   samplerSchedulerPairs.value = study.sampler_scheduler_pairs.map(p => ({ ...p }))
+  loraStrengthPairs.value = (study.lora_strength_pairs ?? []).length > 0
+    ? study.lora_strength_pairs.map(p => ({ ...p }))
+    : [{ strength_model: 1.0, strength_clip: 1.0 }]
   seeds.value = [...study.seeds]
   width.value = study.width
   height.value = study.height
@@ -616,6 +646,7 @@ function resetForm() {
   steps.value = [30]
   cfgs.value = [7.0]
   samplerSchedulerPairs.value = []
+  loraStrengthPairs.value = [{ strength_model: 1.0, strength_clip: 1.0 }]
   seeds.value = [42]
   width.value = 1024
   height.value = 1024
@@ -694,6 +725,7 @@ async function performSave() {
           steps: steps.value,
           cfgs: cfgs.value,
           sampler_scheduler_pairs: samplerSchedulerPairs.value,
+          lora_strength_pairs: loraStrengthPairs.value,
           seeds: seeds.value,
           width: width.value,
           height: height.value,
@@ -710,6 +742,7 @@ async function performSave() {
           steps: steps.value,
           cfgs: cfgs.value,
           sampler_scheduler_pairs: samplerSchedulerPairs.value,
+          lora_strength_pairs: loraStrengthPairs.value,
           seeds: seeds.value,
           width: width.value,
           height: height.value,
@@ -776,6 +809,7 @@ async function cloneStudy() {
       steps: steps.value,
       cfgs: cfgs.value,
       sampler_scheduler_pairs: samplerSchedulerPairs.value,
+      lora_strength_pairs: loraStrengthPairs.value,
       seeds: seeds.value,
       width: width.value,
       height: height.value,
@@ -863,6 +897,7 @@ function exportStudy() {
     steps: steps.value,
     cfgs: cfgs.value,
     sampler_scheduler_pairs: samplerSchedulerPairs.value,
+    lora_strength_pairs: loraStrengthPairs.value,
     seeds: seeds.value,
     width: width.value,
     height: height.value,
@@ -907,6 +942,9 @@ function triggerImport() {
       steps.value = [...result.data.steps]
       cfgs.value = [...result.data.cfgs]
       samplerSchedulerPairs.value = result.data.sampler_scheduler_pairs.map(p => ({ ...p }))
+      loraStrengthPairs.value = (result.data.lora_strength_pairs ?? []).length > 0
+        ? result.data.lora_strength_pairs!.map(p => ({ ...p }))
+        : [{ strength_model: 1.0, strength_clip: 1.0 }]
       seeds.value = [...result.data.seeds]
       width.value = result.data.width
       height.value = result.data.height
@@ -963,6 +1001,10 @@ function createPromptItem(): NamedPrompt {
 
 function createPairItem(): SamplerSchedulerPair {
   return { sampler: '', scheduler: '' }
+}
+
+function createLoraStrengthPairItem(): LoraStrengthPair {
+  return { strength_model: 1.0, strength_clip: 1.0 }
 }
 
 function onUpdateSteps(tags: string[]) {
@@ -1235,6 +1277,64 @@ function renderSeedTag(tag: string, index: number) {
         </div>
 
         <div class="form-field">
+          <label>LoRA Strength Pairs</label>
+          <NDynamicInput
+            v-model:value="loraStrengthPairs"
+            :min="0"
+            :on-create="createLoraStrengthPairItem"
+            :create-button-props="({ 'data-testid': 'lora-pairs-create-button' } as object)"
+            data-testid="lora-strength-pairs"
+          >
+            <template #default="{ index, value }">
+              <div class="pair-row" :class="{ 'field-error': fieldValidationErrors.loraPairIndices.has(index) }" :data-testid="`lora-pair-row-${index}`">
+                <NInputNumber
+                  :value="value.strength_model"
+                  :min="0"
+                  :max="2"
+                  :step="0.05"
+                  placeholder="Model"
+                  size="medium"
+                  style="flex: 1;"
+                  :data-testid="`lora-pair-model-${index}`"
+                  @update:value="(v: number | null) => { loraStrengthPairs[index].strength_model = v ?? 1.0 }"
+                />
+                <NInputNumber
+                  :value="value.strength_clip"
+                  :min="0"
+                  :max="2"
+                  :step="0.05"
+                  placeholder="CLIP"
+                  size="medium"
+                  style="flex: 1;"
+                  :data-testid="`lora-pair-clip-${index}`"
+                  @update:value="(v: number | null) => { loraStrengthPairs[index].strength_clip = v ?? 1.0 }"
+                />
+              </div>
+            </template>
+            <template #action="{ index: actionIndex, create, remove }">
+              <div class="pair-row-actions">
+                <NButton
+                  circle
+                  size="small"
+                  :data-testid="`lora-pair-row-remove-${actionIndex}`"
+                  @click="remove(actionIndex)"
+                >
+                  -
+                </NButton>
+                <NButton
+                  circle
+                  size="small"
+                  :data-testid="`lora-pair-row-add-${actionIndex}`"
+                  @click="create(actionIndex)"
+                >
+                  +
+                </NButton>
+              </div>
+            </template>
+          </NDynamicInput>
+        </div>
+
+        <div class="form-field">
           <label>Seeds</label>
           <NDynamicTags
             :value="seedsAsStrings"
@@ -1268,6 +1368,7 @@ function renderSeedTag(tag: string, index: number) {
               :step="64"
               size="medium"
               style="width: 100%;"
+              data-testid="study-width-input"
             />
           </div>
 
@@ -1280,6 +1381,7 @@ function renderSeedTag(tag: string, index: number) {
               :step="64"
               size="medium"
               style="width: 100%;"
+              data-testid="study-height-input"
             />
           </div>
         </div>

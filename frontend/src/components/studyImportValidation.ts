@@ -1,4 +1,4 @@
-import type { CreateStudyPayload, NamedPrompt, SamplerSchedulerPair } from '../api/types'
+import type { CreateStudyPayload, NamedPrompt, SamplerSchedulerPair, LoraStrengthPair } from '../api/types'
 
 /**
  * Result of validating a study import JSON payload.
@@ -126,6 +126,28 @@ export function validateStudyImport(raw: unknown): StudyImportResult {
     return { ok: false, error: 'Invalid field: "height" must be a positive number' }
   }
 
+  // Validate lora_strength_pairs (optional)
+  let loraStrengthPairs: LoraStrengthPair[] | undefined
+  if ('lora_strength_pairs' in obj && obj.lora_strength_pairs !== undefined && obj.lora_strength_pairs !== null) {
+    if (!Array.isArray(obj.lora_strength_pairs)) {
+      return { ok: false, error: 'Invalid field: "lora_strength_pairs" must be an array' }
+    }
+    for (let i = 0; i < obj.lora_strength_pairs.length; i++) {
+      const pair = obj.lora_strength_pairs[i]
+      if (pair === null || typeof pair !== 'object' || Array.isArray(pair)) {
+        return { ok: false, error: `Invalid field: "lora_strength_pairs[${i}]" must be an object` }
+      }
+      const pairObj = pair as Record<string, unknown>
+      if (typeof pairObj.strength_model !== 'number' || !Number.isFinite(pairObj.strength_model)) {
+        return { ok: false, error: `Invalid field: "lora_strength_pairs[${i}].strength_model" must be a finite number` }
+      }
+      if (typeof pairObj.strength_clip !== 'number' || !Number.isFinite(pairObj.strength_clip)) {
+        return { ok: false, error: `Invalid field: "lora_strength_pairs[${i}].strength_clip" must be a finite number` }
+      }
+    }
+    loraStrengthPairs = obj.lora_strength_pairs as LoraStrengthPair[]
+  }
+
   // Optional fields with defaults
   const promptPrefix = typeof obj.prompt_prefix === 'string' ? obj.prompt_prefix : ''
   const negativePrompt = typeof obj.negative_prompt === 'string' ? obj.negative_prompt : ''
@@ -147,6 +169,7 @@ export function validateStudyImport(raw: unknown): StudyImportResult {
       vae: typeof obj.vae === 'string' ? obj.vae : undefined,
       text_encoder: typeof obj.text_encoder === 'string' ? obj.text_encoder : undefined,
       shift: typeof obj.shift === 'number' && Number.isFinite(obj.shift) ? obj.shift : undefined,
+      lora_strength_pairs: loraStrengthPairs,
     },
   }
 }

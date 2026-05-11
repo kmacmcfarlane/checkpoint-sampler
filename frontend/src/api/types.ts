@@ -151,6 +151,12 @@ export interface SamplerSchedulerPair {
   scheduler: string
 }
 
+/** A LoRA strength pair for model and CLIP weights. */
+export interface LoraStrengthPair {
+  strength_model: number
+  strength_clip: number
+}
+
 /** A saved study (generation parameter set). */
 export interface Study {
   id: string
@@ -172,6 +178,8 @@ export interface Study {
   text_encoder: string
   /** AuraFlow shift value (optional, nullable). */
   shift?: number
+  /** LoRA strength pairs for model and CLIP weights. */
+  lora_strength_pairs: LoraStrengthPair[]
   images_per_checkpoint: number
   created_at: string
   updated_at: string
@@ -193,6 +201,7 @@ export interface CreateStudyPayload {
   vae?: string
   text_encoder?: string
   shift?: number
+  lora_strength_pairs?: LoraStrengthPair[]
 }
 
 /** Payload for updating a study. */
@@ -212,6 +221,7 @@ export interface UpdateStudyPayload {
   vae?: string
   text_encoder?: string
   shift?: number
+  lora_strength_pairs?: LoraStrengthPair[]
 }
 
 /** Payload for forking a study (creating a new study from an existing one). */
@@ -231,6 +241,7 @@ export interface ForkStudyPayload {
   vae?: string
   text_encoder?: string
   shift?: number
+  lora_strength_pairs?: LoraStrengthPair[]
 }
 
 /** Response for checking if a study has generated samples. */
