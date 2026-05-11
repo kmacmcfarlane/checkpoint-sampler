@@ -308,7 +308,7 @@ stories:
       sampling parameter additions (strength), and UI/UX for LoRA vs checkpoint distinction.
   - id: S-140
     title: "Config + model foundations for LoRA support"
-    status: todo
+    status: uat
     priority: 80
     complexity: medium
     requires:

@@ -14,6 +14,8 @@ import (
 // yamlConfig is the raw YAML-tagged representation of the config file.
 type yamlConfig struct {
 	CheckpointDirs []string             `yaml:"checkpoint_dirs"`
+	LoraDirs       []string             `yaml:"lora_dirs"`
+	BaseModelDir   string               `yaml:"base_model_dir"`
 	SampleDir      string               `yaml:"sample_dir"`
 	Port           *int                 `yaml:"port"`
 	IPAddress      string               `yaml:"ip_address"`
@@ -107,6 +109,31 @@ func parseAndValidate(raw yamlConfig) (*model.Config, error) {
 		}
 	}
 
+	// Validate lora_dirs (optional, but each entry must be a valid directory)
+	for i, dir := range raw.LoraDirs {
+		if dir == "" {
+			return nil, fmt.Errorf("config: lora_dirs[%d] is empty", i)
+		}
+		info, err := os.Stat(dir)
+		if err != nil {
+			return nil, fmt.Errorf("config: lora_dirs[%d] %q does not exist: %w", i, dir, err)
+		}
+		if !info.IsDir() {
+			return nil, fmt.Errorf("config: lora_dirs[%d] %q is not a directory", i, dir)
+		}
+	}
+
+	// Validate base_model_dir (optional, but must be a valid directory if specified)
+	if raw.BaseModelDir != "" {
+		info, err := os.Stat(raw.BaseModelDir)
+		if err != nil {
+			return nil, fmt.Errorf("config: base_model_dir %q does not exist: %w", raw.BaseModelDir, err)
+		}
+		if !info.IsDir() {
+			return nil, fmt.Errorf("config: base_model_dir %q is not a directory", raw.BaseModelDir)
+		}
+	}
+
 	// Validate sample_dir
 	if raw.SampleDir == "" {
 		return nil, fmt.Errorf("config: sample_dir is required")
@@ -154,6 +181,8 @@ func parseAndValidate(raw yamlConfig) (*model.Config, error) {
 
 	return &model.Config{
 		CheckpointDirs: raw.CheckpointDirs,
+		LoraDirs:       raw.LoraDirs,
+		BaseModelDir:   raw.BaseModelDir,
 		SampleDir:      raw.SampleDir,
 		Port:           port,
 		IPAddress:      raw.IPAddress,

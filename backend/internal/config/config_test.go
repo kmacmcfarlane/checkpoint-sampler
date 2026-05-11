@@ -332,6 +332,156 @@ sample_dir: "` + sampleDir + `"
 		})
 	})
 
+	Describe("LoRA directories configuration", func() {
+		Context("when lora_dirs is specified", func() {
+			It("parses lora directories correctly", func() {
+				loraDir := filepath.Join(tmpDir, "loras")
+				Expect(os.MkdirAll(loraDir, 0755)).To(Succeed())
+
+				yamlStr := `
+checkpoint_dirs:
+  - "` + filepath.Join(tmpDir, "checkpoints") + `"
+sample_dir: "` + sampleDir + `"
+lora_dirs:
+  - "` + loraDir + `"
+`
+				cfg, err := config.LoadFromString(yamlStr)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(cfg.LoraDirs).To(HaveLen(1))
+				Expect(cfg.LoraDirs[0]).To(Equal(loraDir))
+			})
+
+			It("parses multiple lora directories", func() {
+				loraDir1 := filepath.Join(tmpDir, "loras1")
+				loraDir2 := filepath.Join(tmpDir, "loras2")
+				Expect(os.MkdirAll(loraDir1, 0755)).To(Succeed())
+				Expect(os.MkdirAll(loraDir2, 0755)).To(Succeed())
+
+				yamlStr := `
+checkpoint_dirs:
+  - "` + filepath.Join(tmpDir, "checkpoints") + `"
+sample_dir: "` + sampleDir + `"
+lora_dirs:
+  - "` + loraDir1 + `"
+  - "` + loraDir2 + `"
+`
+				cfg, err := config.LoadFromString(yamlStr)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(cfg.LoraDirs).To(HaveLen(2))
+			})
+		})
+
+		Context("when lora_dirs is absent", func() {
+			It("defaults to nil (backward-compatible)", func() {
+				yamlStr := `
+checkpoint_dirs:
+  - "` + filepath.Join(tmpDir, "checkpoints") + `"
+sample_dir: "` + sampleDir + `"
+`
+				cfg, err := config.LoadFromString(yamlStr)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(cfg.LoraDirs).To(BeNil())
+			})
+		})
+
+		Context("lora_dirs validation", func() {
+			DescribeTable("rejects invalid lora_dirs configurations",
+				func(yamlStr string, expectedErr string) {
+					_, err := config.LoadFromString(yamlStr)
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).To(ContainSubstring(expectedErr))
+				},
+				Entry("lora_dir does not exist",
+					"checkpoint_dirs:\n  - \""+os.TempDir()+"\"\nsample_dir: \""+os.TempDir()+"\"\nlora_dirs:\n  - /nonexistent/lora/path\n",
+					"does not exist",
+				),
+				Entry("empty lora_dir entry",
+					"checkpoint_dirs:\n  - \""+os.TempDir()+"\"\nsample_dir: \""+os.TempDir()+"\"\nlora_dirs:\n  - \"\"\n",
+					"lora_dirs[0] is empty",
+				),
+			)
+
+			It("rejects a lora_dir that is a file, not a directory", func() {
+				filePath := filepath.Join(tmpDir, "lora-file.txt")
+				err := os.WriteFile(filePath, []byte("hi"), 0644)
+				Expect(err).NotTo(HaveOccurred())
+
+				yamlStr := `
+checkpoint_dirs:
+  - "` + filepath.Join(tmpDir, "checkpoints") + `"
+sample_dir: "` + sampleDir + `"
+lora_dirs:
+  - "` + filePath + `"
+`
+				_, err = config.LoadFromString(yamlStr)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("not a directory"))
+			})
+		})
+	})
+
+	Describe("Base model directory configuration", func() {
+		Context("when base_model_dir is specified", func() {
+			It("parses base_model_dir correctly", func() {
+				modelsDir := filepath.Join(tmpDir, "models")
+				Expect(os.MkdirAll(modelsDir, 0755)).To(Succeed())
+
+				yamlStr := `
+checkpoint_dirs:
+  - "` + filepath.Join(tmpDir, "checkpoints") + `"
+sample_dir: "` + sampleDir + `"
+base_model_dir: "` + modelsDir + `"
+`
+				cfg, err := config.LoadFromString(yamlStr)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(cfg.BaseModelDir).To(Equal(modelsDir))
+			})
+		})
+
+		Context("when base_model_dir is absent", func() {
+			It("defaults to empty string (backward-compatible)", func() {
+				yamlStr := `
+checkpoint_dirs:
+  - "` + filepath.Join(tmpDir, "checkpoints") + `"
+sample_dir: "` + sampleDir + `"
+`
+				cfg, err := config.LoadFromString(yamlStr)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(cfg.BaseModelDir).To(Equal(""))
+			})
+		})
+
+		Context("base_model_dir validation", func() {
+			It("rejects a base_model_dir that does not exist", func() {
+				yamlStr := `
+checkpoint_dirs:
+  - "` + filepath.Join(tmpDir, "checkpoints") + `"
+sample_dir: "` + sampleDir + `"
+base_model_dir: /nonexistent/models/path
+`
+				_, err := config.LoadFromString(yamlStr)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("does not exist"))
+			})
+
+			It("rejects a base_model_dir that is a file, not a directory", func() {
+				filePath := filepath.Join(tmpDir, "model-file.txt")
+				err := os.WriteFile(filePath, []byte("hi"), 0644)
+				Expect(err).NotTo(HaveOccurred())
+
+				yamlStr := `
+checkpoint_dirs:
+  - "` + filepath.Join(tmpDir, "checkpoints") + `"
+sample_dir: "` + sampleDir + `"
+base_model_dir: "` + filePath + `"
+`
+				_, err = config.LoadFromString(yamlStr)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("not a directory"))
+			})
+		})
+	})
+
 	Describe("WebSocket ping interval configuration", func() {
 		Context("when ws_ping_interval is specified", func() {
 			It("parses the value correctly", func() {

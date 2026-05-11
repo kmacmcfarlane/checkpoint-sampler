@@ -5,6 +5,11 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-140: Config + model foundations for LoRA support
+- Added `lora_dirs` (list, optional) and `base_model_dir` (single path, optional) to config schema with directory existence validation; backward-compatible when omitted
+- Added `TrainingRunKind` type with `checkpoint` and `lora` constants; `TrainingRun.Kind` field distinguishes how a run was discovered
+- Docker compose and sandbox mounts updated for `/data/models` volume
+
 ### R-013: Implement State Snapshot for filesystem selectors
 - Training run and study selector API endpoints now serve from an in-memory FSState snapshot instead of rescanning the filesystem on every request, significantly reducing response times
 - Snapshot is populated at startup and refreshed reactively via fsnotify with 500ms debounce; watcher recursively monitors all subdirectories and dynamically adds new ones on creation

@@ -38,3 +38,6 @@ mounts: []
   # - host: /home/myuser/checkpoint-sampler/samples
   #   container: /data/samples
   #   writable: true
+  #
+  # - host: /home/myuser/my-models/base-models
+  #   container: /data/models

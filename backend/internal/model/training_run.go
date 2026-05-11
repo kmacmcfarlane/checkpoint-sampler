@@ -1,7 +1,19 @@
 package model
 
+// TrainingRunKind distinguishes how a training run was discovered.
+type TrainingRunKind string
+
+const (
+	// TrainingRunKindCheckpoint indicates a run discovered from checkpoint directories.
+	TrainingRunKindCheckpoint TrainingRunKind = "checkpoint"
+	// TrainingRunKindLoRA indicates a run discovered from LoRA directories.
+	TrainingRunKindLoRA TrainingRunKind = "lora"
+)
+
 // TrainingRun represents an auto-discovered training run, grouped from checkpoint files.
 type TrainingRun struct {
+	// Kind indicates the source type (checkpoint or LoRA).
+	Kind TrainingRunKind
 	// Name is the base name after stripping checkpoint suffixes (includes relative dir path).
 	Name string
 	// Checkpoints lists individual checkpoint files belonging to this training run.
