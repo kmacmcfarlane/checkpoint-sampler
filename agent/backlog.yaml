@@ -532,3 +532,28 @@ stories:
     notes: |
       Study editor for LoRA strength pairs, analogous to sampler/scheduler pair editor.
       See docs/spike-lora-support.md section 12.
+  - id: B-138
+    title: "E2E suite regression: 46 pre-existing failures across 30 spec files"
+    priority: 90
+    status: uat
+    complexity: high
+    requires: []
+    acceptance:
+      - "Full E2E suite (make test-e2e) passes with zero failures"
+      - "Animation controls testid (data-testid='animation-controls') renders when Slider dimension assigned"
+      - "Bead indicator testids (run-bead-problem, run-bead-activity) render in training run dropdown options"
+      - "Lightbox slider sync, preset selector, debug mode, and all other currently-failing tests pass"
+    testing:
+      - "command: make test-e2e"
+    notes: |
+      46 E2E tests fail across 30 spec files. All failures are pre-existing and unrelated to S-140 (backend-only config/model story).
+      Root cause hypothesis: A broad regression likely caused by recent component restructures (animation controls refactor in S-132,
+      FSState snapshot in R-013, or bead indicator changes). The most common failure pattern is missing data-testid attributes
+      (animation-controls, run-bead-problem, run-bead-activity) and element visibility timeouts.
+      Key failure groups:
+      - Animation controls not found (9 tests across 6 spec files)
+      - Bead indicators not found (5 tests in generate-samples-beads.spec.ts)
+      - Lightbox slider sync timeouts (4 tests)
+      - Sidebar preset selector behavior changes (3 tests)
+      - Various single failures across 20+ other spec files
+      This blocks S-140 and all subsequent LoRA stories. Must be resolved before pipeline can resume.

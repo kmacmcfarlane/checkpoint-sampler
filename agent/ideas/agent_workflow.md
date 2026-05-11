@@ -162,3 +162,9 @@ Add the `testing → blocked` row to the status transitions table in AGENT_FLOW.
 * priority: low
 * source: qa
 The `review_feedback` field is shared between code reviewer and QA feedback, making QA cycle counting ambiguous. Consider adding a dedicated `qa_cycle_count` field or separate `qa_feedback` field so QA agents can reliably count prior QA cycles without conflating code reviewer feedback.
+
+### Auto-verify ACs before dispatching developer
+* status: needs_approval
+* priority: low
+* source: developer
+The orchestrator could run a quick verification (e.g., `make test-e2e` for E2E-focused stories) before dispatching to a developer agent, avoiding wasted cycles on stories where the issue is already resolved by prior commits.
