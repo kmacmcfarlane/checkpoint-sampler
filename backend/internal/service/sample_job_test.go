@@ -350,7 +350,7 @@ var _ = Describe("SampleJobService", func() {
 		})
 
 		It("creates a job and expands items correctly", func() {
-			job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, false)
+			job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, false, "")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(job.ID).NotTo(BeEmpty())
 			Expect(job.TrainingRunName).To(Equal("test-run"))
@@ -378,7 +378,7 @@ var _ = Describe("SampleJobService", func() {
 		})
 
 		It("calculates total items correctly", func() {
-			job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, false)
+			job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, false, "")
 			Expect(err).NotTo(HaveOccurred())
 
 			// 2 checkpoints × 2 prompts × 2 steps × 2 cfgs × 1 pair × 1 seed = 16
@@ -386,7 +386,7 @@ var _ = Describe("SampleJobService", func() {
 		})
 
 		It("returns error when study not found", func() {
-			_, err := svc.Create("test-run", checkpoints, "nonexistent", nil, false, false)
+			_, err := svc.Create("test-run", checkpoints, "nonexistent", nil, false, false, "")
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("not found"))
 		})
@@ -409,7 +409,7 @@ var _ = Describe("SampleJobService", func() {
 			}
 			store.studies[noWorkflowStudy.ID] = noWorkflowStudy
 
-			_, err := svc.Create("test-run", checkpoints, "study-no-wf", nil, false, false)
+			_, err := svc.Create("test-run", checkpoints, "study-no-wf", nil, false, false, "")
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("no workflow template configured"))
 		})
@@ -417,7 +417,7 @@ var _ = Describe("SampleJobService", func() {
 		It("marks items as skipped when checkpoint path matching fails", func() {
 			pathMatcher.paths = make(map[string]string) // Clear paths to simulate no matches
 
-			job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, false)
+			job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, false, "")
 			Expect(err).NotTo(HaveOccurred())
 
 			items := store.items[job.ID]
@@ -430,7 +430,7 @@ var _ = Describe("SampleJobService", func() {
 
 		It("uses shift from study when study has a shift value", func() {
 			// The study set up in BeforeEach has Shift = &1.5
-			job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, false)
+			job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, false, "")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(job.Shift).NotTo(BeNil())
 			Expect(*job.Shift).To(Equal(1.5))
@@ -441,14 +441,14 @@ var _ = Describe("SampleJobService", func() {
 			studyNoShift := store.studies["study-1"]
 			studyNoShift.Shift = nil
 			store.studies["study-1"] = studyNoShift
-			job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, false)
+			job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, false, "")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(job.Shift).To(BeNil())
 		})
 
 		DescribeTable("filters checkpoints by checkpoint_filenames when provided",
 			func(filenames []string, expectedCount int) {
-				job, err := svc.Create("test-run", checkpoints, "study-1", filenames, false, false)
+				job, err := svc.Create("test-run", checkpoints, "study-1", filenames, false, false, "")
 				Expect(err).NotTo(HaveOccurred())
 				// Each checkpoint produces 8 items (2 prompts × 2 steps × 2 cfgs × 1 pair × 1 seed)
 				Expect(job.TotalItems).To(Equal(expectedCount * 8))
@@ -463,19 +463,19 @@ var _ = Describe("SampleJobService", func() {
 		)
 
 		It("stores all checkpoint filenames in the job when no filter is provided", func() {
-			job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, false)
+			job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, false, "")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(job.CheckpointFilenames).To(ConsistOf("checkpoint1.safetensors", "checkpoint2.safetensors"))
 		})
 
 		It("stores only filtered checkpoint filenames when a filter is provided", func() {
-			job, err := svc.Create("test-run", checkpoints, "study-1", []string{"checkpoint1.safetensors"}, false, false)
+			job, err := svc.Create("test-run", checkpoints, "study-1", []string{"checkpoint1.safetensors"}, false, false, "")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(job.CheckpointFilenames).To(ConsistOf("checkpoint1.safetensors"))
 		})
 
 		It("stores empty checkpoint filenames list when filter matches no checkpoints", func() {
-			job, err := svc.Create("test-run", checkpoints, "study-1", []string{"nonexistent.safetensors"}, false, false)
+			job, err := svc.Create("test-run", checkpoints, "study-1", []string{"nonexistent.safetensors"}, false, false, "")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(job.CheckpointFilenames).To(BeEmpty())
 		})
@@ -483,7 +483,7 @@ var _ = Describe("SampleJobService", func() {
 		// B-114: clear_existing is stored as a job parameter, not executed at queue time
 		It("stores clear_existing flag on the job but does NOT clear directories at queue time", func() {
 			dirRemover.removed = nil
-			job, err := svc.Create("test-run", checkpoints, "study-1", nil, true, false)
+			job, err := svc.Create("test-run", checkpoints, "study-1", nil, true, false, "")
 			Expect(err).NotTo(HaveOccurred())
 			// Directories should NOT be cleared during Create
 			Expect(dirRemover.removed).To(BeEmpty())
@@ -492,7 +492,7 @@ var _ = Describe("SampleJobService", func() {
 		})
 
 		It("stores clear_existing=false when not requested", func() {
-			job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, false)
+			job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, false, "")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(job.ClearExisting).To(BeFalse())
 		})
@@ -503,7 +503,7 @@ var _ = Describe("SampleJobService", func() {
 		Context("regeneration job creation (B-106)", func() {
 			It("creates a job with clear_existing flag stored (clearing deferred to start)", func() {
 				dirRemover.removed = nil
-				job, err := svc.Create("test-run", checkpoints, "study-1", nil, true, false)
+				job, err := svc.Create("test-run", checkpoints, "study-1", nil, true, false, "")
 				Expect(err).NotTo(HaveOccurred())
 
 				// AC1: Job is created with correct study and training run
@@ -531,7 +531,7 @@ var _ = Describe("SampleJobService", func() {
 				updatedStudy.TextEncoder = "new-clip.safetensors"
 				store.studies["study-1"] = updatedStudy
 
-				job, err := svc.Create("test-run", checkpoints, "study-1", nil, true, false)
+				job, err := svc.Create("test-run", checkpoints, "study-1", nil, true, false, "")
 				Expect(err).NotTo(HaveOccurred())
 
 				// Job uses the updated study settings
@@ -565,7 +565,7 @@ var _ = Describe("SampleJobService", func() {
 				// Mark this file as existing for checkpoint1 only
 				fileChecker.existingFiles["/samples/Test Study/checkpoint1.safetensors/"+expectedFilename] = true
 
-				job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, true)
+				job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, true, "")
 				Expect(err).NotTo(HaveOccurred())
 
 				// Total items should be 16 - 1 = 15 (one item skipped)
@@ -576,7 +576,7 @@ var _ = Describe("SampleJobService", func() {
 
 			It("creates all items when no output files exist", func() {
 				// No files marked as existing
-				job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, true)
+				job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, true, "")
 				Expect(err).NotTo(HaveOccurred())
 
 				// All 16 items should be created
@@ -609,7 +609,7 @@ var _ = Describe("SampleJobService", func() {
 					}
 				}
 
-				job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, true)
+				job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, true, "")
 				Expect(err).NotTo(HaveOccurred())
 				Expect(job.TotalItems).To(Equal(0))
 			})
@@ -617,7 +617,7 @@ var _ = Describe("SampleJobService", func() {
 			It("does not filter when fileChecker is nil", func() {
 				svc.SetFileChecker(nil)
 
-				job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, true)
+				job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, true, "")
 				Expect(err).NotTo(HaveOccurred())
 
 				// All items should be created since no file checker is set

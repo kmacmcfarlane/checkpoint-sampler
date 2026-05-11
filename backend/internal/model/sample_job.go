@@ -12,6 +12,7 @@ type SampleJob struct {
 	VAE                 string
 	CLIP                string
 	Shift               *float64 // nullable for workflows without shift role
+	BaseModel           string   // base model path for LoRA jobs (empty for checkpoint jobs)
 	CheckpointFilenames []string // list of checkpoint filenames selected at job creation
 	ClearExisting       bool    // when true, clear sample dirs on first transition to running
 	Status              SampleJobStatus

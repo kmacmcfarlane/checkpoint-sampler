@@ -398,7 +398,7 @@ stories:
 
   - id: S-144
     title: "API: expose TrainingRunKind, base_model, and LoRA strength pairs"
-    status: todo
+    status: uat
     priority: 70
     complexity: medium
     requires:

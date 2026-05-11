@@ -79,9 +79,16 @@ func (s *TrainingRunsService) List(ctx context.Context, p *gentrainingruns.ListP
 			}
 		}
 
+		// Default kind to "checkpoint" for viewer-discovered runs that lack explicit kind.
+		kind := string(tr.Kind)
+		if kind == "" {
+			kind = string(model.TrainingRunKindCheckpoint)
+		}
+
 		resp := &gentrainingruns.TrainingRunResponse{
 			ID:              i,
 			Name:            tr.Name,
+			Kind:            kind,
 			CheckpointCount: len(tr.Checkpoints),
 			HasSamples:      tr.HasSamples,
 			Checkpoints:     checkpoints,

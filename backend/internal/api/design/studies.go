@@ -189,6 +189,7 @@ var StudyResponse = Type("StudyResponse", func() {
 		Default("")
 	})
 	Attribute("shift", Float64, "AuraFlow shift value (optional, nullable)")
+	Attribute("lora_strength_pairs", ArrayOf(LoraStrengthPair), "LoRA strength pairs to iterate (only used for LoRA training runs)")
 	Attribute("images_per_checkpoint", Int, "Computed: total images per checkpoint", func() {
 		Example(54)
 	})
@@ -198,7 +199,7 @@ var StudyResponse = Type("StudyResponse", func() {
 	Attribute("updated_at", String, "Last update timestamp (RFC3339)", func() {
 		Example("2025-01-01T00:00:00Z")
 	})
-	Required("id", "name", "prompt_prefix", "prompts", "negative_prompt", "steps", "cfgs", "sampler_scheduler_pairs", "seeds", "width", "height", "workflow_template", "vae", "text_encoder", "images_per_checkpoint", "created_at", "updated_at")
+	Required("id", "name", "prompt_prefix", "prompts", "negative_prompt", "steps", "cfgs", "sampler_scheduler_pairs", "seeds", "width", "height", "workflow_template", "vae", "text_encoder", "lora_strength_pairs", "images_per_checkpoint", "created_at", "updated_at")
 })
 
 var CreateStudyPayload = Type("CreateStudyPayload", func() {
@@ -254,6 +255,7 @@ var CreateStudyPayload = Type("CreateStudyPayload", func() {
 		Default("")
 	})
 	Attribute("shift", Float64, "AuraFlow shift value (optional, nullable)")
+	Attribute("lora_strength_pairs", ArrayOf(LoraStrengthPair), "LoRA strength pairs to iterate (optional, for LoRA training runs)")
 	Required("name", "prompt_prefix", "prompts", "negative_prompt", "steps", "cfgs", "sampler_scheduler_pairs", "seeds", "width", "height")
 })
 
@@ -313,6 +315,7 @@ var UpdateStudyPayload = Type("UpdateStudyPayload", func() {
 		Default("")
 	})
 	Attribute("shift", Float64, "AuraFlow shift value (optional, nullable)")
+	Attribute("lora_strength_pairs", ArrayOf(LoraStrengthPair), "LoRA strength pairs to iterate (optional, for LoRA training runs)")
 	Required("id", "name", "prompt_prefix", "prompts", "negative_prompt", "steps", "cfgs", "sampler_scheduler_pairs", "seeds", "width", "height")
 })
 
@@ -372,6 +375,7 @@ var ForkStudyPayload = Type("ForkStudyPayload", func() {
 		Default("")
 	})
 	Attribute("shift", Float64, "AuraFlow shift value (optional, nullable)")
+	Attribute("lora_strength_pairs", ArrayOf(LoraStrengthPair), "LoRA strength pairs to iterate (optional, for LoRA training runs)")
 	Required("source_id", "name", "prompt_prefix", "prompts", "negative_prompt", "steps", "cfgs", "sampler_scheduler_pairs", "seeds", "width", "height")
 })
 
@@ -386,6 +390,17 @@ var NamedPrompt = Type("NamedPrompt", func() {
 		MinLength(1)
 	})
 	Required("name", "text")
+})
+
+var LoraStrengthPair = Type("LoraStrengthPair", func() {
+	Description("A pair of LoRA strength values for model and CLIP")
+	Attribute("strength_model", Float64, "LoRA strength for the model", func() {
+		Example(1.0)
+	})
+	Attribute("strength_clip", Float64, "LoRA strength for the CLIP encoder", func() {
+		Example(1.0)
+	})
+	Required("strength_model", "strength_clip")
 })
 
 var SamplerSchedulerPair = Type("SamplerSchedulerPair", func() {

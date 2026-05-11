@@ -113,6 +113,10 @@ func (s *SampleJobsService) Create(ctx context.Context, p *gensamplejobs.CreateS
 	}
 
 	// Create the job — workflow, VAE, text encoder, and shift are read from the study definition.
+	var baseModel string
+	if p.BaseModel != nil {
+		baseModel = *p.BaseModel
+	}
 	job, err := s.svc.Create(
 		p.TrainingRunName,
 		trainingRun.Checkpoints,
@@ -120,6 +124,7 @@ func (s *SampleJobsService) Create(ctx context.Context, p *gensamplejobs.CreateS
 		p.CheckpointFilenames,
 		p.ClearExisting,
 		p.MissingOnly,
+		baseModel,
 	)
 	if err != nil {
 		if isNotFound(err) {
@@ -257,6 +262,10 @@ func sampleJobToResponse(j model.SampleJob, counts model.ItemStatusCounts, faile
 
 	if j.Shift != nil {
 		resp.Shift = j.Shift
+	}
+
+	if j.BaseModel != "" {
+		resp.BaseModel = &j.BaseModel
 	}
 
 	if j.ErrorMessage != "" {

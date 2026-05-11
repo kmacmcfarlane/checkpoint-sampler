@@ -83,6 +83,10 @@ var TrainingRunResponse = Type("TrainingRunResponse", func() {
 	Attribute("checkpoint_count", Int, "Number of checkpoint files in this training run", func() {
 		Example(3)
 	})
+	Attribute("kind", String, "Training run kind: checkpoint or lora", func() {
+		Example("checkpoint")
+		Enum("checkpoint", "lora")
+	})
 	Attribute("has_samples", Boolean, "Whether at least one checkpoint has a matching sample directory", func() {
 		Example(true)
 	})
@@ -90,7 +94,7 @@ var TrainingRunResponse = Type("TrainingRunResponse", func() {
 	Attribute("training_run_dir", String, "Top-level sample directory name (viewer source only)")
 	Attribute("study_label", String, "Study directory name (viewer source only)")
 	Attribute("study_output_dir", String, "Full study output directory prefix for scan/validation scoping (viewer source only)")
-	Required("id", "name", "checkpoint_count", "has_samples", "checkpoints")
+	Required("id", "name", "kind", "checkpoint_count", "has_samples", "checkpoints")
 })
 
 var CheckpointResponse = Type("CheckpointResponse", func() {

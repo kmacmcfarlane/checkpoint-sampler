@@ -167,7 +167,7 @@ func (s *SampleJobService) Get(id string) (model.SampleJob, error) {
 // clearExisting: when true, the sample directory for each selected checkpoint is removed before creating job items.
 // missingOnly: when true, only items whose output file does not already exist on disk are included.
 // Workflow template, VAE, text encoder, and shift are read from the study definition.
-func (s *SampleJobService) Create(trainingRunName string, checkpoints []model.Checkpoint, studyID string, checkpointFilenames []string, clearExisting bool, missingOnly bool) (model.SampleJob, error) {
+func (s *SampleJobService) Create(trainingRunName string, checkpoints []model.Checkpoint, studyID string, checkpointFilenames []string, clearExisting bool, missingOnly bool, baseModel string) (model.SampleJob, error) {
 	s.logger.WithFields(logrus.Fields{
 		"training_run_name":     trainingRunName,
 		"study_id":              studyID,
@@ -241,6 +241,7 @@ func (s *SampleJobService) Create(trainingRunName string, checkpoints []model.Ch
 		VAE:                 study.VAE,
 		CLIP:                study.TextEncoder,
 		Shift:               study.Shift,
+		BaseModel:           baseModel,
 		CheckpointFilenames: selectedFilenames,
 		ClearExisting:       clearExisting,
 		Status:              model.SampleJobStatusPending,

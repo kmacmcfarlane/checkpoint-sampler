@@ -70,6 +70,8 @@ func (s *StudiesService) Create(ctx context.Context, p *genstudies.CreateStudyPa
 		shift = p.Shift
 	}
 
+	loraPairs := payloadLoraStrengthPairs(p.LoraStrengthPairs)
+
 	study, err := s.svc.Create(
 		p.Name,
 		p.PromptPrefix,
@@ -85,7 +87,7 @@ func (s *StudiesService) Create(ctx context.Context, p *genstudies.CreateStudyPa
 		p.Vae,
 		p.TextEncoder,
 		shift,
-		nil, // loraStrengthPairs — not yet exposed via API
+		loraPairs,
 	)
 	if err != nil {
 		return nil, genstudies.MakeInvalidPayload(fmt.Errorf("creating study: %w", err))
@@ -116,6 +118,8 @@ func (s *StudiesService) Update(ctx context.Context, p *genstudies.UpdateStudyPa
 		updateShift = p.Shift
 	}
 
+	updateLoraPairs := payloadLoraStrengthPairs(p.LoraStrengthPairs)
+
 	study, err := s.svc.Update(
 		p.ID,
 		p.Name,
@@ -132,7 +136,7 @@ func (s *StudiesService) Update(ctx context.Context, p *genstudies.UpdateStudyPa
 		p.Vae,
 		p.TextEncoder,
 		updateShift,
-		nil, // loraStrengthPairs — not yet exposed via API
+		updateLoraPairs,
 	)
 	if err != nil {
 		if isNotFound(err) {
@@ -166,6 +170,8 @@ func (s *StudiesService) Fork(ctx context.Context, p *genstudies.ForkStudyPayloa
 		forkShift = p.Shift
 	}
 
+	forkLoraPairs := payloadLoraStrengthPairs(p.LoraStrengthPairs)
+
 	study, err := s.svc.Fork(
 		p.SourceID,
 		p.Name,
@@ -182,7 +188,7 @@ func (s *StudiesService) Fork(ctx context.Context, p *genstudies.ForkStudyPayloa
 		p.Vae,
 		p.TextEncoder,
 		forkShift,
-		nil, // loraStrengthPairs — not yet exposed via API
+		forkLoraPairs,
 	)
 	if err != nil {
 		if isNotFound(err) {
@@ -329,6 +335,14 @@ func studyToResponse(s model.Study) *genstudies.StudyResponse {
 		}
 	}
 
+	loraPairs := make([]*genstudies.LoraStrengthPair, len(s.LoraStrengthPairs))
+	for i, lp := range s.LoraStrengthPairs {
+		loraPairs[i] = &genstudies.LoraStrengthPair{
+			StrengthModel: lp.StrengthModel,
+			StrengthClip:  lp.StrengthClip,
+		}
+	}
+
 	return &genstudies.StudyResponse{
 		ID:                    s.ID,
 		Name:                  s.Name,
@@ -345,8 +359,25 @@ func studyToResponse(s model.Study) *genstudies.StudyResponse {
 		Vae:                   s.VAE,
 		TextEncoder:           s.TextEncoder,
 		Shift:                 s.Shift,
+		LoraStrengthPairs:     loraPairs,
 		ImagesPerCheckpoint:   s.ImagesPerCheckpoint(),
 		CreatedAt:             s.CreatedAt.UTC().Format(time.RFC3339),
 		UpdatedAt:             s.UpdatedAt.UTC().Format(time.RFC3339),
 	}
+}
+
+// payloadLoraStrengthPairs converts API LoRA strength pairs to model types.
+// Returns nil if the input slice is nil or empty.
+func payloadLoraStrengthPairs(pairs []*genstudies.LoraStrengthPair) []model.LoraStrengthPair {
+	if len(pairs) == 0 {
+		return nil
+	}
+	result := make([]model.LoraStrengthPair, len(pairs))
+	for i, lp := range pairs {
+		result[i] = model.LoraStrengthPair{
+			StrengthModel: lp.StrengthModel,
+			StrengthClip:  lp.StrengthClip,
+		}
+	}
+	return result
 }

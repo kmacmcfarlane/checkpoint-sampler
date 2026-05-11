@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-144: API: expose TrainingRunKind, base_model, and LoRA strength pairs
+- Goa DSL: `TrainingRunResponse.kind` (enum: checkpoint/lora), `StudyPayload/Response.lora_strength_pairs`, `CreateSampleJobPayload.base_model` (optional)
+- API implementation maps `kind` from model with "checkpoint" default; study create/update/fork now accept and return LoRA strength pairs
+
 ### S-143: Study model: add LoRA strength pairs
 - Added `LoraStrengthPair` struct and `LoraStrengthPairs` field to the Study model; stored as JSON in SQLite with DB migration v21
 - Service validates non-negative strength values and rejects duplicates; defaults to `[{1.0, 1.0}]` when empty

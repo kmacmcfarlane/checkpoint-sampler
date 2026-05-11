@@ -180,6 +180,9 @@ var SampleJobResponse = Type("SampleJobResponse", func() {
 		Example("clip_l.safetensors")
 	})
 	Attribute("shift", Float64, "AuraFlow shift value (nullable)")
+	Attribute("base_model", String, "Base model path for LoRA jobs (empty for checkpoint jobs)", func() {
+		Example("flux1-dev.safetensors")
+	})
 	Attribute("status", String, "Job status: pending, running, stopped, completed, completed_with_errors, failed", func() {
 		Example("running")
 		Enum("pending", "running", "stopped", "completed", "completed_with_errors", "failed")
@@ -269,6 +272,9 @@ var CreateSampleJobPayload = Type("CreateSampleJobPayload", func() {
 	})
 	Attribute("checkpoint_filenames", ArrayOf(String), "Optional list of checkpoint filenames to include; when omitted all checkpoints are included", func() {
 		Example([]string{"psai4rt-v0.3.0-no-reg-step00004500.safetensors"})
+	})
+	Attribute("base_model", String, "Base model path for LoRA jobs (optional, only used for LoRA training runs)", func() {
+		Example("flux1-dev.safetensors")
 	})
 	Attribute("clear_existing", Boolean, "When true, delete existing sample directories for selected checkpoints before creating job items", func() {
 		Default(false)
