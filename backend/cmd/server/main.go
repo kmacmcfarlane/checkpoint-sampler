@@ -111,6 +111,7 @@ func run() error {
 	var workflowsSvc *api.WorkflowService
 	var modelDiscovery *service.ComfyUIModelDiscovery
 	var jobExecutor *service.JobExecutor
+	var workflowLoader *service.WorkflowLoader
 	var bgPauser api.BackgroundPauser // remains nil (interface nil) when ComfyUI is not configured
 	if cfg.ComfyUI != nil {
 		httpClient := store.NewComfyUIHTTPClient(cfg.ComfyUI.URL, logger)
@@ -119,7 +120,7 @@ func run() error {
 		comfyuiSvc = api.NewComfyUIService(httpClient, modelDiscovery)
 
 		// Create workflow loader and ensure workflow directory exists
-		workflowLoader := service.NewWorkflowLoader(cfg.ComfyUI.WorkflowDir, logger)
+		workflowLoader = service.NewWorkflowLoader(cfg.ComfyUI.WorkflowDir, logger)
 		if err := workflowLoader.EnsureWorkflowDir(); err != nil {
 			return fmt.Errorf("ensuring workflow directory: %w", err)
 		}
@@ -198,10 +199,13 @@ func run() error {
 	var sampleJobsSvc *api.SampleJobsService
 	if cfg.ComfyUI != nil {
 		pathMatcher := service.NewCheckpointPathMatcher(modelDiscovery, logger)
+		loraPathMatcher := service.NewLoraPathMatcher(modelDiscovery, logger)
 		dirRemover := store.NewStudyOutputDirRemover(fs, cfg.SampleDir)
 		sampleJobSvc := service.NewSampleJobService(st, pathMatcher, dirRemover, cfg.SampleDir, logger)
+		sampleJobSvc.SetLoraPathMatcher(loraPathMatcher)
 		sampleJobSvc.SetFileChecker(&service.RealOutputFileChecker{})
 		sampleJobSvc.SetJobDataRemover(store.NewJobSampleDirRemover(fs, cfg.SampleDir))
+		sampleJobSvc.SetWorkflowRoleChecker(workflowLoader)
 
 		// Wire the executor and service together (avoiding circular dependency)
 		sampleJobSvc.SetExecutor(jobExecutor)

@@ -108,6 +108,28 @@ var _ = Describe("ComfyUIModelDiscovery", func() {
 			})
 		})
 
+		Context("with LoRA model type", func() {
+			It("extracts LoRA models from LoraLoader node", func() {
+				mockGetter.getObjectInfoFunc = func(ctx context.Context, nodeType string) (*store.ObjectInfo, error) {
+					Expect(nodeType).To(Equal("LoraLoader"))
+					return &store.ObjectInfo{
+						Input: store.ObjectInfoInput{
+							Required: map[string][]interface{}{
+								"lora_name": {
+									[]interface{}{"lora1.safetensors", "subdir/lora2.safetensors"},
+								},
+							},
+						},
+					}, nil
+				}
+
+				models, err := discovery.GetModels(ctx, service.ComfyUIModelTypeLoRA)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(models).To(HaveLen(2))
+				Expect(models).To(ContainElements("lora1.safetensors", "subdir/lora2.safetensors"))
+			})
+		})
+
 		Context("with sampler model type", func() {
 			It("extracts samplers from KSampler node", func() {
 				mockGetter.getObjectInfoFunc = func(ctx context.Context, nodeType string) (*store.ObjectInfo, error) {
@@ -311,6 +333,7 @@ var _ = Describe("ComfyUIModelDiscovery", func() {
 								"vae_name":     {[]interface{}{"test"}},
 								"clip_name":    {[]interface{}{"test"}},
 								"unet_name":    {[]interface{}{"test"}},
+								"lora_name":    {[]interface{}{"test"}},
 								"sampler_name": {[]interface{}{"test"}},
 								"scheduler":    {[]interface{}{"test"}},
 							},
@@ -325,6 +348,7 @@ var _ = Describe("ComfyUIModelDiscovery", func() {
 			Entry("VAE -> VAELoader", service.ComfyUIModelTypeVAE, "VAELoader"),
 			Entry("CLIP -> CLIPLoader", service.ComfyUIModelTypeCLIP, "CLIPLoader"),
 			Entry("UNET -> UNETLoader", service.ComfyUIModelTypeUNET, "UNETLoader"),
+			Entry("LoRA -> LoraLoader", service.ComfyUIModelTypeLoRA, "LoraLoader"),
 			Entry("Sampler -> KSampler", service.ComfyUIModelTypeSampler, "KSampler"),
 			Entry("Scheduler -> KSampler", service.ComfyUIModelTypeScheduler, "KSampler"),
 		)

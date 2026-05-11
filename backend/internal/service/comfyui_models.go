@@ -15,6 +15,7 @@ const (
 	ComfyUIModelTypeVAE       ComfyUIModelType = "vae"
 	ComfyUIModelTypeCLIP      ComfyUIModelType = "clip"
 	ComfyUIModelTypeUNET      ComfyUIModelType = "unet"
+	ComfyUIModelTypeLoRA      ComfyUIModelType = "lora"
 	ComfyUIModelTypeSampler   ComfyUIModelType = "sampler"
 	ComfyUIModelTypeScheduler ComfyUIModelType = "scheduler"
 )
@@ -88,6 +89,8 @@ func (d *ComfyUIModelDiscovery) nodeTypeForModelType(modelType ComfyUIModelType)
 		return "CLIPLoader"
 	case ComfyUIModelTypeUNET:
 		return "UNETLoader"
+	case ComfyUIModelTypeLoRA:
+		return "LoraLoader"
 	case ComfyUIModelTypeSampler:
 		return "KSampler"
 	case ComfyUIModelTypeScheduler:
@@ -112,6 +115,8 @@ func (d *ComfyUIModelDiscovery) extractModels(info *store.ObjectInfo, modelType 
 		fieldName = "clip_name"
 	case ComfyUIModelTypeUNET:
 		fieldName = "unet_name"
+	case ComfyUIModelTypeLoRA:
+		fieldName = "lora_name"
 	case ComfyUIModelTypeSampler:
 		fieldName = "sampler_name"
 	case ComfyUIModelTypeScheduler:

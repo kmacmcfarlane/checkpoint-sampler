@@ -422,7 +422,7 @@ stories:
 
   - id: S-145
     title: "Job creation: LoRA path matching, base model, strength expansion"
-    status: todo
+    status: uat
     priority: 70
     complexity: high
     requires:

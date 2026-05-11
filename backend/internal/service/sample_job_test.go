@@ -1,6 +1,7 @@
 package service_test
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -218,6 +219,27 @@ func (f *fakeOutputFileChecker) FileExists(path string) bool {
 	return f.existingFiles[path]
 }
 
+// fakeWorkflowRoleChecker is a test double for service.WorkflowRoleChecker.
+type fakeWorkflowRoleChecker struct {
+	workflows map[string]model.WorkflowTemplate
+	err       error
+}
+
+func newFakeWorkflowRoleChecker() *fakeWorkflowRoleChecker {
+	return &fakeWorkflowRoleChecker{workflows: make(map[string]model.WorkflowTemplate)}
+}
+
+func (f *fakeWorkflowRoleChecker) Get(_ context.Context, name string) (model.WorkflowTemplate, error) {
+	if f.err != nil {
+		return model.WorkflowTemplate{}, f.err
+	}
+	wf, ok := f.workflows[name]
+	if !ok {
+		return model.WorkflowTemplate{}, fmt.Errorf("workflow not found: %s", name)
+	}
+	return wf, nil
+}
+
 // fakeSampleJobExecutor is a test double for service.SampleJobExecutor.
 // It simulates the executor's contract: RequestStop both signals the stop AND
 // updates the DB status to stopped (mirroring the real JobExecutor.RequestStop).
@@ -289,6 +311,39 @@ var _ = Describe("GenerateOutputFilename", func() {
 		result := service.GenerateOutputFilename(item)
 		Expect(result).To(ContainSubstring("cfg=3.5"))
 	})
+
+	It("includes strength_model and strength_clip for LoRA items", func() {
+		item := model.SampleJobItem{
+			PromptName:    "test",
+			Steps:         20,
+			CFG:           7.0,
+			SamplerName:   "euler",
+			Scheduler:     "simple",
+			Seed:          42,
+			LoraModelPath: "loras/my-lora.safetensors",
+			StrengthModel: 0.80,
+			StrengthClip:  0.90,
+		}
+		result := service.GenerateOutputFilename(item)
+		Expect(result).To(ContainSubstring("strength_clip=0.90"))
+		Expect(result).To(ContainSubstring("strength_model=0.80"))
+	})
+
+	It("does NOT include strength values for non-LoRA items", func() {
+		item := model.SampleJobItem{
+			PromptName:    "test",
+			Steps:         20,
+			CFG:           7.0,
+			SamplerName:   "euler",
+			Scheduler:     "simple",
+			Seed:          42,
+			LoraModelPath: "", // Not a LoRA item
+			StrengthModel: 1.0,
+			StrengthClip:  1.0,
+		}
+		result := service.GenerateOutputFilename(item)
+		Expect(result).NotTo(ContainSubstring("strength"))
+	})
 })
 
 var _ = Describe("SampleJobService", func() {
@@ -350,7 +405,7 @@ var _ = Describe("SampleJobService", func() {
 		})
 
 		It("creates a job and expands items correctly", func() {
-			job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, false, "")
+			job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, false, "", model.TrainingRunKindCheckpoint)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(job.ID).NotTo(BeEmpty())
 			Expect(job.TrainingRunName).To(Equal("test-run"))
@@ -378,7 +433,7 @@ var _ = Describe("SampleJobService", func() {
 		})
 
 		It("calculates total items correctly", func() {
-			job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, false, "")
+			job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, false, "", model.TrainingRunKindCheckpoint)
 			Expect(err).NotTo(HaveOccurred())
 
 			// 2 checkpoints × 2 prompts × 2 steps × 2 cfgs × 1 pair × 1 seed = 16
@@ -386,7 +441,7 @@ var _ = Describe("SampleJobService", func() {
 		})
 
 		It("returns error when study not found", func() {
-			_, err := svc.Create("test-run", checkpoints, "nonexistent", nil, false, false, "")
+			_, err := svc.Create("test-run", checkpoints, "nonexistent", nil, false, false, "", model.TrainingRunKindCheckpoint)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("not found"))
 		})
@@ -409,7 +464,7 @@ var _ = Describe("SampleJobService", func() {
 			}
 			store.studies[noWorkflowStudy.ID] = noWorkflowStudy
 
-			_, err := svc.Create("test-run", checkpoints, "study-no-wf", nil, false, false, "")
+			_, err := svc.Create("test-run", checkpoints, "study-no-wf", nil, false, false, "", model.TrainingRunKindCheckpoint)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("no workflow template configured"))
 		})
@@ -417,7 +472,7 @@ var _ = Describe("SampleJobService", func() {
 		It("marks items as skipped when checkpoint path matching fails", func() {
 			pathMatcher.paths = make(map[string]string) // Clear paths to simulate no matches
 
-			job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, false, "")
+			job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, false, "", model.TrainingRunKindCheckpoint)
 			Expect(err).NotTo(HaveOccurred())
 
 			items := store.items[job.ID]
@@ -430,7 +485,7 @@ var _ = Describe("SampleJobService", func() {
 
 		It("uses shift from study when study has a shift value", func() {
 			// The study set up in BeforeEach has Shift = &1.5
-			job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, false, "")
+			job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, false, "", model.TrainingRunKindCheckpoint)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(job.Shift).NotTo(BeNil())
 			Expect(*job.Shift).To(Equal(1.5))
@@ -441,14 +496,14 @@ var _ = Describe("SampleJobService", func() {
 			studyNoShift := store.studies["study-1"]
 			studyNoShift.Shift = nil
 			store.studies["study-1"] = studyNoShift
-			job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, false, "")
+			job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, false, "", model.TrainingRunKindCheckpoint)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(job.Shift).To(BeNil())
 		})
 
 		DescribeTable("filters checkpoints by checkpoint_filenames when provided",
 			func(filenames []string, expectedCount int) {
-				job, err := svc.Create("test-run", checkpoints, "study-1", filenames, false, false, "")
+				job, err := svc.Create("test-run", checkpoints, "study-1", filenames, false, false, "", model.TrainingRunKindCheckpoint)
 				Expect(err).NotTo(HaveOccurred())
 				// Each checkpoint produces 8 items (2 prompts × 2 steps × 2 cfgs × 1 pair × 1 seed)
 				Expect(job.TotalItems).To(Equal(expectedCount * 8))
@@ -463,19 +518,19 @@ var _ = Describe("SampleJobService", func() {
 		)
 
 		It("stores all checkpoint filenames in the job when no filter is provided", func() {
-			job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, false, "")
+			job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, false, "", model.TrainingRunKindCheckpoint)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(job.CheckpointFilenames).To(ConsistOf("checkpoint1.safetensors", "checkpoint2.safetensors"))
 		})
 
 		It("stores only filtered checkpoint filenames when a filter is provided", func() {
-			job, err := svc.Create("test-run", checkpoints, "study-1", []string{"checkpoint1.safetensors"}, false, false, "")
+			job, err := svc.Create("test-run", checkpoints, "study-1", []string{"checkpoint1.safetensors"}, false, false, "", model.TrainingRunKindCheckpoint)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(job.CheckpointFilenames).To(ConsistOf("checkpoint1.safetensors"))
 		})
 
 		It("stores empty checkpoint filenames list when filter matches no checkpoints", func() {
-			job, err := svc.Create("test-run", checkpoints, "study-1", []string{"nonexistent.safetensors"}, false, false, "")
+			job, err := svc.Create("test-run", checkpoints, "study-1", []string{"nonexistent.safetensors"}, false, false, "", model.TrainingRunKindCheckpoint)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(job.CheckpointFilenames).To(BeEmpty())
 		})
@@ -483,7 +538,7 @@ var _ = Describe("SampleJobService", func() {
 		// B-114: clear_existing is stored as a job parameter, not executed at queue time
 		It("stores clear_existing flag on the job but does NOT clear directories at queue time", func() {
 			dirRemover.removed = nil
-			job, err := svc.Create("test-run", checkpoints, "study-1", nil, true, false, "")
+			job, err := svc.Create("test-run", checkpoints, "study-1", nil, true, false, "", model.TrainingRunKindCheckpoint)
 			Expect(err).NotTo(HaveOccurred())
 			// Directories should NOT be cleared during Create
 			Expect(dirRemover.removed).To(BeEmpty())
@@ -492,7 +547,7 @@ var _ = Describe("SampleJobService", func() {
 		})
 
 		It("stores clear_existing=false when not requested", func() {
-			job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, false, "")
+			job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, false, "", model.TrainingRunKindCheckpoint)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(job.ClearExisting).To(BeFalse())
 		})
@@ -503,7 +558,7 @@ var _ = Describe("SampleJobService", func() {
 		Context("regeneration job creation (B-106)", func() {
 			It("creates a job with clear_existing flag stored (clearing deferred to start)", func() {
 				dirRemover.removed = nil
-				job, err := svc.Create("test-run", checkpoints, "study-1", nil, true, false, "")
+				job, err := svc.Create("test-run", checkpoints, "study-1", nil, true, false, "", model.TrainingRunKindCheckpoint)
 				Expect(err).NotTo(HaveOccurred())
 
 				// AC1: Job is created with correct study and training run
@@ -531,7 +586,7 @@ var _ = Describe("SampleJobService", func() {
 				updatedStudy.TextEncoder = "new-clip.safetensors"
 				store.studies["study-1"] = updatedStudy
 
-				job, err := svc.Create("test-run", checkpoints, "study-1", nil, true, false, "")
+				job, err := svc.Create("test-run", checkpoints, "study-1", nil, true, false, "", model.TrainingRunKindCheckpoint)
 				Expect(err).NotTo(HaveOccurred())
 
 				// Job uses the updated study settings
@@ -565,7 +620,7 @@ var _ = Describe("SampleJobService", func() {
 				// Mark this file as existing for checkpoint1 only
 				fileChecker.existingFiles["/samples/Test Study/checkpoint1.safetensors/"+expectedFilename] = true
 
-				job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, true, "")
+				job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, true, "", model.TrainingRunKindCheckpoint)
 				Expect(err).NotTo(HaveOccurred())
 
 				// Total items should be 16 - 1 = 15 (one item skipped)
@@ -576,7 +631,7 @@ var _ = Describe("SampleJobService", func() {
 
 			It("creates all items when no output files exist", func() {
 				// No files marked as existing
-				job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, true, "")
+				job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, true, "", model.TrainingRunKindCheckpoint)
 				Expect(err).NotTo(HaveOccurred())
 
 				// All 16 items should be created
@@ -609,7 +664,7 @@ var _ = Describe("SampleJobService", func() {
 					}
 				}
 
-				job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, true, "")
+				job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, true, "", model.TrainingRunKindCheckpoint)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(job.TotalItems).To(Equal(0))
 			})
@@ -617,11 +672,167 @@ var _ = Describe("SampleJobService", func() {
 			It("does not filter when fileChecker is nil", func() {
 				svc.SetFileChecker(nil)
 
-				job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, true, "")
+				job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, true, "", model.TrainingRunKindCheckpoint)
 				Expect(err).NotTo(HaveOccurred())
 
 				// All items should be created since no file checker is set
 				Expect(job.TotalItems).To(Equal(16))
+			})
+		})
+
+		// S-145: LoRA job creation tests
+		Context("LoRA training runs", func() {
+			var loraStudy model.Study
+
+			BeforeEach(func() {
+				loraStudy = model.Study{
+					ID:             "lora-study-1",
+					Name:           "LoRA Study",
+					Prompts:        []model.NamedPrompt{{Name: "prompt1", Text: "text1"}},
+					NegativePrompt: "bad",
+					Steps:          []int{20},
+					CFGs:           []float64{7.0},
+					SamplerSchedulerPairs: []model.SamplerSchedulerPair{
+						{Sampler: "euler", Scheduler: "simple"},
+					},
+					Seeds:            []int64{42},
+					WorkflowTemplate: "lora-workflow.json",
+					VAE:              "vae.safetensors",
+					TextEncoder:      "clip.safetensors",
+					LoraStrengthPairs: []model.LoraStrengthPair{
+						{StrengthModel: 0.8, StrengthClip: 0.9},
+						{StrengthModel: 1.0, StrengthClip: 1.0},
+					},
+				}
+				store.studies[loraStudy.ID] = loraStudy
+			})
+
+			It("returns error when LoRA run has no base model", func() {
+				_, err := svc.Create("lora-run", checkpoints, "lora-study-1", nil, false, false, "", model.TrainingRunKindLoRA)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("require a base model"))
+			})
+
+			It("returns error when workflow lacks lora_loader cs_role", func() {
+				checker := newFakeWorkflowRoleChecker()
+				// Register a workflow without lora_loader role
+				checker.workflows["lora-workflow.json"] = model.WorkflowTemplate{
+					Name:  "lora-workflow.json",
+					Roles: map[string][]string{
+						string(model.CSRoleSaveImage): {"1"},
+					},
+				}
+				svc.SetWorkflowRoleChecker(checker)
+
+				_, err := svc.Create("lora-run", checkpoints, "lora-study-1", nil, false, false, "base.safetensors", model.TrainingRunKindLoRA)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("lora_loader"))
+				Expect(err.Error()).To(ContainSubstring("lora-capable workflow"))
+			})
+
+			It("succeeds when workflow has lora_loader cs_role", func() {
+				checker := newFakeWorkflowRoleChecker()
+				checker.workflows["lora-workflow.json"] = model.WorkflowTemplate{
+					Name:  "lora-workflow.json",
+					Roles: map[string][]string{
+						string(model.CSRoleSaveImage):  {"1"},
+						string(model.CSRoleLoraLoader): {"2"},
+					},
+				}
+				svc.SetWorkflowRoleChecker(checker)
+
+				job, err := svc.Create("lora-run", checkpoints, "lora-study-1", nil, false, false, "base.safetensors", model.TrainingRunKindLoRA)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(job.BaseModel).To(Equal("base.safetensors"))
+			})
+
+			It("expands lora_strength_pairs in the Cartesian product for LoRA runs", func() {
+				// 2 checkpoints x 1 prompt x 1 step x 1 cfg x 1 pair x 1 seed x 2 strengths = 4
+				job, err := svc.Create("lora-run", checkpoints, "lora-study-1", nil, false, false, "base-model.safetensors", model.TrainingRunKindLoRA)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(job.TotalItems).To(Equal(4))
+				Expect(job.BaseModel).To(Equal("base-model.safetensors"))
+
+				items := store.items[job.ID]
+				Expect(items).To(HaveLen(4))
+
+				// Verify strength values are set on items
+				strengths := make(map[string]bool)
+				for _, item := range items {
+					key := fmt.Sprintf("%.1f-%.1f", item.StrengthModel, item.StrengthClip)
+					strengths[key] = true
+				}
+				Expect(strengths).To(HaveKey("0.8-0.9"))
+				Expect(strengths).To(HaveKey("1.0-1.0"))
+			})
+
+			It("does NOT expand strength pairs for non-LoRA runs", func() {
+				// Study has 2 strength pairs, but this is a checkpoint run
+				store.studies["study-1"] = model.Study{
+					ID:             "study-1",
+					Name:           "Test Study",
+					Prompts:        []model.NamedPrompt{{Name: "prompt1", Text: "text1"}},
+					Steps:          []int{20},
+					CFGs:           []float64{7.0},
+					SamplerSchedulerPairs: []model.SamplerSchedulerPair{
+						{Sampler: "euler", Scheduler: "simple"},
+					},
+					Seeds:            []int64{42},
+					WorkflowTemplate: "workflow.json",
+					LoraStrengthPairs: []model.LoraStrengthPair{
+						{StrengthModel: 0.8, StrengthClip: 0.9},
+						{StrengthModel: 1.0, StrengthClip: 1.0},
+					},
+				}
+
+				// 2 checkpoints x 1 prompt x 1 step x 1 cfg x 1 pair x 1 seed = 2 (no strength expansion)
+				job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, false, "", model.TrainingRunKindCheckpoint)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(job.TotalItems).To(Equal(2))
+			})
+
+			It("uses LoRA path matcher for LoRA runs when configured", func() {
+				// Set up a separate LoRA path matcher
+				loraPathMatcher := newFakePathMatcher()
+				loraPathMatcher.paths["checkpoint1.safetensors"] = "loras/checkpoint1.safetensors"
+				loraPathMatcher.paths["checkpoint2.safetensors"] = "loras/checkpoint2.safetensors"
+				svc.SetLoraPathMatcher(loraPathMatcher)
+
+				job, err := svc.Create("lora-run", checkpoints, "lora-study-1", nil, false, false, "base.safetensors", model.TrainingRunKindLoRA)
+				Expect(err).NotTo(HaveOccurred())
+
+				items := store.items[job.ID]
+				for _, item := range items {
+					// LoRA items should have LoraModelPath set (not ComfyUIModelPath)
+					Expect(item.LoraModelPath).NotTo(BeEmpty())
+					Expect(item.ComfyUIModelPath).To(BeEmpty())
+				}
+			})
+
+			It("falls back to checkpoint path matcher for LoRA runs when loraPathMatcher is nil", func() {
+				// Don't set a LoRA path matcher; it should fall back to the regular one
+				job, err := svc.Create("lora-run", checkpoints, "lora-study-1", nil, false, false, "base.safetensors", model.TrainingRunKindLoRA)
+				Expect(err).NotTo(HaveOccurred())
+
+				items := store.items[job.ID]
+				// When no loraPathMatcher is set, falls back to pathMatcher which sets LoraModelPath for LoRA runs
+				for _, item := range items {
+					Expect(item.LoraModelPath).NotTo(BeEmpty())
+				}
+			})
+
+			It("treats single default strength pair as no expansion for LoRA runs", func() {
+				singleStrengthStudy := loraStudy
+				singleStrengthStudy.ID = "single-strength-study"
+				singleStrengthStudy.LoraStrengthPairs = []model.LoraStrengthPair{
+					{StrengthModel: 1.0, StrengthClip: 1.0},
+				}
+				store.studies[singleStrengthStudy.ID] = singleStrengthStudy
+
+				// 2 checkpoints x 1 prompt x 1 step x 1 cfg x 1 pair x 1 seed x 1 strength = 2
+				job, err := svc.Create("lora-run", checkpoints, singleStrengthStudy.ID, nil, false, false, "base.safetensors", model.TrainingRunKindLoRA)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(job.TotalItems).To(Equal(2))
 			})
 		})
 	})

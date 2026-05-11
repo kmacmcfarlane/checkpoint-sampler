@@ -125,6 +125,7 @@ func (s *SampleJobsService) Create(ctx context.Context, p *gensamplejobs.CreateS
 		p.ClearExisting,
 		p.MissingOnly,
 		baseModel,
+		trainingRun.Kind,
 	)
 	if err != nil {
 		if isNotFound(err) {

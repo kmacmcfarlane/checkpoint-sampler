@@ -41,6 +41,9 @@ type SampleJobItem struct {
 	JobID              string
 	CheckpointFilename string
 	ComfyUIModelPath   string
+	LoraModelPath      string  // ComfyUI-relative LoRA path (empty for checkpoint jobs)
+	StrengthModel      float64 // LoRA model strength (default 1.0)
+	StrengthClip       float64 // LoRA clip strength (default 1.0)
 	PromptName         string
 	PromptText         string
 	NegativePrompt     string

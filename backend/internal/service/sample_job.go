@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"net/url"
@@ -61,13 +62,21 @@ type OutputFileChecker interface {
 	FileExists(path string) bool
 }
 
+// WorkflowRoleChecker defines the interface for retrieving a workflow template
+// so that its cs_role tags can be inspected during job creation validation.
+type WorkflowRoleChecker interface {
+	Get(ctx context.Context, name string) (model.WorkflowTemplate, error)
+}
+
 // SampleJobService manages sample job creation, state transitions, and progress tracking.
 type SampleJobService struct {
 	store              SampleJobStore
 	pathMatcher        PathMatcher
+	loraPathMatcher    PathMatcher
 	dirRemover         SampleDirRemover
 	jobDataRemover     JobSampleDataRemover
 	fileChecker        OutputFileChecker
+	workflowChecker    WorkflowRoleChecker
 	sampleDir          string
 	executor           SampleJobExecutor
 	logger             *logrus.Entry
@@ -85,6 +94,12 @@ func NewSampleJobService(store SampleJobStore, pathMatcher PathMatcher, dirRemov
 	}
 }
 
+// SetLoraPathMatcher sets the LoRA path matcher used for matching LoRA checkpoint
+// filenames to ComfyUI LoRA model paths. Required for LoRA job creation.
+func (s *SampleJobService) SetLoraPathMatcher(matcher PathMatcher) {
+	s.loraPathMatcher = matcher
+}
+
 // SetJobDataRemover sets the remover used by Delete(deleteData=true).
 // This is optional; if not set, Delete with deleteData=true will skip filesystem cleanup.
 func (s *SampleJobService) SetJobDataRemover(remover JobSampleDataRemover) {
@@ -94,6 +109,13 @@ func (s *SampleJobService) SetJobDataRemover(remover JobSampleDataRemover) {
 // SetFileChecker sets the output file checker (used for missing-only job creation).
 func (s *SampleJobService) SetFileChecker(checker OutputFileChecker) {
 	s.fileChecker = checker
+}
+
+// SetWorkflowRoleChecker sets the workflow role checker used to validate that
+// LoRA workflows contain a lora_loader cs_role. Optional; if not set, the
+// lora-capable workflow validation is skipped.
+func (s *SampleJobService) SetWorkflowRoleChecker(checker WorkflowRoleChecker) {
+	s.workflowChecker = checker
 }
 
 // SetExecutor sets the job executor (called after construction to avoid circular dependencies).
@@ -166,8 +188,9 @@ func (s *SampleJobService) Get(id string) (model.SampleJob, error) {
 // checkpointFilenames is an optional filter: when non-empty, only the listed checkpoints are included.
 // clearExisting: when true, the sample directory for each selected checkpoint is removed before creating job items.
 // missingOnly: when true, only items whose output file does not already exist on disk are included.
+// trainingRunKind indicates whether this is a checkpoint or LoRA training run.
 // Workflow template, VAE, text encoder, and shift are read from the study definition.
-func (s *SampleJobService) Create(trainingRunName string, checkpoints []model.Checkpoint, studyID string, checkpointFilenames []string, clearExisting bool, missingOnly bool, baseModel string) (model.SampleJob, error) {
+func (s *SampleJobService) Create(trainingRunName string, checkpoints []model.Checkpoint, studyID string, checkpointFilenames []string, clearExisting bool, missingOnly bool, baseModel string, trainingRunKind model.TrainingRunKind) (model.SampleJob, error) {
 	s.logger.WithFields(logrus.Fields{
 		"training_run_name":     trainingRunName,
 		"study_id":              studyID,
@@ -219,8 +242,44 @@ func (s *SampleJobService) Create(trainingRunName string, checkpoints []model.Ch
 		return model.SampleJob{}, fmt.Errorf("study %q has no workflow template configured", study.Name)
 	}
 
+	// S-145: Validate LoRA-specific requirements.
+	isLoRA := trainingRunKind == model.TrainingRunKindLoRA
+	if isLoRA && baseModel == "" {
+		s.logger.WithFields(logrus.Fields{
+			"training_run_name": trainingRunName,
+			"study_id":          studyID,
+		}).Warn("LoRA training run requires a base model")
+		return model.SampleJob{}, fmt.Errorf("LoRA training runs require a base model selection")
+	}
+
+	// S-145: Validate that LoRA workflows contain a lora_loader cs_role.
+	if isLoRA && s.workflowChecker != nil {
+		wf, err := s.workflowChecker.Get(context.Background(), study.WorkflowTemplate)
+		if err != nil {
+			s.logger.WithFields(logrus.Fields{
+				"training_run_name":  trainingRunName,
+				"workflow_template":  study.WorkflowTemplate,
+				"error":              err.Error(),
+			}).Warn("failed to load workflow for LoRA validation")
+			return model.SampleJob{}, fmt.Errorf("loading workflow for LoRA validation: %w", err)
+		}
+		if _, hasLoraLoader := wf.Roles[string(model.CSRoleLoraLoader)]; !hasLoraLoader {
+			s.logger.WithFields(logrus.Fields{
+				"training_run_name":  trainingRunName,
+				"workflow_template":  study.WorkflowTemplate,
+			}).Warn("workflow does not contain a lora_loader node")
+			return model.SampleJob{}, fmt.Errorf("workflow %q does not contain a lora_loader node; LoRA runs require a lora-capable workflow", study.WorkflowTemplate)
+		}
+	}
+
 	// Calculate total items: checkpoints × images per checkpoint
-	imagesPerCheckpoint := study.ImagesPerCheckpoint()
+	// LoRA runs include the strength pair dimension in the Cartesian product.
+	var imagesPerCheckpoint int
+	if isLoRA {
+		imagesPerCheckpoint = study.ImagesPerCheckpointLoRA()
+	} else {
+		imagesPerCheckpoint = study.ImagesPerCheckpoint()
+	}
 	totalItems := len(checkpoints) * imagesPerCheckpoint
 
 	// Capture the checkpoint filenames selected for this job.
@@ -266,7 +325,7 @@ func (s *SampleJobService) Create(trainingRunName string, checkpoints []model.Ch
 	}).Info("sample job created")
 
 	// Expand items: for each checkpoint, iterate over all parameter combinations
-	items := s.expandJobItems(jobID, checkpoints, study)
+	items := s.expandJobItems(jobID, checkpoints, study, isLoRA)
 	s.logger.WithFields(logrus.Fields{
 		"sample_job_id": jobID,
 		"item_count":    len(items),
@@ -305,9 +364,16 @@ func (s *SampleJobService) Create(trainingRunName string, checkpoints []model.Ch
 		}
 	}
 
+	// Select the appropriate path matcher based on training run kind.
+	// LoRA runs match against ComfyUI's LoRA model list; checkpoint runs use UNETs.
+	matcher := s.pathMatcher
+	if isLoRA && s.loraPathMatcher != nil {
+		matcher = s.loraPathMatcher
+	}
+
 	// Match checkpoint filenames to ComfyUI model paths and create job items
 	for _, item := range items {
-		comfyuiPath, err := s.pathMatcher.MatchCheckpointPath(item.CheckpointFilename)
+		comfyuiPath, err := matcher.MatchCheckpointPath(item.CheckpointFilename)
 		if err != nil {
 			s.logger.WithFields(logrus.Fields{
 				"sample_job_id":        jobID,
@@ -319,10 +385,17 @@ func (s *SampleJobService) Create(trainingRunName string, checkpoints []model.Ch
 			item.ErrorMessage = fmt.Sprintf("checkpoint not found in ComfyUI: %v", err)
 			item.ComfyUIModelPath = ""
 		} else {
-			item.ComfyUIModelPath = comfyuiPath
+			if isLoRA {
+				// For LoRA runs, the matched path goes to LoraModelPath;
+				// ComfyUIModelPath remains empty (base model is on the job).
+				item.LoraModelPath = comfyuiPath
+			} else {
+				item.ComfyUIModelPath = comfyuiPath
+			}
 			s.logger.WithFields(logrus.Fields{
 				"checkpoint_filename": item.CheckpointFilename,
 				"comfyui_path":        comfyuiPath,
+				"is_lora":             isLoRA,
 			}).Debug("matched checkpoint to ComfyUI path")
 		}
 
@@ -348,9 +421,19 @@ func (s *SampleJobService) Create(trainingRunName string, checkpoints []model.Ch
 }
 
 // expandJobItems generates all work items for a job by expanding the study parameters across checkpoints.
-func (s *SampleJobService) expandJobItems(jobID string, checkpoints []model.Checkpoint, study model.Study) []model.SampleJobItem {
+// For LoRA training runs, lora_strength_pairs are included in the Cartesian product.
+// For non-LoRA runs, strength is treated as a single [{1.0, 1.0}] (no expansion).
+func (s *SampleJobService) expandJobItems(jobID string, checkpoints []model.Checkpoint, study model.Study, isLoRA bool) []model.SampleJobItem {
 	var items []model.SampleJobItem
 	now := time.Now().UTC()
+
+	// Determine strength pairs to iterate over.
+	// For LoRA runs, use the study's LoRA strength pairs.
+	// For non-LoRA runs, use a single default pair (no expansion).
+	strengthPairs := []model.LoraStrengthPair{{StrengthModel: 1.0, StrengthClip: 1.0}}
+	if isLoRA && len(study.LoraStrengthPairs) > 0 {
+		strengthPairs = study.LoraStrengthPairs
+	}
 
 	for _, checkpoint := range checkpoints {
 		// Iterate over all parameter combinations using sampler/scheduler pairs
@@ -361,26 +444,30 @@ func (s *SampleJobService) expandJobItems(jobID string, checkpoints []model.Chec
 				for _, cfg := range study.CFGs {
 					for _, pair := range study.SamplerSchedulerPairs {
 						for _, seed := range study.Seeds {
-							item := model.SampleJobItem{
-								ID:                 uuid.New().String(),
-								JobID:              jobID,
-								CheckpointFilename: checkpoint.Filename,
-								ComfyUIModelPath:   "", // Will be filled by path matching
-								PromptName:         prompt.Name,
-								PromptText:         promptText,
-								NegativePrompt:     study.NegativePrompt,
-								Steps:              steps,
-								CFG:                cfg,
-								SamplerName:        pair.Sampler,
-								Scheduler:          pair.Scheduler,
-								Seed:               seed,
-								Width:              study.Width,
-								Height:             study.Height,
-								Status:             model.SampleJobItemStatusPending,
-								CreatedAt:          now,
-								UpdatedAt:          now,
+							for _, strength := range strengthPairs {
+								item := model.SampleJobItem{
+									ID:                 uuid.New().String(),
+									JobID:              jobID,
+									CheckpointFilename: checkpoint.Filename,
+									ComfyUIModelPath:   "", // Will be filled by path matching
+									StrengthModel:      strength.StrengthModel,
+									StrengthClip:       strength.StrengthClip,
+									PromptName:         prompt.Name,
+									PromptText:         promptText,
+									NegativePrompt:     study.NegativePrompt,
+									Steps:              steps,
+									CFG:                cfg,
+									SamplerName:        pair.Sampler,
+									Scheduler:          pair.Scheduler,
+									Seed:               seed,
+									Width:              study.Width,
+									Height:             study.Height,
+									Status:             model.SampleJobItemStatusPending,
+									CreatedAt:          now,
+									UpdatedAt:          now,
+								}
+								items = append(items, item)
 							}
-							items = append(items, item)
 						}
 					}
 				}
@@ -980,6 +1067,7 @@ func (s *SampleJobService) GetProgress(id string) (model.JobProgress, error) {
 // GenerateOutputFilename generates the query-encoded output filename for a sample job item.
 // This is the canonical filename format used both during job execution and for
 // missing-sample detection. The format matches what the job executor writes to disk.
+// For LoRA runs, strength_model and strength_clip are also included.
 func GenerateOutputFilename(item model.SampleJobItem) string {
 	params := url.Values{}
 	params.Set("prompt", item.PromptName)
@@ -988,5 +1076,10 @@ func GenerateOutputFilename(item model.SampleJobItem) string {
 	params.Set("sampler", item.SamplerName)
 	params.Set("scheduler", item.Scheduler)
 	params.Set("seed", fmt.Sprintf("%d", item.Seed))
+	// Include LoRA strength values when they differ from defaults (indicating a LoRA job)
+	if item.LoraModelPath != "" {
+		params.Set("strength_model", fmt.Sprintf("%.2f", item.StrengthModel))
+		params.Set("strength_clip", fmt.Sprintf("%.2f", item.StrengthClip))
+	}
 	return fmt.Sprintf("%s.png", params.Encode())
 }

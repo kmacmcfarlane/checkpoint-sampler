@@ -307,5 +307,33 @@ ALTER TABLE studies ADD COLUMN shift REAL;`,
 			Version: 21,
 			SQL:     `ALTER TABLE studies ADD COLUMN lora_strength_pairs TEXT NOT NULL DEFAULT '[{"strength_model":1.0,"strength_clip":1.0}]';`,
 		},
+		{
+			// S-145: Add base_model column to sample_jobs table.
+			// Stores the user-selected base model path for LoRA jobs.
+			// Empty string for checkpoint jobs.
+			Version: 22,
+			SQL:     `ALTER TABLE sample_jobs ADD COLUMN base_model TEXT NOT NULL DEFAULT '';`,
+		},
+		{
+			// S-145: Add lora_model_path column to sample_job_items table.
+			// Stores the ComfyUI-relative LoRA model path for LoRA items.
+			// Empty string for checkpoint items.
+			Version: 23,
+			SQL:     `ALTER TABLE sample_job_items ADD COLUMN lora_model_path TEXT NOT NULL DEFAULT '';`,
+		},
+		{
+			// S-145: Add strength_model column to sample_job_items table.
+			// Stores the LoRA model strength for this item.
+			// Defaults to 1.0 for both LoRA and checkpoint items.
+			Version: 24,
+			SQL:     `ALTER TABLE sample_job_items ADD COLUMN strength_model REAL NOT NULL DEFAULT 1.0;`,
+		},
+		{
+			// S-145: Add strength_clip column to sample_job_items table.
+			// Stores the LoRA clip strength for this item.
+			// Defaults to 1.0 for both LoRA and checkpoint items.
+			Version: 25,
+			SQL:     `ALTER TABLE sample_job_items ADD COLUMN strength_clip REAL NOT NULL DEFAULT 1.0;`,
+		},
 	}
 }

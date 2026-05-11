@@ -5,6 +5,12 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-145: Job creation: LoRA path matching, base model, strength expansion
+- LoraPathMatcher queries ComfyUI's LoRA model list (via `object_info/LoraLoader`) for filename-to-path matching, separate from the UNET path matcher used for checkpoint runs
+- `expandJobItems` includes `lora_strength_pairs` in the Cartesian product for LoRA training runs; non-LoRA jobs skip strength expansion
+- Job creation validates LoRA runs require both a base model and a lora-capable workflow (containing `lora_loader` cs_role)
+- DB migrations v22-v25 add `base_model` to sample_jobs and `lora_model_path`, `strength_model`, `strength_clip` to sample_job_items
+
 ### S-144: API: expose TrainingRunKind, base_model, and LoRA strength pairs
 - Goa DSL: `TrainingRunResponse.kind` (enum: checkpoint/lora), `StudyPayload/Response.lora_strength_pairs`, `CreateSampleJobPayload.base_model` (optional)
 - API implementation maps `kind` from model with "checkpoint" default; study create/update/fork now accept and return LoRA strength pairs

@@ -54,9 +54,20 @@ type NamedPrompt struct {
 }
 
 // ImagesPerCheckpoint calculates the total number of images that will be generated
-// per checkpoint using this study.
+// per checkpoint using this study for non-LoRA (checkpoint) training runs.
+// For LoRA runs, use ImagesPerCheckpointLoRA() which includes strength pair expansion.
 func (s Study) ImagesPerCheckpoint() int {
 	return len(s.Prompts) * len(s.Steps) * len(s.CFGs) * len(s.SamplerSchedulerPairs) * len(s.Seeds)
+}
+
+// ImagesPerCheckpointLoRA calculates the total number of images per checkpoint
+// for LoRA training runs, including the LoRA strength pairs dimension.
+func (s Study) ImagesPerCheckpointLoRA() int {
+	base := s.ImagesPerCheckpoint()
+	if len(s.LoraStrengthPairs) > 0 {
+		return base * len(s.LoraStrengthPairs)
+	}
+	return base
 }
 
 // OutputDirName returns the output directory name for this study.
