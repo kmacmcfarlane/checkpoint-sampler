@@ -11,6 +11,12 @@ type SamplerSchedulerPair struct {
 	Scheduler string
 }
 
+// LoraStrengthPair represents a pair of LoRA strength values for model and CLIP.
+type LoraStrengthPair struct {
+	StrengthModel float64
+	StrengthClip  float64
+}
+
 // Study represents a saved set of sampling parameters for image generation.
 // A study defines a set of generation parameters and outputs into its own
 // subdirectory under the sample directory, enabling multiple studies per
@@ -36,6 +42,7 @@ type Study struct {
 	VAE                   string   // ComfyUI VAE model path (optional)
 	TextEncoder           string   // ComfyUI CLIP/text encoder model path (optional)
 	Shift                 *float64 // AuraFlow shift value (optional, nullable)
+	LoraStrengthPairs     []LoraStrengthPair
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
 }

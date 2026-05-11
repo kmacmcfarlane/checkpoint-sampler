@@ -374,7 +374,7 @@ stories:
 
   - id: S-143
     title: "Study model: add LoRA strength pairs"
-    status: todo
+    status: uat
     priority: 75
     complexity: medium
     requires:

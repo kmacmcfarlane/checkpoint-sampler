@@ -299,5 +299,13 @@ ALTER TABLE studies ADD COLUMN shift REAL;`,
 			Version: 20,
 			SQL:     `ALTER TABLE sample_jobs ADD COLUMN clear_existing INTEGER NOT NULL DEFAULT 0;`,
 		},
+		{
+			// S-143: Add lora_strength_pairs column to studies table.
+			// Stores a JSON array of {strength_model, strength_clip} pairs,
+			// analogous to sampler_scheduler_pairs. Defaults to empty array.
+			// Non-LoRA studies simply have an empty array.
+			Version: 21,
+			SQL:     `ALTER TABLE studies ADD COLUMN lora_strength_pairs TEXT NOT NULL DEFAULT '[{"strength_model":1.0,"strength_clip":1.0}]';`,
+		},
 	}
 }

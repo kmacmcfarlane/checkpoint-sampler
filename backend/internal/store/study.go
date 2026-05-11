@@ -27,6 +27,7 @@ type studyEntity struct {
 	VAE                   *string  // nullable
 	TextEncoder           *string  // nullable
 	Shift                 *float64 // nullable
+	LoraStrengthPairs     string   // JSON
 	CreatedAt             string   // RFC3339
 	UpdatedAt             string   // RFC3339
 }
@@ -43,12 +44,18 @@ type samplerSchedulerPairJSON struct {
 	Scheduler string `json:"scheduler"`
 }
 
+// loraStrengthPairJSON is the JSON shape for LoRA strength pairs.
+type loraStrengthPairJSON struct {
+	StrengthModel float64 `json:"strength_model"`
+	StrengthClip  float64 `json:"strength_clip"`
+}
+
 // ListStudies returns all studies ordered by name.
 func (s *Store) ListStudies() ([]model.Study, error) {
 	s.logger.Trace("entering ListStudies")
 	defer s.logger.Trace("returning from ListStudies")
 
-	rows, err := s.db.Query(`SELECT id, name, prompt_prefix, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs, seeds, width, height, workflow_template, vae, text_encoder, shift, created_at, updated_at
+	rows, err := s.db.Query(`SELECT id, name, prompt_prefix, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs, seeds, width, height, workflow_template, vae, text_encoder, shift, lora_strength_pairs, created_at, updated_at
 		FROM studies ORDER BY name`)
 	if err != nil {
 		s.logger.WithError(err).Error("failed to query studies")
@@ -59,7 +66,7 @@ func (s *Store) ListStudies() ([]model.Study, error) {
 	var studies []model.Study
 	for rows.Next() {
 		var e studyEntity
-		if err := rows.Scan(&e.ID, &e.Name, &e.PromptPrefix, &e.Prompts, &e.NegativePrompt, &e.Steps, &e.CFGs, &e.SamplerSchedulerPairs, &e.Seeds, &e.Width, &e.Height, &e.WorkflowTemplate, &e.VAE, &e.TextEncoder, &e.Shift, &e.CreatedAt, &e.UpdatedAt); err != nil {
+		if err := rows.Scan(&e.ID, &e.Name, &e.PromptPrefix, &e.Prompts, &e.NegativePrompt, &e.Steps, &e.CFGs, &e.SamplerSchedulerPairs, &e.Seeds, &e.Width, &e.Height, &e.WorkflowTemplate, &e.VAE, &e.TextEncoder, &e.Shift, &e.LoraStrengthPairs, &e.CreatedAt, &e.UpdatedAt); err != nil {
 			s.logger.WithError(err).Error("failed to scan study row")
 			return nil, fmt.Errorf("scanning study row: %w", err)
 		}
@@ -85,9 +92,9 @@ func (s *Store) GetStudy(id string) (model.Study, error) {
 
 	var e studyEntity
 	err := s.db.QueryRow(
-		`SELECT id, name, prompt_prefix, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs, seeds, width, height, workflow_template, vae, text_encoder, shift, created_at, updated_at
+		`SELECT id, name, prompt_prefix, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs, seeds, width, height, workflow_template, vae, text_encoder, shift, lora_strength_pairs, created_at, updated_at
 		FROM studies WHERE id = ?`, id,
-	).Scan(&e.ID, &e.Name, &e.PromptPrefix, &e.Prompts, &e.NegativePrompt, &e.Steps, &e.CFGs, &e.SamplerSchedulerPairs, &e.Seeds, &e.Width, &e.Height, &e.WorkflowTemplate, &e.VAE, &e.TextEncoder, &e.Shift, &e.CreatedAt, &e.UpdatedAt)
+	).Scan(&e.ID, &e.Name, &e.PromptPrefix, &e.Prompts, &e.NegativePrompt, &e.Steps, &e.CFGs, &e.SamplerSchedulerPairs, &e.Seeds, &e.Width, &e.Height, &e.WorkflowTemplate, &e.VAE, &e.TextEncoder, &e.Shift, &e.LoraStrengthPairs, &e.CreatedAt, &e.UpdatedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			s.logger.WithField("study_id", id).Debug("study not found in database")
@@ -121,8 +128,8 @@ func (s *Store) CreateStudy(st model.Study) error {
 	}
 
 	_, err = s.db.Exec(
-		`INSERT INTO studies (id, name, prompt_prefix, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs, seeds, width, height, workflow_template, vae, text_encoder, shift, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO studies (id, name, prompt_prefix, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs, seeds, width, height, workflow_template, vae, text_encoder, shift, lora_strength_pairs, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		entity.ID,
 		entity.Name,
 		entity.PromptPrefix,
@@ -138,6 +145,7 @@ func (s *Store) CreateStudy(st model.Study) error {
 		entity.VAE,
 		entity.TextEncoder,
 		entity.Shift,
+		entity.LoraStrengthPairs,
 		entity.CreatedAt,
 		entity.UpdatedAt,
 	)
@@ -175,7 +183,7 @@ func (s *Store) UpdateStudy(st model.Study) error {
 	}
 
 	result, err := s.db.Exec(
-		`UPDATE studies SET name = ?, prompt_prefix = ?, prompts = ?, negative_prompt = ?, steps = ?, cfgs = ?, sampler_scheduler_pairs = ?, seeds = ?, width = ?, height = ?, workflow_template = ?, vae = ?, text_encoder = ?, shift = ?, updated_at = ?
+		`UPDATE studies SET name = ?, prompt_prefix = ?, prompts = ?, negative_prompt = ?, steps = ?, cfgs = ?, sampler_scheduler_pairs = ?, seeds = ?, width = ?, height = ?, workflow_template = ?, vae = ?, text_encoder = ?, shift = ?, lora_strength_pairs = ?, updated_at = ?
 		WHERE id = ?`,
 		entity.Name,
 		entity.PromptPrefix,
@@ -191,6 +199,7 @@ func (s *Store) UpdateStudy(st model.Study) error {
 		entity.VAE,
 		entity.TextEncoder,
 		entity.Shift,
+		entity.LoraStrengthPairs,
 		entity.UpdatedAt,
 		entity.ID,
 	)
@@ -232,14 +241,14 @@ func (s *Store) GetStudyByName(name string, excludeID string) (model.Study, erro
 	var err error
 	if excludeID == "" {
 		err = s.db.QueryRow(
-			`SELECT id, name, prompt_prefix, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs, seeds, width, height, workflow_template, vae, text_encoder, shift, created_at, updated_at
+			`SELECT id, name, prompt_prefix, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs, seeds, width, height, workflow_template, vae, text_encoder, shift, lora_strength_pairs, created_at, updated_at
 			FROM studies WHERE name = ? LIMIT 1`, name,
-		).Scan(&e.ID, &e.Name, &e.PromptPrefix, &e.Prompts, &e.NegativePrompt, &e.Steps, &e.CFGs, &e.SamplerSchedulerPairs, &e.Seeds, &e.Width, &e.Height, &e.WorkflowTemplate, &e.VAE, &e.TextEncoder, &e.Shift, &e.CreatedAt, &e.UpdatedAt)
+		).Scan(&e.ID, &e.Name, &e.PromptPrefix, &e.Prompts, &e.NegativePrompt, &e.Steps, &e.CFGs, &e.SamplerSchedulerPairs, &e.Seeds, &e.Width, &e.Height, &e.WorkflowTemplate, &e.VAE, &e.TextEncoder, &e.Shift, &e.LoraStrengthPairs, &e.CreatedAt, &e.UpdatedAt)
 	} else {
 		err = s.db.QueryRow(
-			`SELECT id, name, prompt_prefix, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs, seeds, width, height, workflow_template, vae, text_encoder, shift, created_at, updated_at
+			`SELECT id, name, prompt_prefix, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs, seeds, width, height, workflow_template, vae, text_encoder, shift, lora_strength_pairs, created_at, updated_at
 			FROM studies WHERE name = ? AND id != ? LIMIT 1`, name, excludeID,
-		).Scan(&e.ID, &e.Name, &e.PromptPrefix, &e.Prompts, &e.NegativePrompt, &e.Steps, &e.CFGs, &e.SamplerSchedulerPairs, &e.Seeds, &e.Width, &e.Height, &e.WorkflowTemplate, &e.VAE, &e.TextEncoder, &e.Shift, &e.CreatedAt, &e.UpdatedAt)
+		).Scan(&e.ID, &e.Name, &e.PromptPrefix, &e.Prompts, &e.NegativePrompt, &e.Steps, &e.CFGs, &e.SamplerSchedulerPairs, &e.Seeds, &e.Width, &e.Height, &e.WorkflowTemplate, &e.VAE, &e.TextEncoder, &e.Shift, &e.LoraStrengthPairs, &e.CreatedAt, &e.UpdatedAt)
 	}
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -312,6 +321,11 @@ func studyEntityToModel(e studyEntity) (model.Study, error) {
 		return model.Study{}, fmt.Errorf("unmarshaling seeds: %w", err)
 	}
 
+	var loraPairsJSON []loraStrengthPairJSON
+	if err := json.Unmarshal([]byte(e.LoraStrengthPairs), &loraPairsJSON); err != nil {
+		return model.Study{}, fmt.Errorf("unmarshaling lora_strength_pairs: %w", err)
+	}
+
 	createdAt, err := time.Parse(time.RFC3339, e.CreatedAt)
 	if err != nil {
 		return model.Study{}, fmt.Errorf("parsing created_at: %w", err)
@@ -334,6 +348,14 @@ func studyEntityToModel(e studyEntity) (model.Study, error) {
 		pairs[i] = model.SamplerSchedulerPair{
 			Sampler:   p.Sampler,
 			Scheduler: p.Scheduler,
+		}
+	}
+
+	loraPairs := make([]model.LoraStrengthPair, len(loraPairsJSON))
+	for i, lp := range loraPairsJSON {
+		loraPairs[i] = model.LoraStrengthPair{
+			StrengthModel: lp.StrengthModel,
+			StrengthClip:  lp.StrengthClip,
 		}
 	}
 
@@ -367,6 +389,7 @@ func studyEntityToModel(e studyEntity) (model.Study, error) {
 		VAE:                   vae,
 		TextEncoder:           textEncoder,
 		Shift:                 e.Shift,
+		LoraStrengthPairs:     loraPairs,
 		CreatedAt:             createdAt,
 		UpdatedAt:             updatedAt,
 	}, nil
@@ -413,6 +436,18 @@ func studyModelToEntity(st model.Study) (studyEntity, error) {
 		return studyEntity{}, fmt.Errorf("marshaling seeds: %w", err)
 	}
 
+	loraPairsJSON := make([]loraStrengthPairJSON, len(st.LoraStrengthPairs))
+	for i, lp := range st.LoraStrengthPairs {
+		loraPairsJSON[i] = loraStrengthPairJSON{
+			StrengthModel: lp.StrengthModel,
+			StrengthClip:  lp.StrengthClip,
+		}
+	}
+	loraPairsBytes, err := json.Marshal(loraPairsJSON)
+	if err != nil {
+		return studyEntity{}, fmt.Errorf("marshaling lora_strength_pairs: %w", err)
+	}
+
 	// Convert empty string fields to nil pointers so they are stored as NULL.
 	var workflowTemplate *string
 	if st.WorkflowTemplate != "" {
@@ -443,6 +478,7 @@ func studyModelToEntity(st model.Study) (studyEntity, error) {
 		VAE:                   vae,
 		TextEncoder:           textEncoder,
 		Shift:                 st.Shift,
+		LoraStrengthPairs:     string(loraPairsBytes),
 		CreatedAt:             st.CreatedAt.UTC().Format(time.RFC3339),
 		UpdatedAt:             st.UpdatedAt.UTC().Format(time.RFC3339),
 	}, nil

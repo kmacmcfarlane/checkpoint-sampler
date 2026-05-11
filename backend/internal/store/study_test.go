@@ -88,6 +88,72 @@ var _ = Describe("Study Store", func() {
 			Expect(retrieved.UpdatedAt.Unix()).To(Equal(original.UpdatedAt.Unix()))
 		})
 
+		// AC: BE: Store layer serializes/deserializes LoraStrengthPairs as JSON
+		It("preserves LoRA strength pairs through entity conversion", func() {
+			now := time.Now().UTC().Truncate(time.Second)
+			original := model.Study{
+				ID:   "lora-test",
+				Name: "LoRA Study",
+				Prompts: []model.NamedPrompt{
+					{Name: "prompt1", Text: "text1"},
+				},
+				NegativePrompt: "",
+				Steps:          []int{4},
+				CFGs:           []float64{1.0},
+				SamplerSchedulerPairs: []model.SamplerSchedulerPair{
+					{Sampler: "euler", Scheduler: "simple"},
+				},
+				Seeds: []int64{42},
+				Width: 512, Height: 512,
+				LoraStrengthPairs: []model.LoraStrengthPair{
+					{StrengthModel: 1.0, StrengthClip: 1.0},
+					{StrengthModel: 0.75, StrengthClip: 0.5},
+				},
+				CreatedAt: now,
+				UpdatedAt: now,
+			}
+
+			err := s.CreateStudy(original)
+			Expect(err).NotTo(HaveOccurred())
+
+			retrieved, err := s.GetStudy("lora-test")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(retrieved.LoraStrengthPairs).To(HaveLen(2))
+			Expect(retrieved.LoraStrengthPairs[0].StrengthModel).To(Equal(1.0))
+			Expect(retrieved.LoraStrengthPairs[0].StrengthClip).To(Equal(1.0))
+			Expect(retrieved.LoraStrengthPairs[1].StrengthModel).To(Equal(0.75))
+			Expect(retrieved.LoraStrengthPairs[1].StrengthClip).To(Equal(0.5))
+		})
+
+		// AC: BE: Default LoraStrengthPairs is empty array when field is empty
+		It("handles empty LoRA strength pairs", func() {
+			now := time.Now().UTC().Truncate(time.Second)
+			original := model.Study{
+				ID:   "no-lora",
+				Name: "No LoRA",
+				Prompts: []model.NamedPrompt{
+					{Name: "prompt1", Text: "text1"},
+				},
+				Steps: []int{4},
+				CFGs:  []float64{1.0},
+				SamplerSchedulerPairs: []model.SamplerSchedulerPair{
+					{Sampler: "euler", Scheduler: "simple"},
+				},
+				Seeds: []int64{42},
+				Width: 512, Height: 512,
+				LoraStrengthPairs: []model.LoraStrengthPair{},
+				CreatedAt:         now,
+				UpdatedAt:         now,
+			}
+
+			err := s.CreateStudy(original)
+			Expect(err).NotTo(HaveOccurred())
+
+			retrieved, err := s.GetStudy("no-lora")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(retrieved.LoraStrengthPairs).To(HaveLen(0))
+		})
+
 		It("handles single pair correctly", func() {
 			now := time.Now().UTC().Truncate(time.Second)
 			original := model.Study{

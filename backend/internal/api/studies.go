@@ -85,6 +85,7 @@ func (s *StudiesService) Create(ctx context.Context, p *genstudies.CreateStudyPa
 		p.Vae,
 		p.TextEncoder,
 		shift,
+		nil, // loraStrengthPairs — not yet exposed via API
 	)
 	if err != nil {
 		return nil, genstudies.MakeInvalidPayload(fmt.Errorf("creating study: %w", err))
@@ -131,6 +132,7 @@ func (s *StudiesService) Update(ctx context.Context, p *genstudies.UpdateStudyPa
 		p.Vae,
 		p.TextEncoder,
 		updateShift,
+		nil, // loraStrengthPairs — not yet exposed via API
 	)
 	if err != nil {
 		if isNotFound(err) {
@@ -180,6 +182,7 @@ func (s *StudiesService) Fork(ctx context.Context, p *genstudies.ForkStudyPayloa
 		p.Vae,
 		p.TextEncoder,
 		forkShift,
+		nil, // loraStrengthPairs — not yet exposed via API
 	)
 	if err != nil {
 		if isNotFound(err) {

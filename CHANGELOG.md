@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-143: Study model: add LoRA strength pairs
+- Added `LoraStrengthPair` struct and `LoraStrengthPairs` field to the Study model; stored as JSON in SQLite with DB migration v21
+- Service validates non-negative strength values and rejects duplicates; defaults to `[{1.0, 1.0}]` when empty
+
 ### S-142: Workflow template: add lora_loader cs_role
 - Added `CSRoleLoraLoader` constant to model and `KnownCSRoles()` registry; WorkflowLoader now recognizes `lora_loader` nodes in workflow templates as an optional role
 - Reduced default E2E shard count from 12 to 4 to resolve resource contention flakiness

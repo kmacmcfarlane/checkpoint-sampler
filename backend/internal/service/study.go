@@ -100,11 +100,11 @@ func (s *StudyService) Get(id string) (model.Study, error) {
 }
 
 // Create validates and persists a new study, returning the created study.
-func (s *StudyService) Create(name string, promptPrefix string, prompts []model.NamedPrompt, negativePrompt string, steps []int, cfgs []float64, pairs []model.SamplerSchedulerPair, seeds []int64, width int, height int, workflowTemplate string, vae string, textEncoder string, shift *float64) (model.Study, error) {
+func (s *StudyService) Create(name string, promptPrefix string, prompts []model.NamedPrompt, negativePrompt string, steps []int, cfgs []float64, pairs []model.SamplerSchedulerPair, seeds []int64, width int, height int, workflowTemplate string, vae string, textEncoder string, shift *float64, loraStrengthPairs []model.LoraStrengthPair) (model.Study, error) {
 	s.logger.WithField("study_name", name).Trace("entering Create")
 	defer s.logger.Trace("returning from Create")
 
-	if err := s.validate(name, prompts, steps, cfgs, pairs, seeds, width, height); err != nil {
+	if err := s.validate(name, prompts, steps, cfgs, pairs, seeds, width, height, loraStrengthPairs); err != nil {
 		s.logger.WithFields(logrus.Fields{
 			"study_name": name,
 			"error":      err.Error(),
@@ -124,6 +124,11 @@ func (s *StudyService) Create(name string, promptPrefix string, prompts []model.
 		return model.Study{}, fmt.Errorf("checking study name uniqueness: %w", err)
 	}
 
+	// Apply default LoRA strength pairs when empty.
+	if len(loraStrengthPairs) == 0 {
+		loraStrengthPairs = []model.LoraStrengthPair{{StrengthModel: 1.0, StrengthClip: 1.0}}
+	}
+
 	now := time.Now().UTC()
 	st := model.Study{
 		ID:                    uuid.New().String(),
@@ -141,6 +146,7 @@ func (s *StudyService) Create(name string, promptPrefix string, prompts []model.
 		VAE:                   vae,
 		TextEncoder:           textEncoder,
 		Shift:                 shift,
+		LoraStrengthPairs:     loraStrengthPairs,
 		CreatedAt:             now,
 		UpdatedAt:             now,
 	}
@@ -161,14 +167,14 @@ func (s *StudyService) Create(name string, promptPrefix string, prompts []model.
 }
 
 // Update modifies an existing study.
-func (s *StudyService) Update(id string, name string, promptPrefix string, prompts []model.NamedPrompt, negativePrompt string, steps []int, cfgs []float64, pairs []model.SamplerSchedulerPair, seeds []int64, width int, height int, workflowTemplate string, vae string, textEncoder string, shift *float64) (model.Study, error) {
+func (s *StudyService) Update(id string, name string, promptPrefix string, prompts []model.NamedPrompt, negativePrompt string, steps []int, cfgs []float64, pairs []model.SamplerSchedulerPair, seeds []int64, width int, height int, workflowTemplate string, vae string, textEncoder string, shift *float64, loraStrengthPairs []model.LoraStrengthPair) (model.Study, error) {
 	s.logger.WithFields(logrus.Fields{
 		"study_id":   id,
 		"study_name": name,
 	}).Trace("entering Update")
 	defer s.logger.Trace("returning from Update")
 
-	if err := s.validate(name, prompts, steps, cfgs, pairs, seeds, width, height); err != nil {
+	if err := s.validate(name, prompts, steps, cfgs, pairs, seeds, width, height, loraStrengthPairs); err != nil {
 		s.logger.WithFields(logrus.Fields{
 			"study_id": id,
 			"error":    err.Error(),
@@ -206,6 +212,11 @@ func (s *StudyService) Update(id string, name string, promptPrefix string, promp
 	}
 	s.logger.WithField("study_id", id).Debug("fetched existing study from store")
 
+	// Apply default LoRA strength pairs when empty.
+	if len(loraStrengthPairs) == 0 {
+		loraStrengthPairs = []model.LoraStrengthPair{{StrengthModel: 1.0, StrengthClip: 1.0}}
+	}
+
 	existing.Name = name
 	existing.PromptPrefix = promptPrefix
 	existing.Prompts = prompts
@@ -220,6 +231,7 @@ func (s *StudyService) Update(id string, name string, promptPrefix string, promp
 	existing.VAE = vae
 	existing.TextEncoder = textEncoder
 	existing.Shift = shift
+	existing.LoraStrengthPairs = loraStrengthPairs
 	existing.UpdatedAt = time.Now().UTC()
 
 	if err := s.store.UpdateStudy(existing); err != nil {
@@ -240,7 +252,7 @@ func (s *StudyService) Update(id string, name string, promptPrefix string, promp
 
 // Fork creates a new study by copying an existing study's settings with
 // modifications. The new study gets a new ID and name.
-func (s *StudyService) Fork(sourceID string, newName string, promptPrefix string, prompts []model.NamedPrompt, negativePrompt string, steps []int, cfgs []float64, pairs []model.SamplerSchedulerPair, seeds []int64, width int, height int, workflowTemplate string, vae string, textEncoder string, shift *float64) (model.Study, error) {
+func (s *StudyService) Fork(sourceID string, newName string, promptPrefix string, prompts []model.NamedPrompt, negativePrompt string, steps []int, cfgs []float64, pairs []model.SamplerSchedulerPair, seeds []int64, width int, height int, workflowTemplate string, vae string, textEncoder string, shift *float64, loraStrengthPairs []model.LoraStrengthPair) (model.Study, error) {
 	s.logger.WithFields(logrus.Fields{
 		"source_id": sourceID,
 		"new_name":  newName,
@@ -262,7 +274,7 @@ func (s *StudyService) Fork(sourceID string, newName string, promptPrefix string
 	}
 
 	// Create the forked study using the standard Create flow (validates, checks name uniqueness)
-	return s.Create(newName, promptPrefix, prompts, negativePrompt, steps, cfgs, pairs, seeds, width, height, workflowTemplate, vae, textEncoder, shift)
+	return s.Create(newName, promptPrefix, prompts, negativePrompt, steps, cfgs, pairs, seeds, width, height, workflowTemplate, vae, textEncoder, shift, loraStrengthPairs)
 }
 
 // HasSamples checks whether a study has any generated samples on disk.
@@ -356,7 +368,7 @@ func (s *StudyService) Delete(id string, deleteData bool) error {
 }
 
 // validate checks that a study's fields meet the requirements.
-func (s *StudyService) validate(name string, prompts []model.NamedPrompt, steps []int, cfgs []float64, pairs []model.SamplerSchedulerPair, seeds []int64, width int, height int) error {
+func (s *StudyService) validate(name string, prompts []model.NamedPrompt, steps []int, cfgs []float64, pairs []model.SamplerSchedulerPair, seeds []int64, width int, height int, loraStrengthPairs []model.LoraStrengthPair) error {
 	if name == "" {
 		return fmt.Errorf("study name must not be empty")
 	}
@@ -438,6 +450,21 @@ func (s *StudyService) validate(name string, prompts []model.NamedPrompt, steps 
 	}
 	if height <= 0 {
 		return fmt.Errorf("height must be positive")
+	}
+	type loraPairKey struct{ m, c float64 }
+	seenLoraPairs := make(map[loraPairKey]bool, len(loraStrengthPairs))
+	for i, lp := range loraStrengthPairs {
+		if lp.StrengthModel < 0 {
+			return fmt.Errorf("lora strength pair %d: strength_model must be non-negative", i)
+		}
+		if lp.StrengthClip < 0 {
+			return fmt.Errorf("lora strength pair %d: strength_clip must be non-negative", i)
+		}
+		key := loraPairKey{lp.StrengthModel, lp.StrengthClip}
+		if seenLoraPairs[key] {
+			return fmt.Errorf("duplicate lora strength pair at index %d", i)
+		}
+		seenLoraPairs[key] = true
 	}
 	return nil
 }
