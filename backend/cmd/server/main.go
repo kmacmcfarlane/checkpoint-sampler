@@ -179,6 +179,7 @@ func run() error {
 	studiesSvc.SetFSState(fsState)
 	demoSvc := service.NewDemoService(fs, st, cfg.SampleDir, logger)
 	demoAPISvc := api.NewDemoAPIService(demoSvc)
+	demoAPISvc.SetFSState(fsState)
 
 	// Auto-install demo dataset on first run if not already present
 	if !demoSvc.Status().Installed {

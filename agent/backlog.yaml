@@ -450,7 +450,7 @@ stories:
   - id: B-138
     title: "E2E suite regression: 46 pre-existing failures across 30 spec files"
     priority: 90
-    status: uat_feedback
+    status: uat
     complexity: high
     requires: []
     acceptance:
@@ -472,10 +472,6 @@ stories:
       - Sidebar preset selector behavior changes (3 tests)
       - Various single failures across 20+ other spec files
       This blocks S-140 and all subsequent LoRA stories. Must be resolved before pipeline can resume.
-    review_feedback: 'E2E failure: demo-settings.spec.ts:110 "demo dataset is visible as a training run out of the box" —
-      the training run selector dropdown does not contain an option with text "demo-model" (exact match). Locator: .n-base-select-menu:visible
-      getByText("demo-model"). Likely regression from R-013 FSState snapshot or discovery changes affecting demo dataset training
-      run naming.'
   - id: B-139
     title: "LoRA checkpoint metadata resolution only searches checkpoint_dirs"
     status: uat

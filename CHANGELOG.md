@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-138: E2E suite regression — demo install FSState race fix
+- DemoAPIService now triggers synchronous FSState refresh after install/uninstall, eliminating race condition where training run list was stale due to fsnotify debounce window
+
 ### S-149: Frontend: LoRA strength pairs editor in study/preset UI
 - Study editor gains a LoRA Strength Pairs section with add/remove UX matching sampler/scheduler pairs; default pair is {1.0, 1.0}
 - Total images per checkpoint calculation now multiplies by the strength pair count for LoRA runs
