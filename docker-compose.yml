@@ -13,6 +13,7 @@ services:
       - ${CHECKPOINT_DIR:-./.dataset-placeholder}:/data/checkpoints:ro
       - ${SAMPLE_DIR:-./.dataset-placeholder}:/data/samples:ro
       - ${MODEL_DIR:-./.dataset-placeholder}:/data/models:ro
+      - ${LORA_DIR:-./.dataset-placeholder}:/data/loras:ro
     environment:
       - CONFIG_PATH=/app/config.yaml
       - LOG_LEVEL=info

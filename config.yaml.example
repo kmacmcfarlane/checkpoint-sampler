@@ -6,6 +6,15 @@
 checkpoint_dirs:
   - /data/checkpoints
 
+# Directories to recursively scan for LoRA .safetensors files (optional).
+# LoRA training runs are discovered separately from checkpoint training runs.
+# lora_dirs:
+#   - /data/loras
+
+# Directory for base model browsing (optional).
+# Used to populate the base model dropdown when launching LoRA sample jobs.
+# base_model_dir: /data/models
+
 # Directory where sample image output directories live.
 # Each subdirectory is named after the checkpoint filename (exact match).
 # Generated images from sample jobs are also saved here.
