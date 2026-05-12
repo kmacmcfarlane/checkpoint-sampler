@@ -6172,3 +6172,88 @@ stories:
       - "FE: Unit tests for bead rendering in both open and closed selector states"
     testing:
       - "Verify beads render correctly with various states (pending, complete, failed) in both open and closed selector positions"
+  - id: R-010
+    title: "Reconcile StudyHasSamples path to match actual sample directory structure"
+    type: refactor
+    status: done
+    priority: 50
+    complexity: medium
+    requires: []
+    notes: >
+      StudyAvailabilityService.StudyHasSamples checks {sampleDir}/{studyName}/ but samples
+      are stored at {sampleDir}/{runName}/{studyName}/. This means the study immutability
+      dialog in StudyEditor is unreachable through normal usage. A previous rework added
+      the dialog back to handle this use-case, but the underlying path mismatch was never
+      fixed. Reconcile the path logic so the availability check matches the actual filesystem
+      layout and the immutability guard works correctly.
+    acceptance:
+      - "BE: StudyHasSamples checks the correct path {sampleDir}/{runName}/{studyName}/"
+      - "BE: Study immutability dialog is reachable when a study has existing samples"
+      - "BE: Unit tests verify correct path resolution for study availability"
+      - "E2E: Immutability guard triggers when editing a study with existing samples"
+    testing:
+      - "Verify path fix doesn't break when multiple training runs share the same study — availability should check across
+        all training run directories"
+  - id: B-137
+    title: "Scheduler and sampler dropdowns empty in Study Editor"
+    type: bug
+    status: done
+    priority: 70
+    complexity: low
+    requires: []
+    notes: |
+      In Study Manager, the scheduler and sampler NSelect dropdowns in the Study Editor
+      have no options to select. The dropdowns open but the list is empty. Existing studies
+      still display their previously saved value as the selected text, but users cannot
+      change the selection or set values on new studies. This is a regression — these
+      dropdowns previously worked.
+    acceptance:
+      - "FE: Scheduler dropdown in Study Editor displays all available scheduler options"
+      - "FE: Sampler dropdown in Study Editor displays all available sampler options"
+      - "FE: Options are selectable for both new and existing studies"
+      - "FE: Unit tests verify dropdown options are populated from backend data"
+    testing:
+      - "Check what changed in the scheduler/sampler data flow — options may come from backend API or a static list. Test
+        both the fetch path and the binding to NSelect options prop."
+  - id: R-013
+    title: "Implement State Snapshot for filesystem selectors"
+    priority: 50
+    status: done
+    complexity: medium
+    requires: []
+    acceptance:
+      - "BE: Implement in-memory FSState snapshot for training runs and studies"
+      - "BE: Populate snapshot on backend startup"
+      - "BE: Update snapshot reactively via existing fsnotify watcher"
+      - "BE: Update API endpoints for training run and study selectors to serve from snapshot"
+      - "BE: Verify that selector API response time is significantly reduced"
+      - "BE: Unit tests for snapshot updates and API delivery"
+    notes: |
+      Solves runtime lag in training run and study selectors by replacing recursive filesystem scans with an in-memory snapshot. 
+      Updates are handled reactively by the existing watcher.
+      Key files: backend/internal/service/scanner.go, backend/internal/service/watcher.go, backend/internal/service/hub.go.
+    testing:
+      - "command: make test-backend"
+  - id: S-140
+    title: "Config + model foundations for LoRA support"
+    status: done
+    priority: 80
+    complexity: medium
+    requires:
+      - S-139
+    requires_reviewed:
+      - S-139
+    testing:
+      - "Unit tests for Config parsing with lora_dirs and base_model_dir"
+      - "Unit tests for TrainingRunKind type and constants"
+    acceptance:
+      - "BE: Config struct has LoraDirs []string and BaseModelDir string fields"
+      - "BE: config.yaml parser reads lora_dirs and base_model_dir (both optional, backward-compatible)"
+      - "BE: TrainingRunKind type defined with constants TrainingRunKindCheckpoint and TrainingRunKindLoRA"
+      - "BE: TrainingRun struct has Kind field of type TrainingRunKind"
+      - "BE: Docker compose and sandbox mounts updated for base_model_dir (/data/models)"
+      - "BE: .claude-sandbox.example.yaml updated with models mount example"
+    notes: |
+      Foundation ticket. Adds config fields and model types needed by all downstream LoRA stories.
+      See docs/spike-lora-support.md sections 1-2 for design details.
+
