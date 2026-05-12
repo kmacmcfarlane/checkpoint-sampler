@@ -5757,7 +5757,9 @@ describe('JobLaunchDialog', () => {
     })
 
     // AC: Workflow template dropdown filters to show only lora-capable workflows for LoRA runs
-    it('filters study options to show only LoRA-compatible studies for LoRA runs', async () => {
+    // Studies are reusable across any training run kind — all studies should be
+    // shown regardless of whether the selected training run is LoRA or checkpoint.
+    it('shows all studies for LoRA training runs (studies are reusable)', async () => {
       mockGetCheckpointTrainingRuns.mockResolvedValue(allTrainingRunsWithLora)
       mockListStudies.mockResolvedValue(allStudiesWithLora)
       mockGetComfyUIModels.mockImplementation((type: string) => {
@@ -5776,22 +5778,18 @@ describe('JobLaunchDialog', () => {
       await trainingRunSelect.vm.$emit('update:value', runLora.id)
       await flushPromises()
 
-      // Study select should only show the LoRA study (qwen-image-lora.json)
-      // and the study without a workflow_template (preset-2 has empty workflow_template)
+      // All studies should be visible — studies are reusable across run kinds
       const studySelect = selects[1]
       const studyOpts = studySelect.props('options') as Array<Record<string, unknown>>
       const studyLabels = studyOpts.map(o => o.label)
 
-      // LoRA study should be present
       expect(studyLabels).toContain('LoRA Quick Test')
-      // Studies with non-LoRA workflows should be filtered out
-      expect(studyLabels).not.toContain('Quick Test')
-      // Studies without a workflow_template are shown everywhere
+      expect(studyLabels).toContain('Quick Test')
       expect(studyLabels).toContain('Full Test')
     })
 
-    // AC: Checkpoint runs filter out LoRA-capable workflows
-    it('filters out LoRA-capable studies for checkpoint training runs', async () => {
+    // Studies are reusable — checkpoint runs also show all studies including LoRA-capable ones
+    it('shows all studies for checkpoint training runs (studies are reusable)', async () => {
       mockGetCheckpointTrainingRuns.mockResolvedValue(allTrainingRunsWithLora)
       mockListStudies.mockResolvedValue(allStudiesWithLora)
       const wrapper = mount(JobLaunchDialog, {
@@ -5806,12 +5804,12 @@ describe('JobLaunchDialog', () => {
       await trainingRunSelect.vm.$emit('update:value', runEmpty.id)
       await flushPromises()
 
-      // Study select should NOT show the LoRA study
+      // All studies should be visible — studies are reusable across run kinds
       const studySelect = selects[1]
       const studyOpts = studySelect.props('options') as Array<Record<string, unknown>>
       const studyLabels = studyOpts.map(o => o.label)
 
-      expect(studyLabels).not.toContain('LoRA Quick Test')
+      expect(studyLabels).toContain('LoRA Quick Test')
       expect(studyLabels).toContain('Quick Test')
       expect(studyLabels).toContain('Full Test')
     })

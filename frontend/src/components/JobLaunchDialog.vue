@@ -125,24 +125,10 @@ const selectedTrainingRun = computed(() =>
 // S-148: Whether the selected training run is a LoRA run
 const isLoraRun = computed(() => selectedTrainingRun.value?.kind === 'lora')
 
-// S-148: Filter studies to show only those with compatible workflow templates.
-// LoRA runs require workflows with a lora_loader cs_role.
-// Checkpoint runs should only show workflows without lora_loader.
-const filteredStudies = computed(() => {
-  if (workflows.value.length === 0) return studies.value
-  const loraWorkflows = new Set(
-    workflows.value
-      .filter(w => w.roles['lora_loader'] !== undefined)
-      .map(w => w.name),
-  )
-  return studies.value.filter(s => {
-    if (!s.workflow_template) return true // studies without a workflow are shown everywhere
-    if (isLoraRun.value) {
-      return loraWorkflows.has(s.workflow_template)
-    }
-    return !loraWorkflows.has(s.workflow_template)
-  })
-})
+// Studies are reusable across any training run kind (LoRA or checkpoint).
+// The study selector shows ALL studies regardless of training run kind.
+// Workflow template filtering is handled separately at the workflow level,
+// not at the study level.
 
 // S-148: Base model dropdown options
 const baseModelSelectOptions = computed(() =>
@@ -746,7 +732,7 @@ function toggleCheckpoint(filename: string) {
 const studyOptions = computed(() => {
   const runName = selectedTrainingRun.value?.name ?? ''
 
-  return filteredStudies.value.map(p => {
+  return studies.value.map(p => {
     const avail = studyAvailability.value.find(a => a.study_id === p.id)
     let sampleStatus = avail?.sample_status ?? 'none'
 

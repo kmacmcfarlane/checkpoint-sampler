@@ -113,8 +113,8 @@ test.describe('LoRA job launch UX (S-148)', () => {
     await expect(dialog.getByTestId('base-model-field')).not.toBeVisible()
   })
 
-  // AC: Workflow template dropdown filters to show only lora-capable workflows for LoRA runs
-  test('filters studies by workflow compatibility for LoRA runs', async ({ page, request }) => {
+  // Studies are reusable across any training run kind — all studies shown for LoRA runs
+  test('shows all studies for LoRA training runs (studies are reusable)', async ({ page, request }) => {
     await page.goto('/')
     await ensureDataAndOpenDialog(page, request)
 
@@ -129,9 +129,9 @@ test.describe('LoRA job launch UX (S-148)', () => {
     await expect(popup).toBeVisible({ timeout: 5000 })
 
     // The seeded E2E Fixture Study uses test-workflow.json (non-LoRA).
-    // For a LoRA run, it should be filtered out.
+    // Studies are reusable across run kinds — it should be visible for LoRA runs too.
     const fixtureStudyOption = popup.locator('.n-base-select-option').filter({ hasText: 'E2E Fixture Study' })
-    await expect(fixtureStudyOption).not.toBeVisible()
+    await expect(fixtureStudyOption).toBeVisible({ timeout: 5000 })
 
     // Close the popup
     await page.keyboard.press('Escape')

@@ -16,8 +16,9 @@ Older entries are condensed to titles only — see git history for full details.
 ### S-148: Frontend: LoRA training run badge and job launch UX
 - Training run selectors display a "LoRA" badge for LoRA training runs; checkpoint runs show no badge (default kind)
 - Job launch dialog conditionally shows a base model dropdown (populated from ComfyUI UNET models) when a LoRA training run is selected
-- Study/workflow filtering: LoRA runs show only workflows with `lora_loader` cs_role; checkpoint runs exclude LoRA-capable workflows
+- Workflow filtering: LoRA runs show only workflows with `lora_loader` cs_role; checkpoint runs exclude LoRA-capable workflows
 - Job creation payload includes `base_model` field for LoRA jobs; submit validation requires base model selection
+- Fix: study selector now shows all studies regardless of training run kind (studies are reusable across LoRA and checkpoint runs)
 
 ### S-147: Output path: base model directory level for LoRA samples
 - ViewerDiscoveryService now detects 4-level LoRA directory layout: `{training_run}/{study}/{base_model_name}/{checkpoint.safetensors}/`

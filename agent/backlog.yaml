@@ -404,7 +404,7 @@ stories:
 
   - id: S-148
     title: "Frontend: LoRA training run badge and job launch UX"
-    status: uat_feedback
+    status: uat
     priority: 85
     complexity: high
     requires:
@@ -426,10 +426,6 @@ stories:
       Frontend changes for LoRA job launch UX.
       See docs/spike-lora-support.md section 12.
 
-    review_feedback: "Study selector in Generate Samples dialog is broken for LoRA training runs:\n1. When a LoRA run is selected,
-      the study dropdown shows a stale UUID (from last-used full fine-tune study) instead of blank/empty.\n2. Existing studies
-      are not selectable from the dropdown for LoRA runs.\nStudies should be usable with any training run kind (LoRA or checkpoint)
-      — they are designed to be reusable. The study selector must not filter or break based on training run kind."
   - id: S-149
     title: "Frontend: LoRA strength pairs editor in study/preset UI"
     status: uat
