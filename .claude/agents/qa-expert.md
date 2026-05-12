@@ -125,6 +125,15 @@ E2E tests are the standard verification method. The `make test-e2e` run (from th
 - Manual curl/HTTP checks (e.g., `docker compose exec <service> wget -qO- http://localhost:<port>/health`) are a debugging tool — use them to investigate failures, not as the standard acceptance gate.
 Refer to TEST_PRACTICES.md sections 5.5 and 5.6 for the full guidance.
 
+## Config and environment verification (REQUIRED for config-touching stories)
+
+If the story diff touches config files, docker-compose volumes, `.env.example`, or `config.yaml.example`, verify the full config chain is consistent. See TEST_PRACTICES.md section 5.4.1 for the full checklist. Key items:
+- Example files updated with new keys
+- Test compose files (`docker-compose.test.yml`, `docker-compose.e2e-live.yml`) have matching mounts so E2E exercises the feature
+- Test fixture config (`test-fixtures/config-with-comfyui.yaml`) includes new keys
+- At least one E2E code path exercises the new config — config that exists but is never read during tests is unverified
+- REJECT if config changes are incomplete (e.g., compose mount added but example files missing the new env var)
+
 ## Runtime error sweep (REQUIRED, non-blocking)
 
 The runtime error sweep runs automatically as part of `make test-e2e`. Results are in `.e2e/sweep.txt`.

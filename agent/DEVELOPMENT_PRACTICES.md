@@ -338,7 +338,28 @@ Root Makefile must provide:
 
 Do not change these targets without updating PRD/backlog and related docs.
 
-### 5.4 Agent vs human workflows
+### 5.4 Config and environment file management
+
+This project has multiple layered config files. Some are tracked (examples), some are gitignored (local). When a story adds or changes config keys, volume mounts, or environment variables, **all layers must be updated together**:
+
+| Tracked (must update) | Gitignored (must prompt user) |
+|---|---|
+| `config.yaml.example` | `config.yaml` |
+| `.env.example` | `.env` |
+| `.claude-sandbox.example.yaml` | `.claude-sandbox.yaml` |
+| `docker-compose*.yml` | — |
+
+**Developer responsibilities (fullstack-engineer):**
+1. Update all tracked example files with new keys (commented-out with descriptions for optional fields).
+2. Update all `docker-compose*.yml` files that need the new mounts/env vars (including `docker-compose.test.yml` and `docker-compose.e2e-live.yml`).
+3. Add acceptance criteria notes when config changes require user action on local files.
+4. Verify the dev stack actually starts and exercises the new config path — a story that adds config but never runs with it is incomplete.
+
+**QA responsibilities:**
+- Verify the E2E test stack (`docker-compose.test.yml`) has the necessary config for the new feature to be exercised.
+- If the story adds new volume mounts or env vars, confirm the test fixtures or test config cover them.
+
+### 5.5 Agent vs human workflows
 Watch mode (`test-backend-watch`, `test-frontend-watch`) is designed for human developers who monitor a terminal continuously. Agents cannot use watch mode because it is a long-running process that never exits — agents need discrete pass/fail results per tool invocation.
 
 **Agent workflow:**

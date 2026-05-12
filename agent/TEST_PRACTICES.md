@@ -242,6 +242,19 @@ The QA expert subagent (/.claude/agents/qa-expert.md) is the final gate before a
 - All pre-existing tests still pass
 - No functionality broken by the changes
 
+### 5.4.1 Config and environment verification (REQUIRED for config-touching stories)
+
+When a story adds or modifies config keys, environment variables, volume mounts, or docker-compose services, QA must verify the changes actually work end-to-end — not just that the code compiles.
+
+**Checklist:**
+- All tracked example files updated (`config.yaml.example`, `.env.example`, `.claude-sandbox.example.yaml`)
+- `docker-compose.test.yml` and `docker-compose.e2e-live.yml` have matching mounts/env vars so the test stack exercises the new config paths
+- E2E test fixtures cover the new config (e.g., `test-fixtures/config-with-comfyui.yaml` includes new keys)
+- The E2E suite exercises at least one code path that depends on the new config — a config key that is defined but never read during tests is not verified
+- If the story adds volume mounts, confirm the mount paths in compose files align with the paths referenced in config files
+
+**Why this matters:** Config changes that pass unit tests and codegen can still be broken in practice if example files, compose mounts, or local env files are not updated in lockstep. These failures are only visible at runtime in the dev or production environment.
+
 ### 5.5 E2E smoke test (PRIMARY — REQUIRED)
 
 E2E tests are the standard verification method for story acceptance. The QA expert must run the full Playwright E2E suite as the primary smoke test mechanism for every story:
