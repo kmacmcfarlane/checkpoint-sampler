@@ -125,10 +125,38 @@ const selectedTrainingRun = computed(() =>
 // S-148: Whether the selected training run is a LoRA run
 const isLoraRun = computed(() => selectedTrainingRun.value?.kind === 'lora')
 
-// Studies are reusable across any training run kind (LoRA or checkpoint).
-// The study selector shows ALL studies regardless of training run kind.
-// Workflow template filtering is handled separately at the workflow level,
-// not at the study level.
+// B-140: Build a workflow lora_capable lookup map from the fetched workflow list.
+// Used to determine which studies are compatible with the selected training run kind.
+const workflowLoraCapableMap = computed((): Map<string, boolean> => {
+  const map = new Map<string, boolean>()
+  for (const wf of workflows.value) {
+    map.set(wf.name, wf.lora_capable)
+  }
+  return map
+})
+
+/**
+ * B-140: Determine whether a study's workflow is compatible with the selected
+ * training run kind. LoRA runs require a lora_capable workflow (lora_loader
+ * cs_role present). Non-LoRA (checkpoint) runs are compatible with any workflow.
+ * Returns true when compatible, false when incompatible.
+ */
+function isStudyCompatibleWithRunKind(study: Study): boolean {
+  if (!isLoraRun.value) return true
+  // LoRA run: study's workflow must be lora_capable
+  const loraCapable = workflowLoraCapableMap.value.get(study.workflow_template)
+  // If workflow not found in map (e.g. deleted workflow), treat as incompatible
+  return loraCapable === true
+}
+
+// B-140: Whether the currently selected study is incompatible with the selected
+// training run kind. Used to disable the launch button with an explanation.
+const selectedStudyIncompatible = computed((): boolean => {
+  if (!selectedStudy.value || !isLoraRun.value) return false
+  const study = studies.value.find(s => s.id === selectedStudy.value)
+  if (!study) return false
+  return !isStudyCompatibleWithRunKind(study)
+})
 
 // S-148: Base model dropdown options
 const baseModelSelectOptions = computed(() =>
@@ -760,6 +788,9 @@ const studyOptions = computed(() => {
       ? { withSamples: avail.checkpoints_with_samples, total: avail.total_checkpoints }
       : null
 
+    // B-140: Check if this study's workflow is compatible with the selected run kind
+    const compatible = isStudyCompatibleWithRunKind(p)
+
     return {
       label: p.name,
       value: p.id,
@@ -767,6 +798,8 @@ const studyOptions = computed(() => {
       _sampleStatus: sampleStatus,
       _dualBead: dualBead,
       _checkpointCounts: checkpointCounts,
+      // B-140: Compatibility metadata
+      _compatible: compatible,
     }
   })
 })
@@ -779,6 +812,7 @@ const studyOptions = computed(() => {
 const renderStudyLabel: SelectRenderLabel = (option) => {
   const dualBead = (option as { _dualBead?: DualBead })._dualBead
   const counts = (option as { _checkpointCounts?: { withSamples: number; total: number } | null })._checkpointCounts
+  const compatible = (option as { _compatible?: boolean })._compatible
 
   // Build a human-readable checkpoint count tooltip, e.g. "3/5 checkpoints have samples"
   const checkpointCountTitle = counts
@@ -786,6 +820,27 @@ const renderStudyLabel: SelectRenderLabel = (option) => {
     : null
 
   const children: VNode[] = []
+
+  // B-140: Show incompatibility warning badge for studies whose workflow
+  // is not compatible with the selected training run kind (e.g. LoRA run + non-LoRA workflow)
+  if (compatible === false) {
+    children.push(h('span', {
+      'data-testid': 'study-incompatible-badge',
+      style: {
+        display: 'inline-block',
+        padding: '0 6px',
+        fontSize: '11px',
+        lineHeight: '18px',
+        borderRadius: '3px',
+        backgroundColor: 'rgba(255, 152, 0, 0.15)',
+        color: '#e68a00',
+        fontWeight: '600',
+        flexShrink: '0',
+        whiteSpace: 'nowrap',
+      },
+      title: 'This study uses a workflow that is not compatible with LoRA training runs',
+    }, 'Not LoRA'))
+  }
 
   if (dualBead) {
     // Slot 1: activity bead (blue/green)
@@ -818,6 +873,8 @@ const renderStudyLabel: SelectRenderLabel = (option) => {
       whiteSpace: 'normal',
       wordBreak: 'break-word',
       lineHeight: '1.4',
+      // B-140: Grey out incompatible study labels
+      ...(compatible === false ? { opacity: '0.5' } : {}),
     },
   }, String(option.label ?? '')))
 
@@ -965,6 +1022,8 @@ const canSubmit = computed(() => {
   if (checkpointValidationError.value !== null) return false
   // S-148: LoRA runs require a base model selection
   if (isLoraRun.value && !selectedBaseModel.value) return false
+  // B-140: Block launch when study workflow is incompatible with training run kind
+  if (selectedStudyIncompatible.value) return false
   return true
 })
 
@@ -1519,6 +1578,16 @@ async function doSubmit() {
           </NButton>
         </div>
       </div>
+
+      <!-- B-140: Incompatible workflow warning — shown when a LoRA run is selected
+           with a study whose workflow lacks a lora_loader node -->
+      <NAlert
+        v-if="selectedStudyIncompatible"
+        type="warning"
+        data-testid="study-incompatible-warning"
+      >
+        The selected study uses a workflow that is not LoRA-capable. Choose a study with a LoRA workflow, or edit this study to use a LoRA-capable workflow template.
+      </NAlert>
 
       <!-- S-148: Base model selector — shown only for LoRA training runs -->
       <div v-if="isLoraRun" class="form-field" data-testid="base-model-field">

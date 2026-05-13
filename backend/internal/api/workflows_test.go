@@ -91,6 +91,7 @@ var _ = Describe("WorkflowService", func() {
 				Expect(result[0].Roles).To(HaveKey("save_image"))
 				Expect(result[0].Roles["save_image"]).To(Equal([]string{"10"}))
 				Expect(result[0].Warnings).To(BeEmpty())
+				Expect(result[0].LoraCapable).To(BeFalse())
 
 				// Check second workflow summary
 				Expect(result[1].Name).To(Equal("test-workflow-2.json"))
@@ -98,6 +99,7 @@ var _ = Describe("WorkflowService", func() {
 				Expect(result[1].Roles).To(BeEmpty())
 				Expect(result[1].Warnings).To(HaveLen(1))
 				Expect(result[1].Warnings[0]).To(Equal("missing required save_image role"))
+				Expect(result[1].LoraCapable).To(BeFalse())
 			})
 
 			It("returns empty list when no workflows found", func() {
@@ -127,6 +129,68 @@ var _ = Describe("WorkflowService", func() {
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("failed to read directory"))
 				Expect(result).To(BeNil())
+			})
+		})
+
+		Context("LoRA capability derivation", func() {
+			It("sets LoraCapable true when lora_loader role is present", func() {
+				mockLoader := &mockWorkflowLoader{
+					listFunc: func(ctx context.Context) ([]model.WorkflowTemplate, error) {
+						return []model.WorkflowTemplate{
+							{
+								Name:            "lora-workflow.json",
+								ValidationState: model.ValidationStateValid,
+								Roles: map[string][]string{
+									"save_image":  {"9"},
+									"unet_loader": {"4"},
+									"lora_loader": {"6"},
+								},
+								Warnings: []string{},
+							},
+							{
+								Name:            "non-lora-workflow.json",
+								ValidationState: model.ValidationStateValid,
+								Roles: map[string][]string{
+									"save_image":  {"9"},
+									"unet_loader": {"4"},
+								},
+								Warnings: []string{},
+							},
+						}, nil
+					},
+				}
+
+				svc := api.NewWorkflowService(mockLoader)
+				result, err := svc.List(ctx)
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result).To(HaveLen(2))
+				Expect(result[0].LoraCapable).To(BeTrue())
+				Expect(result[1].LoraCapable).To(BeFalse())
+			})
+
+			It("sets LoraCapable true in Show response when lora_loader role is present", func() {
+				mockLoader := &mockWorkflowLoader{
+					getFunc: func(ctx context.Context, name string) (model.WorkflowTemplate, error) {
+						return model.WorkflowTemplate{
+							Name:            "lora-workflow.json",
+							ValidationState: model.ValidationStateValid,
+							Roles: map[string][]string{
+								"save_image":  {"9"},
+								"lora_loader": {"6"},
+							},
+							Warnings: []string{},
+							Workflow:  map[string]interface{}{},
+						}, nil
+					},
+				}
+
+				svc := api.NewWorkflowService(mockLoader)
+				payload := &genworkflows.ShowPayload{Name: "lora-workflow.json"}
+				result, err := svc.Show(ctx, payload)
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result.LoraCapable).To(BeTrue())
 			})
 		})
 

@@ -43,11 +43,13 @@ func (s *WorkflowService) List(ctx context.Context) ([]*genworkflows.WorkflowSum
 
 	summaries := make([]*genworkflows.WorkflowSummary, len(templates))
 	for i, tmpl := range templates {
+		_, loraCapable := tmpl.Roles["lora_loader"]
 		summaries[i] = &genworkflows.WorkflowSummary{
 			Name:            tmpl.Name,
 			ValidationState: string(tmpl.ValidationState),
 			Roles:           tmpl.Roles,
 			Warnings:        tmpl.Warnings,
+			LoraCapable:     loraCapable,
 		}
 	}
 
@@ -65,11 +67,13 @@ func (s *WorkflowService) Show(ctx context.Context, payload *genworkflows.ShowPa
 		return nil, genworkflows.MakeNotFound(err)
 	}
 
+	_, loraCapable := tmpl.Roles["lora_loader"]
 	return &genworkflows.WorkflowDetails{
 		Name:            tmpl.Name,
 		ValidationState: string(tmpl.ValidationState),
 		Roles:           tmpl.Roles,
 		Warnings:        tmpl.Warnings,
+		LoraCapable:     loraCapable,
 		Workflow:        tmpl.Workflow,
 	}, nil
 }

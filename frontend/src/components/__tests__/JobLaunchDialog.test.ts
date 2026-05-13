@@ -84,18 +84,21 @@ const sampleWorkflows: WorkflowSummary[] = [
     validation_state: 'valid',
     roles: { save_image: ['9'], unet_loader: ['4'] },
     warnings: [],
+    lora_capable: false,
   },
   {
     name: 'auraflow-image.json',
     validation_state: 'valid',
     roles: { save_image: ['9'], unet_loader: ['4'], shift: ['3'] },
     warnings: [],
+    lora_capable: false,
   },
   {
     name: 'invalid-workflow.json',
     validation_state: 'invalid',
     roles: {},
     warnings: ['Missing required roles'],
+    lora_capable: false,
   },
   // S-148: LoRA-capable workflow (has lora_loader cs_role)
   {
@@ -103,6 +106,7 @@ const sampleWorkflows: WorkflowSummary[] = [
     validation_state: 'valid',
     roles: { save_image: ['9'], unet_loader: ['4'], lora_loader: ['10'] },
     warnings: [],
+    lora_capable: true,
   },
 ]
 
@@ -5921,6 +5925,211 @@ describe('JobLaunchDialog', () => {
       // Verify no base_model in payload
       const payload = mockCreateSampleJob.mock.calls[0][0]
       expect(payload.base_model).toBeUndefined()
+    })
+  })
+
+  // B-140: LoRA workflow compatibility filtering
+  describe('LoRA workflow compatibility (B-140)', () => {
+    beforeEach(() => {
+      mockGetCheckpointTrainingRuns.mockResolvedValue(allTrainingRunsWithLora)
+      mockListSampleJobs.mockResolvedValue([])
+      mockListWorkflows.mockResolvedValue(sampleWorkflows)
+      mockListStudies.mockResolvedValue(allStudiesWithLora)
+      mockGetComfyUIModels.mockImplementation((type: string) => {
+        if (type === 'vae') return Promise.resolve({ models: vaeModels })
+        if (type === 'clip') return Promise.resolve({ models: clipModels })
+        if (type === 'unet') return Promise.resolve({ models: unetModels })
+        return Promise.resolve({ models: [] })
+      })
+      mockGetCheckpointMetadata.mockResolvedValue({ metadata: {} })
+      mockValidateTrainingRun.mockResolvedValue({
+        total_expected: 1,
+        total_actual: 0,
+        total_missing: 1,
+        checkpoints: [
+          { checkpoint: 'chk-lora-1.safetensors', expected: 1, verified: 0, missing: 1, extra: 0, mismatched: 0 },
+          { checkpoint: 'chk-lora-2.safetensors', expected: 1, verified: 0, missing: 1, extra: 0, mismatched: 0 },
+        ],
+      })
+      mockGetStudyAvailability.mockResolvedValue([])
+    })
+
+    // AC: Study options show incompatibility badge for non-LoRA studies when a LoRA run is selected
+    it('marks non-LoRA studies as incompatible in study options when LoRA run is selected', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select the LoRA training run
+      const selects = wrapper.findAllComponents(NSelect)
+      await selects[0].vm.$emit('update:value', runLora.id)
+      await flushPromises()
+
+      // Study options should include _compatible metadata
+      const studySelect = selects[1]
+      const studyOptions = studySelect.props('options') as Array<Record<string, unknown>>
+
+      // Non-LoRA studies (using qwen-image.json, no workflow, etc.) should be incompatible
+      const nonLoraStudy = studyOptions.find(o => o.value === 'preset-1')
+      expect(nonLoraStudy).toBeDefined()
+      expect(nonLoraStudy!._compatible).toBe(false)
+
+      // LoRA study (using qwen-image-lora.json) should be compatible
+      const loraStudyOption = studyOptions.find(o => o.value === 'lora-study-1')
+      expect(loraStudyOption).toBeDefined()
+      expect(loraStudyOption!._compatible).toBe(true)
+    })
+
+    // AC: All studies are compatible when a checkpoint (non-LoRA) run is selected
+    it('marks all studies as compatible when a checkpoint run is selected', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select a checkpoint training run
+      const selects = wrapper.findAllComponents(NSelect)
+      await selects[0].vm.$emit('update:value', runEmpty.id)
+      await flushPromises()
+
+      // All study options should be compatible
+      const studySelect = selects[1]
+      const studyOptions = studySelect.props('options') as Array<Record<string, unknown>>
+      for (const opt of studyOptions) {
+        expect(opt._compatible).toBe(true)
+      }
+    })
+
+    // AC: Launch button is disabled when selected study is incompatible with LoRA run
+    it('disables launch button when incompatible study is selected for LoRA run', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select LoRA training run
+      wrapper.findAllComponents(NSelect)[0].vm.$emit('update:value', runLora.id)
+      await flushPromises()
+
+      // Select a non-LoRA study (incompatible)
+      wrapper.findAllComponents(NSelect)[1].vm.$emit('update:value', 'preset-1')
+      await flushPromises()
+
+      // Select base model (required for LoRA) — re-query selects since base model select appeared
+      const baseModelSelect = wrapper.find('[data-testid="base-model-select"]').findComponent(NSelect)
+      await baseModelSelect.vm.$emit('update:value', 'flux1-dev.safetensors')
+      await flushPromises()
+
+      // Submit button should be disabled due to incompatible workflow
+      const buttons = wrapper.findAllComponents(NButton)
+      const submitButton = buttons.find(b => b.text().includes('Generate'))
+      expect(submitButton).toBeDefined()
+      expect(submitButton!.props('disabled')).toBe(true)
+    })
+
+    // AC: Warning alert shown when incompatible study is selected for LoRA run
+    it('shows incompatibility warning when non-LoRA study is selected for LoRA run', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select LoRA training run
+      const selects = wrapper.findAllComponents(NSelect)
+      await selects[0].vm.$emit('update:value', runLora.id)
+      await flushPromises()
+
+      // Select a non-LoRA study
+      await selects[1].vm.$emit('update:value', 'preset-1')
+      await flushPromises()
+
+      // Incompatibility warning should be visible
+      const warning = wrapper.find('[data-testid="study-incompatible-warning"]')
+      expect(warning.exists()).toBe(true)
+    })
+
+    // AC: No incompatibility warning when a LoRA-compatible study is selected
+    it('does not show incompatibility warning when LoRA-compatible study is selected', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select LoRA training run
+      const selects = wrapper.findAllComponents(NSelect)
+      await selects[0].vm.$emit('update:value', runLora.id)
+      await flushPromises()
+
+      // Select the LoRA study (compatible)
+      await selects[1].vm.$emit('update:value', 'lora-study-1')
+      await flushPromises()
+
+      // No incompatibility warning
+      const warning = wrapper.find('[data-testid="study-incompatible-warning"]')
+      expect(warning.exists()).toBe(false)
+    })
+
+    // AC: Launch button is enabled when LoRA study + LoRA run + base model are selected
+    it('enables launch button when compatible LoRA study is selected with base model', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select LoRA training run
+      wrapper.findAllComponents(NSelect)[0].vm.$emit('update:value', runLora.id)
+      await flushPromises()
+
+      // Select LoRA study (compatible)
+      wrapper.findAllComponents(NSelect)[1].vm.$emit('update:value', 'lora-study-1')
+      await flushPromises()
+
+      // Select base model — re-query selects since base model select appeared
+      const baseModelSelect = wrapper.find('[data-testid="base-model-select"]').findComponent(NSelect)
+      await baseModelSelect.vm.$emit('update:value', 'flux1-dev.safetensors')
+      await flushPromises()
+
+      // Submit button should be enabled
+      const buttons = wrapper.findAllComponents(NButton)
+      const submitButton = buttons.find(b => b.text().includes('Generate'))
+      expect(submitButton).toBeDefined()
+      expect(submitButton!.props('disabled')).toBe(false)
+    })
+
+    // AC: Existing non-LoRA study + checkpoint run combinations are unaffected
+    it('does not affect non-LoRA study + checkpoint run combinations', async () => {
+      mockCreateSampleJob.mockResolvedValue({ id: 'job-1', status: 'pending' })
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Select checkpoint training run
+      const selects = wrapper.findAllComponents(NSelect)
+      await selects[0].vm.$emit('update:value', runEmpty.id)
+      await flushPromises()
+
+      // Select non-LoRA study — should be compatible with checkpoint runs
+      await selects[1].vm.$emit('update:value', 'preset-1')
+      await flushPromises()
+
+      // No incompatibility warning
+      const warning = wrapper.find('[data-testid="study-incompatible-warning"]')
+      expect(warning.exists()).toBe(false)
+
+      // Submit button should be enabled
+      const buttons = wrapper.findAllComponents(NButton)
+      const submitButton = buttons.find(b => b.text().includes('Generate'))
+      expect(submitButton).toBeDefined()
+      expect(submitButton!.props('disabled')).toBe(false)
     })
   })
 

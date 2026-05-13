@@ -322,6 +322,8 @@ export interface WorkflowSummary {
   validation_state: 'valid' | 'invalid'
   roles: Record<string, string[]>
   warnings: string[]
+  /** True when the workflow contains a lora_loader cs_role node. */
+  lora_capable: boolean
 }
 
 /** Workflow template details. */
@@ -330,6 +332,8 @@ export interface WorkflowDetail {
   validation_state: 'valid' | 'invalid'
   roles: Record<string, string[]>
   warnings: string[]
+  /** True when the workflow contains a lora_loader cs_role node. */
+  lora_capable: boolean
   workflow: unknown
 }
 

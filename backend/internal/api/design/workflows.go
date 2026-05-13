@@ -52,7 +52,10 @@ var WorkflowSummary = Type("WorkflowSummary", func() {
 	Attribute("warnings", ArrayOf(String), "Validation warnings (e.g., unknown roles)", func() {
 		Example([]string{"unknown cs_role \"custom_role\" on node 5"})
 	})
-	Required("name", "validation_state", "roles", "warnings")
+	Attribute("lora_capable", Boolean, "True when the workflow contains a lora_loader cs_role node", func() {
+		Example(false)
+	})
+	Required("name", "validation_state", "roles", "warnings", "lora_capable")
 })
 
 var WorkflowDetails = Type("WorkflowDetails", func() {
@@ -73,6 +76,9 @@ var WorkflowDetails = Type("WorkflowDetails", func() {
 	Attribute("warnings", ArrayOf(String), "Validation warnings (e.g., unknown roles)", func() {
 		Example([]string{"unknown cs_role \"custom_role\" on node 5"})
 	})
+	Attribute("lora_capable", Boolean, "True when the workflow contains a lora_loader cs_role node", func() {
+		Example(false)
+	})
 	Attribute("workflow", Any, "Full workflow JSON data", func() {
 		Example(map[string]interface{}{
 			"3": map[string]interface{}{
@@ -81,5 +87,5 @@ var WorkflowDetails = Type("WorkflowDetails", func() {
 			},
 		})
 	})
-	Required("name", "validation_state", "roles", "warnings", "workflow")
+	Required("name", "validation_state", "roles", "warnings", "lora_capable", "workflow")
 })

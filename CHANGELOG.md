@@ -5,6 +5,11 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-140: Job launch dialog allows LoRA runs with non-LoRA workflows
+- Workflow API responses now include a derived `lora_capable` boolean (true when `lora_loader` cs_role is present)
+- Job launch dialog badges incompatible studies with "Not LoRA" warning when a LoRA training run is selected, disables the launch button, and shows an explanatory alert
+- Compatibility is derived client-side by joining study workflow templates with workflow roles — no new backend endpoint or storage
+
 ### B-138: E2E suite regression — demo install FSState race fix
 - DemoAPIService now triggers synchronous FSState refresh after install/uninstall, eliminating race condition where training run list was stale due to fsnotify debounce window
 

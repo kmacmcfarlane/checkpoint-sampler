@@ -489,13 +489,17 @@ stories:
     type: bug
     priority: 50
     complexity: medium
-    status: todo
+    status: uat
     requires: []
     acceptance:
-      - "BE: Workflow list/detail API responses include a derived lora_capable boolean (true when lora_loader cs_role present) — no new storage or migration"
-      - "FE: Job launch dialog filters/badges studies by workflow compatibility when a LoRA training run is selected — studies with non-LoRA workflows are greyed out or show a warning badge"
-      - "FE: Launch button is disabled with explanation when selected study workflow is incompatible with the training run kind"
-      - "FE: Compatibility derived by joining study.workflow_template with workflow roles from the workflow list API — no new backend endpoint needed"
+      - "BE: Workflow list/detail API responses include a derived lora_capable boolean (true when lora_loader cs_role present)
+        — no new storage or migration"
+      - "FE: Job launch dialog filters/badges studies by workflow compatibility when a LoRA training run is selected — studies
+        with non-LoRA workflows are greyed out or show a warning badge"
+      - "FE: Launch button is disabled with explanation when selected study workflow is incompatible with the training run
+        kind"
+      - "FE: Compatibility derived by joining study.workflow_template with workflow roles from the workflow list API — no
+        new backend endpoint needed"
       - "Existing non-LoRA study + checkpoint run combinations are unaffected"
     testing:
       - "command: make test-backend"

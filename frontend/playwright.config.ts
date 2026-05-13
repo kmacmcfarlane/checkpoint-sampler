@@ -7,7 +7,15 @@ export default defineConfig({
   retries: 0,
   workers: 1,
   reporter: [['list'], ['html', { open: 'never' }]],
-  timeout: 30000,
+  // Increased from 30s to 60s: tests may exceed 30s under parallel shard load
+  // due to CPU contention. Serial runs pass at 30s, but 4-shard parallel runs
+  // hit the limit for FSState scanning, grid rendering, and dialog data loading.
+  timeout: 60000,
+  // Increase expect timeout from the 5s default to 15s to accommodate slower
+  // element appearance under parallel shard resource contention.
+  expect: {
+    timeout: 15000,
+  },
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000',
     headless: true,

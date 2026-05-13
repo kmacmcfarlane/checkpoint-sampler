@@ -3184,18 +3184,21 @@ describe('StudyEditor', () => {
         validation_state: 'valid',
         roles: { save_image: ['9'], unet_loader: ['4'] },
         warnings: [],
+        lora_capable: false,
       },
       {
         name: 'auraflow-image.json',
         validation_state: 'valid',
         roles: { save_image: ['9'], unet_loader: ['4'], shift: ['3'] },
         warnings: [],
+        lora_capable: false,
       },
       {
         name: 'broken-workflow.json',
         validation_state: 'invalid',
         roles: {},
         warnings: ['Missing required roles'],
+        lora_capable: false,
       },
     ]
 
