@@ -484,3 +484,51 @@ stories:
     testing:
       - "command: make test-backend"
       - "command: make test-e2e"
+  - id: B-140
+    title: "Job launch dialog allows LoRA runs with non-LoRA workflows"
+    type: bug
+    priority: 50
+    complexity: medium
+    status: todo
+    requires: []
+    acceptance:
+      - "BE: Workflow list/detail API responses include a derived lora_capable boolean (true when lora_loader cs_role present) — no new storage or migration"
+      - "FE: Job launch dialog filters/badges studies by workflow compatibility when a LoRA training run is selected — studies with non-LoRA workflows are greyed out or show a warning badge"
+      - "FE: Launch button is disabled with explanation when selected study workflow is incompatible with the training run kind"
+      - "FE: Compatibility derived by joining study.workflow_template with workflow roles from the workflow list API — no new backend endpoint needed"
+      - "Existing non-LoRA study + checkpoint run combinations are unaffected"
+    testing:
+      - "command: make test-backend"
+      - "command: make test-frontend"
+      - "command: make test-e2e"
+    description: |
+      When launching a sample job for a LoRA training run, the study selector shows ALL studies
+      regardless of whether their workflow template is LoRA-capable. The user can select a study
+      whose workflow (e.g. qwen-image.json) lacks a lora_loader cs_role node, fill in all fields
+      including base model, and hit Launch — only to get a backend 400 error:
+
+        "workflow \"qwen-image.json\" does not contain a lora_loader node;
+         LoRA runs require a lora-capable workflow"
+
+      A LoRA-capable workflow (qwen-image-lora.json) exists but the user has no way to know
+      which studies are compatible with LoRA runs from the dialog UI.
+
+      Design approach — derive compatibility, don't store it:
+      - Workflow cs_roles are the single source of truth for run-kind compatibility
+      - lora_loader present = LoRA-capable; unet_loader present = checkpoint-capable
+      - Studies inherit compatibility from their workflow_template — no "kind" field on studies
+      - Relationship chain: training_run.kind → workflow.roles ← study.workflow_template
+      - FE joins study list (has workflow_template) with workflow list (has roles) client-side
+      - Future run kinds should follow same pattern: centralize in workflowSupportsRunKind(roles, kind)
+    repro_steps: |
+      1. Navigate to job launch dialog
+      2. Select a LoRA training run (e.g. qwen/.../psyart-v0.3.0-qwen-...)
+      3. Select a study configured with qwen-image.json (non-LoRA workflow)
+      4. Select a base model
+      5. Click Launch
+      6. Observe backend error: "workflow does not contain a lora_loader node"
+    root_cause: |
+      Backend validation (service/sample_job.go:256-273) correctly rejects LoRA jobs when the
+      workflow lacks lora_loader cs_role. But the frontend (JobLaunchDialog.vue:128-129) intentionally
+      shows all studies for all run kinds with no compatibility filtering. The error surfaces only
+      after the POST /api/sample-jobs request fails.
