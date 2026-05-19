@@ -19,7 +19,7 @@ A local-first web application. Runs on Linux via Docker and provides a browser-b
 make up
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+Open [http://localhost:3001](http://localhost:3001) in your browser (or `http://checkpoint-sampler.mcfacehead.com` on the McFacehead LAN).
 
 To stop:
 
@@ -135,7 +135,7 @@ See [docs/workflows.md](docs/workflows.md) for the full reference: what annotati
 
 ## API documentation
 
-The backend serves interactive Swagger UI at [http://localhost:8080/docs](http://localhost:8080/docs) with an OpenAPI 3.0 spec.
+The backend serves interactive Swagger UI at [http://localhost:8081/docs](http://localhost:8081/docs) with an OpenAPI 3.0 spec.
 
 ## Configuration
 
