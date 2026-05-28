@@ -5,6 +5,11 @@
       "command": "gopls",
       "args": ["mcp"],
       "cwd": "backend"
+    },
+    "discord": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["/opt/claude-sandbox/mcp/discord-notify/dist/index.mjs"]
     }
   }
 }
