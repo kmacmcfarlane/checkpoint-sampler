@@ -14,12 +14,16 @@ var _ = Service("training_runs", func() {
 				Default("samples")
 				Enum("samples", "checkpoints")
 			})
+			Attribute("refresh", Boolean, "When true, force a fresh filesystem rescan before returning results, bypassing the in-memory FSState cache. Used by the manual refresh button to pick up files added on NFS mounts where fsnotify does not fire (B-142).", func() {
+				Default(false)
+			})
 		})
 		Result(ArrayOf(TrainingRunResponse))
 		Error("discovery_failed", ErrorResult, "Discovery operation failed")
 		HTTP(func() {
 			GET("/api/training-runs")
 			Param("source")
+			Param("refresh")
 			Response(StatusOK)
 			Response("discovery_failed", StatusInternalServerError)
 		})

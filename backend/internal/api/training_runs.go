@@ -48,6 +48,16 @@ func (s *TrainingRunsService) List(ctx context.Context, p *gentrainingruns.ListP
 	var runs []model.TrainingRun
 	var err error
 
+	// B-142: When refresh is requested, force a fresh filesystem rescan into the
+	// FSState cache before reading. This bypasses the stale in-memory snapshot that
+	// fsnotify cannot keep current on NFS mounts (events for files added by other
+	// hosts do not fire). After Populate(), the reads below return up-to-date data.
+	if p.Refresh && s.fsState != nil {
+		if err = s.fsState.Populate(); err != nil {
+			return nil, gentrainingruns.MakeDiscoveryFailed(fmt.Errorf("refreshing filesystem state: %w", err))
+		}
+	}
+
 	if p.Source == "checkpoints" {
 		if s.fsState != nil {
 			runs = s.fsState.CheckpointRuns()

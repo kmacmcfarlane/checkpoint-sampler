@@ -293,7 +293,7 @@ stories:
   - id: B-142
     title: "Generate Samples refresh button serves stale FSState cache on NFS mounts"
     priority: 80
-    status: todo
+    status: uat
     complexity: medium
     requires: []
     acceptance:

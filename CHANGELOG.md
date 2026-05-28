@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-142: Generate Samples refresh button serves stale FSState cache on NFS mounts
+- `GET /api/training-runs` accepts a `refresh=true` query param that forces a fresh `FSState.Populate()` (full filesystem rescan) before returning results, bypassing the in-memory cache that fsnotify cannot keep current on NFS mounts
+- The Generate Samples dialog's manual refresh button now passes the force-refresh flag, so newly added `.safetensors` files on NFS-mounted checkpoint/LoRA directories appear without restarting the container; background fetches (mount, WebSocket, dialog open) stay on the cached path
+
 ### B-141: LoRA job creation and retry silently proceed with unresolvable model paths
 - CreateSampleJob now fails with an error when all checkpoint path matches fail (zero viable items), and logs a warning for partial failures — previously it silently created an all-skipped job
 - RetryFailed re-runs path matching for items with empty model paths, enabling recovery after ComfyUI config changes without needing to recreate the job

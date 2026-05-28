@@ -10,6 +10,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/sirupsen/logrus"
+	goa "goa.design/goa/v3/pkg"
 
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api"
 	gentrainingruns "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/training_runs"
@@ -309,6 +310,76 @@ var _ = Describe("TrainingRunsService", func() {
 			Expect(result[0].HasSamples).To(BeTrue())
 			Expect(result[1].Name).To(Equal("model-b"))
 			Expect(result[1].HasSamples).To(BeFalse())
+		})
+
+		// B-142: When the FSState cache is configured, List serves from the cache.
+		// Without refresh, files added to disk after Populate() are NOT visible
+		// (this models the stale NFS cache). With refresh=true, List forces a
+		// fresh Populate() so the newly added file appears.
+		It("serves stale cache without refresh and rescans with refresh=true (B-142)", func() {
+			cpFS.safetensors["/checkpoints"] = []string{
+				"model-step00001000.safetensors",
+			}
+			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
+			cpDiscovery = service.NewDiscoveryService(cpFS, []string{"/checkpoints"}, nil, sampleDir, logger)
+			scanner = service.NewScanner(scanFS, sampleDir, logger)
+			svc := makeSvc(nil, nil)
+
+			// Wire an FSState cache backed by the same discovery services and populate it.
+			fsState := service.NewFSState(cpDiscovery, viewerDiscovery, logger)
+			Expect(fsState.Populate()).To(Succeed())
+			svc.SetFSState(fsState)
+
+			// A new checkpoint file appears on disk (e.g. added on an NFS mount by
+			// another host) after the snapshot was taken. fsnotify did not fire.
+			cpFS.safetensors["/checkpoints"] = []string{
+				"model-step00001000.safetensors",
+				"model-step00002000.safetensors",
+			}
+
+			// Without refresh: served from stale cache → only the original run is seen.
+			stale, err := svc.List(context.Background(), &gentrainingruns.ListPayload{Source: "checkpoints"})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(stale).To(HaveLen(1))
+			Expect(stale[0].CheckpointCount).To(Equal(1))
+
+			// With refresh=true: forces a fresh rescan → the new checkpoint appears.
+			fresh, err := svc.List(context.Background(), &gentrainingruns.ListPayload{Source: "checkpoints", Refresh: true})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(fresh).To(HaveLen(1))
+			Expect(fresh[0].CheckpointCount).To(Equal(2))
+		})
+
+		// AC: refresh=true must surface discovery failures as a discovery_failed error.
+		// B-142: When refresh is requested and Populate() fails (e.g. an NFS stale read
+		// during the forced rescan), List must return the error mapped to the
+		// discovery_failed Goa error code rather than serving stale data or panicking.
+		It("returns discovery_failed when refresh rescan fails (B-142)", func() {
+			cpFS.safetensors["/checkpoints"] = []string{
+				"model-step00001000.safetensors",
+			}
+			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
+			cpDiscovery = service.NewDiscoveryService(cpFS, []string{"/checkpoints"}, nil, sampleDir, logger)
+			scanner = service.NewScanner(scanFS, sampleDir, logger)
+			svc := makeSvc(nil, nil)
+
+			// Wire and populate the FSState cache successfully first.
+			fsState := service.NewFSState(cpDiscovery, viewerDiscovery, logger)
+			Expect(fsState.Populate()).To(Succeed())
+			svc.SetFSState(fsState)
+
+			// Inject a viewer-discovery error so the forced refresh Populate() fails.
+			// Populate() calls DiscoverViewable(), which lists sampleDir first.
+			// (fakeCheckpointDiscoveryFS.ListSafetensorsFiles never errors, so the
+			// error must be injected on the viewer FS path.)
+			viewerFS.errs[sampleDir] = fmt.Errorf("nfs stale")
+
+			_, err := svc.List(context.Background(), &gentrainingruns.ListPayload{Source: "checkpoints", Refresh: true})
+
+			Expect(err).To(HaveOccurred())
+			serr, ok := err.(*goa.ServiceError)
+			Expect(ok).To(BeTrue(), "expected a goa.ServiceError")
+			Expect(serr.Name).To(Equal("discovery_failed"))
 		})
 
 		It("defaults to samples source when source parameter is empty", func() {

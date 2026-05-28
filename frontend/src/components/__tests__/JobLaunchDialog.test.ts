@@ -345,6 +345,39 @@ describe('JobLaunchDialog', () => {
     expect(mockListStudies).toHaveBeenCalled()
   })
 
+  // B-142: The manual refresh button must force a backend filesystem rescan so
+  // newly added .safetensors files on NFS mounts appear without a container restart.
+  describe('refresh button force-refresh flag (B-142)', () => {
+    // AC2: Automatic/background fetches (mount, dialog open) use the cached path
+    // (getCheckpointTrainingRuns(false)) to avoid unnecessary disk I/O.
+    it('fetches without force-refresh on mount', async () => {
+      mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      expect(mockGetCheckpointTrainingRuns).toHaveBeenCalledWith(false)
+    })
+
+    // AC2 + AC3: Clicking the refresh button passes the force-refresh flag so the
+    // backend rescans checkpoint/LoRA directories from disk (bypassing FSState cache).
+    it('passes force-refresh=true when the refresh button is clicked', async () => {
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+      mockGetCheckpointTrainingRuns.mockClear()
+
+      await wrapper.find('[data-testid="refresh-training-run-button"]').trigger('click')
+      await flushPromises()
+
+      expect(mockGetCheckpointTrainingRuns).toHaveBeenCalledTimes(1)
+      expect(mockGetCheckpointTrainingRuns).toHaveBeenCalledWith(true)
+    })
+  })
+
   it('starts with no training run pre-selected', async () => {
     const wrapper = mount(JobLaunchDialog, {
       props: { show: true },

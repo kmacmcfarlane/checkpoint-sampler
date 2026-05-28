@@ -75,9 +75,15 @@ export class ApiClient {
     return this.request<TrainingRun[]>('/training-runs')
   }
 
-  /** GET /api/training-runs?source=checkpoints — list checkpoint-file-based training runs (for Generate Samples). */
-  async getCheckpointTrainingRuns(): Promise<TrainingRun[]> {
-    return this.request<TrainingRun[]>('/training-runs?source=checkpoints')
+  /**
+   * GET /api/training-runs?source=checkpoints — list checkpoint-file-based training runs (for Generate Samples).
+   * B-142: When `refresh` is true, appends `&refresh=true` to force the backend to
+   * rescan checkpoint/LoRA directories from disk (bypassing the FSState cache) so
+   * files newly added on NFS mounts appear without a container restart.
+   */
+  async getCheckpointTrainingRuns(refresh = false): Promise<TrainingRun[]> {
+    const query = refresh ? '?source=checkpoints&refresh=true' : '?source=checkpoints'
+    return this.request<TrainingRun[]>(`/training-runs${query}`)
   }
 
   /** GET /api/training-runs/{id}/scan — scan directories and return image metadata. */

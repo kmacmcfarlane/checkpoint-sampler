@@ -1128,10 +1128,17 @@ onMounted(async () => {
   }
 })
 
-async function fetchTrainingRunsAndJobs() {
+/**
+ * Fetch training runs, jobs, and workflows.
+ * B-142: Pass forceRefresh=true to make the backend rescan checkpoint/LoRA
+ * directories from disk (bypassing the FSState cache) so files newly added on
+ * NFS mounts appear. The manual refresh button uses this; automatic/background
+ * refreshes (WebSocket, dialog open) use the cached path to avoid extra disk I/O.
+ */
+async function fetchTrainingRunsAndJobs(forceRefresh = false) {
   try {
     const [runs, jobs, wfs] = await Promise.all([
-      apiClient.getCheckpointTrainingRuns(),
+      apiClient.getCheckpointTrainingRuns(forceRefresh),
       apiClient.listSampleJobs(),
       apiClient.listWorkflows(),
     ])
@@ -1176,11 +1183,16 @@ async function fetchAllRunsAvailability(runs: TrainingRun[]) {
   allRunsAvailability.value = new Map(entries)
 }
 
-/** Manual refresh of the training run list (triggered by the refresh icon button). */
+/**
+ * Manual refresh of the training run list (triggered by the refresh icon button).
+ * B-142: Forces a backend filesystem rescan (forceRefresh=true) so newly added
+ * .safetensors files on NFS-mounted checkpoint/LoRA directories appear without a
+ * container restart, even when fsnotify did not fire for them.
+ */
 async function refreshTrainingRunsAndJobs() {
   refreshingTrainingRuns.value = true
   try {
-    await fetchTrainingRunsAndJobs()
+    await fetchTrainingRunsAndJobs(true)
   } finally {
     refreshingTrainingRuns.value = false
   }
