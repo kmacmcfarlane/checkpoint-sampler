@@ -10,10 +10,12 @@ import (
 
 	"github.com/gorilla/websocket"
 	gencheckpoints "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/checkpoints"
+	genbasemodels "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/base_models"
 	gencomfyui "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/comfyui"
 	gendemo "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/demo"
 	gendocs "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/docs"
 	genhealth "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/health"
+	genbasemodelssvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/base_models/server"
 	gencheckpointssvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/checkpoints/server"
 	gencomfyuisvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/comfyui/server"
 	gendemosvr "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/http/demo/server"
@@ -47,6 +49,7 @@ type HTTPHandlerConfig struct {
 	PresetsEndpoints       *genpresets.Endpoints
 	StudiesEndpoints       *genstudies.Endpoints
 	SampleJobsEndpoints    *gensamplejobs.Endpoints
+	BaseModelsEndpoints    *genbasemodels.Endpoints
 	CheckpointsEndpoints   *gencheckpoints.Endpoints
 	ComfyUIEndpoints       *gencomfyui.Endpoints
 	WorkflowsEndpoints     *genworkflows.Endpoints
@@ -110,6 +113,7 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 
 	var eh = errorHandler(cfg.Logger)
 
+	baseModelsServer := genbasemodelssvr.New(cfg.BaseModelsEndpoints, mux, dec, enc, eh, nil)
 	healthServer := genhealthsvr.New(cfg.HealthEndpoints, mux, dec, enc, eh, nil)
 	docsServer := gendocssvr.New(cfg.DocsEndpoints, mux, dec, enc, eh, nil, cfg.SwaggerUIDir)
 	trainingRunsServer := gentrainingrunssvr.New(cfg.TrainingRunEndpoints, mux, dec, enc, eh, nil)
@@ -140,6 +144,7 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 	// to reduce noise from frequent polling.
 	if cfg.Debug {
 		debugMw := goahttpmiddleware.Debug(mux, os.Stdout)
+		baseModelsServer.Use(debugMw)
 		docsServer.Use(debugMw)
 		trainingRunsServer.Use(debugMw)
 		presetsServer.Use(debugMw)
@@ -157,6 +162,7 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 		}
 	}
 
+	baseModelsServer.Mount(mux)
 	healthServer.Mount(mux)
 	docsServer.Mount(mux)
 	trainingRunsServer.Mount(mux)
@@ -186,6 +192,13 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 
 	// Log mounts when debug is enabled
 	if cfg.Debug {
+		for _, m := range baseModelsServer.Mounts {
+			cfg.Logger.WithFields(logrus.Fields{
+				"method":  m.Method,
+				"verb":    m.Verb,
+				"pattern": m.Pattern,
+			}).Debug("HTTP endpoint mounted")
+		}
 		for _, m := range healthServer.Mounts {
 			cfg.Logger.WithFields(logrus.Fields{
 				"method":  m.Method,

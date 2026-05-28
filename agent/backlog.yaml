@@ -308,7 +308,7 @@ stories:
       - "command: make test-frontend"
   - id: B-143
     title: "Base model dropdown depends on ComfyUI instead of base_model_dir"
-    status: todo
+    status: uat
     priority: 85
     complexity: medium
     requires: []

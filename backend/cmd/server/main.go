@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api"
+	genbasemodels "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/base_models"
 	gencheckpoints "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/checkpoints"
 	gencomfyui "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/comfyui"
 	gendemo "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/demo"
@@ -191,6 +192,8 @@ func run() error {
 	}
 	checkpointMetadataSvc := service.NewCheckpointMetadataService(fs, cfg.CheckpointDirs, cfg.LoraDirs, logger)
 	checkpointsSvc := api.NewCheckpointsService(checkpointMetadataSvc)
+	baseModelSvc := service.NewBaseModelService(fs, cfg.BaseModelDir, cfg.CheckpointDirs, logger)
+	baseModelsSvc := api.NewBaseModelsService(baseModelSvc)
 	imageMetadataSvc := service.NewImageMetadataService(fs, cfg.SampleDir, logger)
 	imagesSvc := api.NewImagesService(cfg.SampleDir, imageMetadataSvc, logger)
 	wsPingInterval := time.Duration(cfg.WsPingInterval) * time.Second
@@ -236,6 +239,7 @@ func run() error {
 	studiesEndpoints := genstudies.NewEndpoints(studiesSvc)
 	sampleJobsEndpoints := gensamplejobs.NewEndpoints(sampleJobsSvc)
 	checkpointsEndpoints := gencheckpoints.NewEndpoints(checkpointsSvc)
+	baseModelsEndpoints := genbasemodels.NewEndpoints(baseModelsSvc)
 	comfyuiEndpoints := gencomfyui.NewEndpoints(comfyuiSvc)
 	demoEndpoints := gendemo.NewEndpoints(demoAPISvc)
 	workflowsEndpoints := genworkflows.NewEndpoints(workflowsSvc)
@@ -258,6 +262,7 @@ func run() error {
 		PresetsEndpoints:       presetsEndpoints,
 		StudiesEndpoints:       studiesEndpoints,
 		SampleJobsEndpoints:    sampleJobsEndpoints,
+		BaseModelsEndpoints:    baseModelsEndpoints,
 		CheckpointsEndpoints:   checkpointsEndpoints,
 		ComfyUIEndpoints:       comfyuiEndpoints,
 		WorkflowsEndpoints:     workflowsEndpoints,

@@ -125,6 +125,11 @@ export interface FSEventMessage {
   path: string
 }
 
+/** Base models list response from /api/base-models. */
+export interface BaseModelsResult {
+  models: string[]
+}
+
 /** ComfyUI connection status response. */
 export interface ComfyUIStatus {
   connected: boolean

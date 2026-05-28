@@ -1148,11 +1148,11 @@ async function fetchTrainingRunsAndJobs() {
   }
 }
 
-/** S-148: Fetch available base models from ComfyUI for LoRA run base model selection. */
+/** B-143: Fetch available base models from base_model_dir (no ComfyUI dependency). */
 async function fetchBaseModels() {
   loadingBaseModels.value = true
   try {
-    const result = await apiClient.getComfyUIModels('unet')
+    const result = await apiClient.getBaseModels()
     baseModelOptions.value = result.models
   } catch {
     baseModelOptions.value = []

@@ -13,6 +13,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api"
+	genbasemodels "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/base_models"
 	gencheckpoints "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/checkpoints"
 	gencomfyui "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/comfyui"
 	gendemo "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/demo"
@@ -81,6 +82,7 @@ var _ = Describe("NewHTTPHandler", func() {
 		*genimages.Endpoints,
 		*genws.Endpoints,
 		*gendemo.Endpoints,
+		*genbasemodels.Endpoints,
 	) {
 		// Service layer services
 		viewerDiscoverySvc := service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
@@ -104,6 +106,8 @@ var _ = Describe("NewHTTPHandler", func() {
 		studiesAPISvc := api.NewStudiesService(studySvc, nil, nil)
 		sampleJobsAPISvc := api.NewSampleJobsService(sampleJobSvc, discoverySvc)
 		checkpointsAPISvc := api.NewCheckpointsService(checkpointMetadataSvc)
+		baseModelSvc := service.NewBaseModelService(newFakeCheckpointFS(), "", []string{"/checkpoints"}, logger)
+		baseModelsAPISvc := api.NewBaseModelsService(baseModelSvc)
 		comfyuiAPISvc := api.NewComfyUIService(nil, nil)
 		workflowsAPISvc := api.NewWorkflowService(nil)
 		imagesAPISvc := api.NewImagesService(sampleDir, imageMetadataSvc, logger)
@@ -121,7 +125,8 @@ var _ = Describe("NewHTTPHandler", func() {
 			genworkflows.NewEndpoints(workflowsAPISvc),
 			genimages.NewEndpoints(imagesAPISvc),
 			genws.NewEndpoints(wsAPISvc),
-			gendemo.NewEndpoints(demoAPISvc)
+			gendemo.NewEndpoints(demoAPISvc),
+			genbasemodels.NewEndpoints(baseModelsAPISvc)
 	}
 
 	Describe("Debug middleware", func() {
@@ -129,7 +134,7 @@ var _ = Describe("NewHTTPHandler", func() {
 			healthEndpoints, docsEndpoints, trainingRunsEndpoints, presetsEndpoints,
 				studiesEndpoints, sampleJobsEndpoints, checkpointsEndpoints,
 				comfyuiEndpoints, workflowsEndpoints, imagesEndpoints, wsEndpoints,
-				demoEndpoints := createAllEndpoints()
+				demoEndpoints, baseModelsEndpoints := createAllEndpoints()
 
 			cfg := api.HTTPHandlerConfig{
 				HealthEndpoints:        healthEndpoints,
@@ -138,6 +143,7 @@ var _ = Describe("NewHTTPHandler", func() {
 				PresetsEndpoints:       presetsEndpoints,
 				StudiesEndpoints:       studiesEndpoints,
 				SampleJobsEndpoints:    sampleJobsEndpoints,
+				BaseModelsEndpoints:    baseModelsEndpoints,
 				CheckpointsEndpoints:   checkpointsEndpoints,
 				ComfyUIEndpoints:       comfyuiEndpoints,
 				WorkflowsEndpoints:     workflowsEndpoints,
@@ -166,7 +172,7 @@ var _ = Describe("NewHTTPHandler", func() {
 			healthEndpoints, docsEndpoints, trainingRunsEndpoints, presetsEndpoints,
 				studiesEndpoints, sampleJobsEndpoints, checkpointsEndpoints,
 				comfyuiEndpoints, workflowsEndpoints, imagesEndpoints, wsEndpoints,
-				demoEndpoints := createAllEndpoints()
+				demoEndpoints, baseModelsEndpoints := createAllEndpoints()
 
 			cfg := api.HTTPHandlerConfig{
 				HealthEndpoints:        healthEndpoints,
@@ -175,6 +181,7 @@ var _ = Describe("NewHTTPHandler", func() {
 				PresetsEndpoints:       presetsEndpoints,
 				StudiesEndpoints:       studiesEndpoints,
 				SampleJobsEndpoints:    sampleJobsEndpoints,
+				BaseModelsEndpoints:    baseModelsEndpoints,
 				CheckpointsEndpoints:   checkpointsEndpoints,
 				ComfyUIEndpoints:       comfyuiEndpoints,
 				WorkflowsEndpoints:     workflowsEndpoints,
@@ -220,7 +227,7 @@ var _ = Describe("NewHTTPHandler", func() {
 			healthEndpoints, docsEndpoints, trainingRunsEndpoints, presetsEndpoints,
 				studiesEndpoints, sampleJobsEndpoints, checkpointsEndpoints,
 				comfyuiEndpoints, workflowsEndpoints, _, wsEndpoints,
-				demoEndpoints := createAllEndpoints()
+				demoEndpoints, baseModelsEndpoints := createAllEndpoints()
 
 			// Create images service with the test directory
 			fs := &realFileReader{}
@@ -235,6 +242,7 @@ var _ = Describe("NewHTTPHandler", func() {
 				PresetsEndpoints:       presetsEndpoints,
 				StudiesEndpoints:       studiesEndpoints,
 				SampleJobsEndpoints:    sampleJobsEndpoints,
+				BaseModelsEndpoints:    baseModelsEndpoints,
 				CheckpointsEndpoints:   checkpointsEndpoints,
 				ComfyUIEndpoints:       comfyuiEndpoints,
 				WorkflowsEndpoints:     workflowsEndpoints,

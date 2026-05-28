@@ -15,6 +15,7 @@ vi.mock('../../api/client', () => ({
     listWorkflows: vi.fn(),
     listStudies: vi.fn(),
     getComfyUIModels: vi.fn(),
+    getBaseModels: vi.fn(),
     createSampleJob: vi.fn(),
     createStudy: vi.fn(),
     updateStudy: vi.fn(),
@@ -34,6 +35,7 @@ const mockListSampleJobs = apiClient.listSampleJobs as ReturnType<typeof vi.fn>
 const mockListWorkflows = apiClient.listWorkflows as ReturnType<typeof vi.fn>
 const mockListStudies = apiClient.listStudies as ReturnType<typeof vi.fn>
 const mockGetComfyUIModels = apiClient.getComfyUIModels as ReturnType<typeof vi.fn>
+const mockGetBaseModels = apiClient.getBaseModels as ReturnType<typeof vi.fn>
 const mockCreateSampleJob = apiClient.createSampleJob as ReturnType<typeof vi.fn>
 const mockGetCheckpointMetadata = apiClient.getCheckpointMetadata as ReturnType<typeof vi.fn>
 const mockValidateTrainingRun = apiClient.validateTrainingRun as ReturnType<typeof vi.fn>
@@ -302,6 +304,8 @@ describe('JobLaunchDialog', () => {
       if (type === 'clip') return Promise.resolve({ models: clipModels })
       return Promise.resolve({ models: [] })
     })
+    // Default: no base models available
+    mockGetBaseModels.mockResolvedValue({ models: [] })
     // Default: no checkpoint metadata (empty ss_* fields)
     mockGetCheckpointMetadata.mockResolvedValue({ metadata: {} })
     // Default: no study availability data (tests that need it will override)
@@ -5712,12 +5716,7 @@ describe('JobLaunchDialog', () => {
     it('shows base model dropdown when LoRA training run is selected', async () => {
       mockGetCheckpointTrainingRuns.mockResolvedValue(allTrainingRunsWithLora)
       mockListStudies.mockResolvedValue(allStudiesWithLora)
-      mockGetComfyUIModels.mockImplementation((type: string) => {
-        if (type === 'vae') return Promise.resolve({ models: vaeModels })
-        if (type === 'clip') return Promise.resolve({ models: clipModels })
-        if (type === 'unet') return Promise.resolve({ models: unetModels })
-        return Promise.resolve({ models: [] })
-      })
+      mockGetBaseModels.mockResolvedValue({ models: unetModels })
       const wrapper = mount(JobLaunchDialog, {
         props: { show: true },
         global: { stubs: { Teleport: true } },
@@ -5736,8 +5735,8 @@ describe('JobLaunchDialog', () => {
       // Base model dropdown should now be visible
       expect(wrapper.find('[data-testid="base-model-field"]').exists()).toBe(true)
 
-      // Should have fetched UNET models
-      expect(mockGetComfyUIModels).toHaveBeenCalledWith('unet')
+      // B-143: Should have fetched base models from dedicated endpoint (not ComfyUI)
+      expect(mockGetBaseModels).toHaveBeenCalled()
     })
 
     // AC: Job launch dialog hides base model dropdown for checkpoint training runs
@@ -5766,10 +5765,7 @@ describe('JobLaunchDialog', () => {
     it('shows all studies for LoRA training runs (studies are reusable)', async () => {
       mockGetCheckpointTrainingRuns.mockResolvedValue(allTrainingRunsWithLora)
       mockListStudies.mockResolvedValue(allStudiesWithLora)
-      mockGetComfyUIModels.mockImplementation((type: string) => {
-        if (type === 'unet') return Promise.resolve({ models: unetModels })
-        return Promise.resolve({ models: [] })
-      })
+      mockGetBaseModels.mockResolvedValue({ models: unetModels })
       const wrapper = mount(JobLaunchDialog, {
         props: { show: true },
         global: { stubs: { Teleport: true } },
@@ -5822,10 +5818,7 @@ describe('JobLaunchDialog', () => {
     it('includes base_model in job creation payload for LoRA runs', async () => {
       mockGetCheckpointTrainingRuns.mockResolvedValue(allTrainingRunsWithLora)
       mockListStudies.mockResolvedValue(allStudiesWithLora)
-      mockGetComfyUIModels.mockImplementation((type: string) => {
-        if (type === 'unet') return Promise.resolve({ models: unetModels })
-        return Promise.resolve({ models: [] })
-      })
+      mockGetBaseModels.mockResolvedValue({ models: unetModels })
       mockCreateSampleJob.mockResolvedValue({ id: 'job-1', status: 'pending' })
       const wrapper = mount(JobLaunchDialog, {
         props: { show: true },
@@ -5872,10 +5865,7 @@ describe('JobLaunchDialog', () => {
     it('disables submit button when LoRA run has no base model selected', async () => {
       mockGetCheckpointTrainingRuns.mockResolvedValue(allTrainingRunsWithLora)
       mockListStudies.mockResolvedValue(allStudiesWithLora)
-      mockGetComfyUIModels.mockImplementation((type: string) => {
-        if (type === 'unet') return Promise.resolve({ models: unetModels })
-        return Promise.resolve({ models: [] })
-      })
+      mockGetBaseModels.mockResolvedValue({ models: unetModels })
       const wrapper = mount(JobLaunchDialog, {
         props: { show: true },
         global: { stubs: { Teleport: true } },
@@ -5935,12 +5925,7 @@ describe('JobLaunchDialog', () => {
       mockListSampleJobs.mockResolvedValue([])
       mockListWorkflows.mockResolvedValue(sampleWorkflows)
       mockListStudies.mockResolvedValue(allStudiesWithLora)
-      mockGetComfyUIModels.mockImplementation((type: string) => {
-        if (type === 'vae') return Promise.resolve({ models: vaeModels })
-        if (type === 'clip') return Promise.resolve({ models: clipModels })
-        if (type === 'unet') return Promise.resolve({ models: unetModels })
-        return Promise.resolve({ models: [] })
-      })
+      mockGetBaseModels.mockResolvedValue({ models: unetModels })
       mockGetCheckpointMetadata.mockResolvedValue({ metadata: {} })
       mockValidateTrainingRun.mockResolvedValue({
         total_expected: 1,

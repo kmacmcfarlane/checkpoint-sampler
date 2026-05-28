@@ -1,4 +1,4 @@
-import type { AffectedRun, ApiError, ApiErrorResponse, CheckpointMetadata, ComfyUIModelType, ComfyUIModels, ComfyUIStatus, CreateSampleJobPayload, CreateStudyPayload, DemoStatus, ForkStudyPayload, HasSamplesResponse, HealthStatus, ImageMetadata, Preset, PresetMapping, SampleJob, SampleJobDetail, Study, StudyAvailability, ScanResult, TrainingRun, UpdateStudyPayload, ValidationResult, WorkflowSummary } from './types'
+import type { AffectedRun, ApiError, ApiErrorResponse, BaseModelsResult, CheckpointMetadata, ComfyUIModelType, ComfyUIModels, ComfyUIStatus, CreateSampleJobPayload, CreateStudyPayload, DemoStatus, ForkStudyPayload, HasSamplesResponse, HealthStatus, ImageMetadata, Preset, PresetMapping, SampleJob, SampleJobDetail, Study, StudyAvailability, ScanResult, TrainingRun, UpdateStudyPayload, ValidationResult, WorkflowSummary } from './types'
 
 const DEFAULT_BASE_URL = '/api'
 
@@ -161,6 +161,11 @@ export class ApiClient {
       throw await normalizeError(response)
     }
     return (await response.json()) as HealthStatus
+  }
+
+  /** GET /api/base-models — list available base models from base_model_dir. */
+  async getBaseModels(): Promise<BaseModelsResult> {
+    return this.request<BaseModelsResult>('/base-models')
   }
 
   /** GET /api/comfyui/status — check ComfyUI connection status. */
