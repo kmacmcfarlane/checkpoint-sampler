@@ -6257,3 +6257,295 @@ stories:
       Foundation ticket. Adds config fields and model types needed by all downstream LoRA stories.
       See docs/spike-lora-support.md sections 1-2 for design details.
 
+  - id: B-139
+    title: "LoRA checkpoint metadata resolution only searches checkpoint_dirs"
+    status: done
+    priority: 50
+    complexity: low
+    requires: []
+    acceptance:
+      - "Backend checkpoint metadata resolution searches both checkpoint_dirs and lora_dirs when resolving checkpoint filenames"
+      - "No error-level log is emitted when LoRA checkpoint files are resolved from lora_dirs"
+    testing:
+      - "command: make test-backend"
+      - "command: make test-e2e"
+  - id: B-140
+    title: "Job launch dialog allows LoRA runs with non-LoRA workflows"
+    type: bug
+    priority: 50
+    complexity: medium
+    status: done
+    requires: []
+    acceptance:
+      - "BE: Workflow list/detail API responses include a derived lora_capable boolean (true when lora_loader cs_role present)
+        — no new storage or migration"
+      - "FE: Job launch dialog filters/badges studies by workflow compatibility when a LoRA training run is selected — studies
+        with non-LoRA workflows are greyed out or show a warning badge"
+      - "FE: Launch button is disabled with explanation when selected study workflow is incompatible with the training run
+        kind"
+      - "FE: Compatibility derived by joining study.workflow_template with workflow roles from the workflow list API — no
+        new backend endpoint needed"
+      - "Existing non-LoRA study + checkpoint run combinations are unaffected"
+    testing:
+      - "command: make test-backend"
+      - "command: make test-frontend"
+      - "command: make test-e2e"
+    description: |
+      When launching a sample job for a LoRA training run, the study selector shows ALL studies
+      regardless of whether their workflow template is LoRA-capable. The user can select a study
+      whose workflow (e.g. qwen-image.json) lacks a lora_loader cs_role node, fill in all fields
+      including base model, and hit Launch — only to get a backend 400 error:
+
+        "workflow \"qwen-image.json\" does not contain a lora_loader node;
+         LoRA runs require a lora-capable workflow"
+
+      A LoRA-capable workflow (qwen-image-lora.json) exists but the user has no way to know
+      which studies are compatible with LoRA runs from the dialog UI.
+
+      Design approach — derive compatibility, don't store it:
+      - Workflow cs_roles are the single source of truth for run-kind compatibility
+      - lora_loader present = LoRA-capable; unet_loader present = checkpoint-capable
+      - Studies inherit compatibility from their workflow_template — no "kind" field on studies
+      - Relationship chain: training_run.kind → workflow.roles ← study.workflow_template
+      - FE joins study list (has workflow_template) with workflow list (has roles) client-side
+      - Future run kinds should follow same pattern: centralize in workflowSupportsRunKind(roles, kind)
+    repro_steps: |
+      1. Navigate to job launch dialog
+      2. Select a LoRA training run (e.g. qwen/.../psyart-v0.3.0-qwen-...)
+      3. Select a study configured with qwen-image.json (non-LoRA workflow)
+      4. Select a base model
+      5. Click Launch
+      6. Observe backend error: "workflow does not contain a lora_loader node"
+    root_cause: |
+      Backend validation (service/sample_job.go:256-273) correctly rejects LoRA jobs when the
+      workflow lacks lora_loader cs_role. But the frontend (JobLaunchDialog.vue:128-129) intentionally
+      shows all studies for all run kinds with no compatibility filtering. The error surfaces only
+      after the POST /api/sample-jobs request fails.
+  - id: S-141
+    title: "Discovery: scan lora_dirs and assign TrainingRunKind"
+    status: done
+    priority: 80
+    complexity: medium
+    requires:
+      - S-140
+    testing:
+      - "Unit tests for DiscoveryService scanning lora_dirs separately from checkpoint_dirs"
+      - "Unit tests verifying Kind assignment: checkpoint runs get TrainingRunKindCheckpoint, lora runs get TrainingRunKindLoRA"
+      - "Unit tests confirming suffix stripping works identically for LoRA files"
+    acceptance:
+      - "BE: DiscoveryService accepts loraDirs parameter alongside checkpointDirs"
+      - "BE: Runs from lora_dirs get Kind=TrainingRunKindLoRA"
+      - "BE: Runs from checkpoint_dirs get Kind=TrainingRunKindCheckpoint"
+      - "BE: Same step/epoch suffix stripping logic applies to LoRA files"
+      - "BE: FSState snapshot includes LoRA training runs"
+      - "BE: ViewerDiscoveryService handles LoRA training runs"
+    notes: |
+      Extends discovery to scan lora_dirs. Kind is determined by directory source, not metadata.
+      See docs/spike-lora-support.md section 3.
+
+  - id: S-142
+    title: "Workflow template: add lora_loader cs_role"
+    status: done
+    priority: 75
+    complexity: low
+    requires:
+      - S-140
+    testing:
+      - "Unit tests for CSRoleLoraLoader constant and KnownCSRoles inclusion"
+      - "Unit tests for WorkflowLoader extracting lora_loader role from template"
+      - "Unit tests for workflow validation accepting lora_loader role"
+    acceptance:
+      - "BE: CSRoleLoraLoader constant added to model/workflow.go"
+      - "BE: KnownCSRoles() includes lora_loader"
+      - "BE: WorkflowLoader correctly extracts lora_loader role nodes"
+      - "BE: Workflow validation treats lora_loader as optional (like clip_loader, vae_loader)"
+      - "BE: qwen-image-lora.json template checked in with lora_loader node"
+    notes: |
+      Adds the new cs_role and checks in the LoRA workflow template.
+      See docs/spike-lora-support.md section 4.
+
+  - id: S-143
+    title: "Study model: add LoRA strength pairs"
+    status: done
+    priority: 75
+    complexity: medium
+    requires:
+      - S-140
+    testing:
+      - "Unit tests for LoraStrengthPair model type"
+      - "Unit tests for DB migration adding lora_strength_pairs column"
+      - "Unit tests for Study CRUD with lora_strength_pairs (create, read, update)"
+      - "Unit tests for JSON serialization/deserialization of lora_strength_pairs"
+      - "Unit tests for study validation: strength values must be non-negative floats"
+    acceptance:
+      - "BE: LoraStrengthPair struct defined (StrengthModel float64, StrengthClip float64)"
+      - "BE: Study model has LoraStrengthPairs []LoraStrengthPair field"
+      - "BE: DB migration adds lora_strength_pairs TEXT column with DEFAULT '[]'"
+      - "BE: Store layer serializes/deserializes LoraStrengthPairs as JSON"
+      - "BE: Study service validates strength values (non-negative)"
+      - "BE: Default LoraStrengthPairs is [{1.0, 1.0}] when field is empty"
+    notes: |
+      Analogous to SamplerSchedulerPairs. Stored as JSON in SQLite.
+      See docs/spike-lora-support.md section 5.
+
+  - id: S-144
+    title: "API: expose TrainingRunKind, base_model, and LoRA strength pairs"
+    status: done
+    priority: 70
+    complexity: medium
+    requires:
+      - S-141
+      - S-142
+      - S-143
+    testing:
+      - "Unit tests for Goa DSL types (TrainingRunResponse.kind, StudyPayload.lora_strength_pairs)"
+      - "Unit tests for SampleJobCreatePayload.base_model field"
+      - "Unit tests for API implementation mapping Kind to response"
+    acceptance:
+      - "BE: Goa DSL TrainingRunResponse has kind field (string: checkpoint/lora)"
+      - "BE: Goa DSL StudyPayload and StudyResponse include lora_strength_pairs"
+      - "BE: Goa DSL SampleJobCreatePayload includes base_model field (optional, for LoRA jobs)"
+      - "BE: Training run list API returns kind field"
+      - "BE: Study create/update API accepts and returns lora_strength_pairs"
+      - "BE: Codegen runs cleanly (make gen)"
+    notes: |
+      API layer changes. Requires codegen after DSL edits.
+      See docs/spike-lora-support.md section 13.
+
+  - id: S-145
+    title: "Job creation: LoRA path matching, base model, strength expansion"
+    status: done
+    priority: 70
+    complexity: high
+    requires:
+      - S-144
+    testing:
+      - "Unit tests for LoraPathMatcher querying ComfyUI LoRA model list"
+      - "Unit tests for expandJobItems including lora_strength_pairs in Cartesian product"
+      - "Unit tests for SampleJob.BaseModel field persistence"
+      - "Unit tests for SampleJobItem LoRA fields (LoraModelPath, StrengthModel, StrengthClip)"
+      - "Unit tests confirming non-LoRA jobs skip strength expansion"
+    acceptance:
+      - "BE: ComfyUIModelTypeLoRA added to model type enum"
+      - "BE: LoraPathMatcher queries ComfyUI for LoRA models via object_info/LoraLoader"
+      - "BE: SampleJob has BaseModel field; DB migration adds base_model column"
+      - "BE: SampleJobItem has LoraModelPath, StrengthModel, StrengthClip fields; DB migration adds columns"
+      - "BE: expandJobItems includes lora_strength_pairs in Cartesian product for LoRA training runs"
+      - "BE: Non-LoRA jobs treat strength as single [{1.0, 1.0}] (no expansion)"
+      - "BE: Job creation validates: LoRA runs require base_model and lora-capable workflow"
+    notes: |
+      Core job creation logic. This is the highest-complexity ticket.
+      See docs/spike-lora-support.md sections 6, 8, 9.
+
+  - id: S-146
+    title: "Job execution: LoRA workflow substitution"
+    status: done
+    priority: 70
+    complexity: medium
+    requires:
+      - S-145
+    testing:
+      - "Unit tests for substituteWorkflow handling CSRoleLoraLoader"
+      - "Unit tests for unet_loader substitution using job.BaseModel for LoRA jobs"
+      - "Unit tests for output filename including strength_model and strength_clip dimensions"
+    acceptance:
+      - "BE: substituteWorkflow handles CSRoleLoraLoader (sets lora_name, strength_model, strength_clip)"
+      - "BE: For LoRA jobs, unet_loader role uses job.BaseModel instead of item.ComfyUIModelPath"
+      - "BE: Output filenames include strength_model and strength_clip in query encoding"
+      - "BE: generateFilenamePrefix accounts for base model in path"
+    notes: |
+      Extends job executor to substitute LoRA-specific workflow nodes.
+      See docs/spike-lora-support.md section 7.
+
+  - id: S-147
+    title: "Output path: base model directory level for LoRA samples"
+    status: done
+    priority: 65
+    complexity: medium
+    requires:
+      - S-146
+    testing:
+      - "Unit tests for LoRA output path: sample_dir/{run}/{study}/{base_model}/{lora.safetensors}/"
+      - "Unit tests for ViewerDiscoveryService handling extra directory level"
+      - "Unit tests for Scanner handling LoRA directory structure"
+      - "Regression tests confirming non-LoRA output paths are unchanged"
+    acceptance:
+      - "BE: LoRA sample output goes to sample_dir/{training_run}/{study}/{base_model_name}/{lora_checkpoint.safetensors}/"
+      - "BE: base_model_name extracted from base model path filename (sans extension)"
+      - "BE: ViewerDiscoveryService detects and handles the extra directory level for LoRA runs"
+      - "BE: Scanner correctly resolves images from LoRA directory structure"
+      - "BE: Non-LoRA output paths unchanged (regression-safe)"
+    notes: |
+      Extra directory level for LoRA outputs. Must be regression-safe for existing non-LoRA paths.
+      See docs/spike-lora-support.md sections 10-11.
+
+  - id: S-148
+    title: "Frontend: LoRA training run badge and job launch UX"
+    status: done
+    priority: 85
+    complexity: high
+    requires:
+      - S-144
+      - S-147
+    testing:
+      - "Unit tests for training run list showing Kind badge"
+      - "Unit tests for job launch dialog showing base model dropdown for LoRA runs"
+      - "Unit tests for job launch dialog hiding base model dropdown for checkpoint runs"
+      - "Unit tests for workflow template filtering by training run kind"
+    acceptance:
+      - "FE: Training run list shows LoRA/Checkpoint badge based on kind field"
+      - "FE: Job launch dialog shows base model dropdown when training run kind is lora"
+      - "FE: Base model dropdown populated from ComfyUI UNET model list (existing discovery API)"
+      - "FE: Job launch dialog hides base model dropdown for checkpoint training runs"
+      - "FE: Workflow template dropdown filters to show only lora-capable workflows for LoRA runs"
+      - "FE: Job creation payload includes base_model field for LoRA jobs"
+    notes: |
+      Frontend changes for LoRA job launch UX.
+      See docs/spike-lora-support.md section 12.
+
+  - id: S-149
+    title: "Frontend: LoRA strength pairs editor in study/preset UI"
+    status: done
+    priority: 60
+    complexity: medium
+    requires:
+      - S-144
+    testing:
+      - "Unit tests for LoRA strength pairs editor component"
+      - "Unit tests for study create/edit including lora_strength_pairs"
+      - "Unit tests for strength dimension appearing in grid filters"
+    acceptance:
+      - "FE: Study editor has LoRA strength pairs section (model + clip columns)"
+      - "FE: Strength pairs use same add/remove UX pattern as sampler/scheduler pairs"
+      - "FE: Default pair is {1.0, 1.0}"
+      - "FE: Total images per checkpoint calculation includes strength pair count"
+      - "FE: strength_model and strength_clip appear as filterable dimensions in image grid"
+      - "FE: Strength pairs section is visible regardless of training run kind (studies are reusable)"
+    notes: |
+      Study editor for LoRA strength pairs, analogous to sampler/scheduler pair editor.
+      See docs/spike-lora-support.md section 12.
+  - id: B-138
+    title: "E2E suite regression: 46 pre-existing failures across 30 spec files"
+    priority: 90
+    status: done
+    complexity: high
+    requires: []
+    acceptance:
+      - "Full E2E suite (make test-e2e) passes with zero failures"
+      - "Animation controls testid (data-testid='animation-controls') renders when Slider dimension assigned"
+      - "Bead indicator testids (run-bead-problem, run-bead-activity) render in training run dropdown options"
+      - "Lightbox slider sync, preset selector, debug mode, and all other currently-failing tests pass"
+    testing:
+      - "command: make test-e2e"
+    notes: |
+      46 E2E tests fail across 30 spec files. All failures are pre-existing and unrelated to S-140 (backend-only config/model story).
+      Root cause hypothesis: A broad regression likely caused by recent component restructures (animation controls refactor in S-132,
+      FSState snapshot in R-013, or bead indicator changes). The most common failure pattern is missing data-testid attributes
+      (animation-controls, run-bead-problem, run-bead-activity) and element visibility timeouts.
+      Key failure groups:
+      - Animation controls not found (9 tests across 6 spec files)
+      - Bead indicators not found (5 tests in generate-samples-beads.spec.ts)
+      - Lightbox slider sync timeouts (4 tests)
+      - Sidebar preset selector behavior changes (3 tests)
+      - Various single failures across 20+ other spec files
+      This blocks S-140 and all subsequent LoRA stories. Must be resolved before pipeline can resume.
