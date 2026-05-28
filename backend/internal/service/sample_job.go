@@ -372,44 +372,69 @@ func (s *SampleJobService) Create(trainingRunName string, checkpoints []model.Ch
 	}
 
 	// Match checkpoint filenames to ComfyUI model paths and create job items
-	for _, item := range items {
-		comfyuiPath, err := matcher.MatchCheckpointPath(item.CheckpointFilename)
+	for i := range items {
+		comfyuiPath, err := matcher.MatchCheckpointPath(items[i].CheckpointFilename)
 		if err != nil {
 			s.logger.WithFields(logrus.Fields{
 				"sample_job_id":        jobID,
-				"checkpoint_filename":  item.CheckpointFilename,
+				"checkpoint_filename":  items[i].CheckpointFilename,
 				"error":                err.Error(),
 			}).Warn("failed to match checkpoint to ComfyUI path, marking item as skipped")
 			// Mark item as skipped if path matching fails
-			item.Status = model.SampleJobItemStatusSkipped
-			item.ErrorMessage = fmt.Sprintf("checkpoint not found in ComfyUI: %v", err)
-			item.ComfyUIModelPath = ""
+			items[i].Status = model.SampleJobItemStatusSkipped
+			items[i].ErrorMessage = fmt.Sprintf("checkpoint not found in ComfyUI: %v", err)
+			items[i].ComfyUIModelPath = ""
 		} else {
 			if isLoRA {
 				// For LoRA runs, the matched path goes to LoraModelPath;
 				// ComfyUIModelPath remains empty (base model is on the job).
-				item.LoraModelPath = comfyuiPath
+				items[i].LoraModelPath = comfyuiPath
 			} else {
-				item.ComfyUIModelPath = comfyuiPath
+				items[i].ComfyUIModelPath = comfyuiPath
 			}
 			s.logger.WithFields(logrus.Fields{
-				"checkpoint_filename": item.CheckpointFilename,
+				"checkpoint_filename": items[i].CheckpointFilename,
 				"comfyui_path":        comfyuiPath,
 				"is_lora":             isLoRA,
 			}).Debug("matched checkpoint to ComfyUI path")
 		}
 
-		if err := s.store.CreateSampleJobItem(item); err != nil {
+		if err := s.store.CreateSampleJobItem(items[i]); err != nil {
 			s.logger.WithFields(logrus.Fields{
 				"sample_job_id":       jobID,
-				"sample_job_item_id":  item.ID,
-				"checkpoint_filename": item.CheckpointFilename,
+				"sample_job_item_id":  items[i].ID,
+				"checkpoint_filename": items[i].CheckpointFilename,
 				"error":               err.Error(),
 			}).Error("failed to create sample job item")
 			// Clean up: delete the job since item creation failed
 			_ = s.store.DeleteSampleJob(jobID)
 			return model.SampleJob{}, fmt.Errorf("creating sample job item: %w", err)
 		}
+	}
+
+	// B-141: Validate path matching results — fail if ALL items were skipped (zero viable items).
+	// Log a warning if some (but not all) items failed path matching.
+	skippedCount := 0
+	for _, item := range items {
+		if item.Status == model.SampleJobItemStatusSkipped {
+			skippedCount++
+		}
+	}
+	if skippedCount > 0 && skippedCount == len(items) {
+		s.logger.WithFields(logrus.Fields{
+			"sample_job_id": jobID,
+			"skipped_count": skippedCount,
+			"total_count":   len(items),
+		}).Error("all items failed path matching, no viable items")
+		_ = s.store.DeleteSampleJob(jobID)
+		return model.SampleJob{}, fmt.Errorf("all %d items failed checkpoint path matching — no checkpoints could be resolved in ComfyUI", len(items))
+	}
+	if skippedCount > 0 {
+		s.logger.WithFields(logrus.Fields{
+			"sample_job_id": jobID,
+			"skipped_count": skippedCount,
+			"total_count":   len(items),
+		}).Warn("some items failed path matching")
 	}
 
 	s.logger.WithFields(logrus.Fields{
@@ -690,10 +715,58 @@ func (s *SampleJobService) RetryFailed(id string) (model.SampleJob, error) {
 		return model.SampleJob{}, fmt.Errorf("listing sample job items: %w", err)
 	}
 
+	// B-141: Determine if this is a LoRA job (BaseModel is set) to select the correct path matcher.
+	isLoRA := job.BaseModel != ""
+	matcher := s.pathMatcher
+	if isLoRA && s.loraPathMatcher != nil {
+		matcher = s.loraPathMatcher
+	}
+
 	retriedCount := 0
+	rematchedCount := 0
 	now := time.Now().UTC()
 	for _, item := range items {
 		if item.Status == model.SampleJobItemStatusFailed || item.Status == model.SampleJobItemStatusSkipped {
+			// B-141: Re-run path matching for items with empty model paths.
+			// For LoRA jobs, re-match items with empty LoraModelPath.
+			// For checkpoint jobs, re-match items with empty ComfyUIModelPath.
+			needsRematch := (isLoRA && item.LoraModelPath == "") || (!isLoRA && item.ComfyUIModelPath == "")
+			if needsRematch && matcher != nil {
+				comfyuiPath, matchErr := matcher.MatchCheckpointPath(item.CheckpointFilename)
+				if matchErr != nil {
+					s.logger.WithFields(logrus.Fields{
+						"sample_job_id":       id,
+						"sample_job_item_id":  item.ID,
+						"checkpoint_filename": item.CheckpointFilename,
+						"error":               matchErr.Error(),
+					}).Warn("re-match failed during retry, item remains skipped")
+					// Leave item as skipped with updated error message
+					item.ErrorMessage = fmt.Sprintf("retry re-match failed: %v", matchErr)
+					item.UpdatedAt = now
+					if updateErr := s.store.UpdateSampleJobItem(item); updateErr != nil {
+						s.logger.WithFields(logrus.Fields{
+							"sample_job_id":      id,
+							"sample_job_item_id": item.ID,
+							"error":              updateErr.Error(),
+						}).Error("failed to update item after re-match failure")
+						return model.SampleJob{}, fmt.Errorf("updating item %s after re-match failure: %w", item.ID, updateErr)
+					}
+					continue
+				}
+				if isLoRA {
+					item.LoraModelPath = comfyuiPath
+				} else {
+					item.ComfyUIModelPath = comfyuiPath
+				}
+				rematchedCount++
+				s.logger.WithFields(logrus.Fields{
+					"sample_job_item_id":  item.ID,
+					"checkpoint_filename": item.CheckpointFilename,
+					"comfyui_path":        comfyuiPath,
+					"is_lora":             isLoRA,
+				}).Debug("re-matched checkpoint to ComfyUI path during retry")
+			}
+
 			item.Status = model.SampleJobItemStatusPending
 			item.ErrorMessage = ""
 			item.ExceptionType = ""
@@ -713,9 +786,34 @@ func (s *SampleJobService) RetryFailed(id string) (model.SampleJob, error) {
 		}
 	}
 
+	// B-141: After re-matching, check if any items are now viable (have a resolved path).
+	// Re-read items from store to get the updated state after re-matching.
+	updatedItems, err := s.store.ListSampleJobItems(id)
+	if err != nil {
+		s.logger.WithFields(logrus.Fields{
+			"sample_job_id": id,
+			"error":         err.Error(),
+		}).Error("failed to re-list items after retry reset")
+		return model.SampleJob{}, fmt.Errorf("re-listing items after retry: %w", err)
+	}
+	viableCount := 0
+	for _, item := range updatedItems {
+		if item.Status == model.SampleJobItemStatusPending {
+			viableCount++
+		}
+	}
+	if viableCount == 0 {
+		s.logger.WithFields(logrus.Fields{
+			"sample_job_id":   id,
+			"rematched_count": rematchedCount,
+		}).Error("retry produced zero viable items after re-matching")
+		return model.SampleJob{}, fmt.Errorf("retry failed: all items still have unresolvable model paths")
+	}
+
 	s.logger.WithFields(logrus.Fields{
-		"sample_job_id": id,
-		"retried_count": retriedCount,
+		"sample_job_id":   id,
+		"retried_count":   retriedCount,
+		"rematched_count": rematchedCount,
 	}).Info("reset failed/skipped items to pending")
 
 	// Update job status to running

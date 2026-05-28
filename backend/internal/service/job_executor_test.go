@@ -1121,6 +1121,31 @@ var _ = Describe("JobExecutor", func() {
 			inputs1 := node1["inputs"].(map[string]interface{})
 			Expect(inputs1["unet_name"]).To(Equal("models/checkpoints/checkpoint.safetensors"))
 		})
+
+		// B-141: substituteWorkflow rejects empty lora_name to prevent submitting invalid workflows.
+		It("returns error when lora_name is empty", func() {
+			job := model.SampleJob{ID: "job-lora-empty"}
+			item := model.SampleJobItem{
+				ID:                 "item-1",
+				CheckpointFilename: "lora_empty.safetensors",
+				LoraModelPath:      "", // empty — path matching failed
+				StrengthModel:      0.8,
+				StrengthClip:       0.7,
+			}
+
+			// Add lora_loader node
+			mockLoader.workflow.Workflow["10"] = map[string]interface{}{
+				"inputs": map[string]interface{}{},
+				"_meta": map[string]interface{}{
+					"cs_role": "lora_loader",
+				},
+			}
+			mockLoader.workflow.Roles["lora_loader"] = []string{"10"}
+
+			_, err := executor.substituteWorkflow(mockLoader.workflow, job, item)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("lora_name is empty"))
+		})
 	})
 
 	Describe("generateOutputFilename", func() {

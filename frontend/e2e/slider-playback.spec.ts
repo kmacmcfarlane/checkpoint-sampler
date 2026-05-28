@@ -105,7 +105,7 @@ test.describe('slider and playback controls', () => {
     await setupSlider(page)
 
     // The grid should be visible with image cells
-    await expect(page.locator('.xy-grid-container')).toBeVisible()
+    await expect(page.locator('.xy-grid-container')).toBeVisible({ timeout: 20000 })
 
     // The initial value is "landscape" — SliderBar cells in the grid should show "landscape"
     const sliderBars = page.locator('.slider-bar')

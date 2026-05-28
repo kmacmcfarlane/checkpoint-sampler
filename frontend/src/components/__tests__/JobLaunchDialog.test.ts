@@ -894,6 +894,33 @@ describe('JobLaunchDialog', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('Failed to create job')
+    // B-141: Verify the error alert has the data-testid for E2E targeting
+    expect(wrapper.find('[data-testid="job-launch-error"]').exists()).toBe(true)
+  })
+
+  // B-141: Job launch dialog shows an error when job creation fails due to unresolvable paths
+  it('displays path matching error message from backend', async () => {
+    mockCreateSampleJob.mockRejectedValue({
+      message: 'all 16 items failed checkpoint path matching — no checkpoints could be resolved in ComfyUI',
+    })
+
+    const wrapper = mount(JobLaunchDialog, {
+      props: { show: true },
+      global: { stubs: { Teleport: true } },
+    })
+    await flushPromises()
+
+    wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+    wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
+    await nextTick()
+
+    const buttons = wrapper.findAllComponents(NButton)
+    const submitButton = buttons.find(b => b.text() === 'Generate Samples')
+    await submitButton!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('failed checkpoint path matching')
+    expect(wrapper.find('[data-testid="job-launch-error"]').exists()).toBe(true)
   })
 
   it('renders a "Manage Studies" button next to the study selector', async () => {

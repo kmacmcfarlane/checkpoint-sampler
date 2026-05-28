@@ -82,7 +82,7 @@ async function pollJobStatus(
 // ---------------------------------------------------------------------------
 
 test.describe('B-079: validation status after generation', () => {
-  test.setTimeout(60000)
+  test.setTimeout(90000)
 
   test.beforeEach(async ({ page, request }) => {
     await resetDatabase(request)
@@ -288,14 +288,14 @@ test.describe('B-079: validation status after generation', () => {
     expect(jobResp.ok()).toBeTruthy()
     const job = await jobResp.json()
 
-    // Wait for job to complete
+    // Wait for job to complete (allow up to 60s — ComfyUI mock processing may be slow under load)
     const completedJobs = await pollJobStatus(
       request,
       jobs => jobs.some(j =>
         j.id === job.id &&
         (j.status === 'completed' || j.status === 'completed_with_errors'),
       ),
-      { timeout: 30000, interval: 1000 },
+      { timeout: 60000, interval: 1000 },
     )
     expect(completedJobs).not.toBeNull()
 

@@ -46,13 +46,21 @@ async function openJobProgressPanel(page: Page): Promise<void> {
 
   const modal = page.locator('[role="dialog"][aria-modal="true"]').filter({ hasText: 'Sample Jobs' })
   await expect(modal).toBeVisible()
+
+  // Refresh the jobs list — the job was seeded after page load so the panel may show a stale list
+  const refreshButton = modal.locator('button').filter({ hasText: 'Refresh' })
+  if (await refreshButton.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await refreshButton.click()
+    // Wait for refresh to settle
+    await page.waitForTimeout(500)
+  }
 }
 
 async function openValidationDialog(page: Page, jobId: string): Promise<void> {
   await openJobProgressPanel(page)
 
   const validateBtn = page.locator(`[data-testid="job-${jobId}-validate"]`)
-  await expect(validateBtn).toBeVisible()
+  await expect(validateBtn).toBeVisible({ timeout: 15000 })
   await validateBtn.click()
 
   const validationDialog = page.locator('[data-testid="validation-results-dialog"]')

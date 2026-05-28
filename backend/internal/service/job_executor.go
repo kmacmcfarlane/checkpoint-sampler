@@ -1246,6 +1246,11 @@ func (e *JobExecutor) substituteNode(workflow map[string]interface{}, nodeID str
 			inputs["unet_name"] = item.ComfyUIModelPath
 		}
 	case model.CSRoleLoraLoader:
+		// B-141: Validate that lora_name is non-empty before submitting to ComfyUI.
+		// An empty LoraModelPath indicates path matching failed during job creation or retry.
+		if item.LoraModelPath == "" {
+			return fmt.Errorf("lora_name is empty for item %s (checkpoint %s) — path matching likely failed", item.ID, item.CheckpointFilename)
+		}
 		inputs["lora_name"] = item.LoraModelPath
 		inputs["strength_model"] = item.StrengthModel
 		inputs["strength_clip"] = item.StrengthClip

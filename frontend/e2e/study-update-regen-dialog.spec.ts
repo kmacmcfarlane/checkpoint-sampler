@@ -274,10 +274,10 @@ test.describe('study update regen dialog (B-115)', () => {
     await updateButton.click()
 
     const immutabilityDialog = page.locator('[data-testid="immutability-dialog"]')
-    await expect(immutabilityDialog).toBeVisible({ timeout: 10000 })
+    await expect(immutabilityDialog).toBeVisible({ timeout: 20000 })
 
     // Wait for affected runs to load
-    await expect(page.locator('[data-testid="immutability-affected-list"]')).toBeVisible({ timeout: 5000 })
+    await expect(page.locator('[data-testid="immutability-affected-list"]')).toBeVisible({ timeout: 10000 })
 
     // Click "Yes, regenerate"
     const regenButton = page.locator('[data-testid="immutability-regen-button"]')

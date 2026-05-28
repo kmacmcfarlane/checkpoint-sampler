@@ -97,3 +97,9 @@ Shard-3 suffered a complete DNS resolution failure (`ENOTFOUND frontend`) affect
 * priority: medium
 * source: qa
 The Makefile hardcodes 12 shards, which can exhaust host resources (12 shards × ~6 containers = ~72 containers). Under load, CPU starvation causes Naive UI popup race conditions and timeout failures. A lower default (4-6 shards) or a `SHARDS_HOST` env var read from a local `.env` file would prevent recurrence.
+
+### E2E parallel run Docker cleanup
+* status: needs_approval
+* priority: low
+* source: qa
+Orphaned `playwright-run` containers from aborted/conflicting E2E runs block subsequent runs by consuming Docker DNS entries. Consider adding a pre-flight cleanup step in `e2e_parallel.sh` to kill containers matching the project prefix pattern before starting a new run.

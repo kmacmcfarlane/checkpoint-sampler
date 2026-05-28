@@ -5,6 +5,11 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-141: LoRA job creation and retry silently proceed with unresolvable model paths
+- CreateSampleJob now fails with an error when all checkpoint path matches fail (zero viable items), and logs a warning for partial failures — previously it silently created an all-skipped job
+- RetryFailed re-runs path matching for items with empty model paths, enabling recovery after ComfyUI config changes without needing to recreate the job
+- substituteWorkflow validates non-empty lora_name before submitting to ComfyUI, preventing opaque downstream errors
+
 ### B-143: Base model dropdown depends on ComfyUI instead of base_model_dir
 - New `GET /api/base-models` endpoint scans `base_model_dir` (or `checkpoint_dirs[0]` fallback) for `.safetensors` files directly from the filesystem, removing the ComfyUI dependency for base model selection
 - Frontend job launch dialog now calls the dedicated endpoint instead of the ComfyUI UNET proxy, so LoRA jobs can be launched even when ComfyUI is offline

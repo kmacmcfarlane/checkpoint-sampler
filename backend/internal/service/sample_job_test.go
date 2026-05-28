@@ -469,18 +469,49 @@ var _ = Describe("SampleJobService", func() {
 			Expect(err.Error()).To(ContainSubstring("no workflow template configured"))
 		})
 
-		It("marks items as skipped when checkpoint path matching fails", func() {
+		// B-141: When ALL items fail path matching, Create returns an error and cleans up the job.
+		It("returns error when all items fail path matching", func() {
 			pathMatcher.paths = make(map[string]string) // Clear paths to simulate no matches
+
+			_, err := svc.Create("test-run", checkpoints, "study-1", nil, false, false, "", model.TrainingRunKindCheckpoint)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("all"))
+			Expect(err.Error()).To(ContainSubstring("failed checkpoint path matching"))
+
+			// Verify the job was cleaned up (deleted)
+			Expect(store.jobs).To(BeEmpty())
+		})
+
+		// B-141: When SOME items fail path matching, Create succeeds but logs a warning.
+		// Partial failures are allowed — only total failure is an error.
+		It("succeeds with partial path matching failures and marks failed items as skipped", func() {
+			// Only one checkpoint has a matching path
+			pathMatcher.paths = map[string]string{
+				"checkpoint1.safetensors": "models/checkpoint1.safetensors",
+			}
 
 			job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, false, "", model.TrainingRunKindCheckpoint)
 			Expect(err).NotTo(HaveOccurred())
 
 			items := store.items[job.ID]
-			Expect(items).To(HaveLen(16))
+			Expect(items).To(HaveLen(16)) // 2 checkpoints × 8 parameter combos
+
+			// checkpoint1 items should have valid paths
+			matchedCount := 0
+			skippedCount := 0
 			for _, item := range items {
-				Expect(item.Status).To(Equal(model.SampleJobItemStatusSkipped))
-				Expect(item.ErrorMessage).To(ContainSubstring("checkpoint not found in ComfyUI"))
+				if item.CheckpointFilename == "checkpoint1.safetensors" {
+					Expect(item.Status).NotTo(Equal(model.SampleJobItemStatusSkipped))
+					Expect(item.ComfyUIModelPath).To(Equal("models/checkpoint1.safetensors"))
+					matchedCount++
+				} else {
+					Expect(item.Status).To(Equal(model.SampleJobItemStatusSkipped))
+					Expect(item.ErrorMessage).To(ContainSubstring("checkpoint not found in ComfyUI"))
+					skippedCount++
+				}
 			}
+			Expect(matchedCount).To(Equal(8))
+			Expect(skippedCount).To(Equal(8))
 		})
 
 		It("uses shift from study when study has a shift value", func() {
@@ -1209,11 +1240,14 @@ var _ = Describe("SampleJobService", func() {
 				Status: model.SampleJobStatusCompletedWithErrors,
 			}
 			store.jobs[job.ID] = job
+			// B-141: i2 has a valid ComfyUIModelPath (failed at runtime, not path matching).
+			// i3 has empty ComfyUIModelPath (skipped due to path matching failure) — re-matching needed.
+			pathMatcher.paths["cp3.safetensors"] = "models/cp3.safetensors"
 			store.items[job.ID] = []model.SampleJobItem{
-				{ID: "i1", JobID: job.ID, Status: model.SampleJobItemStatusCompleted},
-				{ID: "i2", JobID: job.ID, Status: model.SampleJobItemStatusFailed, ErrorMessage: "VRAM error", ExceptionType: "RuntimeError"},
-				{ID: "i3", JobID: job.ID, Status: model.SampleJobItemStatusSkipped, ErrorMessage: "checkpoint not found in ComfyUI"},
-				{ID: "i4", JobID: job.ID, Status: model.SampleJobItemStatusCompleted},
+				{ID: "i1", JobID: job.ID, Status: model.SampleJobItemStatusCompleted, ComfyUIModelPath: "models/cp1.safetensors"},
+				{ID: "i2", JobID: job.ID, Status: model.SampleJobItemStatusFailed, ComfyUIModelPath: "models/cp2.safetensors", ErrorMessage: "VRAM error", ExceptionType: "RuntimeError"},
+				{ID: "i3", JobID: job.ID, Status: model.SampleJobItemStatusSkipped, ComfyUIModelPath: "", CheckpointFilename: "cp3.safetensors", ErrorMessage: "checkpoint not found in ComfyUI"},
+				{ID: "i4", JobID: job.ID, Status: model.SampleJobItemStatusCompleted, ComfyUIModelPath: "models/cp4.safetensors"},
 			}
 
 			result, err := svc.RetryFailed("job-1")
@@ -1243,7 +1277,7 @@ var _ = Describe("SampleJobService", func() {
 			}
 			store.jobs[job.ID] = job
 			store.items[job.ID] = []model.SampleJobItem{
-				{ID: "i1", JobID: job.ID, Status: model.SampleJobItemStatusFailed},
+				{ID: "i1", JobID: job.ID, Status: model.SampleJobItemStatusFailed, ComfyUIModelPath: "models/cp1.safetensors"},
 			}
 
 			_, err := svc.RetryFailed("job-1")
@@ -1322,8 +1356,8 @@ var _ = Describe("SampleJobService", func() {
 			}
 			store.jobs[job.ID] = job
 			store.items[job.ID] = []model.SampleJobItem{
-				{ID: "i1", JobID: job.ID, Status: model.SampleJobItemStatusCompleted, OutputPath: "/samples/img.png"},
-				{ID: "i2", JobID: job.ID, Status: model.SampleJobItemStatusFailed},
+				{ID: "i1", JobID: job.ID, Status: model.SampleJobItemStatusCompleted, OutputPath: "/samples/img.png", ComfyUIModelPath: "models/cp1.safetensors"},
+				{ID: "i2", JobID: job.ID, Status: model.SampleJobItemStatusFailed, ComfyUIModelPath: "models/cp2.safetensors"},
 			}
 
 			_, err := svc.RetryFailed("job-1")
@@ -1333,6 +1367,101 @@ var _ = Describe("SampleJobService", func() {
 			items := store.items[job.ID]
 			Expect(items[0].Status).To(Equal(model.SampleJobItemStatusCompleted))
 			Expect(items[0].OutputPath).To(Equal("/samples/img.png"))
+		})
+
+		// B-141: RetryFailed re-runs path matching for items with empty model paths.
+		Context("re-matching empty model paths (B-141)", func() {
+			It("re-matches checkpoint items with empty ComfyUIModelPath", func() {
+				job := model.SampleJob{
+					ID:     "job-1",
+					Status: model.SampleJobStatusCompletedWithErrors,
+					// BaseModel empty = checkpoint job
+				}
+				store.jobs[job.ID] = job
+				store.items[job.ID] = []model.SampleJobItem{
+					{ID: "i1", JobID: job.ID, Status: model.SampleJobItemStatusCompleted, ComfyUIModelPath: "models/cp1.safetensors", CheckpointFilename: "cp1.safetensors"},
+					{ID: "i2", JobID: job.ID, Status: model.SampleJobItemStatusSkipped, ComfyUIModelPath: "", CheckpointFilename: "cp2.safetensors", ErrorMessage: "checkpoint not found"},
+				}
+				// Now the path is available
+				pathMatcher.paths["cp2.safetensors"] = "models/cp2.safetensors"
+
+				_, err := svc.RetryFailed("job-1")
+				Expect(err).NotTo(HaveOccurred())
+
+				items := store.items[job.ID]
+				// Completed item unchanged
+				Expect(items[0].ComfyUIModelPath).To(Equal("models/cp1.safetensors"))
+				// Previously skipped item now has a path
+				Expect(items[1].Status).To(Equal(model.SampleJobItemStatusPending))
+				Expect(items[1].ComfyUIModelPath).To(Equal("models/cp2.safetensors"))
+				Expect(items[1].ErrorMessage).To(BeEmpty())
+			})
+
+			It("re-matches LoRA items with empty LoraModelPath", func() {
+				loraPathMatcher := newFakePathMatcher()
+				svc.SetLoraPathMatcher(loraPathMatcher)
+
+				job := model.SampleJob{
+					ID:        "job-lora-1",
+					Status:    model.SampleJobStatusCompletedWithErrors,
+					BaseModel: "models/base.safetensors", // non-empty = LoRA job
+				}
+				store.jobs[job.ID] = job
+				store.items[job.ID] = []model.SampleJobItem{
+					{ID: "i1", JobID: job.ID, Status: model.SampleJobItemStatusCompleted, LoraModelPath: "loras/lora1.safetensors", CheckpointFilename: "lora1.safetensors"},
+					{ID: "i2", JobID: job.ID, Status: model.SampleJobItemStatusSkipped, LoraModelPath: "", CheckpointFilename: "lora2.safetensors", ErrorMessage: "checkpoint not found"},
+				}
+				// Now the LoRA path is available
+				loraPathMatcher.paths["lora2.safetensors"] = "loras/lora2.safetensors"
+
+				_, err := svc.RetryFailed("job-lora-1")
+				Expect(err).NotTo(HaveOccurred())
+
+				items := store.items[job.ID]
+				Expect(items[0].LoraModelPath).To(Equal("loras/lora1.safetensors"))
+				Expect(items[1].Status).To(Equal(model.SampleJobItemStatusPending))
+				Expect(items[1].LoraModelPath).To(Equal("loras/lora2.safetensors"))
+				Expect(items[1].ErrorMessage).To(BeEmpty())
+			})
+
+			It("does not overwrite already-matched paths on retry", func() {
+				job := model.SampleJob{
+					ID:     "job-1",
+					Status: model.SampleJobStatusCompletedWithErrors,
+				}
+				store.jobs[job.ID] = job
+				store.items[job.ID] = []model.SampleJobItem{
+					// Failed item that already has a valid ComfyUIModelPath (failed for a different reason)
+					{ID: "i1", JobID: job.ID, Status: model.SampleJobItemStatusFailed, ComfyUIModelPath: "models/original.safetensors", CheckpointFilename: "cp1.safetensors", ErrorMessage: "VRAM error"},
+				}
+				// Set up a different path to verify it's NOT used
+				pathMatcher.paths["cp1.safetensors"] = "models/different.safetensors"
+
+				_, err := svc.RetryFailed("job-1")
+				Expect(err).NotTo(HaveOccurred())
+
+				items := store.items[job.ID]
+				// Path should be preserved (not overwritten) since it was already set
+				Expect(items[0].ComfyUIModelPath).To(Equal("models/original.safetensors"))
+				Expect(items[0].Status).To(Equal(model.SampleJobItemStatusPending))
+			})
+
+			It("returns error when re-matching still produces zero viable items", func() {
+				job := model.SampleJob{
+					ID:     "job-1",
+					Status: model.SampleJobStatusCompletedWithErrors,
+				}
+				store.jobs[job.ID] = job
+				store.items[job.ID] = []model.SampleJobItem{
+					{ID: "i1", JobID: job.ID, Status: model.SampleJobItemStatusSkipped, ComfyUIModelPath: "", CheckpointFilename: "cp1.safetensors"},
+					{ID: "i2", JobID: job.ID, Status: model.SampleJobItemStatusSkipped, ComfyUIModelPath: "", CheckpointFilename: "cp2.safetensors"},
+				}
+				// pathMatcher has no paths — re-matching will also fail
+
+				_, err := svc.RetryFailed("job-1")
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("all items still have unresolvable model paths"))
+			})
 		})
 	})
 
@@ -1383,7 +1512,7 @@ var _ = Describe("SampleJobService", func() {
 				model.SampleJobStatusCompletedWithErrors,
 				func(id string) error {
 					store.items[id] = []model.SampleJobItem{
-						{ID: "ri1", JobID: id, Status: model.SampleJobItemStatusFailed},
+						{ID: "ri1", JobID: id, Status: model.SampleJobItemStatusFailed, ComfyUIModelPath: "models/cp1.safetensors"},
 					}
 					_, err := svc.RetryFailed(id)
 					return err

@@ -1501,7 +1501,7 @@ async function doSubmit() {
     </NModal>
 
     <NSpace vertical :size="16">
-      <NAlert v-if="error" type="error" closable @close="error = null">
+      <NAlert v-if="error" type="error" closable data-testid="job-launch-error" @close="error = null">
         {{ error }}
       </NAlert>
 

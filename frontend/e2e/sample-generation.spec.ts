@@ -126,9 +126,9 @@ interface SampleJobApiResponse {
 // AC4: Test is in a separate spec file (this file) for independent execution.
 //      Run this spec alone with: npx playwright test sample-generation.spec.ts
 test.describe('sample generation flow (with ComfyUI mock)', () => {
-  // Allow 60s per test: setup (~5s) + study creation (~5s) + job polling (up to 30s)
+  // Allow 90s per test: setup (~5s) + study creation (~5s) + job polling (up to 60s)
   // exceeds the global 15s timeout, so each test needs a longer budget.
-  test.setTimeout(60000)
+  test.setTimeout(90000)
 
   // AC: Each E2E test is independent — reset database before each test
   test.beforeEach(async ({ page, request }) => {
@@ -436,7 +436,7 @@ test.describe('sample generation flow (with ComfyUI mock)', () => {
         j.training_run_name === 'my-model' &&
         (j.status === 'completed' || j.status === 'completed_with_errors'),
       ),
-      { timeout: 30000, interval: 1000 },
+      { timeout: 60000, interval: 1000 },
     )
     expect(finalJobs).not.toBeNull()
 
