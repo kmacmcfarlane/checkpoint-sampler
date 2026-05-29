@@ -244,72 +244,10 @@ stories:
       LoRAs are .safetensors files that require a base model for inference.
       Key questions: discovery mechanism, base model resolution, workflow template changes,
       sampling parameter additions (strength), and UI/UX for LoRA vs checkpoint distinction.
-  - id: B-141
-    title: "LoRA job creation and retry silently proceed with unresolvable model paths"
-    type: bug
-    status: uat
-    priority: 80
-    complexity: medium
-    requires: []
-    description: |
-      Two related failures in the LoRA job lifecycle when ComfyUI cannot resolve checkpoint paths:
-
-      1. **Job creation accepts all-skipped items**: When LoRA path matching fails for every checkpoint
-         (e.g. ComfyUI's extra_model_paths doesn't include the training directory), CreateSampleJob
-         silently creates all items with status=skipped and empty LoraModelPath. The job returns
-         successfully with status=pending, then immediately transitions to completed_with_errors.
-         Should fail job creation (return error to the user) when zero items have valid paths.
-
-      2. **RetryFailed does not re-run path matching**: RetryFailed resets failed/skipped items to
-         pending but preserves the original empty LoraModelPath. The executor then substitutes an
-         empty string into the workflow's lora_name field, which ComfyUI rejects with
-         "Value not in list: lora_name: '' not in (list of length N)".
-         RetryFailed should re-run the path matcher for items with empty model paths.
-
-      Observed during first real LoRA job against a training run whose directory was not yet
-      in ComfyUI's extra_model_paths.yaml. After fixing the ComfyUI config, retry still failed
-      because paths were never re-resolved.
-    notes: |
-      Root cause locations:
-      - Job creation: backend/internal/service/sample_job.go ~line 374-413 — path matching loop
-        creates skipped items but no post-loop validation checks if all items failed.
-      - RetryFailed: backend/internal/service/sample_job.go ~line 636-742 — resets status fields
-        but does not touch ComfyUIModelPath or LoraModelPath.
-      - Executor: backend/internal/service/job_executor.go ~line 1248-1251 — substitutes
-        item.LoraModelPath directly into workflow without checking for empty string.
-    testing:
-      - "Edge case: partial failures (some items match, some don't) — retry should only re-match items with empty paths, not
-        overwrite already-matched ones"
-      - "Edge case: retry when ComfyUI is still not configured — should fail gracefully, not silently create another round
-        of empty-path items"
-    acceptance:
-      - "BE: CreateSampleJob returns an error when all items fail path matching (zero viable items)"
-      - "BE: CreateSampleJob logs a warning when some (but not all) items fail path matching, including the count"
-      - "BE: RetryFailed re-runs path matching for items with empty LoraModelPath (LoRA jobs) or empty ComfyUIModelPath (checkpoint
-        jobs)"
-      - "BE: RetryFailed returns an error if re-matching still produces zero viable items"
-      - "BE: substituteWorkflow validates that lora_name is non-empty before submitting to ComfyUI"
-      - "FE: Job launch dialog shows an error message when job creation fails due to unresolvable paths"
-  - id: B-142
-    title: "Generate Samples refresh button serves stale FSState cache on NFS mounts"
-    priority: 80
-    status: uat
-    complexity: medium
-    requires: []
-    acceptance:
-      - "BE: Add a query parameter (e.g. ?refresh=true) or dedicated endpoint to force FSState.Populate() before returning
-        training runs"
-      - "FE: The refresh button in JobLaunchDialog passes the force-refresh flag so the backend rescans checkpoint/LoRA directories
-        from disk"
-      - "After clicking refresh, newly added .safetensors files on NFS-mounted lora_dirs/checkpoint_dirs appear in the training
-        run dropdown without restarting the container"
-    testing:
-      - "command: make test-backend"
-      - "command: make test-frontend"
   - id: B-143
     title: "Base model dropdown depends on ComfyUI instead of base_model_dir"
-    status: uat
-    priority: 85
+    status: uat_feedback
+    priority: 90
     complexity: medium
     requires: []
     notes: |
@@ -337,3 +275,95 @@ stories:
       - "FE: Job launch dialog base model dropdown calls /api/base-models instead of ComfyUI UNET proxy"
       - "FE: Base model dropdown populates correctly when ComfyUI is offline"
       - "FE: Existing LoRA job launch flow unchanged (payload still includes base_model field)"
+    review_feedback: "LoRA job launch fails at ComfyUI submission (status 400, value_not_in_list).\n\nRoot cause (confirmed
+      against the live ComfyUI API): the base model is submitted\nas unet_name using the base_model_dir relative path\n(e.g.
+      \"qwen/qwen_image_2512_bf16.safetensors\"), but ComfyUI's UNETLoader exposes\nthat same physical file as \"checkpoints/qwen/qwen_image_2512_bf16.safetensors\"\
+      .\nUNETLoader scans BOTH its diffusion_models and checkpoints folders and prefixes\nthe checkpoints-folder entries with
+      \"checkpoints/\". The base_model_dir relative\npath matches the CheckpointLoaderSimple ckpt_name namespace, NOT the
+      unet_name\nnamespace the workflow's UNETLoader node requires.\n\nDo NOT revert the dropdown to ComfyUI's UNET list.
+      That list is polluted with\n~170 training artifacts (optimizer.bin, .pkl, random_states, every step\ncheckpoint). The
+      curated base_model_dir dropdown (the work already done for the\noriginal AC) must stay — it is the clean, offline-capable
+      source.\n\nFix = translate at submission. In substituteWorkflow (job_executor.go ~1244),\nbefore submitting, resolve
+      job.BaseModel to ComfyUI's authoritative unet_name by\nmatching against the live UNETLoader (unet_name) list:\n  - Prefer
+      an entry whose trailing path equals the selected relative path.\n  - Fall back to a basename match.\n  - Submit the
+      exact ComfyUI-provided string (with whatever folder prefix it\n    carries), never the raw base_model_dir path.\n\n\
+      Error handling (required):\n  - If NO unet_name entry matches the selected base model, return a clear error\n    explaining
+      the base model was not found in ComfyUI's UNET list and how to\n    remedy it (place/register the model in ComfyUI's
+      diffusion_models or\n    checkpoints folder so it appears in UNETLoader).\n  - If TWO OR MORE unet_name entries match
+      the same base model across different\n    namespaces/folders (ambiguous), do NOT guess — return an error that names\n\
+      \    the conflicting candidate paths and explains how to disambiguate (e.g. make\n    the base_model_dir selection unambiguous,
+      or remove/rename the duplicate so\n    only one UNETLoader entry matches).\n\nNew acceptance criteria for this rework:\n\
+      \  - BE: substituteWorkflow resolves job.BaseModel to a ComfyUI unet_name entry\n    before submission (trailing-path
+      match, basename fallback).\n  - BE: returns a clear, actionable error when no unet_name match is found.\n  - BE: returns
+      a clear, actionable error naming the conflicting paths when the\n    base model matches 2+ unet_name entries across
+      namespaces.\n  - BE: the curated base_model_dir dropdown source is unchanged (no revert to\n    the ComfyUI UNET proxy).\n\
+      \  - E2E/manual: a LoRA job submits successfully and ComfyUI loads the base model\n    into the UNETLoader without value_not_in_list."
+  - id: B-144
+    title: "Existing LoRA samples not detected — no green bead, validation shows no samples despite images in grid"
+    status: todo
+    priority: 65
+    complexity: medium
+    type: bug
+    requires: []
+    notes: |
+      For a LoRA training run that already has samples generated on disk, the
+      Generate Samples UI shows the LoRA badge (correct) but:
+        - no green bead on the Jobs nav button
+        - checkpoint validation status reports "no samples"
+      Yet the images render correctly in the image grid, so the backend clearly has
+      filesystem access to them — the sample-presence detection and the sample-grid
+      listing use different code paths, and only the detection path fails for LoRA.
+
+      The green bead keys off run.has_samples (frontend/src/composables/beadStatus.ts:
+      "hasCompleted || run.has_samples"); the checkpoint validation status uses the
+      same has_samples signal. So has_samples is being computed false for LoRA runs.
+
+      Likely cause: the sample-presence scan expects the checkpoint-run sample
+      directory layout and does not account for the extra LoRA layout level. Example
+      on-disk LoRA sample path (CIFS \\lucy\ai\outputs\...):
+        {training_run}/{study}-lora/{base_model_name}/{lora_filename}.safetensors
+      i.e. LoRA sample output is nested under an additional {base_model_name} folder
+      that the checkpoint-run layout does not have.
+    testing:
+      - "Reproduce with a LoRA run that has existing samples on disk but no tracked SampleJob"
+      - "Confirm has_samples becomes true and the green bead shows for LoRA runs with samples"
+      - "Verify the sample-grid listing and the has_samples detection agree (same files counted)"
+      - "Regression: checkpoint (non-LoRA) runs still detect samples correctly"
+      - "Cover the extra {base_model_name} nesting level in the LoRA sample path"
+    acceptance:
+      - "BE: has_samples (and the checkpoint validation status) correctly detects existing samples for LoRA training runs"
+      - "BE: LoRA sample detection accounts for the additional {base_model_name} directory level in the sample path layout"
+      - "FE: the Jobs nav green bead appears for a LoRA run that has samples on disk"
+      - "FE: checkpoint validation status no longer reports 'no samples' when samples exist and render in the grid"
+      - "BE: non-LoRA checkpoint runs continue to detect samples (no regression)"
+  - id: B-145
+    title: "Base model not remembered when selecting a training-run/study with existing samples"
+    status: todo
+    priority: 50
+    complexity: medium
+    type: bug
+    requires: []
+    notes: |
+      In Generate Samples, selecting a training-run + study combination does not
+      re-select the base model that was used for previously generated samples. The
+      base model dropdown resets to empty even when samples already exist for that
+      run/study.
+
+      The dialog already restores job.base_model when a prior SampleJob record is
+      loaded (frontend/src/components/JobLaunchDialog.vue:1278). The gap: when there
+      is no loaded job record but samples already exist on disk, the base model is
+      not recovered. It should be derived from existing metadata — the sample
+      manifest and/or the database record associated with the prior generation —
+      so the dropdown pre-selects the base model that produced the existing samples.
+    testing:
+      - "Reproduce: select a run/study that has existing samples but no actively loaded SampleJob; base model dropdown is
+        empty"
+      - "Verify base model pre-selects from the persisted source (manifest/db) when samples exist"
+      - "Determine the authoritative source of the prior base_model (sample manifest vs sample_job db record) during implementation"
+      - "Graceful fallback when no prior base model can be determined (dropdown stays empty, no error)"
+      - "No regression to the existing job.base_model restore path (JobLaunchDialog.vue:1278)"
+    acceptance:
+      - "BE: prior base model for a run/study can be resolved from existing sample metadata (manifest and/or db record)"
+      - "FE: base model dropdown pre-selects the remembered base model when a run/study with existing samples is chosen"
+      - "FE: when no prior base model exists, the dropdown remains empty without error"
+      - "FE: existing restore-from-loaded-job behavior is preserved"

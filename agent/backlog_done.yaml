@@ -6549,3 +6549,65 @@ stories:
       - Sidebar preset selector behavior changes (3 tests)
       - Various single failures across 20+ other spec files
       This blocks S-140 and all subsequent LoRA stories. Must be resolved before pipeline can resume.
+  - id: B-141
+    title: "LoRA job creation and retry silently proceed with unresolvable model paths"
+    type: bug
+    status: done
+    priority: 80
+    complexity: medium
+    requires: []
+    description: |
+      Two related failures in the LoRA job lifecycle when ComfyUI cannot resolve checkpoint paths:
+
+      1. **Job creation accepts all-skipped items**: When LoRA path matching fails for every checkpoint
+         (e.g. ComfyUI's extra_model_paths doesn't include the training directory), CreateSampleJob
+         silently creates all items with status=skipped and empty LoraModelPath. The job returns
+         successfully with status=pending, then immediately transitions to completed_with_errors.
+         Should fail job creation (return error to the user) when zero items have valid paths.
+
+      2. **RetryFailed does not re-run path matching**: RetryFailed resets failed/skipped items to
+         pending but preserves the original empty LoraModelPath. The executor then substitutes an
+         empty string into the workflow's lora_name field, which ComfyUI rejects with
+         "Value not in list: lora_name: '' not in (list of length N)".
+         RetryFailed should re-run the path matcher for items with empty model paths.
+
+      Observed during first real LoRA job against a training run whose directory was not yet
+      in ComfyUI's extra_model_paths.yaml. After fixing the ComfyUI config, retry still failed
+      because paths were never re-resolved.
+    notes: |
+      Root cause locations:
+      - Job creation: backend/internal/service/sample_job.go ~line 374-413 — path matching loop
+        creates skipped items but no post-loop validation checks if all items failed.
+      - RetryFailed: backend/internal/service/sample_job.go ~line 636-742 — resets status fields
+        but does not touch ComfyUIModelPath or LoraModelPath.
+      - Executor: backend/internal/service/job_executor.go ~line 1248-1251 — substitutes
+        item.LoraModelPath directly into workflow without checking for empty string.
+    testing:
+      - "Edge case: partial failures (some items match, some don't) — retry should only re-match items with empty paths, not
+        overwrite already-matched ones"
+      - "Edge case: retry when ComfyUI is still not configured — should fail gracefully, not silently create another round
+        of empty-path items"
+    acceptance:
+      - "BE: CreateSampleJob returns an error when all items fail path matching (zero viable items)"
+      - "BE: CreateSampleJob logs a warning when some (but not all) items fail path matching, including the count"
+      - "BE: RetryFailed re-runs path matching for items with empty LoraModelPath (LoRA jobs) or empty ComfyUIModelPath (checkpoint
+        jobs)"
+      - "BE: RetryFailed returns an error if re-matching still produces zero viable items"
+      - "BE: substituteWorkflow validates that lora_name is non-empty before submitting to ComfyUI"
+      - "FE: Job launch dialog shows an error message when job creation fails due to unresolvable paths"
+  - id: B-142
+    title: "Generate Samples refresh button serves stale FSState cache on NFS mounts"
+    priority: 80
+    status: done
+    complexity: medium
+    requires: []
+    acceptance:
+      - "BE: Add a query parameter (e.g. ?refresh=true) or dedicated endpoint to force FSState.Populate() before returning
+        training runs"
+      - "FE: The refresh button in JobLaunchDialog passes the force-refresh flag so the backend rescans checkpoint/LoRA directories
+        from disk"
+      - "After clicking refresh, newly added .safetensors files on NFS-mounted lora_dirs/checkpoint_dirs appear in the training
+        run dropdown without restarting the container"
+    testing:
+      - "command: make test-backend"
+      - "command: make test-frontend"
