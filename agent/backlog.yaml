@@ -277,7 +277,7 @@ stories:
       - "FE: Existing LoRA job launch flow unchanged (payload still includes base_model field)"
   - id: B-144
     title: "Existing LoRA samples not detected — no green bead, validation shows no samples despite images in grid"
-    status: todo
+    status: uat
     priority: 65
     complexity: medium
     type: bug

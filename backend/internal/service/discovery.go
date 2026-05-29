@@ -23,6 +23,9 @@ var epochSuffixPattern = regexp.MustCompile(`-(\d{6})$`)
 type CheckpointFileSystem interface {
 	ListSafetensorsFiles(root string) ([]string, error)
 	DirectoryExists(path string) bool
+	// ListSubdirectories returns the names of immediate subdirectories under root.
+	// Implementations return an empty slice (not an error) when root does not exist.
+	ListSubdirectories(root string) ([]string, error)
 }
 
 // DiscoveryService discovers training runs by scanning checkpoint and LoRA directories.
@@ -60,6 +63,19 @@ func (d *DiscoveryService) Discover() ([]model.TrainingRun, error) {
 		{dirs: d.checkpointDirs, kind: model.TrainingRunKindCheckpoint, label: "checkpoint_dirs"},
 		{dirs: d.loraDirs, kind: model.TrainingRunKindLoRA, label: "lora_dirs"},
 	}
+
+	// Build the set of checkpoint sample-directory names that exist anywhere under
+	// the sample tree. Sample output is nested differently per training run kind:
+	//
+	//	{sampleDir}/{checkpoint.safetensors}/                                 (legacy no-study)
+	//	{sampleDir}/{study}/{checkpoint.safetensors}/                         (legacy study)
+	//	{sampleDir}/{training_run}/{study}/{checkpoint.safetensors}/          (checkpoint runs)
+	//	{sampleDir}/{training_run}/{study}/{base_model}/{checkpoint.safetensors}/ (LoRA runs)
+	//
+	// The previous implementation only checked the flat legacy path
+	// ({sampleDir}/{filename}), so has_samples was always false for the deeper
+	// checkpoint-run and LoRA layouts even though samples existed on disk.
+	sampleCheckpointDirs := d.collectSampleCheckpointDirs()
 
 	// Map: training run name → list of checkpoints
 	runMap := make(map[string][]model.Checkpoint)
@@ -102,9 +118,12 @@ func (d *DiscoveryService) Discover() ([]model.TrainingRun, error) {
 
 				stepNum := extractStepNumber(filename)
 
-				// Check if sample directory exists
-				sampleDirPath := filepath.Join(d.sampleDir, filename)
-				hasSamples := d.fs.DirectoryExists(sampleDirPath)
+				// A checkpoint has samples if a sample directory named after its
+				// .safetensors filename exists anywhere in the sample tree (any of
+				// the supported nesting layouts, including the LoRA layout which
+				// adds a {base_model_name} level). Fall back to the legacy flat
+				// path check so a missing/empty index never under-reports.
+				hasSamples := sampleCheckpointDirs[filename] || d.fs.DirectoryExists(filepath.Join(d.sampleDir, filename))
 
 				checkpoint := model.Checkpoint{
 					Filename:           filename,
@@ -164,6 +183,73 @@ func (d *DiscoveryService) Discover() ([]model.TrainingRun, error) {
 
 	d.logger.WithField("run_count", len(runs)).Debug("training runs discovered")
 	return runs, nil
+}
+
+// collectSampleCheckpointDirs scans the sample directory tree and returns the set
+// of checkpoint sample-directory names (directories whose name ends in
+// ".safetensors") found at any of the supported nesting depths. Samples are
+// written under one of the following layouts depending on training run kind:
+//
+//	{sampleDir}/{checkpoint.safetensors}/                                     (legacy no-study)
+//	{sampleDir}/{study}/{checkpoint.safetensors}/                             (legacy study)
+//	{sampleDir}/{training_run}/{study}/{checkpoint.safetensors}/              (checkpoint runs)
+//	{sampleDir}/{training_run}/{study}/{base_model}/{checkpoint.safetensors}/ (LoRA runs)
+//
+// The returned set is keyed by checkpoint filename (the directory name), which
+// matches model.Checkpoint.Filename produced during discovery. This mirrors the
+// traversal performed by ViewerDiscoveryService so that has_samples detection
+// and the sample-grid listing agree on which checkpoints have samples.
+//
+// Filesystem errors are tolerated (logged, then skipped) so that a single
+// unreadable subdirectory does not prevent detection for the rest of the tree.
+func (d *DiscoveryService) collectSampleCheckpointDirs() map[string]bool {
+	found := make(map[string]bool)
+
+	// recordIfCheckpoint adds name to the set when it is a checkpoint sample dir.
+	recordIfCheckpoint := func(name string) bool {
+		if isCheckpointDirName(name) {
+			found[name] = true
+			return true
+		}
+		return false
+	}
+
+	listSub := func(parts ...string) []string {
+		dir := filepath.Join(append([]string{d.sampleDir}, parts...)...)
+		subs, err := d.fs.ListSubdirectories(dir)
+		if err != nil {
+			d.logger.WithFields(logrus.Fields{
+				"dir":   dir,
+				"error": err.Error(),
+			}).Warn("failed to list sample subdirectories during has-samples scan")
+			return nil
+		}
+		return subs
+	}
+
+	for _, l0 := range listSub() {
+		if recordIfCheckpoint(l0) {
+			continue // legacy no-study checkpoint dir
+		}
+		// l0 is a study dir (legacy) or a training_run dir (new layout).
+		for _, l1 := range listSub(l0) {
+			if recordIfCheckpoint(l1) {
+				continue // legacy study layout: {study}/{checkpoint}/
+			}
+			// l1 is a study dir under a training_run dir.
+			for _, l2 := range listSub(l0, l1) {
+				if recordIfCheckpoint(l2) {
+					continue // checkpoint-run layout: {run}/{study}/{checkpoint}/
+				}
+				// l2 is a base_model dir (LoRA layout); checkpoints live one level deeper.
+				for _, l3 := range listSub(l0, l1, l2) {
+					recordIfCheckpoint(l3)
+				}
+			}
+		}
+	}
+
+	return found
 }
 
 // stripCheckpointSuffixes removes .safetensors extension and step/epoch suffixes.

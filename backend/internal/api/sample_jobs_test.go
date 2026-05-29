@@ -159,6 +159,10 @@ func (f *fakeCheckpointFileSystem) DirectoryExists(path string) bool {
 	return false
 }
 
+func (f *fakeCheckpointFileSystem) ListSubdirectories(root string) ([]string, error) {
+	return nil, nil
+}
+
 var _ = Describe("SampleJobsService", func() {
 	var (
 		store       *fakeSampleJobStore

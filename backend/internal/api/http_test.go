@@ -50,6 +50,10 @@ func (f *fakeCheckpointFS) DirectoryExists(path string) bool {
 	return f.dirs[path]
 }
 
+func (f *fakeCheckpointFS) ListSubdirectories(root string) ([]string, error) {
+	return nil, nil
+}
+
 var _ = Describe("NewHTTPHandler", func() {
 	var (
 		logger    *logrus.Logger

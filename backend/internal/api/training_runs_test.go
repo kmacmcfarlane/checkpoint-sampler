@@ -106,12 +106,14 @@ func (f *fakeScanFS) ReadFile(path string) ([]byte, error) {
 type fakeCheckpointDiscoveryFS struct {
 	safetensors map[string][]string // root → relative file paths
 	dirs        map[string]bool     // path → exists?
+	subdirs     map[string][]string // root → immediate subdirectory names
 }
 
 func newFakeCheckpointDiscoveryFS() *fakeCheckpointDiscoveryFS {
 	return &fakeCheckpointDiscoveryFS{
 		safetensors: make(map[string][]string),
 		dirs:        make(map[string]bool),
+		subdirs:     make(map[string][]string),
 	}
 }
 
@@ -121,6 +123,10 @@ func (f *fakeCheckpointDiscoveryFS) ListSafetensorsFiles(root string) ([]string,
 
 func (f *fakeCheckpointDiscoveryFS) DirectoryExists(path string) bool {
 	return f.dirs[path]
+}
+
+func (f *fakeCheckpointDiscoveryFS) ListSubdirectories(root string) ([]string, error) {
+	return f.subdirs[root], nil
 }
 
 // fakeStudyGetter implements the api.StudyGetter interface for testing.

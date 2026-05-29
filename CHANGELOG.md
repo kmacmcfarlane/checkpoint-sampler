@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-144: Existing LoRA samples not detected — no green bead, validation shows no samples
+- `DiscoveryService.Discover()` now computes `has_samples` by walking all four sample-output layouts (legacy flat, legacy study, checkpoint-run, and the deeper LoRA `{run}/{study}/{base_model}/{checkpoint}/` layout) instead of only the flat legacy path, so detection agrees with the grid-listing path that already handled nesting
+- New `ListSubdirectories` method on the `CheckpointFileSystem` interface backs the multi-layout scan; legacy flat-path check retained as a fallback so detection never under-reports
+
 ### B-142: Generate Samples refresh button serves stale FSState cache on NFS mounts
 - `GET /api/training-runs` accepts a `refresh=true` query param that forces a fresh `FSState.Populate()` (full filesystem rescan) before returning results, bypassing the in-memory cache that fsnotify cannot keep current on NFS mounts
 - The Generate Samples dialog's manual refresh button now passes the force-refresh flag, so newly added `.safetensors` files on NFS-mounted checkpoint/LoRA directories appear without restarting the container; background fetches (mount, WebSocket, dialog open) stay on the cached path

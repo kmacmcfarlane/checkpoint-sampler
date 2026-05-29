@@ -57,6 +57,24 @@ var e2eFixturePNGFilenames = []string{
 	"prompt_name=portrait&seed=42&cfg=7&_00001_.png",
 }
 
+// E2ELoRAFixtureTrainingRunName is the LoRA training run name used to exercise
+// the 4-level nested sample layout: {sampleDir}/{run}/{study}/{base_model}/{checkpoint}/.
+// This matches the file in test-fixtures/loras/test-lora-step00001000.safetensors.
+const E2ELoRAFixtureTrainingRunName = "test-lora"
+
+// E2ELoRAFixtureStudyName is the study subdirectory name in the LoRA sample tree.
+// Layout: {sampleDir}/test-lora/study-1/sd15/test-lora-step00001000.safetensors/
+const E2ELoRAFixtureStudyName = "study-1"
+
+// E2ELoRAFixtureBaseModelName is the base-model subdirectory name in the LoRA sample tree.
+const E2ELoRAFixtureBaseModelName = "sd15"
+
+// e2eLoRAFixtureCheckpoints lists the checkpoint filenames for the LoRA has_samples fixture.
+// Only step-1000 has a sample dir; step-2000 does not (tests per-checkpoint selectivity).
+var e2eLoRAFixtureCheckpoints = []string{
+	"test-lora-step00001000.safetensors",
+}
+
 // FixtureSeeder seeds E2E fixture data (studies + sample directories) into the
 // database and filesystem after a test reset. This ensures deterministic test
 // conditions for specs that validate regeneration confirmation logic.
@@ -106,6 +124,15 @@ func (s *FixtureSeeder) SeedFixtures() error {
 
 	if err := s.seedSlashFixtureSampleDirs(); err != nil {
 		return fmt.Errorf("seeding slash fixture sample directories: %w", err)
+	}
+
+	// Seed the LoRA has_samples fixture: 4-level nested sample tree for the
+	// "test-lora" training run. SampleDirCleaner removes the root "test-lora/"
+	// directory on every reset (it is not a *.safetensors dir), so we must
+	// recreate it here. This fixture is used by lora-has-samples.spec.ts to
+	// verify B-144 (LoRA sample detection with additional base_model level).
+	if err := s.seedLoRAFixtureSampleDirs(); err != nil {
+		return fmt.Errorf("seeding LoRA fixture sample directories: %w", err)
 	}
 
 	s.logger.Info("E2E fixture seeding completed")
@@ -244,6 +271,43 @@ func (s *FixtureSeeder) seedSlashFixtureSampleDirs() error {
 			"checkpoint_dir": cpDir,
 			"png_count":      len(e2eFixturePNGFilenames),
 		}).Debug("slash fixture sample directory seeded")
+	}
+	return nil
+}
+
+// seedLoRAFixtureSampleDirs creates the 4-level LoRA sample directory structure:
+//   {sampleDir}/{run}/{study}/{base_model}/{checkpoint.safetensors}/
+//
+// This mirrors the real LoRA sample output layout and exercises the
+// collectSampleCheckpointDirs() code path added by B-144. The SampleDirCleaner
+// removes this tree on every test reset (the "test-lora" root dir is not a
+// *.safetensors name), so it must be recreated here after each cleanup.
+func (s *FixtureSeeder) seedLoRAFixtureSampleDirs() error {
+	for _, cpFilename := range e2eLoRAFixtureCheckpoints {
+		cpDir := filepath.Join(
+			s.sampleDir,
+			E2ELoRAFixtureTrainingRunName,
+			E2ELoRAFixtureStudyName,
+			E2ELoRAFixtureBaseModelName,
+			cpFilename,
+		)
+		if err := os.MkdirAll(cpDir, 0755); err != nil {
+			return fmt.Errorf("creating LoRA fixture sample dir %s: %w", cpDir, err)
+		}
+
+		// Write a minimal PNG so the directory is non-empty (matches what the
+		// samples-init container copies from test-fixtures/samples/).
+		pngPath := filepath.Join(cpDir, e2eFixturePNGFilenames[0])
+		if err := os.WriteFile(pngPath, minimalPNG(), 0644); err != nil {
+			return fmt.Errorf("creating LoRA fixture PNG %s: %w", pngPath, err)
+		}
+
+		s.logger.WithFields(logrus.Fields{
+			"training_run":  E2ELoRAFixtureTrainingRunName,
+			"study":         E2ELoRAFixtureStudyName,
+			"base_model":    E2ELoRAFixtureBaseModelName,
+			"checkpoint_dir": cpDir,
+		}).Debug("LoRA fixture sample directory seeded")
 	}
 	return nil
 }

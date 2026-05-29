@@ -13,14 +13,16 @@ import (
 
 // fakeCheckpointFS implements service.CheckpointFileSystem for testing.
 type fakeCheckpointFS struct {
-	files map[string][]string // root → list of relative file paths
-	dirs  map[string]bool     // path → exists
+	files   map[string][]string // root → list of relative file paths
+	dirs    map[string]bool     // path → exists
+	subdirs map[string][]string // root → list of immediate subdirectory names
 }
 
 func newFakeCheckpointFS() *fakeCheckpointFS {
 	return &fakeCheckpointFS{
-		files: make(map[string][]string),
-		dirs:  make(map[string]bool),
+		files:   make(map[string][]string),
+		dirs:    make(map[string]bool),
+		subdirs: make(map[string][]string),
 	}
 }
 
@@ -30,6 +32,10 @@ func (f *fakeCheckpointFS) ListSafetensorsFiles(root string) ([]string, error) {
 
 func (f *fakeCheckpointFS) DirectoryExists(path string) bool {
 	return f.dirs[path]
+}
+
+func (f *fakeCheckpointFS) ListSubdirectories(root string) ([]string, error) {
+	return f.subdirs[root], nil
 }
 
 var _ = Describe("DiscoveryService", func() {
@@ -177,6 +183,91 @@ var _ = Describe("DiscoveryService", func() {
 				}
 				Expect(cpMap["model-step00001000.safetensors"]).To(BeTrue())
 				Expect(cpMap["model-step00002000.safetensors"]).To(BeFalse())
+			})
+
+			// B-144: LoRA sample output is nested under an additional {base_model_name}
+			// directory level. Detection must find these directories, not only the flat
+			// legacy {sampleDir}/{filename} path.
+			It("detects samples in the LoRA layout (run/study/base_model/checkpoint)", func() {
+				fs.files["/loras"] = []string{
+					"my-lora-step00001000.safetensors",
+				}
+				// Sample tree: /samples/my-lora/study-abc/sd15/my-lora-step00001000.safetensors/
+				fs.subdirs["/samples"] = []string{"my-lora"}
+				fs.subdirs["/samples/my-lora"] = []string{"study-abc"}
+				fs.subdirs["/samples/my-lora/study-abc"] = []string{"sd15"}
+				fs.subdirs["/samples/my-lora/study-abc/sd15"] = []string{"my-lora-step00001000.safetensors"}
+				discovery = service.NewDiscoveryService(fs, nil, []string{"/loras"}, "/samples", logger)
+
+				runs, err := discovery.Discover()
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(runs).To(HaveLen(1))
+				Expect(runs[0].HasSamples).To(BeTrue())
+				Expect(runs[0].Checkpoints[0].HasSamples).To(BeTrue())
+			})
+
+			// B-144 regression: non-LoRA checkpoint-run layout
+			// (run/study/checkpoint) must still be detected.
+			It("detects samples in the checkpoint-run layout (run/study/checkpoint)", func() {
+				fs.files["/checkpoints"] = []string{
+					"qwen/model-step00002000.safetensors",
+				}
+				// Sample tree: /samples/qwen_model/my-study/model-step00002000.safetensors/
+				fs.subdirs["/samples"] = []string{"qwen_model"}
+				fs.subdirs["/samples/qwen_model"] = []string{"my-study"}
+				fs.subdirs["/samples/qwen_model/my-study"] = []string{"model-step00002000.safetensors"}
+				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, nil, "/samples", logger)
+
+				runs, err := discovery.Discover()
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(runs).To(HaveLen(1))
+				Expect(runs[0].HasSamples).To(BeTrue())
+				Expect(runs[0].Checkpoints[0].HasSamples).To(BeTrue())
+			})
+
+			// B-144 regression: legacy study layout ({study}/{checkpoint}) still detected.
+			It("detects samples in the legacy study layout (study/checkpoint)", func() {
+				fs.files["/checkpoints"] = []string{
+					"model-step00003000.safetensors",
+				}
+				fs.subdirs["/samples"] = []string{"legacy-study"}
+				fs.subdirs["/samples/legacy-study"] = []string{"model-step00003000.safetensors"}
+				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, nil, "/samples", logger)
+
+				runs, err := discovery.Discover()
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(runs[0].HasSamples).To(BeTrue())
+				Expect(runs[0].Checkpoints[0].HasSamples).To(BeTrue())
+			})
+
+			// B-144 regression: a checkpoint with samples nested under one layout
+			// must not mark a different checkpoint (same run) that has none.
+			It("only marks checkpoints whose sample directory exists in the tree", func() {
+				fs.files["/loras"] = []string{
+					"my-lora-step00001000.safetensors",
+					"my-lora-step00002000.safetensors",
+				}
+				fs.subdirs["/samples"] = []string{"my-lora"}
+				fs.subdirs["/samples/my-lora"] = []string{"study-abc"}
+				fs.subdirs["/samples/my-lora/study-abc"] = []string{"sd15"}
+				// Only the step-1000 checkpoint has a sample directory.
+				fs.subdirs["/samples/my-lora/study-abc/sd15"] = []string{"my-lora-step00001000.safetensors"}
+				discovery = service.NewDiscoveryService(fs, nil, []string{"/loras"}, "/samples", logger)
+
+				runs, err := discovery.Discover()
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(runs).To(HaveLen(1))
+				Expect(runs[0].HasSamples).To(BeTrue())
+				cpMap := make(map[string]bool)
+				for _, cp := range runs[0].Checkpoints {
+					cpMap[cp.Filename] = cp.HasSamples
+				}
+				Expect(cpMap["my-lora-step00001000.safetensors"]).To(BeTrue())
+				Expect(cpMap["my-lora-step00002000.safetensors"]).To(BeFalse())
 			})
 
 			It("sets has_samples=false on training run when no checkpoints have samples", func() {

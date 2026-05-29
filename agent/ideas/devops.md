@@ -103,3 +103,9 @@ The Makefile hardcodes 12 shards, which can exhaust host resources (12 shards ×
 * priority: low
 * source: qa
 Orphaned `playwright-run` containers from aborted/conflicting E2E runs block subsequent runs by consuming Docker DNS entries. Consider adding a pre-flight cleanup step in `e2e_parallel.sh` to kill containers matching the project prefix pattern before starting a new run.
+
+### SampleDirCleaner explicit preservation list for non-safetensors fixture roots
+* status: needs_approval
+* priority: low
+* source: qa
+`SampleDirCleaner.CleanStudyDirs()` deletes all non-`.safetensors` root directories, so any fixture using a nested (non-flat) sample layout requires a matching `FixtureSeeder` addition to recreate the deleted tree after each reset (as B-144 had to do for `test-lora/`). Consider extending `SampleDirCleaner` to accept an explicit list of protected directory names, making the preservation logic explicit rather than relying on the seeder to recreate deleted dirs.
