@@ -6611,3 +6611,103 @@ stories:
     testing:
       - "command: make test-backend"
       - "command: make test-frontend"
+  - id: B-143
+    title: "Base model dropdown depends on ComfyUI instead of base_model_dir"
+    status: done
+    priority: 90
+    complexity: medium
+    requires: []
+    notes: |
+      The base model dropdown in the job launch dialog (S-148) fetches from ComfyUI's
+      UNET model list via getComfyUIModels('unet'). When ComfyUI is offline, the
+      dropdown is empty and LoRA jobs cannot be launched.
+
+      The spike (docs/spike-lora-support.md section 13) specified a dedicated
+      GET /api/base-models endpoint sourced from the base_model_dir config key
+      (falling back to checkpoint_dirs[0]). This was never implemented — S-148
+      took a shortcut and reused the ComfyUI proxy.
+
+      Fix: implement the spike-specified endpoint and switch the frontend to use it.
+      This removes the ComfyUI dependency for base model selection entirely.
+    testing:
+      - "BE: endpoint returns .safetensors files from base_model_dir recursively"
+      - "BE: falls back to checkpoint_dirs[0] when base_model_dir is empty"
+      - "BE: returns empty list gracefully when dir has no .safetensors files"
+      - "FE: dropdown populates from new endpoint, not ComfyUI"
+      - "FE: works when ComfyUI is offline"
+    acceptance:
+      - "BE: New GET /api/base-models endpoint scans base_model_dir for .safetensors files"
+      - "BE: Falls back to checkpoint_dirs[0] when base_model_dir is not configured"
+      - "BE: Goa DSL design, codegen, and tests pass"
+      - "FE: Job launch dialog base model dropdown calls /api/base-models instead of ComfyUI UNET proxy"
+      - "FE: Base model dropdown populates correctly when ComfyUI is offline"
+      - "FE: Existing LoRA job launch flow unchanged (payload still includes base_model field)"
+  - id: B-144
+    title: "Existing LoRA samples not detected — no green bead, validation shows no samples despite images in grid"
+    status: done
+    priority: 65
+    complexity: medium
+    type: bug
+    requires: []
+    notes: |
+      For a LoRA training run that already has samples generated on disk, the
+      Generate Samples UI shows the LoRA badge (correct) but:
+        - no green bead on the Jobs nav button
+        - checkpoint validation status reports "no samples"
+      Yet the images render correctly in the image grid, so the backend clearly has
+      filesystem access to them — the sample-presence detection and the sample-grid
+      listing use different code paths, and only the detection path fails for LoRA.
+
+      The green bead keys off run.has_samples (frontend/src/composables/beadStatus.ts:
+      "hasCompleted || run.has_samples"); the checkpoint validation status uses the
+      same has_samples signal. So has_samples is being computed false for LoRA runs.
+
+      Likely cause: the sample-presence scan expects the checkpoint-run sample
+      directory layout and does not account for the extra LoRA layout level. Example
+      on-disk LoRA sample path (CIFS \\lucy\ai\outputs\...):
+        {training_run}/{study}-lora/{base_model_name}/{lora_filename}.safetensors
+      i.e. LoRA sample output is nested under an additional {base_model_name} folder
+      that the checkpoint-run layout does not have.
+    testing:
+      - "Reproduce with a LoRA run that has existing samples on disk but no tracked SampleJob"
+      - "Confirm has_samples becomes true and the green bead shows for LoRA runs with samples"
+      - "Verify the sample-grid listing and the has_samples detection agree (same files counted)"
+      - "Regression: checkpoint (non-LoRA) runs still detect samples correctly"
+      - "Cover the extra {base_model_name} nesting level in the LoRA sample path"
+    acceptance:
+      - "BE: has_samples (and the checkpoint validation status) correctly detects existing samples for LoRA training runs"
+      - "BE: LoRA sample detection accounts for the additional {base_model_name} directory level in the sample path layout"
+      - "FE: the Jobs nav green bead appears for a LoRA run that has samples on disk"
+      - "FE: checkpoint validation status no longer reports 'no samples' when samples exist and render in the grid"
+      - "BE: non-LoRA checkpoint runs continue to detect samples (no regression)"
+  - id: B-145
+    title: "Base model not remembered when selecting a training-run/study with existing samples"
+    status: done
+    priority: 50
+    complexity: medium
+    type: bug
+    requires: []
+    notes: |
+      In Generate Samples, selecting a training-run + study combination does not
+      re-select the base model that was used for previously generated samples. The
+      base model dropdown resets to empty even when samples already exist for that
+      run/study.
+
+      The dialog already restores job.base_model when a prior SampleJob record is
+      loaded (frontend/src/components/JobLaunchDialog.vue:1278). The gap: when there
+      is no loaded job record but samples already exist on disk, the base model is
+      not recovered. It should be derived from existing metadata — the sample
+      manifest and/or the database record associated with the prior generation —
+      so the dropdown pre-selects the base model that produced the existing samples.
+    testing:
+      - "Reproduce: select a run/study that has existing samples but no actively loaded SampleJob; base model dropdown is
+        empty"
+      - "Verify base model pre-selects from the persisted source (manifest/db) when samples exist"
+      - "Determine the authoritative source of the prior base_model (sample manifest vs sample_job db record) during implementation"
+      - "Graceful fallback when no prior base model can be determined (dropdown stays empty, no error)"
+      - "No regression to the existing job.base_model restore path (JobLaunchDialog.vue:1278)"
+    acceptance:
+      - "BE: prior base model for a run/study can be resolved from existing sample metadata (manifest and/or db record)"
+      - "FE: base model dropdown pre-selects the remembered base model when a run/study with existing samples is chosen"
+      - "FE: when no prior base model exists, the dropdown remains empty without error"
+      - "FE: existing restore-from-loaded-job behavior is preserved"
