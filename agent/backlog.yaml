@@ -246,7 +246,7 @@ stories:
       sampling parameter additions (strength), and UI/UX for LoRA vs checkpoint distinction.
   - id: B-143
     title: "Base model dropdown depends on ComfyUI instead of base_model_dir"
-    status: uat_feedback
+    status: uat
     priority: 90
     complexity: medium
     requires: []
@@ -275,29 +275,6 @@ stories:
       - "FE: Job launch dialog base model dropdown calls /api/base-models instead of ComfyUI UNET proxy"
       - "FE: Base model dropdown populates correctly when ComfyUI is offline"
       - "FE: Existing LoRA job launch flow unchanged (payload still includes base_model field)"
-    review_feedback: "LoRA job launch fails at ComfyUI submission (status 400, value_not_in_list).\n\nRoot cause (confirmed
-      against the live ComfyUI API): the base model is submitted\nas unet_name using the base_model_dir relative path\n(e.g.
-      \"qwen/qwen_image_2512_bf16.safetensors\"), but ComfyUI's UNETLoader exposes\nthat same physical file as \"checkpoints/qwen/qwen_image_2512_bf16.safetensors\"\
-      .\nUNETLoader scans BOTH its diffusion_models and checkpoints folders and prefixes\nthe checkpoints-folder entries with
-      \"checkpoints/\". The base_model_dir relative\npath matches the CheckpointLoaderSimple ckpt_name namespace, NOT the
-      unet_name\nnamespace the workflow's UNETLoader node requires.\n\nDo NOT revert the dropdown to ComfyUI's UNET list.
-      That list is polluted with\n~170 training artifacts (optimizer.bin, .pkl, random_states, every step\ncheckpoint). The
-      curated base_model_dir dropdown (the work already done for the\noriginal AC) must stay — it is the clean, offline-capable
-      source.\n\nFix = translate at submission. In substituteWorkflow (job_executor.go ~1244),\nbefore submitting, resolve
-      job.BaseModel to ComfyUI's authoritative unet_name by\nmatching against the live UNETLoader (unet_name) list:\n  - Prefer
-      an entry whose trailing path equals the selected relative path.\n  - Fall back to a basename match.\n  - Submit the
-      exact ComfyUI-provided string (with whatever folder prefix it\n    carries), never the raw base_model_dir path.\n\n\
-      Error handling (required):\n  - If NO unet_name entry matches the selected base model, return a clear error\n    explaining
-      the base model was not found in ComfyUI's UNET list and how to\n    remedy it (place/register the model in ComfyUI's
-      diffusion_models or\n    checkpoints folder so it appears in UNETLoader).\n  - If TWO OR MORE unet_name entries match
-      the same base model across different\n    namespaces/folders (ambiguous), do NOT guess — return an error that names\n\
-      \    the conflicting candidate paths and explains how to disambiguate (e.g. make\n    the base_model_dir selection unambiguous,
-      or remove/rename the duplicate so\n    only one UNETLoader entry matches).\n\nNew acceptance criteria for this rework:\n\
-      \  - BE: substituteWorkflow resolves job.BaseModel to a ComfyUI unet_name entry\n    before submission (trailing-path
-      match, basename fallback).\n  - BE: returns a clear, actionable error when no unet_name match is found.\n  - BE: returns
-      a clear, actionable error naming the conflicting paths when the\n    base model matches 2+ unet_name entries across
-      namespaces.\n  - BE: the curated base_model_dir dropdown source is unchanged (no revert to\n    the ComfyUI UNET proxy).\n\
-      \  - E2E/manual: a LoRA job submits successfully and ComfyUI loads the base model\n    into the UNETLoader without value_not_in_list."
   - id: B-144
     title: "Existing LoRA samples not detected — no green bead, validation shows no samples despite images in grid"
     status: todo

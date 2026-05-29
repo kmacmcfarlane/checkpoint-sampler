@@ -17,6 +17,7 @@ Older entries are condensed to titles only — see git history for full details.
 ### B-143: Base model dropdown depends on ComfyUI instead of base_model_dir
 - New `GET /api/base-models` endpoint scans `base_model_dir` (or `checkpoint_dirs[0]` fallback) for `.safetensors` files directly from the filesystem, removing the ComfyUI dependency for base model selection
 - Frontend job launch dialog now calls the dedicated endpoint instead of the ComfyUI UNET proxy, so LoRA jobs can be launched even when ComfyUI is offline
+- Workflow substitution translates the curated `base_model_dir` path to ComfyUI's authoritative `unet_name` before submission (trailing-path match, basename fallback), fixing the LoRA-job `value_not_in_list` rejection; unresolvable or ambiguous matches fail the job item with an actionable error naming the conflicting candidates
 
 ### B-140: Job launch dialog allows LoRA runs with non-LoRA workflows
 - Workflow API responses now include a derived `lora_capable` boolean (true when `lora_loader` cs_role is present)

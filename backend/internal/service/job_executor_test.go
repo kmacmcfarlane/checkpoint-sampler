@@ -15,18 +15,31 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-
 // Mock implementations
 
+// fakeUNETProvider is a ComfyUIModelsProvider test double that returns a fixed
+// UNET (unet_name) list. Used to exercise base model -> unet_name resolution.
+type fakeUNETProvider struct {
+	unets []string
+	err   error
+}
+
+func (f *fakeUNETProvider) GetModels(_ context.Context, _ ComfyUIModelType) ([]string, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.unets, nil
+}
+
 type mockJobExecutorStore struct {
-	jobs             map[string]model.SampleJob
-	items            map[string][]model.SampleJobItem
-	studies          map[string]model.Study
-	updateJobError   error
-	updateItemError  error
+	jobs            map[string]model.SampleJob
+	items           map[string][]model.SampleJobItem
+	studies         map[string]model.Study
+	updateJobError  error
+	updateItemError error
 	// onUpdateJob is an optional callback invoked during UpdateSampleJob (before the write).
 	// Used by tests that need to inspect executor state at the exact moment of a DB write.
-	onUpdateJob      func(model.SampleJob)
+	onUpdateJob func(model.SampleJob)
 }
 
 func newMockJobExecutorStore() *mockJobExecutorStore {
@@ -96,14 +109,14 @@ func (m *mockJobExecutorStore) GetStudy(id string) (model.Study, error) {
 }
 
 type mockComfyUIClient struct {
-	submitErr         error
-	promptResponse    *model.PromptResponse
-	lastSubmittedReq  *model.PromptRequest
-	historyResponse   model.HistoryResponse
-	historyErr        error
-	downloadData      []byte
-	downloadErr       error
-	cancelErr         error
+	submitErr        error
+	promptResponse   *model.PromptResponse
+	lastSubmittedReq *model.PromptRequest
+	historyResponse  model.HistoryResponse
+	historyErr       error
+	downloadData     []byte
+	downloadErr      error
+	cancelErr        error
 }
 
 func (m *mockComfyUIClient) SubmitPrompt(ctx context.Context, req model.PromptRequest) (*model.PromptResponse, error) {
@@ -136,11 +149,11 @@ func (m *mockComfyUIClient) CancelPrompt(ctx context.Context, promptID string) e
 }
 
 type mockComfyUIWS struct {
-	handlers            []model.ComfyUIEventHandler
-	disconnectHandler   func()
-	connectErr          error
-	closeErr            error
-	clientID            string
+	handlers          []model.ComfyUIEventHandler
+	disconnectHandler func()
+	connectErr        error
+	closeErr          error
+	clientID          string
 }
 
 func (m *mockComfyUIWS) AddHandler(handler model.ComfyUIEventHandler) {
@@ -252,9 +265,9 @@ func (m *mockFileSystemWriter) RenameFile(oldPath, newPath string) error {
 
 type mockFileSystemReader struct {
 	// files maps directory paths to lists of PNG filenames in that directory
-	files       map[string][]string
-	dirs        map[string]bool
-	listErr     error
+	files   map[string][]string
+	dirs    map[string]bool
+	listErr error
 }
 
 func newMockFileSystemReader() *mockFileSystemReader {
@@ -295,15 +308,15 @@ func (m *mockDirRemover) RemoveCheckpointOutputDir(trainingRunName string, study
 
 var _ = Describe("JobExecutor", func() {
 	var (
-		executor    *JobExecutor
-		mockStore   *mockJobExecutorStore
-		mockClient  *mockComfyUIClient
-		mockWS      *mockComfyUIWS
-		mockLoader  *mockWorkflowLoader
-		mockHub     *mockEventHub
-		mockFS      *mockFileSystemWriter
-		mockFSRead  *mockFileSystemReader
-		logger      *logrus.Logger
+		executor   *JobExecutor
+		mockStore  *mockJobExecutorStore
+		mockClient *mockComfyUIClient
+		mockWS     *mockComfyUIWS
+		mockLoader *mockWorkflowLoader
+		mockHub    *mockEventHub
+		mockFS     *mockFileSystemWriter
+		mockFSRead *mockFileSystemReader
+		logger     *logrus.Logger
 	)
 
 	BeforeEach(func() {
@@ -1104,6 +1117,64 @@ var _ = Describe("JobExecutor", func() {
 			Expect(inputs1["unet_name"]).To(Equal("models/unet/flux1-dev.safetensors"))
 		})
 
+		// AC: BE: substituteWorkflow resolves job.BaseModel to a ComfyUI unet_name
+		// entry before submission (trailing-path match against the live UNET list).
+		It("resolves job.BaseModel to the authoritative ComfyUI unet_name", func() {
+			executor.SetBaseModelMatcher(&fakeUNETProvider{unets: []string{
+				"checkpoints/qwen/qwen_image_2512_bf16.safetensors",
+				"flux/flux1-dev.safetensors",
+			}})
+			job := model.SampleJob{
+				ID:        "job-lora-resolve",
+				BaseModel: "qwen/qwen_image_2512_bf16.safetensors",
+			}
+			item := model.SampleJobItem{ComfyUIModelPath: "", LoraModelPath: "loras/my_lora.safetensors"}
+
+			result, err := executor.substituteWorkflow(mockLoader.workflow, job, item)
+			Expect(err).ToNot(HaveOccurred())
+
+			node1 := result["1"].(map[string]interface{})
+			inputs1 := node1["inputs"].(map[string]interface{})
+			// The exact ComfyUI-provided string (with checkpoints/ prefix) must be submitted.
+			Expect(inputs1["unet_name"]).To(Equal("checkpoints/qwen/qwen_image_2512_bf16.safetensors"))
+		})
+
+		// AC: BE: returns a clear, actionable error when no unet_name match is found.
+		It("fails substitution when the base model is not in ComfyUI's UNET list", func() {
+			executor.SetBaseModelMatcher(&fakeUNETProvider{unets: []string{
+				"flux/flux1-dev.safetensors",
+			}})
+			job := model.SampleJob{
+				ID:        "job-lora-nomatch",
+				BaseModel: "qwen/missing.safetensors",
+			}
+			item := model.SampleJobItem{LoraModelPath: "loras/my_lora.safetensors"}
+
+			_, err := executor.substituteWorkflow(mockLoader.workflow, job, item)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("was not found in ComfyUI's UNET"))
+		})
+
+		// AC: BE: returns a clear, actionable error naming the conflicting paths
+		// when the base model matches 2+ unet_name entries across namespaces.
+		It("fails substitution when the base model is ambiguous across UNET namespaces", func() {
+			executor.SetBaseModelMatcher(&fakeUNETProvider{unets: []string{
+				"checkpoints/qwen/model.safetensors",
+				"diffusion_models/qwen/model.safetensors",
+			}})
+			job := model.SampleJob{
+				ID:        "job-lora-ambiguous",
+				BaseModel: "qwen/model.safetensors",
+			}
+			item := model.SampleJobItem{LoraModelPath: "loras/my_lora.safetensors"}
+
+			_, err := executor.substituteWorkflow(mockLoader.workflow, job, item)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("matches multiple ComfyUI UNET entries"))
+			Expect(err.Error()).To(ContainSubstring("checkpoints/qwen/model.safetensors"))
+			Expect(err.Error()).To(ContainSubstring("diffusion_models/qwen/model.safetensors"))
+		})
+
 		// AC: BE: For checkpoint jobs (no BaseModel), unet_loader uses item.ComfyUIModelPath
 		It("substitutes unet_loader with item.ComfyUIModelPath for checkpoint jobs", func() {
 			job := model.SampleJob{
@@ -1638,19 +1709,19 @@ var _ = Describe("JobExecutor", func() {
 				WorkflowName: "test-workflow.json",
 			}
 			item := model.SampleJobItem{
-				ID:               "item-params-start-1",
-				JobID:            job.ID,
-				Status:           model.SampleJobItemStatusPending,
-				ComfyUIModelPath: "models/checkpoint.safetensors",
+				ID:                 "item-params-start-1",
+				JobID:              job.ID,
+				Status:             model.SampleJobItemStatusPending,
+				ComfyUIModelPath:   "models/checkpoint.safetensors",
 				CheckpointFilename: "checkpoint.safetensors",
-				PromptName:       "forest",
-				CFG:              7.5,
-				Steps:            20,
-				SamplerName:      "euler",
-				Scheduler:        "normal",
-				Seed:             42,
-				Width:            512,
-				Height:           768,
+				PromptName:         "forest",
+				CFG:                7.5,
+				Steps:              20,
+				SamplerName:        "euler",
+				Scheduler:          "normal",
+				Seed:               42,
+				Width:              512,
+				Height:             768,
 			}
 			mockStore.jobs[job.ID] = job
 			mockStore.items[job.ID] = []model.SampleJobItem{item}
@@ -2973,13 +3044,13 @@ var _ = Describe("JobExecutor", func() {
 
 		BeforeEach(func() {
 			job = model.SampleJob{
-				ID:           "job-1",
-				StudyID:      "study-completion-1",
-				StudyName:    "Test Study",
-				Status:       model.SampleJobStatusRunning,
-				WorkflowName: "flux_dev.json",
-				VAE:          "ae.safetensors",
-				TotalItems:   1,
+				ID:             "job-1",
+				StudyID:        "study-completion-1",
+				StudyName:      "Test Study",
+				Status:         model.SampleJobStatusRunning,
+				WorkflowName:   "flux_dev.json",
+				VAE:            "ae.safetensors",
+				TotalItems:     1,
 				CompletedItems: 0,
 			}
 			item = model.SampleJobItem{
@@ -3159,13 +3230,13 @@ var _ = Describe("JobExecutor", func() {
 			items := []model.SampleJobItem{
 				{
 					ID: "i1", JobID: job.ID, CheckpointFilename: "ckpt1.safetensors",
-					Status: model.SampleJobItemStatusCompleted,
+					Status:     model.SampleJobItemStatusCompleted,
 					PromptName: "forest", Steps: 20, CFG: 7.5,
 					SamplerName: "euler", Scheduler: "normal", Seed: 42,
 				},
 				{
 					ID: "i2", JobID: job.ID, CheckpointFilename: "ckpt1.safetensors",
-					Status: model.SampleJobItemStatusCompleted,
+					Status:     model.SampleJobItemStatusCompleted,
 					PromptName: "city", Steps: 20, CFG: 7.5,
 					SamplerName: "euler", Scheduler: "normal", Seed: 42,
 				},
@@ -3197,13 +3268,13 @@ var _ = Describe("JobExecutor", func() {
 			items := []model.SampleJobItem{
 				{
 					ID: "i1", JobID: job.ID, CheckpointFilename: "ckpt1.safetensors",
-					Status: model.SampleJobItemStatusCompleted,
+					Status:     model.SampleJobItemStatusCompleted,
 					PromptName: "forest", Steps: 20, CFG: 7.5,
 					SamplerName: "euler", Scheduler: "normal", Seed: 42,
 				},
 				{
 					ID: "i2", JobID: job.ID, CheckpointFilename: "ckpt1.safetensors",
-					Status: model.SampleJobItemStatusCompleted,
+					Status:     model.SampleJobItemStatusCompleted,
 					PromptName: "city", Steps: 20, CFG: 7.5,
 					SamplerName: "euler", Scheduler: "normal", Seed: 42,
 				},
@@ -3232,7 +3303,7 @@ var _ = Describe("JobExecutor", func() {
 			items := []model.SampleJobItem{
 				{
 					ID: "i1", JobID: job.ID, CheckpointFilename: "ckpt-missing.safetensors",
-					Status: model.SampleJobItemStatusCompleted,
+					Status:     model.SampleJobItemStatusCompleted,
 					PromptName: "forest", Steps: 20, CFG: 7.5,
 					SamplerName: "euler", Scheduler: "normal", Seed: 42,
 				},
@@ -3272,7 +3343,7 @@ var _ = Describe("JobExecutor", func() {
 			items := []model.SampleJobItem{
 				{
 					ID: "i1", JobID: job.ID, CheckpointFilename: "ckpt-err.safetensors",
-					Status: model.SampleJobItemStatusCompleted,
+					Status:     model.SampleJobItemStatusCompleted,
 					PromptName: "forest", Steps: 20, CFG: 7.5,
 					SamplerName: "euler", Scheduler: "normal", Seed: 42,
 				},
@@ -3301,13 +3372,13 @@ var _ = Describe("JobExecutor", func() {
 			items := []model.SampleJobItem{
 				{
 					ID: "i1", JobID: job.ID, CheckpointFilename: "ckpt1.safetensors",
-					Status: model.SampleJobItemStatusCompleted,
+					Status:     model.SampleJobItemStatusCompleted,
 					PromptName: "forest", Steps: 20, CFG: 7.5,
 					SamplerName: "euler", Scheduler: "normal", Seed: 42,
 				},
 				{
 					ID: "i2", JobID: job.ID, CheckpointFilename: "ckpt2.safetensors",
-					Status: model.SampleJobItemStatusCompleted,
+					Status:     model.SampleJobItemStatusCompleted,
 					PromptName: "city", Steps: 20, CFG: 7.5,
 					SamplerName: "euler", Scheduler: "normal", Seed: 42,
 				},
@@ -3352,13 +3423,13 @@ var _ = Describe("JobExecutor", func() {
 			items := []model.SampleJobItem{
 				{
 					ID: "i1", JobID: job.ID, CheckpointFilename: "ckpt1.safetensors",
-					Status: model.SampleJobItemStatusCompleted,
+					Status:     model.SampleJobItemStatusCompleted,
 					PromptName: "forest", Steps: 20, CFG: 7.5,
 					SamplerName: "euler", Scheduler: "normal", Seed: 42,
 				},
 				{
 					ID: "i2", JobID: job.ID, CheckpointFilename: "ckpt1.safetensors",
-					Status: model.SampleJobItemStatusCompleted,
+					Status:     model.SampleJobItemStatusCompleted,
 					PromptName: "city", Steps: 20, CFG: 7.5,
 					SamplerName: "euler", Scheduler: "normal", Seed: 42,
 				},
@@ -3431,7 +3502,7 @@ var _ = Describe("JobExecutor", func() {
 			mockStore.items[job.ID] = []model.SampleJobItem{
 				{
 					ID: "i1", JobID: job.ID, CheckpointFilename: "ckpt1.safetensors",
-					Status: model.SampleJobItemStatusCompleted,
+					Status:     model.SampleJobItemStatusCompleted,
 					PromptName: "forest", Steps: 20, CFG: 7.5,
 					SamplerName: "euler", Scheduler: "normal", Seed: 42,
 				},
@@ -3678,8 +3749,8 @@ var _ = Describe("JobExecutor", func() {
 				Status:          model.SampleJobStatusCompleted,
 			}
 			mockStore.studies["study-manifest-1"] = model.Study{
-				ID:      "study-manifest-1",
-				Name:    "Manifest Study",
+				ID:   "study-manifest-1",
+				Name: "Manifest Study",
 				Prompts: []model.NamedPrompt{
 					{Name: "forest", Text: "a dense forest"},
 				},

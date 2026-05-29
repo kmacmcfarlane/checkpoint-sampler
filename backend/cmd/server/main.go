@@ -214,6 +214,8 @@ func run() error {
 		// Wire the executor and service together (avoiding circular dependency)
 		sampleJobSvc.SetExecutor(jobExecutor)
 		jobExecutor.SetDirRemover(dirRemover)
+		// B-143: resolve curated base_model_dir paths to ComfyUI unet_name at submission.
+		jobExecutor.SetBaseModelMatcher(modelDiscovery)
 
 		// Start the job executor (non-fatal if ComfyUI is unreachable)
 		if err := jobExecutor.Start(); err != nil {
@@ -256,29 +258,29 @@ func run() error {
 	// Build the HTTP handler with all transport setup
 	// st satisfies the JobSeeder interface via its SeedSampleJobs method.
 	handler := api.NewHTTPHandler(api.HTTPHandlerConfig{
-		HealthEndpoints:        healthEndpoints,
-		DocsEndpoints:          docsEndpoints,
-		TrainingRunEndpoints:   trainingRunsEndpoints,
-		PresetsEndpoints:       presetsEndpoints,
-		StudiesEndpoints:       studiesEndpoints,
-		SampleJobsEndpoints:    sampleJobsEndpoints,
-		BaseModelsEndpoints:    baseModelsEndpoints,
-		CheckpointsEndpoints:   checkpointsEndpoints,
-		ComfyUIEndpoints:       comfyuiEndpoints,
-		WorkflowsEndpoints:     workflowsEndpoints,
-		ImagesEndpoints:        imagesEndpoints,
-		WSEndpoints:            wsEndpoints,
-		DemoEndpoints:          demoEndpoints,
-		SwaggerUIDir:           http.Dir(swaggerUIDir()),
-		Logger:                 logger,
-		Debug:                  true,
-		WsPingInterval:         wsPingInterval,
-		DBResetter:             st,
-		BackgroundPauser:       bgPauser,
-		SampleDirCleaner:       sampleDirCleaner,
-		FixtureSeeder:          fixtureSeeder,
-		JobSeeder:              st,
-		PartialSampleSeeder:    partialSampleSeeder,
+		HealthEndpoints:      healthEndpoints,
+		DocsEndpoints:        docsEndpoints,
+		TrainingRunEndpoints: trainingRunsEndpoints,
+		PresetsEndpoints:     presetsEndpoints,
+		StudiesEndpoints:     studiesEndpoints,
+		SampleJobsEndpoints:  sampleJobsEndpoints,
+		BaseModelsEndpoints:  baseModelsEndpoints,
+		CheckpointsEndpoints: checkpointsEndpoints,
+		ComfyUIEndpoints:     comfyuiEndpoints,
+		WorkflowsEndpoints:   workflowsEndpoints,
+		ImagesEndpoints:      imagesEndpoints,
+		WSEndpoints:          wsEndpoints,
+		DemoEndpoints:        demoEndpoints,
+		SwaggerUIDir:         http.Dir(swaggerUIDir()),
+		Logger:               logger,
+		Debug:                true,
+		WsPingInterval:       wsPingInterval,
+		DBResetter:           st,
+		BackgroundPauser:     bgPauser,
+		SampleDirCleaner:     sampleDirCleaner,
+		FixtureSeeder:        fixtureSeeder,
+		JobSeeder:            st,
+		PartialSampleSeeder:  partialSampleSeeder,
 	})
 
 	// Create HTTP server

@@ -79,22 +79,28 @@ type JobExecutor struct {
 	reconnectInterval time.Duration
 	logger            *logrus.Entry
 
-	dirRemover        SampleDirRemover // optional; used for clear-existing at job start
+	dirRemover SampleDirRemover // optional; used for clear-existing at job start
 
-	mu                       sync.Mutex
-	activeJobID              string
-	activeItemID             string
-	activePromptID           string
-	stopRequested            bool
-	connected                bool
-	everConnected            bool // true after the first successful connection; distinguishes reconnects from the initial connect
-	paused                   bool
-	checkpointCompleteness   map[string]model.CheckpointCompletenessInfo
-	ctx                      context.Context
-	cancel                   context.CancelFunc
-	shutdownCh               chan struct{}
-	shutdownComplete         chan struct{}
-	started                  bool
+	// baseModelMatcher resolves a curated base_model_dir relative path to the
+	// authoritative ComfyUI unet_name for LoRA jobs. Optional: when nil, the
+	// raw job.BaseModel is submitted unchanged (preserves legacy behavior for
+	// tests and ComfyUI-disabled setups).
+	baseModelMatcher ComfyUIModelsProvider
+
+	mu                     sync.Mutex
+	activeJobID            string
+	activeItemID           string
+	activePromptID         string
+	stopRequested          bool
+	connected              bool
+	everConnected          bool // true after the first successful connection; distinguishes reconnects from the initial connect
+	paused                 bool
+	checkpointCompleteness map[string]model.CheckpointCompletenessInfo
+	ctx                    context.Context
+	cancel                 context.CancelFunc
+	shutdownCh             chan struct{}
+	shutdownComplete       chan struct{}
+	started                bool
 
 	// sampleStartTime records when the current sample began processing.
 	// Set in processItem, read in handleItemCompletionAsync.
@@ -138,24 +144,24 @@ func NewJobExecutorWithThumbnails(
 ) *JobExecutor {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &JobExecutor{
-		store:                    store,
-		comfyuiClient:            comfyuiClient,
-		comfyuiWS:                comfyuiWS,
-		workflowLoader:           workflowLoader,
-		hub:                      hub,
-		sampleDir:                sampleDir,
-		fsWriter:                 fsWriter,
-		fsReader:                 fsReader,
-		thumbGen:                 thumbGen,
-		reconnectInterval:        reconnectInterval,
-		logger:                   logger.WithField("component", "job_executor"),
-		checkpointCompleteness:   make(map[string]model.CheckpointCompletenessInfo),
-		ctx:                      ctx,
-		cancel:                   cancel,
-		shutdownCh:               make(chan struct{}),
-		shutdownComplete:         make(chan struct{}),
-		sampleTiming:             NewMovingAverage(sampleTimingWindowSize),
-		timeNow:                  time.Now,
+		store:                  store,
+		comfyuiClient:          comfyuiClient,
+		comfyuiWS:              comfyuiWS,
+		workflowLoader:         workflowLoader,
+		hub:                    hub,
+		sampleDir:              sampleDir,
+		fsWriter:               fsWriter,
+		fsReader:               fsReader,
+		thumbGen:               thumbGen,
+		reconnectInterval:      reconnectInterval,
+		logger:                 logger.WithField("component", "job_executor"),
+		checkpointCompleteness: make(map[string]model.CheckpointCompletenessInfo),
+		ctx:                    ctx,
+		cancel:                 cancel,
+		shutdownCh:             make(chan struct{}),
+		shutdownComplete:       make(chan struct{}),
+		sampleTiming:           NewMovingAverage(sampleTimingWindowSize),
+		timeNow:                time.Now,
 	}
 }
 
@@ -163,6 +169,14 @@ func NewJobExecutorWithThumbnails(
 // This is optional; if not set, clear_existing jobs will skip filesystem cleanup.
 func (e *JobExecutor) SetDirRemover(remover SampleDirRemover) {
 	e.dirRemover = remover
+}
+
+// SetBaseModelMatcher wires the ComfyUI models provider used to resolve a
+// curated base_model_dir relative path to the authoritative unet_name before
+// submitting a LoRA job. When unset, the raw job.BaseModel is submitted
+// unchanged.
+func (e *JobExecutor) SetBaseModelMatcher(provider ComfyUIModelsProvider) {
+	e.baseModelMatcher = provider
 }
 
 // Start begins the background executor goroutine and resumes any running jobs.
@@ -336,9 +350,9 @@ func (e *JobExecutor) recoverStuckItems() {
 			e.mu.Lock()
 			if e.activeItemID != "" {
 				e.logger.WithFields(logrus.Fields{
-					"job_id":           job.ID,
-					"item_id":          item.ID,
-					"active_item_id":   e.activeItemID,
+					"job_id":         job.ID,
+					"item_id":        item.ID,
+					"active_item_id": e.activeItemID,
 				}).Warn("recoverStuckItems: active slot already taken, skipping recovery for this item")
 				e.mu.Unlock()
 				continue
@@ -1180,10 +1194,10 @@ func (e *JobExecutor) handleItemCompletionAsync(jobID, itemID, promptID string) 
 		e.sampleTiming.Add(duration)
 		e.sampleStartTime = time.Time{}
 		e.logger.WithFields(logrus.Fields{
-			"item_id":          itemID,
-			"sample_duration":  duration.String(),
-			"moving_avg":       e.sampleTiming.Average().String(),
-			"sample_count":     e.sampleTiming.Count(),
+			"item_id":         itemID,
+			"sample_duration": duration.String(),
+			"moving_avg":      e.sampleTiming.Average().String(),
+			"sample_count":    e.sampleTiming.Count(),
 		}).Debug("recorded sample duration for ETA")
 	}
 	e.mu.Unlock()
@@ -1241,7 +1255,17 @@ func (e *JobExecutor) substituteNode(workflow map[string]interface{}, nodeID str
 		// For LoRA jobs, the unet_loader receives the base model path from the job;
 		// for checkpoint jobs, it receives the per-item ComfyUI model path.
 		if job.BaseModel != "" {
-			inputs["unet_name"] = job.BaseModel
+			// B-143: job.BaseModel is a curated base_model_dir relative path,
+			// which lives in the CheckpointLoaderSimple ckpt_name namespace, NOT
+			// the unet_name namespace the UNETLoader node requires. Resolve it to
+			// the authoritative unet_name ComfyUI exposes for the same file before
+			// submitting, otherwise ComfyUI rejects the prompt with
+			// value_not_in_list (HTTP 400).
+			unetName, err := e.resolveBaseModelUNET(job.BaseModel)
+			if err != nil {
+				return fmt.Errorf("resolving base model to ComfyUI unet_name: %w", err)
+			}
+			inputs["unet_name"] = unetName
 		} else {
 			inputs["unet_name"] = item.ComfyUIModelPath
 		}
@@ -1295,6 +1319,44 @@ func (e *JobExecutor) substituteNode(workflow map[string]interface{}, nodeID str
 	}
 
 	return nil
+}
+
+// resolveBaseModelUNET translates a curated base_model_dir relative path into
+// the authoritative ComfyUI unet_name by matching it against the live
+// UNETLoader (unet_name) list. When no models provider is configured, the raw
+// base model is returned unchanged (legacy behavior).
+func (e *JobExecutor) resolveBaseModelUNET(baseModel string) (string, error) {
+	e.logger.WithField("base_model", baseModel).Trace("entering resolveBaseModelUNET")
+	defer e.logger.Trace("returning from resolveBaseModelUNET")
+
+	if e.baseModelMatcher == nil {
+		e.logger.WithField("base_model", baseModel).Debug("no base model matcher configured, submitting raw base model path")
+		return baseModel, nil
+	}
+
+	unetNames, err := e.baseModelMatcher.GetModels(e.ctx, ComfyUIModelTypeUNET)
+	if err != nil {
+		e.logger.WithFields(logrus.Fields{
+			"base_model": baseModel,
+			"error":      err.Error(),
+		}).Error("failed to query ComfyUI for UNET models")
+		return "", fmt.Errorf("querying ComfyUI UNET models: %w", err)
+	}
+
+	unetName, err := resolveBaseModelUNETName(baseModel, unetNames)
+	if err != nil {
+		e.logger.WithFields(logrus.Fields{
+			"base_model": baseModel,
+			"unet_count": len(unetNames),
+			"error":      err.Error(),
+		}).Error("failed to resolve base model to ComfyUI unet_name")
+		return "", err
+	}
+	e.logger.WithFields(logrus.Fields{
+		"base_model": baseModel,
+		"unet_name":  unetName,
+	}).Debug("resolved base model to ComfyUI unet_name")
+	return unetName, nil
 }
 
 // generateFilenamePrefixForJob generates a prefix for ComfyUI's save_image node.
@@ -2105,10 +2167,10 @@ func (e *JobExecutor) broadcastJobProgress(jobID string) {
 	}
 	e.hub.Broadcast(event)
 	e.logger.WithFields(logrus.Fields{
-		"job_id":       jobID,
-		"completed":    completed,
-		"failed":       failed,
-		"pending":      pending,
+		"job_id":    jobID,
+		"completed": completed,
+		"failed":    failed,
+		"pending":   pending,
 	}).Debug("broadcasted job progress event")
 }
 
