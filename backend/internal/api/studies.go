@@ -312,6 +312,7 @@ func (s *StudiesService) Availability(ctx context.Context, p *genstudies.Availab
 			SampleStatus:           string(a.SampleStatus),
 			CheckpointsWithSamples: a.CheckpointsWithSamples,
 			TotalCheckpoints:       a.TotalCheckpoints,
+			BaseModels:             a.BaseModels,
 		}
 	}
 

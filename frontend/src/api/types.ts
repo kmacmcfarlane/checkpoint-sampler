@@ -387,6 +387,13 @@ export interface StudyAvailability {
   checkpoints_with_samples: number
   /** Total number of checkpoints in the training run. */
   total_checkpoints: number
+  /**
+   * Base-model directory names (base model filename without extension) that
+   * produced existing LoRA samples for this study. Empty for checkpoint runs
+   * or when no LoRA samples exist. Used to pre-select the remembered base model
+   * in the Generate Samples dialog (B-145).
+   */
+  base_models?: string[]
 }
 
 /** A training run that has generated samples for a study. */

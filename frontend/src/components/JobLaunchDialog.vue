@@ -608,6 +608,17 @@ watch(selectedTrainingRunId, async (runId) => {
   }
 })
 
+// B-145: When the study selection or availability data changes, attempt to
+// pre-select the base model that produced the existing samples for the selected
+// LoRA run + study. The availability fetch and the base model dropdown fetch are
+// independent async sources, so this watcher (plus the call at the end of
+// fetchBaseModels) covers whichever resolves last. The helper is a no-op when a
+// base model is already selected, so the restore-from-loaded-job path and
+// explicit user choices are preserved.
+watch([selectedStudy, studyAvailability], () => {
+  applyRememberedBaseModel()
+})
+
 // Trigger validation when training run + study are both selected
 watch([selectedTrainingRunId, selectedStudy], async () => {
   validationResult.value = null
@@ -1155,12 +1166,62 @@ async function fetchTrainingRunsAndJobs(forceRefresh = false) {
   }
 }
 
+/**
+ * B-145: Pre-select the base model that produced the existing samples for the
+ * currently selected LoRA run + study, when one can be resolved from sample
+ * metadata on disk (StudyAvailability.base_models, derived from the LoRA output
+ * directory layout sample_dir/{run}/{study}/{base_model}/{checkpoint}/).
+ *
+ * The persisted directory name is the base model filename without its extension
+ * (e.g. "qwen_image_2512_bf16"), whereas the dropdown options are base_model_dir
+ * relative paths that may include a folder and a .safetensors extension
+ * (e.g. "qwen/qwen_image_2512_bf16.safetensors"). We therefore match by basename
+ * without extension.
+ *
+ * Guards:
+ *  - Only runs for LoRA runs.
+ *  - Never overrides an existing selection (preserves restore-from-loaded-job,
+ *    JobLaunchDialog.vue applyPrefill, and explicit user choices).
+ *  - Requires both the availability data and the dropdown options to be loaded.
+ *  - When no prior base model can be resolved, leaves the dropdown empty without
+ *    error.
+ */
+function applyRememberedBaseModel() {
+  if (!isLoraRun.value) return
+  if (selectedBaseModel.value !== null) return
+  if (selectedStudy.value === null) return
+  if (baseModelOptions.value.length === 0) return
+
+  const avail = studyAvailability.value.find(a => a.study_id === selectedStudy.value)
+  const persistedNames = avail?.base_models ?? []
+  if (persistedNames.length === 0) return
+
+  // Match a persisted base-model directory name to a dropdown option by
+  // comparing basenames without the .safetensors extension.
+  const baseNameOf = (path: string): string => {
+    const base = path.split('/').pop() ?? path
+    return base.replace(/\.safetensors$/i, '')
+  }
+
+  for (const persisted of persistedNames) {
+    const match = baseModelOptions.value.find(opt => baseNameOf(opt) === persisted)
+    if (match) {
+      selectedBaseModel.value = match
+      return
+    }
+  }
+}
+
 /** B-143: Fetch available base models from base_model_dir (no ComfyUI dependency). */
 async function fetchBaseModels() {
   loadingBaseModels.value = true
   try {
     const result = await apiClient.getBaseModels()
     baseModelOptions.value = result.models
+    // B-145: Now that the dropdown options are loaded, attempt to pre-select the
+    // remembered base model for the current run + study (no-op if already set or
+    // unresolved).
+    applyRememberedBaseModel()
   } catch {
     baseModelOptions.value = []
   } finally {

@@ -3,6 +3,7 @@ package service
 import (
 	"fmt"
 	"path/filepath"
+	"sort"
 
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/fileformat"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
@@ -69,10 +70,43 @@ func (s *StudyAvailabilityService) GetAvailability(studies []model.Study, tr mod
 		}
 
 		// Count how many of the training run's checkpoints have a matching
-		// sample directory under this study.
+		// sample directory under this study. Two layouts are supported:
+		//   - checkpoint runs: {run}/{study}/{checkpoint}/
+		//   - LoRA runs:       {run}/{study}/{base_model}/{checkpoint}/
+		// For LoRA runs the immediate subdirectories are base-model directories
+		// (their names do not end in ".safetensors"); the checkpoint directories
+		// live one level deeper. We collect base-model directory names (B-145)
+		// and descend into them so the checkpoint match count is correct for
+		// both layouts.
 		cpDirSet := make(map[string]bool, len(checkpointDirs))
+		baseModelSet := make(map[string]struct{})
 		for _, cpDir := range checkpointDirs {
-			cpDirSet[cpDir] = true
+			if isCheckpointDirName(cpDir) {
+				cpDirSet[cpDir] = true
+				continue
+			}
+			// Non-checkpoint subdir: treat as a LoRA base-model directory and
+			// descend to find its checkpoint subdirectories.
+			baseModelDir := filepath.Join(studyDir, cpDir)
+			nested, nestedErr := s.fs.ListSubdirectories(baseModelDir)
+			if nestedErr != nil {
+				s.logger.WithFields(logrus.Fields{
+					"study_name":     study.Name,
+					"base_model_dir": baseModelDir,
+					"error":          nestedErr.Error(),
+				}).Warn("failed to list base model subdirectory; skipping")
+				continue
+			}
+			hasCheckpoint := false
+			for _, nestedDir := range nested {
+				if isCheckpointDirName(nestedDir) {
+					cpDirSet[nestedDir] = true
+					hasCheckpoint = true
+				}
+			}
+			if hasCheckpoint {
+				baseModelSet[cpDir] = struct{}{}
+			}
 		}
 
 		matchCount := 0
@@ -80,6 +114,15 @@ func (s *StudyAvailabilityService) GetAvailability(studies []model.Study, tr mod
 			if cpDirSet[cp] {
 				matchCount++
 			}
+		}
+
+		if len(baseModelSet) > 0 {
+			baseModels := make([]string, 0, len(baseModelSet))
+			for bm := range baseModelSet {
+				baseModels = append(baseModels, bm)
+			}
+			sort.Strings(baseModels)
+			avail.BaseModels = baseModels
 		}
 
 		totalCheckpoints := len(checkpointSet)

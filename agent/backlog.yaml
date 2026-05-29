@@ -315,7 +315,7 @@ stories:
       - "BE: non-LoRA checkpoint runs continue to detect samples (no regression)"
   - id: B-145
     title: "Base model not remembered when selecting a training-run/study with existing samples"
-    status: todo
+    status: uat
     priority: 50
     complexity: medium
     type: bug

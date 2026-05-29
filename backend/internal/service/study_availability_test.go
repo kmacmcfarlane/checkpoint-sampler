@@ -235,6 +235,93 @@ var _ = Describe("StudyAvailabilityService", func() {
 			Expect(result).To(BeEmpty())
 		})
 
+		// B-145: LoRA sample layout nests checkpoints one level deeper:
+		// {sampleDir}/{run}/{study}/{base_model}/{checkpoint}/. The base-model
+		// directory names must be reported so the UI can pre-select the base
+		// model that produced existing samples.
+		It("detects LoRA base-model directories and counts nested checkpoints", func() {
+			studies := []model.Study{
+				{ID: "s1", Name: "MyStudy"},
+			}
+			tr := model.TrainingRun{
+				Name: "model",
+				Checkpoints: []model.Checkpoint{
+					{Filename: "cp1.safetensors"},
+					{Filename: "cp2.safetensors"},
+				},
+			}
+
+			// LoRA layout: immediate subdir is a base-model dir (no .safetensors
+			// suffix); checkpoints live one level deeper.
+			fs.subdirs["/samples/model/MyStudy"] = []string{"qwen_image_2512_bf16"}
+			fs.subdirs["/samples/model/MyStudy/qwen_image_2512_bf16"] = []string{"cp1.safetensors", "cp2.safetensors"}
+
+			result, err := svc.GetAvailability(studies, tr)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result).To(HaveLen(1))
+			Expect(result[0].HasSamples).To(BeTrue())
+			Expect(result[0].SampleStatus).To(Equal(model.StudySampleStatusComplete))
+			Expect(result[0].CheckpointsWithSamples).To(Equal(2))
+			Expect(result[0].BaseModels).To(Equal([]string{"qwen_image_2512_bf16"}))
+		})
+
+		It("reports multiple base-model directories sorted alphabetically", func() {
+			studies := []model.Study{
+				{ID: "s1", Name: "MyStudy"},
+			}
+			tr := model.TrainingRun{
+				Name: "model",
+				Checkpoints: []model.Checkpoint{
+					{Filename: "cp1.safetensors"},
+				},
+			}
+
+			fs.subdirs["/samples/model/MyStudy"] = []string{"zeta_model", "alpha_model"}
+			fs.subdirs["/samples/model/MyStudy/zeta_model"] = []string{"cp1.safetensors"}
+			fs.subdirs["/samples/model/MyStudy/alpha_model"] = []string{"cp1.safetensors"}
+
+			result, err := svc.GetAvailability(studies, tr)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result[0].BaseModels).To(Equal([]string{"alpha_model", "zeta_model"}))
+		})
+
+		It("does not report a base-model directory that contains no checkpoint subdirs", func() {
+			studies := []model.Study{
+				{ID: "s1", Name: "MyStudy"},
+			}
+			tr := model.TrainingRun{
+				Name:        "model",
+				Checkpoints: []model.Checkpoint{{Filename: "cp1.safetensors"}},
+			}
+
+			// A stray non-checkpoint dir with no checkpoint subdirs is not a base model.
+			fs.subdirs["/samples/model/MyStudy"] = []string{"stray_dir"}
+			fs.subdirs["/samples/model/MyStudy/stray_dir"] = []string{}
+
+			result, err := svc.GetAvailability(studies, tr)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result[0].HasSamples).To(BeFalse())
+			Expect(result[0].SampleStatus).To(Equal(model.StudySampleStatusNone))
+			Expect(result[0].BaseModels).To(BeEmpty())
+		})
+
+		It("leaves BaseModels empty for checkpoint-run layouts", func() {
+			studies := []model.Study{
+				{ID: "s1", Name: "MyStudy"},
+			}
+			tr := model.TrainingRun{
+				Name:        "model",
+				Checkpoints: []model.Checkpoint{{Filename: "cp1.safetensors"}},
+			}
+
+			fs.subdirs["/samples/model/MyStudy"] = []string{"cp1.safetensors"}
+
+			result, err := svc.GetAvailability(studies, tr)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result[0].HasSamples).To(BeTrue())
+			Expect(result[0].BaseModels).To(BeEmpty())
+		})
+
 		It("sanitizes training run name with slashes when constructing path", func() {
 			studies := []model.Study{
 				{ID: "s1", Name: "MyStudy"},

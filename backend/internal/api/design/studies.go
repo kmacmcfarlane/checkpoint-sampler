@@ -445,6 +445,9 @@ var StudyAvailabilityResponse = Type("StudyAvailabilityResponse", func() {
 	Attribute("total_checkpoints", Int, "Total number of checkpoints in the training run", func() {
 		Example(5)
 	})
+	Attribute("base_models", ArrayOf(String), "Base-model directory names (base model filename without extension) that produced existing LoRA samples for this study. Empty for checkpoint runs or when no LoRA samples exist. Used to pre-select the remembered base model in the Generate Samples dialog (B-145).", func() {
+		Example([]string{"qwen_image_2512_bf16"})
+	})
 	Required("study_id", "study_name", "has_samples", "sample_status", "checkpoints_with_samples", "total_checkpoints")
 })
 

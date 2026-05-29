@@ -66,6 +66,12 @@ const E2ELoRAFixtureTrainingRunName = "test-lora"
 // Layout: {sampleDir}/test-lora/study-1/sd15/test-lora-step00001000.safetensors/
 const E2ELoRAFixtureStudyName = "study-1"
 
+// E2ELoRAFixtureStudyID is the fixed UUID for the LoRA fixture study. The study
+// record (Name == E2ELoRAFixtureStudyName) is seeded so the studies availability
+// endpoint reports the LoRA base_models that produced the existing samples,
+// exercising the B-145 "remember base model" path.
+const E2ELoRAFixtureStudyID = "e2efixture-0000-0000-0000-000000000003"
+
 // E2ELoRAFixtureBaseModelName is the base-model subdirectory name in the LoRA sample tree.
 const E2ELoRAFixtureBaseModelName = "sd15"
 
@@ -135,6 +141,13 @@ func (s *FixtureSeeder) SeedFixtures() error {
 		return fmt.Errorf("seeding LoRA fixture sample directories: %w", err)
 	}
 
+	// Seed the LoRA fixture study record (Name == "study-1") so the studies
+	// availability endpoint reports the LoRA base_models for the test-lora run,
+	// exercising the B-145 remembered-base-model resolution path.
+	if err := s.seedLoRAFixtureStudy(); err != nil {
+		return fmt.Errorf("seeding LoRA fixture study: %w", err)
+	}
+
 	s.logger.Info("E2E fixture seeding completed")
 	return nil
 }
@@ -172,6 +185,46 @@ func (s *FixtureSeeder) seedFixtureStudy() error {
 		"study_id":   E2EFixtureStudyID,
 		"study_name": E2EFixtureStudyName,
 	}).Info("fixture study seeded")
+	return nil
+}
+
+// seedLoRAFixtureStudy inserts the LoRA fixture study (Name == "study-1") into
+// the database. The study's name matches the study subdirectory in the LoRA
+// sample tree ({sampleDir}/test-lora/study-1/sd15/...), so the availability
+// endpoint reports BaseModels=["sd15"] for the test-lora run. This exercises
+// the B-145 remembered-base-model path end to end.
+func (s *FixtureSeeder) seedLoRAFixtureStudy() error {
+	now := time.Now().UTC()
+	study := model.Study{
+		ID:   E2ELoRAFixtureStudyID,
+		Name: E2ELoRAFixtureStudyName,
+		Prompts: []model.NamedPrompt{
+			{Name: "landscape", Text: "a beautiful landscape"},
+		},
+		Steps:                 []int{1},
+		CFGs:                  []float64{7.0},
+		SamplerSchedulerPairs: []model.SamplerSchedulerPair{{Sampler: "euler", Scheduler: "normal"}},
+		Seeds:                 []int64{42},
+		Width:                 512,
+		Height:                512,
+		WorkflowTemplate:      "test-workflow.json",
+		VAE:                   "test-vae.safetensors",
+		TextEncoder:           "test-clip.safetensors",
+		LoraStrengthPairs:     []model.LoraStrengthPair{{StrengthModel: 1.0, StrengthClip: 1.0}},
+		CreatedAt:             now,
+		UpdatedAt:             now,
+	}
+
+	if err := s.store.CreateStudy(study); err != nil {
+		s.logger.WithError(err).Error("failed to seed LoRA fixture study")
+		return fmt.Errorf("creating LoRA fixture study: %w", err)
+	}
+
+	s.logger.WithFields(logrus.Fields{
+		"study_id":          E2ELoRAFixtureStudyID,
+		"study_name":        E2ELoRAFixtureStudyName,
+		"training_run_name": E2ELoRAFixtureTrainingRunName,
+	}).Info("LoRA fixture study seeded")
 	return nil
 }
 

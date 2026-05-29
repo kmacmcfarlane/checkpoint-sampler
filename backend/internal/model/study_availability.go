@@ -35,4 +35,11 @@ type StudyAvailability struct {
 	CheckpointsWithSamples int
 	// TotalCheckpoints is the total number of checkpoints in the training run.
 	TotalCheckpoints int
+	// BaseModels lists the base-model directory names (base model filename
+	// without extension) found under this study's output directory in the LoRA
+	// sample layout {sample_dir}/{run}/{study}/{base_model}/{checkpoint}/.
+	// Empty for checkpoint training runs or when no LoRA samples exist. Used by
+	// the UI to pre-select the base model that produced existing samples
+	// (B-145).
+	BaseModels []string
 }

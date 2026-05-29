@@ -71,19 +71,19 @@ var _ = Describe("FixtureSeeder", func() {
 			err := seeder.SeedFixtures()
 			Expect(err).NotTo(HaveOccurred())
 
-			// Verify initial study count
+			// Verify initial study count (regular + slash + LoRA fixture studies)
 			studies, err := s.ListStudies()
 			Expect(err).NotTo(HaveOccurred())
-			Expect(studies).To(HaveLen(2))
+			Expect(studies).To(HaveLen(3))
 
 			// Second call should detect existing fixture data and skip re-seeding
 			err = seeder.SeedFixtures()
 			Expect(err).NotTo(HaveOccurred())
 
-			// Study count must remain 2 — no duplicates
+			// Study count must remain 3 — no duplicates
 			studies, err = s.ListStudies()
 			Expect(err).NotTo(HaveOccurred())
-			Expect(studies).To(HaveLen(2))
+			Expect(studies).To(HaveLen(3))
 		})
 
 		It("preserves the fixture study data after seeding", func() {
@@ -104,6 +104,19 @@ var _ = Describe("FixtureSeeder", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(study.ID).To(Equal(store.E2ESlashFixtureStudyID))
 			Expect(study.Name).To(Equal(store.E2ESlashFixtureStudyName))
+		})
+
+		// B-145: the LoRA fixture study (Name == "study-1") is seeded so the
+		// availability endpoint can report base_models for the test-lora run.
+		It("preserves the LoRA fixture study data after seeding", func() {
+			err := seeder.SeedFixtures()
+			Expect(err).NotTo(HaveOccurred())
+
+			study, err := s.GetStudy(store.E2ELoRAFixtureStudyID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(study.ID).To(Equal(store.E2ELoRAFixtureStudyID))
+			Expect(study.Name).To(Equal(store.E2ELoRAFixtureStudyName))
+			Expect(study.LoraStrengthPairs).NotTo(BeEmpty())
 		})
 
 		It("creates sample directories for fixture checkpoints", func() {
@@ -136,10 +149,10 @@ var _ = Describe("FixtureSeeder", func() {
 			err = seeder.SeedFixtures()
 			Expect(err).NotTo(HaveOccurred())
 
-			// Only the two original fixture studies should be present
+			// Only the three original fixture studies should be present
 			studies, err := s.ListStudies()
 			Expect(err).NotTo(HaveOccurred())
-			Expect(studies).To(HaveLen(2))
+			Expect(studies).To(HaveLen(3))
 		})
 
 		It("returns no error if fixture study is missing (clean DB path)", func() {

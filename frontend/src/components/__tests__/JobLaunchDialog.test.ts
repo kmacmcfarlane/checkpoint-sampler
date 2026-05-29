@@ -6148,6 +6148,165 @@ describe('JobLaunchDialog', () => {
       expect(submitButton!.props('disabled')).toBe(false)
     })
 
+    // B-145: Base model remembered from existing samples when no loaded job exists.
+    // The backend reports the base-model directory names that produced existing
+    // samples via StudyAvailability.base_models. The dialog must pre-select the
+    // matching dropdown option when a LoRA run + study with existing samples is
+    // chosen and no base model is currently selected.
+    describe('remembered base model from existing samples (B-145)', () => {
+      // AC: base model dropdown pre-selects the remembered base model when a
+      // run/study with existing samples is chosen.
+      it('pre-selects the base model derived from existing sample metadata', async () => {
+        mockGetCheckpointTrainingRuns.mockResolvedValue(allTrainingRunsWithLora)
+        mockListStudies.mockResolvedValue(allStudiesWithLora)
+        mockGetBaseModels.mockResolvedValue({ models: unetModels })
+        // Availability reports a base-model dir name (filename sans extension)
+        // matching the 'flux1-dev.safetensors' dropdown option.
+        mockGetStudyAvailability.mockResolvedValue([
+          {
+            study_id: 'lora-study-1',
+            study_name: 'LoRA Quick Test',
+            has_samples: true,
+            sample_status: 'complete',
+            checkpoints_with_samples: 2,
+            total_checkpoints: 2,
+            base_models: ['flux1-dev'],
+          },
+        ])
+
+        const wrapper = mount(JobLaunchDialog, {
+          props: { show: true },
+          global: { stubs: { Teleport: true } },
+        })
+        await flushPromises()
+
+        wrapper.findAllComponents(NSelect)[0].vm.$emit('update:value', runLora.id)
+        await flushPromises()
+        wrapper.findAllComponents(NSelect)[1].vm.$emit('update:value', 'lora-study-1')
+        await flushPromises()
+
+        const baseModelSelect = wrapper.find('[data-testid="base-model-select"]').findComponent(NSelect)
+        expect(baseModelSelect.props('value')).toBe('flux1-dev.safetensors')
+      })
+
+      // AC: when no prior base model exists, the dropdown remains empty without error.
+      it('leaves the base model dropdown empty when no prior samples exist', async () => {
+        mockGetCheckpointTrainingRuns.mockResolvedValue(allTrainingRunsWithLora)
+        mockListStudies.mockResolvedValue(allStudiesWithLora)
+        mockGetBaseModels.mockResolvedValue({ models: unetModels })
+        // Availability reports no base models for the study.
+        mockGetStudyAvailability.mockResolvedValue([
+          {
+            study_id: 'lora-study-1',
+            study_name: 'LoRA Quick Test',
+            has_samples: false,
+            sample_status: 'none',
+            checkpoints_with_samples: 0,
+            total_checkpoints: 2,
+            base_models: [],
+          },
+        ])
+
+        const wrapper = mount(JobLaunchDialog, {
+          props: { show: true },
+          global: { stubs: { Teleport: true } },
+        })
+        await flushPromises()
+
+        wrapper.findAllComponents(NSelect)[0].vm.$emit('update:value', runLora.id)
+        await flushPromises()
+        wrapper.findAllComponents(NSelect)[1].vm.$emit('update:value', 'lora-study-1')
+        await flushPromises()
+
+        const baseModelSelect = wrapper.find('[data-testid="base-model-select"]').findComponent(NSelect)
+        expect(baseModelSelect.props('value')).toBeNull()
+      })
+
+      // AC: when the persisted base model is not among the current dropdown
+      // options (e.g. the file was removed), the dropdown stays empty without error.
+      it('leaves the dropdown empty when the remembered base model is no longer available', async () => {
+        mockGetCheckpointTrainingRuns.mockResolvedValue(allTrainingRunsWithLora)
+        mockListStudies.mockResolvedValue(allStudiesWithLora)
+        mockGetBaseModels.mockResolvedValue({ models: unetModels })
+        mockGetStudyAvailability.mockResolvedValue([
+          {
+            study_id: 'lora-study-1',
+            study_name: 'LoRA Quick Test',
+            has_samples: true,
+            sample_status: 'complete',
+            checkpoints_with_samples: 2,
+            total_checkpoints: 2,
+            base_models: ['some-removed-model'],
+          },
+        ])
+
+        const wrapper = mount(JobLaunchDialog, {
+          props: { show: true },
+          global: { stubs: { Teleport: true } },
+        })
+        await flushPromises()
+
+        wrapper.findAllComponents(NSelect)[0].vm.$emit('update:value', runLora.id)
+        await flushPromises()
+        wrapper.findAllComponents(NSelect)[1].vm.$emit('update:value', 'lora-study-1')
+        await flushPromises()
+
+        const baseModelSelect = wrapper.find('[data-testid="base-model-select"]').findComponent(NSelect)
+        expect(baseModelSelect.props('value')).toBeNull()
+      })
+
+      // AC: existing restore-from-loaded-job behavior is preserved. When a base
+      // model is already selected (e.g. from prefillJob), the remembered-from-disk
+      // resolution must not override it.
+      it('does not override a base model already restored from a loaded job', async () => {
+        mockGetCheckpointTrainingRuns.mockResolvedValue(allTrainingRunsWithLora)
+        mockListStudies.mockResolvedValue(allStudiesWithLora)
+        mockGetBaseModels.mockResolvedValue({ models: unetModels })
+        // Availability would resolve to a different base model than the prefilled job.
+        mockGetStudyAvailability.mockResolvedValue([
+          {
+            study_id: 'lora-study-1',
+            study_name: 'LoRA Quick Test',
+            has_samples: true,
+            sample_status: 'complete',
+            checkpoints_with_samples: 2,
+            total_checkpoints: 2,
+            base_models: ['flux1-dev'],
+          },
+        ])
+
+        const prefillJob: SampleJob = {
+          id: 'job-99',
+          training_run_name: 'my-lora-adapter-v1',
+          study_id: 'lora-study-1',
+          study_name: 'LoRA Quick Test',
+          workflow_name: 'qwen-image-lora.json',
+          vae: 'ae.safetensors',
+          clip: 'clip_l.safetensors',
+          base_model: 'sd15-base.safetensors',
+          checkpoint_filenames: [],
+          status: 'completed',
+          total_items: 2,
+          completed_items: 2,
+          failed_items: 0,
+          pending_items: 0,
+          created_at: '2025-01-01T00:00:00Z',
+          updated_at: '2025-01-01T00:00:00Z',
+        }
+
+        const wrapper = mount(JobLaunchDialog, {
+          props: { show: true, prefillJob },
+          global: { stubs: { Teleport: true } },
+        })
+        await flushPromises()
+
+        // The base model from the loaded job must be preserved, not overwritten
+        // by the remembered-from-disk value (flux1-dev.safetensors).
+        const baseModelSelect = wrapper.find('[data-testid="base-model-select"]').findComponent(NSelect)
+        expect(baseModelSelect.props('value')).toBe('sd15-base.safetensors')
+      })
+    })
+
     // AC: Existing non-LoRA study + checkpoint run combinations are unaffected
     it('does not affect non-LoRA study + checkpoint run combinations', async () => {
       mockCreateSampleJob.mockResolvedValue({ id: 'job-1', status: 'pending' })
