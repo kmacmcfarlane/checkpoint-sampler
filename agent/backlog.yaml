@@ -244,3 +244,1031 @@ stories:
       LoRAs are .safetensors files that require a base model for inference.
       Key questions: discovery mechanism, base model resolution, workflow template changes,
       sampling parameter additions (strength), and UI/UX for LoRA vs checkpoint distinction.
+  - id: B-146
+    title: "SQLite pool allows concurrent writers — missing SetMaxOpenConns(1) causes SQLITE_BUSY write failures"
+    priority: 90
+    status: todo
+    complexity: low
+    type: bug
+    requires: []
+    notes: |
+      backend/internal/store/db.go OpenDB() configures WAL + busy_timeout via DSN but
+      never constrains the database/sql pool. modernc.org/sqlite permits one writer at
+      a time; under concurrent load database/sql opens multiple connections. The job
+      executor goroutine writes (UpdateSampleJobItem/UpdateSampleJob) concurrently with
+      API handler writes (create job/study), and writer-vs-writer collisions on separate
+      pooled connections surface as hard "database is locked" errors that the busy
+      timeout does not reliably absorb. Verified: no SetMaxOpenConns call exists in
+      non-test store code; db_test.go:72,116 set SetMaxOpenConns(5) which masks the
+      issue in unit runs.
+
+      Fix: call db.SetMaxOpenConns(1) in OpenDB (the standard remedy for
+      database/sql + SQLite single-writer semantics). Update db_test.go so tests use
+      the same pool configuration as production (remove the SetMaxOpenConns(5)
+      overrides) — tests must not mask the production pool behavior.
+    acceptance:
+      - "BE: OpenDB constrains the connection pool to a single connection (SetMaxOpenConns(1))"
+      - "BE: db_test.go no longer overrides the pool size to a value different from production"
+      - "BE: a regression test exercises concurrent writes from multiple goroutines (e.g. parallel preset/job updates) and
+        asserts no 'database is locked' error occurs"
+    testing:
+      - "command: make test-backend"
+      - "Verify the new concurrent-write test fails when SetMaxOpenConns(1) is removed (run it once with the line commented
+        out locally to prove the test has teeth), then passes with the fix"
+      - "grep -rn 'SetMaxOpenConns' backend/ must show only the production call in db.go (tests may call it only with the
+        same value)"
+      - "command: make test-e2e (full suite green — job execution + study CRUD exercise concurrent writes)"
+
+  - id: B-147
+    title: "Sample job + items creation is not atomic — orphaned jobs with partial items on mid-loop failure"
+    priority: 85
+    status: todo
+    complexity: medium
+    type: bug
+    requires: ["B-146"]
+    notes: |
+      backend/internal/service/sample_job.go creates the job row, then loops inserting
+      item rows via separate store.CreateSampleJobItem calls (one db.Exec each), with
+      manual compensation `_ = s.store.DeleteSampleJob(jobID)` at lines ~362/410/429 on
+      failure. If the compensating delete fails or the process crashes mid-loop, an
+      orphaned job persists whose total_items does not match its actual item count —
+      the executor then waits forever on items that do not exist. There is no
+      Begin/Commit anywhere in the store package except migrations (verified).
+
+      Fix: add a store method that inserts the job and ALL its items in a single
+      transaction (e.g. CreateSampleJobWithItems(job, items)), commit once, and remove
+      the manual compensation path from the service layer. Keep the store entity
+      separation intact (persistence entities stay in store).
+    acceptance:
+      - "BE: job + all item rows are inserted in one SQLite transaction; a failure during item insertion leaves no job row
+        and no item rows behind"
+      - "BE: the manual DeleteSampleJob compensation calls in service/sample_job.go are removed"
+      - "BE: service layer calls a single store method for job+items creation (interface updated in the service package, per
+        consumer-defined-interface rule)"
+    testing:
+      - "command: make test-backend"
+      - "A store-level test injects a failure partway through item insertion (e.g. invalid item or closed DB) and asserts
+        the job row is absent afterwards (SELECT COUNT(*) = 0 for both tables)"
+      - "A test asserts the happy path persists job.total_items == COUNT(sample_job_items WHERE job_id)"
+      - "command: make test-e2e (job creation/launch specs green)"
+
+  - id: B-148
+    title: "completed_items counter races (lost updates) and diverges between job list and detail views"
+    priority: 75
+    status: todo
+    complexity: medium
+    type: bug
+    requires: ["B-147"]
+    notes: |
+      backend/internal/service/job_executor.go (~line 1725) updates the stored
+      completed_items counter via get-modify-write (GetSampleJob -> mutate ->
+      UpdateSampleJob) with no transaction, so concurrent completions lose updates.
+      The list endpoint surfaces the stored counter while the show endpoint recomputes
+      counts from items, so the two views diverge.
+
+      Fix: make the counter derived/atomic — either update it inside the same
+      transaction that flips the item status, or use a single
+      `UPDATE sample_jobs SET completed_items = (SELECT COUNT(*) FROM sample_job_items
+      WHERE job_id = ? AND status = 'completed')` statement. The recomputed value must
+      be authoritative everywhere; list and show must agree.
+    acceptance:
+      - "BE: completed_items can never drift from the actual count of completed items (atomic update or derived value)"
+      - "BE: list and show endpoints report identical progress for the same job state"
+      - "BE: no get-modify-write of completed_items remains in job_executor.go"
+    testing:
+      - "command: make test-backend"
+      - "A test drives concurrent item completions (goroutines) and asserts the final counter equals the completed item count
+        exactly"
+      - "A test asserts list-vs-show progress parity for a job with mixed item statuses (completed/failed/pending)"
+      - "command: make test-e2e (job progress specs green)"
+
+  - id: B-149
+    title: "Job list endpoint loads every item row of every job (N+1) and sample_job_items has no indexes"
+    priority: 70
+    status: todo
+    complexity: medium
+    type: bug
+    requires: ["B-148"]
+    notes: |
+      backend/internal/api/sample_jobs.go:50 calls svc.GetProgress(j.ID) per job in
+      List; GetProgress loads ALL item rows for the job into memory to count statuses.
+      The UI polls this endpoint, so every poll costs O(total items across all jobs).
+      Verified: migrations.go contains exactly one index (idx_studies_name_unique) —
+      sample_job_items has no index on job_id, so every item query is a full table scan.
+
+      Fix (scope agreed with user — NO pagination):
+      1. Replace the per-job item loading with a single aggregate query
+         (SELECT job_id, status, COUNT(*) ... GROUP BY job_id, status) or per-job
+         aggregate; list rendering must never load full item rows.
+      2. Add a migration creating indexes on sample_job_items(job_id) and
+         sample_job_items(job_id, status); consider (job_id, created_at) for the
+         ordered item-listing path used by the executor.
+    acceptance:
+      - "BE: listing jobs performs aggregate COUNT queries only — no full item-row loading in the list path"
+      - "BE: a forward migration adds an index on sample_job_items(job_id) and (job_id, status)"
+      - "BE: list progress values are identical to the previous behavior for the same data (parity with show, per B-148)"
+      - "BE: explicitly out of scope: pagination (deferred by decision 2026-06-09)"
+    testing:
+      - "command: make test-backend"
+      - "A store test verifies the aggregate counts match a fixture of mixed-status items"
+      - "Migration test (or migration-runner assertion) confirms the new indexes exist in sqlite_master after migrating an
+        existing DB"
+      - "command: make test-e2e (job progress panel specs green)"
+
+  - id: B-150
+    title: "ComfyUI WebSocket read loop has no read deadline — half-open connection hangs jobs forever"
+    priority: 80
+    status: todo
+    complexity: medium
+    type: bug
+    requires: []
+    notes: |
+      backend/internal/store/comfyui_ws.go readLoop (~line 230) calls conn.ReadMessage()
+      with no SetReadDeadline and no ping/pong keepalive (verified: no SetReadDeadline,
+      SetPongHandler, or client-side ping in the file). If the ComfyUI TCP connection
+      half-opens (Wi-Fi drop, host poweroff without RST), ReadMessage blocks forever,
+      `connected` stays true, the reconnect ticker skips reconnection (it only fires
+      when !connected), and the in-flight job item hangs indefinitely with no
+      completion or failure.
+
+      Fix: implement client-side ping/pong keepalive — send periodic pings, set a read
+      deadline refreshed on every successful read/pong, and on deadline expiry close
+      the connection so the existing disconnectHandler fires and reconnect/recovery
+      (recoverStuckItems) takes over. Intervals should be modest (e.g. ping every 30s,
+      read deadline 60-90s) and must tolerate long GPU-bound generations during which
+      ComfyUI sends no execution events (pings/pongs still flow).
+    acceptance:
+      - "BE: a dead/half-open ComfyUI connection is detected within a bounded interval (deadline expiry) and triggers the
+        disconnect handler"
+      - "BE: long idle periods on a HEALTHY connection (no execution events for minutes) do NOT cause spurious disconnects
+        (pong refreshes the deadline)"
+      - "BE: after detection, existing reconnect logic re-establishes the connection and stuck-item recovery proceeds"
+    testing:
+      - "command: make test-backend"
+      - "A unit test with a stub WS server verifies: (a) deadline expiry on silent peer triggers disconnect callback; (b)
+        pong responses keep the connection alive past the deadline window"
+      - "Verify no test uses time.Sleep as the sole synchronization for these assertions (use channels/Eventually)"
+      - "command: make test-e2e (inference specs against the stub ComfyUI still green)"
+
+  - id: B-151
+    title: "Single 10s HTTP timeout on all ComfyUI calls — image downloads fail and completed generations are lost"
+    priority: 65
+    status: todo
+    complexity: low
+    type: bug
+    requires: []
+    notes: |
+      backend/internal/store/comfyui_client.go sets http.Client{Timeout: 10s} which
+      bounds the ENTIRE request including body read, for all operations. DownloadImage
+      reads the full image via io.ReadAll; a large PNG or a GPU-loaded ComfyUI that
+      takes >10s to stream the body fails the download, the item is marked failed, and
+      the already-generated image is lost. GetHistory can also time out during
+      recovery on a busy instance.
+
+      Fix: remove the client-wide Timeout and use per-call context.WithTimeout with
+      operation-appropriate budgets (e.g. 10s for status/object_info, 60-120s for
+      DownloadImage and GetHistory). All calls must still honor caller ctx cancellation.
+    acceptance:
+      - "BE: image downloads use a substantially longer timeout than control-plane calls (values documented in code)"
+      - "BE: every ComfyUI HTTP call has an explicit per-call timeout (no unbounded calls; no single client-wide Timeout governing
+        downloads)"
+      - "BE: context cancellation from the caller still aborts in-flight requests"
+    testing:
+      - "command: make test-backend"
+      - "A test with a slow stub server proves a download exceeding the old 10s budget now succeeds, and a control-plane call
+        to a hung server still fails fast"
+      - "command: make test-e2e"
+
+  - id: B-152
+    title: "recoverStuckItems races the executor ticker — duplicate ComfyUI submissions after reconnect"
+    priority: 60
+    status: todo
+    complexity: high
+    type: bug
+    requires: ["B-150"]
+    notes: |
+      backend/internal/service/job_executor.go (~lines 262-368): on reconnect,
+      recoverStuckItems runs in its own goroutine and can reset an item to pending
+      based on a stale snapshot while the ticker goroutine (processNextItem) has
+      concurrently re-submitted that same item with a new prompt ID. The window:
+      disconnect clears activeItemID, ticker re-submits a pending item, near-simultaneous
+      reconnect recovery still sees the item 'running' with the OLD prompt ID and
+      resets it — orphaning the in-flight prompt and causing duplicate submission.
+
+      Fix: recovery must re-read each item's current state under e.mu immediately
+      before mutating, and only reset items whose stored prompt ID matches the
+      pre-disconnect snapshot (compare-and-act under lock). Schedule after B-150 since
+      deadline-triggered disconnects make this path much more common.
+
+      Related cleanup (fold in): the stopRequested field (lines ~94/659/2245/2275) is
+      read but only ever set false — dead state masquerading as a cooperative-stop
+      guard. Remove it or wire it correctly as part of touching this lifecycle code.
+    acceptance:
+      - "BE: recovery never resets an item that has been re-submitted with a newer prompt ID (verified under lock at mutation
+        time)"
+      - "BE: no duplicate ComfyUI submission occurs when disconnect+reconnect overlaps the ticker's re-submission"
+      - "BE: stopRequested dead state is removed or made functional (no unreachable guard remains)"
+    testing:
+      - "command: make test-backend"
+      - "A deterministic interleaving test (channels/locks, not sleeps) drives: disconnect -> ticker re-submission -> reconnect
+        recovery, asserting exactly one active submission and no pending-reset of the re-submitted item"
+      - "Race detector is part of the suite (ginkgo --race via make test-backend) and must be green"
+      - "command: make test-e2e"
+
+  - id: B-153
+    title: "fsnotify watches leak on every training-run switch — live updates eventually stop"
+    priority: 75
+    status: todo
+    complexity: medium
+    type: bug
+    requires: []
+    notes: |
+      backend/internal/service/watcher.go: WatchTrainingRun calls notifier.Add(dir) for
+      the new run's directories (lines ~136, 235 for dynamically-added dirs) but never
+      calls notifier.Remove for directories registered by the previous run (verified:
+      the fsnotifyAdapter exposes Remove but it has zero call sites). The single shared
+      fsnotify.Watcher accumulates inotify watch descriptors on every run switch until
+      max_user_watches is hit, after which Add fails (logged, swallowed) and live
+      updates silently break; stale watches also keep firing events into the loop.
+
+      Fix: track the set of currently-watched directories on the Watcher and remove
+      them all in stopLocked() (or before re-adding the new set) when switching runs.
+    acceptance:
+      - "BE: switching training runs removes all previously-added watches (including dynamically-added per-image-directory
+        watches) before adding new ones"
+      - "BE: the watcher tracks its active watch set; repeated run switches do not grow the underlying watch count"
+      - "BE: events from the previous run's directories are no longer delivered after a switch"
+    testing:
+      - "command: make test-backend"
+      - "A unit test with the mock notifier asserts Remove is called for every previously Added dir on switch, and that after
+        N switches the tracked watch set equals only the current run's dirs"
+      - "A test asserts no event from an old-run directory reaches subscribers after switching (synchronized via sentinel
+        events, not sleeps)"
+      - "command: make test-e2e (live-update specs green)"
+
+  - id: B-154
+    title: "Frontend WebSocket composable leaks connection and listeners on unmount/HMR"
+    priority: 65
+    status: todo
+    complexity: low
+    type: bug
+    requires: []
+    notes: |
+      frontend/src/composables/useWebSocket.ts registers onConnectionChange/onEvent
+      listeners and creates the WSClient but has no onUnmounted/onScopeDispose cleanup
+      (verified: neither appears in the file) and never disconnects on scope teardown.
+      App.vue manually removes only the job/inference listeners it registered itself.
+      On unmount (HMR in dev, future remount), the socket stays open and the
+      exponential-backoff reconnect timer keeps firing doConnect() forever against a
+      dead consumer, accumulating zombie connections.
+
+      Fix: useWebSocket registers onScopeDispose (or onUnmounted) that removes its own
+      listeners and calls wsClient.disconnect() (which must also cancel any pending
+      reconnect timer); App.vue should not need manual WS teardown.
+    acceptance:
+      - "FE: disposing the component scope that owns useWebSocket closes the socket, cancels pending reconnect timers, and
+        deregisters all listeners the composable added"
+      - "FE: WSClient.disconnect() cancels a scheduled reconnect (no doConnect fires after disconnect)"
+      - "FE: App.vue no longer performs partial manual cleanup that duplicates the composable's responsibility"
+    testing:
+      - "command: cd frontend && npx vitest run"
+      - "A test mounts a component using useWebSocket, unmounts it, advances fake timers past the reconnect backoff, and asserts
+        no new connection attempt occurs and the client is disconnected"
+      - "A test asserts listener counts on the client return to zero after unmount"
+
+  - id: B-155
+    title: "Image preloader never reacts to combo-filter changes and restarts full preload on every retrigger"
+    priority: 60
+    status: todo
+    complexity: medium
+    type: bug
+    requires: []
+    notes: |
+      frontend/src/composables/useImagePreloader.ts (~line 210): the watch over
+      [images, xDimension, yDimension, sliderDimension, comboSelections] has no
+      deep:true (verified). In production comboSelections is a computed returning the
+      same reactive object identity; filter changes mutate keys INSIDE it, so the
+      watch never fires for combo changes and newly-visible cells are not prioritized
+      — the instant-slider guarantee silently degrades. The unit test masks this by
+      reassigning a plain ref.
+
+      Second defect, same file: each retrigger calls preloaded.clear() and restarts
+      the entire sequential preload over all images, re-creating Image() objects for
+      URLs already cached; the in-flight image is not aborted either.
+
+      Fix: (1) make the watch actually fire on combo-selection mutations (deep watch
+      on a getter, or watch a serialized signature). (2) Stop clearing the preloaded
+      set wholesale — rely on the existing has(url) skip guard so only new URLs load.
+      Update the masking unit test to mutate the object in place the way the store does.
+    acceptance:
+      - "FE: changing only a combo filter retriggers preload prioritization for newly-visible cells"
+      - "FE: already-preloaded URLs are not re-fetched on retrigger (preloaded set survives across cycles)"
+      - "FE: the existing preloader unit test is updated to mutate comboSelections in place (mirroring the store) so it would
+        catch the dead-watch regression"
+    testing:
+      - "command: cd frontend && npx vitest run"
+      - "A test mutates a key inside comboSelections (without reassigning the object) and asserts the preload cycle re-runs"
+      - "A test asserts a URL preloaded in cycle 1 is skipped (no new Image creation) in cycle 2"
+
+  - id: B-156
+    title: "Metadata parsers allocate up to 100MB from corrupt-file-declared lengths; guard branches untested"
+    priority: 55
+    status: todo
+    complexity: low
+    type: bug
+    requires: []
+    notes: |
+      backend/internal/service/checkpoint_metadata.go:150 caps the safetensors header
+      length at 100MB and then does make([]byte, headerLen) before io.ReadFull — a
+      corrupt/malicious file declaring a near-cap length triggers an eager ~100MB
+      allocation per request even when the file is tiny. image_metadata.go:241 has the
+      same generous 100MB cap per PNG chunk. Real safetensors headers are KBs to low
+      MBs. The >cap rejection branch has no test (QA review confirmed).
+
+      Fix: lower the safetensors header cap to 16MB and validate headerLen against the
+      actual file size (Stat) before allocating; lower the PNG chunk cap similarly
+      (16MB is ample for tEXt/iTXt metadata chunks). Add tests for the rejection
+      branches with crafted length prefixes.
+    acceptance:
+      - "BE: safetensors header cap reduced to 16MB and headerLen validated against file size before allocation"
+      - "BE: PNG metadata chunk cap reduced to 16MB"
+      - "BE: a crafted file declaring a length over the cap is rejected with a clear error and no large allocation"
+      - "BE: a crafted file declaring a length larger than the file itself is rejected before allocation"
+    testing:
+      - "command: make test-backend"
+      - "New tests cover: over-cap header length, header length exceeding file size, over-cap PNG chunk — all asserting the
+        error path"
+      - "Existing valid-metadata tests still pass (no false rejection of real fixtures, including W-009 fixtures)"
+
+  - id: B-157
+    title: "Shutdown race: HTTP server Shutdown runs concurrently with deferred close of store/watcher/executor"
+    priority: 45
+    status: todo
+    complexity: low
+    type: bug
+    requires: []
+    notes: |
+      backend/cmd/server/main.go (~line 305): srv.Shutdown runs in a goroutine while
+      run()'s LIFO defers (st.Close, notifier.Close, watcher.Stop, fsState.Stop,
+      jobExecutor.Stop) fire on return — nothing guarantees Shutdown completes before
+      the DB and services close, so in-flight requests can touch a closed store during
+      shutdown.
+
+      Fix: block until srv.Shutdown returns (done channel or errgroup) before run()
+      returns, and stop the job executor + watcher explicitly before closing the DB so
+      the ordering is deliberate rather than incidental defer order.
+    acceptance:
+      - "BE: run() does not return (and defers do not fire) until srv.Shutdown has completed"
+      - "BE: shutdown order is explicit: stop executor and watcher, drain HTTP, then close DB/notifiers"
+      - "BE: a SIGTERM during an in-flight request does not produce closed-DB errors"
+    testing:
+      - "command: make test-backend"
+      - "command: cd backend && make build (compile check)"
+      - "Manual-equivalent automated check: a test (or e2e teardown assertion) sends SIGTERM while a slow request is in flight
+        and asserts a clean exit with no 'database is closed' log lines; if not feasible as unit test, the QA agent must verify
+        via make test-e2e logs sweep showing no closed-DB errors during stack teardown"
+
+  - id: B-158
+    title: "API client surfaces raw error-response bodies in user-facing messages"
+    priority: 20
+    status: todo
+    complexity: low
+    type: bug
+    requires: []
+    notes: |
+      frontend/src/api/client.ts (~line 25): normalizeError appends the raw non-JSON
+      response body to the user-facing message ("(body: ...)"), which can surface
+      backend internals (paths, stack fragments) in the UI.
+
+      Fix: truncate the body to a short length (e.g. 200 chars) and only include it in
+      dev builds (import.meta.env.DEV) or behind a debug flag; always preserve the
+      stable error code for UI branching.
+    acceptance:
+      - "FE: production error messages never include raw response bodies; the stable code and a friendly message are shown"
+      - "FE: dev builds may include a truncated body for debugging"
+      - "FE: error normalization shape (code/message) is unchanged for consumers"
+    testing:
+      - "command: cd frontend && npx vitest run"
+      - "Tests cover: non-JSON error body in prod mode (no body in message) and dev mode (truncated body present)"
+
+  - id: S-150
+    title: "Limit HTTP request body size (200MB default) with config override"
+    priority: 70
+    status: todo
+    complexity: low
+    type: story
+    requires: []
+    notes: |
+      No request body limit exists anywhere: cmd/server/main.go sets only Read/Write
+      timeouts and api/http.go wires no MaxBytesHandler, so Goa's json.Decode buffers
+      arbitrarily large bodies (memory-exhaustion DoS from any LAN device).
+
+      Decision (user, 2026-06-09): default limit 200MB, overridable via a new config
+      key. Add `max_request_size_mb` to config.yaml schema (backend/internal/config/
+      config.go yamlConfig -> model.Config, default 200 when unset), wrap the root
+      handler in http.MaxBytesHandler sized from config, and set srv.MaxHeaderBytes to
+      a sane fixed value (e.g. 1MB). Update config.yaml.example with a commented entry
+      and doc comment. NOTE: the user's local config.yaml has already been updated with
+      max_request_size_mb: 200 (it is gitignored — do not look for it in worktrees).
+    acceptance:
+      - "BE: requests with bodies over the configured limit are rejected with 413 and a normalized error body, not buffered
+        into memory"
+      - "BE: config key max_request_size_mb parsed with default 200; 0/negative values rejected at config validation"
+      - "BE: config.yaml.example documents the new key with default noted"
+      - "BE: MaxHeaderBytes set on the server"
+    testing:
+      - "command: make test-backend"
+      - "Config tests cover: unset (default 200), explicit override, invalid value rejection"
+      - "An API-level test posts a body just over a small configured limit and asserts 413; just under passes"
+      - "command: make test-e2e (no regression — normal payloads unaffected)"
+
+  - id: S-151
+    title: "Restrict WebSocket origin and CORS to same-host with allowed_origins config override"
+    priority: 65
+    status: todo
+    complexity: medium
+    type: story
+    requires: ["S-150"]
+    notes: |
+      backend/internal/api/http.go:131 sets CheckOrigin to always-true and :298 applies
+      CORSMiddleware("*"). Any webpage in a LAN user's browser can connect to /api/ws
+      (WebSocket bypasses CORS) and stream prompts/model names/paths, or make
+      cross-origin API mutations; DNS rebinding extends reach beyond the LAN.
+
+      Decision (user, 2026-06-09): default behavior = allow only origins whose HOST
+      matches the request Host header, comparing hostname only (ignore scheme and
+      port) so IP access, dev ports, and the user's Caddy reverse proxy
+      (checkpoint-sampler.mcfacehead.com — Caddy preserves the Host header by default)
+      all work. New optional config key `allowed_origins` (list of origins or
+      hostnames) extends the allowlist for setups where the proxy rewrites Host.
+      Requests with NO Origin header (curl, non-browser clients, same-origin
+      navigations) must remain allowed. Apply the same policy to both the WS upgrader
+      CheckOrigin and the CORS middleware (echo the allowed origin instead of *).
+      Update config.yaml.example. Requires S-150 (both touch http.go + config plumbing).
+    acceptance:
+      - "BE: WS upgrade and CORS allow: no-Origin requests, origins whose hostname equals the request Host hostname, and origins
+        matching allowed_origins entries"
+      - "BE: cross-host origins are rejected (WS upgrade refused; CORS headers absent so browser blocks reads)"
+      - "BE: allowed_origins config key parsed (optional, default empty) and documented in config.yaml.example"
+      - "FE: no frontend changes needed in default deployments (same-host and Caddy-proxied setups keep working) — verify
+        dev mode (Vite port differs, host same) still connects"
+    testing:
+      - "command: make test-backend"
+      - "Table-driven tests for the origin policy: no Origin, same host different port, same host different scheme, different
+        host, allowed_origins match, allowed_origins miss"
+      - "command: make test-e2e (the E2E stack accesses the backend cross-port — full suite green proves same-host policy
+        doesn't break the harness)"
+      - "Verify in e2e that the WS connection still establishes (live-update specs)"
+
+  - id: S-152
+    title: "Cap concurrent WebSocket clients in the hub"
+    priority: 45
+    status: todo
+    complexity: low
+    type: story
+    requires: ["S-151"]
+    notes: |
+      backend/internal/api/ws.go creates a 64-event buffered channel + goroutine per
+      Subscribe with no limit on concurrent connections — any LAN device can exhaust
+      memory/goroutines by opening connections in a loop.
+
+      Fix: enforce a maximum concurrent client count in the hub (a generous fixed
+      default, e.g. 100 — no config key needed at this scale); reject upgrades beyond
+      it with a clear error/close code. Requires S-151 (same ws plumbing area).
+    acceptance:
+      - "BE: connections beyond the cap are rejected cleanly (HTTP error or WS close with reason) without affecting existing
+        clients"
+      - "BE: disconnects free capacity (cap is on concurrent clients, not lifetime)"
+    testing:
+      - "command: make test-backend"
+      - "Hub test: register up to cap (accepted), one more (rejected), unregister one, register again (accepted)"
+      - "command: make test-e2e"
+
+  - id: S-153
+    title: "Cap study total work items at 50k (config-overridable) with backend and frontend validation"
+    priority: 70
+    status: todo
+    complexity: medium
+    type: story
+    requires: []
+    notes: |
+      Nothing bounds the Cartesian product (prompts x steps x cfgs x sampler/scheduler
+      pairs x seeds x lora-strength pairs x checkpoints): study.go validate() checks
+      non-empty/deduped only, and sample_job.go computes totalItems and inserts one row
+      per element — a large study can create millions of rows.
+
+      Decision (user, 2026-06-09): max 50,000 total items per study/job, new config key
+      `max_study_items` (default 50000) to override, frontend validation included.
+      NOTE: the user's local config.yaml already has max_study_items: 50000 (gitignored
+      — absent in worktrees).
+
+      Implementation notes:
+      - Config: add max_study_items to yamlConfig/model.Config with default 50000;
+        document in config.yaml.example.
+      - BE: validate at job creation (totalItems = checkpoints x imagesPerCheckpoint
+        vs limit) AND at study save (images-per-checkpoint product alone vs limit, so
+        oversized studies are caught early); reject with a stable error code
+        (e.g. too_many_items) including the computed total and the limit.
+      - FE: JobLaunchDialog.vue already computes imagesPerCheckpoint (~line 987) and
+        totalImages (~line 991); disable launch and show the computed total vs limit
+        when exceeded. The frontend must learn the configured limit from the backend —
+        no config-exposure endpoint exists yet (verified), so add a minimal
+        GET /api/config (new small Goa service or extend health) returning UI-relevant
+        limits { max_study_items }. Keep it minimal and additive.
+    acceptance:
+      - "BE: job creation rejects totalItems > configured limit with a stable error code carrying computed total and limit"
+      - "BE: config key max_study_items parsed with default 50000; <=0 rejected at config load"
+      - "BE: a minimal endpoint exposes the configured limit to the frontend"
+      - "FE: the launch dialog disables launch and shows total vs limit when the computed total exceeds the limit fetched
+        from the backend"
+      - "BE: config.yaml.example documents the new key"
+    testing:
+      - "command: make test-backend"
+      - "Validation tests: total exactly at limit (allowed), one over (rejected), config override respected"
+      - "command: cd frontend && npx vitest run"
+      - "FE test: dialog blocks launch and renders the limit message when total exceeds the fetched limit; allows at/under
+        limit"
+      - "command: make test-e2e (an E2E spec covering the over-limit launch rejection path is required — developer authors
+        it per AGENT_FLOW)"
+
+  - id: S-154
+    title: "Path-handling hardening: separator-bounded write check, StudyName dot rejection, Rel-based containment"
+    priority: 50
+    status: todo
+    complexity: low
+    type: story
+    requires: ["S-153"]
+    notes: |
+      Three latent (currently non-exploitable) weaknesses from the security review:
+      1. job_executor.go (~1394): the image WRITE path containment check uses bare
+         strings.HasPrefix(cleanPath, cleanSampleDir) without appending a separator —
+         a sibling dir like /samples-evil would pass. The READ paths already do this
+         correctly; mirror them or use filepath.Rel.
+      2. study.go (~14): disallowedNameChars blocks / \ : * ? < > | " but not dots, so
+         a study named '..' passes validation and flows into output paths (bounded
+         today only because a run-name component is always prepended).
+      3. Read paths follow symlinks after the textual check (acceptable per threat
+         model, but prefer filepath.Rel-based containment as defense in depth where
+         cheap).
+      Requires S-153 (same study.go validation area).
+    acceptance:
+      - "BE: write-path containment check is separator-bounded or uses filepath.Rel and rejects '..' prefixes"
+      - "BE: study names consisting of or containing path-traversal sequences ('..', leading/trailing dots) are rejected at
+        validation"
+      - "BE: existing valid study names (spaces, hyphens, underscores, dots inside names like 'v1.2') continue to be accepted"
+    testing:
+      - "command: make test-backend"
+      - "Table-driven tests: study names '..', '.', 'a..b' (decide and document: inner dots allowed), '.hidden', 'v1.2' —
+        assert documented accept/reject behavior"
+      - "Write-path test: a crafted outputPath outside sample_dir (sibling-prefix dir) is rejected"
+      - "command: make test-e2e (study CRUD + sample-path-scoping specs green)"
+
+  - id: S-155
+    title: "Stable training-run identifiers (positional index breaks across rescans)"
+    priority: 25
+    status: todo
+    complexity: medium
+    type: story
+    requires: []
+    notes: |
+      design/training_runs.go uses a zero-based positional index as the resource id;
+      a refresh can reorder discovery so a held id may point at a different run after
+      rescan. Frontend holds the id across refreshes.
+
+      Fix direction: derive a stable opaque id from the run's relative path (e.g.
+      URL-safe base64 of the path, or a hash) so ids survive rescans; keep the
+      response shape otherwise unchanged. Update frontend to treat ids as opaque
+      strings. Alternatively, if implementation cost is high, explicitly document the
+      snapshot-scoped semantics and make the frontend re-resolve by name after every
+      refresh — choose during implementation and record the choice in the Change Summary.
+    acceptance:
+      - "Selecting a training run, triggering a rescan that changes discovery order, then scanning by the held id targets
+        the SAME run as before (or the FE provably re-resolves by name on refresh)"
+      - "BE+FE: chosen approach documented in docs/api.md"
+    testing:
+      - "command: make test-backend"
+      - "command: cd frontend && npx vitest run"
+      - "A test simulates reordered discovery between list and scan and asserts the same run is addressed"
+      - "command: make test-e2e"
+
+  - id: S-156
+    title: "Schema hardening: status CHECK constraints; move business default out of DDL"
+    priority: 40
+    status: todo
+    complexity: low
+    type: story
+    requires: ["B-149"]
+    notes: |
+      migrations.go: sample_jobs.status and sample_job_items.status are bare TEXT —
+      enums are wire-enforced only, so a code bug can persist an invalid status that
+      the executor never handles. Also migration 21 bakes a domain default
+      ('[{"strength_model":1.0,...}]') into DDL.
+
+      Fix: forward migration adding CHECK (status IN (...)) for both tables (SQLite
+      requires table rebuild for adding CHECKs — follow the existing v2/v3 rebuild
+      pattern in migrations.go). For the strength default, keep existing rows as-is
+      but apply the default in the service layer for new writes; document the DDL
+      default as legacy. Requires B-149 (same migrations.go file).
+    acceptance:
+      - "BE: inserting an invalid status into sample_jobs/sample_job_items fails at the DB layer"
+      - "BE: migration applies cleanly to an existing populated database (rebuild preserves rows)"
+      - "BE: lora strength default applied in service code for new items; no behavior change for existing data"
+    testing:
+      - "command: make test-backend"
+      - "Migration test: populated pre-migration DB migrates with all rows intact; post-migration invalid-status insert errors"
+      - "command: make test-e2e"
+
+  - id: R-014
+    title: "Fix service-to-store layering breach: ObjectInfo belongs in model"
+    priority: 60
+    status: todo
+    complexity: low
+    type: refactor
+    requires: []
+    notes: |
+      backend/internal/service/comfyui_models.go:25,104 types its consumer-defined
+      ObjectInfoGetter interface over store.ObjectInfo, forcing the only
+      service->store import in the backend (verified) — the exact violation
+      architecture.md 2.1 / DEVELOPMENT_PRACTICES 2.3 prohibit.
+
+      Fix: define ObjectInfo in internal/model (or a service-local type), have the
+      interface return the model type, and map store's HTTP DTO to it in the store
+      layer. After this, no non-test file in internal/service imports internal/store.
+    acceptance:
+      - "BE: internal/service has zero imports of internal/store (verified by grep/go list in non-test files)"
+      - "BE: behavior unchanged — model discovery returns identical data"
+    testing:
+      - "command: make test-backend"
+      - "command: cd backend && go list -deps ./internal/service | grep -c internal/store returns 0 (or grep -rn 'internal/store'
+        backend/internal/service --include='*.go' | grep -v _test shows nothing)"
+
+  - id: R-015
+    title: "Replace string-matched error handling with typed errors; stop leaking absolute paths in API errors"
+    priority: 55
+    status: todo
+    complexity: medium
+    type: refactor
+    requires: ["B-149", "B-152"]
+    notes: |
+      Two related violations of DEVELOPMENT_PRACTICES 3.2:
+      1. API handlers map service errors to HTTP statuses via
+         strings.Contains(err.Error(), ...) — api/checkpoints.go:27,
+         images_service.go:122, presets.go:126, training_runs.go:127. Rewording a
+         message silently changes status codes.
+      2. job_executor.go isConnectionError (~2333) substring-matches lowercased error
+         text ("timeout","network","eof") — a ComfyUI node error mentioning 'network'
+         triggers a bogus reconnect cycle.
+      Also: several service errors embed absolute host paths that can surface through
+      API responses (e.g. validation.go manifest-not-found) — sanitize at the API
+      mapping boundary.
+
+      Fix: introduce typed/sentinel errors in the service layer (errors.Is/As),
+      switch API mapping to them; replace isConnectionError with net.Error.Timeout(),
+      errors.Is(context.DeadlineExceeded), *net.OpError/syscall checks. Ensure API
+      error messages never contain absolute server paths. Requires B-149/B-152 (same
+      files churn first).
+    acceptance:
+      - "BE: no strings.Contains(err.Error(), ...) remains in internal/api or internal/service (grep-verifiable, excluding
+        tests)"
+      - "BE: HTTP status mapping driven by errors.Is/As on sentinel/typed errors"
+      - "BE: connection-error classification uses typed checks, with a test proving a node error containing the word 'network'
+        is NOT classified as a connection error"
+      - "BE: API error responses contain no absolute filesystem paths (paths allowed only in server logs)"
+    testing:
+      - "command: make test-backend"
+      - "grep -rn 'Contains(err.Error' backend/internal --include='*.go' | grep -v _test returns nothing"
+      - "Mapping tests per endpoint: not-found -> 404, validation -> 400, internal -> 500 driven by sentinel errors"
+      - "command: make test-e2e"
+
+  - id: R-016
+    title: "Unify Goa error vocabulary across services in the design DSL"
+    priority: 50
+    status: todo
+    complexity: medium
+    type: refactor
+    requires: ["R-015"]
+    notes: |
+      Inconsistent error declarations in backend/internal/api/design: comfyui.go
+      declares NO errors at all (verified — outages surface as unmapped 500s),
+      sample_jobs.create lacks internal_error, base_models uses scan_failed where
+      studies/presets use internal_error for the same semantic. The frontend cannot
+      rely on stable codes per failure class (architecture.md 2.7).
+
+      Fix: define a shared error vocabulary (internal_error for 500s everywhere,
+      not_found, invalid_payload, plus domain-specific codes where genuinely needed),
+      apply to every method that touches DB/ComfyUI, regenerate (cd backend &&
+      make gen), and update API-layer mappings. Frontend error normalization should
+      need no per-service special-casing. Requires R-015 (typed errors land first).
+    acceptance:
+      - "BE: every design method that can fail declares its error set; comfyui methods declare connection/internal errors
+        mapped to sensible statuses"
+      - "BE: one canonical code per failure class across services (documented list in the design package or docs/api.md)"
+      - "BE: goa codegen run; generated code committed; no hand edits under gen/"
+      - "FE: client error normalization handles the unified codes (update types if needed)"
+    testing:
+      - "command: cd backend && make gen && git diff --stat (gen diff reviewed/committed)"
+      - "command: make test-backend"
+      - "command: cd frontend && npx vitest run"
+      - "command: make test-e2e"
+
+  - id: R-017
+    title: "Move image-serving filesystem logic out of the API layer behind a store interface"
+    priority: 45
+    status: todo
+    complexity: medium
+    type: refactor
+    requires: ["R-015"]
+    notes: |
+      backend/internal/api/images_service.go:44-110 performs path-traversal validation,
+      filepath.Join/Clean checks, os.Stat/os.Open, and content sniffing inside the Goa
+      transport adapter — the path-traversal security boundary has no unit-test seam
+      (architecture.md reserves filesystem access for the store layer).
+
+      Fix: extract file resolution + traversal validation behind a store-layer
+      interface (consumer-defined in service or api), keep the handler as a thin
+      streaming adapter, and port the existing isPathSafe logic verbatim with its
+      separator-bounded prefix check (consider filepath.Rel per S-154). Behavior
+      (status codes, cache headers, content types, streaming) must be byte-identical.
+    acceptance:
+      - "BE: api/images_service.go contains no direct os.* filesystem calls; resolution/validation lives behind a tested interface"
+      - "BE: traversal-rejection unit tests exist at the new seam covering '..', absolute paths, sibling-prefix dirs, and
+        clean paths"
+      - "BE: cache headers, content-type detection, and streaming behavior unchanged"
+    testing:
+      - "command: make test-backend"
+      - "command: make test-e2e (image serving + lightbox + thumbnail specs green)"
+
+  - id: R-018
+    title: "Split job_executor.go (2,345 lines) into cohesive units"
+    priority: 35
+    status: todo
+    complexity: medium
+    type: refactor
+    requires: ["B-148", "B-152", "R-015"]
+    notes: |
+      backend/internal/service/job_executor.go is a god-file owning executor lifecycle,
+      ComfyUI WS reconnection handling, base-model matching, directory removal wiring,
+      thumbnail integration, and pause/resume. The hardest-to-verify concurrency code
+      in the repo lives in the least navigable file.
+
+      Fix: mechanical split into cohesive files within the same package (e.g.
+      job_executor_lifecycle.go, job_executor_conn.go, job_executor_paths.go,
+      job_executor_progress.go) with NO behavior changes. Scheduled after the executor
+      bug fixes (B-148, B-152) and error typing (R-015) so it doesn't conflict with
+      them. Pure code movement; tests must pass unchanged (test file splits allowed).
+    acceptance:
+      - "BE: no single non-test file in internal/service exceeds ~800 lines after the split"
+      - "BE: zero behavior changes — public API of the package identical, all existing tests pass without assertion changes"
+      - "BE: git diff shows moves, not rewrites (functions relocated verbatim aside from file headers)"
+    testing:
+      - "command: make test-backend (entire suite green with no test-assertion modifications)"
+      - "command: make test-e2e"
+
+  - id: R-019
+    title: "Extract sample-availability and job-progress logic from JobLaunchDialog/App.vue into tested composables"
+    priority: 30
+    status: todo
+    complexity: high
+    type: refactor
+    requires: ["S-153", "B-154"]
+    notes: |
+      JobLaunchDialog.vue (2,130 lines) has four separate watch(selectedTrainingRunId)
+      blocks and overlapping run-vs-study sample-availability fallback rules; App.vue
+      (1,405 lines) owns three manually-synced reactive job-progress maps (jobProgress,
+      inferenceProgress, prevCheckpointProgress) whose inline comments reference three
+      past regressions (B-067, S-098, B-105) — the synchronization invariants live in
+      an untested root component.
+
+      Fix: extract useSampleAvailability(...) returning the availability/bead computeds
+      (consolidating the multiple watchers into one) and useJobProgress(...) owning the
+      progress-map synchronization, each with unit tests encoding the invariants
+      (including ETA-preservation rules). Rendering output and bead behavior (PRD
+      5.5.1) must be pixel-identical. Requires S-153 and B-154 (both touch these files).
+    acceptance:
+      - "FE: availability/bead derivations live in a composable with unit tests covering the PRD 5.5.1 precedence table"
+      - "FE: job-progress map synchronization lives in a composable with tests covering the ETA-preservation and transition
+        rules"
+      - "FE: JobLaunchDialog has a single consolidated watcher on selectedTrainingRunId"
+      - "FE: existing component tests pass; bead E2E specs unchanged and green"
+    testing:
+      - "command: cd frontend && npx vitest run"
+      - "command: make test-e2e (bead/status and job progress specs green)"
+
+  - id: R-020
+    title: "Frontend minor cleanups: single getImage lookup per grid cell; deterministic test fixture IDs"
+    priority: 15
+    status: todo
+    complexity: low
+    type: refactor
+    requires: []
+    notes: |
+      1. XYGrid.vue (~line 269) calls getImage(xVal, yVal) 2-4x per cell in the
+         template for relative-path/thumbnail-path — hundreds of redundant Map lookups
+         per render. Compute each cell's image once (precomputed cell objects or a
+         single lookup passed down).
+      2. dualBeadStatus.test.ts uses Math.random() in fixture IDs, violating
+         TEST_PRACTICES 4.1 determinism — switch to a counter.
+    acceptance:
+      - "FE: each grid cell resolves its image via exactly one getImage call per render"
+      - "FE: no Math.random() in test fixtures (grep-verifiable under frontend/src)"
+      - "FE: grid rendering output unchanged"
+    testing:
+      - "command: cd frontend && npx vitest run"
+      - "grep -rn 'Math.random' frontend/src --include='*.test.ts' returns nothing"
+      - "command: make test-e2e (grid specs green)"
+
+  - id: W-027
+    title: "Replace sleep-based negative assertions in watcher/ws tests with deterministic synchronization"
+    priority: 45
+    status: todo
+    complexity: low
+    type: workflow
+    requires: ["B-153"]
+    notes: |
+      service/watcher_test.go:319,330,341 and api/ws_test.go:257 assert ABSENCE of an
+      effect after a fixed 30-50ms time.Sleep — flaky under load, and a too-short
+      sleep silently false-passes, masking regressions (violates TEST_PRACTICES 1.2/4.3).
+
+      Fix: enqueue a sentinel event that SHOULD be delivered after the suppressed one
+      and assert only the sentinel arrives (Eventually); for the zero-ping-interval
+      case assert on the configurer's no-op path instead of sleeping. Requires B-153
+      (watcher_test is heavily touched there first).
+    acceptance:
+      - "No time.Sleep used as the sole synchronization for a negative assertion in watcher/ws tests (the cited four sites
+        eliminated)"
+      - "The rewritten tests still fail when the behavior they guard is broken (verified by temporarily inverting the production
+        guard during development)"
+    testing:
+      - "command: make test-backend (run twice to spot flake regressions)"
+      - "grep -n 'time.Sleep' backend/internal/service/watcher_test.go backend/internal/api/ws_test.go — remaining sleeps
+        (if any) must be justified in a code comment, none guarding negative assertions"
+
+  - id: W-028
+    title: "Adopt mockery: tooling setup + migrate api/store-layer hand-rolled mocks"
+    priority: 40
+    status: todo
+    complexity: medium
+    type: workflow
+    requires: ["B-149", "S-152"]
+    notes: |
+      TEST_PRACTICES 2.1 mandates mockery-generated mocks but no .mockery.yaml exists
+      and every mock is hand-rolled (drift risk: stale mocks pass while diverging from
+      interfaces). Decision (user, 2026-06-09): full migration.
+
+      Part 1 of 2: install/pin mockery (add to Dockerfile.claude-sandbox toolchain or
+      backend Makefile via go run), create .mockery.yaml covering interfaces consumed
+      in internal/api and internal/store tests, add a make target (e.g. make mocks),
+      regenerate, and replace the hand-rolled mocks in api/store test files. Document
+      the workflow in TEST_PRACTICES (generation command, where mocks live). Scheduled
+      after the api/store bug wave to avoid churn. Part 2 (service layer) is W-029.
+    acceptance:
+      - "BE: .mockery.yaml exists; 'make mocks' (or documented equivalent) regenerates all configured mocks deterministically"
+      - "BE: api- and store-layer tests use generated mocks; corresponding hand-rolled mock types deleted"
+      - "TEST_PRACTICES updated with the exact generation workflow"
+      - "BE: make test-backend green with generated mocks"
+    testing:
+      - "command: make test-backend"
+      - "Run mock generation twice — second run produces no diff (deterministic)"
+      - "grep verifies the replaced hand-rolled mock type definitions are gone from api/store test files"
+
+  - id: W-029
+    title: "Mockery migration part 2: service-layer mocks"
+    priority: 38
+    status: todo
+    complexity: high
+    type: workflow
+    requires: ["W-028", "R-018"]
+    notes: |
+      Completes the full mockery migration: migrate the service-layer tests (the
+      largest mock surface — job_executor, watcher, comfyui_models, scanner et al.)
+      to generated mocks per the W-028 tooling. Requires R-018 so the executor split
+      lands first (otherwise this churns a file three other tickets touch).
+      Behavior-preserving: test assertions unchanged except mock plumbing.
+    acceptance:
+      - "BE: all remaining hand-rolled mocks in internal/service tests replaced with generated mocks"
+      - "BE: no hand-rolled mock struct definitions remain in backend test files (grep for 'type mock' verifies; documented
+        exceptions allowed only for trivial func-field fakes if mockery cannot express them — justify each in the Change Summary)"
+      - "BE: full suite green with no weakened assertions"
+    testing:
+      - "command: make test-backend"
+      - "grep -rn 'type mock' backend/internal --include='*_test.go' output reviewed: empty or each remainder justified"
+      - "command: make test-e2e"
+
+  - id: W-030
+    title: "Unit tests for destructive filesystem helpers and uncovered store queries"
+    priority: 55
+    status: todo
+    complexity: medium
+    type: workflow
+    requires: []
+    notes: |
+      The highest-blast-radius code in the repo has 0% coverage:
+      store/filesystem.go RemoveSampleDir, RemoveStudyDir, RemoveCheckpointOutputDir,
+      RemoveJobSampleDir, CleanStudyDirs, ListSubdirectories — recursive deletes whose
+      path scoping is only indirectly verified by E2E. Also uncovered:
+      store/study.go GetStudyByName and store/sample_job.go HasRunningJob (used in
+      study-uniqueness and job-gating flows).
+
+      Fix: table-driven tests over t.TempDir() fixtures asserting (a) exactly the
+      intended subtree is removed and siblings survive, (b) traversal/escape inputs
+      ('..', absolute paths, empty components) are rejected without deleting anything,
+      (c) missing-target behavior. Plus happy/empty/duplicate-path tests for the two
+      store queries.
+    acceptance:
+      - "BE: every listed Remove*/Clean* helper has tests covering correct-subtree deletion, sibling survival, and escape-input
+        rejection"
+      - "BE: GetStudyByName and HasRunningJob covered (found/not-found/multiple)"
+      - "BE: coverage for store/filesystem.go deletion helpers no longer 0% (visible in go test -cover output)"
+    testing:
+      - "command: make test-backend"
+      - "command: cd backend && go test -cover ./internal/store/... — deletion helpers show non-zero coverage"
+      - "Escape-input tests assert the filesystem is untouched after rejection (fixture intact)"
+
+  - id: M-001
+    title: "Docs refresh part 1: architecture.md + database.md regenerated from implementation"
+    priority: 40
+    status: todo
+    complexity: medium
+    type: maintenance
+    requires: ["B-149", "S-150", "S-151", "S-153"]
+    notes: |
+      Verified drift: architecture.md 2.3 and database.md say TOML config (code uses
+      YAML via internal/config/config.go, file config.yaml); database.md claims the DB
+      persists only dimension-mapping presets and documents a dropped studies.version
+      column, omitting sample_presets/sample_jobs/sample_job_items entirely
+      (migrations.go creates all of them, now through v25+); image serving docs claim
+      PNG-only while thumbnails serve JPEG via http.DetectContentType.
+
+      Task: rewrite both docs from the CODE as source of truth — config schema from
+      config.go (including the new max_request_size_mb, allowed_origins,
+      max_study_items keys — hence the requires), full table inventory + indexes +
+      migration strategy from migrations.go, layering diagram additions
+      (internal/fileformat, internal/buildinfo, internal/testutil), shutdown/lifecycle
+      notes, thumbnails. Mine agent/backlog_done.yaml (6,700 lines of completed-story
+      detail) for feature context — it records what was built and why. Do NOT
+      document aspirational behavior; only what is implemented.
+    acceptance:
+      - "docs/architecture.md: zero TOML references; config section matches config.go fields exactly (spot-checkable field-by-field);
+        layer diagram includes all internal/ packages"
+      - "docs/database.md: table inventory matches migrations.go final schema (every table, column, index); migration strategy
+        section describes the forward-only versioned approach actually used"
+      - "No documented claim contradicts the code (reviewer spot-checks 5 random claims against source)"
+    testing:
+      - "Reviewer verification: for each table in database.md, confirm a matching CREATE/ALTER in migrations.go; for each
+        config key in architecture.md, confirm a yamlConfig field"
+      - "grep -in 'toml' docs/architecture.md docs/database.md returns nothing"
+      - "command: python3 scripts/backlog/backlog.py validate --strict (backlog untouched sanity)"
+
+  - id: M-002
+    title: "Docs refresh part 2: api.md regenerated from the Goa design"
+    priority: 38
+    status: todo
+    complexity: medium
+    type: maintenance
+    requires: ["R-016", "S-153"]
+    notes: |
+      Verified drift: docs/api.md lists 4 of ~14 actual service groups (missing
+      studies, sample_jobs, comfyui, workflows, base_models, checkpoints, demo, plus
+      the new config endpoint from S-153); claims Format() validation is the pattern
+      while no design file uses it; PNG-only content-type claim outdated.
+
+      Task: regenerate the service/endpoint tables from backend/internal/api/design/
+      (or the generated OpenAPI spec) covering every service group, document the
+      unified error vocabulary from R-016 (hence the requires), correct the
+      validation-pattern claims to what the DSL actually does, and document
+      content-type detection/thumbnails. Use agent/backlog_done.yaml for feature
+      context. Code is the source of truth.
+    acceptance:
+      - "docs/api.md lists every service group and endpoint present in the design package (cross-checkable 1:1 against design/*.go)"
+      - "Error-code vocabulary section matches the R-016 canonical set"
+      - "No claims about validation patterns that the DSL does not implement"
+    testing:
+      - "Reviewer verification: every Service(...) in design/*.go appears in api.md and vice versa (list both, diff manually)"
+      - "Spot-check 5 endpoint entries (method, path, errors) against the design DSL"
+
+  - id: M-003
+    title: "Docs refresh part 3: filesystem.md, ui.md, workflows.md + PRD config section sync"
+    priority: 36
+    status: todo
+    complexity: medium
+    type: maintenance
+    requires: ["S-151", "S-153"]
+    notes: |
+      Completes the docs refresh: audit docs/filesystem.md (LoRA study/base-model
+      output directory layers, thumbnails/ subdirectories, manifests), docs/ui.md
+      (component inventory vs frontend/src/components — drawers, study editor, bead
+      system), docs/workflows.md (cs_role table vs the workflow substitution code in
+      job_executor), and PRD.md section 4 (config schema — add the three new keys from
+      S-150/S-151/S-153 to the canonical example). Mine agent/backlog_done.yaml for
+      what shipped. Each claim must match current code; remove or rewrite stale
+      sections rather than leaving them annotated.
+    acceptance:
+      - "docs/filesystem.md directory-layout examples match the actual output-path construction in job_executor (including
+        LoRA base-model layer and thumbnails)"
+      - "docs/ui.md component table matches frontend/src/components inventory (no missing/ghost components)"
+      - "docs/workflows.md cs_role table matches the substitution roles handled in code"
+      - "PRD section 4 config example includes max_request_size_mb, allowed_origins, max_study_items with accurate defaults"
+    testing:
+      - "Reviewer verification: ls frontend/src/components vs ui.md table (1:1); grep cs_role handling in job_executor vs
+        workflows.md table"
+      - "Spot-check output-path examples against a real e2e artifact tree (.e2e/ samples) or the path-construction unit tests"
