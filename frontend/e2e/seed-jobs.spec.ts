@@ -99,7 +99,10 @@ test.describe('test seed-jobs endpoint (S-111)', () => {
     expect(completedJob).toBeDefined()
     expect(completedJob?.status).toBe('completed')
     expect(completedJob?.total_items).toBe(10)
-    expect(completedJob?.completed_items).toBe(10)
+    // B-148: completed_items is now derived from live item counts, not the stored counter.
+    // Seeded jobs have no items, so the derived count is always 0 (the stored counter is
+    // intentionally ignored to eliminate get-modify-write races).
+    expect(completedJob?.completed_items).toBe(0)
   })
 
   // AC4: E2E: At least one E2E test uses the seed endpoint to verify job-related UI
@@ -192,6 +195,8 @@ test.describe('test seed-jobs endpoint (S-111)', () => {
     expect(job.job.id).toBe(jobIDs[0])
     expect(job.job.status).toBe('running')
     expect(job.job.total_items).toBe(10)
-    expect(job.job.completed_items).toBe(3)
+    // B-148: completed_items is derived from live item counts, not the stored counter.
+    // Seeded jobs have no items, so the derived count is 0 regardless of what was seeded.
+    expect(job.job.completed_items).toBe(0)
   })
 })

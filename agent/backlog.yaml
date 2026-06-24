@@ -315,7 +315,7 @@ stories:
   - id: B-148
     title: "completed_items counter races (lost updates) and diverges between job list and detail views"
     priority: 75
-    status: todo
+    status: uat
     complexity: medium
     type: bug
     requires: ["B-147"]

@@ -246,9 +246,13 @@ func sampleJobToResponse(j model.SampleJob, counts model.ItemStatusCounts, faile
 		CheckpointFilenames: checkpointFilenames,
 		Status:              string(j.Status),
 		TotalItems:          j.TotalItems,
-		CompletedItems:      j.CompletedItems,
-		FailedItems:         counts.Failed,
-		PendingItems:        counts.Pending,
+		// CompletedItems is derived from the live item counts (same source as
+		// FailedItems/PendingItems) rather than the stored j.CompletedItems counter.
+		// This guarantees the list and show endpoints report identical progress and
+		// that the reported value never diverges from the actual completed-item count.
+		CompletedItems: counts.Completed,
+		FailedItems:    counts.Failed,
+		PendingItems:   counts.Pending,
 		CreatedAt:           j.CreatedAt.UTC().Format(time.RFC3339),
 		UpdatedAt:           j.UpdatedAt.UTC().Format(time.RFC3339),
 	}

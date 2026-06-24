@@ -21,6 +21,10 @@ import (
 type JobExecutorStore interface {
 	GetSampleJob(id string) (model.SampleJob, error)
 	UpdateSampleJob(j model.SampleJob) error
+	// RecalculateCompletedItems atomically derives the stored completed_items
+	// counter from the count of completed sample_job_items in a single UPDATE,
+	// eliminating the get-modify-write race. Returns the recomputed count.
+	RecalculateCompletedItems(jobID string) (int, error)
 	ListSampleJobItems(jobID string) ([]model.SampleJobItem, error)
 	UpdateSampleJobItem(i model.SampleJobItem) error
 	ListSampleJobs() ([]model.SampleJob, error)
@@ -1696,48 +1700,27 @@ func (e *JobExecutor) failItemWithDetails(itemID string, errorMsg string, except
 }
 
 // updateJobProgress updates the completed items count for a job.
+//
+// The counter is derived atomically inside a single UPDATE statement
+// (RecalculateCompletedItems) rather than via a get-modify-write. Two concurrent
+// item completions therefore cannot lose an update: the stored completed_items
+// always equals the actual count of completed sample_job_items.
 func (e *JobExecutor) updateJobProgress(jobID string) {
-	job, err := e.store.GetSampleJob(jobID)
+	completed, err := e.store.RecalculateCompletedItems(jobID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			// Job was deleted between item completion and progress update (job cancelled during E2E teardown).
 			// This is a benign race — log at warn, not error.
 			e.logger.WithField("job_id", jobID).Warn("job row not found during progress update (job likely cancelled)")
 		} else {
-			e.logger.WithError(err).Error("failed to get job for progress update")
-		}
-		return
-	}
-
-	items, err := e.store.ListSampleJobItems(jobID)
-	if err != nil {
-		e.logger.WithError(err).Error("failed to list items for progress update")
-		return
-	}
-
-	completed := 0
-	for _, item := range items {
-		if item.Status == model.SampleJobItemStatusCompleted {
-			completed++
-		}
-	}
-
-	job.CompletedItems = completed
-	job.UpdatedAt = time.Now().UTC()
-	if err := e.store.UpdateSampleJob(job); err != nil {
-		if err == sql.ErrNoRows {
-			// Job was deleted between get and update (job cancelled during E2E teardown).
-			// This is a benign race — log at warn, not error.
-			e.logger.WithField("job_id", jobID).Warn("job row not found during progress update write (job likely cancelled)")
-		} else {
 			e.logger.WithError(err).Error("failed to update job progress")
 		}
+		return
 	}
 
 	e.logger.WithFields(logrus.Fields{
 		"job_id":          jobID,
 		"completed_items": completed,
-		"total_items":     job.TotalItems,
 	}).Debug("job progress updated")
 }
 
