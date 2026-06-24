@@ -85,11 +85,20 @@ func (f *fakeSampleJobStore) HasRunningJob() (bool, error) {
 	return false, nil
 }
 
-func (f *fakeSampleJobStore) CreateSampleJob(j model.SampleJob) error {
+// CreateSampleJobWithItems atomically stores a job and its items. To mirror the
+// real store's transactional behavior, if createItemErr is set nothing is
+// persisted (no job and no items), matching a rolled-back transaction.
+func (f *fakeSampleJobStore) CreateSampleJobWithItems(j model.SampleJob, items []model.SampleJobItem) error {
 	if f.createJobErr != nil {
 		return f.createJobErr
 	}
+	if f.createItemErr != nil {
+		return f.createItemErr
+	}
 	f.jobs[j.ID] = j
+	for _, item := range items {
+		f.items[item.JobID] = append(f.items[item.JobID], item)
+	}
 	return nil
 }
 
@@ -121,14 +130,6 @@ func (f *fakeSampleJobStore) ListSampleJobItems(jobID string) ([]model.SampleJob
 		return nil, f.listItemsErr
 	}
 	return f.items[jobID], nil
-}
-
-func (f *fakeSampleJobStore) CreateSampleJobItem(i model.SampleJobItem) error {
-	if f.createItemErr != nil {
-		return f.createItemErr
-	}
-	f.items[i.JobID] = append(f.items[i.JobID], i)
-	return nil
 }
 
 func (f *fakeSampleJobStore) UpdateSampleJobItem(i model.SampleJobItem) error {

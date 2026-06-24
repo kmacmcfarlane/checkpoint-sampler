@@ -78,11 +78,14 @@ func (f *fakeSampleJobStore) HasRunningJob() (bool, error) {
 	return false, nil
 }
 
-func (f *fakeSampleJobStore) CreateSampleJob(job model.SampleJob) error {
+func (f *fakeSampleJobStore) CreateSampleJobWithItems(job model.SampleJob, items []model.SampleJobItem) error {
 	if f.createErr != nil {
 		return f.createErr
 	}
 	f.jobs[job.ID] = job
+	for _, item := range items {
+		f.items[item.JobID] = append(f.items[item.JobID], item)
+	}
 	return nil
 }
 
@@ -115,11 +118,6 @@ func (f *fakeSampleJobStore) ListSampleJobItems(jobID string) ([]model.SampleJob
 		return []model.SampleJobItem{}, nil
 	}
 	return items, nil
-}
-
-func (f *fakeSampleJobStore) CreateSampleJobItem(item model.SampleJobItem) error {
-	f.items[item.JobID] = append(f.items[item.JobID], item)
-	return nil
 }
 
 func (f *fakeSampleJobStore) UpdateSampleJobItem(item model.SampleJobItem) error {

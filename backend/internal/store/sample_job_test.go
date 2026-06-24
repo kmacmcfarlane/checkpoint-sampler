@@ -945,4 +945,146 @@ var _ = Describe("SampleJob Store", func() {
 			})
 		})
 	})
+
+	// B-147: Sample job + items creation must be atomic. The job row and all of
+	// its item rows are inserted in a single transaction so that a failure during
+	// item insertion leaves no job row and no item rows behind.
+	Describe("CreateSampleJobWithItems (atomic job + items)", func() {
+		var (
+			now   time.Time
+			job   model.SampleJob
+			items []model.SampleJobItem
+		)
+
+		// makeItem builds a fully-populated item belonging to job-atomic.
+		makeItem := func(id, checkpoint string) model.SampleJobItem {
+			return model.SampleJobItem{
+				ID:                 id,
+				JobID:              "job-atomic",
+				CheckpointFilename: checkpoint,
+				ComfyUIModelPath:   "/models/" + checkpoint,
+				PromptName:         "test",
+				PromptText:         "test prompt",
+				Steps:              4,
+				CFG:                7.0,
+				SamplerName:        "euler",
+				Scheduler:          "simple",
+				Seed:               42,
+				Width:              512,
+				Height:             512,
+				Status:             model.SampleJobItemStatusPending,
+				CreatedAt:          now,
+				UpdatedAt:          now,
+			}
+		}
+
+		BeforeEach(func() {
+			createStudy("study-atomic")
+			now = time.Now().UTC().Truncate(time.Second)
+			job = model.SampleJob{
+				ID:              "job-atomic",
+				TrainingRunName: "atomic-run",
+				StudyID:         "study-atomic",
+				StudyName:       "Test Study",
+				WorkflowName:    "flux-dev",
+				Status:          model.SampleJobStatusPending,
+				CompletedItems:  0,
+				CreatedAt:       now,
+				UpdatedAt:       now,
+			}
+			items = []model.SampleJobItem{
+				makeItem("item-a1", "checkpoint-a.safetensors"),
+				makeItem("item-a2", "checkpoint-a.safetensors"),
+				makeItem("item-b1", "checkpoint-b.safetensors"),
+			}
+		})
+
+		It("persists the job and total_items == COUNT(sample_job_items WHERE job_id) on the happy path", func() {
+			job.TotalItems = len(items)
+			err := s.CreateSampleJobWithItems(job, items)
+			Expect(err).NotTo(HaveOccurred())
+
+			// The job row exists.
+			stored, err := s.GetSampleJob("job-atomic")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(stored.TotalItems).To(Equal(len(items)))
+
+			// total_items must equal the actual number of item rows for the job.
+			var itemCount int
+			err = s.DB().QueryRow(
+				"SELECT COUNT(*) FROM sample_job_items WHERE job_id = ?", "job-atomic",
+			).Scan(&itemCount)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(stored.TotalItems).To(Equal(itemCount))
+
+			storedItems, err := s.ListSampleJobItems("job-atomic")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(storedItems).To(HaveLen(len(items)))
+		})
+
+		It("rolls back entirely when an item insertion fails partway through (no job row, no item rows)", func() {
+			// Inject a failure partway through item insertion by duplicating an item
+			// ID. The third item reuses item-a1's primary key, so its INSERT fails
+			// with a UNIQUE constraint violation after the first two items have been
+			// inserted within the transaction.
+			job.TotalItems = len(items)
+			badItems := []model.SampleJobItem{
+				makeItem("item-a1", "checkpoint-a.safetensors"),
+				makeItem("item-a2", "checkpoint-a.safetensors"),
+				makeItem("item-a1", "checkpoint-b.safetensors"), // duplicate PK -> fails mid-loop
+			}
+
+			err := s.CreateSampleJobWithItems(job, badItems)
+			Expect(err).To(HaveOccurred())
+
+			// The whole transaction must roll back: no job row.
+			var jobCount int
+			err = s.DB().QueryRow(
+				"SELECT COUNT(*) FROM sample_jobs WHERE id = ?", "job-atomic",
+			).Scan(&jobCount)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(jobCount).To(Equal(0))
+
+			// And no item rows.
+			var itemCount int
+			err = s.DB().QueryRow(
+				"SELECT COUNT(*) FROM sample_job_items WHERE job_id = ?", "job-atomic",
+			).Scan(&itemCount)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(itemCount).To(Equal(0))
+		})
+
+		It("rolls back the job row when item insertion fails on an invalid foreign-key job_id", func() {
+			// An item whose job_id does not reference the job being inserted (and
+			// does not exist) violates the FK constraint, forcing a rollback. The
+			// job row inserted earlier in the same transaction must not persist.
+			job.TotalItems = 2
+			badItems := []model.SampleJobItem{
+				makeItem("item-ok", "checkpoint-a.safetensors"),
+				func() model.SampleJobItem {
+					it := makeItem("item-bad-fk", "checkpoint-b.safetensors")
+					it.JobID = "nonexistent-job"
+					return it
+				}(),
+			}
+
+			err := s.CreateSampleJobWithItems(job, badItems)
+			Expect(err).To(HaveOccurred())
+
+			var jobCount int
+			err = s.DB().QueryRow(
+				"SELECT COUNT(*) FROM sample_jobs WHERE id = ?", "job-atomic",
+			).Scan(&jobCount)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(jobCount).To(Equal(0))
+
+			var itemCount int
+			err = s.DB().QueryRow(
+				"SELECT COUNT(*) FROM sample_job_items WHERE job_id IN (?, ?)",
+				"job-atomic", "nonexistent-job",
+			).Scan(&itemCount)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(itemCount).To(Equal(0))
+		})
+	})
 })

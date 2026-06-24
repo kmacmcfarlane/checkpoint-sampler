@@ -20,11 +20,13 @@ type SampleJobStore interface {
 	ListSampleJobsDesc() ([]model.SampleJob, error)
 	GetSampleJob(id string) (model.SampleJob, error)
 	HasRunningJob() (bool, error)
-	CreateSampleJob(j model.SampleJob) error
+	// CreateSampleJobWithItems inserts the job and all of its items atomically in
+	// a single transaction. A failure during item insertion leaves no job row and
+	// no item rows behind, eliminating orphaned jobs with partial items.
+	CreateSampleJobWithItems(j model.SampleJob, items []model.SampleJobItem) error
 	UpdateSampleJob(j model.SampleJob) error
 	DeleteSampleJob(id string) error
 	ListSampleJobItems(jobID string) ([]model.SampleJobItem, error)
-	CreateSampleJobItem(i model.SampleJobItem) error
 	UpdateSampleJobItem(i model.SampleJobItem) error
 	GetStudy(id string) (model.Study, error)
 }
@@ -310,21 +312,11 @@ func (s *SampleJobService) Create(trainingRunName string, checkpoints []model.Ch
 		UpdatedAt:           now,
 	}
 
-	if err := s.store.CreateSampleJob(job); err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"sample_job_id":     jobID,
-			"training_run_name": trainingRunName,
-			"error":             err.Error(),
-		}).Error("failed to create sample job")
-		return model.SampleJob{}, fmt.Errorf("creating sample job: %w", err)
-	}
-	s.logger.WithFields(logrus.Fields{
-		"sample_job_id":     jobID,
-		"training_run_name": trainingRunName,
-		"total_items":       totalItems,
-	}).Info("sample job created")
-
-	// Expand items: for each checkpoint, iterate over all parameter combinations
+	// Expand items: for each checkpoint, iterate over all parameter combinations.
+	// All item assembly (expansion, missing-only filtering, path matching) happens
+	// in memory first; the job and its items are then persisted atomically in a
+	// single transaction below. This prevents an orphaned job row from being left
+	// behind if any individual item insert fails mid-loop (B-147).
 	items := s.expandJobItems(jobID, checkpoints, study, isLoRA)
 	s.logger.WithFields(logrus.Fields{
 		"sample_job_id": jobID,
@@ -351,17 +343,9 @@ func (s *SampleJobService) Create(trainingRunName string, checkpoints []model.Ch
 			"remaining":        len(filtered),
 		}).Info("filtered items for missing-only job")
 		items = filtered
-		// Update total items on the job to reflect the filtered count
+		// Reflect the filtered count on the job before it is persisted.
 		totalItems = len(items)
 		job.TotalItems = totalItems
-		if err := s.store.UpdateSampleJob(job); err != nil {
-			s.logger.WithFields(logrus.Fields{
-				"sample_job_id": jobID,
-				"error":         err.Error(),
-			}).Error("failed to update sample job total items")
-			_ = s.store.DeleteSampleJob(jobID)
-			return model.SampleJob{}, fmt.Errorf("updating sample job total items: %w", err)
-		}
 	}
 
 	// Select the appropriate path matcher based on training run kind.
@@ -371,14 +355,15 @@ func (s *SampleJobService) Create(trainingRunName string, checkpoints []model.Ch
 		matcher = s.loraPathMatcher
 	}
 
-	// Match checkpoint filenames to ComfyUI model paths and create job items
+	// Match checkpoint filenames to ComfyUI model paths. Items that fail matching
+	// are marked skipped rather than dropped, so the in-memory list stays complete.
 	for i := range items {
 		comfyuiPath, err := matcher.MatchCheckpointPath(items[i].CheckpointFilename)
 		if err != nil {
 			s.logger.WithFields(logrus.Fields{
-				"sample_job_id":        jobID,
-				"checkpoint_filename":  items[i].CheckpointFilename,
-				"error":                err.Error(),
+				"sample_job_id":       jobID,
+				"checkpoint_filename": items[i].CheckpointFilename,
+				"error":               err.Error(),
 			}).Warn("failed to match checkpoint to ComfyUI path, marking item as skipped")
 			// Mark item as skipped if path matching fails
 			items[i].Status = model.SampleJobItemStatusSkipped
@@ -398,22 +383,11 @@ func (s *SampleJobService) Create(trainingRunName string, checkpoints []model.Ch
 				"is_lora":             isLoRA,
 			}).Debug("matched checkpoint to ComfyUI path")
 		}
-
-		if err := s.store.CreateSampleJobItem(items[i]); err != nil {
-			s.logger.WithFields(logrus.Fields{
-				"sample_job_id":       jobID,
-				"sample_job_item_id":  items[i].ID,
-				"checkpoint_filename": items[i].CheckpointFilename,
-				"error":               err.Error(),
-			}).Error("failed to create sample job item")
-			// Clean up: delete the job since item creation failed
-			_ = s.store.DeleteSampleJob(jobID)
-			return model.SampleJob{}, fmt.Errorf("creating sample job item: %w", err)
-		}
 	}
 
 	// B-141: Validate path matching results — fail if ALL items were skipped (zero viable items).
-	// Log a warning if some (but not all) items failed path matching.
+	// Log a warning if some (but not all) items failed path matching. This check runs
+	// before persistence so that a fully-unmatched job is never written to the database.
 	skippedCount := 0
 	for _, item := range items {
 		if item.Status == model.SampleJobItemStatusSkipped {
@@ -426,7 +400,6 @@ func (s *SampleJobService) Create(trainingRunName string, checkpoints []model.Ch
 			"skipped_count": skippedCount,
 			"total_count":   len(items),
 		}).Error("all items failed path matching, no viable items")
-		_ = s.store.DeleteSampleJob(jobID)
 		return model.SampleJob{}, fmt.Errorf("all %d items failed checkpoint path matching — no checkpoints could be resolved in ComfyUI", len(items))
 	}
 	if skippedCount > 0 {
@@ -437,10 +410,24 @@ func (s *SampleJobService) Create(trainingRunName string, checkpoints []model.Ch
 		}).Warn("some items failed path matching")
 	}
 
+	// Persist the job and all of its items atomically. If any insert fails, the
+	// transaction is rolled back, leaving no job row and no item rows behind.
+	if err := s.store.CreateSampleJobWithItems(job, items); err != nil {
+		s.logger.WithFields(logrus.Fields{
+			"sample_job_id":     jobID,
+			"training_run_name": trainingRunName,
+			"item_count":        len(items),
+			"error":             err.Error(),
+		}).Error("failed to create sample job with items")
+		return model.SampleJob{}, fmt.Errorf("creating sample job with items: %w", err)
+	}
+
 	s.logger.WithFields(logrus.Fields{
-		"sample_job_id": jobID,
-		"item_count":    len(items),
-	}).Info("sample job items created")
+		"sample_job_id":     jobID,
+		"training_run_name": trainingRunName,
+		"total_items":       totalItems,
+		"item_count":        len(items),
+	}).Info("sample job and items created atomically")
 
 	return job, nil
 }

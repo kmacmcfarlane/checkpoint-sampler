@@ -282,7 +282,7 @@ stories:
   - id: B-147
     title: "Sample job + items creation is not atomic — orphaned jobs with partial items on mid-loop failure"
     priority: 85
-    status: todo
+    status: uat
     complexity: medium
     type: bug
     requires: ["B-146"]

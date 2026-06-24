@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -222,6 +223,134 @@ func (s *Store) CreateSampleJob(j model.SampleJob) error {
 		"sample_job_id":     j.ID,
 		"training_run_name": j.TrainingRunName,
 	}).Info("inserted sample job into database")
+	return nil
+}
+
+// CreateSampleJobWithItems inserts a sample job and all of its items inside a
+// single database transaction. Either every row (job + items) is committed, or
+// nothing is: if any insert fails, the whole transaction is rolled back, leaving
+// no job row and no item rows behind. This guarantees job creation is atomic so
+// that the executor never observes an orphaned job whose total_items disagrees
+// with its actual item count.
+//
+// All work is performed on the *sql.Tx; no additional connection is acquired so
+// the method is safe even when the pool is pinned to a single connection
+// (SetMaxOpenConns(1)).
+func (s *Store) CreateSampleJobWithItems(j model.SampleJob, items []model.SampleJobItem) error {
+	s.logger.WithFields(logrus.Fields{
+		"sample_job_id":     j.ID,
+		"training_run_name": j.TrainingRunName,
+		"item_count":        len(items),
+	}).Trace("entering CreateSampleJobWithItems")
+	defer s.logger.Trace("returning from CreateSampleJobWithItems")
+
+	tx, err := s.db.BeginTx(context.Background(), nil)
+	if err != nil {
+		s.logger.WithFields(logrus.Fields{
+			"sample_job_id": j.ID,
+			"error":         err.Error(),
+		}).Error("failed to begin transaction for sample job creation")
+		return fmt.Errorf("beginning transaction: %w", err)
+	}
+	// Roll back on any early return. Once the transaction is committed this
+	// Rollback is a no-op (sql.ErrTxDone), which is fine.
+	committed := false
+	defer func() {
+		if !committed {
+			if rbErr := tx.Rollback(); rbErr != nil && rbErr != sql.ErrTxDone {
+				s.logger.WithFields(logrus.Fields{
+					"sample_job_id": j.ID,
+					"error":         rbErr.Error(),
+				}).Warn("failed to roll back sample job creation transaction")
+			}
+		}
+	}()
+
+	jobEntity := sampleJobModelToEntity(j)
+	if _, err := tx.Exec(
+		`INSERT INTO sample_jobs (id, training_run_name, study_id, study_name, workflow_name, vae, clip, shift, base_model, checkpoint_filenames, clear_existing, status, total_items, completed_items, error_message, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		jobEntity.ID,
+		jobEntity.TrainingRunName,
+		jobEntity.StudyID,
+		jobEntity.StudyName,
+		jobEntity.WorkflowName,
+		jobEntity.VAE,
+		jobEntity.CLIP,
+		jobEntity.Shift,
+		jobEntity.BaseModel,
+		jobEntity.CheckpointFilenames,
+		jobEntity.ClearExisting,
+		jobEntity.Status,
+		jobEntity.TotalItems,
+		jobEntity.CompletedItems,
+		jobEntity.ErrorMessage,
+		jobEntity.CreatedAt,
+		jobEntity.UpdatedAt,
+	); err != nil {
+		s.logger.WithFields(logrus.Fields{
+			"sample_job_id":     j.ID,
+			"training_run_name": j.TrainingRunName,
+			"error":             err.Error(),
+		}).Error("failed to insert sample job within transaction")
+		return fmt.Errorf("inserting sample job: %w", err)
+	}
+
+	for _, item := range items {
+		itemEntity := sampleJobItemModelToEntity(item)
+		if _, err := tx.Exec(
+			`INSERT INTO sample_job_items (id, job_id, checkpoint_filename, comfyui_model_path, lora_model_path, strength_model, strength_clip, prompt_name, prompt_text, negative_prompt, steps, cfg, sampler_name, scheduler, seed, width, height, status, comfyui_prompt_id, output_path, error_message, exception_type, node_type, traceback, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			itemEntity.ID,
+			itemEntity.JobID,
+			itemEntity.CheckpointFilename,
+			itemEntity.ComfyUIModelPath,
+			itemEntity.LoraModelPath,
+			itemEntity.StrengthModel,
+			itemEntity.StrengthClip,
+			itemEntity.PromptName,
+			itemEntity.PromptText,
+			itemEntity.NegativePrompt,
+			itemEntity.Steps,
+			itemEntity.CFG,
+			itemEntity.SamplerName,
+			itemEntity.Scheduler,
+			itemEntity.Seed,
+			itemEntity.Width,
+			itemEntity.Height,
+			itemEntity.Status,
+			itemEntity.ComfyUIPromptID,
+			itemEntity.OutputPath,
+			itemEntity.ErrorMessage,
+			itemEntity.ExceptionType,
+			itemEntity.NodeType,
+			itemEntity.Traceback,
+			itemEntity.CreatedAt,
+			itemEntity.UpdatedAt,
+		); err != nil {
+			s.logger.WithFields(logrus.Fields{
+				"sample_job_id":      j.ID,
+				"sample_job_item_id": item.ID,
+				"error":              err.Error(),
+			}).Error("failed to insert sample job item within transaction, rolling back")
+			return fmt.Errorf("inserting sample job item %s: %w", item.ID, err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		s.logger.WithFields(logrus.Fields{
+			"sample_job_id": j.ID,
+			"error":         err.Error(),
+		}).Error("failed to commit sample job creation transaction")
+		return fmt.Errorf("committing sample job creation: %w", err)
+	}
+	committed = true
+
+	s.logger.WithFields(logrus.Fields{
+		"sample_job_id":     j.ID,
+		"training_run_name": j.TrainingRunName,
+		"item_count":        len(items),
+	}).Info("inserted sample job and items into database atomically")
 	return nil
 }
 
