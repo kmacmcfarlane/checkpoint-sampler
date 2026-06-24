@@ -413,7 +413,7 @@ stories:
   - id: B-151
     title: "Single 10s HTTP timeout on all ComfyUI calls — image downloads fail and completed generations are lost"
     priority: 65
-    status: todo
+    status: uat
     complexity: low
     type: bug
     requires: []

@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -297,6 +298,138 @@ var _ = Describe("ComfyUIHTTPClient HTTP operations", func() {
 			_, err := client.GetObjectInfo(ctx, "NonExistent")
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("not found"))
+		})
+	})
+})
+
+// Per-call timeout tests — prove that the new injectable budgets work correctly.
+// These use tiny distinguishable durations (ms-range) to keep the suite fast.
+//
+// Strategy: controlPlane=50ms, download=200ms.
+// A stub server that delays 100ms will:
+//   - time out a control-plane call  (50ms budget < 100ms delay) → error
+//   - succeed for a download call    (200ms budget > 100ms delay) → data returned
+var _ = Describe("ComfyUIHTTPClient timeout behaviour", func() {
+	var (
+		ctx    context.Context
+		logger *logrus.Logger
+
+		// Tiny budgets that make tests run in <500 ms total.
+		controlPlaneBudget = 50 * time.Millisecond
+		downloadBudget     = 200 * time.Millisecond
+		// The stub server delays longer than controlPlaneBudget but shorter than
+		// downloadBudget, so the two operations see different outcomes.
+		stubDelay = 100 * time.Millisecond
+	)
+
+	BeforeEach(func() {
+		ctx = context.Background()
+		logger = logrus.New()
+		logger.SetOutput(io.Discard)
+	})
+
+	// newTimedClient builds a client with the tiny injectable budgets.
+	newTimedClient := func(serverURL string) *store.ComfyUIHTTPClient {
+		return store.NewComfyUIHTTPClientWithTimeouts(serverURL, logger, controlPlaneBudget, downloadBudget)
+	}
+
+	Describe("DownloadImage", func() {
+		It("succeeds when body delay exceeds the old 10s client-wide timeout but is under the download budget", func() {
+			// The stub delays stubDelay (100ms) before sending the body.
+			// With the old 10s client-wide Timeout this would have timed out at 10s;
+			// here we prove it completes well within downloadBudget (200ms).
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// Simulate GPU completing the image write after a short delay.
+				time.Sleep(stubDelay)
+				w.Header().Set("Content-Type", "image/png")
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte("fake-image-data"))
+			}))
+			defer server.Close()
+
+			client := newTimedClient(server.URL)
+			data, err := client.DownloadImage(ctx, "output.png", "", "output")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(data).To(Equal([]byte("fake-image-data")))
+		})
+	})
+
+	Describe("HealthCheck (control-plane)", func() {
+		It("fails fast when the server hangs beyond the control-plane budget", func() {
+			// The stub never responds within controlPlaneBudget (50ms).
+			ready := make(chan struct{})
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// Block until the test is done (simulates a hung ComfyUI instance).
+				<-ready
+				w.WriteHeader(http.StatusOK)
+			}))
+			defer func() {
+				close(ready)
+				server.Close()
+			}()
+
+			client := newTimedClient(server.URL)
+			start := time.Now()
+			err := client.HealthCheck(ctx)
+			elapsed := time.Since(start)
+
+			Expect(err).To(HaveOccurred())
+			// Should fail well within 2× the budget, not wait for stubDelay or longer.
+			Expect(elapsed).To(BeNumerically("<", controlPlaneBudget*3))
+		})
+	})
+
+	Describe("caller context cancellation", func() {
+		It("aborts DownloadImage promptly when the caller cancels the context", func() {
+			// Stub that never finishes — it blocks until the request context is done.
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				<-r.Context().Done()
+				// Respond after cancellation so the server goroutine can exit cleanly.
+				w.WriteHeader(http.StatusOK)
+			}))
+			defer server.Close()
+
+			// Use generous budgets so only the explicit cancel triggers the abort.
+			client := store.NewComfyUIHTTPClientWithTimeouts(server.URL, logger, 10*time.Second, 10*time.Second)
+
+			cancelCtx, cancel := context.WithCancel(ctx)
+
+			// Cancel after a short delay so the request is in-flight.
+			go func() {
+				time.Sleep(30 * time.Millisecond)
+				cancel()
+			}()
+
+			start := time.Now()
+			_, err := client.DownloadImage(cancelCtx, "output.png", "", "output")
+			elapsed := time.Since(start)
+
+			Expect(err).To(HaveOccurred())
+			// Should return within a short window after cancel, not wait for the full budget.
+			Expect(elapsed).To(BeNumerically("<", 500*time.Millisecond))
+		})
+
+		It("aborts a control-plane call promptly when the caller cancels the context", func() {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				<-r.Context().Done()
+				w.WriteHeader(http.StatusOK)
+			}))
+			defer server.Close()
+
+			client := store.NewComfyUIHTTPClientWithTimeouts(server.URL, logger, 10*time.Second, 10*time.Second)
+
+			cancelCtx, cancel := context.WithCancel(ctx)
+			go func() {
+				time.Sleep(30 * time.Millisecond)
+				cancel()
+			}()
+
+			start := time.Now()
+			err := client.HealthCheck(cancelCtx)
+			elapsed := time.Since(start)
+
+			Expect(err).To(HaveOccurred())
+			Expect(elapsed).To(BeNumerically("<", 500*time.Millisecond))
 		})
 	})
 })

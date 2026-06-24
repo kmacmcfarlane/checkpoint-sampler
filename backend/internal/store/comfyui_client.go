@@ -14,22 +14,68 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// ComfyUIHTTPClient provides HTTP operations for interacting with ComfyUI.
-type ComfyUIHTTPClient struct {
-	baseURL string
-	client  *http.Client
-	logger  *logrus.Entry
+// Timeout budgets for ComfyUI HTTP operations.
+//
+// Control-plane calls (health check, queue status, prompt submission, object info,
+// cancel) are expected to return quickly from a live ComfyUI instance; 10 s is
+// generous.  Body reads on these endpoints are tiny JSON payloads.
+//
+// Download and history calls can be slow: DownloadImage reads the full PNG/JPEG body
+// which may be several MB on a GPU that is still committing the image to disk, and
+// GetHistory may return a large JSON payload for a busy instance.  120 s gives
+// enough headroom for large images while still bounding runaway requests.
+// Both budgets are per-call and stack on top of the caller's own context deadline
+// (whichever is shorter wins).
+const (
+	// comfyUIControlPlaneTimeout is the per-call budget for lightweight control-plane
+	// operations: health check, queue status, prompt submission, object info, cancel.
+	comfyUIControlPlaneTimeout = 10 * time.Second
+
+	// comfyUIDownloadTimeout is the per-call budget for operations that transfer
+	// large payloads: DownloadImage and GetHistory.  A GPU-heavy ComfyUI instance
+	// may take many seconds to stream a high-resolution PNG.
+	comfyUIDownloadTimeout = 120 * time.Second
+)
+
+// comfyUITimeouts holds injectable per-call timeout budgets.
+// The zero value is not valid; use newTimeouts() or the test helper.
+type comfyUITimeouts struct {
+	controlPlane time.Duration
+	download     time.Duration
 }
 
-// NewComfyUIHTTPClient creates a new ComfyUI HTTP client.
+func defaultTimeouts() comfyUITimeouts {
+	return comfyUITimeouts{
+		controlPlane: comfyUIControlPlaneTimeout,
+		download:     comfyUIDownloadTimeout,
+	}
+}
+
+// ComfyUIHTTPClient provides HTTP operations for interacting with ComfyUI.
+type ComfyUIHTTPClient struct {
+	baseURL  string
+	client   *http.Client
+	timeouts comfyUITimeouts
+	logger   *logrus.Entry
+}
+
+// NewComfyUIHTTPClient creates a new ComfyUI HTTP client with production timeout budgets.
 // The baseURL should include the scheme (http:// or https://) and host:port.
 func NewComfyUIHTTPClient(baseURL string, logger *logrus.Logger) *ComfyUIHTTPClient {
+	return newComfyUIHTTPClientWithTimeouts(baseURL, logger, defaultTimeouts())
+}
+
+// newComfyUIHTTPClientWithTimeouts creates a client with custom timeout budgets.
+// Intended for use in tests where deterministic fast timeouts are needed.
+func newComfyUIHTTPClientWithTimeouts(baseURL string, logger *logrus.Logger, t comfyUITimeouts) *ComfyUIHTTPClient {
 	return &ComfyUIHTTPClient{
 		baseURL: baseURL,
-		client: &http.Client{
-			Timeout: 10 * time.Second,
-		},
-		logger: logger.WithField("component", "comfyui_http"),
+		// No client-wide Timeout: each call wraps its own context.WithTimeout so that
+		// the per-operation budget governs the full round-trip (including body read)
+		// while still honoring caller-context cancellation.
+		client:   &http.Client{},
+		timeouts: t,
+		logger:   logger.WithField("component", "comfyui_http"),
 	}
 }
 
@@ -37,6 +83,9 @@ func NewComfyUIHTTPClient(baseURL string, logger *logrus.Logger) *ComfyUIHTTPCli
 func (c *ComfyUIHTTPClient) HealthCheck(ctx context.Context) error {
 	c.logger.Trace("entering HealthCheck")
 	defer c.logger.Trace("returning from HealthCheck")
+
+	ctx, cancel := context.WithTimeout(ctx, c.timeouts.controlPlane)
+	defer cancel()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/system_stats", nil)
 	if err != nil {
@@ -99,6 +148,9 @@ func toModelPromptResponse(entity promptResponseEntity) *model.PromptResponse {
 func (c *ComfyUIHTTPClient) SubmitPrompt(ctx context.Context, req model.PromptRequest) (*model.PromptResponse, error) {
 	c.logger.WithField("client_id", req.ClientID).Trace("entering SubmitPrompt")
 	defer c.logger.Trace("returning from SubmitPrompt")
+
+	ctx, cancel := context.WithTimeout(ctx, c.timeouts.controlPlane)
+	defer cancel()
 
 	reqEntity := toPromptRequestEntity(req)
 	body, err := json.Marshal(reqEntity)
@@ -169,6 +221,9 @@ func toModelHistoryResponse(entity historyResponseEntity) model.HistoryResponse 
 
 // GetHistory retrieves the execution history for a prompt.
 func (c *ComfyUIHTTPClient) GetHistory(ctx context.Context, promptID string) (model.HistoryResponse, error) {
+	ctx, cancel := context.WithTimeout(ctx, c.timeouts.download)
+	defer cancel()
+
 	url := c.baseURL + "/history"
 	if promptID != "" {
 		url = fmt.Sprintf("%s/%s", url, promptID)
@@ -245,6 +300,9 @@ func (q *QueueItem) UnmarshalJSON(data []byte) error {
 
 // GetQueueStatus retrieves the current queue status.
 func (c *ComfyUIHTTPClient) GetQueueStatus(ctx context.Context) (*QueueStatus, error) {
+	ctx, cancel := context.WithTimeout(ctx, c.timeouts.controlPlane)
+	defer cancel()
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/queue", nil)
 	if err != nil {
 		return nil, fmt.Errorf("creating queue status request: %w", err)
@@ -286,6 +344,9 @@ type ObjectInfoInput struct {
 func (c *ComfyUIHTTPClient) GetObjectInfo(ctx context.Context, nodeType string) (*ObjectInfo, error) {
 	c.logger.WithField("node_type", nodeType).Trace("entering GetObjectInfo")
 	defer c.logger.Trace("returning from GetObjectInfo")
+
+	ctx, cancel := context.WithTimeout(ctx, c.timeouts.controlPlane)
+	defer cancel()
 
 	url := c.baseURL + "/object_info"
 	if nodeType != "" {
@@ -351,6 +412,9 @@ func (c *ComfyUIHTTPClient) DownloadImage(ctx context.Context, filename string, 
 	}).Trace("entering DownloadImage")
 	defer c.logger.Trace("returning from DownloadImage")
 
+	ctx, cancel := context.WithTimeout(ctx, c.timeouts.download)
+	defer cancel()
+
 	// Build URL with properly encoded query parameters
 	baseURL := c.baseURL + "/view"
 	params := url.Values{}
@@ -408,6 +472,9 @@ func (c *ComfyUIHTTPClient) DownloadImage(ctx context.Context, filename string, 
 func (c *ComfyUIHTTPClient) CancelPrompt(ctx context.Context, promptID string) error {
 	c.logger.WithField("prompt_id", promptID).Trace("entering CancelPrompt")
 	defer c.logger.Trace("returning from CancelPrompt")
+
+	ctx, cancel := context.WithTimeout(ctx, c.timeouts.controlPlane)
+	defer cancel()
 
 	// Build the request body
 	body := map[string]interface{}{

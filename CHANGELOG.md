@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-151: Single 10s HTTP timeout on all ComfyUI calls — image downloads fail and completed generations are lost
+- Removed the client-wide `http.Client{Timeout: 10s}` on the ComfyUI HTTP client (it bounded the entire request including body read, so a large PNG or a GPU still streaming the image failed `DownloadImage`'s `io.ReadAll` and lost an already-generated image). Each call now wraps a per-operation `context.WithTimeout` derived from the caller's context: control-plane calls (health, queue, submit, object_info, cancel) get 10s; `DownloadImage` and `GetHistory` get 120s. Caller context cancellation still aborts in-flight requests
+- Timeout budgets are named constants documented in code; budgets are injectable for deterministic unit tests (no real-time sleeps in the suite)
+
 ### B-149: Job list endpoint loads every item row of every job (N+1) and sample_job_items has no indexes
 - The job list endpoint now computes per-job progress with a fixed set of aggregate queries instead of an N+1 of `GetProgress` calls that loaded every item row of every job on each poll. New `Store.ListJobsProgress()` runs one `SELECT job_id, status, COUNT(*) ... GROUP BY job_id, status` aggregate plus a single targeted query of only failed/skipped rows to rebuild per-checkpoint failure details — completed/pending rows are never materialized. Progress numbers stay identical to the show/detail view (parity preserved per B-148)
 - Migration 26 adds indexes on `sample_job_items(job_id)`, `(job_id, status)` (backs the list aggregate), and `(job_id, created_at)` (backs the executor's ordered item listing) — previously `sample_job_items` had no indexes, so every item query was a full table scan
