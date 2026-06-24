@@ -177,6 +177,42 @@ func (m *mockComfyUIClient) CancelPrompt(ctx context.Context, promptID string) e
 	return nil
 }
 
+// gatedHistoryClient is a ComfyUIClient test double that lets a test pause
+// recoverStuckItems deterministically in the middle of its GetHistory call.
+//
+// It exists to drive the B-152 race without sleeps: recovery reads a stale item
+// snapshot, then calls GetHistory. By blocking inside GetHistory we create a
+// precise, deterministic window in which the test simulates the executor ticker
+// clearing the active slot (disconnect) and re-submitting the same item with a
+// fresh prompt ID. When GetHistory is released, recovery proceeds to its
+// compare-and-act guard, which must observe the new prompt ID and refrain from
+// mutating the re-submitted item.
+//
+// entered is closed once GetHistory has been invoked (recovery has taken its
+// snapshot and is now inside the history call). release blocks GetHistory until
+// the test closes it.
+type gatedHistoryClient struct {
+	mockComfyUIClient
+	entered chan struct{}
+	release chan struct{}
+
+	onceEntered sync.Once
+}
+
+func newGatedHistoryClient(base mockComfyUIClient) *gatedHistoryClient {
+	return &gatedHistoryClient{
+		mockComfyUIClient: base,
+		entered:           make(chan struct{}),
+		release:           make(chan struct{}),
+	}
+}
+
+func (g *gatedHistoryClient) GetHistory(ctx context.Context, promptID string) (model.HistoryResponse, error) {
+	g.onceEntered.Do(func() { close(g.entered) })
+	<-g.release
+	return g.mockComfyUIClient.GetHistory(ctx, promptID)
+}
+
 type mockComfyUIWS struct {
 	handlers          []model.ComfyUIEventHandler
 	disconnectHandler func()
@@ -1468,18 +1504,16 @@ var _ = Describe("JobExecutor", func() {
 			executor.activeJobID = "job-1"
 			executor.activeItemID = "item-1"
 			executor.activePromptID = "prompt-1"
-			executor.stopRequested = false
 			executor.mu.Unlock()
 
 			err := executor.RequestStop("job-1")
 			Expect(err).ToNot(HaveOccurred())
 
-			// All active state must be cleared; stop flag must NOT be left set
+			// All active state must be cleared
 			executor.mu.Lock()
 			Expect(executor.activeJobID).To(BeEmpty())
 			Expect(executor.activeItemID).To(BeEmpty())
 			Expect(executor.activePromptID).To(BeEmpty())
-			Expect(executor.stopRequested).To(BeFalse())
 			executor.mu.Unlock()
 		})
 
@@ -1567,17 +1601,16 @@ var _ = Describe("JobExecutor", func() {
 			Expect(callLog).NotTo(ContainElement(callRecord{"db_updated_after_state_clear"}))
 		})
 
-		It("clears stop flag when RequestResume is called while activeJobID matches", func() {
+		It("succeeds and keeps the job active when RequestResume matches the active job", func() {
 			executor.mu.Lock()
 			executor.activeJobID = "job-1"
-			executor.stopRequested = true
 			executor.mu.Unlock()
 
 			err := executor.RequestResume("job-1")
 			Expect(err).ToNot(HaveOccurred())
 
 			executor.mu.Lock()
-			Expect(executor.stopRequested).To(BeFalse())
+			Expect(executor.activeJobID).To(Equal("job-1"))
 			executor.mu.Unlock()
 		})
 
@@ -1586,7 +1619,6 @@ var _ = Describe("JobExecutor", func() {
 			// Resume must adopt the job so processNextItem finds it on the next tick.
 			executor.mu.Lock()
 			executor.activeJobID = ""
-			executor.stopRequested = false
 			executor.mu.Unlock()
 
 			err := executor.RequestResume("job-1")
@@ -1657,7 +1689,6 @@ var _ = Describe("JobExecutor", func() {
 			// Executor state must be fully cleared after stop
 			executor.mu.Lock()
 			Expect(executor.activeJobID).To(BeEmpty())
-			Expect(executor.stopRequested).To(BeFalse())
 			executor.mu.Unlock()
 
 			// Next tick: executor should pick up the pending job
@@ -4399,6 +4430,169 @@ var _ = Describe("JobExecutor", func() {
 			// The item should still be in running status (recovery skipped)
 			items := mockStore.items[job.ID]
 			Expect(items[0].Status).To(Equal(model.SampleJobItemStatusRunning))
+		})
+
+		// AC (B-152): recovery never resets an item that has been re-submitted with a
+		// newer prompt ID, and no duplicate ComfyUI submission occurs when
+		// disconnect+reconnect overlaps the ticker's re-submission.
+		//
+		// This is a deterministic interleaving test: a gated history client pauses
+		// recoverStuckItems inside GetHistory (after it has snapshotted the stale item
+		// state). While paused, the test simulates the executor ticker clearing the
+		// active slot on disconnect and re-submitting the SAME item with a fresh prompt
+		// ID. When GetHistory is released, recovery must observe the new prompt ID under
+		// the lock and refrain from resetting the re-submitted item. No sleeps are used —
+		// the interleaving is driven entirely by channels.
+		It("does not reset an item the ticker re-submitted with a new prompt ID during recovery", func() {
+			job := model.SampleJob{
+				ID:     "job-race-reset",
+				Status: model.SampleJobStatusRunning,
+			}
+			item := model.SampleJobItem{
+				ID:              "item-race-reset",
+				JobID:           job.ID,
+				Status:          model.SampleJobItemStatusRunning,
+				ComfyUIPromptID: "old-prompt",
+			}
+			mockStore.jobs[job.ID] = job
+			mockStore.items[job.ID] = []model.SampleJobItem{item}
+
+			// History does not contain the old prompt — recovery would normally reset
+			// the item to pending. The compare-and-act guard must prevent that once the
+			// item has been re-submitted with a new prompt ID.
+			base := mockComfyUIClient{historyResponse: model.HistoryResponse{}}
+			gated := newGatedHistoryClient(base)
+
+			// Build an executor that uses the gated client so we can pause recovery.
+			raceExecutor := NewJobExecutor(
+				mockStore, gated, mockWS, mockLoader, mockHub,
+				"/test/samples", mockFS, mockFSRead, logger,
+			)
+			raceExecutor.mu.Lock()
+			raceExecutor.connected = true
+			raceExecutor.everConnected = true
+			raceExecutor.mu.Unlock()
+
+			recoveryDone := make(chan struct{})
+			go func() {
+				defer close(recoveryDone)
+				raceExecutor.recoverStuckItems()
+			}()
+
+			// Wait until recovery has snapshotted the item and entered GetHistory.
+			Eventually(gated.entered).Should(BeClosed())
+
+			// --- Simulate the ticker winning the race while recovery is blocked. ---
+			// 1. Disconnect clears the active slot (handleDisconnect semantics).
+			raceExecutor.mu.Lock()
+			raceExecutor.activeItemID = ""
+			raceExecutor.activePromptID = ""
+			raceExecutor.mu.Unlock()
+
+			// 2. Ticker re-submits the same item with a fresh prompt ID and claims the slot.
+			reItem := mockStore.items[job.ID][0]
+			reItem.Status = model.SampleJobItemStatusRunning
+			reItem.ComfyUIPromptID = "new-prompt"
+			Expect(mockStore.UpdateSampleJobItem(reItem)).To(Succeed())
+			raceExecutor.mu.Lock()
+			raceExecutor.activeJobID = job.ID
+			raceExecutor.activeItemID = item.ID
+			raceExecutor.activePromptID = "new-prompt"
+			raceExecutor.mu.Unlock()
+
+			// Release recovery to run its compare-and-act guard.
+			close(gated.release)
+			Eventually(recoveryDone).Should(BeClosed())
+
+			// The re-submitted item must NOT have been reset: it remains running with
+			// the new prompt ID, and the active slot still points at the in-flight prompt.
+			items := mockStore.items[job.ID]
+			Expect(items[0].Status).To(Equal(model.SampleJobItemStatusRunning))
+			Expect(items[0].ComfyUIPromptID).To(Equal("new-prompt"))
+
+			raceExecutor.mu.Lock()
+			Expect(raceExecutor.activeItemID).To(Equal(item.ID))
+			Expect(raceExecutor.activePromptID).To(Equal("new-prompt"))
+			raceExecutor.mu.Unlock()
+		})
+
+		// AC (B-152): the completion-recovery path must also compare-and-act. If the
+		// ticker re-submits the item with a new prompt ID while recovery is mid-flight,
+		// recovery must not claim the active slot and double-process the stale prompt.
+		It("does not claim/complete an item the ticker re-submitted with a new prompt ID during recovery", func() {
+			job := model.SampleJob{
+				ID:           "job-race-complete",
+				Status:       model.SampleJobStatusRunning,
+				WorkflowName: "test-workflow.json",
+			}
+			item := model.SampleJobItem{
+				ID:              "item-race-complete",
+				JobID:           job.ID,
+				Status:          model.SampleJobItemStatusRunning,
+				ComfyUIPromptID: "old-prompt",
+			}
+			mockStore.jobs[job.ID] = job
+			mockStore.items[job.ID] = []model.SampleJobItem{item}
+
+			// History DOES contain the old prompt with output images — recovery would
+			// normally claim the slot and process completion. The compare-and-act guard
+			// must prevent that once the item carries a new prompt ID.
+			base := mockComfyUIClient{
+				historyResponse: model.HistoryResponse{
+					"old-prompt": model.HistoryEntry{
+						Outputs: map[string]interface{}{
+							"save_image": map[string]interface{}{
+								"images": []interface{}{
+									map[string]interface{}{"filename": "out.png"},
+								},
+							},
+						},
+					},
+				},
+			}
+			gated := newGatedHistoryClient(base)
+
+			raceExecutor := NewJobExecutor(
+				mockStore, gated, mockWS, mockLoader, mockHub,
+				"/test/samples", mockFS, mockFSRead, logger,
+			)
+			raceExecutor.mu.Lock()
+			raceExecutor.connected = true
+			raceExecutor.everConnected = true
+			raceExecutor.mu.Unlock()
+
+			recoveryDone := make(chan struct{})
+			go func() {
+				defer close(recoveryDone)
+				raceExecutor.recoverStuckItems()
+			}()
+
+			Eventually(gated.entered).Should(BeClosed())
+
+			// Ticker re-submits with a new prompt ID and claims the active slot.
+			reItem := mockStore.items[job.ID][0]
+			reItem.ComfyUIPromptID = "new-prompt"
+			Expect(mockStore.UpdateSampleJobItem(reItem)).To(Succeed())
+			raceExecutor.mu.Lock()
+			raceExecutor.activeJobID = job.ID
+			raceExecutor.activeItemID = item.ID
+			raceExecutor.activePromptID = "new-prompt"
+			raceExecutor.mu.Unlock()
+
+			close(gated.release)
+			Eventually(recoveryDone).Should(BeClosed())
+
+			// Exactly one active submission: the ticker's. Recovery must not have
+			// overwritten activePromptID with the stale prompt, and the item must not
+			// have been completed from the stale recovery path.
+			raceExecutor.mu.Lock()
+			Expect(raceExecutor.activeItemID).To(Equal(item.ID))
+			Expect(raceExecutor.activePromptID).To(Equal("new-prompt"))
+			raceExecutor.mu.Unlock()
+
+			items := mockStore.items[job.ID]
+			Expect(items[0].Status).To(Equal(model.SampleJobItemStatusRunning))
+			Expect(items[0].ComfyUIPromptID).To(Equal("new-prompt"))
 		})
 	})
 

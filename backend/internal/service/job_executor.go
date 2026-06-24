@@ -95,7 +95,6 @@ type JobExecutor struct {
 	activeJobID            string
 	activeItemID           string
 	activePromptID         string
-	stopRequested          bool
 	connected              bool
 	everConnected          bool // true after the first successful connection; distinguishes reconnects from the initial connect
 	paused                 bool
@@ -293,40 +292,49 @@ func (e *JobExecutor) recoverStuckItems() {
 				continue
 			}
 
-			if item.ComfyUIPromptID == "" {
+			// snapshotPromptID is the prompt ID observed in this stale snapshot of the
+			// item, taken before any history I/O below. Every mutation of this item is
+			// guarded by a compare-and-act against this value under e.mu: the item is
+			// only touched if its *current* stored prompt ID still matches the snapshot.
+			// This prevents recovery from racing the executor ticker, which may clear the
+			// active slot on disconnect, re-submit this same item with a fresh prompt ID,
+			// and reconnect — all while this goroutine still holds the pre-disconnect view.
+			snapshotPromptID := item.ComfyUIPromptID
+
+			if snapshotPromptID == "" {
 				// Item was set to running but no prompt was submitted yet (or prompt ID
 				// was never persisted). Reset to pending so it gets re-submitted.
 				e.logger.WithFields(logrus.Fields{
 					"job_id":  job.ID,
 					"item_id": item.ID,
 				}).Warn("recoverStuckItems: item stuck in running with no prompt ID, resetting to pending")
-				e.resetItemToPending(item)
+				e.resetItemToPendingIfUnchanged(job.ID, item.ID, snapshotPromptID)
 				continue
 			}
 
 			// Query ComfyUI history to see if the prompt already completed.
-			history, err := e.comfyuiClient.GetHistory(e.ctx, item.ComfyUIPromptID)
+			history, err := e.comfyuiClient.GetHistory(e.ctx, snapshotPromptID)
 			if err != nil {
 				e.logger.WithFields(logrus.Fields{
 					"job_id":    job.ID,
 					"item_id":   item.ID,
-					"prompt_id": item.ComfyUIPromptID,
+					"prompt_id": snapshotPromptID,
 					"error":     err.Error(),
 				}).Warn("recoverStuckItems: failed to query history, resetting item to pending")
-				e.resetItemToPending(item)
+				e.resetItemToPendingIfUnchanged(job.ID, item.ID, snapshotPromptID)
 				continue
 			}
 
-			entry, found := history[item.ComfyUIPromptID]
+			entry, found := history[snapshotPromptID]
 			if !found {
 				// Prompt not in history — either it never ran or ComfyUI evicted it.
 				// Reset to pending so it is re-submitted.
 				e.logger.WithFields(logrus.Fields{
 					"job_id":    job.ID,
 					"item_id":   item.ID,
-					"prompt_id": item.ComfyUIPromptID,
+					"prompt_id": snapshotPromptID,
 				}).Warn("recoverStuckItems: prompt not found in ComfyUI history, resetting item to pending")
-				e.resetItemToPending(item)
+				e.resetItemToPendingIfUnchanged(job.ID, item.ID, snapshotPromptID)
 				continue
 			}
 
@@ -335,9 +343,9 @@ func (e *JobExecutor) recoverStuckItems() {
 				e.logger.WithFields(logrus.Fields{
 					"job_id":    job.ID,
 					"item_id":   item.ID,
-					"prompt_id": item.ComfyUIPromptID,
+					"prompt_id": snapshotPromptID,
 				}).Warn("recoverStuckItems: prompt found in history but has no output images, resetting item to pending")
-				e.resetItemToPending(item)
+				e.resetItemToPendingIfUnchanged(job.ID, item.ID, snapshotPromptID)
 				continue
 			}
 
@@ -345,28 +353,21 @@ func (e *JobExecutor) recoverStuckItems() {
 			e.logger.WithFields(logrus.Fields{
 				"job_id":    job.ID,
 				"item_id":   item.ID,
-				"prompt_id": item.ComfyUIPromptID,
+				"prompt_id": snapshotPromptID,
 			}).Info("recoverStuckItems: recovering completed prompt from history")
 
 			// Claim the active slot before calling handleItemCompletionAsync.
-			// If another goroutine (e.g. processNextItem) already claimed the slot,
-			// skip recovery for this item — it will be handled naturally by the executor loop.
-			e.mu.Lock()
-			if e.activeItemID != "" {
-				e.logger.WithFields(logrus.Fields{
-					"job_id":         job.ID,
-					"item_id":        item.ID,
-					"active_item_id": e.activeItemID,
-				}).Warn("recoverStuckItems: active slot already taken, skipping recovery for this item")
-				e.mu.Unlock()
+			// This is a compare-and-act under e.mu: we only claim if (a) no item is
+			// genuinely in-flight, and (b) the item's *current* stored prompt ID still
+			// matches the snapshot we recovered from history. If the ticker re-submitted
+			// this item with a new prompt ID after the snapshot, the prompt IDs no longer
+			// match and we skip recovery — the in-flight submission is left untouched and
+			// will complete naturally via the executor loop.
+			if !e.claimRecoveredItem(job.ID, item.ID, snapshotPromptID) {
 				continue
 			}
-			e.activeJobID = job.ID
-			e.activeItemID = item.ID
-			e.activePromptID = item.ComfyUIPromptID
-			e.mu.Unlock()
 
-			e.handleItemCompletionAsync(job.ID, item.ID, item.ComfyUIPromptID)
+			e.handleItemCompletionAsync(job.ID, item.ID, snapshotPromptID)
 		}
 	}
 }
@@ -387,23 +388,125 @@ func historyEntryHasOutputImages(entry model.HistoryEntry) bool {
 	return false
 }
 
-// resetItemToPending resets a stuck running item back to pending status so the
-// executor will re-submit it to ComfyUI on the next processing tick.
-func (e *JobExecutor) resetItemToPending(item *model.SampleJobItem) {
-	e.logger.WithFields(logrus.Fields{
-		"item_id": item.ID,
-		"job_id":  item.JobID,
-	}).Info("resetItemToPending: resetting stuck item to pending for retry")
+// resetItemToPendingIfUnchanged resets a stuck running item back to pending status
+// so the executor will re-submit it on the next tick — but only if the item has not
+// been re-submitted by the executor ticker in the meantime.
+//
+// This is a compare-and-act under e.mu. recoverStuckItems runs in its own goroutine
+// from a stale snapshot taken before its history I/O. During that window the ticker
+// (processNextItem) can clear the active slot on disconnect, re-submit this same item
+// with a fresh prompt ID, and the item can reconnect. If recovery then blindly reset
+// the item, it would orphan the in-flight prompt and cause a duplicate ComfyUI
+// submission. To prevent this we re-read the item's *current* state under the lock and
+// only reset when:
+//   - the item is still in running status, and
+//   - its current stored prompt ID equals snapshotPromptID (the value recovery acted
+//     on — meaning the ticker has not re-submitted it with a new prompt ID), and
+//   - the item is not the currently active in-flight item.
+//
+// The store read and write are both performed while holding e.mu so the compare and
+// the act are atomic with respect to the ticker and the disconnect handler.
+func (e *JobExecutor) resetItemToPendingIfUnchanged(jobID, itemID, snapshotPromptID string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
 
-	item.Status = model.SampleJobItemStatusPending
-	item.ComfyUIPromptID = ""
-	item.UpdatedAt = time.Now().UTC()
-	if err := e.store.UpdateSampleJobItem(*item); err != nil {
+	current, found := e.findItemLocked(jobID, itemID)
+	if !found {
 		e.logger.WithFields(logrus.Fields{
-			"item_id": item.ID,
-			"error":   err.Error(),
-		}).Error("resetItemToPending: failed to reset item status to pending")
+			"item_id": itemID,
+			"job_id":  jobID,
+		}).Debug("resetItemToPendingIfUnchanged: item no longer present, skipping reset")
+		return
 	}
+
+	if current.Status != model.SampleJobItemStatusRunning ||
+		current.ComfyUIPromptID != snapshotPromptID ||
+		e.activeItemID == itemID {
+		e.logger.WithFields(logrus.Fields{
+			"item_id":            itemID,
+			"job_id":             jobID,
+			"snapshot_prompt_id": snapshotPromptID,
+			"current_prompt_id":  current.ComfyUIPromptID,
+			"current_status":     current.Status,
+			"active_item_id":     e.activeItemID,
+		}).Info("resetItemToPendingIfUnchanged: item changed since snapshot (re-submitted or active), skipping reset")
+		return
+	}
+
+	e.logger.WithFields(logrus.Fields{
+		"item_id": itemID,
+		"job_id":  jobID,
+	}).Info("resetItemToPendingIfUnchanged: resetting stuck item to pending for retry")
+
+	current.Status = model.SampleJobItemStatusPending
+	current.ComfyUIPromptID = ""
+	current.UpdatedAt = time.Now().UTC()
+	if err := e.store.UpdateSampleJobItem(current); err != nil {
+		e.logger.WithFields(logrus.Fields{
+			"item_id": itemID,
+			"error":   err.Error(),
+		}).Error("resetItemToPendingIfUnchanged: failed to reset item status to pending")
+	}
+}
+
+// claimRecoveredItem attempts to claim the executor's single active slot for an item
+// whose prompt was found already-completed in ComfyUI history during recovery.
+//
+// It is a compare-and-act under e.mu and returns true only when the claim succeeds.
+// The claim is rejected (returns false) when another item is genuinely in-flight, or
+// when the item's current stored prompt ID no longer matches snapshotPromptID — which
+// means the ticker re-submitted the item with a new prompt ID after the snapshot, so
+// the completion recovery would otherwise act on a stale prompt and double-process the
+// item. In that case the in-flight submission is left untouched.
+func (e *JobExecutor) claimRecoveredItem(jobID, itemID, snapshotPromptID string) bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	if e.activeItemID != "" {
+		e.logger.WithFields(logrus.Fields{
+			"job_id":         jobID,
+			"item_id":        itemID,
+			"active_item_id": e.activeItemID,
+		}).Warn("recoverStuckItems: active slot already taken, skipping recovery for this item")
+		return false
+	}
+
+	current, found := e.findItemLocked(jobID, itemID)
+	if !found || current.Status != model.SampleJobItemStatusRunning || current.ComfyUIPromptID != snapshotPromptID {
+		e.logger.WithFields(logrus.Fields{
+			"job_id":             jobID,
+			"item_id":            itemID,
+			"snapshot_prompt_id": snapshotPromptID,
+			"current_prompt_id":  current.ComfyUIPromptID,
+			"current_status":     current.Status,
+		}).Info("recoverStuckItems: item changed since snapshot (re-submitted or gone), skipping completion recovery")
+		return false
+	}
+
+	e.activeJobID = jobID
+	e.activeItemID = itemID
+	e.activePromptID = snapshotPromptID
+	return true
+}
+
+// findItemLocked re-reads the current state of a single job item from the store.
+// Callers MUST hold e.mu so the read participates in the compare-and-act guarding the
+// item against concurrent mutation by the executor ticker and disconnect handler.
+func (e *JobExecutor) findItemLocked(jobID, itemID string) (model.SampleJobItem, bool) {
+	items, err := e.store.ListSampleJobItems(jobID)
+	if err != nil {
+		e.logger.WithFields(logrus.Fields{
+			"job_id": jobID,
+			"error":  err.Error(),
+		}).Error("findItemLocked: failed to re-read items")
+		return model.SampleJobItem{}, false
+	}
+	for i := range items {
+		if items[i].ID == itemID {
+			return items[i], true
+		}
+	}
+	return model.SampleJobItem{}, false
 }
 
 // handleDisconnect is called by the WebSocket client when the connection drops.
@@ -658,13 +761,6 @@ func (e *JobExecutor) run() {
 // substituted for the tracked job.
 func (e *JobExecutor) processNextItem() {
 	e.mu.Lock()
-
-	// If stop was requested, don't start new items
-	if e.stopRequested {
-		e.mu.Unlock()
-		e.logger.Debug("stop requested, skipping item processing")
-		return
-	}
 
 	// If paused (e.g. during database reset), skip processing to avoid
 	// querying tables that may be dropped and not yet recreated.
@@ -2225,7 +2321,6 @@ func (e *JobExecutor) RequestStop(jobID string) error {
 	e.activeJobID = ""
 	e.activeItemID = ""
 	e.activePromptID = ""
-	e.stopRequested = false
 	e.mu.Unlock()
 
 	e.logger.WithField("job_id", jobID).Info("job stop completed, executor state cleared")
@@ -2255,7 +2350,6 @@ func (e *JobExecutor) RequestResume(jobID string) error {
 		e.logger.WithField("job_id", jobID).Info("adopted job for resume processing")
 	}
 
-	e.stopRequested = false
 	return nil
 }
 

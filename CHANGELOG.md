@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-152: recoverStuckItems races the executor ticker — duplicate ComfyUI submissions after reconnect
+- Reconnect recovery (`recoverStuckItems`) now compare-and-acts under `e.mu`: it snapshots each stuck item's prompt ID before its `GetHistory` I/O, then re-reads the item's current state under the lock (`findItemLocked`) and only resets-to-pending (`resetItemToPendingIfUnchanged`) or claims the active slot (`claimRecoveredItem`) when the stored prompt ID still matches the snapshot. Previously recovery mutated from a stale snapshot, so an item the executor ticker had re-submitted with a fresh prompt ID during the disconnect window could be reset/claimed against the old prompt ID — orphaning the in-flight prompt and causing a duplicate ComfyUI submission
+- Removed the dead `stopRequested` field, its unreachable `processNextItem` guard, and both `= false` assignments (it was only ever set false — a cooperative-stop guard that never engaged)
+
 ### B-154: Frontend WebSocket composable leaks connection and listeners on unmount/HMR
 - `useWebSocket` now registers an `onScopeDispose` (guarded by `getCurrentScope()`) that deregisters its own `onConnectionChange`/`onEvent` listeners and calls `wsClient.disconnect()` on scope teardown. Previously the composable had no cleanup, so on unmount/HMR the socket stayed open and the exponential-backoff reconnect timer fired `doConnect()` forever, accumulating zombie connections. `WSClient.disconnect()` already cancels the pending reconnect timer (no change needed there)
 

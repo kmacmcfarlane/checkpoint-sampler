@@ -442,7 +442,7 @@ stories:
   - id: B-152
     title: "recoverStuckItems races the executor ticker — duplicate ComfyUI submissions after reconnect"
     priority: 60
-    status: todo
+    status: uat
     complexity: high
     type: bug
     requires: ["B-150"]
