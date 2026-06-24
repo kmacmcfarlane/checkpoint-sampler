@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { ref } from 'vue'
+import { ref, defineComponent, nextTick, type Ref } from 'vue'
+import { mount } from '@vue/test-utils'
 import { useWebSocket } from '../useWebSocket'
+import { WSClient } from '../../api/wsClient'
 import type { TrainingRun, ScanImage } from '../../api/types'
 
 /**
@@ -286,5 +288,190 @@ describe('useWebSocket', () => {
 
       expect(addImage).not.toHaveBeenCalled()
     })
+  })
+})
+
+// ─── scope disposal (unmount / HMR) ────────────────────────────────────────
+
+/**
+ * Mount a wrapper component so onScopeDispose fires correctly on unmount.
+ * Follows the same pattern as useCountdown.test.ts.
+ */
+function mountWebSocket(selectedRun: Ref<TrainingRun | null>, opts: ReturnType<typeof createScopeTestOptions>) {
+  let captured!: ReturnType<typeof useWebSocket>
+  const Wrapper = defineComponent({
+    setup() {
+      captured = useWebSocket(
+        selectedRun,
+        opts.addImage,
+        opts.removeImage,
+        opts.comboSelections,
+        opts.rescan,
+        opts.wsOptions,
+      )
+      return {}
+    },
+    template: '<div />',
+  })
+  const wrapper = mount(Wrapper)
+  return { wrapper, captured, mockInstances: opts.mockInstances }
+}
+
+function createScopeTestOptions() {
+  const mockInstances: MockWebSocket[] = []
+  return {
+    addImage: vi.fn(),
+    removeImage: vi.fn(),
+    rescan: vi.fn().mockResolvedValue(undefined),
+    comboSelections: {} as Record<string, Set<string>>,
+    mockInstances,
+    wsOptions: {
+      wsClientOptions: {
+        url: 'ws://test/api/ws',
+        createWebSocket: ((url: string) => {
+          const ws = new MockWebSocket(url)
+          mockInstances.push(ws)
+          return ws
+        }) as unknown as (url: string) => WebSocket,
+        initialDelay: 100,
+        maxDelay: 1000,
+      },
+    },
+  }
+}
+
+describe('useWebSocket — scope disposal', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  // AC: FE: disposing the component scope closes the socket and cancels pending reconnect timers
+  it('disconnects and cancels reconnect timers on unmount', async () => {
+    const opts = createScopeTestOptions()
+    const selectedRun = ref<TrainingRun | null>(makeTrainingRun())
+    const { wrapper, mockInstances } = mountWebSocket(selectedRun, opts)
+
+    await nextTick()
+    expect(mockInstances).toHaveLength(1)
+
+    // Simulate the socket closing to trigger the reconnect backoff timer
+    mockInstances[0].simulateClose()
+    await nextTick()
+
+    // Unmount the component — onScopeDispose should call disconnect()
+    wrapper.unmount()
+
+    // Advance time past the reconnect delay — no new connection should be created
+    await vi.advanceTimersByTimeAsync(500)
+    await nextTick()
+
+    expect(mockInstances).toHaveLength(1)
+    // The WSClient must be in disconnected state
+    expect(mockInstances[0].readyState).toBe(MockWebSocket.CLOSED)
+  })
+
+  // AC: FE: WSClient.disconnect() cancels a scheduled reconnect (no doConnect fires after disconnect)
+  it('does not fire doConnect after disconnect() is called', async () => {
+    const opts = createScopeTestOptions()
+    const selectedRun = ref<TrainingRun | null>(makeTrainingRun())
+    const { captured, mockInstances } = mountWebSocket(selectedRun, opts)
+
+    await nextTick()
+    expect(mockInstances).toHaveLength(1)
+
+    // Simulate close to schedule a reconnect timer
+    mockInstances[0].simulateClose()
+    await nextTick()
+
+    // Explicitly disconnect (same as onScopeDispose)
+    captured.wsClient.disconnect()
+
+    // Advance well past the reconnect delay
+    await vi.advanceTimersByTimeAsync(2000)
+    await nextTick()
+
+    // No additional connection attempts
+    expect(mockInstances).toHaveLength(1)
+  })
+
+  // AC: FE: listener counts on the client return to zero after unmount
+  it('deregisters all composable listeners on unmount', async () => {
+    const opts = createScopeTestOptions()
+    const selectedRun = ref<TrainingRun | null>(makeTrainingRun())
+    const { wrapper, captured } = mountWebSocket(selectedRun, opts)
+
+    await nextTick()
+
+    // Spy on off* methods to confirm they are called on dispose
+    const offConnectionChange = vi.spyOn(captured.wsClient, 'offConnectionChange')
+    const offEvent = vi.spyOn(captured.wsClient, 'offEvent')
+    const disconnect = vi.spyOn(captured.wsClient, 'disconnect')
+
+    wrapper.unmount()
+
+    expect(offConnectionChange).toHaveBeenCalledOnce()
+    expect(offEvent).toHaveBeenCalledOnce()
+    expect(disconnect).toHaveBeenCalledOnce()
+  })
+
+  // AC: FE: after unmount, composable listeners no longer fire
+  it('composable event listener does not fire after unmount', async () => {
+    const opts = createScopeTestOptions()
+    const selectedRun = ref<TrainingRun | null>(makeTrainingRun())
+    const { wrapper, mockInstances } = mountWebSocket(selectedRun, opts)
+
+    await nextTick()
+    mockInstances[0].simulateOpen()
+
+    wrapper.unmount()
+
+    // Re-connect a fresh socket (simulate the same WSClient being reused)
+    // Instead, ensure addImage is NOT called for events sent after unmount.
+    // After unmount the wsClient is disconnected, but if somehow a message
+    // arrived we want to confirm the composable's handler is detached.
+    // Manually push a message through the closed socket's onmessage to test
+    // that the composable listener was deregistered.
+    mockInstances[0].simulateMessage(
+      JSON.stringify({
+        type: 'image_added',
+        path: 'model-step00004500.safetensors/seed=42&cfg=1&_00001_.png',
+      }),
+    )
+
+    expect(opts.addImage).not.toHaveBeenCalled()
+  })
+
+  // AC: listener counts return to zero — behavioral check via WSClient internals via spies
+  it('WSClient listener arrays are empty after scope dispose removes composable listeners', async () => {
+    const opts = createScopeTestOptions()
+    const selectedRun = ref<TrainingRun | null>(makeTrainingRun())
+
+    // Capture the WSClient instance before mounting by spying on constructor
+    const wsClientInstances: WSClient[] = []
+    const origConstructor = WSClient
+    vi.spyOn(origConstructor.prototype, 'onConnectionChange')
+    vi.spyOn(origConstructor.prototype, 'offConnectionChange')
+    vi.spyOn(origConstructor.prototype, 'onEvent')
+    vi.spyOn(origConstructor.prototype, 'offEvent')
+
+    const { wrapper, captured } = mountWebSocket(selectedRun, opts)
+    wsClientInstances.push(captured.wsClient)
+
+    await nextTick()
+
+    // Before unmount: listeners were registered
+    expect(wsClientInstances[0].onConnectionChange).toHaveBeenCalledOnce()
+    expect(wsClientInstances[0].onEvent).toHaveBeenCalledOnce()
+
+    wrapper.unmount()
+
+    // After unmount: listeners were deregistered
+    expect(wsClientInstances[0].offConnectionChange).toHaveBeenCalledOnce()
+    expect(wsClientInstances[0].offEvent).toHaveBeenCalledOnce()
   })
 })

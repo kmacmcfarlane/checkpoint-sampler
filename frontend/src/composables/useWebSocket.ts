@@ -1,4 +1,4 @@
-import { ref, watch, type Ref } from 'vue'
+import { ref, watch, onScopeDispose, getCurrentScope, type Ref } from 'vue'
 import { WSClient, type WSClientOptions } from '../api/wsClient'
 import type { FSEventMessage, ScanImage, TrainingRun } from '../api/types'
 import { parseImagePath } from './parseImagePath'
@@ -29,13 +29,27 @@ export function useWebSocket(
   const connected = ref(false)
   const wsClient = new WSClient(options.wsClientOptions)
 
-  wsClient.onConnectionChange((isConnected) => {
+  const connectionChangeListener = (isConnected: boolean) => {
     connected.value = isConnected
-  })
-
-  wsClient.onEvent((event: FSEventMessage) => {
+  }
+  const eventListener = (event: FSEventMessage) => {
     handleEvent(event)
-  })
+  }
+
+  wsClient.onConnectionChange(connectionChangeListener)
+  wsClient.onEvent(eventListener)
+
+  // Clean up listeners and close the socket when the owning scope is disposed
+  // (component unmount, HMR hot-reload, etc.).  Without this, the WSClient
+  // keeps its listener arrays alive and the exponential-backoff reconnect timer
+  // keeps firing doConnect() against a dead consumer.
+  if (getCurrentScope()) {
+    onScopeDispose(() => {
+      wsClient.offConnectionChange(connectionChangeListener)
+      wsClient.offEvent(eventListener)
+      wsClient.disconnect()
+    })
+  }
 
   function handleEvent(event: FSEventMessage) {
     const run = selectedTrainingRun.value

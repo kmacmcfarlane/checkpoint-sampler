@@ -509,7 +509,7 @@ stories:
   - id: B-154
     title: "Frontend WebSocket composable leaks connection and listeners on unmount/HMR"
     priority: 65
-    status: todo
+    status: uat
     complexity: low
     type: bug
     requires: []

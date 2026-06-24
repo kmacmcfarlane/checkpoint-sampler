@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-154: Frontend WebSocket composable leaks connection and listeners on unmount/HMR
+- `useWebSocket` now registers an `onScopeDispose` (guarded by `getCurrentScope()`) that deregisters its own `onConnectionChange`/`onEvent` listeners and calls `wsClient.disconnect()` on scope teardown. Previously the composable had no cleanup, so on unmount/HMR the socket stayed open and the exponential-backoff reconnect timer fired `doConnect()` forever, accumulating zombie connections. `WSClient.disconnect()` already cancels the pending reconnect timer (no change needed there)
+
 ### B-151: Single 10s HTTP timeout on all ComfyUI calls — image downloads fail and completed generations are lost
 - Removed the client-wide `http.Client{Timeout: 10s}` on the ComfyUI HTTP client (it bounded the entire request including body read, so a large PNG or a GPU still streaming the image failed `DownloadImage`'s `io.ReadAll` and lost an already-generated image). Each call now wraps a per-operation `context.WithTimeout` derived from the caller's context: control-plane calls (health, queue, submit, object_info, cancel) get 10s; `DownloadImage` and `GetHistory` get 120s. Caller context cancellation still aborts in-flight requests
 - Timeout budgets are named constants documented in code; budgets are injectable for deterministic unit tests (no real-time sleeps in the suite)
