@@ -67,6 +67,15 @@ type Watcher struct {
 	done      chan struct{}
 	stopped   chan struct{}
 	watching  bool
+
+	// watchMu guards watched. Directories are added both from
+	// WatchTrainingRun (under mu) and from the loop goroutine when new
+	// directories appear (handleEvent), so the set needs its own lock.
+	watchMu sync.Mutex
+	// watched is the set of directories currently registered with the
+	// notifier. It is used to remove every active watch on a run switch so
+	// inotify descriptors do not leak across switches.
+	watched map[string]struct{}
 }
 
 // NewWatcher creates a new Watcher.
@@ -83,6 +92,45 @@ func NewWatcher(notifier WatcherNotifier, sink WatcherEventSink, sampleDir strin
 // SetIsDirFunc overrides the directory detection function (for testing).
 func (w *Watcher) SetIsDirFunc(fn IsDirFunc) {
 	w.isDir = fn
+}
+
+// addWatch registers dir with the notifier and records it in the tracked set
+// so it can be removed later. Errors are logged and swallowed (a failed Add
+// must not be tracked, otherwise we would later Remove a watch that was never
+// registered).
+func (w *Watcher) addWatch(dir string) error {
+	if err := w.notifier.Add(dir); err != nil {
+		return err
+	}
+	w.watchMu.Lock()
+	if w.watched == nil {
+		w.watched = make(map[string]struct{})
+	}
+	w.watched[dir] = struct{}{}
+	w.watchMu.Unlock()
+	return nil
+}
+
+// removeAllWatches removes every directory currently registered with the
+// notifier and clears the tracked set. This is the leak fix: without it,
+// inotify watch descriptors from prior runs accumulate on every run switch.
+func (w *Watcher) removeAllWatches() {
+	w.watchMu.Lock()
+	dirs := make([]string, 0, len(w.watched))
+	for dir := range w.watched {
+		dirs = append(dirs, dir)
+	}
+	w.watched = make(map[string]struct{})
+	w.watchMu.Unlock()
+
+	for _, dir := range dirs {
+		if err := w.notifier.Remove(dir); err != nil {
+			w.logger.WithFields(logrus.Fields{
+				"dir":   dir,
+				"error": err.Error(),
+			}).Debug("failed to remove watch on switch")
+		}
+	}
 }
 
 // WatchTrainingRun starts watching directories belonging to the given training run.
@@ -133,7 +181,7 @@ func (w *Watcher) WatchTrainingRun(run model.TrainingRun) error {
 	}).Debug("prepared directory watch list")
 
 	for _, dir := range dirs {
-		if err := w.notifier.Add(dir); err != nil {
+		if err := w.addWatch(dir); err != nil {
 			w.logger.WithFields(logrus.Fields{
 				"dir":   dir,
 				"error": err.Error(),
@@ -168,6 +216,10 @@ func (w *Watcher) stopLocked() {
 	close(w.done)
 	<-w.stopped
 	w.watching = false
+	// The loop goroutine has exited, so no more dynamic watches can be added.
+	// Remove every directory the previous run registered to prevent inotify
+	// watch descriptors from leaking across run switches.
+	w.removeAllWatches()
 }
 
 // loop processes fsnotify events and forwards them to the sink.
@@ -232,7 +284,7 @@ func (w *Watcher) handleEvent(ev fsnotify.Event) {
 			})
 			w.logger.WithField("directory_path", relPath).Info("directory added")
 			// Watch the new directory for images
-			if err := w.notifier.Add(ev.Name); err != nil {
+			if err := w.addWatch(ev.Name); err != nil {
 				w.logger.WithFields(logrus.Fields{
 					"directory": ev.Name,
 					"error":     err.Error(),
