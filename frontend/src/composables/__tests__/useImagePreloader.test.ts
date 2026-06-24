@@ -139,6 +139,94 @@ describe('useImagePreloader', () => {
     expect(preloaded.has('/api/images/second.png')).toBe(true)
   })
 
+  // AC: changing only a combo filter retriggers preload prioritization for newly-visible cells.
+  // This mirrors the production store, which mutates a key INSIDE the reactive
+  // comboSelections object in place (store.comboSelections[dim] = new Set(...))
+  // rather than reassigning the object. The old shallow watch over the raw
+  // [..., comboSelections] ref never fired on such in-place mutations.
+  //
+  // Deterministic detection: we use a NON-resolving fake Image so cycle 1 stalls
+  // on its very first in-flight image and never advances. If — and only if — the
+  // watch fires on the in-place combo mutation, runPreload() aborts the stalled
+  // cycle and starts a fresh one, creating an additional Image() instance. So a
+  // growth in imageInstances.length after the mutation proves the watch fired.
+  // Against the old shallow-watch code the count stays flat and this FAILS.
+  it('retriggers preload when comboSelections is mutated in place', async () => {
+    // Override the shared fake with one that NEVER auto-resolves onload.
+    vi.stubGlobal(
+      'Image',
+      class StalledImage {
+        src = ''
+        onload: (() => void) | null = null
+        onerror: (() => void) | null = null
+        constructor() {
+          imageInstances.push(this)
+          // Intentionally never resolves: the preload loop blocks here.
+        }
+      },
+    )
+
+    const images = ref<ScanImage[]>([
+      makeImage('a.png', { prompt: 'a' }),
+      makeImage('b.png', { prompt: 'b' }),
+    ])
+    const xDim = ref<ScanDimension | null>(null)
+    const yDim = ref<ScanDimension | null>(null)
+    const sliderDim = ref<ScanDimension | null>(null)
+    // Stable reactive object identity; we mutate a key inside it (never reassign).
+    const combos = ref<Record<string, Set<string>>>({ prompt: new Set(['a']) })
+
+    useImagePreloader(images, xDim, yDim, sliderDim, combos)
+    await flush()
+
+    // Cycle 1 stalled on its first image.
+    const countAfterCycle1 = imageInstances.length
+    expect(countAfterCycle1).toBeGreaterThan(0)
+
+    // Mutate a key INSIDE the object the way the store does — no reassignment.
+    combos.value.prompt = new Set(['b'])
+    await flush()
+
+    // Watch must have fired: the stalled cycle was aborted and a new cycle
+    // started, creating at least one more Image() instance.
+    expect(imageInstances.length).toBeGreaterThan(countAfterCycle1)
+  })
+
+  // AC: already-preloaded URLs are not re-fetched on retrigger (preloaded set survives across cycles).
+  // This isolates the second defect: the old code called preloaded.clear() on
+  // every retrigger, so a URL loaded in cycle 1 would be re-fetched (a second
+  // Image() created) in cycle 2. We retrigger via an `images` change (which even
+  // the old shallow watch fired on) so the assertion targets the clear() defect:
+  // against the old code totalCount would be 2 and this FAILS; with the fix the
+  // has(url) guard skips the still-present URL and totalCount stays 1.
+  it('skips re-creating Image() for URLs preloaded in a previous cycle', async () => {
+    const images = ref<ScanImage[]>([
+      makeImage('keep.png', { seed: '1' }),
+    ])
+    const xDim = ref<ScanDimension | null>(null)
+    const yDim = ref<ScanDimension | null>(null)
+    const sliderDim = ref<ScanDimension | null>(null)
+    const combos = ref<Record<string, Set<string>>>({})
+
+    useImagePreloader(images, xDim, yDim, sliderDim, combos)
+    await flush()
+
+    const cycle1Count = imageInstances.filter((i) => i.src === '/api/images/keep.png').length
+    expect(cycle1Count).toBe(1)
+
+    // Retrigger a new preload cycle. keep.png is still part of the image set.
+    images.value = [makeImage('keep.png', { seed: '1' }), makeImage('new.png', { seed: '2' })]
+    await flush()
+
+    // keep.png was already in the preloaded set from cycle 1; the has(url) guard
+    // must skip it — no second Image() created for the same URL (preloaded set
+    // is NOT cleared wholesale between cycles).
+    const totalCount = imageInstances.filter((i) => i.src === '/api/images/keep.png').length
+    expect(totalCount).toBe(1)
+    // The newly-added image still gets preloaded in the new cycle.
+    expect(imageInstances.some((i) => i.src === '/api/images/new.png')).toBe(true)
+  })
+
   it('does nothing with empty image list', async () => {
     const images = ref<ScanImage[]>([])
     const xDim = ref<ScanDimension | null>(null)

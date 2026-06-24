@@ -539,7 +539,7 @@ stories:
   - id: B-155
     title: "Image preloader never reacts to combo-filter changes and restarts full preload on every retrigger"
     priority: 60
-    status: todo
+    status: uat
     complexity: medium
     type: bug
     requires: []
