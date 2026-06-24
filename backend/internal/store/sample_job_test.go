@@ -126,7 +126,7 @@ var _ = Describe("SampleJob Store", func() {
 					ID:              "job-nullable",
 					TrainingRunName: "test-run",
 					StudyID:         "study-1",
-						StudyName:       "Test Study",
+					StudyName:       "Test Study",
 					WorkflowName:    "flux-dev",
 					VAE:             "",
 					CLIP:            "",
@@ -222,7 +222,7 @@ var _ = Describe("SampleJob Store", func() {
 				Expect(result[2].ID).To(Equal("job-3"))
 			})
 
-		It("returns pending jobs in FIFO order for deterministic pickup", func() {
+			It("returns pending jobs in FIFO order for deterministic pickup", func() {
 				now := time.Now().UTC().Truncate(time.Second)
 
 				// Create three pending jobs with distinct creation times
@@ -1198,6 +1198,135 @@ var _ = Describe("SampleJob Store", func() {
 			).Scan(&actualCompleted)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(stored.CompletedItems).To(Equal(actualCompleted))
+		})
+	})
+
+	Describe("ListJobsProgress (aggregate, no full item-row loading)", func() {
+		// makeAggItem builds an item for a given job/checkpoint/status. error
+		// fields are optional and only set for failed items.
+		makeAggItem := func(id, jobID, checkpoint string, status model.SampleJobItemStatus, errMsg string) model.SampleJobItem {
+			now := time.Now().UTC().Truncate(time.Second)
+			return model.SampleJobItem{
+				ID:                 id,
+				JobID:              jobID,
+				CheckpointFilename: checkpoint,
+				ComfyUIModelPath:   "/models/" + checkpoint,
+				PromptName:         "test",
+				PromptText:         "test prompt",
+				Steps:              4,
+				CFG:                7.0,
+				SamplerName:        "euler",
+				Scheduler:          "simple",
+				Seed:               42,
+				Width:              512,
+				Height:             512,
+				Status:             status,
+				ErrorMessage:       errMsg,
+				CreatedAt:          now,
+				UpdatedAt:          now,
+			}
+		}
+
+		BeforeEach(func() {
+			createStudy("study-agg")
+			now := time.Now().UTC().Truncate(time.Second)
+			for _, jobID := range []string{"job-a", "job-b", "job-empty"} {
+				job := model.SampleJob{
+					ID:              jobID,
+					TrainingRunName: "agg-run",
+					StudyID:         "study-agg",
+					StudyName:       "Test Study",
+					WorkflowName:    "flux-dev",
+					Status:          model.SampleJobStatusRunning,
+					TotalItems:      0,
+					CompletedItems:  0,
+					CreatedAt:       now,
+					UpdatedAt:       now,
+				}
+				Expect(s.CreateSampleJob(job)).To(Succeed())
+			}
+		})
+
+		It("returns aggregate counts matching a mixed-status fixture and matches per-job ListSampleJobItems-derived counts", func() {
+			// job-a: 3 completed, 1 failed, 1 skipped, 2 pending
+			//        => Completed 3, Failed 2 (failed+skipped), Pending 2.
+			Expect(s.CreateSampleJobItem(makeAggItem("a-c1", "job-a", "chk1.safetensors", model.SampleJobItemStatusCompleted, ""))).To(Succeed())
+			Expect(s.CreateSampleJobItem(makeAggItem("a-c2", "job-a", "chk1.safetensors", model.SampleJobItemStatusCompleted, ""))).To(Succeed())
+			Expect(s.CreateSampleJobItem(makeAggItem("a-c3", "job-a", "chk2.safetensors", model.SampleJobItemStatusCompleted, ""))).To(Succeed())
+			Expect(s.CreateSampleJobItem(makeAggItem("a-f1", "job-a", "chk2.safetensors", model.SampleJobItemStatusFailed, "boom"))).To(Succeed())
+			Expect(s.CreateSampleJobItem(makeAggItem("a-s1", "job-a", "chk3.safetensors", model.SampleJobItemStatusSkipped, "checkpoint not found"))).To(Succeed())
+			Expect(s.CreateSampleJobItem(makeAggItem("a-p1", "job-a", "chk3.safetensors", model.SampleJobItemStatusPending, ""))).To(Succeed())
+			Expect(s.CreateSampleJobItem(makeAggItem("a-p2", "job-a", "chk3.safetensors", model.SampleJobItemStatusPending, ""))).To(Succeed())
+
+			// job-b: 1 completed only.
+			Expect(s.CreateSampleJobItem(makeAggItem("b-c1", "job-b", "chk1.safetensors", model.SampleJobItemStatusCompleted, ""))).To(Succeed())
+
+			progress, err := s.ListJobsProgress()
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(progress["job-a"].ItemCounts.Completed).To(Equal(3))
+			Expect(progress["job-a"].ItemCounts.Failed).To(Equal(2)) // failed + skipped
+			Expect(progress["job-a"].ItemCounts.Pending).To(Equal(2))
+
+			Expect(progress["job-b"].ItemCounts.Completed).To(Equal(1))
+			Expect(progress["job-b"].ItemCounts.Failed).To(Equal(0))
+			Expect(progress["job-b"].ItemCounts.Pending).To(Equal(0))
+
+			// job-empty has no items: it is absent from the map (zero value).
+			_, present := progress["job-empty"]
+			Expect(present).To(BeFalse())
+
+			// Parity cross-check: aggregate counts equal counts derived by iterating
+			// the full item rows (the path GetProgress/Show uses).
+			items, err := s.ListSampleJobItems("job-a")
+			Expect(err).NotTo(HaveOccurred())
+			var c, f, p int
+			for _, it := range items {
+				switch it.Status {
+				case model.SampleJobItemStatusCompleted:
+					c++
+				case model.SampleJobItemStatusFailed, model.SampleJobItemStatusSkipped:
+					f++
+				case model.SampleJobItemStatusPending:
+					p++
+				}
+			}
+			Expect(progress["job-a"].ItemCounts.Completed).To(Equal(c))
+			Expect(progress["job-a"].ItemCounts.Failed).To(Equal(f))
+			Expect(progress["job-a"].ItemCounts.Pending).To(Equal(p))
+		})
+
+		It("reconstructs per-checkpoint failed item details (deduped by message, sorted by checkpoint)", func() {
+			// chk2 has two distinct failure messages; chk1 has a duplicate message
+			// (must dedupe to one detail); chk3 has a failed item with no message
+			// (must yield an 'unknown error' detail).
+			Expect(s.CreateSampleJobItem(makeAggItem("d-1", "job-a", "chk1.safetensors", model.SampleJobItemStatusFailed, "same error"))).To(Succeed())
+			Expect(s.CreateSampleJobItem(makeAggItem("d-2", "job-a", "chk1.safetensors", model.SampleJobItemStatusFailed, "same error"))).To(Succeed())
+			Expect(s.CreateSampleJobItem(makeAggItem("d-3", "job-a", "chk2.safetensors", model.SampleJobItemStatusFailed, "error one"))).To(Succeed())
+			Expect(s.CreateSampleJobItem(makeAggItem("d-4", "job-a", "chk2.safetensors", model.SampleJobItemStatusFailed, "error two"))).To(Succeed())
+			Expect(s.CreateSampleJobItem(makeAggItem("d-5", "job-a", "chk3.safetensors", model.SampleJobItemStatusFailed, ""))).To(Succeed())
+
+			progress, err := s.ListJobsProgress()
+			Expect(err).NotTo(HaveOccurred())
+
+			details := progress["job-a"].FailedItemDetails
+			// 1 (chk1 deduped) + 2 (chk2) + 1 (chk3 unknown) = 4.
+			Expect(details).To(HaveLen(4))
+
+			// Group by checkpoint for assertions.
+			byCheckpoint := map[string][]string{}
+			for _, d := range details {
+				byCheckpoint[d.CheckpointFilename] = append(byCheckpoint[d.CheckpointFilename], d.ErrorMessage)
+			}
+			Expect(byCheckpoint["chk1.safetensors"]).To(ConsistOf("same error"))
+			Expect(byCheckpoint["chk2.safetensors"]).To(ConsistOf("error one", "error two"))
+			Expect(byCheckpoint["chk3.safetensors"]).To(ConsistOf("unknown error"))
+		})
+
+		It("returns an empty map when there are no items at all", func() {
+			progress, err := s.ListJobsProgress()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(progress).To(BeEmpty())
 		})
 	})
 })

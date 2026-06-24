@@ -27,6 +27,10 @@ type SampleJobStore interface {
 	UpdateSampleJob(j model.SampleJob) error
 	DeleteSampleJob(id string) error
 	ListSampleJobItems(jobID string) ([]model.SampleJobItem, error)
+	// ListJobsProgress returns per-job item progress (counts + failed details)
+	// computed via aggregate queries, keyed by job ID. Used by the list path so
+	// that listing N jobs does not load every item row of every job.
+	ListJobsProgress() (map[string]model.JobListProgress, error)
 	UpdateSampleJobItem(i model.SampleJobItem) error
 	GetStudy(id string) (model.Study, error)
 }
@@ -72,16 +76,16 @@ type WorkflowRoleChecker interface {
 
 // SampleJobService manages sample job creation, state transitions, and progress tracking.
 type SampleJobService struct {
-	store              SampleJobStore
-	pathMatcher        PathMatcher
-	loraPathMatcher    PathMatcher
-	dirRemover         SampleDirRemover
-	jobDataRemover     JobSampleDataRemover
-	fileChecker        OutputFileChecker
-	workflowChecker    WorkflowRoleChecker
-	sampleDir          string
-	executor           SampleJobExecutor
-	logger             *logrus.Entry
+	store           SampleJobStore
+	pathMatcher     PathMatcher
+	loraPathMatcher PathMatcher
+	dirRemover      SampleDirRemover
+	jobDataRemover  JobSampleDataRemover
+	fileChecker     OutputFileChecker
+	workflowChecker WorkflowRoleChecker
+	sampleDir       string
+	executor        SampleJobExecutor
+	logger          *logrus.Entry
 }
 
 // NewSampleJobService creates a SampleJobService backed by the given store.
@@ -163,6 +167,28 @@ func (s *SampleJobService) List() ([]model.SampleJob, error) {
 		jobs = []model.SampleJob{}
 	}
 	return jobs, nil
+}
+
+// ListProgress returns per-job item progress for every job, keyed by job ID.
+// It is computed from aggregate COUNT queries in the store rather than by
+// loading every item row, so the list endpoint no longer pays an O(total items)
+// cost per poll. The progress fields are derived from the same item statuses as
+// GetProgress, guaranteeing the list and show endpoints report identical
+// completed/failed/pending counts and failed-item details for the same data.
+//
+// Jobs that have no items are absent from the returned map; callers must treat a
+// missing entry as all-zero counts with an empty (non-nil) failed-item slice.
+func (s *SampleJobService) ListProgress() (map[string]model.JobListProgress, error) {
+	s.logger.Trace("entering ListProgress")
+	defer s.logger.Trace("returning from ListProgress")
+
+	progress, err := s.store.ListJobsProgress()
+	if err != nil {
+		s.logger.WithError(err).Error("failed to list aggregate job progress")
+		return nil, fmt.Errorf("listing job progress: %w", err)
+	}
+	s.logger.WithField("job_count", len(progress)).Debug("aggregate job progress retrieved from store")
+	return progress, nil
 }
 
 // Get returns a sample job by ID, or an error if not found.
@@ -259,16 +285,16 @@ func (s *SampleJobService) Create(trainingRunName string, checkpoints []model.Ch
 		wf, err := s.workflowChecker.Get(context.Background(), study.WorkflowTemplate)
 		if err != nil {
 			s.logger.WithFields(logrus.Fields{
-				"training_run_name":  trainingRunName,
-				"workflow_template":  study.WorkflowTemplate,
-				"error":              err.Error(),
+				"training_run_name": trainingRunName,
+				"workflow_template": study.WorkflowTemplate,
+				"error":             err.Error(),
 			}).Warn("failed to load workflow for LoRA validation")
 			return model.SampleJob{}, fmt.Errorf("loading workflow for LoRA validation: %w", err)
 		}
 		if _, hasLoraLoader := wf.Roles[string(model.CSRoleLoraLoader)]; !hasLoraLoader {
 			s.logger.WithFields(logrus.Fields{
-				"training_run_name":  trainingRunName,
-				"workflow_template":  study.WorkflowTemplate,
+				"training_run_name": trainingRunName,
+				"workflow_template": study.WorkflowTemplate,
 			}).Warn("workflow does not contain a lora_loader node")
 			return model.SampleJob{}, fmt.Errorf("workflow %q does not contain a lora_loader node; LoRA runs require a lora-capable workflow", study.WorkflowTemplate)
 		}

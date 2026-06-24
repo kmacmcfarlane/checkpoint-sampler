@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
@@ -183,8 +184,8 @@ func (s *Store) GetSampleJob(id string) (model.SampleJob, error) {
 // CreateSampleJob inserts a new sample job.
 func (s *Store) CreateSampleJob(j model.SampleJob) error {
 	s.logger.WithFields(logrus.Fields{
-		"sample_job_id":      j.ID,
-		"training_run_name":  j.TrainingRunName,
+		"sample_job_id":     j.ID,
+		"training_run_name": j.TrainingRunName,
 	}).Trace("entering CreateSampleJob")
 	defer s.logger.Trace("returning from CreateSampleJob")
 
@@ -550,6 +551,157 @@ func (s *Store) ListSampleJobItems(jobID string) ([]model.SampleJobItem, error) 
 		"item_count": len(items),
 	}).Debug("listed sample job items from database")
 	return items, nil
+}
+
+// ListJobsProgress computes per-job item progress for every sample job using
+// aggregate queries only — it never loads full item rows for the list path.
+//
+// It runs two queries:
+//  1. A GROUP BY aggregate counting items per (job_id, status). This yields the
+//     completed / failed / pending counts for every job in a single scan.
+//  2. A targeted SELECT of only failed and skipped rows (typically a small
+//     subset) to reconstruct the per-checkpoint failed-item details. This keeps
+//     parity with GetProgress/Show without loading the (usually large) set of
+//     completed and pending rows.
+//
+// The returned map is keyed by job_id. Jobs with no items are simply absent
+// from the map; callers treat a missing entry as all-zero counts.
+//
+// failed and skipped item statuses are both folded into ItemStatusCounts.Failed,
+// matching the semantics used by GetProgress.
+func (s *Store) ListJobsProgress() (map[string]model.JobListProgress, error) {
+	s.logger.Trace("entering ListJobsProgress")
+	defer s.logger.Trace("returning from ListJobsProgress")
+
+	result := make(map[string]model.JobListProgress)
+
+	// Query 1: aggregate status counts grouped by job.
+	countRows, err := s.db.Query(
+		`SELECT job_id, status, COUNT(*) FROM sample_job_items GROUP BY job_id, status`,
+	)
+	if err != nil {
+		s.logger.WithError(err).Error("failed to query aggregate sample job item counts")
+		return nil, fmt.Errorf("querying aggregate sample job item counts: %w", err)
+	}
+	defer countRows.Close()
+
+	for countRows.Next() {
+		var jobID, status string
+		var count int
+		if err := countRows.Scan(&jobID, &status, &count); err != nil {
+			s.logger.WithError(err).Error("failed to scan aggregate count row")
+			return nil, fmt.Errorf("scanning aggregate count row: %w", err)
+		}
+		p := result[jobID]
+		switch model.SampleJobItemStatus(status) {
+		case model.SampleJobItemStatusCompleted:
+			p.ItemCounts.Completed += count
+		case model.SampleJobItemStatusFailed, model.SampleJobItemStatusSkipped:
+			p.ItemCounts.Failed += count
+		case model.SampleJobItemStatusPending:
+			p.ItemCounts.Pending += count
+		}
+		result[jobID] = p
+	}
+	if err := countRows.Err(); err != nil {
+		s.logger.WithError(err).Error("error iterating aggregate count rows")
+		return nil, fmt.Errorf("iterating aggregate count rows: %w", err)
+	}
+
+	// Query 2: only failed/skipped rows, to rebuild per-checkpoint failed details.
+	// This intentionally avoids loading completed/pending rows.
+	failedRows, err := s.db.Query(
+		`SELECT job_id, checkpoint_filename, error_message, exception_type, node_type, traceback
+		FROM sample_job_items
+		WHERE status IN (?, ?)`,
+		string(model.SampleJobItemStatusFailed),
+		string(model.SampleJobItemStatusSkipped),
+	)
+	if err != nil {
+		s.logger.WithError(err).Error("failed to query failed sample job items")
+		return nil, fmt.Errorf("querying failed sample job items: %w", err)
+	}
+	defer failedRows.Close()
+
+	// Accumulate per-job, per-checkpoint unique error messages with their details,
+	// mirroring the grouping logic in service.GetProgress.
+	type errorDetail struct {
+		exceptionType string
+		nodeType      string
+		traceback     string
+	}
+	// jobID -> checkpoint -> errMsg -> detail. An empty-string errMsg key signals
+	// the checkpoint had a failed item with no recorded message.
+	failed := make(map[string]map[string]map[string]errorDetail)
+
+	for failedRows.Next() {
+		var jobID, checkpoint string
+		var errMsg, exceptionType, nodeType, traceback sql.NullString
+		if err := failedRows.Scan(&jobID, &checkpoint, &errMsg, &exceptionType, &nodeType, &traceback); err != nil {
+			s.logger.WithError(err).Error("failed to scan failed sample job item row")
+			return nil, fmt.Errorf("scanning failed sample job item row: %w", err)
+		}
+		byCheckpoint, ok := failed[jobID]
+		if !ok {
+			byCheckpoint = make(map[string]map[string]errorDetail)
+			failed[jobID] = byCheckpoint
+		}
+		byMsg, ok := byCheckpoint[checkpoint]
+		if !ok {
+			byMsg = make(map[string]errorDetail)
+			byCheckpoint[checkpoint] = byMsg
+		}
+		if errMsg.String != "" {
+			byMsg[errMsg.String] = errorDetail{
+				exceptionType: exceptionType.String,
+				nodeType:      nodeType.String,
+				traceback:     traceback.String,
+			}
+		}
+	}
+	if err := failedRows.Err(); err != nil {
+		s.logger.WithError(err).Error("error iterating failed sample job item rows")
+		return nil, fmt.Errorf("iterating failed sample job item rows: %w", err)
+	}
+
+	// Build FailedItemDetails per job, iterating checkpoints in sorted order to
+	// match GetProgress's deterministic ordering.
+	for jobID, byCheckpoint := range failed {
+		checkpointNames := make([]string, 0, len(byCheckpoint))
+		for checkpoint := range byCheckpoint {
+			checkpointNames = append(checkpointNames, checkpoint)
+		}
+		sort.Strings(checkpointNames)
+
+		var details []model.FailedItemDetail
+		for _, checkpoint := range checkpointNames {
+			byMsg := byCheckpoint[checkpoint]
+			if len(byMsg) == 0 {
+				// Failed items existed but none carried an error message.
+				details = append(details, model.FailedItemDetail{
+					CheckpointFilename: checkpoint,
+					ErrorMessage:       "unknown error",
+				})
+				continue
+			}
+			for errMsg, detail := range byMsg {
+				details = append(details, model.FailedItemDetail{
+					CheckpointFilename: checkpoint,
+					ErrorMessage:       errMsg,
+					ExceptionType:      detail.exceptionType,
+					NodeType:           detail.nodeType,
+					Traceback:          detail.traceback,
+				})
+			}
+		}
+
+		p := result[jobID]
+		p.FailedItemDetails = details
+		result[jobID] = p
+	}
+
+	s.logger.WithField("job_count", len(result)).Debug("computed aggregate job progress from store")
+	return result, nil
 }
 
 // CreateSampleJobItem inserts a new sample job item.

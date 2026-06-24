@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"io"
+	"sort"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -18,14 +19,14 @@ import (
 
 // fakeSampleJobStore is an in-memory test double for service.SampleJobStore.
 type fakeSampleJobStore struct {
-	jobs       map[string]model.SampleJob
-	items      map[string][]model.SampleJobItem
-	studies    map[string]model.Study
-	listErr    error
-	getErr     error
-	createErr  error
-	updateErr  error
-	deleteErr  error
+	jobs      map[string]model.SampleJob
+	items     map[string][]model.SampleJobItem
+	studies   map[string]model.Study
+	listErr   error
+	getErr    error
+	createErr error
+	updateErr error
+	deleteErr error
 }
 
 func newFakeSampleJobStore() *fakeSampleJobStore {
@@ -118,6 +119,60 @@ func (f *fakeSampleJobStore) ListSampleJobItems(jobID string) ([]model.SampleJob
 		return []model.SampleJobItem{}, nil
 	}
 	return items, nil
+}
+
+func (f *fakeSampleJobStore) ListJobsProgress() (map[string]model.JobListProgress, error) {
+	if f.listErr != nil {
+		return nil, f.listErr
+	}
+	result := make(map[string]model.JobListProgress)
+	for jobID, items := range f.items {
+		var counts model.ItemStatusCounts
+		type detail struct{ exceptionType, nodeType, traceback string }
+		byCheckpoint := make(map[string]map[string]detail)
+		for _, it := range items {
+			switch it.Status {
+			case model.SampleJobItemStatusCompleted:
+				counts.Completed++
+			case model.SampleJobItemStatusFailed, model.SampleJobItemStatusSkipped:
+				counts.Failed++
+				byMsg, ok := byCheckpoint[it.CheckpointFilename]
+				if !ok {
+					byMsg = make(map[string]detail)
+					byCheckpoint[it.CheckpointFilename] = byMsg
+				}
+				if it.ErrorMessage != "" {
+					byMsg[it.ErrorMessage] = detail{it.ExceptionType, it.NodeType, it.Traceback}
+				}
+			case model.SampleJobItemStatusPending:
+				counts.Pending++
+			}
+		}
+		var details []model.FailedItemDetail
+		names := make([]string, 0, len(byCheckpoint))
+		for cp := range byCheckpoint {
+			names = append(names, cp)
+		}
+		sort.Strings(names)
+		for _, cp := range names {
+			byMsg := byCheckpoint[cp]
+			if len(byMsg) == 0 {
+				details = append(details, model.FailedItemDetail{CheckpointFilename: cp, ErrorMessage: "unknown error"})
+				continue
+			}
+			for msg, d := range byMsg {
+				details = append(details, model.FailedItemDetail{
+					CheckpointFilename: cp,
+					ErrorMessage:       msg,
+					ExceptionType:      d.exceptionType,
+					NodeType:           d.nodeType,
+					Traceback:          d.traceback,
+				})
+			}
+		}
+		result[jobID] = model.JobListProgress{ItemCounts: counts, FailedItemDetails: details}
+	}
+	return result, nil
 }
 
 func (f *fakeSampleJobStore) UpdateSampleJobItem(item model.SampleJobItem) error {

@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-149: Job list endpoint loads every item row of every job (N+1) and sample_job_items has no indexes
+- The job list endpoint now computes per-job progress with a fixed set of aggregate queries instead of an N+1 of `GetProgress` calls that loaded every item row of every job on each poll. New `Store.ListJobsProgress()` runs one `SELECT job_id, status, COUNT(*) ... GROUP BY job_id, status` aggregate plus a single targeted query of only failed/skipped rows to rebuild per-checkpoint failure details — completed/pending rows are never materialized. Progress numbers stay identical to the show/detail view (parity preserved per B-148)
+- Migration 26 adds indexes on `sample_job_items(job_id)`, `(job_id, status)` (backs the list aggregate), and `(job_id, created_at)` (backs the executor's ordered item listing) — previously `sample_job_items` had no indexes, so every item query was a full table scan
+
 ### B-153: fsnotify watches leak on every training-run switch — live updates eventually stop
 - The training-run `Watcher` now tracks its active watch set (`watched` map) and removes every previously-registered inotify watch in `stopLocked()` when switching runs — both static checkpoint-directory watches and dynamically-added per-image-directory watches route through a single `addWatch` helper, so none are leaked. Previously each run switch accumulated inotify descriptors on the shared `fsnotify.Watcher` until `max_user_watches` was hit, after which `Add` silently failed and live updates stopped
 - Stale events from a prior run's directories no longer reach the event loop after a switch (their watches are gone), eliminating cross-run event delivery
