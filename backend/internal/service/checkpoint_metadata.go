@@ -146,10 +146,30 @@ func parseSafetensorsMetadata(reader CheckpointMetadataReader, path string) (map
 		return nil, fmt.Errorf("reading header length: %w", err)
 	}
 
-	// Sanity check: header shouldn't be absurdly large (100MB limit)
-	const maxHeaderLen = 100 * 1024 * 1024
+	// Sanity check: header shouldn't be absurdly large (16MB limit).
+	// Real safetensors headers are KBs to low MBs; 16MB is ample headroom.
+	const maxHeaderLen = 16 * 1024 * 1024
 	if headerLen > maxHeaderLen {
-		return nil, fmt.Errorf("header length %d exceeds maximum %d", headerLen, maxHeaderLen)
+		return nil, fmt.Errorf("header length %d exceeds maximum %d bytes", headerLen, maxHeaderLen)
+	}
+
+	// Validate headerLen against actual file size before allocating.
+	// A file declaring a header larger than the remaining bytes is corrupt.
+	// We type-assert to the Stat interface that *os.File satisfies.
+	type stater interface {
+		Stat() (os.FileInfo, error)
+	}
+	if st, ok := f.(stater); ok {
+		if info, err := st.Stat(); err == nil {
+			// File size minus 8 bytes already consumed for the length prefix.
+			remaining := info.Size() - 8
+			if remaining < 0 {
+				remaining = 0
+			}
+			if int64(headerLen) > remaining {
+				return nil, fmt.Errorf("header length %d exceeds remaining file size %d", headerLen, remaining)
+			}
+		}
 	}
 
 	// Read header JSON

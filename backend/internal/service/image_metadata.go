@@ -237,10 +237,11 @@ func parsePNGTextChunks(reader ImageMetadataReader, path string) (map[string]str
 			return nil, fmt.Errorf("reading chunk length: %w", err)
 		}
 
-		// Sanity check: chunk shouldn't be absurdly large (100MB limit)
-		const maxChunkLen = 100 * 1024 * 1024
+		// Sanity check: chunk shouldn't be absurdly large (16MB limit).
+		// Real tEXt/iTXt metadata chunks are KBs to low MBs; 16MB is ample headroom.
+		const maxChunkLen = 16 * 1024 * 1024
 		if length > maxChunkLen {
-			return nil, fmt.Errorf("chunk length %d exceeds maximum %d", length, maxChunkLen)
+			return nil, fmt.Errorf("chunk length %d exceeds maximum %d bytes", length, maxChunkLen)
 		}
 
 		// Read chunk type (4 bytes)

@@ -231,6 +231,34 @@ var _ = Describe("ImageMetadataService", func() {
 				Expect(result.StringFields).To(BeEmpty())
 				Expect(result.NumericFields).To(BeEmpty())
 			})
+
+			// AC: a crafted file declaring a PNG chunk length over the cap is rejected with a clear error and no large allocation
+			DescribeTable("rejects PNG chunk lengths that exceed the 16MB cap",
+				func(chunkLen uint32) {
+					subDir := filepath.Join(tmpDir, "checkpoint.safetensors")
+					Expect(os.MkdirAll(subDir, 0755)).To(Succeed())
+
+					buf := new(bytes.Buffer)
+					// PNG signature
+					buf.Write([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A})
+					// Write a crafted chunk with over-cap declared length but no actual data
+					binary.Write(buf, binary.BigEndian, chunkLen)
+					buf.WriteString("tEXt") // chunk type
+					// no data — file is truncated after type
+
+					Expect(os.WriteFile(filepath.Join(subDir, "overcap.png"), buf.Bytes(), 0644)).To(Succeed())
+
+					svc = service.NewImageMetadataService(&realFileOpener{}, tmpDir, logger)
+					_, err := svc.GetMetadata("checkpoint.safetensors/overcap.png")
+
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).To(ContainSubstring("parsing PNG metadata"))
+					Expect(err.Error()).To(ContainSubstring("exceeds maximum"))
+				},
+				Entry("exactly 16MB+1", uint32(16*1024*1024+1)),
+				Entry("100MB (old cap)", uint32(100*1024*1024)),
+				Entry("max uint32", uint32(^uint32(0))),
+			)
 		})
 
 		Context("sidecar-first metadata reading", func() {

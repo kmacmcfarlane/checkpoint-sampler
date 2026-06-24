@@ -573,7 +573,7 @@ stories:
   - id: B-156
     title: "Metadata parsers allocate up to 100MB from corrupt-file-declared lengths; guard branches untested"
     priority: 55
-    status: todo
+    status: uat
     complexity: low
     type: bug
     requires: []

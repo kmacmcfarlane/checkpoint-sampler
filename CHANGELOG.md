@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-156: Metadata parsers allocate up to 100MB from corrupt-file-declared lengths; guard branches untested
+- Lowered the safetensors header and PNG metadata-chunk caps from 100MB to 16MB (real headers/chunks are KBs to low MBs), and the safetensors parser now validates the declared header length against the actual file size (via a `Stat()` type-assertion satisfied by `*os.File`) before `make([]byte, headerLen)` — a corrupt/malicious tiny file declaring a near-cap length no longer triggers an eager large allocation; it is rejected with a clear error first
+- Added rejection-branch unit tests (over-cap header length, header length exceeding file size, over-cap PNG chunk)
+
 ### B-155: Image preloader never reacts to combo-filter changes and restarts full preload on every retrigger
 - The preload `watch` now keys on a serialized signature of `comboSelections` (sorted dim→values) instead of the reactive object reference, so combo-filter changes — which mutate keys in place on a stable-identity computed — actually retrigger prioritization of newly-visible cells. The old shallow watch never fired on in-place mutation, silently degrading the instant-slider guarantee
 - Retriggers no longer call `preloaded.clear()`: the existing `has(url)` guard skips already-cached URLs so only newly-visible URLs are fetched, and the in-flight `Image` is now wired to the cycle's `AbortSignal` so a superseded cycle yields promptly instead of waiting on a stale load

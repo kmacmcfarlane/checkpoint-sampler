@@ -296,6 +296,42 @@ var _ = Describe("CheckpointMetadataService", func() {
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("parsing safetensors header"))
 			})
+
+			// AC: a crafted file declaring a length over the cap is rejected with a clear error and no large allocation
+			DescribeTable("rejects header lengths that exceed the 16MB cap",
+				func(declaredLen uint64) {
+					buf := new(bytes.Buffer)
+					_ = binary.Write(buf, binary.LittleEndian, declaredLen)
+					// Write a tiny body so the file exists but is much smaller than declared
+					buf.WriteString("{}")
+					Expect(os.WriteFile(filepath.Join(tmpDir, "overcap.safetensors"), buf.Bytes(), 0644)).To(Succeed())
+					svc = service.NewCheckpointMetadataService(&realFileOpener{}, []string{tmpDir}, nil, logger)
+
+					_, err := svc.GetMetadata("overcap.safetensors")
+
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).To(ContainSubstring("parsing safetensors header"))
+				},
+				Entry("exactly 16MB+1", uint64(16*1024*1024+1)),
+				Entry("100MB (old cap)", uint64(100*1024*1024)),
+				Entry("max uint64", uint64(^uint64(0))),
+			)
+
+			// AC: a crafted file declaring a length larger than the file itself is rejected before allocation
+			It("rejects header length that exceeds remaining file size", func() {
+				buf := new(bytes.Buffer)
+				// Declare a header of 1000 bytes but write only 10 bytes of data
+				const declaredLen = uint64(1000)
+				_ = binary.Write(buf, binary.LittleEndian, declaredLen)
+				buf.WriteString("{\"short\"}")
+				Expect(os.WriteFile(filepath.Join(tmpDir, "toobig.safetensors"), buf.Bytes(), 0644)).To(Succeed())
+				svc = service.NewCheckpointMetadataService(&realFileOpener{}, []string{tmpDir}, nil, logger)
+
+				_, err := svc.GetMetadata("toobig.safetensors")
+
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("parsing safetensors header"))
+			})
 		})
 	})
 
