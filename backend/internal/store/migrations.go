@@ -252,17 +252,17 @@ func AllMigrations() []Migration {
 		{
 			// Add exception_type column for ComfyUI execution_error events.
 			Version: 14,
-			SQL: `ALTER TABLE sample_job_items ADD COLUMN exception_type TEXT NOT NULL DEFAULT '';`,
+			SQL:     `ALTER TABLE sample_job_items ADD COLUMN exception_type TEXT NOT NULL DEFAULT '';`,
 		},
 		{
 			// Add node_type column for ComfyUI execution_error events.
 			Version: 15,
-			SQL: `ALTER TABLE sample_job_items ADD COLUMN node_type TEXT NOT NULL DEFAULT '';`,
+			SQL:     `ALTER TABLE sample_job_items ADD COLUMN node_type TEXT NOT NULL DEFAULT '';`,
 		},
 		{
 			// Add traceback column for ComfyUI execution_error events.
 			Version: 16,
-			SQL: `ALTER TABLE sample_job_items ADD COLUMN traceback TEXT NOT NULL DEFAULT '';`,
+			SQL:     `ALTER TABLE sample_job_items ADD COLUMN traceback TEXT NOT NULL DEFAULT '';`,
 		},
 		{
 			// Add UNIQUE constraint on studies.name to enforce uniqueness at the
@@ -334,6 +334,20 @@ ALTER TABLE studies ADD COLUMN shift REAL;`,
 			// Defaults to 1.0 for both LoRA and checkpoint items.
 			Version: 25,
 			SQL:     `ALTER TABLE sample_job_items ADD COLUMN strength_clip REAL NOT NULL DEFAULT 1.0;`,
+		},
+		{
+			// B-149: Add indexes on sample_job_items to eliminate full table scans.
+			//   - idx_sample_job_items_job_id speeds up per-job item lookups.
+			//   - idx_sample_job_items_job_id_status backs the aggregate
+			//     COUNT(*) ... GROUP BY job_id, status used by the job list path.
+			//   - idx_sample_job_items_job_id_created_at backs the ordered
+			//     item-listing query used by the executor (ORDER BY created_at).
+			// Without these, every item query was a full table scan of
+			// sample_job_items.
+			Version: 26,
+			SQL: `CREATE INDEX IF NOT EXISTS idx_sample_job_items_job_id ON sample_job_items (job_id);
+CREATE INDEX IF NOT EXISTS idx_sample_job_items_job_id_status ON sample_job_items (job_id, status);
+CREATE INDEX IF NOT EXISTS idx_sample_job_items_job_id_created_at ON sample_job_items (job_id, created_at);`,
 		},
 	}
 }

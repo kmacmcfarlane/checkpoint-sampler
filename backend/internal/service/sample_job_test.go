@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sort"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -17,19 +18,74 @@ import (
 
 // fakeSampleJobStore is an in-memory test double for service.SampleJobStore.
 type fakeSampleJobStore struct {
-	jobs             map[string]model.SampleJob
-	items            map[string][]model.SampleJobItem
-	studies          map[string]model.Study
-	listJobsErr      error
-	getJobErr        error
-	hasRunningJobErr error
-	createJobErr     error
-	updateJobErr     error
-	deleteJobErr     error
-	listItemsErr     error
-	createItemErr    error
-	updateItemErr    error
-	getStudyErr      error
+	jobs                map[string]model.SampleJob
+	items               map[string][]model.SampleJobItem
+	studies             map[string]model.Study
+	listJobsErr         error
+	getJobErr           error
+	hasRunningJobErr    error
+	createJobErr        error
+	updateJobErr        error
+	deleteJobErr        error
+	listItemsErr        error
+	createItemErr       error
+	updateItemErr       error
+	getStudyErr         error
+	listJobsProgressErr error
+}
+
+// computeFakeJobsProgress mirrors store.ListJobsProgress over in-memory items so
+// that the fake store and the real store agree on aggregate progress semantics.
+func computeFakeJobsProgress(items map[string][]model.SampleJobItem) map[string]model.JobListProgress {
+	result := make(map[string]model.JobListProgress)
+	for jobID, jobItems := range items {
+		var counts model.ItemStatusCounts
+		// checkpoint -> errMsg -> detail (empty errMsg map means failed w/o message)
+		type detail struct{ exceptionType, nodeType, traceback string }
+		byCheckpoint := make(map[string]map[string]detail)
+		for _, it := range jobItems {
+			switch it.Status {
+			case model.SampleJobItemStatusCompleted:
+				counts.Completed++
+			case model.SampleJobItemStatusFailed, model.SampleJobItemStatusSkipped:
+				counts.Failed++
+				byMsg, ok := byCheckpoint[it.CheckpointFilename]
+				if !ok {
+					byMsg = make(map[string]detail)
+					byCheckpoint[it.CheckpointFilename] = byMsg
+				}
+				if it.ErrorMessage != "" {
+					byMsg[it.ErrorMessage] = detail{it.ExceptionType, it.NodeType, it.Traceback}
+				}
+			case model.SampleJobItemStatusPending:
+				counts.Pending++
+			}
+		}
+		var details []model.FailedItemDetail
+		names := make([]string, 0, len(byCheckpoint))
+		for cp := range byCheckpoint {
+			names = append(names, cp)
+		}
+		sort.Strings(names)
+		for _, cp := range names {
+			byMsg := byCheckpoint[cp]
+			if len(byMsg) == 0 {
+				details = append(details, model.FailedItemDetail{CheckpointFilename: cp, ErrorMessage: "unknown error"})
+				continue
+			}
+			for msg, d := range byMsg {
+				details = append(details, model.FailedItemDetail{
+					CheckpointFilename: cp,
+					ErrorMessage:       msg,
+					ExceptionType:      d.exceptionType,
+					NodeType:           d.nodeType,
+					Traceback:          d.traceback,
+				})
+			}
+		}
+		result[jobID] = model.JobListProgress{ItemCounts: counts, FailedItemDetails: details}
+	}
+	return result
 }
 
 func newFakeSampleJobStore() *fakeSampleJobStore {
@@ -132,6 +188,13 @@ func (f *fakeSampleJobStore) ListSampleJobItems(jobID string) ([]model.SampleJob
 	return f.items[jobID], nil
 }
 
+func (f *fakeSampleJobStore) ListJobsProgress() (map[string]model.JobListProgress, error) {
+	if f.listJobsProgressErr != nil {
+		return nil, f.listJobsProgressErr
+	}
+	return computeFakeJobsProgress(f.items), nil
+}
+
 func (f *fakeSampleJobStore) UpdateSampleJobItem(i model.SampleJobItem) error {
 	if f.updateItemErr != nil {
 		return f.updateItemErr
@@ -160,8 +223,8 @@ func (f *fakeSampleJobStore) GetStudy(id string) (model.Study, error) {
 
 // fakePathMatcher is a test double for service.PathMatcher.
 type fakePathMatcher struct {
-	paths     map[string]string
-	matchErr  error
+	paths    map[string]string
+	matchErr error
 }
 
 func newFakePathMatcher() *fakePathMatcher {
@@ -252,7 +315,7 @@ type fakeSampleJobExecutor struct {
 	connected    bool
 	// store is optional; when set, RequestStop will write the stopped status to the
 	// store to simulate the executor owning the DB transition.
-	store        *fakeSampleJobStore
+	store *fakeSampleJobStore
 }
 
 func newFakeSampleJobExecutor() *fakeSampleJobExecutor {
@@ -450,11 +513,11 @@ var _ = Describe("SampleJobService", func() {
 		// B-104: Reject job creation when the study has no workflow template configured.
 		It("returns error when study has no workflow template", func() {
 			noWorkflowStudy := model.Study{
-				ID:       "study-no-wf",
-				Name:     "No Workflow Study",
-				Prompts:  []model.NamedPrompt{{Name: "prompt1", Text: "text1"}},
-				Steps:    []int{1},
-				CFGs:     []float64{1.0},
+				ID:      "study-no-wf",
+				Name:    "No Workflow Study",
+				Prompts: []model.NamedPrompt{{Name: "prompt1", Text: "text1"}},
+				Steps:   []int{1},
+				CFGs:    []float64{1.0},
 				SamplerSchedulerPairs: []model.SamplerSchedulerPair{
 					{Sampler: "euler", Scheduler: "simple"},
 				},
@@ -749,7 +812,7 @@ var _ = Describe("SampleJobService", func() {
 				checker := newFakeWorkflowRoleChecker()
 				// Register a workflow without lora_loader role
 				checker.workflows["lora-workflow.json"] = model.WorkflowTemplate{
-					Name:  "lora-workflow.json",
+					Name: "lora-workflow.json",
 					Roles: map[string][]string{
 						string(model.CSRoleSaveImage): {"1"},
 					},
@@ -765,7 +828,7 @@ var _ = Describe("SampleJobService", func() {
 			It("succeeds when workflow has lora_loader cs_role", func() {
 				checker := newFakeWorkflowRoleChecker()
 				checker.workflows["lora-workflow.json"] = model.WorkflowTemplate{
-					Name:  "lora-workflow.json",
+					Name: "lora-workflow.json",
 					Roles: map[string][]string{
 						string(model.CSRoleSaveImage):  {"1"},
 						string(model.CSRoleLoraLoader): {"2"},
@@ -801,11 +864,11 @@ var _ = Describe("SampleJobService", func() {
 			It("does NOT expand strength pairs for non-LoRA runs", func() {
 				// Study has 2 strength pairs, but this is a checkpoint run
 				store.studies["study-1"] = model.Study{
-					ID:             "study-1",
-					Name:           "Test Study",
-					Prompts:        []model.NamedPrompt{{Name: "prompt1", Text: "text1"}},
-					Steps:          []int{20},
-					CFGs:           []float64{7.0},
+					ID:      "study-1",
+					Name:    "Test Study",
+					Prompts: []model.NamedPrompt{{Name: "prompt1", Text: "text1"}},
+					Steps:   []int{20},
+					CFGs:    []float64{7.0},
 					SamplerSchedulerPairs: []model.SamplerSchedulerPair{
 						{Sampler: "euler", Scheduler: "simple"},
 					},
@@ -1266,7 +1329,7 @@ var _ = Describe("SampleJobService", func() {
 			Expect(items[1].Status).To(Equal(model.SampleJobItemStatusPending))   // was failed
 			Expect(items[1].ErrorMessage).To(BeEmpty())
 			Expect(items[1].ExceptionType).To(BeEmpty())
-			Expect(items[2].Status).To(Equal(model.SampleJobItemStatusPending))   // was skipped
+			Expect(items[2].Status).To(Equal(model.SampleJobItemStatusPending)) // was skipped
 			Expect(items[2].ErrorMessage).To(BeEmpty())
 			Expect(items[3].Status).To(Equal(model.SampleJobItemStatusCompleted)) // unchanged
 		})
@@ -1805,6 +1868,61 @@ var _ = Describe("SampleJobService", func() {
 			Expect(progress.FailedItemDetails).To(HaveLen(1))
 			Expect(progress.FailedItemDetails[0].CheckpointFilename).To(Equal("chk2.safetensors"))
 			Expect(progress.FailedItemDetails[0].ErrorMessage).To(Equal("checkpoint not found in ComfyUI"))
+		})
+	})
+
+	Describe("ListProgress", func() {
+		It("returns aggregate progress per job that matches GetProgress item counts (parity)", func() {
+			// Two jobs with mixed-status items. ListProgress must report the same
+			// completed/failed/pending counts as GetProgress for each job.
+			store.jobs["job-x"] = model.SampleJob{ID: "job-x", TotalItems: 5}
+			store.jobs["job-y"] = model.SampleJob{ID: "job-y", TotalItems: 2}
+			store.items["job-x"] = []model.SampleJobItem{
+				{ID: "x1", JobID: "job-x", CheckpointFilename: "chk1", Status: model.SampleJobItemStatusCompleted},
+				{ID: "x2", JobID: "job-x", CheckpointFilename: "chk1", Status: model.SampleJobItemStatusCompleted},
+				{ID: "x3", JobID: "job-x", CheckpointFilename: "chk2", Status: model.SampleJobItemStatusFailed, ErrorMessage: "boom"},
+				{ID: "x4", JobID: "job-x", CheckpointFilename: "chk3", Status: model.SampleJobItemStatusSkipped, ErrorMessage: "missing"},
+				{ID: "x5", JobID: "job-x", CheckpointFilename: "chk3", Status: model.SampleJobItemStatusPending},
+			}
+			store.items["job-y"] = []model.SampleJobItem{
+				{ID: "y1", JobID: "job-y", CheckpointFilename: "chk1", Status: model.SampleJobItemStatusCompleted},
+				{ID: "y2", JobID: "job-y", CheckpointFilename: "chk1", Status: model.SampleJobItemStatusPending},
+			}
+
+			listProgress, err := svc.ListProgress()
+			Expect(err).NotTo(HaveOccurred())
+
+			for _, jobID := range []string{"job-x", "job-y"} {
+				showProgress, err := svc.GetProgress(jobID)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(listProgress[jobID].ItemCounts).To(Equal(showProgress.ItemCounts),
+					"list and show item counts must be identical for %s", jobID)
+			}
+
+			Expect(listProgress["job-x"].ItemCounts.Completed).To(Equal(2))
+			Expect(listProgress["job-x"].ItemCounts.Failed).To(Equal(2)) // failed + skipped
+			Expect(listProgress["job-x"].ItemCounts.Pending).To(Equal(1))
+		})
+
+		It("returns the failed item details for failed/skipped items", func() {
+			store.jobs["job-f"] = model.SampleJob{ID: "job-f", TotalItems: 2}
+			store.items["job-f"] = []model.SampleJobItem{
+				{ID: "f1", JobID: "job-f", CheckpointFilename: "chkA", Status: model.SampleJobItemStatusFailed, ErrorMessage: "boom"},
+				{ID: "f2", JobID: "job-f", CheckpointFilename: "chkA", Status: model.SampleJobItemStatusCompleted},
+			}
+
+			listProgress, err := svc.ListProgress()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(listProgress["job-f"].FailedItemDetails).To(HaveLen(1))
+			Expect(listProgress["job-f"].FailedItemDetails[0].CheckpointFilename).To(Equal("chkA"))
+			Expect(listProgress["job-f"].FailedItemDetails[0].ErrorMessage).To(Equal("boom"))
+		})
+
+		It("returns an error when the store aggregate query fails", func() {
+			store.listJobsProgressErr = errors.New("db error")
+			_, err := svc.ListProgress()
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("listing job progress"))
 		})
 	})
 })

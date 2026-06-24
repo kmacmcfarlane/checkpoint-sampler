@@ -45,16 +45,24 @@ func (s *SampleJobsService) List(ctx context.Context) ([]*gensamplejobs.SampleJo
 	if err != nil {
 		return nil, gensamplejobs.MakeInternalError(fmt.Errorf("listing sample jobs: %w", err))
 	}
+
+	// Fetch per-job progress for all jobs in a single set of aggregate COUNT
+	// queries rather than loading every item row of every job (B-149). The list
+	// path must never trigger full item-row loading. If the aggregate lookup
+	// fails, fall back to empty progress per job so the list still renders.
+	progressByJob, err := s.svc.ListProgress()
+	if err != nil {
+		progressByJob = map[string]model.JobListProgress{}
+	}
+
 	result := make([]*gensamplejobs.SampleJobResponse, len(jobs))
 	for i, j := range jobs {
-		progress, err := s.svc.GetProgress(j.ID)
-		if err != nil {
-			progress = model.JobProgress{
-				ItemCounts:        model.ItemStatusCounts{},
-				FailedItemDetails: []model.FailedItemDetail{},
-			}
+		p, ok := progressByJob[j.ID]
+		failedDetails := p.FailedItemDetails
+		if !ok || failedDetails == nil {
+			failedDetails = []model.FailedItemDetail{}
 		}
-		result[i] = sampleJobToResponse(j, progress.ItemCounts, progress.FailedItemDetails)
+		result[i] = sampleJobToResponse(j, p.ItemCounts, failedDetails)
 	}
 	return result, nil
 }
@@ -253,8 +261,8 @@ func sampleJobToResponse(j model.SampleJob, counts model.ItemStatusCounts, faile
 		CompletedItems: counts.Completed,
 		FailedItems:    counts.Failed,
 		PendingItems:   counts.Pending,
-		CreatedAt:           j.CreatedAt.UTC().Format(time.RFC3339),
-		UpdatedAt:           j.UpdatedAt.UTC().Format(time.RFC3339),
+		CreatedAt:      j.CreatedAt.UTC().Format(time.RFC3339),
+		UpdatedAt:      j.UpdatedAt.UTC().Format(time.RFC3339),
 	}
 
 	if j.VAE != "" {

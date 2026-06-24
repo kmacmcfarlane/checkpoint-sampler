@@ -414,7 +414,7 @@ var _ = Describe("Migrate", func() {
 		var count int
 		err = db.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&count)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(count).To(Equal(25))
+		Expect(count).To(Equal(26))
 
 		// Verify the table is functional with width and height columns
 		// First create a study and job to satisfy foreign key constraints
@@ -464,10 +464,91 @@ var _ = Describe("Migrate", func() {
 	})
 })
 
+var _ = Describe("sample_job_items index migration (B-149)", func() {
+	var (
+		db     *sql.DB
+		tmpDir string
+	)
+
+	BeforeEach(func() {
+		var err error
+		tmpDir, err = os.MkdirTemp("", "index-migration-test-*")
+		Expect(err).NotTo(HaveOccurred())
+
+		dbPath := filepath.Join(tmpDir, "test.db")
+		db, err = store.OpenDB(dbPath)
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	AfterEach(func() {
+		if db != nil {
+			db.Close()
+		}
+		os.RemoveAll(tmpDir)
+	})
+
+	indexExists := func(name string) bool {
+		var got string
+		err := db.QueryRow(
+			"SELECT name FROM sqlite_master WHERE type='index' AND name=?", name,
+		).Scan(&got)
+		if err == sql.ErrNoRows {
+			return false
+		}
+		Expect(err).NotTo(HaveOccurred())
+		return got == name
+	}
+
+	// AC: a forward migration adds an index on sample_job_items(job_id) and (job_id, status).
+	// Migration test confirms the new indexes exist in sqlite_master after
+	// migrating an EXISTING database (one already at the pre-index schema version).
+	It("creates the job_id, (job_id,status) and (job_id,created_at) indexes after migrating an existing DB", func() {
+		all := store.AllMigrations()
+
+		// Simulate an existing database: apply every migration up to and including
+		// version 25 (the schema before the B-149 index migration), then confirm
+		// the indexes do not yet exist.
+		preIndex := all[:len(all)-1]
+		Expect(preIndex[len(preIndex)-1].Version).To(Equal(25))
+		Expect(store.Migrate(db, preIndex)).To(Succeed())
+
+		Expect(indexExists("idx_sample_job_items_job_id")).To(BeFalse())
+		Expect(indexExists("idx_sample_job_items_job_id_status")).To(BeFalse())
+		Expect(indexExists("idx_sample_job_items_job_id_created_at")).To(BeFalse())
+
+		// Now run the full migration set against the existing DB.
+		Expect(store.Migrate(db, all)).To(Succeed())
+
+		Expect(indexExists("idx_sample_job_items_job_id")).To(BeTrue(), "job_id index must exist")
+		Expect(indexExists("idx_sample_job_items_job_id_status")).To(BeTrue(), "(job_id, status) index must exist")
+		Expect(indexExists("idx_sample_job_items_job_id_created_at")).To(BeTrue(), "(job_id, created_at) index must exist")
+
+		// The query planner should use the (job_id, status) index for the aggregate
+		// list query, proving the index is actually usable for the new list path.
+		rows, err := db.Query("EXPLAIN QUERY PLAN SELECT job_id, status, COUNT(*) FROM sample_job_items GROUP BY job_id, status")
+		Expect(err).NotTo(HaveOccurred())
+		defer rows.Close()
+		var plan string
+		for rows.Next() {
+			var selectid, order, from int
+			var detail string
+			Expect(rows.Scan(&selectid, &order, &from, &detail)).To(Succeed())
+			plan += detail + "\n"
+		}
+		Expect(plan).To(ContainSubstring("idx_sample_job_items_job_id_status"))
+	})
+
+	It("is idempotent — re-running the index migration does not error", func() {
+		Expect(store.Migrate(db, store.AllMigrations())).To(Succeed())
+		Expect(store.Migrate(db, store.AllMigrations())).To(Succeed())
+		Expect(indexExists("idx_sample_job_items_job_id")).To(BeTrue())
+	})
+})
+
 var _ = Describe("AllMigrations", func() {
 	It("returns the presets table as migration 1", func() {
 		migrations := store.AllMigrations()
-		Expect(migrations).To(HaveLen(25))
+		Expect(migrations).To(HaveLen(26))
 		Expect(migrations[0].Version).To(Equal(1))
 		Expect(migrations[0].SQL).To(ContainSubstring("CREATE TABLE"))
 		Expect(migrations[0].SQL).To(ContainSubstring("presets"))

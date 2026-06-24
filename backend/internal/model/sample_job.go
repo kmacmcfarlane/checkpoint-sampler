@@ -14,7 +14,7 @@ type SampleJob struct {
 	Shift               *float64 // nullable for workflows without shift role
 	BaseModel           string   // base model path for LoRA jobs (empty for checkpoint jobs)
 	CheckpointFilenames []string // list of checkpoint filenames selected at job creation
-	ClearExisting       bool    // when true, clear sample dirs on first transition to running
+	ClearExisting       bool     // when true, clear sample dirs on first transition to running
 	Status              SampleJobStatus
 	TotalItems          int
 	CompletedItems      int
@@ -27,12 +27,12 @@ type SampleJob struct {
 type SampleJobStatus string
 
 const (
-	SampleJobStatusPending            SampleJobStatus = "pending"
-	SampleJobStatusRunning            SampleJobStatus = "running"
-	SampleJobStatusStopped            SampleJobStatus = "stopped"
-	SampleJobStatusCompleted          SampleJobStatus = "completed"
+	SampleJobStatusPending             SampleJobStatus = "pending"
+	SampleJobStatusRunning             SampleJobStatus = "running"
+	SampleJobStatusStopped             SampleJobStatus = "stopped"
+	SampleJobStatusCompleted           SampleJobStatus = "completed"
 	SampleJobStatusCompletedWithErrors SampleJobStatus = "completed_with_errors"
-	SampleJobStatusFailed             SampleJobStatus = "failed"
+	SampleJobStatusFailed              SampleJobStatus = "failed"
 )
 
 // SampleJobItem represents a single work item in a sample job.
@@ -91,6 +91,16 @@ type FailedItemDetail struct {
 	ExceptionType      string
 	NodeType           string
 	Traceback          string
+}
+
+// JobListProgress contains the per-job progress fields needed to render the
+// job list. It is computed from aggregate COUNT queries rather than by loading
+// every item row, so listing N jobs costs a fixed number of queries instead of
+// O(total items across all jobs). The fields mirror the subset of JobProgress
+// consumed by the list endpoint, guaranteeing parity with the show/detail view.
+type JobListProgress struct {
+	ItemCounts        ItemStatusCounts
+	FailedItemDetails []FailedItemDetail
 }
 
 // JobProgress contains computed progress metrics for a sample job.

@@ -345,7 +345,7 @@ stories:
   - id: B-149
     title: "Job list endpoint loads every item row of every job (N+1) and sample_job_items has no indexes"
     priority: 70
-    status: todo
+    status: uat
     complexity: medium
     type: bug
     requires: ["B-148"]
