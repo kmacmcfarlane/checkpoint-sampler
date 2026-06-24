@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-155: Image preloader never reacts to combo-filter changes and restarts full preload on every retrigger
+- The preload `watch` now keys on a serialized signature of `comboSelections` (sorted dim→values) instead of the reactive object reference, so combo-filter changes — which mutate keys in place on a stable-identity computed — actually retrigger prioritization of newly-visible cells. The old shallow watch never fired on in-place mutation, silently degrading the instant-slider guarantee
+- Retriggers no longer call `preloaded.clear()`: the existing `has(url)` guard skips already-cached URLs so only newly-visible URLs are fetched, and the in-flight `Image` is now wired to the cycle's `AbortSignal` so a superseded cycle yields promptly instead of waiting on a stale load
+
 ### B-152: recoverStuckItems races the executor ticker — duplicate ComfyUI submissions after reconnect
 - Reconnect recovery (`recoverStuckItems`) now compare-and-acts under `e.mu`: it snapshots each stuck item's prompt ID before its `GetHistory` I/O, then re-reads the item's current state under the lock (`findItemLocked`) and only resets-to-pending (`resetItemToPendingIfUnchanged`) or claims the active slot (`claimRecoveredItem`) when the stored prompt ID still matches the snapshot. Previously recovery mutated from a stale snapshot, so an item the executor ticker had re-submitted with a fresh prompt ID during the disconnect window could be reset/claimed against the old prompt ID — orphaning the in-flight prompt and causing a duplicate ComfyUI submission
 - Removed the dead `stopRequested` field, its unreachable `processNextItem` guard, and both `= false` assignments (it was only ever set false — a cooperative-stop guard that never engaged)

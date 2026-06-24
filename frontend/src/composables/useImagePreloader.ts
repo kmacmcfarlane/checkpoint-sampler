@@ -61,8 +61,20 @@ export function useImagePreloader(
 
       await new Promise<void>((resolve) => {
         const img = new Image()
-        img.onload = () => resolve()
-        img.onerror = () => resolve()
+        const onAbort = () => {
+          // A new cycle superseded this one: stop waiting on the in-flight
+          // image and let the loop's signal.aborted check exit promptly.
+          img.onload = null
+          img.onerror = null
+          resolve()
+        }
+        const done = () => {
+          signal.removeEventListener('abort', onAbort)
+          resolve()
+        }
+        img.onload = done
+        img.onerror = done
+        signal.addEventListener('abort', onAbort, { once: true })
         img.src = url
       })
     }
@@ -206,11 +218,38 @@ export function useImagePreloader(
     }
   }
 
-  // Watch for changes that should trigger a new preload cycle
+  /**
+   * Serialize the combo selections into a stable string signature so the watch
+   * fires on in-place key/value mutations of the reactive object.
+   *
+   * In production `comboSelections` is a computed that returns the store's
+   * reactive object with a stable identity; combo-filter changes mutate keys
+   * INSIDE it rather than reassigning. A shallow watch on the object reference
+   * would never fire for those changes, so we watch a serialized signature
+   * instead (cheaper and more predictable than `{ deep: true }`).
+   */
+  function comboSignature(combos: Record<string, Set<string>>): string {
+    return Object.keys(combos)
+      .sort()
+      .map((dim) => `${dim}:${[...combos[dim]].sort().join(',')}`)
+      .join('|')
+  }
+
+  // Watch for changes that should trigger a new preload cycle.
+  // Note: we deliberately do NOT clear the `preloaded` set here. The
+  // `preloadBatch` has(url) guard skips URLs already loaded, so a retrigger
+  // (e.g. a combo-filter change) only fetches newly-visible URLs instead of
+  // re-creating Image() objects for everything. The new cycle reprioritizes
+  // which URLs load first via runPreload()'s priority ordering.
   watch(
-    [images, xDimension, yDimension, sliderDimension, comboSelections],
+    [
+      images,
+      xDimension,
+      yDimension,
+      sliderDimension,
+      () => comboSignature(comboSelections.value),
+    ],
     () => {
-      preloaded.clear()
       runPreload()
     },
     { immediate: true },
