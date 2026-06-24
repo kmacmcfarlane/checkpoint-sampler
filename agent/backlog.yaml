@@ -478,7 +478,7 @@ stories:
   - id: B-153
     title: "fsnotify watches leak on every training-run switch — live updates eventually stop"
     priority: 75
-    status: todo
+    status: uat
     complexity: medium
     type: bug
     requires: []

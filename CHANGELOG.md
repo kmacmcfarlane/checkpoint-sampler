@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-153: fsnotify watches leak on every training-run switch — live updates eventually stop
+- The training-run `Watcher` now tracks its active watch set (`watched` map) and removes every previously-registered inotify watch in `stopLocked()` when switching runs — both static checkpoint-directory watches and dynamically-added per-image-directory watches route through a single `addWatch` helper, so none are leaked. Previously each run switch accumulated inotify descriptors on the shared `fsnotify.Watcher` until `max_user_watches` was hit, after which `Add` silently failed and live updates stopped
+- Stale events from a prior run's directories no longer reach the event loop after a switch (their watches are gone), eliminating cross-run event delivery
+
 ### B-148: completed_items counter races (lost updates) and diverges between job list and detail views
 - New `Store.RecalculateCompletedItems(jobID)` derives the stored `completed_items` counter atomically in a single `UPDATE sample_jobs SET completed_items = (SELECT COUNT(*) FROM sample_job_items WHERE job_id = ? AND status = 'completed')` statement — replacing the get-modify-write in `updateJobProgress` that lost updates when two item completions raced. Combined with B-146's single-writer pool, the persisted counter can never drift from the actual completed-item count
 - The list and show endpoints now both report the item-derived completed count (`counts.Completed`, the same source as failed/pending) instead of list surfacing the stored counter — the two views can no longer disagree on a job's progress

@@ -2,6 +2,7 @@ package service_test
 
 import (
 	"io"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -62,12 +63,66 @@ func (n *fakeNotifier) Close() error {
 	return nil
 }
 
+// isWatched reports whether the parent directory of name is currently an active
+// watch (added but not removed). Real inotify only delivers events for files
+// whose parent directory has a live watch descriptor.
+func (n *fakeNotifier) isWatched(name string) bool {
+	parent := filepath.Dir(name)
+	for _, active := range n.activeWatches() {
+		if active == parent || active == name {
+			return true
+		}
+	}
+	return false
+}
+
+// emit mimics real inotify delivery: an event is only delivered to the loop if
+// its directory still has a live watch. Events for removed watches are dropped,
+// just as the kernel drops them after IN_IGNORED. Returns true if delivered.
+func (n *fakeNotifier) emit(ev fsnotify.Event) bool {
+	if !n.isWatched(ev.Name) {
+		return false
+	}
+	n.events <- ev
+	return true
+}
+
 func (n *fakeNotifier) getAdded() []string {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	cp := make([]string, len(n.added))
 	copy(cp, n.added)
 	return cp
+}
+
+func (n *fakeNotifier) getRemoved() []string {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	cp := make([]string, len(n.removed))
+	copy(cp, n.removed)
+	return cp
+}
+
+// activeWatches returns the set of directories that have been added but not
+// subsequently removed — i.e. the watches still live in the notifier. This
+// mirrors the inotify watch descriptor set that would leak without the fix.
+func (n *fakeNotifier) activeWatches() []string {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	active := make(map[string]int)
+	for _, d := range n.added {
+		active[d]++
+	}
+	for _, d := range n.removed {
+		active[d]--
+	}
+	result := make([]string, 0)
+	for d, count := range active {
+		if count > 0 {
+			result = append(result, d)
+		}
+	}
+	return result
 }
 
 // fakeEventSink collects broadcast events for test assertions.
@@ -224,6 +279,99 @@ var _ = Describe("Watcher", func() {
 			added := notifier.getAdded()
 			Expect(added).To(HaveLen(2))
 		})
+
+		// AC: switching training runs removes all previously-added watches before adding new ones.
+		It("removes every previously-added watch when switching runs", func() {
+			run1 := model.TrainingRun{
+				Name: "study-a/model-a",
+				Checkpoints: []model.Checkpoint{
+					{Filename: "model-a-step1000.safetensors", HasSamples: true},
+					{Filename: "model-a-step2000.safetensors", HasSamples: true},
+				},
+			}
+			run2 := model.TrainingRun{
+				Name: "study-b/model-b",
+				Checkpoints: []model.Checkpoint{
+					{Filename: "model-b-step1000.safetensors", HasSamples: true},
+				},
+			}
+
+			Expect(watcher.WatchTrainingRun(run1)).To(Succeed())
+
+			run1Dirs := []string{
+				"/samples/study-a/model-a-step1000.safetensors",
+				"/samples/study-a/model-a-step2000.safetensors",
+				"/samples/study-a",
+			}
+
+			Expect(watcher.WatchTrainingRun(run2)).To(Succeed())
+
+			// Every directory registered by run1 must have been removed.
+			removed := notifier.getRemoved()
+			for _, dir := range run1Dirs {
+				Expect(removed).To(ContainElement(dir),
+					"expected previous-run watch %q to be removed on switch", dir)
+			}
+
+			// The live watch set must contain only run2's directories.
+			Expect(notifier.activeWatches()).To(ConsistOf(
+				"/samples/study-b/model-b-step1000.safetensors",
+				"/samples/study-b",
+			))
+		})
+
+		// AC: the watcher tracks its active watch set; repeated switches do not grow the watch count.
+		It("does not grow the active watch set across repeated run switches", func() {
+			run := model.TrainingRun{
+				Name: "study/model",
+				Checkpoints: []model.Checkpoint{
+					{Filename: "model-step1000.safetensors", HasSamples: true},
+					{Filename: "model-step2000.safetensors", HasSamples: true},
+				},
+			}
+			expected := []string{
+				"/samples/study/model-step1000.safetensors",
+				"/samples/study/model-step2000.safetensors",
+				"/samples/study",
+			}
+
+			for i := 0; i < 10; i++ {
+				Expect(watcher.WatchTrainingRun(run)).To(Succeed())
+				Expect(notifier.activeWatches()).To(ConsistOf(expected),
+					"active watch set must equal only the current run's dirs after switch %d", i+1)
+			}
+		})
+
+		// AC: dynamically-added per-image-directory watches are removed on switch.
+		It("removes dynamically-added directory watches when switching runs", func() {
+			run1 := model.TrainingRun{
+				Name:        "run1",
+				Checkpoints: []model.Checkpoint{},
+			}
+			run2 := model.TrainingRun{
+				Name:        "run2",
+				Checkpoints: []model.Checkpoint{},
+			}
+
+			Expect(watcher.WatchTrainingRun(run1)).To(Succeed())
+
+			// A new checkpoint directory appears at runtime and gets a dynamic watch.
+			watcher.SetIsDirFunc(func(path string) bool {
+				return path == "/samples/dynamic-checkpoint.safetensors"
+			})
+			notifier.events <- fsnotify.Event{
+				Name: "/samples/dynamic-checkpoint.safetensors",
+				Op:   fsnotify.Create,
+			}
+			// Synchronize on the broadcast for the directory_added event.
+			sink.waitForEvents(1, time.Second)
+			Expect(notifier.activeWatches()).To(ContainElement("/samples/dynamic-checkpoint.safetensors"))
+
+			// Switching runs must remove the dynamic watch too.
+			Expect(watcher.WatchTrainingRun(run2)).To(Succeed())
+			Expect(notifier.getRemoved()).To(ContainElement("/samples/dynamic-checkpoint.safetensors"))
+			Expect(notifier.activeWatches()).To(ConsistOf("/samples"))
+		})
 	})
 
 	Describe("event handling", func() {
@@ -352,6 +500,50 @@ var _ = Describe("Watcher", func() {
 			events := sink.waitForEvents(1, time.Second)
 			Expect(events).To(HaveLen(1))
 			Expect(events[0].Type).To(Equal(model.EventImageAdded))
+		})
+	})
+
+	// AC: events from the previous run's directories are no longer delivered after a switch.
+	Describe("event isolation across run switches", func() {
+		It("does not deliver events from the previous run's directories after switching", func() {
+			run1 := model.TrainingRun{
+				Name: "old-study/old-model",
+				Checkpoints: []model.Checkpoint{
+					{Filename: "old-model-step1000.safetensors", HasSamples: true},
+				},
+			}
+			run2 := model.TrainingRun{
+				Name: "new-study/new-model",
+				Checkpoints: []model.Checkpoint{
+					{Filename: "new-model-step1000.safetensors", HasSamples: true},
+				},
+			}
+
+			Expect(watcher.WatchTrainingRun(run1)).To(Succeed())
+			Expect(watcher.WatchTrainingRun(run2)).To(Succeed())
+
+			// The previous run's watch is gone, so the fake (like real inotify)
+			// drops events for that directory: they never reach the loop.
+			oldEvent := fsnotify.Event{
+				Name: "/samples/old-study/old-model-step1000.safetensors/stale.png",
+				Op:   fsnotify.Create,
+			}
+			Expect(notifier.emit(oldEvent)).To(BeFalse(),
+				"stale event from removed watch must not be delivered")
+
+			// A sentinel event from the current run IS delivered. Waiting for it
+			// to be broadcast guarantees the loop has drained the channel, so if
+			// the stale event had been delivered it would already be in the sink.
+			sentinel := fsnotify.Event{
+				Name: "/samples/new-study/new-model-step1000.safetensors/fresh.png",
+				Op:   fsnotify.Create,
+			}
+			Expect(notifier.emit(sentinel)).To(BeTrue())
+
+			events := sink.waitForEvents(1, time.Second)
+			Expect(events).To(HaveLen(1))
+			Expect(events[0].Type).To(Equal(model.EventImageAdded))
+			Expect(events[0].Path).To(Equal("new-study/new-model-step1000.safetensors/fresh.png"))
 		})
 	})
 
