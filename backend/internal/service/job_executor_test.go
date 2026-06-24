@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"sync"
 	"time"
 
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/fileformat"
@@ -40,6 +41,8 @@ type mockJobExecutorStore struct {
 	// onUpdateJob is an optional callback invoked during UpdateSampleJob (before the write).
 	// Used by tests that need to inspect executor state at the exact moment of a DB write.
 	onUpdateJob func(model.SampleJob)
+	// recalcMu serializes RecalculateCompletedItems to model the real store's single-writer pool.
+	recalcMu sync.Mutex
 }
 
 func newMockJobExecutorStore() *mockJobExecutorStore {
@@ -67,6 +70,32 @@ func (m *mockJobExecutorStore) UpdateSampleJob(j model.SampleJob) error {
 	}
 	m.jobs[j.ID] = j
 	return nil
+}
+
+// recalcMu serializes RecalculateCompletedItems so the mock faithfully models the
+// real store's single-writer SQL semantics (the production pool uses SetMaxOpenConns(1)).
+// Without this, the concurrency test would exercise map races in the fake rather than
+// the get-modify-write race the real store eliminates.
+func (m *mockJobExecutorStore) RecalculateCompletedItems(jobID string) (int, error) {
+	if m.updateJobError != nil {
+		return 0, m.updateJobError
+	}
+	m.recalcMu.Lock()
+	defer m.recalcMu.Unlock()
+
+	job, ok := m.jobs[jobID]
+	if !ok {
+		return 0, sql.ErrNoRows
+	}
+	completed := 0
+	for _, item := range m.items[jobID] {
+		if item.Status == model.SampleJobItemStatusCompleted {
+			completed++
+		}
+	}
+	job.CompletedItems = completed
+	m.jobs[jobID] = job
+	return completed, nil
 }
 
 func (m *mockJobExecutorStore) ListSampleJobItems(jobID string) ([]model.SampleJobItem, error) {
@@ -1859,9 +1888,10 @@ var _ = Describe("JobExecutor", func() {
 			mockStore.updateItemError = nil
 		})
 
-		It("logs at WARN (not ERROR) when GetSampleJob returns sql.ErrNoRows during updateJobProgress", func() {
-			// Simulate: job row deleted between item completion and progress update
-			// By not putting the job in the store, GetSampleJob returns sql.ErrNoRows
+		It("logs at WARN (not ERROR) when the job row is gone during updateJobProgress", func() {
+			// Simulate: job row deleted between item completion and progress update.
+			// The atomic RecalculateCompletedItems UPDATE affects no rows and returns
+			// sql.ErrNoRows, which updateJobProgress must log at WARN, not ERROR.
 			jobID := "job-deleted-before-progress"
 
 			// Call updateJobProgress for a non-existent job
@@ -1871,8 +1901,8 @@ var _ = Describe("JobExecutor", func() {
 			Expect(lc.EntriesAtLevel(logrus.WarnLevel)).NotTo(BeEmpty(), "should log WARN when job deleted during cancel")
 		})
 
-		It("logs at WARN (not ERROR) when UpdateSampleJob returns sql.ErrNoRows during updateJobProgress", func() {
-			// Simulate: job row deleted between GetSampleJob and UpdateSampleJob in updateJobProgress
+		It("logs at WARN (not ERROR) when RecalculateCompletedItems returns sql.ErrNoRows during updateJobProgress", func() {
+			// Simulate: job row deleted just as the atomic counter recompute runs.
 			job := model.SampleJob{
 				ID:     "job-cancel-progress",
 				Status: model.SampleJobStatusRunning,
@@ -1887,6 +1917,47 @@ var _ = Describe("JobExecutor", func() {
 
 			// Restore
 			mockStore.updateJobError = nil
+		})
+
+		It("logs at ERROR when RecalculateCompletedItems fails with a non-ErrNoRows error during updateJobProgress", func() {
+			// Failure path: an unexpected DB error (not a benign cancellation race)
+			// must surface as ERROR, not be swallowed.
+			job := model.SampleJob{
+				ID:     "job-progress-dberr",
+				Status: model.SampleJobStatusRunning,
+			}
+			mockStore.jobs[job.ID] = job
+			mockStore.updateJobError = errors.New("disk I/O error")
+
+			localExecutor.updateJobProgress(job.ID)
+
+			Expect(lc.EntriesAtLevel(logrus.ErrorLevel)).NotTo(BeEmpty(), "should log ERROR on unexpected DB failure")
+
+			// Restore
+			mockStore.updateJobError = nil
+		})
+
+		It("derives the stored counter from completed items (no get-modify-write) during updateJobProgress", func() {
+			// 2 of 3 items completed; the recompute must persist completed_items == 2
+			// regardless of the job's previous (stale) stored value.
+			job := model.SampleJob{
+				ID:             "job-progress-derive",
+				Status:         model.SampleJobStatusRunning,
+				TotalItems:     3,
+				CompletedItems: 99, // stale stored value
+			}
+			mockStore.jobs[job.ID] = job
+			mockStore.items[job.ID] = []model.SampleJobItem{
+				{ID: "i1", JobID: job.ID, Status: model.SampleJobItemStatusCompleted},
+				{ID: "i2", JobID: job.ID, Status: model.SampleJobItemStatusCompleted},
+				{ID: "i3", JobID: job.ID, Status: model.SampleJobItemStatusPending},
+			}
+
+			localExecutor.updateJobProgress(job.ID)
+
+			updated, err := mockStore.GetSampleJob(job.ID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(updated.CompletedItems).To(Equal(2))
 		})
 
 		It("logs at WARN (not ERROR) and clears active state when GetSampleJob returns sql.ErrNoRows during completeJob", func() {

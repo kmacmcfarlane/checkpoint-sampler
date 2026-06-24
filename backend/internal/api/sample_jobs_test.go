@@ -248,6 +248,61 @@ var _ = Describe("SampleJobsService", func() {
 		})
 	})
 
+	Describe("List vs Show progress parity (B-148)", func() {
+		// makeItem builds an item for job-parity with the given id and status.
+		makeItem := func(id string, status model.SampleJobItemStatus) model.SampleJobItem {
+			return model.SampleJobItem{
+				ID:                 id,
+				JobID:              "job-parity",
+				CheckpointFilename: "checkpoint-a.safetensors",
+				PromptName:         "test",
+				Status:             status,
+			}
+		}
+
+		BeforeEach(func() {
+			// A job whose stored completed_items counter is intentionally WRONG
+			// (drifted): it claims 1 completed but the items say 3 completed.
+			// Both endpoints must report the item-derived value (3), not the stored 1.
+			store.jobs["job-parity"] = model.SampleJob{
+				ID:             "job-parity",
+				StudyID:        "study-1",
+				StudyName:      "study-1",
+				Status:         model.SampleJobStatusRunning,
+				TotalItems:     5,
+				CompletedItems: 1, // stale/drifted stored counter
+			}
+			store.items["job-parity"] = []model.SampleJobItem{
+				makeItem("c1", model.SampleJobItemStatusCompleted),
+				makeItem("c2", model.SampleJobItemStatusCompleted),
+				makeItem("c3", model.SampleJobItemStatusCompleted),
+				makeItem("f1", model.SampleJobItemStatusFailed),
+				makeItem("p1", model.SampleJobItemStatusPending),
+			}
+		})
+
+		It("reports identical completed/failed/pending counts from List and Show for a mixed-status job", func() {
+			list, err := sampleJobs.List(ctx)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(list).To(HaveLen(1))
+			listJob := list[0]
+
+			detail, err := sampleJobs.Show(ctx, &gensamplejobs.ShowPayload{ID: "job-parity"})
+			Expect(err).NotTo(HaveOccurred())
+			showJob := detail.Job
+
+			// List and Show must agree on every progress field.
+			Expect(listJob.CompletedItems).To(Equal(showJob.CompletedItems))
+			Expect(listJob.FailedItems).To(Equal(showJob.FailedItems))
+			Expect(listJob.PendingItems).To(Equal(showJob.PendingItems))
+
+			// And the agreed value must be the item-derived count, not the stale stored counter (1).
+			Expect(listJob.CompletedItems).To(Equal(3))
+			Expect(listJob.FailedItems).To(Equal(1))
+			Expect(listJob.PendingItems).To(Equal(1))
+		})
+	})
+
 	Describe("Nil guard when ComfyUI is not configured (svc == nil)", func() {
 		var disabledSvc *api.SampleJobsService
 

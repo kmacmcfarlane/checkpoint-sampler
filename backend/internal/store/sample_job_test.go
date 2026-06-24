@@ -2,9 +2,11 @@ package store_test
 
 import (
 	"database/sql"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -1085,6 +1087,117 @@ var _ = Describe("SampleJob Store", func() {
 			).Scan(&itemCount)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(itemCount).To(Equal(0))
+		})
+	})
+
+	Describe("RecalculateCompletedItems (atomic derived counter)", func() {
+		// makeRecalcItem builds an item belonging to job-recalc with the given status.
+		makeRecalcItem := func(id string, status model.SampleJobItemStatus) model.SampleJobItem {
+			now := time.Now().UTC().Truncate(time.Second)
+			return model.SampleJobItem{
+				ID:                 id,
+				JobID:              "job-recalc",
+				CheckpointFilename: "checkpoint-a.safetensors",
+				ComfyUIModelPath:   "/models/checkpoint-a.safetensors",
+				PromptName:         "test",
+				PromptText:         "test prompt",
+				Steps:              4,
+				CFG:                7.0,
+				SamplerName:        "euler",
+				Scheduler:          "simple",
+				Seed:               42,
+				Width:              512,
+				Height:             512,
+				Status:             status,
+				CreatedAt:          now,
+				UpdatedAt:          now,
+			}
+		}
+
+		BeforeEach(func() {
+			createStudy("study-recalc")
+			now := time.Now().UTC().Truncate(time.Second)
+			job := model.SampleJob{
+				ID:              "job-recalc",
+				TrainingRunName: "recalc-run",
+				StudyID:         "study-recalc",
+				StudyName:       "Test Study",
+				WorkflowName:    "flux-dev",
+				Status:          model.SampleJobStatusRunning,
+				TotalItems:      0,
+				// Seed an intentionally stale/incorrect stored counter to prove the
+				// recompute overwrites it with the authoritative item count.
+				CompletedItems: 999,
+				CreatedAt:      now,
+				UpdatedAt:      now,
+			}
+			err := s.CreateSampleJob(job)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("derives completed_items from the count of completed items, overwriting a stale stored counter", func() {
+			// 3 completed, 1 failed, 1 pending => completed_items must become exactly 3.
+			Expect(s.CreateSampleJobItem(makeRecalcItem("c1", model.SampleJobItemStatusCompleted))).To(Succeed())
+			Expect(s.CreateSampleJobItem(makeRecalcItem("c2", model.SampleJobItemStatusCompleted))).To(Succeed())
+			Expect(s.CreateSampleJobItem(makeRecalcItem("c3", model.SampleJobItemStatusCompleted))).To(Succeed())
+			Expect(s.CreateSampleJobItem(makeRecalcItem("f1", model.SampleJobItemStatusFailed))).To(Succeed())
+			Expect(s.CreateSampleJobItem(makeRecalcItem("p1", model.SampleJobItemStatusPending))).To(Succeed())
+
+			completed, err := s.RecalculateCompletedItems("job-recalc")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(completed).To(Equal(3))
+
+			// The persisted row must match the returned value (no drift).
+			stored, err := s.GetSampleJob("job-recalc")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(stored.CompletedItems).To(Equal(3))
+		})
+
+		It("returns sql.ErrNoRows for a job that does not exist", func() {
+			_, err := s.RecalculateCompletedItems("missing-job")
+			Expect(err).To(MatchError(sql.ErrNoRows))
+		})
+
+		It("never loses updates under concurrent completions: final counter equals completed item count exactly", func() {
+			// Insert N pending items, then flip each to completed concurrently and call
+			// RecalculateCompletedItems after each flip from its own goroutine. Because
+			// the counter is derived in a single UPDATE (and the pool is single-writer),
+			// the final stored value must equal N exactly — no lost updates.
+			const n = 50
+			for i := 0; i < n; i++ {
+				Expect(s.CreateSampleJobItem(makeRecalcItem(fmt.Sprintf("item-%d", i), model.SampleJobItemStatusPending))).To(Succeed())
+			}
+
+			var wg sync.WaitGroup
+			wg.Add(n)
+			for i := 0; i < n; i++ {
+				go func(idx int) {
+					defer wg.Done()
+					item := makeRecalcItem(fmt.Sprintf("item-%d", idx), model.SampleJobItemStatusCompleted)
+					if err := s.UpdateSampleJobItem(item); err != nil {
+						return
+					}
+					_, _ = s.RecalculateCompletedItems("job-recalc")
+				}(i)
+			}
+			wg.Wait()
+
+			// One final authoritative recompute, then assert exact equality.
+			completed, err := s.RecalculateCompletedItems("job-recalc")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(completed).To(Equal(n))
+
+			stored, err := s.GetSampleJob("job-recalc")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(stored.CompletedItems).To(Equal(n))
+
+			var actualCompleted int
+			err = s.DB().QueryRow(
+				"SELECT COUNT(*) FROM sample_job_items WHERE job_id = ? AND status = ?",
+				"job-recalc", string(model.SampleJobItemStatusCompleted),
+			).Scan(&actualCompleted)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(stored.CompletedItems).To(Equal(actualCompleted))
 		})
 	})
 })

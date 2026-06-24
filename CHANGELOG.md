@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-148: completed_items counter races (lost updates) and diverges between job list and detail views
+- New `Store.RecalculateCompletedItems(jobID)` derives the stored `completed_items` counter atomically in a single `UPDATE sample_jobs SET completed_items = (SELECT COUNT(*) FROM sample_job_items WHERE job_id = ? AND status = 'completed')` statement — replacing the get-modify-write in `updateJobProgress` that lost updates when two item completions raced. Combined with B-146's single-writer pool, the persisted counter can never drift from the actual completed-item count
+- The list and show endpoints now both report the item-derived completed count (`counts.Completed`, the same source as failed/pending) instead of list surfacing the stored counter — the two views can no longer disagree on a job's progress
+
 ### B-150: ComfyUI WebSocket read loop has no read deadline — half-open connection hangs jobs forever
 - The ComfyUI WebSocket client now runs a client-side ping/pong keepalive: `Connect` installs a read deadline (refreshed on every pong and every successful read) and a `pingLoop` goroutine sends periodic pings, so a half-open peer (Wi-Fi drop, host poweroff without RST) trips the deadline within a bounded interval instead of blocking `ReadMessage` forever — the existing `disconnectHandler` then fires and the executor's reconnect + `recoverStuckItems` path takes over
 - Healthy-but-idle connections (long GPU-bound generations with no execution events) stay up because pongs keep refreshing the deadline; the ping goroutine stops cleanly on read-loop exit and on `Close()` (no leak). Keepalive timings are injectable for deterministic unit tests (silent peer → disconnect; pong-driven peer → stays alive)

@@ -411,6 +411,77 @@ func (s *Store) UpdateSampleJob(j model.SampleJob) error {
 	return nil
 }
 
+// RecalculateCompletedItems atomically recomputes the stored completed_items
+// counter for a job from the authoritative source of truth — the count of
+// sample_job_items in status 'completed' — in a single UPDATE statement.
+//
+// This avoids the get-modify-write race where two concurrent item completions
+// both read the old counter, increment, and write back, losing one update.
+// Because the count is derived inside the same statement that writes it (and the
+// pool is single-writer via SetMaxOpenConns(1)), the persisted value can never
+// drift from the actual number of completed items.
+//
+// It returns the recomputed count and bumps updated_at. Returns sql.ErrNoRows if
+// the job does not exist.
+func (s *Store) RecalculateCompletedItems(jobID string) (int, error) {
+	s.logger.WithField("job_id", jobID).Trace("entering RecalculateCompletedItems")
+	defer s.logger.Trace("returning from RecalculateCompletedItems")
+
+	now := time.Now().UTC().Format(time.RFC3339)
+	result, err := s.db.Exec(
+		`UPDATE sample_jobs
+		SET completed_items = (
+			SELECT COUNT(*) FROM sample_job_items
+			WHERE job_id = ? AND status = ?
+		), updated_at = ?
+		WHERE id = ?`,
+		jobID,
+		string(model.SampleJobItemStatusCompleted),
+		now,
+		jobID,
+	)
+	if err != nil {
+		s.logger.WithFields(logrus.Fields{
+			"job_id": jobID,
+			"error":  err.Error(),
+		}).Error("failed to recalculate completed_items in database")
+		return 0, fmt.Errorf("recalculating completed_items: %w", err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		s.logger.WithFields(logrus.Fields{
+			"job_id": jobID,
+			"error":  err.Error(),
+		}).Error("failed to check rows affected for completed_items recalculation")
+		return 0, fmt.Errorf("checking rows affected: %w", err)
+	}
+	if rows == 0 {
+		s.logger.WithField("job_id", jobID).Debug("no rows affected, sample job not found")
+		return 0, sql.ErrNoRows
+	}
+
+	// Read back the recomputed value so callers can broadcast/log the authoritative count.
+	var completed int
+	if err := s.db.QueryRow(
+		`SELECT completed_items FROM sample_jobs WHERE id = ?`, jobID,
+	).Scan(&completed); err != nil {
+		if err == sql.ErrNoRows {
+			return 0, sql.ErrNoRows
+		}
+		s.logger.WithFields(logrus.Fields{
+			"job_id": jobID,
+			"error":  err.Error(),
+		}).Error("failed to read back recomputed completed_items")
+		return 0, fmt.Errorf("reading recomputed completed_items: %w", err)
+	}
+
+	s.logger.WithFields(logrus.Fields{
+		"job_id":          jobID,
+		"completed_items": completed,
+	}).Info("recalculated completed_items atomically")
+	return completed, nil
+}
+
 // DeleteSampleJob removes a sample job and its items by ID. Returns sql.ErrNoRows if the job does not exist.
 func (s *Store) DeleteSampleJob(id string) error {
 	s.logger.WithField("sample_job_id", id).Trace("entering DeleteSampleJob")
