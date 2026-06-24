@@ -34,6 +34,14 @@ func OpenDB(dbPath string) (*sql.DB, error) {
 		return nil, fmt.Errorf("opening database: %w", err)
 	}
 
+	// SQLite allows only one writer at a time. Constraining the connection
+	// pool to a single connection ensures that database/sql never opens a
+	// second connection that would race the first one for the write lock,
+	// producing "database is locked" (SQLITE_BUSY) errors that the
+	// busy_timeout pragma cannot reliably absorb when both connections are
+	// held by the same process.
+	db.SetMaxOpenConns(1)
+
 	// Verify that pragmas were applied correctly on the connection.
 	var fkEnabled int
 	if err := db.QueryRow("PRAGMA foreign_keys").Scan(&fkEnabled); err != nil {

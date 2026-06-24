@@ -247,7 +247,7 @@ stories:
   - id: B-146
     title: "SQLite pool allows concurrent writers — missing SetMaxOpenConns(1) causes SQLITE_BUSY write failures"
     priority: 90
-    status: todo
+    status: uat
     complexity: low
     type: bug
     requires: []

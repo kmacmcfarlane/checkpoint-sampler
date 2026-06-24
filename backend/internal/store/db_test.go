@@ -2,9 +2,11 @@ package store_test
 
 import (
 	"database/sql"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"sync"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -61,15 +63,14 @@ var _ = Describe("OpenDB", func() {
 		Expect(err).NotTo(HaveOccurred())
 	})
 
-	// AC: PRAGMA foreign_keys=ON is enforced on every database connection, not just the first
-	It("enforces foreign_keys on every connection in the pool, not just the first", func() {
+	// AC: PRAGMA foreign_keys=ON is enforced on the database connection.
+	// With SetMaxOpenConns(1) (production setting), there is exactly one
+	// pooled connection; we verify that the DSN-injected pragma takes effect.
+	It("enforces foreign_keys on the pool connection via DSN pragma", func() {
 		dbPath := filepath.Join(tmpDir, "pool-test.db")
 		db, err := store.OpenDB(dbPath)
 		Expect(err).NotTo(HaveOccurred())
 		defer db.Close()
-
-		// Allow multiple connections in the pool
-		db.SetMaxOpenConns(5)
 
 		// Create a parent/child table pair with a foreign key
 		_, err = db.Exec(`CREATE TABLE parent (id TEXT PRIMARY KEY)`)
@@ -81,39 +82,27 @@ var _ = Describe("OpenDB", func() {
 		)`)
 		Expect(err).NotTo(HaveOccurred())
 
-		// Hold the first connection open with a transaction so that subsequent
-		// queries are forced to use a different pool connection.
-		tx, err := db.Begin()
-		Expect(err).NotTo(HaveOccurred())
-		defer tx.Rollback()
-
-		// Keep the first connection busy inside the transaction.
-		_, err = tx.Exec("INSERT INTO parent (id) VALUES ('p1')")
-		Expect(err).NotTo(HaveOccurred())
-
-		// This query runs on a second connection from the pool. If pragmas
-		// are only set on the first connection, foreign_keys would be OFF here
-		// and the insert below would succeed — which would be the bug.
+		// Verify foreign_keys pragma is active on the connection.
 		var fkEnabled int
 		err = db.QueryRow("PRAGMA foreign_keys").Scan(&fkEnabled)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(fkEnabled).To(Equal(1), "foreign_keys should be ON on every pool connection")
+		Expect(fkEnabled).To(Equal(1), "foreign_keys should be ON via DSN pragma")
 
-		// Attempt to insert a child with a non-existent parent on the second
-		// connection. With foreign_keys properly enabled, this must fail.
+		// Insert a valid parent first so FK is satisfiable.
+		_, err = db.Exec("INSERT INTO parent (id) VALUES ('p1')")
+		Expect(err).NotTo(HaveOccurred())
+
+		// Attempt to insert a child with a non-existent parent.
+		// With foreign_keys properly enabled, this must fail.
 		_, err = db.Exec("INSERT INTO child (id, parent_id) VALUES ('c1', 'nonexistent')")
-		Expect(err).To(HaveOccurred(), "FK violation should be rejected on all pool connections")
-
-		tx.Rollback()
+		Expect(err).To(HaveOccurred(), "FK violation should be rejected")
 	})
 
-	It("enforces ON DELETE CASCADE on every pool connection", func() {
+	It("enforces ON DELETE CASCADE via DSN pragma", func() {
 		dbPath := filepath.Join(tmpDir, "cascade-pool-test.db")
 		db, err := store.OpenDB(dbPath)
 		Expect(err).NotTo(HaveOccurred())
 		defer db.Close()
-
-		db.SetMaxOpenConns(5)
 
 		// Set up schema with cascade
 		_, err = db.Exec(`CREATE TABLE parent (id TEXT PRIMARY KEY)`)
@@ -131,23 +120,84 @@ var _ = Describe("OpenDB", func() {
 		_, err = db.Exec("INSERT INTO child (id, parent_id) VALUES ('c1', 'p1')")
 		Expect(err).NotTo(HaveOccurred())
 
-		// Hold first connection busy so delete runs on a different one
-		tx, err := db.Begin()
-		Expect(err).NotTo(HaveOccurred())
-		_, err = tx.Exec("SELECT 1")
-		Expect(err).NotTo(HaveOccurred())
-
-		// Delete parent on a second pool connection — cascade should remove child
+		// Delete parent — cascade should remove child
 		_, err = db.Exec("DELETE FROM parent WHERE id = 'p1'")
 		Expect(err).NotTo(HaveOccurred())
-
-		tx.Rollback()
 
 		// Verify child was cascade-deleted
 		var count int
 		err = db.QueryRow("SELECT COUNT(*) FROM child").Scan(&count)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(count).To(Equal(0), "child should be cascade-deleted when parent is removed")
+	})
+
+	// AC: BE: a regression test exercises concurrent writes from multiple goroutines
+	// and asserts no 'database is locked' error occurs.
+	//
+	// Without SetMaxOpenConns(1), database/sql opens multiple connections.
+	// SQLite allows only one writer at a time; concurrent writers on separate
+	// connections produce SQLITE_BUSY ("database is locked") errors that the
+	// busy_timeout cannot reliably absorb when both connections are held within
+	// the same process. With MaxOpenConns(1), all writes are serialised through
+	// a single connection and the error cannot occur.
+	It("allows concurrent writes from multiple goroutines without 'database is locked' errors", func() {
+		dbPath := filepath.Join(tmpDir, "concurrent-write-test.db")
+		db, err := store.OpenDB(dbPath)
+		Expect(err).NotTo(HaveOccurred())
+		defer db.Close()
+
+		// Create a simple table to write to.
+		_, err = db.Exec(`CREATE TABLE counters (id INTEGER PRIMARY KEY, value INTEGER NOT NULL DEFAULT 0)`)
+		Expect(err).NotTo(HaveOccurred())
+		_, err = db.Exec(`INSERT INTO counters (id, value) VALUES (1, 0)`)
+		Expect(err).NotTo(HaveOccurred())
+
+		const numWriters = 20
+		var wg sync.WaitGroup
+		errs := make(chan error, numWriters)
+
+		// Start all goroutines simultaneously, each performing a write in its own
+		// transaction. With a single-connection pool they are serialised; without
+		// it they would collide on the SQLite write lock.
+		ready := make(chan struct{})
+		for i := 0; i < numWriters; i++ {
+			wg.Add(1)
+			go func(n int) {
+				defer wg.Done()
+				<-ready // synchronise start so goroutines overlap as much as possible
+
+				tx, txErr := db.Begin()
+				if txErr != nil {
+					errs <- fmt.Errorf("goroutine %d begin: %w", n, txErr)
+					return
+				}
+				_, txErr = tx.Exec("UPDATE counters SET value = value + 1 WHERE id = 1")
+				if txErr != nil {
+					tx.Rollback()
+					errs <- fmt.Errorf("goroutine %d update: %w", n, txErr)
+					return
+				}
+				if txErr = tx.Commit(); txErr != nil {
+					errs <- fmt.Errorf("goroutine %d commit: %w", n, txErr)
+					return
+				}
+				errs <- nil
+			}(i)
+		}
+
+		close(ready) // release all goroutines at once
+		wg.Wait()
+		close(errs)
+
+		for e := range errs {
+			Expect(e).NotTo(HaveOccurred(), "concurrent write should not produce 'database is locked'")
+		}
+
+		// Verify all increments were applied — proves no writes were silently dropped.
+		var value int
+		err = db.QueryRow("SELECT value FROM counters WHERE id = 1").Scan(&value)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(value).To(Equal(numWriters), "all concurrent writes must have been committed")
 	})
 })
 

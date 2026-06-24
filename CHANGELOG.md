@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-146: SQLite pool allows concurrent writers — missing SetMaxOpenConns(1) causes SQLITE_BUSY write failures
+- `OpenDB` now pins the `database/sql` pool to a single connection (`SetMaxOpenConns(1)`), the canonical remedy for SQLite's single-writer semantics — prevents writer-vs-writer collisions (job executor goroutine vs API handlers) from surfacing as hard "database is locked" errors that the busy_timeout cannot reliably absorb
+- Store tests no longer override the pool size away from the production setting, so unit runs exercise the real single-connection behavior; added a multi-goroutine concurrent-write regression test
+
 ### B-145: Base model not remembered when selecting a training-run/study with existing samples
 - The studies availability API now reports `base_models` — the base-model directory names derived from the on-disk LoRA sample layout `{run}/{study}/{base_model}/{checkpoint}/` — so the base model that produced existing samples can be resolved even when no `SampleJob` DB record remains
 - The Generate Samples dialog pre-selects the remembered base model (matched by basename without extension) when a LoRA run/study with existing samples is chosen, falling back to an empty dropdown when none resolves and never overriding a value already restored from a loaded job
