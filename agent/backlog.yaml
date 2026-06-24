@@ -378,7 +378,7 @@ stories:
   - id: B-150
     title: "ComfyUI WebSocket read loop has no read deadline — half-open connection hangs jobs forever"
     priority: 80
-    status: todo
+    status: uat
     complexity: medium
     type: bug
     requires: []

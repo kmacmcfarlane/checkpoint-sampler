@@ -1,12 +1,18 @@
 package store_test
 
 import (
+	"context"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"strings"
+	"sync/atomic"
+	"time"
 
+	"github.com/gorilla/websocket"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/sirupsen/logrus"
-	"io"
 
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/store"
 )
@@ -83,6 +89,90 @@ var _ = Describe("ComfyUIWSClient", func() {
 			// that includes clientId=<uuid>.
 			derivedURL := store.DeriveWebSocketURL("http://localhost:8188", clientID)
 			Expect(strings.Contains(derivedURL, "clientId="+clientID)).To(BeTrue())
+		})
+	})
+
+	Describe("keepalive read deadline", func() {
+		// AC: a dead/half-open ComfyUI connection is detected within a bounded
+		// interval (deadline expiry) and triggers the disconnect handler.
+		It("fires the disconnect handler when a silent peer stops responding", func() {
+			// Stub WS server that upgrades the connection but never reads from
+			// it. Because gorilla only replies to pings during a read, this
+			// peer never sends a pong, so the client's read deadline expires.
+			upgrader := websocket.Upgrader{}
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				conn, err := upgrader.Upgrade(w, r, nil)
+				if err != nil {
+					return
+				}
+				// Hold the connection open without reading, simulating a
+				// half-open/dead peer.
+				defer conn.Close()
+				<-r.Context().Done()
+			}))
+			defer server.Close()
+
+			client := store.NewComfyUIWSClient(server.URL, logger)
+			// Short timings so the deadline expires quickly. pingInterval is
+			// larger than pongWait so deadline expiry (not a ping write error)
+			// is what drives the disconnect in this test.
+			client.SetKeepaliveTimingsForTest(200*time.Millisecond, 150*time.Millisecond, 100*time.Millisecond)
+
+			disconnected := make(chan struct{})
+			var fired int32
+			client.SetDisconnectHandler(func() {
+				if atomic.CompareAndSwapInt32(&fired, 0, 1) {
+					close(disconnected)
+				}
+			})
+
+			Expect(client.Connect(context.Background())).To(Succeed())
+			defer client.Close()
+
+			Eventually(disconnected, 2*time.Second, 10*time.Millisecond).Should(BeClosed())
+		})
+
+		// AC: long idle periods on a HEALTHY connection (no execution events
+		// for minutes) do NOT cause spurious disconnects (pong refreshes the
+		// deadline).
+		It("keeps a healthy connection alive past the deadline window via pong", func() {
+			// Stub WS server that continuously reads. gorilla's default ping
+			// handler replies with a pong on each read, which refreshes the
+			// client's read deadline. The server never sends data events,
+			// simulating a long GPU-bound generation.
+			upgrader := websocket.Upgrader{}
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				conn, err := upgrader.Upgrade(w, r, nil)
+				if err != nil {
+					return
+				}
+				defer conn.Close()
+				for {
+					if _, _, err := conn.ReadMessage(); err != nil {
+						return
+					}
+				}
+			}))
+			defer server.Close()
+
+			client := store.NewComfyUIWSClient(server.URL, logger)
+			// Ping faster than the pongWait so pongs keep refreshing the
+			// deadline. The healthy window we assert (300ms) far exceeds
+			// pongWait (100ms), proving pongs—not silence—keep it alive.
+			client.SetKeepaliveTimingsForTest(40*time.Millisecond, 100*time.Millisecond, 50*time.Millisecond)
+
+			var fired int32
+			client.SetDisconnectHandler(func() {
+				atomic.StoreInt32(&fired, 1)
+			})
+
+			Expect(client.Connect(context.Background())).To(Succeed())
+			defer client.Close()
+
+			// Across multiple pongWait windows the connection must stay up.
+			Consistently(func() int32 {
+				return atomic.LoadInt32(&fired)
+			}, 300*time.Millisecond, 20*time.Millisecond).Should(BeZero())
 		})
 	})
 })

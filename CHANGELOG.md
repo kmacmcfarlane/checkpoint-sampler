@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-150: ComfyUI WebSocket read loop has no read deadline — half-open connection hangs jobs forever
+- The ComfyUI WebSocket client now runs a client-side ping/pong keepalive: `Connect` installs a read deadline (refreshed on every pong and every successful read) and a `pingLoop` goroutine sends periodic pings, so a half-open peer (Wi-Fi drop, host poweroff without RST) trips the deadline within a bounded interval instead of blocking `ReadMessage` forever — the existing `disconnectHandler` then fires and the executor's reconnect + `recoverStuckItems` path takes over
+- Healthy-but-idle connections (long GPU-bound generations with no execution events) stay up because pongs keep refreshing the deadline; the ping goroutine stops cleanly on read-loop exit and on `Close()` (no leak). Keepalive timings are injectable for deterministic unit tests (silent peer → disconnect; pong-driven peer → stays alive)
+
 ### B-147: Sample job + items creation is not atomic — orphaned jobs with partial items on mid-loop failure
 - New `Store.CreateSampleJobWithItems(job, items)` inserts the job row and all item rows in a single SQLite transaction (commit once, rollback on any failure) — a mid-loop item insert failure now leaves no job and no items behind, eliminating orphaned jobs whose `total_items` disagreed with their actual item count (which made the executor wait forever)
 - Service `Create` now assembles all items in memory (expansion, missing-only filter, path matching, B-141 all-skipped guard) before a single atomic persist; the three best-effort `DeleteSampleJob` compensation paths are removed. All transaction work runs on `*sql.Tx`, safe under B-146's single-connection pool

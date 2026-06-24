@@ -7,11 +7,24 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
 	"github.com/sirupsen/logrus"
+)
+
+// Default keepalive timings. A client-side ping/pong keepalive detects
+// half-open connections (Wi-Fi drop, host poweroff without RST) where
+// conn.ReadMessage() would otherwise block forever. The read deadline is
+// refreshed on every successful read and on every pong, so long GPU-bound
+// generations (during which ComfyUI sends no execution events) do not cause
+// spurious disconnects as long as pongs keep flowing.
+const (
+	defaultPingInterval = 30 * time.Second
+	defaultPongWait     = 90 * time.Second
+	defaultWriteWait    = 10 * time.Second
 )
 
 // ComfyUIWSClient provides WebSocket connectivity to ComfyUI for real-time updates.
@@ -20,12 +33,18 @@ type ComfyUIWSClient struct {
 	clientID string
 	logger   *logrus.Entry
 
-	mu                  sync.RWMutex
-	conn                *websocket.Conn
-	handlers            []model.ComfyUIEventHandler
-	disconnectHandler   func()
-	stopCh              chan struct{}
-	stopped             bool
+	// Keepalive timings. Defaulted in the constructor; tests may override
+	// them before calling Connect to use short timeouts.
+	pingInterval time.Duration
+	pongWait     time.Duration
+	writeWait    time.Duration
+
+	mu                sync.RWMutex
+	conn              *websocket.Conn
+	handlers          []model.ComfyUIEventHandler
+	disconnectHandler func()
+	stopCh            chan struct{}
+	stopped           bool
 }
 
 // comfyUIEventEntity is the JSON-serializable store entity for WebSocket events.
@@ -52,11 +71,14 @@ func NewComfyUIWSClient(baseURL string, logger *logrus.Logger) *ComfyUIWSClient 
 	clientID := uuid.New().String()
 	wsURL := DeriveWebSocketURL(baseURL, clientID)
 	return &ComfyUIWSClient{
-		url:      wsURL,
-		clientID: clientID,
-		logger:   logger.WithField("component", "comfyui_ws"),
-		handlers: []model.ComfyUIEventHandler{},
-		stopCh:   make(chan struct{}),
+		url:          wsURL,
+		clientID:     clientID,
+		logger:       logger.WithField("component", "comfyui_ws"),
+		handlers:     []model.ComfyUIEventHandler{},
+		stopCh:       make(chan struct{}),
+		pingInterval: defaultPingInterval,
+		pongWait:     defaultPongWait,
+		writeWait:    defaultWriteWait,
 	}
 }
 
@@ -148,15 +170,64 @@ func (c *ComfyUIWSClient) Connect(ctx context.Context) error {
 		return fmt.Errorf("dialing ComfyUI WebSocket: %w", err)
 	}
 
+	// Install keepalive: set an initial read deadline and refresh it on every
+	// pong. The ping writer goroutine (started below) keeps pongs flowing so a
+	// healthy-but-idle connection never trips the deadline, while a dead
+	// half-open peer stops responding and the deadline expires, causing the
+	// next ReadMessage to fail and the disconnect handler to fire.
+	if c.pongWait > 0 {
+		_ = conn.SetReadDeadline(time.Now().Add(c.pongWait))
+		conn.SetPongHandler(func(string) error {
+			return conn.SetReadDeadline(time.Now().Add(c.pongWait))
+		})
+	}
+
 	c.mu.Lock()
 	c.conn = conn
 	c.stopped = false
 	c.mu.Unlock()
 
 	c.logger.Info("ComfyUI WebSocket connected")
-	go c.readLoop()
+
+	// connClosed is closed when the read loop exits, signalling the ping
+	// writer to stop so it does not leak across reconnects.
+	connClosed := make(chan struct{})
+	go c.readLoop(connClosed)
+	go c.pingLoop(conn, connClosed)
 
 	return nil
+}
+
+// pingLoop periodically sends WebSocket ping control frames to keep the
+// connection alive and to detect half-open peers. It stops when the read loop
+// exits (connClosed) or when the client is closed (stopCh). A write failure is
+// treated as a dead connection: closing conn unblocks the read loop, which
+// then fires the disconnect handler.
+func (c *ComfyUIWSClient) pingLoop(conn *websocket.Conn, connClosed <-chan struct{}) {
+	if c.pingInterval <= 0 {
+		return
+	}
+
+	ticker := time.NewTicker(c.pingInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-connClosed:
+			return
+		case <-c.stopCh:
+			return
+		case <-ticker.C:
+			deadline := time.Now().Add(c.writeWait)
+			if err := conn.WriteControl(websocket.PingMessage, nil, deadline); err != nil {
+				c.logger.WithError(err).Warn("WebSocket ping failed; closing connection")
+				// Closing the connection unblocks ReadMessage in the read
+				// loop, which triggers the disconnect/reconnect path.
+				_ = conn.Close()
+				return
+			}
+		}
+	}
 }
 
 // Close closes the WebSocket connection.
@@ -189,9 +260,12 @@ func (c *ComfyUIWSClient) Close() error {
 	return nil
 }
 
-// readLoop continuously reads messages from the WebSocket.
-func (c *ComfyUIWSClient) readLoop() {
+// readLoop continuously reads messages from the WebSocket. connClosed is
+// closed when the loop exits so the paired ping writer goroutine stops.
+func (c *ComfyUIWSClient) readLoop(connClosed chan<- struct{}) {
 	unexpectedExit := true // Track whether we exited due to an error (not a graceful stop)
+
+	defer close(connClosed)
 
 	defer func() {
 		c.mu.Lock()
@@ -231,6 +305,13 @@ func (c *ComfyUIWSClient) readLoop() {
 		if err != nil {
 			c.logger.WithError(err).Error("WebSocket read error")
 			return
+		}
+
+		// Any successful read (data or pong) proves the peer is alive, so
+		// refresh the read deadline. Pongs are also handled by the pong
+		// handler installed in Connect; this covers data messages.
+		if c.pongWait > 0 {
+			_ = conn.SetReadDeadline(time.Now().Add(c.pongWait))
 		}
 
 		// ComfyUI sends binary messages for in-progress preview images.
