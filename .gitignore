@@ -7,7 +7,6 @@
 !.claude/agents/
 !.claude/skills/
 
-.ralph/
 
 # OS
 .DS_Store
@@ -46,7 +45,7 @@ data/
 .env
 .env.*
 !.env.example
-!.env.claude-sandbox.example
+!.claude-sandbox/env.example
 
 # Logs
 *.log
@@ -63,7 +62,6 @@ config.yaml
 !test-fixtures/config.yaml
 
 # Claude sandbox local mounts (gitignored; use .claude-sandbox.example.yaml as template)
-.claude-sandbox.yaml
 
 # Backlog and worktree tools use python
 scripts/backlog/__pycache__/
@@ -76,8 +74,12 @@ scripts/worktree/__pycache__/
 .worktrees/
 
 # Backlog lock file (agent concurrency)
-agent/backlog.lock
+.claude-sandbox/agent/backlog.lock
 
 # dir-env
 .envrc
 .direnv/
+.claude-sandbox/env
+.claude-sandbox/temp/
+.claude-sandbox/ralph/
+!.claude-sandbox/config.yaml

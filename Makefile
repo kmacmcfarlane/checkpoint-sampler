@@ -64,7 +64,7 @@ backlog-todo:
 backlog-in-flight:
 	./scripts/backlog/backlog.py query --status in_progress,review,testing --fields id
 
-# Capture runtime context snapshot (container logs, errors) to .ralph/temp/debug-context
+# Capture runtime context snapshot (container logs, errors) to .claude-sandbox/ralph/temp/debug-context
 capture-runtime-context:
 	./scripts/capture-runtime-context.sh
 
@@ -120,8 +120,8 @@ up-test:
 down-test:
 	$(COMPOSE_TEST) down -v
 
-E2E_LOG_DIR = .ralph/temp/e2e-logs
-LOGS_SNAPSHOT_DIR = .ralph/temp/logs-snapshot
+E2E_LOG_DIR = .claude-sandbox/ralph/temp/e2e-logs
+LOGS_SNAPSHOT_DIR = .claude-sandbox/ralph/temp/logs-snapshot
 
 # Build the custom Playwright Docker image with npm dependencies pre-installed.
 # Run this once (or after package.json changes) to avoid npm ci overhead on each test run.
@@ -164,7 +164,7 @@ test-e2e-live-down:
 	$(COMPOSE_E2E_LIVE) down -v
 
 # Scan E2E backend logs for Go panics. Exits non-zero when panic: is found.
-# Log directory defaults to .ralph/temp/e2e-logs. Override with: make check-e2e-panics LOG_DIR=<path>
+# Log directory defaults to .claude-sandbox/ralph/temp/e2e-logs. Override with: make check-e2e-panics LOG_DIR=<path>
 check-e2e-panics:
 	./scripts/check-e2e-panics.sh $(if $(LOG_DIR),$(LOG_DIR),$(E2E_LOG_DIR))
 
@@ -185,7 +185,7 @@ down-e2e:
 	$(COMPOSE_TEST) down -v
 
 # Capture a log snapshot from the dev stack atomically: start, capture 500 lines, tear down.
-# Saves logs to .ralph/temp/logs-snapshot/backend.log and frontend.log.
+# Saves logs to .claude-sandbox/ralph/temp/logs-snapshot/backend.log and frontend.log.
 # Teardown runs even if log capture fails.
 logs-snapshot:
 	$(COMPOSE_DEV) down 2>/dev/null || true; \

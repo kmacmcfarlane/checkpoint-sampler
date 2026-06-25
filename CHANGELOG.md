@@ -402,7 +402,7 @@ Older entries are condensed to titles only — see git history for full details.
 - Removed unused `has_samples` query parameter from `GET /api/training-runs` Goa DSL and regenerated API code; response field retained
 
 ### W-020: Explicit log-capture helper Makefile target
-- `make logs-snapshot` atomically starts the dev stack, captures 500 log lines per service to `.ralph/temp/logs-snapshot/`, and tears down with guaranteed cleanup
+- `make logs-snapshot` atomically starts the dev stack, captures 500 log lines per service to `.claude-sandbox/ralph/temp/logs-snapshot/`, and tears down with guaranteed cleanup
 
 ### W-019: Add test-frontend and test-backend to Makefile .PHONY
 - Declared `test-frontend` and `test-backend` as `.PHONY` targets in the root Makefile for correctness

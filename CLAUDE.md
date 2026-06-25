@@ -33,7 +33,7 @@ Never claim completion unless acceptance criteria are met and tests pass.
 - Changelog: /CHANGELOG.md
 - Subagent definitions: /.claude/agents/
 - Claude Code policy: /.claude/settings.json
-- Ralph runtime: /.ralph/ (managed by ralph — see injected prompt for layout)
+- Ralph runtime: /.claude-sandbox/ralph/ (managed by ralph — see injected prompt for layout)
 
 Compose modes via root Makefile:
 - `make up`      : operational mode
@@ -70,14 +70,14 @@ Root Makefile targets (work in both sandbox and host — preferred for agent use
 - `make test-backend` / `make test-backend-watch`
 - `make test-frontend` / `make test-frontend-watch`
 - `make test-e2e` (parallel E2E regression; default 12 shards, override with `SHARDS=N`; pre-built backend binary, no codegen at startup; artifacts in `.e2e/`)
-- `make test-e2e-serial` (single-stack serial E2E; supports `SPEC=` for targeted runs; logs to `.ralph/temp/e2e-logs/`)
+- `make test-e2e-serial` (single-stack serial E2E; supports `SPEC=` for targeted runs; logs to `.claude-sandbox/ralph/temp/e2e-logs/`)
 - `make test-e2e-live` / `make test-e2e-live-run SPEC=<file>` / `make test-e2e-live-down` (hot-reload E2E development stack)
 - `make test-e2e-logs` (capture logs from a running E2E stack without tearing it down)
 - `make e2e-sweep` (run runtime error sweep standalone against existing shard logs; override with `LOG_DIR=`)
-- `make logs-snapshot` (atomically start dev stack, capture 500 log lines to `.ralph/temp/logs-snapshot/`, tear down)
+- `make logs-snapshot` (atomically start dev stack, capture 500 log lines to `.claude-sandbox/ralph/temp/logs-snapshot/`, tear down)
 - `make up-test` / `make down-test` (start/stop the test stack manually; same stack as test-e2e but without auto-teardown)
 
-Backend direct (Go is installed locally in the sandbox via Dockerfile.claude-sandbox):
+Backend direct (Go is installed locally in the sandbox via .claude-sandbox/Dockerfile):
 - `cd backend && make gen`   (Goa codegen; must run before mocks when required)
 - `cd backend && make build`
 - `cd backend && make lint`
