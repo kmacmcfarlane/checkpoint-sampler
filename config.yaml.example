@@ -63,6 +63,17 @@ db_path: ./data/checkpoint-sampler.db
 # startup.
 # max_study_items: 50000
 
+# Additional allowed browser origins for WebSocket and CORS (optional, default: empty).
+# By default the server only accepts cross-origin browser requests whose Origin
+# hostname matches the request Host hostname (scheme and port are ignored). This
+# covers IP access, dev mode (Vite on a different port), and Host-preserving
+# reverse proxies such as Caddy. Requests with no Origin header (curl, non-browser
+# clients) are always allowed. Set allowed_origins only if your proxy rewrites the
+# Host header so the same-host default no longer matches. Entries may be full
+# origins (https://host[:port]) or bare hostnames; matching is hostname-only.
+# allowed_origins:
+#   - https://checkpoint-sampler.example.com
+
 # ComfyUI connection settings for inference pipeline (optional).
 # If omitted, inference pipeline features are disabled in the UI.
 # The URL must include the scheme (http:// or https://).

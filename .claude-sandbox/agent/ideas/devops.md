@@ -109,3 +109,9 @@ Orphaned `playwright-run` containers from aborted/conflicting E2E runs block sub
 * priority: low
 * source: qa
 `SampleDirCleaner.CleanStudyDirs()` deletes all non-`.safetensors` root directories, so any fixture using a nested (non-flat) sample layout requires a matching `FixtureSeeder` addition to recreate the deleted tree after each reset (as B-144 had to do for `test-lora/`). Consider extending `SampleDirCleaner` to accept an explicit list of protected directory names, making the preservation logic explicit rather than relying on the seeder to recreate deleted dirs.
+
+### Document E2E network topology / allowed_origins requirement
+* status: needs_approval
+* priority: low
+* source: qa
+The `config-with-comfyui.yaml` E2E fixture needs `allowed_origins: [http://frontend:3000]` because Vite's `changeOrigin: true` rewrites `Host: backend:8080` while the browser sends `Origin: http://frontend:3000`, creating a cross-host scenario the same-host origin policy (S-151) correctly rejects. This is now documented inline in the fixture, but it could also be mentioned in `DEVELOPMENT_PRACTICES.md` under an "E2E network topology" note for future developers adding origin/CORS-related features.

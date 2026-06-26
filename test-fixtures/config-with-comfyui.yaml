@@ -19,6 +19,11 @@ comfyui:
   url: http://comfyui-mock:8188
   workflow_dir: /data/workflows
 
+# Allow the E2E frontend container to connect (Origin: http://frontend:3000 does
+# not match Host: backend:8080 after Vite's changeOrigin proxy rewrite).
+allowed_origins:
+  - http://frontend:3000
+
 # Thumbnail generation enabled for E2E tests so the sample-generation E2E
 # suite can verify that thumbnails are created alongside generated images.
 thumbnails:

@@ -25,6 +25,7 @@ type yamlConfig struct {
 	WsPingInterval   *int                 `yaml:"ws_ping_interval"`
 	MaxRequestSizeMB *int                 `yaml:"max_request_size_mb"`
 	MaxStudyItems    *int                 `yaml:"max_study_items"`
+	AllowedOrigins   []string             `yaml:"allowed_origins"`
 }
 
 // yamlThumbnailConfig is the raw YAML-tagged representation of thumbnail config.
@@ -212,6 +213,7 @@ func parseAndValidate(raw yamlConfig) (*model.Config, error) {
 		WsPingInterval:   wsPingInterval,
 		MaxRequestSizeMB: maxRequestSizeMB,
 		MaxStudyItems:    maxStudyItems,
+		AllowedOrigins:   raw.AllowedOrigins,
 	}, nil
 }
 

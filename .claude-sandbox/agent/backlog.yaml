@@ -685,7 +685,7 @@ stories:
   - id: S-151
     title: "Restrict WebSocket origin and CORS to same-host with allowed_origins config override"
     priority: 65
-    status: todo
+    status: uat
     complexity: medium
     type: story
     requires: ["S-150"]

@@ -283,6 +283,7 @@ func run() error {
 		JobSeeder:            st,
 		PartialSampleSeeder:  partialSampleSeeder,
 		MaxRequestSizeMB:     cfg.MaxRequestSizeMB,
+		AllowedOrigins:       cfg.AllowedOrigins,
 	})
 
 	// Create HTTP server
