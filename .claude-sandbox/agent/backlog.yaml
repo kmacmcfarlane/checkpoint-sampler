@@ -1057,7 +1057,7 @@ stories:
   - id: R-020
     title: "Frontend minor cleanups: single getImage lookup per grid cell; deterministic test fixture IDs"
     priority: 15
-    status: todo
+    status: uat
     complexity: low
     type: refactor
     requires: []

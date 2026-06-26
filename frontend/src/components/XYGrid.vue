@@ -41,9 +41,30 @@ function onHeaderClick(dimensionName: string, value: string) {
   emit('header:click', dimensionName, value)
 }
 
-/** Get the image for a specific x/y combination (store-backed). */
+/**
+ * Precomputed map of cellKey → image for every combination of current x/y values.
+ * Ensures getImage (a Map lookup) is called exactly once per cell per render.
+ */
+const cellImageMap = computed(() => {
+  const map = new Map<string, ReturnType<typeof store.getImage>>()
+
+  if (hasNoAxes.value) return map
+
+  const xs = xDimension.value ? xValues.value : [undefined]
+  const ys = yDimension.value ? yValues.value : [undefined]
+
+  for (const xVal of xs) {
+    for (const yVal of ys) {
+      const key = store.cellKey(xVal, yVal)
+      map.set(key, store.getImage(xVal, yVal))
+    }
+  }
+  return map
+})
+
+/** Get the precomputed image for a specific x/y combination. */
 function getImage(xVal: string | undefined, yVal: string | undefined) {
-  return store.getImage(xVal, yVal)
+  return cellImageMap.value.get(store.cellKey(xVal, yVal))
 }
 
 /** Get the current slider value for a given cell (store-backed). */

@@ -65,9 +65,11 @@ function makeStudy(id: string, name = id): Study {
   }
 }
 
+let jobIdCounter = 0
+
 function makeJob(status: SampleJob['status'], opts: { runName?: string; studyId?: string } = {}): SampleJob {
   return {
-    id: `job-${status}-${Math.random()}`,
+    id: `job-${status}-${++jobIdCounter}`,
     training_run_name: opts.runName ?? 'run-a',
     study_id: opts.studyId ?? 'study-1',
     study_name: 'Study',
@@ -168,6 +170,7 @@ function setup(init: {
 
 beforeEach(() => {
   mockGetStudyAvailability.mockReset()
+  jobIdCounter = 0
 })
 
 // ---------------------------------------------------------------------------

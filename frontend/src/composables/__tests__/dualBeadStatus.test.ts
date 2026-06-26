@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { getTrainingRunDualBead, getStudyDualBead, DUAL_BEAD_COLORS } from '../dualBeadStatus'
 import type { SampleJob } from '../../api/types'
 
@@ -6,12 +6,17 @@ import type { SampleJob } from '../../api/types'
 // Helpers
 // ---------------------------------------------------------------------------
 
+let jobIdCounter = 0
+beforeEach(() => {
+  jobIdCounter = 0
+})
+
 function makeJob(
   status: SampleJob['status'],
   opts: { runName?: string; studyId?: string } = {},
 ): SampleJob {
   return {
-    id: `job-${status}-${Math.random()}`,
+    id: `job-${status}-${++jobIdCounter}`,
     training_run_name: opts.runName ?? 'test-run',
     study_id: opts.studyId ?? 'study-1',
     study_name: 'Test Study',

@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### R-020: Frontend cleanups — single grid-cell image resolution; deterministic test fixture IDs
+- `XYGrid.vue` now precomputes a `cellImageMap` (cellKey → image) that calls the store's `getImage()` exactly once per cell per render; the template's local `getImage()` helper reads from that map as an O(1) `Map.get()` instead of re-hitting the store for both the relative-path and thumbnail-path bindings. Behavior-preserving refactor — grid rendering output is unchanged (full E2E grid specs green)
+- Removed `Math.random()` from frontend test fixture IDs (`dualBeadStatus.test.ts`, `useSampleAvailability.test.ts`) in favor of a per-test counter reset in `beforeEach`, satisfying TEST_PRACTICES §4.1 determinism
+
 ### B-159: job_executor no longer logs "sql: no rows in result set" at error for orphaned items
 - When a sample-job item's ComfyUI completion event lands after its parent job row has been deleted (e.g. the E2E `/api/test/reset` race), `handleItemCompletionAsync` now treats the `GetSampleJob` `sql.ErrNoRows` result as a benign orphaned-item case: it logs at debug, clears active item/prompt state, and returns without force-failing the item. Genuine (non-not-found) fetch errors still log at error and fail the item. Eliminates the spurious `failed to fetch job for output path` / `marking item as failed` error-level noise during E2E runs without broadening the W-006 schema-missing allowlist
 
