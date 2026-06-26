@@ -22,8 +22,12 @@ async function normalizeError(response: Response): Promise<ApiError> {
   } catch {
     // response body wasn't JSON — fall through
   }
-  // Include body in error message for debugging unknown errors
-  const bodyInfo = bodyText ? ` (body: ${bodyText})` : ''
+  // In dev builds only, append a truncated body snippet for debugging
+  let bodyInfo = ''
+  if (import.meta.env.DEV && bodyText) {
+    const snippet = bodyText.length > 200 ? bodyText.slice(0, 200) + '…' : bodyText
+    bodyInfo = ` (body: ${snippet})`
+  }
   return {
     code: 'UNKNOWN_ERROR',
     message: `Request failed with status ${response.status}${bodyInfo}`,

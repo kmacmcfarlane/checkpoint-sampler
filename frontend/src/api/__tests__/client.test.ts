@@ -11,6 +11,7 @@ describe('ApiClient', () => {
 
   afterEach(() => {
     globalThis.fetch = originalFetch
+    vi.unstubAllEnvs()
   })
 
   function mockFetch(response: Partial<Response> & { json?: () => Promise<unknown>; text?: () => Promise<string> }) {
@@ -92,7 +93,33 @@ describe('ApiClient', () => {
       expect(thrown!.message).toBe('Name is required')
     })
 
-    it('throws UNKNOWN_ERROR when error response is not JSON', async () => {
+    it('throws UNKNOWN_ERROR when error response is not JSON (prod: no body in message)', async () => {
+      // AC: production error messages never include raw response bodies
+      vi.stubEnv('DEV', false)
+      const client = new ApiClient()
+      const mockResponse = {
+        ok: false,
+        status: 500,
+        text: () => Promise.resolve('Internal Server Error'),
+        json: () => Promise.reject(new Error('not json')),
+      }
+      ;(globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(mockResponse)
+
+      let thrown: ApiError | undefined
+      try {
+        await client.request('/presets')
+      } catch (err) {
+        thrown = err as ApiError
+      }
+
+      expect(thrown).toBeDefined()
+      expect(thrown!.code).toBe('UNKNOWN_ERROR')
+      expect(thrown!.message).toBe('Request failed with status 500')
+    })
+
+    it('throws UNKNOWN_ERROR when error response is not JSON (dev: truncated body in message)', async () => {
+      // AC: dev builds may include a truncated body for debugging
+      vi.stubEnv('DEV', true)
       const client = new ApiClient()
       const mockResponse = {
         ok: false,
@@ -114,7 +141,33 @@ describe('ApiClient', () => {
       expect(thrown!.message).toBe('Request failed with status 500 (body: Internal Server Error)')
     })
 
-    it('throws UNKNOWN_ERROR when error response JSON lacks name/message', async () => {
+    it('throws UNKNOWN_ERROR when error response JSON lacks name/message (prod: no body in message)', async () => {
+      // AC: production error messages never include raw response bodies
+      vi.stubEnv('DEV', false)
+      const client = new ApiClient()
+      const bodyContent = JSON.stringify({ error: 'something' })
+      const mockResponse = {
+        ok: false,
+        status: 422,
+        text: () => Promise.resolve(bodyContent),
+      }
+      ;(globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(mockResponse)
+
+      let thrown: ApiError | undefined
+      try {
+        await client.request('/presets')
+      } catch (err) {
+        thrown = err as ApiError
+      }
+
+      expect(thrown).toBeDefined()
+      expect(thrown!.code).toBe('UNKNOWN_ERROR')
+      expect(thrown!.message).toBe('Request failed with status 422')
+    })
+
+    it('throws UNKNOWN_ERROR when error response JSON lacks name/message (dev: body in message)', async () => {
+      // AC: dev builds may include a truncated body for debugging
+      vi.stubEnv('DEV', true)
       const client = new ApiClient()
       const bodyContent = JSON.stringify({ error: 'something' })
       const mockResponse = {
@@ -134,6 +187,31 @@ describe('ApiClient', () => {
       expect(thrown).toBeDefined()
       expect(thrown!.code).toBe('UNKNOWN_ERROR')
       expect(thrown!.message).toBe(`Request failed with status 422 (body: ${bodyContent})`)
+    })
+
+    it('truncates body to 200 chars in dev mode when body is long', async () => {
+      // AC: dev builds may include a truncated body for debugging
+      vi.stubEnv('DEV', true)
+      const client = new ApiClient()
+      const longBody = 'x'.repeat(300)
+      const mockResponse = {
+        ok: false,
+        status: 500,
+        text: () => Promise.resolve(longBody),
+        json: () => Promise.reject(new Error('not json')),
+      }
+      ;(globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(mockResponse)
+
+      let thrown: ApiError | undefined
+      try {
+        await client.request('/presets')
+      } catch (err) {
+        thrown = err as ApiError
+      }
+
+      expect(thrown).toBeDefined()
+      expect(thrown!.code).toBe('UNKNOWN_ERROR')
+      expect(thrown!.message).toBe(`Request failed with status 500 (body: ${'x'.repeat(200)}…)`)
     })
 
     it('throws NETWORK_ERROR when fetch throws', async () => {

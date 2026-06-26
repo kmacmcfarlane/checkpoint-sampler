@@ -83,3 +83,4 @@ scripts/worktree/__pycache__/
 .claude-sandbox/temp/
 .claude-sandbox/ralph/
 !.claude-sandbox/config.yaml
+!.claude-sandbox/Dockerfile

@@ -631,7 +631,7 @@ stories:
   - id: B-158
     title: "API client surfaces raw error-response bodies in user-facing messages"
     priority: 20
-    status: todo
+    status: uat
     complexity: low
     type: bug
     requires: []

@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-158: API client surfaces raw error-response bodies in user-facing messages
+- `normalizeError` (`frontend/src/api/client.ts`) no longer appends the raw non-JSON response body to the `UNKNOWN_ERROR` message in production — the body snippet is now gated behind `import.meta.env.DEV` and truncated to 200 chars (with an ellipsis), so backend internals (paths, stack fragments) can no longer leak into the UI. The error shape (`{ code, message }`) and the stable `UNKNOWN_ERROR` code are unchanged for consumers
+- Added unit tests covering prod mode (no body in message), dev mode (truncated body present), and the 200-char truncation boundary
+
 ### B-157: Shutdown race: HTTP server Shutdown runs concurrently with deferred close of store/watcher/executor
 - Graceful shutdown is now deterministically ordered and blocking: `run()` waits on a `shutdownDone` channel before returning, so DB/notifier closes can no longer fire while in-flight requests are still draining. A new `performShutdown` (`cmd/server/shutdown.go`) stops background workers (job executor → watcher → fsState) first, then drains HTTP via `srv.Shutdown`, replacing the previous fire-and-forget goroutine + incidental LIFO `defer` ordering. Eliminates "database is closed" errors on SIGTERM during in-flight requests
 
