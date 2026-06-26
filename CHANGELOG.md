@@ -5,6 +5,11 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### M-001: Docs refresh part 1 — architecture.md + database.md regenerated from implementation
+- `docs/architecture.md` and `docs/database.md` are rewritten from the code as source of truth, eliminating documented drift. Both docs previously described TOML config (the backend uses YAML via `internal/config/config.go`); all TOML references are gone and the config section now matches the `yamlConfig` struct field-by-field (top-level, `comfyui`, and `thumbnails` keys with defaults and validation), including `max_request_size_mb`, `allowed_origins`, `max_study_items`, `ws_ping_interval`, and the thumbnail keys
+- `docs/database.md` now documents the full final SQLite schema (presets, studies, sample_jobs, sample_job_items — every column, default, FK, and index) derived from `internal/store/migrations.go` through v26, plus a migration-history summary and the forward-only/recreate migration strategy. The stale claims (DB persists only presets; a `studies.version` column) are corrected — `studies.version` existed transiently (v12 add, v13 drop) and is noted as not in the final schema
+- The architecture layer diagram now covers every `internal/` package (api, service, store, fileformat, model, config, buildinfo, testutil); image serving is documented as content-type-detected at serve time (512-byte `http.DetectContentType`) with JPEG thumbnails, and graceful-shutdown ordering is described. Docs-only change — no production code modified
+
 ### W-027: Replace sleep-based negative assertions in watcher/ws tests with deterministic synchronization
 - The four fixed-`time.Sleep` negative assertions in `service/watcher_test.go` and `api/ws_test.go` are replaced with deterministic synchronization. The three watcher tests use a sentinel-event pattern: the suppressed event is followed by a PNG-create sentinel that *should* broadcast, and `waitForEvents(1, …)` confirms only the sentinel arrived (single-goroutine, in-order channel processing guarantees the suppressed event was already handled). The zero-ping-interval test invokes the configurer's no-op path directly instead of sleeping. Eliminates flake-under-load and silent false-passes (TEST_PRACTICES 1.2/4.3); test-only change, no production behavior modified
 
