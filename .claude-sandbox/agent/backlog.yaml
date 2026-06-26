@@ -1001,7 +1001,7 @@ stories:
   - id: R-018
     title: "Split job_executor.go (2,345 lines) into cohesive units"
     priority: 35
-    status: todo
+    status: uat
     complexity: medium
     type: refactor
     requires: ["B-148", "B-152", "R-015"]

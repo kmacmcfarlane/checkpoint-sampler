@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### R-018: Split job_executor.go into cohesive units
+- `backend/internal/service/job_executor.go` (2,459 lines) split within the same `service` package into four responsibility-scoped files: `job_executor_lifecycle.go` (start/stop/pause/resume/run loop), `job_executor_conn.go` (ComfyUI WS connect/reconnect, stuck-item recovery, event handling), `job_executor_workflow.go` (workflow substitution, output paths, image download/save), and `job_executor_progress.go` (item failure, progress, completion, broadcast). Primary file now 273 lines (interfaces, struct, constructors, package-level helpers)
+- Pure code movement, no behavior change: 54/54 top-level declarations byte-identical to the original (AST+SHA256 verified); public package API unchanged; all backend suites and the full E2E suite pass with no assertion modifications
+
 ### M-003: Docs refresh part 3 — filesystem.md, ui.md, workflows.md + PRD config sync
 - `docs/filesystem.md` per-training-run layout is corrected to match the job executor's output-path construction: the study directory level uses the study's display name (`study.Name`), not a UUID; LoRA jobs insert an extra `base_model_name` level (`{run}/{study}/{base_model_name}/{lora_checkpoint.safetensors}/`) only when a base model is set, while the manifest stays at the study level above it. Per-image `.json` sidecars and the `thumbnails/` JPEG subdirectory are now documented, with separate checkpoint-job and LoRA-job tree examples
 - `docs/ui.md` gains a verified 1:1 component inventory (all 23 `frontend/src/components/*.vue` files with accurate purposes); the status-bead system is documented as rendered inline only by `JobLaunchDialog.vue` via `composables/dualBeadStatus.ts` (not a standalone component, and not `TrainingRunSelector.vue`, which renders a kind badge). `docs/workflows.md` cs_role table is reconciled with `KnownCSRoles()`/`substituteNode` — adds the `lora_loader` role, `batch_size` (forced to 1) on `latent_image`, and corrects the stale `negative_prompt` claim (the text IS injected when non-empty)
