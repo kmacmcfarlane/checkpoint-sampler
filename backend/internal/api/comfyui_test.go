@@ -8,35 +8,34 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/stretchr/testify/mock"
 	goa "goa.design/goa/v3/pkg"
 
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/apimocks"
 	gencomfyui "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/comfyui"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
 )
 
-// mockHealthChecker implements the ComfyUIHealthChecker interface for testing
-type mockHealthChecker struct {
-	healthCheckFunc func(ctx context.Context) error
+// newMockHealthChecker returns a generated ComfyUIHealthChecker mock whose
+// HealthCheck returns the given error.
+func newMockHealthChecker(err error) *apimocks.MockComfyUIHealthChecker {
+	m := &apimocks.MockComfyUIHealthChecker{}
+	m.EXPECT().HealthCheck(mock.Anything).Return(err).Maybe()
+	return m
 }
 
-func (m *mockHealthChecker) HealthCheck(ctx context.Context) error {
-	if m.healthCheckFunc != nil {
-		return m.healthCheckFunc(ctx)
+// newMockModelLister returns a generated ComfyUIModelLister mock that runs the
+// given function for GetModels. A nil fn yields an empty model list.
+func newMockModelLister(fn func(ctx context.Context, modelType service.ComfyUIModelType) ([]string, error)) *apimocks.MockComfyUIModelLister {
+	m := &apimocks.MockComfyUIModelLister{}
+	if fn == nil {
+		fn = func(context.Context, service.ComfyUIModelType) ([]string, error) {
+			return []string{}, nil
+		}
 	}
-	return nil
-}
-
-// mockModelLister implements the ComfyUIModelLister interface for testing
-type mockModelLister struct {
-	getModelsFunc func(ctx context.Context, modelType service.ComfyUIModelType) ([]string, error)
-}
-
-func (m *mockModelLister) GetModels(ctx context.Context, modelType service.ComfyUIModelType) ([]string, error) {
-	if m.getModelsFunc != nil {
-		return m.getModelsFunc(ctx, modelType)
-	}
-	return []string{}, nil
+	m.EXPECT().GetModels(mock.Anything, mock.Anything).RunAndReturn(fn).Maybe()
+	return m
 }
 
 var _ = Describe("ComfyUIService", func() {
@@ -63,12 +62,8 @@ var _ = Describe("ComfyUIService", func() {
 
 		Context("when ComfyUI is enabled and healthy", func() {
 			It("returns enabled and connected status", func() {
-				mockHealth := &mockHealthChecker{
-					healthCheckFunc: func(ctx context.Context) error {
-						return nil
-					},
-				}
-				mockModels := &mockModelLister{}
+				mockHealth := newMockHealthChecker(nil)
+				mockModels := newMockModelLister(nil)
 
 				svc := api.NewComfyUIService(mockHealth, mockModels)
 				result, err := svc.Status(ctx)
@@ -82,12 +77,8 @@ var _ = Describe("ComfyUIService", func() {
 
 		Context("when ComfyUI is enabled but unhealthy", func() {
 			It("returns enabled but not connected status", func() {
-				mockHealth := &mockHealthChecker{
-					healthCheckFunc: func(ctx context.Context) error {
-						return fmt.Errorf("connection refused")
-					},
-				}
-				mockModels := &mockModelLister{}
+				mockHealth := newMockHealthChecker(fmt.Errorf("connection refused"))
+				mockModels := newMockModelLister(nil)
 
 				svc := api.NewComfyUIService(mockHealth, mockModels)
 				result, err := svc.Status(ctx)
@@ -115,13 +106,11 @@ var _ = Describe("ComfyUIService", func() {
 
 		Context("when ComfyUI is enabled", func() {
 			It("returns models for VAE type", func() {
-				mockHealth := &mockHealthChecker{}
-				mockModels := &mockModelLister{
-					getModelsFunc: func(ctx context.Context, modelType service.ComfyUIModelType) ([]string, error) {
-						Expect(modelType).To(Equal(service.ComfyUIModelTypeVAE))
-						return []string{"vae1.safetensors", "vae2.safetensors"}, nil
-					},
-				}
+				mockHealth := newMockHealthChecker(nil)
+				mockModels := newMockModelLister(func(ctx context.Context, modelType service.ComfyUIModelType) ([]string, error) {
+					Expect(modelType).To(Equal(service.ComfyUIModelTypeVAE))
+					return []string{"vae1.safetensors", "vae2.safetensors"}, nil
+				})
 
 				svc := api.NewComfyUIService(mockHealth, mockModels)
 				payload := &gencomfyui.ModelsPayload{Type: "vae"}
@@ -134,13 +123,11 @@ var _ = Describe("ComfyUIService", func() {
 			})
 
 			It("returns models for CLIP type", func() {
-				mockHealth := &mockHealthChecker{}
-				mockModels := &mockModelLister{
-					getModelsFunc: func(ctx context.Context, modelType service.ComfyUIModelType) ([]string, error) {
-						Expect(modelType).To(Equal(service.ComfyUIModelTypeCLIP))
-						return []string{"clip1.safetensors"}, nil
-					},
-				}
+				mockHealth := newMockHealthChecker(nil)
+				mockModels := newMockModelLister(func(ctx context.Context, modelType service.ComfyUIModelType) ([]string, error) {
+					Expect(modelType).To(Equal(service.ComfyUIModelTypeCLIP))
+					return []string{"clip1.safetensors"}, nil
+				})
 
 				svc := api.NewComfyUIService(mockHealth, mockModels)
 				payload := &gencomfyui.ModelsPayload{Type: "clip"}
@@ -154,12 +141,10 @@ var _ = Describe("ComfyUIService", func() {
 			// R-016: ComfyUI outages must surface with a stable, documented code
 			// instead of an unmapped 500 or a silently-empty result.
 			It("maps a non-network discovery failure to internal_error", func() {
-				mockHealth := &mockHealthChecker{}
-				mockModels := &mockModelLister{
-					getModelsFunc: func(ctx context.Context, modelType service.ComfyUIModelType) ([]string, error) {
-						return nil, fmt.Errorf("malformed object info response")
-					},
-				}
+				mockHealth := newMockHealthChecker(nil)
+				mockModels := newMockModelLister(func(ctx context.Context, modelType service.ComfyUIModelType) ([]string, error) {
+					return nil, fmt.Errorf("malformed object info response")
+				})
 
 				svc := api.NewComfyUIService(mockHealth, mockModels)
 				payload := &gencomfyui.ModelsPayload{Type: "vae"}
@@ -172,17 +157,15 @@ var _ = Describe("ComfyUIService", func() {
 			})
 
 			It("maps a network/connection failure to service_unavailable", func() {
-				mockHealth := &mockHealthChecker{}
-				mockModels := &mockModelLister{
-					getModelsFunc: func(ctx context.Context, modelType service.ComfyUIModelType) ([]string, error) {
-						// Wrap a real net error the way the HTTP client would.
-						return nil, fmt.Errorf("getting object info: %w", &net.OpError{
-							Op:  "dial",
-							Net: "tcp",
-							Err: errors.New("connection refused"),
-						})
-					},
-				}
+				mockHealth := newMockHealthChecker(nil)
+				mockModels := newMockModelLister(func(ctx context.Context, modelType service.ComfyUIModelType) ([]string, error) {
+					// Wrap a real net error the way the HTTP client would.
+					return nil, fmt.Errorf("getting object info: %w", &net.OpError{
+						Op:  "dial",
+						Net: "tcp",
+						Err: errors.New("connection refused"),
+					})
+				})
 
 				svc := api.NewComfyUIService(mockHealth, mockModels)
 				payload := &gencomfyui.ModelsPayload{Type: "vae"}
@@ -195,12 +178,10 @@ var _ = Describe("ComfyUIService", func() {
 			})
 
 			It("maps a context deadline to service_unavailable", func() {
-				mockHealth := &mockHealthChecker{}
-				mockModels := &mockModelLister{
-					getModelsFunc: func(ctx context.Context, modelType service.ComfyUIModelType) ([]string, error) {
-						return nil, fmt.Errorf("requesting object info: %w", context.DeadlineExceeded)
-					},
-				}
+				mockHealth := newMockHealthChecker(nil)
+				mockModels := newMockModelLister(func(ctx context.Context, modelType service.ComfyUIModelType) ([]string, error) {
+					return nil, fmt.Errorf("requesting object info: %w", context.DeadlineExceeded)
+				})
 
 				svc := api.NewComfyUIService(mockHealth, mockModels)
 				payload := &gencomfyui.ModelsPayload{Type: "vae"}
@@ -216,14 +197,12 @@ var _ = Describe("ComfyUIService", func() {
 		Context("with different model types", func() {
 			DescribeTable("accepts valid model types and passes them through",
 				func(modelType string, expectedServiceType service.ComfyUIModelType) {
-					mockHealth := &mockHealthChecker{}
+					mockHealth := newMockHealthChecker(nil)
 					var receivedType service.ComfyUIModelType
-					mockModels := &mockModelLister{
-						getModelsFunc: func(ctx context.Context, modelType service.ComfyUIModelType) ([]string, error) {
-							receivedType = modelType
-							return []string{"test-model"}, nil
-						},
-					}
+					mockModels := newMockModelLister(func(ctx context.Context, modelType service.ComfyUIModelType) ([]string, error) {
+						receivedType = modelType
+						return []string{"test-model"}, nil
+					})
 
 					svc := api.NewComfyUIService(mockHealth, mockModels)
 					payload := &gencomfyui.ModelsPayload{Type: modelType}
@@ -252,7 +231,7 @@ var _ = Describe("ComfyUIService", func() {
 		})
 
 		It("creates disabled service when health checker is nil", func() {
-			mockModels := &mockModelLister{}
+			mockModels := newMockModelLister(nil)
 			svc := api.NewComfyUIService(nil, mockModels)
 			result, err := svc.Status(ctx)
 
@@ -261,7 +240,7 @@ var _ = Describe("ComfyUIService", func() {
 		})
 
 		It("creates disabled service when model lister is nil", func() {
-			mockHealth := &mockHealthChecker{}
+			mockHealth := newMockHealthChecker(nil)
 			svc := api.NewComfyUIService(mockHealth, nil)
 			result, err := svc.Status(ctx)
 
@@ -270,8 +249,8 @@ var _ = Describe("ComfyUIService", func() {
 		})
 
 		It("creates enabled service when both dependencies are provided", func() {
-			mockHealth := &mockHealthChecker{}
-			mockModels := &mockModelLister{}
+			mockHealth := newMockHealthChecker(nil)
+			mockModels := newMockModelLister(nil)
 			svc := api.NewComfyUIService(mockHealth, mockModels)
 			result, err := svc.Status(ctx)
 

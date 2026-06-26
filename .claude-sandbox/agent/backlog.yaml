@@ -1106,7 +1106,7 @@ stories:
   - id: W-028
     title: "Adopt mockery: tooling setup + migrate api/store-layer hand-rolled mocks"
     priority: 40
-    status: todo
+    status: uat
     complexity: medium
     type: workflow
     requires: ["B-149", "S-152"]
