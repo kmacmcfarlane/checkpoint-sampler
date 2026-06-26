@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-154: Path-handling hardening — separator-bounded write check and study-name dot rejection
+- `getOutputPath` write-path containment is now separator-bounded (`sampleDir+separator`), closing a latent sibling-prefix bypass (e.g. `/data/samples-evil` no longer passes a check scoped to `/data/samples`); mirrors the existing READ-path pattern
+- Study-name validation now rejects pure-traversal components (`.`, `..`) and leading/trailing-dot names; inner dots (e.g. `v1.2`, `a..b`) remain valid
+
 ### R-016: Unify Goa error vocabulary across services in the design DSL
 - Defined one canonical error code per failure class across every service (documented in `internal/api/design/errors.go` and `docs/api.md` §5.3): `internal_error` (500), `not_found` (404), `invalid_payload` (400), `invalid_state` (400), `too_many_items` (422), `service_unavailable` (503). Collapsed the per-service synonyms (`scan_failed`/`discovery_failed`/`validation_failed` → `internal_error`; `bad_request`/`invalid_filename` → `invalid_payload`) so the frontend can rely on stable codes without per-service special-casing
 - `comfyui.models` previously swallowed all failures into an empty list (ComfyUI outages surfaced as unmapped 500s); it now declares and returns `service_unavailable` (503) for connection failures (`net.Error`/`net.OpError`/context deadline) and `internal_error` (500) otherwise. `sample_jobs.create` gained `internal_error` for discovery/DB failures. Every frontend caller already tolerates a thrown error with a static fallback list, so UX is unchanged — only the HTTP status is now correct

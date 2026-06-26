@@ -794,7 +794,7 @@ stories:
   - id: S-154
     title: "Path-handling hardening: separator-bounded write check, StudyName dot rejection, Rel-based containment"
     priority: 50
-    status: todo
+    status: uat
     complexity: low
     type: story
     requires: ["S-153"]

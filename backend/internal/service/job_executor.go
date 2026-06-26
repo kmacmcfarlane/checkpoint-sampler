@@ -1494,10 +1494,13 @@ func (e *JobExecutor) getOutputPath(studyOutputDir string, checkpointFilename st
 	checkpointDir := filepath.Join(e.sampleDir, studyOutputDir, filepath.Base(checkpointFilename))
 	outputPath := filepath.Join(checkpointDir, filename)
 
-	// Path traversal protection
+	// Path traversal protection: use separator-bounded prefix check so that a
+	// sibling directory (e.g. /data/samples-evil) cannot pass the check by
+	// sharing a bare string prefix with /data/samples.  Mirror the pattern used
+	// by the READ-path checks in images_service.go and image_metadata.go.
 	cleanPath := filepath.Clean(outputPath)
 	cleanSampleDir := filepath.Clean(e.sampleDir)
-	if !strings.HasPrefix(cleanPath, cleanSampleDir) {
+	if cleanPath != cleanSampleDir && !strings.HasPrefix(cleanPath, cleanSampleDir+string(filepath.Separator)) {
 		return "", fmt.Errorf("path traversal detected: %s", cleanPath)
 	}
 

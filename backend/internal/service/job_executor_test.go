@@ -1397,6 +1397,26 @@ var _ = Describe("JobExecutor", func() {
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("path traversal detected"))
 		})
+
+		// AC: write-path containment check is separator-bounded (S-154).
+		// A sibling directory whose name shares a bare string prefix with sampleDir
+		// (e.g. /test/samples-evil) must be rejected — the old bare HasPrefix check
+		// would have accepted it.
+		It("rejects write to sibling directory sharing a bare string prefix with sampleDir", func() {
+			// sampleDir is "/test/samples"; "/test/samples-evil/x.png" shares the
+			// prefix "/test/samples" but is outside the sample directory.
+			// We use a crafted studyOutputDir that, after filepath.Join with sampleDir
+			// and filepath.Clean, produces the sibling path.
+			_, err := executor.getOutputPath("../samples-evil", "checkpoint.safetensors", "x.png")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("path traversal detected"))
+		})
+
+		It("accepts a legitimate path inside sampleDir", func() {
+			path, err := executor.getOutputPath("my-study", "model.safetensors", "out.png")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(path).To(HavePrefix("/test/samples/"))
+		})
 	})
 
 	Describe("handleItemCompletionAsync", func() {

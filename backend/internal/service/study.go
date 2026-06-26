@@ -385,6 +385,17 @@ func (s *StudyService) validate(name string, prompts []model.NamedPrompt, steps 
 	if strings.ContainsAny(name, disallowedNameChars) {
 		return fmt.Errorf("study name contains disallowed characters; the following characters are not allowed: %s", disallowedNameChars)
 	}
+	// Reject path-traversal sequences and dot-edge patterns that produce hidden
+	// or traversal directory components when used in output paths.
+	// Decision: pure traversal names (".", "..") and names with a leading or
+	// trailing dot are rejected.  Inner dots are allowed so that version strings
+	// like "v1.2" and separator-free sequences like "a..b" remain valid.
+	if name == "." || name == ".." {
+		return fmt.Errorf("study name must not be a dot or double-dot path component")
+	}
+	if strings.HasPrefix(name, ".") || strings.HasSuffix(name, ".") {
+		return fmt.Errorf("study name must not start or end with a dot")
+	}
 	if len(prompts) == 0 {
 		return fmt.Errorf("at least one prompt is required")
 	}

@@ -607,6 +607,21 @@ var _ = Describe("StudyService", func() {
 				filenameTestCase{name: "study|v2", expectError: true, expectedError: "disallowed characters"}),
 			Entry("rejects name with double quote",
 				filenameTestCase{name: `study"v2`, expectError: true, expectedError: "disallowed characters"}),
+			// AC: study names consisting of or containing path-traversal dot sequences
+			// are rejected at validation (S-154).
+			Entry("rejects double-dot name (path traversal)",
+				filenameTestCase{name: "..", expectError: true, expectedError: "dot or double-dot"}),
+			Entry("rejects single-dot name (current-dir traversal)",
+				filenameTestCase{name: ".", expectError: true, expectedError: "dot or double-dot"}),
+			Entry("rejects name with leading dot (hidden-dir component)",
+				filenameTestCase{name: ".hidden", expectError: true, expectedError: "start or end with a dot"}),
+			Entry("rejects name with trailing dot",
+				filenameTestCase{name: "trailing.", expectError: true, expectedError: "start or end with a dot"}),
+			// AC: inner dots are allowed — version strings like 'v1.2' must be accepted.
+			Entry("accepts name with inner dot (version string v1.2)",
+				filenameTestCase{name: "v1.2", expectError: false}),
+			Entry("accepts name with consecutive inner dots (a..b — inner dot rule)",
+				filenameTestCase{name: "a..b", expectError: false}),
 		)
 	})
 
