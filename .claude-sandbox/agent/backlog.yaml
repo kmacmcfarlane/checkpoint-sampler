@@ -854,7 +854,7 @@ stories:
   - id: S-156
     title: "Schema hardening: status CHECK constraints; move business default out of DDL"
     priority: 40
-    status: todo
+    status: uat
     complexity: low
     type: story
     requires: ["B-149"]

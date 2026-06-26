@@ -325,6 +325,9 @@ ALTER TABLE studies ADD COLUMN shift REAL;`,
 			// S-145: Add strength_model column to sample_job_items table.
 			// Stores the LoRA model strength for this item.
 			// Defaults to 1.0 for both LoRA and checkpoint items.
+			// NOTE(S-156): This DDL DEFAULT 1.0 is legacy. The service layer now
+			// applies the strength default explicitly when creating new items, so
+			// direct SQL inserts via the store always carry an explicit value.
 			Version: 24,
 			SQL:     `ALTER TABLE sample_job_items ADD COLUMN strength_model REAL NOT NULL DEFAULT 1.0;`,
 		},
@@ -332,6 +335,9 @@ ALTER TABLE studies ADD COLUMN shift REAL;`,
 			// S-145: Add strength_clip column to sample_job_items table.
 			// Stores the LoRA clip strength for this item.
 			// Defaults to 1.0 for both LoRA and checkpoint items.
+			// NOTE(S-156): This DDL DEFAULT 1.0 is legacy. The service layer now
+			// applies the strength default explicitly when creating new items, so
+			// direct SQL inserts via the store always carry an explicit value.
 			Version: 25,
 			SQL:     `ALTER TABLE sample_job_items ADD COLUMN strength_clip REAL NOT NULL DEFAULT 1.0;`,
 		},
@@ -348,6 +354,96 @@ ALTER TABLE studies ADD COLUMN shift REAL;`,
 			SQL: `CREATE INDEX IF NOT EXISTS idx_sample_job_items_job_id ON sample_job_items (job_id);
 CREATE INDEX IF NOT EXISTS idx_sample_job_items_job_id_status ON sample_job_items (job_id, status);
 CREATE INDEX IF NOT EXISTS idx_sample_job_items_job_id_created_at ON sample_job_items (job_id, created_at);`,
+		},
+		{
+			// S-156: Add CHECK constraints on status columns for sample_jobs and
+			// sample_job_items. SQLite does not support ALTER TABLE ADD CONSTRAINT,
+			// so both tables are rebuilt using the create/copy/drop/rename pattern.
+			//
+			// Valid statuses are the exact values the executor handles — inserting
+			// any other value now fails at the DB layer instead of silently
+			// persisting an unhandled status string.
+			//
+			// Data copy order:
+			//   1. Create staging tables and copy all rows from both old tables.
+			//   2. Drop old child table (sample_job_items) first so that the
+			//      ON DELETE CASCADE FK from items→jobs cannot fire when the
+			//      parent (sample_jobs) is subsequently dropped.
+			//   3. Drop old parent (sample_jobs).
+			//   4. Rename staging tables into their final names.
+			//   5. Re-create the indexes from migration 26 (DROP TABLE removes them).
+			//
+			// sample_job_items_new references sample_jobs_v4 (not the old
+			// sample_jobs) so that when sample_jobs is dropped the new items
+			// table is not affected by cascade. After the RENAME chain completes
+			// (sample_jobs_v4 → sample_jobs), SQLite automatically updates the
+			// FK reference in the renamed items table to point to sample_jobs.
+			Version: 27,
+			SQL: `CREATE TABLE sample_jobs_v4 (
+				id                  TEXT PRIMARY KEY,
+				training_run_name   TEXT NOT NULL,
+				study_id            TEXT NOT NULL,
+				study_name          TEXT NOT NULL DEFAULT '',
+				workflow_name       TEXT NOT NULL,
+				vae                 TEXT,
+				clip                TEXT,
+				shift               REAL,
+				status              TEXT NOT NULL CHECK (status IN ('pending','running','stopped','completed','completed_with_errors','failed')),
+				total_items         INTEGER NOT NULL,
+				completed_items     INTEGER NOT NULL DEFAULT 0,
+				error_message       TEXT,
+				created_at          TEXT NOT NULL,
+				updated_at          TEXT NOT NULL,
+				checkpoint_filenames TEXT NOT NULL DEFAULT '[]',
+				clear_existing      INTEGER NOT NULL DEFAULT 0,
+				base_model          TEXT NOT NULL DEFAULT '',
+				FOREIGN KEY (study_id) REFERENCES studies(id) ON DELETE CASCADE
+			);
+			INSERT INTO sample_jobs_v4 (id, training_run_name, study_id, study_name, workflow_name, vae, clip, shift, status, total_items, completed_items, error_message, created_at, updated_at, checkpoint_filenames, clear_existing, base_model)
+			SELECT id, training_run_name, study_id, study_name, workflow_name, vae, clip, shift, status, total_items, completed_items, error_message, created_at, updated_at, checkpoint_filenames, clear_existing, base_model
+			FROM sample_jobs;
+
+			CREATE TABLE sample_job_items_new (
+				id                  TEXT PRIMARY KEY,
+				job_id              TEXT NOT NULL,
+				checkpoint_filename TEXT NOT NULL,
+				comfyui_model_path  TEXT NOT NULL,
+				prompt_name         TEXT NOT NULL,
+				prompt_text         TEXT NOT NULL,
+				negative_prompt     TEXT NOT NULL DEFAULT '',
+				steps               INTEGER NOT NULL,
+				cfg                 REAL NOT NULL,
+				sampler_name        TEXT NOT NULL,
+				scheduler           TEXT NOT NULL,
+				seed                INTEGER NOT NULL,
+				status              TEXT NOT NULL CHECK (status IN ('pending','running','completed','failed','skipped')),
+				comfyui_prompt_id   TEXT,
+				output_path         TEXT,
+				error_message       TEXT,
+				width               INTEGER NOT NULL DEFAULT 512,
+				height              INTEGER NOT NULL DEFAULT 512,
+				exception_type      TEXT NOT NULL DEFAULT '',
+				node_type           TEXT NOT NULL DEFAULT '',
+				traceback           TEXT NOT NULL DEFAULT '',
+				lora_model_path     TEXT NOT NULL DEFAULT '',
+				strength_model      REAL NOT NULL DEFAULT 1.0,
+				strength_clip       REAL NOT NULL DEFAULT 1.0,
+				created_at          TEXT NOT NULL,
+				updated_at          TEXT NOT NULL,
+				FOREIGN KEY (job_id) REFERENCES sample_jobs_v4(id) ON DELETE CASCADE
+			);
+			INSERT INTO sample_job_items_new (id, job_id, checkpoint_filename, comfyui_model_path, prompt_name, prompt_text, negative_prompt, steps, cfg, sampler_name, scheduler, seed, status, comfyui_prompt_id, output_path, error_message, width, height, exception_type, node_type, traceback, lora_model_path, strength_model, strength_clip, created_at, updated_at)
+			SELECT id, job_id, checkpoint_filename, comfyui_model_path, prompt_name, prompt_text, negative_prompt, steps, cfg, sampler_name, scheduler, seed, status, comfyui_prompt_id, output_path, error_message, width, height, exception_type, node_type, traceback, lora_model_path, strength_model, strength_clip, created_at, updated_at
+			FROM sample_job_items;
+
+			DROP TABLE sample_job_items;
+			DROP TABLE sample_jobs;
+			ALTER TABLE sample_jobs_v4 RENAME TO sample_jobs;
+			ALTER TABLE sample_job_items_new RENAME TO sample_job_items;
+
+			CREATE INDEX IF NOT EXISTS idx_sample_job_items_job_id ON sample_job_items (job_id);
+			CREATE INDEX IF NOT EXISTS idx_sample_job_items_job_id_status ON sample_job_items (job_id, status);
+			CREATE INDEX IF NOT EXISTS idx_sample_job_items_job_id_created_at ON sample_job_items (job_id, created_at);`,
 		},
 	}
 }

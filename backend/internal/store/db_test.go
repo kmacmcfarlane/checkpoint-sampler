@@ -414,7 +414,7 @@ var _ = Describe("Migrate", func() {
 		var count int
 		err = db.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&count)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(count).To(Equal(26))
+		Expect(count).To(Equal(27))
 
 		// Verify the table is functional with width and height columns
 		// First create a study and job to satisfy foreign key constraints
@@ -508,7 +508,9 @@ var _ = Describe("sample_job_items index migration (B-149)", func() {
 		// Simulate an existing database: apply every migration up to and including
 		// version 25 (the schema before the B-149 index migration), then confirm
 		// the indexes do not yet exist.
-		preIndex := all[:len(all)-1]
+		// Use 25 explicitly (all[:25]) rather than all[:len(all)-1] so this test
+		// remains correct when additional migrations are appended.
+		preIndex := all[:25]
 		Expect(preIndex[len(preIndex)-1].Version).To(Equal(25))
 		Expect(store.Migrate(db, preIndex)).To(Succeed())
 
@@ -545,10 +547,201 @@ var _ = Describe("sample_job_items index migration (B-149)", func() {
 	})
 })
 
+var _ = Describe("status CHECK constraint migration (S-156)", func() {
+	var (
+		db     *sql.DB
+		tmpDir string
+	)
+
+	BeforeEach(func() {
+		var err error
+		tmpDir, err = os.MkdirTemp("", "check-constraint-test-*")
+		Expect(err).NotTo(HaveOccurred())
+
+		dbPath := filepath.Join(tmpDir, "test.db")
+		db, err = store.OpenDB(dbPath)
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	AfterEach(func() {
+		if db != nil {
+			db.Close()
+		}
+		os.RemoveAll(tmpDir)
+	})
+
+	// AC: BE: migration applies cleanly to an existing populated database; all rows preserved.
+	// AC: BE: inserting an invalid status fails at the DB layer after migration.
+	It("migrates an existing populated DB and enforces CHECK constraints on status", func() {
+		all := store.AllMigrations()
+
+		// Apply all migrations up to and including v26 (pre-CHECK-constraint schema).
+		preMigrations := all[:26]
+		Expect(preMigrations[len(preMigrations)-1].Version).To(Equal(26))
+		Expect(store.Migrate(db, preMigrations)).To(Succeed())
+
+		// Seed a study so FK constraints are satisfied.
+		_, err := db.Exec(`
+			INSERT INTO studies (
+				id, name, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs,
+				seeds, width, height, created_at, updated_at
+			) VALUES (
+				'study-chk', 'Check Study', '["p1"]', 'neg', '[20]', '[7.5]',
+				'[{"sampler":"euler","scheduler":"normal"}]', '[42]', 512, 512,
+				'2025-01-01T00:00:00Z', '2025-01-01T00:00:00Z'
+			)
+		`)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Seed one sample_jobs row with a valid status.
+		_, err = db.Exec(`
+			INSERT INTO sample_jobs (
+				id, training_run_name, study_id, study_name, workflow_name,
+				status, total_items, created_at, updated_at
+			) VALUES (
+				'job-chk', 'run-1', 'study-chk', 'Check Study', 'workflow.json',
+				'pending', 1, '2025-01-01T00:00:00Z', '2025-01-01T00:00:00Z'
+			)
+		`)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Seed one sample_job_items row with a valid status.
+		_, err = db.Exec(`
+			INSERT INTO sample_job_items (
+				id, job_id, checkpoint_filename, comfyui_model_path,
+				prompt_name, prompt_text, steps, cfg, sampler_name, scheduler,
+				seed, status, created_at, updated_at
+			) VALUES (
+				'item-chk', 'job-chk', 'model.safetensors', '/models/test',
+				'p1', 'test prompt', 20, 7.5, 'euler', 'normal',
+				42, 'running', '2025-01-01T00:00:00Z', '2025-01-01T00:00:00Z'
+			)
+		`)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Run migration 27 against the populated DB.
+		Expect(store.Migrate(db, all)).To(Succeed())
+
+		// All pre-migration rows must still be present.
+		var jobCount, itemCount int
+		Expect(db.QueryRow("SELECT COUNT(*) FROM sample_jobs").Scan(&jobCount)).To(Succeed())
+		Expect(jobCount).To(Equal(1), "existing sample_jobs row must survive migration")
+		Expect(db.QueryRow("SELECT COUNT(*) FROM sample_job_items").Scan(&itemCount)).To(Succeed())
+		Expect(itemCount).To(Equal(1), "existing sample_job_items row must survive migration")
+
+		// Verify the existing rows are intact.
+		var jobStatus, itemStatus string
+		Expect(db.QueryRow("SELECT status FROM sample_jobs WHERE id='job-chk'").Scan(&jobStatus)).To(Succeed())
+		Expect(jobStatus).To(Equal("pending"))
+		Expect(db.QueryRow("SELECT status FROM sample_job_items WHERE id='item-chk'").Scan(&itemStatus)).To(Succeed())
+		Expect(itemStatus).To(Equal("running"))
+
+		// AC: invalid status insert into sample_jobs must fail at the DB layer.
+		_, err = db.Exec(`
+			INSERT INTO sample_jobs (
+				id, training_run_name, study_id, study_name, workflow_name,
+				status, total_items, created_at, updated_at
+			) VALUES (
+				'job-bad', 'run-1', 'study-chk', 'Check Study', 'workflow.json',
+				'invalid_status', 1, '2025-01-01T00:00:00Z', '2025-01-01T00:00:00Z'
+			)
+		`)
+		Expect(err).To(HaveOccurred(), "invalid sample_jobs status must be rejected by CHECK constraint")
+
+		// AC: invalid status insert into sample_job_items must fail at the DB layer.
+		_, err = db.Exec(`
+			INSERT INTO sample_job_items (
+				id, job_id, checkpoint_filename, comfyui_model_path,
+				prompt_name, prompt_text, steps, cfg, sampler_name, scheduler,
+				seed, status, created_at, updated_at
+			) VALUES (
+				'item-bad', 'job-chk', 'model.safetensors', '/models/test',
+				'p1', 'test prompt', 20, 7.5, 'euler', 'normal',
+				42, 'bogus_status', '2025-01-01T00:00:00Z', '2025-01-01T00:00:00Z'
+			)
+		`)
+		Expect(err).To(HaveOccurred(), "invalid sample_job_items status must be rejected by CHECK constraint")
+	})
+
+	// AC: valid status values are accepted after migration.
+	DescribeTable("accepts all valid sample_jobs statuses",
+		func(status string) {
+			Expect(store.Migrate(db, store.AllMigrations())).To(Succeed())
+			_, err := db.Exec(`
+				INSERT INTO studies (
+					id, name, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs,
+					seeds, width, height, created_at, updated_at
+				) VALUES (
+					'study-v', 'Valid Study', '["p1"]', '', '[20]', '[7.5]',
+					'[{"sampler":"euler","scheduler":"normal"}]', '[1]', 512, 512,
+					'2025-01-01T00:00:00Z', '2025-01-01T00:00:00Z'
+				)
+			`)
+			Expect(err).NotTo(HaveOccurred())
+			_, err = db.Exec(`
+				INSERT INTO sample_jobs (
+					id, training_run_name, study_id, study_name, workflow_name,
+					status, total_items, created_at, updated_at
+				) VALUES (?, 'run', 'study-v', 'Valid Study', 'wf.json', ?, 1,
+					'2025-01-01T00:00:00Z', '2025-01-01T00:00:00Z')
+			`, status+"-job", status)
+			Expect(err).NotTo(HaveOccurred(), "status %q should be accepted", status)
+		},
+		Entry("pending", "pending"),
+		Entry("running", "running"),
+		Entry("stopped", "stopped"),
+		Entry("completed", "completed"),
+		Entry("completed_with_errors", "completed_with_errors"),
+		Entry("failed", "failed"),
+	)
+
+	DescribeTable("accepts all valid sample_job_items statuses",
+		func(status string) {
+			Expect(store.Migrate(db, store.AllMigrations())).To(Succeed())
+			_, err := db.Exec(`
+				INSERT INTO studies (
+					id, name, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs,
+					seeds, width, height, created_at, updated_at
+				) VALUES (
+					'study-vi', 'Valid Study', '["p1"]', '', '[20]', '[7.5]',
+					'[{"sampler":"euler","scheduler":"normal"}]', '[1]', 512, 512,
+					'2025-01-01T00:00:00Z', '2025-01-01T00:00:00Z'
+				)
+			`)
+			Expect(err).NotTo(HaveOccurred())
+			_, err = db.Exec(`
+				INSERT INTO sample_jobs (
+					id, training_run_name, study_id, study_name, workflow_name,
+					status, total_items, created_at, updated_at
+				) VALUES (
+					'job-vi', 'run', 'study-vi', 'Valid Study', 'wf.json', 'pending', 1,
+					'2025-01-01T00:00:00Z', '2025-01-01T00:00:00Z'
+				)
+			`)
+			Expect(err).NotTo(HaveOccurred())
+			_, err = db.Exec(`
+				INSERT INTO sample_job_items (
+					id, job_id, checkpoint_filename, comfyui_model_path,
+					prompt_name, prompt_text, steps, cfg, sampler_name, scheduler,
+					seed, status, created_at, updated_at
+				) VALUES (?, 'job-vi', 'model.safetensors', '/models/test',
+					'p1', 'prompt', 20, 7.5, 'euler', 'normal', 42, ?,
+					'2025-01-01T00:00:00Z', '2025-01-01T00:00:00Z')
+			`, status+"-item", status)
+			Expect(err).NotTo(HaveOccurred(), "item status %q should be accepted", status)
+		},
+		Entry("pending", "pending"),
+		Entry("running", "running"),
+		Entry("completed", "completed"),
+		Entry("failed", "failed"),
+		Entry("skipped", "skipped"),
+	)
+})
+
 var _ = Describe("AllMigrations", func() {
 	It("returns the presets table as migration 1", func() {
 		migrations := store.AllMigrations()
-		Expect(migrations).To(HaveLen(26))
+		Expect(migrations).To(HaveLen(27))
 		Expect(migrations[0].Version).To(Equal(1))
 		Expect(migrations[0].SQL).To(ContainSubstring("CREATE TABLE"))
 		Expect(migrations[0].SQL).To(ContainSubstring("presets"))
