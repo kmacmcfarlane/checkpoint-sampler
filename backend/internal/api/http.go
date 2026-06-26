@@ -105,6 +105,13 @@ type HTTPHandlerConfig struct {
 	// 413 and a JSON error envelope before the body is buffered into memory.
 	// Defaults to 200 if not set (0 or negative values are treated as 200).
 	MaxRequestSizeMB int
+
+	// AllowedOrigins extends the default same-host origin policy applied to the
+	// WebSocket upgrader and CORS middleware. Entries may be full origins
+	// (https://host:port) or bare hostnames. Optional; default empty. The
+	// same-host default (Origin hostname == request Host hostname) and
+	// no-Origin requests are always allowed regardless of this list.
+	AllowedOrigins []string
 }
 
 // NewHTTPHandler creates a fully wired http.Handler with all Goa services,
@@ -132,9 +139,14 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 	imagesServer := genimagessvr.New(cfg.ImagesEndpoints, mux, dec, enc, eh, nil)
 	demoServer := gendemosvr.New(cfg.DemoEndpoints, mux, dec, enc, eh, nil)
 
-	// WebSocket upgrader with permissive origin check for local/LAN use
+	// WebSocket upgrader with same-host origin policy (see originAllowed).
+	// Cross-host browser origins are refused; no-Origin and same-host (and
+	// allowed_origins) requests are permitted. This mirrors the CORS policy.
+	allowedOrigins := cfg.AllowedOrigins
 	upgrader := &websocket.Upgrader{
-		CheckOrigin: func(r *http.Request) bool { return true },
+		CheckOrigin: func(r *http.Request) bool {
+			return originAllowed(r.Header.Get("Origin"), r.Host, allowedOrigins)
+		},
 	}
 	// Install a per-connection ping goroutine via the Goa conn configurer hook.
 	// When WsPingInterval > 0 each upgraded connection gets a background goroutine
@@ -301,7 +313,7 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 	handler = goahttpmiddleware.Log(adapter)(handler)
 	handler = ErrorLoggingMiddleware(cfg.Logger)(handler)
 	handler = goahttpmiddleware.RequestID()(handler)
-	handler = CORSMiddleware("*")(handler)
+	handler = CORSMiddleware(allowedOrigins)(handler)
 
 	// Apply request body size limit (outermost middleware so it runs before all
 	// other layers). Default to 200 MB if not configured.

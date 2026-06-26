@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-151: Restrict WebSocket origin and CORS to same-host with allowed_origins config override
+- The WebSocket upgrader `CheckOrigin` and the CORS middleware now share one `originAllowed` policy: requests with no `Origin` header are allowed (curl/non-browser/same-origin), and an `Origin` is accepted only when its hostname equals the request `Host` hostname (scheme and port ignored, case-insensitive, exact match — no substring/suffix bypass). Cross-host origins are refused (WS upgrade rejected; CORS headers omitted). CORS now echoes the allowed `Origin` with `Vary: Origin` instead of `*`, and cross-host preflights return 403. Closes the prior always-true `CheckOrigin` / `CORSMiddleware("*")` hole that let any LAN webpage stream prompts/paths or make cross-origin mutations (DNS-rebinding exposure)
+- New optional config key `allowed_origins` (list of full origins or bare hostnames, default empty) extends the allowlist for reverse-proxy/dev-proxy setups that rewrite the `Host` header (e.g. Vite's `changeOrigin`); documented in `config.yaml.example`. Default same-host behavior is unchanged, so Caddy deployments that preserve `Host` and same-host LAN/IP access keep working with no config
+
 ### S-153: Cap study total work items at 50k (config-overridable) with backend and frontend validation
 - New config key `max_study_items` (default 50000; `<=0` rejected at config load) caps the Cartesian product of work items; job creation rejects oversized jobs with a stable `too_many_items` error (HTTP 422) carrying the computed total and the limit, and study save catches oversized per-checkpoint products early
 - New `GET /api/config` endpoint exposes UI-relevant limits (`{ max_study_items }`); the launch dialog fetches it and disables launch with a total-vs-limit message when exceeded

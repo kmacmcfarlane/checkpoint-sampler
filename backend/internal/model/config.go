@@ -14,6 +14,13 @@ type Config struct {
 	WsPingInterval   int // seconds between WebSocket ping frames; 0 disables pings
 	MaxRequestSizeMB int // maximum allowed HTTP request body size in megabytes; default 200
 	MaxStudyItems    int // maximum total work items allowed per study/job; default 50000
+
+	// AllowedOrigins extends the default same-host origin policy for the
+	// WebSocket upgrader and CORS middleware. Entries may be full origins
+	// (https://host:port) or bare hostnames. Optional; default empty. The
+	// same-host default (Origin hostname == request Host hostname) always
+	// applies regardless of this list.
+	AllowedOrigins []string
 }
 
 // ComfyUIConfig represents the ComfyUI integration configuration.

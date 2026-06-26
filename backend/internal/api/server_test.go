@@ -72,7 +72,7 @@ var _ = Describe("Server integration", func() {
 		trainingRunsServer.Mount(mux)
 
 		var handler http.Handler = mux
-		handler = api.CORSMiddleware("*")(handler)
+		handler = api.CORSMiddleware(nil)(handler)
 
 		server = httptest.NewServer(handler)
 		client = server.Client()
@@ -98,12 +98,16 @@ var _ = Describe("Server integration", func() {
 			Expect(result["status"]).To(Equal("ok"))
 		})
 
-		It("includes CORS headers", func() {
-			resp, err := client.Get(server.URL + "/health")
+		It("echoes the Origin for a same-host request", func() {
+			req, err := http.NewRequest(http.MethodGet, server.URL+"/health", nil)
+			Expect(err).NotTo(HaveOccurred())
+			req.Header.Set("Origin", server.URL)
+
+			resp, err := client.Do(req)
 			Expect(err).NotTo(HaveOccurred())
 			defer resp.Body.Close()
 
-			Expect(resp.Header.Get("Access-Control-Allow-Origin")).To(Equal("*"))
+			Expect(resp.Header.Get("Access-Control-Allow-Origin")).To(Equal(server.URL))
 		})
 	})
 
@@ -150,12 +154,16 @@ var _ = Describe("Server integration", func() {
 			Expect(result[0]["checkpoint_count"]).To(BeNumerically("==", 1))
 		})
 
-		It("includes CORS headers", func() {
-			resp, err := client.Get(server.URL + "/api/training-runs")
+		It("echoes the Origin for a same-host request", func() {
+			req, err := http.NewRequest(http.MethodGet, server.URL+"/api/training-runs", nil)
+			Expect(err).NotTo(HaveOccurred())
+			req.Header.Set("Origin", server.URL)
+
+			resp, err := client.Do(req)
 			Expect(err).NotTo(HaveOccurred())
 			defer resp.Body.Close()
 
-			Expect(resp.Header.Get("Access-Control-Allow-Origin")).To(Equal("*"))
+			Expect(resp.Header.Get("Access-Control-Allow-Origin")).To(Equal(server.URL))
 		})
 	})
 
@@ -191,18 +199,33 @@ var _ = Describe("Server integration", func() {
 	})
 
 	Describe("OPTIONS preflight", func() {
-		It("returns CORS headers for preflight requests", func() {
+		It("returns CORS headers for a same-host preflight request", func() {
 			req, err := http.NewRequest(http.MethodOptions, server.URL+"/health", nil)
 			Expect(err).NotTo(HaveOccurred())
-			req.Header.Set("Origin", "http://localhost:3000")
+			req.Header.Set("Origin", server.URL)
 			req.Header.Set("Access-Control-Request-Method", "GET")
 
 			resp, err := client.Do(req)
 			Expect(err).NotTo(HaveOccurred())
 			defer resp.Body.Close()
 
-			Expect(resp.Header.Get("Access-Control-Allow-Origin")).To(Equal("*"))
+			Expect(resp.StatusCode).To(Equal(http.StatusOK))
+			Expect(resp.Header.Get("Access-Control-Allow-Origin")).To(Equal(server.URL))
 			Expect(resp.Header.Get("Access-Control-Allow-Methods")).To(ContainSubstring("GET"))
+		})
+
+		It("refuses a cross-host preflight request with 403", func() {
+			req, err := http.NewRequest(http.MethodOptions, server.URL+"/health", nil)
+			Expect(err).NotTo(HaveOccurred())
+			req.Header.Set("Origin", "http://evil.example.com")
+			req.Header.Set("Access-Control-Request-Method", "GET")
+
+			resp, err := client.Do(req)
+			Expect(err).NotTo(HaveOccurred())
+			defer resp.Body.Close()
+
+			Expect(resp.StatusCode).To(Equal(http.StatusForbidden))
+			Expect(resp.Header.Get("Access-Control-Allow-Origin")).To(BeEmpty())
 		})
 	})
 })

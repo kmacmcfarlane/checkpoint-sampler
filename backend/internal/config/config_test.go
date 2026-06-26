@@ -629,6 +629,40 @@ max_study_items: %d
 		})
 	})
 
+	Describe("Allowed origins configuration", func() {
+		Context("when allowed_origins is not specified", func() {
+			It("defaults to empty", func() {
+				yamlStr := `
+checkpoint_dirs:
+  - "` + filepath.Join(tmpDir, "checkpoints") + `"
+sample_dir: "` + sampleDir + `"
+`
+				cfg, err := config.LoadFromString(yamlStr)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(cfg.AllowedOrigins).To(BeEmpty())
+			})
+		})
+
+		Context("when allowed_origins is specified", func() {
+			It("parses the list of entries", func() {
+				yamlStr := `
+checkpoint_dirs:
+  - "` + filepath.Join(tmpDir, "checkpoints") + `"
+sample_dir: "` + sampleDir + `"
+allowed_origins:
+  - https://checkpoint-sampler.mcfacehead.com
+  - app.example.com
+`
+				cfg, err := config.LoadFromString(yamlStr)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(cfg.AllowedOrigins).To(Equal([]string{
+					"https://checkpoint-sampler.mcfacehead.com",
+					"app.example.com",
+				}))
+			})
+		})
+	})
+
 	Describe("ComfyUI configuration", func() {
 		Context("when comfyui section is present", func() {
 			It("parses comfyui config with all fields", func() {
