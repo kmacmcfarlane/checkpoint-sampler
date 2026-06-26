@@ -1222,7 +1222,7 @@ stories:
   - id: M-002
     title: "Docs refresh part 2: api.md regenerated from the Goa design"
     priority: 38
-    status: todo
+    status: uat
     complexity: medium
     type: maintenance
     requires: ["R-016", "S-153"]

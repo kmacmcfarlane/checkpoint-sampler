@@ -168,3 +168,9 @@ The `review_feedback` field is shared between code reviewer and QA feedback, mak
 * priority: low
 * source: developer
 The orchestrator could run a quick verification (e.g., `make test-e2e` for E2E-focused stories) before dispatching to a developer agent, avoiding wasted cycles on stories where the issue is already resolved by prior commits.
+
+### Docs-drift CI check for api.md
+* status: needs_approval
+* priority: low
+* source: developer
+A lightweight script that enumerates `Service(...)`/`Method(...)` from `backend/internal/api/design/*.go` and asserts each appears in `docs/api.md` would catch service/endpoint documentation drift automatically at PR time, rather than relying on periodic manual refresh stories (e.g. M-001, M-002). Could live as a `make docs-check` target.
