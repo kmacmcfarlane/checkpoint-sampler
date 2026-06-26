@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/store"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
 	"github.com/sirupsen/logrus"
 )
 
@@ -22,7 +22,7 @@ const (
 
 // ObjectInfoGetter defines the interface for retrieving ComfyUI node object info.
 type ObjectInfoGetter interface {
-	GetObjectInfo(ctx context.Context, nodeType string) (*store.ObjectInfo, error)
+	GetObjectInfo(ctx context.Context, nodeType string) (*model.ObjectInfo, error)
 }
 
 // ComfyUIModelDiscovery provides model discovery operations.
@@ -101,7 +101,7 @@ func (d *ComfyUIModelDiscovery) nodeTypeForModelType(modelType ComfyUIModelType)
 }
 
 // extractModels extracts the list of available models from the ObjectInfo response.
-func (d *ComfyUIModelDiscovery) extractModels(info *store.ObjectInfo, modelType ComfyUIModelType) ([]string, error) {
+func (d *ComfyUIModelDiscovery) extractModels(info *model.ObjectInfo, modelType ComfyUIModelType) ([]string, error) {
 	if info == nil {
 		return nil, fmt.Errorf("nil object info")
 	}

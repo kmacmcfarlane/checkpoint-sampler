@@ -9,16 +9,16 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/sirupsen/logrus"
 
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
-	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/store"
 )
 
 // mockObjectInfoGetter implements the ObjectInfoGetter interface for testing
 type mockObjectInfoGetter struct {
-	getObjectInfoFunc func(ctx context.Context, nodeType string) (*store.ObjectInfo, error)
+	getObjectInfoFunc func(ctx context.Context, nodeType string) (*model.ObjectInfo, error)
 }
 
-func (m *mockObjectInfoGetter) GetObjectInfo(ctx context.Context, nodeType string) (*store.ObjectInfo, error) {
+func (m *mockObjectInfoGetter) GetObjectInfo(ctx context.Context, nodeType string) (*model.ObjectInfo, error) {
 	if m.getObjectInfoFunc != nil {
 		return m.getObjectInfoFunc(ctx, nodeType)
 	}
@@ -44,10 +44,10 @@ var _ = Describe("ComfyUIModelDiscovery", func() {
 	Describe("GetModels", func() {
 		Context("with VAE model type", func() {
 			It("extracts VAE models from VAELoader node", func() {
-				mockGetter.getObjectInfoFunc = func(ctx context.Context, nodeType string) (*store.ObjectInfo, error) {
+				mockGetter.getObjectInfoFunc = func(ctx context.Context, nodeType string) (*model.ObjectInfo, error) {
 					Expect(nodeType).To(Equal("VAELoader"))
-					return &store.ObjectInfo{
-						Input: store.ObjectInfoInput{
+					return &model.ObjectInfo{
+						Input: model.ObjectInfoInput{
 							Required: map[string][]interface{}{
 								"vae_name": {
 									[]interface{}{"vae1.safetensors", "vae2.safetensors", "vae3.pt"},
@@ -66,10 +66,10 @@ var _ = Describe("ComfyUIModelDiscovery", func() {
 
 		Context("with CLIP model type", func() {
 			It("extracts CLIP models from CLIPLoader node", func() {
-				mockGetter.getObjectInfoFunc = func(ctx context.Context, nodeType string) (*store.ObjectInfo, error) {
+				mockGetter.getObjectInfoFunc = func(ctx context.Context, nodeType string) (*model.ObjectInfo, error) {
 					Expect(nodeType).To(Equal("CLIPLoader"))
-					return &store.ObjectInfo{
-						Input: store.ObjectInfoInput{
+					return &model.ObjectInfo{
+						Input: model.ObjectInfoInput{
 							Required: map[string][]interface{}{
 								"clip_name": {
 									[]interface{}{"clip1.safetensors", "clip2.safetensors"},
@@ -88,10 +88,10 @@ var _ = Describe("ComfyUIModelDiscovery", func() {
 
 		Context("with UNET model type", func() {
 			It("extracts UNET models from UNETLoader node", func() {
-				mockGetter.getObjectInfoFunc = func(ctx context.Context, nodeType string) (*store.ObjectInfo, error) {
+				mockGetter.getObjectInfoFunc = func(ctx context.Context, nodeType string) (*model.ObjectInfo, error) {
 					Expect(nodeType).To(Equal("UNETLoader"))
-					return &store.ObjectInfo{
-						Input: store.ObjectInfoInput{
+					return &model.ObjectInfo{
+						Input: model.ObjectInfoInput{
 							Required: map[string][]interface{}{
 								"unet_name": {
 									[]interface{}{"unet1.safetensors"},
@@ -110,10 +110,10 @@ var _ = Describe("ComfyUIModelDiscovery", func() {
 
 		Context("with LoRA model type", func() {
 			It("extracts LoRA models from LoraLoader node", func() {
-				mockGetter.getObjectInfoFunc = func(ctx context.Context, nodeType string) (*store.ObjectInfo, error) {
+				mockGetter.getObjectInfoFunc = func(ctx context.Context, nodeType string) (*model.ObjectInfo, error) {
 					Expect(nodeType).To(Equal("LoraLoader"))
-					return &store.ObjectInfo{
-						Input: store.ObjectInfoInput{
+					return &model.ObjectInfo{
+						Input: model.ObjectInfoInput{
 							Required: map[string][]interface{}{
 								"lora_name": {
 									[]interface{}{"lora1.safetensors", "subdir/lora2.safetensors"},
@@ -132,10 +132,10 @@ var _ = Describe("ComfyUIModelDiscovery", func() {
 
 		Context("with sampler model type", func() {
 			It("extracts samplers from KSampler node", func() {
-				mockGetter.getObjectInfoFunc = func(ctx context.Context, nodeType string) (*store.ObjectInfo, error) {
+				mockGetter.getObjectInfoFunc = func(ctx context.Context, nodeType string) (*model.ObjectInfo, error) {
 					Expect(nodeType).To(Equal("KSampler"))
-					return &store.ObjectInfo{
-						Input: store.ObjectInfoInput{
+					return &model.ObjectInfo{
+						Input: model.ObjectInfoInput{
 							Required: map[string][]interface{}{
 								"sampler_name": {
 									[]interface{}{"euler", "euler_ancestral", "dpm_2", "dpm_adaptive"},
@@ -154,10 +154,10 @@ var _ = Describe("ComfyUIModelDiscovery", func() {
 
 		Context("with scheduler model type", func() {
 			It("extracts schedulers from KSampler node", func() {
-				mockGetter.getObjectInfoFunc = func(ctx context.Context, nodeType string) (*store.ObjectInfo, error) {
+				mockGetter.getObjectInfoFunc = func(ctx context.Context, nodeType string) (*model.ObjectInfo, error) {
 					Expect(nodeType).To(Equal("KSampler"))
-					return &store.ObjectInfo{
-						Input: store.ObjectInfoInput{
+					return &model.ObjectInfo{
+						Input: model.ObjectInfoInput{
 							Required: map[string][]interface{}{
 								"scheduler": {
 									[]interface{}{"normal", "karras", "exponential", "sgm_uniform"},
@@ -176,9 +176,9 @@ var _ = Describe("ComfyUIModelDiscovery", func() {
 
 		Context("with field in optional inputs", func() {
 			It("extracts models from optional section", func() {
-				mockGetter.getObjectInfoFunc = func(ctx context.Context, nodeType string) (*store.ObjectInfo, error) {
-					return &store.ObjectInfo{
-						Input: store.ObjectInfoInput{
+				mockGetter.getObjectInfoFunc = func(ctx context.Context, nodeType string) (*model.ObjectInfo, error) {
+					return &model.ObjectInfo{
+						Input: model.ObjectInfoInput{
 							Required: map[string][]interface{}{},
 							Optional: map[string][]interface{}{
 								"vae_name": {
@@ -204,7 +204,7 @@ var _ = Describe("ComfyUIModelDiscovery", func() {
 			})
 
 			It("returns error when GetObjectInfo fails", func() {
-				mockGetter.getObjectInfoFunc = func(ctx context.Context, nodeType string) (*store.ObjectInfo, error) {
+				mockGetter.getObjectInfoFunc = func(ctx context.Context, nodeType string) (*model.ObjectInfo, error) {
 					return nil, fmt.Errorf("network error")
 				}
 
@@ -214,9 +214,9 @@ var _ = Describe("ComfyUIModelDiscovery", func() {
 			})
 
 			It("returns error when field not found", func() {
-				mockGetter.getObjectInfoFunc = func(ctx context.Context, nodeType string) (*store.ObjectInfo, error) {
-					return &store.ObjectInfo{
-						Input: store.ObjectInfoInput{
+				mockGetter.getObjectInfoFunc = func(ctx context.Context, nodeType string) (*model.ObjectInfo, error) {
+					return &model.ObjectInfo{
+						Input: model.ObjectInfoInput{
 							Required: map[string][]interface{}{
 								"other_field": {[]interface{}{"value"}},
 							},
@@ -230,7 +230,7 @@ var _ = Describe("ComfyUIModelDiscovery", func() {
 			})
 
 			It("returns error for nil object info", func() {
-				mockGetter.getObjectInfoFunc = func(ctx context.Context, nodeType string) (*store.ObjectInfo, error) {
+				mockGetter.getObjectInfoFunc = func(ctx context.Context, nodeType string) (*model.ObjectInfo, error) {
 					return nil, nil
 				}
 
@@ -246,9 +246,9 @@ var _ = Describe("ComfyUIModelDiscovery", func() {
 
 		Context("with valid input spec", func() {
 			It("parses array of string choices", func() {
-				mockGetter.getObjectInfoFunc = func(ctx context.Context, nodeType string) (*store.ObjectInfo, error) {
-					return &store.ObjectInfo{
-						Input: store.ObjectInfoInput{
+				mockGetter.getObjectInfoFunc = func(ctx context.Context, nodeType string) (*model.ObjectInfo, error) {
+					return &model.ObjectInfo{
+						Input: model.ObjectInfoInput{
 							Required: map[string][]interface{}{
 								"vae_name": {
 									[]interface{}{"model1", "model2", "model3"},
@@ -264,9 +264,9 @@ var _ = Describe("ComfyUIModelDiscovery", func() {
 			})
 
 			It("filters out non-string choices", func() {
-				mockGetter.getObjectInfoFunc = func(ctx context.Context, nodeType string) (*store.ObjectInfo, error) {
-					return &store.ObjectInfo{
-						Input: store.ObjectInfoInput{
+				mockGetter.getObjectInfoFunc = func(ctx context.Context, nodeType string) (*model.ObjectInfo, error) {
+					return &model.ObjectInfo{
+						Input: model.ObjectInfoInput{
 							Required: map[string][]interface{}{
 								"vae_name": {
 									[]interface{}{"model1", 123, "model2", nil, "model3"},
@@ -284,9 +284,9 @@ var _ = Describe("ComfyUIModelDiscovery", func() {
 
 		Context("with invalid input spec", func() {
 			It("returns error for empty input spec", func() {
-				mockGetter.getObjectInfoFunc = func(ctx context.Context, nodeType string) (*store.ObjectInfo, error) {
-					return &store.ObjectInfo{
-						Input: store.ObjectInfoInput{
+				mockGetter.getObjectInfoFunc = func(ctx context.Context, nodeType string) (*model.ObjectInfo, error) {
+					return &model.ObjectInfo{
+						Input: model.ObjectInfoInput{
 							Required: map[string][]interface{}{
 								"vae_name": {},
 							},
@@ -300,9 +300,9 @@ var _ = Describe("ComfyUIModelDiscovery", func() {
 			})
 
 			It("returns error when first element is not an array", func() {
-				mockGetter.getObjectInfoFunc = func(ctx context.Context, nodeType string) (*store.ObjectInfo, error) {
-					return &store.ObjectInfo{
-						Input: store.ObjectInfoInput{
+				mockGetter.getObjectInfoFunc = func(ctx context.Context, nodeType string) (*model.ObjectInfo, error) {
+					return &model.ObjectInfo{
+						Input: model.ObjectInfoInput{
 							Required: map[string][]interface{}{
 								"vae_name": {
 									"not-an-array",
@@ -324,10 +324,10 @@ var _ = Describe("ComfyUIModelDiscovery", func() {
 		DescribeTable("queries correct node type",
 			func(modelType service.ComfyUIModelType, expectedNodeType string) {
 				var queriedNodeType string
-				mockGetter.getObjectInfoFunc = func(ctx context.Context, nodeType string) (*store.ObjectInfo, error) {
+				mockGetter.getObjectInfoFunc = func(ctx context.Context, nodeType string) (*model.ObjectInfo, error) {
 					queriedNodeType = nodeType
-					return &store.ObjectInfo{
-						Input: store.ObjectInfoInput{
+					return &model.ObjectInfo{
+						Input: model.ObjectInfoInput{
 							Required: map[string][]interface{}{
 								// Return appropriate field based on node type
 								"vae_name":     {[]interface{}{"test"}},

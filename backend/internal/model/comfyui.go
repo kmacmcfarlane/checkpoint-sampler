@@ -33,3 +33,17 @@ type ComfyUIEvent struct {
 
 // ComfyUIEventHandler is a callback for ComfyUI events.
 type ComfyUIEventHandler func(event ComfyUIEvent)
+
+// ObjectInfo represents the schema for a ComfyUI node type.
+type ObjectInfo struct {
+	Input    ObjectInfoInput
+	Output   []string
+	Category string
+	Name     string
+}
+
+// ObjectInfoInput represents the input schema for a node.
+type ObjectInfoInput struct {
+	Required map[string][]interface{}
+	Optional map[string][]interface{}
+}

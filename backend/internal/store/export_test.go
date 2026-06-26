@@ -4,6 +4,8 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
 )
 
 // SetKeepaliveTimingsForTest overrides the WebSocket keepalive timings so tests
@@ -25,4 +27,22 @@ func NewComfyUIHTTPClientWithTimeouts(baseURL string, logger *logrus.Logger, con
 		controlPlane: controlPlane,
 		download:     download,
 	})
+}
+
+// ToModelObjectInfo exposes the internal mapper for unit testing.
+func ToModelObjectInfo(e objectInfoEntity) *model.ObjectInfo {
+	return toModelObjectInfo(e)
+}
+
+// ObjectInfoEntityForTest constructs an objectInfoEntity for use in tests.
+func ObjectInfoEntityForTest(name, category string, output []string, required, optional map[string][]interface{}) objectInfoEntity {
+	return objectInfoEntity{
+		Name:     name,
+		Category: category,
+		Output:   output,
+		Input: objectInfoInputEntity{
+			Required: required,
+			Optional: optional,
+		},
+	}
 }

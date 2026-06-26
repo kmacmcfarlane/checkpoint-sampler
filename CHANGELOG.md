@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### R-014: Fix service-to-store layering breach: ObjectInfo belongs in model
+- `ObjectInfo`/`ObjectInfoInput` now live in `internal/model` (no serialization tags) as the domain representation. The store keeps a json-tagged DTO (`objectInfoEntity`) for decoding ComfyUI's `/object_info` HTTP response and maps it to the model type via `toModelObjectInfo`. The service's consumer-defined `ObjectInfoGetter` interface is now typed over the model type. Removes the last `internal/service` → `internal/store` import, restoring the architecture.md 2.1 / DEVELOPMENT_PRACTICES 2.3 layer separation. No behavior or wire-format change
+
 ### S-151: Restrict WebSocket origin and CORS to same-host with allowed_origins config override
 - The WebSocket upgrader `CheckOrigin` and the CORS middleware now share one `originAllowed` policy: requests with no `Origin` header are allowed (curl/non-browser/same-origin), and an `Origin` is accepted only when its hostname equals the request `Host` hostname (scheme and port ignored, case-insensitive, exact match — no substring/suffix bypass). Cross-host origins are refused (WS upgrade rejected; CORS headers omitted). CORS now echoes the allowed `Origin` with `Vary: Origin` instead of `*`, and cross-host preflights return 403. Closes the prior always-true `CheckOrigin` / `CORSMiddleware("*")` hole that let any LAN webpage stream prompts/paths or make cross-origin mutations (DNS-rebinding exposure)
 - New optional config key `allowed_origins` (list of full origins or bare hostnames, default empty) extends the allowlist for reverse-proxy/dev-proxy setups that rewrite the `Host` header (e.g. Vite's `changeOrigin`); documented in `config.yaml.example`. Default same-host behavior is unchanged, so Caddy deployments that preserve `Host` and same-host LAN/IP access keep working with no config

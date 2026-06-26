@@ -881,7 +881,7 @@ stories:
   - id: R-014
     title: "Fix service-to-store layering breach: ObjectInfo belongs in model"
     priority: 60
-    status: todo
+    status: uat
     complexity: low
     type: refactor
     requires: []

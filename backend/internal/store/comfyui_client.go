@@ -326,22 +326,36 @@ func (c *ComfyUIHTTPClient) GetQueueStatus(ctx context.Context) (*QueueStatus, e
 	return &queueStatus, nil
 }
 
-// ObjectInfo represents the schema for a ComfyUI node type.
-type ObjectInfo struct {
-	Input    ObjectInfoInput `json:"input"`
-	Output   []string        `json:"output"`
-	Category string          `json:"category"`
-	Name     string          `json:"name"`
+// objectInfoEntity is the JSON-serializable store entity for a ComfyUI node schema.
+// It mirrors the HTTP response shape from /object_info and carries json tags.
+type objectInfoEntity struct {
+	Input    objectInfoInputEntity `json:"input"`
+	Output   []string              `json:"output"`
+	Category string                `json:"category"`
+	Name     string                `json:"name"`
 }
 
-// ObjectInfoInput represents the input schema for a node.
-type ObjectInfoInput struct {
+// objectInfoInputEntity is the JSON-serializable store entity for node input schemas.
+type objectInfoInputEntity struct {
 	Required map[string][]interface{} `json:"required"`
 	Optional map[string][]interface{} `json:"optional"`
 }
 
+// toModelObjectInfo converts a store entity to model.ObjectInfo.
+func toModelObjectInfo(e objectInfoEntity) *model.ObjectInfo {
+	return &model.ObjectInfo{
+		Input: model.ObjectInfoInput{
+			Required: e.Input.Required,
+			Optional: e.Input.Optional,
+		},
+		Output:   e.Output,
+		Category: e.Category,
+		Name:     e.Name,
+	}
+}
+
 // GetObjectInfo retrieves the schema for a specific node type.
-func (c *ComfyUIHTTPClient) GetObjectInfo(ctx context.Context, nodeType string) (*ObjectInfo, error) {
+func (c *ComfyUIHTTPClient) GetObjectInfo(ctx context.Context, nodeType string) (*model.ObjectInfo, error) {
 	c.logger.WithField("node_type", nodeType).Trace("entering GetObjectInfo")
 	defer c.logger.Trace("returning from GetObjectInfo")
 
@@ -378,26 +392,26 @@ func (c *ComfyUIHTTPClient) GetObjectInfo(ctx context.Context, nodeType string) 
 		return nil, fmt.Errorf("get object info failed with status %d", resp.StatusCode)
 	}
 
-	// When requesting a specific node type, the response is a single ObjectInfo
+	// When requesting a specific node type, the response is a single objectInfoEntity
 	// wrapped in an object with the node type as the key
-	var result map[string]ObjectInfo
+	var result map[string]objectInfoEntity
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		c.logger.WithError(err).Error("failed to decode object info response")
 		return nil, fmt.Errorf("decoding object info response: %w", err)
 	}
 
 	if nodeType != "" {
-		if info, ok := result[nodeType]; ok {
+		if entity, ok := result[nodeType]; ok {
 			c.logger.WithField("node_type", nodeType).Debug("object info retrieved")
-			return &info, nil
+			return toModelObjectInfo(entity), nil
 		}
 		c.logger.WithField("node_type", nodeType).Debug("node type not found in response")
 		return nil, fmt.Errorf("node type %q not found in response", nodeType)
 	}
 
 	// If no specific node type requested, return the first entry (not typical use case)
-	for _, info := range result {
-		return &info, nil
+	for _, entity := range result {
+		return toModelObjectInfo(entity), nil
 	}
 
 	return nil, fmt.Errorf("empty object info response")

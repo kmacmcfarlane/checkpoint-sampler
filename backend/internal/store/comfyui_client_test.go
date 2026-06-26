@@ -433,3 +433,40 @@ var _ = Describe("ComfyUIHTTPClient timeout behaviour", func() {
 		})
 	})
 })
+
+var _ = Describe("toModelObjectInfo mapper", func() {
+	It("maps all fields from entity to model.ObjectInfo", func() {
+		entity := store.ObjectInfoEntityForTest(
+			"VAELoader",
+			"loaders",
+			[]string{"VAE"},
+			map[string][]interface{}{
+				"vae_name": {[]interface{}{"vae1.safetensors", "vae2.pt"}},
+			},
+			map[string][]interface{}{
+				"opt_field": {[]interface{}{"opt_val"}},
+			},
+		)
+
+		result := store.ToModelObjectInfo(entity)
+
+		Expect(result).NotTo(BeNil())
+		Expect(result.Name).To(Equal("VAELoader"))
+		Expect(result.Category).To(Equal("loaders"))
+		Expect(result.Output).To(Equal([]string{"VAE"}))
+		Expect(result.Input.Required).To(HaveKey("vae_name"))
+		Expect(result.Input.Required["vae_name"]).To(HaveLen(1))
+		Expect(result.Input.Optional).To(HaveKey("opt_field"))
+	})
+
+	It("handles nil maps without panicking", func() {
+		entity := store.ObjectInfoEntityForTest("EmptyNode", "", nil, nil, nil)
+
+		result := store.ToModelObjectInfo(entity)
+
+		Expect(result).NotTo(BeNil())
+		Expect(result.Name).To(Equal("EmptyNode"))
+		Expect(result.Input.Required).To(BeNil())
+		Expect(result.Input.Optional).To(BeNil())
+	})
+})
