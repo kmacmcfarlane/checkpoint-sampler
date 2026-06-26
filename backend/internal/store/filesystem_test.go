@@ -1,6 +1,7 @@
 package store_test
 
 import (
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -182,5 +183,128 @@ var _ = Describe("FileSystem", func() {
 			})
 		})
 	})
+
+	Describe("OpenImageFile", func() {
+		// This is the path-traversal security seam extracted from the API layer
+		// (R-017). It rejects unsafe relative paths before touching the
+		// filesystem and confirms the resolved path stays within sampleRoot.
+
+		// rejectionCases exercise paths that must be rejected before any file is
+		// opened. They must all return store.ErrInvalidImagePath and never a
+		// file handle.
+		DescribeTable("rejects unsafe relative paths with ErrInvalidImagePath",
+			func(relPath string) {
+				f, err := fs.OpenImageFile(tmpDir, relPath)
+				Expect(f).To(BeNil())
+				Expect(err).To(MatchError(store.ErrInvalidImagePath))
+			},
+			Entry("empty path", ""),
+			Entry("parent traversal", "../etc/passwd"),
+			Entry("nested parent traversal", "checkpoint.safetensors/../../etc/passwd"),
+			Entry("trailing parent traversal", "checkpoint.safetensors/.."),
+			Entry("current-dir component prefix", "./image.png"),
+			Entry("current-dir component nested", "sub/./image.png"),
+			Entry("absolute unix path", "/etc/passwd"),
+		)
+
+		It("rejects an absolute path even when it points inside sampleRoot", func() {
+			// An absolute path is always rejected regardless of where it points;
+			// the API contract requires a relative path.
+			abs := filepath.Join(tmpDir, "image.png")
+			Expect(os.WriteFile(abs, buildSniffPNG(), 0644)).To(Succeed())
+
+			f, err := fs.OpenImageFile(tmpDir, abs)
+			Expect(f).To(BeNil())
+			Expect(err).To(MatchError(store.ErrInvalidImagePath))
+		})
+
+		It("rejects a sibling directory that shares a name prefix with sampleRoot", func() {
+			// S-154 separator-bounded prefix check: a sibling like
+			// "<root>-evil" must not be treated as inside "<root>". We build
+			// such a sibling, place a file in it, and confirm that no relative
+			// path under sampleRoot can reach it. filepath.Join with a relative
+			// path cannot escape on its own, so this also guards against a
+			// regression that swaps the separator-bounded check for a plain
+			// HasPrefix.
+			root := filepath.Join(tmpDir, "samples")
+			Expect(os.MkdirAll(root, 0755)).To(Succeed())
+			sibling := filepath.Join(tmpDir, "samples-evil")
+			Expect(os.MkdirAll(sibling, 0755)).To(Succeed())
+			Expect(os.WriteFile(filepath.Join(sibling, "secret.png"), buildSniffPNG(), 0644)).To(Succeed())
+
+			// "../samples-evil/secret.png" is rejected at the component check.
+			f, err := fs.OpenImageFile(root, "../samples-evil/secret.png")
+			Expect(f).To(BeNil())
+			Expect(err).To(MatchError(store.ErrInvalidImagePath))
+		})
+
+		It("returns ErrImageNotFound for a clean path that does not exist", func() {
+			f, err := fs.OpenImageFile(tmpDir, "checkpoint.safetensors/missing.png")
+			Expect(f).To(BeNil())
+			Expect(err).To(MatchError(store.ErrImageNotFound))
+		})
+
+		It("returns ErrImageNotFound when the clean path is a directory", func() {
+			Expect(os.MkdirAll(filepath.Join(tmpDir, "some_dir"), 0755)).To(Succeed())
+
+			f, err := fs.OpenImageFile(tmpDir, "some_dir")
+			Expect(f).To(BeNil())
+			Expect(err).To(MatchError(store.ErrImageNotFound))
+		})
+
+		It("opens a valid clean path and reports its size, positioned at the start", func() {
+			subDir := filepath.Join(tmpDir, "checkpoint.safetensors")
+			Expect(os.MkdirAll(subDir, 0755)).To(Succeed())
+			data := buildSniffPNG()
+			Expect(os.WriteFile(filepath.Join(subDir, "test.png"), data, 0644)).To(Succeed())
+
+			f, err := fs.OpenImageFile(tmpDir, "checkpoint.safetensors/test.png")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(f).NotTo(BeNil())
+			defer f.Close()
+
+			Expect(f.Size).To(Equal(int64(len(data))))
+
+			// The returned reader is positioned at the start: a full read yields
+			// the complete file contents byte-for-byte.
+			got, err := io.ReadAll(f)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(got).To(Equal(data))
+		})
+
+		It("supports seeking back to the start after a partial read (content-type sniff path)", func() {
+			data := buildSniffPNG()
+			Expect(os.WriteFile(filepath.Join(tmpDir, "sniff.png"), data, 0644)).To(Succeed())
+
+			f, err := fs.OpenImageFile(tmpDir, "sniff.png")
+			Expect(err).NotTo(HaveOccurred())
+			defer f.Close()
+
+			buf := make([]byte, 4)
+			_, err = f.Read(buf)
+			Expect(err).NotTo(HaveOccurred())
+
+			_, err = f.Seek(0, io.SeekStart)
+			Expect(err).NotTo(HaveOccurred())
+
+			got, err := io.ReadAll(f)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(got).To(Equal(data))
+		})
+
+		It("wraps no absolute path into the returned sentinel errors", func() {
+			// The sentinel must not leak the server path (R-015).
+			_, err := fs.OpenImageFile(tmpDir, "../escape")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).NotTo(ContainSubstring(tmpDir))
+			Expect(errors.Is(err, store.ErrInvalidImagePath)).To(BeTrue())
+		})
+	})
 })
+
+// buildSniffPNG returns the minimal leading bytes of a PNG file, sufficient for
+// http.DetectContentType to report "image/png" and for read/seek assertions.
+func buildSniffPNG() []byte {
+	return []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D}
+}
 

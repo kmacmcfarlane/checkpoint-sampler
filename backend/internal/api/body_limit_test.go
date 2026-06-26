@@ -26,6 +26,7 @@ import (
 	genworkflows "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/workflows"
 	genws "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/ws"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/store"
 )
 
 // newBodyLimitTestHandler creates a NewHTTPHandler with the given body limit and
@@ -62,7 +63,7 @@ func newBodyLimitTestHandler(limitMB int) http.Handler {
 		CheckpointsEndpoints: gencheckpoints.NewEndpoints(api.NewCheckpointsService(checkpointMetadataSvc)),
 		ComfyUIEndpoints:     gencomfyui.NewEndpoints(api.NewComfyUIService(nil, nil)),
 		WorkflowsEndpoints:   genworkflows.NewEndpoints(api.NewWorkflowService(nil)),
-		ImagesEndpoints:      genimages.NewEndpoints(api.NewImagesService(sampleDir, imageMetadataSvc, logger)),
+		ImagesEndpoints:      genimages.NewEndpoints(api.NewImagesService(sampleDir, store.NewFileSystem(logger), imageMetadataSvc, logger)),
 		WSEndpoints:          genws.NewEndpoints(api.NewWSService(hub)),
 		DemoEndpoints:        gendemo.NewEndpoints(api.NewDemoAPIService(demoSvc)),
 		SwaggerUIDir:         nil,

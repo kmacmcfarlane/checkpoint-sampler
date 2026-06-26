@@ -974,7 +974,7 @@ stories:
   - id: R-017
     title: "Move image-serving filesystem logic out of the API layer behind a store interface"
     priority: 45
-    status: todo
+    status: uat
     complexity: medium
     type: refactor
     requires: ["R-015"]

@@ -27,6 +27,7 @@ import (
 	genworkflows "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/workflows"
 	genws "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/ws"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/store"
 )
 
 // fakeCheckpointFS implements service.CheckpointFileSystem for testing.
@@ -114,7 +115,7 @@ var _ = Describe("NewHTTPHandler", func() {
 		baseModelsAPISvc := api.NewBaseModelsService(baseModelSvc)
 		comfyuiAPISvc := api.NewComfyUIService(nil, nil)
 		workflowsAPISvc := api.NewWorkflowService(nil)
-		imagesAPISvc := api.NewImagesService(sampleDir, imageMetadataSvc, logger)
+		imagesAPISvc := api.NewImagesService(sampleDir, store.NewFileSystem(logger), imageMetadataSvc, logger)
 		wsAPISvc := api.NewWSService(hub)
 		demoAPISvc := api.NewDemoAPIService(demoSvc)
 
@@ -236,7 +237,7 @@ var _ = Describe("NewHTTPHandler", func() {
 			// Create images service with the test directory
 			fs := &realFileReader{}
 			metadataSvc := service.NewImageMetadataService(fs, tmpDir, logger)
-			imagesSvc := api.NewImagesService(tmpDir, metadataSvc, logger)
+			imagesSvc := api.NewImagesService(tmpDir, store.NewFileSystem(logger), metadataSvc, logger)
 			imagesEndpoints := genimages.NewEndpoints(imagesSvc)
 
 			cfg := api.HTTPHandlerConfig{

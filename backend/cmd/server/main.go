@@ -195,7 +195,7 @@ func run() error {
 	baseModelSvc := service.NewBaseModelService(fs, cfg.BaseModelDir, cfg.CheckpointDirs, logger)
 	baseModelsSvc := api.NewBaseModelsService(baseModelSvc)
 	imageMetadataSvc := service.NewImageMetadataService(fs, cfg.SampleDir, logger)
-	imagesSvc := api.NewImagesService(cfg.SampleDir, imageMetadataSvc, logger)
+	imagesSvc := api.NewImagesService(cfg.SampleDir, fs, imageMetadataSvc, logger)
 	wsPingInterval := time.Duration(cfg.WsPingInterval) * time.Second
 	wsSvc := api.NewWSServiceWithPing(hub, wsPingInterval, logger)
 

@@ -1,6 +1,7 @@
 package store
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -10,6 +11,30 @@ import (
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/fileformat"
 	"github.com/sirupsen/logrus"
 )
+
+// Sentinel errors for filesystem resolution. Callers (notably the API transport
+// layer) classify failures with errors.Is against these sentinels rather than
+// matching error message substrings (DEVELOPMENT_PRACTICES §3.2). The sentinels
+// never carry an absolute server path; the path is logged server-side instead.
+var (
+	// ErrInvalidImagePath indicates a supplied relative image path failed safety
+	// validation (empty, absolute, contains traversal components, or escapes the
+	// sample root).
+	ErrInvalidImagePath = errors.New("invalid image path")
+
+	// ErrImageNotFound indicates the requested image file does not exist or is a
+	// directory rather than a regular file.
+	ErrImageNotFound = errors.New("image not found")
+)
+
+// ImageFile is a regular file opened for streaming. Size is the file size in
+// bytes (used for the Content-Length header). The embedded io.ReadSeekCloser
+// lets callers sniff the leading bytes for content-type detection and then seek
+// back to the start before streaming.
+type ImageFile struct {
+	io.ReadSeekCloser
+	Size int64
+}
 
 // FileSystem provides filesystem operations for scanning directories and images.
 type FileSystem struct {
@@ -358,6 +383,87 @@ func (c *SampleDirCleaner) CleanStudyDirs() error {
 
 	c.fs.logger.Info("study-generated sample directories cleaned")
 	return nil
+}
+
+// OpenImageFile resolves relPath against sampleRoot with path-traversal
+// protection, then opens the resolved regular file for streaming. relPath is a
+// slash-separated path relative to sampleRoot (as supplied by the API client).
+//
+// It returns:
+//   - ErrInvalidImagePath if relPath is empty, absolute, contains "." / ".."
+//     components, or resolves outside sampleRoot.
+//   - ErrImageNotFound if the resolved path does not exist or is a directory.
+//
+// On success the returned *ImageFile is positioned at the start of the file and
+// the caller owns closing it.
+func (fs *FileSystem) OpenImageFile(sampleRoot string, relPath string) (*ImageFile, error) {
+	fs.logger.WithField("relative_path", relPath).Trace("entering OpenImageFile")
+	defer fs.logger.Trace("returning from OpenImageFile")
+
+	// Validate the path doesn't contain traversal components.
+	if !isImagePathSafe(relPath) {
+		fs.logger.WithField("relative_path", relPath).Warn("invalid image path rejected")
+		return nil, ErrInvalidImagePath
+	}
+
+	absPath := filepath.Join(sampleRoot, filepath.FromSlash(relPath))
+
+	// Double-check the resolved path is within sampleRoot using a
+	// separator-bounded prefix check (S-154) so that a sibling directory whose
+	// name shares a prefix (e.g. "samples-evil" vs "samples") is not accepted.
+	cleanRoot := filepath.Clean(sampleRoot)
+	cleanPath := filepath.Clean(absPath)
+	if !strings.HasPrefix(cleanPath, cleanRoot+string(filepath.Separator)) && cleanPath != cleanRoot {
+		fs.logger.WithField("relative_path", relPath).Warn("image path traversal attempt rejected")
+		return nil, ErrInvalidImagePath
+	}
+
+	// Check the file exists and is a regular file.
+	info, err := os.Stat(absPath)
+	if err != nil || info.IsDir() {
+		fs.logger.WithFields(logrus.Fields{
+			"relative_path": relPath,
+			"error":         err,
+		}).Debug("image not found")
+		return nil, ErrImageNotFound
+	}
+
+	// Open the file for streaming.
+	file, err := os.Open(absPath)
+	if err != nil {
+		fs.logger.WithFields(logrus.Fields{
+			"relative_path": relPath,
+			"error":         err.Error(),
+		}).Error("error opening image file")
+		return nil, ErrImageNotFound
+	}
+
+	return &ImageFile{ReadSeekCloser: file, Size: info.Size()}, nil
+}
+
+// isImagePathSafe checks that a relative path does not contain path traversal
+// components. This is the filesystem-layer port of the previous api-layer
+// isPathSafe used for image serving.
+func isImagePathSafe(p string) bool {
+	// Reject empty paths.
+	if p == "" {
+		return false
+	}
+
+	// Reject absolute paths.
+	if filepath.IsAbs(p) || strings.HasPrefix(p, "/") {
+		return false
+	}
+
+	// Reject any "." or ".." components.
+	parts := strings.Split(filepath.ToSlash(p), "/")
+	for _, part := range parts {
+		if part == ".." || part == "." {
+			return false
+		}
+	}
+
+	return true
 }
 
 // OpenFile opens a file for reading. Implements service.CheckpointMetadataReader.

@@ -16,6 +16,7 @@ import (
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api"
 	genimages "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/images"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/store"
 )
 
 // buildTestPNGWithTextChunks creates a minimal PNG file with the given tEXt chunks.
@@ -81,7 +82,7 @@ var _ = Describe("ImagesService", func() {
 
 		fs := &realFileReader{}
 		metadataSvc := service.NewImageMetadataService(fs, sampleDir, logger)
-		svc = api.NewImagesService(sampleDir, metadataSvc, logger)
+		svc = api.NewImagesService(sampleDir, store.NewFileSystem(logger), metadataSvc, logger)
 	})
 
 	AfterEach(func() {

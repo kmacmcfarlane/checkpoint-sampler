@@ -5,6 +5,11 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### R-017: Move image-serving filesystem logic out of the API layer behind a store interface
+- The path-traversal security boundary for image serving now lives in the store layer: `FileSystem.OpenImageFile(sampleRoot, relPath)` ports the prior `isPathSafe` validation (per-component `..`/`.` rejection, absolute-path rejection, and the S-154 separator-bounded prefix check) verbatim, does the `os.Stat`/`os.Open`, and returns an `ImageFile` (`io.ReadSeekCloser` + size) or the `ErrInvalidImagePath`/`ErrImageNotFound` sentinels. This restores the architecture.md layer boundary (filesystem access belongs to the store) and gives the security check a unit-test seam it previously lacked
+- `api/images_service.go` is now a thin streaming adapter behind the consumer-defined `ImageFileResolver` interface — no `os.*`/`filepath.*` calls remain. Behavior is byte-identical: same status mapping, `Cache-Control: max-age=31536000, immutable`, 512-byte `http.DetectContentType` sniff (seek-back-to-start), Content-Length, and `io.Copy` streaming. Error messages still omit absolute paths (R-015 preserved)
+- New store-layer `DescribeTable` tests cover `..` traversal, absolute paths (including absolute-inside-root), sibling-prefix dirs (`samples-evil` vs `samples`), clean valid paths, not-found, dir-as-file, the partial-read+seek sniff path, and no-path-leak
+
 ### S-154: Path-handling hardening — separator-bounded write check and study-name dot rejection
 - `getOutputPath` write-path containment is now separator-bounded (`sampleDir+separator`), closing a latent sibling-prefix bypass (e.g. `/data/samples-evil` no longer passes a check scoped to `/data/samples`); mirrors the existing READ-path pattern
 - Study-name validation now rejects pure-traversal components (`.`, `..`) and leading/trailing-dot names; inner dots (e.g. `v1.2`, `a..b`) remain valid
