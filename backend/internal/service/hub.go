@@ -7,6 +7,11 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// MaxHubClients is the maximum number of concurrent WebSocket clients the hub
+// will accept. Connections beyond this limit are rejected. A generous fixed
+// default is used; no config key is needed at this scale.
+const MaxHubClients = 100
+
 // HubClient is a connected WebSocket client that can receive events.
 type HubClient interface {
 	// SendEvent sends an event to the client. Returns false if the client
@@ -16,28 +21,36 @@ type HubClient interface {
 
 // Hub manages connected WebSocket clients and broadcasts filesystem events.
 type Hub struct {
-	mu      sync.RWMutex
-	clients map[HubClient]struct{}
-	logger  *logrus.Entry
+	mu         sync.RWMutex
+	clients    map[HubClient]struct{}
+	maxClients int
+	logger     *logrus.Entry
 }
 
-// NewHub creates a new Hub.
+// NewHub creates a new Hub with the default client cap.
 func NewHub(logger *logrus.Logger) *Hub {
 	return &Hub{
-		clients: make(map[HubClient]struct{}),
-		logger:  logger.WithField("component", "hub"),
+		clients:    make(map[HubClient]struct{}),
+		maxClients: MaxHubClients,
+		logger:     logger.WithField("component", "hub"),
 	}
 }
 
-// Register adds a client to the hub.
-func (h *Hub) Register(c HubClient) {
+// Register adds a client to the hub. Returns true if the client was accepted,
+// or false if the hub is at capacity (the client is not added).
+func (h *Hub) Register(c HubClient) bool {
 	h.logger.Trace("entering Register")
 	defer h.logger.Trace("returning from Register")
 
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	if len(h.clients) >= h.maxClients {
+		h.logger.WithField("max_clients", h.maxClients).Warn("hub at capacity, rejecting websocket client")
+		return false
+	}
 	h.clients[c] = struct{}{}
 	h.logger.WithField("client_count", len(h.clients)).Debug("client registered")
+	return true
 }
 
 // Unregister removes a client from the hub.

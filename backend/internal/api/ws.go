@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -94,7 +95,14 @@ func (s *WSService) Subscribe(ctx context.Context, stream genws.SubscribeServerS
 	}
 
 	c := newStreamClient(stream)
-	s.hub.Register(c)
+	if !s.hub.Register(c) {
+		// Hub is at capacity. Close the write pump immediately and send a
+		// WebSocket close frame before returning. Returning a non-nil error
+		// lets Goa/the HTTP layer know the subscription was rejected.
+		c.Close()
+		stream.Close()
+		return fmt.Errorf("websocket hub at capacity (%d clients)", service.MaxHubClients)
+	}
 	defer func() {
 		s.hub.Unregister(c)
 		c.Close()

@@ -86,6 +86,44 @@ var _ = Describe("Hub", func() {
 		})
 	})
 
+	Describe("Register cap", func() {
+		It("accepts clients up to the cap and rejects the one beyond", func() {
+			// Fill the hub to exactly MaxHubClients.
+			for i := 0; i < service.MaxHubClients; i++ {
+				ok := hub.Register(newFakeHubClient(true))
+				Expect(ok).To(BeTrue(), "client %d should be accepted", i+1)
+			}
+			Expect(hub.ClientCount()).To(Equal(service.MaxHubClients))
+
+			// One more must be rejected.
+			overflow := newFakeHubClient(true)
+			ok := hub.Register(overflow)
+			Expect(ok).To(BeFalse())
+			Expect(hub.ClientCount()).To(Equal(service.MaxHubClients))
+		})
+
+		It("frees capacity after an unregister so a subsequent register succeeds", func() {
+			// Fill to cap.
+			first := newFakeHubClient(true)
+			hub.Register(first)
+			for i := 1; i < service.MaxHubClients; i++ {
+				hub.Register(newFakeHubClient(true))
+			}
+			Expect(hub.ClientCount()).To(Equal(service.MaxHubClients))
+
+			// Overflow is rejected.
+			Expect(hub.Register(newFakeHubClient(true))).To(BeFalse())
+
+			// Free one slot.
+			hub.Unregister(first)
+			Expect(hub.ClientCount()).To(Equal(service.MaxHubClients - 1))
+
+			// Now a new client should be accepted.
+			Expect(hub.Register(newFakeHubClient(true))).To(BeTrue())
+			Expect(hub.ClientCount()).To(Equal(service.MaxHubClients))
+		})
+	})
+
 	Describe("Broadcast", func() {
 		It("sends events to all registered clients", func() {
 			c1 := newFakeHubClient(true)

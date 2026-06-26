@@ -723,7 +723,7 @@ stories:
   - id: S-152
     title: "Cap concurrent WebSocket clients in the hub"
     priority: 45
-    status: todo
+    status: uat
     complexity: low
     type: story
     requires: ["S-151"]

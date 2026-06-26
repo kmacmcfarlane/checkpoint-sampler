@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-152: Cap concurrent WebSocket clients in the hub
+- The WebSocket hub now enforces a fixed cap of `MaxHubClients = 100` concurrent clients (no config key at this scale). `Hub.Register` returns `false` when at capacity (atomic with the map write under the same lock — no TOCTOU); `ws.go Subscribe` rejects the connection by closing the write pump + stream and returning a capacity error. Disconnects free capacity (cap is on concurrent clients, not lifetime), preventing any LAN device from exhausting goroutines/memory by opening connections in a loop
+
 ### R-017: Move image-serving filesystem logic out of the API layer behind a store interface
 - The path-traversal security boundary for image serving now lives in the store layer: `FileSystem.OpenImageFile(sampleRoot, relPath)` ports the prior `isPathSafe` validation (per-component `..`/`.` rejection, absolute-path rejection, and the S-154 separator-bounded prefix check) verbatim, does the `os.Stat`/`os.Open`, and returns an `ImageFile` (`io.ReadSeekCloser` + size) or the `ErrInvalidImagePath`/`ErrImageNotFound` sentinels. This restores the architecture.md layer boundary (filesystem access belongs to the store) and gives the security check a unit-test seam it previously lacked
 - `api/images_service.go` is now a thin streaming adapter behind the consumer-defined `ImageFileResolver` interface — no `os.*`/`filepath.*` calls remain. Behavior is byte-identical: same status mapping, `Cache-Control: max-age=31536000, immutable`, 512-byte `http.DetectContentType` sniff (seek-back-to-start), Content-Length, and `io.Copy` streaming. Error messages still omit absolute paths (R-015 preserved)
