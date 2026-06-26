@@ -12,11 +12,12 @@ import {
   NTooltip,
 } from 'naive-ui'
 import type { SelectRenderLabel, SelectRenderOption, SelectRenderTag } from 'naive-ui'
-import type { AffectedRun, TrainingRun, Study, StudyAvailability, CreateSampleJobPayload, SampleJob, ValidationResult, WorkflowSummary } from '../api/types'
+import type { AffectedRun, TrainingRun, Study, CreateSampleJobPayload, SampleJob, ValidationResult, WorkflowSummary } from '../api/types'
 import { apiClient } from '../api/client'
 import StudyEditor from './StudyEditor.vue'
 import { useGenerateInputsPersistence } from '../composables/useGenerateInputsPersistence'
-import { getTrainingRunDualBead, getStudyDualBead, DUAL_BEAD_COLORS, type DualBead } from '../composables/dualBeadStatus'
+import { useSampleAvailability } from '../composables/useSampleAvailability'
+import { DUAL_BEAD_COLORS, type DualBead } from '../composables/dualBeadStatus'
 
 // TrainingRunStatus is kept for the filter logic (getRunStatus) but is no longer used for bead rendering.
 // Bead rendering now uses the dual-bead system from dualBeadStatus.ts.
@@ -52,10 +53,6 @@ const error = ref<string | null>(null)
 const trainingRuns = ref<TrainingRun[]>([])
 const sampleJobs = ref<SampleJob[]>([])
 const studies = ref<Study[]>([])
-
-// Study sample availability for the selected training run
-const studyAvailability = ref<StudyAvailability[]>([])
-const allRunsAvailability = ref<Map<number, StudyAvailability[]>>(new Map())
 
 // Study editor sub-dialog
 const studyEditorOpen = ref(false)
@@ -231,6 +228,32 @@ function getRunStatus(run: TrainingRun): TrainingRunStatus {
   return 'empty'
 }
 
+// Sample-availability + bead derivations (extracted to a tested composable: R-019).
+// Owns studyAvailability / allRunsAvailability state plus the bead-precedence option
+// builders and run/study "has samples" derivations (PRD 5.5.1 + S-116 refinement).
+const {
+  studyAvailability,
+  allRunsAvailability,
+  trainingRunOptions,
+  studyOptions,
+  selectedRunHasSamples,
+  selectedStudyHasSamples,
+  fetchSelectedRunAvailability,
+  fetchAllRunsAvailability,
+  resetSelectedAvailability,
+} = useSampleAvailability({
+  trainingRuns,
+  sampleJobs,
+  studies,
+  selectedTrainingRunId,
+  selectedStudy,
+  selectedTrainingRun,
+  validationResult,
+  showAllRuns,
+  getRunStatus,
+  isStudyCompatibleWithRunKind,
+})
+
 /**
  * Renders a bead circle element for use in NSelect renderLabel.
  * Returns null (no element) when color is null.
@@ -381,101 +404,6 @@ const renderWrappedTrainingRunTag: SelectRenderTag = ({ option }) => {
   }, children)
 }
 
-// Training run select options (filtered by showAllRuns)
-// Each option includes _dualBead metadata for the renderLabel function.
-const trainingRunOptions = computed(() => {
-  return trainingRuns.value
-    .filter(run => {
-      if (showAllRuns.value) return true
-      return getRunStatus(run) === 'empty'
-    })
-    .map(run => {
-      // Use all-runs availability map for bead rendering.
-      // For the selected run, prefer the more-current studyAvailability (updated by the watcher).
-      const availData = run.id === selectedTrainingRunId.value
-        ? studyAvailability.value
-        : (allRunsAvailability.value.get(run.id) ?? [])
-      // UAT fix (S-116): Refine study statuses for the selected run using validation data.
-      // Same logic as the study bead override: if validation shows missing files for the
-      // selected study but availability says 'complete', treat it as 'partial'.
-      const studyStatuses = availData.map(a => {
-        if (
-          run.id === selectedTrainingRunId.value &&
-          a.study_id === selectedStudy.value &&
-          validationResult.value &&
-          a.sample_status === 'complete' &&
-          validationResult.value.total_missing > 0
-        ) {
-          return 'partial' as const
-        }
-        return a.sample_status
-      })
-      const dualBead = getTrainingRunDualBead(run.name, sampleJobs.value, studyStatuses)
-
-      return {
-        label: run.name,
-        value: run.id,
-        // Custom rendering via renderLabel
-        _dualBead: dualBead,
-        _kind: run.kind,
-      }
-    })
-})
-
-// Whether the selected run has any existing samples or active jobs (run-level check).
-// Used for checkpoint picker visibility, auto-selection, confirmation dialog, and payload construction.
-const selectedRunHasSamples = computed(() => {
-  const run = selectedTrainingRun.value
-  if (!run) return false
-  const status = getRunStatus(run)
-  return status === 'complete' || status === 'partial' || status === 'running' || status === 'queued'
-})
-
-// Whether the selected study (sampleset) has any existing samples or active jobs for the selected training run.
-// Scoped to the selected study so the button label accurately reflects whether THIS study has samples,
-// not whether the training run has samples for any other study.
-// Used ONLY for the button label ('Generate Samples' vs 'Regenerate Samples').
-//
-// When study availability data has loaded for the selected study, this check is definitive.
-// While availability is still loading (studyAvailability is empty), falls back to the run-level
-// check to avoid label flicker — the label updates reactively once availability data arrives.
-const selectedStudyHasSamples = computed(() => {
-  const run = selectedTrainingRun.value
-  if (!run) return false
-  const studyId = selectedStudy.value
-  if (!studyId) return false
-
-  // Check directory-level availability for the selected study (available after async fetch)
-  const avail = studyAvailability.value.find(a => a.study_id === studyId)
-  if (avail) {
-    // Availability data is present — use it definitively
-    if (avail.sample_status !== 'none') return true
-    // Availability says 'none'; also check for active jobs scoped to this study
-    const studyJobs = sampleJobs.value.filter(
-      j => j.training_run_name === run.name && j.study_id === studyId,
-    )
-    return studyJobs.some(j => j.status === 'running' || j.status === 'pending' || j.status === 'stopped')
-  }
-
-  // Study not found in availability data. Two cases:
-  // 1. studyAvailability is empty: data has not loaded yet — fall back to run-level to avoid
-  //    label flicker while the async fetch is in-flight. The computed re-evaluates reactively
-  //    once the fetch resolves.
-  // 2. studyAvailability has entries but not for this study: data has loaded and this study
-  //    simply has no samples (e.g. it was just created). Check active jobs only.
-  if (studyAvailability.value.length === 0) {
-    // Data still loading — use run-level as a transient placeholder
-    return getRunStatus(run) === 'complete' || getRunStatus(run) === 'partial' ||
-      getRunStatus(run) === 'running' || getRunStatus(run) === 'queued'
-  }
-
-  // Data loaded but study not in results — newly created study with no samples. Check jobs only.
-  const studyJobs = sampleJobs.value.filter(
-    j => j.training_run_name === run.name && j.study_id === studyId,
-  )
-  return studyJobs.some(j => j.status === 'running' || j.status === 'pending' || j.status === 'stopped')
-})
-
 // Checkpoints of the selected training run
 const selectedRunCheckpoints = computed(() => selectedTrainingRun.value?.checkpoints ?? [])
 
@@ -516,7 +444,35 @@ const failedCheckpointMap = computed((): Map<string, string> => {
 })
 
 // Initialize checkpoint selections and restore persisted inputs when the training run changes
-watch(selectedTrainingRunId, async (runId) => {
+// R-019: Single consolidated watcher on selectedTrainingRunId. Previously the
+// dialog had four separate selectedTrainingRunId watchers (checkpoint/metadata
+// auto-selection, study-availability fetch, and selection persistence). They are
+// merged here in their original creation order so the synchronous state resets
+// happen in the same sequence; the two async flows (checkpoint metadata fetch and
+// availability fetch) are kicked off without serializing them, matching the prior
+// behavior where they ran as independent watcher callbacks.
+watch(selectedTrainingRunId, (runId) => {
+  // Persist training run selection changes (AC3)
+  if (runId !== null) {
+    persistence.saveTrainingRunId(runId)
+  }
+
+  // --- Checkpoint init + per-model-type workflow + metadata (was watcher 1) ---
+  initSelectedTrainingRun(runId)
+
+  // --- Study sample availability fetch (was watcher 2) ---
+  resetSelectedAvailability()
+  if (runId !== null) {
+    void fetchSelectedRunAvailability(runId)
+  }
+})
+
+/**
+ * Initialize checkpoint selections, base model state, and per-model-type workflow
+ * when the training run changes. Extracted from the consolidated watcher to keep
+ * its async metadata fetch independent of the availability fetch (R-019).
+ */
+async function initSelectedTrainingRun(runId: number | null): Promise<void> {
   const skipAutoSelection = prefillActive.value
   prefillActive.value = false
 
@@ -594,23 +550,7 @@ watch(selectedTrainingRunId, async (runId) => {
       }
     }
   }
-})
-
-// Fetch study sample availability when training run changes
-watch(selectedTrainingRunId, async (runId) => {
-  studyAvailability.value = []
-  if (runId === null) return
-
-  try {
-    const avail = await apiClient.getStudyAvailability(runId)
-    studyAvailability.value = avail
-    // Keep allRunsAvailability in sync for consistent bead rendering
-    allRunsAvailability.value = new Map(allRunsAvailability.value).set(runId, avail)
-  } catch {
-    // Non-fatal; proceed without availability data
-    studyAvailability.value = []
-  }
-})
+}
 
 // B-145: When the study selection or availability data changes, attempt to
 // pre-select the base model that produced the existing samples for the selected
@@ -689,13 +629,6 @@ watch(validationResult, (result) => {
   validationDefaultsApplied.value = true
 })
 
-// Persist training run selection changes (AC3)
-watch(selectedTrainingRunId, (runId) => {
-  if (runId !== null) {
-    persistence.saveTrainingRunId(runId)
-  }
-})
-
 // Persist study selection changes.
 // B-107: Only persist non-null values so that resetForm() (which sets null)
 // does not erase the persisted study. This allows the show watcher to restore
@@ -762,62 +695,6 @@ function toggleCheckpoint(filename: string) {
   }
   selectedCheckpoints.value = next
 }
-
-// Study options include sample availability info and job status for dual-bead rendering.
-// When a training run is selected:
-//   Slot 1 (activity): blue = running/pending job for this study, green = sample_status='complete'
-//   Slot 2 (problem):  red = failed job for this study, yellow = sample_status='partial' without running jobs
-//
-// NOTE: Bead status uses studyAvailability data (directory-level) as the baseline,
-// with validation-level refinement for the selected study. When the selected study's
-// availability says 'complete' but validation reveals missing files, the bead status
-// is refined to 'partial' (S-116 UAT fix). Non-selected studies use availability only.
-const studyOptions = computed(() => {
-  const runName = selectedTrainingRun.value?.name ?? ''
-
-  return studies.value.map(p => {
-    const avail = studyAvailability.value.find(a => a.study_id === p.id)
-    let sampleStatus = avail?.sample_status ?? 'none'
-
-    // UAT fix (S-116): Refine bead status for the selected study using validation
-    // results. The availability API only checks whether checkpoint directories exist,
-    // not whether all expected files are present. When validation shows missing files
-    // (total_missing > 0) but availability reports 'complete' (all dirs exist), override
-    // to 'partial' so the bead correctly shows yellow instead of green.
-    if (
-      p.id === selectedStudy.value &&
-      validationResult.value &&
-      sampleStatus === 'complete' &&
-      validationResult.value.total_missing > 0
-    ) {
-      sampleStatus = 'partial'
-    }
-
-    // Compute dual-bead for this study. Only possible when a training run is selected.
-    const dualBead = runName
-      ? getStudyDualBead(runName, p.id, sampleJobs.value, sampleStatus)
-      : { activity: null, problem: null }
-
-    // Checkpoint counts for tooltip
-    const checkpointCounts = avail
-      ? { withSamples: avail.checkpoints_with_samples, total: avail.total_checkpoints }
-      : null
-
-    // B-140: Check if this study's workflow is compatible with the selected run kind
-    const compatible = isStudyCompatibleWithRunKind(p)
-
-    return {
-      label: p.name,
-      value: p.id,
-      // Metadata for bead rendering
-      _sampleStatus: sampleStatus,
-      _dualBead: dualBead,
-      _checkpointCounts: checkpointCounts,
-      // B-140: Compatibility metadata
-      _compatible: compatible,
-    }
-  })
-})
 
 // renderLabel function for the study NSelect.
 // Renders up to two beads per study using the dual-bead system.
@@ -1249,21 +1126,6 @@ async function fetchBaseModels() {
   } finally {
     loadingBaseModels.value = false
   }
-}
-
-/** Fetch availability for all training runs in parallel; awaited by fetchTrainingRunsAndJobs. */
-async function fetchAllRunsAvailability(runs: TrainingRun[]) {
-  const entries = await Promise.all(
-    runs.map(async (run): Promise<[number, StudyAvailability[]]> => {
-      try {
-        const avail = await apiClient.getStudyAvailability(run.id)
-        return [run.id, avail]
-      } catch {
-        return [run.id, []]
-      }
-    }),
-  )
-  allRunsAvailability.value = new Map(entries)
 }
 
 /**

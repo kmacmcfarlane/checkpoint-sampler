@@ -1027,7 +1027,7 @@ stories:
   - id: R-019
     title: "Extract sample-availability and job-progress logic from JobLaunchDialog/App.vue into tested composables"
     priority: 30
-    status: todo
+    status: uat
     complexity: high
     type: refactor
     requires: ["S-153", "B-154"]

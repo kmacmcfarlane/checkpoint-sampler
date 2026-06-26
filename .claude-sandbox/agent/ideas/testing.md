@@ -103,3 +103,9 @@ A make test-backend integration test that spins up a real http.Server with a slo
 * priority: low
 * source: developer
 R-015 sanitized the metadata/manifest API boundaries named in its scope. Discovery/scan/validate handlers (`discovery.go`, `thumbnail.go`, `study_availability.go`) still wrap service errors that embed directory paths. A follow-up story could extend the no-absolute-path guarantee project-wide with a systematic test, rather than per-handler.
+
+### Shared typed test-fixture module for frontend domain objects
+* status: needs_approval
+* priority: low
+* source: developer
+During R-019, a `makeStudy` test factory compiled under Vitest but failed `vue-tsc --noEmit` (missing required `Study` fields) — runtime-vs-tsc drift. A shared, strictly-typed test-fixtures module for domain objects (`Study`, `TrainingRun`, `SampleJob`) would stop each test file from re-deriving partial factories that pass runtime but fail strict type-check. Out of scope for R-019 since it spans many existing test files.

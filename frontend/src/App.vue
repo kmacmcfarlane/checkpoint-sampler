@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { NConfigProvider, NButton, NTag } from 'naive-ui'
-import type { TrainingRun, DimensionRole, FilterMode, UnifiedDimensionMode, Preset, SampleJob, SampleJobStatus, JobProgressMessage, InferenceProgressMessage, CurrentSampleParams } from './api/types'
+import type { TrainingRun, DimensionRole, FilterMode, UnifiedDimensionMode, Preset, SampleJob } from './api/types'
 import { apiClient } from './api/client'
+import { useJobProgress } from './composables/useJobProgress'
 import { useDimensionMapping } from './composables/useDimensionMapping'
 import { useImagePreloader } from './composables/useImagePreloader'
 import { useWebSocket } from './composables/useWebSocket'
@@ -303,141 +304,33 @@ const { connected: wsConnected, wsClient } = useWebSocket(
   rescanCurrentTrainingRun,
 )
 
-/** Job progress data tracked separately from basic job info. */
-const jobProgress = reactive<Record<string, {
-  checkpoints_completed: number
-  total_checkpoints: number
-  current_checkpoint?: string
-  current_checkpoint_progress?: number
-  current_checkpoint_total?: number
-  checkpoint_completeness?: Array<{ checkpoint: string; expected: number; verified: number; missing: number }>
-  sample_eta_seconds?: number
-  job_eta_seconds?: number
-  current_sample_params?: CurrentSampleParams
-}>>({})
-
-/** Per-sample inference progress keyed by job ID. */
-const inferenceProgress = reactive<Record<string, { current_value: number; max_value: number }>>({})
+/** AC4: Counter incremented when a job completes via WebSocket to trigger dialog refresh. */
+const jobRefreshTrigger = ref(0)
 
 /**
- * Track the previous current_checkpoint_progress per job so we can detect
- * when a new sample starts and reset the inference progress bar.
+ * AC1-2 (B-105): Counter incremented when a job reaches a terminal status via WebSocket.
+ * Passed to TrainingRunSelector so it automatically refreshes after sample generation completes,
+ * making new sample sets visible without a manual refresh click.
  */
-const prevCheckpointProgress = reactive<Record<string, number>>({})
+const trainingRunsRefreshTrigger = ref(0)
 
-/** Handle inference progress updates from ComfyUI via WebSocket. */
-function handleInferenceProgress(message: InferenceProgressMessage) {
-  // Find which job this prompt belongs to by matching against running jobs
-  // Since there is only one active prompt at a time, we apply inference progress
-  // to the currently running job.
-  const runningJob = sampleJobs.value.find(j => j.status === 'running')
-  if (runningJob) {
-    const existing = inferenceProgress[runningJob.id]
-    // AC: Only update inference progress if this is a fresh start (no existing entry) or
-    // the value is moving forward. This prevents out-of-order stale WebSocket events from
-    // a completed sample from flipping the progress bar back to a lower value (flip-flop fix).
-    if (!existing || message.current_value >= existing.current_value) {
-      inferenceProgress[runningJob.id] = {
-        current_value: message.current_value,
-        max_value: message.max_value,
-      }
-    }
-    // AC (B-067): Ensure jobProgress is initialized before the first job_progress event arrives.
-    // Without this, inference progress events that arrive before the first job_progress event
-    // would not display the progress bar because hasCheckpointProgress() would return false
-    // (it checks total_checkpoints > 0). Use a placeholder with total_checkpoints: 1 so
-    // the inference bar renders immediately; this is overwritten by the first job_progress event.
-    if (!jobProgress[runningJob.id]) {
-      jobProgress[runningJob.id] = {
-        checkpoints_completed: 0,
-        total_checkpoints: 1,
-      }
-    }
-    // AC: Update per-sample ETA in jobProgress from inference_progress events.
-    // This gives live ETA updates during sample generation, based on step completion rate.
-    if (message.sample_eta_seconds !== undefined && message.sample_eta_seconds > 0) {
-      const existing = jobProgress[runningJob.id]
-      jobProgress[runningJob.id] = {
-        ...(existing ?? { checkpoints_completed: 0, total_checkpoints: 1 }),
-        sample_eta_seconds: message.sample_eta_seconds,
-      }
-    }
-  }
-}
-
-/** Handle job progress updates from WebSocket. */
-function handleJobProgress(message: JobProgressMessage) {
-  const jobIndex = sampleJobs.value.findIndex(j => j.id === message.job_id)
-  if (jobIndex !== -1) {
-    const previousStatus = sampleJobs.value[jobIndex].status
-    // AC: Capture prevCompleted BEFORE the spread assignment so the comparison below is valid.
-    const prevCompleted = sampleJobs.value[jobIndex].completed_items
-    sampleJobs.value[jobIndex] = {
-      ...sampleJobs.value[jobIndex],
-      status: message.status,
-      total_items: message.total_items,
-      completed_items: message.completed_items,
-      failed_items: message.failed_items,
-      pending_items: message.pending_items,
-      failed_item_details: message.failed_item_details,
-      updated_at: new Date().toISOString(),
-    }
-    // AC: Reset inference progress between samples.
-    // When completed_items changes, a sample has just finished and a new one is starting.
-    if (message.completed_items !== prevCompleted) {
-      delete inferenceProgress[message.job_id]
-    }
-
-    // Also reset when the current checkpoint progress changes (new sample within a checkpoint)
-    const prevCpProgress = prevCheckpointProgress[message.job_id]
-    if (message.current_checkpoint_progress !== undefined && message.current_checkpoint_progress !== prevCpProgress) {
-      delete inferenceProgress[message.job_id]
-    }
-    if (message.current_checkpoint_progress !== undefined) {
-      prevCheckpointProgress[message.job_id] = message.current_checkpoint_progress
-    }
-
-    // Store checkpoint-level progress separately with ETA data from the backend.
-    // AC (S-098 UAT): Preserve existing sample_eta_seconds when the job_progress event does
-    // not include one — unless a sample just completed (completed_items increased), in which
-    // case we clear it because no sample is currently running.
-    // This ensures the ETA set by inference_progress events is not erased by the
-    // start-of-sample job_progress broadcast that arrives before inference begins.
-    const incomingSampleETA = message.sample_eta_seconds !== undefined
-      ? message.sample_eta_seconds
-      : (message.completed_items > prevCompleted
-        ? undefined
-        : jobProgress[message.job_id]?.sample_eta_seconds)
-
-    jobProgress[message.job_id] = {
-      checkpoints_completed: message.checkpoints_completed,
-      total_checkpoints: message.total_checkpoints,
-      current_checkpoint: message.current_checkpoint,
-      current_checkpoint_progress: message.current_checkpoint_progress,
-      current_checkpoint_total: message.current_checkpoint_total,
-      checkpoint_completeness: message.checkpoint_completeness,
-      sample_eta_seconds: incomingSampleETA,
-      job_eta_seconds: message.job_eta_seconds,
-      current_sample_params: message.current_sample_params,
-    }
-    // Increment refresh trigger whenever job status changes so the JobLaunchDialog
-    // can update training run options and status beads for any status transition
-    // (including pending → running, not just terminal statuses).
-    if (message.status !== previousStatus) {
-      jobRefreshTrigger.value++
-    }
-    // Clear inference progress for completed jobs; also signal TrainingRunSelector to refresh
-    // so newly generated sample sets appear automatically (AC1-2, B-105).
-    if (TERMINAL_STATUSES.has(message.status) && !TERMINAL_STATUSES.has(previousStatus)) {
-      delete inferenceProgress[message.job_id]
-      delete prevCheckpointProgress[message.job_id]
-      trainingRunsRefreshTrigger.value++
-    }
-  } else {
-    // New job, fetch the full list
-    fetchSampleJobs()
-  }
-}
+/**
+ * Job-progress map synchronization (extracted to a tested composable: R-019).
+ * Owns the jobProgress / inferenceProgress / prevCheckpointProgress maps and the
+ * WebSocket handlers that keep them in sync (encoding the B-067 / S-098 / B-105
+ * regression invariants).
+ */
+const {
+  jobProgress,
+  inferenceProgress,
+  handleInferenceProgress,
+  handleJobProgress,
+} = useJobProgress({
+  sampleJobs,
+  jobRefreshTrigger,
+  trainingRunsRefreshTrigger,
+  onUnknownJob: () => fetchSampleJobs(),
+})
 
 // Register job progress and inference progress listeners
 onMounted(() => {
@@ -890,19 +783,6 @@ const buttonBeadColor = computed((): string | null => {
   if (!status) return null
   return BEAD_COLORS[status]
 })
-
-/** AC4: Counter incremented when a job completes via WebSocket to trigger dialog refresh. */
-const jobRefreshTrigger = ref(0)
-
-/**
- * AC1-2 (B-105): Counter incremented when a job reaches a terminal status via WebSocket.
- * Passed to TrainingRunSelector so it automatically refreshes after sample generation completes,
- * making new sample sets visible without a manual refresh click.
- */
-const trainingRunsRefreshTrigger = ref(0)
-
-/** Terminal job statuses that indicate a job has finished. */
-const TERMINAL_STATUSES: Set<SampleJobStatus> = new Set(['completed', 'completed_with_errors', 'failed'])
 
 /** State for the slideout-level validation dialog (no job context). */
 const slideoutValidationDialogShow = ref(false)
