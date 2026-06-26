@@ -2,6 +2,7 @@ package service
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -558,8 +559,23 @@ func (e *JobExecutor) handleItemCompletionAsync(jobID, itemID, promptID string) 
 	// Fetch the job and study for the output path
 	job, err := e.store.GetSampleJob(jobID)
 	if err != nil {
-		e.logger.WithError(err).Error("failed to fetch job for output path")
-		e.failItem(itemID, fmt.Sprintf("failed to fetch job: %v", err))
+		if errors.Is(err, sql.ErrNoRows) {
+			// Job row was deleted between item completion and this fetch (e.g. E2E test
+			// reset or job-deletion race). The item is orphaned — skip gracefully rather
+			// than force-failing it, since the job no longer exists in the DB anyway.
+			// Log at debug (not error) to avoid spurious noise in test output.
+			e.logger.WithFields(logrus.Fields{
+				"job_id":  jobID,
+				"item_id": itemID,
+			}).Debug("parent job row not found during item completion (job likely deleted), skipping orphaned item")
+			e.mu.Lock()
+			e.activeItemID = ""
+			e.activePromptID = ""
+			e.mu.Unlock()
+		} else {
+			e.logger.WithError(err).Error("failed to fetch job for output path")
+			e.failItem(itemID, fmt.Sprintf("failed to fetch job: %v", err))
+		}
 		return
 	}
 

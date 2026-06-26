@@ -1275,7 +1275,7 @@ stories:
   - id: B-159
     type: bug
     title: "job_executor logs \"sql: no rows in result set\" when parent job row is missing"
-    status: todo
+    status: uat
     priority: 70
     complexity: low
     requires: []

@@ -2062,6 +2062,76 @@ var _ = Describe("JobExecutor", func() {
 		})
 	})
 
+	// B-159: When the parent job row is missing (deleted between item completion and job
+	// fetch), the executor must log at debug (not error) and skip the orphaned item
+	// gracefully — not force-fail it and not emit error-level log entries.
+	Describe("Orphaned item handling (parent job deleted)", func() {
+		var lc *testutil.LogCapture
+		var localExecutor *JobExecutor
+
+		BeforeEach(func() {
+			lc = testutil.NewLogCapture()
+
+			localExecutor = NewJobExecutor(
+				mockStore,
+				mockClient,
+				mockWS,
+				mockLoader,
+				mockHub,
+				"/test/samples",
+				mockFS,
+				mockFSRead,
+				lc.Logger,
+			)
+		})
+
+		It("logs at debug (not error) and clears active state when parent job row is missing", func() {
+			// Arrange: item exists in the store but its parent job does not.
+			// This simulates the race where the job is deleted (e.g. E2E /api/test/reset)
+			// while an item completion event is still in flight.
+			item := model.SampleJobItem{
+				ID:                 "item-orphan-1",
+				JobID:              "job-deleted",
+				CheckpointFilename: "test.safetensors",
+				PromptName:         "test",
+				Steps:              20,
+				CFG:                7.5,
+				SamplerName:        "euler",
+				Scheduler:          "normal",
+				Seed:               42,
+				Status:             model.SampleJobItemStatusRunning,
+			}
+			// Items exist for the job but the job row itself does NOT exist in the store
+			mockStore.items["job-deleted"] = []model.SampleJobItem{item}
+			// Deliberately do NOT add "job-deleted" to mockStore.jobs — GetSampleJob returns sql.ErrNoRows
+
+			localExecutor.mu.Lock()
+			localExecutor.activeJobID = "job-deleted"
+			localExecutor.activeItemID = item.ID
+			localExecutor.activePromptID = "test-prompt-id"
+			localExecutor.mu.Unlock()
+
+			// Act
+			localExecutor.handleItemCompletionAsync("job-deleted", item.ID, "test-prompt-id")
+
+			// Assert: no error-level log entries (the key regression check)
+			Expect(lc.EntriesAtLevel(logrus.ErrorLevel)).To(BeEmpty(),
+				"expected no error-level log entries when parent job row is missing (orphaned item)")
+
+			// Assert: item was NOT force-failed (status unchanged since job is gone)
+			items := mockStore.items["job-deleted"]
+			Expect(items).To(HaveLen(1))
+			Expect(items[0].Status).NotTo(Equal(model.SampleJobItemStatusFailed),
+				"orphaned item should not be force-failed when its parent job row is missing")
+
+			// Assert: active state cleared so executor can pick up new work
+			localExecutor.mu.Lock()
+			Expect(localExecutor.activeItemID).To(BeEmpty())
+			Expect(localExecutor.activePromptID).To(BeEmpty())
+			localExecutor.mu.Unlock()
+		})
+	})
+
 	Describe("WebSocket event handling", func() {
 		BeforeEach(func() {
 			job := model.SampleJob{

@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-159: job_executor no longer logs "sql: no rows in result set" at error for orphaned items
+- When a sample-job item's ComfyUI completion event lands after its parent job row has been deleted (e.g. the E2E `/api/test/reset` race), `handleItemCompletionAsync` now treats the `GetSampleJob` `sql.ErrNoRows` result as a benign orphaned-item case: it logs at debug, clears active item/prompt state, and returns without force-failing the item. Genuine (non-not-found) fetch errors still log at error and fail the item. Eliminates the spurious `failed to fetch job for output path` / `marking item as failed` error-level noise during E2E runs without broadening the W-006 schema-missing allowlist
+
 ### S-155: Stable training-run identifiers (survive rescans)
 - Training-run resource IDs are now opaque, stable strings derived from each run's relative-path name (URL-safe base64 via `base64.RawURLEncoding`) instead of a zero-based positional index. A held ID resolves to the same run across rescans even when discovery order changes — the backend recomputes and matches IDs (`service.FindTrainingRunByID`) rather than indexing by position, eliminating the bug where a refresh could reorder discovery and silently retarget a different run
 - API contract: `GET /api/training-runs` emits the opaque ID; scan, validate, and study-availability endpoints resolve by it and return `not_found` for unknown IDs. The frontend treats IDs as opaque strings throughout and discards legacy numeric IDs persisted in localStorage. Documented in `docs/api.md`
