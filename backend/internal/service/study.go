@@ -98,7 +98,7 @@ func (s *StudyService) Get(id string) (model.Study, error) {
 	if err != nil {
 		if err == sql.ErrNoRows {
 			s.logger.WithField("study_id", id).Debug("study not found")
-			return model.Study{}, fmt.Errorf("study %s not found", id)
+			return model.Study{}, fmt.Errorf("study %s not found: %w", id, ErrNotFound)
 		}
 		s.logger.WithFields(logrus.Fields{
 			"study_id": id,
@@ -211,7 +211,7 @@ func (s *StudyService) Update(id string, name string, promptPrefix string, promp
 	existing, err := s.store.GetStudy(id)
 	if err == sql.ErrNoRows {
 		s.logger.WithField("study_id", id).Debug("study not found")
-		return model.Study{}, fmt.Errorf("study %s not found", id)
+		return model.Study{}, fmt.Errorf("study %s not found: %w", id, ErrNotFound)
 	}
 	if err != nil {
 		s.logger.WithFields(logrus.Fields{
@@ -273,7 +273,7 @@ func (s *StudyService) Fork(sourceID string, newName string, promptPrefix string
 	_, err := s.store.GetStudy(sourceID)
 	if err == sql.ErrNoRows {
 		s.logger.WithField("source_id", sourceID).Debug("source study not found for fork")
-		return model.Study{}, fmt.Errorf("source study %s not found", sourceID)
+		return model.Study{}, fmt.Errorf("source study %s not found: %w", sourceID, ErrNotFound)
 	}
 	if err != nil {
 		s.logger.WithFields(logrus.Fields{
@@ -295,7 +295,7 @@ func (s *StudyService) HasSamples(id string) (bool, error) {
 	study, err := s.store.GetStudy(id)
 	if err == sql.ErrNoRows {
 		s.logger.WithField("study_id", id).Debug("study not found for has-samples check")
-		return false, fmt.Errorf("study %s not found", id)
+		return false, fmt.Errorf("study %s not found: %w", id, ErrNotFound)
 	}
 	if err != nil {
 		s.logger.WithFields(logrus.Fields{
@@ -335,7 +335,7 @@ func (s *StudyService) Delete(id string, deleteData bool) error {
 	study, err := s.store.GetStudy(id)
 	if err == sql.ErrNoRows {
 		s.logger.WithField("study_id", id).Debug("study not found for deletion")
-		return fmt.Errorf("study %s not found", id)
+		return fmt.Errorf("study %s not found: %w", id, ErrNotFound)
 	}
 	if err != nil {
 		s.logger.WithFields(logrus.Fields{

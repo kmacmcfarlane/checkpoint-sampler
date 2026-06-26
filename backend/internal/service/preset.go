@@ -97,7 +97,7 @@ func (s *PresetService) Update(id string, name string, mapping model.PresetMappi
 	existing, err := s.store.GetPreset(id)
 	if err == sql.ErrNoRows {
 		s.logger.WithField("preset_id", id).Debug("preset not found")
-		return model.Preset{}, fmt.Errorf("preset %s not found", id)
+		return model.Preset{}, fmt.Errorf("preset %s not found: %w", id, ErrNotFound)
 	}
 	if err != nil {
 		s.logger.WithFields(logrus.Fields{
@@ -133,7 +133,7 @@ func (s *PresetService) Delete(id string) error {
 	err := s.store.DeletePreset(id)
 	if err == sql.ErrNoRows {
 		s.logger.WithField("preset_id", id).Debug("preset not found for deletion")
-		return fmt.Errorf("preset %s not found", id)
+		return fmt.Errorf("preset %s not found: %w", id, ErrNotFound)
 	}
 	if err != nil {
 		s.logger.WithFields(logrus.Fields{

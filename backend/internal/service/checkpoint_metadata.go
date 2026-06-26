@@ -46,7 +46,7 @@ func (s *CheckpointMetadataService) GetMetadata(filename string) (map[string]str
 	// Validate filename is safe (no path traversal)
 	if !isFilenameSafe(filename) {
 		s.logger.WithField("filename", filename).Warn("invalid filename rejected")
-		return nil, fmt.Errorf("invalid filename: %q", filename)
+		return nil, fmt.Errorf("invalid filename: %q: %w", filename, ErrInvalidFilename)
 	}
 
 	// Find the file across checkpoint_dirs
@@ -112,7 +112,7 @@ func (s *CheckpointMetadataService) resolveCheckpointFile(filename string) (stri
 			return found, nil
 		}
 	}
-	return "", fmt.Errorf("checkpoint file not found: %q", filename)
+	return "", fmt.Errorf("checkpoint file not found: %q: %w", filename, ErrNotFound)
 }
 
 // isFilenameSafe checks that a filename does not contain path traversal components.

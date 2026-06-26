@@ -295,7 +295,7 @@ func (v *ValidationService) ValidateTrainingRunWithManifest(tr model.TrainingRun
 	if err != nil {
 		if os.IsNotExist(err) {
 			v.logger.WithField("manifest_path", manifestPath).Debug("manifest not found")
-			return nil, fmt.Errorf("manifest not found at %s", manifestPath)
+			return nil, fmt.Errorf("manifest not found: %w", ErrManifestNotFound)
 		}
 		v.logger.WithFields(logrus.Fields{
 			"manifest_path": manifestPath,
@@ -601,7 +601,7 @@ func (v *ValidationService) ReadManifest(studyOutputDir string) (fileformat.JobM
 	if err != nil {
 		if os.IsNotExist(err) {
 			v.logger.WithField("manifest_path", manifestPath).Debug("manifest not found")
-			return fileformat.JobManifest{}, fmt.Errorf("manifest not found at %s", manifestPath)
+			return fileformat.JobManifest{}, fmt.Errorf("manifest not found: %w", ErrManifestNotFound)
 		}
 		return fileformat.JobManifest{}, fmt.Errorf("reading manifest: %w", err)
 	}

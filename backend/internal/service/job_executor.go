@@ -4,11 +4,15 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/buildinfo"
@@ -2406,17 +2410,47 @@ func composeExecutionErrorMessage(exceptionType, nodeType, exceptionMessage stri
 	return strings.Join(parts, " ")
 }
 
-// isConnectionError detects if an error is a connection-related failure.
+// isConnectionError detects whether err represents a transport-level failure
+// talking to ComfyUI (so the executor should mark the connection dead and
+// reconnect). It uses typed checks (errors.As / errors.Is) instead of matching
+// error message substrings: a ComfyUI *node* execution error whose human text
+// merely mentions "network", "timeout", etc. must NOT be misclassified as a
+// connection error and trigger a bogus reconnect cycle.
 func isConnectionError(err error) bool {
 	if err == nil {
 		return false
 	}
-	msg := strings.ToLower(err.Error())
-	return strings.Contains(msg, "connection refused") ||
-		strings.Contains(msg, "connection reset") ||
-		strings.Contains(msg, "eof") ||
-		strings.Contains(msg, "broken pipe") ||
-		strings.Contains(msg, "network") ||
-		strings.Contains(msg, "dial") ||
-		strings.Contains(msg, "timeout")
+
+	// Timeouts surfaced by the net stack (e.g. dial/read/write deadline exceeded).
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		return true
+	}
+
+	// Context deadline exceeded (request timed out before a response).
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+
+	// Low-level network operation failures (dial/read/write on the socket).
+	var opErr *net.OpError
+	if errors.As(err, &opErr) {
+		return true
+	}
+
+	// Syscall errno conditions that indicate the peer/socket is gone.
+	var errno syscall.Errno
+	if errors.As(err, &errno) {
+		switch errno {
+		case syscall.ECONNREFUSED, syscall.ECONNRESET, syscall.EPIPE, syscall.ECONNABORTED, syscall.ENETUNREACH, syscall.EHOSTUNREACH:
+			return true
+		}
+	}
+
+	// Connection closed mid-response.
+	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+		return true
+	}
+
+	return false
 }

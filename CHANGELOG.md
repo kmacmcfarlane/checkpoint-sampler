@@ -5,6 +5,11 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### R-015: Replace string-matched error handling with typed errors; stop leaking absolute paths in API errors
+- The service layer now defines sentinel errors (`internal/service/errors.go`: `ErrNotFound`, `ErrInvalidFilename`, `ErrInvalidPath`, `ErrManifestNotFound`, `ErrServiceUnavailable`) that service methods wrap with `%w`. API handlers classify failures to HTTP statuses via `errors.Is`/`errors.As` instead of `strings.Contains(err.Error(), ...)`, so rewording an error message can no longer silently change a status code. Goa error result types and status codes are unchanged
+- `job_executor.go` `isConnectionError` no longer substring-matches lowercased error text (`"timeout"`/`"network"`/`"eof"`); it uses typed checks (`net.Error.Timeout()`, `context.DeadlineExceeded`, `*net.OpError`, `syscall.Errno` ECONNREFUSED/ECONNRESET/EPIPE/etc., `io.EOF`). A ComfyUI node error whose text merely mentions "network" no longer triggers a bogus reconnect cycle
+- API error responses for not-found/invalid-path/manifest-not-found no longer embed absolute server filesystem paths; the detailed path is logged server-side only
+
 ### R-014: Fix service-to-store layering breach: ObjectInfo belongs in model
 - `ObjectInfo`/`ObjectInfoInput` now live in `internal/model` (no serialization tags) as the domain representation. The store keeps a json-tagged DTO (`objectInfoEntity`) for decoding ComfyUI's `/object_info` HTTP response and maps it to the model type via `toModelObjectInfo`. The service's consumer-defined `ObjectInfoGetter` interface is now typed over the model type. Removes the last `internal/service` → `internal/store` import, restoring the architecture.md 2.1 / DEVELOPMENT_PRACTICES 2.3 layer separation. No behavior or wire-format change
 

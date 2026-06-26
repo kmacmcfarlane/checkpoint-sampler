@@ -208,7 +208,7 @@ func (s *SampleJobService) Get(id string) (model.SampleJob, error) {
 	job, err := s.store.GetSampleJob(id)
 	if err == sql.ErrNoRows {
 		s.logger.WithField("sample_job_id", id).Debug("sample job not found")
-		return model.SampleJob{}, fmt.Errorf("sample job %s not found", id)
+		return model.SampleJob{}, fmt.Errorf("sample job %s not found: %w", id, ErrNotFound)
 	}
 	if err != nil {
 		s.logger.WithFields(logrus.Fields{
@@ -260,7 +260,7 @@ func (s *SampleJobService) Create(trainingRunName string, checkpoints []model.Ch
 	study, err := s.store.GetStudy(studyID)
 	if err == sql.ErrNoRows {
 		s.logger.WithField("study_id", studyID).Debug("study not found")
-		return model.SampleJob{}, fmt.Errorf("study %s not found", studyID)
+		return model.SampleJob{}, fmt.Errorf("study %s not found: %w", studyID, ErrNotFound)
 	}
 	if err != nil {
 		s.logger.WithFields(logrus.Fields{
@@ -548,7 +548,7 @@ func (s *SampleJobService) Start(id string) (model.SampleJob, error) {
 	// Check if executor is available and connected
 	if s.executor == nil || !s.executor.IsConnected() {
 		s.logger.Warn("cannot start job: ComfyUI not connected")
-		return model.SampleJob{}, fmt.Errorf("ComfyUI not connected")
+		return model.SampleJob{}, fmt.Errorf("ComfyUI not connected: %w", ErrServiceUnavailable)
 	}
 
 	// Guard: reject if another job is already running
@@ -568,7 +568,7 @@ func (s *SampleJobService) Start(id string) (model.SampleJob, error) {
 	job, err := s.store.GetSampleJob(id)
 	if err == sql.ErrNoRows {
 		s.logger.WithField("sample_job_id", id).Debug("sample job not found")
-		return model.SampleJob{}, fmt.Errorf("sample job %s not found", id)
+		return model.SampleJob{}, fmt.Errorf("sample job %s not found: %w", id, ErrNotFound)
 	}
 	if err != nil {
 		s.logger.WithFields(logrus.Fields{
@@ -624,7 +624,7 @@ func (s *SampleJobService) Stop(id string) (model.SampleJob, error) {
 	job, err := s.store.GetSampleJob(id)
 	if err == sql.ErrNoRows {
 		s.logger.WithField("sample_job_id", id).Debug("sample job not found")
-		return model.SampleJob{}, fmt.Errorf("sample job %s not found", id)
+		return model.SampleJob{}, fmt.Errorf("sample job %s not found: %w", id, ErrNotFound)
 	}
 	if err != nil {
 		s.logger.WithFields(logrus.Fields{
@@ -702,7 +702,7 @@ func (s *SampleJobService) RetryFailed(id string) (model.SampleJob, error) {
 	// Check if executor is available and connected
 	if s.executor == nil || !s.executor.IsConnected() {
 		s.logger.Warn("cannot retry job: ComfyUI not connected")
-		return model.SampleJob{}, fmt.Errorf("ComfyUI not connected")
+		return model.SampleJob{}, fmt.Errorf("ComfyUI not connected: %w", ErrServiceUnavailable)
 	}
 
 	// Guard: reject if another job is already running
@@ -722,7 +722,7 @@ func (s *SampleJobService) RetryFailed(id string) (model.SampleJob, error) {
 	job, err := s.store.GetSampleJob(id)
 	if err == sql.ErrNoRows {
 		s.logger.WithField("sample_job_id", id).Debug("sample job not found")
-		return model.SampleJob{}, fmt.Errorf("sample job %s not found", id)
+		return model.SampleJob{}, fmt.Errorf("sample job %s not found: %w", id, ErrNotFound)
 	}
 	if err != nil {
 		s.logger.WithFields(logrus.Fields{
@@ -884,13 +884,13 @@ func (s *SampleJobService) Resume(id string) (model.SampleJob, error) {
 	// Check if executor is available and connected
 	if s.executor == nil || !s.executor.IsConnected() {
 		s.logger.Warn("cannot resume job: ComfyUI not connected")
-		return model.SampleJob{}, fmt.Errorf("ComfyUI not connected")
+		return model.SampleJob{}, fmt.Errorf("ComfyUI not connected: %w", ErrServiceUnavailable)
 	}
 
 	job, err := s.store.GetSampleJob(id)
 	if err == sql.ErrNoRows {
 		s.logger.WithField("sample_job_id", id).Debug("sample job not found")
-		return model.SampleJob{}, fmt.Errorf("sample job %s not found", id)
+		return model.SampleJob{}, fmt.Errorf("sample job %s not found: %w", id, ErrNotFound)
 	}
 	if err != nil {
 		s.logger.WithFields(logrus.Fields{
@@ -948,7 +948,7 @@ func (s *SampleJobService) Delete(id string, deleteData bool) error {
 	job, err := s.store.GetSampleJob(id)
 	if err == sql.ErrNoRows {
 		s.logger.WithField("sample_job_id", id).Debug("sample job not found for deletion")
-		return fmt.Errorf("sample job %s not found", id)
+		return fmt.Errorf("sample job %s not found: %w", id, ErrNotFound)
 	}
 	if err != nil {
 		s.logger.WithFields(logrus.Fields{
@@ -1050,7 +1050,7 @@ func (s *SampleJobService) GetProgress(id string) (model.JobProgress, error) {
 	_, err := s.store.GetSampleJob(id)
 	if err == sql.ErrNoRows {
 		s.logger.WithField("sample_job_id", id).Debug("sample job not found")
-		return model.JobProgress{}, fmt.Errorf("sample job %s not found", id)
+		return model.JobProgress{}, fmt.Errorf("sample job %s not found: %w", id, ErrNotFound)
 	}
 	if err != nil {
 		s.logger.WithFields(logrus.Fields{

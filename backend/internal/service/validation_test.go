@@ -2,6 +2,7 @@ package service_test
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -729,6 +730,12 @@ var _ = Describe("ValidationService", func() {
 			_, err := svc.ValidateTrainingRunWithManifest(tr, "Test Study")
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("manifest not found"))
+			// R-015 AC2: classifiable via the sentinel (errors.Is), so the API
+			// layer can detect it without substring matching.
+			Expect(errors.Is(err, service.ErrManifestNotFound)).To(BeTrue())
+			// R-015 AC4: the absolute manifest path must not be embedded in the
+			// error (it is logged server-side instead).
+			Expect(err.Error()).NotTo(ContainSubstring("/samples"))
 		})
 
 		It("returns error when manifest file is invalid JSON", func() {
