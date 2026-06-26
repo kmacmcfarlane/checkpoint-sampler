@@ -1,19 +1,33 @@
 # mockery v3 configuration.
 # Regenerate with: make mocks  (runs `go run github.com/vektra/mockery/v3@v3.7.1`)
 # Generated mocks live in a dedicated, predictable package per layer
-# (DEVELOPMENT_PRACTICES 3.9). Scope: api-layer interfaces only (W-028).
-# The service layer is covered separately by W-029.
+# (DEVELOPMENT_PRACTICES 3.9).
+#   - api-layer interfaces  -> internal/api/apimocks      (W-028)
+#   - service-layer interfaces -> internal/service/servicemocks (W-029)
 all: false
 template: testify
-dir: "internal/api/apimocks"
 filename: "mock_{{.InterfaceName}}.go"
-pkgname: "apimocks"
 structname: "Mock{{.InterfaceName}}"
 force-file-write: true
 packages:
   github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api:
+    config:
+      dir: "internal/api/apimocks"
+      pkgname: "apimocks"
     interfaces:
       ComfyUIHealthChecker:
       ComfyUIModelLister:
       WorkflowLoader:
       PingableConn:
+  # Service-layer interfaces that are consumed as plain call-based collaborators
+  # (no stateful in-memory fixture behaviour) are mocked with mockery. Interfaces
+  # backed by stateful in-memory fakes in the service tests (JobExecutorStore,
+  # ComfyUIWS, EventHub, FileSystemWriter/Reader, etc.) are intentionally left as
+  # hand-written `fake*` doubles — see W-029 Change Summary for the justification.
+  github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service:
+    config:
+      dir: "internal/service/servicemocks"
+      pkgname: "servicemocks"
+    interfaces:
+      ObjectInfoGetter:
+      SampleDirRemover:

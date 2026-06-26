@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### W-029: Adopt mockery for service-layer mocks (migration, part 2 of 2)
+- Completes the mockery migration started in W-028 by moving the service-layer test doubles for the two genuinely call-based collaborators (`ObjectInfoGetter`, `SampleDirRemover`) onto deterministic mockery-generated mocks in a new committed `backend/internal/service/servicemocks` package, wired through a per-package `backend/.mockery.yaml` config. The `comfyui_models_test.go` `nodeType` assertions and the `job_executor_test.go` `cp1→cp2` removal ordering are preserved via `RunAndReturn` closures and `.Once()`/`.NotBefore()` expectations — behavior-preserving, no weakened assertions
+- The remaining hand-rolled service doubles are stateful data stores, active event drivers, fixture holders, or implement unexported / Goa-generated-package interfaces that mockery's call-recorder API cannot express; they are renamed `fake*` (so no `type mock` struct remains in backend test files) with the exception justified in-code. Test-tooling only — no production behavior changed
+
 ### R-018: Split job_executor.go into cohesive units
 - `backend/internal/service/job_executor.go` (2,459 lines) split within the same `service` package into four responsibility-scoped files: `job_executor_lifecycle.go` (start/stop/pause/resume/run loop), `job_executor_conn.go` (ComfyUI WS connect/reconnect, stuck-item recovery, event handling), `job_executor_workflow.go` (workflow substitution, output paths, image download/save), and `job_executor_progress.go` (item failure, progress, completion, broadcast). Primary file now 273 lines (interfaces, struct, constructors, package-level helpers)
 - Pure code movement, no behavior change: 54/54 top-level declarations byte-identical to the original (AST+SHA256 verified); public package API unchanged; all backend suites and the full E2E suite pass with no assertion modifications

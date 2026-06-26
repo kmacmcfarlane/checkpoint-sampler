@@ -8,34 +8,24 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/mock"
 
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service/servicemocks"
 )
-
-// mockObjectInfoGetter implements the ObjectInfoGetter interface for testing
-type mockObjectInfoGetter struct {
-	getObjectInfoFunc func(ctx context.Context, nodeType string) (*model.ObjectInfo, error)
-}
-
-func (m *mockObjectInfoGetter) GetObjectInfo(ctx context.Context, nodeType string) (*model.ObjectInfo, error) {
-	if m.getObjectInfoFunc != nil {
-		return m.getObjectInfoFunc(ctx, nodeType)
-	}
-	return nil, fmt.Errorf("not implemented")
-}
 
 var _ = Describe("ComfyUIModelDiscovery", func() {
 	var (
 		ctx        context.Context
-		mockGetter *mockObjectInfoGetter
+		mockGetter *servicemocks.MockObjectInfoGetter
 		discovery  *service.ComfyUIModelDiscovery
 		logger     *logrus.Logger
 	)
 
 	BeforeEach(func() {
 		ctx = context.Background()
-		mockGetter = &mockObjectInfoGetter{}
+		mockGetter = servicemocks.NewMockObjectInfoGetter(GinkgoT())
 		logger = logrus.New()
 		logger.SetOutput(io.Discard)
 		discovery = service.NewComfyUIModelDiscovery(mockGetter, logger)
@@ -44,7 +34,7 @@ var _ = Describe("ComfyUIModelDiscovery", func() {
 	Describe("GetModels", func() {
 		Context("with VAE model type", func() {
 			It("extracts VAE models from VAELoader node", func() {
-				mockGetter.getObjectInfoFunc = func(ctx context.Context, nodeType string) (*model.ObjectInfo, error) {
+				mockGetter.EXPECT().GetObjectInfo(mock.Anything, mock.Anything).RunAndReturn(func(ctx context.Context, nodeType string) (*model.ObjectInfo, error) {
 					Expect(nodeType).To(Equal("VAELoader"))
 					return &model.ObjectInfo{
 						Input: model.ObjectInfoInput{
@@ -55,7 +45,7 @@ var _ = Describe("ComfyUIModelDiscovery", func() {
 							},
 						},
 					}, nil
-				}
+				})
 
 				models, err := discovery.GetModels(ctx, service.ComfyUIModelTypeVAE)
 				Expect(err).NotTo(HaveOccurred())
@@ -66,7 +56,7 @@ var _ = Describe("ComfyUIModelDiscovery", func() {
 
 		Context("with CLIP model type", func() {
 			It("extracts CLIP models from CLIPLoader node", func() {
-				mockGetter.getObjectInfoFunc = func(ctx context.Context, nodeType string) (*model.ObjectInfo, error) {
+				mockGetter.EXPECT().GetObjectInfo(mock.Anything, mock.Anything).RunAndReturn(func(ctx context.Context, nodeType string) (*model.ObjectInfo, error) {
 					Expect(nodeType).To(Equal("CLIPLoader"))
 					return &model.ObjectInfo{
 						Input: model.ObjectInfoInput{
@@ -77,7 +67,7 @@ var _ = Describe("ComfyUIModelDiscovery", func() {
 							},
 						},
 					}, nil
-				}
+				})
 
 				models, err := discovery.GetModels(ctx, service.ComfyUIModelTypeCLIP)
 				Expect(err).NotTo(HaveOccurred())
@@ -88,7 +78,7 @@ var _ = Describe("ComfyUIModelDiscovery", func() {
 
 		Context("with UNET model type", func() {
 			It("extracts UNET models from UNETLoader node", func() {
-				mockGetter.getObjectInfoFunc = func(ctx context.Context, nodeType string) (*model.ObjectInfo, error) {
+				mockGetter.EXPECT().GetObjectInfo(mock.Anything, mock.Anything).RunAndReturn(func(ctx context.Context, nodeType string) (*model.ObjectInfo, error) {
 					Expect(nodeType).To(Equal("UNETLoader"))
 					return &model.ObjectInfo{
 						Input: model.ObjectInfoInput{
@@ -99,7 +89,7 @@ var _ = Describe("ComfyUIModelDiscovery", func() {
 							},
 						},
 					}, nil
-				}
+				})
 
 				models, err := discovery.GetModels(ctx, service.ComfyUIModelTypeUNET)
 				Expect(err).NotTo(HaveOccurred())
@@ -110,7 +100,7 @@ var _ = Describe("ComfyUIModelDiscovery", func() {
 
 		Context("with LoRA model type", func() {
 			It("extracts LoRA models from LoraLoader node", func() {
-				mockGetter.getObjectInfoFunc = func(ctx context.Context, nodeType string) (*model.ObjectInfo, error) {
+				mockGetter.EXPECT().GetObjectInfo(mock.Anything, mock.Anything).RunAndReturn(func(ctx context.Context, nodeType string) (*model.ObjectInfo, error) {
 					Expect(nodeType).To(Equal("LoraLoader"))
 					return &model.ObjectInfo{
 						Input: model.ObjectInfoInput{
@@ -121,7 +111,7 @@ var _ = Describe("ComfyUIModelDiscovery", func() {
 							},
 						},
 					}, nil
-				}
+				})
 
 				models, err := discovery.GetModels(ctx, service.ComfyUIModelTypeLoRA)
 				Expect(err).NotTo(HaveOccurred())
@@ -132,7 +122,7 @@ var _ = Describe("ComfyUIModelDiscovery", func() {
 
 		Context("with sampler model type", func() {
 			It("extracts samplers from KSampler node", func() {
-				mockGetter.getObjectInfoFunc = func(ctx context.Context, nodeType string) (*model.ObjectInfo, error) {
+				mockGetter.EXPECT().GetObjectInfo(mock.Anything, mock.Anything).RunAndReturn(func(ctx context.Context, nodeType string) (*model.ObjectInfo, error) {
 					Expect(nodeType).To(Equal("KSampler"))
 					return &model.ObjectInfo{
 						Input: model.ObjectInfoInput{
@@ -143,7 +133,7 @@ var _ = Describe("ComfyUIModelDiscovery", func() {
 							},
 						},
 					}, nil
-				}
+				})
 
 				models, err := discovery.GetModels(ctx, service.ComfyUIModelTypeSampler)
 				Expect(err).NotTo(HaveOccurred())
@@ -154,7 +144,7 @@ var _ = Describe("ComfyUIModelDiscovery", func() {
 
 		Context("with scheduler model type", func() {
 			It("extracts schedulers from KSampler node", func() {
-				mockGetter.getObjectInfoFunc = func(ctx context.Context, nodeType string) (*model.ObjectInfo, error) {
+				mockGetter.EXPECT().GetObjectInfo(mock.Anything, mock.Anything).RunAndReturn(func(ctx context.Context, nodeType string) (*model.ObjectInfo, error) {
 					Expect(nodeType).To(Equal("KSampler"))
 					return &model.ObjectInfo{
 						Input: model.ObjectInfoInput{
@@ -165,7 +155,7 @@ var _ = Describe("ComfyUIModelDiscovery", func() {
 							},
 						},
 					}, nil
-				}
+				})
 
 				models, err := discovery.GetModels(ctx, service.ComfyUIModelTypeScheduler)
 				Expect(err).NotTo(HaveOccurred())
@@ -176,7 +166,7 @@ var _ = Describe("ComfyUIModelDiscovery", func() {
 
 		Context("with field in optional inputs", func() {
 			It("extracts models from optional section", func() {
-				mockGetter.getObjectInfoFunc = func(ctx context.Context, nodeType string) (*model.ObjectInfo, error) {
+				mockGetter.EXPECT().GetObjectInfo(mock.Anything, mock.Anything).RunAndReturn(func(ctx context.Context, nodeType string) (*model.ObjectInfo, error) {
 					return &model.ObjectInfo{
 						Input: model.ObjectInfoInput{
 							Required: map[string][]interface{}{},
@@ -187,7 +177,7 @@ var _ = Describe("ComfyUIModelDiscovery", func() {
 							},
 						},
 					}, nil
-				}
+				})
 
 				models, err := discovery.GetModels(ctx, service.ComfyUIModelTypeVAE)
 				Expect(err).NotTo(HaveOccurred())
@@ -204,9 +194,9 @@ var _ = Describe("ComfyUIModelDiscovery", func() {
 			})
 
 			It("returns error when GetObjectInfo fails", func() {
-				mockGetter.getObjectInfoFunc = func(ctx context.Context, nodeType string) (*model.ObjectInfo, error) {
+				mockGetter.EXPECT().GetObjectInfo(mock.Anything, mock.Anything).RunAndReturn(func(ctx context.Context, nodeType string) (*model.ObjectInfo, error) {
 					return nil, fmt.Errorf("network error")
-				}
+				})
 
 				_, err := discovery.GetModels(ctx, service.ComfyUIModelTypeVAE)
 				Expect(err).To(HaveOccurred())
@@ -214,7 +204,7 @@ var _ = Describe("ComfyUIModelDiscovery", func() {
 			})
 
 			It("returns error when field not found", func() {
-				mockGetter.getObjectInfoFunc = func(ctx context.Context, nodeType string) (*model.ObjectInfo, error) {
+				mockGetter.EXPECT().GetObjectInfo(mock.Anything, mock.Anything).RunAndReturn(func(ctx context.Context, nodeType string) (*model.ObjectInfo, error) {
 					return &model.ObjectInfo{
 						Input: model.ObjectInfoInput{
 							Required: map[string][]interface{}{
@@ -222,7 +212,7 @@ var _ = Describe("ComfyUIModelDiscovery", func() {
 							},
 						},
 					}, nil
-				}
+				})
 
 				_, err := discovery.GetModels(ctx, service.ComfyUIModelTypeVAE)
 				Expect(err).To(HaveOccurred())
@@ -230,9 +220,9 @@ var _ = Describe("ComfyUIModelDiscovery", func() {
 			})
 
 			It("returns error for nil object info", func() {
-				mockGetter.getObjectInfoFunc = func(ctx context.Context, nodeType string) (*model.ObjectInfo, error) {
+				mockGetter.EXPECT().GetObjectInfo(mock.Anything, mock.Anything).RunAndReturn(func(ctx context.Context, nodeType string) (*model.ObjectInfo, error) {
 					return nil, nil
-				}
+				})
 
 				_, err := discovery.GetModels(ctx, service.ComfyUIModelTypeVAE)
 				Expect(err).To(HaveOccurred())
@@ -246,7 +236,7 @@ var _ = Describe("ComfyUIModelDiscovery", func() {
 
 		Context("with valid input spec", func() {
 			It("parses array of string choices", func() {
-				mockGetter.getObjectInfoFunc = func(ctx context.Context, nodeType string) (*model.ObjectInfo, error) {
+				mockGetter.EXPECT().GetObjectInfo(mock.Anything, mock.Anything).RunAndReturn(func(ctx context.Context, nodeType string) (*model.ObjectInfo, error) {
 					return &model.ObjectInfo{
 						Input: model.ObjectInfoInput{
 							Required: map[string][]interface{}{
@@ -256,7 +246,7 @@ var _ = Describe("ComfyUIModelDiscovery", func() {
 							},
 						},
 					}, nil
-				}
+				})
 
 				models, err := discovery.GetModels(ctx, service.ComfyUIModelTypeVAE)
 				Expect(err).NotTo(HaveOccurred())
@@ -264,7 +254,7 @@ var _ = Describe("ComfyUIModelDiscovery", func() {
 			})
 
 			It("filters out non-string choices", func() {
-				mockGetter.getObjectInfoFunc = func(ctx context.Context, nodeType string) (*model.ObjectInfo, error) {
+				mockGetter.EXPECT().GetObjectInfo(mock.Anything, mock.Anything).RunAndReturn(func(ctx context.Context, nodeType string) (*model.ObjectInfo, error) {
 					return &model.ObjectInfo{
 						Input: model.ObjectInfoInput{
 							Required: map[string][]interface{}{
@@ -274,7 +264,7 @@ var _ = Describe("ComfyUIModelDiscovery", func() {
 							},
 						},
 					}, nil
-				}
+				})
 
 				models, err := discovery.GetModels(ctx, service.ComfyUIModelTypeVAE)
 				Expect(err).NotTo(HaveOccurred())
@@ -284,7 +274,7 @@ var _ = Describe("ComfyUIModelDiscovery", func() {
 
 		Context("with invalid input spec", func() {
 			It("returns error for empty input spec", func() {
-				mockGetter.getObjectInfoFunc = func(ctx context.Context, nodeType string) (*model.ObjectInfo, error) {
+				mockGetter.EXPECT().GetObjectInfo(mock.Anything, mock.Anything).RunAndReturn(func(ctx context.Context, nodeType string) (*model.ObjectInfo, error) {
 					return &model.ObjectInfo{
 						Input: model.ObjectInfoInput{
 							Required: map[string][]interface{}{
@@ -292,7 +282,7 @@ var _ = Describe("ComfyUIModelDiscovery", func() {
 							},
 						},
 					}, nil
-				}
+				})
 
 				_, err := discovery.GetModels(ctx, service.ComfyUIModelTypeVAE)
 				Expect(err).To(HaveOccurred())
@@ -300,7 +290,7 @@ var _ = Describe("ComfyUIModelDiscovery", func() {
 			})
 
 			It("returns error when first element is not an array", func() {
-				mockGetter.getObjectInfoFunc = func(ctx context.Context, nodeType string) (*model.ObjectInfo, error) {
+				mockGetter.EXPECT().GetObjectInfo(mock.Anything, mock.Anything).RunAndReturn(func(ctx context.Context, nodeType string) (*model.ObjectInfo, error) {
 					return &model.ObjectInfo{
 						Input: model.ObjectInfoInput{
 							Required: map[string][]interface{}{
@@ -310,7 +300,7 @@ var _ = Describe("ComfyUIModelDiscovery", func() {
 							},
 						},
 					}, nil
-				}
+				})
 
 				_, err := discovery.GetModels(ctx, service.ComfyUIModelTypeVAE)
 				Expect(err).To(HaveOccurred())
@@ -324,7 +314,7 @@ var _ = Describe("ComfyUIModelDiscovery", func() {
 		DescribeTable("queries correct node type",
 			func(modelType service.ComfyUIModelType, expectedNodeType string) {
 				var queriedNodeType string
-				mockGetter.getObjectInfoFunc = func(ctx context.Context, nodeType string) (*model.ObjectInfo, error) {
+				mockGetter.EXPECT().GetObjectInfo(mock.Anything, mock.Anything).RunAndReturn(func(ctx context.Context, nodeType string) (*model.ObjectInfo, error) {
 					queriedNodeType = nodeType
 					return &model.ObjectInfo{
 						Input: model.ObjectInfoInput{
@@ -339,7 +329,7 @@ var _ = Describe("ComfyUIModelDiscovery", func() {
 							},
 						},
 					}, nil
-				}
+				})
 
 				_, err := discovery.GetModels(ctx, modelType)
 				Expect(err).NotTo(HaveOccurred())

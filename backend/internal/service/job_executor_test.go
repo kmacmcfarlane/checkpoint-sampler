@@ -10,13 +10,23 @@ import (
 
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/fileformat"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service/servicemocks"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/testutil"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/sirupsen/logrus"
 )
 
-// Mock implementations
+// Hand-written stateful fakes.
+//
+// These doubles maintain in-memory fixture state (job/item maps, written-file
+// maps, recorded broadcast events) and actively drive the executor under test
+// (e.g. fakeComfyUIWS.SendEvent / SimulateDisconnect). mockery's testify mocks
+// are call-expectation recorders and cannot express this stateful, callback-
+// driven behaviour without rewriting hundreds of state-based assertions, so they
+// are intentionally kept as `fake*` doubles (W-029). Call-based collaborators that
+// mockery *can* express (ObjectInfoGetter, SampleDirRemover) use generated mocks
+// from internal/service/servicemocks instead.
 
 // fakeUNETProvider is a ComfyUIModelsProvider test double that returns a fixed
 // UNET (unet_name) list. Used to exercise base model -> unet_name resolution.
@@ -32,7 +42,7 @@ func (f *fakeUNETProvider) GetModels(_ context.Context, _ ComfyUIModelType) ([]s
 	return f.unets, nil
 }
 
-type mockJobExecutorStore struct {
+type fakeJobExecutorStore struct {
 	jobs            map[string]model.SampleJob
 	items           map[string][]model.SampleJobItem
 	studies         map[string]model.Study
@@ -45,15 +55,15 @@ type mockJobExecutorStore struct {
 	recalcMu sync.Mutex
 }
 
-func newMockJobExecutorStore() *mockJobExecutorStore {
-	return &mockJobExecutorStore{
+func newFakeJobExecutorStore() *fakeJobExecutorStore {
+	return &fakeJobExecutorStore{
 		jobs:    make(map[string]model.SampleJob),
 		items:   make(map[string][]model.SampleJobItem),
 		studies: make(map[string]model.Study),
 	}
 }
 
-func (m *mockJobExecutorStore) GetSampleJob(id string) (model.SampleJob, error) {
+func (m *fakeJobExecutorStore) GetSampleJob(id string) (model.SampleJob, error) {
 	job, ok := m.jobs[id]
 	if !ok {
 		return model.SampleJob{}, sql.ErrNoRows
@@ -61,7 +71,7 @@ func (m *mockJobExecutorStore) GetSampleJob(id string) (model.SampleJob, error) 
 	return job, nil
 }
 
-func (m *mockJobExecutorStore) UpdateSampleJob(j model.SampleJob) error {
+func (m *fakeJobExecutorStore) UpdateSampleJob(j model.SampleJob) error {
 	if m.onUpdateJob != nil {
 		m.onUpdateJob(j)
 	}
@@ -76,7 +86,7 @@ func (m *mockJobExecutorStore) UpdateSampleJob(j model.SampleJob) error {
 // real store's single-writer SQL semantics (the production pool uses SetMaxOpenConns(1)).
 // Without this, the concurrency test would exercise map races in the fake rather than
 // the get-modify-write race the real store eliminates.
-func (m *mockJobExecutorStore) RecalculateCompletedItems(jobID string) (int, error) {
+func (m *fakeJobExecutorStore) RecalculateCompletedItems(jobID string) (int, error) {
 	if m.updateJobError != nil {
 		return 0, m.updateJobError
 	}
@@ -98,7 +108,7 @@ func (m *mockJobExecutorStore) RecalculateCompletedItems(jobID string) (int, err
 	return completed, nil
 }
 
-func (m *mockJobExecutorStore) ListSampleJobItems(jobID string) ([]model.SampleJobItem, error) {
+func (m *fakeJobExecutorStore) ListSampleJobItems(jobID string) ([]model.SampleJobItem, error) {
 	items, ok := m.items[jobID]
 	if !ok {
 		return []model.SampleJobItem{}, nil
@@ -106,7 +116,7 @@ func (m *mockJobExecutorStore) ListSampleJobItems(jobID string) ([]model.SampleJ
 	return items, nil
 }
 
-func (m *mockJobExecutorStore) UpdateSampleJobItem(i model.SampleJobItem) error {
+func (m *fakeJobExecutorStore) UpdateSampleJobItem(i model.SampleJobItem) error {
 	if m.updateItemError != nil {
 		return m.updateItemError
 	}
@@ -121,7 +131,7 @@ func (m *mockJobExecutorStore) UpdateSampleJobItem(i model.SampleJobItem) error 
 	return errors.New("item not found")
 }
 
-func (m *mockJobExecutorStore) ListSampleJobs() ([]model.SampleJob, error) {
+func (m *fakeJobExecutorStore) ListSampleJobs() ([]model.SampleJob, error) {
 	var result []model.SampleJob
 	for _, j := range m.jobs {
 		result = append(result, j)
@@ -129,7 +139,7 @@ func (m *mockJobExecutorStore) ListSampleJobs() ([]model.SampleJob, error) {
 	return result, nil
 }
 
-func (m *mockJobExecutorStore) GetStudy(id string) (model.Study, error) {
+func (m *fakeJobExecutorStore) GetStudy(id string) (model.Study, error) {
 	s, ok := m.studies[id]
 	if !ok {
 		return model.Study{}, errors.New("study not found")
@@ -137,7 +147,7 @@ func (m *mockJobExecutorStore) GetStudy(id string) (model.Study, error) {
 	return s, nil
 }
 
-type mockComfyUIClient struct {
+type fakeComfyUIClient struct {
 	submitErr        error
 	promptResponse   *model.PromptResponse
 	lastSubmittedReq *model.PromptRequest
@@ -148,7 +158,7 @@ type mockComfyUIClient struct {
 	cancelErr        error
 }
 
-func (m *mockComfyUIClient) SubmitPrompt(ctx context.Context, req model.PromptRequest) (*model.PromptResponse, error) {
+func (m *fakeComfyUIClient) SubmitPrompt(ctx context.Context, req model.PromptRequest) (*model.PromptResponse, error) {
 	m.lastSubmittedReq = &req
 	if m.submitErr != nil {
 		return nil, m.submitErr
@@ -156,21 +166,21 @@ func (m *mockComfyUIClient) SubmitPrompt(ctx context.Context, req model.PromptRe
 	return m.promptResponse, nil
 }
 
-func (m *mockComfyUIClient) GetHistory(ctx context.Context, promptID string) (model.HistoryResponse, error) {
+func (m *fakeComfyUIClient) GetHistory(ctx context.Context, promptID string) (model.HistoryResponse, error) {
 	if m.historyErr != nil {
 		return nil, m.historyErr
 	}
 	return m.historyResponse, nil
 }
 
-func (m *mockComfyUIClient) DownloadImage(ctx context.Context, filename string, subfolder string, folderType string) ([]byte, error) {
+func (m *fakeComfyUIClient) DownloadImage(ctx context.Context, filename string, subfolder string, folderType string) ([]byte, error) {
 	if m.downloadErr != nil {
 		return nil, m.downloadErr
 	}
 	return m.downloadData, nil
 }
 
-func (m *mockComfyUIClient) CancelPrompt(ctx context.Context, promptID string) error {
+func (m *fakeComfyUIClient) CancelPrompt(ctx context.Context, promptID string) error {
 	if m.cancelErr != nil {
 		return m.cancelErr
 	}
@@ -192,16 +202,16 @@ func (m *mockComfyUIClient) CancelPrompt(ctx context.Context, promptID string) e
 // snapshot and is now inside the history call). release blocks GetHistory until
 // the test closes it.
 type gatedHistoryClient struct {
-	mockComfyUIClient
+	fakeComfyUIClient
 	entered chan struct{}
 	release chan struct{}
 
 	onceEntered sync.Once
 }
 
-func newGatedHistoryClient(base mockComfyUIClient) *gatedHistoryClient {
+func newGatedHistoryClient(base fakeComfyUIClient) *gatedHistoryClient {
 	return &gatedHistoryClient{
-		mockComfyUIClient: base,
+		fakeComfyUIClient: base,
 		entered:           make(chan struct{}),
 		release:           make(chan struct{}),
 	}
@@ -210,10 +220,10 @@ func newGatedHistoryClient(base mockComfyUIClient) *gatedHistoryClient {
 func (g *gatedHistoryClient) GetHistory(ctx context.Context, promptID string) (model.HistoryResponse, error) {
 	g.onceEntered.Do(func() { close(g.entered) })
 	<-g.release
-	return g.mockComfyUIClient.GetHistory(ctx, promptID)
+	return g.fakeComfyUIClient.GetHistory(ctx, promptID)
 }
 
-type mockComfyUIWS struct {
+type fakeComfyUIWS struct {
 	handlers          []model.ComfyUIEventHandler
 	disconnectHandler func()
 	connectErr        error
@@ -221,33 +231,33 @@ type mockComfyUIWS struct {
 	clientID          string
 }
 
-func (m *mockComfyUIWS) AddHandler(handler model.ComfyUIEventHandler) {
+func (m *fakeComfyUIWS) AddHandler(handler model.ComfyUIEventHandler) {
 	m.handlers = append(m.handlers, handler)
 }
 
-func (m *mockComfyUIWS) SetDisconnectHandler(handler func()) {
+func (m *fakeComfyUIWS) SetDisconnectHandler(handler func()) {
 	m.disconnectHandler = handler
 }
 
-func (m *mockComfyUIWS) Connect(ctx context.Context) error {
+func (m *fakeComfyUIWS) Connect(ctx context.Context) error {
 	if m.connectErr != nil {
 		return m.connectErr
 	}
 	return nil
 }
 
-func (m *mockComfyUIWS) Close() error {
+func (m *fakeComfyUIWS) Close() error {
 	if m.closeErr != nil {
 		return m.closeErr
 	}
 	return nil
 }
 
-func (m *mockComfyUIWS) GetClientID() string {
+func (m *fakeComfyUIWS) GetClientID() string {
 	return m.clientID
 }
 
-func (m *mockComfyUIWS) SendEvent(event model.ComfyUIEvent) {
+func (m *fakeComfyUIWS) SendEvent(event model.ComfyUIEvent) {
 	for _, h := range m.handlers {
 		h(event)
 	}
@@ -255,67 +265,67 @@ func (m *mockComfyUIWS) SendEvent(event model.ComfyUIEvent) {
 
 // SimulateDisconnect simulates a WebSocket disconnection by invoking the
 // registered disconnect handler (as the real readLoop would on a read error).
-func (m *mockComfyUIWS) SimulateDisconnect() {
+func (m *fakeComfyUIWS) SimulateDisconnect() {
 	if m.disconnectHandler != nil {
 		m.disconnectHandler()
 	}
 }
 
-type mockWorkflowLoader struct {
+type fakeWorkflowLoader struct {
 	workflow model.WorkflowTemplate
 	err      error
 }
 
-func (m *mockWorkflowLoader) Get(ctx context.Context, name string) (model.WorkflowTemplate, error) {
+func (m *fakeWorkflowLoader) Get(ctx context.Context, name string) (model.WorkflowTemplate, error) {
 	if m.err != nil {
 		return model.WorkflowTemplate{}, m.err
 	}
 	return m.workflow, nil
 }
 
-type mockEventHub struct {
+type fakeEventHub struct {
 	events []model.FSEvent
 }
 
-func (m *mockEventHub) Broadcast(event model.FSEvent) {
+func (m *fakeEventHub) Broadcast(event model.FSEvent) {
 	m.events = append(m.events, event)
 }
 
-type mockFileInfo struct {
+type fakeFileInfo struct {
 	isDir bool
 }
 
-func (m mockFileInfo) IsDir() bool {
+func (m fakeFileInfo) IsDir() bool {
 	return m.isDir
 }
 
-type mockFileSystemWriter struct {
+type fakeFileSystemWriter struct {
 	writtenFiles map[string][]byte
 	renameErr    error
 }
 
-func newMockFileSystemWriter() *mockFileSystemWriter {
-	return &mockFileSystemWriter{
+func newFakeFileSystemWriter() *fakeFileSystemWriter {
+	return &fakeFileSystemWriter{
 		writtenFiles: make(map[string][]byte),
 	}
 }
 
-func (m *mockFileSystemWriter) MkdirAll(path string, perm uint32) error {
+func (m *fakeFileSystemWriter) MkdirAll(path string, perm uint32) error {
 	return nil
 }
 
-func (m *mockFileSystemWriter) WriteFile(path string, data []byte, perm uint32) error {
+func (m *fakeFileSystemWriter) WriteFile(path string, data []byte, perm uint32) error {
 	if m.writtenFiles != nil {
 		m.writtenFiles[path] = data
 	}
 	return nil
 }
 
-func (m *mockFileSystemWriter) Stat(path string) (fileInfo, error) {
-	return mockFileInfo{isDir: true}, nil
+func (m *fakeFileSystemWriter) Stat(path string) (fileInfo, error) {
+	return fakeFileInfo{isDir: true}, nil
 }
 
-func (m *mockFileSystemWriter) RenameFile(oldPath, newPath string) error {
+func (m *fakeFileSystemWriter) RenameFile(oldPath, newPath string) error {
 	if m.renameErr != nil {
 		return m.renameErr
 	}
@@ -328,21 +338,21 @@ func (m *mockFileSystemWriter) RenameFile(oldPath, newPath string) error {
 	return nil
 }
 
-type mockFileSystemReader struct {
+type fakeFileSystemReader struct {
 	// files maps directory paths to lists of PNG filenames in that directory
 	files   map[string][]string
 	dirs    map[string]bool
 	listErr error
 }
 
-func newMockFileSystemReader() *mockFileSystemReader {
-	return &mockFileSystemReader{
+func newFakeFileSystemReader() *fakeFileSystemReader {
+	return &fakeFileSystemReader{
 		files: make(map[string][]string),
 		dirs:  make(map[string]bool),
 	}
 }
 
-func (m *mockFileSystemReader) ListPNGFiles(dir string) ([]string, error) {
+func (m *fakeFileSystemReader) ListPNGFiles(dir string) ([]string, error) {
 	if m.listErr != nil {
 		return nil, m.listErr
 	}
@@ -353,40 +363,26 @@ func (m *mockFileSystemReader) ListPNGFiles(dir string) ([]string, error) {
 	return files, nil
 }
 
-func (m *mockFileSystemReader) DirectoryExists(path string) bool {
+func (m *fakeFileSystemReader) DirectoryExists(path string) bool {
 	return m.dirs[path]
-}
-
-// mockDirRemover is a test double for SampleDirRemover (clear-existing at job start).
-type mockDirRemover struct {
-	calls []struct{ trainingRunName, studyName, checkpointFilename string }
-	err   error
-}
-
-func (m *mockDirRemover) RemoveCheckpointOutputDir(trainingRunName string, studyName string, checkpointFilename string) error {
-	if m.err != nil {
-		return m.err
-	}
-	m.calls = append(m.calls, struct{ trainingRunName, studyName, checkpointFilename string }{trainingRunName, studyName, checkpointFilename})
-	return nil
 }
 
 var _ = Describe("JobExecutor", func() {
 	var (
 		executor   *JobExecutor
-		mockStore  *mockJobExecutorStore
-		mockClient *mockComfyUIClient
-		mockWS     *mockComfyUIWS
-		mockLoader *mockWorkflowLoader
-		mockHub    *mockEventHub
-		mockFS     *mockFileSystemWriter
-		mockFSRead *mockFileSystemReader
+		mockStore  *fakeJobExecutorStore
+		mockClient *fakeComfyUIClient
+		mockWS     *fakeComfyUIWS
+		mockLoader *fakeWorkflowLoader
+		mockHub    *fakeEventHub
+		mockFS     *fakeFileSystemWriter
+		mockFSRead *fakeFileSystemReader
 		logger     *logrus.Logger
 	)
 
 	BeforeEach(func() {
-		mockStore = newMockJobExecutorStore()
-		mockClient = &mockComfyUIClient{
+		mockStore = newFakeJobExecutorStore()
+		mockClient = &fakeComfyUIClient{
 			promptResponse: &model.PromptResponse{
 				PromptID: "test-prompt-id",
 			},
@@ -407,8 +403,8 @@ var _ = Describe("JobExecutor", func() {
 			},
 			downloadData: []byte("fake-image-data"),
 		}
-		mockWS = &mockComfyUIWS{clientID: "test-client-id"}
-		mockLoader = &mockWorkflowLoader{
+		mockWS = &fakeComfyUIWS{clientID: "test-client-id"}
+		mockLoader = &fakeWorkflowLoader{
 			workflow: model.WorkflowTemplate{
 				Name: "test-workflow.json",
 				Workflow: map[string]interface{}{
@@ -438,9 +434,9 @@ var _ = Describe("JobExecutor", func() {
 				},
 			},
 		}
-		mockHub = &mockEventHub{}
-		mockFS = newMockFileSystemWriter()
-		mockFSRead = newMockFileSystemReader()
+		mockHub = &fakeEventHub{}
+		mockFS = newFakeFileSystemWriter()
+		mockFSRead = newFakeFileSystemReader()
 		logger = logrus.New()
 		logger.SetOutput(GinkgoWriter)
 
@@ -672,7 +668,13 @@ var _ = Describe("JobExecutor", func() {
 		// B-131: autoStartJob clears only selected checkpoint dirs, not the whole study
 		It("clears only selected checkpoint directories during auto-start when ClearExisting=true (partial selection)", func() {
 			// AC: BE: Clear-existing only deletes samples for the selected checkpoints
-			remover := &mockDirRemover{}
+			remover := servicemocks.NewMockSampleDirRemover(GinkgoT())
+			// Only the selected checkpoint directory should be removed (not the whole
+			// study dir). The exact-args expectation + AssertExpectations (registered
+			// by NewMockSampleDirRemover) verifies exactly one call with these args.
+			remover.EXPECT().
+				RemoveCheckpointOutputDir("test-run/my-model", "My Study", "cp1.safetensors").
+				Return(nil).Once()
 			executor.SetDirRemover(remover)
 
 			job := model.SampleJob{
@@ -689,12 +691,6 @@ var _ = Describe("JobExecutor", func() {
 			err := executor.autoStartJob(&jobCopy)
 			Expect(err).NotTo(HaveOccurred())
 
-			// Only the selected checkpoint directory should be removed (not the whole study dir)
-			Expect(remover.calls).To(HaveLen(1))
-			Expect(remover.calls[0].trainingRunName).To(Equal("test-run/my-model"))
-			Expect(remover.calls[0].studyName).To(Equal("My Study"))
-			Expect(remover.calls[0].checkpointFilename).To(Equal("cp1.safetensors"))
-
 			// ClearExisting should be reset to false in the persisted job
 			storedJob := mockStore.jobs["job-clear-auto-partial"]
 			Expect(storedJob.ClearExisting).To(BeFalse())
@@ -702,7 +698,18 @@ var _ = Describe("JobExecutor", func() {
 
 		It("clears all checkpoint directories during auto-start when all checkpoints are selected", func() {
 			// AC: BE: Selecting all checkpoints with clear-existing clears all samples (full coverage path)
-			remover := &mockDirRemover{}
+			remover := servicemocks.NewMockSampleDirRemover(GinkgoT())
+			// Both checkpoint directories should be removed (one call per checkpoint),
+			// cp1 before cp2. The two exact-args .Once() expectations plus NotBefore
+			// reproduce the original ordered, per-checkpoint call assertions; the
+			// run-name/study-name args are pinned in each expectation. AssertExpectations
+			// verifies both calls occurred exactly once.
+			cp1Call := remover.EXPECT().
+				RemoveCheckpointOutputDir("test-run/my-model", "My Study", "cp1.safetensors").
+				Return(nil).Once()
+			remover.EXPECT().
+				RemoveCheckpointOutputDir("test-run/my-model", "My Study", "cp2.safetensors").
+				Return(nil).Once().NotBefore(cp1Call)
 			executor.SetDirRemover(remover)
 
 			job := model.SampleJob{
@@ -719,15 +726,6 @@ var _ = Describe("JobExecutor", func() {
 			err := executor.autoStartJob(&jobCopy)
 			Expect(err).NotTo(HaveOccurred())
 
-			// Both checkpoint directories should be removed (one call per checkpoint)
-			Expect(remover.calls).To(HaveLen(2))
-			Expect(remover.calls[0].checkpointFilename).To(Equal("cp1.safetensors"))
-			Expect(remover.calls[1].checkpointFilename).To(Equal("cp2.safetensors"))
-			for _, call := range remover.calls {
-				Expect(call.trainingRunName).To(Equal("test-run/my-model"))
-				Expect(call.studyName).To(Equal("My Study"))
-			}
-
 			// ClearExisting should be reset to false in the persisted job
 			storedJob := mockStore.jobs["job-clear-auto-all"]
 			Expect(storedJob.ClearExisting).To(BeFalse())
@@ -736,7 +734,10 @@ var _ = Describe("JobExecutor", func() {
 		// B-131: autoStartJob does NOT clear when ClearExisting=false (resume scenario)
 		It("does not clear during auto-start when ClearExisting=false", func() {
 			// AC: BE: Resuming a failed job does not re-clear existing samples
-			remover := &mockDirRemover{}
+			// No expectations are registered: with testify mocks an unexpected call
+			// to RemoveCheckpointOutputDir fails the test, so this asserts the remover
+			// is never invoked (the original Expect(remover.calls).To(BeEmpty())).
+			remover := servicemocks.NewMockSampleDirRemover(GinkgoT())
 			executor.SetDirRemover(remover)
 
 			job := model.SampleJob{
@@ -750,7 +751,6 @@ var _ = Describe("JobExecutor", func() {
 			jobCopy := job
 			err := executor.autoStartJob(&jobCopy)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(remover.calls).To(BeEmpty())
 		})
 
 		It("logs at WARN (not ERROR) when UpdateSampleJob returns sql.ErrNoRows during auto-start", func() {
@@ -1569,7 +1569,7 @@ var _ = Describe("JobExecutor", func() {
 			}
 			var callLog []callRecord
 
-			trackingStore := newMockJobExecutorStore()
+			trackingStore := newFakeJobExecutorStore()
 			job := model.SampleJob{
 				ID:     "job-ordering",
 				Status: model.SampleJobStatusRunning,
@@ -2496,7 +2496,7 @@ var _ = Describe("JobExecutor", func() {
 	Describe("Resilient startup", func() {
 		It("starts successfully when ComfyUI WebSocket connection fails", func() {
 			// Create a new executor with a WS client that fails to connect
-			mockWSFailing := &mockComfyUIWS{
+			mockWSFailing := &fakeComfyUIWS{
 				connectErr: errors.New("connection refused"),
 			}
 			executorWithFailingWS := NewJobExecutor(
@@ -2535,7 +2535,7 @@ var _ = Describe("JobExecutor", func() {
 
 		It("does not process items when not connected", func() {
 			// Create executor with failing WS
-			mockWSFailing := &mockComfyUIWS{
+			mockWSFailing := &fakeComfyUIWS{
 				connectErr: errors.New("connection refused"),
 			}
 			executorWithFailingWS := NewJobExecutor(
@@ -2598,7 +2598,7 @@ var _ = Describe("JobExecutor", func() {
 		})
 
 		It("handles Stop gracefully when Start failed", func() {
-			mockWSFailing := &mockComfyUIWS{
+			mockWSFailing := &fakeComfyUIWS{
 				connectErr: errors.New("connection refused"),
 			}
 			executorWithFailingWS := NewJobExecutor(
@@ -2622,7 +2622,7 @@ var _ = Describe("JobExecutor", func() {
 
 		It("transitions from disconnected to connected when WS becomes available", func() {
 			// Create mock WS that initially fails but can succeed later
-			mockWSVariable := &mockComfyUIWS{
+			mockWSVariable := &fakeComfyUIWS{
 				connectErr: errors.New("connection refused"),
 			}
 			executorWithVariableWS := NewJobExecutor(
@@ -3231,7 +3231,7 @@ var _ = Describe("JobExecutor", func() {
 		var job model.SampleJob
 		var item model.SampleJobItem
 		var thumbGen *ThumbnailGenerator
-		var localFS *mockFileSystemWriter
+		var localFS *fakeFileSystemWriter
 		var localExecutor *JobExecutor
 
 		BeforeEach(func() {
@@ -3275,7 +3275,7 @@ var _ = Describe("JobExecutor", func() {
 				JPEGQuality:    85,
 			}
 			thumbGen = NewThumbnailGenerator(thumbCfg, logger)
-			localFS = newMockFileSystemWriter()
+			localFS = newFakeFileSystemWriter()
 			localExecutor = NewJobExecutorWithThumbnails(
 				mockStore,
 				mockClient,
@@ -4480,7 +4480,7 @@ var _ = Describe("JobExecutor", func() {
 			// History does not contain the old prompt — recovery would normally reset
 			// the item to pending. The compare-and-act guard must prevent that once the
 			// item has been re-submitted with a new prompt ID.
-			base := mockComfyUIClient{historyResponse: model.HistoryResponse{}}
+			base := fakeComfyUIClient{historyResponse: model.HistoryResponse{}}
 			gated := newGatedHistoryClient(base)
 
 			// Build an executor that uses the gated client so we can pause recovery.
@@ -4557,7 +4557,7 @@ var _ = Describe("JobExecutor", func() {
 			// History DOES contain the old prompt with output images — recovery would
 			// normally claim the slot and process completion. The compare-and-act guard
 			// must prevent that once the item carries a new prompt ID.
-			base := mockComfyUIClient{
+			base := fakeComfyUIClient{
 				historyResponse: model.HistoryResponse{
 					"old-prompt": model.HistoryEntry{
 						Outputs: map[string]interface{}{
@@ -4619,7 +4619,7 @@ var _ = Describe("JobExecutor", func() {
 	// AC1/AC4: tryConnect triggers recoverStuckItems on reconnect but not initial connect
 	Describe("tryConnect reconnect detection", func() {
 		It("sets everConnected=true after first successful connect", func() {
-			freshWS := &mockComfyUIWS{clientID: "fresh-id"}
+			freshWS := &fakeComfyUIWS{clientID: "fresh-id"}
 			freshExecutor := NewJobExecutor(
 				mockStore, mockClient, freshWS, mockLoader, mockHub,
 				"/test/samples", mockFS, mockFSRead, logger,
@@ -4642,7 +4642,7 @@ var _ = Describe("JobExecutor", func() {
 		It("marks everConnected=true even if reconnect fails", func() {
 			// After a successful initial connect, everConnected stays true
 			// through subsequent failed reconnect attempts (the flag only flips to true, never back).
-			freshWS := &mockComfyUIWS{clientID: "fresh-id2"}
+			freshWS := &fakeComfyUIWS{clientID: "fresh-id2"}
 			freshExecutor := NewJobExecutor(
 				mockStore, mockClient, freshWS, mockLoader, mockHub,
 				"/test/samples", mockFS, mockFSRead, logger,

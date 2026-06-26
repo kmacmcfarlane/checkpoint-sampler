@@ -1134,7 +1134,7 @@ stories:
   - id: W-029
     title: "Mockery migration part 2: service-layer mocks"
     priority: 38
-    status: todo
+    status: uat
     complexity: high
     type: workflow
     requires: ["W-028", "R-018"]

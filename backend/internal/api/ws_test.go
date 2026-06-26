@@ -20,15 +20,21 @@ import (
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
 )
 
-// mockSubscribeServerStream captures Send calls for test assertions.
-type mockSubscribeServerStream struct {
+// fakeSubscribeServerStream captures Send calls for test assertions.
+//
+// It is a hand-written fake (not a mockery mock) because it implements the
+// Goa-generated genws.SubscribeServerStream interface, and mockery must not be
+// pointed at the generated internal/api/gen tree (DEVELOPMENT_PRACTICES 3.9 /
+// TEST_PRACTICES 2.1.1). It also maintains thread-safe captured-send state that a
+// call-expectation mock cannot express cleanly.
+type fakeSubscribeServerStream struct {
 	mu       sync.Mutex
 	sent     []*genws.FSEventResponse
 	sendErr  error
 	closeErr error
 }
 
-func (m *mockSubscribeServerStream) Send(v *genws.FSEventResponse) error {
+func (m *fakeSubscribeServerStream) Send(v *genws.FSEventResponse) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.sendErr != nil {
@@ -38,15 +44,15 @@ func (m *mockSubscribeServerStream) Send(v *genws.FSEventResponse) error {
 	return nil
 }
 
-func (m *mockSubscribeServerStream) SendWithContext(_ context.Context, v *genws.FSEventResponse) error {
+func (m *fakeSubscribeServerStream) SendWithContext(_ context.Context, v *genws.FSEventResponse) error {
 	return m.Send(v)
 }
 
-func (m *mockSubscribeServerStream) Close() error {
+func (m *fakeSubscribeServerStream) Close() error {
 	return m.closeErr
 }
 
-func (m *mockSubscribeServerStream) Sent() []*genws.FSEventResponse {
+func (m *fakeSubscribeServerStream) Sent() []*genws.FSEventResponse {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	result := make([]*genws.FSEventResponse, len(m.sent))
@@ -88,7 +94,7 @@ var _ = Describe("WSService", func() {
 	var (
 		hub    *service.Hub
 		svc    *api.WSService
-		stream *mockSubscribeServerStream
+		stream *fakeSubscribeServerStream
 		logger *logrus.Logger
 	)
 
@@ -97,7 +103,7 @@ var _ = Describe("WSService", func() {
 		logger.SetOutput(GinkgoWriter)
 		hub = service.NewHub(logger)
 		svc = api.NewWSService(hub)
-		stream = &mockSubscribeServerStream{}
+		stream = &fakeSubscribeServerStream{}
 	})
 
 	Describe("Subscribe", func() {
