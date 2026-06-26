@@ -27,7 +27,7 @@ func (s *CheckpointsService) Metadata(ctx context.Context, p *gencheckpoints.Met
 		// Client-facing messages reference only the requested filename, never an
 		// absolute server path.
 		if errors.Is(err, service.ErrInvalidFilename) {
-			return nil, gencheckpoints.MakeInvalidFilename(fmt.Errorf("invalid filename: %s", p.Filename))
+			return nil, gencheckpoints.MakeInvalidPayload(fmt.Errorf("invalid filename: %s", p.Filename))
 		}
 		if errors.Is(err, service.ErrNotFound) {
 			return nil, gencheckpoints.MakeNotFound(fmt.Errorf("checkpoint file not found: %s", p.Filename))

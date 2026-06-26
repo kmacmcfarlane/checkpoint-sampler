@@ -104,7 +104,7 @@ func (s *SampleJobsService) Create(ctx context.Context, p *gensamplejobs.CreateS
 		var discErr error
 		runs, discErr = s.discovery.Discover()
 		if discErr != nil {
-			return nil, gensamplejobs.MakeInvalidPayload(fmt.Errorf("discovering training runs: %w", discErr))
+			return nil, gensamplejobs.MakeInternalError(fmt.Errorf("discovering training runs: %w", discErr))
 		}
 	}
 

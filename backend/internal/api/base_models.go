@@ -25,7 +25,7 @@ func NewBaseModelsService(lister BaseModelLister) *BaseModelsService {
 func (s *BaseModelsService) List(ctx context.Context) (*genbasemodels.BaseModelsResult, error) {
 	models, err := s.lister.ListBaseModels()
 	if err != nil {
-		return nil, genbasemodels.MakeScanFailed(err)
+		return nil, genbasemodels.MakeInternalError(err)
 	}
 	return &genbasemodels.BaseModelsResult{
 		Models: models,

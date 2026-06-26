@@ -25,10 +25,18 @@ var _ = Service("comfyui", func() {
 			Required("type")
 		})
 		Result(ComfyUIModelsResult)
+		// ComfyUI outages previously surfaced as unmapped 500s (R-016). Declare the
+		// canonical failure set so they map to stable, documented status codes:
+		//   service_unavailable (503) — ComfyUI connection is down / not reachable.
+		//   internal_error (500)      — unexpected failure parsing the ComfyUI response.
+		Error("service_unavailable", ErrorResult, "ComfyUI service unavailable")
+		Error("internal_error", ErrorResult, "Internal server error")
 		HTTP(func() {
 			GET("/api/comfyui/models")
 			Param("type")
 			Response(StatusOK)
+			Response("service_unavailable", StatusServiceUnavailable)
+			Response("internal_error", StatusInternalServerError)
 		})
 	})
 })

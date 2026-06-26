@@ -11,6 +11,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/sirupsen/logrus"
+	goa "goa.design/goa/v3/pkg"
 
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api"
 	genimages "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/images"
@@ -140,16 +141,20 @@ var _ = Describe("ImagesService", func() {
 			Expect(err.Error()).To(ContainSubstring("not found"))
 		})
 
-		It("returns bad_request error for path traversal with ..", func() {
+		It("returns invalid_payload error for path traversal with ..", func() {
 			_, _, err := svc.Download(context.Background(), &genimages.DownloadPayload{
 				Filepath: "../etc/passwd",
 			})
 
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("invalid file path"))
+			// R-016: path traversal maps to the canonical invalid_payload (400) code.
+			serr, ok := err.(*goa.ServiceError)
+			Expect(ok).To(BeTrue(), "expected a goa.ServiceError")
+			Expect(serr.Name).To(Equal("invalid_payload"))
 		})
 
-		It("returns bad_request error for absolute path", func() {
+		It("returns invalid_payload error for absolute path", func() {
 			_, _, err := svc.Download(context.Background(), &genimages.DownloadPayload{
 				Filepath: "/etc/passwd",
 			})
@@ -158,7 +163,7 @@ var _ = Describe("ImagesService", func() {
 			Expect(err.Error()).To(ContainSubstring("invalid file path"))
 		})
 
-		It("returns bad_request error for empty filepath", func() {
+		It("returns invalid_payload error for empty filepath", func() {
 			_, _, err := svc.Download(context.Background(), &genimages.DownloadPayload{
 				Filepath: "",
 			})
@@ -238,7 +243,7 @@ var _ = Describe("ImagesService", func() {
 			Expect(err.Error()).To(ContainSubstring("not found"))
 		})
 
-		It("returns bad_request error for path traversal attempt", func() {
+		It("returns invalid_payload error for path traversal attempt", func() {
 			_, err := svc.Metadata(context.Background(), &genimages.MetadataPayload{
 				Filepath: "../etc/passwd",
 			})
@@ -247,7 +252,7 @@ var _ = Describe("ImagesService", func() {
 			Expect(err.Error()).To(ContainSubstring("invalid file path"))
 		})
 
-		It("returns bad_request error for absolute path", func() {
+		It("returns invalid_payload error for absolute path", func() {
 			_, err := svc.Metadata(context.Background(), &genimages.MetadataPayload{
 				Filepath: "/etc/passwd",
 			})

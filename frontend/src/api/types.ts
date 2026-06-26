@@ -8,9 +8,37 @@ export interface ApiErrorResponse {
   fault: boolean
 }
 
+/**
+ * Canonical backend error codes (R-016). The backend exposes one stable code
+ * per failure class across every service (see docs/api.md §5.3 and
+ * backend/internal/api/design/errors.go), so the frontend can branch on these
+ * without per-service special-casing.
+ *
+ *   internal_error       — 500: unexpected server-side failure.
+ *   not_found            — 404: the requested entity does not exist.
+ *   invalid_payload      — 400: malformed request data or rejected path/filename.
+ *   invalid_state        — 400: operation invalid for the entity's current state.
+ *   too_many_items       — 422: computed work exceeds the configured maximum.
+ *   service_unavailable  — 503: a required dependency (ComfyUI) is unavailable.
+ *
+ * In addition to these, normalizeError emits two client-side codes:
+ *   NETWORK_ERROR — the request never reached the server (fetch threw).
+ *   UNKNOWN_ERROR — a non-ok response whose body was not a Goa error envelope.
+ */
+export type ApiErrorCode =
+  | 'internal_error'
+  | 'not_found'
+  | 'invalid_payload'
+  | 'invalid_state'
+  | 'too_many_items'
+  | 'service_unavailable'
+  | 'NETWORK_ERROR'
+  | 'UNKNOWN_ERROR'
+
 /** Normalized error used throughout the frontend. */
 export interface ApiError {
-  code: string
+  /** Stable error code: a canonical backend code (ApiErrorCode) or any other string the backend returns. */
+  code: ApiErrorCode | string
   message: string
 }
 

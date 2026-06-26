@@ -54,7 +54,7 @@ func (s *TrainingRunsService) List(ctx context.Context, p *gentrainingruns.ListP
 	// hosts do not fire). After Populate(), the reads below return up-to-date data.
 	if p.Refresh && s.fsState != nil {
 		if err = s.fsState.Populate(); err != nil {
-			return nil, gentrainingruns.MakeDiscoveryFailed(fmt.Errorf("refreshing filesystem state: %w", err))
+			return nil, gentrainingruns.MakeInternalError(fmt.Errorf("refreshing filesystem state: %w", err))
 		}
 	}
 
@@ -64,7 +64,7 @@ func (s *TrainingRunsService) List(ctx context.Context, p *gentrainingruns.ListP
 		} else {
 			runs, err = s.checkpointDiscovery.Discover()
 			if err != nil {
-				return nil, gentrainingruns.MakeDiscoveryFailed(fmt.Errorf("discovering checkpoint training runs: %w", err))
+				return nil, gentrainingruns.MakeInternalError(fmt.Errorf("discovering checkpoint training runs: %w", err))
 			}
 		}
 	} else {
@@ -73,7 +73,7 @@ func (s *TrainingRunsService) List(ctx context.Context, p *gentrainingruns.ListP
 		} else {
 			runs, err = s.viewerDiscovery.DiscoverViewable()
 			if err != nil {
-				return nil, gentrainingruns.MakeDiscoveryFailed(fmt.Errorf("discovering viewable training runs: %w", err))
+				return nil, gentrainingruns.MakeInternalError(fmt.Errorf("discovering viewable training runs: %w", err))
 			}
 		}
 	}
@@ -155,7 +155,7 @@ func (s *TrainingRunsService) Validate(ctx context.Context, p *gentrainingruns.V
 		} else {
 			runs, err = s.checkpointDiscovery.Discover()
 			if err != nil {
-				return nil, gentrainingruns.MakeValidationFailed(fmt.Errorf("discovering checkpoint training runs: %w", err))
+				return nil, gentrainingruns.MakeInternalError(fmt.Errorf("discovering checkpoint training runs: %w", err))
 			}
 		}
 
@@ -170,7 +170,7 @@ func (s *TrainingRunsService) Validate(ctx context.Context, p *gentrainingruns.V
 			return nil, gentrainingruns.MakeNotFound(fmt.Errorf("study %s not found", *p.StudyID))
 		}
 		if err != nil {
-			return nil, gentrainingruns.MakeValidationFailed(fmt.Errorf("fetching study: %w", err))
+			return nil, gentrainingruns.MakeInternalError(fmt.Errorf("fetching study: %w", err))
 		}
 		// Build the scoped study output dir: {sanitized_trainingRunName}/{studyName}
 		// Training run names can contain slashes (e.g. "qwen/Qwen2-VL"), so the name
@@ -187,10 +187,10 @@ func (s *TrainingRunsService) Validate(ctx context.Context, p *gentrainingruns.V
 			if isManifestNotFound(err) {
 				result, err = s.validator.ValidateTrainingRunWithStudy(tr, study, scopedStudyDir)
 				if err != nil {
-					return nil, gentrainingruns.MakeValidationFailed(fmt.Errorf("validating training run %q with study: %w", tr.Name, err))
+					return nil, gentrainingruns.MakeInternalError(fmt.Errorf("validating training run %q with study: %w", tr.Name, err))
 				}
 			} else {
-				return nil, gentrainingruns.MakeValidationFailed(fmt.Errorf("validating training run %q with manifest: %w", tr.Name, err))
+				return nil, gentrainingruns.MakeInternalError(fmt.Errorf("validating training run %q with manifest: %w", tr.Name, err))
 			}
 		}
 	} else {
@@ -202,7 +202,7 @@ func (s *TrainingRunsService) Validate(ctx context.Context, p *gentrainingruns.V
 		} else {
 			runs, err = s.viewerDiscovery.DiscoverViewable()
 			if err != nil {
-				return nil, gentrainingruns.MakeValidationFailed(fmt.Errorf("discovering viewable training runs: %w", err))
+				return nil, gentrainingruns.MakeInternalError(fmt.Errorf("discovering viewable training runs: %w", err))
 			}
 		}
 
@@ -227,17 +227,17 @@ func (s *TrainingRunsService) Validate(ctx context.Context, p *gentrainingruns.V
 					// No manifest yet — fall back to legacy count heuristic.
 					result, err = s.validator.ValidateTrainingRun(tr, studyName)
 					if err != nil {
-						return nil, gentrainingruns.MakeValidationFailed(fmt.Errorf("validating training run %q: %w", tr.Name, err))
+						return nil, gentrainingruns.MakeInternalError(fmt.Errorf("validating training run %q: %w", tr.Name, err))
 					}
 				} else {
-					return nil, gentrainingruns.MakeValidationFailed(fmt.Errorf("validating training run %q with manifest: %w", tr.Name, err))
+					return nil, gentrainingruns.MakeInternalError(fmt.Errorf("validating training run %q with manifest: %w", tr.Name, err))
 				}
 			}
 		} else {
 			// No study context at all — legacy root-level validation.
 			result, err = s.validator.ValidateTrainingRun(tr, studyName)
 			if err != nil {
-				return nil, gentrainingruns.MakeValidationFailed(fmt.Errorf("validating training run %q: %w", tr.Name, err))
+				return nil, gentrainingruns.MakeInternalError(fmt.Errorf("validating training run %q: %w", tr.Name, err))
 			}
 		}
 	}
@@ -278,7 +278,7 @@ func (s *TrainingRunsService) Scan(ctx context.Context, p *gentrainingruns.ScanP
 	} else {
 		runs, err = s.viewerDiscovery.DiscoverViewable()
 		if err != nil {
-			return nil, gentrainingruns.MakeScanFailed(fmt.Errorf("discovering viewable training runs: %w", err))
+			return nil, gentrainingruns.MakeInternalError(fmt.Errorf("discovering viewable training runs: %w", err))
 		}
 	}
 
@@ -298,7 +298,7 @@ func (s *TrainingRunsService) Scan(ctx context.Context, p *gentrainingruns.ScanP
 
 	scanResult, err := s.scanner.ScanTrainingRun(tr, studyName)
 	if err != nil {
-		return nil, gentrainingruns.MakeScanFailed(fmt.Errorf("scanning training run %q: %w", tr.Name, err))
+		return nil, gentrainingruns.MakeInternalError(fmt.Errorf("scanning training run %q: %w", tr.Name, err))
 	}
 
 	// Start watching directories for this training run (best-effort)

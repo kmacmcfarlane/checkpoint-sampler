@@ -17,7 +17,8 @@ var _ = Service("images", func() {
 		})
 		Result(ImageDownloadResult)
 		Error("not_found", ErrorResult, "Image file not found")
-		Error("bad_request", ErrorResult, "Invalid file path (traversal rejected)")
+		// invalid_payload: canonical 400 — covers a rejected file path (traversal).
+		Error("invalid_payload", ErrorResult, "Invalid file path (traversal rejected)")
 		HTTP(func() {
 			GET("/api/images/{*filepath}")
 			SkipResponseBodyEncodeDecode()
@@ -27,7 +28,7 @@ var _ = Service("images", func() {
 				Header("cache_control:Cache-Control")
 			})
 			Response("not_found", StatusNotFound)
-			Response("bad_request", StatusBadRequest)
+			Response("invalid_payload", StatusBadRequest)
 		})
 	})
 
@@ -41,7 +42,8 @@ var _ = Service("images", func() {
 		})
 		Result(ImageMetadataResponse)
 		Error("not_found", ErrorResult, "Image file not found")
-		Error("bad_request", ErrorResult, "Invalid file path (traversal rejected)")
+		// invalid_payload: canonical 400 — covers a rejected file path (traversal).
+		Error("invalid_payload", ErrorResult, "Invalid file path (traversal rejected)")
 		HTTP(func() {
 			// Note: The actual HTTP path will be /api/images/{filepath}/metadata
 			// but we register it under a different pattern due to chi router limitations
@@ -49,7 +51,7 @@ var _ = Service("images", func() {
 			GET("/api/_images_metadata/{*filepath}")
 			Response(StatusOK)
 			Response("not_found", StatusNotFound)
-			Response("bad_request", StatusBadRequest)
+			Response("invalid_payload", StatusBadRequest)
 		})
 	})
 })

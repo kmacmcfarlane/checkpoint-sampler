@@ -356,11 +356,11 @@ var _ = Describe("TrainingRunsService", func() {
 			Expect(fresh[0].CheckpointCount).To(Equal(2))
 		})
 
-		// AC: refresh=true must surface discovery failures as a discovery_failed error.
+		// AC: refresh=true must surface discovery failures as an internal_error.
 		// B-142: When refresh is requested and Populate() fails (e.g. an NFS stale read
-		// during the forced rescan), List must return the error mapped to the
-		// discovery_failed Goa error code rather than serving stale data or panicking.
-		It("returns discovery_failed when refresh rescan fails (B-142)", func() {
+		// during the forced rescan), List must return the error mapped to the canonical
+		// internal_error Goa error code (R-016) rather than serving stale data or panicking.
+		It("returns internal_error when refresh rescan fails (B-142)", func() {
 			cpFS.safetensors["/checkpoints"] = []string{
 				"model-step00001000.safetensors",
 			}
@@ -385,7 +385,7 @@ var _ = Describe("TrainingRunsService", func() {
 			Expect(err).To(HaveOccurred())
 			serr, ok := err.(*goa.ServiceError)
 			Expect(ok).To(BeTrue(), "expected a goa.ServiceError")
-			Expect(serr.Name).To(Equal("discovery_failed"))
+			Expect(serr.Name).To(Equal("internal_error"))
 		})
 
 		It("defaults to samples source when source parameter is empty", func() {
@@ -478,7 +478,7 @@ var _ = Describe("TrainingRunsService", func() {
 			Expect(result.Images).To(HaveLen(1))
 		})
 
-		It("returns scan_failed when scanner encounters an error", func() {
+		It("returns internal_error when scanner encounters an error", func() {
 			viewerFS.subdirs[sampleDir] = []string{
 				"model-step00001000.safetensors",
 			}
@@ -493,6 +493,10 @@ var _ = Describe("TrainingRunsService", func() {
 
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("disk error"))
+			// R-016: scan failures map to the canonical internal_error (500) code.
+			serr, ok := err.(*goa.ServiceError)
+			Expect(ok).To(BeTrue(), "expected a goa.ServiceError")
+			Expect(serr.Name).To(Equal("internal_error"))
 		})
 
 		It("maps model types to API response types correctly", func() {

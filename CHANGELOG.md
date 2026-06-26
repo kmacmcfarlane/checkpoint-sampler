@@ -5,6 +5,11 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### R-016: Unify Goa error vocabulary across services in the design DSL
+- Defined one canonical error code per failure class across every service (documented in `internal/api/design/errors.go` and `docs/api.md` §5.3): `internal_error` (500), `not_found` (404), `invalid_payload` (400), `invalid_state` (400), `too_many_items` (422), `service_unavailable` (503). Collapsed the per-service synonyms (`scan_failed`/`discovery_failed`/`validation_failed` → `internal_error`; `bad_request`/`invalid_filename` → `invalid_payload`) so the frontend can rely on stable codes without per-service special-casing
+- `comfyui.models` previously swallowed all failures into an empty list (ComfyUI outages surfaced as unmapped 500s); it now declares and returns `service_unavailable` (503) for connection failures (`net.Error`/`net.OpError`/context deadline) and `internal_error` (500) otherwise. `sample_jobs.create` gained `internal_error` for discovery/DB failures. Every frontend caller already tolerates a thrown error with a static fallback list, so UX is unchanged — only the HTTP status is now correct
+- Frontend `ApiErrorCode` union type (`frontend/src/api/types.ts`) documents the canonical codes plus the client-side `NETWORK_ERROR`/`UNKNOWN_ERROR`
+
 ### W-030: Unit tests for destructive filesystem helpers and uncovered store queries
 - Added store-layer unit tests locking down the six previously-0%-coverage destructive/listing helpers in `store/filesystem.go` (`RemoveSampleDir`, `RemoveStudyDir`, `RemoveJobSampleDir`, `RemoveCheckpointOutputDir`, `CleanStudyDirs`, `ListSubdirectories`) plus `GetStudyByName`/`HasRunningJob`; store coverage 66.2% → 72.3%, deletion helpers now 75–93%. Test-only — no production code changed
 - Tests empirically confirmed (and pin via `DOCUMENTS traversal gap` cases) a real path-traversal gap: the Join-based helpers (`RemoveSampleDir`/`RemoveStudyDir`/`RemoveJobSampleDir`) do not reject `..`/empty name components, so they can delete outside the sample root. Filed for a dedicated hardening story (see `agent/ideas/enhancements.md` "Centralized Path Sanitization"); `RemoveCheckpointOutputDir` is the safe `filepath.Base` pattern

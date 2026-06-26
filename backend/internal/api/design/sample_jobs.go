@@ -44,12 +44,14 @@ var _ = Service("sample_jobs", func() {
 		Error("not_found", ErrorResult, "Training run or study not found")
 		Error("invalid_payload", ErrorResult, "Invalid sample job data")
 		Error("too_many_items", ErrorResult, "Computed total work items exceeds the configured maximum")
+		Error("internal_error", ErrorResult, "Internal server error")
 		HTTP(func() {
 			POST("/api/sample-jobs")
 			Response(StatusCreated)
 			Response("not_found", StatusNotFound)
 			Response("invalid_payload", StatusBadRequest)
 			Response("too_many_items", StatusUnprocessableEntity)
+			Response("internal_error", StatusInternalServerError)
 		})
 	})
 

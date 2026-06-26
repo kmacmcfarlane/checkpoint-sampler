@@ -2,6 +2,9 @@ package api
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"net"
 
 	gencomfyui "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/comfyui"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
@@ -65,13 +68,34 @@ func (s *ComfyUIService) Models(ctx context.Context, p *gencomfyui.ModelsPayload
 	modelType := service.ComfyUIModelType(p.Type)
 	models, err := s.modelLister.GetModels(ctx, modelType)
 	if err != nil {
-		// Return empty list on error to avoid breaking the UI
-		return &gencomfyui.ComfyUIModelsResult{
-			Models: []string{},
-		}, nil
+		// R-016: surface ComfyUI failures with stable, documented codes instead of
+		// masking outages as an empty result. The frontend treats both an empty
+		// list and a thrown error as "ComfyUI unavailable" and falls back to its
+		// static option lists, so this changes the status code (no longer an
+		// unmapped 500) without degrading the UX.
+		if isConnectionError(err) {
+			return nil, gencomfyui.MakeServiceUnavailable(fmt.Errorf("ComfyUI unavailable: %w", err))
+		}
+		return nil, gencomfyui.MakeInternalError(fmt.Errorf("listing ComfyUI models: %w", err))
 	}
 
 	return &gencomfyui.ComfyUIModelsResult{
 		Models: models,
 	}, nil
+}
+
+// isConnectionError reports whether err (or any error it wraps) indicates the
+// ComfyUI host was unreachable: a network-level error or a context
+// deadline/cancellation. Such failures map to service_unavailable (503); all
+// other failures (e.g. malformed responses) map to internal_error (500).
+func isConnectionError(err error) bool {
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		return true
+	}
+	var opErr *net.OpError
+	if errors.As(err, &opErr) {
+		return true
+	}
+	return errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
 }

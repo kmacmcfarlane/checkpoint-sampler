@@ -93,6 +93,36 @@ describe('ApiClient', () => {
       expect(thrown!.message).toBe('Name is required')
     })
 
+    // R-016: the backend now uses one canonical code per failure class across all
+    // services. normalizeError must pass each unified code through verbatim as
+    // ApiError.code without any per-service special-casing.
+    it.each([
+      ['internal_error', 500, 'Internal server error'],
+      ['not_found', 404, 'Sample job not found'],
+      ['invalid_payload', 400, 'Invalid file path (traversal rejected)'],
+      ['invalid_state', 400, 'Cannot start job in current state'],
+      ['too_many_items', 422, 'Computed total work items exceeds the configured maximum'],
+      ['service_unavailable', 503, 'ComfyUI service unavailable'],
+    ])('normalizes the unified backend code %s to ApiError.code', async (code, status, message) => {
+      const client = new ApiClient()
+      mockFetch({
+        ok: false,
+        status,
+        json: () => Promise.resolve({ name: code, message, id: 'abc123', temporary: false, timeout: false, fault: false }),
+      })
+
+      let thrown: ApiError | undefined
+      try {
+        await client.request('/sample-jobs')
+      } catch (err) {
+        thrown = err as ApiError
+      }
+
+      expect(thrown).toBeDefined()
+      expect(thrown!.code).toBe(code)
+      expect(thrown!.message).toBe(message)
+    })
+
     it('throws UNKNOWN_ERROR when error response is not JSON (prod: no body in message)', async () => {
       // AC: production error messages never include raw response bodies
       vi.stubEnv('DEV', false)

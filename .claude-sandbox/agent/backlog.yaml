@@ -943,7 +943,7 @@ stories:
   - id: R-016
     title: "Unify Goa error vocabulary across services in the design DSL"
     priority: 50
-    status: todo
+    status: uat
     complexity: medium
     type: refactor
     requires: ["R-015"]

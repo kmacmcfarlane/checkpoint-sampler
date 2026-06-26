@@ -153,7 +153,7 @@ var _ = Describe("CheckpointsService", func() {
 			Expect(result.Metadata).To(BeEmpty())
 		})
 
-		It("returns invalid_filename error for path traversal attempt", func() {
+		It("returns invalid_payload error for path traversal attempt", func() {
 			reader := newFakeMetadataReader()
 			metadataSvc := service.NewCheckpointMetadataService(reader, []string{tmpDir}, nil, logger)
 			svc := api.NewCheckpointsService(metadataSvc)
@@ -183,7 +183,7 @@ var _ = Describe("CheckpointsService", func() {
 		// sentinel (service.ErrInvalidFilename / service.ErrNotFound), not by matching
 		// error message substrings. The resulting Goa ServiceError carries the correct
 		// error name.
-		It("maps invalid filename to the invalid_filename Goa error via sentinel classification", func() {
+		It("maps invalid filename to the invalid_payload Goa error via sentinel classification", func() {
 			reader := newFakeMetadataReader()
 			metadataSvc := service.NewCheckpointMetadataService(reader, []string{tmpDir}, nil, logger)
 			svc := api.NewCheckpointsService(metadataSvc)
@@ -195,7 +195,8 @@ var _ = Describe("CheckpointsService", func() {
 			Expect(err).To(HaveOccurred())
 			namer, ok := err.(errorNamer)
 			Expect(ok).To(BeTrue(), "expected a Goa ServiceError")
-			Expect(namer.ErrorName()).To(Equal("invalid_filename"))
+			// R-016: path traversal now maps to the canonical invalid_payload (400) code.
+			Expect(namer.ErrorName()).To(Equal("invalid_payload"))
 		})
 
 		It("maps a missing checkpoint to the not_found Goa error via sentinel classification", func() {

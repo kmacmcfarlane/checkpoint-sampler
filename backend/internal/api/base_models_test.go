@@ -6,6 +6,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	goa "goa.design/goa/v3/pkg"
 
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api"
 	genbasemodels "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/base_models"
@@ -49,7 +50,7 @@ var _ = Describe("BaseModelsService", func() {
 		Expect(result.Models).To(BeEmpty())
 	})
 
-	It("returns scan_failed error on lister failure", func() {
+	It("returns internal_error on lister failure", func() {
 		lister := &fakeBaseModelLister{
 			err: errors.New("permission denied"),
 		}
@@ -58,5 +59,9 @@ var _ = Describe("BaseModelsService", func() {
 		_, err := svc.List(context.Background())
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("permission denied"))
+		// R-016: scan failures map to the canonical internal_error (500) code.
+		serr, ok := err.(*goa.ServiceError)
+		Expect(ok).To(BeTrue(), "expected a goa.ServiceError")
+		Expect(serr.Name).To(Equal("internal_error"))
 	})
 })

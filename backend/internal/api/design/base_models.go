@@ -10,11 +10,12 @@ var _ = Service("base_models", func() {
 	Method("list", func() {
 		Description("List available base model .safetensors files from base_model_dir (or checkpoint_dirs[0] fallback)")
 		Result(BaseModelsResult)
-		Error("scan_failed", ErrorResult, "Failed to scan base model directory")
+		// internal_error: canonical 500 (see errors.go for the shared vocabulary).
+		Error("internal_error", ErrorResult, "Internal server error")
 		HTTP(func() {
 			GET("/api/base-models")
 			Response(StatusOK)
-			Response("scan_failed", StatusInternalServerError)
+			Response("internal_error", StatusInternalServerError)
 		})
 	})
 })

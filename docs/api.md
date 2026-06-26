@@ -87,14 +87,32 @@ All API errors use the `ErrorWithCode` type:
 
 ### 5.2 HTTP status mapping
 
-Goa maps service errors to HTTP status codes in the design DSL. General conventions:
+Goa maps service errors to HTTP status codes in the design DSL.
 
-| Scenario              | HTTP Status | Error Code pattern     |
-|-----------------------|-------------|------------------------|
-| Validation failure    | 400         | `INVALID_*`            |
-| Resource not found    | 404         | `NOT_FOUND`            |
-| Path traversal        | 403         | `FORBIDDEN`            |
-| Server error          | 500         | `INTERNAL_ERROR`       |
+### 5.3 Canonical error vocabulary (R-016)
+
+Every design method that can fail declares its error set from the shared
+vocabulary below. One canonical code is used per failure class across all
+services so the frontend can rely on stable codes without per-service
+special-casing. The same list is mirrored in
+`backend/internal/api/design/errors.go` and surfaced to the frontend as the
+`ApiErrorCode` type in `frontend/src/api/types.ts`.
+
+| Code                  | HTTP status | Meaning                                                                                          |
+|-----------------------|-------------|--------------------------------------------------------------------------------------------------|
+| `internal_error`      | 500         | Unexpected server-side failure: DB error, filesystem error, or a failed scan/discovery/validation. |
+| `not_found`           | 404         | The requested entity does not exist.                                                             |
+| `invalid_payload`     | 400         | Malformed or invalid request data, including a rejected filename or file path (traversal).        |
+| `invalid_state`       | 400         | The operation is not valid for the entity's current state (e.g. starting a running job).          |
+| `too_many_items`      | 422         | Computed total work items exceeds the configured maximum.                                         |
+| `service_unavailable` | 503         | A required dependency (the ComfyUI connection) is unavailable.                                     |
+
+Domain-specific codes (`invalid_state`, `too_many_items`, `service_unavailable`)
+are retained only where the frontend genuinely needs to distinguish them from a
+generic failure. All other 500-class failures collapse to `internal_error`, all
+404s to `not_found`, and all malformed-input 400s to `invalid_payload`. The
+frontend client additionally emits `NETWORK_ERROR` (the request never reached the
+server) and `UNKNOWN_ERROR` (a non-ok response with no Goa error envelope).
 
 ## 6) Key endpoints
 

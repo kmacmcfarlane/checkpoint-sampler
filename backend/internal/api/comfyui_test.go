@@ -2,10 +2,13 @@ package api_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	goa "goa.design/goa/v3/pkg"
 
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api"
 	gencomfyui "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/comfyui"
@@ -148,21 +151,65 @@ var _ = Describe("ComfyUIService", func() {
 				Expect(result.Models).To(ContainElement("clip1.safetensors"))
 			})
 
-			It("returns empty list when model discovery fails", func() {
+			// R-016: ComfyUI outages must surface with a stable, documented code
+			// instead of an unmapped 500 or a silently-empty result.
+			It("maps a non-network discovery failure to internal_error", func() {
 				mockHealth := &mockHealthChecker{}
 				mockModels := &mockModelLister{
 					getModelsFunc: func(ctx context.Context, modelType service.ComfyUIModelType) ([]string, error) {
-						return nil, fmt.Errorf("network error")
+						return nil, fmt.Errorf("malformed object info response")
 					},
 				}
 
 				svc := api.NewComfyUIService(mockHealth, mockModels)
 				payload := &gencomfyui.ModelsPayload{Type: "vae"}
-				result, err := svc.Models(ctx, payload)
+				_, err := svc.Models(ctx, payload)
 
-				// Should not return error - just empty list
-				Expect(err).NotTo(HaveOccurred())
-				Expect(result.Models).To(BeEmpty())
+				Expect(err).To(HaveOccurred())
+				serr, ok := err.(*goa.ServiceError)
+				Expect(ok).To(BeTrue(), "expected a goa.ServiceError")
+				Expect(serr.Name).To(Equal("internal_error"))
+			})
+
+			It("maps a network/connection failure to service_unavailable", func() {
+				mockHealth := &mockHealthChecker{}
+				mockModels := &mockModelLister{
+					getModelsFunc: func(ctx context.Context, modelType service.ComfyUIModelType) ([]string, error) {
+						// Wrap a real net error the way the HTTP client would.
+						return nil, fmt.Errorf("getting object info: %w", &net.OpError{
+							Op:  "dial",
+							Net: "tcp",
+							Err: errors.New("connection refused"),
+						})
+					},
+				}
+
+				svc := api.NewComfyUIService(mockHealth, mockModels)
+				payload := &gencomfyui.ModelsPayload{Type: "vae"}
+				_, err := svc.Models(ctx, payload)
+
+				Expect(err).To(HaveOccurred())
+				serr, ok := err.(*goa.ServiceError)
+				Expect(ok).To(BeTrue(), "expected a goa.ServiceError")
+				Expect(serr.Name).To(Equal("service_unavailable"))
+			})
+
+			It("maps a context deadline to service_unavailable", func() {
+				mockHealth := &mockHealthChecker{}
+				mockModels := &mockModelLister{
+					getModelsFunc: func(ctx context.Context, modelType service.ComfyUIModelType) ([]string, error) {
+						return nil, fmt.Errorf("requesting object info: %w", context.DeadlineExceeded)
+					},
+				}
+
+				svc := api.NewComfyUIService(mockHealth, mockModels)
+				payload := &gencomfyui.ModelsPayload{Type: "vae"}
+				_, err := svc.Models(ctx, payload)
+
+				Expect(err).To(HaveOccurred())
+				serr, ok := err.(*goa.ServiceError)
+				Expect(ok).To(BeTrue(), "expected a goa.ServiceError")
+				Expect(serr.Name).To(Equal("service_unavailable"))
 			})
 		})
 

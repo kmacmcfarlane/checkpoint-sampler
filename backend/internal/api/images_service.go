@@ -39,7 +39,7 @@ func (s *ImagesService) Download(ctx context.Context, p *genimages.DownloadPaylo
 	// Validate the path doesn't contain traversal components
 	if !isPathSafe(p.Filepath) {
 		s.logger.WithField("filepath", p.Filepath).Warn("invalid path rejected")
-		return nil, nil, genimages.MakeBadRequest(fmt.Errorf("invalid file path"))
+		return nil, nil, genimages.MakeInvalidPayload(fmt.Errorf("invalid file path"))
 	}
 
 	absPath := filepath.Join(s.sampleDir, filepath.FromSlash(p.Filepath))
@@ -49,7 +49,7 @@ func (s *ImagesService) Download(ctx context.Context, p *genimages.DownloadPaylo
 	cleanPath := filepath.Clean(absPath)
 	if !strings.HasPrefix(cleanPath, cleanRoot+string(filepath.Separator)) && cleanPath != cleanRoot {
 		s.logger.WithField("filepath", p.Filepath).Warn("path traversal attempt rejected")
-		return nil, nil, genimages.MakeBadRequest(fmt.Errorf("invalid file path"))
+		return nil, nil, genimages.MakeInvalidPayload(fmt.Errorf("invalid file path"))
 	}
 
 	// Check file exists and is a regular file
@@ -126,7 +126,7 @@ func (s *ImagesService) Metadata(ctx context.Context, p *genimages.MetadataPaylo
 				"filepath": p.Filepath,
 				"error":    err.Error(),
 			}).Debug("invalid image metadata path rejected")
-			return nil, genimages.MakeBadRequest(fmt.Errorf("invalid file path"))
+			return nil, genimages.MakeInvalidPayload(fmt.Errorf("invalid file path"))
 		}
 		s.logger.WithFields(logrus.Fields{
 			"filepath": p.Filepath,
