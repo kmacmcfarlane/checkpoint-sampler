@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-150: Limit HTTP request body size (200MB default) with config override
+- New `RequestBodyLimitMiddleware` (applied outermost) rejects oversized requests: a `Content-Length` over the limit short-circuits to a `413` with the normalized Goa error envelope; bodies without `Content-Length` are capped via `http.MaxBytesReader` (a chunked overrun surfaces as Goa's decode error). No response buffering — image downloads and WebSocket upgrades pass through untouched
+- New config key `max_request_size_mb` (default 200 when unset; `0`/negative rejected at config validation); `MaxHeaderBytes` set to 1MB on the HTTP server
+
 ### B-158: API client surfaces raw error-response bodies in user-facing messages
 - `normalizeError` (`frontend/src/api/client.ts`) no longer appends the raw non-JSON response body to the `UNKNOWN_ERROR` message in production — the body snippet is now gated behind `import.meta.env.DEV` and truncated to 200 chars (with an ellipsis), so backend internals (paths, stack fragments) can no longer leak into the UI. The error shape (`{ code, message }`) and the stable `UNKNOWN_ERROR` code are unchanged for consumers
 - Added unit tests covering prod mode (no body in message), dev mode (truncated body present), and the 200-char truncation boundary

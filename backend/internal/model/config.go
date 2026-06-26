@@ -2,16 +2,17 @@ package model
 
 // Config represents the application configuration.
 type Config struct {
-	CheckpointDirs  []string
-	LoraDirs        []string // directories to scan for LoRA .safetensors files (optional)
-	BaseModelDir    string   // directory for base model browsing (optional, falls back to checkpoint_dirs[0])
-	SampleDir       string
-	Port            int
-	IPAddress       string
-	DBPath          string
-	ComfyUI         *ComfyUIConfig
-	Thumbnails      *ThumbnailConfig
-	WsPingInterval  int // seconds between WebSocket ping frames; 0 disables pings
+	CheckpointDirs   []string
+	LoraDirs         []string // directories to scan for LoRA .safetensors files (optional)
+	BaseModelDir     string   // directory for base model browsing (optional, falls back to checkpoint_dirs[0])
+	SampleDir        string
+	Port             int
+	IPAddress        string
+	DBPath           string
+	ComfyUI          *ComfyUIConfig
+	Thumbnails       *ThumbnailConfig
+	WsPingInterval   int // seconds between WebSocket ping frames; 0 disables pings
+	MaxRequestSizeMB int // maximum allowed HTTP request body size in megabytes; default 200
 }
 
 // ComfyUIConfig represents the ComfyUI integration configuration.

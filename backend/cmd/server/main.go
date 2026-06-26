@@ -281,16 +281,18 @@ func run() error {
 		FixtureSeeder:        fixtureSeeder,
 		JobSeeder:            st,
 		PartialSampleSeeder:  partialSampleSeeder,
+		MaxRequestSizeMB:     cfg.MaxRequestSizeMB,
 	})
 
 	// Create HTTP server
 	addr := net.JoinHostPort(cfg.IPAddress, fmt.Sprintf("%d", cfg.Port))
 	srv := &http.Server{
-		Addr:         addr,
-		Handler:      handler,
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 30 * time.Second,
-		IdleTimeout:  120 * time.Second,
+		Addr:           addr,
+		Handler:        handler,
+		ReadTimeout:    30 * time.Second,
+		WriteTimeout:   30 * time.Second,
+		IdleTimeout:    120 * time.Second,
+		MaxHeaderBytes: 1 << 20, // 1 MB
 	}
 
 	// Graceful shutdown: collect the background workers that must stop before

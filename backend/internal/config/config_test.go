@@ -535,6 +535,53 @@ sample_dir: "` + sampleDir + `"
 		})
 	})
 
+	Describe("Max request size configuration", func() {
+		Context("when max_request_size_mb is not specified", func() {
+			It("defaults to 200", func() {
+				yamlStr := `
+checkpoint_dirs:
+  - "` + filepath.Join(tmpDir, "checkpoints") + `"
+sample_dir: "` + sampleDir + `"
+`
+				cfg, err := config.LoadFromString(yamlStr)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(cfg.MaxRequestSizeMB).To(Equal(200))
+			})
+		})
+
+		Context("when max_request_size_mb is specified", func() {
+			It("parses a valid explicit value", func() {
+				yamlStr := `
+checkpoint_dirs:
+  - "` + filepath.Join(tmpDir, "checkpoints") + `"
+sample_dir: "` + sampleDir + `"
+max_request_size_mb: 500
+`
+				cfg, err := config.LoadFromString(yamlStr)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(cfg.MaxRequestSizeMB).To(Equal(500))
+			})
+		})
+
+		Context("max_request_size_mb validation", func() {
+			DescribeTable("rejects invalid max_request_size_mb values",
+				func(value int, expectedErr string) {
+					yamlStr := fmt.Sprintf(`
+checkpoint_dirs:
+  - "`+filepath.Join(tmpDir, "checkpoints")+`"
+sample_dir: "`+sampleDir+`"
+max_request_size_mb: %d
+`, value)
+					_, err := config.LoadFromString(yamlStr)
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).To(ContainSubstring(expectedErr))
+				},
+				Entry("zero value", 0, "max_request_size_mb must be > 0"),
+				Entry("negative value", -1, "max_request_size_mb must be > 0"),
+			)
+		})
+	})
+
 	Describe("ComfyUI configuration", func() {
 		Context("when comfyui section is present", func() {
 			It("parses comfyui config with all fields", func() {

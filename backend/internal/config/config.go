@@ -13,16 +13,17 @@ import (
 
 // yamlConfig is the raw YAML-tagged representation of the config file.
 type yamlConfig struct {
-	CheckpointDirs []string             `yaml:"checkpoint_dirs"`
-	LoraDirs       []string             `yaml:"lora_dirs"`
-	BaseModelDir   string               `yaml:"base_model_dir"`
-	SampleDir      string               `yaml:"sample_dir"`
-	Port           *int                 `yaml:"port"`
-	IPAddress      string               `yaml:"ip_address"`
-	DBPath         string               `yaml:"db_path"`
-	ComfyUI        *yamlComfyUIConfig   `yaml:"comfyui"`
-	Thumbnails     *yamlThumbnailConfig `yaml:"thumbnails"`
-	WsPingInterval *int                 `yaml:"ws_ping_interval"`
+	CheckpointDirs   []string             `yaml:"checkpoint_dirs"`
+	LoraDirs         []string             `yaml:"lora_dirs"`
+	BaseModelDir     string               `yaml:"base_model_dir"`
+	SampleDir        string               `yaml:"sample_dir"`
+	Port             *int                 `yaml:"port"`
+	IPAddress        string               `yaml:"ip_address"`
+	DBPath           string               `yaml:"db_path"`
+	ComfyUI          *yamlComfyUIConfig   `yaml:"comfyui"`
+	Thumbnails       *yamlThumbnailConfig `yaml:"thumbnails"`
+	WsPingInterval   *int                 `yaml:"ws_ping_interval"`
+	MaxRequestSizeMB *int                 `yaml:"max_request_size_mb"`
 }
 
 // yamlThumbnailConfig is the raw YAML-tagged representation of thumbnail config.
@@ -91,6 +92,10 @@ func parseAndValidate(raw yamlConfig) (*model.Config, error) {
 	if raw.WsPingInterval != nil {
 		wsPingInterval = *raw.WsPingInterval
 	}
+	maxRequestSizeMB := 200 // default: 200 MB
+	if raw.MaxRequestSizeMB != nil {
+		maxRequestSizeMB = *raw.MaxRequestSizeMB
+	}
 
 	// Validate checkpoint_dirs
 	if len(raw.CheckpointDirs) == 0 {
@@ -156,6 +161,11 @@ func parseAndValidate(raw yamlConfig) (*model.Config, error) {
 		return nil, fmt.Errorf("config: ws_ping_interval must be >= 0, got %d", wsPingInterval)
 	}
 
+	// Validate max_request_size_mb (must be positive)
+	if maxRequestSizeMB <= 0 {
+		return nil, fmt.Errorf("config: max_request_size_mb must be > 0, got %d", maxRequestSizeMB)
+	}
+
 	// Validate IP address
 	if net.ParseIP(raw.IPAddress) == nil {
 		return nil, fmt.Errorf("config: invalid ip_address %q", raw.IPAddress)
@@ -180,16 +190,17 @@ func parseAndValidate(raw yamlConfig) (*model.Config, error) {
 	}
 
 	return &model.Config{
-		CheckpointDirs: raw.CheckpointDirs,
-		LoraDirs:       raw.LoraDirs,
-		BaseModelDir:   raw.BaseModelDir,
-		SampleDir:      raw.SampleDir,
-		Port:           port,
-		IPAddress:      raw.IPAddress,
-		DBPath:         raw.DBPath,
-		ComfyUI:        comfyUI,
-		Thumbnails:     thumbnails,
-		WsPingInterval: wsPingInterval,
+		CheckpointDirs:   raw.CheckpointDirs,
+		LoraDirs:         raw.LoraDirs,
+		BaseModelDir:     raw.BaseModelDir,
+		SampleDir:        raw.SampleDir,
+		Port:             port,
+		IPAddress:        raw.IPAddress,
+		DBPath:           raw.DBPath,
+		ComfyUI:          comfyUI,
+		Thumbnails:       thumbnails,
+		WsPingInterval:   wsPingInterval,
+		MaxRequestSizeMB: maxRequestSizeMB,
 	}, nil
 }
 

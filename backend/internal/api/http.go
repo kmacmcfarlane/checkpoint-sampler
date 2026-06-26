@@ -99,6 +99,12 @@ type HTTPHandlerConfig struct {
 	// When non-nil and ENABLE_TEST_ENDPOINTS=true,
 	// POST /api/test/seed-partial-samples is mounted.
 	PartialSampleSeeder PartialSampleSeeder
+
+	// MaxRequestSizeMB is the maximum allowed HTTP request body size in
+	// megabytes. Requests with a body larger than this limit are rejected with
+	// 413 and a JSON error envelope before the body is buffered into memory.
+	// Defaults to 200 if not set (0 or negative values are treated as 200).
+	MaxRequestSizeMB int
 }
 
 // NewHTTPHandler creates a fully wired http.Handler with all Goa services,
@@ -296,6 +302,14 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 	handler = ErrorLoggingMiddleware(cfg.Logger)(handler)
 	handler = goahttpmiddleware.RequestID()(handler)
 	handler = CORSMiddleware("*")(handler)
+
+	// Apply request body size limit (outermost middleware so it runs before all
+	// other layers). Default to 200 MB if not configured.
+	maxMB := cfg.MaxRequestSizeMB
+	if maxMB <= 0 {
+		maxMB = 200
+	}
+	handler = RequestBodyLimitMiddleware(maxMB)(handler)
 
 	return handler
 }

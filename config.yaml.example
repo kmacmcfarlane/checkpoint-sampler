@@ -47,6 +47,12 @@ db_path: ./data/checkpoint-sampler.db
 # Set to 0 to disable pings entirely.
 # ws_ping_interval: 30
 
+# Maximum HTTP request body size in megabytes (optional, default: 200).
+# Requests exceeding this limit are rejected with 413 before the body is
+# buffered into memory, protecting against memory-exhaustion DoS attacks.
+# Must be a positive integer; 0 or negative values are rejected at startup.
+# max_request_size_mb: 200
+
 # ComfyUI connection settings for inference pipeline (optional).
 # If omitted, inference pipeline features are disabled in the UI.
 # The URL must include the scheme (http:// or https://).
