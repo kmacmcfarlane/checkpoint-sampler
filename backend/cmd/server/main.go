@@ -105,7 +105,7 @@ func run() error {
 	}
 	defer notifier.Close()
 	watcher := service.NewWatcher(notifier, hub, cfg.SampleDir, logger)
-	defer watcher.Stop()
+	// watcher.Stop() is called explicitly in performShutdown (before HTTP drain).
 
 	// Create ComfyUI services if configured
 	var comfyuiSvc *api.ComfyUIService
@@ -163,7 +163,7 @@ func run() error {
 	watchDirs := append([]string{cfg.SampleDir}, cfg.CheckpointDirs...)
 	watchDirs = append(watchDirs, cfg.LoraDirs...)
 	fsState.StartWatching(fsStateNotifier, watchDirs)
-	defer fsState.Stop()
+	// fsState.Stop() is called explicitly in performShutdown (before HTTP drain).
 
 	// Create service implementations
 	healthSvc := api.NewHealthService()
@@ -222,7 +222,7 @@ func run() error {
 			logger.WithError(err).Warn("job executor failed to start, sample jobs may not work until ComfyUI is available")
 			// Continue - the executor will retry connection in the background
 		}
-		defer jobExecutor.Stop()
+		// jobExecutor.Stop() is called explicitly in performShutdown (before HTTP drain).
 
 		sampleJobsSvc = api.NewSampleJobsService(sampleJobSvc, discovery)
 		sampleJobsSvc.SetFSState(fsState)
@@ -293,24 +293,38 @@ func run() error {
 		IdleTimeout:  120 * time.Second,
 	}
 
-	// Graceful shutdown
+	// Graceful shutdown: collect the background workers that must stop before
+	// the HTTP server drains and before the DB/notifiers close.
+	// Order matters: workers → HTTP drain → deferred DB/notifier closes.
+	// jobExecutor is a typed nil (*service.JobExecutor) when ComfyUI is not
+	// configured; a typed nil wrapped in an interface is non-nil, so we only
+	// append it when the pointer is actually non-nil.
+	workers := []Stoppable{watcher, fsState}
+	if jobExecutor != nil {
+		workers = append([]Stoppable{jobExecutor}, workers...)
+	}
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	// shutdownDone is closed once performShutdown returns so that run() does not
+	// return (and fire its deferred DB/notifier closes) until shutdown is complete.
+	shutdownDone := make(chan struct{})
 	go func() {
-		<-ctx.Done()
-		logger.Info("shutdown signal received")
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		if err := srv.Shutdown(shutdownCtx); err != nil {
-			logger.WithError(err).Error("shutdown error")
-		}
+		defer close(shutdownDone)
+		performShutdown(ctx, srv, workers, 10*time.Second, logger)
 	}()
 
 	logger.WithField("address", addr).Info("starting server")
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		return fmt.Errorf("server error: %w", err)
 	}
+
+	// Block until shutdown goroutine has finished draining HTTP and stopping
+	// background workers.  The deferred st.Close / notifier.Close calls below
+	// only run after this, guaranteeing the DB is not closed while requests or
+	// workers are still active.
+	<-shutdownDone
 
 	return nil
 }

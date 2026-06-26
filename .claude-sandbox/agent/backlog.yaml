@@ -603,7 +603,7 @@ stories:
   - id: B-157
     title: "Shutdown race: HTTP server Shutdown runs concurrently with deferred close of store/watcher/executor"
     priority: 45
-    status: todo
+    status: uat
     complexity: low
     type: bug
     requires: []

@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-157: Shutdown race: HTTP server Shutdown runs concurrently with deferred close of store/watcher/executor
+- Graceful shutdown is now deterministically ordered and blocking: `run()` waits on a `shutdownDone` channel before returning, so DB/notifier closes can no longer fire while in-flight requests are still draining. A new `performShutdown` (`cmd/server/shutdown.go`) stops background workers (job executor → watcher → fsState) first, then drains HTTP via `srv.Shutdown`, replacing the previous fire-and-forget goroutine + incidental LIFO `defer` ordering. Eliminates "database is closed" errors on SIGTERM during in-flight requests
+
 ### B-156: Metadata parsers allocate up to 100MB from corrupt-file-declared lengths; guard branches untested
 - Lowered the safetensors header and PNG metadata-chunk caps from 100MB to 16MB (real headers/chunks are KBs to low MBs), and the safetensors parser now validates the declared header length against the actual file size (via a `Stat()` type-assertion satisfied by `*os.File`) before `make([]byte, headerLen)` — a corrupt/malicious tiny file declaring a near-cap length no longer triggers an eager large allocation; it is rejected with a clear error first
 - Added rejection-branch unit tests (over-cap header length, header length exceeding file size, over-cap PNG chunk)

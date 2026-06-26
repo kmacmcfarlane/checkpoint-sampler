@@ -91,3 +91,9 @@ Until B-139 (LoRA checkpoint metadata resolution only searches checkpoint_dirs) 
 * priority: low
 * source: qa
 Adding an optional `failed_item_details` array to the `SeedJobRequest` payload would enable E2E tests to trigger and verify the checkpoint-level failed badge click in the Generate Samples dialog. Currently this requires real job execution with ComfyUI errors, limiting E2E coverage to the training-run-level bead path only.
+
+### Integration test for graceful shutdown ordering
+* status: needs_approval
+* priority: low
+* source: developer
+A make test-backend integration test that spins up a real http.Server with a slow handler and a real (temp-file) DB, sends SIGTERM, and asserts a clean exit with no "database is closed" errors would give stronger confidence than the unit-level fake tests added in B-157. Currently the shutdown ordering is verified only via fake Stoppable/HTTPShutdowner doubles; a real-process test would catch wiring regressions the unit test cannot.
