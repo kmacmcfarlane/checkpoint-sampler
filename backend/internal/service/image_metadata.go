@@ -48,7 +48,7 @@ func (s *ImageMetadataService) GetMetadata(relPath string) (*model.ImageMetadata
 
 	if !isPathSafe(relPath) {
 		s.logger.WithField("relative_path", relPath).Warn("invalid path rejected")
-		return nil, fmt.Errorf("invalid path: %q", relPath)
+		return nil, fmt.Errorf("invalid path: %q: %w", relPath, ErrInvalidPath)
 	}
 
 	absPath := filepath.Join(s.sampleDir, filepath.FromSlash(relPath))
@@ -58,7 +58,7 @@ func (s *ImageMetadataService) GetMetadata(relPath string) (*model.ImageMetadata
 	cleanPath := filepath.Clean(absPath)
 	if !strings.HasPrefix(cleanPath, cleanRoot+string(filepath.Separator)) && cleanPath != cleanRoot {
 		s.logger.WithField("relative_path", relPath).Warn("path traversal attempt rejected")
-		return nil, fmt.Errorf("invalid path: %q", relPath)
+		return nil, fmt.Errorf("invalid path: %q: %w", relPath, ErrInvalidPath)
 	}
 
 	s.logger.WithFields(logrus.Fields{

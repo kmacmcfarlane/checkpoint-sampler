@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	gensamplejobs "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/sample_jobs"
@@ -338,10 +337,9 @@ func jobProgressToResponse(p model.JobProgress) *gensamplejobs.JobProgressRespon
 	return resp
 }
 
+// isServiceUnavailable reports whether err (or any error it wraps) is the
+// service-layer ErrServiceUnavailable sentinel (e.g. ComfyUI not connected).
+// Classification is by errors.Is, not message text.
 func isServiceUnavailable(err error) bool {
-	if err == nil {
-		return false
-	}
-	msg := err.Error()
-	return strings.Contains(msg, "ComfyUI not connected") || strings.Contains(msg, "service unavailable")
+	return errors.Is(err, service.ErrServiceUnavailable)
 }

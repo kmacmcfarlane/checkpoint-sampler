@@ -3,7 +3,9 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -94,10 +96,12 @@ func (l *WorkflowLoader) Get(ctx context.Context, name string) (model.WorkflowTe
 	path := filepath.Join(l.workflowDir, name)
 	workflow, err := l.loadWorkflow(ctx, path)
 	if err != nil {
-		// Check if the underlying error is a not found error
-		if os.IsNotExist(err) || strings.Contains(err.Error(), "no such file") {
+		// Check if the underlying error is a not found error. errors.Is unwraps
+		// the fmt.Errorf("...: %w", ...) chain from loadWorkflow, which os.IsNotExist
+		// cannot do.
+		if errors.Is(err, fs.ErrNotExist) {
 			l.logger.WithField("name", name).Debug("workflow not found")
-			return model.WorkflowTemplate{}, fmt.Errorf("workflow not found: %s", name)
+			return model.WorkflowTemplate{}, fmt.Errorf("workflow not found: %s: %w", name, ErrNotFound)
 		}
 		l.logger.WithFields(logrus.Fields{
 			"name":  name,

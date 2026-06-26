@@ -3,8 +3,8 @@ package api
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
-	"strings"
 
 	gentrainingruns "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/training_runs"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/fileformat"
@@ -19,13 +19,13 @@ type StudyGetter interface {
 
 // TrainingRunsService implements the generated training_runs service interface.
 type TrainingRunsService struct {
-	viewerDiscovery      *service.ViewerDiscoveryService
-	checkpointDiscovery  *service.DiscoveryService
-	scanner              *service.Scanner
-	validator            *service.ValidationService
-	watcher              *service.Watcher
-	studyGetter          StudyGetter
-	fsState              *service.FSState
+	viewerDiscovery     *service.ViewerDiscoveryService
+	checkpointDiscovery *service.DiscoveryService
+	scanner             *service.Scanner
+	validator           *service.ValidationService
+	watcher             *service.Watcher
+	studyGetter         StudyGetter
+	fsState             *service.FSState
 }
 
 // NewTrainingRunsService returns a new TrainingRunsService.
@@ -124,7 +124,7 @@ func (s *TrainingRunsService) List(ctx context.Context, p *gentrainingruns.ListP
 // isManifestNotFound returns true if the error indicates a missing manifest file.
 // B-132: Used to decide whether to fall back from manifest-based to count-based validation.
 func isManifestNotFound(err error) bool {
-	return err != nil && strings.Contains(err.Error(), "manifest not found")
+	return errors.Is(err, service.ErrManifestNotFound)
 }
 
 // Validate checks the completeness of sample images for a training run.

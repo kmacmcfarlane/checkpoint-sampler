@@ -2,8 +2,8 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"strings"
 
 	gencheckpoints "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/checkpoints"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
@@ -23,14 +23,16 @@ func NewCheckpointsService(metadataSvc *service.CheckpointMetadataService) *Chec
 func (s *CheckpointsService) Metadata(ctx context.Context, p *gencheckpoints.MetadataPayload) (*gencheckpoints.CheckpointMetadataResponse, error) {
 	metadata, err := s.metadataSvc.GetMetadata(p.Filename)
 	if err != nil {
-		errMsg := err.Error()
-		if strings.Contains(errMsg, "invalid filename") {
+		// Classify via sentinel errors (errors.Is) rather than substring matching.
+		// Client-facing messages reference only the requested filename, never an
+		// absolute server path.
+		if errors.Is(err, service.ErrInvalidFilename) {
 			return nil, gencheckpoints.MakeInvalidFilename(fmt.Errorf("invalid filename: %s", p.Filename))
 		}
-		if strings.Contains(errMsg, "not found") {
+		if errors.Is(err, service.ErrNotFound) {
 			return nil, gencheckpoints.MakeNotFound(fmt.Errorf("checkpoint file not found: %s", p.Filename))
 		}
-		return nil, gencheckpoints.MakeNotFound(fmt.Errorf("reading checkpoint metadata: %w", err))
+		return nil, gencheckpoints.MakeNotFound(fmt.Errorf("checkpoint file not found: %s", p.Filename))
 	}
 
 	if metadata == nil {

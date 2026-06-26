@@ -179,6 +179,57 @@ var _ = Describe("CheckpointsService", func() {
 			Expect(err.Error()).To(ContainSubstring("not found"))
 		})
 
+		// R-015 AC2: HTTP status mapping is driven by errors.Is on the service-layer
+		// sentinel (service.ErrInvalidFilename / service.ErrNotFound), not by matching
+		// error message substrings. The resulting Goa ServiceError carries the correct
+		// error name.
+		It("maps invalid filename to the invalid_filename Goa error via sentinel classification", func() {
+			reader := newFakeMetadataReader()
+			metadataSvc := service.NewCheckpointMetadataService(reader, []string{tmpDir}, nil, logger)
+			svc := api.NewCheckpointsService(metadataSvc)
+
+			_, err := svc.Metadata(context.Background(), &gencheckpoints.MetadataPayload{
+				Filename: "../etc/passwd",
+			})
+
+			Expect(err).To(HaveOccurred())
+			namer, ok := err.(errorNamer)
+			Expect(ok).To(BeTrue(), "expected a Goa ServiceError")
+			Expect(namer.ErrorName()).To(Equal("invalid_filename"))
+		})
+
+		It("maps a missing checkpoint to the not_found Goa error via sentinel classification", func() {
+			reader := newFakeMetadataReader()
+			metadataSvc := service.NewCheckpointMetadataService(reader, []string{tmpDir}, nil, logger)
+			svc := api.NewCheckpointsService(metadataSvc)
+
+			_, err := svc.Metadata(context.Background(), &gencheckpoints.MetadataPayload{
+				Filename: "nonexistent.safetensors",
+			})
+
+			Expect(err).To(HaveOccurred())
+			namer, ok := err.(errorNamer)
+			Expect(ok).To(BeTrue(), "expected a Goa ServiceError")
+			Expect(namer.ErrorName()).To(Equal("not_found"))
+		})
+
+		// R-015 AC4: API error responses must not leak absolute filesystem paths.
+		// The not-found message references only the requested filename; the search
+		// directory (tmpDir, an absolute path) must never appear.
+		It("does not leak the absolute server path in the not_found error message", func() {
+			reader := newFakeMetadataReader()
+			metadataSvc := service.NewCheckpointMetadataService(reader, []string{tmpDir}, nil, logger)
+			svc := api.NewCheckpointsService(metadataSvc)
+
+			_, err := svc.Metadata(context.Background(), &gencheckpoints.MetadataPayload{
+				Filename: "nonexistent.safetensors",
+			})
+
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).NotTo(ContainSubstring(tmpDir))
+			Expect(err.Error()).NotTo(ContainSubstring("/"))
+		})
+
 		It("finds checkpoint file in subdirectory via filesystem walk", func() {
 			// Create subdirectory with checkpoint file
 			subDir := filepath.Join(tmpDir, "qwen")

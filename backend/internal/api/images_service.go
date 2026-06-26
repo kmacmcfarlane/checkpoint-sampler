@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -118,13 +119,19 @@ func (s *ImagesService) Metadata(ctx context.Context, p *genimages.MetadataPaylo
 
 	values, err := s.metadataSvc.GetMetadata(p.Filepath)
 	if err != nil {
-		errMsg := err.Error()
-		if strings.Contains(errMsg, "invalid path") {
+		// Classify via sentinel errors (errors.Is) rather than substring matching.
+		// Client-facing messages are generic and never include a server path.
+		if errors.Is(err, service.ErrInvalidPath) {
+			s.logger.WithFields(logrus.Fields{
+				"filepath": p.Filepath,
+				"error":    err.Error(),
+			}).Debug("invalid image metadata path rejected")
 			return nil, genimages.MakeBadRequest(fmt.Errorf("invalid file path"))
 		}
-		if strings.Contains(errMsg, "opening file") {
-			return nil, genimages.MakeNotFound(fmt.Errorf("image not found"))
-		}
+		s.logger.WithFields(logrus.Fields{
+			"filepath": p.Filepath,
+			"error":    err.Error(),
+		}).Debug("image metadata not found")
 		return nil, genimages.MakeNotFound(fmt.Errorf("image not found"))
 	}
 

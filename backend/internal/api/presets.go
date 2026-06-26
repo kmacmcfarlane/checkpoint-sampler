@@ -2,8 +2,8 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	genpresets "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/presets"
@@ -122,6 +122,9 @@ func payloadToMapping(p *genpresets.PresetMappingPayload) model.PresetMapping {
 	return m
 }
 
+// isNotFound reports whether err (or any error it wraps) is the service-layer
+// ErrNotFound sentinel. Shared by presets, studies, and sample-jobs handlers to
+// map missing-entity errors to HTTP 404 without inspecting error message text.
 func isNotFound(err error) bool {
-	return err != nil && strings.Contains(err.Error(), "not found")
+	return errors.Is(err, service.ErrNotFound)
 }

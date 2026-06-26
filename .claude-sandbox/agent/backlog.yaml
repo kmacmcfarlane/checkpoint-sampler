@@ -905,7 +905,7 @@ stories:
   - id: R-015
     title: "Replace string-matched error handling with typed errors; stop leaking absolute paths in API errors"
     priority: 55
-    status: todo
+    status: uat
     complexity: medium
     type: refactor
     requires: ["B-149", "B-152"]
