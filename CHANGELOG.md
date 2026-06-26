@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### W-030: Unit tests for destructive filesystem helpers and uncovered store queries
+- Added store-layer unit tests locking down the six previously-0%-coverage destructive/listing helpers in `store/filesystem.go` (`RemoveSampleDir`, `RemoveStudyDir`, `RemoveJobSampleDir`, `RemoveCheckpointOutputDir`, `CleanStudyDirs`, `ListSubdirectories`) plus `GetStudyByName`/`HasRunningJob`; store coverage 66.2% → 72.3%, deletion helpers now 75–93%. Test-only — no production code changed
+- Tests empirically confirmed (and pin via `DOCUMENTS traversal gap` cases) a real path-traversal gap: the Join-based helpers (`RemoveSampleDir`/`RemoveStudyDir`/`RemoveJobSampleDir`) do not reject `..`/empty name components, so they can delete outside the sample root. Filed for a dedicated hardening story (see `agent/ideas/enhancements.md` "Centralized Path Sanitization"); `RemoveCheckpointOutputDir` is the safe `filepath.Base` pattern
+
 ### R-015: Replace string-matched error handling with typed errors; stop leaking absolute paths in API errors
 - The service layer now defines sentinel errors (`internal/service/errors.go`: `ErrNotFound`, `ErrInvalidFilename`, `ErrInvalidPath`, `ErrManifestNotFound`, `ErrServiceUnavailable`) that service methods wrap with `%w`. API handlers classify failures to HTTP statuses via `errors.Is`/`errors.As` instead of `strings.Contains(err.Error(), ...)`, so rewording an error message can no longer silently change a status code. Goa error result types and status codes are unchanged
 - `job_executor.go` `isConnectionError` no longer substring-matches lowercased error text (`"timeout"`/`"network"`/`"eof"`); it uses typed checks (`net.Error.Timeout()`, `context.DeadlineExceeded`, `*net.OpError`, `syscall.Errno` ECONNREFUSED/ECONNRESET/EPIPE/etc., `io.EOF`). A ComfyUI node error whose text merely mentions "network" no longer triggers a bogus reconnect cycle

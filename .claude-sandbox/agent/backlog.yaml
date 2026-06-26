@@ -1157,7 +1157,7 @@ stories:
   - id: W-030
     title: "Unit tests for destructive filesystem helpers and uncovered store queries"
     priority: 55
-    status: todo
+    status: uat
     complexity: medium
     type: workflow
     requires: []
