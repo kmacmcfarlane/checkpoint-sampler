@@ -7,30 +7,35 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/stretchr/testify/mock"
 
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/apimocks"
 	genworkflows "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/workflows"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
 )
 
-// mockWorkflowLoader implements the WorkflowLoader interface for testing
-type mockWorkflowLoader struct {
-	listFunc func(ctx context.Context) ([]model.WorkflowTemplate, error)
-	getFunc  func(ctx context.Context, name string) (model.WorkflowTemplate, error)
-}
-
-func (m *mockWorkflowLoader) List(ctx context.Context) ([]model.WorkflowTemplate, error) {
-	if m.listFunc != nil {
-		return m.listFunc(ctx)
+// newMockWorkflowLoader returns a generated WorkflowLoader mock. listFn/getFn
+// supply the behavior for List/Get; nil uses the prior hand-rolled defaults
+// (empty list / not-found error).
+func newMockWorkflowLoader(
+	listFn func(ctx context.Context) ([]model.WorkflowTemplate, error),
+	getFn func(ctx context.Context, name string) (model.WorkflowTemplate, error),
+) *apimocks.MockWorkflowLoader {
+	m := &apimocks.MockWorkflowLoader{}
+	if listFn == nil {
+		listFn = func(context.Context) ([]model.WorkflowTemplate, error) {
+			return []model.WorkflowTemplate{}, nil
+		}
 	}
-	return []model.WorkflowTemplate{}, nil
-}
-
-func (m *mockWorkflowLoader) Get(ctx context.Context, name string) (model.WorkflowTemplate, error) {
-	if m.getFunc != nil {
-		return m.getFunc(ctx, name)
+	if getFn == nil {
+		getFn = func(_ context.Context, name string) (model.WorkflowTemplate, error) {
+			return model.WorkflowTemplate{}, fmt.Errorf("workflow not found: %s", name)
+		}
 	}
-	return model.WorkflowTemplate{}, fmt.Errorf("workflow not found: %s", name)
+	m.EXPECT().List(mock.Anything).RunAndReturn(listFn).Maybe()
+	m.EXPECT().Get(mock.Anything, mock.Anything).RunAndReturn(getFn).Maybe()
+	return m
 }
 
 var _ = Describe("WorkflowService", func() {
@@ -56,28 +61,26 @@ var _ = Describe("WorkflowService", func() {
 
 		Context("when workflows service is enabled", func() {
 			It("returns workflow summaries from loader", func() {
-				mockLoader := &mockWorkflowLoader{
-					listFunc: func(ctx context.Context) ([]model.WorkflowTemplate, error) {
-						return []model.WorkflowTemplate{
-							{
-								Name:            "test-workflow-1.json",
-								ValidationState: model.ValidationStateValid,
-								Roles: map[string][]string{
-									"save_image": {"10"},
-								},
-								Warnings: []string{},
-								Workflow: map[string]interface{}{"nodes": "data"},
+				mockLoader := newMockWorkflowLoader(func(ctx context.Context) ([]model.WorkflowTemplate, error) {
+					return []model.WorkflowTemplate{
+						{
+							Name:            "test-workflow-1.json",
+							ValidationState: model.ValidationStateValid,
+							Roles: map[string][]string{
+								"save_image": {"10"},
 							},
-							{
-								Name:            "test-workflow-2.json",
-								ValidationState: model.ValidationStateInvalid,
-								Roles:           map[string][]string{},
-								Warnings:        []string{"missing required save_image role"},
-								Workflow:        map[string]interface{}{"nodes": "data2"},
-							},
-						}, nil
-					},
-				}
+							Warnings: []string{},
+							Workflow: map[string]interface{}{"nodes": "data"},
+						},
+						{
+							Name:            "test-workflow-2.json",
+							ValidationState: model.ValidationStateInvalid,
+							Roles:           map[string][]string{},
+							Warnings:        []string{"missing required save_image role"},
+							Workflow:        map[string]interface{}{"nodes": "data2"},
+						},
+					}, nil
+				}, nil)
 
 				svc := api.NewWorkflowService(mockLoader)
 				result, err := svc.List(ctx)
@@ -103,11 +106,9 @@ var _ = Describe("WorkflowService", func() {
 			})
 
 			It("returns empty list when no workflows found", func() {
-				mockLoader := &mockWorkflowLoader{
-					listFunc: func(ctx context.Context) ([]model.WorkflowTemplate, error) {
-						return []model.WorkflowTemplate{}, nil
-					},
-				}
+				mockLoader := newMockWorkflowLoader(func(ctx context.Context) ([]model.WorkflowTemplate, error) {
+					return []model.WorkflowTemplate{}, nil
+				}, nil)
 
 				svc := api.NewWorkflowService(mockLoader)
 				result, err := svc.List(ctx)
@@ -117,11 +118,9 @@ var _ = Describe("WorkflowService", func() {
 			})
 
 			It("returns error when loader fails", func() {
-				mockLoader := &mockWorkflowLoader{
-					listFunc: func(ctx context.Context) ([]model.WorkflowTemplate, error) {
-						return nil, fmt.Errorf("failed to read directory")
-					},
-				}
+				mockLoader := newMockWorkflowLoader(func(ctx context.Context) ([]model.WorkflowTemplate, error) {
+					return nil, fmt.Errorf("failed to read directory")
+				}, nil)
 
 				svc := api.NewWorkflowService(mockLoader)
 				result, err := svc.List(ctx)
@@ -134,31 +133,29 @@ var _ = Describe("WorkflowService", func() {
 
 		Context("LoRA capability derivation", func() {
 			It("sets LoraCapable true when lora_loader role is present", func() {
-				mockLoader := &mockWorkflowLoader{
-					listFunc: func(ctx context.Context) ([]model.WorkflowTemplate, error) {
-						return []model.WorkflowTemplate{
-							{
-								Name:            "lora-workflow.json",
-								ValidationState: model.ValidationStateValid,
-								Roles: map[string][]string{
-									"save_image":  {"9"},
-									"unet_loader": {"4"},
-									"lora_loader": {"6"},
-								},
-								Warnings: []string{},
+				mockLoader := newMockWorkflowLoader(func(ctx context.Context) ([]model.WorkflowTemplate, error) {
+					return []model.WorkflowTemplate{
+						{
+							Name:            "lora-workflow.json",
+							ValidationState: model.ValidationStateValid,
+							Roles: map[string][]string{
+								"save_image":  {"9"},
+								"unet_loader": {"4"},
+								"lora_loader": {"6"},
 							},
-							{
-								Name:            "non-lora-workflow.json",
-								ValidationState: model.ValidationStateValid,
-								Roles: map[string][]string{
-									"save_image":  {"9"},
-									"unet_loader": {"4"},
-								},
-								Warnings: []string{},
+							Warnings: []string{},
+						},
+						{
+							Name:            "non-lora-workflow.json",
+							ValidationState: model.ValidationStateValid,
+							Roles: map[string][]string{
+								"save_image":  {"9"},
+								"unet_loader": {"4"},
 							},
-						}, nil
-					},
-				}
+							Warnings: []string{},
+						},
+					}, nil
+				}, nil)
 
 				svc := api.NewWorkflowService(mockLoader)
 				result, err := svc.List(ctx)
@@ -170,20 +167,18 @@ var _ = Describe("WorkflowService", func() {
 			})
 
 			It("sets LoraCapable true in Show response when lora_loader role is present", func() {
-				mockLoader := &mockWorkflowLoader{
-					getFunc: func(ctx context.Context, name string) (model.WorkflowTemplate, error) {
-						return model.WorkflowTemplate{
-							Name:            "lora-workflow.json",
-							ValidationState: model.ValidationStateValid,
-							Roles: map[string][]string{
-								"save_image":  {"9"},
-								"lora_loader": {"6"},
-							},
-							Warnings: []string{},
-							Workflow:  map[string]interface{}{},
-						}, nil
-					},
-				}
+				mockLoader := newMockWorkflowLoader(nil, func(ctx context.Context, name string) (model.WorkflowTemplate, error) {
+					return model.WorkflowTemplate{
+						Name:            "lora-workflow.json",
+						ValidationState: model.ValidationStateValid,
+						Roles: map[string][]string{
+							"save_image":  {"9"},
+							"lora_loader": {"6"},
+						},
+						Warnings: []string{},
+						Workflow: map[string]interface{}{},
+					}, nil
+				})
 
 				svc := api.NewWorkflowService(mockLoader)
 				payload := &genworkflows.ShowPayload{Name: "lora-workflow.json"}
@@ -196,24 +191,22 @@ var _ = Describe("WorkflowService", func() {
 
 		Context("mapping from model to Goa types", func() {
 			It("correctly maps WorkflowTemplate to WorkflowSummary", func() {
-				mockLoader := &mockWorkflowLoader{
-					listFunc: func(ctx context.Context) ([]model.WorkflowTemplate, error) {
-						return []model.WorkflowTemplate{
-							{
-								Name:            "mapping-test.json",
-								ValidationState: model.ValidationStateValid,
-								Roles: map[string][]string{
-									"save_image":      {"5"},
-									"checkpoint_load": {"1"},
-								},
-								Warnings: []string{"warning 1", "warning 2"},
-								Workflow: map[string]interface{}{
-									"1": map[string]interface{}{"class_type": "CheckpointLoaderSimple"},
-								},
+				mockLoader := newMockWorkflowLoader(func(ctx context.Context) ([]model.WorkflowTemplate, error) {
+					return []model.WorkflowTemplate{
+						{
+							Name:            "mapping-test.json",
+							ValidationState: model.ValidationStateValid,
+							Roles: map[string][]string{
+								"save_image":      {"5"},
+								"checkpoint_load": {"1"},
 							},
-						}, nil
-					},
-				}
+							Warnings: []string{"warning 1", "warning 2"},
+							Workflow: map[string]interface{}{
+								"1": map[string]interface{}{"class_type": "CheckpointLoaderSimple"},
+							},
+						},
+					}, nil
+				}, nil)
 
 				svc := api.NewWorkflowService(mockLoader)
 				result, err := svc.List(ctx)
@@ -260,22 +253,20 @@ var _ = Describe("WorkflowService", func() {
 					},
 				}
 
-				mockLoader := &mockWorkflowLoader{
-					getFunc: func(ctx context.Context, name string) (model.WorkflowTemplate, error) {
-						Expect(name).To(Equal("test-workflow.json"))
-						return model.WorkflowTemplate{
-							Name:            "test-workflow.json",
-							Path:            "/workflows/test-workflow.json",
-							ValidationState: model.ValidationStateValid,
-							Roles: map[string][]string{
-								"save_image":      {"5"},
-								"checkpoint_load": {"1"},
-							},
-							Warnings: []string{},
-							Workflow: workflowData,
-						}, nil
-					},
-				}
+				mockLoader := newMockWorkflowLoader(nil, func(ctx context.Context, name string) (model.WorkflowTemplate, error) {
+					Expect(name).To(Equal("test-workflow.json"))
+					return model.WorkflowTemplate{
+						Name:            "test-workflow.json",
+						Path:            "/workflows/test-workflow.json",
+						ValidationState: model.ValidationStateValid,
+						Roles: map[string][]string{
+							"save_image":      {"5"},
+							"checkpoint_load": {"1"},
+						},
+						Warnings: []string{},
+						Workflow: workflowData,
+					}, nil
+				})
 
 				svc := api.NewWorkflowService(mockLoader)
 				payload := &genworkflows.ShowPayload{Name: "test-workflow.json"}
@@ -291,11 +282,9 @@ var _ = Describe("WorkflowService", func() {
 			})
 
 			It("returns not found error when workflow does not exist", func() {
-				mockLoader := &mockWorkflowLoader{
-					getFunc: func(ctx context.Context, name string) (model.WorkflowTemplate, error) {
-						return model.WorkflowTemplate{}, fmt.Errorf("workflow not found: %s", name)
-					},
-				}
+				mockLoader := newMockWorkflowLoader(nil, func(ctx context.Context, name string) (model.WorkflowTemplate, error) {
+					return model.WorkflowTemplate{}, fmt.Errorf("workflow not found: %s", name)
+				})
 
 				svc := api.NewWorkflowService(mockLoader)
 				payload := &genworkflows.ShowPayload{Name: "nonexistent.json"}
@@ -313,20 +302,18 @@ var _ = Describe("WorkflowService", func() {
 					},
 				}
 
-				mockLoader := &mockWorkflowLoader{
-					getFunc: func(ctx context.Context, name string) (model.WorkflowTemplate, error) {
-						return model.WorkflowTemplate{
-							Name:            "detailed.json",
-							Path:            "/workflows/detailed.json",
-							ValidationState: model.ValidationStateValid,
-							Roles: map[string][]string{
-								"save_image": {"10"},
-							},
-							Warnings: []string{"some warning"},
-							Workflow: workflowData,
-						}, nil
-					},
-				}
+				mockLoader := newMockWorkflowLoader(nil, func(ctx context.Context, name string) (model.WorkflowTemplate, error) {
+					return model.WorkflowTemplate{
+						Name:            "detailed.json",
+						Path:            "/workflows/detailed.json",
+						ValidationState: model.ValidationStateValid,
+						Roles: map[string][]string{
+							"save_image": {"10"},
+						},
+						Warnings: []string{"some warning"},
+						Workflow: workflowData,
+					}, nil
+				})
 
 				svc := api.NewWorkflowService(mockLoader)
 				payload := &genworkflows.ShowPayload{Name: "detailed.json"}
@@ -352,18 +339,16 @@ var _ = Describe("WorkflowService", func() {
 		})
 
 		It("creates enabled service when loader is provided", func() {
-			mockLoader := &mockWorkflowLoader{
-				listFunc: func(ctx context.Context) ([]model.WorkflowTemplate, error) {
-					return []model.WorkflowTemplate{
-						{
-							Name:            "test.json",
-							ValidationState: model.ValidationStateValid,
-							Roles:           map[string][]string{"save_image": {"1"}},
-							Warnings:        []string{},
-						},
-					}, nil
-				},
-			}
+			mockLoader := newMockWorkflowLoader(func(ctx context.Context) ([]model.WorkflowTemplate, error) {
+				return []model.WorkflowTemplate{
+					{
+						Name:            "test.json",
+						ValidationState: model.ValidationStateValid,
+						Roles:           map[string][]string{"save_image": {"1"}},
+						Warnings:        []string{},
+					},
+				}, nil
+			}, nil)
 
 			svc := api.NewWorkflowService(mockLoader)
 			result, err := svc.List(ctx)
@@ -375,11 +360,9 @@ var _ = Describe("WorkflowService", func() {
 
 	Describe("Error responses include Goa ServiceError structure", func() {
 		It("List returns ServiceError with proper fields on loader failure", func() {
-			mockLoader := &mockWorkflowLoader{
-				listFunc: func(ctx context.Context) ([]model.WorkflowTemplate, error) {
-					return nil, errors.New("filesystem error")
-				},
-			}
+			mockLoader := newMockWorkflowLoader(func(ctx context.Context) ([]model.WorkflowTemplate, error) {
+				return nil, errors.New("filesystem error")
+			}, nil)
 
 			svc := api.NewWorkflowService(mockLoader)
 			_, err := svc.List(ctx)

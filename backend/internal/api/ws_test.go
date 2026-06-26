@@ -11,8 +11,10 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/mock"
 
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/apimocks"
 	genws "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/ws"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
@@ -52,40 +54,34 @@ func (m *mockSubscribeServerStream) Sent() []*genws.FSEventResponse {
 	return result
 }
 
-// mockPingableConn implements api.PingableConn for unit testing runPingLoop
-// without a real WebSocket connection.
-type mockPingableConn struct {
-	mu        sync.Mutex
-	pingCount int
-	pingErr   error
-	// pingCh is notified on each WriteControl call so tests can wait.
-	pingCh chan struct{}
+// pingableConn pairs the generated api.PingableConn mock with an atomic ping
+// counter so ping-loop tests can wait on ping delivery without racing on the
+// underlying testify mock's call log.
+type pingableConn struct {
+	*apimocks.MockPingableConn
+	pingCount atomic.Int64
 }
 
-func newMockPingableConn() *mockPingableConn {
-	return &mockPingableConn{pingCh: make(chan struct{}, 16)}
+// newPingableConn builds a generated MockPingableConn whose WriteControl
+// returns writeErr (nil = success) and increments the ping counter for each
+// ping control frame.
+func newPingableConn(writeErr error) *pingableConn {
+	p := &pingableConn{MockPingableConn: &apimocks.MockPingableConn{}}
+	p.EXPECT().WriteControl(mock.Anything, mock.Anything, mock.Anything).
+		RunAndReturn(func(messageType int, _ []byte, _ time.Time) error {
+			if writeErr != nil {
+				return writeErr
+			}
+			if messageType == websocket.PingMessage {
+				p.pingCount.Add(1)
+			}
+			return nil
+		})
+	return p
 }
 
-func (m *mockPingableConn) WriteControl(messageType int, _ []byte, _ time.Time) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.pingErr != nil {
-		return m.pingErr
-	}
-	if messageType == websocket.PingMessage {
-		m.pingCount++
-		select {
-		case m.pingCh <- struct{}{}:
-		default:
-		}
-	}
-	return nil
-}
-
-func (m *mockPingableConn) PingCount() int {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.pingCount
+func (m *pingableConn) PingCount() int {
+	return int(m.pingCount.Load())
 }
 
 var _ = Describe("WSService", func() {
@@ -229,7 +225,7 @@ var _ = Describe("WebSocket ping loop", func() {
 
 	// AC: Backend sends periodic WebSocket ping frames to keep connections alive.
 	It("sends ping frames at the configured interval", func() {
-		conn := newMockPingableConn()
+		conn := newPingableConn(nil)
 		_, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
@@ -263,8 +259,7 @@ var _ = Describe("WebSocket ping loop", func() {
 	// AC: Idle connections survive beyond proxy_read_timeout limits — ping stops
 	// when the connection returns an error (simulating a closed connection).
 	It("cancels the context when a ping write fails", func() {
-		conn := newMockPingableConn()
-		conn.pingErr = errors.New("broken pipe")
+		conn := newPingableConn(errors.New("broken pipe"))
 
 		_, cancel := context.WithCancel(context.Background())
 		defer cancel()

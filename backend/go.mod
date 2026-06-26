@@ -11,6 +11,8 @@ require (
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
+	github.com/sirupsen/logrus v1.9.4
+	github.com/stretchr/testify v1.11.1
 	goa.design/goa/v3 v3.25.3
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.46.1
@@ -30,12 +32,10 @@ require (
 	github.com/manveru/faker v0.0.0-20171103152722-9fbc68a78c4d // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
-	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
-	github.com/sirupsen/logrus v1.9.4 // indirect
-	github.com/stretchr/testify v1.11.1 // indirect
+	github.com/stretchr/objx v0.5.2 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/exp v0.0.0-20251023183803-a4bb9ffd2546 // indirect
 	golang.org/x/mod v0.32.0 // indirect
