@@ -109,3 +109,9 @@ R-015 sanitized the metadata/manifest API boundaries named in its scope. Discove
 * priority: low
 * source: developer
 During R-019, a `makeStudy` test factory compiled under Vitest but failed `vue-tsc --noEmit` (missing required `Study` fields) — runtime-vs-tsc drift. A shared, strictly-typed test-fixtures module for domain objects (`Study`, `TrainingRun`, `SampleJob`) would stop each test file from re-deriving partial factories that pass runtime but fail strict type-check. Out of scope for R-019 since it spans many existing test files.
+
+### Decide whether job-row-missing is an expected E2E reset artifact
+* status: needs_approval
+* priority: low
+* source: qa
+If the job_executor `sql: no rows in result set` finding (see B-159) is confirmed as an E2E `/api/test/reset` race artifact, add a scoped pattern to `QA_ALLOWED_ERRORS.md` (job_executor + `no rows in result set`) so future sweeps auto-filter it; otherwise fix the orphan handling. Do not broaden the existing W-006 schema-missing pattern.

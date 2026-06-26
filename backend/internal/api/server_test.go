@@ -173,7 +173,20 @@ var _ = Describe("Server integration", func() {
 				"seed=1&cfg=3&_00001_.png",
 			}
 
-			resp, err := client.Get(server.URL + "/api/training-runs/0/scan")
+			// S-155: training-run ids are stable opaque strings. Resolve the id
+			// from the list endpoint instead of assuming a positional index.
+			listResp, err := client.Get(server.URL + "/api/training-runs")
+			Expect(err).NotTo(HaveOccurred())
+			listBody, err := io.ReadAll(listResp.Body)
+			Expect(err).NotTo(HaveOccurred())
+			listResp.Body.Close()
+			var runs []map[string]interface{}
+			Expect(json.Unmarshal(listBody, &runs)).To(Succeed())
+			Expect(runs).NotTo(BeEmpty())
+			runID, ok := runs[0]["id"].(string)
+			Expect(ok).To(BeTrue(), "training run id should be a string")
+
+			resp, err := client.Get(server.URL + "/api/training-runs/" + runID + "/scan")
 			Expect(err).NotTo(HaveOccurred())
 			defer resp.Body.Close()
 

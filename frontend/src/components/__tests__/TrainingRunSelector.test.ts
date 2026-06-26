@@ -19,7 +19,7 @@ const mockGetTrainingRuns = apiClient.getTrainingRuns as ReturnType<typeof vi.fn
 
 const sampleRuns: TrainingRun[] = [
   {
-    id: 0,
+    id: 'run-0',
     name: 'psai4rt v0.3.0 qwen',
     checkpoint_count: 3,
     kind: 'checkpoint',
@@ -31,7 +31,7 @@ const sampleRuns: TrainingRun[] = [
     ],
   },
   {
-    id: 1,
+    id: 'run-1',
     name: 'sdxl finetune',
     checkpoint_count: 1,
     kind: 'checkpoint',
@@ -45,7 +45,7 @@ const sampleRuns: TrainingRun[] = [
 /** Runs with decomposed fields (new layout with study). */
 const runsWithStudy: TrainingRun[] = [
   {
-    id: 0,
+    id: 'run-0',
     name: 'my-model/study-a/my-model',
     checkpoint_count: 2,
     kind: 'checkpoint',
@@ -59,7 +59,7 @@ const runsWithStudy: TrainingRun[] = [
     study_output_dir: 'my-model/study-a',
   },
   {
-    id: 1,
+    id: 'run-1',
     name: 'my-model/study-b/my-model',
     checkpoint_count: 1,
     kind: 'checkpoint',
@@ -76,7 +76,7 @@ const runsWithStudy: TrainingRun[] = [
 /** Mixed runs: one with samples, one without. Used to test hasSamplesFilter visibility. */
 const mixedRuns: TrainingRun[] = [
   {
-    id: 10,
+    id: 'run-10',
     name: 'run-with-samples',
     checkpoint_count: 1,
     kind: 'checkpoint',
@@ -86,7 +86,7 @@ const mixedRuns: TrainingRun[] = [
     ],
   },
   {
-    id: 11,
+    id: 'run-11',
     name: 'run-without-samples',
     checkpoint_count: 1,
     kind: 'checkpoint',
@@ -394,7 +394,7 @@ describe('TrainingRunSelector', () => {
     it('auto-selects training run when autoSelectRunId is provided and run exists', async () => {
       mockGetTrainingRuns.mockResolvedValue(sampleRuns)
       const wrapper = mount(TrainingRunSelector, {
-        props: { autoSelectRunId: 1 },
+        props: { autoSelectRunId: 'run-1' },
       })
       await flushPromises()
 
@@ -408,7 +408,7 @@ describe('TrainingRunSelector', () => {
     it('does not auto-select when autoSelectRunId references a stale training run', async () => {
       mockGetTrainingRuns.mockResolvedValue(sampleRuns) // only runs 0 and 1 exist
       const wrapper = mount(TrainingRunSelector, {
-        props: { autoSelectRunId: 999 },
+        props: { autoSelectRunId: 'run-999' },
       })
       await flushPromises()
 
@@ -430,7 +430,7 @@ describe('TrainingRunSelector', () => {
     it('auto-selects only once on initial load', async () => {
       mockGetTrainingRuns.mockResolvedValue(sampleRuns)
       const wrapper = mount(TrainingRunSelector, {
-        props: { autoSelectRunId: 0 },
+        props: { autoSelectRunId: 'run-0' },
       })
       await flushPromises()
 
@@ -445,7 +445,7 @@ describe('TrainingRunSelector', () => {
   // B-098: Long name wrapping — options use renderLabel for multi-line display
   describe('long name wrapping (B-098)', () => {
     const longNameRun: TrainingRun = {
-      id: 99,
+      id: 'run-99',
       name: 'very-long-training-run-name-that-should-wrap-instead-of-truncating-with-ellipsis',
       checkpoint_count: 1,
     kind: 'checkpoint',
@@ -550,7 +550,7 @@ describe('TrainingRunSelector', () => {
     it('study NSelect has renderLabel prop for long study name wrapping', async () => {
       const runsWithLongStudy: TrainingRun[] = [
         {
-          id: 0,
+          id: 'run-0',
           name: 'long-model/this-is-a-very-long-study-name-that-should-wrap/long-model',
           checkpoint_count: 1,
     kind: 'checkpoint',
@@ -563,7 +563,7 @@ describe('TrainingRunSelector', () => {
           study_output_dir: 'long-model/this-is-a-very-long-study-name-that-should-wrap',
         },
         {
-          id: 1,
+          id: 'run-1',
           name: 'long-model/short/long-model',
           checkpoint_count: 1,
     kind: 'checkpoint',
@@ -600,7 +600,7 @@ describe('TrainingRunSelector', () => {
     describe('zebra striping (B-098 UAT rework)', () => {
       const threeRuns: TrainingRun[] = [
         {
-          id: 0,
+          id: 'run-0',
           name: 'run-alpha',
           checkpoint_count: 1,
     kind: 'checkpoint',
@@ -608,7 +608,7 @@ describe('TrainingRunSelector', () => {
           checkpoints: [{ filename: 'run-alpha.safetensors', step_number: 1000, has_samples: true }],
         },
         {
-          id: 1,
+          id: 'run-1',
           name: 'run-beta',
           checkpoint_count: 1,
     kind: 'checkpoint',
@@ -616,7 +616,7 @@ describe('TrainingRunSelector', () => {
           checkpoints: [{ filename: 'run-beta.safetensors', step_number: 1000, has_samples: true }],
         },
         {
-          id: 2,
+          id: 'run-2',
           name: 'run-gamma',
           checkpoint_count: 1,
     kind: 'checkpoint',
@@ -745,7 +745,7 @@ describe('TrainingRunSelector', () => {
 
     it('refresh updates the options after reload', async () => {
       const additionalRun: TrainingRun = {
-        id: 2,
+        id: 'run-2',
         name: 'new-run',
         checkpoint_count: 1,
     kind: 'checkpoint',
@@ -811,7 +811,7 @@ describe('TrainingRunSelector', () => {
     it('shows new sample set in options after refreshTrigger increments', async () => {
       // AC1: New sample set appears without manual refresh after job completion
       const newRun: TrainingRun = {
-        id: 3,
+        id: 'run-3',
         name: 'newly-generated-run',
         checkpoint_count: 1,
     kind: 'checkpoint',
@@ -859,7 +859,7 @@ describe('TrainingRunSelector', () => {
   // S-148: LoRA kind badge in training run options
   describe('LoRA kind badge (S-148)', () => {
     const loraRun: TrainingRun = {
-      id: 20,
+      id: 'run-20',
       name: 'my-lora-adapter',
       kind: 'lora',
       checkpoint_count: 1,

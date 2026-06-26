@@ -19,7 +19,7 @@ export type TrainingRunStatus = 'complete' | 'partial' | 'running' | 'queued' | 
  */
 export interface TrainingRunOption {
   label: string
-  value: number
+  value: string
   _dualBead: DualBead
   _kind: TrainingRun['kind']
   [key: string]: unknown
@@ -50,7 +50,7 @@ export interface UseSampleAvailabilityOptions {
   trainingRuns: Ref<TrainingRun[]>
   sampleJobs: Ref<SampleJob[]>
   studies: Ref<Study[]>
-  selectedTrainingRunId: Ref<number | null>
+  selectedTrainingRunId: Ref<string | null>
   selectedStudy: Ref<string | null>
   selectedTrainingRun: ComputedRef<TrainingRun | null>
   validationResult: Ref<ValidationResult | null>
@@ -65,7 +65,7 @@ export interface UseSampleAvailability {
   /** Study availability for the currently selected training run. */
   studyAvailability: Ref<StudyAvailability[]>
   /** Availability for all runs, keyed by run id (used for non-selected run beads). */
-  allRunsAvailability: Ref<Map<number, StudyAvailability[]>>
+  allRunsAvailability: Ref<Map<string, StudyAvailability[]>>
   /** Training-run dropdown options with bead metadata (filtered by showAllRuns). */
   trainingRunOptions: ComputedRef<TrainingRunOption[]>
   /** Study dropdown options with bead + compatibility metadata. */
@@ -75,7 +75,7 @@ export interface UseSampleAvailability {
   /** Whether the selected study has any existing samples or active jobs (study-scoped). */
   selectedStudyHasSamples: ComputedRef<boolean>
   /** Fetch availability for the selected run; updates studyAvailability + allRunsAvailability. */
-  fetchSelectedRunAvailability: (runId: number) => Promise<void>
+  fetchSelectedRunAvailability: (runId: string) => Promise<void>
   /** Fetch availability for every run in parallel; populates allRunsAvailability. */
   fetchAllRunsAvailability: (runs: TrainingRun[]) => Promise<void>
   /** Clear selected-run availability (called when the run changes before re-fetching). */
@@ -108,7 +108,7 @@ export function useSampleAvailability(options: UseSampleAvailabilityOptions): Us
 
   // Study sample availability for the selected training run
   const studyAvailability = ref<StudyAvailability[]>([])
-  const allRunsAvailability = ref<Map<number, StudyAvailability[]>>(new Map())
+  const allRunsAvailability = ref<Map<string, StudyAvailability[]>>(new Map())
 
   // Training run select options (filtered by showAllRuns)
   // Each option includes _dualBead metadata for the renderLabel function.
@@ -264,7 +264,7 @@ export function useSampleAvailability(options: UseSampleAvailabilityOptions): Us
   /** Fetch availability for all training runs in parallel; awaited by fetchTrainingRunsAndJobs. */
   async function fetchAllRunsAvailability(runs: TrainingRun[]): Promise<void> {
     const entries = await Promise.all(
-      runs.map(async (run): Promise<[number, StudyAvailability[]]> => {
+      runs.map(async (run): Promise<[string, StudyAvailability[]]> => {
         try {
           const avail = await apiClient.getStudyAvailability(run.id)
           return [run.id, avail]
@@ -281,7 +281,7 @@ export function useSampleAvailability(options: UseSampleAvailabilityOptions): Us
    * sync for consistent bead rendering. Non-fatal: on failure studyAvailability is
    * left cleared so the UI degrades to the run-level fallback path.
    */
-  async function fetchSelectedRunAvailability(runId: number): Promise<void> {
+  async function fetchSelectedRunAvailability(runId: string): Promise<void> {
     try {
       const avail = await apiClient.getStudyAvailability(runId)
       studyAvailability.value = avail

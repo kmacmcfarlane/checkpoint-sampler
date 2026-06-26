@@ -174,3 +174,9 @@ The orchestrator could run a quick verification (e.g., `make test-e2e` for E2E-f
 * priority: low
 * source: developer
 A lightweight script that enumerates `Service(...)`/`Method(...)` from `backend/internal/api/design/*.go` and asserts each appears in `docs/api.md` would catch service/endpoint documentation drift automatically at PR time, rather than relying on periodic manual refresh stories (e.g. M-001, M-002). Could live as a `make docs-check` target.
+
+### Clarify `make test-e2e SPEC=` semantics
+* status: needs_approval
+* priority: low
+* source: developer
+`make test-e2e SPEC=<file>` still runs the full sharded suite rather than the single spec; only `make test-e2e-serial SPEC=` honors the filter. Developer guidance ("run targeted specs with `make test-e2e SPEC=`") should point at `test-e2e-serial`, or `test-e2e` should respect `SPEC`.

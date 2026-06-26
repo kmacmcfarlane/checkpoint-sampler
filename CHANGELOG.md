@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-155: Stable training-run identifiers (survive rescans)
+- Training-run resource IDs are now opaque, stable strings derived from each run's relative-path name (URL-safe base64 via `base64.RawURLEncoding`) instead of a zero-based positional index. A held ID resolves to the same run across rescans even when discovery order changes — the backend recomputes and matches IDs (`service.FindTrainingRunByID`) rather than indexing by position, eliminating the bug where a refresh could reorder discovery and silently retarget a different run
+- API contract: `GET /api/training-runs` emits the opaque ID; scan, validate, and study-availability endpoints resolve by it and return `not_found` for unknown IDs. The frontend treats IDs as opaque strings throughout and discards legacy numeric IDs persisted in localStorage. Documented in `docs/api.md`
+
 ### R-019: Extract sample-availability and job-progress logic into tested composables
 - The Generate Samples dialog's sample-availability/bead derivations move out of `JobLaunchDialog.vue` into a new `frontend/src/composables/useSampleAvailability.ts`, and App.vue's three manually-synced job-progress maps (`jobProgress`, `inferenceProgress`, `prevCheckpointProgress`) plus their WebSocket handlers move into `frontend/src/composables/useJobProgress.ts`. The synchronization invariants that previously lived only in inline comments referencing past regressions (B-067 placeholder-init, S-098 ETA-preservation, B-105 terminal-status, flip-flop guard) are now encoded as unit tests
 - `JobLaunchDialog.vue` collapses its separate `selectedTrainingRunId` watchers into a single consolidated watcher delegating to an extracted init helper; execution order and the deliberate keep-stale-on-refresh behavior are preserved. Behavior-preserving refactor — render functions, templates, CSS, and bead `data-testid`s are untouched, so PRD 5.5.1 bead rendering is pixel-identical (bead/progress E2E specs unchanged and green). Adds 69 composable unit tests covering the PRD 5.5.1 precedence tables and the ETA/transition rules

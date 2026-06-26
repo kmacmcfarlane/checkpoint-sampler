@@ -13,7 +13,7 @@ vi.mock('../api/client', () => ({
   apiClient: {
     getTrainingRuns: vi.fn().mockResolvedValue([
       {
-        id: 1,
+        id: 'run-1',
         name: 'test-run',
         kind: 'checkpoint',
         checkpoint_count: 1,
@@ -43,7 +43,7 @@ const mockListSampleJobs = apiClient.listSampleJobs as ReturnType<typeof vi.fn>
 const mockGetPresets = apiClient.getPresets as ReturnType<typeof vi.fn>
 
 const mockTrainingRun: TrainingRun = {
-  id: 1,
+  id: 'run-1',
   name: 'test-run',
   kind: 'checkpoint',
   checkpoint_count: 1,
@@ -553,7 +553,7 @@ describe('App', () => {
     // AC: On narrow screens (<1024px), the app eagerly loads the saved training run
     // from localStorage and triggers a scan on mount, regardless of drawer state.
 
-    function setSavedPresetData(trainingRunId: number, presetId: string) {
+    function setSavedPresetData(trainingRunId: string, presetId: string) {
       // Set the preset in the new per-combo format (key: "trainingRunId|studyOutputDir")
       localStorage.setItem(
         'checkpoint-sampler-last-preset',
@@ -566,9 +566,13 @@ describe('App', () => {
       )
     }
 
-    function setSavedTrainingRunId(trainingRunId: number) {
-      // Set only the standalone last-training-run key (no preset saved)
-      localStorage.setItem('checkpoint-sampler-last-training-run', String(trainingRunId))
+    function setSavedTrainingRunId(trainingRunId: string) {
+      // Set only the standalone last-training-run key (no preset saved).
+      // S-155: ids are opaque strings, stored in the structured format.
+      localStorage.setItem(
+        'checkpoint-sampler-last-training-run',
+        JSON.stringify({ runId: trainingRunId, studiesByRunDir: {} }),
+      )
     }
 
     it('eagerly selects saved training run on narrow screen when localStorage has data', async () => {
@@ -577,14 +581,14 @@ describe('App', () => {
       Object.defineProperty(window, 'innerWidth', { value: 800, configurable: true })
       vi.stubGlobal('matchMedia', createMatchMediaMock(false))
 
-      setSavedPresetData(1, 'preset-abc')
+      setSavedPresetData('run-1', 'preset-abc')
 
       mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
 
       // eagerAutoSelect should have called getTrainingRuns and scanTrainingRun
       // getTrainingRuns is called by both eagerAutoSelect and TrainingRunSelector.onMounted
-      expect(mockScanTrainingRun).toHaveBeenCalledWith(1, undefined)
+      expect(mockScanTrainingRun).toHaveBeenCalledWith('run-1', undefined)
     })
 
     it('shows header buttons immediately after eager auto-select on narrow screen', async () => {
@@ -593,7 +597,7 @@ describe('App', () => {
       Object.defineProperty(window, 'innerWidth', { value: 800, configurable: true })
       vi.stubGlobal('matchMedia', createMatchMediaMock(false))
 
-      setSavedPresetData(1, 'preset-abc')
+      setSavedPresetData('run-1', 'preset-abc')
 
       const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
@@ -640,7 +644,7 @@ describe('App', () => {
       Object.defineProperty(window, 'innerWidth', { value: 800, configurable: true })
       vi.stubGlobal('matchMedia', createMatchMediaMock(false))
 
-      setSavedPresetData(999, 'preset-abc')
+      setSavedPresetData('run-999', 'preset-abc')
 
       const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
@@ -657,7 +661,7 @@ describe('App', () => {
       Object.defineProperty(window, 'innerWidth', { value: 800, configurable: true })
       vi.stubGlobal('matchMedia', createMatchMediaMock(false))
 
-      setSavedPresetData(1, 'preset-abc')
+      setSavedPresetData('run-1', 'preset-abc')
 
       const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
@@ -677,7 +681,7 @@ describe('App', () => {
       // The autoSelectRunId prop should match the saved training run
       const selector = wrapper.findComponent(TrainingRunSelector)
       expect(selector.exists()).toBe(true)
-      expect(selector.props('autoSelectRunId')).toBe(1)
+      expect(selector.props('autoSelectRunId')).toBe('run-1')
     })
 
     it('does not re-scan when TrainingRunSelector re-emits the same run after eager select', async () => {
@@ -686,7 +690,7 @@ describe('App', () => {
       Object.defineProperty(window, 'innerWidth', { value: 800, configurable: true })
       vi.stubGlobal('matchMedia', createMatchMediaMock(false))
 
-      setSavedPresetData(1, 'preset-abc')
+      setSavedPresetData('run-1', 'preset-abc')
 
       const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
@@ -726,7 +730,7 @@ describe('App', () => {
         updated_at: '2025-01-01T00:00:00Z',
       }
 
-      setSavedPresetData(1, 'preset-abc')
+      setSavedPresetData('run-1', 'preset-abc')
       mockGetPresets.mockResolvedValue([mockPreset])
 
       // Use a deferred scan to control timing: the scan takes time,
@@ -773,7 +777,7 @@ describe('App', () => {
       Object.defineProperty(window, 'innerWidth', { value: 1200, configurable: true })
       vi.stubGlobal('matchMedia', createMatchMediaMock(true))
 
-      setSavedPresetData(1, 'preset-abc')
+      setSavedPresetData('run-1', 'preset-abc')
 
       const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
@@ -783,7 +787,7 @@ describe('App', () => {
       expect(appDrawer.props('show')).toBe(true)
 
       // Training run should be selected (via either eager select or TrainingRunSelector)
-      expect(mockScanTrainingRun).toHaveBeenCalledWith(1, undefined)
+      expect(mockScanTrainingRun).toHaveBeenCalledWith('run-1', undefined)
 
       // Header buttons should be visible
       const generateBtn = wrapper.find('[data-testid="generate-samples-button"]')
@@ -796,7 +800,7 @@ describe('App', () => {
       Object.defineProperty(window, 'innerWidth', { value: 800, configurable: true })
       vi.stubGlobal('matchMedia', createMatchMediaMock(false))
 
-      setSavedPresetData(1, 'preset-abc')
+      setSavedPresetData('run-1', 'preset-abc')
 
       // Make getTrainingRuns reject for the first call (eagerAutoSelect), then succeed
       // for the second call (TrainingRunSelector.onMounted)
@@ -815,13 +819,13 @@ describe('App', () => {
       Object.defineProperty(window, 'innerWidth', { value: 800, configurable: true })
       vi.stubGlobal('matchMedia', createMatchMediaMock(false))
 
-      setSavedPresetData(1, 'preset-abc')
+      setSavedPresetData('run-1', 'preset-abc')
 
       const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
 
       // Scan should have been triggered
-      expect(mockScanTrainingRun).toHaveBeenCalledWith(1, undefined)
+      expect(mockScanTrainingRun).toHaveBeenCalledWith('run-1', undefined)
 
       // getTrainingRuns should be called without arguments (no has_samples filter)
       for (const call of mockGetTrainingRuns.mock.calls) {
@@ -848,13 +852,13 @@ describe('App', () => {
         vi.stubGlobal('matchMedia', createMatchMediaMock(false))
 
         // Set ONLY the standalone training run key — no preset key
-        setSavedTrainingRunId(1)
+        setSavedTrainingRunId('run-1')
 
         mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
         await flushPromises()
 
         // eagerAutoSelect should have triggered a scan even without a preset
-        expect(mockScanTrainingRun).toHaveBeenCalledWith(1, undefined)
+        expect(mockScanTrainingRun).toHaveBeenCalledWith('run-1', undefined)
       })
 
       it('shows header buttons after eager auto-select with standalone training run ID only', async () => {
@@ -862,7 +866,7 @@ describe('App', () => {
         Object.defineProperty(window, 'innerWidth', { value: 800, configurable: true })
         vi.stubGlobal('matchMedia', createMatchMediaMock(false))
 
-        setSavedTrainingRunId(1)
+        setSavedTrainingRunId('run-1')
 
         const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
         await flushPromises()
@@ -882,7 +886,7 @@ describe('App', () => {
         Object.defineProperty(window, 'innerWidth', { value: 800, configurable: true })
         vi.stubGlobal('matchMedia', createMatchMediaMock(false))
 
-        setSavedTrainingRunId(999) // doesn't exist in mock (which returns id: 1)
+        setSavedTrainingRunId('run-999') // doesn't exist in mock (which returns id: 1)
 
         const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
         await flushPromises()
@@ -913,7 +917,7 @@ describe('App', () => {
 
         // Standalone key should be written with the selected run's ID (structured JSON format)
         const stored = JSON.parse(localStorage.getItem('checkpoint-sampler-last-training-run')!)
-        expect(stored.runId).toBe(1)
+        expect(stored.runId).toBe('run-1')
       })
 
       it('TrainingRunSelector autoSelectRunId falls back to standalone key when no preset data', async () => {
@@ -922,7 +926,7 @@ describe('App', () => {
         Object.defineProperty(window, 'innerWidth', { value: 800, configurable: true })
         vi.stubGlobal('matchMedia', createMatchMediaMock(false))
 
-        setSavedTrainingRunId(1)
+        setSavedTrainingRunId('run-1')
 
         const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
         await flushPromises()
@@ -937,7 +941,7 @@ describe('App', () => {
         const selector = wrapper.findComponent(TrainingRunSelector)
         expect(selector.exists()).toBe(true)
         // autoSelectRunId should be the standalone stored ID
-        expect(selector.props('autoSelectRunId')).toBe(1)
+        expect(selector.props('autoSelectRunId')).toBe('run-1')
       })
     })
 
@@ -958,14 +962,14 @@ describe('App', () => {
         Object.defineProperty(window, 'innerWidth', { value: 800, configurable: true })
         vi.stubGlobal('matchMedia', createMatchMediaMock(false))
 
-        setSavedPresetData(1, 'preset-abc')
+        setSavedPresetData('run-1', 'preset-abc')
         mockGetPresets.mockResolvedValue([mockPreset])
 
         mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
         await flushPromises()
 
         // Training run should be scanned
-        expect(mockScanTrainingRun).toHaveBeenCalledWith(1, undefined)
+        expect(mockScanTrainingRun).toHaveBeenCalledWith('run-1', undefined)
         // Presets should be fetched as part of eager restoration
         expect(mockGetPresets).toHaveBeenCalled()
       })
@@ -976,7 +980,7 @@ describe('App', () => {
         Object.defineProperty(window, 'innerWidth', { value: 800, configurable: true })
         vi.stubGlobal('matchMedia', createMatchMediaMock(false))
 
-        setSavedPresetData(1, 'preset-abc')
+        setSavedPresetData('run-1', 'preset-abc')
         mockGetPresets.mockResolvedValue([mockPreset])
 
         const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
@@ -997,14 +1001,14 @@ describe('App', () => {
         Object.defineProperty(window, 'innerWidth', { value: 800, configurable: true })
         vi.stubGlobal('matchMedia', createMatchMediaMock(false))
 
-        setSavedTrainingRunId(1)
+        setSavedTrainingRunId('run-1')
         // No preset data set — only standalone training run ID
 
         mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
         await flushPromises()
 
         // Training run should be scanned
-        expect(mockScanTrainingRun).toHaveBeenCalledWith(1, undefined)
+        expect(mockScanTrainingRun).toHaveBeenCalledWith('run-1', undefined)
         // getPresets should NOT be called by eagerRestorePreset when no preset is saved.
         // On narrow screens the drawer is collapsed, so PresetSelector does not mount
         // and cannot trigger its own getPresets call either.
@@ -1017,14 +1021,14 @@ describe('App', () => {
         Object.defineProperty(window, 'innerWidth', { value: 800, configurable: true })
         vi.stubGlobal('matchMedia', createMatchMediaMock(false))
 
-        setSavedPresetData(1, 'deleted-preset-id')
+        setSavedPresetData('run-1', 'deleted-preset-id')
         mockGetPresets.mockResolvedValue([]) // No presets on backend
 
         mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
         await flushPromises()
 
         // Training run should still be scanned
-        expect(mockScanTrainingRun).toHaveBeenCalledWith(1, undefined)
+        expect(mockScanTrainingRun).toHaveBeenCalledWith('run-1', undefined)
         // Stale preset data should be cleared from localStorage
         expect(localStorage.getItem('checkpoint-sampler-last-preset')).toBeNull()
       })
@@ -1038,7 +1042,7 @@ describe('App', () => {
         Object.defineProperty(window, 'innerWidth', { value: 1200, configurable: true })
         vi.stubGlobal('matchMedia', createMatchMediaMock(true))
 
-        setSavedPresetData(1, 'stale-preset-id')
+        setSavedPresetData('run-1', 'stale-preset-id')
         mockGetPresets.mockResolvedValue([]) // stale-preset-id does not exist on backend
 
         mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
@@ -1051,7 +1055,7 @@ describe('App', () => {
           expect(parsed.presetsByKey?.['1|']).toBeUndefined()
         }
         // Training run should still be scanned
-        expect(mockScanTrainingRun).toHaveBeenCalledWith(1, undefined)
+        expect(mockScanTrainingRun).toHaveBeenCalledWith('run-1', undefined)
       })
 
       // AC2 (B-124): after stale preset detection, PresetSelector shows 'Select a preset' (autoLoadPresetId is null)
@@ -1061,7 +1065,7 @@ describe('App', () => {
         Object.defineProperty(window, 'innerWidth', { value: 1200, configurable: true })
         vi.stubGlobal('matchMedia', createMatchMediaMock(true))
 
-        setSavedPresetData(1, 'stale-preset-id')
+        setSavedPresetData('run-1', 'stale-preset-id')
         mockGetPresets.mockResolvedValue([]) // stale-preset-id does not exist on backend
 
         const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
@@ -1088,7 +1092,7 @@ describe('App', () => {
         Object.defineProperty(window, 'innerWidth', { value: 1200, configurable: true })
         vi.stubGlobal('matchMedia', createMatchMediaMock(true))
 
-        setSavedPresetData(1, 'stale-preset-id')
+        setSavedPresetData('run-1', 'stale-preset-id')
         mockGetPresets.mockResolvedValue([]) // stale preset not on backend
 
         const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
@@ -1118,8 +1122,8 @@ describe('App', () => {
         vi.stubGlobal('matchMedia', createMatchMediaMock(false))
 
         // Simulate having previously saved state (as would happen on first visit)
-        setSavedPresetData(1, 'preset-abc')
-        setSavedTrainingRunId(1)
+        setSavedPresetData('run-1', 'preset-abc')
+        setSavedTrainingRunId('run-1')
         mockGetPresets.mockResolvedValue([mockPreset])
 
         // "Refresh" — mount fresh
@@ -1127,7 +1131,7 @@ describe('App', () => {
         await flushPromises()
 
         // After mount, training run should be restored and scanned
-        expect(mockScanTrainingRun).toHaveBeenCalledWith(1, undefined)
+        expect(mockScanTrainingRun).toHaveBeenCalledWith('run-1', undefined)
         // Preset should be fetched and applied
         expect(mockGetPresets).toHaveBeenCalled()
       })
@@ -1138,14 +1142,14 @@ describe('App', () => {
         Object.defineProperty(window, 'innerWidth', { value: 800, configurable: true })
         vi.stubGlobal('matchMedia', createMatchMediaMock(false))
 
-        setSavedPresetData(1, 'preset-abc')
+        setSavedPresetData('run-1', 'preset-abc')
         mockGetPresets.mockRejectedValue(new Error('Network error'))
 
         const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
         await flushPromises()
 
         // Training run should still be scanned despite preset fetch failure
-        expect(mockScanTrainingRun).toHaveBeenCalledWith(1, undefined)
+        expect(mockScanTrainingRun).toHaveBeenCalledWith('run-1', undefined)
         // App should not crash
         expect(wrapper.find('.app-header').exists()).toBe(true)
       })
@@ -1353,7 +1357,7 @@ describe('App', () => {
 
     it('shows a gray bead on Jobs button when training run has no samples and no jobs', async () => {
       const emptyRun: TrainingRun = {
-        id: 2,
+        id: 'run-2',
         name: 'empty-run',
         kind: 'checkpoint',
         checkpoint_count: 1,
@@ -1389,7 +1393,7 @@ describe('App', () => {
     const runWithSamples: TrainingRun = mockTrainingRun // has_samples=true
 
     const emptyRun: TrainingRun = {
-      id: 2,
+      id: 'run-2',
       name: 'empty-run',
       kind: 'checkpoint',
       checkpoint_count: 1,

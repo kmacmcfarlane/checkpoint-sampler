@@ -37,7 +37,7 @@ test.describe('narrow screen eager auto-select', () => {
     // Step 2: Set localStorage before page loads so eagerAutoSelect picks it up.
     // B-102: eagerAutoSelect reads exclusively from checkpoint-sampler-last-training-run,
     // so both keys must be set.
-    await page.addInitScript((runId: number) => {
+    await page.addInitScript((runId: string) => {
       // Training run key — required by eagerAutoSelect after B-102
       localStorage.setItem(
         'checkpoint-sampler-last-training-run',
@@ -99,7 +99,7 @@ test.describe('narrow screen eager auto-select', () => {
 
     // Step 2: Set localStorage before page loads.
     // B-102: eagerAutoSelect reads exclusively from checkpoint-sampler-last-training-run.
-    await page.addInitScript((runId: number) => {
+    await page.addInitScript((runId: string) => {
       // Training run key — required by eagerAutoSelect after B-102
       localStorage.setItem(
         'checkpoint-sampler-last-training-run',
@@ -141,9 +141,13 @@ test.describe('narrow screen eager auto-select', () => {
     expect(runs.length).toBeGreaterThan(0)
     const trainingRunId = runs[0].id
 
-    // Step 2: Set ONLY the standalone key -- no preset key at all
-    await page.addInitScript((runId: number) => {
-      localStorage.setItem('checkpoint-sampler-last-training-run', String(runId))
+    // Step 2: Set ONLY the standalone key -- no preset key at all.
+    // S-155: ids are opaque strings stored in the structured JSON format.
+    await page.addInitScript((runId: string) => {
+      localStorage.setItem(
+        'checkpoint-sampler-last-training-run',
+        JSON.stringify({ runId, studiesByRunDir: {} }),
+      )
     }, trainingRunId)
 
     // Step 3: Navigate to the app at narrow viewport
@@ -204,9 +208,13 @@ test.describe('narrow screen eager auto-select', () => {
     const trainingRunId = runs[0].id
     const trainingRunName = runs[0].name
 
-    // Step 2: Set ONLY the standalone key
-    await page.addInitScript((runId: number) => {
-      localStorage.setItem('checkpoint-sampler-last-training-run', String(runId))
+    // Step 2: Set ONLY the standalone key.
+    // S-155: ids are opaque strings stored in the structured JSON format.
+    await page.addInitScript((runId: string) => {
+      localStorage.setItem(
+        'checkpoint-sampler-last-training-run',
+        JSON.stringify({ runId, studiesByRunDir: {} }),
+      )
     }, trainingRunId)
 
     // Step 3: Navigate

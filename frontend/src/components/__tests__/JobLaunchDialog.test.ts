@@ -45,7 +45,7 @@ const mockGetConfig = apiClient.getConfig as ReturnType<typeof vi.fn>
 
 // Training run without samples (gray)
 const runEmpty: TrainingRun = {
-  id: 1,
+  id: 'run-1',
   name: 'qwen/psai4rt-v0.3.0',
   checkpoint_count: 5,
     kind: 'checkpoint',
@@ -58,7 +58,7 @@ const runEmpty: TrainingRun = {
 
 // Training run with samples (green)
 const runWithSamples: TrainingRun = {
-  id: 2,
+  id: 'run-2',
   name: 'qwen/psai4rt-v0.4.0',
   checkpoint_count: 3,
     kind: 'checkpoint',
@@ -72,7 +72,7 @@ const runWithSamples: TrainingRun = {
 
 // Training run with a running job (blue)
 const runRunning: TrainingRun = {
-  id: 3,
+  id: 'run-3',
   name: 'qwen/psai4rt-v0.5.0',
   checkpoint_count: 2,
     kind: 'checkpoint',
@@ -228,7 +228,7 @@ const pendingJob: SampleJob = {
 
 // S-148: LoRA training run
 const runLora: TrainingRun = {
-  id: 4,
+  id: 'run-4',
   name: 'my-lora-adapter-v1',
   kind: 'lora',
   checkpoint_count: 2,
@@ -435,7 +435,7 @@ describe('JobLaunchDialog', () => {
       // runWithSamples (id=2) is green (has_samples) — hidden when showAllRuns=false
       // runRunning (id=3) has a running job — hidden when showAllRuns=false
       expect(options).toHaveLength(1)
-      expect(options[0].value).toBe(1)
+      expect(options[0].value).toBe('run-1')
     })
   })
 
@@ -464,15 +464,15 @@ describe('JobLaunchDialog', () => {
 
       const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
       type DualBead = { activity: string | null; problem: string | null }
-      const options = runSelect.props('options') as Array<{ label: string; value: number; _dualBead: DualBead }>
+      const options = runSelect.props('options') as Array<{ label: string; value: string; _dualBead: DualBead }>
 
       // runEmpty (id=1): no samples, no jobs → both beads null
-      const emptyOpt = options.find(o => o.value === 1)
+      const emptyOpt = options.find(o => o.value === 'run-1')
       expect(emptyOpt?._dualBead.activity).toBeNull()
       expect(emptyOpt?._dualBead.problem).toBeNull()
 
       // runRunning (id=3): has a running job → activity=blue
-      const runningOpt = options.find(o => o.value === 3)
+      const runningOpt = options.find(o => o.value === 'run-3')
       expect(runningOpt?._dualBead.activity).toBe('blue')
     })
 
@@ -493,10 +493,10 @@ describe('JobLaunchDialog', () => {
 
       const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
       type DualBead = { activity: string | null; problem: string | null }
-      const options = runSelect.props('options') as Array<{ label: string; value: number; _dualBead: DualBead }>
+      const options = runSelect.props('options') as Array<{ label: string; value: string; _dualBead: DualBead }>
 
       // runEmpty (id=1) has a pending job → queued state → activity=blue
-      const queuedOpt = options.find(o => o.value === 1)
+      const queuedOpt = options.find(o => o.value === 'run-1')
       expect(queuedOpt?._dualBead.activity).toBe('blue')
       expect(queuedOpt?._dualBead.problem).toBeNull()
     })
@@ -793,7 +793,7 @@ describe('JobLaunchDialog', () => {
     wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
     await nextTick()
 
-    wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+    wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-1')
     await nextTick()
 
     wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-2')
@@ -826,7 +826,7 @@ describe('JobLaunchDialog', () => {
     })
     await flushPromises()
 
-    wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+    wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-1')
     await nextTick()
 
     wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
@@ -851,7 +851,7 @@ describe('JobLaunchDialog', () => {
       })
       await flushPromises()
 
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-1')
       await nextTick()
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-2')
       await nextTick()
@@ -879,7 +879,7 @@ describe('JobLaunchDialog', () => {
       })
       await flushPromises()
 
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-1')
       await nextTick()
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-2')
       await nextTick()
@@ -901,7 +901,7 @@ describe('JobLaunchDialog', () => {
       })
       await flushPromises()
 
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-1')
       await nextTick()
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-2')
       await nextTick()
@@ -940,7 +940,7 @@ describe('JobLaunchDialog', () => {
     await flushPromises()
 
     // Select empty run and study (workflow/VAE/CLIP now come from the study definition)
-    wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+    wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-1')
     wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
     await nextTick()
 
@@ -976,7 +976,7 @@ describe('JobLaunchDialog', () => {
     })
     await flushPromises()
 
-    wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+    wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-1')
     wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
     await nextTick()
 
@@ -998,7 +998,7 @@ describe('JobLaunchDialog', () => {
     })
     await flushPromises()
 
-    wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+    wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-1')
     wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
     await nextTick()
 
@@ -1024,7 +1024,7 @@ describe('JobLaunchDialog', () => {
     })
     await flushPromises()
 
-    wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+    wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-1')
     wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
     await nextTick()
 
@@ -1272,7 +1272,7 @@ describe('JobLaunchDialog', () => {
       })
       await flushPromises()
 
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-1')
       await nextTick()
 
       expect(wrapper.find('[data-testid="checkpoint-picker"]').exists()).toBe(false)
@@ -1289,7 +1289,7 @@ describe('JobLaunchDialog', () => {
       wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
       await nextTick()
 
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-2')
       await nextTick()
 
       // AC1: Checkpoint picker requires a study to be selected
@@ -1311,7 +1311,7 @@ describe('JobLaunchDialog', () => {
 
       wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
       await nextTick()
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-2')
       await nextTick()
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await flushPromises()
@@ -1351,7 +1351,7 @@ describe('JobLaunchDialog', () => {
 
       wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
       await nextTick()
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-2')
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await flushPromises()
 
@@ -1378,7 +1378,7 @@ describe('JobLaunchDialog', () => {
 
       wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
       await nextTick()
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-2')
       await flushPromises()
       // Select a study that has samples (availability mock returns partial for preset-1)
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
@@ -1396,7 +1396,7 @@ describe('JobLaunchDialog', () => {
       })
       await flushPromises()
 
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-1')
       await nextTick()
 
       const buttons = wrapper.findAllComponents(NButton)
@@ -1436,7 +1436,7 @@ describe('JobLaunchDialog', () => {
       // Select the run with samples (runWithSamples, id=2, has_samples=true)
       wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
       await nextTick()
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-2')
       await flushPromises()
 
       // Select preset-1 which has NO samples for this run
@@ -1481,7 +1481,7 @@ describe('JobLaunchDialog', () => {
 
       wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
       await nextTick()
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-2')
       await flushPromises()
 
       // First select preset-1 (no samples) — should show "Generate Samples"
@@ -1574,8 +1574,8 @@ describe('JobLaunchDialog', () => {
 
       const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
       type DualBead = { activity: string | null; problem: string | null }
-      const options = runSelect.props('options') as Array<{ label: string; value: number; _dualBead: DualBead }>
-      const errorRunOpt = options.find(o => o.value === 2)
+      const options = runSelect.props('options') as Array<{ label: string; value: string; _dualBead: DualBead }>
+      const errorRunOpt = options.find(o => o.value === 'run-2')
       // B-127: completed_with_errors shows red (failed), not null
       expect(errorRunOpt?._dualBead.problem).toBe('red')
       expect(errorRunOpt?._dualBead.activity).toBeNull()
@@ -1598,7 +1598,7 @@ describe('JobLaunchDialog', () => {
       // Show all runs and select run with errors
       wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
       await nextTick()
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-2')
       await flushPromises()
       // Select a study so the checkpoint picker is visible (AC1)
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
@@ -1631,7 +1631,7 @@ describe('JobLaunchDialog', () => {
 
       wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
       await nextTick()
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-2')
       await flushPromises()
       // Select a study so the checkpoint picker is visible (AC1)
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
@@ -1659,7 +1659,7 @@ describe('JobLaunchDialog', () => {
 
       wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
       await nextTick()
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-2')
       await flushPromises()
       // Select a study so the checkpoint picker is visible (AC1)
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
@@ -1688,7 +1688,7 @@ describe('JobLaunchDialog', () => {
       // Select the run with errors
       wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
       await nextTick()
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-2')
       await flushPromises()
 
       // Fill other required fields
@@ -1722,7 +1722,7 @@ describe('JobLaunchDialog', () => {
 
       wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
       await nextTick()
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-2')
       await flushPromises()
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await flushPromises()
@@ -1750,7 +1750,7 @@ describe('JobLaunchDialog', () => {
 
       wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
       await nextTick()
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-2')
       await flushPromises()
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await flushPromises()
@@ -1793,7 +1793,7 @@ describe('JobLaunchDialog', () => {
 
       wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
       await nextTick()
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-2')
       await flushPromises()
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await flushPromises()
@@ -1829,7 +1829,7 @@ describe('JobLaunchDialog', () => {
 
       wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
       await nextTick()
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-2')
       await flushPromises()
       // Select a study so the checkpoint picker is visible (AC1)
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
@@ -1870,7 +1870,7 @@ describe('JobLaunchDialog', () => {
 
       wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
       await nextTick()
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-2')
       await flushPromises()
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await flushPromises()
@@ -1901,7 +1901,7 @@ describe('JobLaunchDialog', () => {
 
       wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
       await nextTick()
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-2')
       await flushPromises()
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await flushPromises()
@@ -1948,7 +1948,7 @@ describe('JobLaunchDialog', () => {
 
       wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
       await nextTick()
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-2')
       await flushPromises()
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await flushPromises()
@@ -1989,7 +1989,7 @@ describe('JobLaunchDialog', () => {
 
       wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
       await nextTick()
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-2')
       await flushPromises()
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await flushPromises()
@@ -2025,7 +2025,7 @@ describe('JobLaunchDialog', () => {
 
       wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
       await nextTick()
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-2')
       await nextTick()
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await flushPromises()
@@ -2059,7 +2059,7 @@ describe('JobLaunchDialog', () => {
 
       wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
       await nextTick()
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-2')
       await nextTick()
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await flushPromises()
@@ -2086,7 +2086,7 @@ describe('JobLaunchDialog', () => {
 
       wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
       await nextTick()
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-2')
       await nextTick()
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await flushPromises()
@@ -2145,7 +2145,7 @@ describe('JobLaunchDialog', () => {
       await nextTick()
 
       // Select run 2 + study — completeValidation fires → defaults: both unchecked
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-2')
       await nextTick()
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await flushPromises()
@@ -2233,19 +2233,19 @@ describe('JobLaunchDialog', () => {
       await flushPromises()
 
       // Select a training run
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-1')
       await nextTick()
 
       // Check that it's persisted
       const stored = JSON.parse(localStorage.getItem(GENERATE_INPUTS_STORAGE_KEY) ?? '{}') as GenerateInputsState
-      expect(stored.lastTrainingRunId).toBe(1)
+      expect(stored.lastTrainingRunId).toBe('run-1')
     })
 
     it('restores the last training run on mount when it is still available', async () => {
       // Pre-populate localStorage with a saved training run ID
       const state: GenerateInputsState = {
         lastWorkflowId: null,
-        lastTrainingRunId: 1,
+        lastTrainingRunId: 'run-1',
         byModelType: {},
       }
       localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
@@ -2257,13 +2257,13 @@ describe('JobLaunchDialog', () => {
       await flushPromises()
 
       const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
-      expect(runSelect.props('value')).toBe(1)
+      expect(runSelect.props('value')).toBe('run-1')
     })
 
     it('does not restore training run ID when it is no longer available', async () => {
       const state: GenerateInputsState = {
         lastWorkflowId: null,
-        lastTrainingRunId: 999, // Non-existent ID
+        lastTrainingRunId: 'run-999', // Non-existent ID
         byModelType: {},
       }
       localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
@@ -2279,10 +2279,10 @@ describe('JobLaunchDialog', () => {
     })
 
     it('restores a non-empty run with show-all enabled (the default)', async () => {
-      // runWithSamples (id=2) has status 'complete' — visible because showAllRuns defaults to true
+      // runWithSamples (id='run-2') has status 'complete' — visible because showAllRuns defaults to true
       const state: GenerateInputsState = {
         lastWorkflowId: null,
-        lastTrainingRunId: 2,
+        lastTrainingRunId: 'run-2',
         byModelType: {},
       }
       localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
@@ -2299,14 +2299,14 @@ describe('JobLaunchDialog', () => {
 
       // And the run should be selected
       const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
-      expect(runSelect.props('value')).toBe(2)
+      expect(runSelect.props('value')).toBe('run-2')
     })
 
     it('restores an empty run with show-all enabled (the default)', async () => {
-      // runEmpty (id=1) has status 'empty' — visible in default filter since showAllRuns defaults to true
+      // runEmpty (id='run-1') has status 'empty' — visible in default filter since showAllRuns defaults to true
       const state: GenerateInputsState = {
         lastWorkflowId: null,
-        lastTrainingRunId: 1,
+        lastTrainingRunId: 'run-1',
         byModelType: {},
       }
       localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
@@ -2323,7 +2323,7 @@ describe('JobLaunchDialog', () => {
 
       // And the run should be selected
       const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
-      expect(runSelect.props('value')).toBe(1)
+      expect(runSelect.props('value')).toBe('run-1')
     })
   })
 
@@ -2343,7 +2343,7 @@ describe('JobLaunchDialog', () => {
         byModelType: {
           qwen_image: { vae: null, clip: null, shift: null, workflowId: 'qwen-image.json' },
         },
-        modelTypeByRunId: { '1': 'qwen_image' },
+        modelTypeByRunId: { 'run-1': 'qwen_image' },
       }
       localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
 
@@ -2362,7 +2362,7 @@ describe('JobLaunchDialog', () => {
       await flushPromises()
 
       // Select training run 1 (runEmpty)
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-1')
       // Only flush one tick — metadata fetch is still pending
       await nextTick()
 
@@ -2402,7 +2402,7 @@ describe('JobLaunchDialog', () => {
       expect(wrapper.find('[data-testid="study-select"]').findComponent(NSelect).props('value')).toBeNull()
 
       // Select training run 1 and let metadata fetch complete
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-1')
       await flushPromises()
 
       // AC2: Study is selected after metadata fetch completed (non-cached path)
@@ -2418,7 +2418,7 @@ describe('JobLaunchDialog', () => {
         byModelType: {
           qwen_image: { vae: null, clip: null, shift: null, workflowId: 'qwen-image.json' },
         },
-        modelTypeByRunId: { '1': 'qwen_image' },
+        modelTypeByRunId: { 'run-1': 'qwen_image' },
       }
       localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
 
@@ -2437,7 +2437,7 @@ describe('JobLaunchDialog', () => {
       expect(studySelect.props('value')).toBe('preset-2')
 
       // Select training run 1 (has cached model type qwen_image → workflow qwen-image.json → preset-1)
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-1')
       await flushPromises()
 
       // applyPerModelTypeWorkflow should NOT override because selectedStudy is already 'preset-2'
@@ -2450,7 +2450,7 @@ describe('JobLaunchDialog', () => {
       const state: GenerateInputsState = {
         lastWorkflowId: null,
         byModelType: {},
-        modelTypeByRunId: { '1': 'qwen_image' },
+        modelTypeByRunId: { 'run-1': 'qwen_image' },
       }
       localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
 
@@ -2469,7 +2469,7 @@ describe('JobLaunchDialog', () => {
       await flushPromises()
 
       // Select training run 1 (triggers speculative model type from cache)
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-1')
       await nextTick()
 
       // Manually select study preset-1 (workflow_template: 'qwen-image.json')
@@ -2502,12 +2502,12 @@ describe('JobLaunchDialog', () => {
       })
       await flushPromises()
 
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-1')
       await flushPromises()
 
       // Model type should be cached after metadata fetch
       const stored = JSON.parse(localStorage.getItem(GENERATE_INPUTS_STORAGE_KEY) ?? '{}') as GenerateInputsState
-      expect(stored.modelTypeByRunId?.['1']).toBe('qwen_image')
+      expect(stored.modelTypeByRunId?.['run-1']).toBe('qwen_image')
     })
 
     it('does not apply per-model-type workflow when no preference is stored', async () => {
@@ -2515,7 +2515,7 @@ describe('JobLaunchDialog', () => {
       const state: GenerateInputsState = {
         lastWorkflowId: null,
         byModelType: {},
-        modelTypeByRunId: { '1': 'qwen_image' },
+        modelTypeByRunId: { 'run-1': 'qwen_image' },
       }
       localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
 
@@ -2529,7 +2529,7 @@ describe('JobLaunchDialog', () => {
       })
       await flushPromises()
 
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-1')
       await flushPromises()
 
       // No workflow preference → study should not be auto-selected
@@ -2576,8 +2576,8 @@ describe('JobLaunchDialog', () => {
       // Verify initial status: runRunning (id=3) has a running job → activity=blue
       const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
       type DualBead = { activity: string | null; problem: string | null }
-      let options = runSelect.props('options') as Array<{ value: number; _dualBead: DualBead }>
-      let runningOpt = options.find(o => o.value === 3)
+      let options = runSelect.props('options') as Array<{ value: string; _dualBead: DualBead }>
+      let runningOpt = options.find(o => o.value === 'run-3')
       expect(runningOpt?._dualBead.activity).toBe('blue')
 
       // Now simulate job completing: mock returns no running jobs
@@ -2589,8 +2589,8 @@ describe('JobLaunchDialog', () => {
       await flushPromises()
 
       // Re-check the options — runRunning should now have no beads (no activity, no problem)
-      options = runSelect.props('options') as Array<{ value: number; _dualBead: DualBead }>
-      runningOpt = options.find(o => o.value === 3)
+      options = runSelect.props('options') as Array<{ value: string; _dualBead: DualBead }>
+      runningOpt = options.find(o => o.value === 'run-3')
       expect(runningOpt?._dualBead.activity).toBeNull()
       expect(runningOpt?._dualBead.problem).toBeNull()
     })
@@ -2605,7 +2605,7 @@ describe('JobLaunchDialog', () => {
       await flushPromises()
 
       // Select a training run so selectedTrainingRunId is set
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 3)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-3')
       await flushPromises()
 
       // Clear mock call counts after selection
@@ -2615,11 +2615,11 @@ describe('JobLaunchDialog', () => {
       await wrapper.setProps({ refreshTrigger: 1 })
       await flushPromises()
 
-      // getStudyAvailability should be called for the selected run (id=3)
+      // getStudyAvailability should be called for the selected run (id='run-3')
       // It is called once by fetchAllRunsAvailability (for all runs) and once
       // explicitly for the selected run's studyAvailability update.
       const availCalls = mockGetStudyAvailability.mock.calls
-      const selectedRunCalls = availCalls.filter((c: unknown[]) => c[0] === 3)
+      const selectedRunCalls = availCalls.filter((c: unknown[]) => c[0] === 'run-3')
       expect(selectedRunCalls.length).toBeGreaterThanOrEqual(1)
     })
 
@@ -2634,7 +2634,7 @@ describe('JobLaunchDialog', () => {
       await flushPromises()
 
       // Select the training run that has a running job
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 3)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-3')
       await flushPromises()
 
       // Select study to make studyOptions render
@@ -2829,8 +2829,8 @@ describe('JobLaunchDialog', () => {
       await flushPromises()
 
       const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
-      // runWithSamples (id=2) has name 'qwen/psai4rt-v0.4.0'
-      expect(runSelect.props('value')).toBe(2)
+      // runWithSamples (id='run-2') has name 'qwen/psai4rt-v0.4.0'
+      expect(runSelect.props('value')).toBe('run-2')
     })
 
     // AC: Dialog is pre-populated with study from the job
@@ -2946,7 +2946,7 @@ describe('JobLaunchDialog', () => {
       // Set up localStorage with different values
       const state: GenerateInputsState = {
         lastWorkflowId: 'qwen-image.json',
-        lastTrainingRunId: 1,
+        lastTrainingRunId: 'run-1',
         lastStudyId: 'preset-1',
         byModelType: {},
       }
@@ -2960,7 +2960,7 @@ describe('JobLaunchDialog', () => {
 
       // Should use prefill values, not localStorage values
       const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
-      expect(runSelect.props('value')).toBe(2) // Not 1 from localStorage
+      expect(runSelect.props('value')).toBe('run-2') // Not 'run-1' from localStorage
 
       const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
       expect(studySelect.props('value')).toBe('preset-2') // Not 'preset-1' from localStorage
@@ -2982,7 +2982,7 @@ describe('JobLaunchDialog', () => {
       await flushPromises()
       mockValidateTrainingRun.mockClear()
 
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-1')
       await flushPromises()
 
       expect(mockValidateTrainingRun).not.toHaveBeenCalled()
@@ -3008,12 +3008,12 @@ describe('JobLaunchDialog', () => {
       await flushPromises()
 
       // Select training run and study
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-1')
       await nextTick()
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await flushPromises()
 
-      expect(mockValidateTrainingRun).toHaveBeenCalledWith(1, 'preset-1')
+      expect(mockValidateTrainingRun).toHaveBeenCalledWith('run-1', 'preset-1')
     })
 
     // AC: Validation results now appear as per-checkpoint rows with found/expected counts
@@ -3036,7 +3036,7 @@ describe('JobLaunchDialog', () => {
       })
       await flushPromises()
 
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-1')
       await nextTick()
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await flushPromises()
@@ -3093,7 +3093,7 @@ describe('JobLaunchDialog', () => {
       })
       await flushPromises()
 
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-1')
       await nextTick()
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await flushPromises()
@@ -3128,7 +3128,7 @@ describe('JobLaunchDialog', () => {
       // Select run with samples
       wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
       await nextTick()
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-2')
       await nextTick()
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await flushPromises()
@@ -3160,7 +3160,7 @@ describe('JobLaunchDialog', () => {
       // Select run with samples (to show checkpoint picker)
       wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
       await nextTick()
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-2')
       await nextTick()
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await flushPromises()
@@ -3191,7 +3191,7 @@ describe('JobLaunchDialog', () => {
 
       wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
       await nextTick()
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-2')
       await nextTick()
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await flushPromises()
@@ -3222,7 +3222,7 @@ describe('JobLaunchDialog', () => {
       // Select training run with samples (triggers checkpoint picker)
       wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
       await nextTick()
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-2')
       await nextTick()
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-2')
       await flushPromises()
@@ -3253,7 +3253,7 @@ describe('JobLaunchDialog', () => {
       })
       await flushPromises()
 
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-1')
       await flushPromises()
 
       expect(wrapper.find('[data-testid="checkpoint-picker"]').exists()).toBe(false)
@@ -3277,7 +3277,7 @@ describe('JobLaunchDialog', () => {
       })
       await flushPromises()
 
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-1')
       await nextTick()
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await flushPromises()
@@ -3311,7 +3311,7 @@ describe('JobLaunchDialog', () => {
       await flushPromises()
 
       // Select training run and study to trigger validation
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-1')
       await nextTick()
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await flushPromises()
@@ -3342,7 +3342,7 @@ describe('JobLaunchDialog', () => {
       await flushPromises()
 
       // Select training run and study to trigger validation
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-1')
       await nextTick()
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await flushPromises()
@@ -3353,7 +3353,7 @@ describe('JobLaunchDialog', () => {
 
       // Switch to a different training run — validationResult clears but validation re-triggers
       // since the study is still selected. The checkpoint picker shows loading state.
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-2')
       await nextTick()
 
       // Checkpoint picker should show loading state (validating = true), not the old results
@@ -3370,7 +3370,7 @@ describe('JobLaunchDialog', () => {
       })
       await flushPromises()
 
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-1')
       await nextTick()
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await flushPromises()
@@ -3396,18 +3396,18 @@ describe('JobLaunchDialog', () => {
       await flushPromises()
 
       // Select training run and first study
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-1')
       await nextTick()
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await flushPromises()
 
-      expect(mockValidateTrainingRun).toHaveBeenCalledWith(1, 'preset-1')
+      expect(mockValidateTrainingRun).toHaveBeenCalledWith('run-1', 'preset-1')
 
       // Change study
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-2')
       await flushPromises()
 
-      expect(mockValidateTrainingRun).toHaveBeenCalledWith(1, 'preset-2')
+      expect(mockValidateTrainingRun).toHaveBeenCalledWith('run-1', 'preset-2')
     })
   })
 
@@ -3426,7 +3426,7 @@ describe('JobLaunchDialog', () => {
 
       wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
       await nextTick()
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-2')
       await flushPromises()
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await flushPromises()
@@ -3442,7 +3442,7 @@ describe('JobLaunchDialog', () => {
       })
       await flushPromises()
 
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-1')
       await flushPromises()
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await flushPromises()
@@ -3460,7 +3460,7 @@ describe('JobLaunchDialog', () => {
 
       wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
       await nextTick()
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-2')
       await flushPromises()
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await flushPromises()
@@ -3496,7 +3496,7 @@ describe('JobLaunchDialog', () => {
 
       wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
       await nextTick()
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-2')
       await flushPromises()
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await flushPromises()
@@ -3538,7 +3538,7 @@ describe('JobLaunchDialog', () => {
 
       wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
       await nextTick()
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-2')
       await flushPromises()
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await flushPromises()
@@ -3601,7 +3601,7 @@ describe('JobLaunchDialog', () => {
 
       wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
       await nextTick()
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-2')
       await flushPromises()
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await flushPromises()
@@ -3635,7 +3635,7 @@ describe('JobLaunchDialog', () => {
       // Select run with samples
       wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
       await nextTick()
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-2')
       await flushPromises()
 
       // No study selected — checkpoint picker should not be visible
@@ -3666,7 +3666,7 @@ describe('JobLaunchDialog', () => {
       await flushPromises()
 
       // Select a training run to trigger availability fetch
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-1')
       await flushPromises()
 
       const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
@@ -3739,7 +3739,7 @@ describe('JobLaunchDialog', () => {
       await flushPromises()
 
       // Select a training run to trigger availability fetch
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-1')
       await flushPromises()
 
       const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
@@ -3771,10 +3771,10 @@ describe('JobLaunchDialog', () => {
       })
       await flushPromises()
 
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-1')
       await flushPromises()
 
-      expect(mockGetStudyAvailability).toHaveBeenCalledWith(1)
+      expect(mockGetStudyAvailability).toHaveBeenCalledWith('run-1')
     })
 
     it('clears study availability when training run is deselected', async () => {
@@ -3794,7 +3794,7 @@ describe('JobLaunchDialog', () => {
       await flushPromises()
 
       // Select training run to trigger availability fetch
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-1')
       await flushPromises()
 
       let options = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
@@ -3819,7 +3819,7 @@ describe('JobLaunchDialog', () => {
       })
       await flushPromises()
 
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-1')
       await flushPromises()
 
       // Should not crash — study options still display without beads
@@ -3854,7 +3854,7 @@ describe('JobLaunchDialog', () => {
       })
       await flushPromises()
 
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-1')
       await flushPromises()
 
       const studySelect = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
@@ -4003,7 +4003,7 @@ describe('JobLaunchDialog', () => {
       await flushPromises()
 
       // Select first training run
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-1')
       await flushPromises()
 
       let options = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
@@ -4012,7 +4012,7 @@ describe('JobLaunchDialog', () => {
       expect(options.find(o => o.value === 'preset-2')?._sampleStatus).toBe('none')
 
       // Switch to second training run
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-2')
       await flushPromises()
 
       options = wrapper.find('[data-testid="study-select"]').findComponent(NSelect)
@@ -4075,7 +4075,7 @@ describe('JobLaunchDialog', () => {
       // Select the training run
       wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
       await nextTick()
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-2')
       await flushPromises()
 
       // Before study selection: availability says 'complete' (no validation yet)
@@ -4289,7 +4289,7 @@ describe('JobLaunchDialog', () => {
       })
       await flushPromises()
 
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-1')
       await flushPromises()
 
       type StudyOption = { value: string; _checkpointCounts: { withSamples: number; total: number } | null }
@@ -4343,9 +4343,9 @@ describe('JobLaunchDialog', () => {
 
       const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
       type DualBead = { activity: string | null; problem: string | null }
-      const options = runSelect.props('options') as Array<{ label: string; value: number; _dualBead: DualBead }>
+      const options = runSelect.props('options') as Array<{ label: string; value: string; _dualBead: DualBead }>
       // runEmpty (id=1) has a completed job but no availability data → no green bead
-      const opt = options.find(o => o.value === 1)
+      const opt = options.find(o => o.value === 'run-1')
       expect(opt?._dualBead.activity).toBeNull()
       expect(opt?._dualBead.problem).toBeNull()
     })
@@ -4371,9 +4371,9 @@ describe('JobLaunchDialog', () => {
 
       const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
       type DualBead = { activity: string | null; problem: string | null }
-      const options = runSelect.props('options') as Array<{ label: string; value: number; _dualBead: DualBead }>
+      const options = runSelect.props('options') as Array<{ label: string; value: string; _dualBead: DualBead }>
       // B-127: completed_with_errors shows red bead (same as failed)
-      const opt = options.find(o => o.value === 1)
+      const opt = options.find(o => o.value === 'run-1')
       expect(opt?._dualBead.problem).toBe('red')
     })
 
@@ -4407,7 +4407,7 @@ describe('JobLaunchDialog', () => {
       await flushPromises()
 
       // Select the run with completed job (has_samples: false)
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-1')
       await flushPromises()
       // Select a study so validation triggers
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
@@ -4483,7 +4483,7 @@ describe('JobLaunchDialog', () => {
 
       wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
       await nextTick()
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-2')
       await flushPromises()
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await flushPromises()
@@ -4631,7 +4631,7 @@ describe('JobLaunchDialog', () => {
       })
       await flushPromises()
 
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-1')
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await flushPromises()
 
@@ -4702,7 +4702,7 @@ describe('JobLaunchDialog', () => {
       // Select run-with-samples and fill all required fields
       wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
       await nextTick()
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-2')
       // Do NOT await flushPromises here — this keeps validation in-flight
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-1')
       await nextTick()
@@ -5281,7 +5281,7 @@ describe('JobLaunchDialog', () => {
       const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
       const renderOption = runSelect.props('renderOption') as (info: {
         node: unknown
-        option: { value: number }
+        option: { value: string }
         selected: boolean
       }) => unknown
 
@@ -5305,7 +5305,7 @@ describe('JobLaunchDialog', () => {
       const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
       const renderOption = runSelect.props('renderOption') as unknown as (info: {
         node: unknown
-        option: { value: number }
+        option: { value: string }
         selected: boolean
       }) => { props?: { style?: { backgroundColor?: string } } }
 
@@ -5386,7 +5386,7 @@ describe('JobLaunchDialog', () => {
       const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
       const renderOption = runSelect.props('renderOption') as unknown as (info: {
         node: unknown
-        option: { value: number }
+        option: { value: string }
         selected: boolean
       }) => { props?: { style?: { backgroundColor?: string } } }
 
@@ -5582,8 +5582,8 @@ describe('JobLaunchDialog', () => {
       // Verify the run option has a red problem bead
       const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
       type DualBead = { activity: string | null; problem: string | null }
-      const options = runSelect.props('options') as Array<{ label: string; value: number; _dualBead: DualBead }>
-      const failedRunOpt = options.find(o => o.value === 2)
+      const options = runSelect.props('options') as Array<{ label: string; value: string; _dualBead: DualBead }>
+      const failedRunOpt = options.find(o => o.value === 'run-2')
       expect(failedRunOpt?._dualBead.problem).toBe('red')
 
       // AC: Verify the render function produces a clickable red bead
@@ -5622,7 +5622,7 @@ describe('JobLaunchDialog', () => {
       // Show all runs and select the run with failed job
       wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
       await nextTick()
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-2')
       await flushPromises()
 
       // Check study options have red bead
@@ -5676,8 +5676,8 @@ describe('JobLaunchDialog', () => {
 
       const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
       type DualBead = { activity: string | null; problem: string | null }
-      const options = runSelect.props('options') as Array<{ label: string; value: number; _dualBead: DualBead }>
-      const failedRunOpt = options.find(o => o.value === 2)
+      const options = runSelect.props('options') as Array<{ label: string; value: string; _dualBead: DualBead }>
+      const failedRunOpt = options.find(o => o.value === 'run-2')
 
       const renderLabel = runSelect.props('renderLabel') as (option: Record<string, unknown>) => VNode
       const rendered = renderLabel(failedRunOpt as unknown as Record<string, unknown>)
@@ -5708,8 +5708,8 @@ describe('JobLaunchDialog', () => {
 
       const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
       type DualBead = { activity: string | null; problem: string | null }
-      const options = runSelect.props('options') as Array<{ label: string; value: number; _dualBead: DualBead }>
-      const failedRunOpt = options.find(o => o.value === 2)
+      const options = runSelect.props('options') as Array<{ label: string; value: string; _dualBead: DualBead }>
+      const failedRunOpt = options.find(o => o.value === 'run-2')
 
       const renderLabel = runSelect.props('renderLabel') as (option: Record<string, unknown>) => VNode
       const rendered = renderLabel(failedRunOpt as unknown as Record<string, unknown>)
@@ -5759,7 +5759,7 @@ describe('JobLaunchDialog', () => {
 
       wrapper.find('[data-testid="show-all-runs-checkbox"]').findComponent(NCheckbox).vm.$emit('update:checked', true)
       await nextTick()
-      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 2)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-2')
       await flushPromises()
       wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', studyId)
       await flushPromises()

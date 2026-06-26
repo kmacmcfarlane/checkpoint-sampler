@@ -11,20 +11,15 @@ interface PresetPersistenceStorage {
 }
 
 /**
- * Backward-compatible legacy format (single-entry, stored before per-combo migration).
- */
-interface LegacyPresetPersistenceData {
-  trainingRunId: number
-  presetId: string
-}
-
-/**
  * Composable for persisting the last-used preset per training run + study combo to localStorage.
  *
  * - Saves preset ID keyed by training run ID + study output dir when a preset is loaded
  * - Retrieves the saved preset for a given TR+study combo
  * - Clears entries when a preset is deleted or becomes invalid
- * - Backward-compatible with the old single-entry format (migrates on first read)
+ *
+ * S-155: training-run ids are stable opaque strings. Combo keys built from the
+ * old positional numeric ids no longer match, so stale entries are simply never
+ * read (they are harmless dead keys).
  */
 export function usePresetPersistence() {
   const storageData = ref<PresetPersistenceStorage>(getStoredData())
@@ -32,7 +27,7 @@ export function usePresetPersistence() {
   /**
    * AC1: Save the selected preset ID for the given training run + study combo.
    */
-  function savePresetSelection(trainingRunId: number, studyOutputDir: string, presetId: string) {
+  function savePresetSelection(trainingRunId: string, studyOutputDir: string, presetId: string) {
     const key = makeKey(trainingRunId, studyOutputDir)
     storageData.value.presetsByKey[key] = presetId
     persist(storageData.value)
@@ -41,7 +36,7 @@ export function usePresetPersistence() {
   /**
    * AC2: Get the stored preset ID for the given training run + study combo, or null if none.
    */
-  function getPresetIdForCombo(trainingRunId: number, studyOutputDir: string): string | null {
+  function getPresetIdForCombo(trainingRunId: string, studyOutputDir: string): string | null {
     const key = makeKey(trainingRunId, studyOutputDir)
     return storageData.value.presetsByKey[key] ?? null
   }
@@ -50,7 +45,7 @@ export function usePresetPersistence() {
    * Clear the preset selection for the given training run + study combo.
    * Removes the entire localStorage entry if no presets remain.
    */
-  function clearPresetForCombo(trainingRunId: number, studyOutputDir: string) {
+  function clearPresetForCombo(trainingRunId: string, studyOutputDir: string) {
     const key = makeKey(trainingRunId, studyOutputDir)
     delete storageData.value.presetsByKey[key]
     if (Object.keys(storageData.value.presetsByKey).length === 0) {
@@ -76,7 +71,7 @@ export function usePresetPersistence() {
   }
 }
 
-function makeKey(trainingRunId: number, studyOutputDir: string): string {
+function makeKey(trainingRunId: string, studyOutputDir: string): string {
   return `${trainingRunId}|${studyOutputDir}`
 }
 
@@ -98,19 +93,6 @@ function getStoredData(): PresetPersistenceStorage {
       parsed.presetsByKey !== null
     ) {
       return parsed as PresetPersistenceStorage
-    }
-
-    // Legacy format: { trainingRunId: number, presetId: string }
-    // Migrate: store the single entry under the legacy key (trainingRunId|"")
-    if (
-      parsed &&
-      typeof parsed === 'object' &&
-      typeof parsed.trainingRunId === 'number' &&
-      typeof parsed.presetId === 'string'
-    ) {
-      const legacy = parsed as LegacyPresetPersistenceData
-      const key = makeKey(legacy.trainingRunId, '')
-      return { presetsByKey: { [key]: legacy.presetId } }
     }
 
     return { presetsByKey: {} }

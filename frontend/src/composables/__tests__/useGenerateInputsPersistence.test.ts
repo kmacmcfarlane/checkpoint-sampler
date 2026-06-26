@@ -230,11 +230,22 @@ describe('useGenerateInputsPersistence', () => {
     })
 
     it('returns the stored training run ID', () => {
-      const state: GenerateInputsState = { lastWorkflowId: null, lastTrainingRunId: 42, byModelType: {} }
+      const state: GenerateInputsState = { lastWorkflowId: null, lastTrainingRunId: 'run-42', byModelType: {} }
       localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
 
       const { getLastTrainingRunId } = useGenerateInputsPersistence()
-      expect(getLastTrainingRunId()).toBe(42)
+      expect(getLastTrainingRunId()).toBe('run-42')
+    })
+
+    it('discards a legacy numeric training run ID (S-155: ids are opaque strings)', () => {
+      // A pre-S-155 positional index must not resolve to a run after a rescan.
+      localStorage.setItem(
+        GENERATE_INPUTS_STORAGE_KEY,
+        JSON.stringify({ lastWorkflowId: null, lastTrainingRunId: 42, byModelType: {} }),
+      )
+
+      const { getLastTrainingRunId } = useGenerateInputsPersistence()
+      expect(getLastTrainingRunId()).toBeNull()
     })
 
     it('returns null when lastTrainingRunId is missing (backward compat)', () => {
@@ -260,13 +271,13 @@ describe('useGenerateInputsPersistence', () => {
   describe('saveTrainingRunId', () => {
     it('saves a training run ID to localStorage', () => {
       const { saveTrainingRunId, getLastTrainingRunId } = useGenerateInputsPersistence()
-      saveTrainingRunId(7)
-      expect(getLastTrainingRunId()).toBe(7)
+      saveTrainingRunId('run-7')
+      expect(getLastTrainingRunId()).toBe('run-7')
     })
 
     it('saves null as the training run ID', () => {
       const { saveTrainingRunId, getLastTrainingRunId } = useGenerateInputsPersistence()
-      saveTrainingRunId(42)
+      saveTrainingRunId('run-42')
       saveTrainingRunId(null)
       expect(getLastTrainingRunId()).toBeNull()
     })
@@ -282,7 +293,7 @@ describe('useGenerateInputsPersistence', () => {
       localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
 
       const { saveTrainingRunId, getLastWorkflowId, getModelInputs } = useGenerateInputsPersistence()
-      saveTrainingRunId(5)
+      saveTrainingRunId('run-5')
 
       expect(getLastWorkflowId()).toBe('qwen-image.json')
       expect(getModelInputs('qwen_image')).toEqual({ vae: 'ae.safetensors', clip: 'clip_l.safetensors', shift: null })
@@ -342,7 +353,7 @@ describe('useGenerateInputsPersistence', () => {
     it('preserves other fields when saving a study ID', () => {
       const state: GenerateInputsState = {
         lastWorkflowId: 'qwen-image.json',
-        lastTrainingRunId: 5,
+        lastTrainingRunId: 'run-5',
         lastStudyId: null,
         byModelType: {
           qwen_image: { vae: 'ae.safetensors', clip: 'clip_l.safetensors', shift: null },
@@ -354,7 +365,7 @@ describe('useGenerateInputsPersistence', () => {
       saveStudyId('study-new')
 
       expect(getLastWorkflowId()).toBe('qwen-image.json')
-      expect(getLastTrainingRunId()).toBe(5)
+      expect(getLastTrainingRunId()).toBe('run-5')
       expect(getModelInputs('qwen_image')).toEqual({ vae: 'ae.safetensors', clip: 'clip_l.safetensors', shift: null })
     })
   })
@@ -414,7 +425,7 @@ describe('useGenerateInputsPersistence', () => {
     it('preserves other fields when saving hasSamplesFilter', () => {
       const state: GenerateInputsState = {
         lastWorkflowId: 'qwen-image.json',
-        lastTrainingRunId: 5,
+        lastTrainingRunId: 'run-5',
         byModelType: {
           qwen_image: { vae: 'ae.safetensors', clip: 'clip_l.safetensors', shift: null },
         },
@@ -425,7 +436,7 @@ describe('useGenerateInputsPersistence', () => {
       saveHasSamplesFilter(true)
 
       expect(getLastWorkflowId()).toBe('qwen-image.json')
-      expect(getLastTrainingRunId()).toBe(5)
+      expect(getLastTrainingRunId()).toBe('run-5')
     })
   })
 
@@ -563,7 +574,8 @@ describe('useGenerateInputsPersistence', () => {
     })
 
     it('returns defaults when lastTrainingRunId is wrong type', () => {
-      const state = { lastWorkflowId: null, lastTrainingRunId: 'not-a-number', byModelType: {} }
+      // S-155: a string id is valid; an unexpected type (boolean) fails validation.
+      const state = { lastWorkflowId: null, lastTrainingRunId: true, byModelType: {} }
       localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
       const { getLastTrainingRunId } = useGenerateInputsPersistence()
       // Should fall back to defaults because validation fails
@@ -608,7 +620,7 @@ describe('useGenerateInputsPersistence', () => {
       localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
       const { getModelTypeForRun } = useGenerateInputsPersistence()
       // Should fall back to defaults because validation fails
-      expect(getModelTypeForRun(1)).toBeNull()
+      expect(getModelTypeForRun('1')).toBeNull()
     })
   })
 
@@ -617,14 +629,14 @@ describe('useGenerateInputsPersistence', () => {
   describe('getModelTypeForRun', () => {
     it('returns null when storage is empty', () => {
       const { getModelTypeForRun } = useGenerateInputsPersistence()
-      expect(getModelTypeForRun(1)).toBeNull()
+      expect(getModelTypeForRun('1')).toBeNull()
     })
 
     it('returns null when modelTypeByRunId is absent from stored state', () => {
       const state: GenerateInputsState = { lastWorkflowId: null, byModelType: {} }
       localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
       const { getModelTypeForRun } = useGenerateInputsPersistence()
-      expect(getModelTypeForRun(1)).toBeNull()
+      expect(getModelTypeForRun('1')).toBeNull()
     })
 
     it('returns null when run ID is not in the cache', () => {
@@ -635,7 +647,7 @@ describe('useGenerateInputsPersistence', () => {
       }
       localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
       const { getModelTypeForRun } = useGenerateInputsPersistence()
-      expect(getModelTypeForRun(1)).toBeNull()
+      expect(getModelTypeForRun('1')).toBeNull()
     })
 
     it('returns the cached model type for a run ID', () => {
@@ -646,31 +658,31 @@ describe('useGenerateInputsPersistence', () => {
       }
       localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
       const { getModelTypeForRun } = useGenerateInputsPersistence()
-      expect(getModelTypeForRun(1)).toBe('qwen_image')
-      expect(getModelTypeForRun(2)).toBe('aura_flow')
+      expect(getModelTypeForRun('1')).toBe('qwen_image')
+      expect(getModelTypeForRun('2')).toBe('aura_flow')
     })
   })
 
   describe('saveModelTypeForRun', () => {
     it('saves the model type for a run ID', () => {
       const { saveModelTypeForRun, getModelTypeForRun } = useGenerateInputsPersistence()
-      saveModelTypeForRun(1, 'qwen_image')
-      expect(getModelTypeForRun(1)).toBe('qwen_image')
+      saveModelTypeForRun('1', 'qwen_image')
+      expect(getModelTypeForRun('1')).toBe('qwen_image')
     })
 
     it('saves independent model types for different run IDs', () => {
       const { saveModelTypeForRun, getModelTypeForRun } = useGenerateInputsPersistence()
-      saveModelTypeForRun(1, 'qwen_image')
-      saveModelTypeForRun(2, 'aura_flow')
-      expect(getModelTypeForRun(1)).toBe('qwen_image')
-      expect(getModelTypeForRun(2)).toBe('aura_flow')
+      saveModelTypeForRun('1', 'qwen_image')
+      saveModelTypeForRun('2', 'aura_flow')
+      expect(getModelTypeForRun('1')).toBe('qwen_image')
+      expect(getModelTypeForRun('2')).toBe('aura_flow')
     })
 
     it('overwrites an existing entry for the same run ID', () => {
       const { saveModelTypeForRun, getModelTypeForRun } = useGenerateInputsPersistence()
-      saveModelTypeForRun(1, 'qwen_image')
-      saveModelTypeForRun(1, 'aura_flow')
-      expect(getModelTypeForRun(1)).toBe('aura_flow')
+      saveModelTypeForRun('1', 'qwen_image')
+      saveModelTypeForRun('1', 'aura_flow')
+      expect(getModelTypeForRun('1')).toBe('aura_flow')
     })
 
     it('preserves other stored fields when saving model type for a run', () => {
@@ -681,7 +693,7 @@ describe('useGenerateInputsPersistence', () => {
       localStorage.setItem(GENERATE_INPUTS_STORAGE_KEY, JSON.stringify(state))
 
       const { saveModelTypeForRun, getLastWorkflowId, getModelInputs } = useGenerateInputsPersistence()
-      saveModelTypeForRun(1, 'qwen_image')
+      saveModelTypeForRun('1', 'qwen_image')
 
       expect(getLastWorkflowId()).toBe('qwen-image.json')
       expect(getModelInputs('qwen_image')?.vae).toBe('ae.safetensors')
@@ -689,10 +701,10 @@ describe('useGenerateInputsPersistence', () => {
 
     it('preserves existing modelTypeByRunId entries when adding a new one', () => {
       const { saveModelTypeForRun, getModelTypeForRun } = useGenerateInputsPersistence()
-      saveModelTypeForRun(1, 'qwen_image')
-      saveModelTypeForRun(2, 'aura_flow')
+      saveModelTypeForRun('1', 'qwen_image')
+      saveModelTypeForRun('2', 'aura_flow')
       // Ensure first entry is still present after adding second
-      expect(getModelTypeForRun(1)).toBe('qwen_image')
+      expect(getModelTypeForRun('1')).toBe('qwen_image')
     })
   })
 })

@@ -9,7 +9,7 @@ import { useLastTrainingRun } from '../composables/useLastTrainingRun'
 
 const props = defineProps<{
   /** Auto-select this training run ID if provided (used for restoring from localStorage). */
-  autoSelectRunId?: number | null
+  autoSelectRunId?: string | null
   /**
    * Increment this counter to trigger an automatic refresh of the training run list.
    * Used by the parent to reactively refresh after a sample generation job completes.

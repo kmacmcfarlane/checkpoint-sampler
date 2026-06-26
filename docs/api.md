@@ -49,7 +49,7 @@ file uses the `Format()` directive. The directives actually in use are:
   workflow `validation_state` ∈ {valid, invalid}; study `sample_status` ∈ {none, partial, complete}).
 - `MinLength(...)` — non-empty strings and non-empty arrays (e.g. study `name`, `prompts`, `steps`, `cfgs`,
   `seeds`, `sampler_scheduler_pairs`; preset `name`; `NamedPrompt.name`/`.text`).
-- `Minimum(...)` — numeric lower bounds (e.g. training-run/`id` and `training_run_id` ≥ 0; study `width`/`height` ≥ 1).
+- `Minimum(...)` — numeric lower bounds (e.g. study `width`/`height` ≥ 1).
 - `Default(...)` — default values for optional query params and flags (e.g. `source="samples"`, `refresh=false`,
   `delete_data=false`, `clear_existing=false`, `missing_only=false`, study string defaults `""`).
 
@@ -118,6 +118,17 @@ study/job). Added in S-153.
   fresh filesystem rescan, bypassing the FSState cache — B-142).
 - `validate` accepts optional `study_id` and `study_output_dir` query params for study-aware validation.
 - `scan` accepts optional `study_name` to scope the scan to a study subdirectory.
+
+#### Stable training-run identifiers (S-155)
+
+The `{id}` path segment in `scan`/`validate` (and the `training_run_id` query param on `studies.availability`) is a
+**stable, opaque string**, not a positional index. Training runs are discovered by scanning the filesystem, and a
+rescan can reorder discovery; the previous zero-based index meant a held id could resolve to a *different* run after a
+refresh. The id is now derived from the run's stable identity — its relative path (`TrainingRunResponse.name`, which is
+unique within a discovery source) — encoded as URL-safe base64 (`base64.RawURLEncoding`). Because the same run always
+produces the same id, a held id addresses the same run across rescans. The backend resolves the id by recomputing each
+discovered run's id and matching (`service.FindTrainingRunByID`); an unmatched id returns `not_found`. Clients must treat
+the id as an opaque string obtained from `TrainingRunResponse.id` and must not assume it is numeric or positional.
 
 ### 4.4 studies (`studies.go`)
 

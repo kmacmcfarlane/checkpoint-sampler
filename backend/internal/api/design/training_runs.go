@@ -33,9 +33,7 @@ var _ = Service("training_runs", func() {
 	Method("validate", func() {
 		Description("Validate sample set completeness for a training run by comparing PNG file counts per checkpoint. When study_id is provided, uses the study's expected images-per-checkpoint for comparison instead of the max-file-count heuristic.")
 		Payload(func() {
-			Attribute("id", Int, "Training run index (zero-based)", func() {
-				Minimum(0)
-			})
+			Attribute("id", String, "Stable opaque training run id (URL-safe base64 of the run's relative path; see TrainingRunResponse.id)")
 			Attribute("study_id", String, "Optional study ID for study-aware validation (uses study images_per_checkpoint as expected count)")
 			Attribute("study_output_dir", String, "Study output directory for legacy validation scoping")
 			Required("id")
@@ -56,9 +54,7 @@ var _ = Service("training_runs", func() {
 	Method("scan", func() {
 		Description("Scan a training run's sample directories and return image metadata with discovered dimensions")
 		Payload(func() {
-			Attribute("id", Int, "Training run index (zero-based)", func() {
-				Minimum(0)
-			})
+			Attribute("id", String, "Stable opaque training run id (URL-safe base64 of the run's relative path; see TrainingRunResponse.id)")
 			Attribute("study_name", String, "Study name to scope the scan to a study subdirectory", func() {
 				Default("")
 			})
@@ -79,8 +75,8 @@ var _ = Service("training_runs", func() {
 
 var TrainingRunResponse = Type("TrainingRunResponse", func() {
 	Description("An auto-discovered training run")
-	Attribute("id", Int, "Training run index (zero-based)", func() {
-		Example(0)
+	Attribute("id", String, "Stable opaque training run id (URL-safe base64 of the run's relative path). Survives rescans/reordering; treat as an opaque string.", func() {
+		Example("cXdlbi9wc2FpNHJ0LXYwLjMuMC1uby1yZWc")
 	})
 	Attribute("name", String, "Training run base name (after stripping checkpoint suffixes)", func() {
 		Example("qwen/psai4rt-v0.3.0-no-reg")

@@ -826,7 +826,7 @@ stories:
   - id: S-155
     title: "Stable training-run identifiers (positional index breaks across rescans)"
     priority: 25
-    status: todo
+    status: uat
     complexity: medium
     type: story
     requires: []
@@ -1272,3 +1272,28 @@ stories:
       - "Reviewer verification: ls frontend/src/components vs ui.md table (1:1); grep cs_role handling in job_executor vs
         workflows.md table"
       - "Spot-check output-path examples against a real e2e artifact tree (.e2e/ samples) or the path-construction unit tests"
+  - id: B-159
+    type: bug
+    title: "job_executor logs \"sql: no rows in result set\" when parent job row is missing"
+    status: todo
+    priority: 70
+    complexity: low
+    requires: []
+    notes: |
+      Surfaced by the S-155 QA runtime-error sweep (non-blocking, unrelated to S-155).
+      During a full E2E run the job executor logs at level=error:
+        msg="failed to fetch job for output path" component=job_executor error="sql: no rows in result set"
+        msg="marking item as failed" component=job_executor error="failed to fetch job: sql: no rows in result set" item_id=a30a2fa3-...
+      Root cause hypothesis: a sample-job item is processed after its parent job row has been
+      deleted (likely the E2E /api/test/reset race, or a job-deletion flow that removes the job
+      row while items remain queued), so the executor's job lookup returns zero rows and the item
+      is force-failed. Self-healing in tests but logged at error level (noise).
+      Distinct from the W-006 allowed pattern (which covers schema-missing "no such table/column",
+      not row-missing). Do NOT broaden W-006 to cover this.
+    acceptance:
+      - "When the job executor processes an item whose parent job no longer exists, it logs at debug/info (not error) and
+        skips/cleans the orphaned item gracefully"
+      - "No \"sql: no rows in result set\" errors at level=error appear in backend logs during a full E2E run"
+    testing:
+      - "command: make test-backend"
+      - "command: make test-e2e"

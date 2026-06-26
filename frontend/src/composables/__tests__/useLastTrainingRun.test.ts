@@ -15,33 +15,40 @@ describe('useLastTrainingRun', () => {
 
   it('saves the training run ID to localStorage as structured JSON', () => {
     const { saveLastTrainingRun, lastTrainingRunId } = useLastTrainingRun()
-    saveLastTrainingRun(42)
+    saveLastTrainingRun('run-42')
 
-    expect(lastTrainingRunId.value).toBe(42)
+    expect(lastTrainingRunId.value).toBe('run-42')
     const stored = JSON.parse(localStorage.getItem(STORAGE_KEY)!)
-    expect(stored.runId).toBe(42)
+    expect(stored.runId).toBe('run-42')
     expect(stored.studiesByRunDir).toEqual({})
   })
 
-  it('restores saved training run ID from legacy plain number format', () => {
+  it('discards a legacy plain-number format (S-155: ids are opaque strings)', () => {
     localStorage.setItem(STORAGE_KEY, '123')
 
     const { lastTrainingRunId } = useLastTrainingRun()
-    expect(lastTrainingRunId.value).toBe(123)
+    expect(lastTrainingRunId.value).toBeNull()
   })
 
-  it('restores saved training run ID from structured JSON format', () => {
+  it('discards a legacy numeric runId in structured JSON (S-155)', () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ runId: 123, studiesByRunDir: {} }))
 
     const { lastTrainingRunId } = useLastTrainingRun()
-    expect(lastTrainingRunId.value).toBe(123)
+    expect(lastTrainingRunId.value).toBeNull()
+  })
+
+  it('restores saved training run ID from structured JSON format', () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ runId: 'run-123', studiesByRunDir: {} }))
+
+    const { lastTrainingRunId } = useLastTrainingRun()
+    expect(lastTrainingRunId.value).toBe('run-123')
   })
 
   it('clears the training run ID from localStorage', () => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ runId: 456, studiesByRunDir: {} }))
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ runId: 'run-456', studiesByRunDir: {} }))
 
     const { lastTrainingRunId, clearLastTrainingRun } = useLastTrainingRun()
-    expect(lastTrainingRunId.value).toBe(456)
+    expect(lastTrainingRunId.value).toBe('run-456')
 
     clearLastTrainingRun()
     expect(lastTrainingRunId.value).toBeNull()
@@ -51,16 +58,16 @@ describe('useLastTrainingRun', () => {
   it('overwrites previous ID when saving a new one', () => {
     const { saveLastTrainingRun, lastTrainingRunId } = useLastTrainingRun()
 
-    saveLastTrainingRun(100)
-    expect(lastTrainingRunId.value).toBe(100)
+    saveLastTrainingRun('run-100')
+    expect(lastTrainingRunId.value).toBe('run-100')
 
-    saveLastTrainingRun(200)
-    expect(lastTrainingRunId.value).toBe(200)
+    saveLastTrainingRun('run-200')
+    expect(lastTrainingRunId.value).toBe('run-200')
     const stored = JSON.parse(localStorage.getItem(STORAGE_KEY)!)
-    expect(stored.runId).toBe(200)
+    expect(stored.runId).toBe('run-200')
   })
 
-  it('ignores invalid (non-numeric) data in localStorage', () => {
+  it('ignores invalid (non-JSON) data in localStorage', () => {
     localStorage.setItem(STORAGE_KEY, 'not-a-number')
     const { lastTrainingRunId } = useLastTrainingRun()
     expect(lastTrainingRunId.value).toBeNull()
@@ -75,7 +82,7 @@ describe('useLastTrainingRun', () => {
   describe('per-training-run study persistence', () => {
     it('saves and retrieves study selection per training run dir', () => {
       const { saveLastStudy, getLastStudy, saveLastTrainingRun } = useLastTrainingRun()
-      saveLastTrainingRun(1)
+      saveLastTrainingRun('run-1')
       saveLastStudy('my-model', 'my-model/study-a')
 
       expect(getLastStudy('my-model')).toBe('my-model/study-a')
@@ -83,14 +90,14 @@ describe('useLastTrainingRun', () => {
 
     it('returns null for unknown training run dir', () => {
       const { getLastStudy, saveLastTrainingRun } = useLastTrainingRun()
-      saveLastTrainingRun(1)
+      saveLastTrainingRun('run-1')
 
       expect(getLastStudy('unknown-model')).toBeNull()
     })
 
     it('overwrites previous study selection for same training run dir', () => {
       const { saveLastStudy, getLastStudy, saveLastTrainingRun } = useLastTrainingRun()
-      saveLastTrainingRun(1)
+      saveLastTrainingRun('run-1')
       saveLastStudy('my-model', 'my-model/study-a')
       saveLastStudy('my-model', 'my-model/study-b')
 
@@ -99,7 +106,7 @@ describe('useLastTrainingRun', () => {
 
     it('keeps study selections for different training run dirs independent', () => {
       const { saveLastStudy, getLastStudy, saveLastTrainingRun } = useLastTrainingRun()
-      saveLastTrainingRun(1)
+      saveLastTrainingRun('run-1')
       saveLastStudy('model-a', 'model-a/study-1')
       saveLastStudy('model-b', 'model-b/study-2')
 
@@ -109,10 +116,10 @@ describe('useLastTrainingRun', () => {
 
     it('preserves study selections when saving a new training run ID', () => {
       const { saveLastTrainingRun, saveLastStudy, getLastStudy } = useLastTrainingRun()
-      saveLastTrainingRun(1)
+      saveLastTrainingRun('run-1')
       saveLastStudy('my-model', 'my-model/study-a')
 
-      saveLastTrainingRun(2)
+      saveLastTrainingRun('run-2')
       expect(getLastStudy('my-model')).toBe('my-model/study-a')
     })
   })

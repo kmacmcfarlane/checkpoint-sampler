@@ -48,7 +48,7 @@ Object.defineProperty(globalThis, 'WebSocket', {
 
 function makeTrainingRun(overrides: Partial<TrainingRun> = {}): TrainingRun {
   return {
-    id: 1,
+    id: 'run-1',
     name: 'test-run',
     kind: 'checkpoint' as const,
     checkpoint_count: 2,
@@ -117,7 +117,7 @@ describe('useWebSocket', () => {
     useWebSocket(selectedRun, addImage, removeImage, comboSelections, rescan, createWSOptions())
     expect(mockInstances).toHaveLength(1)
 
-    selectedRun.value = makeTrainingRun({ id: 2, name: 'other-run' })
+    selectedRun.value = makeTrainingRun({ id: 'run-2', name: 'other-run' })
     // Vue watchers are async — trigger with nextTick via timer flush
     await vi.runAllTimersAsync()
     expect(mockInstances).toHaveLength(2)

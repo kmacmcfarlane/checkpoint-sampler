@@ -31,11 +31,12 @@ test.describe('LoRA base model remembered from existing samples (B-145)', () => 
     // and LoRA runs. refresh=true forces a fresh FS scan after reset.
     const runsResp = await request.get('/api/training-runs?source=checkpoints&refresh=true')
     expect(runsResp.ok()).toBeTruthy()
-    const runs = await runsResp.json() as Array<{ name: string }>
-    const loraIndex = runs.findIndex(r => r.name === 'test-lora')
-    expect(loraIndex).toBeGreaterThanOrEqual(0)
+    // S-155: address the run by its stable opaque id, not a positional index.
+    const runs = await runsResp.json() as Array<{ id: string; name: string }>
+    const loraRun = runs.find(r => r.name === 'test-lora')
+    expect(loraRun).toBeDefined()
 
-    const availResp = await request.get(`/api/studies/availability?training_run_id=${loraIndex}`)
+    const availResp = await request.get(`/api/studies/availability?training_run_id=${encodeURIComponent(loraRun!.id)}`)
     expect(availResp.ok()).toBeTruthy()
     const availability = await availResp.json() as Array<{
       study_id: string
@@ -57,11 +58,12 @@ test.describe('LoRA base model remembered from existing samples (B-145)', () => 
   test('availability reports no base_models for a checkpoint run/study (graceful empty)', async ({ request }) => {
     const runsResp = await request.get('/api/training-runs?source=checkpoints&refresh=true')
     expect(runsResp.ok()).toBeTruthy()
-    const runs = await runsResp.json() as Array<{ name: string }>
-    const checkpointIndex = runs.findIndex(r => r.name === 'my-model')
-    expect(checkpointIndex).toBeGreaterThanOrEqual(0)
+    // S-155: address the run by its stable opaque id, not a positional index.
+    const runs = await runsResp.json() as Array<{ id: string; name: string }>
+    const checkpointRun = runs.find(r => r.name === 'my-model')
+    expect(checkpointRun).toBeDefined()
 
-    const availResp = await request.get(`/api/studies/availability?training_run_id=${checkpointIndex}`)
+    const availResp = await request.get(`/api/studies/availability?training_run_id=${encodeURIComponent(checkpointRun!.id)}`)
     expect(availResp.ok()).toBeTruthy()
     const availability = await availResp.json() as Array<{
       study_name: string

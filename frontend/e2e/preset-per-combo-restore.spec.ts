@@ -93,7 +93,7 @@ test.describe('B-102: preset per-combo restore on TR change', () => {
     expect(runs.length).toBeGreaterThan(0)
     const trainingRunId = runs[0].id
 
-    await page.addInitScript((runId: number) => {
+    await page.addInitScript((runId: string) => {
       localStorage.setItem(
         'checkpoint-sampler-last-training-run',
         JSON.stringify({ runId, studiesByRunDir: {} }),

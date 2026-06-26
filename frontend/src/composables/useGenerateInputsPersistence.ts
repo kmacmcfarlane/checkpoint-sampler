@@ -45,7 +45,11 @@ export interface PersistedModelInputs {
 /** Full shape of the persisted generate-inputs state. */
 export interface GenerateInputsState {
   lastWorkflowId: string | null
-  lastTrainingRunId?: number | null
+  /**
+   * Last selected training run id. S-155: a stable opaque string. Legacy numeric
+   * values are rejected by isValidState so a stale positional id is discarded.
+   */
+  lastTrainingRunId?: string | null
   lastStudyId?: string | null
   /**
    * Has-samples filter preference for TrainingRunSelector (AC1).
@@ -86,8 +90,19 @@ function isValidState(v: unknown): v is GenerateInputsState {
   const obj = v as Record<string, unknown>
   if (!('lastWorkflowId' in obj)) return false
   if (obj.lastWorkflowId !== null && typeof obj.lastWorkflowId !== 'string') return false
-  // lastTrainingRunId is optional (backward-compatible); if present it must be number or null
-  if ('lastTrainingRunId' in obj && obj.lastTrainingRunId !== null && obj.lastTrainingRunId !== undefined && typeof obj.lastTrainingRunId !== 'number') return false
+  // lastTrainingRunId is optional. S-155: the current format is a string, but a
+  // legacy numeric value (positional index) may still be on disk. Accept both
+  // here so the rest of the persisted state survives; getLastTrainingRunId
+  // discards non-string ids so a stale index never selects a run.
+  if (
+    'lastTrainingRunId' in obj &&
+    obj.lastTrainingRunId !== null &&
+    obj.lastTrainingRunId !== undefined &&
+    typeof obj.lastTrainingRunId !== 'string' &&
+    typeof obj.lastTrainingRunId !== 'number'
+  ) {
+    return false
+  }
   // lastStudyId is optional (backward-compatible); if present it must be string or null
   if ('lastStudyId' in obj && obj.lastStudyId !== null && obj.lastStudyId !== undefined && typeof obj.lastStudyId !== 'string') return false
   // hasSamplesFilter is optional (backward-compatible); if present it must be boolean or null
@@ -142,13 +157,18 @@ export function useGenerateInputsPersistence() {
     saveState(state)
   }
 
-  /** Load the last remembered training run ID. */
-  function getLastTrainingRunId(): number | null {
-    return loadState().lastTrainingRunId ?? null
+  /**
+   * Load the last remembered training run ID. S-155: only a string id is valid;
+   * a legacy numeric value (positional index) is discarded so it cannot resolve
+   * to the wrong run after a rescan.
+   */
+  function getLastTrainingRunId(): string | null {
+    const id = loadState().lastTrainingRunId
+    return typeof id === 'string' ? id : null
   }
 
   /** Persist the selected training run ID. Pass null to clear it. */
-  function saveTrainingRunId(trainingRunId: number | null): void {
+  function saveTrainingRunId(trainingRunId: string | null): void {
     const state = loadState()
     state.lastTrainingRunId = trainingRunId
     saveState(state)
@@ -228,9 +248,9 @@ export function useGenerateInputsPersistence() {
    * Retrieve the cached model type for a training run (S-119).
    * Returns null when not cached (metadata fetch is required).
    */
-  function getModelTypeForRun(runId: number): string | null {
+  function getModelTypeForRun(runId: string): string | null {
     const state = loadState()
-    return state.modelTypeByRunId?.[String(runId)] ?? null
+    return state.modelTypeByRunId?.[runId] ?? null
   }
 
   /**
@@ -238,12 +258,12 @@ export function useGenerateInputsPersistence() {
    * Called after a successful metadata fetch so that subsequent sessions can
    * apply the per-model-type workflow preference without an extra round-trip.
    */
-  function saveModelTypeForRun(runId: number, modelType: string): void {
+  function saveModelTypeForRun(runId: string, modelType: string): void {
     const state = loadState()
     if (!state.modelTypeByRunId) {
       state.modelTypeByRunId = {}
     }
-    state.modelTypeByRunId[String(runId)] = modelType
+    state.modelTypeByRunId[runId] = modelType
     saveState(state)
   }
 

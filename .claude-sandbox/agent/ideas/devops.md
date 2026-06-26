@@ -121,3 +121,9 @@ The `config-with-comfyui.yaml` E2E fixture needs `allowed_origins: [http://front
 * priority: low
 * source: developer
 `backend/make lint` runs only `go vet`; it does not catch gofmt drift. Several pre-existing files (e.g. `internal/service/validation_test.go`) are not gofmt-clean. Adding `gofmt -l` (fail on output) to the lint target would prevent formatting drift and remove ambiguity about "formatting churn" during reviews.
+
+### `make gen` should bootstrap the pinned goa binary
+* status: needs_approval
+* priority: low
+* source: developer
+`cd backend && make gen` fails in a fresh sandbox because the `goa` binary is not on PATH. The target could `go install` the version pinned in `go.mod` (or document the prerequisite) so codegen works out of the box without a manual `go install goa.design/goa/v3/cmd/goa@<version>`.

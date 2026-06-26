@@ -331,10 +331,10 @@ describe('ApiClient', () => {
       }
       mockFetch({ json: () => Promise.resolve(scanResult) })
 
-      const result = await client.scanTrainingRun(0)
+      const result = await client.scanTrainingRun('run-abc')
 
       expect(globalThis.fetch).toHaveBeenCalledWith(
-        'http://localhost:8080/api/training-runs/0/scan',
+        'http://localhost:8080/api/training-runs/run-abc/scan',
         undefined,
       )
       expect(result).toEqual(scanResult)
@@ -350,7 +350,7 @@ describe('ApiClient', () => {
 
       let thrown: ApiError | undefined
       try {
-        await client.scanTrainingRun(99)
+        await client.scanTrainingRun('run-99')
       } catch (err) {
         thrown = err as ApiError
       }
@@ -548,10 +548,10 @@ describe('ApiClient', () => {
       }
       mockFetch({ json: () => Promise.resolve(validationResult) })
 
-      const result = await client.validateTrainingRun(0)
+      const result = await client.validateTrainingRun('run-abc')
 
       expect(globalThis.fetch).toHaveBeenCalledWith(
-        'http://localhost:8080/api/training-runs/0/validate',
+        'http://localhost:8080/api/training-runs/run-abc/validate',
         { method: 'POST' },
       )
       expect(result).toEqual(validationResult)
@@ -567,10 +567,10 @@ describe('ApiClient', () => {
       }
       mockFetch({ json: () => Promise.resolve(validationResult) })
 
-      const result = await client.validateTrainingRun(0, 'study-abc-123')
+      const result = await client.validateTrainingRun('run-abc', 'study-abc-123')
 
       expect(globalThis.fetch).toHaveBeenCalledWith(
-        'http://localhost:8080/api/training-runs/0/validate?study_id=study-abc-123',
+        'http://localhost:8080/api/training-runs/run-abc/validate?study_id=study-abc-123',
         { method: 'POST' },
       )
       expect(result).toEqual(validationResult)
@@ -580,10 +580,10 @@ describe('ApiClient', () => {
       const client = new ApiClient({ baseUrl: 'http://localhost:8080/api' })
       mockFetch({ json: () => Promise.resolve({ checkpoints: [], expected_per_checkpoint: 0, total_expected: 0, total_verified: 0 }) })
 
-      await client.validateTrainingRun(1, 'study with spaces & special=chars')
+      await client.validateTrainingRun('run-1', 'study with spaces & special=chars')
 
       expect(globalThis.fetch).toHaveBeenCalledWith(
-        'http://localhost:8080/api/training-runs/1/validate?study_id=study+with+spaces+%26+special%3Dchars',
+        'http://localhost:8080/api/training-runs/run-1/validate?study_id=study+with+spaces+%26+special%3Dchars',
         { method: 'POST' },
       )
     })

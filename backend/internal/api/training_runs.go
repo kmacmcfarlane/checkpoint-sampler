@@ -79,7 +79,7 @@ func (s *TrainingRunsService) List(ctx context.Context, p *gentrainingruns.ListP
 	}
 
 	var result []*gentrainingruns.TrainingRunResponse
-	for i, tr := range runs {
+	for _, tr := range runs {
 		checkpoints := make([]*gentrainingruns.CheckpointResponse, len(tr.Checkpoints))
 		for j, cp := range tr.Checkpoints {
 			checkpoints[j] = &gentrainingruns.CheckpointResponse{
@@ -96,7 +96,7 @@ func (s *TrainingRunsService) List(ctx context.Context, p *gentrainingruns.ListP
 		}
 
 		resp := &gentrainingruns.TrainingRunResponse{
-			ID:              i,
+			ID:              service.TrainingRunID(tr),
 			Name:            tr.Name,
 			Kind:            kind,
 			CheckpointCount: len(tr.Checkpoints),
@@ -159,11 +159,10 @@ func (s *TrainingRunsService) Validate(ctx context.Context, p *gentrainingruns.V
 			}
 		}
 
-		if p.ID < 0 || p.ID >= len(runs) {
-			return nil, gentrainingruns.MakeNotFound(fmt.Errorf("training run %d not found", p.ID))
+		tr, ok := service.FindTrainingRunByID(runs, p.ID)
+		if !ok {
+			return nil, gentrainingruns.MakeNotFound(fmt.Errorf("training run %q not found", p.ID))
 		}
-
-		tr := runs[p.ID]
 
 		study, err := s.studyGetter.GetStudy(*p.StudyID)
 		if err == sql.ErrNoRows {
@@ -206,11 +205,11 @@ func (s *TrainingRunsService) Validate(ctx context.Context, p *gentrainingruns.V
 			}
 		}
 
-		if p.ID < 0 || p.ID >= len(runs) {
-			return nil, gentrainingruns.MakeNotFound(fmt.Errorf("training run %d not found", p.ID))
+		tr, ok := service.FindTrainingRunByID(runs, p.ID)
+		if !ok {
+			return nil, gentrainingruns.MakeNotFound(fmt.Errorf("training run %q not found", p.ID))
 		}
 
-		tr := runs[p.ID]
 		var studyName string
 		if p.StudyOutputDir != nil && *p.StudyOutputDir != "" {
 			studyName = *p.StudyOutputDir
@@ -282,11 +281,10 @@ func (s *TrainingRunsService) Scan(ctx context.Context, p *gentrainingruns.ScanP
 		}
 	}
 
-	if p.ID < 0 || p.ID >= len(runs) {
-		return nil, gentrainingruns.MakeNotFound(fmt.Errorf("training run %d not found", p.ID))
+	tr, ok := service.FindTrainingRunByID(runs, p.ID)
+	if !ok {
+		return nil, gentrainingruns.MakeNotFound(fmt.Errorf("training run %q not found", p.ID))
 	}
-
-	tr := runs[p.ID]
 
 	// Derive the study name from the training run name. For viewer-discovered runs,
 	// the study prefix is embedded in the run name (e.g., "study_name/model_base").

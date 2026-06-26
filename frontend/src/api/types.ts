@@ -65,7 +65,12 @@ export type TrainingRunKind = 'checkpoint' | 'lora'
 
 /** An auto-discovered training run. */
 export interface TrainingRun {
-  id: number
+  /**
+   * Stable opaque identifier (URL-safe base64 of the run's relative path).
+   * S-155: survives rescans/reordering — treat as an opaque string, never
+   * assume it is numeric or positional.
+   */
+  id: string
   name: string
   kind: TrainingRunKind
   checkpoint_count: number

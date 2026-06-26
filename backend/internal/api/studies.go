@@ -292,11 +292,10 @@ func (s *StudiesService) Availability(ctx context.Context, p *genstudies.Availab
 		}
 	}
 
-	if p.TrainingRunID < 0 || p.TrainingRunID >= len(runs) {
-		return nil, genstudies.MakeNotFound(fmt.Errorf("training run %d not found", p.TrainingRunID))
+	tr, ok := service.FindTrainingRunByID(runs, p.TrainingRunID)
+	if !ok {
+		return nil, genstudies.MakeNotFound(fmt.Errorf("training run %q not found", p.TrainingRunID))
 	}
-
-	tr := runs[p.TrainingRunID]
 
 	availabilities, err := s.availability.GetAvailability(studies, tr)
 	if err != nil {

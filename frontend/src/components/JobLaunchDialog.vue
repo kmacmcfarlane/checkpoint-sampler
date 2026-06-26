@@ -64,7 +64,7 @@ const showAllRuns = ref(true)
 const refreshingTrainingRuns = ref(false)
 
 // Form selections
-const selectedTrainingRunId = ref<number | null>(null)
+const selectedTrainingRunId = ref<string | null>(null)
 const selectedStudy = ref<string | null>(null)
 
 // S-148: Base model selection for LoRA training runs
@@ -472,7 +472,7 @@ watch(selectedTrainingRunId, (runId) => {
  * when the training run changes. Extracted from the consolidated watcher to keep
  * its async metadata fetch independent of the availability fetch (R-019).
  */
-async function initSelectedTrainingRun(runId: number | null): Promise<void> {
+async function initSelectedTrainingRun(runId: string | null): Promise<void> {
   const skipAutoSelection = prefillActive.value
   prefillActive.value = false
 

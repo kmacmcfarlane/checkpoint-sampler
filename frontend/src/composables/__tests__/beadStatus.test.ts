@@ -3,7 +3,7 @@ import { getBeadStatus, BEAD_COLORS } from '../beadStatus'
 import type { TrainingRun, SampleJob } from '../../api/types'
 
 const baseRun: TrainingRun = {
-  id: 1,
+  id: 'run-1',
   name: 'test-run',
   kind: 'checkpoint',
   checkpoint_count: 1,

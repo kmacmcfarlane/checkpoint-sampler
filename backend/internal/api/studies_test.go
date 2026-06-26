@@ -224,7 +224,7 @@ var _ = Describe("StudiesService", func() {
 			availFS.subdirs["/samples/model-run/StudyA"] = []string{"cp1.safetensors"}
 			availFS.subdirs["/samples/model-run/StudyB"] = []string{"other.safetensors"}
 
-			result, err := availStudies.Availability(ctx, &genstudies.AvailabilityPayload{TrainingRunID: 0})
+			result, err := availStudies.Availability(ctx, &genstudies.AvailabilityPayload{TrainingRunID: service.TrainingRunID(discoverer.runs[0])})
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result).To(HaveLen(2))
 
@@ -252,7 +252,7 @@ var _ = Describe("StudiesService", func() {
 				{Name: "only-run", Checkpoints: []model.Checkpoint{}},
 			}
 
-			_, err := availStudies.Availability(ctx, &genstudies.AvailabilityPayload{TrainingRunID: 5})
+			_, err := availStudies.Availability(ctx, &genstudies.AvailabilityPayload{TrainingRunID: "bm9uZXhpc3RlbnQ"})
 			Expect(err).To(HaveOccurred())
 
 			serviceErr, ok := err.(errorNamer)
@@ -263,7 +263,7 @@ var _ = Describe("StudiesService", func() {
 		It("returns internal_error when discovery fails", func() {
 			discoverer.err = errors.New("filesystem unavailable")
 
-			_, err := availStudies.Availability(ctx, &genstudies.AvailabilityPayload{TrainingRunID: 0})
+			_, err := availStudies.Availability(ctx, &genstudies.AvailabilityPayload{TrainingRunID: "bm9uZXhpc3RlbnQ"})
 			Expect(err).To(HaveOccurred())
 
 			serviceErr, ok := err.(errorNamer)
@@ -278,7 +278,7 @@ var _ = Describe("StudiesService", func() {
 				{Name: "run", Checkpoints: []model.Checkpoint{}},
 			}
 
-			_, err := availStudies.Availability(ctx, &genstudies.AvailabilityPayload{TrainingRunID: 0})
+			_, err := availStudies.Availability(ctx, &genstudies.AvailabilityPayload{TrainingRunID: service.TrainingRunID(discoverer.runs[0])})
 			Expect(err).To(HaveOccurred())
 
 			serviceErr, ok := err.(errorNamer)
@@ -292,7 +292,7 @@ var _ = Describe("StudiesService", func() {
 				{Name: "run", Checkpoints: []model.Checkpoint{{Filename: "cp.safetensors"}}},
 			}
 
-			result, err := availStudies.Availability(ctx, &genstudies.AvailabilityPayload{TrainingRunID: 0})
+			result, err := availStudies.Availability(ctx, &genstudies.AvailabilityPayload{TrainingRunID: service.TrainingRunID(discoverer.runs[0])})
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result).To(BeEmpty())
 		})

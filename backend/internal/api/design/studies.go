@@ -127,9 +127,7 @@ var _ = Service("studies", func() {
 	Method("availability", func() {
 		Description("Get per-study sample availability for a training run. For each study, returns whether it has samples matching the training run's checkpoints.")
 		Payload(func() {
-			Attribute("training_run_id", Int, "Training run index (zero-based) to check availability against", func() {
-				Minimum(0)
-			})
+			Attribute("training_run_id", String, "Stable opaque training run id (URL-safe base64 of the run's relative path; see TrainingRunResponse.id) to check availability against")
 			Required("training_run_id")
 		})
 		Result(ArrayOf(StudyAvailabilityResponse))

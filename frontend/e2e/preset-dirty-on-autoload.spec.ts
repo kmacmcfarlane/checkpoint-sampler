@@ -75,7 +75,7 @@ test.describe('B-047: preset dirty tracking after auto-load', () => {
     // so both keys must be set. The preset key uses the new per-combo format; legacy format
     // is also accepted via migration but the training run key is now required.
     await page.addInitScript(
-      ({ runId, pId }: { runId: number; pId: string }) => {
+      ({ runId, pId }: { runId: string; pId: string }) => {
         // New per-combo format for preset persistence
         localStorage.setItem(
           'checkpoint-sampler-last-preset',
@@ -129,7 +129,7 @@ test.describe('B-047: preset dirty tracking after auto-load', () => {
     })
 
     await page.addInitScript(
-      ({ runId, pId }: { runId: number; pId: string }) => {
+      ({ runId, pId }: { runId: string; pId: string }) => {
         // New per-combo format for preset persistence (B-102)
         localStorage.setItem(
           'checkpoint-sampler-last-preset',
@@ -174,7 +174,7 @@ test.describe('B-047: preset dirty tracking after auto-load', () => {
     })
 
     await page.addInitScript(
-      ({ runId, pId }: { runId: number; pId: string }) => {
+      ({ runId, pId }: { runId: string; pId: string }) => {
         // New per-combo format for preset persistence (B-102)
         localStorage.setItem(
           'checkpoint-sampler-last-preset',
@@ -217,7 +217,7 @@ test.describe('B-047: preset dirty tracking after auto-load', () => {
     })
 
     await page.addInitScript(
-      ({ runId, pId }: { runId: number; pId: string }) => {
+      ({ runId, pId }: { runId: string; pId: string }) => {
         // New per-combo format for preset persistence (B-102)
         localStorage.setItem(
           'checkpoint-sampler-last-preset',

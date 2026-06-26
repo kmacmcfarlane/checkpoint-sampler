@@ -19,6 +19,27 @@ import (
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
 )
 
+// S-155: training-run IDs are stable opaque strings derived from the run's
+// relative path, not positional indices. These helpers resolve the stable ID
+// of the nth discovered run for a given source by listing first, so tests
+// address the same run regardless of discovery order. missingID is a
+// syntactically valid but unmatched opaque id used for not-found assertions.
+const missingID = "bm9uZXhpc3RlbnQ"
+
+func viewerRunID(svc *api.TrainingRunsService, n int) string {
+	runs, err := svc.List(context.Background(), &gentrainingruns.ListPayload{Source: "samples"})
+	Expect(err).NotTo(HaveOccurred())
+	Expect(len(runs)).To(BeNumerically(">", n))
+	return runs[n].ID
+}
+
+func checkpointRunID(svc *api.TrainingRunsService, n int) string {
+	runs, err := svc.List(context.Background(), &gentrainingruns.ListPayload{Source: "checkpoints"})
+	Expect(err).NotTo(HaveOccurred())
+	Expect(len(runs)).To(BeNumerically(">", n))
+	return runs[n].ID
+}
+
 // fakeViewerDiscoveryFS implements service.ViewerFileSystem for testing.
 type fakeViewerDiscoveryFS struct {
 	subdirs map[string][]string // dir path → list of subdirectory names
@@ -175,6 +196,7 @@ var _ = Describe("TrainingRunsService", func() {
 	makeSvc := func(validator *service.ValidationService, watcher *service.Watcher) *api.TrainingRunsService {
 		return api.NewTrainingRunsService(viewerDiscovery, cpDiscovery, scanner, validator, watcher, nil)
 	}
+
 
 	Describe("List", func() {
 		// AC1: Scanner discovers viewable content from sample output directories
@@ -416,13 +438,13 @@ var _ = Describe("TrainingRunsService", func() {
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
 			svc := makeSvc(nil, nil)
 
-			_, err := svc.Scan(context.Background(), &gentrainingruns.ScanPayload{ID: 5})
+			_, err := svc.Scan(context.Background(), &gentrainingruns.ScanPayload{ID: missingID})
 
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("not found"))
 		})
 
-		It("returns not_found for negative ID", func() {
+		It("returns not_found for unknown ID", func() {
 			viewerFS.subdirs[sampleDir] = []string{
 				"model.safetensors",
 			}
@@ -431,7 +453,7 @@ var _ = Describe("TrainingRunsService", func() {
 			scanner = service.NewScanner(scanFS, sampleDir, logger)
 			svc := makeSvc(nil, nil)
 
-			_, err := svc.Scan(context.Background(), &gentrainingruns.ScanPayload{ID: -1})
+			_, err := svc.Scan(context.Background(), &gentrainingruns.ScanPayload{ID: missingID + "x"})
 
 			Expect(err).To(HaveOccurred())
 		})
@@ -450,7 +472,7 @@ var _ = Describe("TrainingRunsService", func() {
 				"seed=2&cfg=7&_00001_.png",
 			}
 
-			result, err := svc.Scan(context.Background(), &gentrainingruns.ScanPayload{ID: 0})
+			result, err := svc.Scan(context.Background(), &gentrainingruns.ScanPayload{ID: viewerRunID(svc, 0)})
 
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.Images).To(HaveLen(2))
@@ -472,7 +494,7 @@ var _ = Describe("TrainingRunsService", func() {
 				"seed=42&_00001_.png",
 			}
 
-			result, err := svc.Scan(context.Background(), &gentrainingruns.ScanPayload{ID: 0})
+			result, err := svc.Scan(context.Background(), &gentrainingruns.ScanPayload{ID: viewerRunID(svc, 0)})
 
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.Images).To(HaveLen(1))
@@ -489,7 +511,7 @@ var _ = Describe("TrainingRunsService", func() {
 
 			scanFS.errs[sampleDir+"/model-step00001000.safetensors"] = fmt.Errorf("disk error")
 
-			_, err := svc.Scan(context.Background(), &gentrainingruns.ScanPayload{ID: 0})
+			_, err := svc.Scan(context.Background(), &gentrainingruns.ScanPayload{ID: viewerRunID(svc, 0)})
 
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("disk error"))
@@ -516,7 +538,7 @@ var _ = Describe("TrainingRunsService", func() {
 				"seed=42&_00001_.png",
 			}
 
-			result, err := svc.Scan(context.Background(), &gentrainingruns.ScanPayload{ID: 0})
+			result, err := svc.Scan(context.Background(), &gentrainingruns.ScanPayload{ID: viewerRunID(svc, 0)})
 
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.Images).To(HaveLen(2))
@@ -528,6 +550,72 @@ var _ = Describe("TrainingRunsService", func() {
 			Expect(dimMap["checkpoint"].Type).To(Equal("int"))
 			Expect(dimMap["checkpoint"].Values).To(Equal([]string{"1000", "2000"}))
 			Expect(dimMap["seed"].Type).To(Equal("int"))
+		})
+
+		// AC1 (S-155): A held training-run id must address the SAME run after a
+		// rescan that changes discovery order. Previously ids were positional
+		// indices, so inserting a new run shifted the index and a held id pointed
+		// at a different run. With stable opaque ids, the held id still resolves
+		// to the originally selected run.
+		It("scans the same run by held id after a rescan reorders discovery", func() {
+			// Initial discovery: two runs. "mid-model" sorts to index 0.
+			viewerFS.subdirs[sampleDir] = []string{
+				"mid-model-step00001000.safetensors",
+				"omega-model-step00001000.safetensors",
+			}
+			viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
+			cpDiscovery = service.NewDiscoveryService(cpFS, []string{}, nil, sampleDir, logger)
+			scanner = service.NewScanner(scanFS, sampleDir, logger)
+			svc := makeSvc(nil, nil)
+
+			runsBefore, err := svc.List(context.Background(), &gentrainingruns.ListPayload{Source: "samples"})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(runsBefore).To(HaveLen(2))
+			// Select "mid-model" and hold its id and original index.
+			var heldID, heldName string
+			oldIndex := -1
+			for i, r := range runsBefore {
+				if r.Name == "mid-model" {
+					heldID = r.ID
+					heldName = r.Name
+					oldIndex = i
+				}
+			}
+			Expect(heldID).NotTo(BeEmpty())
+			Expect(oldIndex).To(Equal(0))
+
+			// Sample files for the selected run, used to verify the scan targets it.
+			scanFS.files[sampleDir+"/mid-model-step00001000.safetensors"] = []string{
+				"seed=1&_00001_.png",
+				"seed=2&_00001_.png",
+			}
+
+			// Rescan: a new run is added that sorts BEFORE "mid-model", shifting
+			// the original run's positional index. The held id must still resolve
+			// to "mid-model".
+			viewerFS.subdirs[sampleDir] = []string{
+				"aaa-new-model-step00001000.safetensors",
+				"mid-model-step00001000.safetensors",
+				"omega-model-step00001000.safetensors",
+			}
+
+			runsAfter, err := svc.List(context.Background(), &gentrainingruns.ListPayload{Source: "samples"})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(runsAfter).To(HaveLen(3))
+			// Confirm the positional index of the held run actually changed.
+			var newIndex int
+			for i, r := range runsAfter {
+				if r.ID == heldID {
+					newIndex = i
+				}
+			}
+			Expect(newIndex).NotTo(Equal(oldIndex), "the held run's position should have shifted after rescan")
+
+			// Scan by the held id and assert it addressed the originally selected run.
+			result, err := svc.Scan(context.Background(), &gentrainingruns.ScanPayload{ID: heldID})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Images).To(HaveLen(2))
+			Expect(heldName).To(Equal("mid-model"))
 		})
 	})
 
@@ -543,7 +631,7 @@ var _ = Describe("TrainingRunsService", func() {
 			validator := service.NewValidationService(scanFS, sampleDir, logger)
 			svc := api.NewTrainingRunsService(viewerDiscovery, cpDiscovery, scanner, validator, nil, nil)
 
-			_, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{ID: 5})
+			_, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{ID: missingID})
 
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("not found"))
@@ -571,7 +659,7 @@ var _ = Describe("TrainingRunsService", func() {
 				"seed=43&_00001_.png",
 			}
 
-			result, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{ID: 0})
+			result, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{ID: viewerRunID(svc, 0)})
 
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.Checkpoints).To(HaveLen(2))
@@ -601,7 +689,7 @@ var _ = Describe("TrainingRunsService", func() {
 				"seed=42&_00001_.png",
 			}
 
-			result, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{ID: 0})
+			result, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{ID: viewerRunID(svc, 0)})
 
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.Checkpoints).To(HaveLen(2))
@@ -624,7 +712,7 @@ var _ = Describe("TrainingRunsService", func() {
 				"seed=42&_00001_.png",
 			}
 
-			result, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{ID: 0})
+			result, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{ID: viewerRunID(svc, 0)})
 
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.Checkpoints).To(HaveLen(1))
@@ -668,7 +756,7 @@ var _ = Describe("TrainingRunsService", func() {
 
 				// No sample files yet — all checkpoints should show 0 verified
 				sid := studyID
-				result, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{ID: 0, StudyID: &sid})
+				result, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{ID: checkpointRunID(svc, 0), StudyID: &sid})
 
 				Expect(err).NotTo(HaveOccurred())
 				Expect(result.Checkpoints).To(HaveLen(2))
@@ -719,7 +807,7 @@ var _ = Describe("TrainingRunsService", func() {
 				}
 
 				sid := studyID
-				result, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{ID: 0, StudyID: &sid})
+				result, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{ID: checkpointRunID(svc, 0), StudyID: &sid})
 
 				Expect(err).NotTo(HaveOccurred())
 				Expect(result.Checkpoints).To(HaveLen(2))
@@ -763,7 +851,7 @@ var _ = Describe("TrainingRunsService", func() {
 				// model-step00002000 has no directory entry → verified=0
 
 				sid := studyID
-				result, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{ID: 0, StudyID: &sid})
+				result, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{ID: checkpointRunID(svc, 0), StudyID: &sid})
 
 				Expect(err).NotTo(HaveOccurred())
 				Expect(result.Checkpoints).To(HaveLen(2))
@@ -785,7 +873,7 @@ var _ = Describe("TrainingRunsService", func() {
 				svc := api.NewTrainingRunsService(viewerDiscovery, cpDiscovery, scanner, validator, nil, studyGetter)
 
 				sid := "nonexistent-study"
-				_, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{ID: 0, StudyID: &sid})
+				_, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{ID: checkpointRunID(svc, 0), StudyID: &sid})
 
 				Expect(err).To(HaveOccurred())
 			})
@@ -801,7 +889,7 @@ var _ = Describe("TrainingRunsService", func() {
 				svc := api.NewTrainingRunsService(viewerDiscovery, cpDiscovery, scanner, validator, nil, studyGetter)
 
 				sid := studyID
-				_, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{ID: 5, StudyID: &sid})
+				_, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{ID: missingID, StudyID: &sid})
 
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("not found"))
@@ -849,7 +937,7 @@ var _ = Describe("TrainingRunsService", func() {
 				}
 
 				sid := studyID
-				result, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{ID: 0, StudyID: &sid})
+				result, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{ID: checkpointRunID(svc, 0), StudyID: &sid})
 
 				Expect(err).NotTo(HaveOccurred())
 				// Training run name is "qwen/Qwen2-VL" (slash kept in DB/API; sanitized only for FS)
@@ -950,7 +1038,7 @@ var _ = Describe("TrainingRunsService manifest validation routing (B-132)", func
 		scanFS.files[cpDir] = []string{expectedFile, "foreign.png"}
 
 		sid := studyID
-		result, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{ID: 0, StudyID: &sid})
+		result, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{ID: checkpointRunID(svc, 0), StudyID: &sid})
 
 		Expect(err).NotTo(HaveOccurred())
 		Expect(result.Checkpoints).To(HaveLen(1))
@@ -1014,7 +1102,7 @@ var _ = Describe("TrainingRunsService manifest validation routing (B-132)", func
 		scanFS.files[cpDir] = []string{"foreign1.png", "foreign2.png", "foreign3.png"}
 
 		sid := studyID
-		result, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{ID: 0, StudyID: &sid})
+		result, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{ID: checkpointRunID(svc, 0), StudyID: &sid})
 
 		Expect(err).NotTo(HaveOccurred())
 		Expect(result.Checkpoints).To(HaveLen(1))
@@ -1071,7 +1159,7 @@ var _ = Describe("TrainingRunsService manifest validation routing (B-132)", func
 		cpDir := studyOutputDir + "/model-step00001000.safetensors"
 		scanFS.files[cpDir] = []string{expectedFile, "extra.png"}
 
-		result, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{ID: 0})
+		result, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{ID: viewerRunID(svc, 0)})
 
 		Expect(err).NotTo(HaveOccurred())
 		Expect(result.Checkpoints).To(HaveLen(1))
@@ -1140,7 +1228,7 @@ var _ = Describe("TrainingRunsService manifest validation routing (B-132)", func
 		scanFS.fileData[cpDir+"/"+sidecarBase+".json"] = []byte(import_json_pkg)
 
 		sid := studyID
-		result, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{ID: 0, StudyID: &sid})
+		result, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{ID: checkpointRunID(svc, 0), StudyID: &sid})
 
 		Expect(err).NotTo(HaveOccurred())
 		Expect(result.Checkpoints).To(HaveLen(1))
@@ -1183,7 +1271,7 @@ var _ = Describe("TrainingRunsService manifest validation routing (B-132)", func
 		scanFS.files[scopedStudyDir+"/model-step00001000.safetensors"] = []string{"any-file.png"}
 
 		sid := studyID
-		result, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{ID: 0, StudyID: &sid})
+		result, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{ID: checkpointRunID(svc, 0), StudyID: &sid})
 
 		Expect(err).NotTo(HaveOccurred())
 		Expect(result.Checkpoints).To(HaveLen(1))

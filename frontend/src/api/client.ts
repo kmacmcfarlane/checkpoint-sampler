@@ -90,19 +90,19 @@ export class ApiClient {
     return this.request<TrainingRun[]>(`/training-runs${query}`)
   }
 
-  /** GET /api/training-runs/{id}/scan — scan directories and return image metadata. */
-  async scanTrainingRun(id: number, studyOutputDir?: string): Promise<ScanResult> {
+  /** GET /api/training-runs/{id}/scan — scan directories and return image metadata. id is a stable opaque string. */
+  async scanTrainingRun(id: string, studyOutputDir?: string): Promise<ScanResult> {
     const params = studyOutputDir ? `?study_name=${encodeURIComponent(studyOutputDir)}` : ''
-    return this.request<ScanResult>(`/training-runs/${id}/scan${params}`)
+    return this.request<ScanResult>(`/training-runs/${encodeURIComponent(id)}/scan${params}`)
   }
 
-  /** POST /api/training-runs/{id}/validate — validate sample set completeness. */
-  async validateTrainingRun(id: number, studyId?: string, studyOutputDir?: string): Promise<ValidationResult> {
+  /** POST /api/training-runs/{id}/validate — validate sample set completeness. id is a stable opaque string. */
+  async validateTrainingRun(id: string, studyId?: string, studyOutputDir?: string): Promise<ValidationResult> {
     const params = new URLSearchParams()
     if (studyId) params.set('study_id', studyId)
     if (studyOutputDir) params.set('study_output_dir', studyOutputDir)
     const qs = params.toString() ? `?${params}` : ''
-    return this.request<ValidationResult>(`/training-runs/${id}/validate${qs}`, {
+    return this.request<ValidationResult>(`/training-runs/${encodeURIComponent(id)}/validate${qs}`, {
       method: 'POST',
     })
   }
@@ -235,9 +235,9 @@ export class ApiClient {
     return this.request<AffectedRun[]>(`/studies/${studyId}/affected-runs`)
   }
 
-  /** GET /api/studies/availability?training_run_id={id} — get per-study sample availability for a training run. */
-  async getStudyAvailability(trainingRunId: number): Promise<StudyAvailability[]> {
-    return this.request<StudyAvailability[]>(`/studies/availability?training_run_id=${trainingRunId}`)
+  /** GET /api/studies/availability?training_run_id={id} — get per-study sample availability for a training run. id is a stable opaque string. */
+  async getStudyAvailability(trainingRunId: string): Promise<StudyAvailability[]> {
+    return this.request<StudyAvailability[]>(`/studies/availability?training_run_id=${encodeURIComponent(trainingRunId)}`)
   }
 
   /** DELETE /api/studies/{id}?delete_data={bool} — delete a study.
