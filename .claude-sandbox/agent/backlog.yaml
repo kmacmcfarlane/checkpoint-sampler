@@ -1249,7 +1249,7 @@ stories:
   - id: M-003
     title: "Docs refresh part 3: filesystem.md, ui.md, workflows.md + PRD config section sync"
     priority: 36
-    status: todo
+    status: uat
     complexity: medium
     type: maintenance
     requires: ["S-151", "S-153"]

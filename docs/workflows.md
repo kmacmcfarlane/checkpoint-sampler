@@ -26,14 +26,15 @@ The `cs_role` field in each node's `_meta` object identifies what that node does
 | cs_role | Required | Fields substituted | Source |
 |---------|----------|--------------------|--------|
 | `save_image` | Yes | `filename_prefix` | Controlled by Checkpoint Sampler (not user-configurable) |
-| `unet_loader` | No | `unet_name` | Per-checkpoint path (auto-matched from training run) |
+| `unet_loader` | No | `unet_name` | Checkpoint jobs: per-checkpoint path (auto-matched). LoRA jobs: the job's base model, resolved to ComfyUI's `unet_name`. |
+| `lora_loader` | No | `lora_name`, `strength_model`, `strength_clip` | LoRA jobs: per-checkpoint LoRA path (auto-matched) and the strengths configured on the job |
 | `clip_loader` | No | `clip_name` | Job-level setting (user selects from ComfyUI's available CLIPs) |
 | `vae_loader` | No | `vae_name` | Job-level setting (user selects from ComfyUI's available VAEs) |
 | `sampler` | No | `seed`, `steps`, `cfg`, `sampler_name`, `scheduler` | Sample preset (iterated across all combinations) |
 | `positive_prompt` | No | `text` | Sample preset (iterated across prompt list) |
 | `negative_prompt` | No | `text` | Sample preset (single negative prompt, same for all images) |
 | `shift` | No | `shift` | Job-level setting (e.g., AuraFlow shift parameter) |
-| `latent_image` | No | `width`, `height` | Sample preset (width and height fields) |
+| `latent_image` | No | `width`, `height`, `batch_size` | Sample preset (width and height fields); `batch_size` is always forced to `1` |
 
 ### Required role: save_image
 
@@ -56,11 +57,18 @@ Checkpoints that cannot be matched in ComfyUI's model list are skipped with an e
 
 Note: The role is named `unet_loader` but it supports any model loader node (including `CheckpointLoader` nodes that set `ckpt_name`). The substitution sets `unet_name` — if your workflow uses a `CheckpointLoader` that expects `ckpt_name`, rename the input field in your workflow or use a `UNETLoader` node instead.
 
+### lora_loader and LoRA jobs
+
+The `lora_loader` role is used for LoRA training runs, where a single base model is loaded by the `unet_loader` node and a per-checkpoint LoRA is layered on top. For each checkpoint in the run, Checkpoint Sampler substitutes:
+
+- `lora_name` — the ComfyUI-relative path to the LoRA `.safetensors` for that checkpoint (auto-matched against ComfyUI's model list, same as `unet_loader` matching).
+- `strength_model` and `strength_clip` — the LoRA strengths configured on the job.
+
+If the LoRA path cannot be matched (empty `lora_name`), the checkpoint is failed rather than submitted to ComfyUI with an invalid value. For LoRA jobs the `unet_loader` node receives the job's base model (resolved to ComfyUI's `unet_name`) instead of a per-checkpoint path.
+
 ### negative_prompt
 
-The `negative_prompt` role marks the negative conditioning node. Checkpoint Sampler reads the negative prompt text from the sample preset but does not currently inject it into the workflow at execution time — the value in the workflow template JSON is used as-is. The negative prompt from the sample preset is stored in the sidecar metadata file alongside each generated image for reference.
-
-If you want a specific negative prompt to apply, set the `text` input of the negative prompt node directly in the workflow template.
+The `negative_prompt` role marks the negative conditioning node. When the sample preset's negative prompt is non-empty, Checkpoint Sampler substitutes it into the node's `text` input. If the preset has no negative prompt, the value in the workflow template JSON is left untouched, so you can hard-code a default negative prompt directly in the template. The negative prompt is also stored in the sidecar metadata file alongside each generated image for reference.
 
 ## Exporting a compatible workflow from ComfyUI
 

@@ -190,3 +190,9 @@ Currently the FSState cache is stale for up to 1s after demo install/uninstall. 
 * priority: medium
 * source: developer
 The `studyOutputDir` in `broadcastJobProgress` does not account for the base model directory level for LoRA jobs, so completeness checks scan the wrong path. Should be aligned with the fix in `handleItemCompletionAsync` — add `if job.BaseModel != "" { studyOutputDir += "/" + baseModelName }` at line ~1945 and update associated tests.
+
+### PRD section 4 config example uses stale comfyui schema
+* status: needs_approval
+* priority: low
+* source: developer
+The PRD section 4 `comfyui:` block documents `host:`/`port:` and a top-level `workflow_dir:`, but the backend loader (`parseComfyUIConfig` / `yamlComfyUIConfig`) actually reads `comfyui.url` and `comfyui.workflow_dir`. A follow-up docs pass should reconcile the PRD comfyui sub-block (and possibly `config.yaml.example`) with the real schema. Out of scope for M-003, which only added the three new top-level keys.

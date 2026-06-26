@@ -13,6 +13,40 @@ The frontend uses [Naive UI](https://www.naiveui.com/) (`naive-ui`) as its Vue 3
 
 All UI elements should use Naive UI components instead of custom HTML elements with manual styling.
 
+### 1.1 Component inventory
+
+The single-file components under `frontend/src/components/` and their responsibilities:
+
+| Component | Responsibility |
+|-----------|----------------|
+| `AppDrawer.vue` | Left controls drawer (`NDrawer`, overlay). Hosts training run / preset pickers and dimension assignments. |
+| `FiltersDrawer.vue` | Drawer wrapper around dimension filters; emits `filter-update` and visibility changes. |
+| `CheckpointMetadataPanel.vue` | Right-side resizable drawer showing checkpoint metadata as stacked key/value fields. |
+| `TrainingRunSelector.vue` | Training run picker (`NSelect`), grouped by kind (checkpoint vs LoRA), with a LoRA/Checkpoint kind badge rendered per option. |
+| `PresetSelector.vue` | Sample/dimension preset picker with create/update/delete; emits `load`/`save`/`delete`. |
+| `DimensionPanel.vue` | Per-dimension unified-mode selector (x / y / slider / single / multi / hide). |
+| `DimensionFilter.vue` | Single dimension's filter UI (multi checkboxes or single dropdown) with solo/unsolo. |
+| `ComboFilter.vue` | Combined multi-value checkbox filter with select-all / select-none. |
+| `MasterSlider.vue` | Full-width sticky slider with Play button and loop/speed controls for the slider dimension. |
+| `SliderBar.vue` | Thin slider track (`NSlider`) used inside grid cells / compact contexts. |
+| `AnimationControls.vue` | Playback loop + speed controls used by the master slider. |
+| `XYGrid.vue` | The X/Y image grid: renders cells, row/column headers, and resizable dividers. |
+| `ImageCell.vue` | A single grid cell: image, per-cell slider stepping, click-to-lightbox. |
+| `ImageLightbox.vue` | Full-screen image viewer with zoom (wheel) and pan (drag), metadata panel, close affordances. |
+| `ZoomControl.vue` | Grid cell-size (zoom) slider, 100–600px. |
+| `JobLaunchDialog.vue` | "Generate Samples" modal: workflow/base-model/job settings, dual-bead status indicators per run/study. |
+| `JobProgressPanel.vue` | Running/completed job progress modal with per-checkpoint progress and failed-item navigation. |
+| `StudyEditor.vue` | Create/edit a study (prompts, dimensions, prompt prefix, etc.). |
+| `SettingsDialog.vue` | App settings modal (theme toggle, debug-mode switch). |
+| `ComfyUIStatus.vue` | Header tag showing ComfyUI connection status. |
+| `ConfirmDeleteDialog.vue` | Generic confirmation modal for destructive actions. |
+| `ValidationResultsDialog.vue` | Modal listing study/workflow validation results. |
+| `DebugOverlay.vue` | Developer overlay rendering per-cell debug info (dev/debug builds). |
+
+Non-component modules in the same directory: `types.ts` (shared component types) and `studyImportValidation.ts` (study-import validation helpers).
+
+The status "bead" system (colored circles indicating per-training-run / per-study sample status) is not a standalone component — it is rendered inline only by `JobLaunchDialog.vue` using the `composables/dualBeadStatus.ts` helper.
+
 ## 2) Theming
 
 ### 2.1 Theme modes

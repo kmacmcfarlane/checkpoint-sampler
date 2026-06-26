@@ -61,9 +61,34 @@ The `sample_dir` contains subdirectories organized by training run and study. Ea
 
 ### Per-training-run layout (current)
 
-New jobs output into a 3-level hierarchy: `{sample_dir}/{sanitized_training_run_name}/{study_id}/{checkpoint.safetensors}/`. This scopes samples to the exact training run and study combination, preventing cross-contamination when the same study name is used across multiple training runs.
+New jobs output into a hierarchy scoped by training run and study. This scopes samples to the exact training run and study combination, preventing cross-contamination when the same study name is used across multiple training runs.
 
-A manifest file is written at the study level to capture the full job configuration: `{sample_dir}/{sanitized_training_run_name}/{study_id}/manifest.json`.
+**Checkpoint jobs** (per-checkpoint UNET, no base model) use a 3-level hierarchy:
+
+```
+{sample_dir}/{sanitized_training_run_name}/{study_name}/{checkpoint.safetensors}/
+```
+
+**LoRA jobs** (a shared base model with per-checkpoint LoRA weights) insert an additional base-model directory level. `base_model_name` is the filename of the selected base model with its extension stripped:
+
+```
+{sample_dir}/{sanitized_training_run_name}/{study_name}/{base_model_name}/{lora_checkpoint.safetensors}/
+```
+
+The directory level uses the study's **display name** (`study.Name`), not the study's database UUID. Like training run names, study names are not slash-sanitized here — they are expected to be a single path segment.
+
+A manifest file is written at the study level (above any base-model directory) to capture the full job configuration:
+
+```
+{sample_dir}/{sanitized_training_run_name}/{study_name}/manifest.json
+```
+
+#### Per-image companion files
+
+Inside each `{checkpoint.safetensors}/` directory, alongside every generated PNG:
+
+- A JSON **sidecar** with the same base name and a `.json` extension (e.g. `…_00001_.json`) records the generation metadata (prompt, seed, cfg, steps, sampler, scheduler, dimensions, negative prompt, VAE, CLIP, shift, workflow name, job ID, timestamp, commit SHA).
+- A `thumbnails/` subdirectory holds a downsized JPEG for each image, named after the source image with a `.jpg` extension (e.g. `…_00001_.jpg`). Thumbnails are only written when thumbnail generation is enabled.
 
 #### Training run name sanitization
 
@@ -78,28 +103,40 @@ This sanitization is **filesystem-only**: the DB and API continue to store and r
 | `flux/my-flux-lora` | `flux_my-flux-lora` |
 | `simple-model` | `simple-model` (unchanged) |
 
+**Checkpoint job** (no base model):
+
 ```
 sample_dir: ~/ai/outputs/stable-diffusion/comfyui/
-├── qwen_psai4rt-v0.3.0-no-reg/          ← sanitized from "qwen/psai4rt-v0.3.0-no-reg"
-│   └── <study-uuid>/
-│       ├── manifest.json                 ← job manifest
-│       ├── psai4rt-v0.3.0-no-reg.safetensors/
-│       │   ├── prompt_name=forest_portals&seed=420&cfg=1&_00001_.png
-│       │   └── ...
-│       └── psai4rt-v0.3.0-no-reg-step00004500.safetensors/
-│           └── ...
-└── flux_my-flux-lora/                    ← sanitized from "flux/my-flux-lora"
-    └── <study-uuid>/
-        ├── manifest.json
-        └── my-flux-lora-step00001000.safetensors/
+└── qwen_psai4rt-v0.3.0-no-reg/          ← sanitized from "qwen/psai4rt-v0.3.0-no-reg"
+    └── My Study/                         ← study display name
+        ├── manifest.json                 ← job manifest (study level)
+        ├── psai4rt-v0.3.0-no-reg.safetensors/
+        │   ├── prompt_name=forest_portals&seed=420&cfg=1&_00001_.png
+        │   ├── prompt_name=forest_portals&seed=420&cfg=1&_00001_.json   ← sidecar metadata
+        │   └── thumbnails/
+        │       └── prompt_name=forest_portals&seed=420&cfg=1&_00001_.jpg
+        └── psai4rt-v0.3.0-no-reg-step00004500.safetensors/
             └── ...
 ```
 
-The study ID is the database UUID for the study.
+**LoRA job** (shared base model + per-checkpoint LoRA), with the extra `base_model_name` level:
+
+```
+sample_dir: ~/ai/outputs/stable-diffusion/comfyui/
+└── flux_my-flux-lora/                    ← sanitized from "flux/my-flux-lora"
+    └── My Study/
+        ├── manifest.json                 ← study level, above the base-model dir
+        └── flux1-dev/                     ← base_model_name (extension stripped)
+            └── my-flux-lora-step00001000.safetensors/
+                ├── prompt_name=forest_portals&seed=420&cfg=1&_00001_.png
+                ├── prompt_name=forest_portals&seed=420&cfg=1&_00001_.json
+                └── thumbnails/
+                    └── prompt_name=forest_portals&seed=420&cfg=1&_00001_.jpg
+```
 
 ### Demo dataset layout
 
-The bundled demo dataset uses the per-training-run layout:
+The bundled demo dataset uses the per-training-run layout (study name `demo-study`, no base-model level since it is a checkpoint dataset):
 
 ```
 sample_dir: ~/ai/outputs/stable-diffusion/comfyui/

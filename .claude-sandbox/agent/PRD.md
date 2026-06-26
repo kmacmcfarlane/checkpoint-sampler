@@ -511,6 +511,19 @@ ip_address: "0.0.0.0"
 # SQLite database path (relative to working directory)
 db_path: ./data/checkpoint-sampler.db
 
+# Maximum allowed HTTP request body size, in megabytes (optional; default: 200).
+max_request_size_mb: 200
+
+# Maximum total work items allowed per study/job (optional; default: 50000).
+# Guards against runaway combinatorial sample-job sizes.
+max_study_items: 50000
+
+# Extra origins permitted by the CORS middleware and WebSocket upgrader (optional;
+# default: empty). The same-host policy (Origin hostname == request Host hostname)
+# always applies regardless of this list. Entries may be full origins or bare hostnames.
+allowed_origins:
+  - https://viewer.example.lan
+
 # ComfyUI connection settings for inference pipeline (optional)
 comfyui:
   host: localhost        # ComfyUI server hostname
@@ -530,6 +543,7 @@ workflow_dir: ./workflows
 - Dimension types are inferred: values that parse as integers are sorted numerically, otherwise lexicographically.
 - `comfyui` settings are optional. If omitted, inference pipeline features are disabled in the UI.
 - `workflow_dir` must contain ComfyUI API-format JSON files with `cs_role` tags (see section 2.9). The directory is created at startup if it does not exist.
+- `max_request_size_mb` (default 200) and `max_study_items` (default 50000) are optional safety limits; both must be greater than zero. `allowed_origins` (default empty) only *extends* the always-on same-host origin policy — it is not required for normal same-host operation.
 - Checkpoint files must be accessible to both checkpoint-sampler (via `checkpoint_dirs`) and ComfyUI (via ComfyUI's `extra_model_paths.yaml`) for inference to work. Path matching is done by filename.
 
 ### Development environment (claude-sandbox)
