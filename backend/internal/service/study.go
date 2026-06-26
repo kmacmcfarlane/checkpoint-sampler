@@ -43,6 +43,7 @@ type StudyService struct {
 	store          StudyStore
 	sampleChecker  StudySampleChecker
 	sampleRemover  StudySampleDirRemover
+	maxStudyItems  int // maximum images-per-checkpoint product allowed; 0 means unlimited
 	logger         *logrus.Entry
 }
 
@@ -59,6 +60,15 @@ func NewStudyService(store StudyStore, sampleChecker StudySampleChecker, logger 
 // This is optional; if not set, Delete with deleteData=true will skip filesystem cleanup.
 func (s *StudyService) WithSampleRemover(remover StudySampleDirRemover) *StudyService {
 	s.sampleRemover = remover
+	return s
+}
+
+// WithMaxStudyItems sets the maximum images-per-checkpoint product allowed for a
+// study. A value <= 0 disables the limit. When set, Create/Update reject studies
+// whose Cartesian product of parameters (per checkpoint) exceeds the limit, so
+// oversized studies are caught early before any job is launched.
+func (s *StudyService) WithMaxStudyItems(maxStudyItems int) *StudyService {
+	s.maxStudyItems = maxStudyItems
 	return s
 }
 
@@ -465,6 +475,23 @@ func (s *StudyService) validate(name string, prompts []model.NamedPrompt, steps 
 			return fmt.Errorf("duplicate lora strength pair at index %d", i)
 		}
 		seenLoraPairs[key] = true
+	}
+
+	// S-153: Reject oversized studies early. The images-per-checkpoint product
+	// (prompts × steps × cfgs × sampler/scheduler pairs × seeds × lora strength
+	// pairs) alone must not exceed the configured limit, so a study can never
+	// produce more than maxStudyItems work items even for a single checkpoint.
+	// When loraStrengthPairs is empty it is treated as a single implicit pair,
+	// matching the job-expansion behavior.
+	if s.maxStudyItems > 0 {
+		loraPairCount := len(loraStrengthPairs)
+		if loraPairCount == 0 {
+			loraPairCount = 1
+		}
+		imagesPerCheckpoint := len(prompts) * len(steps) * len(cfgs) * len(pairs) * len(seeds) * loraPairCount
+		if imagesPerCheckpoint > s.maxStudyItems {
+			return &model.TooManyItemsError{Total: imagesPerCheckpoint, Limit: s.maxStudyItems}
+		}
 	}
 	return nil
 }

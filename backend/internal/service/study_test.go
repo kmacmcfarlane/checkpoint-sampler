@@ -1038,4 +1038,49 @@ var _ = Describe("StudyService", func() {
 			Expect(err.Error()).To(ContainSubstring("duplicate lora strength pair at index 1"))
 		})
 	})
+
+	// S-153: Reject oversized studies early at save time. The images-per-checkpoint
+	// product alone must not exceed the configured limit.
+	Describe("Max study items validation", func() {
+		var (
+			limitSvc *service.StudyService
+			prompts  []model.NamedPrompt
+			pairs    []model.SamplerSchedulerPair
+		)
+
+		BeforeEach(func() {
+			prompts = []model.NamedPrompt{{Name: "p1", Text: "text"}}
+			pairs = []model.SamplerSchedulerPair{{Sampler: "euler", Scheduler: "simple"}}
+			// Limit of 10 against an images-per-checkpoint product configured per test.
+			limitSvc = service.NewStudyService(store, sampleChecker, logger).WithMaxStudyItems(10)
+		})
+
+		It("accepts a study whose images-per-checkpoint product is exactly at the limit", func() {
+			// 1 prompt × 2 steps × 1 cfg × 1 pair × 5 seeds × 1 lora = 10
+			result, err := limitSvc.Create("At Limit", "", prompts, "",
+				[]int{4, 8}, []float64{1.0}, pairs, []int64{1, 2, 3, 4, 5}, 512, 512, "", "", "", nil, nil)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.ImagesPerCheckpoint()).To(Equal(10))
+		})
+
+		It("rejects a study whose images-per-checkpoint product is one over the limit", func() {
+			// 1 prompt × 1 step × 1 cfg × 1 pair × 11 seeds × 1 lora = 11
+			_, err := limitSvc.Create("Over Limit", "", prompts, "",
+				[]int{4}, []float64{1.0}, pairs, []int64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}, 512, 512, "", "", "", nil, nil)
+			Expect(err).To(HaveOccurred())
+
+			var tooMany *model.TooManyItemsError
+			Expect(errors.As(err, &tooMany)).To(BeTrue())
+			Expect(tooMany.Total).To(Equal(11))
+			Expect(tooMany.Limit).To(Equal(10))
+		})
+
+		It("does not enforce a limit when max study items is zero (default service)", func() {
+			// svc has no limit configured; a large product is accepted.
+			result, err := svc.Create("Unlimited", "", prompts, "",
+				[]int{4}, []float64{1.0}, pairs, []int64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}, 512, 512, "", "", "", nil, nil)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.ImagesPerCheckpoint()).To(Equal(11))
+		})
+	})
 })

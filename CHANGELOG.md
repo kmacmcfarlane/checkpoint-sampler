@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-153: Cap study total work items at 50k (config-overridable) with backend and frontend validation
+- New config key `max_study_items` (default 50000; `<=0` rejected at config load) caps the Cartesian product of work items; job creation rejects oversized jobs with a stable `too_many_items` error (HTTP 422) carrying the computed total and the limit, and study save catches oversized per-checkpoint products early
+- New `GET /api/config` endpoint exposes UI-relevant limits (`{ max_study_items }`); the launch dialog fetches it and disables launch with a total-vs-limit message when exceeded
+
 ### S-150: Limit HTTP request body size (200MB default) with config override
 - New `RequestBodyLimitMiddleware` (applied outermost) rejects oversized requests: a `Content-Length` over the limit short-circuits to a `413` with the normalized Goa error envelope; bodies without `Content-Length` are capped via `http.MaxBytesReader` (a chunked overrun surfaces as Goa's decode error). No response buffering — image downloads and WebSocket upgrades pass through untouched
 - New config key `max_request_size_mb` (default 200 when unset; `0`/negative rejected at config validation); `MaxHeaderBytes` set to 1MB on the HTTP server

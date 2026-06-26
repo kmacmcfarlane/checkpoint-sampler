@@ -15,6 +15,15 @@ var _ = Service("health", func() {
 			Response(StatusOK)
 		})
 	})
+
+	Method("config", func() {
+		Description("Expose UI-relevant configuration limits to the frontend")
+		Result(ConfigResult)
+		HTTP(func() {
+			GET("/api/config")
+			Response(StatusOK)
+		})
+	})
 })
 
 var HealthResult = Type("HealthResult", func() {
@@ -22,4 +31,12 @@ var HealthResult = Type("HealthResult", func() {
 		Example("ok")
 	})
 	Required("status")
+})
+
+var ConfigResult = Type("ConfigResult", func() {
+	Description("UI-relevant configuration limits")
+	Attribute("max_study_items", Int, "Maximum total work items allowed per study/job", func() {
+		Example(50000)
+	})
+	Required("max_study_items")
 })

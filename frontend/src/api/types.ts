@@ -19,6 +19,12 @@ export interface HealthStatus {
   status: string
 }
 
+/** UI-relevant configuration limits exposed by the backend. */
+export interface AppConfig {
+  /** Maximum total work items allowed per study/job. */
+  max_study_items: number
+}
+
 /** A checkpoint file within a training run. */
 export interface CheckpointInfo {
   filename: string

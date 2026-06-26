@@ -53,6 +53,16 @@ db_path: ./data/checkpoint-sampler.db
 # Must be a positive integer; 0 or negative values are rejected at startup.
 # max_request_size_mb: 200
 
+# Maximum total work items allowed per study/job (optional, default: 50000).
+# A study expands into a Cartesian product (prompts x steps x cfgs x
+# sampler/scheduler pairs x seeds x lora-strength pairs x checkpoints). This cap
+# bounds that product so a single study/job cannot create millions of rows.
+# Studies are rejected at save time if their per-checkpoint product exceeds the
+# limit, and job creation is rejected if checkpoints x images-per-checkpoint
+# exceeds it. Must be a positive integer; 0 or negative values are rejected at
+# startup.
+# max_study_items: 50000
+
 # ComfyUI connection settings for inference pipeline (optional).
 # If omitted, inference pipeline features are disabled in the UI.
 # The URL must include the scheme (http:// or https://).

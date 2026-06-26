@@ -85,6 +85,7 @@ type SampleJobService struct {
 	workflowChecker WorkflowRoleChecker
 	sampleDir       string
 	executor        SampleJobExecutor
+	maxStudyItems   int // maximum total work items allowed per job; 0 means unlimited
 	logger          *logrus.Entry
 }
 
@@ -127,6 +128,14 @@ func (s *SampleJobService) SetWorkflowRoleChecker(checker WorkflowRoleChecker) {
 // SetExecutor sets the job executor (called after construction to avoid circular dependencies).
 func (s *SampleJobService) SetExecutor(executor SampleJobExecutor) {
 	s.executor = executor
+}
+
+// SetMaxStudyItems sets the maximum total number of work items allowed for a job.
+// A value <= 0 disables the limit. When set, Create rejects jobs whose computed
+// total (checkpoints × images-per-checkpoint) exceeds the limit with a typed
+// *model.TooManyItemsError carrying the computed total and the limit.
+func (s *SampleJobService) SetMaxStudyItems(maxStudyItems int) {
+	s.maxStudyItems = maxStudyItems
 }
 
 // clearCheckpointOutputDirs removes sample output directories for each selected checkpoint.
@@ -309,6 +318,21 @@ func (s *SampleJobService) Create(trainingRunName string, checkpoints []model.Ch
 		imagesPerCheckpoint = study.ImagesPerCheckpoint()
 	}
 	totalItems := len(checkpoints) * imagesPerCheckpoint
+
+	// S-153: Reject jobs whose total work items exceed the configured maximum.
+	// This guards against an unbounded Cartesian product (checkpoints ×
+	// images-per-checkpoint) creating millions of rows. The check uses the full
+	// computed total (before missing-only filtering) so the rejection reflects the
+	// study's true size. A typed error carries the computed total and the limit so
+	// the API/transport layer can surface a stable too_many_items code.
+	if s.maxStudyItems > 0 && totalItems > s.maxStudyItems {
+		s.logger.WithFields(logrus.Fields{
+			"study_id":        studyID,
+			"total_items":     totalItems,
+			"max_study_items": s.maxStudyItems,
+		}).Warn("rejecting job: total work items exceed configured maximum")
+		return model.SampleJob{}, &model.TooManyItemsError{Total: totalItems, Limit: s.maxStudyItems}
+	}
 
 	// Capture the checkpoint filenames selected for this job.
 	selectedFilenames := make([]string, len(checkpoints))

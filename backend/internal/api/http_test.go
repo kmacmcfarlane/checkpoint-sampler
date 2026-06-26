@@ -103,7 +103,7 @@ var _ = Describe("NewHTTPHandler", func() {
 		demoSvc := service.NewDemoService(demoFS, fakePS, sampleDir, logger)
 
 		// API layer services
-		healthAPISvc := api.NewHealthService()
+		healthAPISvc := api.NewHealthService(50000)
 		docsAPISvc := api.NewDocsService(specJSON)
 		trainingRunsAPISvc := api.NewTrainingRunsService(viewerDiscoverySvc, discoverySvc, scannerSvc, nil, nil, nil)
 		presetsAPISvc := api.NewPresetsService(presetSvc)

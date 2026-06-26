@@ -91,6 +91,10 @@ const missingOnly = ref(false)
 const validationResult = ref<ValidationResult | null>(null)
 const validating = ref(false)
 
+// S-153: Maximum total work items allowed per study/job, fetched from the backend
+// config endpoint. 0 means "not yet loaded / unlimited" and disables the check.
+const maxStudyItems = ref(0)
+
 // Confirmation dialog for regenerating a fully-validated (complete) sample set
 const confirmRegenOpen = ref(false)
 
@@ -990,6 +994,12 @@ const imagesPerCheckpoint = computed(() =>
 
 const totalImages = computed(() => targetedCheckpointCount.value * imagesPerCheckpoint.value)
 
+// S-153: Whether the computed total exceeds the configured maximum. Only enforced
+// once the limit has been fetched from the backend (> 0) and a total is computed.
+const exceedsItemLimit = computed(() =>
+  maxStudyItems.value > 0 && totalImages.value > maxStudyItems.value
+)
+
 // Whether validation found missing samples (used for "Generate Missing" button visibility).
 // Only true when SOME samples exist (total_actual > 0) AND some are missing. When zero
 // samples exist for the study+training run, this is a "generate all" scenario, not
@@ -1035,6 +1045,8 @@ const canSubmit = computed(() => {
   if (isLoraRun.value && !selectedBaseModel.value) return false
   // B-140: Block launch when study workflow is incompatible with training run kind
   if (selectedStudyIncompatible.value) return false
+  // S-153: Block launch when the computed total exceeds the configured maximum
+  if (exceedsItemLimit.value) return false
   return true
 })
 
@@ -1103,6 +1115,16 @@ watch(() => props.show, async (newShow) => {
 })
 
 onMounted(async () => {
+  // S-153: Fetch the configured max study items so the launch dialog can block
+  // oversized jobs before submission. Non-fatal: on failure the limit stays 0
+  // (disabled) and the backend still enforces the cap as a safety net.
+  try {
+    const appConfig = await apiClient.getConfig()
+    maxStudyItems.value = appConfig.max_study_items
+  } catch {
+    // Non-fatal; backend enforcement remains the authoritative guard.
+  }
+
   await Promise.all([
     fetchTrainingRunsAndJobs(),
     fetchStudies(),
@@ -1826,6 +1848,15 @@ async function doSubmit() {
         </p>
         <p><strong>Images per checkpoint:</strong> {{ imagesPerCheckpoint }}</p>
         <p class="total-images"><strong>Total images:</strong> {{ totalImages }}</p>
+        <p
+          v-if="exceedsItemLimit"
+          class="item-limit-error"
+          data-testid="item-limit-error"
+        >
+          Total images ({{ totalImages }}) exceeds the maximum allowed per study
+          ({{ maxStudyItems }}). Reduce the number of checkpoints or study parameters
+          before launching.
+        </p>
       </div>
 
       <div class="action-buttons">
@@ -2012,6 +2043,12 @@ async function doSubmit() {
 .summary .total-images {
   font-size: 1.125rem;
   color: var(--accent-color);
+}
+
+.summary .item-limit-error {
+  color: var(--error-color);
+  font-weight: 600;
+  margin-top: 0.25rem;
 }
 
 .action-buttons {

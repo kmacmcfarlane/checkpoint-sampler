@@ -50,7 +50,7 @@ var _ = Describe("Server integration", func() {
 		viewerDiscovery := service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
 		scanner := service.NewScanner(scanFS, sampleDir, logger)
 
-		healthSvc := api.NewHealthService()
+		healthSvc := api.NewHealthService(50000)
 		docsSvc := api.NewDocsService(specJSON)
 		cpDiscovery := service.NewDiscoveryService(&fakeCheckpointFileSystem{}, []string{}, nil, sampleDir, logger)
 		trainingRunsSvc := api.NewTrainingRunsService(viewerDiscovery, cpDiscovery, scanner, nil, nil, nil)

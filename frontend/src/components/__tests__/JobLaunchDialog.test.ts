@@ -16,6 +16,7 @@ vi.mock('../../api/client', () => ({
     listStudies: vi.fn(),
     getComfyUIModels: vi.fn(),
     getBaseModels: vi.fn(),
+    getConfig: vi.fn(),
     createSampleJob: vi.fn(),
     createStudy: vi.fn(),
     updateStudy: vi.fn(),
@@ -40,6 +41,7 @@ const mockCreateSampleJob = apiClient.createSampleJob as ReturnType<typeof vi.fn
 const mockGetCheckpointMetadata = apiClient.getCheckpointMetadata as ReturnType<typeof vi.fn>
 const mockValidateTrainingRun = apiClient.validateTrainingRun as ReturnType<typeof vi.fn>
 const mockGetStudyAvailability = apiClient.getStudyAvailability as ReturnType<typeof vi.fn>
+const mockGetConfig = apiClient.getConfig as ReturnType<typeof vi.fn>
 
 // Training run without samples (gray)
 const runEmpty: TrainingRun = {
@@ -310,6 +312,8 @@ describe('JobLaunchDialog', () => {
     mockGetCheckpointMetadata.mockResolvedValue({ metadata: {} })
     // Default: no study availability data (tests that need it will override)
     mockGetStudyAvailability.mockResolvedValue([])
+    // S-153: default a generous study item limit so existing tests are unaffected
+    mockGetConfig.mockResolvedValue({ max_study_items: 50000 })
     // Default: validation returns empty result (no samples)
     mockValidateTrainingRun.mockResolvedValue({
       checkpoints: [],
@@ -831,6 +835,83 @@ describe('JobLaunchDialog', () => {
     const buttons = wrapper.findAllComponents(NButton)
     const submitButton = buttons.find(b => b.text() === 'Generate Samples')
     expect(submitButton!.props('disabled')).toBe(false)
+  })
+
+  // S-153: Cap study total work items at the configured limit (frontend validation).
+  describe('max study items limit (S-153)', () => {
+    // AC4: dialog blocks launch and renders the limit message when total exceeds
+    // the limit fetched from the backend.
+    it('blocks launch and shows the limit message when total exceeds the fetched limit', async () => {
+      // runEmpty (id=1) has 5 checkpoints; preset-2 has 48 images/checkpoint → total 240.
+      mockGetConfig.mockResolvedValue({ max_study_items: 100 })
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      await nextTick()
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-2')
+      await nextTick()
+
+      // The over-limit message is rendered with the computed total and the limit.
+      const limitError = wrapper.find('[data-testid="item-limit-error"]')
+      expect(limitError.exists()).toBe(true)
+      expect(limitError.text()).toContain('240')
+      expect(limitError.text()).toContain('100')
+
+      // The launch button is disabled.
+      const buttons = wrapper.findAllComponents(NButton)
+      const submitButton = buttons.find(b => b.text() === 'Generate Samples')
+      expect(submitButton!.props('disabled')).toBe(true)
+    })
+
+    // AC4: dialog allows launch (and hides the message) when total is at or under the limit.
+    it('allows launch and hides the message when total is exactly at the limit', async () => {
+      // total = 5 × 48 = 240; limit set to exactly 240.
+      mockGetConfig.mockResolvedValue({ max_study_items: 240 })
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      await nextTick()
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-2')
+      await nextTick()
+
+      expect(wrapper.find('[data-testid="item-limit-error"]').exists()).toBe(false)
+
+      const buttons = wrapper.findAllComponents(NButton)
+      const submitButton = buttons.find(b => b.text() === 'Generate Samples')
+      expect(submitButton!.props('disabled')).toBe(false)
+    })
+
+    it('allows launch when total is under the limit', async () => {
+      // total = 5 × 48 = 240; generous limit.
+      mockGetConfig.mockResolvedValue({ max_study_items: 50000 })
+
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 1)
+      await nextTick()
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', 'preset-2')
+      await nextTick()
+
+      expect(wrapper.find('[data-testid="item-limit-error"]').exists()).toBe(false)
+
+      const buttons = wrapper.findAllComponents(NButton)
+      const submitButton = buttons.find(b => b.text() === 'Generate Samples')
+      expect(submitButton!.props('disabled')).toBe(false)
+    })
   })
 
   it('creates sample job with correct payload for an empty training run', async () => {

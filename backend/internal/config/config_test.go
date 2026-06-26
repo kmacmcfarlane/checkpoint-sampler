@@ -582,6 +582,53 @@ max_request_size_mb: %d
 		})
 	})
 
+	Describe("Max study items configuration", func() {
+		Context("when max_study_items is not specified", func() {
+			It("defaults to 50000", func() {
+				yamlStr := `
+checkpoint_dirs:
+  - "` + filepath.Join(tmpDir, "checkpoints") + `"
+sample_dir: "` + sampleDir + `"
+`
+				cfg, err := config.LoadFromString(yamlStr)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(cfg.MaxStudyItems).To(Equal(50000))
+			})
+		})
+
+		Context("when max_study_items is specified", func() {
+			It("parses a valid explicit value", func() {
+				yamlStr := `
+checkpoint_dirs:
+  - "` + filepath.Join(tmpDir, "checkpoints") + `"
+sample_dir: "` + sampleDir + `"
+max_study_items: 100000
+`
+				cfg, err := config.LoadFromString(yamlStr)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(cfg.MaxStudyItems).To(Equal(100000))
+			})
+		})
+
+		Context("max_study_items validation", func() {
+			DescribeTable("rejects invalid max_study_items values",
+				func(value int, expectedErr string) {
+					yamlStr := fmt.Sprintf(`
+checkpoint_dirs:
+  - "`+filepath.Join(tmpDir, "checkpoints")+`"
+sample_dir: "`+sampleDir+`"
+max_study_items: %d
+`, value)
+					_, err := config.LoadFromString(yamlStr)
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).To(ContainSubstring(expectedErr))
+				},
+				Entry("zero value", 0, "max_study_items must be > 0"),
+				Entry("negative value", -1, "max_study_items must be > 0"),
+			)
+		})
+	})
+
 	Describe("ComfyUI configuration", func() {
 		Context("when comfyui section is present", func() {
 			It("parses comfyui config with all fields", func() {

@@ -166,7 +166,7 @@ func run() error {
 	// fsState.Stop() is called explicitly in performShutdown (before HTTP drain).
 
 	// Create service implementations
-	healthSvc := api.NewHealthService()
+	healthSvc := api.NewHealthService(cfg.MaxStudyItems)
 	docsSvc := api.NewDocsService(spec)
 	validationSvc := service.NewValidationService(fs, cfg.SampleDir, logger)
 	trainingRunsSvc := api.NewTrainingRunsService(viewerDiscovery, discovery, scanner, validationSvc, watcher, st)
@@ -175,7 +175,7 @@ func run() error {
 	presetsSvc := api.NewPresetsService(presetSvc)
 	studyAvailSvc := service.NewStudyAvailabilityService(fs, cfg.SampleDir, logger)
 	studyDirRemover := store.NewStudyDirRemover(fs, cfg.SampleDir)
-	studySvc := service.NewStudyService(st, studyAvailSvc, logger).WithSampleRemover(studyDirRemover)
+	studySvc := service.NewStudyService(st, studyAvailSvc, logger).WithSampleRemover(studyDirRemover).WithMaxStudyItems(cfg.MaxStudyItems)
 	studiesSvc := api.NewStudiesService(studySvc, studyAvailSvc, discovery)
 	studiesSvc.SetFSState(fsState)
 	demoSvc := service.NewDemoService(fs, st, cfg.SampleDir, logger)
@@ -206,6 +206,7 @@ func run() error {
 		loraPathMatcher := service.NewLoraPathMatcher(modelDiscovery, logger)
 		dirRemover := store.NewStudyOutputDirRemover(fs, cfg.SampleDir)
 		sampleJobSvc := service.NewSampleJobService(st, pathMatcher, dirRemover, cfg.SampleDir, logger)
+		sampleJobSvc.SetMaxStudyItems(cfg.MaxStudyItems)
 		sampleJobSvc.SetLoraPathMatcher(loraPathMatcher)
 		sampleJobSvc.SetFileChecker(&service.RealOutputFileChecker{})
 		sampleJobSvc.SetJobDataRemover(store.NewJobSampleDirRemover(fs, cfg.SampleDir))

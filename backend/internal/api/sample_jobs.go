@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -138,6 +139,13 @@ func (s *SampleJobsService) Create(ctx context.Context, p *gensamplejobs.CreateS
 	if err != nil {
 		if isNotFound(err) {
 			return nil, gensamplejobs.MakeNotFound(err)
+		}
+		// S-153: surface the stable too_many_items code when the computed total
+		// exceeds the configured maximum, preserving the typed error message that
+		// carries both the computed total and the limit.
+		var tooMany *model.TooManyItemsError
+		if errors.As(err, &tooMany) {
+			return nil, gensamplejobs.MakeTooManyItems(tooMany)
 		}
 		return nil, gensamplejobs.MakeInvalidPayload(fmt.Errorf("creating sample job: %w", err))
 	}

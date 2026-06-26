@@ -24,6 +24,7 @@ type yamlConfig struct {
 	Thumbnails       *yamlThumbnailConfig `yaml:"thumbnails"`
 	WsPingInterval   *int                 `yaml:"ws_ping_interval"`
 	MaxRequestSizeMB *int                 `yaml:"max_request_size_mb"`
+	MaxStudyItems    *int                 `yaml:"max_study_items"`
 }
 
 // yamlThumbnailConfig is the raw YAML-tagged representation of thumbnail config.
@@ -96,6 +97,10 @@ func parseAndValidate(raw yamlConfig) (*model.Config, error) {
 	if raw.MaxRequestSizeMB != nil {
 		maxRequestSizeMB = *raw.MaxRequestSizeMB
 	}
+	maxStudyItems := 50000 // default: 50,000 total work items per study/job
+	if raw.MaxStudyItems != nil {
+		maxStudyItems = *raw.MaxStudyItems
+	}
 
 	// Validate checkpoint_dirs
 	if len(raw.CheckpointDirs) == 0 {
@@ -166,6 +171,11 @@ func parseAndValidate(raw yamlConfig) (*model.Config, error) {
 		return nil, fmt.Errorf("config: max_request_size_mb must be > 0, got %d", maxRequestSizeMB)
 	}
 
+	// Validate max_study_items (must be positive)
+	if maxStudyItems <= 0 {
+		return nil, fmt.Errorf("config: max_study_items must be > 0, got %d", maxStudyItems)
+	}
+
 	// Validate IP address
 	if net.ParseIP(raw.IPAddress) == nil {
 		return nil, fmt.Errorf("config: invalid ip_address %q", raw.IPAddress)
@@ -201,6 +211,7 @@ func parseAndValidate(raw yamlConfig) (*model.Config, error) {
 		Thumbnails:       thumbnails,
 		WsPingInterval:   wsPingInterval,
 		MaxRequestSizeMB: maxRequestSizeMB,
+		MaxStudyItems:    maxStudyItems,
 	}, nil
 }
 

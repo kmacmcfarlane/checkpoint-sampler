@@ -348,6 +348,21 @@ describe('ApiClient', () => {
     })
   })
 
+  describe('getConfig', () => {
+    it('fetches UI config limits from /api/config', async () => {
+      const client = new ApiClient({ baseUrl: 'http://localhost:8080/api' })
+      mockFetch({ json: () => Promise.resolve({ max_study_items: 50000 }) })
+
+      const result = await client.getConfig()
+
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        'http://localhost:8080/api/config',
+        undefined,
+      )
+      expect(result).toEqual({ max_study_items: 50000 })
+    })
+  })
+
   describe('createPreset', () => {
     it('posts a new preset to /api/presets', async () => {
       const client = new ApiClient({ baseUrl: 'http://localhost:8080/api' })

@@ -13,6 +13,7 @@ type Config struct {
 	Thumbnails       *ThumbnailConfig
 	WsPingInterval   int // seconds between WebSocket ping frames; 0 disables pings
 	MaxRequestSizeMB int // maximum allowed HTTP request body size in megabytes; default 200
+	MaxStudyItems    int // maximum total work items allowed per study/job; default 50000
 }
 
 // ComfyUIConfig represents the ComfyUI integration configuration.

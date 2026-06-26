@@ -932,6 +932,73 @@ var _ = Describe("SampleJobService", func() {
 		})
 	})
 
+	// S-153: Cap study total work items at the configured maximum.
+	Describe("Create with max study items limit", func() {
+		var (
+			study       model.Study
+			checkpoints []model.Checkpoint
+		)
+
+		BeforeEach(func() {
+			study = model.Study{
+				ID:             "study-limit",
+				Name:           "Limit Study",
+				Prompts:        []model.NamedPrompt{{Name: "prompt1", Text: "text1"}, {Name: "prompt2", Text: "text2"}},
+				NegativePrompt: "bad",
+				Steps:          []int{1, 4},
+				CFGs:           []float64{1.0, 3.0},
+				SamplerSchedulerPairs: []model.SamplerSchedulerPair{
+					{Sampler: "euler", Scheduler: "simple"},
+				},
+				Seeds:            []int64{420},
+				WorkflowTemplate: "workflow.json",
+			}
+			store.studies[study.ID] = study
+
+			// images-per-checkpoint = 2 prompts × 2 steps × 2 cfgs × 1 pair × 1 seed = 8
+			// 2 checkpoints → total = 16
+			checkpoints = []model.Checkpoint{
+				{Filename: "checkpoint1.safetensors", StepNumber: 1000},
+				{Filename: "checkpoint2.safetensors", StepNumber: 2000},
+			}
+			pathMatcher.paths["checkpoint1.safetensors"] = "models/checkpoint1.safetensors"
+			pathMatcher.paths["checkpoint2.safetensors"] = "models/checkpoint2.safetensors"
+		})
+
+		It("allows a job whose total is exactly at the limit", func() {
+			svc.SetMaxStudyItems(16) // total == limit
+			job, err := svc.Create("test-run", checkpoints, study.ID, nil, false, false, "", model.TrainingRunKindCheckpoint)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(job.TotalItems).To(Equal(16))
+		})
+
+		It("rejects a job whose total is one over the limit with a typed too_many_items error", func() {
+			svc.SetMaxStudyItems(15) // total (16) is one over
+			_, err := svc.Create("test-run", checkpoints, study.ID, nil, false, false, "", model.TrainingRunKindCheckpoint)
+			Expect(err).To(HaveOccurred())
+
+			var tooMany *model.TooManyItemsError
+			Expect(errors.As(err, &tooMany)).To(BeTrue())
+			Expect(tooMany.Total).To(Equal(16))
+			Expect(tooMany.Limit).To(Equal(15))
+			Expect(tooMany.Code()).To(Equal(model.TooManyItemsCode))
+		})
+
+		It("respects a config override that raises the limit above the total", func() {
+			svc.SetMaxStudyItems(1000000) // override well above total
+			job, err := svc.Create("test-run", checkpoints, study.ID, nil, false, false, "", model.TrainingRunKindCheckpoint)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(job.TotalItems).To(Equal(16))
+		})
+
+		It("does not enforce a limit when max study items is zero (unlimited)", func() {
+			svc.SetMaxStudyItems(0)
+			job, err := svc.Create("test-run", checkpoints, study.ID, nil, false, false, "", model.TrainingRunKindCheckpoint)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(job.TotalItems).To(Equal(16))
+		})
+	})
+
 	Describe("Get", func() {
 		It("returns a job by ID", func() {
 			job := model.SampleJob{
