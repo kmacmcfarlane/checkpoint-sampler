@@ -1080,7 +1080,7 @@ stories:
   - id: W-027
     title: "Replace sleep-based negative assertions in watcher/ws tests with deterministic synchronization"
     priority: 45
-    status: todo
+    status: uat
     complexity: low
     type: workflow
     requires: ["B-153"]

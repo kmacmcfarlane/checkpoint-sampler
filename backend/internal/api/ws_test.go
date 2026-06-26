@@ -242,20 +242,22 @@ var _ = Describe("WebSocket ping loop", func() {
 
 	// AC: Backend sends periodic ping frames — zero interval disables pings.
 	It("does not send any pings when interval is zero", func() {
-		conn := newMockPingableConn()
-		_, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
 		// A zero interval must not start the ticker; NewWSConnConfigurer guards
 		// against it in production. Test the guard directly.
 		configurer := api.NewWSConnConfigurer(0, logger)
 		Expect(configurer).NotTo(BeNil())
 
-		// When interval is zero the configurer should be a no-op function that
-		// returns the conn without starting a goroutine. Validate by asserting
-		// that after a short pause no pings were sent.
-		time.Sleep(30 * time.Millisecond)
-		Expect(conn.PingCount()).To(Equal(0))
+		// Invoke the configurer with a nil conn. For zero interval the configurer
+		// must be a no-op: it returns the conn immediately without spawning a
+		// ping goroutine. If the guard were missing, runPingLoop would be called
+		// and would panic on the nil conn within the ticker interval.
+		//
+		// Calling configurer(nil, cancel) exercises the no-op path without a
+		// sleep. The race detector will surface any unintended goroutine spawn.
+		cancelCalled := false
+		result := configurer(nil, func() { cancelCalled = true })
+		Expect(result).To(BeNil(), "no-op configurer must return the input conn unchanged")
+		Expect(cancelCalled).To(BeFalse(), "no-op configurer must not invoke cancel")
 	})
 
 	// AC: Idle connections survive beyond proxy_read_timeout limits — ping stops

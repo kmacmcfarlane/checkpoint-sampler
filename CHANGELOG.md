@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### W-027: Replace sleep-based negative assertions in watcher/ws tests with deterministic synchronization
+- The four fixed-`time.Sleep` negative assertions in `service/watcher_test.go` and `api/ws_test.go` are replaced with deterministic synchronization. The three watcher tests use a sentinel-event pattern: the suppressed event is followed by a PNG-create sentinel that *should* broadcast, and `waitForEvents(1, …)` confirms only the sentinel arrived (single-goroutine, in-order channel processing guarantees the suppressed event was already handled). The zero-ping-interval test invokes the configurer's no-op path directly instead of sleeping. Eliminates flake-under-load and silent false-passes (TEST_PRACTICES 1.2/4.3); test-only change, no production behavior modified
+
 ### S-152: Cap concurrent WebSocket clients in the hub
 - The WebSocket hub now enforces a fixed cap of `MaxHubClients = 100` concurrent clients (no config key at this scale). `Hub.Register` returns `false` when at capacity (atomic with the map write under the same lock — no TOCTOU); `ws.go Subscribe` rejects the connection by closing the write pump + stream and returning a capacity error. Disconnects free capacity (cap is on concurrent clients, not lifetime), preventing any LAN device from exhausting goroutines/memory by opening connections in a loop
 

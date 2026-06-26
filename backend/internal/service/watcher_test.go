@@ -455,40 +455,69 @@ var _ = Describe("Watcher", func() {
 		})
 
 		It("ignores non-PNG file creation events", func() {
+			// AC: non-PNG Create events must not be broadcast.
 			// isDir returns false (it's a file, but not PNG)
 			watcher.SetIsDirFunc(func(path string) bool { return false })
 
+			// Suppressed event: non-PNG file creation.
 			notifier.events <- fsnotify.Event{
 				Name: "/samples/checkpoint.safetensors/data.json",
 				Op:   fsnotify.Create,
 			}
+			// Sentinel event: a PNG creation that SHOULD be broadcast.
+			// Waiting for the sentinel guarantees the loop has processed the
+			// suppressed event, so the sink must still contain exactly 1 item.
+			notifier.events <- fsnotify.Event{
+				Name: "/samples/checkpoint.safetensors/sentinel.png",
+				Op:   fsnotify.Create,
+			}
 
-			// Give it time to process
-			time.Sleep(50 * time.Millisecond)
-			events := sink.getEvents()
-			Expect(events).To(BeEmpty())
+			events := sink.waitForEvents(1, time.Second)
+			Expect(events).To(HaveLen(1))
+			Expect(events[0].Type).To(Equal(model.EventImageAdded))
+			Expect(events[0].Path).To(Equal("checkpoint.safetensors/sentinel.png"))
 		})
 
 		It("ignores non-PNG file removal events", func() {
+			// AC: non-PNG Remove events must not be broadcast.
+			// Suppressed event: non-PNG file removal.
 			notifier.events <- fsnotify.Event{
 				Name: "/samples/checkpoint.safetensors/data.json",
 				Op:   fsnotify.Remove,
 			}
+			// Sentinel event: a PNG creation that SHOULD be broadcast.
+			// Waiting for the sentinel guarantees the loop has processed the
+			// suppressed event, so the sink must still contain exactly 1 item.
+			notifier.events <- fsnotify.Event{
+				Name: "/samples/checkpoint.safetensors/sentinel.png",
+				Op:   fsnotify.Create,
+			}
 
-			time.Sleep(50 * time.Millisecond)
-			events := sink.getEvents()
-			Expect(events).To(BeEmpty())
+			events := sink.waitForEvents(1, time.Second)
+			Expect(events).To(HaveLen(1))
+			Expect(events[0].Type).To(Equal(model.EventImageAdded))
+			Expect(events[0].Path).To(Equal("checkpoint.safetensors/sentinel.png"))
 		})
 
 		It("handles Write events without broadcasting", func() {
+			// AC: Write events (even for PNG files) must not be broadcast.
+			// Suppressed event: a PNG Write (no broadcast expected).
 			notifier.events <- fsnotify.Event{
 				Name: "/samples/checkpoint.safetensors/image.png",
 				Op:   fsnotify.Write,
 			}
+			// Sentinel event: a PNG Create that SHOULD be broadcast.
+			// Waiting for the sentinel guarantees the loop has processed the
+			// suppressed Write event, so the sink must still contain exactly 1 item.
+			notifier.events <- fsnotify.Event{
+				Name: "/samples/checkpoint.safetensors/sentinel.png",
+				Op:   fsnotify.Create,
+			}
 
-			time.Sleep(50 * time.Millisecond)
-			events := sink.getEvents()
-			Expect(events).To(BeEmpty())
+			events := sink.waitForEvents(1, time.Second)
+			Expect(events).To(HaveLen(1))
+			Expect(events[0].Type).To(Equal(model.EventImageAdded))
+			Expect(events[0].Path).To(Equal("checkpoint.safetensors/sentinel.png"))
 		})
 
 		It("handles case-insensitive PNG extensions", func() {
