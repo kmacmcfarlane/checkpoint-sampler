@@ -1187,7 +1187,7 @@ stories:
   - id: M-001
     title: "Docs refresh part 1: architecture.md + database.md regenerated from implementation"
     priority: 40
-    status: todo
+    status: uat
     complexity: medium
     type: maintenance
     requires: ["B-149", "S-150", "S-151", "S-153"]
