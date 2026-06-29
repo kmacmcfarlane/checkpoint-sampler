@@ -101,7 +101,7 @@ Ralph integration for concurrent story processing. Requires cross-repo coordinat
 between claude-sandbox (worker management) and checkpoint-sampler (agent workflow).
 
 **Requirements:**
-- Ralph spawns N concurrent workers, each in its own git worktree (via scripts/worktree/worktree.py)
+- Ralph spawns N concurrent workers, each in its own git worktree (via .claude-sandbox/scripts/worktree/worktree.py)
 - Each worker runs a single orchestrator cycle (one story) independently
 - Workers claim stories via backlog.py next-work --claim <worker-id> to prevent double-pickup
 - Worker lifecycle: spawn → claim story → create worktree → run orchestrator → merge → cleanup worktree → exit

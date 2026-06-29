@@ -855,7 +855,7 @@ class TestClaimCLI(unittest.TestCase):
         self.backlog_path = os.path.join(self.tmpdir, "backlog.yaml")
         self.done_path = os.path.join(self.tmpdir, "done.yaml")
         # Create agent dir for lock file
-        os.makedirs(os.path.join(self.tmpdir, "agent"), exist_ok=True)
+        os.makedirs(os.path.join(self.tmpdir, ".claude-sandbox", "agent"), exist_ok=True)
         self._write_yaml(
             self.done_path,
             {
@@ -1016,7 +1016,7 @@ class TestLocking(unittest.TestCase):
 
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp()
-        os.makedirs(os.path.join(self.tmpdir, "agent"), exist_ok=True)
+        os.makedirs(os.path.join(self.tmpdir, ".claude-sandbox", "agent"), exist_ok=True)
 
     def tearDown(self):
         import shutil
@@ -1029,7 +1029,7 @@ class TestLocking(unittest.TestCase):
 
         lock_dir = Path(self.tmpdir)
         with backlog_lock(lock_dir):
-            lock_path = lock_dir / "agent" / "backlog.lock"
+            lock_path = lock_dir / ".claude-sandbox" / "agent" / "backlog.lock"
             self.assertTrue(lock_path.exists())
 
     def test_lock_released_after_context(self):
@@ -1038,7 +1038,7 @@ class TestLocking(unittest.TestCase):
         from backlog import backlog_lock
 
         lock_dir = Path(self.tmpdir)
-        lock_path = lock_dir / "agent" / "backlog.lock"
+        lock_path = lock_dir / ".claude-sandbox" / "agent" / "backlog.lock"
 
         # Acquire and release
         with backlog_lock(lock_dir):
@@ -1119,7 +1119,7 @@ class TestRepoRoot(unittest.TestCase):
 
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp()
-        agent_dir = os.path.join(self.tmpdir, "agent")
+        agent_dir = os.path.join(self.tmpdir, ".claude-sandbox", "agent")
         os.makedirs(agent_dir, exist_ok=True)
 
         yaml = YAML()
@@ -1183,7 +1183,7 @@ class TestRepoRoot(unittest.TestCase):
         import shutil
         tmpdir2 = tempfile.mkdtemp()
         try:
-            agent_dir2 = os.path.join(tmpdir2, "agent")
+            agent_dir2 = os.path.join(tmpdir2, ".claude-sandbox", "agent")
             os.makedirs(agent_dir2, exist_ok=True)
             yaml = YAML()
             yaml.indent(mapping=2, sequence=4, offset=2)

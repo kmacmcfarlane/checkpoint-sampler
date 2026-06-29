@@ -13,7 +13,7 @@ Follow /agent/AGENT_FLOW.md exactly.
 
 ## Work selection
 
-Use `python3 scripts/backlog/backlog.py` (aliased below as `backlog.py`) to query and update the backlog. Select work per AGENT_FLOW.md section 3:
+Use `python3 .claude-sandbox/scripts/backlog/backlog.py` (aliased below as `backlog.py`) to query and update the backlog. Select work per AGENT_FLOW.md section 3:
 
 ```bash
 backlog.py next-work --format json
@@ -35,16 +35,16 @@ When running multiple agents in parallel, use worktrees for isolation. See AGENT
 ```bash
 # Atomic claim + worktree creation
 STORY=$(backlog.py --repo-root /path/to/main next-work --claim worker-1 --format json)
-python3 scripts/worktree/worktree.py create <story-id>
+python3 .claude-sandbox/scripts/worktree/worktree.py create <story-id>
 
 # At cycle start: detect stale worktrees
-python3 scripts/worktree/worktree.py detect-stale
+python3 .claude-sandbox/scripts/worktree/worktree.py detect-stale
 
 # After story completion: cleanup
-python3 scripts/worktree/worktree.py remove <story-id>
+python3 .claude-sandbox/scripts/worktree/worktree.py remove <story-id>
 
 # Recovery from dead process
-python3 scripts/worktree/worktree.py recover
+python3 .claude-sandbox/scripts/worktree/worktree.py recover
 ```
 
 ### Docker compose isolation (worktrees)
@@ -67,7 +67,7 @@ When merging a story branch to main, if conflicts occur:
 git merge story/S-042 --no-edit
 
 # 2. If exit code != 0 (conflicts), run merge helper
-python3 scripts/worktree/merge_helper.py --repo-dir . --format json
+python3 .claude-sandbox/scripts/worktree/merge_helper.py --repo-dir . --format json
 
 # 3. Parse JSON result:
 #    {"status": "resolved", ...}  → git commit to complete merge

@@ -10,7 +10,7 @@
 # 4. Cleans up worktrees and compose stacks
 #
 # Usage:
-#   ./scripts/worktree/test_concurrent_backend.sh
+#   ./.claude-sandbox/scripts/worktree/test_concurrent_backend.sh
 #
 # Requirements:
 #   - Docker daemon running

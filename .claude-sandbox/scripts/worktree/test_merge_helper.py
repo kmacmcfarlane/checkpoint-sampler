@@ -65,8 +65,8 @@ class TestClassifyConflicts(unittest.TestCase):
     """Unit tests for conflict classification."""
 
     def test_trivial_files(self):
-        trivial, non_trivial = classify_conflicts(["CHANGELOG.md", "agent/backlog.yaml"])
-        self.assertEqual(trivial, ["CHANGELOG.md", "agent/backlog.yaml"])
+        trivial, non_trivial = classify_conflicts(["CHANGELOG.md", ".claude-sandbox/agent/backlog.yaml"])
+        self.assertEqual(trivial, ["CHANGELOG.md", ".claude-sandbox/agent/backlog.yaml"])
         self.assertEqual(non_trivial, [])
 
     def test_non_trivial_files(self):
@@ -78,9 +78,9 @@ class TestClassifyConflicts(unittest.TestCase):
         trivial, non_trivial = classify_conflicts([
             "CHANGELOG.md",
             "backend/internal/service/foo.go",
-            "agent/backlog.yaml",
+            ".claude-sandbox/agent/backlog.yaml",
         ])
-        self.assertEqual(trivial, ["CHANGELOG.md", "agent/backlog.yaml"])
+        self.assertEqual(trivial, ["CHANGELOG.md", ".claude-sandbox/agent/backlog.yaml"])
         self.assertEqual(non_trivial, ["backend/internal/service/foo.go"])
 
     def test_empty_list(self):
@@ -244,20 +244,20 @@ class TestMergeConflictResolution(MergeHelperTestBase):
 
     def test_backlog_conflict_resolved(self):
         """Verify backlog.yaml conflicts accept theirs."""
-        os.makedirs(os.path.join(self.repo_dir, "agent"), exist_ok=True)
-        self._write_file("agent/backlog.yaml", "stories:\n  - id: S-001\n    status: todo\n")
-        self._git("add", "agent/backlog.yaml")
+        os.makedirs(os.path.join(self.repo_dir, ".claude-sandbox", "agent"), exist_ok=True)
+        self._write_file(".claude-sandbox/agent/backlog.yaml", "stories:\n  - id: S-001\n    status: todo\n")
+        self._git("add", ".claude-sandbox/agent/backlog.yaml")
         self._git("commit", "-m", "add backlog")
 
         self._git("checkout", "-b", "branch-a")
-        self._write_file("agent/backlog.yaml", "stories:\n  - id: S-001\n    status: review\n")
-        self._git("add", "agent/backlog.yaml")
+        self._write_file(".claude-sandbox/agent/backlog.yaml", "stories:\n  - id: S-001\n    status: review\n")
+        self._git("add", ".claude-sandbox/agent/backlog.yaml")
         self._git("commit", "-m", "update status branch-a")
 
         self._git("checkout", "main")
         self._git("checkout", "-b", "branch-b")
-        self._write_file("agent/backlog.yaml", "stories:\n  - id: S-001\n    status: testing\n")
-        self._git("add", "agent/backlog.yaml")
+        self._write_file(".claude-sandbox/agent/backlog.yaml", "stories:\n  - id: S-001\n    status: testing\n")
+        self._git("add", ".claude-sandbox/agent/backlog.yaml")
         self._git("commit", "-m", "update status branch-b")
 
         self._git("merge", "branch-a")
@@ -269,7 +269,7 @@ class TestMergeConflictResolution(MergeHelperTestBase):
         )
         self.assertEqual(result.returncode, 0, f"stderr: {result.stderr}")
         output = json.loads(result.stdout)
-        self.assertIn("agent/backlog.yaml", output["resolved"])
+        self.assertIn(".claude-sandbox/agent/backlog.yaml", output["resolved"])
 
     def test_mixed_trivial_and_non_trivial(self):
         """Verify mixed conflicts: trivial resolved, non-trivial reported."""
@@ -309,7 +309,7 @@ class TestMergeConflictResolution(MergeHelperTestBase):
 class TestComposeProjectName(unittest.TestCase):
     """Tests for compose-project-name.sh."""
 
-    SCRIPT = str(Path(__file__).resolve().parent.parent / "compose-project-name.sh")
+    SCRIPT = str(Path(__file__).resolve().parents[3] / "scripts" / "compose-project-name.sh")
 
     def _run(self, base_name, env_override=None):
         env = os.environ.copy()

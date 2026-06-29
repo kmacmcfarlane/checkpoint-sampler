@@ -64,8 +64,8 @@ config.yaml
 # Claude sandbox local mounts (gitignored; use .claude-sandbox.example.yaml as template)
 
 # Backlog and worktree tools use python
-scripts/backlog/__pycache__/
-scripts/worktree/__pycache__/
+.claude-sandbox/scripts/backlog/__pycache__/
+.claude-sandbox/scripts/worktree/__pycache__/
 
 # E2E parallel test artifacts
 .e2e/

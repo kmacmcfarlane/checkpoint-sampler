@@ -106,14 +106,30 @@ def save_yaml_atomic(path: Path, data: CommentedMap, yaml_instance: YAML) -> Non
         raise
 
 
+def agent_dir(root: Path) -> Path:
+    """Resolve the agent directory under a repo root.
+
+    Prefers the consolidated sandbox sidecar location
+    (<root>/.claude-sandbox/agent); falls back to the legacy <root>/agent
+    when that exists. Defaults to the sidecar location otherwise.
+    """
+    new = root / ".claude-sandbox" / "agent"
+    legacy = root / "agent"
+    if new.exists():
+        return new
+    if legacy.exists():
+        return legacy
+    return new
+
+
 @contextmanager
 def backlog_lock(lock_dir: Path, timeout: float = 30.0):
     """Acquire an exclusive file lock for backlog read-modify-write operations.
 
-    The lock file is created at <lock_dir>/agent/backlog.lock. Concurrent
+    The lock file is created at <agent_dir>/backlog.lock. Concurrent
     callers block until the lock is released (or timeout expires).
     """
-    lock_path = lock_dir / "agent" / "backlog.lock"
+    lock_path = agent_dir(lock_dir) / "backlog.lock"
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     fd = None
     try:
@@ -139,9 +155,11 @@ def git_root() -> Path:
         ).strip()
         return Path(root)
     except (subprocess.CalledProcessError, FileNotFoundError):
-        # Fall back: search upward for agent/backlog.yaml
+        # Fall back: search upward for the backlog.yaml (sidecar or legacy)
         p = Path(__file__).resolve().parent
         while p != p.parent:
+            if (p / ".claude-sandbox" / "agent" / "backlog.yaml").exists():
+                return p
             if (p / "agent" / "backlog.yaml").exists():
                 return p
             p = p.parent
@@ -170,7 +188,8 @@ def resolve_repo_root(repo_root_override: str | None = None) -> Path:
 
 def default_paths(repo_root_override: str | None = None) -> tuple[Path, Path]:
     root = resolve_repo_root(repo_root_override)
-    return root / "agent" / "backlog.yaml", root / "agent" / "backlog_done.yaml"
+    adir = agent_dir(root)
+    return adir / "backlog.yaml", adir / "backlog_done.yaml"
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────

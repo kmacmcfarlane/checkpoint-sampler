@@ -20,18 +20,18 @@ Rules:
 
 ### Backlog CLI tool (`backlog.py`)
 
-All backlog reads and writes MUST use `python3 scripts/backlog/backlog.py` instead of direct YAML editing. This ensures round-trip YAML preservation (comments, ordering, formatting), schema validation, and atomic writes.
+All backlog reads and writes MUST use `python3 .claude-sandbox/scripts/backlog/backlog.py` instead of direct YAML editing. This ensures round-trip YAML preservation (comments, ordering, formatting), schema validation, and atomic writes.
 
 Key commands:
-- **Query**: `python3 scripts/backlog/backlog.py query --status todo --fields id,title,priority`
-- **Get story**: `python3 scripts/backlog/backlog.py get <id>`
-- **Next ID**: `python3 scripts/backlog/backlog.py next-id <prefix>` (scans both files)
-- **Set field**: `python3 scripts/backlog/backlog.py set <id> <field> <value>`
-- **Set text**: `echo "feedback text" | python3 scripts/backlog/backlog.py set-text <id> <field>`
-- **Clear field**: `python3 scripts/backlog/backlog.py clear <id> <field>`
-- **Add stories**: `cat story.yaml | python3 scripts/backlog/backlog.py add`
-- **Archive**: `python3 scripts/backlog/backlog.py archive <id>`
-- **Validate**: `python3 scripts/backlog/backlog.py validate [--strict]`
+- **Query**: `python3 .claude-sandbox/scripts/backlog/backlog.py query --status todo --fields id,title,priority`
+- **Get story**: `python3 .claude-sandbox/scripts/backlog/backlog.py get <id>`
+- **Next ID**: `python3 .claude-sandbox/scripts/backlog/backlog.py next-id <prefix>` (scans both files)
+- **Set field**: `python3 .claude-sandbox/scripts/backlog/backlog.py set <id> <field> <value>`
+- **Set text**: `echo "feedback text" | python3 .claude-sandbox/scripts/backlog/backlog.py set-text <id> <field>`
+- **Clear field**: `python3 .claude-sandbox/scripts/backlog/backlog.py clear <id> <field>`
+- **Add stories**: `cat story.yaml | python3 .claude-sandbox/scripts/backlog/backlog.py add`
+- **Archive**: `python3 .claude-sandbox/scripts/backlog/backlog.py archive <id>`
+- **Validate**: `python3 .claude-sandbox/scripts/backlog/backlog.py validate [--strict]`
 
 Output format: `--format yaml` (default) or `--format json`. `--format` works in both global position (before subcommand) and subcommand position (after subcommand). Exit codes: 0=success, 1=validation error, 2=not found, 3=file error.
 
@@ -52,7 +52,7 @@ When running inside a git worktree, `backlog.py` must read/write `backlog.yaml` 
 
 ```bash
 # Atomic claim — selects story + sets in_progress + writes claimed_by
-python3 scripts/backlog/backlog.py --repo-root /path/to/main next-work --claim worker-1 --format json
+python3 .claude-sandbox/scripts/backlog/backlog.py --repo-root /path/to/main next-work --claim worker-1 --format json
 ```
 
 ### Ticket ID prefixes
@@ -317,43 +317,43 @@ The orchestrator performs these steps each cycle:
 
 ### 4.1.1 Worktree-based workflow (parallel agents)
 
-When running multiple agents in parallel, each agent works in its own git worktree under `.worktrees/<story-id>/`. The worktree manager script (`scripts/worktree/worktree.py`) handles lifecycle:
+When running multiple agents in parallel, each agent works in its own git worktree under `.worktrees/<story-id>/`. The worktree manager script (`.claude-sandbox/scripts/worktree/worktree.py`) handles lifecycle:
 
 **Creating a worktree:**
 ```bash
 # Create worktree for a story (handles branch-already-exists)
-python3 scripts/worktree/worktree.py create S-042
+python3 .claude-sandbox/scripts/worktree/worktree.py create S-042
 # JSON output: {"story_id": "S-042", "path": ".worktrees/S-042", "branch": "story/S-042"}
-python3 scripts/worktree/worktree.py --format json create S-042
+python3 .claude-sandbox/scripts/worktree/worktree.py --format json create S-042
 ```
 
 **Claiming work atomically:**
 ```bash
 # In the main checkout: claim a story + create worktree
-STORY=$(python3 scripts/backlog/backlog.py --repo-root /path/to/main next-work --claim worker-1 --format json)
+STORY=$(python3 .claude-sandbox/scripts/backlog/backlog.py --repo-root /path/to/main next-work --claim worker-1 --format json)
 STORY_ID=$(echo "$STORY" | python3 -c "import sys,json; print(json.load(sys.stdin)[0]['id'])")
-python3 scripts/worktree/worktree.py create "$STORY_ID"
+python3 .claude-sandbox/scripts/worktree/worktree.py create "$STORY_ID"
 cd .worktrees/"$STORY_ID"
 ```
 
 **Cleanup after story completion:**
 ```bash
 # Remove worktree (fails if uncommitted changes present)
-python3 scripts/worktree/worktree.py remove S-042
+python3 .claude-sandbox/scripts/worktree/worktree.py remove S-042
 # Force remove + delete branch
-python3 scripts/worktree/worktree.py remove --force --delete-branch S-042
+python3 .claude-sandbox/scripts/worktree/worktree.py remove --force --delete-branch S-042
 ```
 
 **Stale worktree detection (run at cycle start):**
 ```bash
 # Find worktrees whose story is not in_progress/review/testing
-python3 scripts/worktree/worktree.py --format json detect-stale
+python3 .claude-sandbox/scripts/worktree/worktree.py --format json detect-stale
 ```
 
 **Recovering from dead processes:**
 ```bash
 # Find orphaned worktrees with uncommitted changes
-python3 scripts/worktree/worktree.py --format json recover
+python3 .claude-sandbox/scripts/worktree/worktree.py --format json recover
 ```
 
 **Key rules:**
@@ -399,7 +399,7 @@ The parallel E2E script (`scripts/e2e/e2e_parallel.sh`) uses `compose-project-na
 
 ### 4.1.3 Merge conflict handling
 
-When the orchestrator merges a story branch into main, conflicts may occur if another story was merged first. The merge helper script (`scripts/worktree/merge_helper.py`) classifies and resolves conflicts:
+When the orchestrator merges a story branch into main, conflicts may occur if another story was merged first. The merge helper script (`.claude-sandbox/scripts/worktree/merge_helper.py`) classifies and resolves conflicts:
 
 **Trivial conflicts (auto-resolved):**
 - `CHANGELOG.md` — Both sides' entries are included via `--union` merge, with duplicate story entries deduplicated
@@ -416,7 +416,7 @@ When the orchestrator merges a story branch into main, conflicts may occur if an
 git merge story/S-042
 
 # 2. If conflicts, run merge helper
-python3 scripts/worktree/merge_helper.py --repo-dir . --format json
+python3 .claude-sandbox/scripts/worktree/merge_helper.py --repo-dir . --format json
 
 # 3. Check result
 #    status=resolved  → All conflicts auto-resolved, continue with commit
@@ -638,10 +638,10 @@ After each subagent completes, the **orchestrator** (not the subagent) performs 
 When the QA expert's verdict includes a "Runtime Error Sweep" section with findings (sweep result: FINDINGS), the orchestrator processes them **after** the story status transition:
 
 1. **New bug tickets**: For each bug ticket reported by QA (see /agent/BUG_REPORTING.md for quality requirements):
-   - Get the next available ID: `python3 scripts/backlog/backlog.py next-id B`
+   - Get the next available ID: `python3 .claude-sandbox/scripts/backlog/backlog.py next-id B`
    - Create the ticket YAML and pipe to `backlog.py add`:
      ```bash
-     cat <<'EOF' | python3 scripts/backlog/backlog.py add
+     cat <<'EOF' | python3 .claude-sandbox/scripts/backlog/backlog.py add
      - id: <next B-NNN>
        title: "<QA's suggested title>"
        priority: <QA's suggested priority, default 70>
@@ -675,7 +675,7 @@ When the QA expert's verdict includes an "E2E Test Results" section with `Status
 1. **Story-related E2E failures**: The QA expert is expected to have already attempted to fix or investigate these during its verification cycle. If they caused rejection, the story's `review_feedback` will describe the issue — no separate ticket is needed.
 
 2. **New E2E bug tickets**: For each unrelated E2E failure reported by QA as a bug ticket (see /agent/BUG_REPORTING.md for quality requirements). Note: QA must have already fixed or corrected the failing tests so the suite passes — these tickets track the underlying issues, not open failures:
-   - Get the next available ID: `python3 scripts/backlog/backlog.py next-id B`
+   - Get the next available ID: `python3 .claude-sandbox/scripts/backlog/backlog.py next-id B`
    - Create the ticket YAML and pipe to `backlog.py add` (same pattern as section 4.4.1).
    - `notes` must include the failing test name, error output, and root cause hypothesis (see section 4.3.3 for format).
 
@@ -718,7 +718,7 @@ When the QA expert reports **APPROVED**, the orchestrator performs these steps i
      ```
    - **Periodic compaction**: When the changelog exceeds ~150 lines, the orchestrator should move entries older than the most recent ~15 stories to the "Earlier changes" section (title-only one-liners). Full history is always available in git.
 
-2. **Update backlog**: `python3 scripts/backlog/backlog.py set <id> status uat`
+2. **Update backlog**: `python3 .claude-sandbox/scripts/backlog/backlog.py set <id> status uat`
 3. **Commit**: Create the commit (per commit rules below).
 4. **Merge**: Merge the feature branch into `main` (per the commit/merge policy in PROMPT.md).
 

@@ -57,11 +57,11 @@ class WorktreeTestBase(unittest.TestCase):
         if stories is None:
             stories = []
 
-        agent_dir = os.path.join(self.repo_dir, "agent")
+        agent_dir = os.path.join(self.repo_dir, ".claude-sandbox", "agent")
         os.makedirs(agent_dir, exist_ok=True)
 
-        # Create scripts/backlog dir and symlink backlog.py
-        scripts_dir = os.path.join(self.repo_dir, "scripts", "backlog")
+        # Create .claude-sandbox/scripts/backlog dir and copy backlog.py
+        scripts_dir = os.path.join(self.repo_dir, ".claude-sandbox", "scripts", "backlog")
         os.makedirs(scripts_dir, exist_ok=True)
 
         # Copy backlog.py to the test repo

@@ -50,19 +50,19 @@ ralph-auto-resume-once:
 	claude-sandbox --docker-socket --ralph --dangerously-skip-permissions --limit 1 --resume ${ARGS}
 
 backlog-status:
-	./scripts/backlog/backlog.py status
+	./.claude-sandbox/scripts/backlog/backlog.py status
 
 backlog-not-done:
-	./scripts/backlog/backlog.py query --status todo,in_progress,review,testing,uat --fields id
+	./.claude-sandbox/scripts/backlog/backlog.py query --status todo,in_progress,review,testing,uat --fields id
 
 backlog-uat:
-	./scripts/backlog/backlog.py query --status uat --fields id
+	./.claude-sandbox/scripts/backlog/backlog.py query --status uat --fields id
 
 backlog-todo:
-	./scripts/backlog/backlog.py query --status todo --fields id
+	./.claude-sandbox/scripts/backlog/backlog.py query --status todo --fields id
 
 backlog-in-flight:
-	./scripts/backlog/backlog.py query --status in_progress,review,testing --fields id
+	./.claude-sandbox/scripts/backlog/backlog.py query --status in_progress,review,testing --fields id
 
 # Capture runtime context snapshot (container logs, errors) to .claude-sandbox/ralph/temp/debug-context
 capture-runtime-context:

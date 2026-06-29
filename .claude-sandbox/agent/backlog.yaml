@@ -1217,7 +1217,7 @@ stories:
       - "Reviewer verification: for each table in database.md, confirm a matching CREATE/ALTER in migrations.go; for each
         config key in architecture.md, confirm a yamlConfig field"
       - "grep -in 'toml' docs/architecture.md docs/database.md returns nothing"
-      - "command: python3 scripts/backlog/backlog.py validate --strict (backlog untouched sanity)"
+      - "command: python3 .claude-sandbox/scripts/backlog/backlog.py validate --strict (backlog untouched sanity)"
 
   - id: M-002
     title: "Docs refresh part 2: api.md regenerated from the Goa design"

@@ -24,7 +24,7 @@ Exit codes:
   2 — Error (git command failed, etc.)
 
 Usage:
-  python3 scripts/worktree/merge_helper.py [--repo-dir <path>] [--format json|text]
+  python3 .claude-sandbox/scripts/worktree/merge_helper.py [--repo-dir <path>] [--format json|text]
 """
 
 import argparse
@@ -40,7 +40,7 @@ from pathlib import Path
 # Files considered trivial to auto-resolve
 TRIVIAL_FILES = frozenset({
     "CHANGELOG.md",
-    "agent/backlog.yaml",
+    ".claude-sandbox/agent/backlog.yaml",
 })
 
 
@@ -210,8 +210,8 @@ def resolve_backlog(repo_dir: Path) -> bool:
     updates via backlog.py.
     """
     try:
-        _run_git(["checkout", "--theirs", "agent/backlog.yaml"], cwd=repo_dir)
-        _run_git(["add", "agent/backlog.yaml"], cwd=repo_dir)
+        _run_git(["checkout", "--theirs", ".claude-sandbox/agent/backlog.yaml"], cwd=repo_dir)
+        _run_git(["add", ".claude-sandbox/agent/backlog.yaml"], cwd=repo_dir)
         return True
     except Exception as e:
         print(f"WARNING: backlog.yaml auto-resolve failed: {e}", file=sys.stderr)
@@ -220,7 +220,7 @@ def resolve_backlog(repo_dir: Path) -> bool:
 
 RESOLVERS = {
     "CHANGELOG.md": resolve_changelog,
-    "agent/backlog.yaml": resolve_backlog,
+    ".claude-sandbox/agent/backlog.yaml": resolve_backlog,
 }
 
 
