@@ -116,9 +116,6 @@ def _get_story_statuses(root: Path) -> dict[str, str]:
     """Load story statuses from backlog.yaml using backlog.py."""
     backlog_script = root / ".claude-sandbox" / "scripts" / "backlog" / "backlog.py"
     if not backlog_script.exists():
-        # Legacy fallback
-        backlog_script = root / "scripts" / "backlog" / "backlog.py"
-    if not backlog_script.exists():
         return {}
 
     try:

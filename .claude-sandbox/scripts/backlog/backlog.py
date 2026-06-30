@@ -109,17 +109,10 @@ def save_yaml_atomic(path: Path, data: CommentedMap, yaml_instance: YAML) -> Non
 def agent_dir(root: Path) -> Path:
     """Resolve the agent directory under a repo root.
 
-    Prefers the consolidated sandbox sidecar location
-    (<root>/.claude-sandbox/agent); falls back to the legacy <root>/agent
-    when that exists. Defaults to the sidecar location otherwise.
+    Always the consolidated sandbox sidecar location
+    (<root>/.claude-sandbox/agent).
     """
-    new = root / ".claude-sandbox" / "agent"
-    legacy = root / "agent"
-    if new.exists():
-        return new
-    if legacy.exists():
-        return legacy
-    return new
+    return root / ".claude-sandbox" / "agent"
 
 
 @contextmanager
@@ -155,12 +148,10 @@ def git_root() -> Path:
         ).strip()
         return Path(root)
     except (subprocess.CalledProcessError, FileNotFoundError):
-        # Fall back: search upward for the backlog.yaml (sidecar or legacy)
+        # Fall back: search upward for the backlog.yaml (sidecar location)
         p = Path(__file__).resolve().parent
         while p != p.parent:
             if (p / ".claude-sandbox" / "agent" / "backlog.yaml").exists():
-                return p
-            if (p / "agent" / "backlog.yaml").exists():
                 return p
             p = p.parent
         print("ERROR: Cannot determine project root", file=sys.stderr)
