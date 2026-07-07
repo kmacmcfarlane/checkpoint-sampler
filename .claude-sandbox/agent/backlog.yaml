@@ -1297,3 +1297,88 @@ stories:
     testing:
       - "command: make test-backend"
       - "command: make test-e2e"
+  - id: S-157
+    title: "Promote Resolution, VAE, Text Encoder, and Shift to multi-value study dimensions"
+    status: todo
+    priority: 55
+    complexity: high
+    requires: []
+    notes: |
+      Studies currently expose Resolution (single Width/Height), VAE, Text Encoder,
+      and Shift as single-value fields. Promote all four to multi-value dimensions so
+      a single study sweeps across them, expanding the sample cross-product and
+      surfacing them as assignable grid axes in the viewer (same treatment as Steps,
+      CFGs, Seeds, and LoRA strength pairs today).
+
+      Decisions from grooming:
+      - Resolution becomes a list of {width,height} pairs. UI is a paired dynamic
+        list, mirroring the existing LoRA strength pairs input.
+      - VAE and Text Encoder become string lists; Shift becomes a []float64 list.
+      - Workflow Template STAYS single-value. This keeps VAE/TextEncoder/Shift role
+        applicability unambiguous: those fields remain gated by the selected
+        workflow template's cs_roles (vae_loader / clip_loader / shift). A dimension
+        is only offered when the single selected workflow declares the matching role.
+      - Full scope: generate the sampling cross-product AND write each field's value
+        into per-image metadata/manifest so the scanner surfaces them as
+        ScanDimensions assignable to X/Y/slider grid roles.
+
+      Persistence pattern (verified): list dimensions (Steps, CFGs, Seeds,
+      LoraStrengthPairs) are stored as JSON strings in TEXT columns; Width/Height are
+      int columns and VAE/TextEncoder/Shift are scalar nullable columns. Migration
+      must add JSON list columns and backfill existing rows into single-element lists
+      (or empty where the scalar was null) so existing studies are preserved.
+
+      Cross-product growth interacts with S-153 (50k work-item cap): the images-per-
+      checkpoint math and the cap validation must include the new non-empty
+      dimensions.
+    acceptance:
+      - "BE(model): Study gains Resolutions []ResolutionPair, VAEs []string, TextEncoders []string, Shifts []float64; ImagesPerCheckpoint
+        and ImagesPerCheckpointLoRA multiply by each new non-empty dimension"
+      - "BE(store): migration adds JSON list columns and backfills existing Width/Height/VAE/TextEncoder/Shift into single-element
+        lists (empty when previously null); read/write round-trips through the store"
+      - "BE(api): Goa design updated so the study create/update payload and response carry the four fields as lists (scalars
+        replaced); codegen run and regenerated; the work-item cap validation counts the new dimensions"
+      - "BE(service): sample-job expansion produces the full cross-product across all non-empty dimensions; job executor substitutes
+        the per-item resolution/VAE/text-encoder/shift; each generated image records these values in its metadata/manifest"
+      - "BE(scanner): resolution, VAE, text-encoder, and shift values are surfaced as ScanDimensions that can be assigned
+        to grid axis/slider roles like existing dimensions"
+      - "FE: StudyEditor renders multi-value inputs (resolution as a paired {width,height} dynamic list; VAE/TextEncoder as
+        multi-value selectors; Shift as a numeric multi-value list), each gated by the selected workflow's roles; MRU localStorage
+        and study import validation updated to handle lists instead of scalars"
+      - "FE: DimensionPanel and dimension filters expose the four new dimensions for X/Y/slider assignment and filtering"
+      - "E2E: create a study with multiple resolutions and multiple shift values, verify the generated sample count equals
+        the full cross-product, and verify the new fields appear as assignable grid dimensions in the viewer"
+    testing:
+      - "Existing studies (scalar width/height/vae/text_encoder/shift, including NULL scalars) must load without error and
+        behave identically when each new dimension has exactly one value"
+      - "A study with an EMPTY list for a role the workflow does not declare must not multiply the cross-product or emit a
+        spurious dimension"
+      - "Images-per-checkpoint and the 50k cap (S-153) must account for the new dimensions"
+      - "Role gating: a workflow lacking a shift role must not offer a Shift dimension, and stored shift values must be ignored
+        (not substituted) for such a workflow"
+  - id: S-158
+    title: "Label LoRA strength-pair inputs (Model vs CLIP) in StudyEditor"
+    status: todo
+    priority: 35
+    complexity: low
+    requires: []
+    notes: |
+      In StudyEditor.vue the LoRA Strength Pairs rows use two NInputNumber inputs
+      that rely on placeholder="Model" / placeholder="CLIP" to distinguish which
+      value is the LoRA model strength and which is the CLIP strength. Placeholders
+      disappear once a value is entered, and both inputs default to 1.0, so the
+      labels are never actually visible to the user. There is no persistent column
+      header or per-input label, leaving users unable to tell which input controls
+      which strength.
+
+      Fix: add persistent labels (a column header row over the two inputs, or a small
+      label on each input) so it is always clear which input is the model strength
+      and which is the CLIP strength. FE-only change to StudyEditor.vue and its test.
+    acceptance:
+      - "FE: each LoRA strength-pair row clearly and persistently identifies which input is the LoRA model strength and which
+        is the CLIP strength, remaining visible after values are entered"
+      - "FE: a unit test asserts the Model and CLIP labels are present for a pair row"
+    testing:
+      - "Labels must remain visible once both inputs hold non-empty values (the current placeholder approach hides them at
+        the default 1.0/1.0)"
+      - "Verify labels render for every pair row, including newly added rows"
