@@ -477,28 +477,80 @@ func (v *ValidationService) ValidateTrainingRunWithManifest(tr model.TrainingRun
 
 // buildExpectedFilenames generates the set of expected PNG filenames from a
 // manifest's parameter combinations (Cartesian product of prompts × steps × cfgs
-// × sampler/scheduler pairs × seeds). The returned map is keyed by filename
+// × sampler/scheduler pairs × seeds × the S-157 promoted dimensions:
+// resolutions/vaes/text_encoders/shifts). The returned map is keyed by filename
 // for O(1) membership tests.
+//
+// S-157: a promoted dimension is only expanded (and only encoded into the
+// filename) when the manifest carries more than one value for it — this
+// mirrors filenameDimensionsForStudy/GenerateOutputFilenameWithDims gating, so
+// the expected-filename set always matches what the executor actually wrote to
+// disk for both single-value and swept studies.
 func buildExpectedFilenames(m fileformat.JobManifest) map[string]struct{} {
 	total := len(m.Prompts) * len(m.Steps) * len(m.CFGs) * len(m.SamplerSchedulerPairs) * len(m.Seeds)
 	if total == 0 {
 		return map[string]struct{}{}
 	}
+
+	// Determine the swept dimensions and their iteration lists, mirroring
+	// expandJobItems' "empty collapses to a single implicit value" semantics.
+	dims := FilenameDimensions{
+		Resolution:  len(m.Resolutions) > 1,
+		VAE:         len(m.VAEs) > 1,
+		TextEncoder: len(m.TextEncoders) > 1,
+		Shift:       len(m.Shifts) > 1,
+	}
+
+	resolutions := m.Resolutions
+	if len(resolutions) == 0 {
+		resolutions = []fileformat.ManifestResolutionPair{{Width: m.Width, Height: m.Height}}
+	}
+	vaes := m.VAEs
+	if len(vaes) == 0 {
+		vaes = []string{""}
+	}
+	textEncoders := m.TextEncoders
+	if len(textEncoders) == 0 {
+		textEncoders = []string{""}
+	}
+	shifts := make([]*float64, 0, len(m.Shifts))
+	for i := range m.Shifts {
+		v := m.Shifts[i]
+		shifts = append(shifts, &v)
+	}
+	if len(shifts) == 0 {
+		shifts = []*float64{nil}
+	}
+
+	total *= len(resolutions) * len(vaes) * len(textEncoders) * len(shifts)
 	result := make(map[string]struct{}, total)
 	for _, prompt := range m.Prompts {
 		for _, steps := range m.Steps {
 			for _, cfg := range m.CFGs {
 				for _, pair := range m.SamplerSchedulerPairs {
 					for _, seed := range m.Seeds {
-						filename := GenerateOutputFilename(model.SampleJobItem{
-							PromptName:  prompt.Name,
-							Steps:       steps,
-							CFG:         cfg,
-							SamplerName: pair.Sampler,
-							Scheduler:   pair.Scheduler,
-							Seed:        seed,
-						})
-						result[filename] = struct{}{}
+						for _, res := range resolutions {
+							for _, vae := range vaes {
+								for _, te := range textEncoders {
+									for _, shift := range shifts {
+										filename := GenerateOutputFilenameWithDims(model.SampleJobItem{
+											PromptName:  prompt.Name,
+											Steps:       steps,
+											CFG:         cfg,
+											SamplerName: pair.Sampler,
+											Scheduler:   pair.Scheduler,
+											Seed:        seed,
+											Width:       res.Width,
+											Height:      res.Height,
+											VAE:         vae,
+											TextEncoder: te,
+											Shift:       shift,
+										}, dims)
+										result[filename] = struct{}{}
+									}
+								}
+							}
+						}
 					}
 				}
 			}

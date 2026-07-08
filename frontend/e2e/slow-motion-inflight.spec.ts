@@ -11,6 +11,7 @@ import {
   fillFirstPromptRow,
   addSamplerSchedulerPair,
   selectNaiveOption,
+  selectNaiveMultiOption,
   confirmRegenDialogIfVisible,
 } from './helpers'
 
@@ -161,8 +162,8 @@ async function launchJobViaUI(page: Page, request: APIRequestContext, studyName:
   await page.waitForTimeout(500)
 
   await selectNaiveOption(page, 'study-workflow-template-select', 'test-workflow.json')
-  await selectNaiveOption(page, 'study-vae-select', 'test-vae.safetensors')
-  await selectNaiveOption(page, 'study-clip-select', 'test-clip.safetensors')
+  await selectNaiveMultiOption(page, 'study-vae-select', 'test-vae.safetensors')
+  await selectNaiveMultiOption(page, 'study-clip-select', 'test-clip.safetensors')
 
   const saveButton = page.locator('[data-testid="save-study-button"]')
   await expect(saveButton).not.toBeDisabled()

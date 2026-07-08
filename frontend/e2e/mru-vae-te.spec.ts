@@ -7,6 +7,7 @@ import {
   fillFirstPromptRow,
   addSamplerSchedulerPair,
   selectNaiveOption,
+  selectNaiveMultiOption,
 } from './helpers'
 
 /**
@@ -51,8 +52,8 @@ test.describe('MRU VAE and text encoder (S-113)', () => {
 
     // AC1+AC2: Select workflow, then VAE and TE
     await selectNaiveOption(page, 'study-workflow-template-select', 'test-workflow.json')
-    await selectNaiveOption(page, 'study-vae-select', 'test-vae.safetensors')
-    await selectNaiveOption(page, 'study-clip-select', 'test-clip.safetensors')
+    await selectNaiveMultiOption(page, 'study-vae-select', 'test-vae.safetensors')
+    await selectNaiveMultiOption(page, 'study-clip-select', 'test-clip.safetensors')
 
     // Save the study (closes Manage Studies dialog)
     const saveButton = page.locator('[data-testid="save-study-button"]')
@@ -61,12 +62,13 @@ test.describe('MRU VAE and text encoder (S-113)', () => {
     await expect(getManageStudiesDialog(page)).not.toBeVisible()
 
     // AC1: Verify MRU was persisted to localStorage
+    // S-157: MRU values are now multi-value lists (vaes/textEncoders/shifts).
     const mruRaw = await page.evaluate((key) => localStorage.getItem(key), MRU_VAE_TE_KEY)
     expect(mruRaw).not.toBeNull()
     const mru = JSON.parse(mruRaw!)
     expect(mru['test-workflow.json']).toBeDefined()
-    expect(mru['test-workflow.json'].vae).toBe('test-vae.safetensors')
-    expect(mru['test-workflow.json'].textEncoder).toBe('test-clip.safetensors')
+    expect(mru['test-workflow.json'].vaes).toEqual(['test-vae.safetensors'])
+    expect(mru['test-workflow.json'].textEncoders).toEqual(['test-clip.safetensors'])
 
     // AC4: Open Manage Studies again and create a new study
     await page.locator('[data-testid="manage-studies-button"]').click()
@@ -86,11 +88,11 @@ test.describe('MRU VAE and text encoder (S-113)', () => {
 
   // AC2: MRU auto-fills VAE and TE when switching between workflows
   test('switching workflows auto-fills VAE/TE per workflow from MRU', async ({ page }) => {
-    // Pre-seed MRU with two workflows' values
+    // Pre-seed MRU with two workflows' values (S-157: multi-value list shape)
     await page.evaluate(({ key, value }) => localStorage.setItem(key, value), {
       key: MRU_VAE_TE_KEY,
       value: JSON.stringify({
-        'test-workflow.json': { vae: 'test-vae.safetensors', textEncoder: 'test-clip.safetensors' },
+        'test-workflow.json': { vaes: ['test-vae.safetensors'], textEncoders: ['test-clip.safetensors'] },
       }),
     })
 
@@ -125,20 +127,19 @@ test.describe('MRU VAE and text encoder (S-113)', () => {
         cfgs: [7.0],
         sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
         seeds: [42],
-        width: 512,
-        height: 512,
+        resolutions: [{ width: 512, height: 512 }],
         workflow_template: 'test-workflow.json',
-        vae: 'test-vae.safetensors',
-        text_encoder: 'test-clip.safetensors',
+        vaes: ['test-vae.safetensors'],
+        text_encoders: ['test-clip.safetensors'],
       },
     })
     expect(createResp.status()).toBe(201)
 
-    // Pre-seed MRU with DIFFERENT values for the same workflow
+    // Pre-seed MRU with DIFFERENT values for the same workflow (S-157: list shape)
     await page.evaluate(({ key, value }) => localStorage.setItem(key, value), {
       key: MRU_VAE_TE_KEY,
       value: JSON.stringify({
-        'test-workflow.json': { vae: 'other-vae.safetensors', textEncoder: 'other-clip.safetensors' },
+        'test-workflow.json': { vaes: ['other-vae.safetensors'], textEncoders: ['other-clip.safetensors'] },
       }),
     })
 
@@ -176,8 +177,8 @@ test.describe('MRU VAE and text encoder (S-113)', () => {
     await page.waitForTimeout(500)
 
     await selectNaiveOption(page, 'study-workflow-template-select', 'test-workflow.json')
-    await selectNaiveOption(page, 'study-vae-select', 'test-vae.safetensors')
-    await selectNaiveOption(page, 'study-clip-select', 'test-clip.safetensors')
+    await selectNaiveMultiOption(page, 'study-vae-select', 'test-vae.safetensors')
+    await selectNaiveMultiOption(page, 'study-clip-select', 'test-clip.safetensors')
 
     const saveButton = page.locator('[data-testid="save-study-button"]')
     await expect(saveButton).not.toBeDisabled()
@@ -187,13 +188,13 @@ test.describe('MRU VAE and text encoder (S-113)', () => {
     // Reload the page to verify localStorage persists
     await page.reload({ waitUntil: 'networkidle' })
 
-    // Verify MRU key is still in localStorage after reload
+    // Verify MRU key is still in localStorage after reload (S-157: list shape)
     const mruRaw = await page.evaluate((key) => localStorage.getItem(key), MRU_VAE_TE_KEY)
     expect(mruRaw).not.toBeNull()
     const mru = JSON.parse(mruRaw!)
     expect(mru['test-workflow.json']).toBeDefined()
-    expect(mru['test-workflow.json'].vae).toBe('test-vae.safetensors')
-    expect(mru['test-workflow.json'].textEncoder).toBe('test-clip.safetensors')
+    expect(mru['test-workflow.json'].vaes).toEqual(['test-vae.safetensors'])
+    expect(mru['test-workflow.json'].textEncoders).toEqual(['test-clip.safetensors'])
 
     // Also verify that opening a new study and selecting the workflow auto-fills
     await openGenerateSamplesDialog(page)

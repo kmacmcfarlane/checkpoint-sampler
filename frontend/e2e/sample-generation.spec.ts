@@ -11,6 +11,7 @@ import {
   fillFirstPromptRow,
   addSamplerSchedulerPair,
   selectNaiveOption,
+  selectNaiveMultiOption,
   confirmRegenDialogIfVisible,
 } from './helpers'
 
@@ -191,8 +192,8 @@ test.describe('sample generation flow (with ComfyUI mock)', () => {
     // S-112: Workflow, VAE, and CLIP are now part of the study definition.
     // AC2: ComfyUI mock serves the workflow list via the backend's workflow loader
     await selectNaiveOption(page, 'study-workflow-template-select', 'test-workflow.json')
-    await selectNaiveOption(page, 'study-vae-select', 'test-vae.safetensors')
-    await selectNaiveOption(page, 'study-clip-select', 'test-clip.safetensors')
+    await selectNaiveMultiOption(page, 'study-vae-select', 'test-vae.safetensors')
+    await selectNaiveMultiOption(page, 'study-clip-select', 'test-clip.safetensors')
 
     // Save the study
     const saveButton = page.locator('[data-testid="save-study-button"]')
@@ -283,8 +284,8 @@ test.describe('sample generation flow (with ComfyUI mock)', () => {
     await page.waitForTimeout(500)
     // S-112: Select workflow template, VAE, and CLIP in the study editor
     await selectNaiveOption(page, 'study-workflow-template-select', 'test-workflow.json')
-    await selectNaiveOption(page, 'study-vae-select', 'test-vae.safetensors')
-    await selectNaiveOption(page, 'study-clip-select', 'test-clip.safetensors')
+    await selectNaiveMultiOption(page, 'study-vae-select', 'test-vae.safetensors')
+    await selectNaiveMultiOption(page, 'study-clip-select', 'test-clip.safetensors')
     const saveButton = page.locator('[data-testid="save-study-button"]')
     await expect(saveButton).not.toBeDisabled()
     await saveButton.click()
@@ -383,8 +384,8 @@ test.describe('sample generation flow (with ComfyUI mock)', () => {
     await page.waitForTimeout(500)
     // S-112: Select workflow template, VAE, and CLIP in the study editor
     await selectNaiveOption(page, 'study-workflow-template-select', 'test-workflow.json')
-    await selectNaiveOption(page, 'study-vae-select', 'test-vae.safetensors')
-    await selectNaiveOption(page, 'study-clip-select', 'test-clip.safetensors')
+    await selectNaiveMultiOption(page, 'study-vae-select', 'test-vae.safetensors')
+    await selectNaiveMultiOption(page, 'study-clip-select', 'test-clip.safetensors')
     const saveButton = page.locator('[data-testid="save-study-button"]')
     await expect(saveButton).not.toBeDisabled()
     await saveButton.click()
@@ -479,8 +480,8 @@ test.describe('sample generation flow (with ComfyUI mock)', () => {
     await page.waitForTimeout(500)
     // S-112: Select workflow template, VAE, and CLIP in the study editor
     await selectNaiveOption(page, 'study-workflow-template-select', 'test-workflow.json')
-    await selectNaiveOption(page, 'study-vae-select', 'test-vae.safetensors')
-    await selectNaiveOption(page, 'study-clip-select', 'test-clip.safetensors')
+    await selectNaiveMultiOption(page, 'study-vae-select', 'test-vae.safetensors')
+    await selectNaiveMultiOption(page, 'study-clip-select', 'test-clip.safetensors')
     const saveButton = page.locator('[data-testid="save-study-button"]')
     await expect(saveButton).not.toBeDisabled()
     await saveButton.click()

@@ -1025,6 +1025,47 @@ var _ = Describe("JobExecutor", func() {
 			Expect(inputs6["shift"]).To(Equal(3.0))
 		})
 
+		// S-157 AC4: the per-item VAE/text-encoder/shift (multi-value dimensions)
+		// take precedence over the job-level values.
+		It("substitutes per-item VAE, CLIP, and shift over job-level values", func() {
+			itemShift := 6.0
+			jobShift := 3.0
+			job := model.SampleJob{ID: "job-1", VAE: "job-vae.safetensors", CLIP: "job-clip.safetensors", Shift: &jobShift}
+			item := model.SampleJobItem{VAE: "item-vae.safetensors", TextEncoder: "item-clip.safetensors", Shift: &itemShift}
+
+			mockLoader.workflow.Workflow["4"] = map[string]interface{}{"inputs": map[string]interface{}{}, "_meta": map[string]interface{}{"cs_role": "vae_loader"}}
+			mockLoader.workflow.Workflow["5"] = map[string]interface{}{"inputs": map[string]interface{}{}, "_meta": map[string]interface{}{"cs_role": "clip_loader"}}
+			mockLoader.workflow.Workflow["6"] = map[string]interface{}{"inputs": map[string]interface{}{}, "_meta": map[string]interface{}{"cs_role": "shift"}}
+			mockLoader.workflow.Roles["vae_loader"] = []string{"4"}
+			mockLoader.workflow.Roles["clip_loader"] = []string{"5"}
+			mockLoader.workflow.Roles["shift"] = []string{"6"}
+
+			result, err := executor.substituteWorkflow(mockLoader.workflow, job, item)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(result["4"].(map[string]interface{})["inputs"].(map[string]interface{})["vae_name"]).To(Equal("item-vae.safetensors"))
+			Expect(result["5"].(map[string]interface{})["inputs"].(map[string]interface{})["clip_name"]).To(Equal("item-clip.safetensors"))
+			Expect(result["6"].(map[string]interface{})["inputs"].(map[string]interface{})["shift"]).To(Equal(6.0))
+		})
+
+		// S-157 role gating: a workflow lacking a shift role never substitutes shift,
+		// even when the item carries a stored shift value.
+		It("ignores a stored per-item shift when the workflow has no shift role", func() {
+			itemShift := 9.0
+			job := model.SampleJob{ID: "job-1"}
+			item := model.SampleJobItem{Shift: &itemShift}
+
+			// No shift role registered on the workflow.
+			result, err := executor.substituteWorkflow(mockLoader.workflow, job, item)
+			Expect(err).ToNot(HaveOccurred())
+			for _, node := range result {
+				if n, ok := node.(map[string]interface{}); ok {
+					if inputs, ok := n["inputs"].(map[string]interface{}); ok {
+						Expect(inputs).NotTo(HaveKey("shift"))
+					}
+				}
+			}
+		})
+
 		It("substitutes positive_prompt with prompt text", func() {
 			job := model.SampleJob{ID: "job-1"}
 			item := model.SampleJobItem{
@@ -1295,7 +1336,7 @@ var _ = Describe("JobExecutor", func() {
 				Seed:        12345,
 			}
 
-			filename := executor.generateOutputFilename(item)
+			filename := executor.generateOutputFilename(item, FilenameDimensions{})
 			Expect(filename).To(ContainSubstring("prompt=test-prompt"))
 			Expect(filename).To(ContainSubstring("steps=20"))
 			Expect(filename).To(ContainSubstring("cfg=7.5"))
@@ -1319,7 +1360,7 @@ var _ = Describe("JobExecutor", func() {
 				StrengthClip:  0.75,
 			}
 
-			filename := executor.generateOutputFilename(item)
+			filename := executor.generateOutputFilename(item, FilenameDimensions{})
 			Expect(filename).To(ContainSubstring("strength_model=0.80"))
 			Expect(filename).To(ContainSubstring("strength_clip=0.75"))
 			Expect(filename).To(HaveSuffix(".png"))
@@ -1338,7 +1379,7 @@ var _ = Describe("JobExecutor", func() {
 				StrengthClip:  1.0,
 			}
 
-			filename := executor.generateOutputFilename(item)
+			filename := executor.generateOutputFilename(item, FilenameDimensions{})
 			Expect(filename).NotTo(ContainSubstring("strength_model"))
 			Expect(filename).NotTo(ContainSubstring("strength_clip"))
 		})
@@ -3435,14 +3476,14 @@ var _ = Describe("JobExecutor", func() {
 			}
 
 			// Build the expected filenames
-			file1 := executor.generateOutputFilename(items[0])
-			file2 := executor.generateOutputFilename(items[1])
+			file1 := executor.generateOutputFilename(items[0], FilenameDimensions{})
+			file2 := executor.generateOutputFilename(items[1], FilenameDimensions{})
 
 			checkpointDir := "/test/samples/TestStudy/ckpt1.safetensors"
 			mockFSRead.dirs[checkpointDir] = true
 			mockFSRead.files[checkpointDir] = []string{file1, file2}
 
-			executor.verifyCheckpointCompleteness(job.ID, job.StudyName, "ckpt1.safetensors", items)
+			executor.verifyCheckpointCompleteness(job.ID, job.StudyName, "ckpt1.safetensors", items, FilenameDimensions{})
 
 			executor.mu.Lock()
 			info, ok := executor.checkpointCompleteness["ckpt1.safetensors"]
@@ -3473,13 +3514,13 @@ var _ = Describe("JobExecutor", func() {
 			}
 
 			// Only the first file exists on disk
-			file1 := executor.generateOutputFilename(items[0])
+			file1 := executor.generateOutputFilename(items[0], FilenameDimensions{})
 
 			checkpointDir := "/test/samples/TestStudy/ckpt1.safetensors"
 			mockFSRead.dirs[checkpointDir] = true
 			mockFSRead.files[checkpointDir] = []string{file1}
 
-			executor.verifyCheckpointCompleteness(job.ID, job.StudyName, "ckpt1.safetensors", items)
+			executor.verifyCheckpointCompleteness(job.ID, job.StudyName, "ckpt1.safetensors", items, FilenameDimensions{})
 
 			executor.mu.Lock()
 			info := executor.checkpointCompleteness["ckpt1.safetensors"]
@@ -3502,7 +3543,7 @@ var _ = Describe("JobExecutor", func() {
 			}
 
 			// Directory does not exist (not in mockFSRead.dirs)
-			executor.verifyCheckpointCompleteness(job.ID, job.StudyName, "ckpt-missing.safetensors", items)
+			executor.verifyCheckpointCompleteness(job.ID, job.StudyName, "ckpt-missing.safetensors", items, FilenameDimensions{})
 
 			executor.mu.Lock()
 			info := executor.checkpointCompleteness["ckpt-missing.safetensors"]
@@ -3521,7 +3562,7 @@ var _ = Describe("JobExecutor", func() {
 				},
 			}
 
-			executor.verifyCheckpointCompleteness(job.ID, job.StudyName, "ckpt1.safetensors", items)
+			executor.verifyCheckpointCompleteness(job.ID, job.StudyName, "ckpt1.safetensors", items, FilenameDimensions{})
 
 			executor.mu.Lock()
 			_, ok := executor.checkpointCompleteness["ckpt1.safetensors"]
@@ -3545,7 +3586,7 @@ var _ = Describe("JobExecutor", func() {
 			mockFSRead.dirs[checkpointDir] = true
 			mockFSRead.listErr = errors.New("permission denied")
 
-			executor.verifyCheckpointCompleteness(job.ID, job.StudyName, "ckpt-err.safetensors", items)
+			executor.verifyCheckpointCompleteness(job.ID, job.StudyName, "ckpt-err.safetensors", items, FilenameDimensions{})
 
 			executor.mu.Lock()
 			info := executor.checkpointCompleteness["ckpt-err.safetensors"]
@@ -3576,12 +3617,12 @@ var _ = Describe("JobExecutor", func() {
 				},
 			}
 
-			file1 := executor.generateOutputFilename(items[0])
+			file1 := executor.generateOutputFilename(items[0], FilenameDimensions{})
 			checkpointDir := "/test/samples/TestStudy/ckpt1.safetensors"
 			mockFSRead.dirs[checkpointDir] = true
 			mockFSRead.files[checkpointDir] = []string{file1}
 
-			executor.verifyCheckpointCompleteness(job.ID, job.StudyName, "ckpt1.safetensors", items)
+			executor.verifyCheckpointCompleteness(job.ID, job.StudyName, "ckpt1.safetensors", items, FilenameDimensions{})
 
 			executor.mu.Lock()
 			info := executor.checkpointCompleteness["ckpt1.safetensors"]
@@ -3630,8 +3671,8 @@ var _ = Describe("JobExecutor", func() {
 
 			// Set up filesystem mock so completeness check succeeds
 			// Path uses new layout: {sampleDir}/{trainingRunName}/{studyName}/{checkpoint}/
-			file1 := executor.generateOutputFilename(items[0])
-			file2 := executor.generateOutputFilename(items[1])
+			file1 := executor.generateOutputFilename(items[0], FilenameDimensions{})
+			file2 := executor.generateOutputFilename(items[1], FilenameDimensions{})
 			checkpointDir := "/test/samples/test-model/TestStudy/ckpt1.safetensors"
 			mockFSRead.dirs[checkpointDir] = true
 			mockFSRead.files[checkpointDir] = []string{file1, file2}

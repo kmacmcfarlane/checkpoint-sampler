@@ -8,6 +8,7 @@ import {
   fillFirstPromptRow,
   addSamplerSchedulerPair,
   selectNaiveOption,
+  selectNaiveMultiOption,
 } from './helpers'
 
 /**
@@ -38,20 +39,27 @@ test.describe('study workflow settings (S-112)', () => {
     await page.locator('[data-testid="manage-studies-button"]').click()
     await expect(getManageStudiesDialog(page)).toBeVisible()
 
-    // New study form should show workflow/VAE/CLIP fields
+    // New study form should show the workflow field
     await page.locator('[data-testid="new-study-button"]').click()
 
     const workflowSelect = page.locator('[data-testid="study-workflow-template-select"]')
     await expect(workflowSelect).toBeVisible()
 
+    // S-157: VAE/CLIP/shift are role-gated and hidden until a role-bearing
+    // workflow is selected.
     const vaeSelect = page.locator('[data-testid="study-vae-select"]')
-    await expect(vaeSelect).toBeVisible()
-
     const clipSelect = page.locator('[data-testid="study-clip-select"]')
-    await expect(clipSelect).toBeVisible()
-
-    // Shift input should NOT be visible (no workflow selected)
     const shiftInput = page.locator('[data-testid="study-shift-input"]')
+    await expect(vaeSelect).not.toBeVisible()
+    await expect(clipSelect).not.toBeVisible()
+    await expect(shiftInput).not.toBeVisible()
+
+    // Select a workflow that declares vae_loader + clip_loader roles.
+    await selectNaiveOption(page, 'study-workflow-template-select', 'test-workflow.json')
+
+    await expect(vaeSelect).toBeVisible()
+    await expect(clipSelect).toBeVisible()
+    // test-workflow.json has no shift role.
     await expect(shiftInput).not.toBeVisible()
   })
 
@@ -75,8 +83,8 @@ test.describe('study workflow settings (S-112)', () => {
 
     // AC: Select workflow, VAE, and CLIP in the study editor
     await selectNaiveOption(page, 'study-workflow-template-select', 'test-workflow.json')
-    await selectNaiveOption(page, 'study-vae-select', 'test-vae.safetensors')
-    await selectNaiveOption(page, 'study-clip-select', 'test-clip.safetensors')
+    await selectNaiveMultiOption(page, 'study-vae-select', 'test-vae.safetensors')
+    await selectNaiveMultiOption(page, 'study-clip-select', 'test-clip.safetensors')
 
     // Verify selected values appear in the form
     const workflowSelect = page.locator('[data-testid="study-workflow-template-select"]')
@@ -101,14 +109,14 @@ test.describe('study workflow settings (S-112)', () => {
     const studies = await studiesResp.json() as Array<{
       name: string
       workflow_template: string
-      vae: string
-      text_encoder: string
+      vaes: string[]
+      text_encoders: string[]
     }>
     const savedStudy = studies.find(s => s.name === studyName)
     expect(savedStudy).toBeDefined()
     expect(savedStudy!.workflow_template).toBe('test-workflow.json')
-    expect(savedStudy!.vae).toBe('test-vae.safetensors')
-    expect(savedStudy!.text_encoder).toBe('test-clip.safetensors')
+    expect(savedStudy!.vaes).toEqual(['test-vae.safetensors'])
+    expect(savedStudy!.text_encoders).toEqual(['test-clip.safetensors'])
   })
 
   // AC: Loading a study with workflow settings pre-fills the editor fields
@@ -127,11 +135,10 @@ test.describe('study workflow settings (S-112)', () => {
         cfgs: [7.0],
         sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
         seeds: [42],
-        width: 512,
-        height: 512,
+        resolutions: [{ width: 512, height: 512 }],
         workflow_template: 'test-workflow.json',
-        vae: 'test-vae.safetensors',
-        text_encoder: 'test-clip.safetensors',
+        vaes: ['test-vae.safetensors'],
+        text_encoders: ['test-clip.safetensors'],
       },
     })
     expect(createResp.status()).toBe(201)
@@ -238,11 +245,10 @@ test.describe('study workflow settings (S-112)', () => {
         cfgs: [7.0],
         sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
         seeds: [42],
-        width: 512,
-        height: 512,
+        resolutions: [{ width: 512, height: 512 }],
         workflow_template: 'test-workflow.json',
-        vae: 'test-vae.safetensors',
-        text_encoder: 'test-clip.safetensors',
+        vaes: ['test-vae.safetensors'],
+        text_encoders: ['test-clip.safetensors'],
       },
     })
 

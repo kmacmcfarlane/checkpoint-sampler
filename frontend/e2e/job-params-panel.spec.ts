@@ -27,12 +27,12 @@ const STUDY_PAYLOAD = {
   cfgs: [7.0],
   sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
   seeds: [42],
-  width: 512,
-  height: 512,
+  resolutions: [{ width: 512, height: 512 }],
   // S-112: Workflow settings are now part of the study definition
+  // S-157: vae/text_encoder are multi-value list dimensions on the API
   workflow_template: 'test-workflow.json',
-  vae: 'test-vae.safetensors',
-  text_encoder: 'test-clip.safetensors',
+  vaes: ['test-vae.safetensors'],
+  text_encoders: ['test-clip.safetensors'],
 }
 
 /** Create a study via the REST API and return its ID. */

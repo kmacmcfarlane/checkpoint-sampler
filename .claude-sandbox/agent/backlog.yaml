@@ -1299,7 +1299,7 @@ stories:
       - "command: make test-e2e"
   - id: S-157
     title: "Promote Resolution, VAE, Text Encoder, and Shift to multi-value study dimensions"
-    status: todo
+    status: uat
     priority: 55
     complexity: high
     requires: []

@@ -444,6 +444,27 @@ export async function selectNaiveOption(page: Page, selectTestId: string, option
 }
 
 /**
+ * Selects an option from a Naive UI NSelect dropdown in `multiple` mode
+ * (S-157: VAE/text-encoder selects became multi-value). Unlike a single-value
+ * NSelect, the popup does NOT close automatically after clicking an option —
+ * the menu stays open so the user can pick more values. This helper clicks
+ * the option, then presses Escape to explicitly dismiss the popup, and
+ * asserts the selection was recorded via the rendered tag inside the select
+ * trigger rather than asserting the popup closed.
+ */
+export async function selectNaiveMultiOption(page: Page, selectTestId: string, optionText: string): Promise<void> {
+  const select = page.locator(`[data-testid="${selectTestId}"]`)
+  await expect(select).toBeVisible()
+  const popup = await clickSelectAndWaitForPopup(page, select, selectTestId)
+  await popup.getByText(optionText, { exact: true }).click()
+  // Multi-select popups remain open after a selection; dismiss explicitly.
+  await page.keyboard.press('Escape')
+  await expect(popup).not.toBeVisible()
+  // Verify the selected value now renders as a tag inside the select trigger.
+  await expect(select.locator('.n-base-selection-tag-wrapper', { hasText: optionText })).toBeVisible()
+}
+
+/**
  * Selects an option from a Naive UI NSelect dropdown within a specific container,
  * identified by data-testid relative to that container.
  *

@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -377,8 +378,9 @@ func (s *SampleJobService) Create(trainingRunName string, checkpoints []model.Ch
 	if missingOnly && s.fileChecker != nil {
 		var filtered []model.SampleJobItem
 		skipped := 0
+		fnDims := filenameDimensionsForStudy(study)
 		for _, item := range items {
-			outputFilename := GenerateOutputFilename(item)
+			outputFilename := GenerateOutputFilenameWithDims(item, fnDims)
 			outputPath := filepath.Join(s.sampleDir, study.Name, item.CheckpointFilename, outputFilename)
 			if s.fileChecker.FileExists(outputPath) {
 				skipped++
@@ -497,6 +499,31 @@ func (s *SampleJobService) expandJobItems(jobID string, checkpoints []model.Chec
 		strengthPairs = study.LoraStrengthPairs
 	}
 
+	// S-157: build the iteration lists for the four promoted dimensions. Empty
+	// lists collapse to a single implicit "no substitution" value so the
+	// cross-product is unaffected and no spurious dimension is emitted.
+	resolutions := study.Resolutions
+	if len(resolutions) == 0 {
+		resolutions = []model.ResolutionPair{{Width: study.Width, Height: study.Height}}
+	}
+	vaes := study.VAEs
+	if len(vaes) == 0 {
+		vaes = []string{""}
+	}
+	textEncoders := study.TextEncoders
+	if len(textEncoders) == 0 {
+		textEncoders = []string{""}
+	}
+	// A nil entry means "do not substitute a shift for this item".
+	shifts := make([]*float64, 0, len(study.Shifts))
+	for i := range study.Shifts {
+		v := study.Shifts[i]
+		shifts = append(shifts, &v)
+	}
+	if len(shifts) == 0 {
+		shifts = []*float64{nil}
+	}
+
 	for _, checkpoint := range checkpoints {
 		// Iterate over all parameter combinations using sampler/scheduler pairs
 		for _, prompt := range study.Prompts {
@@ -507,28 +534,39 @@ func (s *SampleJobService) expandJobItems(jobID string, checkpoints []model.Chec
 					for _, pair := range study.SamplerSchedulerPairs {
 						for _, seed := range study.Seeds {
 							for _, strength := range strengthPairs {
-								item := model.SampleJobItem{
-									ID:                 uuid.New().String(),
-									JobID:              jobID,
-									CheckpointFilename: checkpoint.Filename,
-									ComfyUIModelPath:   "", // Will be filled by path matching
-									StrengthModel:      strength.StrengthModel,
-									StrengthClip:       strength.StrengthClip,
-									PromptName:         prompt.Name,
-									PromptText:         promptText,
-									NegativePrompt:     study.NegativePrompt,
-									Steps:              steps,
-									CFG:                cfg,
-									SamplerName:        pair.Sampler,
-									Scheduler:          pair.Scheduler,
-									Seed:               seed,
-									Width:              study.Width,
-									Height:             study.Height,
-									Status:             model.SampleJobItemStatusPending,
-									CreatedAt:          now,
-									UpdatedAt:          now,
+								for _, res := range resolutions {
+									for _, vae := range vaes {
+										for _, te := range textEncoders {
+											for _, shift := range shifts {
+												item := model.SampleJobItem{
+													ID:                 uuid.New().String(),
+													JobID:              jobID,
+													CheckpointFilename: checkpoint.Filename,
+													ComfyUIModelPath:   "", // Will be filled by path matching
+													StrengthModel:      strength.StrengthModel,
+													StrengthClip:       strength.StrengthClip,
+													PromptName:         prompt.Name,
+													PromptText:         promptText,
+													NegativePrompt:     study.NegativePrompt,
+													Steps:              steps,
+													CFG:                cfg,
+													SamplerName:        pair.Sampler,
+													Scheduler:          pair.Scheduler,
+													Seed:               seed,
+													Width:              res.Width,
+													Height:             res.Height,
+													VAE:                vae,
+													TextEncoder:        te,
+													Shift:              shift,
+													Status:             model.SampleJobItemStatusPending,
+													CreatedAt:          now,
+													UpdatedAt:          now,
+												}
+												items = append(items, item)
+											}
+										}
+									}
 								}
-								items = append(items, item)
 							}
 						}
 					}
@@ -1204,6 +1242,24 @@ func (s *SampleJobService) GetProgress(id string) (model.JobProgress, error) {
 // missing-sample detection. The format matches what the job executor writes to disk.
 // For LoRA runs, strength_model and strength_clip are also included.
 func GenerateOutputFilename(item model.SampleJobItem) string {
+	return GenerateOutputFilenameWithDims(item, FilenameDimensions{})
+}
+
+// FilenameDimensions selects which S-157 multi-value dimensions are encoded into
+// an output filename. A dimension is only encoded when the study actually sweeps
+// more than one value for it, so single-value studies keep identical filenames
+// (and single-value dimensions never surface as spurious grid axes).
+type FilenameDimensions struct {
+	Resolution  bool
+	VAE         bool
+	TextEncoder bool
+	Shift       bool
+}
+
+// GenerateOutputFilenameWithDims builds the query-encoded output filename,
+// additionally encoding the swept S-157 dimensions selected by dims. The
+// scanner parses these query params back into assignable grid dimensions.
+func GenerateOutputFilenameWithDims(item model.SampleJobItem, dims FilenameDimensions) string {
 	params := url.Values{}
 	params.Set("prompt", item.PromptName)
 	params.Set("steps", fmt.Sprintf("%d", item.Steps))
@@ -1216,5 +1272,29 @@ func GenerateOutputFilename(item model.SampleJobItem) string {
 		params.Set("strength_model", fmt.Sprintf("%.2f", item.StrengthModel))
 		params.Set("strength_clip", fmt.Sprintf("%.2f", item.StrengthClip))
 	}
+	// S-157: encode the swept dimensions so the scanner surfaces them as grid axes.
+	if dims.Resolution && item.Width > 0 && item.Height > 0 {
+		params.Set("resolution", fmt.Sprintf("%dx%d", item.Width, item.Height))
+	}
+	if dims.VAE && item.VAE != "" {
+		params.Set("vae", filepath.Base(item.VAE))
+	}
+	if dims.TextEncoder && item.TextEncoder != "" {
+		params.Set("text_encoder", filepath.Base(item.TextEncoder))
+	}
+	if dims.Shift && item.Shift != nil {
+		params.Set("shift", strconv.FormatFloat(*item.Shift, 'g', -1, 64))
+	}
 	return fmt.Sprintf("%s.png", params.Encode())
+}
+
+// filenameDimensionsForStudy returns which promoted dimensions a study sweeps
+// (more than one value), controlling filename encoding.
+func filenameDimensionsForStudy(study model.Study) FilenameDimensions {
+	return FilenameDimensions{
+		Resolution:  len(study.Resolutions) > 1,
+		VAE:         len(study.VAEs) > 1,
+		TextEncoder: len(study.TextEncoders) > 1,
+		Shift:       len(study.Shifts) > 1,
+	}
 }

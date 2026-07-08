@@ -110,11 +110,11 @@ func (s *StudyService) Get(id string) (model.Study, error) {
 }
 
 // Create validates and persists a new study, returning the created study.
-func (s *StudyService) Create(name string, promptPrefix string, prompts []model.NamedPrompt, negativePrompt string, steps []int, cfgs []float64, pairs []model.SamplerSchedulerPair, seeds []int64, width int, height int, workflowTemplate string, vae string, textEncoder string, shift *float64, loraStrengthPairs []model.LoraStrengthPair) (model.Study, error) {
+func (s *StudyService) Create(name string, promptPrefix string, prompts []model.NamedPrompt, negativePrompt string, steps []int, cfgs []float64, pairs []model.SamplerSchedulerPair, seeds []int64, resolutions []model.ResolutionPair, workflowTemplate string, vaes []string, textEncoders []string, shifts []float64, loraStrengthPairs []model.LoraStrengthPair) (model.Study, error) {
 	s.logger.WithField("study_name", name).Trace("entering Create")
 	defer s.logger.Trace("returning from Create")
 
-	if err := s.validate(name, prompts, steps, cfgs, pairs, seeds, width, height, loraStrengthPairs); err != nil {
+	if err := s.validate(name, prompts, steps, cfgs, pairs, seeds, resolutions, vaes, textEncoders, shifts, loraStrengthPairs); err != nil {
 		s.logger.WithFields(logrus.Fields{
 			"study_name": name,
 			"error":      err.Error(),
@@ -139,6 +139,7 @@ func (s *StudyService) Create(name string, promptPrefix string, prompts []model.
 		loraStrengthPairs = []model.LoraStrengthPair{{StrengthModel: 1.0, StrengthClip: 1.0}}
 	}
 
+	width, height := firstResolution(resolutions)
 	now := time.Now().UTC()
 	st := model.Study{
 		ID:                    uuid.New().String(),
@@ -152,10 +153,14 @@ func (s *StudyService) Create(name string, promptPrefix string, prompts []model.
 		Seeds:                 seeds,
 		Width:                 width,
 		Height:                height,
+		Resolutions:           resolutions,
 		WorkflowTemplate:      workflowTemplate,
-		VAE:                   vae,
-		TextEncoder:           textEncoder,
-		Shift:                 shift,
+		VAE:                   firstString(vaes),
+		TextEncoder:           firstString(textEncoders),
+		Shift:                 firstFloatPtr(shifts),
+		VAEs:                  vaes,
+		TextEncoders:          textEncoders,
+		Shifts:                shifts,
 		LoraStrengthPairs:     loraStrengthPairs,
 		CreatedAt:             now,
 		UpdatedAt:             now,
@@ -177,14 +182,14 @@ func (s *StudyService) Create(name string, promptPrefix string, prompts []model.
 }
 
 // Update modifies an existing study.
-func (s *StudyService) Update(id string, name string, promptPrefix string, prompts []model.NamedPrompt, negativePrompt string, steps []int, cfgs []float64, pairs []model.SamplerSchedulerPair, seeds []int64, width int, height int, workflowTemplate string, vae string, textEncoder string, shift *float64, loraStrengthPairs []model.LoraStrengthPair) (model.Study, error) {
+func (s *StudyService) Update(id string, name string, promptPrefix string, prompts []model.NamedPrompt, negativePrompt string, steps []int, cfgs []float64, pairs []model.SamplerSchedulerPair, seeds []int64, resolutions []model.ResolutionPair, workflowTemplate string, vaes []string, textEncoders []string, shifts []float64, loraStrengthPairs []model.LoraStrengthPair) (model.Study, error) {
 	s.logger.WithFields(logrus.Fields{
 		"study_id":   id,
 		"study_name": name,
 	}).Trace("entering Update")
 	defer s.logger.Trace("returning from Update")
 
-	if err := s.validate(name, prompts, steps, cfgs, pairs, seeds, width, height, loraStrengthPairs); err != nil {
+	if err := s.validate(name, prompts, steps, cfgs, pairs, seeds, resolutions, vaes, textEncoders, shifts, loraStrengthPairs); err != nil {
 		s.logger.WithFields(logrus.Fields{
 			"study_id": id,
 			"error":    err.Error(),
@@ -227,6 +232,7 @@ func (s *StudyService) Update(id string, name string, promptPrefix string, promp
 		loraStrengthPairs = []model.LoraStrengthPair{{StrengthModel: 1.0, StrengthClip: 1.0}}
 	}
 
+	width, height := firstResolution(resolutions)
 	existing.Name = name
 	existing.PromptPrefix = promptPrefix
 	existing.Prompts = prompts
@@ -237,10 +243,14 @@ func (s *StudyService) Update(id string, name string, promptPrefix string, promp
 	existing.Seeds = seeds
 	existing.Width = width
 	existing.Height = height
+	existing.Resolutions = resolutions
 	existing.WorkflowTemplate = workflowTemplate
-	existing.VAE = vae
-	existing.TextEncoder = textEncoder
-	existing.Shift = shift
+	existing.VAE = firstString(vaes)
+	existing.TextEncoder = firstString(textEncoders)
+	existing.Shift = firstFloatPtr(shifts)
+	existing.VAEs = vaes
+	existing.TextEncoders = textEncoders
+	existing.Shifts = shifts
 	existing.LoraStrengthPairs = loraStrengthPairs
 	existing.UpdatedAt = time.Now().UTC()
 
@@ -262,7 +272,7 @@ func (s *StudyService) Update(id string, name string, promptPrefix string, promp
 
 // Fork creates a new study by copying an existing study's settings with
 // modifications. The new study gets a new ID and name.
-func (s *StudyService) Fork(sourceID string, newName string, promptPrefix string, prompts []model.NamedPrompt, negativePrompt string, steps []int, cfgs []float64, pairs []model.SamplerSchedulerPair, seeds []int64, width int, height int, workflowTemplate string, vae string, textEncoder string, shift *float64, loraStrengthPairs []model.LoraStrengthPair) (model.Study, error) {
+func (s *StudyService) Fork(sourceID string, newName string, promptPrefix string, prompts []model.NamedPrompt, negativePrompt string, steps []int, cfgs []float64, pairs []model.SamplerSchedulerPair, seeds []int64, resolutions []model.ResolutionPair, workflowTemplate string, vaes []string, textEncoders []string, shifts []float64, loraStrengthPairs []model.LoraStrengthPair) (model.Study, error) {
 	s.logger.WithFields(logrus.Fields{
 		"source_id": sourceID,
 		"new_name":  newName,
@@ -284,7 +294,7 @@ func (s *StudyService) Fork(sourceID string, newName string, promptPrefix string
 	}
 
 	// Create the forked study using the standard Create flow (validates, checks name uniqueness)
-	return s.Create(newName, promptPrefix, prompts, negativePrompt, steps, cfgs, pairs, seeds, width, height, workflowTemplate, vae, textEncoder, shift, loraStrengthPairs)
+	return s.Create(newName, promptPrefix, prompts, negativePrompt, steps, cfgs, pairs, seeds, resolutions, workflowTemplate, vaes, textEncoders, shifts, loraStrengthPairs)
 }
 
 // HasSamples checks whether a study has any generated samples on disk.
@@ -378,7 +388,7 @@ func (s *StudyService) Delete(id string, deleteData bool) error {
 }
 
 // validate checks that a study's fields meet the requirements.
-func (s *StudyService) validate(name string, prompts []model.NamedPrompt, steps []int, cfgs []float64, pairs []model.SamplerSchedulerPair, seeds []int64, width int, height int, loraStrengthPairs []model.LoraStrengthPair) error {
+func (s *StudyService) validate(name string, prompts []model.NamedPrompt, steps []int, cfgs []float64, pairs []model.SamplerSchedulerPair, seeds []int64, resolutions []model.ResolutionPair, vaes []string, textEncoders []string, shifts []float64, loraStrengthPairs []model.LoraStrengthPair) error {
 	if name == "" {
 		return fmt.Errorf("study name must not be empty")
 	}
@@ -466,11 +476,40 @@ func (s *StudyService) validate(name string, prompts []model.NamedPrompt, steps 
 		}
 		seenSeeds[seed] = true
 	}
-	if width <= 0 {
-		return fmt.Errorf("width must be positive")
+	// S-157: resolution is a multi-value dimension; at least one pair is required
+	// and every pair must be positive and unique.
+	if len(resolutions) == 0 {
+		return fmt.Errorf("at least one resolution is required")
 	}
-	if height <= 0 {
-		return fmt.Errorf("height must be positive")
+	type resKey struct{ w, h int }
+	seenRes := make(map[resKey]bool, len(resolutions))
+	for i, r := range resolutions {
+		if r.Width <= 0 {
+			return fmt.Errorf("resolution %d width must be positive", i)
+		}
+		if r.Height <= 0 {
+			return fmt.Errorf("resolution %d height must be positive", i)
+		}
+		key := resKey{r.Width, r.Height}
+		if seenRes[key] {
+			return fmt.Errorf("duplicate resolution %dx%d", r.Width, r.Height)
+		}
+		seenRes[key] = true
+	}
+	// S-157: VAE / text-encoder / shift lists may be empty (dimension not swept),
+	// but any provided values must be non-empty and unique.
+	if err := validateStringDimension("vae", vaes); err != nil {
+		return err
+	}
+	if err := validateStringDimension("text_encoder", textEncoders); err != nil {
+		return err
+	}
+	seenShifts := make(map[float64]bool, len(shifts))
+	for _, sh := range shifts {
+		if seenShifts[sh] {
+			return fmt.Errorf("duplicate shift value %g", sh)
+		}
+		seenShifts[sh] = true
 	}
 	type loraPairKey struct{ m, c float64 }
 	seenLoraPairs := make(map[loraPairKey]bool, len(loraStrengthPairs))
@@ -499,10 +538,59 @@ func (s *StudyService) validate(name string, prompts []model.NamedPrompt, steps 
 		if loraPairCount == 0 {
 			loraPairCount = 1
 		}
+		// S-157: include the new multi-value dimensions in the cap math. Empty
+		// dimensions contribute a factor of 1 (see model.DimMultiplier semantics).
 		imagesPerCheckpoint := len(prompts) * len(steps) * len(cfgs) * len(pairs) * len(seeds) * loraPairCount
+		imagesPerCheckpoint *= model.DimMultiplier(len(resolutions))
+		imagesPerCheckpoint *= model.DimMultiplier(len(vaes))
+		imagesPerCheckpoint *= model.DimMultiplier(len(textEncoders))
+		imagesPerCheckpoint *= model.DimMultiplier(len(shifts))
 		if imagesPerCheckpoint > s.maxStudyItems {
 			return &model.TooManyItemsError{Total: imagesPerCheckpoint, Limit: s.maxStudyItems}
 		}
 	}
 	return nil
+}
+
+// validateStringDimension rejects empty or duplicate entries in a string-valued
+// multi-value dimension. An empty list is allowed (dimension not swept).
+func validateStringDimension(label string, values []string) error {
+	seen := make(map[string]bool, len(values))
+	for i, v := range values {
+		if v == "" {
+			return fmt.Errorf("%s %d must not be empty", label, i)
+		}
+		if seen[v] {
+			return fmt.Errorf("duplicate %s value %q", label, v)
+		}
+		seen[v] = true
+	}
+	return nil
+}
+
+// firstResolution returns the width/height of the first resolution pair, or
+// (0, 0) when the list is empty.
+func firstResolution(resolutions []model.ResolutionPair) (int, int) {
+	if len(resolutions) == 0 {
+		return 0, 0
+	}
+	return resolutions[0].Width, resolutions[0].Height
+}
+
+// firstString returns the first element of a string list, or "" when empty.
+func firstString(values []string) string {
+	if len(values) == 0 {
+		return ""
+	}
+	return values[0]
+}
+
+// firstFloatPtr returns a pointer to the first element of a float list, or nil
+// when empty.
+func firstFloatPtr(values []float64) *float64 {
+	if len(values) == 0 {
+		return nil
+	}
+	v := values[0]
+	return &v
 }

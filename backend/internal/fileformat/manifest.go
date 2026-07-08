@@ -44,6 +44,12 @@ type JobManifest struct {
 	Width         int                     `json:"width"`
 	Height        int                     `json:"height"`
 
+	// S-157 multi-value dimensions (omitted when empty for backward compatibility).
+	Resolutions  []ManifestResolutionPair `json:"resolutions,omitempty"`
+	VAEs         []string                 `json:"vaes,omitempty"`
+	TextEncoders []string                 `json:"text_encoders,omitempty"`
+	Shifts       []float64                `json:"shifts,omitempty"`
+
 	// Checkpoint list
 	Checkpoints []string `json:"checkpoints"`
 
@@ -61,6 +67,12 @@ type ManifestNamedPrompt struct {
 type ManifestSamplerSchedulerPair struct {
 	Sampler   string `json:"sampler"`
 	Scheduler string `json:"scheduler"`
+}
+
+// ManifestResolutionPair represents a resolution width/height pair in the manifest format (S-157).
+type ManifestResolutionPair struct {
+	Width  int `json:"width"`
+	Height int `json:"height"`
 }
 
 // NewJobManifest builds a JobManifest from a sample job, study, and checkpoint list.
@@ -102,10 +114,27 @@ func NewJobManifest(job model.SampleJob, study model.Study, checkpoints []string
 		Seeds:                 study.Seeds,
 		Width:                 study.Width,
 		Height:                study.Height,
+		Resolutions:           manifestResolutions(study.Resolutions),
+		VAEs:                  study.VAEs,
+		TextEncoders:          study.TextEncoders,
+		Shifts:                study.Shifts,
 
 		Checkpoints:         checkpoints,
 		ImagesPerCheckpoint: study.ImagesPerCheckpoint(),
 	}
+}
+
+// manifestResolutions converts model resolution pairs into the manifest format.
+// Returns nil for an empty input so the field is omitted from JSON.
+func manifestResolutions(pairs []model.ResolutionPair) []ManifestResolutionPair {
+	if len(pairs) == 0 {
+		return nil
+	}
+	out := make([]ManifestResolutionPair, len(pairs))
+	for i, p := range pairs {
+		out[i] = ManifestResolutionPair{Width: p.Width, Height: p.Height}
+	}
+	return out
 }
 
 // MarshalManifest serializes a JobManifest to pretty-printed JSON bytes.

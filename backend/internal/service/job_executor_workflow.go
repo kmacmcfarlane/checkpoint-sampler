@@ -78,12 +78,24 @@ func (e *JobExecutor) substituteNode(workflow map[string]interface{}, nodeID str
 		inputs["strength_model"] = item.StrengthModel
 		inputs["strength_clip"] = item.StrengthClip
 	case model.CSRoleCLIPLoader:
-		if job.CLIP != "" {
-			inputs["clip_name"] = job.CLIP
+		// S-157: prefer the per-item text encoder (multi-value dimension); fall
+		// back to the job-level value for backward compatibility.
+		clip := item.TextEncoder
+		if clip == "" {
+			clip = job.CLIP
+		}
+		if clip != "" {
+			inputs["clip_name"] = clip
 		}
 	case model.CSRoleVAELoader:
-		if job.VAE != "" {
-			inputs["vae_name"] = job.VAE
+		// S-157: prefer the per-item VAE (multi-value dimension); fall back to the
+		// job-level value for backward compatibility.
+		vae := item.VAE
+		if vae == "" {
+			vae = job.VAE
+		}
+		if vae != "" {
+			inputs["vae_name"] = vae
 		}
 	case model.CSRoleSampler:
 		inputs["seed"] = item.Seed
@@ -99,8 +111,15 @@ func (e *JobExecutor) substituteNode(workflow map[string]interface{}, nodeID str
 			inputs["text"] = item.NegativePrompt
 		}
 	case model.CSRoleShift:
-		if job.Shift != nil {
-			inputs["shift"] = *job.Shift
+		// S-157: prefer the per-item shift (multi-value dimension); fall back to
+		// the job-level value. This case only runs when the workflow declares the
+		// shift role, so a workflow without a shift role never substitutes shift.
+		shift := item.Shift
+		if shift == nil {
+			shift = job.Shift
+		}
+		if shift != nil {
+			inputs["shift"] = *shift
 		}
 	case model.CSRoleLatentImage:
 		inputs["width"] = item.Width
@@ -171,9 +190,26 @@ func (e *JobExecutor) generateFilenamePrefixForJob(job model.SampleJob, item mod
 }
 
 // generateOutputFilename generates the query-encoded output filename.
-// Delegates to the shared GenerateOutputFilename function.
-func (e *JobExecutor) generateOutputFilename(item model.SampleJobItem) string {
-	return GenerateOutputFilename(item)
+// Delegates to the shared GenerateOutputFilenameWithDims function. The dims
+// select which S-157 swept dimensions are encoded so the executor produces the
+// exact filename the job-creation missing-only check expects.
+func (e *JobExecutor) generateOutputFilename(item model.SampleJobItem, dims FilenameDimensions) string {
+	return GenerateOutputFilenameWithDims(item, dims)
+}
+
+// filenameDimsForJob loads the study for the given job and returns which
+// promoted dimensions it sweeps. On error it returns the zero value (no extra
+// dimensions encoded), matching legacy behavior.
+func (e *JobExecutor) filenameDimsForJob(job model.SampleJob) FilenameDimensions {
+	study, err := e.store.GetStudy(job.StudyID)
+	if err != nil {
+		e.logger.WithFields(logrus.Fields{
+			"study_id": job.StudyID,
+			"error":    err.Error(),
+		}).Warn("failed to fetch study for filename dimensions, using none")
+		return FilenameDimensions{}
+	}
+	return filenameDimensionsForStudy(study)
 }
 
 // getOutputPath constructs the full output path for an image.
@@ -320,9 +356,9 @@ func (e *JobExecutor) writeSidecar(imagePath string, job model.SampleJob, item m
 		Width:          item.Width,
 		Height:         item.Height,
 		NegativePrompt: item.NegativePrompt,
-		VAE:            job.VAE,
-		CLIP:           job.CLIP,
-		Shift:          job.Shift,
+		VAE:            sidecarVAE(item, job),
+		CLIP:           sidecarCLIP(item, job),
+		Shift:          sidecarShift(item, job),
 		WorkflowName:   job.WorkflowName,
 		JobID:          job.ID,
 		Timestamp:      time.Now().UTC().Format(time.RFC3339),
@@ -353,6 +389,31 @@ func (e *JobExecutor) writeSidecar(imagePath string, job model.SampleJob, item m
 
 	e.logger.WithField("sidecar_path", sidecarPath).Info("sidecar file written")
 	return nil
+}
+
+// sidecarVAE returns the VAE recorded in an image's sidecar: the per-item value
+// (S-157 multi-value dimension) when present, else the job-level value.
+func sidecarVAE(item model.SampleJobItem, job model.SampleJob) string {
+	if item.VAE != "" {
+		return item.VAE
+	}
+	return job.VAE
+}
+
+// sidecarCLIP returns the text encoder recorded in an image's sidecar.
+func sidecarCLIP(item model.SampleJobItem, job model.SampleJob) string {
+	if item.TextEncoder != "" {
+		return item.TextEncoder
+	}
+	return job.CLIP
+}
+
+// sidecarShift returns the shift recorded in an image's sidecar.
+func sidecarShift(item model.SampleJobItem, job model.SampleJob) *float64 {
+	if item.Shift != nil {
+		return item.Shift
+	}
+	return job.Shift
 }
 
 // writeManifest writes a JSON manifest file to the study version directory.

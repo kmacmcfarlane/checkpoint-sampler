@@ -168,25 +168,20 @@ var StudyResponse = Type("StudyResponse", func() {
 	Attribute("seeds", ArrayOf(Int64), "Seed values to iterate", func() {
 		Example([]int64{420, 421, 422})
 	})
-	Attribute("width", Int, "Image width in pixels", func() {
-		Example(1344)
-	})
-	Attribute("height", Int, "Image height in pixels", func() {
-		Example(1344)
-	})
+	Attribute("resolutions", ArrayOf(ResolutionPair), "Resolution pairs to iterate (S-157)")
 	Attribute("workflow_template", String, "ComfyUI workflow template filename (optional)", func() {
 		Example("qwen-image.json")
 		Default("")
 	})
-	Attribute("vae", String, "ComfyUI VAE model path (optional)", func() {
-		Example("ae.safetensors")
-		Default("")
+	Attribute("vaes", ArrayOf(String), "ComfyUI VAE model paths to iterate (optional; gated by the workflow's vae_loader role)", func() {
+		Example([]string{"ae.safetensors"})
 	})
-	Attribute("text_encoder", String, "ComfyUI CLIP/text encoder model path (optional)", func() {
-		Example("clip_l.safetensors")
-		Default("")
+	Attribute("text_encoders", ArrayOf(String), "ComfyUI CLIP/text encoder model paths to iterate (optional; gated by the workflow's clip_loader role)", func() {
+		Example([]string{"clip_l.safetensors"})
 	})
-	Attribute("shift", Float64, "AuraFlow shift value (optional, nullable)")
+	Attribute("shifts", ArrayOf(Float64), "AuraFlow shift values to iterate (optional; gated by the workflow's shift role)", func() {
+		Example([]float64{3.0})
+	})
 	Attribute("lora_strength_pairs", ArrayOf(LoraStrengthPair), "LoRA strength pairs to iterate (only used for LoRA training runs)")
 	Attribute("images_per_checkpoint", Int, "Computed: total images per checkpoint", func() {
 		Example(54)
@@ -197,7 +192,7 @@ var StudyResponse = Type("StudyResponse", func() {
 	Attribute("updated_at", String, "Last update timestamp (RFC3339)", func() {
 		Example("2025-01-01T00:00:00Z")
 	})
-	Required("id", "name", "prompt_prefix", "prompts", "negative_prompt", "steps", "cfgs", "sampler_scheduler_pairs", "seeds", "width", "height", "workflow_template", "vae", "text_encoder", "lora_strength_pairs", "images_per_checkpoint", "created_at", "updated_at")
+	Required("id", "name", "prompt_prefix", "prompts", "negative_prompt", "steps", "cfgs", "sampler_scheduler_pairs", "seeds", "resolutions", "workflow_template", "vaes", "text_encoders", "shifts", "lora_strength_pairs", "images_per_checkpoint", "created_at", "updated_at")
 })
 
 var CreateStudyPayload = Type("CreateStudyPayload", func() {
@@ -232,29 +227,24 @@ var CreateStudyPayload = Type("CreateStudyPayload", func() {
 		Example([]int64{420, 421, 422})
 		MinLength(1)
 	})
-	Attribute("width", Int, "Image width in pixels", func() {
-		Example(1344)
-		Minimum(1)
-	})
-	Attribute("height", Int, "Image height in pixels", func() {
-		Example(1344)
-		Minimum(1)
+	Attribute("resolutions", ArrayOf(ResolutionPair), "Resolution pairs to iterate (S-157)", func() {
+		MinLength(1)
 	})
 	Attribute("workflow_template", String, "ComfyUI workflow template filename (optional)", func() {
 		Example("qwen-image.json")
 		Default("")
 	})
-	Attribute("vae", String, "ComfyUI VAE model path (optional)", func() {
-		Example("ae.safetensors")
-		Default("")
+	Attribute("vaes", ArrayOf(String), "ComfyUI VAE model paths to iterate (optional; gated by the workflow's vae_loader role)", func() {
+		Example([]string{"ae.safetensors"})
 	})
-	Attribute("text_encoder", String, "ComfyUI CLIP/text encoder model path (optional)", func() {
-		Example("clip_l.safetensors")
-		Default("")
+	Attribute("text_encoders", ArrayOf(String), "ComfyUI CLIP/text encoder model paths to iterate (optional; gated by the workflow's clip_loader role)", func() {
+		Example([]string{"clip_l.safetensors"})
 	})
-	Attribute("shift", Float64, "AuraFlow shift value (optional, nullable)")
+	Attribute("shifts", ArrayOf(Float64), "AuraFlow shift values to iterate (optional; gated by the workflow's shift role)", func() {
+		Example([]float64{3.0})
+	})
 	Attribute("lora_strength_pairs", ArrayOf(LoraStrengthPair), "LoRA strength pairs to iterate (optional, for LoRA training runs)")
-	Required("name", "prompt_prefix", "prompts", "negative_prompt", "steps", "cfgs", "sampler_scheduler_pairs", "seeds", "width", "height")
+	Required("name", "prompt_prefix", "prompts", "negative_prompt", "steps", "cfgs", "sampler_scheduler_pairs", "seeds", "resolutions")
 })
 
 var UpdateStudyPayload = Type("UpdateStudyPayload", func() {
@@ -292,29 +282,24 @@ var UpdateStudyPayload = Type("UpdateStudyPayload", func() {
 		Example([]int64{420, 421, 422})
 		MinLength(1)
 	})
-	Attribute("width", Int, "Image width in pixels", func() {
-		Example(1344)
-		Minimum(1)
-	})
-	Attribute("height", Int, "Image height in pixels", func() {
-		Example(1344)
-		Minimum(1)
+	Attribute("resolutions", ArrayOf(ResolutionPair), "Resolution pairs to iterate (S-157)", func() {
+		MinLength(1)
 	})
 	Attribute("workflow_template", String, "ComfyUI workflow template filename (optional)", func() {
 		Example("qwen-image.json")
 		Default("")
 	})
-	Attribute("vae", String, "ComfyUI VAE model path (optional)", func() {
-		Example("ae.safetensors")
-		Default("")
+	Attribute("vaes", ArrayOf(String), "ComfyUI VAE model paths to iterate (optional; gated by the workflow's vae_loader role)", func() {
+		Example([]string{"ae.safetensors"})
 	})
-	Attribute("text_encoder", String, "ComfyUI CLIP/text encoder model path (optional)", func() {
-		Example("clip_l.safetensors")
-		Default("")
+	Attribute("text_encoders", ArrayOf(String), "ComfyUI CLIP/text encoder model paths to iterate (optional; gated by the workflow's clip_loader role)", func() {
+		Example([]string{"clip_l.safetensors"})
 	})
-	Attribute("shift", Float64, "AuraFlow shift value (optional, nullable)")
+	Attribute("shifts", ArrayOf(Float64), "AuraFlow shift values to iterate (optional; gated by the workflow's shift role)", func() {
+		Example([]float64{3.0})
+	})
 	Attribute("lora_strength_pairs", ArrayOf(LoraStrengthPair), "LoRA strength pairs to iterate (optional, for LoRA training runs)")
-	Required("id", "name", "prompt_prefix", "prompts", "negative_prompt", "steps", "cfgs", "sampler_scheduler_pairs", "seeds", "width", "height")
+	Required("id", "name", "prompt_prefix", "prompts", "negative_prompt", "steps", "cfgs", "sampler_scheduler_pairs", "seeds", "resolutions")
 })
 
 var ForkStudyPayload = Type("ForkStudyPayload", func() {
@@ -352,29 +337,24 @@ var ForkStudyPayload = Type("ForkStudyPayload", func() {
 		Example([]int64{420, 421, 422})
 		MinLength(1)
 	})
-	Attribute("width", Int, "Image width in pixels", func() {
-		Example(1344)
-		Minimum(1)
-	})
-	Attribute("height", Int, "Image height in pixels", func() {
-		Example(1344)
-		Minimum(1)
+	Attribute("resolutions", ArrayOf(ResolutionPair), "Resolution pairs to iterate (S-157)", func() {
+		MinLength(1)
 	})
 	Attribute("workflow_template", String, "ComfyUI workflow template filename (optional)", func() {
 		Example("qwen-image.json")
 		Default("")
 	})
-	Attribute("vae", String, "ComfyUI VAE model path (optional)", func() {
-		Example("ae.safetensors")
-		Default("")
+	Attribute("vaes", ArrayOf(String), "ComfyUI VAE model paths to iterate (optional; gated by the workflow's vae_loader role)", func() {
+		Example([]string{"ae.safetensors"})
 	})
-	Attribute("text_encoder", String, "ComfyUI CLIP/text encoder model path (optional)", func() {
-		Example("clip_l.safetensors")
-		Default("")
+	Attribute("text_encoders", ArrayOf(String), "ComfyUI CLIP/text encoder model paths to iterate (optional; gated by the workflow's clip_loader role)", func() {
+		Example([]string{"clip_l.safetensors"})
 	})
-	Attribute("shift", Float64, "AuraFlow shift value (optional, nullable)")
+	Attribute("shifts", ArrayOf(Float64), "AuraFlow shift values to iterate (optional; gated by the workflow's shift role)", func() {
+		Example([]float64{3.0})
+	})
 	Attribute("lora_strength_pairs", ArrayOf(LoraStrengthPair), "LoRA strength pairs to iterate (optional, for LoRA training runs)")
-	Required("source_id", "name", "prompt_prefix", "prompts", "negative_prompt", "steps", "cfgs", "sampler_scheduler_pairs", "seeds", "width", "height")
+	Required("source_id", "name", "prompt_prefix", "prompts", "negative_prompt", "steps", "cfgs", "sampler_scheduler_pairs", "seeds", "resolutions")
 })
 
 var NamedPrompt = Type("NamedPrompt", func() {
@@ -399,6 +379,19 @@ var LoraStrengthPair = Type("LoraStrengthPair", func() {
 		Example(1.0)
 	})
 	Required("strength_model", "strength_clip")
+})
+
+var ResolutionPair = Type("ResolutionPair", func() {
+	Description("An image resolution as a width/height pair (S-157)")
+	Attribute("width", Int, "Image width in pixels", func() {
+		Example(1024)
+		Minimum(1)
+	})
+	Attribute("height", Int, "Image height in pixels", func() {
+		Example(1024)
+		Minimum(1)
+	})
+	Required("width", "height")
 })
 
 var SamplerSchedulerPair = Type("SamplerSchedulerPair", func() {

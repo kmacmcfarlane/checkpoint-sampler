@@ -125,6 +125,62 @@ var _ = Describe("Study Store", func() {
 			Expect(retrieved.LoraStrengthPairs[1].StrengthClip).To(Equal(0.5))
 		})
 
+		// AC2 (S-157): multi-value resolution/vae/text-encoder/shift round-trip.
+		It("preserves S-157 multi-value dimensions through entity conversion", func() {
+			now := time.Now().UTC().Truncate(time.Second)
+			original := model.Study{
+				ID:                    "dims-test",
+				Name:                  "Dims Study",
+				Prompts:               []model.NamedPrompt{{Name: "p", Text: "t"}},
+				Steps:                 []int{4},
+				CFGs:                  []float64{1.0},
+				SamplerSchedulerPairs: []model.SamplerSchedulerPair{{Sampler: "euler", Scheduler: "simple"}},
+				Seeds:                 []int64{42},
+				Width:                 1024, Height: 768,
+				Resolutions:  []model.ResolutionPair{{Width: 1024, Height: 768}, {Width: 512, Height: 512}},
+				VAEs:         []string{"ae.safetensors", "vae2.safetensors"},
+				TextEncoders: []string{"clip_l.safetensors"},
+				Shifts:       []float64{3.0, 6.0},
+				CreatedAt:    now,
+				UpdatedAt:    now,
+			}
+
+			Expect(s.CreateStudy(original)).To(Succeed())
+
+			retrieved, err := s.GetStudy("dims-test")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(retrieved.Resolutions).To(Equal(original.Resolutions))
+			Expect(retrieved.VAEs).To(Equal(original.VAEs))
+			Expect(retrieved.TextEncoders).To(Equal(original.TextEncoders))
+			Expect(retrieved.Shifts).To(Equal(original.Shifts))
+		})
+
+		// AC2 (S-157): empty list dimensions round-trip as empty (not nil-crash).
+		It("preserves empty S-157 dimensions as empty lists", func() {
+			now := time.Now().UTC().Truncate(time.Second)
+			original := model.Study{
+				ID:                    "empty-dims",
+				Name:                  "Empty Dims",
+				Prompts:               []model.NamedPrompt{{Name: "p", Text: "t"}},
+				Steps:                 []int{4},
+				CFGs:                  []float64{1.0},
+				SamplerSchedulerPairs: []model.SamplerSchedulerPair{{Sampler: "euler", Scheduler: "simple"}},
+				Seeds:                 []int64{42},
+				Width:                 512, Height: 512,
+				Resolutions: []model.ResolutionPair{{Width: 512, Height: 512}},
+				CreatedAt:   now,
+				UpdatedAt:   now,
+			}
+			Expect(s.CreateStudy(original)).To(Succeed())
+
+			retrieved, err := s.GetStudy("empty-dims")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(retrieved.VAEs).To(BeEmpty())
+			Expect(retrieved.TextEncoders).To(BeEmpty())
+			Expect(retrieved.Shifts).To(BeEmpty())
+			Expect(retrieved.Resolutions).To(HaveLen(1))
+		})
+
 		// AC: BE: Default LoraStrengthPairs is empty array when field is empty
 		It("handles empty LoRA strength pairs", func() {
 			now := time.Now().UTC().Truncate(time.Second)

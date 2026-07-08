@@ -101,6 +101,8 @@ The final schema is the result of these migrations:
 | 22 | Add `base_model` to `sample_jobs`. |
 | 23–25 | Add `lora_model_path`, `strength_model`, `strength_clip` to `sample_job_items`. |
 | 26 | Add three indexes on `sample_job_items`. |
+| 27 | Add `CHECK` constraints on `status` columns (rebuild both job tables). |
+| 28 | S-157: add JSON list columns `resolutions`, `vaes`, `text_encoders`, `shifts` to `studies` (backfilled from the legacy scalar columns); add per-item `vae`, `text_encoder`, `shift` to `sample_job_items`. |
 
 > Note: a `studies.version` column existed transiently (added v12, dropped v13)
 > and is **not** part of the final schema. Study versioning was replaced by
@@ -155,11 +157,18 @@ CREATE TABLE studies (
     created_at               TEXT NOT NULL,                    -- RFC 3339
     updated_at               TEXT NOT NULL,                    -- RFC 3339
     workflow_template        TEXT,                             -- nullable (added v18)
-    vae                      TEXT,                             -- nullable (added v18)
-    text_encoder             TEXT,                             -- nullable (added v18)
-    shift                    REAL,                             -- nullable (added v18)
+    vae                      TEXT,                             -- nullable (added v18; legacy scalar, mirrors vaes[0])
+    text_encoder             TEXT,                             -- nullable (added v18; legacy scalar, mirrors text_encoders[0])
+    shift                    REAL,                             -- nullable (added v18; legacy scalar, mirrors shifts[0])
     lora_strength_pairs      TEXT NOT NULL
-        DEFAULT '[{"strength_model":1.0,"strength_clip":1.0}]'  -- JSON: array of {strength_model, strength_clip} (added v21)
+        DEFAULT '[{"strength_model":1.0,"strength_clip":1.0}]',  -- JSON: array of {strength_model, strength_clip} (added v21)
+    -- S-157 multi-value study dimensions (added v28). The legacy scalar
+    -- width/height/vae/text_encoder/shift columns are retained and mirror the
+    -- first list element for backward-compatible display.
+    resolutions              TEXT NOT NULL DEFAULT '[]',        -- JSON: array of {width, height}
+    vaes                     TEXT NOT NULL DEFAULT '[]',        -- JSON: array of strings
+    text_encoders            TEXT NOT NULL DEFAULT '[]',        -- JSON: array of strings
+    shifts                   TEXT NOT NULL DEFAULT '[]'         -- JSON: array of floats
 );
 
 -- Migration 17:

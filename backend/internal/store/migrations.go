@@ -445,5 +445,29 @@ CREATE INDEX IF NOT EXISTS idx_sample_job_items_job_id_created_at ON sample_job_
 			CREATE INDEX IF NOT EXISTS idx_sample_job_items_job_id_status ON sample_job_items (job_id, status);
 			CREATE INDEX IF NOT EXISTS idx_sample_job_items_job_id_created_at ON sample_job_items (job_id, created_at);`,
 		},
+		{
+			// S-157: Promote Resolution, VAE, Text Encoder, and Shift to multi-value
+			// study dimensions. Add JSON list columns to the studies table and
+			// backfill each existing scalar into a single-element list (empty when
+			// the scalar was NULL/empty). The legacy scalar columns
+			// (width/height/vae/text_encoder/shift) are retained and continue to
+			// mirror the first list element for backward-compatible display.
+			//
+			// Add per-item vae/text_encoder/shift columns to sample_job_items so the
+			// job executor can substitute the resolved value for each work item in
+			// the cross-product (resolution reuses the existing width/height columns).
+			Version: 28,
+			SQL: `ALTER TABLE studies ADD COLUMN resolutions TEXT NOT NULL DEFAULT '[]';
+ALTER TABLE studies ADD COLUMN vaes TEXT NOT NULL DEFAULT '[]';
+ALTER TABLE studies ADD COLUMN text_encoders TEXT NOT NULL DEFAULT '[]';
+ALTER TABLE studies ADD COLUMN shifts TEXT NOT NULL DEFAULT '[]';
+UPDATE studies SET resolutions = json_array(json_object('width', width, 'height', height));
+UPDATE studies SET vaes = CASE WHEN vae IS NULL OR vae = '' THEN '[]' ELSE json_array(vae) END;
+UPDATE studies SET text_encoders = CASE WHEN text_encoder IS NULL OR text_encoder = '' THEN '[]' ELSE json_array(text_encoder) END;
+UPDATE studies SET shifts = CASE WHEN shift IS NULL THEN '[]' ELSE json_array(shift) END;
+ALTER TABLE sample_job_items ADD COLUMN vae TEXT NOT NULL DEFAULT '';
+ALTER TABLE sample_job_items ADD COLUMN text_encoder TEXT NOT NULL DEFAULT '';
+ALTER TABLE sample_job_items ADD COLUMN shift REAL;`,
+		},
 	}
 }

@@ -197,7 +197,7 @@ func (e *JobExecutor) completeJob(jobID string) {
 // It compares expected filenames (derived from the completed items) against actual PNG files in the checkpoint's
 // sample directory. Results are stored in e.checkpointCompleteness and reported as warnings (not failures).
 // studyOutputDir is the versioned study output directory (e.g. "My Study/v1").
-func (e *JobExecutor) verifyCheckpointCompleteness(jobID string, studyOutputDir string, checkpoint string, items []model.SampleJobItem) {
+func (e *JobExecutor) verifyCheckpointCompleteness(jobID string, studyOutputDir string, checkpoint string, items []model.SampleJobItem, fnDims FilenameDimensions) {
 	e.logger.WithFields(logrus.Fields{
 		"job_id":     jobID,
 		"checkpoint": checkpoint,
@@ -208,7 +208,7 @@ func (e *JobExecutor) verifyCheckpointCompleteness(jobID string, studyOutputDir 
 	var expectedFiles []string
 	for _, item := range items {
 		if item.CheckpointFilename == checkpoint && item.Status == model.SampleJobItemStatusCompleted {
-			filename := e.generateOutputFilename(item)
+			filename := e.generateOutputFilename(item, fnDims)
 			expectedFiles = append(expectedFiles, filename)
 		}
 	}
@@ -365,6 +365,9 @@ func (e *JobExecutor) broadcastJobProgress(jobID string) {
 	// written to disk during job execution.
 	studyOutputDir := fileformat.SanitizeTrainingRunName(job.TrainingRunName) + "/" + job.StudyName
 
+	// S-157: swept dimensions control filename encoding; compute once per broadcast.
+	fnDims := e.filenameDimsForJob(job)
+
 	// Compute on-the-fly item counts by status and collect failed item details
 	type errorDetailInfo struct {
 		exceptionType string
@@ -425,7 +428,7 @@ func (e *JobExecutor) broadcastJobProgress(jobID string) {
 			e.mu.Unlock()
 
 			if !alreadyChecked {
-				e.verifyCheckpointCompleteness(jobID, studyOutputDir, checkpoint, items)
+				e.verifyCheckpointCompleteness(jobID, studyOutputDir, checkpoint, items, fnDims)
 			}
 		} else if currentCheckpoint == "" && stats.completed+stats.failed < stats.total {
 			currentCheckpoint = checkpoint

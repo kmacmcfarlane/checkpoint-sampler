@@ -408,6 +408,34 @@ var _ = Describe("GenerateOutputFilename", func() {
 		result := service.GenerateOutputFilename(item)
 		Expect(result).NotTo(ContainSubstring("strength"))
 	})
+
+	// S-157: swept dimensions are encoded into the filename so the scanner can
+	// surface them as grid axes; unswept dimensions are omitted.
+	It("encodes swept S-157 dimensions when requested", func() {
+		shift := 3.5
+		item := model.SampleJobItem{
+			PromptName: "p", Steps: 4, CFG: 1.0, SamplerName: "euler", Scheduler: "simple", Seed: 1,
+			Width: 1024, Height: 768, VAE: "loras/ae.safetensors", TextEncoder: "clip_l.safetensors", Shift: &shift,
+		}
+		result := service.GenerateOutputFilenameWithDims(item, service.FilenameDimensions{
+			Resolution: true, VAE: true, TextEncoder: true, Shift: true,
+		})
+		Expect(result).To(ContainSubstring("resolution=1024x768"))
+		Expect(result).To(ContainSubstring("vae=ae.safetensors"))
+		Expect(result).To(ContainSubstring("text_encoder=clip_l.safetensors"))
+		Expect(result).To(ContainSubstring("shift=3.5"))
+	})
+
+	It("omits S-157 dimensions that are not swept (single-value studies unchanged)", func() {
+		item := model.SampleJobItem{
+			PromptName: "p", Steps: 4, CFG: 1.0, SamplerName: "euler", Scheduler: "simple", Seed: 1,
+			Width: 1024, Height: 768, VAE: "ae.safetensors",
+		}
+		result := service.GenerateOutputFilenameWithDims(item, service.FilenameDimensions{})
+		Expect(result).NotTo(ContainSubstring("resolution="))
+		Expect(result).NotTo(ContainSubstring("vae="))
+		Expect(result).NotTo(ContainSubstring("shift="))
+	})
 })
 
 var _ = Describe("SampleJobService", func() {
@@ -502,6 +530,64 @@ var _ = Describe("SampleJobService", func() {
 
 			// 2 checkpoints × 2 prompts × 2 steps × 2 cfgs × 1 pair × 1 seed = 16
 			Expect(job.TotalItems).To(Equal(16))
+		})
+
+		// S-157 AC4: expansion produces the full cross-product across all non-empty
+		// promoted dimensions and substitutes per-item resolution/VAE/text-encoder/shift.
+		It("expands the cross-product across S-157 multi-value dimensions", func() {
+			multi := store.studies["study-1"]
+			multi.Resolutions = []model.ResolutionPair{{Width: 1024, Height: 1024}, {Width: 768, Height: 768}}
+			multi.VAEs = []string{"ae1.safetensors", "ae2.safetensors"}
+			multi.TextEncoders = []string{"clip_a.safetensors"}
+			multi.Shifts = []float64{2.0, 4.0}
+			store.studies["study-1"] = multi
+
+			job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, false, "", model.TrainingRunKindCheckpoint)
+			Expect(err).NotTo(HaveOccurred())
+
+			// 2 ckpt × 2 prompts × 2 steps × 2 cfgs × 1 pair × 1 seed × 2 res × 2 vae × 1 te × 2 shift = 128
+			Expect(job.TotalItems).To(Equal(128))
+
+			items := store.items[job.ID]
+			widths := map[int]bool{}
+			vaes := map[string]bool{}
+			shifts := map[float64]bool{}
+			for _, it := range items {
+				widths[it.Width] = true
+				vaes[it.VAE] = true
+				if it.Shift != nil {
+					shifts[*it.Shift] = true
+				}
+				Expect(it.TextEncoder).To(Equal("clip_a.safetensors"))
+			}
+			Expect(widths).To(HaveKey(1024))
+			Expect(widths).To(HaveKey(768))
+			Expect(vaes).To(HaveKey("ae1.safetensors"))
+			Expect(vaes).To(HaveKey("ae2.safetensors"))
+			Expect(shifts).To(HaveKey(2.0))
+			Expect(shifts).To(HaveKey(4.0))
+		})
+
+		// S-157: a study with empty promoted dimensions (role not declared) must not
+		// multiply the cross-product nor set spurious per-item values.
+		It("does not multiply the cross-product for empty promoted dimensions", func() {
+			single := store.studies["study-1"]
+			single.Resolutions = []model.ResolutionPair{{Width: 512, Height: 512}}
+			single.VAEs = nil
+			single.TextEncoders = nil
+			single.Shifts = nil
+			store.studies["study-1"] = single
+
+			job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, false, "", model.TrainingRunKindCheckpoint)
+			Expect(err).NotTo(HaveOccurred())
+			// unchanged: 2 ckpt × 8 = 16
+			Expect(job.TotalItems).To(Equal(16))
+			for _, it := range store.items[job.ID] {
+				Expect(it.VAE).To(BeEmpty())
+				Expect(it.TextEncoder).To(BeEmpty())
+				Expect(it.Shift).To(BeNil())
+				Expect(it.Width).To(Equal(512))
+			}
 		})
 
 		It("returns error when study not found", func() {

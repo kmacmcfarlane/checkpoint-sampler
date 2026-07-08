@@ -597,7 +597,7 @@ func (e *JobExecutor) handleItemCompletionAsync(jobID, itemID, promptID string) 
 	}
 
 	// Generate output filename
-	filename := e.generateOutputFilename(*item)
+	filename := e.generateOutputFilename(*item, e.filenameDimsForJob(job))
 	outputPath, err := e.getOutputPath(studyOutputDir, item.CheckpointFilename, filename)
 	if err != nil {
 		e.logger.WithError(err).Error("invalid output path")

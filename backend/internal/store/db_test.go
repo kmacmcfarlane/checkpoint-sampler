@@ -414,7 +414,7 @@ var _ = Describe("Migrate", func() {
 		var count int
 		err = db.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&count)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(count).To(Equal(27))
+		Expect(count).To(Equal(28))
 
 		// Verify the table is functional with width and height columns
 		// First create a study and job to satisfy foreign key constraints
@@ -663,6 +663,64 @@ var _ = Describe("status CHECK constraint migration (S-156)", func() {
 		Expect(err).To(HaveOccurred(), "invalid sample_job_items status must be rejected by CHECK constraint")
 	})
 
+	// AC2 (S-157): migration 28 backfills existing scalar width/height/vae/
+	// text_encoder/shift rows into single-element JSON list columns (empty when
+	// the scalar was NULL).
+	It("backfills existing scalar study rows into S-157 list columns", func() {
+		all := store.AllMigrations()
+
+		// Apply migrations up to and including v27 (pre-S-157 schema).
+		preMigrations := all[:27]
+		Expect(preMigrations[len(preMigrations)-1].Version).To(Equal(27))
+		Expect(store.Migrate(db, preMigrations)).To(Succeed())
+
+		// Row A: all scalars populated.
+		_, err := db.Exec(`
+			INSERT INTO studies (
+				id, name, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs,
+				seeds, width, height, vae, text_encoder, shift, created_at, updated_at
+			) VALUES (
+				'row-a', 'Row A', '["p1"]', 'neg', '[20]', '[7.5]',
+				'[{"sampler":"euler","scheduler":"normal"}]', '[42]', 1024, 768,
+				'ae.safetensors', 'clip_l.safetensors', 3.5,
+				'2025-01-01T00:00:00Z', '2025-01-01T00:00:00Z'
+			)
+		`)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Row B: nullable scalars are NULL.
+		_, err = db.Exec(`
+			INSERT INTO studies (
+				id, name, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs,
+				seeds, width, height, created_at, updated_at
+			) VALUES (
+				'row-b', 'Row B', '["p1"]', 'neg', '[20]', '[7.5]',
+				'[{"sampler":"euler","scheduler":"normal"}]', '[42]', 512, 512,
+				'2025-01-01T00:00:00Z', '2025-01-01T00:00:00Z'
+			)
+		`)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Apply migration 28.
+		Expect(store.Migrate(db, all)).To(Succeed())
+
+		var resA, vaesA, teA, shiftsA string
+		Expect(db.QueryRow(`SELECT resolutions, vaes, text_encoders, shifts FROM studies WHERE id='row-a'`).
+			Scan(&resA, &vaesA, &teA, &shiftsA)).To(Succeed())
+		Expect(resA).To(Equal(`[{"width":1024,"height":768}]`))
+		Expect(vaesA).To(Equal(`["ae.safetensors"]`))
+		Expect(teA).To(Equal(`["clip_l.safetensors"]`))
+		Expect(shiftsA).To(Equal(`[3.5]`))
+
+		var resB, vaesB, teB, shiftsB string
+		Expect(db.QueryRow(`SELECT resolutions, vaes, text_encoders, shifts FROM studies WHERE id='row-b'`).
+			Scan(&resB, &vaesB, &teB, &shiftsB)).To(Succeed())
+		Expect(resB).To(Equal(`[{"width":512,"height":512}]`))
+		Expect(vaesB).To(Equal(`[]`))
+		Expect(teB).To(Equal(`[]`))
+		Expect(shiftsB).To(Equal(`[]`))
+	})
+
 	// AC: valid status values are accepted after migration.
 	DescribeTable("accepts all valid sample_jobs statuses",
 		func(status string) {
@@ -741,7 +799,7 @@ var _ = Describe("status CHECK constraint migration (S-156)", func() {
 var _ = Describe("AllMigrations", func() {
 	It("returns the presets table as migration 1", func() {
 		migrations := store.AllMigrations()
-		Expect(migrations).To(HaveLen(27))
+		Expect(migrations).To(HaveLen(28))
 		Expect(migrations[0].Version).To(Equal(1))
 		Expect(migrations[0].SQL).To(ContainSubstring("CREATE TABLE"))
 		Expect(migrations[0].SQL).To(ContainSubstring("presets"))

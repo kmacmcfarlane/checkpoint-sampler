@@ -718,6 +718,114 @@ var _ = Describe("ValidationService", func() {
 			Expect(result.Checkpoints[1].Missing).To(Equal(1))
 		})
 
+		// S-157 blocker fix: buildExpectedFilenames must expand over swept manifest
+		// dimensions (resolutions/vaes/text_encoders/shifts) and encode them into
+		// the expected filenames, matching what the executor actually wrote via
+		// GenerateOutputFilenameWithDims. Without this, every real sample for a
+		// swept study is treated as "foreign" and every expected sample as missing.
+		DescribeTable("expands expected filenames over swept S-157 dimensions",
+			func(dimName string, mutate func(*fileformat.JobManifest), itemMutate func(*model.SampleJobItem, int)) {
+				manifest := fileformat.JobManifest{
+					JobID:           "job-manifest-dims",
+					TrainingRunName: "model",
+					StudyName:       "Test Study",
+					Prompts: []fileformat.ManifestNamedPrompt{
+						{Name: "prompt1", Text: "text1"},
+					},
+					Steps:                 []int{20},
+					CFGs:                  []float64{7.0},
+					SamplerSchedulerPairs: []fileformat.ManifestSamplerSchedulerPair{
+						{Sampler: "euler", Scheduler: "normal"},
+					},
+					Seeds:  []int64{42},
+					Width:  1024,
+					Height: 768,
+					Checkpoints: []string{"cp1.safetensors"},
+				}
+				mutate(&manifest)
+				// base (1 prompt x 1 step x 1 cfg x 1 pair x 1 seed) x 2 swept values = 2
+				manifest.ImagesPerCheckpoint = 2
+
+				data, err := fileformat.MarshalManifest(manifest)
+				Expect(err).NotTo(HaveOccurred())
+				fs.fileData["/samples/Test Study/manifest.json"] = data
+
+				dims := service.FilenameDimensions{}
+				switch dimName {
+				case "resolution":
+					dims.Resolution = true
+				case "vae":
+					dims.VAE = true
+				case "text_encoder":
+					dims.TextEncoder = true
+				case "shift":
+					dims.Shift = true
+				}
+
+				var files []string
+				for i := 0; i < 2; i++ {
+					item := model.SampleJobItem{
+						PromptName: "prompt1", Steps: 20, CFG: 7.0,
+						SamplerName: "euler", Scheduler: "normal", Seed: 42,
+						Width: 1024, Height: 768,
+					}
+					itemMutate(&item, i)
+					files = append(files, service.GenerateOutputFilenameWithDims(item, dims))
+				}
+				fs.files["/samples/Test Study/cp1.safetensors"] = files
+
+				tr := model.TrainingRun{
+					Name: "model",
+					Checkpoints: []model.Checkpoint{
+						{Filename: "cp1.safetensors", StepNumber: 1000, HasSamples: true},
+					},
+					HasSamples: true,
+				}
+
+				result, err := svc.ValidateTrainingRunWithManifest(tr, "Test Study")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result.ExpectedPerCheckpoint).To(Equal(2))
+				Expect(result.Checkpoints).To(HaveLen(1))
+				Expect(result.Checkpoints[0].Verified).To(Equal(2))
+				Expect(result.Checkpoints[0].Missing).To(Equal(0))
+				Expect(result.Checkpoints[0].Extra).To(Equal(0))
+			},
+			Entry("resolution", "resolution", func(m *fileformat.JobManifest) {
+				m.Resolutions = []fileformat.ManifestResolutionPair{{Width: 1024, Height: 768}, {Width: 512, Height: 512}}
+			}, func(item *model.SampleJobItem, i int) {
+				if i == 1 {
+					item.Width, item.Height = 512, 512
+				}
+			}),
+			Entry("vae", "vae", func(m *fileformat.JobManifest) {
+				m.VAEs = []string{"ae1.safetensors", "ae2.safetensors"}
+			}, func(item *model.SampleJobItem, i int) {
+				if i == 0 {
+					item.VAE = "ae1.safetensors"
+				} else {
+					item.VAE = "ae2.safetensors"
+				}
+			}),
+			Entry("text_encoder", "text_encoder", func(m *fileformat.JobManifest) {
+				m.TextEncoders = []string{"clip_a.safetensors", "clip_b.safetensors"}
+			}, func(item *model.SampleJobItem, i int) {
+				if i == 0 {
+					item.TextEncoder = "clip_a.safetensors"
+				} else {
+					item.TextEncoder = "clip_b.safetensors"
+				}
+			}),
+			Entry("shift", "shift", func(m *fileformat.JobManifest) {
+				m.Shifts = []float64{1.0, 2.0}
+			}, func(item *model.SampleJobItem, i int) {
+				v := 1.0
+				if i == 1 {
+					v = 2.0
+				}
+				item.Shift = &v
+			}),
+		)
+
 		It("returns error when manifest file does not exist", func() {
 			tr := model.TrainingRun{
 				Name: "model",

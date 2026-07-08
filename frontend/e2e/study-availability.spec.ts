@@ -63,8 +63,7 @@ test.describe('study availability and selector (S-086)', () => {
         cfgs: [7.0],
         sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
         seeds: [42],
-        width: 512,
-        height: 512,
+        resolutions: [{ width: 512, height: 512 }],
       },
     })
     expect(studyResp.ok()).toBeTruthy()
@@ -123,8 +122,7 @@ test.describe('study availability and selector (S-086)', () => {
         cfgs: [7.0],
         sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
         seeds: [42],
-        width: 512,
-        height: 512,
+        resolutions: [{ width: 512, height: 512 }],
       },
     })
     expect(study1Resp.ok()).toBeTruthy()
@@ -139,8 +137,7 @@ test.describe('study availability and selector (S-086)', () => {
         cfgs: [5.0],
         sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
         seeds: [1],
-        width: 512,
-        height: 512,
+        resolutions: [{ width: 512, height: 512 }],
       },
     })
     expect(study2Resp.ok()).toBeTruthy()
@@ -186,8 +183,7 @@ test.describe('study availability and selector (S-086)', () => {
         cfgs: [7.0],
         sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
         seeds: [42],
-        width: 512,
-        height: 512,
+        resolutions: [{ width: 512, height: 512 }],
       },
     })
     expect(study1Resp.ok()).toBeTruthy()
@@ -203,8 +199,7 @@ test.describe('study availability and selector (S-086)', () => {
         cfgs: [5.0],
         sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
         seeds: [1],
-        width: 512,
-        height: 512,
+        resolutions: [{ width: 512, height: 512 }],
       },
     })
 
@@ -245,8 +240,7 @@ test.describe('study availability and selector (S-086)', () => {
         cfgs: [7.0],
         sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
         seeds: [42],
-        width: 512,
-        height: 512,
+        resolutions: [{ width: 512, height: 512 }],
       },
     })
     expect(studyResp.ok()).toBeTruthy()

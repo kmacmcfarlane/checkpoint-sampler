@@ -48,8 +48,7 @@ test.describe('B-078: validation count scoping', () => {
         cfgs: [7.0],
         sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
         seeds: [42],
-        width: 512,
-        height: 512,
+        resolutions: [{ width: 512, height: 512 }],
       },
     })
     expect(studyResp.ok()).toBeTruthy()
@@ -114,8 +113,7 @@ test.describe('B-078: validation count scoping', () => {
         cfgs: [7.0],
         sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
         seeds: [42],
-        width: 512,
-        height: 512,
+        resolutions: [{ width: 512, height: 512 }],
       },
     })
     expect(studyResp.ok()).toBeTruthy()
@@ -176,8 +174,7 @@ test.describe('B-078: validation count scoping', () => {
         cfgs: [7.0],
         sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
         seeds: [42],
-        width: 512,
-        height: 512,
+        resolutions: [{ width: 512, height: 512 }],
       },
     })
     expect(studyAResp.ok()).toBeTruthy()
@@ -197,8 +194,7 @@ test.describe('B-078: validation count scoping', () => {
         cfgs: [7.0],
         sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
         seeds: [42, 43],
-        width: 512,
-        height: 512,
+        resolutions: [{ width: 512, height: 512 }],
       },
     })
     expect(studyBResp.ok()).toBeTruthy()

@@ -58,11 +58,11 @@ const studies: Study[] = [
       { sampler: 'heun', scheduler: 'normal' },
     ],
     seeds: [42, 420],
-    width: 1024,
-    height: 1024,
+    resolutions: [{ width: 1024, height: 1024 }],
     workflow_template: 'my-workflow.json',
-    vae: 'ae.safetensors',
-    text_encoder: 'clip_l.safetensors',
+    vaes: ['ae.safetensors'],
+    text_encoders: ['clip_l.safetensors'],
+    shifts: [],
     lora_strength_pairs: [{ strength_model: 1.0, strength_clip: 1.0 }],
     images_per_checkpoint: 72, // 2*3*3*2*2 = 72
     created_at: '2025-01-01T00:00:00Z',
@@ -81,11 +81,11 @@ const studies: Study[] = [
       { sampler: 'euler', scheduler: 'normal' },
     ],
     seeds: [1337],
-    width: 512,
-    height: 512,
+    resolutions: [{ width: 512, height: 512 }],
     workflow_template: '',
-    vae: '',
-    text_encoder: '',
+    vaes: [],
+    text_encoders: [],
+    shifts: [],
     lora_strength_pairs: [{ strength_model: 1.0, strength_clip: 1.0 }],
     images_per_checkpoint: 1,
     created_at: '2025-01-02T00:00:00Z',
@@ -130,8 +130,9 @@ describe('StudyEditor', () => {
     await flushPromises()
 
     expect(wrapper.findComponent(NInput).exists()).toBe(true)
-    // Three NDynamicInput: prompts, sampler/scheduler pairs, LoRA strength pairs
-    expect(wrapper.findAllComponents(NDynamicInput)).toHaveLength(3)
+    // Four NDynamicInput: prompts, sampler/scheduler pairs, LoRA strength pairs, resolutions (S-157)
+    expect(wrapper.findAllComponents(NDynamicInput)).toHaveLength(4)
+    // Three NDynamicTags: steps, cfgs, seeds (shift is gated by workflow role)
     expect(wrapper.findAllComponents(NDynamicTags)).toHaveLength(3)
   })
 
@@ -279,10 +280,11 @@ describe('StudyEditor', () => {
     const negativeInput = asVue(wrapper.findComponent('[data-testid="negative-prompt-input"]'))
     expect(negativeInput.props('value')).toBe('low quality')
 
-    const widthInput = asVue(wrapper.findComponent('[data-testid="study-width-input"]'))
+    // S-157: resolution is now a paired dynamic list; verify the first row values.
+    const widthInput = asVue(wrapper.findComponent('[data-testid="resolution-width-0"]'))
     expect(widthInput.props('value')).toBe(1024)
 
-    const heightInput = asVue(wrapper.findComponent('[data-testid="study-height-input"]'))
+    const heightInput = asVue(wrapper.findComponent('[data-testid="resolution-height-0"]'))
     expect(heightInput.props('value')).toBe(1024)
   })
 
@@ -343,11 +345,11 @@ describe('StudyEditor', () => {
       cfgs: [7.0],
       sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
       seeds: [42],
-      width: 1024,
-      height: 1024,
+      resolutions: [{ width: 1024, height: 1024 }],
       workflow_template: '',
-      vae: '',
-      text_encoder: '',
+      vaes: [],
+      text_encoders: [],
+      shifts: [],
       lora_strength_pairs: [{ strength_model: 1.0, strength_clip: 1.0 }],
       images_per_checkpoint: 1,
       created_at: '2025-01-03T00:00:00Z',
@@ -397,8 +399,11 @@ describe('StudyEditor', () => {
       sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
       lora_strength_pairs: [{ strength_model: 1.0, strength_clip: 1.0 }],
       seeds: [42],
-      width: 1024,
-      height: 1024,
+      resolutions: [{ width: 1024, height: 1024 }],
+      workflow_template: undefined,
+      vaes: [],
+      text_encoders: [],
+      shifts: [],
     })
   })
 
@@ -409,6 +414,19 @@ describe('StudyEditor', () => {
       updated_at: '2025-01-03T00:00:00Z',
     }
     mockUpdateStudy.mockResolvedValue(updatedPreset)
+
+    // S-157: vaes/text_encoders are only sent when the loaded study's workflow
+    // declares the matching role, so the workflow list must include a
+    // definition for 'my-workflow.json' (preset-1's workflow_template).
+    mockListWorkflows.mockResolvedValue([
+      {
+        name: 'my-workflow.json',
+        validation_state: 'valid',
+        roles: { save_image: ['9'], unet_loader: ['4'], vae_loader: ['4'], clip_loader: ['5'] },
+        warnings: [],
+        lora_capable: false,
+      },
+    ])
 
     const wrapper = mount(StudyEditor)
     await flushPromises()
@@ -446,11 +464,11 @@ describe('StudyEditor', () => {
       ],
       lora_strength_pairs: [{ strength_model: 1.0, strength_clip: 1.0 }],
       seeds: [42, 420],
-      width: 1024,
-      height: 1024,
+      resolutions: [{ width: 1024, height: 1024 }],
       workflow_template: 'my-workflow.json',
-      vae: 'ae.safetensors',
-      text_encoder: 'clip_l.safetensors',
+      vaes: ['ae.safetensors'],
+      text_encoders: ['clip_l.safetensors'],
+      shifts: [],
     })
   })
 
@@ -834,11 +852,11 @@ describe('StudyEditor', () => {
       cfgs: [7.0],
       sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
       seeds: [42],
-      width: 1024,
-      height: 1024,
+      resolutions: [{ width: 1024, height: 1024 }],
       workflow_template: '',
-      vae: '',
-      text_encoder: '',
+      vaes: [],
+      text_encoders: [],
+      shifts: [],
       lora_strength_pairs: [{ strength_model: 1.0, strength_clip: 1.0 }],
       images_per_checkpoint: 1,
       created_at: '2025-01-03T00:00:00Z',
@@ -1194,11 +1212,11 @@ describe('StudyEditor', () => {
           { sampler: 'heun', scheduler: 'karras' },
         ],
         seeds: [42],
-        width: 1024,
-        height: 1024,
+        resolutions: [{ width: 1024, height: 1024 }],
         workflow_template: '',
-        vae: '',
-        text_encoder: '',
+        vaes: [],
+        text_encoders: [],
+        shifts: [],
         lora_strength_pairs: [{ strength_model: 1.0, strength_clip: 1.0 }],
         images_per_checkpoint: 2,
         created_at: '2025-01-03T00:00:00Z',
@@ -1254,9 +1272,9 @@ describe('StudyEditor', () => {
       const wrapper = mount(StudyEditor)
       await flushPromises()
 
-      // The third NDynamicInput holds LoRA strength pairs
+      // The third NDynamicInput holds LoRA strength pairs (4th is resolutions, S-157)
       const dynamicInputs = wrapper.findAllComponents(NDynamicInput)
-      expect(dynamicInputs).toHaveLength(3)
+      expect(dynamicInputs).toHaveLength(4)
       const loraPairsInput = dynamicInputs[2]
       expect(loraPairsInput.exists()).toBe(true)
 
@@ -1369,11 +1387,11 @@ describe('StudyEditor', () => {
         sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
         lora_strength_pairs: [{ strength_model: 0.8, strength_clip: 0.6 }],
         seeds: [42],
-        width: 1024,
-        height: 1024,
+        resolutions: [{ width: 1024, height: 1024 }],
         workflow_template: '',
-        vae: '',
-        text_encoder: '',
+        vaes: [],
+        text_encoders: [],
+        shifts: [],
         images_per_checkpoint: 1,
         created_at: '2025-01-01T00:00:00Z',
         updated_at: '2025-01-01T00:00:00Z',
@@ -1508,11 +1526,11 @@ describe('StudyEditor', () => {
         cfgs: [7.0],
         sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
         seeds: [42],
-        width: 1024,
-        height: 1024,
+        resolutions: [{ width: 1024, height: 1024 }],
         workflow_template: '',
-        vae: '',
-        text_encoder: '',
+        vaes: [],
+        text_encoders: [],
+        shifts: [],
         lora_strength_pairs: [{ strength_model: 1.0, strength_clip: 1.0 }],
         images_per_checkpoint: 1,
         created_at: '2025-01-03T00:00:00Z',
@@ -1604,8 +1622,7 @@ describe('StudyEditor', () => {
         cfgs: [7.0],
         sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'simple' }],
         seeds: [42],
-        width: 512,
-        height: 512,
+        resolutions: [{ width: 512, height: 512 }],
       }
 
       it('accepts a valid payload and returns ok with data', () => {
@@ -1614,7 +1631,7 @@ describe('StudyEditor', () => {
         if (result.ok) {
           expect(result.data.name).toBe('My Study')
           expect(result.data.steps).toEqual([20, 30])
-          expect(result.data.width).toBe(512)
+          expect(result.data.resolutions).toEqual([{ width: 512, height: 512 }])
         }
       })
 
@@ -1808,48 +1825,39 @@ describe('StudyEditor', () => {
         if (!result.ok) expect(result.error).toContain('cfgs[0]')
       })
 
-      it('returns error when width is NaN', () => {
-        const result = validateStudyImport({ ...validPayload, width: NaN })
-        expect(result.ok).toBe(false)
-        if (!result.ok) expect(result.error).toContain('"width"')
+      // S-157: resolutions is the multi-value resolution dimension.
+      it('accepts a resolutions list and returns it', () => {
+        const result = validateStudyImport({ ...validPayload, resolutions: [{ width: 1024, height: 768 }, { width: 512, height: 512 }] })
+        expect(result.ok).toBe(true)
+        if (result.ok) {
+          expect(result.data.resolutions).toEqual([{ width: 1024, height: 768 }, { width: 512, height: 512 }])
+        }
       })
 
-      it('returns error when height is NaN', () => {
-        const result = validateStudyImport({ ...validPayload, height: NaN })
+      it('returns error when resolutions is an empty array', () => {
+        const result = validateStudyImport({ ...validPayload, resolutions: [] })
         expect(result.ok).toBe(false)
-        if (!result.ok) expect(result.error).toContain('"height"')
+        if (!result.ok) expect(result.error).toContain('resolutions')
       })
 
-      it('returns error when width is missing', () => {
-        const { width: _w, ...rest } = validPayload
+      it('returns error when a resolution width is not positive', () => {
+        const result = validateStudyImport({ ...validPayload, resolutions: [{ width: 0, height: 512 }] })
+        expect(result.ok).toBe(false)
+        if (!result.ok) expect(result.error).toContain('resolutions[0].width')
+      })
+
+      it('accepts legacy scalar width/height and wraps into a single resolution', () => {
+        const { resolutions: _r, ...rest } = validPayload
+        const result = validateStudyImport({ ...rest, width: 640, height: 480 })
+        expect(result.ok).toBe(true)
+        if (result.ok) expect(result.data.resolutions).toEqual([{ width: 640, height: 480 }])
+      })
+
+      it('returns error when neither resolutions nor legacy width is provided', () => {
+        const { resolutions: _r, ...rest } = validPayload
         const result = validateStudyImport(rest)
         expect(result.ok).toBe(false)
-        if (!result.ok) expect(result.error).toContain('"width"')
-      })
-
-      it('returns error when width is not a number', () => {
-        const result = validateStudyImport({ ...validPayload, width: '512' })
-        expect(result.ok).toBe(false)
-        if (!result.ok) expect(result.error).toContain('"width"')
-      })
-
-      it('returns error when width is zero or negative', () => {
-        const result = validateStudyImport({ ...validPayload, width: 0 })
-        expect(result.ok).toBe(false)
-        if (!result.ok) expect(result.error).toContain('"width"')
-      })
-
-      it('returns error when height is missing', () => {
-        const { height: _h, ...rest } = validPayload
-        const result = validateStudyImport(rest)
-        expect(result.ok).toBe(false)
-        if (!result.ok) expect(result.error).toContain('"height"')
-      })
-
-      it('returns error when height is negative', () => {
-        const result = validateStudyImport({ ...validPayload, height: -1 })
-        expect(result.ok).toBe(false)
-        if (!result.ok) expect(result.error).toContain('"height"')
+        if (!result.ok) expect(result.error).toContain('width')
       })
 
       it('extracts workflow_template when present as a string', () => {
@@ -1864,81 +1872,83 @@ describe('StudyEditor', () => {
         if (result.ok) expect(result.data.workflow_template).toBeUndefined()
       })
 
-      it('omits workflow_template when value is not a string', () => {
-        const result = validateStudyImport({ ...validPayload, workflow_template: 42 })
+      // S-157: vaes / text_encoders are multi-value list dimensions.
+      it('extracts vaes list when present', () => {
+        const result = validateStudyImport({ ...validPayload, vaes: ['ae.safetensors', 'ae2.safetensors'] })
         expect(result.ok).toBe(true)
-        if (result.ok) expect(result.data.workflow_template).toBeUndefined()
+        if (result.ok) expect(result.data.vaes).toEqual(['ae.safetensors', 'ae2.safetensors'])
       })
 
-      it('extracts vae when present as a string', () => {
+      it('accepts legacy scalar vae and wraps into a list', () => {
         const result = validateStudyImport({ ...validPayload, vae: 'ae.safetensors' })
         expect(result.ok).toBe(true)
-        if (result.ok) expect(result.data.vae).toBe('ae.safetensors')
+        if (result.ok) expect(result.data.vaes).toEqual(['ae.safetensors'])
       })
 
-      it('omits vae when absent', () => {
+      it('defaults vaes to empty list when absent', () => {
         const result = validateStudyImport(validPayload)
         expect(result.ok).toBe(true)
-        if (result.ok) expect(result.data.vae).toBeUndefined()
+        if (result.ok) expect(result.data.vaes).toEqual([])
       })
 
-      it('extracts text_encoder when present as a string', () => {
+      it('returns error when vaes contains a non-string', () => {
+        const result = validateStudyImport({ ...validPayload, vaes: [42] })
+        expect(result.ok).toBe(false)
+        if (!result.ok) expect(result.error).toContain('vaes[0]')
+      })
+
+      it('extracts text_encoders list when present', () => {
+        const result = validateStudyImport({ ...validPayload, text_encoders: ['clip_l.safetensors'] })
+        expect(result.ok).toBe(true)
+        if (result.ok) expect(result.data.text_encoders).toEqual(['clip_l.safetensors'])
+      })
+
+      it('accepts legacy scalar text_encoder and wraps into a list', () => {
         const result = validateStudyImport({ ...validPayload, text_encoder: 'clip_l.safetensors' })
         expect(result.ok).toBe(true)
-        if (result.ok) expect(result.data.text_encoder).toBe('clip_l.safetensors')
+        if (result.ok) expect(result.data.text_encoders).toEqual(['clip_l.safetensors'])
       })
 
-      it('omits text_encoder when absent', () => {
-        const result = validateStudyImport(validPayload)
+      // S-157: shifts is a multi-value numeric list dimension.
+      it('extracts shifts list when present', () => {
+        const result = validateStudyImport({ ...validPayload, shifts: [3.5, 6.0] })
         expect(result.ok).toBe(true)
-        if (result.ok) expect(result.data.text_encoder).toBeUndefined()
+        if (result.ok) expect(result.data.shifts).toEqual([3.5, 6.0])
       })
 
-      it('extracts shift when present as a finite number', () => {
+      it('accepts legacy scalar shift and wraps into a list', () => {
         const result = validateStudyImport({ ...validPayload, shift: 3.5 })
         expect(result.ok).toBe(true)
-        if (result.ok) expect(result.data.shift).toBe(3.5)
+        if (result.ok) expect(result.data.shifts).toEqual([3.5])
       })
 
-      it('extracts shift of zero', () => {
-        const result = validateStudyImport({ ...validPayload, shift: 0 })
-        expect(result.ok).toBe(true)
-        if (result.ok) expect(result.data.shift).toBe(0)
-      })
-
-      it('omits shift when absent', () => {
+      it('defaults shifts to empty list when absent', () => {
         const result = validateStudyImport(validPayload)
         expect(result.ok).toBe(true)
-        if (result.ok) expect(result.data.shift).toBeUndefined()
+        if (result.ok) expect(result.data.shifts).toEqual([])
       })
 
-      it('omits shift when value is not a finite number', () => {
-        const result = validateStudyImport({ ...validPayload, shift: 'fast' })
-        expect(result.ok).toBe(true)
-        if (result.ok) expect(result.data.shift).toBeUndefined()
+      it('returns error when shifts contains a non-number', () => {
+        const result = validateStudyImport({ ...validPayload, shifts: ['fast'] })
+        expect(result.ok).toBe(false)
+        if (!result.ok) expect(result.error).toContain('shifts[0]')
       })
 
-      it('omits shift when value is NaN', () => {
-        const result = validateStudyImport({ ...validPayload, shift: NaN })
-        expect(result.ok).toBe(true)
-        if (result.ok) expect(result.data.shift).toBeUndefined()
-      })
-
-      it('round-trips all workflow fields through validate', () => {
+      it('round-trips all workflow list fields through validate', () => {
         const payload = {
           ...validPayload,
           workflow_template: 'my-workflow.json',
-          vae: 'ae.safetensors',
-          text_encoder: 'clip_l.safetensors',
-          shift: 2.5,
+          vaes: ['ae.safetensors'],
+          text_encoders: ['clip_l.safetensors'],
+          shifts: [2.5],
         }
         const result = validateStudyImport(payload)
         expect(result.ok).toBe(true)
         if (result.ok) {
           expect(result.data.workflow_template).toBe('my-workflow.json')
-          expect(result.data.vae).toBe('ae.safetensors')
-          expect(result.data.text_encoder).toBe('clip_l.safetensors')
-          expect(result.data.shift).toBe(2.5)
+          expect(result.data.vaes).toEqual(['ae.safetensors'])
+          expect(result.data.text_encoders).toEqual(['clip_l.safetensors'])
+          expect(result.data.shifts).toEqual([2.5])
         }
       })
     })
@@ -1974,6 +1984,20 @@ describe('StudyEditor', () => {
       })
 
       it('export button triggers download with correct JSON shape excluding id and timestamps', async () => {
+        // S-157: vaes/text_encoders are only exported when the loaded study's
+        // workflow declares the matching role, so the workflow list must include
+        // a definition for 'my-workflow.json' (preset-1's workflow_template)
+        // with vae_loader/clip_loader roles.
+        mockListWorkflows.mockResolvedValue([
+          {
+            name: 'my-workflow.json',
+            validation_state: 'valid',
+            roles: { save_image: ['9'], unet_loader: ['4'], vae_loader: ['4'], clip_loader: ['5'] },
+            warnings: [],
+            lora_capable: false,
+          },
+        ])
+
         // Capture the Blob passed to createObjectURL
         let capturedBlob: Blob | undefined
         const createObjectURL = vi.fn((blob: Blob) => {
@@ -2031,8 +2055,7 @@ describe('StudyEditor', () => {
             { sampler: 'heun', scheduler: 'normal' },
           ])
           expect(parsed.seeds).toEqual([42, 420])
-          expect(parsed.width).toBe(1024)
-          expect(parsed.height).toBe(1024)
+          expect(parsed.resolutions).toEqual([{ width: 1024, height: 1024 }])
 
           // Must NOT have id, created_at, updated_at, images_per_checkpoint
           expect(parsed).not.toHaveProperty('id')
@@ -2040,10 +2063,10 @@ describe('StudyEditor', () => {
           expect(parsed).not.toHaveProperty('updated_at')
           expect(parsed).not.toHaveProperty('images_per_checkpoint')
 
-          // Workflow fields from preset-1
+          // Workflow fields from preset-1 (S-157 list dimensions)
           expect(parsed.workflow_template).toBe('my-workflow.json')
-          expect(parsed.vae).toBe('ae.safetensors')
-          expect(parsed.text_encoder).toBe('clip_l.safetensors')
+          expect(parsed.vaes).toEqual(['ae.safetensors'])
+          expect(parsed.text_encoders).toEqual(['clip_l.safetensors'])
 
           // Download filename should use study name
           expect(mockAnchor.download).toBe('Test Preset A.json')
@@ -2078,8 +2101,7 @@ describe('StudyEditor', () => {
           cfgs: [6.5],
           sampler_scheduler_pairs: [{ sampler: 'dpm_2', scheduler: 'karras' }],
           seeds: [100],
-          width: 768,
-          height: 768,
+          resolutions: [{ width: 768, height: 768 }],
         }
 
         // Mount first so Vue can create all its DOM elements without interference
@@ -2141,8 +2163,8 @@ describe('StudyEditor', () => {
         // selected study should be null (new study mode)
         expect(select.props('value')).toBeNull()
 
-        // Width/height updated
-        const widthInput = asVue(wrapper.findComponent('[data-testid="study-width-input"]'))
+        // Resolution updated (S-157 paired dynamic list)
+        const widthInput = asVue(wrapper.findComponent('[data-testid="resolution-width-0"]'))
         expect(widthInput.props('value')).toBe(768)
       })
 
@@ -2156,12 +2178,11 @@ describe('StudyEditor', () => {
           cfgs: [7.0],
           sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'simple' }],
           seeds: [1],
-          width: 512,
-          height: 512,
+          resolutions: [{ width: 512, height: 512 }],
           workflow_template: 'flux-dev.json',
-          vae: 'ae.safetensors',
-          text_encoder: 'clip_l.safetensors',
-          shift: 3.5,
+          vaes: ['ae.safetensors'],
+          text_encoders: ['clip_l.safetensors'],
+          shifts: [3.5],
         }
 
         const wrapper = mount(StudyEditor)
@@ -2193,14 +2214,14 @@ describe('StudyEditor', () => {
 
         const vm = wrapper.vm as unknown as {
           workflowTemplate: string | null
-          selectedVAE: string | null
-          selectedCLIP: string | null
-          shiftValue: number | null
+          selectedVAEs: string[]
+          selectedTextEncoders: string[]
+          shifts: number[]
         }
         expect(vm.workflowTemplate).toBe('flux-dev.json')
-        expect(vm.selectedVAE).toBe('ae.safetensors')
-        expect(vm.selectedCLIP).toBe('clip_l.safetensors')
-        expect(vm.shiftValue).toBe(3.5)
+        expect(vm.selectedVAEs).toEqual(['ae.safetensors'])
+        expect(vm.selectedTextEncoders).toEqual(['clip_l.safetensors'])
+        expect(vm.shifts).toEqual([3.5])
       })
 
       it('clears workflow fields when importing data without them', async () => {
@@ -2213,8 +2234,7 @@ describe('StudyEditor', () => {
           cfgs: [7.0],
           sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'simple' }],
           seeds: [1],
-          width: 512,
-          height: 512,
+          resolutions: [{ width: 512, height: 512 }],
         }
 
         const wrapper = mount(StudyEditor)
@@ -2251,14 +2271,14 @@ describe('StudyEditor', () => {
 
         const vm = wrapper.vm as unknown as {
           workflowTemplate: string | null
-          selectedVAE: string | null
-          selectedCLIP: string | null
-          shiftValue: number | null
+          selectedVAEs: string[]
+          selectedTextEncoders: string[]
+          shifts: number[]
         }
         expect(vm.workflowTemplate).toBeNull()
-        expect(vm.selectedVAE).toBeNull()
-        expect(vm.selectedCLIP).toBeNull()
-        expect(vm.shiftValue).toBeNull()
+        expect(vm.selectedVAEs).toEqual([])
+        expect(vm.selectedTextEncoders).toEqual([])
+        expect(vm.shifts).toEqual([])
       })
 
       it('shows error when JSON file is invalid', async () => {
@@ -3182,14 +3202,15 @@ describe('StudyEditor', () => {
       {
         name: 'flux-image.json',
         validation_state: 'valid',
-        roles: { save_image: ['9'], unet_loader: ['4'] },
+        // S-157: VAE/CLIP dimensions are gated by these roles.
+        roles: { save_image: ['9'], unet_loader: ['4'], vae_loader: ['4'], clip_loader: ['5'] },
         warnings: [],
         lora_capable: false,
       },
       {
         name: 'auraflow-image.json',
         validation_state: 'valid',
-        roles: { save_image: ['9'], unet_loader: ['4'], shift: ['3'] },
+        roles: { save_image: ['9'], unet_loader: ['4'], vae_loader: ['4'], clip_loader: ['5'], shift: ['3'] },
         warnings: [],
         lora_capable: false,
       },
@@ -3272,14 +3293,14 @@ describe('StudyEditor', () => {
 
       const vm = wrapper.vm as unknown as {
         workflowTemplate: string | null
-        selectedVAE: string | null
-        selectedCLIP: string | null
-        shiftValue: number | null
+        selectedVAEs: string[]
+        selectedTextEncoders: string[]
+        shifts: number[]
       }
       expect(vm.workflowTemplate).toBe('my-workflow.json')
-      expect(vm.selectedVAE).toBe('ae.safetensors')
-      expect(vm.selectedCLIP).toBe('clip_l.safetensors')
-      expect(vm.shiftValue).toBeNull()
+      expect(vm.selectedVAEs).toEqual(['ae.safetensors'])
+      expect(vm.selectedTextEncoders).toEqual(['clip_l.safetensors'])
+      expect(vm.shifts).toEqual([])
     })
 
     // AC: workflow_template, vae, text_encoder are sent in create payload
@@ -3294,11 +3315,11 @@ describe('StudyEditor', () => {
         cfgs: [7.0],
         sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
         seeds: [42],
-        width: 1024,
-        height: 1024,
+        resolutions: [{ width: 1024, height: 1024 }],
         workflow_template: 'flux-image.json',
-        vae: 'ae.safetensors',
-        text_encoder: 'clip_l.safetensors',
+        vaes: ['ae.safetensors'],
+        text_encoders: ['clip_l.safetensors'],
+        shifts: [],
         lora_strength_pairs: [{ strength_model: 1.0, strength_clip: 1.0 }],
         images_per_checkpoint: 1,
         created_at: '2025-01-03T00:00:00Z',
@@ -3314,10 +3335,12 @@ describe('StudyEditor', () => {
       nameInput.vm.$emit('update:value', 'Workflow Study')
       await nextTick()
 
-      // Set workflow, VAE, CLIP
+      // Set workflow, VAE, CLIP. VAE/CLIP selects are gated by workflow roles, so
+      // wait for the workflow selection to render them before emitting.
       wrapper.find('[data-testid="study-workflow-template-select"]').findComponent(NSelect).vm.$emit('update:value', 'flux-image.json')
-      wrapper.find('[data-testid="study-vae-select"]').findComponent(NSelect).vm.$emit('update:value', 'ae.safetensors')
-      wrapper.find('[data-testid="study-clip-select"]').findComponent(NSelect).vm.$emit('update:value', 'clip_l.safetensors')
+      await nextTick()
+      wrapper.find('[data-testid="study-vae-select"]').findComponent(NSelect).vm.$emit('update:value', ['ae.safetensors'])
+      wrapper.find('[data-testid="study-clip-select"]').findComponent(NSelect).vm.$emit('update:value', ['clip_l.safetensors'])
 
       // Also add a sampler pair and prompt to meet canSave requirements
       const vm = wrapper.vm as unknown as {
@@ -3335,8 +3358,8 @@ describe('StudyEditor', () => {
       expect(mockCreateStudy).toHaveBeenCalled()
       const payload = mockCreateStudy.mock.calls[0][0]
       expect(payload.workflow_template).toBe('flux-image.json')
-      expect(payload.vae).toBe('ae.safetensors')
-      expect(payload.text_encoder).toBe('clip_l.safetensors')
+      expect(payload.vaes).toEqual(['ae.safetensors'])
+      expect(payload.text_encoders).toEqual(['clip_l.safetensors'])
     })
 
     // AC: MRU workflow template is applied when creating a new study
@@ -3372,9 +3395,9 @@ describe('StudyEditor', () => {
       wrapper.find('[data-testid="study-workflow-template-select"]').findComponent(NSelect).vm.$emit('update:value', 'flux-image.json')
       await nextTick()
 
-      const vm = wrapper.vm as unknown as { selectedVAE: string | null; selectedCLIP: string | null }
-      expect(vm.selectedVAE).toBe('ae.safetensors')
-      expect(vm.selectedCLIP).toBe('clip_l.safetensors')
+      const vm = wrapper.vm as unknown as { selectedVAEs: string[]; selectedTextEncoders: string[] }
+      expect(vm.selectedVAEs).toEqual(['ae.safetensors'])
+      expect(vm.selectedTextEncoders).toEqual(['clip_l.safetensors'])
 
       localStorage.removeItem('checkpoint-sampler:mru-workflow-vae-te')
     })
@@ -3389,9 +3412,9 @@ describe('StudyEditor', () => {
       wrapper.find('[data-testid="study-workflow-template-select"]').findComponent(NSelect).vm.$emit('update:value', 'flux-image.json')
       await nextTick()
 
-      const vm = wrapper.vm as unknown as { selectedVAE: string | null; selectedCLIP: string | null }
-      expect(vm.selectedVAE).toBeNull()
-      expect(vm.selectedCLIP).toBeNull()
+      const vm = wrapper.vm as unknown as { selectedVAEs: string[]; selectedTextEncoders: string[] }
+      expect(vm.selectedVAEs).toEqual([])
+      expect(vm.selectedTextEncoders).toEqual([])
     })
 
     // AC1: MRU VAE/TE are saved per-workflow when study is saved
@@ -3406,11 +3429,11 @@ describe('StudyEditor', () => {
         cfgs: [7.0],
         sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
         seeds: [42],
-        width: 1024,
-        height: 1024,
+        resolutions: [{ width: 1024, height: 1024 }],
         workflow_template: 'flux-image.json',
-        vae: 'ae.safetensors',
-        text_encoder: 'clip_l.safetensors',
+        vaes: ['ae.safetensors'],
+        text_encoders: ['clip_l.safetensors'],
+        shifts: [],
         lora_strength_pairs: [{ strength_model: 1.0, strength_clip: 1.0 }],
         images_per_checkpoint: 1,
         created_at: '2025-01-03T00:00:00Z',
@@ -3426,8 +3449,8 @@ describe('StudyEditor', () => {
       // Set form fields directly via vm to meet canSave requirements
       const vm = wrapper.vm as unknown as {
         workflowTemplate: string | null
-        selectedVAE: string | null
-        selectedCLIP: string | null
+        selectedVAEs: string[]
+        selectedTextEncoders: string[]
         samplerSchedulerPairs: Array<{ sampler: string; scheduler: string }>
         prompts: Array<{ name: string; text: string }>
       }
@@ -3437,8 +3460,8 @@ describe('StudyEditor', () => {
       await nextTick()
 
       // Set VAE and CLIP
-      wrapper.find('[data-testid="study-vae-select"]').findComponent(NSelect).vm.$emit('update:value', 'ae.safetensors')
-      wrapper.find('[data-testid="study-clip-select"]').findComponent(NSelect).vm.$emit('update:value', 'clip_l.safetensors')
+      wrapper.find('[data-testid="study-vae-select"]').findComponent(NSelect).vm.$emit('update:value', ['ae.safetensors'])
+      wrapper.find('[data-testid="study-clip-select"]').findComponent(NSelect).vm.$emit('update:value', ['clip_l.safetensors'])
       await nextTick()
 
       const nameInput = asVue(wrapper.findComponent('[data-testid="study-name-input"]'))
@@ -3455,7 +3478,7 @@ describe('StudyEditor', () => {
       const rawMru = localStorage.getItem('checkpoint-sampler:mru-workflow-vae-te')
       expect(rawMru).not.toBeNull()
       const mru = JSON.parse(rawMru!)
-      expect(mru['flux-image.json']).toEqual({ vae: 'ae.safetensors', textEncoder: 'clip_l.safetensors', shift: null })
+      expect(mru['flux-image.json']).toEqual({ vaes: ['ae.safetensors'], textEncoders: ['clip_l.safetensors'], shifts: [] })
 
       localStorage.removeItem('checkpoint-sampler:mru-workflow-vae-te')
     })
@@ -3477,9 +3500,9 @@ describe('StudyEditor', () => {
       await nextTick()
 
       // The values from the study should be preserved, NOT the MRU values
-      const vm = wrapper.vm as unknown as { selectedVAE: string | null; selectedCLIP: string | null }
-      expect(vm.selectedVAE).toBe('ae.safetensors')
-      expect(vm.selectedCLIP).toBe('clip_l.safetensors')
+      const vm = wrapper.vm as unknown as { selectedVAEs: string[]; selectedTextEncoders: string[] }
+      expect(vm.selectedVAEs).toEqual(['ae.safetensors'])
+      expect(vm.selectedTextEncoders).toEqual(['clip_l.safetensors'])
 
       localStorage.removeItem('checkpoint-sampler:mru-workflow-vae-te')
     })
@@ -3502,15 +3525,15 @@ describe('StudyEditor', () => {
       // Select first workflow
       workflowSelect.vm.$emit('update:value', 'flux-image.json')
       await nextTick()
-      const vm = wrapper.vm as unknown as { selectedVAE: string | null; selectedCLIP: string | null }
-      expect(vm.selectedVAE).toBe('flux-vae.safetensors')
-      expect(vm.selectedCLIP).toBe('clip_l.safetensors')
+      const vm = wrapper.vm as unknown as { selectedVAEs: string[]; selectedTextEncoders: string[] }
+      expect(vm.selectedVAEs).toEqual(['flux-vae.safetensors'])
+      expect(vm.selectedTextEncoders).toEqual(['clip_l.safetensors'])
 
       // Switch to second workflow
       workflowSelect.vm.$emit('update:value', 'auraflow-image.json')
       await nextTick()
-      expect(vm.selectedVAE).toBe('aura-vae.safetensors')
-      expect(vm.selectedCLIP).toBe('t5xxl.safetensors')
+      expect(vm.selectedVAEs).toEqual(['aura-vae.safetensors'])
+      expect(vm.selectedTextEncoders).toEqual(['t5xxl.safetensors'])
 
       localStorage.removeItem('checkpoint-sampler:mru-workflow-vae-te')
     })
@@ -3548,15 +3571,15 @@ describe('StudyEditor', () => {
       // Verify MRU values were applied
       const vm = wrapper.vm as unknown as {
         workflowTemplate: string | null
-        selectedVAE: string | null
-        selectedCLIP: string | null
-        shiftValue: number | null
+        selectedVAEs: string[]
+        selectedTextEncoders: string[]
+        shifts: number[]
         samplerSchedulerPairs: Array<{ sampler: string; scheduler: string }>
       }
       expect(vm.workflowTemplate).toBe('flux-image.json')
-      expect(vm.selectedVAE).toBe('ae.safetensors')
-      expect(vm.selectedCLIP).toBe('clip_l.safetensors')
-      expect(vm.shiftValue).toBe(2.5)
+      expect(vm.selectedVAEs).toEqual(['ae.safetensors'])
+      expect(vm.selectedTextEncoders).toEqual(['clip_l.safetensors'])
+      expect(vm.shifts).toEqual([2.5])
       expect(vm.samplerSchedulerPairs).toEqual([{ sampler: 'euler', scheduler: 'karras' }])
     })
 
@@ -3576,10 +3599,10 @@ describe('StudyEditor', () => {
       wrapper.find('[data-testid="study-workflow-template-select"]').findComponent(NSelect).vm.$emit('update:value', 'auraflow-image.json')
       await nextTick()
 
-      const vm = wrapper.vm as unknown as { shiftValue: number | null; selectedVAE: string | null; selectedCLIP: string | null }
-      expect(vm.shiftValue).toBe(3.0)
-      expect(vm.selectedVAE).toBe('aura-vae.safetensors')
-      expect(vm.selectedCLIP).toBe('t5xxl.safetensors')
+      const vm = wrapper.vm as unknown as { shifts: number[]; selectedVAEs: string[]; selectedTextEncoders: string[] }
+      expect(vm.shifts).toEqual([3.0])
+      expect(vm.selectedVAEs).toEqual(['aura-vae.safetensors'])
+      expect(vm.selectedTextEncoders).toEqual(['t5xxl.safetensors'])
     })
 
     // B-126 AC2: Shift value in MRU is saved alongside VAE/TE on study save
@@ -3594,12 +3617,11 @@ describe('StudyEditor', () => {
         cfgs: [7.0],
         sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'simple' }],
         seeds: [42],
-        width: 1024,
-        height: 1024,
+        resolutions: [{ width: 1024, height: 1024 }],
         workflow_template: 'auraflow-image.json',
-        vae: 'ae.safetensors',
-        text_encoder: 'clip_l.safetensors',
-        shift: 4.5,
+        vaes: ['ae.safetensors'],
+        text_encoders: ['clip_l.safetensors'],
+        shifts: [4.5],
         lora_strength_pairs: [{ strength_model: 1.0, strength_clip: 1.0 }],
         images_per_checkpoint: 1,
         created_at: '2025-01-01T00:00:00Z',
@@ -3616,9 +3638,9 @@ describe('StudyEditor', () => {
       // Set form fields directly via vm to meet canSave requirements
       const vm = wrapper.vm as unknown as {
         workflowTemplate: string | null
-        selectedVAE: string | null
-        selectedCLIP: string | null
-        shiftValue: number | null
+        selectedVAEs: string[]
+        selectedTextEncoders: string[]
+        shifts: number[]
         samplerSchedulerPairs: Array<{ sampler: string; scheduler: string }>
         prompts: Array<{ name: string; text: string }>
       }
@@ -3628,12 +3650,12 @@ describe('StudyEditor', () => {
       await nextTick()
 
       // Set VAE and CLIP
-      wrapper.find('[data-testid="study-vae-select"]').findComponent(NSelect).vm.$emit('update:value', 'ae.safetensors')
-      wrapper.find('[data-testid="study-clip-select"]').findComponent(NSelect).vm.$emit('update:value', 'clip_l.safetensors')
+      wrapper.find('[data-testid="study-vae-select"]').findComponent(NSelect).vm.$emit('update:value', ['ae.safetensors'])
+      wrapper.find('[data-testid="study-clip-select"]').findComponent(NSelect).vm.$emit('update:value', ['clip_l.safetensors'])
       await nextTick()
 
       // Set shift and required fields
-      vm.shiftValue = 4.5
+      vm.shifts = [4.5]
       vm.samplerSchedulerPairs = [{ sampler: 'euler', scheduler: 'simple' }]
       vm.prompts = [{ name: 'test', text: 'a test prompt' }]
 
@@ -3651,10 +3673,78 @@ describe('StudyEditor', () => {
       expect(rawMru).not.toBeNull()
       const mru = JSON.parse(rawMru!)
       expect(mru['auraflow-image.json']).toEqual({
-        vae: 'ae.safetensors',
-        textEncoder: 'clip_l.safetensors',
-        shift: 4.5,
+        vaes: ['ae.safetensors'],
+        textEncoders: ['clip_l.safetensors'],
+        shifts: [4.5],
       })
+    })
+
+    // S-157 important fix: switching away from a shift-capable workflow to one
+    // without the shift role must clear the persisted shifts, even though the
+    // shifts ref itself is not reset (the input is merely hidden via v-if).
+    // Without gating the save payload by hasShiftRole, stale shift values would
+    // be sent and would multiply the cross-product / surface a spurious "shift"
+    // dimension for a workflow that never declared the role.
+    it('does not persist shift values when the currently selected workflow has no shift role', async () => {
+      const createdStudy: Study = {
+        id: 'no-shift-role-study',
+        name: 'No Shift Role Study',
+        prompt_prefix: '',
+        prompts: [{ name: 'test', text: 'a test prompt' }],
+        negative_prompt: '',
+        steps: [30],
+        cfgs: [7.0],
+        sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'simple' }],
+        seeds: [42],
+        resolutions: [{ width: 1024, height: 1024 }],
+        workflow_template: 'flux-image.json',
+        vaes: ['ae.safetensors'],
+        text_encoders: ['clip_l.safetensors'],
+        shifts: [],
+        lora_strength_pairs: [{ strength_model: 1.0, strength_clip: 1.0 }],
+        images_per_checkpoint: 1,
+        created_at: '2025-01-01T00:00:00Z',
+        updated_at: '2025-01-01T00:00:00Z',
+      }
+      mockCreateStudy.mockResolvedValue(createdStudy)
+      mockListWorkflows.mockResolvedValue(sampleWorkflows)
+
+      const wrapper = mount(StudyEditor)
+      await flushPromises()
+
+      const vm = wrapper.vm as unknown as {
+        shifts: number[]
+        samplerSchedulerPairs: Array<{ sampler: string; scheduler: string }>
+        prompts: Array<{ name: string; text: string }>
+      }
+
+      // Select the shift-capable workflow and set a shift value.
+      wrapper.find('[data-testid="study-workflow-template-select"]').findComponent(NSelect).vm.$emit('update:value', 'auraflow-image.json')
+      await nextTick()
+      vm.shifts = [1.0, 2.0]
+      await nextTick()
+      expect(wrapper.find('[data-testid="study-shift-input"]').exists()).toBe(true)
+
+      // Switch to a workflow WITHOUT a shift role. The shift input is hidden,
+      // but vm.shifts is NOT automatically cleared by the component.
+      wrapper.find('[data-testid="study-workflow-template-select"]').findComponent(NSelect).vm.$emit('update:value', 'flux-image.json')
+      await nextTick()
+      expect(wrapper.find('[data-testid="study-shift-input"]').exists()).toBe(false)
+      expect(vm.shifts).toEqual([1.0, 2.0]) // stale value still in the ref
+
+      vm.samplerSchedulerPairs = [{ sampler: 'euler', scheduler: 'simple' }]
+      vm.prompts = [{ name: 'test', text: 'a test prompt' }]
+      const nameInput = asVue(wrapper.findComponent('[data-testid="study-name-input"]'))
+      nameInput.vm.$emit('update:value', 'No Shift Role Study')
+      await nextTick()
+
+      const saveButton = wrapper.findAllComponents(NButton).find(b => b.text().includes('Save Study'))!
+      await saveButton.trigger('click')
+      await flushPromises()
+
+      expect(mockCreateStudy).toHaveBeenCalled()
+      const payload = mockCreateStudy.mock.calls[0][0]
+      expect(payload.shifts).toEqual([])
     })
 
     // B-126: Backward compat — MRU entries without shift field still work
@@ -3673,11 +3763,11 @@ describe('StudyEditor', () => {
       wrapper.find('[data-testid="study-workflow-template-select"]').findComponent(NSelect).vm.$emit('update:value', 'flux-image.json')
       await nextTick()
 
-      const vm = wrapper.vm as unknown as { shiftValue: number | null; selectedVAE: string | null; selectedCLIP: string | null }
-      expect(vm.selectedVAE).toBe('ae.safetensors')
-      expect(vm.selectedCLIP).toBe('clip_l.safetensors')
-      // Shift should be null when not present in MRU (backward compat)
-      expect(vm.shiftValue).toBeNull()
+      const vm = wrapper.vm as unknown as { shifts: number[]; selectedVAEs: string[]; selectedTextEncoders: string[] }
+      expect(vm.selectedVAEs).toEqual(['ae.safetensors'])
+      expect(vm.selectedTextEncoders).toEqual(['clip_l.safetensors'])
+      // Shift should be empty when not present in MRU (backward compat)
+      expect(vm.shifts).toEqual([])
     })
   })
 
@@ -3696,11 +3786,11 @@ describe('StudyEditor', () => {
         cfgs: [7.0],
         sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'karras' }],
         seeds: [42],
-        width: 1024,
-        height: 1024,
+        resolutions: [{ width: 1024, height: 1024 }],
         workflow_template: 'flux-dev.json',
-        vae: '',
-        text_encoder: '',
+        vaes: [],
+        text_encoders: [],
+        shifts: [],
         lora_strength_pairs: [{ strength_model: 1.0, strength_clip: 1.0 }],
         images_per_checkpoint: 1,
         created_at: '2025-01-03T00:00:00Z',
@@ -3838,11 +3928,11 @@ describe('StudyEditor', () => {
         cfgs: [1.0, 3.0, 7.0],
         sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'simple' }],
         seeds: [42, 420],
-        width: 1024,
-        height: 1024,
+        resolutions: [{ width: 1024, height: 1024 }],
         workflow_template: 'my-workflow.json',
-        vae: 'ae.safetensors',
-        text_encoder: 'clip_l.safetensors',
+        vaes: ['ae.safetensors'],
+        text_encoders: ['clip_l.safetensors'],
+        shifts: [],
         lora_strength_pairs: [{ strength_model: 1.0, strength_clip: 1.0 }],
         images_per_checkpoint: 1,
         created_at: '2025-01-03T00:00:00Z',

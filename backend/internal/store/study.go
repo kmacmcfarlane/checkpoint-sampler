@@ -28,6 +28,10 @@ type studyEntity struct {
 	TextEncoder           *string  // nullable
 	Shift                 *float64 // nullable
 	LoraStrengthPairs     string   // JSON
+	Resolutions           string   // JSON (S-157)
+	VAEs                  string   // JSON (S-157)
+	TextEncoders          string   // JSON (S-157)
+	Shifts                string   // JSON (S-157)
 	CreatedAt             string   // RFC3339
 	UpdatedAt             string   // RFC3339
 }
@@ -50,12 +54,18 @@ type loraStrengthPairJSON struct {
 	StrengthClip  float64 `json:"strength_clip"`
 }
 
+// resolutionPairJSON is the JSON shape for resolution pairs (S-157).
+type resolutionPairJSON struct {
+	Width  int `json:"width"`
+	Height int `json:"height"`
+}
+
 // ListStudies returns all studies ordered by name.
 func (s *Store) ListStudies() ([]model.Study, error) {
 	s.logger.Trace("entering ListStudies")
 	defer s.logger.Trace("returning from ListStudies")
 
-	rows, err := s.db.Query(`SELECT id, name, prompt_prefix, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs, seeds, width, height, workflow_template, vae, text_encoder, shift, lora_strength_pairs, created_at, updated_at
+	rows, err := s.db.Query(`SELECT id, name, prompt_prefix, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs, seeds, width, height, workflow_template, vae, text_encoder, shift, lora_strength_pairs, resolutions, vaes, text_encoders, shifts, created_at, updated_at
 		FROM studies ORDER BY name`)
 	if err != nil {
 		s.logger.WithError(err).Error("failed to query studies")
@@ -66,7 +76,7 @@ func (s *Store) ListStudies() ([]model.Study, error) {
 	var studies []model.Study
 	for rows.Next() {
 		var e studyEntity
-		if err := rows.Scan(&e.ID, &e.Name, &e.PromptPrefix, &e.Prompts, &e.NegativePrompt, &e.Steps, &e.CFGs, &e.SamplerSchedulerPairs, &e.Seeds, &e.Width, &e.Height, &e.WorkflowTemplate, &e.VAE, &e.TextEncoder, &e.Shift, &e.LoraStrengthPairs, &e.CreatedAt, &e.UpdatedAt); err != nil {
+		if err := rows.Scan(&e.ID, &e.Name, &e.PromptPrefix, &e.Prompts, &e.NegativePrompt, &e.Steps, &e.CFGs, &e.SamplerSchedulerPairs, &e.Seeds, &e.Width, &e.Height, &e.WorkflowTemplate, &e.VAE, &e.TextEncoder, &e.Shift, &e.LoraStrengthPairs, &e.Resolutions, &e.VAEs, &e.TextEncoders, &e.Shifts, &e.CreatedAt, &e.UpdatedAt); err != nil {
 			s.logger.WithError(err).Error("failed to scan study row")
 			return nil, fmt.Errorf("scanning study row: %w", err)
 		}
@@ -92,9 +102,9 @@ func (s *Store) GetStudy(id string) (model.Study, error) {
 
 	var e studyEntity
 	err := s.db.QueryRow(
-		`SELECT id, name, prompt_prefix, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs, seeds, width, height, workflow_template, vae, text_encoder, shift, lora_strength_pairs, created_at, updated_at
+		`SELECT id, name, prompt_prefix, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs, seeds, width, height, workflow_template, vae, text_encoder, shift, lora_strength_pairs, resolutions, vaes, text_encoders, shifts, created_at, updated_at
 		FROM studies WHERE id = ?`, id,
-	).Scan(&e.ID, &e.Name, &e.PromptPrefix, &e.Prompts, &e.NegativePrompt, &e.Steps, &e.CFGs, &e.SamplerSchedulerPairs, &e.Seeds, &e.Width, &e.Height, &e.WorkflowTemplate, &e.VAE, &e.TextEncoder, &e.Shift, &e.LoraStrengthPairs, &e.CreatedAt, &e.UpdatedAt)
+	).Scan(&e.ID, &e.Name, &e.PromptPrefix, &e.Prompts, &e.NegativePrompt, &e.Steps, &e.CFGs, &e.SamplerSchedulerPairs, &e.Seeds, &e.Width, &e.Height, &e.WorkflowTemplate, &e.VAE, &e.TextEncoder, &e.Shift, &e.LoraStrengthPairs, &e.Resolutions, &e.VAEs, &e.TextEncoders, &e.Shifts, &e.CreatedAt, &e.UpdatedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			s.logger.WithField("study_id", id).Debug("study not found in database")
@@ -128,8 +138,8 @@ func (s *Store) CreateStudy(st model.Study) error {
 	}
 
 	_, err = s.db.Exec(
-		`INSERT INTO studies (id, name, prompt_prefix, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs, seeds, width, height, workflow_template, vae, text_encoder, shift, lora_strength_pairs, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO studies (id, name, prompt_prefix, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs, seeds, width, height, workflow_template, vae, text_encoder, shift, lora_strength_pairs, resolutions, vaes, text_encoders, shifts, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		entity.ID,
 		entity.Name,
 		entity.PromptPrefix,
@@ -146,6 +156,10 @@ func (s *Store) CreateStudy(st model.Study) error {
 		entity.TextEncoder,
 		entity.Shift,
 		entity.LoraStrengthPairs,
+		entity.Resolutions,
+		entity.VAEs,
+		entity.TextEncoders,
+		entity.Shifts,
 		entity.CreatedAt,
 		entity.UpdatedAt,
 	)
@@ -183,7 +197,7 @@ func (s *Store) UpdateStudy(st model.Study) error {
 	}
 
 	result, err := s.db.Exec(
-		`UPDATE studies SET name = ?, prompt_prefix = ?, prompts = ?, negative_prompt = ?, steps = ?, cfgs = ?, sampler_scheduler_pairs = ?, seeds = ?, width = ?, height = ?, workflow_template = ?, vae = ?, text_encoder = ?, shift = ?, lora_strength_pairs = ?, updated_at = ?
+		`UPDATE studies SET name = ?, prompt_prefix = ?, prompts = ?, negative_prompt = ?, steps = ?, cfgs = ?, sampler_scheduler_pairs = ?, seeds = ?, width = ?, height = ?, workflow_template = ?, vae = ?, text_encoder = ?, shift = ?, lora_strength_pairs = ?, resolutions = ?, vaes = ?, text_encoders = ?, shifts = ?, updated_at = ?
 		WHERE id = ?`,
 		entity.Name,
 		entity.PromptPrefix,
@@ -200,6 +214,10 @@ func (s *Store) UpdateStudy(st model.Study) error {
 		entity.TextEncoder,
 		entity.Shift,
 		entity.LoraStrengthPairs,
+		entity.Resolutions,
+		entity.VAEs,
+		entity.TextEncoders,
+		entity.Shifts,
 		entity.UpdatedAt,
 		entity.ID,
 	)
@@ -241,14 +259,14 @@ func (s *Store) GetStudyByName(name string, excludeID string) (model.Study, erro
 	var err error
 	if excludeID == "" {
 		err = s.db.QueryRow(
-			`SELECT id, name, prompt_prefix, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs, seeds, width, height, workflow_template, vae, text_encoder, shift, lora_strength_pairs, created_at, updated_at
+			`SELECT id, name, prompt_prefix, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs, seeds, width, height, workflow_template, vae, text_encoder, shift, lora_strength_pairs, resolutions, vaes, text_encoders, shifts, created_at, updated_at
 			FROM studies WHERE name = ? LIMIT 1`, name,
-		).Scan(&e.ID, &e.Name, &e.PromptPrefix, &e.Prompts, &e.NegativePrompt, &e.Steps, &e.CFGs, &e.SamplerSchedulerPairs, &e.Seeds, &e.Width, &e.Height, &e.WorkflowTemplate, &e.VAE, &e.TextEncoder, &e.Shift, &e.LoraStrengthPairs, &e.CreatedAt, &e.UpdatedAt)
+		).Scan(&e.ID, &e.Name, &e.PromptPrefix, &e.Prompts, &e.NegativePrompt, &e.Steps, &e.CFGs, &e.SamplerSchedulerPairs, &e.Seeds, &e.Width, &e.Height, &e.WorkflowTemplate, &e.VAE, &e.TextEncoder, &e.Shift, &e.LoraStrengthPairs, &e.Resolutions, &e.VAEs, &e.TextEncoders, &e.Shifts, &e.CreatedAt, &e.UpdatedAt)
 	} else {
 		err = s.db.QueryRow(
-			`SELECT id, name, prompt_prefix, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs, seeds, width, height, workflow_template, vae, text_encoder, shift, lora_strength_pairs, created_at, updated_at
+			`SELECT id, name, prompt_prefix, prompts, negative_prompt, steps, cfgs, sampler_scheduler_pairs, seeds, width, height, workflow_template, vae, text_encoder, shift, lora_strength_pairs, resolutions, vaes, text_encoders, shifts, created_at, updated_at
 			FROM studies WHERE name = ? AND id != ? LIMIT 1`, name, excludeID,
-		).Scan(&e.ID, &e.Name, &e.PromptPrefix, &e.Prompts, &e.NegativePrompt, &e.Steps, &e.CFGs, &e.SamplerSchedulerPairs, &e.Seeds, &e.Width, &e.Height, &e.WorkflowTemplate, &e.VAE, &e.TextEncoder, &e.Shift, &e.LoraStrengthPairs, &e.CreatedAt, &e.UpdatedAt)
+		).Scan(&e.ID, &e.Name, &e.PromptPrefix, &e.Prompts, &e.NegativePrompt, &e.Steps, &e.CFGs, &e.SamplerSchedulerPairs, &e.Seeds, &e.Width, &e.Height, &e.WorkflowTemplate, &e.VAE, &e.TextEncoder, &e.Shift, &e.LoraStrengthPairs, &e.Resolutions, &e.VAEs, &e.TextEncoders, &e.Shifts, &e.CreatedAt, &e.UpdatedAt)
 	}
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -326,6 +344,33 @@ func studyEntityToModel(e studyEntity) (model.Study, error) {
 		return model.Study{}, fmt.Errorf("unmarshaling lora_strength_pairs: %w", err)
 	}
 
+	// S-157 multi-value dimensions. Older rows (pre-migration-28) or test fixtures
+	// may have empty column strings; treat those as empty lists.
+	var resolutionsJSON []resolutionPairJSON
+	if e.Resolutions != "" {
+		if err := json.Unmarshal([]byte(e.Resolutions), &resolutionsJSON); err != nil {
+			return model.Study{}, fmt.Errorf("unmarshaling resolutions: %w", err)
+		}
+	}
+	var vaes []string
+	if e.VAEs != "" {
+		if err := json.Unmarshal([]byte(e.VAEs), &vaes); err != nil {
+			return model.Study{}, fmt.Errorf("unmarshaling vaes: %w", err)
+		}
+	}
+	var textEncoders []string
+	if e.TextEncoders != "" {
+		if err := json.Unmarshal([]byte(e.TextEncoders), &textEncoders); err != nil {
+			return model.Study{}, fmt.Errorf("unmarshaling text_encoders: %w", err)
+		}
+	}
+	var shifts []float64
+	if e.Shifts != "" {
+		if err := json.Unmarshal([]byte(e.Shifts), &shifts); err != nil {
+			return model.Study{}, fmt.Errorf("unmarshaling shifts: %w", err)
+		}
+	}
+
 	createdAt, err := time.Parse(time.RFC3339, e.CreatedAt)
 	if err != nil {
 		return model.Study{}, fmt.Errorf("parsing created_at: %w", err)
@@ -359,6 +404,11 @@ func studyEntityToModel(e studyEntity) (model.Study, error) {
 		}
 	}
 
+	resolutions := make([]model.ResolutionPair, len(resolutionsJSON))
+	for i, rp := range resolutionsJSON {
+		resolutions[i] = model.ResolutionPair{Width: rp.Width, Height: rp.Height}
+	}
+
 	// Convert nullable pointer fields to their zero-value equivalents for the model.
 	workflowTemplate := ""
 	if e.WorkflowTemplate != nil {
@@ -389,6 +439,10 @@ func studyEntityToModel(e studyEntity) (model.Study, error) {
 		VAE:                   vae,
 		TextEncoder:           textEncoder,
 		Shift:                 e.Shift,
+		Resolutions:           resolutions,
+		VAEs:                  vaes,
+		TextEncoders:          textEncoders,
+		Shifts:                shifts,
 		LoraStrengthPairs:     loraPairs,
 		CreatedAt:             createdAt,
 		UpdatedAt:             updatedAt,
@@ -448,6 +502,40 @@ func studyModelToEntity(st model.Study) (studyEntity, error) {
 		return studyEntity{}, fmt.Errorf("marshaling lora_strength_pairs: %w", err)
 	}
 
+	// S-157: marshal multi-value dimensions. Empty/nil lists serialize to "[]".
+	resolutionsJSON := make([]resolutionPairJSON, len(st.Resolutions))
+	for i, rp := range st.Resolutions {
+		resolutionsJSON[i] = resolutionPairJSON{Width: rp.Width, Height: rp.Height}
+	}
+	resolutionsBytes, err := json.Marshal(resolutionsJSON)
+	if err != nil {
+		return studyEntity{}, fmt.Errorf("marshaling resolutions: %w", err)
+	}
+	vaesList := st.VAEs
+	if vaesList == nil {
+		vaesList = []string{}
+	}
+	vaesBytes, err := json.Marshal(vaesList)
+	if err != nil {
+		return studyEntity{}, fmt.Errorf("marshaling vaes: %w", err)
+	}
+	textEncodersList := st.TextEncoders
+	if textEncodersList == nil {
+		textEncodersList = []string{}
+	}
+	textEncodersBytes, err := json.Marshal(textEncodersList)
+	if err != nil {
+		return studyEntity{}, fmt.Errorf("marshaling text_encoders: %w", err)
+	}
+	shiftsList := st.Shifts
+	if shiftsList == nil {
+		shiftsList = []float64{}
+	}
+	shiftsBytes, err := json.Marshal(shiftsList)
+	if err != nil {
+		return studyEntity{}, fmt.Errorf("marshaling shifts: %w", err)
+	}
+
 	// Convert empty string fields to nil pointers so they are stored as NULL.
 	var workflowTemplate *string
 	if st.WorkflowTemplate != "" {
@@ -479,6 +567,10 @@ func studyModelToEntity(st model.Study) (studyEntity, error) {
 		TextEncoder:           textEncoder,
 		Shift:                 st.Shift,
 		LoraStrengthPairs:     string(loraPairsBytes),
+		Resolutions:           string(resolutionsBytes),
+		VAEs:                  string(vaesBytes),
+		TextEncoders:          string(textEncodersBytes),
+		Shifts:                string(shiftsBytes),
 		CreatedAt:             st.CreatedAt.UTC().Format(time.RFC3339),
 		UpdatedAt:             st.UpdatedAt.UTC().Format(time.RFC3339),
 	}, nil

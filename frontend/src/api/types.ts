@@ -201,6 +201,12 @@ export interface LoraStrengthPair {
   strength_clip: number
 }
 
+/** An image resolution as a width/height pair (S-157). */
+export interface ResolutionPair {
+  width: number
+  height: number
+}
+
 /** A saved study (generation parameter set). */
 export interface Study {
   id: string
@@ -212,16 +218,16 @@ export interface Study {
   cfgs: number[]
   sampler_scheduler_pairs: SamplerSchedulerPair[]
   seeds: number[]
-  width: number
-  height: number
+  /** Resolution pairs to iterate (S-157). */
+  resolutions: ResolutionPair[]
   /** ComfyUI workflow template filename (optional). */
   workflow_template: string
-  /** ComfyUI VAE model path (optional). */
-  vae: string
-  /** ComfyUI CLIP/text encoder model path (optional). */
-  text_encoder: string
-  /** AuraFlow shift value (optional, nullable). */
-  shift?: number
+  /** ComfyUI VAE model paths to iterate (S-157; gated by the workflow's vae_loader role). */
+  vaes: string[]
+  /** ComfyUI CLIP/text encoder model paths to iterate (S-157; gated by the workflow's clip_loader role). */
+  text_encoders: string[]
+  /** AuraFlow shift values to iterate (S-157; gated by the workflow's shift role). */
+  shifts: number[]
   /** LoRA strength pairs for model and CLIP weights. */
   lora_strength_pairs: LoraStrengthPair[]
   images_per_checkpoint: number
@@ -239,12 +245,11 @@ export interface CreateStudyPayload {
   cfgs: number[]
   sampler_scheduler_pairs: SamplerSchedulerPair[]
   seeds: number[]
-  width: number
-  height: number
+  resolutions: ResolutionPair[]
   workflow_template?: string
-  vae?: string
-  text_encoder?: string
-  shift?: number
+  vaes?: string[]
+  text_encoders?: string[]
+  shifts?: number[]
   lora_strength_pairs?: LoraStrengthPair[]
 }
 
@@ -259,12 +264,11 @@ export interface UpdateStudyPayload {
   cfgs: number[]
   sampler_scheduler_pairs: SamplerSchedulerPair[]
   seeds: number[]
-  width: number
-  height: number
+  resolutions: ResolutionPair[]
   workflow_template?: string
-  vae?: string
-  text_encoder?: string
-  shift?: number
+  vaes?: string[]
+  text_encoders?: string[]
+  shifts?: number[]
   lora_strength_pairs?: LoraStrengthPair[]
 }
 
@@ -279,12 +283,11 @@ export interface ForkStudyPayload {
   cfgs: number[]
   sampler_scheduler_pairs: SamplerSchedulerPair[]
   seeds: number[]
-  width: number
-  height: number
+  resolutions: ResolutionPair[]
   workflow_template?: string
-  vae?: string
-  text_encoder?: string
-  shift?: number
+  vaes?: string[]
+  text_encoders?: string[]
+  shifts?: number[]
   lora_strength_pairs?: LoraStrengthPair[]
 }
 

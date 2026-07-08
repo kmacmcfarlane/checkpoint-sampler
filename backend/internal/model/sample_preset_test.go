@@ -99,3 +99,46 @@ var _ = Describe("JoinPromptPrefix", func() {
 			}),
 	)
 })
+
+var _ = Describe("Study.ImagesPerCheckpoint (S-157 multi-value dimensions)", func() {
+	baseStudy := func() model.Study {
+		return model.Study{
+			Prompts:               []model.NamedPrompt{{Name: "p", Text: "t"}},
+			Steps:                 []int{4},
+			CFGs:                  []float64{1.0},
+			SamplerSchedulerPairs: []model.SamplerSchedulerPair{{Sampler: "euler", Scheduler: "simple"}},
+			Seeds:                 []int64{1},
+		}
+	}
+
+	It("treats empty resolution/vae/text-encoder/shift dimensions as a factor of 1", func() {
+		s := baseStudy()
+		Expect(s.ImagesPerCheckpoint()).To(Equal(1))
+	})
+
+	It("behaves identically when each new dimension has exactly one value", func() {
+		s := baseStudy()
+		s.Resolutions = []model.ResolutionPair{{Width: 1024, Height: 1024}}
+		s.VAEs = []string{"ae.safetensors"}
+		s.TextEncoders = []string{"clip_l.safetensors"}
+		s.Shifts = []float64{3.0}
+		Expect(s.ImagesPerCheckpoint()).To(Equal(1))
+	})
+
+	It("multiplies the product by each non-empty new dimension", func() {
+		s := baseStudy()
+		s.Resolutions = []model.ResolutionPair{{Width: 1024, Height: 1024}, {Width: 768, Height: 768}} // ×2
+		s.VAEs = []string{"a", "b", "c"}                                                                // ×3
+		s.TextEncoders = []string{"x", "y"}                                                             // ×2
+		s.Shifts = []float64{1.0, 2.0}                                                                  // ×2
+		// 1 prompt × 1 step × 1 cfg × 1 pair × 1 seed × 2 × 3 × 2 × 2 = 24
+		Expect(s.ImagesPerCheckpoint()).To(Equal(24))
+	})
+
+	It("does not multiply for an empty dimension a workflow does not declare", func() {
+		s := baseStudy()
+		s.Resolutions = []model.ResolutionPair{{Width: 512, Height: 512}}
+		s.Shifts = nil // shift role not present → empty → factor 1
+		Expect(s.ImagesPerCheckpoint()).To(Equal(1))
+	})
+})

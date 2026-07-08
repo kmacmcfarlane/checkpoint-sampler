@@ -129,8 +129,7 @@ test.describe('duplicate value validation (B-043)', () => {
       cfgs: [7.0],
       sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
       seeds: [42],
-      width: 512,
-      height: 512,
+      resolutions: [{ width: 512, height: 512 }],
     }
 
     const createResponse = await request.post('/api/studies', { data: payload })
@@ -153,8 +152,7 @@ test.describe('duplicate value validation (B-043)', () => {
       cfgs: [7.0],
       sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
       seeds: [42],
-      width: 512,
-      height: 512,
+      resolutions: [{ width: 512, height: 512 }],
     }
 
     const response = await request.post('/api/studies', { data: payload })
@@ -173,8 +171,7 @@ test.describe('duplicate value validation (B-043)', () => {
       cfgs: [7.0],
       sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
       seeds: [42, 100, 42],
-      width: 512,
-      height: 512,
+      resolutions: [{ width: 512, height: 512 }],
     }
 
     const response = await request.post('/api/studies', { data: payload })
@@ -193,8 +190,7 @@ test.describe('duplicate value validation (B-043)', () => {
       cfgs: [7.0, 3.0, 7.0],
       sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
       seeds: [42],
-      width: 512,
-      height: 512,
+      resolutions: [{ width: 512, height: 512 }],
     }
 
     const response = await request.post('/api/studies', { data: payload })
@@ -217,8 +213,7 @@ test.describe('duplicate value validation (B-043)', () => {
         { sampler: 'euler', scheduler: 'normal' },
       ],
       seeds: [42],
-      width: 512,
-      height: 512,
+      resolutions: [{ width: 512, height: 512 }],
     }
 
     const response = await request.post('/api/studies', { data: payload })
@@ -241,8 +236,7 @@ test.describe('duplicate value validation (B-043)', () => {
       cfgs: [7.0],
       sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
       seeds: [42],
-      width: 512,
-      height: 512,
+      resolutions: [{ width: 512, height: 512 }],
     }
 
     const response = await request.post('/api/studies', { data: payload })

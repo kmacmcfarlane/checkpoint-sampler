@@ -68,11 +68,10 @@ async function createOverLimitStudy(request: APIRequestContext): Promise<string>
       cfgs: [7.0],                  // 1 cfg
       sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
       seeds: makeSeeds(200),        // 200 seeds
-      width: 512,
-      height: 512,
+      resolutions: [{ width: 512, height: 512 }],
       workflow_template: 'test-workflow.json',
-      vae: '',
-      text_encoder: '',
+      vaes: [],
+      text_encoders: [],
       lora_strength_pairs: [],
     },
   })

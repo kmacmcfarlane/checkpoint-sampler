@@ -54,6 +54,12 @@ type SampleJobItem struct {
 	Seed               int64
 	Width              int
 	Height             int
+	// S-157: per-item multi-value dimension values. Empty/nil means the dimension
+	// is not swept for this item; the executor only substitutes a value when the
+	// selected workflow declares the matching cs_role.
+	VAE                string   // ComfyUI VAE model path for this item (empty = no substitution)
+	TextEncoder        string   // ComfyUI CLIP/text encoder path for this item (empty = no substitution)
+	Shift              *float64 // AuraFlow shift value for this item (nil = no substitution)
 	Status             SampleJobItemStatus
 	ComfyUIPromptID    string
 	OutputPath         string

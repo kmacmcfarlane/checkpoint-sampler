@@ -8,6 +8,7 @@ import {
   fillFirstPromptRow,
   addSamplerSchedulerPair,
   selectNaiveOption,
+  selectNaiveMultiOption,
 } from './helpers'
 
 /**
@@ -44,8 +45,8 @@ test.describe('study MRU auto-fill (B-126)', () => {
 
     // Select workflow, VAE, and CLIP
     await selectNaiveOption(page, 'study-workflow-template-select', 'test-workflow.json')
-    await selectNaiveOption(page, 'study-vae-select', 'test-vae.safetensors')
-    await selectNaiveOption(page, 'study-clip-select', 'test-clip.safetensors')
+    await selectNaiveMultiOption(page, 'study-vae-select', 'test-vae.safetensors')
+    await selectNaiveMultiOption(page, 'study-clip-select', 'test-clip.safetensors')
 
     // Save the study (which persists MRU for this workflow)
     const saveButton = page.locator('[data-testid="save-study-button"]')
@@ -88,14 +89,19 @@ test.describe('study MRU auto-fill (B-126)', () => {
     // Select AuraFlow workflow (has shift role)
     await selectNaiveOption(page, 'study-workflow-template-select', 'test-workflow-auraflow.json')
 
-    // Set shift value
+    // Set shift value. S-157: shift is now a multi-value NDynamicTags list
+    // (mirrors the steps/seeds tags pattern), not a single NInputNumber.
     const shiftInput = page.locator('[data-testid="study-shift-input"]')
     await expect(shiftInput).toBeVisible()
-    await shiftInput.locator('input').fill('3.5')
+    const shiftAddButton = page.locator('[data-testid="study-shift-add"]')
+    await shiftAddButton.click()
+    const shiftTagInput = shiftInput.locator('input').last()
+    await shiftTagInput.fill('3.5')
+    await shiftTagInput.press('Enter')
 
     // Select VAE and CLIP
-    await selectNaiveOption(page, 'study-vae-select', 'test-vae.safetensors')
-    await selectNaiveOption(page, 'study-clip-select', 'test-clip.safetensors')
+    await selectNaiveMultiOption(page, 'study-vae-select', 'test-vae.safetensors')
+    await selectNaiveMultiOption(page, 'study-clip-select', 'test-clip.safetensors')
 
     // Save the study
     const saveButton = page.locator('[data-testid="save-study-button"]')
@@ -116,10 +122,10 @@ test.describe('study MRU auto-fill (B-126)', () => {
       await selectNaiveOption(page, 'study-workflow-template-select', 'test-workflow-auraflow.json')
     }
 
-    // AC: Shift value should be restored from MRU
+    // AC: Shift value should be restored from MRU. S-157: shift is now a
+    // multi-value NDynamicTags list; the restored value renders as a tag.
     const restoredShiftInput = page.locator('[data-testid="study-shift-input"]')
     await expect(restoredShiftInput).toBeVisible()
-    const inputValue = await restoredShiftInput.locator('input').inputValue()
-    expect(inputValue).toBe('3.5')
+    await expect(restoredShiftInput).toContainText('3.5')
   })
 })

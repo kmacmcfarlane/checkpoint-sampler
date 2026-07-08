@@ -82,8 +82,7 @@ test.describe('Job launch error display (B-141)', () => {
         cfgs: [7.0],
         sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'simple' }],
         seeds: [42],
-        width: 512,
-        height: 512,
+        resolutions: [{ width: 512, height: 512 }],
         workflow_template: '', // empty workflow to trigger "no workflow template" error
       },
     })

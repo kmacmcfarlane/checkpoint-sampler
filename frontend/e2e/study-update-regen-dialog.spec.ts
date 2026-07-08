@@ -64,11 +64,10 @@ async function createStudy(request: APIRequestContext, name: string): Promise<st
       cfgs: [7.0],
       sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
       seeds: [42],
-      width: 512,
-      height: 512,
+      resolutions: [{ width: 512, height: 512 }],
       workflow_template: 'test-workflow.json',
-      vae: 'ae.safetensors',
-      text_encoder: 'clip_l.safetensors',
+      vaes: ['ae.safetensors'],
+      text_encoders: ['clip_l.safetensors'],
     },
   })
   expect(resp.ok()).toBeTruthy()

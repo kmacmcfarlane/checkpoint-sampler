@@ -65,11 +65,6 @@ func (s *StudiesService) Create(ctx context.Context, p *genstudies.CreateStudyPa
 		}
 	}
 
-	var shift *float64
-	if p.Shift != nil {
-		shift = p.Shift
-	}
-
 	loraPairs := payloadLoraStrengthPairs(p.LoraStrengthPairs)
 
 	study, err := s.svc.Create(
@@ -81,12 +76,11 @@ func (s *StudiesService) Create(ctx context.Context, p *genstudies.CreateStudyPa
 		p.Cfgs,
 		pairs,
 		p.Seeds,
-		p.Width,
-		p.Height,
+		payloadResolutions(p.Resolutions),
 		p.WorkflowTemplate,
-		p.Vae,
-		p.TextEncoder,
-		shift,
+		p.Vaes,
+		p.TextEncoders,
+		p.Shifts,
 		loraPairs,
 	)
 	if err != nil {
@@ -113,11 +107,6 @@ func (s *StudiesService) Update(ctx context.Context, p *genstudies.UpdateStudyPa
 		}
 	}
 
-	var updateShift *float64
-	if p.Shift != nil {
-		updateShift = p.Shift
-	}
-
 	updateLoraPairs := payloadLoraStrengthPairs(p.LoraStrengthPairs)
 
 	study, err := s.svc.Update(
@@ -130,12 +119,11 @@ func (s *StudiesService) Update(ctx context.Context, p *genstudies.UpdateStudyPa
 		p.Cfgs,
 		pairs,
 		p.Seeds,
-		p.Width,
-		p.Height,
+		payloadResolutions(p.Resolutions),
 		p.WorkflowTemplate,
-		p.Vae,
-		p.TextEncoder,
-		updateShift,
+		p.Vaes,
+		p.TextEncoders,
+		p.Shifts,
 		updateLoraPairs,
 	)
 	if err != nil {
@@ -165,11 +153,6 @@ func (s *StudiesService) Fork(ctx context.Context, p *genstudies.ForkStudyPayloa
 		}
 	}
 
-	var forkShift *float64
-	if p.Shift != nil {
-		forkShift = p.Shift
-	}
-
 	forkLoraPairs := payloadLoraStrengthPairs(p.LoraStrengthPairs)
 
 	study, err := s.svc.Fork(
@@ -182,12 +165,11 @@ func (s *StudiesService) Fork(ctx context.Context, p *genstudies.ForkStudyPayloa
 		p.Cfgs,
 		pairs,
 		p.Seeds,
-		p.Width,
-		p.Height,
+		payloadResolutions(p.Resolutions),
 		p.WorkflowTemplate,
-		p.Vae,
-		p.TextEncoder,
-		forkShift,
+		p.Vaes,
+		p.TextEncoders,
+		p.Shifts,
 		forkLoraPairs,
 	)
 	if err != nil {
@@ -343,6 +325,25 @@ func studyToResponse(s model.Study) *genstudies.StudyResponse {
 		}
 	}
 
+	resolutions := make([]*genstudies.ResolutionPair, len(s.Resolutions))
+	for i, r := range s.Resolutions {
+		resolutions[i] = &genstudies.ResolutionPair{Width: r.Width, Height: r.Height}
+	}
+
+	// Ensure list dimensions are non-nil so the JSON response carries [] not null.
+	vaes := s.VAEs
+	if vaes == nil {
+		vaes = []string{}
+	}
+	textEncoders := s.TextEncoders
+	if textEncoders == nil {
+		textEncoders = []string{}
+	}
+	shifts := s.Shifts
+	if shifts == nil {
+		shifts = []float64{}
+	}
+
 	return &genstudies.StudyResponse{
 		ID:                    s.ID,
 		Name:                  s.Name,
@@ -353,17 +354,28 @@ func studyToResponse(s model.Study) *genstudies.StudyResponse {
 		Cfgs:                  s.CFGs,
 		SamplerSchedulerPairs: pairs,
 		Seeds:                 s.Seeds,
-		Width:                 s.Width,
-		Height:                s.Height,
+		Resolutions:           resolutions,
 		WorkflowTemplate:      s.WorkflowTemplate,
-		Vae:                   s.VAE,
-		TextEncoder:           s.TextEncoder,
-		Shift:                 s.Shift,
+		Vaes:                  vaes,
+		TextEncoders:          textEncoders,
+		Shifts:                shifts,
 		LoraStrengthPairs:     loraPairs,
 		ImagesPerCheckpoint:   s.ImagesPerCheckpoint(),
 		CreatedAt:             s.CreatedAt.UTC().Format(time.RFC3339),
 		UpdatedAt:             s.UpdatedAt.UTC().Format(time.RFC3339),
 	}
+}
+
+// payloadResolutions converts API resolution pairs to model types.
+func payloadResolutions(pairs []*genstudies.ResolutionPair) []model.ResolutionPair {
+	if len(pairs) == 0 {
+		return nil
+	}
+	result := make([]model.ResolutionPair, len(pairs))
+	for i, r := range pairs {
+		result[i] = model.ResolutionPair{Width: r.Width, Height: r.Height}
+	}
+	return result
 }
 
 // payloadLoraStrengthPairs converts API LoRA strength pairs to model types.

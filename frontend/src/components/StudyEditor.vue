@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, h } from 'vue'
 import { NInput, NInputNumber, NSelect, NButton, NDynamicInput, NDynamicTags, NTag, NCard, NSpace, NAlert, NModal } from 'naive-ui'
-import type { Study, NamedPrompt, SamplerSchedulerPair, LoraStrengthPair, CreateStudyPayload, UpdateStudyPayload, ForkStudyPayload, WorkflowSummary, AffectedRun } from '../api/types'
+import type { Study, NamedPrompt, SamplerSchedulerPair, LoraStrengthPair, ResolutionPair, CreateStudyPayload, UpdateStudyPayload, ForkStudyPayload, WorkflowSummary, AffectedRun } from '../api/types'
 import { apiClient } from '../api/client'
 import { validateStudyImport } from './studyImportValidation'
 import ConfirmDeleteDialog from './ConfirmDeleteDialog.vue'
@@ -11,9 +11,19 @@ const MRU_WORKFLOW_KEY = 'checkpoint-sampler:mru-workflow-template'
 
 /**
  * localStorage key for most-recently-used VAE, text encoder, and shift per workflow template.
- * Stored as a JSON-serialised map: Record<workflowName, { vae: string | null, textEncoder: string | null, shift?: number | null }>.
+ * S-157: these are now multi-value dimensions, stored as arrays. Reads tolerate the
+ * legacy single-value shape ({ vae, textEncoder, shift }) by wrapping in arrays.
+ * Stored as a JSON-serialised map:
+ *   Record<workflowName, { vaes: string[], textEncoders: string[], shifts: number[] }>.
  */
 const MRU_WORKFLOW_VAE_TE_KEY = 'checkpoint-sampler:mru-workflow-vae-te'
+
+/** Multi-value MRU shape for VAE / text-encoder / shift dimensions (S-157). */
+interface MruDimensions {
+  vaes: string[]
+  textEncoders: string[]
+  shifts: number[]
+}
 
 /**
  * localStorage key for most-recently-used sampler/scheduler pairs per workflow template.
@@ -32,28 +42,50 @@ function saveMruWorkflow(name: string | null): void {
   } catch { /* ignore */ }
 }
 
-/** Returns the MRU VAE/text-encoder/shift map from localStorage. */
-function getMruVaeTe(): Record<string, { vae: string | null; textEncoder: string | null; shift?: number | null }> {
+/** Returns the raw MRU VAE/text-encoder/shift map from localStorage. */
+function getMruVaeTe(): Record<string, unknown> {
   try {
     const raw = localStorage.getItem(MRU_WORKFLOW_VAE_TE_KEY)
     if (!raw) return {}
     const parsed = JSON.parse(raw)
-    if (typeof parsed === 'object' && parsed !== null) return parsed as Record<string, { vae: string | null; textEncoder: string | null; shift?: number | null }>
+    if (typeof parsed === 'object' && parsed !== null) return parsed as Record<string, unknown>
     return {}
   } catch { return {} }
 }
 
-/** Returns the MRU VAE, text encoder, and shift for a given workflow name, or null if not stored. */
-function getMruVaeTeForWorkflow(workflowName: string): { vae: string | null; textEncoder: string | null; shift?: number | null } | null {
-  const map = getMruVaeTe()
-  return map[workflowName] ?? null
+/**
+ * Normalizes a stored MRU entry into the multi-value shape, tolerating the legacy
+ * single-value shape ({ vae, textEncoder, shift }) written before S-157.
+ */
+function normalizeMruEntry(entry: unknown): MruDimensions | null {
+  if (typeof entry !== 'object' || entry === null) return null
+  const e = entry as Record<string, unknown>
+  if (Array.isArray(e.vaes) || Array.isArray(e.textEncoders) || Array.isArray(e.shifts)) {
+    return {
+      vaes: Array.isArray(e.vaes) ? (e.vaes as string[]) : [],
+      textEncoders: Array.isArray(e.textEncoders) ? (e.textEncoders as string[]) : [],
+      shifts: Array.isArray(e.shifts) ? (e.shifts as number[]) : [],
+    }
+  }
+  // Legacy single-value shape.
+  return {
+    vaes: typeof e.vae === 'string' && e.vae ? [e.vae] : [],
+    textEncoders: typeof e.textEncoder === 'string' && e.textEncoder ? [e.textEncoder] : [],
+    shifts: typeof e.shift === 'number' ? [e.shift] : [],
+  }
 }
 
-/** Saves the MRU VAE, text encoder, and shift for a given workflow name. */
-function saveMruVaeTe(workflowName: string, vae: string | null, textEncoder: string | null, shift: number | null): void {
+/** Returns the MRU dimensions for a given workflow name, or null if not stored. */
+function getMruVaeTeForWorkflow(workflowName: string): MruDimensions | null {
+  const map = getMruVaeTe()
+  return normalizeMruEntry(map[workflowName])
+}
+
+/** Saves the MRU VAE, text encoder, and shift lists for a given workflow name (S-157). */
+function saveMruVaeTe(workflowName: string, vaes: string[], textEncoders: string[], shifts: number[]): void {
   try {
     const map = getMruVaeTe()
-    map[workflowName] = { vae, textEncoder, shift }
+    map[workflowName] = { vaes, textEncoders, shifts }
     localStorage.setItem(MRU_WORKFLOW_VAE_TE_KEY, JSON.stringify(map))
   } catch { /* ignore */ }
 }
@@ -153,12 +185,13 @@ const cfgs = ref<number[]>([7.0])
 const samplerSchedulerPairs = ref<SamplerSchedulerPair[]>([])
 const loraStrengthPairs = ref<LoraStrengthPair[]>([{ strength_model: 1.0, strength_clip: 1.0 }])
 const seeds = ref<number[]>([42])
-const width = ref(1024)
-const height = ref(1024)
+// S-157: resolution is a paired multi-value dimension (mirrors LoRA strength pairs).
+const resolutions = ref<ResolutionPair[]>([{ width: 1024, height: 1024 }])
 const workflowTemplate = ref<string | null>(null)
-const selectedVAE = ref<string | null>(null)
-const selectedCLIP = ref<string | null>(null)
-const shiftValue = ref<number | null>(null)
+// S-157: VAE / text-encoder / shift are multi-value dimensions gated by workflow roles.
+const selectedVAEs = ref<string[]>([])
+const selectedTextEncoders = ref<string[]>([])
+const shifts = ref<number[]>([])
 
 /**
  * Static fallback sampler list for when ComfyUI is unavailable or returns no options.
@@ -260,6 +293,47 @@ const hasShiftRole = computed(() => {
   return 'shift' in wf.roles
 })
 
+// S-157: VAE and text-encoder dimensions are only offered when the selected
+// workflow declares the matching role.
+const hasVaeRole = computed(() => {
+  const wf = selectedWorkflowDetail.value
+  if (!wf) return false
+  return 'vae_loader' in wf.roles
+})
+
+const hasClipRole = computed(() => {
+  const wf = selectedWorkflowDetail.value
+  if (!wf) return false
+  return 'clip_loader' in wf.roles
+})
+
+/**
+ * Role-gated payload values for the VAE/text-encoder/shift dimensions.
+ *
+ * The form keeps whatever values the user entered in selectedVAEs/
+ * selectedTextEncoders/shifts even after switching to a workflow that does not
+ * declare the matching role (there is no watcher clearing them — the input is
+ * simply hidden via v-if). Without gating here, stale values from a previous
+ * role-bearing workflow would be persisted and silently multiply the
+ * cross-product / surface a spurious dimension for a workflow that never
+ * declared the role. These computeds are the single place that enforces "empty
+ * for a role the workflow does not declare" before building any payload.
+ */
+const payloadVAEs = computed(() => (hasVaeRole.value ? selectedVAEs.value : []))
+const payloadTextEncoders = computed(() => (hasClipRole.value ? selectedTextEncoders.value : []))
+const payloadShifts = computed(() => (hasShiftRole.value ? shifts.value : []))
+
+/** Shift values as strings for NDynamicTags. */
+const shiftsAsStrings = computed(() => shifts.value.map(String))
+
+function onUpdateShifts(tags: string[]) {
+  shifts.value = tags.map(s => parseFloat(s)).filter(n => !isNaN(n))
+}
+
+function createResolutionItem(): ResolutionPair {
+  return { width: 1024, height: 1024 }
+}
+
 /**
  * Format a CFG value as a string, preserving one decimal place for whole numbers.
  * e.g. 7.0 → '7.0', 7.5 → '7.5', 12 → '12.0'
@@ -289,7 +363,14 @@ const computedTotalImages = computed(() => {
     seeds.value.length
   // LoRA strength pairs add an extra dimension to the Cartesian product
   const loraPairCount = loraStrengthPairs.value.length
-  return loraPairCount > 0 ? base * loraPairCount : base
+  let total = loraPairCount > 0 ? base * loraPairCount : base
+  // S-157: multiply by each non-empty promoted dimension (empty = factor of 1).
+  const mult = (n: number) => (n > 0 ? n : 1)
+  total *= mult(resolutions.value.length)
+  total *= mult(selectedVAEs.value.length)
+  total *= mult(selectedTextEncoders.value.length)
+  total *= mult(shifts.value.length)
+  return total
 })
 
 /**
@@ -517,8 +598,8 @@ const canSave = computed(() => {
     samplerSchedulerPairs.value.length > 0 &&
     samplerSchedulerPairs.value.every(p => p.sampler.trim() !== '' && p.scheduler.trim() !== '') &&
     seeds.value.length > 0 &&
-    width.value > 0 &&
-    height.value > 0 &&
+    resolutions.value.length > 0 &&
+    resolutions.value.every(r => r.width > 0 && r.height > 0) &&
     localValidationError.value === null
   )
 })
@@ -630,12 +711,13 @@ function loadStudy(study: Study) {
     ? study.lora_strength_pairs.map(p => ({ ...p }))
     : [{ strength_model: 1.0, strength_clip: 1.0 }]
   seeds.value = [...study.seeds]
-  width.value = study.width
-  height.value = study.height
+  resolutions.value = (study.resolutions ?? []).length > 0
+    ? study.resolutions.map(r => ({ ...r }))
+    : [{ width: 1024, height: 1024 }]
   workflowTemplate.value = study.workflow_template || null
-  selectedVAE.value = study.vae || null
-  selectedCLIP.value = study.text_encoder || null
-  shiftValue.value = study.shift ?? null
+  selectedVAEs.value = [...(study.vaes ?? [])]
+  selectedTextEncoders.value = [...(study.text_encoders ?? [])]
+  shifts.value = [...(study.shifts ?? [])]
 }
 
 function resetForm() {
@@ -648,15 +730,14 @@ function resetForm() {
   samplerSchedulerPairs.value = []
   loraStrengthPairs.value = [{ strength_model: 1.0, strength_clip: 1.0 }]
   seeds.value = [42]
-  width.value = 1024
-  height.value = 1024
+  resolutions.value = [{ width: 1024, height: 1024 }]
   // MRU: apply most-recently-used workflow template and its associated
   // VAE, text encoder, shift, and sampler/scheduler defaults when creating a new study.
   const mruWorkflow = getMruWorkflow()
   workflowTemplate.value = mruWorkflow
-  selectedVAE.value = null
-  selectedCLIP.value = null
-  shiftValue.value = null
+  selectedVAEs.value = []
+  selectedTextEncoders.value = []
+  shifts.value = []
   applyMruForWorkflow(mruWorkflow)
 }
 
@@ -710,7 +791,7 @@ async function performSave() {
     if (workflowTemplate.value) {
       saveMruWorkflow(workflowTemplate.value)
       // Save VAE and text encoder MRU for this workflow
-      saveMruVaeTe(workflowTemplate.value, selectedVAE.value, selectedCLIP.value, shiftValue.value)
+      saveMruVaeTe(workflowTemplate.value, selectedVAEs.value, selectedTextEncoders.value, shifts.value)
       // Save sampler/scheduler pairs MRU for this workflow
       saveMruSamplerScheduler(workflowTemplate.value, samplerSchedulerPairs.value)
     }
@@ -727,12 +808,11 @@ async function performSave() {
           sampler_scheduler_pairs: samplerSchedulerPairs.value,
           lora_strength_pairs: loraStrengthPairs.value,
           seeds: seeds.value,
-          width: width.value,
-          height: height.value,
+          resolutions: resolutions.value,
           workflow_template: workflowTemplate.value ?? undefined,
-          vae: selectedVAE.value ?? undefined,
-          text_encoder: selectedCLIP.value ?? undefined,
-          shift: shiftValue.value ?? undefined,
+          vaes: payloadVAEs.value,
+          text_encoders: payloadTextEncoders.value,
+          shifts: payloadShifts.value,
         }
       : {
           name: studyName.value.trim(),
@@ -744,12 +824,11 @@ async function performSave() {
           sampler_scheduler_pairs: samplerSchedulerPairs.value,
           lora_strength_pairs: loraStrengthPairs.value,
           seeds: seeds.value,
-          width: width.value,
-          height: height.value,
+          resolutions: resolutions.value,
           workflow_template: workflowTemplate.value ?? undefined,
-          vae: selectedVAE.value ?? undefined,
-          text_encoder: selectedCLIP.value ?? undefined,
-          shift: shiftValue.value ?? undefined,
+          vaes: payloadVAEs.value,
+          text_encoders: payloadTextEncoders.value,
+          shifts: payloadShifts.value,
         }
 
     const result = selectedStudyId.value
@@ -795,7 +874,7 @@ async function cloneStudy() {
     if (workflowTemplate.value) {
       saveMruWorkflow(workflowTemplate.value)
       // Save VAE and text encoder MRU for this workflow
-      saveMruVaeTe(workflowTemplate.value, selectedVAE.value, selectedCLIP.value, shiftValue.value)
+      saveMruVaeTe(workflowTemplate.value, selectedVAEs.value, selectedTextEncoders.value, shifts.value)
       // Save sampler/scheduler pairs MRU for this workflow
       saveMruSamplerScheduler(workflowTemplate.value, samplerSchedulerPairs.value)
     }
@@ -811,12 +890,11 @@ async function cloneStudy() {
       sampler_scheduler_pairs: samplerSchedulerPairs.value,
       lora_strength_pairs: loraStrengthPairs.value,
       seeds: seeds.value,
-      width: width.value,
-      height: height.value,
+      resolutions: resolutions.value,
       workflow_template: workflowTemplate.value ?? undefined,
-      vae: selectedVAE.value ?? undefined,
-      text_encoder: selectedCLIP.value ?? undefined,
-      shift: shiftValue.value ?? undefined,
+      vaes: payloadVAEs.value,
+      text_encoders: payloadTextEncoders.value,
+      shifts: payloadShifts.value,
     }
 
     const result = await apiClient.forkStudy(forkPayload)
@@ -899,12 +977,11 @@ function exportStudy() {
     sampler_scheduler_pairs: samplerSchedulerPairs.value,
     lora_strength_pairs: loraStrengthPairs.value,
     seeds: seeds.value,
-    width: width.value,
-    height: height.value,
+    resolutions: resolutions.value,
     workflow_template: workflowTemplate.value ?? undefined,
-    vae: selectedVAE.value ?? undefined,
-    text_encoder: selectedCLIP.value ?? undefined,
-    shift: shiftValue.value ?? undefined,
+    vaes: payloadVAEs.value,
+    text_encoders: payloadTextEncoders.value,
+    shifts: payloadShifts.value,
   }
   const json = JSON.stringify(payload, null, 2)
   const blob = new Blob([json], { type: 'application/json' })
@@ -946,12 +1023,13 @@ function triggerImport() {
         ? result.data.lora_strength_pairs!.map(p => ({ ...p }))
         : [{ strength_model: 1.0, strength_clip: 1.0 }]
       seeds.value = [...result.data.seeds]
-      width.value = result.data.width
-      height.value = result.data.height
+      resolutions.value = result.data.resolutions.length > 0
+        ? result.data.resolutions.map(r => ({ ...r }))
+        : [{ width: 1024, height: 1024 }]
       workflowTemplate.value = result.data.workflow_template ?? null
-      selectedVAE.value = result.data.vae ?? null
-      selectedCLIP.value = result.data.text_encoder ?? null
-      shiftValue.value = result.data.shift ?? null
+      selectedVAEs.value = [...(result.data.vaes ?? [])]
+      selectedTextEncoders.value = [...(result.data.text_encoders ?? [])]
+      shifts.value = [...(result.data.shifts ?? [])]
       error.value = null
     } catch {
       error.value = 'Import error: Invalid JSON file'
@@ -983,9 +1061,9 @@ function applyMruForWorkflow(name: string | null) {
   if (name) {
     const mru = getMruVaeTeForWorkflow(name)
     if (mru) {
-      selectedVAE.value = mru.vae
-      selectedCLIP.value = mru.textEncoder
-      shiftValue.value = mru.shift ?? null
+      selectedVAEs.value = [...mru.vaes]
+      selectedTextEncoders.value = [...mru.textEncoders]
+      shifts.value = [...mru.shifts]
     }
     // AC1/AC2: Apply sampler/scheduler MRU for this workflow template
     const samplerMru = getMruSamplerSchedulerForWorkflow(name)
@@ -1358,32 +1436,60 @@ function renderSeedTag(tag: string, index: number) {
           </NDynamicTags>
         </div>
 
-        <div class="form-row">
-          <div class="form-field">
-            <label for="width">Width (px)</label>
-            <NInputNumber
-              id="width"
-              v-model:value="width"
-              :min="1"
-              :step="64"
-              size="medium"
-              style="width: 100%;"
-              data-testid="study-width-input"
-            />
-          </div>
-
-          <div class="form-field">
-            <label for="height">Height (px)</label>
-            <NInputNumber
-              id="height"
-              v-model:value="height"
-              :min="1"
-              :step="64"
-              size="medium"
-              style="width: 100%;"
-              data-testid="study-height-input"
-            />
-          </div>
+        <div class="form-field">
+          <label>Resolutions (width × height)</label>
+          <NDynamicInput
+            v-model:value="resolutions"
+            :min="1"
+            :on-create="createResolutionItem"
+            :create-button-props="({ 'data-testid': 'resolutions-create-button' } as object)"
+            data-testid="resolutions-list"
+          >
+            <template #default="{ index, value }">
+              <div class="pair-row" :data-testid="`resolution-row-${index}`">
+                <NInputNumber
+                  :value="value.width"
+                  :min="1"
+                  :step="64"
+                  placeholder="Width"
+                  size="medium"
+                  style="flex: 1;"
+                  :data-testid="`resolution-width-${index}`"
+                  @update:value="(v: number | null) => { resolutions[index].width = v ?? 1 }"
+                />
+                <NInputNumber
+                  :value="value.height"
+                  :min="1"
+                  :step="64"
+                  placeholder="Height"
+                  size="medium"
+                  style="flex: 1;"
+                  :data-testid="`resolution-height-${index}`"
+                  @update:value="(v: number | null) => { resolutions[index].height = v ?? 1 }"
+                />
+              </div>
+            </template>
+            <template #action="{ index: actionIndex, create, remove }">
+              <div class="pair-row-actions">
+                <NButton
+                  circle
+                  size="small"
+                  :data-testid="`resolution-row-remove-${actionIndex}`"
+                  @click="remove(actionIndex)"
+                >
+                  -
+                </NButton>
+                <NButton
+                  circle
+                  size="small"
+                  :data-testid="`resolution-row-add-${actionIndex}`"
+                  @click="create(actionIndex)"
+                >
+                  +
+                </NButton>
+              </div>
+            </template>
+          </NDynamicInput>
         </div>
 
         <div class="form-field">
@@ -1400,26 +1506,28 @@ function renderSeedTag(tag: string, index: number) {
           />
         </div>
 
-        <div class="form-field">
-          <label for="study-vae-select">VAE</label>
+        <div v-if="hasVaeRole" class="form-field">
+          <label for="study-vae-select">VAEs</label>
           <NSelect
             id="study-vae-select"
-            v-model:value="selectedVAE"
+            v-model:value="selectedVAEs"
             :options="vaeOptions"
-            placeholder="Select a VAE model (optional)"
+            multiple
+            placeholder="Select one or more VAE models (optional)"
             clearable
             filterable
             data-testid="study-vae-select"
           />
         </div>
 
-        <div class="form-field">
-          <label for="study-clip-select">CLIP / Text Encoder</label>
+        <div v-if="hasClipRole" class="form-field">
+          <label for="study-clip-select">CLIP / Text Encoders</label>
           <NSelect
             id="study-clip-select"
-            v-model:value="selectedCLIP"
+            v-model:value="selectedTextEncoders"
             :options="clipOptions"
-            placeholder="Select a CLIP model (optional)"
+            multiple
+            placeholder="Select one or more CLIP models (optional)"
             clearable
             filterable
             data-testid="study-clip-select"
@@ -1427,16 +1535,26 @@ function renderSeedTag(tag: string, index: number) {
         </div>
 
         <div v-if="hasShiftRole" class="form-field">
-          <label for="study-shift-input">Shift Value</label>
-          <NInputNumber
-            id="study-shift-input"
-            v-model:value="shiftValue"
-            :min="0"
-            :step="0.1"
-            placeholder="Enter shift value"
-            style="width: 100%;"
+          <label>Shift Values</label>
+          <NDynamicTags
+            :value="shiftsAsStrings"
+            :input-props="numericInputProps"
+            size="medium"
             data-testid="study-shift-input"
-          />
+            @update:value="onUpdateShifts"
+          >
+            <template #trigger="{ activate, disabled }">
+              <NButton
+                size="medium"
+                dashed
+                :disabled="disabled"
+                data-testid="study-shift-add"
+                @click="activate"
+              >
+                +
+              </NButton>
+            </template>
+          </NDynamicTags>
         </div>
 
         <div class="total-images">

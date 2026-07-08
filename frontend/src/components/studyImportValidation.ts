@@ -1,4 +1,4 @@
-import type { CreateStudyPayload, NamedPrompt, SamplerSchedulerPair, LoraStrengthPair } from '../api/types'
+import type { CreateStudyPayload, NamedPrompt, SamplerSchedulerPair, LoraStrengthPair, ResolutionPair } from '../api/types'
 
 /**
  * Result of validating a study import JSON payload.
@@ -110,21 +110,48 @@ export function validateStudyImport(raw: unknown): StudyImportResult {
     }
   }
 
-  // Validate width
-  if (!('width' in obj) || typeof obj.width !== 'number' || !Number.isFinite(obj.width)) {
-    return { ok: false, error: 'Missing or invalid field: "width" must be a number' }
-  }
-  if (obj.width <= 0) {
-    return { ok: false, error: 'Invalid field: "width" must be a positive number' }
+  // Validate resolutions (S-157). New exports carry a "resolutions" list; legacy
+  // exports carry scalar "width"/"height", which are accepted and wrapped into a
+  // single-element list for backward compatibility.
+  let resolutions: ResolutionPair[]
+  if ('resolutions' in obj && obj.resolutions !== undefined && obj.resolutions !== null) {
+    if (!Array.isArray(obj.resolutions) || obj.resolutions.length === 0) {
+      return { ok: false, error: 'Invalid field: "resolutions" must be a non-empty array' }
+    }
+    const parsed: ResolutionPair[] = []
+    for (let i = 0; i < obj.resolutions.length; i++) {
+      const r = obj.resolutions[i]
+      if (r === null || typeof r !== 'object' || Array.isArray(r)) {
+        return { ok: false, error: `Invalid field: "resolutions[${i}]" must be an object` }
+      }
+      const rObj = r as Record<string, unknown>
+      if (typeof rObj.width !== 'number' || !Number.isFinite(rObj.width) || rObj.width <= 0) {
+        return { ok: false, error: `Invalid field: "resolutions[${i}].width" must be a positive number` }
+      }
+      if (typeof rObj.height !== 'number' || !Number.isFinite(rObj.height) || rObj.height <= 0) {
+        return { ok: false, error: `Invalid field: "resolutions[${i}].height" must be a positive number` }
+      }
+      parsed.push({ width: rObj.width, height: rObj.height })
+    }
+    resolutions = parsed
+  } else {
+    // Legacy scalar width/height.
+    if (!('width' in obj) || typeof obj.width !== 'number' || !Number.isFinite(obj.width) || obj.width <= 0) {
+      return { ok: false, error: 'Missing or invalid field: "resolutions" (or legacy "width") must be provided' }
+    }
+    if (!('height' in obj) || typeof obj.height !== 'number' || !Number.isFinite(obj.height) || obj.height <= 0) {
+      return { ok: false, error: 'Missing or invalid field: "resolutions" (or legacy "height") must be provided' }
+    }
+    resolutions = [{ width: obj.width, height: obj.height }]
   }
 
-  // Validate height
-  if (!('height' in obj) || typeof obj.height !== 'number' || !Number.isFinite(obj.height)) {
-    return { ok: false, error: 'Missing or invalid field: "height" must be a number' }
-  }
-  if (obj.height <= 0) {
-    return { ok: false, error: 'Invalid field: "height" must be a positive number' }
-  }
+  // Validate S-157 list dimensions (optional; legacy scalar fallbacks accepted).
+  const vaes = parseStringDimension(obj, 'vaes', 'vae')
+  if (typeof vaes === 'string') return { ok: false, error: vaes }
+  const textEncoders = parseStringDimension(obj, 'text_encoders', 'text_encoder')
+  if (typeof textEncoders === 'string') return { ok: false, error: textEncoders }
+  const shifts = parseNumberDimension(obj, 'shifts', 'shift')
+  if (typeof shifts === 'string') return { ok: false, error: shifts }
 
   // Validate lora_strength_pairs (optional)
   let loraStrengthPairs: LoraStrengthPair[] | undefined
@@ -163,13 +190,56 @@ export function validateStudyImport(raw: unknown): StudyImportResult {
       cfgs: obj.cfgs as number[],
       sampler_scheduler_pairs: obj.sampler_scheduler_pairs as SamplerSchedulerPair[],
       seeds: obj.seeds as number[],
-      width: obj.width as number,
-      height: obj.height as number,
+      resolutions,
       workflow_template: typeof obj.workflow_template === 'string' ? obj.workflow_template : undefined,
-      vae: typeof obj.vae === 'string' ? obj.vae : undefined,
-      text_encoder: typeof obj.text_encoder === 'string' ? obj.text_encoder : undefined,
-      shift: typeof obj.shift === 'number' && Number.isFinite(obj.shift) ? obj.shift : undefined,
+      vaes,
+      text_encoders: textEncoders,
+      shifts,
       lora_strength_pairs: loraStrengthPairs,
     },
   }
+}
+
+/**
+ * Parses a string-valued multi-value dimension from the import object.
+ * Accepts a `listKey` array or falls back to a legacy scalar `scalarKey` string.
+ * Returns the parsed array, or an error message string on invalid input.
+ */
+function parseStringDimension(obj: Record<string, unknown>, listKey: string, scalarKey: string): string[] | string {
+  if (listKey in obj && obj[listKey] !== undefined && obj[listKey] !== null) {
+    const raw = obj[listKey]
+    if (!Array.isArray(raw)) return `Invalid field: "${listKey}" must be an array`
+    for (let i = 0; i < raw.length; i++) {
+      if (typeof raw[i] !== 'string' || raw[i] === '') {
+        return `Invalid field: "${listKey}[${i}]" must be a non-empty string`
+      }
+    }
+    return raw as string[]
+  }
+  if (typeof obj[scalarKey] === 'string' && obj[scalarKey] !== '') {
+    return [obj[scalarKey] as string]
+  }
+  return []
+}
+
+/**
+ * Parses a number-valued multi-value dimension from the import object.
+ * Accepts a `listKey` array or falls back to a legacy scalar `scalarKey` number.
+ * Returns the parsed array, or an error message string on invalid input.
+ */
+function parseNumberDimension(obj: Record<string, unknown>, listKey: string, scalarKey: string): number[] | string {
+  if (listKey in obj && obj[listKey] !== undefined && obj[listKey] !== null) {
+    const raw = obj[listKey]
+    if (!Array.isArray(raw)) return `Invalid field: "${listKey}" must be an array`
+    for (let i = 0; i < raw.length; i++) {
+      if (typeof raw[i] !== 'number' || !Number.isFinite(raw[i])) {
+        return `Invalid field: "${listKey}[${i}]" must be a finite number`
+      }
+    }
+    return raw as number[]
+  }
+  if (typeof obj[scalarKey] === 'number' && Number.isFinite(obj[scalarKey])) {
+    return [obj[scalarKey] as number]
+  }
+  return []
 }

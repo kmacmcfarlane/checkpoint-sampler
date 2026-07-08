@@ -211,11 +211,10 @@ test.describe('S-084: sample count preview and missing-sample generation', () =>
         cfgs: [7.0],
         sampler_scheduler_pairs: [{ sampler: 'euler', scheduler: 'normal' }],
         seeds: [42],
-        width: 1024,
-        height: 1024,
+        resolutions: [{ width: 1024, height: 1024 }],
         workflow_template: 'test-workflow.json',
-        vae: 'test-vae.safetensors',
-        text_encoder: 'test-clip.safetensors',
+        vaes: ['test-vae.safetensors'],
+        text_encoders: ['test-clip.safetensors'],
       },
     })
     expect(createStudyResponse.ok()).toBeTruthy()
