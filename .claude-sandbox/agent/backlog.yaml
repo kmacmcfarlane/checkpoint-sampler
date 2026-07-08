@@ -1399,3 +1399,99 @@ stories:
       - "Labels must remain visible once both inputs hold non-empty values (the current placeholder approach hides them at
         the default 1.0/1.0)"
       - "Verify labels render for every pair row, including newly added rows"
+  - id: B-160
+    title: "Generate Samples dialog validation shows 0/720 — study-scoped validation guesses sample dir instead of using the
+      shared output-dir resolver"
+    type: bug
+    status: todo
+    priority: 70
+    complexity: medium
+    requires: []
+    notes: |
+      In the Generate Samples (JobLaunchDialog) dialog, the validation totals show
+      0 / 720 samples for a LoRA run whose samples are all present on disk. The main
+      left-side controls "Validate" slideout AND the study/run availability beads both
+      correctly report the samples as complete — only the dialog is wrong.
+
+      Root cause (backend): both entry points call apiClient.validateTrainingRun, which
+      hits the same /training-runs/{id}/validate endpoint, but with different params that
+      resolve the sample directory differently:
+        - Slideout (App.vue handleSlideoutValidate): passes studyOutputDir (the study's
+          ACTUAL recorded output dir). Backend uses it verbatim ->
+          ValidateTrainingRunWithManifest(tr, studyOutputDir). Finds the manifest + files. Correct.
+        - Dialog (JobLaunchDialog): passes studyId. Backend (internal/api/training_runs.go
+          Validate, ~line 148-187) CONSTRUCTS a guessed path
+          scopedStudyDir = SanitizeTrainingRunName(tr.Name) + "/" + study.Name and calls
+          ValidateTrainingRunWithManifest(tr, scopedStudyDir). The guessed path does not
+          match where samples actually live, so the manifest is not found; it then falls
+          back to ValidateTrainingRunWithStudy, which computes expected=720 from the study
+          grid but finds 0 actual because DirectoryExists is false at the guessed path.
+          Hence 0 / 720.
+
+      Fix: the study-scoped (studyId) validation path must resolve the study's CANONICAL
+      output dir — the same value the slideout uses — rather than reconstructing
+      sanitize(runName)/studyName. Consolidate both entry points onto one shared resolver
+      so dialog and slideout can never diverge again. The manifest-based validation
+      (ValidateTrainingRunWithManifest) should remain the single source of truth for
+      "actual vs expected"; the only thing that differs per caller is how the output dir
+      is looked up, and that lookup should be one shared function.
+
+      Investigate where the authoritative studyOutputDir comes from (training run field
+      StudyOutputDir seen in training_runs.go:112, and/or the job manifest) so the studyId
+      path can obtain the exact same string. Frontend requires no change (it correctly
+      passes studyId).
+
+      Related: R-019 (in UAT) extracted the FRONTEND sample-availability composable; this
+      is the backend twin. No hard dependency.
+    acceptance:
+      - "BE: study-scoped validation (StudyID param) resolves the study's actual/canonical sample output dir instead of reconstructing
+        sanitize(runName)/studyName"
+      - "BE: both the studyId (dialog) and studyOutputDir (slideout) validate entry points route through one shared output-dir
+        resolution + manifest-validation core, so they cannot diverge"
+      - "BE: for a completed run with all samples present on disk, validation via StudyID reports total_actual == total_expected
+        (e.g. 720/720) matching the slideout result exactly"
+      - "BE: regression test reproduces the 0/N bug (studyId path returned 0 actual while files exist) and asserts it now
+        finds all files; covers both LoRA and checkpoint run kinds"
+      - "FE: no functional change required; confirm the dialog validation-totals render actual/expected consistent with the
+        slideout for the same run+study"
+    testing:
+      - "The bug only reproduces when the study's real output dir differs from the naive sanitize(trainingRunName)/studyName
+        construction — set up a fixture where those differ (e.g. a study whose recorded output dir uses a different slug,
+        or a LoRA run whose sample dir layout differs). A test using matching names will pass even with the bug present. Verify
+        against ValidateTrainingRunWithManifest's DirectoryExists/ListPNGFiles resolution, and confirm the slideout path is
+        unchanged."
+  - id: S-159
+    title: "Display total runtime for jobs in the job list (live-ticking while running, final total when terminal)"
+    type: feature
+    status: todo
+    priority: 45
+    complexity: low
+    requires: []
+    notes: |
+      The job list (JobProgressPanel) should show each job's total runtime. Per grooming
+      decision, runtime is derived from the existing timestamps rather than adding new
+      DB columns:
+        - running jobs: elapsed = now - created_at, ticking live (reuse the existing
+          useCountdown / timer composable pattern used elsewhere in the FE)
+        - terminal jobs (completed, completed_with_errors, failed, stopped):
+          total = updated_at - created_at, fixed
+      This is approximate: it includes queue-wait time (created_at is when the job was
+      queued, not when it started running), and updated_at is "last item update" which is
+      effectively the completion time for a terminal job. This tradeoff was accepted to
+      avoid a schema migration.
+
+      Frontend-only: the SampleJob API type already exposes created_at and updated_at
+      (src/api/types.ts). No backend or DB change required.
+
+      Format the duration human-readably (e.g. mm:ss, or h:mm:ss when >= 1h). Add a
+      data-testid for the runtime cell so it is testable.
+    acceptance:
+      - "FE: each job row in the job list shows a total-runtime value"
+      - "FE: running jobs display a live elapsed timer (now - created_at) that ticks while the job is active"
+      - "FE: terminal jobs (completed, completed_with_errors, failed, stopped) display a fixed total (updated_at - created_at)"
+      - "FE: duration is formatted human-readably (mm:ss, extending to h:mm:ss beyond one hour)"
+      - "FE: unit tests cover the running (live) and terminal (fixed) formatting paths and the >= 1h format"
+    testing:
+      - "Timer/live-ticking tests must control the clock (fake timers) rather than relying on wall time; verify the running
+        elapsed value updates on tick and that a terminal job's total does not tick. Cover the boundary where duration crosses
+        one hour to exercise the h:mm:ss format. No backend/E2E work — pure Vitest component/composable coverage."
