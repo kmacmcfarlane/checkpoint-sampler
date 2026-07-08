@@ -1456,6 +1456,56 @@ describe('StudyEditor', () => {
       const loraPairsSection = wrapper.find('[data-testid="lora-strength-pairs"]')
       expect(loraPairsSection.exists()).toBe(true)
     })
+
+    // AC 1 & 2: Model/CLIP labels persistently identify each input in a pair row
+    it('renders persistent Model and CLIP labels for a pair row', async () => {
+      const wrapper = mount(StudyEditor)
+      await flushPromises()
+
+      const header = wrapper.find('[data-testid="lora-pair-header"]')
+      expect(header.exists()).toBe(true)
+      expect(header.text()).toContain('Model')
+      expect(header.text()).toContain('CLIP')
+    })
+
+    // AC 1: labels remain visible even once both inputs hold non-empty (default) values
+    it('keeps Model and CLIP labels visible when both inputs hold non-empty values', async () => {
+      const wrapper = mount(StudyEditor)
+      await flushPromises()
+
+      const vm = wrapper.vm as unknown as {
+        loraStrengthPairs: Array<{ strength_model: number; strength_clip: number }>
+      }
+      // Default pair already has non-empty values (1.0, 1.0)
+      expect(vm.loraStrengthPairs[0]).toEqual({ strength_model: 1.0, strength_clip: 1.0 })
+
+      const header = wrapper.find('[data-testid="lora-pair-header"]')
+      expect(header.exists()).toBe(true)
+      expect(header.text()).toContain('Model')
+      expect(header.text()).toContain('CLIP')
+    })
+
+    // AC 1: labels render for every pair row, including newly added rows
+    it('keeps Model and CLIP labels visible after adding a new pair row', async () => {
+      const wrapper = mount(StudyEditor)
+      await flushPromises()
+
+      const vm = wrapper.vm as unknown as {
+        loraStrengthPairs: Array<{ strength_model: number; strength_clip: number }>
+      }
+      vm.loraStrengthPairs = [
+        { strength_model: 1.0, strength_clip: 1.0 },
+        { strength_model: 0.8, strength_clip: 0.6 },
+      ]
+      await nextTick()
+
+      expect(vm.loraStrengthPairs.length).toBe(2)
+
+      const header = wrapper.find('[data-testid="lora-pair-header"]')
+      expect(header.exists()).toBe(true)
+      expect(header.text()).toContain('Model')
+      expect(header.text()).toContain('CLIP')
+    })
   })
 
   describe('prompt prefix field', () => {

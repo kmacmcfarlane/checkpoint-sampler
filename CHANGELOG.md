@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-158: Label LoRA strength-pair inputs (Model vs CLIP) in StudyEditor
+- `StudyEditor.vue` now renders a persistent "Model" / "CLIP" column header above the LoRA Strength Pairs inputs, replacing reliance on `NInputNumber` placeholders that vanished once the default 1.0 values were set. Labels use `var(--text-secondary)` and stay visible regardless of input state. Added unit tests (persistent visibility at default values and after adding rows) and an E2E assertion in `lora-strength-pairs.spec.ts`
+
 ### S-157: Promote Resolution, VAE, Text Encoder, and Shift to multi-value study dimensions
 - Studies now sweep across four new list dimensions in addition to Steps/CFGs/Seeds/LoRA pairs: `Resolutions []ResolutionPair` (paired width/height), `VAEs []string`, `TextEncoders []string`, and `Shifts []float64`. The domain model's `ImagesPerCheckpoint`/`ImagesPerCheckpointLoRA` multiply by each non-empty dimension via a shared `DimMultiplier` helper (empty list = factor 1), and the service-layer sample-job expansion produces the full cross-product across all non-empty dimensions
 - Persistence: migration v28 adds JSON list columns and backfills existing rows — `width`/`height` wrap into a single-element `resolutions` list; `vae`/`text_encoder`/`shift` backfill to single-element lists or empty (`[]`) when the prior scalar was NULL/empty. Existing single-value studies load and behave identically. The Goa study create/update payload and response carry the four fields as lists (scalars replaced; codegen regenerated), and the S-153 50k work-item cap validation counts the new dimensions

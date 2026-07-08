@@ -1356,6 +1356,10 @@ function renderSeedTag(tag: string, index: number) {
 
         <div class="form-field">
           <label>LoRA Strength Pairs</label>
+          <div v-if="loraStrengthPairs.length > 0" class="pair-row-header" data-testid="lora-pair-header">
+            <span class="pair-row-header-label">Model</span>
+            <span class="pair-row-header-label">CLIP</span>
+          </div>
           <NDynamicInput
             v-model:value="loraStrengthPairs"
             :min="0"
@@ -1740,6 +1744,19 @@ function renderSeedTag(tag: string, index: number) {
   display: flex;
   gap: 0.5rem;
   width: 100%;
+}
+
+.pair-row-header {
+  display: flex;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.pair-row-header-label {
+  flex: 1;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
 }
 
 .pair-select {

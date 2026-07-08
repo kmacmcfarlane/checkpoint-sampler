@@ -101,4 +101,33 @@ test.describe('LoRA strength pairs in study editor (S-149)', () => {
     const label = page.getByText('LoRA Strength Pairs')
     await expect(label).toBeVisible()
   })
+
+  // S-158 AC1: each LoRA strength-pair row clearly and persistently identifies which
+  // input is the Model strength and which is the CLIP strength.
+  test('Model and CLIP header labels are visible and remain visible after entering values (S-158)', async ({ page }) => {
+    const header = page.locator('[data-testid="lora-pair-header"]')
+    await expect(header).toBeVisible()
+    await expect(header).toContainText('Model')
+    await expect(header).toContainText('CLIP')
+
+    // Change the default values in the first pair row
+    const modelInput = page.locator('[data-testid="lora-pair-model-0"] input')
+    const clipInput = page.locator('[data-testid="lora-pair-clip-0"] input')
+    await modelInput.fill('0.75')
+    await modelInput.blur()
+    await clipInput.fill('0.5')
+    await clipInput.blur()
+
+    // Labels remain visible after values are entered
+    await expect(header).toBeVisible()
+    await expect(header).toContainText('Model')
+    await expect(header).toContainText('CLIP')
+
+    // Labels remain visible after adding a second pair row too
+    await page.locator('[data-testid="lora-pair-row-add-0"]').click()
+    await expect(page.locator('[data-testid="lora-pair-row-1"]')).toBeVisible()
+    await expect(header).toBeVisible()
+    await expect(header).toContainText('Model')
+    await expect(header).toContainText('CLIP')
+  })
 })

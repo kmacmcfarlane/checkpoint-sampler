@@ -1358,7 +1358,7 @@ stories:
         (not substituted) for such a workflow"
   - id: S-158
     title: "Label LoRA strength-pair inputs (Model vs CLIP) in StudyEditor"
-    status: todo
+    status: uat
     priority: 35
     complexity: low
     requires: []
