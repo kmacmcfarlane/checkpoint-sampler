@@ -685,7 +685,7 @@ stories:
   - id: S-151
     title: "Restrict WebSocket origin and CORS to same-host with allowed_origins config override"
     priority: 65
-    status: uat_feedback
+    status: uat
     complexity: medium
     type: story
     requires: ["S-150"]
@@ -720,23 +720,6 @@ stories:
         doesn't break the harness)"
       - "Verify in e2e that the WS connection still establishes (live-update specs)"
 
-    review_feedback: "UAT defect: the same-host WebSocket CheckOrigin added by this story rejects the /api/ws upgrade in the
-      dev (make up-dev) stack, so ALL live job progress is broken — status, % complete, images/total, per-image inference
-      progress, and ETA never stream. Manual refresh still shows persisted aggregate progress (REST is unaffected), which
-      masked it.\n\nRoot cause: the frontend Vite dev proxy used changeOrigin: true on /api, which rewrites the forwarded
-      Host header to \"backend:8080\". originAllowed() then compares the browser Origin hostname (e.g. the LAN IP 192.168.1.241)
-      against Host hostname \"backend\" and rejects. REST works because same-origin GETs send no Origin header (originHeader
-      == \"\" -> allowed), whereas the WS handshake ALWAYS sends Origin — hence \"refresh works, live does not.\" Backend
-      logs showed repeated: path=/api/ws status_code=500 \"websocket: request origin not allowed by Upgrader.CheckOrigin\"\
-      .\n\nInterim fix already applied to the working tree (uncommitted): removed changeOrigin: true from the /api proxy in
-      frontend/vite.config.ts so the browser's real Host is forwarded and matches Origin. Verified live: WS upgrades now succeed
-      (zero CheckOrigin rejections) and the connection stays open during a ComfyUI run.\n\nRework asks:\n1. Formalize/keep
-      the Vite proxy fix (frontend/vite.config.ts) and add a comment explaining the Host/Origin coupling so it is not reintroduced.\n\
-      2. Add a regression guard for originAllowed covering the dev scenario: Origin = http://<lanip>:3001, Host = <lanip>:3001
-      -> allowed; and confirm a genuine cross-host Origin is still rejected.\n3. Verify the production path (make up, same-origin
-      reverse proxy) and the allowed_origins override still work for Host-rewriting proxies; document the allowed_origins
-      requirement for any deployment behind a Host-changing proxy.\n4. Confirm ETA (sample + job) renders live once the WS
-      flows — it is WS-only and was collateral of this rejection, not a separate defect."
   - id: S-152
     title: "Cap concurrent WebSocket clients in the hub"
     priority: 45
@@ -1403,7 +1386,7 @@ stories:
     title: "Generate Samples dialog validation shows 0/720 — study-scoped validation guesses sample dir instead of using the
       shared output-dir resolver"
     type: bug
-    status: todo
+    status: uat
     priority: 70
     complexity: medium
     requires: []

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
 	gentrainingruns "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/training_runs"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/fileformat"
@@ -129,19 +130,23 @@ func isManifestNotFound(err error) bool {
 
 // Validate checks the completeness of sample images for a training run.
 //
-// B-132: Validation now prefers manifest-based verification which checks each
+// B-132: Validation prefers manifest-based verification which checks each
 // expected sample by filename, verifies per-sample sidecar JSON params against
 // the manifest, and flags foreign (unexpected) files. This replaces the old
 // count-only approach that could not detect modified filenames or param mismatches.
 //
-// When study_id is provided:
-//  1. Try manifest-based validation (ValidateTrainingRunWithManifest) first.
-//  2. Fall back to study-config-based validation (ValidateTrainingRunWithStudy)
-//     only when no manifest.json exists yet (pre-generation).
+// B-160: Both validation entry points converge on a single shared core
+// (validateSampleSet) so they cannot diverge:
 //
-// When no study_id is provided (viewer path):
-//  1. Try manifest-based validation using the study output dir derived from the run name.
-//  2. Fall back to the legacy max-file-count heuristic (ValidateTrainingRun).
+//   - Study-aware path (study_id, the Generate Samples dialog): the canonical
+//     on-disk sample output dir is resolved via resolveStudyOutputDir (which
+//     consults viewer discovery — the same source the slideout uses) instead of
+//     naively reconstructing {sanitize(run)}/{study}. The naive path omitted the
+//     {base_model} level that LoRA runs write into, so the manifest was not found
+//     and validation reported 0/N while the slideout reported N/N.
+//   - Viewer path (study_output_dir, the left-panel "Validate" slideout): the
+//     caller already supplies the run's real StudyOutputDir, which is passed
+//     straight through to the same core.
 func (s *TrainingRunsService) Validate(ctx context.Context, p *gentrainingruns.ValidatePayload) (*gentrainingruns.ValidationResultResponse, error) {
 	var result *model.ValidationResult
 
@@ -171,29 +176,18 @@ func (s *TrainingRunsService) Validate(ctx context.Context, p *gentrainingruns.V
 		if err != nil {
 			return nil, gentrainingruns.MakeInternalError(fmt.Errorf("fetching study: %w", err))
 		}
-		// Build the scoped study output dir: {sanitized_trainingRunName}/{studyName}
-		// Training run names can contain slashes (e.g. "qwen/Qwen2-VL"), so the name
-		// must be sanitized to a single directory level before path construction.
-		// This matches exactly what the job executor writes when saving sample images.
-		scopedStudyDir := fileformat.SanitizeTrainingRunName(tr.Name) + "/" + study.Name
 
-		// B-132: Prefer manifest-based validation (per-sample filename + param verification).
-		// Fall back to study-config-based count validation only when no manifest exists.
-		result, err = s.validator.ValidateTrainingRunWithManifest(tr, scopedStudyDir)
+		// B-160: resolve the study's canonical on-disk output dir (the same value
+		// the slideout passes) rather than reconstructing it from names, then run
+		// the shared validation core.
+		studyOutputDir := s.resolveStudyOutputDir(tr, study)
+		result, err = s.validateSampleSet(tr, studyOutputDir, &study)
 		if err != nil {
-			// If the error indicates a missing manifest, fall back to study-based validation.
-			// This happens before the first generation when no manifest.json exists yet.
-			if isManifestNotFound(err) {
-				result, err = s.validator.ValidateTrainingRunWithStudy(tr, study, scopedStudyDir)
-				if err != nil {
-					return nil, gentrainingruns.MakeInternalError(fmt.Errorf("validating training run %q with study: %w", tr.Name, err))
-				}
-			} else {
-				return nil, gentrainingruns.MakeInternalError(fmt.Errorf("validating training run %q with manifest: %w", tr.Name, err))
-			}
+			return nil, gentrainingruns.MakeInternalError(err)
 		}
 	} else {
-		// Viewer validation path (no study context from the caller).
+		// Viewer validation path: the caller supplies the run's real study output
+		// dir (or none, for legacy root-level runs).
 		var runs []model.TrainingRun
 		var err error
 		if s.fsState != nil {
@@ -210,34 +204,16 @@ func (s *TrainingRunsService) Validate(ctx context.Context, p *gentrainingruns.V
 			return nil, gentrainingruns.MakeNotFound(fmt.Errorf("training run %q not found", p.ID))
 		}
 
-		var studyName string
+		var studyOutputDir string
 		if p.StudyOutputDir != nil && *p.StudyOutputDir != "" {
-			studyName = *p.StudyOutputDir
+			studyOutputDir = *p.StudyOutputDir
 		} else {
-			studyName = service.StudyNameForRun(tr.Name)
+			studyOutputDir = service.StudyNameForRun(tr.Name)
 		}
 
-		// B-132: Prefer manifest-based validation when a study output dir is available.
-		// Fall back to the legacy count heuristic for pre-generation or non-study runs.
-		if studyName != "" {
-			result, err = s.validator.ValidateTrainingRunWithManifest(tr, studyName)
-			if err != nil {
-				if isManifestNotFound(err) {
-					// No manifest yet — fall back to legacy count heuristic.
-					result, err = s.validator.ValidateTrainingRun(tr, studyName)
-					if err != nil {
-						return nil, gentrainingruns.MakeInternalError(fmt.Errorf("validating training run %q: %w", tr.Name, err))
-					}
-				} else {
-					return nil, gentrainingruns.MakeInternalError(fmt.Errorf("validating training run %q with manifest: %w", tr.Name, err))
-				}
-			}
-		} else {
-			// No study context at all — legacy root-level validation.
-			result, err = s.validator.ValidateTrainingRun(tr, studyName)
-			if err != nil {
-				return nil, gentrainingruns.MakeInternalError(fmt.Errorf("validating training run %q: %w", tr.Name, err))
-			}
+		result, err = s.validateSampleSet(tr, studyOutputDir, nil)
+		if err != nil {
+			return nil, gentrainingruns.MakeInternalError(err)
 		}
 	}
 
@@ -264,6 +240,87 @@ func (s *TrainingRunsService) Validate(ctx context.Context, p *gentrainingruns.V
 		TotalExtra:            result.TotalExtra,
 		TotalInvalidParams:    result.TotalInvalidParams,
 	}, nil
+}
+
+// resolveStudyOutputDir determines the canonical on-disk sample output directory
+// for a training run + study. It consults viewer discovery — the same source the
+// left-panel "Validate" slideout draws its StudyOutputDir from — so the dialog
+// (study_id) and slideout (study_output_dir) validation paths resolve the
+// identical directory and cannot diverge (B-160).
+//
+// The naive path {sanitize(run)}/{study} is correct for checkpoint runs but omits
+// the {base_model} level that LoRA runs write into
+// ({sanitize(run)}/{study}/{base_model}). Reconstructing from names alone yielded
+// a directory with no manifest, which made the dialog report 0/N while the
+// slideout (using the real StudyOutputDir) reported N/N.
+//
+// When no viewer run matches (e.g. no samples generated yet), it returns the
+// naive path so pre-generation study-config validation still works.
+func (s *TrainingRunsService) resolveStudyOutputDir(tr model.TrainingRun, study model.Study) string {
+	naive := fileformat.SanitizeTrainingRunName(tr.Name) + "/" + study.Name
+
+	var viewerRuns []model.TrainingRun
+	if s.fsState != nil {
+		viewerRuns = s.fsState.ViewableRuns()
+	} else if s.viewerDiscovery != nil {
+		discovered, err := s.viewerDiscovery.DiscoverViewable()
+		if err != nil {
+			// Viewer discovery failed — fall back to the naive path rather than
+			// failing validation outright.
+			return naive
+		}
+		viewerRuns = discovered
+	}
+
+	// Prefer an exact match (checkpoint layout: {run}/{study}); otherwise accept
+	// the first prefix match (LoRA layout: {run}/{study}/{base_model}).
+	prefix := naive + "/"
+	prefixMatch := ""
+	for _, vr := range viewerRuns {
+		if vr.StudyOutputDir == naive {
+			return vr.StudyOutputDir
+		}
+		if prefixMatch == "" && strings.HasPrefix(vr.StudyOutputDir, prefix) {
+			prefixMatch = vr.StudyOutputDir
+		}
+	}
+	if prefixMatch != "" {
+		return prefixMatch
+	}
+	return naive
+}
+
+// validateSampleSet is the single "actual vs expected" core shared by both
+// validation entry points (B-160). It prefers manifest-based validation
+// (per-sample filename + sidecar param verification) for the given study output
+// dir, falling back only when no manifest exists yet (pre-generation):
+//   - to study-config count validation when a study is supplied (dialog path);
+//   - to the legacy max-file-count heuristic otherwise (viewer path).
+//
+// Returned errors are already wrapped with context; callers map them to the
+// transport error type.
+func (s *TrainingRunsService) validateSampleSet(tr model.TrainingRun, studyOutputDir string, study *model.Study) (*model.ValidationResult, error) {
+	result, err := s.validator.ValidateTrainingRunWithManifest(tr, studyOutputDir)
+	if err == nil {
+		return result, nil
+	}
+	if !isManifestNotFound(err) {
+		return nil, fmt.Errorf("validating training run %q with manifest: %w", tr.Name, err)
+	}
+
+	// No manifest yet (pre-generation) — fall back.
+	if study != nil {
+		result, err = s.validator.ValidateTrainingRunWithStudy(tr, *study, studyOutputDir)
+		if err != nil {
+			return nil, fmt.Errorf("validating training run %q with study: %w", tr.Name, err)
+		}
+		return result, nil
+	}
+	result, err = s.validator.ValidateTrainingRun(tr, studyOutputDir)
+	if err != nil {
+		return nil, fmt.Errorf("validating training run %q: %w", tr.Name, err)
+	}
+	return result, nil
 }
 
 // Scan scans a training run's sample directories and returns image metadata with

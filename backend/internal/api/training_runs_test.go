@@ -1281,3 +1281,195 @@ var _ = Describe("TrainingRunsService manifest validation routing (B-132)", func
 		Expect(result.Checkpoints[0].Missing).To(Equal(0))
 	})
 })
+
+// B-160: The Generate Samples dialog (study_id path) previously reconstructed the
+// sample output dir as {sanitize(run)}/{study}, which omits the {base_model} level
+// that LoRA runs write into ({sanitize(run)}/{study}/{base_model}). The manifest
+// therefore was not found at the guessed path, validation fell back to study-config
+// counting against a non-existent directory, and the dialog reported 0/N while the
+// slideout (which uses the run's real StudyOutputDir) reported N/N.
+//
+// These tests set up fixtures where the canonical output dir DIFFERS from the naive
+// reconstruction (LoRA) and assert the study_id path now resolves the real dir and
+// reports the identical totals as the study_output_dir (slideout) path.
+var _ = Describe("TrainingRunsService study-scoped output-dir resolution (B-160)", func() {
+	var (
+		viewerFS        *fakeViewerDiscoveryFS
+		scanFS          *fakeScanFS
+		cpFS            *fakeCheckpointDiscoveryFS
+		viewerDiscovery *service.ViewerDiscoveryService
+		cpDiscovery     *service.DiscoveryService
+		scanner         *service.Scanner
+		logger          *logrus.Logger
+		sampleDir       string
+	)
+
+	BeforeEach(func() {
+		sampleDir = "/samples"
+		viewerFS = newFakeViewerDiscoveryFS()
+		scanFS = newFakeScanFS()
+		cpFS = newFakeCheckpointDiscoveryFS()
+		logger = logrus.New()
+		logger.SetOutput(io.Discard)
+	})
+
+	// expectedFileFor returns the single expected sample filename for the shared
+	// one-combination study/manifest used by these tests.
+	expectedFileFor := func() string {
+		return service.GenerateOutputFilename(model.SampleJobItem{
+			PromptName: "p1", Steps: 20, CFG: 7,
+			SamplerName: "euler", Scheduler: "normal", Seed: 42,
+		})
+	}
+
+	oneComboStudy := func(id, name string) model.Study {
+		return model.Study{
+			ID:      id,
+			Name:    name,
+			Prompts: []model.NamedPrompt{{Name: "p1", Text: "prompt"}},
+			Steps:   []int{20},
+			CFGs:    []float64{7},
+			SamplerSchedulerPairs: []model.SamplerSchedulerPair{
+				{Sampler: "euler", Scheduler: "normal"},
+			},
+			Seeds: []int64{42},
+		}
+	}
+
+	oneComboManifest := func(runName, studyName, checkpoint string) []byte {
+		manifest := fileformat.JobManifest{
+			JobID:           "job-1",
+			TrainingRunName: runName,
+			StudyName:       studyName,
+			Prompts:         []fileformat.ManifestNamedPrompt{{Name: "p1", Text: "prompt"}},
+			Steps:           []int{20},
+			CFGs:            []float64{7},
+			SamplerSchedulerPairs: []fileformat.ManifestSamplerSchedulerPair{
+				{Sampler: "euler", Scheduler: "normal"},
+			},
+			Seeds:               []int64{42},
+			ImagesPerCheckpoint: 1,
+			Checkpoints:         []string{checkpoint},
+		}
+		data, err := fileformat.MarshalManifest(manifest)
+		Expect(err).NotTo(HaveOccurred())
+		return data
+	}
+
+	// LoRA run: canonical dir = {run}/{study}/{base_model}; naive = {run}/{study}.
+	// This is the primary reproduction of the 0/N bug.
+	It("resolves the LoRA base-model output dir for the study_id path and matches the slideout", func() {
+		studyID := "study-lora"
+		studyName := "Test Study"
+		runName := "mylora"
+		baseModel := "sdxl-base"
+		checkpoint := "mylora-step00001000.safetensors"
+
+		// Checkpoint discovery (dialog source): the LoRA run.
+		cpFS.safetensors["/loras"] = []string{checkpoint}
+
+		// Viewer discovery (slideout source): the LoRA sample layout on disk.
+		// {run}/{study}/{base_model}/{checkpoint}/ → StudyOutputDir = "mylora/Test Study/sdxl-base"
+		viewerFS.subdirs[sampleDir] = []string{runName}
+		viewerFS.subdirs[sampleDir+"/"+runName] = []string{studyName}
+		viewerFS.subdirs[sampleDir+"/"+runName+"/"+studyName] = []string{baseModel}
+		viewerFS.subdirs[sampleDir+"/"+runName+"/"+studyName+"/"+baseModel] = []string{checkpoint}
+
+		viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
+		cpDiscovery = service.NewDiscoveryService(cpFS, nil, []string{"/loras"}, sampleDir, logger)
+		scanner = service.NewScanner(scanFS, sampleDir, logger)
+		validator := service.NewValidationService(scanFS, sampleDir, logger)
+		studyGetter := newFakeStudyGetter()
+		studyGetter.studies[studyID] = oneComboStudy(studyID, studyName)
+		svc := api.NewTrainingRunsService(viewerDiscovery, cpDiscovery, scanner, validator, nil, studyGetter)
+
+		// Manifest + sample live ONLY at the canonical LoRA path (with base model).
+		// The naive path {sampleDir}/mylora/Test Study has no manifest and no files,
+		// which is what the old code guessed → 0/N.
+		canonicalDir := sampleDir + "/" + runName + "/" + studyName + "/" + baseModel
+		scanFS.fileData[canonicalDir+"/manifest.json"] = oneComboManifest(runName, studyName, checkpoint)
+		scanFS.files[canonicalDir+"/"+checkpoint] = []string{expectedFileFor()}
+
+		// Dialog path: study_id only.
+		sid := studyID
+		dialogResult, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{
+			ID: checkpointRunID(svc, 0), StudyID: &sid,
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(dialogResult.Checkpoints).To(HaveLen(1))
+		// Pre-fix this was 0 (manifest not found at guessed dir). Now all present.
+		Expect(dialogResult.TotalActual).To(Equal(dialogResult.TotalExpected))
+		Expect(dialogResult.TotalExpected).To(Equal(1))
+		Expect(dialogResult.Checkpoints[0].Verified).To(Equal(1))
+		Expect(dialogResult.Checkpoints[0].Missing).To(Equal(0))
+
+		// Slideout path: study_output_dir (the run's real StudyOutputDir).
+		viewerRuns, err := svc.List(context.Background(), &gentrainingruns.ListPayload{Source: "samples"})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(viewerRuns).To(HaveLen(1))
+		Expect(viewerRuns[0].StudyOutputDir).NotTo(BeNil())
+		Expect(*viewerRuns[0].StudyOutputDir).To(Equal(runName + "/" + studyName + "/" + baseModel))
+		sod := *viewerRuns[0].StudyOutputDir
+		slideoutResult, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{
+			ID: viewerRuns[0].ID, StudyOutputDir: &sod,
+		})
+		Expect(err).NotTo(HaveOccurred())
+
+		// The dialog and slideout must report identical totals for the same run+study.
+		Expect(dialogResult.TotalActual).To(Equal(slideoutResult.TotalActual))
+		Expect(dialogResult.TotalExpected).To(Equal(slideoutResult.TotalExpected))
+		Expect(dialogResult.TotalVerified).To(Equal(slideoutResult.TotalVerified))
+	})
+
+	// Checkpoint run: canonical dir = {run}/{study} (== naive). This asserts the
+	// shared resolver + core keep working for the checkpoint kind and that the
+	// study_id and study_output_dir paths agree.
+	It("resolves the checkpoint output dir for the study_id path and matches the slideout", func() {
+		studyID := "study-cp"
+		studyName := "Test Study"
+		runName := "model"
+		checkpoint := "model-step00001000.safetensors"
+
+		cpFS.safetensors["/checkpoints"] = []string{checkpoint}
+
+		// Viewer discovery: {run}/{study}/{checkpoint}/ → StudyOutputDir = "model/Test Study"
+		viewerFS.subdirs[sampleDir] = []string{runName}
+		viewerFS.subdirs[sampleDir+"/"+runName] = []string{studyName}
+		viewerFS.subdirs[sampleDir+"/"+runName+"/"+studyName] = []string{checkpoint}
+
+		viewerDiscovery = service.NewViewerDiscoveryService(viewerFS, sampleDir, logger)
+		cpDiscovery = service.NewDiscoveryService(cpFS, []string{"/checkpoints"}, nil, sampleDir, logger)
+		scanner = service.NewScanner(scanFS, sampleDir, logger)
+		validator := service.NewValidationService(scanFS, sampleDir, logger)
+		studyGetter := newFakeStudyGetter()
+		studyGetter.studies[studyID] = oneComboStudy(studyID, studyName)
+		svc := api.NewTrainingRunsService(viewerDiscovery, cpDiscovery, scanner, validator, nil, studyGetter)
+
+		canonicalDir := sampleDir + "/" + runName + "/" + studyName
+		scanFS.fileData[canonicalDir+"/manifest.json"] = oneComboManifest(runName, studyName, checkpoint)
+		scanFS.files[canonicalDir+"/"+checkpoint] = []string{expectedFileFor()}
+
+		sid := studyID
+		dialogResult, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{
+			ID: checkpointRunID(svc, 0), StudyID: &sid,
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(dialogResult.TotalActual).To(Equal(dialogResult.TotalExpected))
+		Expect(dialogResult.TotalExpected).To(Equal(1))
+		Expect(dialogResult.Checkpoints[0].Verified).To(Equal(1))
+
+		viewerRuns, err := svc.List(context.Background(), &gentrainingruns.ListPayload{Source: "samples"})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(viewerRuns).To(HaveLen(1))
+		Expect(*viewerRuns[0].StudyOutputDir).To(Equal(runName + "/" + studyName))
+		sod := *viewerRuns[0].StudyOutputDir
+		slideoutResult, err := svc.Validate(context.Background(), &gentrainingruns.ValidatePayload{
+			ID: viewerRuns[0].ID, StudyOutputDir: &sod,
+		})
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(dialogResult.TotalActual).To(Equal(slideoutResult.TotalActual))
+		Expect(dialogResult.TotalExpected).To(Equal(slideoutResult.TotalExpected))
+		Expect(dialogResult.TotalVerified).To(Equal(slideoutResult.TotalVerified))
+	})
+})
