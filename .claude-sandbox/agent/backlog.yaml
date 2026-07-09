@@ -1626,3 +1626,77 @@ stories:
         error then success)"
       - "Distinguish connection-error vs checkpoint-absent at execution time; cover both checkpoint and LoRA jobs"
       - "Verify no orphaned/duplicate submissions when reconnect overlaps the executor ticker (relates to B-152)"
+  - id: B-162
+    title: "Job progress Completeness section reports 0/N missing for LoRA jobs — completeness check and manifest write omit
+      the base_model directory level"
+    type: bug
+    status: todo
+    priority: 50
+    complexity: low
+    requires: []
+    notes: |
+      Observed in the dev environment: a running sample job for the training run
+      qwen/training/bidi-v0.3-qwen-2512-dim-32-alpha-32-lr-7e-5-epochs-100-1024-b1d1
+      shows overall progress at checkpoint 8/10, but the JobProgressPanel
+      "Completeness:" section reports 0/72 -- 72 missing for every completed
+      checkpoint (000010 through 000090). The images ARE on disk; only the
+      completeness report is wrong.
+
+      Root cause: the executor computes the study output directory in three places
+      and they disagree about whether a base_model level is present.
+
+        - WRITE (internal/service/job_executor_conn.go:593-596) — correct:
+            studyOutputDir = SanitizeTrainingRunName(job.TrainingRunName) + "/" + job.StudyName
+            if job.BaseModel != "" { studyOutputDir += "/" + basename-without-ext(job.BaseModel) }
+          Images land at {sampleDir}/{run}/{study}/{base_model}/{checkpoint}/*.png
+
+        - COMPLETENESS CHECK (internal/service/job_executor_progress.go:366) — wrong:
+            studyOutputDir = SanitizeTrainingRunName(job.TrainingRunName) + "/" + job.StudyName
+          No base_model level. verifyCheckpointCompleteness (job_executor_progress.go:200,224)
+          then stats {sampleDir}/{run}/{study}/{checkpoint}, which does not exist for a
+          LoRA job, logs "checkpoint sample directory does not exist during completeness
+          check", and records Verified: 0 / Missing: <expected>.
+
+        - MANIFEST WRITE (internal/service/job_executor_workflow.go:455) — also wrong:
+            same naive reconstruction, so manifest.json is written one directory ABOVE
+            the images for LoRA jobs ({run}/{study}/manifest.json instead of
+            {run}/{study}/{base_model}/manifest.json). This likely also defeats
+            ValidateTrainingRunWithManifest for those runs (falls back to count-based
+            validation because ErrManifestNotFound).
+
+      Overall job progress is unaffected because it counts sample_job_items rows in the
+      DB, not files on disk — which is exactly why progress and completeness disagree.
+
+      This is the same defect class as B-160, which fixed the naive
+      sanitize(run)/study reconstruction in the /validate endpoint (via
+      resolveStudyOutputDir) but did not touch the executor. Fix: extract a single
+      helper (e.g. service.StudyOutputDirForJob(job) or a method on JobExecutor) that
+      applies the base_model level, and route all three call sites through it so they
+      cannot diverge again. Grep for `SanitizeTrainingRunName(job.TrainingRunName)` to
+      confirm no fourth site exists.
+
+      Note: non-LoRA jobs (job.BaseModel == "") are unaffected — the two paths coincide.
+    acceptance:
+      - "BE: A single shared helper computes the job's study output directory, including the base_model level when job.BaseModel
+        is non-empty."
+      - "BE: job_executor_conn.go (image write), job_executor_workflow.go (manifest write), and job_executor_progress.go (completeness
+        check) all obtain the study output directory from that helper; no call site reconstructs it inline."
+      - "BE: For a LoRA job (BaseModel set), verifyCheckpointCompleteness reads {sampleDir}/{run}/{study}/{base_model}/{checkpoint}/
+        and reports Verified == Expected when all images are present."
+      - "BE: For a LoRA job, manifest.json is written to the same directory that contains the checkpoint image subdirectories."
+      - "BE: For a non-LoRA job (BaseModel empty), the resolved path is unchanged from today's behaviour."
+      - "E2E: A completed sample job for a run with a base model shows N/N verified in the Completeness section of the job
+        progress panel, with no 'missing' lines."
+    testing:
+      - "BaseModel set vs empty — the empty case must NOT gain a trailing slash or an empty path segment."
+      - "BaseModel values with an extension (foo.safetensors) and without (foo) must produce the same directory name."
+      - "BaseModel given as an absolute path — only the basename is used, mirroring the filepath.Base defensive handling already
+        present for checkpoints (B-115)."
+      - "TrainingRunName containing slashes (the reported run is qwen/training/...) — sanitization to underscores must still
+        happen exactly once."
+      - "Manifest relocation: confirm ValidateTrainingRunWithManifest now finds the manifest for a LoRA run rather than falling
+        back to count-based validation via the ErrManifestNotFound path in internal/api/training_runs.go."
+      - "Sample sets written before this fix have manifest.json at the OLD location. Decide and state explicitly whether a
+        read-side fallback to the old path is needed, or whether stale manifests are acceptable — do not leave this ambiguous."
+      - "Completeness results are memoised in e.checkpointCompleteness keyed by checkpoint; verify a wrong cached entry cannot
+        survive within a single job run."
