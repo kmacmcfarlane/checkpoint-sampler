@@ -1481,7 +1481,7 @@ stories:
   - id: S-160
     title: "XY grid: tooltip on prompt-dimension headers showing the full prompt text on hover"
     type: feature
-    status: todo
+    status: uat
     priority: 30
     complexity: low
     requires: []
@@ -1581,3 +1581,48 @@ stories:
         Assert the unsuffixed final checkpoint gets the correct StepNumber and that a run whose name has BOTH a smaller numbered
         max and a larger epochs-N resolves to the epochs-N value. Include a guard case proving dim-32/alpha-32/lr/1024 tokens
         are not mistaken for the epoch count. Use the exact reported filename list as the primary fixture."
+  - id: S-161
+    title: "Queue sample jobs when ComfyUI is offline; resolve checkpoint paths lazily at execution"
+    status: todo
+    priority: 65
+    complexity: medium
+    requires: []
+    notes: |
+      Today CreateSampleJob (sample_job.go:412-455) eagerly path-matches every item
+      against ComfyUI's live /object_info at creation. If ComfyUI is unreachable, every
+      item fails matching, skippedCount == len(items), and creation aborts with the
+      misleading "all N items failed checkpoint path matching — no checkpoints could be
+      resolved in ComfyUI" — which implies the checkpoints are missing when really
+      ComfyUI is just down.
+
+      Investigation confirmed: path matching is the ONLY ComfyUI query at creation;
+      nothing else about creating a job needs ComfyUI. The executor already tolerates
+      ComfyUI being offline (reconnect ticker; processNextItem skips while !connected;
+      stuck-item recovery on reconnect), and lazy re-matching already exists in RetryJob
+      (sample_job.go:800-843). So resolution can move from creation-time to execution-time.
+
+      Plan: create the job in pending with unresolved model paths; resolve
+      ComfyUIModelPath/LoraModelPath lazily in processItem when empty (reuse the retry
+      matcher call). Wire the checkpoint + LoRA PathMatcher into the executor (it
+      currently has only baseModelMatcher). Distinguish connection errors from genuine
+      misses: unreachable -> leave item pending (executor waits/reconnects); ComfyUI up
+      but checkpoint absent -> fail that item (job -> completed_with_errors, same as
+      today's retry path).
+    acceptance:
+      - "BE: creating a job while ComfyUI is unreachable succeeds and persists a pending job with items (no eager path-match
+        rejection)"
+      - "BE: path matching happens at execution time in processItem for items with empty model paths (checkpoint and LoRA)"
+      - "BE: a connection error during execution-time matching leaves the item pending (not failed) and triggers the existing
+        disconnect/reconnect path, so the item is retried when ComfyUI returns"
+      - "BE: ComfyUI reachable but checkpoint genuinely absent fails only that item with a clear per-item message; the job
+        completes with errors"
+      - "BE: the misleading 'all items failed checkpoint path matching' whole-job rejection is removed (or only fires for
+        a non-connection reason with honest wording)"
+      - "FE: the launch dialog no longer surfaces the 'no checkpoints could be resolved' error when ComfyUI is offline; the
+        job appears queued/pending"
+      - "E2E: with ComfyUI stopped, launching a job creates a pending job that begins processing once ComfyUI is reachable"
+    testing:
+      - "Exercise the offline-create -> reconnect -> drain path deterministically (fake models provider returning connection
+        error then success)"
+      - "Distinguish connection-error vs checkpoint-absent at execution time; cover both checkpoint and LoRA jobs"
+      - "Verify no orphaned/duplicate submissions when reconnect overlaps the executor ticker (relates to B-152)"
