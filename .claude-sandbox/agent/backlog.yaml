@@ -1541,3 +1541,60 @@ stories:
         inline and is queryable via wrapper.find(). Assert tooltip text equals the study prompt text for a prompt header,
         assert absence for a non-prompt header, and assert graceful handling when the name has no matching prompt entry. Prefer
         findComponent(NTooltip) over native selectors."
+  - id: B-161
+    title: "Checkpoint slider omits the final epoch (100) — assignFinalCheckpointStep only recognizes 'steps-N' in the run
+      name, not 'epochs-N'"
+    type: bug
+    status: todo
+    priority: 65
+    complexity: low
+    requires: []
+    notes: |
+      A LoRA training run has per-epoch checkpoints plus a final unsuffixed checkpoint:
+        bidi-...-epochs-100-1024-b1d1.safetensors            (final = epoch 100, NO suffix)
+        bidi-...-epochs-100-1024-b1d1-000090.safetensors     (epoch 90)
+        ... down to -000010.safetensors                       (epoch 10)
+      The checkpoint slider only goes up to epoch 90; the final epoch-100 checkpoint is
+      missing.
+
+      Root cause (backend, internal/service/discovery.go):
+        - extractStepNumber returns -1 for the final unsuffixed checkpoint (no -NNNNNN
+          epoch suffix, no -stepN suffix).
+        - assignFinalCheckpointStep (discovery.go ~line 312) then tries to place the final
+          checkpoint by (a) taking maxStep from the numbered checkpoints = 90, and
+          (b) scanning the run name with regexp `steps?-(\d+)` for a larger value.
+        - This run's name contains "epochs-100", NOT "steps-100". The `steps?-(\d+)` regex
+          does not match "epochs-100" (no "step" substring), so maxStep stays 90 and the
+          final checkpoint is assigned StepNumber = 90 — colliding with the real -000090
+          checkpoint. Epoch 100 is therefore never represented and the slider caps at 90.
+
+      Fix: extend assignFinalCheckpointStep to also recognize an epoch count in the run
+      name (e.g. `epochs?-(\d+)`) in addition to `steps?-(\d+)`, taking the max. Then the
+      final unsuffixed checkpoint is assigned StepNumber = 100 and sorts after epoch 90,
+      so it appears on the slider. Keep the existing steps-N behavior intact.
+
+      Watch-outs:
+        - The numbered epoch suffix is 6 zero-padded digits (-000090 -> 90). The run-name
+          token is the plain integer (epochs-100 -> 100). Both must map to comparable
+          StepNumber values (they already do: 90 vs 100).
+        - Guard against false positives: the token must be the epoch/step COUNT, not other
+          run-name numbers (dim-32, alpha-32, lr-5e-5, 1024). `epochs?-(\d+)` and
+          `steps?-(\d+)` are specific enough; verify against this exact run name.
+        - Behavior when a run name has neither steps-N nor epochs-N is unchanged (final
+          checkpoint keeps the maxStep fallback).
+    acceptance:
+      - "BE: assignFinalCheckpointStep recognizes an 'epochs-N' (and 'epoch-N') token in the run name in addition to 'steps-N',
+        using the maximum of the detected values"
+      - "BE: for the reported run (numbered epochs 10..90 + final unsuffixed, name contains 'epochs-100'), the final checkpoint
+        is assigned StepNumber 100 and does not collide with the epoch-90 checkpoint"
+      - "BE: the final epoch-100 checkpoint sorts last (after epoch 90) in the discovered checkpoint list"
+      - "BE: regression test uses the exact reported filename set and asserts the resulting checkpoint step numbers are 10,20,...,90,100
+        with the unsuffixed file mapped to 100"
+      - "BE: existing 'steps-N' run-name detection and the no-token maxStep fallback are unchanged (covered by test)"
+      - "FE/E2E: confirm the checkpoint slider surfaces the epoch-100 checkpoint for such a run (no code change expected if
+        it renders from discovered checkpoints)"
+    testing:
+      - "Table-driven test over run-name variants: 'epochs-100', 'epoch-100', 'steps-9000', and a name with neither (fallback).
+        Assert the unsuffixed final checkpoint gets the correct StepNumber and that a run whose name has BOTH a smaller numbered
+        max and a larger epochs-N resolves to the epochs-N value. Include a guard case proving dim-32/alpha-32/lr/1024 tokens
+        are not mistaken for the epoch count. Use the exact reported filename list as the primary fixture."
