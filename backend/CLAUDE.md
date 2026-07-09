@@ -15,4 +15,4 @@ symbol navigation and code understanding:
 - `go_diagnostics` — call after every edit to catch compile errors early
 - `go_vulncheck` — call after modifying go.mod
 
-See `/agent/LSP_TOOLS.md` for the full reference including the built-in LSP tool.
+See `.claude-sandbox/agent/LSP_TOOLS.md` for the full reference including the built-in LSP tool.

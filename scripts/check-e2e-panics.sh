@@ -6,7 +6,7 @@
 #   ./scripts/check-e2e-panics.sh [log-dir]
 #
 # Arguments:
-#   log-dir   Directory containing backend.log (default: .ralph/temp/e2e-logs)
+#   log-dir   Directory containing backend.log (default: .claude-sandbox/ralph/temp/e2e-logs)
 #
 # Exit codes:
 #   0   No panics found (or log file does not exist)
@@ -17,7 +17,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-DEFAULT_LOG_DIR="$PROJECT_DIR/.ralph/temp/e2e-logs"
+DEFAULT_LOG_DIR="$PROJECT_DIR/.claude-sandbox/ralph/temp/e2e-logs"
 LOG_DIR="${1:-$DEFAULT_LOG_DIR}"
 BACKEND_LOG="$LOG_DIR/backend.log"
 
