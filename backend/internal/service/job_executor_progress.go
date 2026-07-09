@@ -360,10 +360,10 @@ func (e *JobExecutor) broadcastJobProgress(jobID string) {
 		return
 	}
 
-	// Resolve the study output directory using sanitized_training_run/study_name layout.
-	// The training run name is sanitized (slashes → underscores) to match what was
-	// written to disk during job execution.
-	studyOutputDir := fileformat.SanitizeTrainingRunName(job.TrainingRunName) + "/" + job.StudyName
+	// Resolve the study output directory using the shared helper (B-162) so this
+	// matches the directory that images and the manifest were actually written to,
+	// including the base_model level for LoRA jobs.
+	studyOutputDir := fileformat.StudyOutputDir(job.TrainingRunName, job.StudyName, job.BaseModel)
 
 	// S-157: swept dimensions control filename encoding; compute once per broadcast.
 	fnDims := e.filenameDimsForJob(job)

@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -579,22 +578,9 @@ func (e *JobExecutor) handleItemCompletionAsync(jobID, itemID, promptID string) 
 		return
 	}
 
-	// Compute the study output directory prefix for the new per-training-run layout:
-	// {sanitized_training_run_name}/{study_name}
-	// The training run name is sanitized (slashes replaced with underscores) to ensure
-	// it forms a single directory level regardless of whether the name contains path
-	// separators (e.g. "qwen/Qwen2-VL" → "qwen_Qwen2-VL"). This scopes samples to both
-	// the selected training run and the selected study, fixing the 36/1 count bug where
-	// all training runs shared the same study directory.
-	//
-	// For LoRA jobs, an additional base model directory level is inserted:
-	// {sanitized_training_run_name}/{study_name}/{base_model_name}
-	// where base_model_name is the filename of the base model without its extension.
-	studyOutputDir := fileformat.SanitizeTrainingRunName(job.TrainingRunName) + "/" + job.StudyName
-	if job.BaseModel != "" {
-		baseModelName := strings.TrimSuffix(filepath.Base(job.BaseModel), filepath.Ext(job.BaseModel))
-		studyOutputDir = studyOutputDir + "/" + baseModelName
-	}
+	// Compute the study output directory using the shared helper (B-162) so the
+	// image-write path, completeness check, and manifest write cannot diverge.
+	studyOutputDir := fileformat.StudyOutputDir(job.TrainingRunName, job.StudyName, job.BaseModel)
 
 	// Generate output filename
 	filename := e.generateOutputFilename(*item, e.filenameDimsForJob(job))

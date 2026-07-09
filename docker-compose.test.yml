@@ -8,6 +8,9 @@ services:
       # Checkpoint filenames from test-fixtures/samples (used in UNETLoader object_info
       # so CheckpointPathMatcher can match them to ComfyUI model paths)
       - CHECKPOINT_FILENAMES=my-model-step00001000.safetensors,my-model-step00002000.safetensors
+      # LoRA filenames from test-fixtures/loras (used in LoraLoader object_info
+      # so LoraPathMatcher can resolve them for LoRA sample jobs, B-162)
+      - LORA_FILENAMES=test-lora-step00001000.safetensors,test-lora-step00002000.safetensors
       # Startup delay for WS execution-complete events (milliseconds).
       # Default 0 keeps existing tests fast. Individual E2E tests can override
       # this at runtime via POST /mock/config {"delay_ms": N} (W-018).
