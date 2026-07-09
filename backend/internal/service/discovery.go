@@ -329,6 +329,15 @@ func assignFinalCheckpointStep(checkpoints []model.Checkpoint, runName string) {
 		}
 	}
 
+	// Try to extract max epochs from training run name (e.g., "epochs-100" in the name)
+	epochsInName := regexp.MustCompile(`epochs?-(\d+)`)
+	if m := epochsInName.FindStringSubmatch(runName); m != nil {
+		n, err := strconv.Atoi(m[1])
+		if err == nil && n > maxStep {
+			maxStep = n
+		}
+	}
+
 	if maxStep <= 0 {
 		return
 	}

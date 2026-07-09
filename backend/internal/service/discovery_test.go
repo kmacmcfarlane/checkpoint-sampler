@@ -1,6 +1,7 @@
 package service_test
 
 import (
+	"fmt"
 	"io"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -10,6 +11,12 @@ import (
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
 )
+
+// padStep formats a step number as a zero-padded 8-digit string, matching the
+// -step<NNNNNNNN> checkpoint filename suffix convention.
+func padStep(n int) string {
+	return fmt.Sprintf("%08d", n)
+}
 
 // fakeCheckpointFS implements service.CheckpointFileSystem for testing.
 type fakeCheckpointFS struct {
@@ -160,6 +167,71 @@ var _ = Describe("DiscoveryService", func() {
 				// Final checkpoint gets max step (1000) when detectable
 				Expect(cps[2].StepNumber).To(Equal(1000))
 			})
+		})
+
+		Context("final checkpoint step from run name (B-161)", func() {
+			It("assigns the final checkpoint the epoch count from an 'epochs-N' run name, not colliding with the max numbered epoch", func() {
+				base := "bidi-lora-dim-32-alpha-32-lr-5e-5-epochs-100-1024-b1d1"
+				fs.files["/checkpoints"] = []string{
+					base + ".safetensors",
+					base + "-000010.safetensors",
+					base + "-000020.safetensors",
+					base + "-000030.safetensors",
+					base + "-000040.safetensors",
+					base + "-000050.safetensors",
+					base + "-000060.safetensors",
+					base + "-000070.safetensors",
+					base + "-000080.safetensors",
+					base + "-000090.safetensors",
+				}
+				discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, nil, "/samples", logger)
+
+				runs, err := discovery.Discover()
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(runs).To(HaveLen(1))
+				cps := runs[0].Checkpoints
+				Expect(cps).To(HaveLen(10))
+
+				steps := make([]int, len(cps))
+				for i, cp := range cps {
+					steps[i] = cp.StepNumber
+				}
+				Expect(steps).To(Equal([]int{10, 20, 30, 40, 50, 60, 70, 80, 90, 100}))
+
+				// The unsuffixed final checkpoint must map to 100, and must not collide
+				// with the real -000090 checkpoint's StepNumber.
+				lastCP := cps[len(cps)-1]
+				Expect(lastCP.StepNumber).To(Equal(100))
+				Expect(lastCP.Filename).To(Equal(base + ".safetensors"))
+			})
+
+			DescribeTable("final checkpoint StepNumber resolution from run name tokens",
+				func(runNameSuffix string, numberedSteps []int, expectedFinalStep int) {
+					base := "run-" + runNameSuffix
+					files := []string{base + ".safetensors"}
+					for _, s := range numberedSteps {
+						files = append(files, base+"-step"+padStep(s)+".safetensors")
+					}
+					fs.files["/checkpoints"] = files
+					discovery = service.NewDiscoveryService(fs, []string{"/checkpoints"}, nil, "/samples", logger)
+
+					runs, err := discovery.Discover()
+
+					Expect(err).NotTo(HaveOccurred())
+					Expect(runs).To(HaveLen(1))
+					cps := runs[0].Checkpoints
+					finalCP := cps[len(cps)-1]
+					Expect(finalCP.Filename).To(Equal(base + ".safetensors"))
+					Expect(finalCP.StepNumber).To(Equal(expectedFinalStep))
+				},
+				Entry("epochs-N token", "epochs-100", []int{10, 50}, 100),
+				Entry("epoch-N (singular) token", "epoch-100", []int{10, 50}, 100),
+				Entry("steps-N token (existing behavior unchanged)", "steps-9000", []int{500, 1000}, 9000),
+				Entry("no token falls back to numbered max", "plain-name", []int{10, 50}, 50),
+				Entry("epochs-N larger than numbered max wins", "epochs-100", []int{10, 20}, 100),
+				Entry("guard: dim/alpha/lr/resolution tokens are not mistaken for epoch count", "dim-32-alpha-32-lr-5e-5-1024", []int{10, 50}, 50),
+			)
 		})
 
 		Context("sample directory correlation", func() {

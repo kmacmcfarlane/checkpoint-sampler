@@ -196,3 +196,9 @@ The `studyOutputDir` in `broadcastJobProgress` does not account for the base mod
 * priority: low
 * source: developer
 The PRD section 4 `comfyui:` block documents `host:`/`port:` and a top-level `workflow_dir:`, but the backend loader (`parseComfyUIConfig` / `yamlComfyUIConfig`) actually reads `comfyui.url` and `comfyui.workflow_dir`. A follow-up docs pass should reconcile the PRD comfyui sub-block (and possibly `config.yaml.example`) with the real schema. Out of scope for M-003, which only added the three new top-level keys.
+
+### Hoist inline regexes in assignFinalCheckpointStep to package-level vars
+* status: needs_approval
+* priority: low
+* source: reviewer
+`assignFinalCheckpointStep` in `backend/internal/service/discovery.go` compiles its `stepsInName` (`steps?-(\d+)`) and `epochsInName` (`epochs?-(\d+)`) regexes on every call via `regexp.MustCompile`, unlike the package-level `stepSuffixPattern`/`epochSuffixPattern` vars nearby. Hoisting both to package-level `var` declarations gives a minor perf/GC benefit on large discovery runs and matches the existing convention. Pre-existing pattern (not introduced by B-161); non-blocking cleanup.

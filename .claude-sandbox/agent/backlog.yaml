@@ -1528,7 +1528,7 @@ stories:
     title: "Checkpoint slider omits the final epoch (100) — assignFinalCheckpointStep only recognizes 'steps-N' in the run
       name, not 'epochs-N'"
     type: bug
-    status: todo
+    status: uat
     priority: 65
     complexity: low
     requires: []
