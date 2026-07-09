@@ -1495,3 +1495,49 @@ stories:
       - "Timer/live-ticking tests must control the clock (fake timers) rather than relying on wall time; verify the running
         elapsed value updates on tick and that a terminal job's total does not tick. Cover the boundary where duration crosses
         one hour to exercise the h:mm:ss format. No backend/E2E work — pure Vitest component/composable coverage."
+  - id: S-160
+    title: "XY grid: tooltip on prompt-dimension headers showing the full prompt text on hover"
+    type: feature
+    status: todo
+    priority: 30
+    complexity: low
+    requires: []
+    notes: |
+      When the prompt dimension is on the X or Y axis of the XY grid, the grid headers
+      (XYGrid.vue) render only the prompt NAME (the prompt_name metadata value, e.g.
+      "forest"). Prompt text can be long and is not visible anywhere in the grid. Add a
+      tooltip: hovering a prompt header shows the full prompt text.
+
+      Implementation notes / scoping:
+        - XYGrid.vue renders headers as raw "{{ xVal }}" / "{{ yVal }}" (column header at
+          ~line 258, row header at ~line 277). Values are plain strings from
+          useImageCubeStore (store.xValues / store.yValues); the store has NO prompt text.
+        - Full text lives in the active Study's prompts: NamedPrompt[] (name + text) —
+          src/api/types.ts. The name->text lookup must be sourced from the study and
+          threaded into XYGrid (prop or store getter), then a Map(name -> text) built.
+        - Only the PROMPT dimension headers get the tooltip. Non-prompt dimensions (steps,
+          cfg, sampler, etc.) must NOT show a prompt tooltip. Gate on the header's
+          dimension being the prompt dimension (dimension name === 'prompt' / 'prompt_name').
+        - Apply to both axes (column headers and row headers) since prompt can be X or Y.
+        - Use Naive UI NTooltip. Graceful fallback: if a value has no matching prompt entry
+          (e.g. renamed/removed prompt), show no tooltip (or fall back to the name) rather
+          than an empty tooltip.
+        - Keep the existing header:click behavior intact — the tooltip must not swallow the
+          click.
+        - Long text should wrap in the tooltip (cap width, allow multi-line) so very long
+          prompts stay readable.
+      Frontend-only. No backend, API, or DB change.
+    acceptance:
+      - "FE: hovering a prompt-dimension header (column or row) in the XY grid shows a tooltip with that prompt's full text"
+      - "FE: the tooltip only appears for the prompt dimension; other dimensions' headers show no prompt tooltip"
+      - "FE: the full-prompt-text lookup is sourced from the active study's prompts (name -> text); a value with no matching
+        prompt shows no tooltip and does not error"
+      - "FE: existing header:click behavior is preserved (tooltip does not block header selection)"
+      - "FE: long prompt text wraps/caps width in the tooltip so it stays readable"
+      - "FE: unit tests cover the prompt-header tooltip content, the non-prompt-dimension negative case, and the missing-prompt
+        fallback"
+    testing:
+      - "Naive UI NTooltip uses Teleport — per project convention add global.stubs.Teleport in tests so tooltip content renders
+        inline and is queryable via wrapper.find(). Assert tooltip text equals the study prompt text for a prompt header,
+        assert absence for a non-prompt header, and assert graceful handling when the name has no matching prompt entry. Prefer
+        findComponent(NTooltip) over native selectors."
