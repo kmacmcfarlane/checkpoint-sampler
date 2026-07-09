@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import type { Pinia } from 'pinia'
+import { NTooltip } from 'naive-ui'
 import XYGrid from '../XYGrid.vue'
 import SliderBar from '../SliderBar.vue'
 import ImageCell from '../ImageCell.vue'
@@ -66,6 +67,12 @@ interface MountOptions {
   cellSize?: number
   /** Debug mode prop. */
   debugMode?: boolean
+  /** Dimension name to assign the X role to (default: 'seed'). */
+  xDimensionName?: string
+  /** Dimension name to assign the Y role to (default: 'step'). */
+  yDimensionName?: string
+  /** promptTextMap prop (S-160): prompt name → full prompt text. */
+  promptTextMap?: Record<string, string>
 }
 
 let pinia: Pinia
@@ -82,13 +89,16 @@ function mountGrid(options: MountOptions = {}) {
     cellSliderOverrides,
     cellSize = 200,
     debugMode,
+    xDimensionName = 'seed',
+    yDimensionName = 'step',
+    promptTextMap,
   } = options
 
   const store = useImageCubeStore()
   store.setScanResult(defaultScanResult(images, dimensions))
 
-  if (assignX) store.assignRole('seed', 'x')
-  if (assignY) store.assignRole('step', 'y')
+  if (assignX) store.assignRole(xDimensionName, 'x')
+  if (assignY) store.assignRole(yDimensionName, 'y')
   if (assignSlider) store.assignRole('cfg', 'slider')
 
   if (comboSelections) {
@@ -111,8 +121,13 @@ function mountGrid(options: MountOptions = {}) {
     props: {
       cellSize,
       ...(debugMode !== undefined ? { debugMode } : {}),
+      ...(promptTextMap !== undefined ? { promptTextMap } : {}),
     },
-    global: { plugins: [pinia] },
+    global: {
+      plugins: [pinia],
+      // Stub Teleport so NTooltip popup content renders inline (accessible to wrapper.find/findComponent).
+      stubs: { Teleport: true },
+    },
   })
 }
 
@@ -1099,6 +1114,111 @@ describe('XYGrid', () => {
       // imagesBySliderValue is empty object (no slider dimension)
       expect(typeof payload.imagesBySliderValue).toBe('object')
       expect(Object.keys(payload.imagesBySliderValue)).toHaveLength(0)
+    })
+  })
+
+  // S-160: prompt-dimension header tooltip showing the full prompt text on hover.
+  describe('prompt-dimension header tooltip', () => {
+    const promptDimension: ScanDimension = {
+      name: 'prompt_name',
+      type: 'string',
+      values: ['forest', 'city'],
+    }
+
+    const promptImages: ScanImage[] = [
+      { relative_path: 'a/prompt_name=forest&step=500.png', dimensions: { prompt_name: 'forest', step: '500' }, thumbnail_path: '' },
+      { relative_path: 'a/prompt_name=city&step=500.png', dimensions: { prompt_name: 'city', step: '500' }, thumbnail_path: '' },
+      { relative_path: 'a/prompt_name=forest&step=1000.png', dimensions: { prompt_name: 'forest', step: '1000' }, thumbnail_path: '' },
+      { relative_path: 'a/prompt_name=city&step=1000.png', dimensions: { prompt_name: 'city', step: '1000' }, thumbnail_path: '' },
+    ]
+
+    const promptTextMap = {
+      forest: 'A misty pine forest at dawn, soft light filtering through the trees.',
+      city: 'A neon-lit rainy city street at night, reflections on wet asphalt.',
+    }
+
+    it('AC: shows the full prompt text on hover when the prompt dimension is on the X axis (column headers)', async () => {
+      const wrapper = mountGrid({
+        dimensions: [promptDimension, yDimension],
+        images: promptImages,
+        xDimensionName: 'prompt_name',
+        yDimensionName: 'step',
+        promptTextMap,
+      })
+
+      const tooltips = wrapper.findAllComponents(NTooltip)
+      // Column headers (forest, city) are enabled; row headers (step dimension) are disabled.
+      const colForest = tooltips[0]
+      const colCity = tooltips[1]
+      expect(colForest.props('disabled')).toBe(false)
+      expect(colCity.props('disabled')).toBe(false)
+
+      colForest.vm.setShow(true)
+      await wrapper.vm.$nextTick()
+      expect(wrapper.text()).toContain(promptTextMap.forest)
+
+      // AC: header:click behavior is preserved — clicking the header still emits header:click.
+      const colHeaderEl = wrapper.findAll('[data-testid="xy-grid-col-header"]')[0]
+      await colHeaderEl.trigger('click')
+      expect(wrapper.emitted('header:click')).toBeTruthy()
+      expect(wrapper.emitted('header:click')![0]).toEqual(['prompt_name', 'forest'])
+    })
+
+    it('AC: shows the full prompt text on hover when the prompt dimension is on the Y axis (row headers)', async () => {
+      const wrapper = mountGrid({
+        dimensions: [xDimension, promptDimension],
+        images: [
+          { relative_path: 'a/seed=42&prompt_name=forest.png', dimensions: { seed: '42', prompt_name: 'forest' }, thumbnail_path: '' },
+          { relative_path: 'a/seed=42&prompt_name=city.png', dimensions: { seed: '42', prompt_name: 'city' }, thumbnail_path: '' },
+        ],
+        xDimensionName: 'seed',
+        yDimensionName: 'prompt_name',
+        promptTextMap,
+      })
+
+      const tooltips = wrapper.findAllComponents(NTooltip)
+      // Column headers (seed dimension) come first and must be disabled; row headers (prompt) follow.
+      const xValuesCount = xDimension.values.length
+      const rowForest = tooltips[xValuesCount]
+      expect(rowForest.props('disabled')).toBe(false)
+
+      rowForest.vm.setShow(true)
+      await wrapper.vm.$nextTick()
+      expect(wrapper.text()).toContain(promptTextMap.forest)
+    })
+
+    it('AC: non-prompt dimension headers show no tooltip, even when a value coincidentally matches a map key', () => {
+      // 'seed' values ('42', '123') are not prompt names, but pass a map with a coincidental key
+      // to prove the gating is on dimension identity, not merely on map membership.
+      const wrapper = mountGrid({
+        promptTextMap: { '42': 'This must never be shown — seed is not the prompt dimension.' },
+      })
+
+      const tooltips = wrapper.findAllComponents(NTooltip)
+      expect(tooltips.length).toBeGreaterThan(0)
+      for (const tooltip of tooltips) {
+        expect(tooltip.props('disabled')).toBe(true)
+      }
+    })
+
+    it('AC: a prompt value with no matching prompt entry shows no tooltip and does not error', () => {
+      const wrapper = mountGrid({
+        dimensions: [promptDimension, yDimension],
+        images: promptImages,
+        xDimensionName: 'prompt_name',
+        yDimensionName: 'step',
+        // Only 'forest' has a matching entry — 'city' was renamed/removed from the study.
+        promptTextMap: { forest: promptTextMap.forest },
+      })
+
+      const tooltips = wrapper.findAllComponents(NTooltip)
+      const colForest = tooltips[0]
+      const colCity = tooltips[1]
+      expect(colForest.props('disabled')).toBe(false)
+      expect(colCity.props('disabled')).toBe(true)
+
+      // Grid still renders the raw value with no error thrown.
+      expect(wrapper.text()).toContain('city')
     })
   })
 })

@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-160: XY grid prompt-dimension headers show the full prompt text on hover
+- When the prompt dimension (`prompt_name`) is on the X or Y axis, the XY grid headers rendered only the short prompt name (e.g. `forest`) with the full prompt text invisible anywhere in the grid. Column and row headers are now wrapped in a Naive UI `NTooltip` that reveals the full prompt text on hover, gated on dimension identity so non-prompt dimensions (steps, cfg, sampler, …) show no tooltip
+- The name→text lookup is sourced from the active training run's study: `App.vue` fetches saved studies on mount and derives an `activeStudyPromptTextMap` by matching `study_label` to `Study.name`, threaded into `XYGrid` via a `promptTextMap` prop. A value with no matching prompt (renamed/removed) shows no tooltip and never errors; the existing header:click selection is preserved through the tooltip trigger slot. Frontend-only
+
 ### S-159: Display total runtime per job in the job list (live-ticking while running, fixed when terminal)
 - The job list (`JobProgressPanel`) now shows each job's total runtime derived from the existing `created_at`/`updated_at` timestamps — no schema change. Running jobs tick a live elapsed timer (`now - created_at`) via a shared 1-second ticker (`useJobRuntimes` composable) that only runs while a job is active and tears down on unmount; terminal jobs (`completed`, `completed_with_errors`, `failed`, `stopped`) show a fixed `updated_at - created_at` total
 - Duration is formatted human-readably by a pure `formatElapsedDuration` helper: `mm:ss` under one hour, `h:mm:ss` at/beyond one hour (negative/non-finite clamped to 0). Frontend-only; the runtime cell carries a `data-testid="job-{id}-runtime"` for testability. Runtime is approximate (includes queue-wait; `updated_at` ≈ completion time) — an accepted tradeoff to avoid a migration

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { NConfigProvider, NButton, NTag } from 'naive-ui'
-import type { TrainingRun, DimensionRole, FilterMode, UnifiedDimensionMode, Preset, SampleJob } from './api/types'
+import type { TrainingRun, DimensionRole, FilterMode, UnifiedDimensionMode, Preset, SampleJob, Study } from './api/types'
 import { apiClient } from './api/client'
 import { useJobProgress } from './composables/useJobProgress'
 import { useDimensionMapping } from './composables/useDimensionMapping'
@@ -45,6 +45,37 @@ const selectedStudyOutputDir = ref('')
 const selectedTrainingRun = ref<TrainingRun | null>(null)
 const scanning = ref(false)
 const scanError = ref<string | null>(null)
+
+/**
+ * All saved studies (S-160). Fetched once on mount so the XY grid can look up the
+ * active study's prompts (name → text) for the prompt-dimension header tooltip.
+ */
+const studies = ref<Study[]>([])
+
+async function fetchStudies() {
+  try {
+    studies.value = await apiClient.listStudies()
+  } catch {
+    // Silently ignore — tooltip lookup simply has no data, no user-facing error.
+  }
+}
+
+/**
+ * Prompt name → full prompt text for the active training run's study, sourced from
+ * the matching saved Study's prompts (S-160). Falls back to an empty map when no
+ * training run is selected or no matching study is found (e.g. renamed/deleted study).
+ */
+const activeStudyPromptTextMap = computed<Record<string, string>>(() => {
+  const studyLabel = selectedTrainingRun.value?.study_label
+  if (!studyLabel) return {}
+  const study = studies.value.find((s) => s.name === studyLabel)
+  if (!study) return {}
+  const map: Record<string, string> = {}
+  for (const prompt of study.prompts) {
+    map[prompt.name] = prompt.text
+  }
+  return map
+})
 
 /**
  * Per-cell debug info captured when the lightbox is opened. Keyed by cellKey.
@@ -188,6 +219,7 @@ onMounted(() => {
   mediaQuery.addEventListener('change', onMediaChange)
   document.addEventListener('keydown', onGridKeyboardNav)
   eagerAutoSelect()
+  fetchStudies()
 })
 
 onUnmounted(() => {
@@ -959,6 +991,7 @@ async function handleSlideoutValidationRefresh() {
             <XYGrid
               :cell-size="cellSize"
               :debug-mode="debugMode"
+              :prompt-text-map="activeStudyPromptTextMap"
               @update:slider-value="onSliderValueUpdate"
               @image:click="onImageClick"
               @header:click="onHeaderClick"
