@@ -449,10 +449,11 @@ func (e *JobExecutor) writeManifest(job model.SampleJob, items []model.SampleJob
 		return fmt.Errorf("marshaling manifest: %w", err)
 	}
 
-	// Write to study output directory: {sampleDir}/{sanitized_training_run_name}/{study_name}/manifest.json
-	// The training run name is sanitized (slashes → underscores) to ensure a single directory
-	// level. This matches the per-training-run layout used for sample images.
-	studyOutputDir := fileformat.SanitizeTrainingRunName(job.TrainingRunName) + "/" + job.StudyName
+	// Write to study output directory: {sampleDir}/{studyOutputDir}/manifest.json
+	// using the shared helper (B-162) so the manifest lands in the same directory
+	// that contains the checkpoint image subdirectories, including the base_model
+	// level for LoRA jobs.
+	studyOutputDir := fileformat.StudyOutputDir(job.TrainingRunName, job.StudyName, job.BaseModel)
 	dir := filepath.Join(e.sampleDir, studyOutputDir)
 	manifestPath := filepath.Join(dir, fileformat.ManifestFilename)
 	tempPath := manifestPath + ".tmp"

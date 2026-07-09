@@ -3762,6 +3762,70 @@ var _ = Describe("JobExecutor", func() {
 		})
 	})
 
+	// AC (B-162): completeness check must include the base_model directory level
+	// for LoRA jobs so it looks in the same directory the images were written to.
+	Describe("broadcastJobProgress completeness check for LoRA jobs (B-162)", func() {
+		BeforeEach(func() {
+			executor.mu.Lock()
+			executor.connected = true
+			executor.mu.Unlock()
+		})
+
+		It("reports N/N verified for a LoRA job whose images live under the base_model directory", func() {
+			job := model.SampleJob{
+				ID:              "job-lora-completeness",
+				TrainingRunName: "qwen/training/bidi-v0.3",
+				StudyID:         "study-lora",
+				StudyName:       "TestStudy",
+				BaseModel:       "loras/qwen_bidi_v0.3.safetensors",
+				Status:          model.SampleJobStatusRunning,
+				TotalItems:      2,
+			}
+			mockStore.jobs[job.ID] = job
+			items := []model.SampleJobItem{
+				{
+					ID: "i1", JobID: job.ID, CheckpointFilename: "000010.safetensors",
+					Status:     model.SampleJobItemStatusCompleted,
+					PromptName: "forest", Steps: 20, CFG: 7.5,
+					SamplerName: "euler", Scheduler: "normal", Seed: 42,
+				},
+				{
+					ID: "i2", JobID: job.ID, CheckpointFilename: "000010.safetensors",
+					Status:     model.SampleJobItemStatusCompleted,
+					PromptName: "city", Steps: 20, CFG: 7.5,
+					SamplerName: "euler", Scheduler: "normal", Seed: 42,
+				},
+			}
+			mockStore.items[job.ID] = items
+
+			// Images actually land at {run}/{study}/{base_model}/{checkpoint}/ —
+			// the training run name is sanitized (slashes → underscores) and the
+			// base model directory uses the basename without extension.
+			file1 := executor.generateOutputFilename(items[0], FilenameDimensions{})
+			file2 := executor.generateOutputFilename(items[1], FilenameDimensions{})
+			checkpointDir := "/test/samples/qwen_training_bidi-v0.3/TestStudy/qwen_bidi_v0.3/000010.safetensors"
+			mockFSRead.dirs[checkpointDir] = true
+			mockFSRead.files[checkpointDir] = []string{file1, file2}
+
+			executor.broadcastJobProgress(job.ID)
+
+			Expect(mockHub.events).To(HaveLen(1))
+			event := mockHub.events[0]
+			Expect(event.JobProgressData).NotTo(BeNil())
+
+			var found bool
+			for _, info := range event.JobProgressData.CheckpointCompleteness {
+				if info.Checkpoint == "000010.safetensors" {
+					Expect(info.Expected).To(Equal(2))
+					Expect(info.Verified).To(Equal(2))
+					Expect(info.Missing).To(Equal(0))
+					found = true
+				}
+			}
+			Expect(found).To(BeTrue(), "expected completeness info for 000010.safetensors under the base_model directory")
+		})
+	})
+
 	// AC: Job executor handles 'no rows' errors gracefully during progress broadcast
 	// AC: Deleting a running or recently-completed job does not produce error-level log entries
 	Describe("broadcastJobProgress with deleted job", func() {
@@ -4154,6 +4218,36 @@ var _ = Describe("JobExecutor", func() {
 
 			sanitizedPath := "/test/samples/my_nested_run/Manifest Study/manifest.json"
 			Expect(mockFS.writtenFiles).To(HaveKey(sanitizedPath))
+		})
+
+		// AC (B-162): for LoRA jobs, the manifest must land in the same directory
+		// that contains the checkpoint image subdirectories, i.e. one level below
+		// the naive {run}/{study} path, at {run}/{study}/{base_model}/manifest.json.
+		It("writes manifest under the base_model directory for LoRA jobs", func() {
+			job.BaseModel = "loras/my_lora_v1.safetensors"
+
+			err := executor.writeManifest(job, items)
+			Expect(err).NotTo(HaveOccurred())
+
+			manifestPath := "/test/samples/my-model/Manifest Study/my_lora_v1/manifest.json"
+			Expect(mockFS.writtenFiles).To(HaveKey(manifestPath),
+				"LoRA manifest must be written under the base_model directory, matching where images are written")
+
+			// The naive (non-LoRA) path must NOT be used.
+			naivePath := "/test/samples/my-model/Manifest Study/manifest.json"
+			Expect(mockFS.writtenFiles).NotTo(HaveKey(naivePath))
+		})
+
+		// AC (B-162): base_model names with and without an extension must produce
+		// the same directory, and an absolute path must resolve to just the basename.
+		It("strips extension and absolute-path prefix from base_model for the manifest directory", func() {
+			job.BaseModel = "/data/loras/my_lora_v1.safetensors"
+
+			err := executor.writeManifest(job, items)
+			Expect(err).NotTo(HaveOccurred())
+
+			manifestPath := "/test/samples/my-model/Manifest Study/my_lora_v1/manifest.json"
+			Expect(mockFS.writtenFiles).To(HaveKey(manifestPath))
 		})
 	})
 

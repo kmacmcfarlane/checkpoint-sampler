@@ -13,7 +13,7 @@
  * HTTP:
  *   GET  /system_stats             → {"system": {}} (health check)
  *   GET  /object_info/:nodeType    → returns model lists for VAELoader, CLIPLoader,
- *                                    UNETLoader, KSampler
+ *                                    UNETLoader, LoraLoader, KSampler
  *   POST /prompt                   → accepts workflow submission, returns a prompt_id
  *                                    UUID; schedules async WS completion event
  *   GET  /history/:promptId        → returns history entry with a fake output image
@@ -50,6 +50,9 @@
  * Configured via environment variables:
  *   PORT                  (default: 8188)
  *   CHECKPOINT_FILENAMES  (comma-separated list; used in UNETLoader object_info)
+ *   LORA_FILENAMES        (comma-separated list; used in LoraLoader object_info,
+ *                          so LoraPathMatcher can resolve LoRA checkpoint filenames
+ *                          to ComfyUI model paths for LoRA sample jobs)
  *   COMFYUI_MOCK_DELAY_MS (default: 0; milliseconds to delay WS execution-complete)
  *   CONTROL_PORT          (default: 8189; always-on control plane, see below)
  *
@@ -84,6 +87,12 @@ const CHECKPOINT_FILENAMES = (process.env.CHECKPOINT_FILENAMES || '')
   .map(s => s.trim())
   .filter(Boolean);
 
+// LoRA filenames known to this mock (used in object_info LoraLoader, B-162)
+const LORA_FILENAMES = (process.env.LORA_FILENAMES || '')
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean);
+
 // Configurable delay before WS execution-complete events are sent.
 // Can be set at startup via COMFYUI_MOCK_DELAY_MS env var, or at runtime
 // via POST /mock/config {"delay_ms": N}. Default: 0 (no delay).
@@ -92,6 +101,7 @@ if (isNaN(mockDelayMs) || mockDelayMs < 0) mockDelayMs = 0;
 
 console.log(`[comfyui-mock] Starting on port ${PORT}`);
 console.log(`[comfyui-mock] Known checkpoint files: ${CHECKPOINT_FILENAMES.join(', ')}`);
+console.log(`[comfyui-mock] Known LoRA files: ${LORA_FILENAMES.join(', ')}`);
 console.log(`[comfyui-mock] Initial delay: ${mockDelayMs}ms`);
 
 // Minimal 1x1 white PNG (base64-encoded).
@@ -277,6 +287,24 @@ function handleObjectInfo(res, nodeType) {
         output: ['MODEL'],
         category: 'loaders',
         name: 'UNETLoader',
+      },
+    });
+  }
+
+  if (nodeType === 'LoraLoader') {
+    return jsonResponse(res, 200, {
+      LoraLoader: {
+        input: {
+          required: {
+            lora_name: [LORA_FILENAMES, {}],
+            strength_model: [['FLOAT'], { default: 1.0 }],
+            strength_clip: [['FLOAT'], { default: 1.0 }],
+          },
+          optional: {},
+        },
+        output: ['MODEL', 'CLIP'],
+        category: 'loaders',
+        name: 'LoraLoader',
       },
     });
   }

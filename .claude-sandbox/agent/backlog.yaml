@@ -1630,7 +1630,7 @@ stories:
     title: "Job progress Completeness section reports 0/N missing for LoRA jobs — completeness check and manifest write omit
       the base_model directory level"
     type: bug
-    status: todo
+    status: uat
     priority: 50
     complexity: low
     requires: []

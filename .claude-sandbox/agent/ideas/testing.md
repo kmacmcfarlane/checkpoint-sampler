@@ -115,3 +115,9 @@ During R-019, a `makeStudy` test factory compiled under Vitest but failed `vue-t
 * priority: low
 * source: qa
 If the job_executor `sql: no rows in result set` finding (see B-159) is confirmed as an E2E `/api/test/reset` race artifact, add a scoped pattern to `QA_ALLOWED_ERRORS.md` (job_executor + `no rows in result set`) so future sweeps auto-filter it; otherwise fix the orphan handling. Do not broaden the existing W-006 schema-missing pattern.
+
+### Seed comfyui-mock model lists from test-fixtures instead of compose env vars
+* status: needs_approval
+* priority: low
+* source: qa
+B-162 revealed that `comfyui-mock` served no `object_info/LoraLoader`, so no LoRA job could run to completion in E2E — the LoRA path was effectively untested end-to-end. QA fixed it by adding a `LoraLoader` handler seeded from a new `LORA_FILENAMES` env var set in `docker-compose.test.yml`. That leaves the mock's checkpoint/LoRA filename lists hardcoded in compose, free to drift from the actual `test-fixtures/` directory contents. A follow-up could have the mock enumerate `test-fixtures/` at container start so the two cannot diverge.
