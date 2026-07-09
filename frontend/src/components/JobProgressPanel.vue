@@ -6,6 +6,8 @@ import { apiClient } from '../api/client'
 import ConfirmDeleteDialog from './ConfirmDeleteDialog.vue'
 import ValidationResultsDialog from './ValidationResultsDialog.vue'
 import { useJobEtaCountdowns } from '../composables/useCountdown'
+import { useJobRuntimes } from '../composables/useJobRuntime'
+import { formatElapsedDuration } from '../lib/durationFormat'
 
 /** Completeness verification result for a single checkpoint. */
 interface CompletenessEntry {
@@ -118,6 +120,15 @@ function handleValidationRegenerate(job: SampleJob) {
 // AC2: Countdown resets when a new ETA value arrives from WebSocket.
 // AC3: Timers are cleaned up on component unmount (handled inside useJobEtaCountdowns).
 const { getDisplaySampleEta, getDisplayJobEta } = useJobEtaCountdowns(toRef(props, 'jobProgress'))
+
+// AC: FE: each job row shows a total-runtime value, live-ticking while running,
+// fixed total (updated_at - created_at) once terminal (S-159).
+const { getRuntimeSeconds } = useJobRuntimes(toRef(props, 'jobs'))
+
+/** Get the formatted total-runtime string for a job. */
+function getJobRuntime(job: SampleJob): string {
+  return formatElapsedDuration(getRuntimeSeconds(job))
+}
 
 const sortedJobs = computed(() => {
   return [...props.jobs].sort((a, b) => {
@@ -630,6 +641,8 @@ function isTracebackExpanded(jobId: string, errorIdx: number): boolean {
               <span :data-testid="`job-${job.id}-created-at`">Created: {{ formatTimestamp(job.created_at) }}</span>
               <span class="separator">•</span>
               <span :data-testid="`job-${job.id}-updated-at`">Updated: {{ formatTimestamp(job.updated_at) }}</span>
+              <span class="separator">•</span>
+              <span :data-testid="`job-${job.id}-runtime`">Runtime: {{ getJobRuntime(job) }}</span>
             </p>
 
             <div class="job-progress">

@@ -1446,7 +1446,7 @@ stories:
   - id: S-159
     title: "Display total runtime for jobs in the job list (live-ticking while running, final total when terminal)"
     type: feature
-    status: todo
+    status: uat
     priority: 45
     complexity: low
     requires: []

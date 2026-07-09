@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-159: Display total runtime per job in the job list (live-ticking while running, fixed when terminal)
+- The job list (`JobProgressPanel`) now shows each job's total runtime derived from the existing `created_at`/`updated_at` timestamps — no schema change. Running jobs tick a live elapsed timer (`now - created_at`) via a shared 1-second ticker (`useJobRuntimes` composable) that only runs while a job is active and tears down on unmount; terminal jobs (`completed`, `completed_with_errors`, `failed`, `stopped`) show a fixed `updated_at - created_at` total
+- Duration is formatted human-readably by a pure `formatElapsedDuration` helper: `mm:ss` under one hour, `h:mm:ss` at/beyond one hour (negative/non-finite clamped to 0). Frontend-only; the runtime cell carries a `data-testid="job-{id}-runtime"` for testability. Runtime is approximate (includes queue-wait; `updated_at` ≈ completion time) — an accepted tradeoff to avoid a migration
+
 ### B-161: Checkpoint slider omits the final epoch (100) — assignFinalCheckpointStep now recognizes 'epochs-N' run-name tokens
 - The final unsuffixed checkpoint in a training run whose name encodes epochs (e.g. `...-epochs-100-...`) was assigned the max numbered-checkpoint step (90) instead of 100, colliding with the real epoch-90 checkpoint and hiding the final epoch on the checkpoint slider. Root cause: `assignFinalCheckpointStep` (backend `internal/service/discovery.go`) only scanned the run name for a `steps?-(\d+)` token; `epochs-100` never matched
 - Fix: the resolver now also matches `epochs?-(\d+)` in the run name, taking the max across the steps token, epochs token, and numbered-checkpoint max. The final checkpoint resolves to StepNumber 100 and sorts after epoch 90. Existing `steps-N` detection and the no-token maxStep fallback are unchanged. Backend-only fix — the slider renders directly from discovered checkpoints; QA added `frontend/e2e/checkpoint-final-epoch.spec.ts` plus fixture checkpoints to cover the discovery→slider journey

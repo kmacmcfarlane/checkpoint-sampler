@@ -2663,4 +2663,79 @@ describe('JobProgressPanel', () => {
     })
   })
 
+  describe('job runtime (S-159)', () => {
+    // AC: FE: running jobs display a live elapsed timer (now - created_at) that ticks while active
+    it('displays a live elapsed runtime for a running job that ticks upward', async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2025-01-01T00:00:10Z'))
+
+      const runningJob: SampleJob = { ...sampleJobs[0], status: 'running', created_at: '2025-01-01T00:00:00Z' }
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: [runningJob] },
+        global: { stubs: { Teleport: true } },
+      })
+
+      const runtimeEl = wrapper.find('[data-testid="job-job-1-runtime"]')
+      expect(runtimeEl.text()).toContain('00:10')
+
+      await vi.advanceTimersByTimeAsync(5000)
+      await nextTick()
+
+      expect(wrapper.find('[data-testid="job-job-1-runtime"]').text()).toContain('00:15')
+
+      vi.useRealTimers()
+    })
+
+    // AC: FE: terminal jobs display a fixed total (updated_at - created_at), non-ticking
+    it.each(['completed', 'completed_with_errors', 'failed', 'stopped'] as const)(
+      'displays a fixed total runtime for a terminal job with status %s that does not tick',
+      async (status) => {
+        vi.useFakeTimers()
+        vi.setSystemTime(new Date('2025-01-01T00:10:00Z'))
+
+        const terminalJob: SampleJob = {
+          ...sampleJobs[0],
+          status,
+          created_at: '2025-01-01T00:00:00Z',
+          updated_at: '2025-01-01T00:02:00Z',
+        }
+        const wrapper = mount(JobProgressPanel, {
+          props: { show: true, jobs: [terminalJob] },
+          global: { stubs: { Teleport: true } },
+        })
+
+        expect(wrapper.find('[data-testid="job-job-1-runtime"]').text()).toContain('02:00')
+
+        await vi.advanceTimersByTimeAsync(5000)
+        await nextTick()
+
+        // Value must not have ticked forward
+        expect(wrapper.find('[data-testid="job-job-1-runtime"]').text()).toContain('02:00')
+
+        vi.useRealTimers()
+      },
+    )
+
+    // AC: FE: duration format extends to h:mm:ss beyond one hour
+    it('formats runtime as h:mm:ss once the duration reaches one hour', () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2025-01-01T01:15:30Z'))
+
+      const longRunningJob: SampleJob = {
+        ...sampleJobs[0],
+        status: 'completed',
+        created_at: '2025-01-01T00:00:00Z',
+        updated_at: '2025-01-01T01:15:30Z',
+      }
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: [longRunningJob] },
+        global: { stubs: { Teleport: true } },
+      })
+
+      expect(wrapper.find('[data-testid="job-job-1-runtime"]').text()).toContain('1:15:30')
+
+      vi.useRealTimers()
+    })
+  })
+
 })
