@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"sort"
+	"syscall"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -517,9 +519,10 @@ var _ = Describe("SampleJobService", func() {
 			items := store.items[job.ID]
 			Expect(items).To(HaveLen(16))
 
-			// Verify checkpoint path matching
+			// S-161: paths are resolved lazily at execution time, so items are
+			// persisted pending with an empty ComfyUIModelPath.
 			for _, item := range items {
-				Expect(item.ComfyUIModelPath).NotTo(BeEmpty())
+				Expect(item.ComfyUIModelPath).To(BeEmpty())
 				Expect(item.Status).To(Equal(model.SampleJobItemStatusPending))
 			}
 		})
@@ -619,49 +622,25 @@ var _ = Describe("SampleJobService", func() {
 			Expect(err.Error()).To(ContainSubstring("no workflow template configured"))
 		})
 
-		// B-141: When ALL items fail path matching, Create returns an error and cleans up the job.
-		It("returns error when all items fail path matching", func() {
-			pathMatcher.paths = make(map[string]string) // Clear paths to simulate no matches
-
-			_, err := svc.Create("test-run", checkpoints, "study-1", nil, false, false, "", model.TrainingRunKindCheckpoint)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("all"))
-			Expect(err.Error()).To(ContainSubstring("failed checkpoint path matching"))
-
-			// Verify the job was cleaned up (deleted)
-			Expect(store.jobs).To(BeEmpty())
-		})
-
-		// B-141: When SOME items fail path matching, Create succeeds but logs a warning.
-		// Partial failures are allowed — only total failure is an error.
-		It("succeeds with partial path matching failures and marks failed items as skipped", func() {
-			// Only one checkpoint has a matching path
-			pathMatcher.paths = map[string]string{
-				"checkpoint1.safetensors": "models/checkpoint1.safetensors",
-			}
+		// S-161: creating a job no longer path-matches against ComfyUI. Even when the
+		// path matcher would fail for every checkpoint (e.g. ComfyUI unreachable), Create
+		// succeeds and persists a pending job with all items pending and unresolved paths.
+		It("creates a pending job even when ComfyUI is unreachable (no eager path-match rejection)", func() {
+			// Simulate ComfyUI being down: the matcher would return a connection error.
+			// Create must not call it, so the job is still created.
+			pathMatcher.matchErr = &net.OpError{Op: "dial", Err: syscall.ECONNREFUSED}
+			pathMatcher.paths = make(map[string]string)
 
 			job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, false, "", model.TrainingRunKindCheckpoint)
 			Expect(err).NotTo(HaveOccurred())
+			Expect(job.Status).To(Equal(model.SampleJobStatusPending))
 
 			items := store.items[job.ID]
-			Expect(items).To(HaveLen(16)) // 2 checkpoints × 8 parameter combos
-
-			// checkpoint1 items should have valid paths
-			matchedCount := 0
-			skippedCount := 0
+			Expect(items).To(HaveLen(16))
 			for _, item := range items {
-				if item.CheckpointFilename == "checkpoint1.safetensors" {
-					Expect(item.Status).NotTo(Equal(model.SampleJobItemStatusSkipped))
-					Expect(item.ComfyUIModelPath).To(Equal("models/checkpoint1.safetensors"))
-					matchedCount++
-				} else {
-					Expect(item.Status).To(Equal(model.SampleJobItemStatusSkipped))
-					Expect(item.ErrorMessage).To(ContainSubstring("checkpoint not found in ComfyUI"))
-					skippedCount++
-				}
+				Expect(item.Status).To(Equal(model.SampleJobItemStatusPending))
+				Expect(item.ComfyUIModelPath).To(BeEmpty())
 			}
-			Expect(matchedCount).To(Equal(8))
-			Expect(skippedCount).To(Equal(8))
 		})
 
 		It("uses shift from study when study has a shift value", func() {
@@ -972,8 +951,9 @@ var _ = Describe("SampleJobService", func() {
 				Expect(job.TotalItems).To(Equal(2))
 			})
 
-			It("uses LoRA path matcher for LoRA runs when configured", func() {
-				// Set up a separate LoRA path matcher
+			// S-161: LoRA jobs are also created with unresolved paths — LoraModelPath is
+			// resolved lazily at execution time, not during Create.
+			It("creates a LoRA job with unresolved paths (resolved at execution time)", func() {
 				loraPathMatcher := newFakePathMatcher()
 				loraPathMatcher.paths["checkpoint1.safetensors"] = "loras/checkpoint1.safetensors"
 				loraPathMatcher.paths["checkpoint2.safetensors"] = "loras/checkpoint2.safetensors"
@@ -981,24 +961,14 @@ var _ = Describe("SampleJobService", func() {
 
 				job, err := svc.Create("lora-run", checkpoints, "lora-study-1", nil, false, false, "base.safetensors", model.TrainingRunKindLoRA)
 				Expect(err).NotTo(HaveOccurred())
+				Expect(job.Status).To(Equal(model.SampleJobStatusPending))
 
 				items := store.items[job.ID]
+				Expect(items).NotTo(BeEmpty())
 				for _, item := range items {
-					// LoRA items should have LoraModelPath set (not ComfyUIModelPath)
-					Expect(item.LoraModelPath).NotTo(BeEmpty())
+					Expect(item.Status).To(Equal(model.SampleJobItemStatusPending))
+					Expect(item.LoraModelPath).To(BeEmpty())
 					Expect(item.ComfyUIModelPath).To(BeEmpty())
-				}
-			})
-
-			It("falls back to checkpoint path matcher for LoRA runs when loraPathMatcher is nil", func() {
-				// Don't set a LoRA path matcher; it should fall back to the regular one
-				job, err := svc.Create("lora-run", checkpoints, "lora-study-1", nil, false, false, "base.safetensors", model.TrainingRunKindLoRA)
-				Expect(err).NotTo(HaveOccurred())
-
-				items := store.items[job.ID]
-				// When no loraPathMatcher is set, falls back to pathMatcher which sets LoraModelPath for LoRA runs
-				for _, item := range items {
-					Expect(item.LoraModelPath).NotTo(BeEmpty())
 				}
 			})
 

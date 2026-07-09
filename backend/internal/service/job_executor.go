@@ -90,6 +90,16 @@ type JobExecutor struct {
 	// tests and ComfyUI-disabled setups).
 	baseModelMatcher ComfyUIModelsProvider
 
+	// checkpointMatcher and loraMatcher resolve a checkpoint/LoRA filename to the
+	// ComfyUI model path lazily at execution time (S-161). Jobs are created with
+	// unresolved paths so queuing does not require ComfyUI to be reachable; the
+	// executor resolves the path when it first processes an item whose path is
+	// empty. Optional: when nil, resolution is skipped and the item's stored path
+	// (possibly empty) is used unchanged, preserving legacy behavior for tests and
+	// ComfyUI-disabled setups.
+	checkpointMatcher PathMatcher
+	loraMatcher       PathMatcher
+
 	mu                     sync.Mutex
 	activeJobID            string
 	activeItemID           string
@@ -179,6 +189,15 @@ func (e *JobExecutor) SetDirRemover(remover SampleDirRemover) {
 // unchanged.
 func (e *JobExecutor) SetBaseModelMatcher(provider ComfyUIModelsProvider) {
 	e.baseModelMatcher = provider
+}
+
+// SetPathMatchers wires the checkpoint and LoRA path matchers used to resolve a
+// checkpoint/LoRA filename to a ComfyUI model path lazily at execution time
+// (S-161). Either may be nil; when nil, resolution for that job kind is skipped
+// and the item's stored path is used unchanged.
+func (e *JobExecutor) SetPathMatchers(checkpointMatcher PathMatcher, loraMatcher PathMatcher) {
+	e.checkpointMatcher = checkpointMatcher
+	e.loraMatcher = loraMatcher
 }
 
 // deepCloneWorkflow performs a deep clone of a workflow map.

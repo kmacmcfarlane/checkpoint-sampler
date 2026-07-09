@@ -64,7 +64,7 @@ func (m *CheckpointPathMatcher) MatchCheckpointPath(filename string) (string, er
 		"checkpoint_filename": filename,
 		"model_count":         len(models),
 	}).Debug("no matching ComfyUI model found for checkpoint")
-	return "", fmt.Errorf("checkpoint %s not found in ComfyUI UNET models", filename)
+	return "", fmt.Errorf("checkpoint %s not found in ComfyUI UNET models: %w", filename, ErrCheckpointNotResolved)
 }
 
 // endsWithFilename checks if path ends with filename, accounting for directory separators.

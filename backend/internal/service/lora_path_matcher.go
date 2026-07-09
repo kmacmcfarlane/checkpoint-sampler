@@ -59,5 +59,5 @@ func (m *LoraPathMatcher) MatchCheckpointPath(filename string) (string, error) {
 		"checkpoint_filename": filename,
 		"model_count":         len(models),
 	}).Debug("no matching ComfyUI LoRA model found for checkpoint")
-	return "", fmt.Errorf("checkpoint %s not found in ComfyUI LoRA models", filename)
+	return "", fmt.Errorf("checkpoint %s not found in ComfyUI LoRA models: %w", filename, ErrCheckpointNotResolved)
 }

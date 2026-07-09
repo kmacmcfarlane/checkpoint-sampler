@@ -400,67 +400,14 @@ func (s *SampleJobService) Create(trainingRunName string, checkpoints []model.Ch
 		job.TotalItems = totalItems
 	}
 
-	// Select the appropriate path matcher based on training run kind.
-	// LoRA runs match against ComfyUI's LoRA model list; checkpoint runs use UNETs.
-	matcher := s.pathMatcher
-	if isLoRA && s.loraPathMatcher != nil {
-		matcher = s.loraPathMatcher
-	}
-
-	// Match checkpoint filenames to ComfyUI model paths. Items that fail matching
-	// are marked skipped rather than dropped, so the in-memory list stays complete.
-	for i := range items {
-		comfyuiPath, err := matcher.MatchCheckpointPath(items[i].CheckpointFilename)
-		if err != nil {
-			s.logger.WithFields(logrus.Fields{
-				"sample_job_id":       jobID,
-				"checkpoint_filename": items[i].CheckpointFilename,
-				"error":               err.Error(),
-			}).Warn("failed to match checkpoint to ComfyUI path, marking item as skipped")
-			// Mark item as skipped if path matching fails
-			items[i].Status = model.SampleJobItemStatusSkipped
-			items[i].ErrorMessage = fmt.Sprintf("checkpoint not found in ComfyUI: %v", err)
-			items[i].ComfyUIModelPath = ""
-		} else {
-			if isLoRA {
-				// For LoRA runs, the matched path goes to LoraModelPath;
-				// ComfyUIModelPath remains empty (base model is on the job).
-				items[i].LoraModelPath = comfyuiPath
-			} else {
-				items[i].ComfyUIModelPath = comfyuiPath
-			}
-			s.logger.WithFields(logrus.Fields{
-				"checkpoint_filename": items[i].CheckpointFilename,
-				"comfyui_path":        comfyuiPath,
-				"is_lora":             isLoRA,
-			}).Debug("matched checkpoint to ComfyUI path")
-		}
-	}
-
-	// B-141: Validate path matching results — fail if ALL items were skipped (zero viable items).
-	// Log a warning if some (but not all) items failed path matching. This check runs
-	// before persistence so that a fully-unmatched job is never written to the database.
-	skippedCount := 0
-	for _, item := range items {
-		if item.Status == model.SampleJobItemStatusSkipped {
-			skippedCount++
-		}
-	}
-	if skippedCount > 0 && skippedCount == len(items) {
-		s.logger.WithFields(logrus.Fields{
-			"sample_job_id": jobID,
-			"skipped_count": skippedCount,
-			"total_count":   len(items),
-		}).Error("all items failed path matching, no viable items")
-		return model.SampleJob{}, fmt.Errorf("all %d items failed checkpoint path matching — no checkpoints could be resolved in ComfyUI", len(items))
-	}
-	if skippedCount > 0 {
-		s.logger.WithFields(logrus.Fields{
-			"sample_job_id": jobID,
-			"skipped_count": skippedCount,
-			"total_count":   len(items),
-		}).Warn("some items failed path matching")
-	}
+	// S-161: Checkpoint/LoRA path matching is intentionally NOT performed here.
+	// Items are persisted with empty ComfyUIModelPath/LoraModelPath and resolved
+	// lazily at execution time (in the job executor's processItem). This lets a
+	// job be queued while ComfyUI is unreachable — creation no longer depends on
+	// ComfyUI's live model list, so a temporary outage never rejects a job with a
+	// misleading "no checkpoints could be resolved" error. When ComfyUI is up but
+	// a checkpoint is genuinely absent, only that item fails at execution time and
+	// the job finishes as completed_with_errors.
 
 	// Persist the job and all of its items atomically. If any insert fails, the
 	// transaction is rolled back, leaving no job row and no item rows behind.

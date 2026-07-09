@@ -12,6 +12,10 @@ services:
       # Default 0 keeps existing tests fast. Individual E2E tests can override
       # this at runtime via POST /mock/config {"delay_ms": N} (W-018).
       - COMFYUI_MOCK_DELAY_MS=0
+      # Always-on control plane port (S-161) used to simulate ComfyUI being
+      # offline: POST /control/comfyui {"down": true|false} on this port toggles
+      # the main API port (8188) closed/open at the TCP level.
+      - CONTROL_PORT=8189
     healthcheck:
       test: ["CMD", "sh", "-c", "wget -qO- http://127.0.0.1:8188/system_stats || exit 1"]
       interval: 5s
@@ -101,6 +105,9 @@ services:
       # URL for the ComfyUI mock service — used by slow-motion E2E tests (W-018)
       # to set mock delay via POST /mock/config at runtime.
       - COMFYUI_MOCK_URL=http://comfyui-mock:8188
+      # Always-on control plane URL (S-161) — used to simulate ComfyUI being
+      # offline by closing/reopening the main mock port at the TCP level.
+      - COMFYUI_MOCK_CONTROL_URL=http://comfyui-mock:8189
     depends_on:
       frontend:
         condition: service_healthy

@@ -1012,10 +1012,22 @@ describe('JobLaunchDialog', () => {
     expect(wrapper.find('[data-testid="job-launch-error"]').exists()).toBe(true)
   })
 
-  // B-141: Job launch dialog shows an error when job creation fails due to unresolvable paths
-  it('displays path matching error message from backend', async () => {
-    mockCreateSampleJob.mockRejectedValue({
-      message: 'all 16 items failed checkpoint path matching — no checkpoints could be resolved in ComfyUI',
+  // S-161: launching a job while ComfyUI is offline no longer fails with a path
+  // matching error — the backend queues the job as pending and returns it, so the
+  // dialog succeeds and closes without surfacing an error.
+  it('succeeds and shows no error when ComfyUI is offline (job queued pending)', async () => {
+    mockCreateSampleJob.mockResolvedValue({
+      id: 'job-1',
+      training_run_name: 'qwen/psai4rt-v0.3.0',
+      study_id: 'preset-1', study_name: 'Quick Test',
+      workflow_name: 'qwen-image.json',
+      status: 'pending',
+      total_items: 16,
+      completed_items: 0,
+      failed_items: 0,
+      pending_items: 16,
+      created_at: '2025-01-01T00:00:00Z',
+      updated_at: '2025-01-01T00:00:00Z',
     })
 
     const wrapper = mount(JobLaunchDialog, {
@@ -1033,8 +1045,9 @@ describe('JobLaunchDialog', () => {
     await submitButton!.trigger('click')
     await flushPromises()
 
-    expect(wrapper.text()).toContain('failed checkpoint path matching')
-    expect(wrapper.find('[data-testid="job-launch-error"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="job-launch-error"]').exists()).toBe(false)
+    expect(wrapper.emitted('success')).toBeDefined()
+    expect(wrapper.emitted('update:show')).toBeDefined()
   })
 
   it('renders a "Manage Studies" button next to the study selector', async () => {

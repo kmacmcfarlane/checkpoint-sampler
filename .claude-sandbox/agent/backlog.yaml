@@ -1583,7 +1583,7 @@ stories:
         are not mistaken for the epoch count. Use the exact reported filename list as the primary fixture."
   - id: S-161
     title: "Queue sample jobs when ComfyUI is offline; resolve checkpoint paths lazily at execution"
-    status: todo
+    status: uat
     priority: 65
     complexity: medium
     requires: []

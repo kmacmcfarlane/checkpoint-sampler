@@ -29,4 +29,15 @@ var (
 	// ErrServiceUnavailable indicates a dependency required to service the
 	// request (e.g. the ComfyUI connection) is not available.
 	ErrServiceUnavailable = errors.New("service unavailable")
+
+	// ErrCheckpointNotResolved indicates a checkpoint (or LoRA) filename could not
+	// be matched to any model ComfyUI currently exposes, even though ComfyUI was
+	// reachable. It is distinct from a transport-level connection failure: a
+	// connection error means ComfyUI is unreachable (and the caller should retry
+	// once it returns), whereas ErrCheckpointNotResolved means ComfyUI is up but
+	// genuinely does not have the requested model (a permanent per-item failure).
+	// Path matchers wrap this sentinel on a genuine miss so the job executor can
+	// classify the two cases with errors.Is rather than message matching
+	// (DEVELOPMENT_PRACTICES §3.2).
+	ErrCheckpointNotResolved = errors.New("checkpoint not resolved in ComfyUI")
 )

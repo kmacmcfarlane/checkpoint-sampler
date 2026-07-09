@@ -217,6 +217,9 @@ func run() error {
 		jobExecutor.SetDirRemover(dirRemover)
 		// B-143: resolve curated base_model_dir paths to ComfyUI unet_name at submission.
 		jobExecutor.SetBaseModelMatcher(modelDiscovery)
+		// S-161: resolve checkpoint/LoRA model paths lazily at execution time so jobs
+		// can be queued while ComfyUI is offline.
+		jobExecutor.SetPathMatchers(pathMatcher, loraPathMatcher)
 
 		// Start the job executor (non-fatal if ComfyUI is unreachable)
 		if err := jobExecutor.Start(); err != nil {

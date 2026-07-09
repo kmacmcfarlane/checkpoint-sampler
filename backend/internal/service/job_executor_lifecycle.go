@@ -413,6 +413,45 @@ func (e *JobExecutor) processNextItem() {
 	e.processItem(*runningJob, *nextItem)
 }
 
+// resolveItemModelPaths lazily resolves the ComfyUI model path for an item whose
+// path was left unresolved at job creation (S-161). It returns the item with the
+// resolved path populated in memory (the caller persists it via the subsequent
+// status-to-running write), a retryable flag, and an error.
+//
+// retryable is true only when the failure is a ComfyUI *connection* error: the
+// caller must leave the item pending so it is retried once ComfyUI returns. When
+// retryable is false and err is non-nil, the checkpoint is genuinely absent from
+// ComfyUI (or another non-transient failure occurred) and the item should fail.
+//
+// Resolution is a no-op (returns the item unchanged, err nil) when the path is
+// already set or the relevant matcher is not configured, preserving legacy
+// behavior for tests and ComfyUI-disabled setups.
+func (e *JobExecutor) resolveItemModelPaths(job model.SampleJob, item model.SampleJobItem) (model.SampleJobItem, bool, error) {
+	isLoRA := job.BaseModel != ""
+
+	if isLoRA {
+		if item.LoraModelPath != "" || e.loraMatcher == nil {
+			return item, false, nil
+		}
+		path, err := e.loraMatcher.MatchCheckpointPath(item.CheckpointFilename)
+		if err != nil {
+			return item, isConnectionError(err), err
+		}
+		item.LoraModelPath = path
+		return item, false, nil
+	}
+
+	if item.ComfyUIModelPath != "" || e.checkpointMatcher == nil {
+		return item, false, nil
+	}
+	path, err := e.checkpointMatcher.MatchCheckpointPath(item.CheckpointFilename)
+	if err != nil {
+		return item, isConnectionError(err), err
+	}
+	item.ComfyUIModelPath = path
+	return item, false, nil
+}
+
 // processItem processes a single work item.
 func (e *JobExecutor) processItem(job model.SampleJob, item model.SampleJobItem) {
 	e.logger.WithFields(logrus.Fields{
@@ -420,6 +459,40 @@ func (e *JobExecutor) processItem(job model.SampleJob, item model.SampleJobItem)
 		"item_id":             item.ID,
 		"checkpoint_filename": item.CheckpointFilename,
 	}).Info("processing job item")
+
+	// S-161: resolve the ComfyUI model path lazily. Jobs are queued with unresolved
+	// paths so creation never depends on ComfyUI being reachable. A connection error
+	// here means ComfyUI is (still) unreachable: leave the item pending, mark the
+	// connection dead so the reconnect ticker re-establishes it, and clear active
+	// state so the item is re-selected on a later tick once ComfyUI returns. A
+	// genuine miss (ComfyUI up, checkpoint absent) fails only this item; the job then
+	// finishes as completed_with_errors.
+	resolvedItem, retryable, err := e.resolveItemModelPaths(job, item)
+	if err != nil {
+		if retryable {
+			e.logger.WithFields(logrus.Fields{
+				"job_id":              job.ID,
+				"item_id":             item.ID,
+				"checkpoint_filename": item.CheckpointFilename,
+				"error":               err.Error(),
+			}).Warn("ComfyUI unreachable during path resolution, leaving item pending for retry")
+			e.mu.Lock()
+			e.connected = false
+			e.activeItemID = ""
+			e.activePromptID = ""
+			e.mu.Unlock()
+			return
+		}
+		e.logger.WithFields(logrus.Fields{
+			"job_id":              job.ID,
+			"item_id":             item.ID,
+			"checkpoint_filename": item.CheckpointFilename,
+			"error":               err.Error(),
+		}).Warn("checkpoint could not be resolved in ComfyUI, failing item")
+		e.failItem(item.ID, fmt.Sprintf("checkpoint not found in ComfyUI: %v", err))
+		return
+	}
+	item = resolvedItem
 
 	// Record sample start time for ETA calculation
 	e.mu.Lock()

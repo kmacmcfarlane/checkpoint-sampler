@@ -51,6 +51,22 @@
  *   PORT                  (default: 8188)
  *   CHECKPOINT_FILENAMES  (comma-separated list; used in UNETLoader object_info)
  *   COMFYUI_MOCK_DELAY_MS (default: 0; milliseconds to delay WS execution-complete)
+ *   CONTROL_PORT          (default: 8189; always-on control plane, see below)
+ *
+ * ## Offline simulation (S-161)
+ *
+ * To exercise "ComfyUI unreachable" scenarios (e.g. a job created while ComfyUI
+ * is down, or a connection error mid-execution), the main API port (PORT) can be
+ * taken down and brought back up at runtime without restarting the container.
+ * This causes real TCP-level connection-refused errors on the backend side
+ * (rather than an HTTP error response), matching how the backend's
+ * isConnectionError() classifies genuine outages.
+ *
+ * A separate always-listening control server (CONTROL_PORT) is used to toggle
+ * this, since the main port itself is unreachable while "down":
+ *   POST /control/comfyui  {"down": true}   → close the main port, drop WS clients
+ *   POST /control/comfyui  {"down": false}  → reopen the main port
+ *   GET  /control/comfyui                   → {"down": bool}
  */
 
 'use strict';
@@ -60,6 +76,7 @@ const { WebSocketServer } = require('ws');
 const { randomUUID } = require('crypto');
 
 const PORT = parseInt(process.env.PORT || '8188', 10);
+const CONTROL_PORT = parseInt(process.env.CONTROL_PORT || '8189', 10);
 
 // Checkpoint filenames known to this mock (used in object_info UNETLoader)
 const CHECKPOINT_FILENAMES = (process.env.CHECKPOINT_FILENAMES || '')
@@ -177,7 +194,12 @@ function sendExecutionCompleteAsync(clientId, promptId) {
 
 // --- HTTP server -------------------------------------------------------------
 
-const server = http.createServer((req, res) => {
+// mainServer holds the currently listening main API server, or null while
+// simulated-offline (S-161). isDown tracks the desired state for GET /control/comfyui.
+let mainServer = null;
+let isDown = false;
+
+function mainRequestHandler(req, res) {
   const parsedUrl = new URL(req.url, `http://localhost:${PORT}`);
   const pathname = parsedUrl.pathname;
   const method = req.method;
@@ -237,7 +259,7 @@ const server = http.createServer((req, res) => {
   // Fallback
   console.warn(`[comfyui-mock] 404: ${method} ${pathname}`);
   return jsonResponse(res, 404, { error: `not found: ${pathname}` });
-});
+}
 
 // --- Handlers ----------------------------------------------------------------
 
@@ -412,9 +434,7 @@ function jsonResponse(res, status, body) {
   res.end(json);
 }
 
-// --- WebSocket upgrade handling ----------------------------------------------
-
-server.on('upgrade', (req, socket, head) => {
+function mainUpgradeHandler(req, socket, head) {
   const url = new URL(req.url, `http://localhost:${PORT}`);
   if (url.pathname === '/ws') {
     wss.handleUpgrade(req, socket, head, ws => {
@@ -423,16 +443,97 @@ server.on('upgrade', (req, socket, head) => {
   } else {
     socket.destroy();
   }
+}
+
+// --- Main server lifecycle (S-161 offline simulation) ------------------------
+
+/**
+ * Start the main API server (HTTP + WS upgrade) on PORT. No-op if already up.
+ */
+function startMain() {
+  if (mainServer) return;
+  mainServer = http.createServer(mainRequestHandler);
+  mainServer.on('upgrade', mainUpgradeHandler);
+  mainServer.listen(PORT, '0.0.0.0', () => {
+    console.log(`[comfyui-mock] main server listening on 0.0.0.0:${PORT}`);
+  });
+}
+
+/**
+ * Stop the main API server, forcibly dropping any open WebSocket clients so the
+ * backend observes an immediate disconnect. cb is called once the port is
+ * released. No-op (calls cb synchronously) if already down.
+ */
+function stopMain(cb) {
+  if (!mainServer) {
+    cb();
+    return;
+  }
+  for (const ws of wsClients.values()) {
+    try { ws.terminate(); } catch (e) { /* ignore */ }
+  }
+  wsClients.clear();
+  const s = mainServer;
+  mainServer = null;
+  s.close(() => {
+    console.log('[comfyui-mock] main server stopped (simulated offline)');
+    cb();
+  });
+}
+
+// --- Control server (always listening, S-161) ---------------------------------
+//
+// A separate, always-up control plane so tests can toggle the main server off
+// and back on. The main port itself is unreachable while "down", so the
+// control endpoint must live on its own port.
+
+const controlServer = http.createServer((req, res) => {
+  const parsedUrl = new URL(req.url, `http://localhost:${CONTROL_PORT}`);
+  const { pathname } = parsedUrl;
+  const { method } = req;
+
+  if (method === 'POST' && pathname === '/control/comfyui') {
+    let body = '';
+    req.on('data', chunk => { body += chunk.toString(); });
+    req.on('end', () => {
+      let payload;
+      try {
+        payload = body ? JSON.parse(body) : {};
+      } catch (e) {
+        return jsonResponse(res, 400, { error: 'invalid JSON' });
+      }
+      if (typeof payload.down !== 'boolean') {
+        return jsonResponse(res, 400, { error: 'down must be a boolean' });
+      }
+      isDown = payload.down;
+      if (isDown) {
+        stopMain(() => jsonResponse(res, 200, { down: true }));
+      } else {
+        startMain();
+        jsonResponse(res, 200, { down: false });
+      }
+    });
+    return;
+  }
+
+  if (method === 'GET' && pathname === '/control/comfyui') {
+    return jsonResponse(res, 200, { down: isDown });
+  }
+
+  console.warn(`[comfyui-mock] control 404: ${method} ${pathname}`);
+  return jsonResponse(res, 404, { error: `not found: ${pathname}` });
 });
 
-// --- Start -------------------------------------------------------------------
+// --- Start ---------------------------------------------------------------
 
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`[comfyui-mock] Listening on 0.0.0.0:${PORT}`);
+startMain();
+controlServer.listen(CONTROL_PORT, '0.0.0.0', () => {
+  console.log(`[comfyui-mock] control server listening on 0.0.0.0:${CONTROL_PORT}`);
 });
 
 process.on('SIGTERM', () => {
   console.log('[comfyui-mock] SIGTERM received, shutting down');
-  server.close();
+  if (mainServer) mainServer.close();
+  controlServer.close();
   process.exit(0);
 });
