@@ -30,6 +30,14 @@ var _ = Describe("originAllowed (same-host origin policy)", func() {
 		// Caddy reverse proxy preserves Host header (hostname matches).
 		Entry("proxied host preserved", "https://checkpoint-sampler.mcfacehead.com", "checkpoint-sampler.mcfacehead.com", nil, true),
 
+		// Regression (S-151 UAT): Vite dev proxy without changeOrigin preserves the
+		// browser Host, so a LAN-IP dev client (Origin and Host share hostname, only
+		// the WS handshake carries Origin) must upgrade successfully.
+		Entry("dev LAN-IP same host WS upgrade", "http://192.168.1.241:3000", "192.168.1.241:3000", nil, true),
+		Entry("dev LAN-IP proxied to backend port", "http://192.168.1.241:3000", "192.168.1.241:8080", nil, true),
+		// Regression: a genuine cross-host Origin from the dev LAN client is rejected.
+		Entry("dev LAN-IP cross-host rejected", "http://192.168.1.241:3000", "192.168.1.99:3000", nil, false),
+
 		// Different host: rejected by default.
 		Entry("different host", "http://evil.com", "example.com", nil, false),
 		Entry("different host with port", "https://evil.com:443", "example.com:8080", nil, false),

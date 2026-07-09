@@ -11,7 +11,11 @@ export default defineConfig({
     proxy: {
       '/api': {
         target: 'http://backend:8080',
-        changeOrigin: true,
+        // Do NOT set changeOrigin: it rewrites the forwarded Host header to
+        // "backend:8080", which breaks the backend same-host WebSocket origin
+        // check (S-151): the browser's Origin hostname would never match the
+        // rewritten Host, so the /api/ws upgrade is rejected. Preserving the
+        // original Host keeps Origin==Host and lets the upgrade through.
         ws: true,
       },
       '/health': {

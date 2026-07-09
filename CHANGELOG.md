@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-151: Restrict WebSocket origin and CORS to same-host with allowed_origins override (UAT rework)
+- Fixed a UAT defect where the same-host WebSocket `CheckOrigin` policy rejected the `/api/ws` upgrade in the `make up-dev` stack, silently breaking all live job-progress streaming (status, percent complete, images/total, per-image inference progress, and ETA) while REST-persisted aggregate progress still rendered on refresh. Root cause: the Vite dev proxy's `/api` block set `changeOrigin: true`, rewriting the forwarded `Host` to `backend:8080` so the browser `Origin` hostname could never match. Removed `changeOrigin` from the `/api` proxy (kept on non-WS `/health`/`/docs`) so the real Host is forwarded and `Origin==Host`; added an explanatory comment to prevent reintroduction. Added `originAllowed` regression entries covering the dev LAN-IP same-host allow (including proxy-to-backend-port) and cross-host reject cases. Deployments behind a Host-rewriting proxy must use the documented `allowed_origins` override
+
 ### S-158: Label LoRA strength-pair inputs (Model vs CLIP) in StudyEditor
 - `StudyEditor.vue` now renders a persistent "Model" / "CLIP" column header above the LoRA Strength Pairs inputs, replacing reliance on `NInputNumber` placeholders that vanished once the default 1.0 values were set. Labels use `var(--text-secondary)` and stay visible regardless of input state. Added unit tests (persistent visibility at default values and after adding rows) and an E2E assertion in `lora-strength-pairs.spec.ts`
 
