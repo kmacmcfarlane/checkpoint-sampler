@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { resetDatabase, selectTrainingRun, selectNaiveOptionByLabel } from './helpers'
+import { resetDatabase, selectTrainingRun, selectStudy, selectNaiveOptionByLabel, closeDrawer, dismissOverlays } from './helpers'
 
 /**
  * E2E tests for the core user journey:
@@ -63,6 +63,48 @@ test.describe('training run selection and XY grid display', () => {
     // Verify row headers (prompt_name values: landscape, portrait) are visible
     await expect(page.locator('[role="rowheader"]').filter({ hasText: 'landscape' })).toBeVisible()
     await expect(page.locator('[role="rowheader"]').filter({ hasText: 'portrait' })).toBeVisible()
+  })
+
+  // S-160: hovering a prompt-dimension header shows a tooltip with the full prompt text.
+  test('hovering a prompt-dimension row header shows the full prompt text tooltip', async ({ page }) => {
+    await page.goto('/')
+
+    await selectTrainingRun(page, 'my-model')
+    // Select the study-grouped variant of this training run ("E2E Fixture Study") -- its
+    // study_label matches a seeded Study record, which is required for the prompt-text
+    // lookup map (App.vue activeStudyPromptTextMap) to be populated (S-160).
+    await selectStudy(page, 'E2E Fixture Study')
+    await expect(page.getByText('Dimensions')).toBeVisible()
+
+    // Assign checkpoint → X axis, prompt_name → Y axis (prompt dimension on rows).
+    await selectNaiveOptionByLabel(page, 'Mode for checkpoint', 'X Axis')
+    await selectNaiveOptionByLabel(page, 'Mode for prompt_name', 'Y Axis')
+
+    // Close the sidebar drawer -- its mask intercepts pointer events (hover) on the grid.
+    await closeDrawer(page)
+    await dismissOverlays(page)
+
+    const landscapeRowHeader = page.locator('[data-testid="xy-grid-row-header"]').filter({ hasText: 'landscape' })
+    await expect(landscapeRowHeader).toBeVisible()
+
+    // Hovering the prompt-dimension row header should reveal the full prompt text (fixture: "a beautiful landscape").
+    // Naive UI's NTooltip listens for real pointer movement, so hover in two steps (move onto the
+    // page, then onto the target) rather than a single synthetic hover.
+    const box = await landscapeRowHeader.boundingBox()
+    if (!box) throw new Error('landscape row header has no bounding box')
+    await page.mouse.move(box.x + 1, box.y + 1)
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 5 })
+    await expect(page.locator('.n-tooltip').filter({ hasText: 'a beautiful landscape' })).toBeVisible()
+
+    // AC: header:click behavior is preserved -- clicking the header (via hover state) still works
+    // and does not error or block selection. Clicking toggles the header's filter selection.
+    await landscapeRowHeader.click()
+
+    // Hovering a non-prompt-dimension header (checkpoint column header) shows no prompt tooltip.
+    const checkpointColHeader = page.locator('[data-testid="xy-grid-col-header"]').filter({ hasText: '1000' })
+    await expect(checkpointColHeader).toBeVisible()
+    await checkpointColHeader.hover()
+    await expect(page.locator('.n-tooltip').filter({ hasText: 'a beautiful landscape' })).not.toBeVisible()
   })
 
   test('at least one image cell appears in the grid after axis assignment', async ({ page }) => {

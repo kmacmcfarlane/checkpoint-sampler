@@ -1,17 +1,27 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { NTooltip } from 'naive-ui'
 import { useImageCubeStore } from '../stores/imageCube'
 import type { DebugCellInfo, GridNavItem, ImageClickContext } from './types'
 import ImageCell from './ImageCell.vue'
 import SliderBar from './SliderBar.vue'
+
+/** Dimension names that identify the "prompt" dimension (metadata field prompt_name). */
+const PROMPT_DIMENSION_NAMES = new Set(['prompt', 'prompt_name'])
 
 const props = withDefaults(defineProps<{
   /** Cell size in pixels (both width and height). */
   cellSize: number
   /** When true, each cell renders a debug overlay showing filtering parameters. */
   debugMode?: boolean
+  /**
+   * Prompt name → full prompt text, sourced from the active study's prompts (S-160).
+   * Used to show a tooltip with the full prompt text on prompt-dimension headers.
+   */
+  promptTextMap?: Record<string, string>
 }>(), {
   debugMode: false,
+  promptTextMap: () => ({}),
 })
 
 // update:sliderValue: Emitted when a cell's slider changes. Payload: the cell key and new slider value.
@@ -39,6 +49,23 @@ const cellHeight = computed(() => props.cellSize)
 
 function onHeaderClick(dimensionName: string, value: string) {
   emit('header:click', dimensionName, value)
+}
+
+/** Lookup map built from the promptTextMap prop (name → full prompt text). */
+const promptTextLookup = computed(() => new Map(Object.entries(props.promptTextMap)))
+
+/** True when the given dimension name is the prompt dimension. */
+function isPromptDimension(dimensionName: string | undefined): boolean {
+  return !!dimensionName && PROMPT_DIMENSION_NAMES.has(dimensionName)
+}
+
+/**
+ * Full prompt text for a header tooltip, or undefined when no tooltip should show
+ * (non-prompt dimension, or a value with no matching prompt entry).
+ */
+function getHeaderTooltip(dimensionName: string | undefined, value: string): string | undefined {
+  if (!isPromptDimension(dimensionName)) return undefined
+  return promptTextLookup.value.get(value)
 }
 
 /**
@@ -245,17 +272,27 @@ const flatGridStyle = computed(() => ({
         ></div>
 
         <!-- Column headers -->
-        <div
+        <NTooltip
           v-for="(xVal, idx) in xValues"
           :key="'ch-' + xVal"
-          class="xy-grid__col-header"
-          data-testid="xy-grid-col-header"
-          role="columnheader"
-          :style="{ gridRow: 1, gridColumn: colIndex(idx) }"
-          @click="onHeaderClick(xDimension!.name, xVal)"
+          trigger="hover"
+          :disabled="!getHeaderTooltip(xDimension!.name, xVal)"
+          :width="280"
+          content-style="white-space: normal; word-break: break-word;"
         >
-          {{ xVal }}
-        </div>
+          <template #trigger>
+            <div
+              class="xy-grid__col-header"
+              data-testid="xy-grid-col-header"
+              role="columnheader"
+              :style="{ gridRow: 1, gridColumn: colIndex(idx) }"
+              @click="onHeaderClick(xDimension!.name, xVal)"
+            >
+              {{ xVal }}
+            </div>
+          </template>
+          {{ getHeaderTooltip(xDimension!.name, xVal) }}
+        </NTooltip>
       </div>
 
       <!-- Row headers + cells (Y dimension present) -->
@@ -268,14 +305,25 @@ const flatGridStyle = computed(() => ({
           class="xy-grid__row--data"
         >
           <!-- Row header -->
-          <div
-            class="xy-grid__row-header"
-            role="rowheader"
-            :style="{ gridRow: rowIndex(yIdx), gridColumn: 1 }"
-            @click="onHeaderClick(yDimension!.name, yVal)"
+          <NTooltip
+            trigger="hover"
+            :disabled="!getHeaderTooltip(yDimension!.name, yVal)"
+            :width="280"
+            content-style="white-space: normal; word-break: break-word;"
           >
-            {{ yVal }}
-          </div>
+            <template #trigger>
+              <div
+                class="xy-grid__row-header"
+                data-testid="xy-grid-row-header"
+                role="rowheader"
+                :style="{ gridRow: rowIndex(yIdx), gridColumn: 1 }"
+                @click="onHeaderClick(yDimension!.name, yVal)"
+              >
+                {{ yVal }}
+              </div>
+            </template>
+            {{ getHeaderTooltip(yDimension!.name, yVal) }}
+          </NTooltip>
 
           <!-- Cells for X+Y grid -->
           <template v-if="xDimension">
