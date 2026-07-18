@@ -11,11 +11,13 @@
 #     -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.worktree.yml \
 #     up -d --build
 
+# Ports still bind 127.0.0.1 by default (see docker-compose.yml / README
+# "Security model") — set HOST_BIND=0.0.0.0 in .env to expose on your LAN.
 services:
   backend:
     ports: !override
-      - "8080"   # Ephemeral host port -> container 8080
+      - "${HOST_BIND:-127.0.0.1}::8080"   # Ephemeral host port -> container 8080
 
   frontend:
     ports: !override
-      - "3000"   # Ephemeral host port -> container 3000
+      - "${HOST_BIND:-127.0.0.1}::3000"   # Ephemeral host port -> container 3000

@@ -186,3 +186,9 @@ A lightweight script that enumerates `Service(...)`/`Method(...)` from `backend/
 * priority: low
 * source: developer
 Add a periodic automated check (small script) comparing Goa design `Enum(...)` values against corresponding frontend TS union literals to catch design/implementation contract drift before code review. This class of drift recurred in B-171 across two independent locations.
+
+### Sandbox cannot reach host-published Docker ports for host-browser verification
+* status: needs_approval
+* priority: low
+* source: developer
+Agents dispatched inside the claude-sandbox cannot `curl`/fetch a `docker compose`-published host port to confirm host-browser reachability (connection refused despite `docker port` confirming the correct binding), because the sandbox container's network namespace doesn't route loopback back to the host Docker daemon's published ports. This is fine for `make test-e2e` (container-to-container), but any story asking to "verify from the host browser" cannot be closed out by the agent alone. Suggest AGENT_FLOW.md / story-writing guidance phrase such acceptance criteria as "verify via `docker port` + internal container logs" or flag them as human UAT steps rather than implying a literal host browser round-trip.

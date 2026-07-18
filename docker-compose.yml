@@ -4,8 +4,11 @@ services:
       context: ./backend
       args:
         COMMIT_SHA: ${COMMIT_SHA:-unknown}
+    # Bound to 127.0.0.1 by default: there is no authentication, so the app
+    # trusts anyone who can reach the port (see README "Security model").
+    # Set HOST_BIND=0.0.0.0 (in .env) to expose on your LAN deliberately.
     ports:
-      - "8081:8080"
+      - "${HOST_BIND:-127.0.0.1}:8081:8080"
     volumes:
       - backend_data:/app/data
       - ./config.yaml:/app/config.yaml:ro
@@ -26,8 +29,9 @@ services:
 
   frontend:
     build: ./frontend
+    # See backend ports comment above: 127.0.0.1 by default, override via HOST_BIND.
     ports:
-      - "3001:3000"
+      - "${HOST_BIND:-127.0.0.1}:3001:3000"
     depends_on:
       - backend
 

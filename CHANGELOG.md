@@ -5,6 +5,11 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-165: Document the security trust model; default exposure to localhost
+- Documented the trust model in a new README "Security model" section: the app has **no authentication**, so anyone who can reach the port has full read/write/delete access, and a firewall or authenticating reverse proxy is required before exposing beyond localhost
+- Compose published host ports now bind `127.0.0.1` by default via `${HOST_BIND:-127.0.0.1}` in `docker-compose.yml` and `docker-compose.worktree.yml`, making LAN exposure an explicit opt-in (`HOST_BIND=0.0.0.0`) rather than the shipped default; the in-container backend bind stays `0.0.0.0` so port mapping still works. Test/e2e stacks are untouched (container-to-container, no host ports)
+- `.env.example` documents the new `HOST_BIND` variable; `config.yaml.example` `ip_address` comment now explains the container-vs-host binding distinction (bind `0.0.0.0` inside Docker; host/LAN exposure is controlled at the compose layer)
+
 ### S-164: Scrub personal domains and paths from docs and test fixtures
 - Replaced personal-infrastructure identifiers with documentation-reserved equivalents ahead of public release (no behavior change): `/home/rt/ai/...` example paths in `docs/filesystem.md` and `docs/spike-lora-support.md` → `/path/to/...` placeholders; `checkpoint-sampler.mcfacehead.com` → `example.com` and private `192.168.x` IPs → RFC 5737 doc ranges (`192.0.2.x`, `198.51.100.x`) across the CORS, origin-policy, config, and ComfyUI-WS test fixtures
 

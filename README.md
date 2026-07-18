@@ -212,7 +212,7 @@ The application uses two gitignored config files, both copied from tracked examp
 
 ### Ports
 
-Docker Compose publishes two host ports:
+Docker Compose publishes two host ports, bound to `127.0.0.1` (localhost) by default:
 
 | Service | Host URL | Container port |
 |---|---|---|
@@ -220,6 +220,17 @@ Docker Compose publishes two host ports:
 | Backend API + Swagger UI | [http://localhost:8081](http://localhost:8081) ([/docs](http://localhost:8081/docs)) | 8080 |
 
 The `port` key in `config.yaml` (default `8080`) is the **container-internal** port the backend binds to; it is mapped to host `8081` by `docker-compose.yml`. Changing `port` alone does not change the host port — update the compose port mapping too.
+
+The host binding is controlled by the `HOST_BIND` variable in `.env` (default `127.0.0.1`, i.e. localhost-only). Set `HOST_BIND=0.0.0.0` to expose the app on your LAN — see the [Security model](#security-model) section below before doing so.
+
+## Security model
+
+Checkpoint Sampler has **no authentication**. Every API endpoint — including destructive operations like deleting checkpoints/samples and triggering sample jobs — is open to anyone who can reach the port. It is designed for local, single-user, trusted-network use.
+
+- **Default**: the compose ports are bound to `127.0.0.1`, so the app is reachable only from the machine running Docker (see [Ports](#ports) above).
+- **LAN exposure is an explicit, opt-in choice**: set `HOST_BIND=0.0.0.0` in `.env` to publish the ports on all interfaces. Do this only if you understand the risk — anyone on your network segment will have full read/write/delete access to your checkpoints, samples, and job queue.
+- **Before exposing beyond localhost** (LAN, VPN, or the public internet), put a firewall rule or an authenticating reverse proxy (e.g. Caddy, nginx with `auth_request`, Tailscale, or a VPN) in front of the app. Checkpoint Sampler itself will not stop unauthenticated requests.
+- This applies regardless of how the backend is run (Docker Compose or directly on the host) — see the `ip_address` comment in `config.yaml.example` for the container-vs-host binding distinction.
 
 For the checkpoint and sample directory layout (naming conventions, suffix stripping, per-run/study hierarchy), see [docs/filesystem.md](docs/filesystem.md).
 

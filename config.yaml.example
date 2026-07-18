@@ -23,7 +23,23 @@ sample_dir: /data/samples
 # Backend server port
 port: 8080
 
-# Bind address (use 0.0.0.0 for LAN access)
+# Bind address for the backend's own network listener (inside the container,
+# not the same thing as host/LAN exposure).
+#
+# Running under Docker Compose (the default): leave this as 0.0.0.0. The
+# backend must bind all interfaces inside its container so Docker's port
+# mapping (docker-compose.yml `ports:`) can reach it at all. Whether the app
+# is actually reachable from your LAN is controlled entirely at the compose
+# layer via the HOST_BIND env var (default 127.0.0.1, i.e. host-only) — see
+# the README "Security model" section. Changing this value does NOT expose
+# or restrict LAN access; it only affects what the backend binds to inside
+# its own container network namespace.
+#
+# Running the backend directly on the host (no Docker): 0.0.0.0 binds all
+# host interfaces (LAN-reachable); 127.0.0.1 restricts it to localhost only.
+# There is no authentication, so anyone who can reach this address and port
+# has full access — do not bind 0.0.0.0 outside Docker unless you have your
+# own firewall or reverse-proxy authentication in front of it.
 ip_address: "0.0.0.0"
 
 # SQLite database path (relative to working directory)
