@@ -2232,3 +2232,138 @@ stories:
       Key files: docs/database.md:6,197,214-249, docs/filesystem.md:80-84,125-135,170-177, CLAUDE.md, backend/internal/store/migrations.go:391,419,468-470.
     testing:
       - "Docs-only; verify each schema claim against migrations.go rather than the previous doc text"
+  - id: S-177
+    title: "Grid view header: show training-run name and study label (stacked, ellipsis, tooltip)"
+    type: story
+    status: todo
+    priority: 50
+    complexity: low
+    requires: []
+    notes: |
+      The grid-view header (frontend/src/App.vue, the <header class="app-header"> block,
+      header-center region ~line 866) currently has no name label — only the Filters
+      button and AnimationControls. Add a text label to the RIGHT of the Filters button
+      (data-testid="filters-button") that identifies the currently-selected training run.
+
+      Display two stacked lines (small/medium type — the run name can be long, so keep
+      the font size modest):
+        - Top line: training run name (selectedTrainingRun.name)
+        - Second line: study label (selectedTrainingRun.study_label) when present
+      Each line truncates with CSS text-overflow: ellipsis (overflow hidden, nowrap).
+      Wrap the label in an NTooltip (hover) whose content shows the full run name +
+      study label (the established pattern — see XYGrid.vue:275-295; no NEllipsis is
+      used anywhere in this codebase, CSS ellipsis is the norm).
+
+      Only render when a training run is selected (mirror the Filters button guard:
+      selectedTrainingRun && !scanning && !scanError). If study_label is empty
+      (legacy/checkpoint-source runs), show only the run-name line.
+    acceptance:
+      - "FE: a text label appears to the right of the Filters button showing the selected training run name (top) and study
+        label (below) in modest/medium type"
+      - "FE: each line truncates with an ellipsis when too long; the full run name + study label are shown in a hover tooltip"
+      - "FE: the label is hidden when no run is selected (same guard as the Filters button); when study_label is empty only
+        the run-name line renders"
+    testing:
+      - "Verify with a run whose name is long enough to ellipsize (confirm tooltip shows untruncated text)"
+      - "Cover a new-layout run (study_label present -> two lines) and a legacy run (study_label empty -> one line, no empty
+        second line)"
+  - id: S-178
+    title: "Generate Samples: enable checkpoint multi-select for fresh runs (no samples yet)"
+    type: story
+    status: todo
+    priority: 60
+    complexity: medium
+    requires: []
+    notes: |
+      In frontend/src/components/JobLaunchDialog.vue the checkpoint picker
+      (data-testid="checkpoint-picker", template ~1571-1700) currently renders the
+      per-checkpoint NCheckbox multi-select ONLY when the run already has samples
+      (v-if="selectedRunHasSamples", ~line 1635). For a fresh run (no samples) the
+      same list renders display-only and the flow always targets ALL checkpoints:
+      effectiveCheckpointFilenames (~853-855) returns undefined when
+      !selectedRunHasSamples, and targetedCheckpointCount (~859-864) uses the full
+      checkpoint_count.
+
+      Goal: let the user pick all/some checkpoints when generating for a run that has
+      no samples yet (a fresh generate, NOT a regenerate). Scope is frontend-only —
+      the backend already accepts payload.checkpoint_filenames (empty/omitted = all;
+      see CreateSampleJobPayload comment types.ts:356).
+
+      Implementation notes:
+      - Render the per-checkpoint checkboxes for fresh runs too (drop or widen the
+        selectedRunHasSamples gate on the picker). Keep the Select All / Deselect All
+        bulk buttons; hide "Select Missing" for fresh runs (every checkpoint is
+        missing, so it is identical to Select All).
+      - Default selection for a fresh run = ALL checkpoints selected (mirror the
+        has-samples default in initSelectedTrainingRun ~507-516).
+      - Make effectiveCheckpointFilenames and targetedCheckpointCount honor
+        selectedCheckpoints for fresh runs so the total-images count and the
+        max_study_items limit check (exceedsItemLimit ~876-878) reflect the subset.
+      - Keep the ">=1 checkpoint selected" submit validation (checkpointValidationError
+        ~910-915) applying to fresh runs.
+      - Do NOT change the clear_existing / missing_only regenerate branches — those
+        remain gated to runs that already have samples.
+    acceptance:
+      - "FE: for a run with no samples, the Generate Samples dialog shows a per-checkpoint checkbox multi-select with Select
+        All / Deselect All (Select Missing hidden)"
+      - "FE: all checkpoints are selected by default for a fresh run; the total-images count and max_study_items limit check
+        reflect the current selection"
+      - "FE: the created job's checkpoint_filenames contains exactly the selected checkpoints (and generating for all checkpoints
+        still works as before)"
+      - "FE: submit is blocked with a clear message when zero checkpoints are selected"
+      - "FE: the regenerate-only controls (clear existing / missing only) remain unavailable for fresh runs"
+    testing:
+      - "Fresh run: deselect some checkpoints, confirm only the selected ones appear in the create payload and the total count
+        updates"
+      - "Confirm selecting all checkpoints for a fresh run yields the same result as the previous all-checkpoints behavior"
+      - "Confirm runs that already have samples are unaffected (missing-only / clear-existing still present and working)"
+      - "Verify the max_study_items limit reacts to the checkpoint subset (fewer selected -> lower total)"
+  - id: S-179
+    title: "Generate Samples: default base model from checkpoint ss_ metadata for fresh LoRA runs"
+    type: story
+    status: todo
+    priority: 55
+    complexity: medium
+    requires: []
+    notes: |
+      In frontend/src/components/JobLaunchDialog.vue the base-model select
+      (data-testid="base-model-field", LoRA-only, template ~1550-1565) gets its
+      default from applyRememberedBaseModel (~1088-1112), which reads
+      StudyAvailability.base_models — i.e. the base model that produced EXISTING
+      samples (derived from the sample path {run}/{study}/{base_model}/{checkpoint}).
+      A fresh run has no prior samples, so no base model is pre-selected.
+
+      Goal: for a fresh LoRA run, default-select the base model the run was trained
+      against, read from the checkpoint's safetensors ss_ metadata. Scope is
+      frontend-only — the endpoint already exists: client.getCheckpointMetadata(filename)
+      -> { metadata: Record<string,string> } of ss_* fields
+      (GET /api/checkpoints/{filename}/metadata, api/client.ts:133-136).
+
+      Implementation notes:
+      - Only for LoRA runs (isLoraRun) with no remembered base model already applied;
+        never override an existing/user selection (keep applyRememberedBaseModel
+        precedence — remembered-from-samples wins when present).
+      - Fetch metadata for one checkpoint of the selected run (e.g. the first/latest),
+        extract a base-model reference preferring ss_sd_model_name, then
+        ss_pretrained_model_name_or_path, then ss_base_model_version.
+      - Match by basename (strip directory + .safetensors, case-insensitive) against
+        baseModelOptions (fetched via getBaseModels from base_model_dir). Pre-select on
+        a confident match; if nothing matches, leave unselected (best-effort — do not
+        guess).
+      - Guard against the metadata call failing or returning no ss_ fields (leave
+        unselected, no error surfaced to the user beyond existing handling).
+    acceptance:
+      - "FE: opening Generate Samples for a fresh LoRA run pre-selects the base model whose basename matches the checkpoint
+        ss_ metadata (ss_sd_model_name / ss_pretrained_model_name_or_path / ss_base_model_version), when a base_model_dir
+        entry matches"
+      - "FE: when no ss_ metadata match is found (or metadata is missing), the base model is left unselected — no incorrect
+        guess and no error to the user"
+      - "FE: an existing base-model selection (remembered from prior samples, or user-chosen) is never overridden by the metadata
+        default"
+      - "FE: the metadata lookup runs only for LoRA runs and does not fire for checkpoint (non-LoRA) runs"
+    testing:
+      - "Fresh LoRA run whose checkpoint ss_ metadata names a base model present in base_model_dir -> that base model is pre-selected"
+      - "Fresh LoRA run whose metadata names an absent/unparseable base model -> select stays empty, no error"
+      - "Confirm a run that already has samples still pre-selects the remembered base model (metadata default does not override
+        it)"
+      - "Confirm the getCheckpointMetadata call is not made for non-LoRA runs"
