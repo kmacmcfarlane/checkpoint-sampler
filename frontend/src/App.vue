@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import { NConfigProvider, NButton, NTag } from 'naive-ui'
+import { NConfigProvider, NMessageProvider, NButton, NTag } from 'naive-ui'
 import type { TrainingRun, DimensionRole, FilterMode, UnifiedDimensionMode, Preset, SampleJob, Study } from './api/types'
 import { apiClient } from './api/client'
 import { useJobProgress } from './composables/useJobProgress'
@@ -31,9 +31,12 @@ import JobLaunchDialog from './components/JobLaunchDialog.vue'
 import JobProgressPanel from './components/JobProgressPanel.vue'
 import SettingsDialog from './components/SettingsDialog.vue'
 import ValidationResultsDialog from './components/ValidationResultsDialog.vue'
+import ToastRegistrar from './components/ToastRegistrar.vue'
+import { useToast } from './composables/useToast'
 import type { ValidationResult } from './api/types'
 
 const { theme, isDark, toggle: toggleTheme } = useTheme()
+const toast = useToast()
 const { getPresetIdForCombo, savePresetSelection, clearPresetForCombo } = usePresetPersistence()
 const { lastTrainingRunId, saveLastTrainingRun } = useLastTrainingRun()
 
@@ -752,6 +755,7 @@ async function stopJob(jobId: string) {
     await fetchSampleJobs()
   } catch (err: unknown) {
     console.warn('Failed to stop sample job:', err)
+    toast.error('Failed to stop sample job. Please try again.')
   } finally {
     stoppingJobId.value = null
   }
@@ -764,6 +768,7 @@ async function resumeJob(jobId: string) {
     await fetchSampleJobs()
   } catch (err: unknown) {
     console.warn('Failed to resume sample job:', err)
+    toast.error('Failed to resume sample job. Please try again.')
   }
 }
 
@@ -774,6 +779,7 @@ async function retryFailedJob(jobId: string) {
     await fetchSampleJobs()
   } catch (err: unknown) {
     console.warn('Failed to retry failed job items:', err)
+    toast.error('Failed to retry failed job items. Please try again.')
   }
 }
 
@@ -784,6 +790,7 @@ async function deleteJob(jobId: string, deleteData: boolean) {
     await fetchSampleJobs()
   } catch (err: unknown) {
     console.warn('Failed to delete sample job:', err)
+    toast.error('Failed to delete sample job. Please try again.')
   }
 }
 
@@ -851,6 +858,11 @@ async function handleSlideoutValidationRefresh() {
 
 <template>
   <NConfigProvider :theme="theme">
+    <NMessageProvider>
+      <!-- Registers the Naive UI message API with the useToast singleton so
+           App.vue setup logic and deep components can surface toasts. -->
+      <ToastRegistrar />
+    </NMessageProvider>
     <div class="app" :class="{ 'dark-mode': isDark, 'app--has-x-slider': !!xSliderDimension, 'app--has-y-slider': !!ySliderDimension }">
       <header class="app-header">
         <div class="header-left">

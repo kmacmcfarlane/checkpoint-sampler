@@ -6590,4 +6590,89 @@ describe('JobLaunchDialog', () => {
     })
   })
 
+  // S-169: Initial fetches must surface a visible error with a retry affordance
+  // instead of silently rendering empty selectors (indistinguishable from
+  // "no data exists").
+  describe('initial fetch error states (S-169)', () => {
+    it('shows an inline error with a retry button when the training runs fetch fails', async () => {
+      mockGetCheckpointTrainingRuns.mockRejectedValue(new Error('boom'))
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const errorBlock = wrapper.find('[data-testid="training-runs-fetch-error"]')
+      expect(errorBlock.exists()).toBe(true)
+      expect(errorBlock.text()).toContain('Failed to load training runs')
+      expect(wrapper.find('[data-testid="training-runs-retry-button"]').exists()).toBe(true)
+    })
+
+    it('clears the training runs error and reloads when Retry is clicked', async () => {
+      mockGetCheckpointTrainingRuns.mockRejectedValueOnce(new Error('boom'))
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+      expect(wrapper.find('[data-testid="training-runs-fetch-error"]').exists()).toBe(true)
+
+      // Next call succeeds.
+      mockGetCheckpointTrainingRuns.mockResolvedValue(allTrainingRuns)
+      await wrapper.find('[data-testid="training-runs-retry-button"]').trigger('click')
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="training-runs-fetch-error"]').exists()).toBe(false)
+      // Retry forces a backend rescan (B-142 force-refresh path).
+      expect(mockGetCheckpointTrainingRuns).toHaveBeenLastCalledWith(true)
+    })
+
+    it('shows an inline error with a retry button when the studies fetch fails', async () => {
+      mockListStudies.mockRejectedValue(new Error('boom'))
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const errorBlock = wrapper.find('[data-testid="studies-fetch-error"]')
+      expect(errorBlock.exists()).toBe(true)
+      expect(errorBlock.text()).toContain('Failed to load studies')
+
+      // Next call succeeds.
+      mockListStudies.mockResolvedValue(sampleStudies)
+      await wrapper.find('[data-testid="studies-retry-button"]').trigger('click')
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="studies-fetch-error"]').exists()).toBe(false)
+    })
+
+    it('shows an inline error with a retry button when the base models fetch fails for a LoRA run', async () => {
+      mockGetCheckpointTrainingRuns.mockResolvedValue(allTrainingRunsWithLora)
+      mockListStudies.mockResolvedValue(allStudiesWithLora)
+      mockGetBaseModels.mockRejectedValue(new Error('boom'))
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      // Selecting the LoRA run triggers fetchBaseModels.
+      const runSelect = wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect)
+      await runSelect.vm.$emit('update:value', runLora.id)
+      await flushPromises()
+
+      const errorBlock = wrapper.find('[data-testid="base-models-fetch-error"]')
+      expect(errorBlock.exists()).toBe(true)
+      expect(errorBlock.text()).toContain('Failed to load base models')
+
+      // Retry succeeds and clears the error.
+      mockGetBaseModels.mockResolvedValue({ models: ['qwen/base.safetensors'] })
+      await wrapper.find('[data-testid="base-models-retry-button"]').trigger('click')
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="base-models-fetch-error"]').exists()).toBe(false)
+    })
+  })
+
 })

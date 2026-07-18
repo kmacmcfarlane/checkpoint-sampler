@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-169: Toast layer for API errors — job controls and launch-dialog fetches surface failures
+- Added an app-level Naive UI toast layer: `NMessageProvider` wraps a render-nothing `ToastRegistrar` that bridges `useMessage()` (only callable inside the provider subtree) to a module-level singleton, so App.vue's own setup logic and any component can fire toasts via a no-op-safe `useToast()` composable. The four job-control handlers (stop/resume/retry/delete) now show an error toast on failure instead of only `console.warn`
+- JobLaunchDialog's initial fetches (training-runs/jobs/workflows, base models, studies) now render an inline error banner with a Retry affordance instead of silently showing empty selectors — a transient backend error is no longer indistinguishable from "no data exists". Frontend-only
+
 ### S-178: Generate Samples — enable checkpoint multi-select for fresh runs (no samples yet)
 - The Generate Samples dialog now renders the per-checkpoint checkbox multi-select for fresh runs (no samples yet), not just for regenerate flows — the user can generate for all or a subset of checkpoints. Select All / Deselect All are available; "Select Missing" is hidden for fresh runs (every checkpoint is missing, so it would equal Select All), and the regenerate-only controls (clear existing / missing only) stay unavailable
 - All checkpoints are selected by default for a fresh run; the total-images count and the `max_study_items` limit check now reflect the current subset. Frontend-only — the created job's `checkpoint_filenames` carries exactly the selected checkpoints, and is omitted when all are selected (empty/omitted = all, preserving the prior generate-all behavior). Submit is blocked with a clear message when zero checkpoints are selected

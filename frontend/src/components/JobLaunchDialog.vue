@@ -49,6 +49,13 @@ const emit = defineEmits<{
 const loading = ref(false)
 const error = ref<string | null>(null)
 
+// S-169: Per-fetch error state for the dialog's initial data loads. When set,
+// an inline error block with a retry button is shown instead of silently
+// rendering empty selectors (which is indistinguishable from "no data exists").
+const trainingRunsError = ref<string | null>(null)
+const baseModelsError = ref<string | null>(null)
+const studiesError = ref<string | null>(null)
+
 // Available options
 const trainingRuns = ref<TrainingRun[]>([])
 const sampleJobs = ref<SampleJob[]>([])
@@ -1074,6 +1081,7 @@ onMounted(async () => {
  * refreshes (WebSocket, dialog open) use the cached path to avoid extra disk I/O.
  */
 async function fetchTrainingRunsAndJobs(forceRefresh = false) {
+  trainingRunsError.value = null
   try {
     const [runs, jobs, wfs] = await Promise.all([
       apiClient.getCheckpointTrainingRuns(forceRefresh),
@@ -1090,6 +1098,9 @@ async function fetchTrainingRunsAndJobs(forceRefresh = false) {
     trainingRuns.value = []
     sampleJobs.value = []
     workflows.value = []
+    // S-169: Surface the failure so the empty selectors are not mistaken for
+    // "no training runs exist".
+    trainingRunsError.value = 'Failed to load training runs. Please retry.'
   }
 }
 
@@ -1142,6 +1153,7 @@ function applyRememberedBaseModel() {
 /** B-143: Fetch available base models from base_model_dir (no ComfyUI dependency). */
 async function fetchBaseModels() {
   loadingBaseModels.value = true
+  baseModelsError.value = null
   try {
     const result = await apiClient.getBaseModels()
     baseModelOptions.value = result.models
@@ -1151,6 +1163,9 @@ async function fetchBaseModels() {
     applyRememberedBaseModel()
   } catch {
     baseModelOptions.value = []
+    // S-169: Surface the failure so an empty base-model dropdown is not mistaken
+    // for "no base models available".
+    baseModelsError.value = 'Failed to load base models. Please retry.'
   } finally {
     loadingBaseModels.value = false
   }
@@ -1172,10 +1187,14 @@ async function refreshTrainingRunsAndJobs() {
 }
 
 async function fetchStudies() {
+  studiesError.value = null
   try {
     studies.value = await apiClient.listStudies()
   } catch {
     studies.value = []
+    // S-169: Surface the failure so an empty study dropdown is not mistaken for
+    // "no studies exist".
+    studiesError.value = 'Failed to load studies. Please retry.'
   }
 }
 
@@ -1491,6 +1510,57 @@ async function doSubmit() {
     <NSpace vertical :size="16">
       <NAlert v-if="error" type="error" closable data-testid="job-launch-error" @close="error = null">
         {{ error }}
+      </NAlert>
+
+      <!-- S-169: Inline error states for initial fetches with retry affordances,
+           so a transient backend failure is not mistaken for "no data exists". -->
+      <NAlert
+        v-if="trainingRunsError"
+        type="error"
+        data-testid="training-runs-fetch-error"
+      >
+        <div class="fetch-error-row">
+          <span>{{ trainingRunsError }}</span>
+          <NButton
+            size="small"
+            data-testid="training-runs-retry-button"
+            @click="fetchTrainingRunsAndJobs(true)"
+          >
+            Retry
+          </NButton>
+        </div>
+      </NAlert>
+      <NAlert
+        v-if="studiesError"
+        type="error"
+        data-testid="studies-fetch-error"
+      >
+        <div class="fetch-error-row">
+          <span>{{ studiesError }}</span>
+          <NButton
+            size="small"
+            data-testid="studies-retry-button"
+            @click="fetchStudies"
+          >
+            Retry
+          </NButton>
+        </div>
+      </NAlert>
+      <NAlert
+        v-if="baseModelsError"
+        type="error"
+        data-testid="base-models-fetch-error"
+      >
+        <div class="fetch-error-row">
+          <span>{{ baseModelsError }}</span>
+          <NButton
+            size="small"
+            data-testid="base-models-retry-button"
+            @click="fetchBaseModels"
+          >
+            Retry
+          </NButton>
+        </div>
       </NAlert>
 
       <!-- Training run selector (top position per UAT feedback) -->
@@ -1938,6 +2008,14 @@ async function doSubmit() {
   display: flex;
   gap: 0.75rem;
   justify-content: flex-end;
+}
+
+/* S-169: Inline fetch-error row: message on the left, retry button on the right. */
+.fetch-error-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
 }
 
 .confirm-regen-body {

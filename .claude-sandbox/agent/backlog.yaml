@@ -1990,7 +1990,7 @@ stories:
   - id: S-169
     title: "Toast layer for API errors: job controls and launch-dialog fetches must surface failures"
     priority: 55
-    status: todo
+    status: uat
     complexity: medium
     requires: []
     acceptance:
