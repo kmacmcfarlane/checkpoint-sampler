@@ -128,6 +128,12 @@ The `config-with-comfyui.yaml` E2E fixture needs `allowed_origins: [http://front
 * source: developer
 `cd backend && make gen` fails in a fresh sandbox because the `goa` binary is not on PATH. The target could `go install` the version pinned in `go.mod` (or document the prerequisite) so codegen works out of the box without a manual `go install goa.design/goa/v3/cmd/goa@<version>`.
 
+### Frontend coverage thresholds
+* status: needs_approval
+* priority: low
+* source: developer
+Now that `@vitest/coverage-v8` tooling exists (S-166), consider adding per-file or global coverage thresholds in `frontend/vite.config.ts` to gate regressions in CI. Deferred from S-166 because it needs a baseline-setting decision across the whole frontend, not just imageCube.ts.
+
 ### Untrack stale gen/demo/ files
 * status: needs_approval
 * priority: low

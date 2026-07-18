@@ -1931,7 +1931,7 @@ stories:
   - id: S-166
     title: "Frontend coverage tooling + imageCube store unit tests"
     priority: 65
-    status: todo
+    status: uat
     complexity: medium
     requires: []
     acceptance:
