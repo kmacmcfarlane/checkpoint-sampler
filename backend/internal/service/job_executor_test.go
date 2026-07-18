@@ -51,6 +51,11 @@ type fakeJobExecutorStore struct {
 	// onUpdateJob is an optional callback invoked during UpdateSampleJob (before the write).
 	// Used by tests that need to inspect executor state at the exact moment of a DB write.
 	onUpdateJob func(model.SampleJob)
+	// onListSampleJobItems is an optional callback invoked during ListSampleJobItems
+	// (before the read). Used by tests (B-172) to simulate a concurrent goroutine
+	// (e.g. RequestStop or the disconnect handler) clearing executor state between
+	// when a failure event was captured and when failItem's first blocking call runs.
+	onListSampleJobItems func(jobID string)
 	// recalcMu serializes RecalculateCompletedItems to model the real store's single-writer pool.
 	recalcMu sync.Mutex
 }
@@ -109,6 +114,9 @@ func (m *fakeJobExecutorStore) RecalculateCompletedItems(jobID string) (int, err
 }
 
 func (m *fakeJobExecutorStore) ListSampleJobItems(jobID string) ([]model.SampleJobItem, error) {
+	if m.onListSampleJobItems != nil {
+		m.onListSampleJobItems(jobID)
+	}
 	items, ok := m.items[jobID]
 	if !ok {
 		return []model.SampleJobItem{}, nil
@@ -2311,6 +2319,61 @@ var _ = Describe("JobExecutor", func() {
 			// Verify item was marked as failed
 			items := mockStore.items["job-1"]
 			Expect(items[0].Status).To(Equal(model.SampleJobItemStatusFailed))
+		})
+
+		// B-172: jobID must be captured at the event-handling site (inside
+		// handleComfyUIEvent, before releasing the lock) rather than re-read from
+		// e.activeJobID inside failItem/failItemWithDetails. Previously, if
+		// activeJobID was cleared concurrently (e.g. by RequestStop or the
+		// disconnect handler) between event capture and failItem's execution,
+		// ListSampleJobItems("") would return no rows, the failure would silently
+		// drop, and the item would stay stuck in "running" — retried forever by
+		// orphan-reset. This test simulates that interleaving directly by clearing
+		// activeJobID before the failure event is handled.
+		It("still marks the item failed when activeJobID is cleared before the failure is processed", func() {
+			// Simulate RequestStop/disconnect clearing activeJobID concurrently,
+			// between when the WS event handler captured jobID (under the lock,
+			// at event-receipt time) and when failItemWithDetails performs its
+			// first blocking store call. handleComfyUIEvent must have already
+			// captured jobID at the event-handling site — clearing it afterward
+			// must not cause the failure to be silently dropped.
+			mockStore.onListSampleJobItems = func(jobID string) {
+				executor.mu.Lock()
+				executor.activeJobID = ""
+				executor.mu.Unlock()
+			}
+
+			event := model.ComfyUIEvent{
+				Type: "execution_error",
+				Data: map[string]interface{}{
+					"prompt_id":         "test-prompt-id",
+					"exception_message": "deterministic execution error",
+					"exception_type":    "RuntimeError",
+					"node_type":         "VAEDecode",
+				},
+			}
+
+			executor.handleComfyUIEvent(event)
+
+			// The item must still be marked failed — not silently dropped — even
+			// though activeJobID was already cleared.
+			items := mockStore.items["job-1"]
+			Expect(items[0].Status).To(Equal(model.SampleJobItemStatusFailed))
+			Expect(items[0].ErrorMessage).To(ContainSubstring("deterministic execution error"))
+		})
+
+		// B-172: direct unit test of failItemWithDetails confirming it honors the
+		// explicitly-passed jobID rather than reading (possibly cleared) activeJobID.
+		It("failItemWithDetails marks the item failed using the passed jobID even when activeJobID differs", func() {
+			executor.mu.Lock()
+			executor.activeJobID = "some-other-job"
+			executor.mu.Unlock()
+
+			executor.failItemWithDetails("job-1", "item-1", "boom", "RuntimeError", "VAEDecode", "trace")
+
+			items := mockStore.items["job-1"]
+			Expect(items[0].Status).To(Equal(model.SampleJobItemStatusFailed))
+			Expect(items[0].ErrorMessage).To(Equal("boom"))
 		})
 
 		// AC: BE: Parse and forward execution_error events with exception_message, exception_type, node_type

@@ -467,7 +467,11 @@ func (e *JobExecutor) handleComfyUIEvent(event model.ComfyUIEvent) {
 		data := event.Data
 		promptID, _ := data["prompt_id"].(string)
 		if promptID == e.activePromptID {
-			// Capture state and release lock before calling failItem
+			// Capture state and release lock before calling failItem. B-172: jobID
+			// must be captured here (before unlock) rather than re-read inside
+			// failItem, since e.activeJobID can be cleared concurrently by
+			// RequestStop or the disconnect handler before failItem runs.
+			capturedJobID := e.activeJobID
 			capturedItemID := e.activeItemID
 			e.mu.Unlock()
 
@@ -498,7 +502,7 @@ func (e *JobExecutor) handleComfyUIEvent(event model.ComfyUIEvent) {
 				"node_type":         nodeType,
 			}).Error("ComfyUI execution error")
 
-			e.failItemWithDetails(capturedItemID, errMsg, exceptionType, nodeType, traceback)
+			e.failItemWithDetails(capturedJobID, capturedItemID, errMsg, exceptionType, nodeType, traceback)
 			return
 		}
 	}
@@ -519,7 +523,7 @@ func (e *JobExecutor) handleItemCompletionAsync(jobID, itemID, promptID string) 
 	items, err := e.store.ListSampleJobItems(jobID)
 	if err != nil {
 		e.logger.WithError(err).Error("failed to list job items")
-		e.failItem(itemID, "failed to fetch item for completion")
+		e.failItem(jobID, itemID, "failed to fetch item for completion")
 		return
 	}
 
@@ -551,7 +555,7 @@ func (e *JobExecutor) handleItemCompletionAsync(jobID, itemID, promptID string) 
 	imageData, err := e.downloadOutputImage(promptID)
 	if err != nil {
 		e.logger.WithError(err).Error("failed to download output image")
-		e.failItem(itemID, fmt.Sprintf("failed to download image: %v", err))
+		e.failItem(jobID, itemID, fmt.Sprintf("failed to download image: %v", err))
 		return
 	}
 
@@ -573,7 +577,7 @@ func (e *JobExecutor) handleItemCompletionAsync(jobID, itemID, promptID string) 
 			e.mu.Unlock()
 		} else {
 			e.logger.WithError(err).Error("failed to fetch job for output path")
-			e.failItem(itemID, fmt.Sprintf("failed to fetch job: %v", err))
+			e.failItem(jobID, itemID, fmt.Sprintf("failed to fetch job: %v", err))
 		}
 		return
 	}
@@ -587,14 +591,14 @@ func (e *JobExecutor) handleItemCompletionAsync(jobID, itemID, promptID string) 
 	outputPath, err := e.getOutputPath(studyOutputDir, item.CheckpointFilename, filename)
 	if err != nil {
 		e.logger.WithError(err).Error("invalid output path")
-		e.failItem(itemID, fmt.Sprintf("invalid output path: %v", err))
+		e.failItem(jobID, itemID, fmt.Sprintf("invalid output path: %v", err))
 		return
 	}
 
 	// Save image to disk
 	if err := e.saveImage(outputPath, imageData); err != nil {
 		e.logger.WithError(err).Error("failed to save image")
-		e.failItem(itemID, fmt.Sprintf("failed to save image: %v", err))
+		e.failItem(jobID, itemID, fmt.Sprintf("failed to save image: %v", err))
 		return
 	}
 

@@ -1830,7 +1830,7 @@ stories:
   - id: B-172
     title: "failItem re-reads cleared activeJobID — item failures silently drop and deterministic errors can retry forever"
     priority: 45
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:

@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-172: failItem re-read cleared activeJobID — item failures could silently drop and retry forever
+- `failItem`/`failItemWithDetails` now take an explicit `jobID` captured at the event-handling site (under the lock, before unlock) instead of re-reading `e.activeJobID`. A concurrent `RequestStop`/disconnect could clear `activeJobID` in the window before the failure's blocking I/O ran, so `ListSampleJobItems("")` returned nothing, the failure was silently dropped, and the item stayed `running` — retried forever by orphan-reset for a deterministic error. All call sites now pass jobID explicitly, mirroring the completion path
+
 ### B-171: Frontend/backend contract drift — WS completeness type + 'lora' ComfyUIModelType
 - `GET /api/comfyui/models` Goa enum now includes `lora`, matching the already-supported service layer (`ComfyUIModelTypeLoRA` → `LoraLoader`/`lora_name`) and the frontend `ComfyUIModelType` union — `?type=lora` no longer 400s before reaching working backend code
 - WS `job_progress` payload gets its own truthful FE type `WSCheckpointCompletenessInfo` (4 fields: checkpoint/expected/verified/missing), distinct from the richer HTTP `CheckpointCompletenessInfo` (which keeps `extra`/`invalid_params`). Ad-hoc private 4-field shapes in `JobProgressPanel.vue` and `useJobProgress.ts` removed in favor of the shared type

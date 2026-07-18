@@ -13,22 +13,28 @@ import (
 
 // failItem marks an item as failed with an error message (called without holding mutex).
 // It performs blocking I/O and then re-acquires the lock to clear active state.
-func (e *JobExecutor) failItem(itemID string, errorMsg string) {
-	e.failItemWithDetails(itemID, errorMsg, "", "", "")
+//
+// jobID must be captured by the caller at the event-handling site (before any
+// blocking work or lock release), not re-read from e.activeJobID here. B-172:
+// e.activeJobID can be cleared concurrently (e.g. by RequestStop or the
+// disconnect handler) between when the event was received and when failItem
+// runs, which caused ListSampleJobItems("") to return nothing and the failure
+// to silently drop, leaving the item stuck in "running" forever.
+func (e *JobExecutor) failItem(jobID string, itemID string, errorMsg string) {
+	e.failItemWithDetails(jobID, itemID, errorMsg, "", "", "")
 }
 
 // failItemWithDetails marks an item as failed with structured error details
 // from ComfyUI execution_error events (called without holding mutex).
-func (e *JobExecutor) failItemWithDetails(itemID string, errorMsg string, exceptionType string, nodeType string, traceback string) {
+//
+// jobID must be captured by the caller at the event-handling site (see failItem's
+// doc comment for why it must not be re-read from e.activeJobID here).
+func (e *JobExecutor) failItemWithDetails(jobID string, itemID string, errorMsg string, exceptionType string, nodeType string, traceback string) {
 	e.logger.WithFields(logrus.Fields{
+		"job_id":  jobID,
 		"item_id": itemID,
 		"error":   errorMsg,
 	}).Error("marking item as failed")
-
-	// Capture jobID before any blocking operations
-	e.mu.Lock()
-	jobID := e.activeJobID
-	e.mu.Unlock()
 
 	items, err := e.store.ListSampleJobItems(jobID)
 	if err != nil {

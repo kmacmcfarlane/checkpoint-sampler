@@ -489,7 +489,7 @@ func (e *JobExecutor) processItem(job model.SampleJob, item model.SampleJobItem)
 			"checkpoint_filename": item.CheckpointFilename,
 			"error":               err.Error(),
 		}).Warn("checkpoint could not be resolved in ComfyUI, failing item")
-		e.failItem(item.ID, fmt.Sprintf("checkpoint not found in ComfyUI: %v", err))
+		e.failItem(job.ID, item.ID, fmt.Sprintf("checkpoint not found in ComfyUI: %v", err))
 		return
 	}
 	item = resolvedItem
@@ -513,7 +513,7 @@ func (e *JobExecutor) processItem(job model.SampleJob, item model.SampleJobItem)
 			e.mu.Unlock()
 		} else {
 			e.logger.WithError(err).Error("failed to update item status to running")
-			e.failItem(item.ID, "failed to update item status")
+			e.failItem(job.ID, item.ID, "failed to update item status")
 		}
 		return
 	}
@@ -522,7 +522,7 @@ func (e *JobExecutor) processItem(job model.SampleJob, item model.SampleJobItem)
 	workflow, err := e.workflowLoader.Get(e.ctx, job.WorkflowName)
 	if err != nil {
 		e.logger.WithError(err).Error("failed to load workflow template")
-		e.failItem(item.ID, fmt.Sprintf("failed to load workflow: %v", err))
+		e.failItem(job.ID, item.ID, fmt.Sprintf("failed to load workflow: %v", err))
 		return
 	}
 
@@ -530,7 +530,7 @@ func (e *JobExecutor) processItem(job model.SampleJob, item model.SampleJobItem)
 	substituted, err := e.substituteWorkflow(workflow, job, item)
 	if err != nil {
 		e.logger.WithError(err).Error("failed to substitute workflow")
-		e.failItem(item.ID, fmt.Sprintf("workflow substitution failed: %v", err))
+		e.failItem(job.ID, item.ID, fmt.Sprintf("workflow substitution failed: %v", err))
 		return
 	}
 
@@ -562,7 +562,7 @@ func (e *JobExecutor) processItem(job model.SampleJob, item model.SampleJobItem)
 			return
 		}
 		e.logger.WithError(err).Error("failed to submit prompt to ComfyUI")
-		e.failItem(item.ID, fmt.Sprintf("ComfyUI prompt submission failed: %v", err))
+		e.failItem(job.ID, item.ID, fmt.Sprintf("ComfyUI prompt submission failed: %v", err))
 		return
 	}
 
