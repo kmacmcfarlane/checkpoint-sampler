@@ -542,14 +542,26 @@ func (e *JobExecutor) processItem(job model.SampleJob, item model.SampleJobItem)
 	}
 	promptResp, err := e.comfyuiClient.SubmitPrompt(e.ctx, promptReq)
 	if err != nil {
-		e.logger.WithError(err).Error("failed to submit prompt to ComfyUI")
-		// Check if this is a connection error and mark as disconnected to trigger reconnect
+		// A connection error here mirrors the path-resolution branch above: ComfyUI is
+		// (still) unreachable, so leave the item pending, mark the connection dead so
+		// the reconnect ticker re-establishes it, and clear active state so the item is
+		// re-selected on a later tick once ComfyUI returns. A genuine submit rejection
+		// (ComfyUI up, prompt invalid) fails only this item.
 		if isConnectionError(err) {
-			e.logger.Warn("detected ComfyUI connection error, marking as disconnected")
+			e.logger.WithFields(logrus.Fields{
+				"job_id":              job.ID,
+				"item_id":             item.ID,
+				"checkpoint_filename": item.CheckpointFilename,
+				"error":               err.Error(),
+			}).Warn("ComfyUI unreachable during prompt submission, leaving item pending for retry")
 			e.mu.Lock()
 			e.connected = false
+			e.activeItemID = ""
+			e.activePromptID = ""
 			e.mu.Unlock()
+			return
 		}
+		e.logger.WithError(err).Error("failed to submit prompt to ComfyUI")
 		e.failItem(item.ID, fmt.Sprintf("ComfyUI prompt submission failed: %v", err))
 		return
 	}

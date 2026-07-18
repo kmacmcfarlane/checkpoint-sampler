@@ -231,3 +231,125 @@ var _ = Describe("JobExecutor lazy path resolution (S-161)", func() {
 		})
 	})
 })
+
+// B-166: a transient ComfyUI connection error at prompt submission (as opposed to
+// path resolution) must also leave the item pending for retry rather than
+// permanently failing it. This mirrors the resolveItemModelPaths connection-error
+// branch. A genuine submit rejection (ComfyUI reachable, prompt invalid) must
+// still fail the item.
+var _ = Describe("JobExecutor submit-time connection error (B-166)", func() {
+	var (
+		executor   *JobExecutor
+		mockStore  *fakeJobExecutorStore
+		mockClient *fakeComfyUIClient
+		mockWS     *fakeComfyUIWS
+		mockLoader *fakeWorkflowLoader
+		mockHub    *fakeEventHub
+		mockFS     *fakeFileSystemWriter
+		mockFSRead *fakeFileSystemReader
+		logger     *logrus.Logger
+		job        model.SampleJob
+		item       model.SampleJobItem
+	)
+
+	connErr := &net.OpError{Op: "dial", Err: syscall.ECONNREFUSED}
+
+	BeforeEach(func() {
+		mockStore = newFakeJobExecutorStore()
+		mockClient = &fakeComfyUIClient{
+			promptResponse: &model.PromptResponse{PromptID: "test-prompt-id"},
+		}
+		mockWS = &fakeComfyUIWS{clientID: "test-client-id"}
+		mockLoader = &fakeWorkflowLoader{
+			workflow: model.WorkflowTemplate{
+				Name: "test-workflow.json",
+				Workflow: map[string]interface{}{
+					"1": map[string]interface{}{
+						"inputs": map[string]interface{}{},
+						"_meta":  map[string]interface{}{"cs_role": "unet_loader"},
+					},
+					"2": map[string]interface{}{
+						"inputs": map[string]interface{}{},
+						"_meta":  map[string]interface{}{"cs_role": "sampler"},
+					},
+					"3": map[string]interface{}{
+						"inputs": map[string]interface{}{},
+						"_meta":  map[string]interface{}{"cs_role": "save_image"},
+					},
+				},
+				Roles: map[string][]string{
+					"unet_loader": {"1"},
+					"sampler":     {"2"},
+					"save_image":  {"3"},
+				},
+			},
+		}
+		mockHub = &fakeEventHub{}
+		mockFS = newFakeFileSystemWriter()
+		mockFSRead = newFakeFileSystemReader()
+		logger = logrus.New()
+		logger.SetOutput(GinkgoWriter)
+
+		executor = NewJobExecutor(mockStore, mockClient, mockWS, mockLoader, mockHub, "/test/samples", mockFS, mockFSRead, logger)
+		executor.mu.Lock()
+		executor.connected = true
+		executor.mu.Unlock()
+
+		// Item already has a resolved path so resolveItemModelPaths short-circuits
+		// and processItem proceeds straight through to SubmitPrompt.
+		job = model.SampleJob{ID: "job-submit", StudyID: "study-1", WorkflowName: "test-workflow.json", Status: model.SampleJobStatusPending}
+		item = model.SampleJobItem{
+			ID:                 "item-submit-1",
+			JobID:              job.ID,
+			CheckpointFilename: "cp1.safetensors",
+			ComfyUIModelPath:   "models/cp1.safetensors",
+			Status:             model.SampleJobItemStatusPending,
+		}
+		mockStore.jobs[job.ID] = job
+		mockStore.items[job.ID] = []model.SampleJobItem{item}
+	})
+
+	// AC: a connection error at SubmitPrompt leaves the item pending (not failed),
+	// clears active state, and marks the executor disconnected so the reconnect
+	// ticker re-selects the item once ComfyUI returns.
+	It("leaves the item pending (not failed) on a connection error at submit, and resumes on reconnect", func() {
+		mockClient.submitErr = connErr
+
+		executor.processNextItem()
+
+		items := mockStore.items[job.ID]
+		Expect(items[0].Status).NotTo(Equal(model.SampleJobItemStatusFailed))
+		Expect(executor.IsConnected()).To(BeFalse())
+		executor.mu.Lock()
+		activeItemID := executor.activeItemID
+		activePromptID := executor.activePromptID
+		executor.mu.Unlock()
+		Expect(activeItemID).To(BeEmpty())
+		Expect(activePromptID).To(BeEmpty())
+
+		// Reconnect: the item (orphaned to "running" by the failed submit, or still
+		// pending) is picked up and resubmitted successfully.
+		mockClient.submitErr = nil
+		executor.mu.Lock()
+		executor.connected = true
+		executor.mu.Unlock()
+		executor.processNextItem()
+
+		items = mockStore.items[job.ID]
+		Expect(items[0].Status).To(Equal(model.SampleJobItemStatusRunning))
+		Expect(mockClient.lastSubmittedReq).NotTo(BeNil())
+	})
+
+	// AC: a genuine submit rejection (ComfyUI reachable, prompt invalid) must still
+	// fail the item — only connection errors are retried.
+	It("fails the item on a genuine (non-connection) submit rejection", func() {
+		mockClient.submitErr = fmt.Errorf("invalid prompt: missing required field")
+
+		executor.processNextItem()
+
+		items := mockStore.items[job.ID]
+		Expect(items[0].Status).To(Equal(model.SampleJobItemStatusFailed))
+		Expect(items[0].ErrorMessage).To(ContainSubstring("ComfyUI prompt submission failed"))
+		Expect(executor.IsConnected()).To(BeTrue())
+	})
+})

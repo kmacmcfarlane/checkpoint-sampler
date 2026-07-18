@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-166: Transient ComfyUI connection error at submit permanently failed items instead of re-queueing
+- The job executor's `SubmitPrompt` error path now mirrors the S-161 path-resolution branch: a connection error (`isConnectionError`) leaves the item pending, marks the connection dead, and clears active state so the reconnect ticker/orphan-recovery re-selects it — instead of calling `failItem`. A ComfyUI restart between the connectivity check and submit no longer turns a transient outage into a `completed_with_errors` job requiring manual retry. Genuine (non-connection) submit rejections still fail only the affected item
+
 ### B-170: goa CLI not installed or pinned — `make gen` failed on a fresh machine; Dockerfiles used @latest
 - `internal/api/generate.go`'s `go:generate` directive now invokes goa via `go run goa.design/goa/v3/cmd/goa@v3.25.3` (mirroring the mockery pin), so codegen works on a clean clone with only Go installed — no pre-installed `goa` binary needed. This directive is the single source of truth for the goa CLI version (must match `goa.design/goa/v3` in go.mod)
 - `backend/Dockerfile` and `Dockerfile.dev` no longer `go install goa@latest`; they run `go generate`, which resolves the pinned version, preventing silent codegen drift from upstream goa releases
