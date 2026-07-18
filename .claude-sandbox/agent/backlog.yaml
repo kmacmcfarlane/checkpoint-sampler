@@ -1660,7 +1660,7 @@ stories:
   - id: B-163
     title: "Missing-only sample jobs regenerate everything — creation check uses stale output path layout"
     priority: 85
-    status: todo
+    status: uat
     complexity: medium
     requires: []
     acceptance:

@@ -207,9 +207,16 @@ func (e *JobExecutor) filenameDimsForJob(job model.SampleJob) FilenameDimensions
 			"study_id": job.StudyID,
 			"error":    err.Error(),
 		}).Warn("failed to fetch study for filename dimensions, using none")
-		return FilenameDimensions{}
+		// B-163: even when the study lookup fails, the job's LoRA-ness is known
+		// from job.BaseModel, so still encode strength params for LoRA jobs.
+		return FilenameDimensions{LoRA: job.BaseModel != ""}
 	}
-	return filenameDimensionsForStudy(study)
+	dims := filenameDimensionsForStudy(study)
+	// B-163: LoRA strength params are keyed on the job (job.BaseModel), not the
+	// per-item LoraModelPath, so the executor-written filename matches the
+	// creation-time missing-only check.
+	dims.LoRA = job.BaseModel != ""
+	return dims
 }
 
 // getOutputPath constructs the full output path for an image.

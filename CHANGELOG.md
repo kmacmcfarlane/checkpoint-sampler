@@ -5,6 +5,11 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-163: Missing-only sample jobs regenerated everything — creation check used stale output path layout
+- The missing-only creation filter probed `{sampleDir}/{study}/{checkpoint}/{file}`, but the executor writes to `{sampleDir}/{sanitizedRun}/{study}[/{baseModel}]/{checkpoint}/{file}` (via `fileformat.StudyOutputDir`). The probe never matched on-disk files, so `missing_only` jobs silently regenerated every sample. Creation now resolves expected paths through the same `fileformat.StudyOutputDir` helper the executor uses, so existing samples are detected (including sanitized run names and the LoRA base-model directory level)
+- LoRA strength encoding (`strength_model`/`strength_clip`) in output filenames is now keyed on a new `FilenameDimensions.LoRA` flag (derived from `job.BaseModel` / the job's LoRA kind) instead of the per-item `LoraModelPath`, which S-161 leaves empty at creation time. Creation-time and executor-written filenames now agree, so missing-only LoRA jobs correctly skip existing samples
+- Testing: added backend unit coverage for missing-only detection of both checkpoint (sanitized run dir) and LoRA (base-model dir, strength-keyed filenames) jobs laid out in the executor's exact on-disk structure
+
 ### B-162: Job progress Completeness reported 0/N missing for LoRA jobs
 - The executor computed the study output directory in three places and only the image-write site appended the `base_model` level. `fileformat.StudyOutputDir(trainingRunName, studyName, baseModel)` is now the single source of truth; the image write, manifest write, and completeness check all route through it, so the completeness check reads `{sampleDir}/{run}/{study}/{base_model}/{checkpoint}/` and `manifest.json` lands beside the checkpoint image directories rather than one level above
 - Non-LoRA jobs (`base_model` empty) resolve to the same `{run}/{study}` path as before. Manifests written before this fix stay at the old location and continue to fall back to count-based validation via `ErrManifestNotFound` — no read-side fallback was added, deliberately, so that only one manifest location is ever valid

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/fileformat"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
 	"github.com/sirupsen/logrus"
 )
@@ -379,9 +380,20 @@ func (s *SampleJobService) Create(trainingRunName string, checkpoints []model.Ch
 		var filtered []model.SampleJobItem
 		skipped := 0
 		fnDims := filenameDimensionsForStudy(study)
+		// B-163: LoRA strength params are keyed on the job being a LoRA job (isLoRA),
+		// not on the per-item LoraModelPath — that path is intentionally empty at
+		// creation time (S-161) and only resolved lazily at execution. Keying on
+		// isLoRA makes the creation-time filename match the executor-written one.
+		fnDims.LoRA = isLoRA
+		// B-163: resolve expected output paths via the SAME layout the executor
+		// writes to (fileformat.StudyOutputDir → {sanitizedRun}/{study}[/{baseModel}]
+		// + {checkpoint basename}). The previous {sampleDir}/{study}/{checkpoint}
+		// layout never matched on-disk files, so missing-only jobs regenerated
+		// everything.
+		studyOutputDir := fileformat.StudyOutputDir(trainingRunName, study.Name, baseModel)
 		for _, item := range items {
 			outputFilename := GenerateOutputFilenameWithDims(item, fnDims)
-			outputPath := filepath.Join(s.sampleDir, study.Name, item.CheckpointFilename, outputFilename)
+			outputPath := filepath.Join(s.sampleDir, studyOutputDir, filepath.Base(item.CheckpointFilename), outputFilename)
 			if s.fileChecker.FileExists(outputPath) {
 				skipped++
 				continue
@@ -1201,6 +1213,12 @@ type FilenameDimensions struct {
 	VAE         bool
 	TextEncoder bool
 	Shift       bool
+	// LoRA indicates the job is a LoRA job, so strength_model/strength_clip must
+	// be encoded into the filename. B-163: this is keyed on the job (job.BaseModel
+	// / isLoRA) rather than the per-item LoraModelPath, which is empty at creation
+	// time (S-161) and only resolved lazily at execution — keying on it there made
+	// the creation-time missing-only filename diverge from the executor-written one.
+	LoRA bool
 }
 
 // GenerateOutputFilenameWithDims builds the query-encoded output filename,
@@ -1214,8 +1232,12 @@ func GenerateOutputFilenameWithDims(item model.SampleJobItem, dims FilenameDimen
 	params.Set("sampler", item.SamplerName)
 	params.Set("scheduler", item.Scheduler)
 	params.Set("seed", fmt.Sprintf("%d", item.Seed))
-	// Include LoRA strength values when they differ from defaults (indicating a LoRA job)
-	if item.LoraModelPath != "" {
+	// Include LoRA strength values for LoRA jobs. B-163: keyed on dims.LoRA (derived
+	// from job.BaseModel / isLoRA) rather than item.LoraModelPath, which is empty at
+	// creation time (S-161) — keying on it made the creation-time missing-only
+	// filename omit strength params while the executor wrote them, so no on-disk
+	// file ever matched and missing-only LoRA jobs regenerated everything.
+	if dims.LoRA {
 		params.Set("strength_model", fmt.Sprintf("%.2f", item.StrengthModel))
 		params.Set("strength_clip", fmt.Sprintf("%.2f", item.StrengthClip))
 	}

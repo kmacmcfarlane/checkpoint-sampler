@@ -378,7 +378,11 @@ var _ = Describe("GenerateOutputFilename", func() {
 		Expect(result).To(ContainSubstring("cfg=3.5"))
 	})
 
-	It("includes strength_model and strength_clip for LoRA items", func() {
+	// B-163: strength params are keyed on the LoRA dimension (derived from the job,
+	// via dims.LoRA), NOT the per-item LoraModelPath — that path is empty at job
+	// creation time (S-161) and only resolved at execution, so keying on it made
+	// the creation-time filename diverge from the executor-written one.
+	It("includes strength_model and strength_clip when the LoRA dimension is set", func() {
 		item := model.SampleJobItem{
 			PromptName:    "test",
 			Steps:         20,
@@ -386,16 +390,15 @@ var _ = Describe("GenerateOutputFilename", func() {
 			SamplerName:   "euler",
 			Scheduler:     "simple",
 			Seed:          42,
-			LoraModelPath: "loras/my-lora.safetensors",
 			StrengthModel: 0.80,
 			StrengthClip:  0.90,
 		}
-		result := service.GenerateOutputFilename(item)
+		result := service.GenerateOutputFilenameWithDims(item, service.FilenameDimensions{LoRA: true})
 		Expect(result).To(ContainSubstring("strength_clip=0.90"))
 		Expect(result).To(ContainSubstring("strength_model=0.80"))
 	})
 
-	It("does NOT include strength values for non-LoRA items", func() {
+	It("does NOT include strength values when the LoRA dimension is unset (non-LoRA job)", func() {
 		item := model.SampleJobItem{
 			PromptName:    "test",
 			Steps:         20,
@@ -403,7 +406,6 @@ var _ = Describe("GenerateOutputFilename", func() {
 			SamplerName:   "euler",
 			Scheduler:     "simple",
 			Seed:          42,
-			LoraModelPath: "", // Not a LoRA item
 			StrengthModel: 1.0,
 			StrengthClip:  1.0,
 		}
@@ -766,7 +768,9 @@ var _ = Describe("SampleJobService", func() {
 			})
 
 			It("skips items whose output file already exists on disk", func() {
-				// Study name is "Test Study", so output path is /samples/Test Study/{checkpoint}/{filename}
+				// B-163: the executor writes to {sampleDir}/{sanitizedRun}/{study}/{checkpoint}/{filename}
+				// (via fileformat.StudyOutputDir), so missing-only detection must probe
+				// that exact layout. Training run "test-run" sanitizes to "test-run".
 				// Generate the expected filename for one of the items (prompt1, steps=1, cfg=1.0, euler/simple, seed=420)
 				expectedFilename := service.GenerateOutputFilename(model.SampleJobItem{
 					PromptName:  "prompt1",
@@ -778,7 +782,7 @@ var _ = Describe("SampleJobService", func() {
 				})
 
 				// Mark this file as existing for checkpoint1 only
-				fileChecker.existingFiles["/samples/Test Study/checkpoint1.safetensors/"+expectedFilename] = true
+				fileChecker.existingFiles["/samples/test-run/Test Study/checkpoint1.safetensors/"+expectedFilename] = true
 
 				job, err := svc.Create("test-run", checkpoints, "study-1", nil, false, true, "", model.TrainingRunKindCheckpoint)
 				Expect(err).NotTo(HaveOccurred())
@@ -816,7 +820,7 @@ var _ = Describe("SampleJobService", func() {
 											Scheduler:   pair.Scheduler,
 											Seed:        seed,
 										})
-										fileChecker.existingFiles["/samples/Test Study/"+cp.Filename+"/"+fn] = true
+										fileChecker.existingFiles["/samples/test-run/Test Study/"+cp.Filename+"/"+fn] = true
 									}
 								}
 							}
@@ -837,6 +841,85 @@ var _ = Describe("SampleJobService", func() {
 
 				// All items should be created since no file checker is set
 				Expect(job.TotalItems).To(Equal(16))
+			})
+
+			// B-163: the training run name is sanitized (slashes → underscores) into a
+			// single directory level by fileformat.SanitizeTrainingRunName. Missing-only
+			// detection must probe the sanitized path or it will never match on-disk
+			// files for runs whose names contain slashes (e.g. "qwen/Qwen2-VL").
+			It("detects existing checkpoint samples laid out under the sanitized run directory", func() {
+				expectedFilename := service.GenerateOutputFilename(model.SampleJobItem{
+					PromptName:  "prompt1",
+					Steps:       1,
+					CFG:         1.0,
+					SamplerName: "euler",
+					Scheduler:   "simple",
+					Seed:        420,
+				})
+				// Run "qwen/Qwen2-VL" sanitizes to "qwen_Qwen2-VL" — a single level.
+				fileChecker.existingFiles["/samples/qwen_Qwen2-VL/Test Study/checkpoint1.safetensors/"+expectedFilename] = true
+
+				job, err := svc.Create("qwen/Qwen2-VL", checkpoints, "study-1", nil, false, true, "", model.TrainingRunKindCheckpoint)
+				Expect(err).NotTo(HaveOccurred())
+
+				// Exactly one item is skipped; the sanitized-path probe matched.
+				Expect(job.TotalItems).To(Equal(15))
+			})
+
+			// B-163: LoRA jobs write into an EXTRA base-model directory level
+			// ({run}/{study}/{baseModel}/{checkpoint}/...) and their filenames include
+			// strength_model/strength_clip. Missing-only detection must reproduce both
+			// or LoRA jobs regenerate every sample.
+			It("detects existing LoRA samples laid out under the base-model directory with strength-keyed filenames", func() {
+				loraStudy := model.Study{
+					ID:             "lora-missing-study",
+					Name:           "LoRA Study",
+					Prompts:        []model.NamedPrompt{{Name: "prompt1", Text: "text1"}},
+					NegativePrompt: "bad",
+					Steps:          []int{20},
+					CFGs:           []float64{7.0},
+					SamplerSchedulerPairs: []model.SamplerSchedulerPair{
+						{Sampler: "euler", Scheduler: "simple"},
+					},
+					Seeds:            []int64{42},
+					WorkflowTemplate: "lora-workflow.json",
+					LoraStrengthPairs: []model.LoraStrengthPair{
+						{StrengthModel: 0.8, StrengthClip: 0.9},
+						{StrengthModel: 1.0, StrengthClip: 1.0},
+					},
+				}
+				store.studies[loraStudy.ID] = loraStudy
+
+				// Total items: 2 checkpoints × 2 strength pairs = 4.
+				// Mark BOTH strength variants for checkpoint1 as existing on disk, at the
+				// executor's layout: {run}/{study}/{baseModel}/{checkpoint}/{filename}.
+				// Base model "loras/base.safetensors" → base-model dir "base".
+				loraDims := service.FilenameDimensions{LoRA: true}
+				for _, sp := range loraStudy.LoraStrengthPairs {
+					fn := service.GenerateOutputFilenameWithDims(model.SampleJobItem{
+						PromptName:    "prompt1",
+						Steps:         20,
+						CFG:           7.0,
+						SamplerName:   "euler",
+						Scheduler:     "simple",
+						Seed:          42,
+						StrengthModel: sp.StrengthModel,
+						StrengthClip:  sp.StrengthClip,
+					}, loraDims)
+					fileChecker.existingFiles["/samples/lora-run/LoRA Study/base/checkpoint1.safetensors/"+fn] = true
+				}
+
+				job, err := svc.Create("lora-run", checkpoints, loraStudy.ID, nil, false, true, "loras/base.safetensors", model.TrainingRunKindLoRA)
+				Expect(err).NotTo(HaveOccurred())
+
+				// 4 total − 2 pre-existing (both checkpoint1 strength variants) = 2 remaining.
+				Expect(job.TotalItems).To(Equal(2))
+				items := store.items[job.ID]
+				Expect(items).To(HaveLen(2))
+				// Only checkpoint2 items survive.
+				for _, item := range items {
+					Expect(item.CheckpointFilename).To(Equal("checkpoint2.safetensors"))
+				}
 			})
 		})
 
