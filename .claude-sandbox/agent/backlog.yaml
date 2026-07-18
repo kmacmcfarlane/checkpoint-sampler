@@ -1700,7 +1700,7 @@ stories:
   - id: B-165
     title: "POST /sample-jobs/{id}/start marks job running but executor never adopts it"
     priority: 75
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:

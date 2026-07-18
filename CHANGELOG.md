@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-165: `POST /sample-jobs/{id}/start` marked a job running but the executor never adopted it
+- `Start` now calls `executor.RequestResume(id)` immediately after the status write (mirroring `Resume`), so a started job is adopted synchronously instead of relying on the 1s poll tick — which only auto-starts `pending` jobs and would otherwise leave a `running` job stuck until a server restart if the API write won the race
+
 ### B-167: Default db_path `./data/` was a directory — SQLite crashed with cryptic "unable to open database file (14)"
 - The `db_path` default (used when a user omits the documented-as-optional key) now resolves to the file path `./data/checkpoint-sampler.db` instead of the directory `./data/`, so a fresh start no longer fatal-crashes at pragma verification. The parent directory is auto-created (pre-existing `store.OpenDB` behavior)
 - Config validation now rejects a `db_path` that ends with a trailing slash or names an existing directory, failing fast at startup with the clear message `config: db_path must be a file path`

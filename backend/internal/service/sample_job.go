@@ -609,6 +609,16 @@ func (s *SampleJobService) Start(id string) (model.SampleJob, error) {
 		}).Error("failed to update sample job status")
 		return model.SampleJob{}, fmt.Errorf("updating sample job: %w", err)
 	}
+
+	// B-165: Request the executor to adopt the job immediately after the status
+	// write, mirroring Resume. Without this, a started job sits in "running"
+	// status until the next poll tick (or forever, if the API write wins the race).
+	if s.executor != nil {
+		if err := s.executor.RequestResume(id); err != nil {
+			s.logger.WithError(err).Warn("executor resume request failed")
+		}
+	}
+
 	s.logger.WithField("sample_job_id", id).Info("sample job started")
 	return job, nil
 }

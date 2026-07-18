@@ -1177,6 +1177,23 @@ var _ = Describe("SampleJobService", func() {
 			Expect(updated.Status).To(Equal(model.SampleJobStatusRunning))
 		})
 
+		// B-165: Start must call RequestResume synchronously so the executor
+		// adopts the job without racing the 1s poll tick.
+		It("calls RequestResume on the executor after the status write", func() {
+			job := model.SampleJob{
+				ID:     "job-1",
+				Status: model.SampleJobStatusPending,
+			}
+			store.jobs[job.ID] = job
+
+			Expect(executor.resumeCalled).To(BeFalse())
+
+			result, err := svc.Start("job-1")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Status).To(Equal(model.SampleJobStatusRunning))
+			Expect(executor.resumeCalled).To(BeTrue())
+		})
+
 		It("returns error when ComfyUI is not connected", func() {
 			executor.connected = false
 			job := model.SampleJob{
