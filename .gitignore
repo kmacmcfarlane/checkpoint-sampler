@@ -61,7 +61,7 @@ venv/
 config.yaml
 !test-fixtures/config.yaml
 
-# Claude sandbox local mounts (gitignored; use .claude-sandbox.example.yaml as template)
+# Claude sandbox local config (gitignored; use .claude-sandbox/config.yaml.example as template)
 
 # Backlog and worktree tools use python
 .claude-sandbox/scripts/backlog/__pycache__/
@@ -82,5 +82,5 @@ config.yaml
 .claude-sandbox/env
 .claude-sandbox/temp/
 .claude-sandbox/ralph/
-!.claude-sandbox/config.yaml
+!.claude-sandbox/config.yaml.example
 !.claude-sandbox/Dockerfile

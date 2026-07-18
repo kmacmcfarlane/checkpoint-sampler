@@ -297,25 +297,17 @@ make test-e2e-serial SPEC=smoke.spec.ts   # a single spec
 
 Stacks are torn down automatically when the run finishes.
 
-## Agent workflow
+## Contributing
 
-This project includes a complete Claude Code agent workflow. See:
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup,
+the test commands, and pull-request expectations. Security issues should be
+reported privately — see [SECURITY.md](SECURITY.md).
 
-- [CLAUDE.md](CLAUDE.md) — Always-loaded operating context
-- [.claude-sandbox/agent/AGENT_FLOW.md](.claude-sandbox/agent/AGENT_FLOW.md) — Deterministic development loop
-- [.claude-sandbox/agent/DEVELOPMENT_PRACTICES.md](.claude-sandbox/agent/DEVELOPMENT_PRACTICES.md) — Engineering standards
-- [.claude-sandbox/agent/TEST_PRACTICES.md](.claude-sandbox/agent/TEST_PRACTICES.md) — Testing standards
-- [.claude-sandbox/agent/PRD.md](.claude-sandbox/agent/PRD.md) — Product requirements (write yours here)
-- [.claude-sandbox/agent/backlog.yaml](.claude-sandbox/agent/backlog.yaml) — Story tracker
-
-### Running with claude-sandbox
-
-```bash
-make claude              # Interactive Claude Code session
-make claude-resume       # Resume previous session
-make ralph               # Ralph loop (interactive)
-make ralph-auto          # Ralph loop (autonomous)
-```
+This repository also ships an optional Claude Code agent workflow
+(claude-sandbox + ralph) as a contributor feature. It is entirely opt-in and not
+required to build or contribute to the app — see the
+[agent workflow section of CONTRIBUTING.md](CONTRIBUTING.md#optional-the-claude-sandbox--ralph-agent-workflow)
+for details.
 
 ## Tooling
 

@@ -5,6 +5,11 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-172: Contributor onramp — CONTRIBUTING.md, SECURITY.md, untrack sandbox config
+- Added `CONTRIBUTING.md` (dev setup, test commands, PR expectations, optional claude-sandbox/ralph agent-workflow section) and `SECURITY.md` (private vulnerability reporting policy scoped to the no-auth local/LAN threat model)
+- `.claude-sandbox/config.yaml` is no longer tracked (it carried personal mount paths and host-access flags); a sanitized `.claude-sandbox/config.yaml.example` is checked in and the real file is now gitignored — copy the example per the config-cascade convention
+- README's agent-workflow marketing moved out of the product intro into a Contributing section that points to CONTRIBUTING.md/SECURITY.md; `frontend/package.json` declares `license: GPL-3.0-only`
+
 ### S-170: Paginate GET /api/v1/sample-jobs with invisible lazy loading; strip tracebacks from list view
 - Backend `GET /api/v1/sample-jobs` now accepts `limit` (default 50, max 200) / `offset` query params with stable ordering (`ORDER BY created_at DESC, id DESC` — `created_at` is immutable so paging stays consistent even as running jobs update). The total count travels in an `X-Total-Count` response header; the response body stays a bare jobs array for backward compatibility. Store gains `ListSampleJobsPage`/`CountSampleJobs`; service `List` returns `(jobs, total, err)`
 - List entries now omit the per-item `traceback` blob (retained on the `show` endpoint via `SampleJobResponse`) so the list payload no longer grows unboundedly as failed jobs accumulate; `failed_item_details` + `error_message` are still present on list entries for at-a-glance failure info

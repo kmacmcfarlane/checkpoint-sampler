@@ -2047,7 +2047,7 @@ stories:
   - id: S-172
     title: "Contributor onramp: CONTRIBUTING.md, SECURITY.md, untrack .claude-sandbox/config.yaml with checked-in example"
     priority: 55
-    status: todo
+    status: uat
     complexity: medium
     requires: []
     acceptance:
