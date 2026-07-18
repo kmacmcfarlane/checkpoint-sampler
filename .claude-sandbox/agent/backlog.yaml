@@ -1775,7 +1775,7 @@ stories:
   - id: B-169
     title: "Fresh-clone 'make up' creates config.yaml as a directory and crash-loops — add guard and fix Quick start order"
     priority: 85
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:

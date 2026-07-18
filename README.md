@@ -16,6 +16,8 @@ A local-first web application. Runs on Linux via Docker and provides a browser-b
 **Prerequisites:** Docker and Docker Compose.
 
 ```bash
+cp config.yaml.example config.yaml
+cp .env.example .env
 make up
 ```
 
