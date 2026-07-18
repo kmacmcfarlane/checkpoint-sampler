@@ -145,3 +145,9 @@ Now that `@vitest/coverage-v8` tooling exists (S-166), consider adding per-file 
 * priority: low
 * source: developer
 `make audit` (added in S-167) runs `go run golang.org/x/vuln/cmd/govulncheck@<pinned>`, which recompiles the tool on first run per environment. Pre-installing/caching the govulncheck binary in the sandbox Dockerfile (or CI) would speed up the pre-push hook.
+
+### Preflight guard for sandbox config
+* status: needs_approval
+* priority: low
+* source: developer
+`make up` guards against a missing `config.yaml`/`.env`, but there is no equivalent check that `.claude-sandbox/config.yaml` exists before `make claude`/`make ralph`. A small guard prompting contributors to copy the new `.claude-sandbox/config.yaml.example` would smooth first-run onboarding (relevant now that the real config is gitignored per S-172).
