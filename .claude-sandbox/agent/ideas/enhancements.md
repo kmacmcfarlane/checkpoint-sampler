@@ -202,3 +202,9 @@ The PRD section 4 `comfyui:` block documents `host:`/`port:` and a top-level `wo
 * priority: low
 * source: reviewer
 `assignFinalCheckpointStep` in `backend/internal/service/discovery.go` compiles its `stepsInName` (`steps?-(\d+)`) and `epochsInName` (`epochs?-(\d+)`) regexes on every call via `regexp.MustCompile`, unlike the package-level `stepSuffixPattern`/`epochSuffixPattern` vars nearby. Hoisting both to package-level `var` declarations gives a minor perf/GC benefit on large discovery runs and matches the existing convention. Pre-existing pattern (not introduced by B-161); non-blocking cleanup.
+
+### Capture and commit a real XY-grid screenshot for the README
+* status: needs_approval
+* priority: medium
+* source: developer
+S-162's README public-release pass references `docs/images/xy-grid.png` via a TODO placeholder, but no such image exists yet — the link will render broken on GitHub. A real screenshot (and a `docs/images/` directory) is needed for the public-release intro to look complete. Requires running the app with sample data and capturing the XY grid; out of scope for a docs-only editorial pass. (Surfaced during S-162.)

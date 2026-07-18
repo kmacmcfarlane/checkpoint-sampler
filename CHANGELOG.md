@@ -5,6 +5,13 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-162: README overhaul for public release — real intro, prerequisites, quick-start order, config/ports tables, E2E section
+- Rewrote the README intro to describe the actual product (browse checkpoints/LoRAs, launch parameterized ComfyUI sample jobs, compare outputs in an XY grid) with a feature list and a placeholder for a real XY-grid screenshot (image tag commented out until captured; follow-up idea filed)
+- Added a Prerequisites section (Docker + Compose v2, make, git; Go 1.25/Node 22 only for non-Docker dev commands) and reordered Quick start so the two `cp` config/env steps precede `make up` (aligned with the B-169 `check-config` guard)
+- Reworked the Configuration section: split `.env` host-path vars (added MODEL_DIR/LORA_DIR, removed the bogus PORT row) from a new Ports table (UI 3001→3000, API/Swagger 8081→8080) with a note that `config.yaml`'s `port` is container-internal; documented `lora_dirs`, `base_model_dir`, and the `comfyui:` block, and linked docs/filesystem.md
+- Corrected the E2E section — `make test-e2e` (parallel, `SHARDS=N`) and `make test-e2e-serial` (`SPEC=`); removed the nonexistent `test-e2e-parallel` target; watch targets note they require `make up-dev`. Fixed the malformed project-structure tree and removed all mcfacehead.com / private-LAN references
+- Corrected CLAUDE.md's stale `make test-e2e` default from 12 shards to 4
+
 ### B-172: failItem re-read cleared activeJobID — item failures could silently drop and retry forever
 - `failItem`/`failItemWithDetails` now take an explicit `jobID` captured at the event-handling site (under the lock, before unlock) instead of re-reading `e.activeJobID`. A concurrent `RequestStop`/disconnect could clear `activeJobID` in the window before the failure's blocking I/O ran, so `ListSampleJobItems("")` returned nothing, the failure was silently dropped, and the item stayed `running` — retried forever by orphan-reset for a deterministic error. All call sites now pass jobID explicitly, mirroring the completion path
 

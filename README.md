@@ -1,6 +1,19 @@
 # checkpoint-sampler
 
-A local-first web application. Runs on Linux via Docker and provides a browser-based UI backed by a Go API server. Includes a complete Claude Code agent workflow with backlog tracking, development practices, and Discord notifications.
+Checkpoint Sampler is a local-first web app for evaluating Stable Diffusion / Flux training runs. It browses your training checkpoints and LoRAs, lets you launch parameterized ComfyUI sample jobs (sweeping prompts, seeds, CFG, steps, samplers, and more), and compares the resulting images side by side in an interactive XY grid. It runs entirely on your own machine via Docker and talks to a ComfyUI instance you control.
+
+### Features
+
+- Browse training checkpoints and LoRAs discovered from your model directories
+- Launch parameterized sample jobs against ComfyUI using annotated workflow templates
+- Sweep across prompts, seeds, CFG, steps, samplers/schedulers, and checkpoints
+- Compare outputs in an interactive XY grid with a zoomable lightbox
+- Live job progress over WebSocket
+- Thumbnail generation for fast grid loading
+
+<!-- TODO(S-162): add a real screenshot of the XY grid view once one is captured (suggested path: docs/images/xy-grid.png), then restore the image tag below.
+![Checkpoint Sampler XY grid](docs/images/xy-grid.png)
+-->
 
 ## Tech stack
 
@@ -11,17 +24,26 @@ A local-first web application. Runs on Linux via Docker and provides a browser-b
 | Testing | Ginkgo/Gomega (backend), Vitest (frontend) |
 | Infrastructure | Docker Compose, multi-stage builds |
 
+## Prerequisites
+
+- **Docker** with the **Compose v2** plugin (`docker compose`)
+- **make**
+- **git**
+
+Go 1.25 and Node.js 22 are only needed if you want to run the non-Docker developer commands (backend/frontend builds, tests, and linters) directly on the host. They are not required to run the application via Docker.
+
 ## Quick start
 
-**Prerequisites:** Docker and Docker Compose.
+Copy the two config files *before* starting the stack — `make up` runs a preflight guard (`check-config`) that fails fast if `config.yaml` or `.env` is missing:
 
 ```bash
 cp config.yaml.example config.yaml
 cp .env.example .env
+# Edit .env to point at your checkpoint/sample/model/LoRA directories (see Configuration below)
 make up
 ```
 
-Open [http://localhost:3001](http://localhost:3001) in your browser (or `http://checkpoint-sampler.mcfacehead.com` on the McFacehead LAN).
+Then open the UI at [http://localhost:3001](http://localhost:3001).
 
 To stop:
 
@@ -37,11 +59,11 @@ Start the dev stack with hot reload (backend via air, frontend via Vite HMR):
 make up-dev
 ```
 
-Watch tests continuously:
+Watch tests continuously (these `exec` into the running dev containers, so start `make up-dev` first):
 
 ```bash
-make test-backend-watch    # Ginkgo watch in docker
-make test-frontend-watch   # Vitest watch in docker
+make test-backend-watch    # Ginkgo watch in the dev backend container
+make test-frontend-watch   # Vitest watch in the dev frontend container
 ```
 
 Other targets:
@@ -94,11 +116,12 @@ checkpoint-sampler/
 │   │   └── views/            # Route-level pages
 │   ├── Dockerfile            # nginx production image
 │   └── Dockerfile.dev        # Vite dev server
-├── docs/                     # Architecture, database, and API docs
-├── .claude-sandbox/agent/                    # Agent workflow docs and backlog
-├── scripts/                  # Tooling scripts (MCP servers)
+├── docs/                     # Architecture, database, API, and filesystem docs
+├── .claude-sandbox/agent/    # Agent workflow docs and backlog
+├── scripts/                  # Tooling and E2E scripts
 ├── docker-compose.yml        # Production compose
 ├── docker-compose.dev.yml    # Dev overlay
+├── docker-compose.test.yml   # E2E test stack
 ├── Makefile                  # Root orchestration targets
 └── CHANGELOG.md
 ```
@@ -141,36 +164,46 @@ The backend serves interactive Swagger UI at [http://localhost:8081/docs](http:/
 
 ## Configuration
 
-Before running the application, set up two configuration files:
+The application uses two gitignored config files, both copied from tracked examples during the quick start:
 
-1. **`.env`** — Host paths for Docker volume mounts. Copy from `.env.example` and set the paths to your local directories:
-
-   ```bash
-   cp .env.example .env
-   ```
-
-   Edit `.env` to point at your checkpoint and sample directories:
+1. **`.env`** — Host paths for Docker volume mounts (from `.env.example`). Point these at your local model/output directories:
 
    ```env
    CHECKPOINT_DIR=/path/to/your/checkpoints
    SAMPLE_DIR=/path/to/your/samples
+   MODEL_DIR=/path/to/your/models
+   LORA_DIR=/path/to/your/loras
    ```
 
-2. **`config.yaml`** — Backend application config. Copy from `config.yaml.example`:
+2. **`config.yaml`** — Backend application config (from `config.yaml.example`). The defaults work out of the box with Docker Compose. The `checkpoint_dirs`, `sample_dir`, `lora_dirs`, and `base_model_dir` values refer to container-internal mount paths (e.g. `/data/checkpoints`) and normally do not need to change. Notable keys:
 
-   ```bash
-   cp config.yaml.example config.yaml
-   ```
+   - `checkpoint_dirs` — directories scanned recursively for `.safetensors` checkpoints
+   - `lora_dirs` — optional directories scanned for LoRA `.safetensors` files
+   - `base_model_dir` — optional directory of base models for LoRA sample jobs
+   - `sample_dir` — where generated sample images, thumbnails, and demo data are written
+   - `comfyui:` — optional block (`url`, `workflow_dir`, `reconnect_interval`) enabling the inference pipeline; when omitted, inference features are disabled in the UI
 
-   The defaults work out of the box with Docker Compose. Customise `port`, `ip_address`, or `db_path` if needed. The `checkpoint_dirs` and `sample_dir` values in this file refer to container-internal mount paths and should not normally need to change.
-
-Both files are gitignored.
+### Environment variables (`.env`)
 
 | Variable | Default | Description |
 |---|---|---|
-| `CHECKPOINT_DIR` | `.dataset-placeholder/` | Host path to checkpoint directory (mounted read-only into backend) |
-| `SAMPLE_DIR` | `.dataset-placeholder/` | Host path to sample image directory (mounted read-write into backend; the app writes generated samples, thumbnails, and demo data here) |
-| `PORT` | `8080` | Backend server port (set in `config.yaml`) |
+| `CHECKPOINT_DIR` | `./.dataset-placeholder` | Host path to the checkpoint directory (mounted read-only at `/data/checkpoints`) |
+| `SAMPLE_DIR` | `./.dataset-placeholder` | Host path to the sample image directory (mounted read-write at `/data/samples`; the app writes generated samples, thumbnails, and demo data here) |
+| `MODEL_DIR` | `./.dataset-placeholder` | Host path to the base model directory (mounted read-only at `/data/models`) |
+| `LORA_DIR` | `./.dataset-placeholder` | Host path to the LoRA directory (mounted read-only at `/data/loras`) |
+
+### Ports
+
+Docker Compose publishes two host ports:
+
+| Service | Host URL | Container port |
+|---|---|---|
+| Web UI | [http://localhost:3001](http://localhost:3001) | 3000 |
+| Backend API + Swagger UI | [http://localhost:8081](http://localhost:8081) ([/docs](http://localhost:8081/docs)) | 8080 |
+
+The `port` key in `config.yaml` (default `8080`) is the **container-internal** port the backend binds to; it is mapped to host `8081` by `docker-compose.yml`. Changing `port` alone does not change the host port — update the compose port mapping too.
+
+For the checkpoint and sample directory layout (naming conventions, suffix stripping, per-run/study hierarchy), see [docs/filesystem.md](docs/filesystem.md).
 
 ## Testing
 
@@ -188,29 +221,29 @@ cd frontend && npx vitest run
 
 ### E2E tests
 
-End-to-end tests use Playwright against an isolated docker-compose stack with test fixture data.
+End-to-end tests use Playwright against isolated docker-compose stacks with test fixture data.
 
-**Serial (single stack):**
-
-```bash
-make test-e2e
-```
-
-**Parallel (N sharded stacks):**
+**Parallel regression (default):**
 
 ```bash
-make test-e2e-parallel            # 4 shards (default)
-make test-e2e-parallel SHARDS=2   # 2 shards
+make test-e2e              # 4 sharded stacks (default)
+make test-e2e SHARDS=8     # override shard count
 ```
 
-Each shard gets its own fully isolated compose stack (backend, frontend, comfyui-mock, SQLite DB). Playwright's `--shard` flag splits tests across stacks. Images are built once and shared across all shards.
+Each shard gets its own fully isolated compose stack (backend, frontend, comfyui-mock, SQLite DB). Playwright's `--shard` flag splits tests across stacks and images are built once and shared. Artifacts are written to `.e2e/`:
 
-Artifacts are written to `.e2e/`:
 - `.e2e/logs/shard-{i}/` — backend and frontend logs per shard
 - `.e2e/blobs/shard-{i}/` — Playwright blob reports per shard
 - `.e2e/report/` — merged HTML report
 
-The script handles cleanup on Ctrl+C — all stacks are torn down automatically.
+**Serial (single stack, targeted runs):**
+
+```bash
+make test-e2e-serial                      # full suite in one stack
+make test-e2e-serial SPEC=smoke.spec.ts   # a single spec
+```
+
+Stacks are torn down automatically when the run finishes.
 
 ## Agent workflow
 

@@ -69,7 +69,7 @@ Root Makefile targets (work in both sandbox and host — preferred for agent use
 - `make up-dev`
 - `make test-backend` / `make test-backend-watch`
 - `make test-frontend` / `make test-frontend-watch`
-- `make test-e2e` (parallel E2E regression; default 12 shards, override with `SHARDS=N`; pre-built backend binary, no codegen at startup; artifacts in `.e2e/`)
+- `make test-e2e` (parallel E2E regression; default 4 shards, override with `SHARDS=N`; pre-built backend binary, no codegen at startup; artifacts in `.e2e/`)
 - `make test-e2e-serial` (single-stack serial E2E; supports `SPEC=` for targeted runs; logs to `.claude-sandbox/ralph/temp/e2e-logs/`)
 - `make test-e2e-live` / `make test-e2e-live-run SPEC=<file>` / `make test-e2e-live-down` (hot-reload E2E development stack)
 - `make test-e2e-logs` (capture logs from a running E2E stack without tearing it down)

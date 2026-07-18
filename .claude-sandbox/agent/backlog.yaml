@@ -1847,7 +1847,7 @@ stories:
   - id: S-162
     title: "README overhaul for public release: real intro, prerequisites, quick-start order, config table, E2E section"
     priority: 75
-    status: todo
+    status: uat
     complexity: medium
     requires: [B-169]
     acceptance:
