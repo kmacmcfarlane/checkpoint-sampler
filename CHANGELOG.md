@@ -5,6 +5,12 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-167: Vulnerability audit tooling — make audit + pre-push hook + AGENT_FLOW step; catch up current findings
+- Added `make audit` (via `scripts/audit.sh`): runs govulncheck on the backend reachable set plus `npm audit --omit=dev --audit-level=high` on frontend production deps, failing on high-severity findings. Offline runs degrade to a LOUD warning and soft-skip (never a silent green pass) — network errors are distinguished from real findings by `classify_result`, with the `Vulnerability #` marker checked before the network-error patterns so a real govulncheck finding can never be misclassified as offline. govulncheck is pinned via `GOVULNCHECK_VERSION` (v1.6.0); unit tests for the classifier live in `scripts/test-audit.sh`
+- Added `make install-hooks` (sets `core.hooksPath` → `scripts/git-hooks`) and a versioned `scripts/git-hooks/pre-push` that runs `make audit` before every push; both documented in the README's new "Dependency audit and git hooks" section
+- AGENT_FLOW.md adds a proactive dependency-audit step to the developer verification gate — agents run `make audit` before setting `review` (mandatory when a change bumps/adds a dependency, a cheap sanity check otherwise)
+- Caught up current advisories: Go toolchain bumped 1.25.6 → 1.25.12 (`.claude-sandbox/Dockerfile`, `backend/go.mod`, `go.work`); frontend lodash/lodash-es → 4.18.1, postcss → 8.5.19, nanoid → 3.3.16 with `package.json` overrides pinning lodash/lodash-es ≥4.18.1 and postcss ≥8.5.10. `npm audit --omit=dev` clean; govulncheck reachable set clear
+
 ### S-166: Frontend coverage tooling + imageCube store unit tests
 - Added `@vitest/coverage-v8` devDependency and a `test:coverage` script (`vitest run --coverage`) so frontend coverage is now measurable (previously unmeasurable due to the missing dependency)
 - Added a dedicated unit-test suite for the `imageCube` Pinia store (the XY-grid data backbone): dimension/axis role mapping and exclusivity, cumulative combo filtering, image-cube indexing (master/per-cell slider slice selection, grid nav, lightbox focus), and edge cases (no scan result, empty cube, single-value dimensions, flat mode). Baseline `imageCube.ts` coverage: 96.11% lines

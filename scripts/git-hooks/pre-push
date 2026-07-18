@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+#
+# pre-push hook: run the dependency vulnerability audit before allowing a push.
+#
+# Installed via `make install-hooks` (sets core.hooksPath=scripts/git-hooks).
+# Fails the push on high-severity findings; degrades to a visible warning when
+# offline (see scripts/audit.sh).
+#
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+echo "[pre-push] running 'make audit'..."
+make -C "$REPO_ROOT" audit

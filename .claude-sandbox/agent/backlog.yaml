@@ -1948,7 +1948,7 @@ stories:
   - id: S-167
     title: "Vulnerability audit tooling: make audit + pre-push hook + agent-flow step; catch up current findings"
     priority: 65
-    status: todo
+    status: uat
     complexity: medium
     requires: []
     acceptance:

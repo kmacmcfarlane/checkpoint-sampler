@@ -2,7 +2,7 @@
 FROM claude-sandbox
 
 # Go toolchain
-RUN curl -fsSL https://go.dev/dl/go1.25.6.linux-amd64.tar.gz | tar -C /usr/local -xz
+RUN curl -fsSL https://go.dev/dl/go1.25.12.linux-amd64.tar.gz | tar -C /usr/local -xz
 ENV PATH="/usr/local/go/bin:$PATH"
 
 # TypeScript / Vue language servers

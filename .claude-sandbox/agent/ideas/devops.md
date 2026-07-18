@@ -139,3 +139,9 @@ Now that `@vitest/coverage-v8` tooling exists (S-166), consider adding per-file 
 * priority: low
 * source: developer
 12 files under `backend/internal/api/gen/demo/**` and `gen/http/demo/**` remain git-tracked even though the entire `gen/` directory is gitignored (they pre-date the ignore rule). They currently regenerate byte-identical so there's no correctness risk, but a future demo-design change could surface a confusing diff that looks like it must be committed. A small cleanup story could `git rm --cached` these paths. (Surfaced during B-170.)
+
+### Cache govulncheck binary in CI/sandbox image
+* status: needs_approval
+* priority: low
+* source: developer
+`make audit` (added in S-167) runs `go run golang.org/x/vuln/cmd/govulncheck@<pinned>`, which recompiles the tool on first run per environment. Pre-installing/caching the govulncheck binary in the sandbox Dockerfile (or CI) would speed up the pre-push hook.

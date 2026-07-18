@@ -1,4 +1,7 @@
-.PHONY: claude claude-resume claude-dangerous ralph ralph-resume ralph-auto ralph-auto-resume capture-runtime-context check-config up down logs up-dev down-dev logs-dev gen test-frontend test-frontend-watch test-backend test-backend-watch lint-nginx up-test down-test build-playwright test-e2e test-e2e-serial test-e2e-live test-e2e-live-run test-e2e-live-down test-e2e-logs down-e2e check-e2e-panics e2e-sweep lint-e2e-helpers lint-disallowed-chars logs-snapshot check-tools
+.PHONY: claude claude-resume claude-dangerous ralph ralph-resume ralph-auto ralph-auto-resume capture-runtime-context check-config up down logs up-dev down-dev logs-dev gen test-frontend test-frontend-watch test-backend test-backend-watch lint-nginx up-test down-test build-playwright test-e2e test-e2e-serial test-e2e-live test-e2e-live-run test-e2e-live-down test-e2e-logs down-e2e check-e2e-panics e2e-sweep lint-e2e-helpers lint-disallowed-chars logs-snapshot check-tools audit install-hooks
+
+# Pinned govulncheck version (bump deliberately, alongside the Go toolchain).
+GOVULNCHECK_VERSION = v1.6.0
 
 # Derive story-scoped compose project names when STORY_ID is set (worktree isolation).
 # In the main checkout (no STORY_ID), project names are unchanged for backward compatibility.
@@ -224,6 +227,18 @@ check-tools:
 	@which gopls >/dev/null 2>&1 && echo "  gopls: $$(gopls version 2>&1 | head -1)" || echo "  gopls: not found"
 	@which typescript-language-server >/dev/null 2>&1 && echo "  ts-lsp: $$(typescript-language-server --version 2>&1)" || echo "  ts-lsp: not found"
 	@echo "=== Done ==="
+
+# Dependency vulnerability audit: govulncheck (backend reachable set) plus
+# npm audit --omit=dev (frontend production deps). Fails on high-severity
+# findings; degrades to a visible warning when offline (see scripts/audit.sh).
+audit:
+	GOVULNCHECK_VERSION=$(GOVULNCHECK_VERSION) ./scripts/audit.sh
+
+# Install the versioned git hooks (pre-push runs `make audit`) by pointing
+# core.hooksPath at scripts/git-hooks. Single documented, idempotent command.
+install-hooks:
+	git config core.hooksPath scripts/git-hooks
+	@echo "Installed git hooks: core.hooksPath -> scripts/git-hooks (pre-push runs 'make audit')"
 
 # Scan source files for string literals that contain characters in the disallowed
 # study-name set (defined in backend/internal/service/study.go).  Run this after

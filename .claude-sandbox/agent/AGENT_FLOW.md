@@ -451,6 +451,7 @@ Based on the story's current status, invoke the appropriate subagent:
 2. Assemble the **developer brief** (see section 4.3.6) — story metadata, acceptance criteria, notes, review feedback, constraints, and governance doc contents.
 3. Invoke the **fullstack engineer** subagent with the developer brief.
 4. The developer writes and runs unit/integration tests (`make test-backend`, `make test-frontend`). E2E tests are the QA agent's responsibility — the developer does NOT run `make test-e2e`.
+   - **Proactive dependency audit**: as part of the verification gate, the developer runs `make audit` (govulncheck backend reachable set + `npm audit --omit=dev` frontend prod deps). It must pass (no high-severity findings) before setting `review`. If a change adds or bumps a dependency, this is mandatory; for changes that touch no dependencies it is a cheap sanity check. Offline runs degrade to a visible warning rather than a silent pass.
 5. On success: extract the **Change Summary** from the fullstack engineer's verdict (see section 4.3.2). Then:
    - `backlog.py set <id> status review`
    - `backlog.py clear <id> review_feedback`

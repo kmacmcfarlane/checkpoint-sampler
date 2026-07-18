@@ -94,6 +94,24 @@ cd frontend && npm run lint        # ESLint
 cd frontend && npm run test:watch  # Vitest watch
 ```
 
+### Dependency audit and git hooks
+
+Run a vulnerability audit across both stacks (govulncheck for the backend
+reachable set, `npm audit --omit=dev` for frontend production deps). It fails on
+high-severity findings and degrades to a visible warning when offline (it never
+silently passes):
+
+```bash
+make audit
+```
+
+Install the versioned git hooks once so the audit runs automatically before
+every `git push`:
+
+```bash
+make install-hooks   # sets core.hooksPath -> scripts/git-hooks (pre-push runs `make audit`)
+```
+
 ## Project structure
 
 ```

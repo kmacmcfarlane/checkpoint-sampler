@@ -1,6 +1,6 @@
 module github.com/kmacmcfarlane/checkpoint-sampler/backend
 
-go 1.25.6
+go 1.25.12
 
 require (
 	github.com/onsi/ginkgo/v2 v2.28.1
