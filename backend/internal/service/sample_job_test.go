@@ -260,15 +260,15 @@ func (f *fakeSampleDirRemover) RemoveCheckpointOutputDir(trainingRunName string,
 
 // fakeJobSampleDataRemover is a test double for service.JobSampleDataRemover.
 type fakeJobSampleDataRemover struct {
-	removed []struct{ studyName, checkpointFilename string }
+	removed []struct{ trainingRunName, studyName, baseModel, checkpointFilename string }
 	err     error
 }
 
-func (f *fakeJobSampleDataRemover) RemoveJobSampleDir(studyName string, checkpointFilename string) error {
+func (f *fakeJobSampleDataRemover) RemoveJobSampleDir(trainingRunName string, studyName string, baseModel string, checkpointFilename string) error {
 	if f.err != nil {
 		return f.err
 	}
-	f.removed = append(f.removed, struct{ studyName, checkpointFilename string }{studyName, checkpointFilename})
+	f.removed = append(f.removed, struct{ trainingRunName, studyName, baseModel, checkpointFilename string }{trainingRunName, studyName, baseModel, checkpointFilename})
 	return nil
 }
 
@@ -1815,7 +1815,9 @@ var _ = Describe("SampleJobService", func() {
 			jobDataRemover := &fakeJobSampleDataRemover{}
 			svc.SetJobDataRemover(jobDataRemover)
 
-			job := model.SampleJob{ID: "job-1", StudyName: "My Study"}
+			// B-164: the remover must receive the training run name and base model
+			// so it can resolve the actual on-disk output layout for LoRA jobs.
+			job := model.SampleJob{ID: "job-1", StudyName: "My Study", TrainingRunName: "run-x", BaseModel: "loras/base.safetensors"}
 			store.jobs[job.ID] = job
 			store.items[job.ID] = []model.SampleJobItem{
 				{ID: "i1", JobID: job.ID, CheckpointFilename: "checkpoint1.safetensors", Status: model.SampleJobItemStatusCompleted},
@@ -1830,7 +1832,9 @@ var _ = Describe("SampleJobService", func() {
 			Expect(jobDataRemover.removed).To(HaveLen(2))
 			removedCheckpoints := []string{}
 			for _, r := range jobDataRemover.removed {
+				Expect(r.trainingRunName).To(Equal("run-x"))
 				Expect(r.studyName).To(Equal("My Study"))
+				Expect(r.baseModel).To(Equal("loras/base.safetensors"))
 				removedCheckpoints = append(removedCheckpoints, r.checkpointFilename)
 			}
 			Expect(removedCheckpoints).To(ConsistOf("checkpoint1.safetensors", "checkpoint2.safetensors"))

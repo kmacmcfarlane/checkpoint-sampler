@@ -109,30 +109,78 @@ var _ = Describe("FileSystem destructive helpers", func() {
 			sampleDir = filepath.Join(root, "samples")
 		})
 
-		// AC: correct-subtree deletion + sibling survival
-		It("removes only sampleDir/study/checkpoint and preserves sibling checkpoints", func() {
+		// AC (B-164): checkpoint-job layout — the deletion root is resolved via
+		// fileformat.StudyOutputDir, i.e. {sampleDir}/{sanitizedRun}/{study}/{checkpoint}.
+		It("removes only {run}/{study}/{checkpoint} and preserves sibling checkpoints (checkpoint layout)", func() {
 			remover := store.NewJobSampleDirRemover(fs, sampleDir)
-			target := filepath.Join(sampleDir, "study-alpha", "model-a.safetensors")
-			siblingCheckpoint := filepath.Join(sampleDir, "study-alpha", "model-b.safetensors")
-			siblingStudy := filepath.Join(sampleDir, "study-beta", "model-a.safetensors")
+			target := filepath.Join(sampleDir, "run-x", "study-alpha", "model-a.safetensors")
+			siblingCheckpoint := filepath.Join(sampleDir, "run-x", "study-alpha", "model-b.safetensors")
+			siblingStudy := filepath.Join(sampleDir, "run-x", "study-beta", "model-a.safetensors")
 			writeTree(target)
 			writeTree(siblingCheckpoint)
 			writeTree(siblingStudy)
 
-			Expect(remover.RemoveJobSampleDir("study-alpha", "model-a.safetensors")).To(Succeed())
+			// baseModel empty => checkpoint layout (no base-model level)
+			Expect(remover.RemoveJobSampleDir("run-x", "study-alpha", "", "model-a.safetensors")).To(Succeed())
 
-			Expect(exists(target)).To(BeFalse())
+			Expect(exists(target)).To(BeFalse(), "actual output files for the checkpoint job must be removed")
 			Expect(exists(siblingCheckpoint)).To(BeTrue(), "sibling checkpoint in same study must survive")
 			Expect(exists(siblingStudy)).To(BeTrue(), "same checkpoint in a different study must survive")
-			Expect(exists(filepath.Join(sampleDir, "study-alpha"))).To(BeTrue(), "parent study dir must survive")
+			Expect(exists(filepath.Join(sampleDir, "run-x", "study-alpha"))).To(BeTrue(), "parent study dir must survive")
+		})
+
+		// AC (B-164): LoRA-job layout — StudyOutputDir appends a base-model level
+		// using only the base model's filename with its extension stripped, i.e.
+		// {sampleDir}/{sanitizedRun}/{study}/{baseModelName}/{checkpoint}.
+		It("removes only {run}/{study}/{baseModel}/{checkpoint} and preserves siblings (LoRA layout)", func() {
+			remover := store.NewJobSampleDirRemover(fs, sampleDir)
+			// "loras/base.safetensors" => base-model level "base"
+			target := filepath.Join(sampleDir, "run-x", "study-alpha", "base", "lora-a.safetensors")
+			siblingLoraCheckpoint := filepath.Join(sampleDir, "run-x", "study-alpha", "base", "lora-b.safetensors")
+			siblingBaseModel := filepath.Join(sampleDir, "run-x", "study-alpha", "other", "lora-a.safetensors")
+			writeTree(target)
+			writeTree(siblingLoraCheckpoint)
+			writeTree(siblingBaseModel)
+
+			Expect(remover.RemoveJobSampleDir("run-x", "study-alpha", "loras/base.safetensors", "lora-a.safetensors")).To(Succeed())
+
+			Expect(exists(target)).To(BeFalse(), "actual output files for the LoRA job must be removed")
+			Expect(exists(siblingLoraCheckpoint)).To(BeTrue(), "sibling LoRA checkpoint under same base model must survive")
+			Expect(exists(siblingBaseModel)).To(BeTrue(), "same checkpoint under a different base model must survive")
+			Expect(exists(filepath.Join(sampleDir, "run-x", "study-alpha", "base"))).To(BeTrue(), "parent base-model dir must survive")
+		})
+
+		// AC (B-164): a slash-bearing training run name is sanitized to a single
+		// directory component (matching the executor's write layout).
+		It("sanitizes a slash-bearing training run name to a single dir component", func() {
+			remover := store.NewJobSampleDirRemover(fs, sampleDir)
+			target := filepath.Join(sampleDir, "qwen_Qwen2", "study-alpha", "model-a.safetensors")
+			writeTree(target)
+
+			Expect(remover.RemoveJobSampleDir("qwen/Qwen2", "study-alpha", "", "model-a.safetensors")).To(Succeed())
+			Expect(exists(target)).To(BeFalse())
+		})
+
+		// AC (B-164): path containment — a traversal component (e.g. a '..' study
+		// name) must be rejected so deletion stays contained within the sample dir.
+		It("rejects a traversal study name and leaves the outside sibling intact", func() {
+			remover := store.NewJobSampleDirRemover(fs, sampleDir)
+			// A sibling of the sample root that a traversal payload would try to reach.
+			outside := filepath.Join(root, "secret")
+			writeTree(outside)
+
+			err := remover.RemoveJobSampleDir("run-x", filepath.Join("..", "..", "secret"), "", "model-a.safetensors")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("path traversal detected"))
+			Expect(exists(outside)).To(BeTrue(), "deletion must stay contained within the sample dir")
 		})
 
 		// AC: missing-target behavior
 		It("is a no-op when the target does not exist", func() {
 			remover := store.NewJobSampleDirRemover(fs, sampleDir)
-			writeTree(filepath.Join(sampleDir, "study-alpha"))
-			Expect(remover.RemoveJobSampleDir("study-alpha", "missing.safetensors")).To(Succeed())
-			Expect(exists(filepath.Join(sampleDir, "study-alpha"))).To(BeTrue())
+			writeTree(filepath.Join(sampleDir, "run-x", "study-alpha"))
+			Expect(remover.RemoveJobSampleDir("run-x", "study-alpha", "", "missing.safetensors")).To(Succeed())
+			Expect(exists(filepath.Join(sampleDir, "run-x", "study-alpha"))).To(BeTrue())
 		})
 	})
 

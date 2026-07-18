@@ -40,7 +40,10 @@ type SampleJobStore interface {
 // JobSampleDataRemover defines the interface for removing generated sample files for a job.
 // It removes the per-checkpoint output directory under the job's study directory.
 type JobSampleDataRemover interface {
-	RemoveJobSampleDir(studyName string, checkpointFilename string) error
+	// RemoveJobSampleDir removes the per-checkpoint output directory for a job.
+	// B-164: the deletion root is resolved from the training run name, study, and
+	// base model so it matches the actual output layout for checkpoint and LoRA jobs.
+	RemoveJobSampleDir(trainingRunName string, studyName string, baseModel string, checkpointFilename string) error
 }
 
 // PathMatcher defines the interface for matching checkpoint filenames to ComfyUI model paths.
@@ -975,10 +978,12 @@ func (s *SampleJobService) Delete(id string, deleteData bool) error {
 			}
 			seen[item.CheckpointFilename] = struct{}{}
 
-			if removeErr := s.jobDataRemover.RemoveJobSampleDir(job.StudyName, item.CheckpointFilename); removeErr != nil {
+			if removeErr := s.jobDataRemover.RemoveJobSampleDir(job.TrainingRunName, job.StudyName, job.BaseModel, item.CheckpointFilename); removeErr != nil {
 				s.logger.WithFields(logrus.Fields{
 					"sample_job_id":       id,
+					"training_run_name":   job.TrainingRunName,
 					"study_name":          job.StudyName,
+					"base_model":          job.BaseModel,
 					"checkpoint_filename": item.CheckpointFilename,
 					"error":               removeErr.Error(),
 				}).Error("failed to remove job sample directory")
