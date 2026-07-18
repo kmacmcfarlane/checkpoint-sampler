@@ -2738,4 +2738,96 @@ describe('JobProgressPanel', () => {
     })
   })
 
+  // S-170: prefetch-ahead lazy loading. The panel observes a bottom sentinel and
+  // emits `loadMore` ahead of the scroll position so loading is invisible.
+  describe('lazy loading (S-170)', () => {
+    // A controllable IntersectionObserver stand-in that captures the callback so
+    // tests can simulate the sentinel scrolling into the prefetch margin.
+    class MockIntersectionObserver {
+      static instances: MockIntersectionObserver[] = []
+      callback: IntersectionObserverCallback
+      constructor(cb: IntersectionObserverCallback) {
+        this.callback = cb
+        MockIntersectionObserver.instances.push(this)
+      }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+      takeRecords() { return [] }
+      // Simulate the sentinel entering the (margin-expanded) viewport.
+      trigger() {
+        this.callback(
+          [{ isIntersecting: true } as IntersectionObserverEntry],
+          this as unknown as IntersectionObserver,
+        )
+      }
+    }
+
+    async function withMockObserver<T>(fn: (obs: typeof MockIntersectionObserver) => Promise<T>): Promise<T> {
+      const original = globalThis.IntersectionObserver
+      MockIntersectionObserver.instances = []
+      globalThis.IntersectionObserver = MockIntersectionObserver as unknown as typeof IntersectionObserver
+      try {
+        return await fn(MockIntersectionObserver)
+      } finally {
+        globalThis.IntersectionObserver = original
+      }
+    }
+
+    it('renders a load-more sentinel and scroll container', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: sampleJobs, hasMore: true },
+        global: { stubs: { Teleport: true } },
+      })
+      expect(wrapper.find('[data-testid="jobs-scroll-container"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="job-list-load-more-sentinel"]').exists()).toBe(true)
+    })
+
+    it('emits loadMore when the sentinel intersects and more jobs exist', async () => {
+      await withMockObserver(async (obs) => {
+        const wrapper = mount(JobProgressPanel, {
+          props: { show: true, jobs: sampleJobs, hasMore: true, loadingMore: false },
+          global: { stubs: { Teleport: true } },
+        })
+        await nextTick()
+        expect(obs.instances.length).toBeGreaterThan(0)
+        obs.instances[obs.instances.length - 1].trigger()
+        expect(wrapper.emitted('loadMore')).toBeTruthy()
+        expect(wrapper.emitted('loadMore')!.length).toBe(1)
+      })
+    })
+
+    it('does NOT emit loadMore when there are no more jobs (boundary)', async () => {
+      await withMockObserver(async (obs) => {
+        const wrapper = mount(JobProgressPanel, {
+          props: { show: true, jobs: sampleJobs, hasMore: false, loadingMore: false },
+          global: { stubs: { Teleport: true } },
+        })
+        await nextTick()
+        obs.instances[obs.instances.length - 1].trigger()
+        expect(wrapper.emitted('loadMore')).toBeFalsy()
+      })
+    })
+
+    it('does NOT emit loadMore while a prefetch is already in flight', async () => {
+      await withMockObserver(async (obs) => {
+        const wrapper = mount(JobProgressPanel, {
+          props: { show: true, jobs: sampleJobs, hasMore: true, loadingMore: true },
+          global: { stubs: { Teleport: true } },
+        })
+        await nextTick()
+        obs.instances[obs.instances.length - 1].trigger()
+        expect(wrapper.emitted('loadMore')).toBeFalsy()
+      })
+    })
+
+    it('shows a subtle loading indicator while prefetching more jobs', () => {
+      const wrapper = mount(JobProgressPanel, {
+        props: { show: true, jobs: sampleJobs, hasMore: true, loadingMore: true },
+        global: { stubs: { Teleport: true } },
+      })
+      expect(wrapper.find('[data-testid="jobs-loading-more"]').exists()).toBe(true)
+    })
+  })
+
 })

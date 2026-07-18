@@ -619,4 +619,106 @@ describe('ApiClient', () => {
       expect(thrown!.code).toBe('INTERNAL_ERROR')
     })
   })
+
+  // S-170: paginated sample-jobs list. The body is the page array; the total
+  // count comes from the X-Total-Count header.
+  describe('listSampleJobsPage', () => {
+    function mockJobsPage(jobs: unknown[], totalHeader: string | null) {
+      ;(globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(jobs),
+        headers: { get: (name: string) => (name === 'X-Total-Count' ? totalHeader : null) },
+      })
+    }
+
+    it('sends limit and offset as query params', async () => {
+      const client = new ApiClient({ baseUrl: '/api/v1' })
+      mockJobsPage([], '0')
+
+      await client.listSampleJobsPage(25, 50)
+
+      expect(globalThis.fetch).toHaveBeenCalledWith('/api/v1/sample-jobs?limit=25&offset=50')
+    })
+
+    it('defaults to limit 50 and offset 0', async () => {
+      const client = new ApiClient({ baseUrl: '/api/v1' })
+      mockJobsPage([], '0')
+
+      await client.listSampleJobsPage()
+
+      expect(globalThis.fetch).toHaveBeenCalledWith('/api/v1/sample-jobs?limit=50&offset=0')
+    })
+
+    it('returns jobs from the body and total from the X-Total-Count header', async () => {
+      const client = new ApiClient({ baseUrl: '/api/v1' })
+      mockJobsPage([{ id: 'a' }, { id: 'b' }], '137')
+
+      const result = await client.listSampleJobsPage(2, 0)
+
+      expect(result.jobs).toHaveLength(2)
+      expect(result.total).toBe(137)
+    })
+
+    it('falls back to page length when the X-Total-Count header is absent', async () => {
+      const client = new ApiClient({ baseUrl: '/api/v1' })
+      mockJobsPage([{ id: 'a' }, { id: 'b' }, { id: 'c' }], null)
+
+      const result = await client.listSampleJobsPage()
+
+      expect(result.total).toBe(3)
+    })
+
+    it('listSampleJobs returns the jobs array when everything fits in one page', async () => {
+      const client = new ApiClient({ baseUrl: '/api/v1' })
+      mockJobsPage([{ id: 'a' }], '1')
+
+      const jobs = await client.listSampleJobs()
+
+      expect(Array.isArray(jobs)).toBe(true)
+      expect(jobs).toHaveLength(1)
+    })
+
+    // Regression (S-170 review): JobLaunchDialog reasons over the FULL job history
+    // for per-run bead status and failed-bead navigation. listSampleJobs() must
+    // therefore loop every page — a run whose newest job sits BEYOND the first
+    // page must still appear, with its training_run_name and failed status intact.
+    it('listSampleJobs loops all pages so beyond-first-page jobs are included (bead/failed-nav)', async () => {
+      const client = new ApiClient({ baseUrl: '/api/v1' })
+      const pageA = [{ id: 'job-a1', training_run_name: 'run-a', status: 'completed' }]
+      // The target run's job is on a LATER page and is a failed job — exactly the
+      // case that drives run-b's red bead and failed-bead navigation.
+      const pageB = [{ id: 'job-b1', training_run_name: 'run-b', status: 'failed' }]
+      const spy = vi
+        .spyOn(client, 'listSampleJobsPage')
+        .mockResolvedValueOnce({ jobs: pageA as never, total: 2 })
+        .mockResolvedValueOnce({ jobs: pageB as never, total: 2 })
+
+      const jobs = await client.listSampleJobs()
+
+      // Two page fetches were needed to assemble the full history.
+      expect(spy).toHaveBeenCalledTimes(2)
+      expect(spy).toHaveBeenNthCalledWith(1, 200, 0)
+      expect(spy).toHaveBeenNthCalledWith(2, 200, 1)
+      // The later-page target-run failed job is present.
+      expect(jobs).toHaveLength(2)
+      const runB = jobs.find(j => j.training_run_name === 'run-b')
+      expect(runB).toBeDefined()
+      expect(runB!.status).toBe('failed')
+    })
+
+    it('listSampleJobs stops when a page returns empty (defensive, no infinite loop)', async () => {
+      const client = new ApiClient({ baseUrl: '/api/v1' })
+      const spy = vi
+        .spyOn(client, 'listSampleJobsPage')
+        // total claims 5 but the server returns fewer/empty — the loop must still terminate.
+        .mockResolvedValueOnce({ jobs: [{ id: 'a' }] as never, total: 5 })
+        .mockResolvedValueOnce({ jobs: [] as never, total: 5 })
+
+      const jobs = await client.listSampleJobs()
+
+      expect(spy).toHaveBeenCalledTimes(2)
+      expect(jobs).toHaveLength(1)
+    })
+  })
 })

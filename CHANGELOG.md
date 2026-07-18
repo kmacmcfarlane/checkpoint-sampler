@@ -5,6 +5,12 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-170: Paginate GET /api/v1/sample-jobs with invisible lazy loading; strip tracebacks from list view
+- Backend `GET /api/v1/sample-jobs` now accepts `limit` (default 50, max 200) / `offset` query params with stable ordering (`ORDER BY created_at DESC, id DESC` — `created_at` is immutable so paging stays consistent even as running jobs update). The total count travels in an `X-Total-Count` response header; the response body stays a bare jobs array for backward compatibility. Store gains `ListSampleJobsPage`/`CountSampleJobs`; service `List` returns `(jobs, total, err)`
+- List entries now omit the per-item `traceback` blob (retained on the `show` endpoint via `SampleJobResponse`) so the list payload no longer grows unboundedly as failed jobs accumulate; `failed_item_details` + `error_message` are still present on list entries for at-a-glance failure info
+- Frontend `JobProgressPanel` lazy-loads pages ahead of the scroll position via an `IntersectionObserver` (600px rootMargin) prefetch — no manual "Load more" button, so loading is invisible. New WS jobs prepend into the accumulated list (dedupe-by-id) rather than resetting to page 1, preserving loaded older pages. `listSampleJobs()` loops all pages so `JobLaunchDialog`'s per-run bead status and failed-bead navigation still see the full job history
+- Ordering note: actively-updating jobs no longer bubble to the top of the list (supersedes B-133's `updated_at DESC` ordering) — an intentional trade-off for stable pagination
+
 ### S-169: Toast layer for API errors — job controls and launch-dialog fetches surface failures
 - Added an app-level Naive UI toast layer: `NMessageProvider` wraps a render-nothing `ToastRegistrar` that bridges `useMessage()` (only callable inside the provider subtree) to a module-level singleton, so App.vue's own setup logic and any component can fire toasts via a no-op-safe `useToast()` composable. The four job-control handlers (stop/resume/retry/delete) now show an error toast on failure instead of only `console.warn`
 - JobLaunchDialog's initial fetches (training-runs/jobs/workflows, base models, studies) now render an inline error banner with a Retry affordance instead of silently showing empty selectors — a transient backend error is no longer indistinguishable from "no data exists". Frontend-only

@@ -49,3 +49,9 @@ Now that the XY grid has proper role="grid" structure with row/columnheader/rowh
 * priority: low
 * source: developer
 The backend validation currently only tracks aggregate counts per checkpoint. Adding separate counts for PNG, JSON sidecar, and thumbnail files would enable a more granular per-file-type breakdown in the frontend without deriving values.
+
+### Per-run sample-job status aggregate endpoint
+* status: needs_approval
+* priority: medium
+* source: developer
+After S-170 paginated the sample-jobs list, JobLaunchDialog must still reason over the full job history for per-run bead status and failed-bead navigation, so it currently loops every page (ceil(total/200) requests). A dedicated backend endpoint returning a compact per-run aggregate (each run's worst/most-recent status plus its newest failed job id) would let the dialog render beads without pulling full history, eliminating the loop as job counts grow unboundedly.

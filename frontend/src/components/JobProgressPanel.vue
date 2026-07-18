@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, toRef, watch, nextTick } from 'vue'
+import { computed, ref, toRef, watch, nextTick, onBeforeUnmount } from 'vue'
 import { NModal, NButton, NTag, NProgress, NSpace, NEmpty, NSpin } from 'naive-ui'
 import type {
   SampleJob,
@@ -41,6 +41,10 @@ const props = defineProps<{
   /** Per-sample inference progress keyed by job ID. Reset between samples. */
   inferenceProgress?: Record<string, InferenceProgress>
   loading?: boolean
+  /** S-170: true while an additional (older) page of jobs is being prefetched. */
+  loadingMore?: boolean
+  /** S-170: true when more (older) jobs exist beyond what is currently loaded. */
+  hasMore?: boolean
   /** The ID of the job currently being stopped, or null. Used to show loading state on the stop button. */
   stoppingJobId?: string | null
   /** When set, auto-scrolls to this job and expands its error details. Set by parent when navigating from a failed bead. */
@@ -53,6 +57,7 @@ const props = defineProps<{
 // regenerate: Emitted when the user clicks Regenerate on a completed or completed_with_errors job. Payload: the full SampleJob object.
 // delete: Emitted when the user confirms deletion. Payload: { id: string, deleteData: boolean }.
 // refresh: Emitted when the user clicks the Refresh button. No payload.
+// loadMore: Emitted when the user scrolls near the bottom and more jobs should be prefetched. No payload.
 // close: Emitted when the modal is dismissed. No payload.
 const emit = defineEmits<{
   stop: [jobId: string]
@@ -64,8 +69,72 @@ const emit = defineEmits<{
   validateRegenerate: [job: SampleJob]
   delete: [id: string, deleteData: boolean]
   refresh: []
+  loadMore: []
   close: []
 }>()
+
+/**
+ * S-170: prefetch-ahead lazy loading.
+ *
+ * An IntersectionObserver watches a sentinel element at the bottom of the job
+ * list. A large rootMargin means the sentinel "intersects" well before it is
+ * actually scrolled into view, so `loadMore` fires ahead of the scroll position
+ * and the next page is fetched invisibly (no manual "load more" button). The
+ * observer's root is the panel's own scroll container so it works inside the
+ * modal's internal scroll region.
+ */
+const scrollContainer = ref<HTMLElement | null>(null)
+const loadMoreSentinel = ref<HTMLElement | null>(null)
+let observer: IntersectionObserver | null = null
+
+function disconnectObserver() {
+  if (observer) {
+    observer.disconnect()
+    observer = null
+  }
+}
+
+function maybeLoadMore() {
+  if (props.hasMore && !props.loadingMore) {
+    emit('loadMore')
+  }
+}
+
+function setupObserver() {
+  disconnectObserver()
+  if (typeof IntersectionObserver === 'undefined') return
+  if (!scrollContainer.value || !loadMoreSentinel.value) return
+  observer = new IntersectionObserver(
+    (entries) => {
+      if (entries.some(e => e.isIntersecting)) {
+        maybeLoadMore()
+      }
+    },
+    {
+      root: scrollContainer.value,
+      // Prefetch ahead: trigger ~600px before the sentinel enters the viewport.
+      rootMargin: '0px 0px 600px 0px',
+      threshold: 0,
+    },
+  )
+  observer.observe(loadMoreSentinel.value)
+}
+
+// (Re)connect the observer whenever the panel opens and its DOM is present.
+watch(
+  () => props.show,
+  async (show) => {
+    if (show) {
+      await nextTick()
+      setupObserver()
+    } else {
+      disconnectObserver()
+    }
+  },
+  { immediate: true },
+)
+
+onBeforeUnmount(disconnectObserver)
 
 /** State for the per-job validation dialog. */
 const validationDialogShow = ref(false)
@@ -462,7 +531,7 @@ function isTracebackExpanded(jobId: string, errorIdx: number): boolean {
     :show="show"
     preset="card"
     title="Sample Jobs"
-    style="max-width: 700px; max-height: 80vh; overflow-y: auto;"
+    style="max-width: 700px;"
     data-testid="job-progress-panel"
     @update:show="emit('close')"
   >
@@ -476,6 +545,9 @@ function isTracebackExpanded(jobId: string, errorIdx: number): boolean {
       </NButton>
     </template>
 
+    <!-- S-170: dedicated scroll container so the prefetch IntersectionObserver has
+         a stable root inside the modal. The header stays fixed; only the list scrolls. -->
+    <div ref="scrollContainer" class="jobs-scroll" data-testid="jobs-scroll-container">
     <NSpin :show="loading ?? false">
       <div v-if="sortedJobs.length === 0" class="empty-state">
         <NEmpty description="No sample jobs yet" />
@@ -822,6 +894,23 @@ function isTracebackExpanded(jobId: string, errorIdx: number): boolean {
         </div>
       </NSpace>
     </NSpin>
+
+      <!-- S-170: sentinel observed by the IntersectionObserver to prefetch older
+           pages ahead of the scroll position (invisible lazy loading). -->
+      <div
+        ref="loadMoreSentinel"
+        data-testid="job-list-load-more-sentinel"
+        aria-hidden="true"
+        style="height: 1px;"
+      />
+      <div
+        v-if="loadingMore"
+        class="jobs-loading-more"
+        data-testid="jobs-loading-more"
+      >
+        <NSpin :size="18" />
+      </div>
+    </div>
   </NModal>
 
   <ConfirmDeleteDialog
@@ -851,6 +940,19 @@ function isTracebackExpanded(jobId: string, errorIdx: number): boolean {
 </template>
 
 <style scoped>
+/* S-170: internal scroll region for the job list so the prefetch observer has a
+   stable root and the modal header stays fixed while the list scrolls. */
+.jobs-scroll {
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.jobs-loading-more {
+  display: flex;
+  justify-content: center;
+  padding: 0.75rem 0;
+}
+
 .empty-state {
   padding: 2rem;
   text-align: center;

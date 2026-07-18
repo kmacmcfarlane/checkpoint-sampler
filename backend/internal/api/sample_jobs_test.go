@@ -59,6 +59,41 @@ func (f *fakeSampleJobStore) ListSampleJobsDesc() ([]model.SampleJob, error) {
 	return result, nil
 }
 
+// sortedJobsDesc returns all jobs ordered by created_at DESC, id DESC (matching
+// the store's ListSampleJobsPage ordering) so pagination tests are deterministic.
+func (f *fakeSampleJobStore) sortedJobsDesc() []model.SampleJob {
+	result := make([]model.SampleJob, 0, len(f.jobs))
+	for _, j := range f.jobs {
+		result = append(result, j)
+	}
+	sort.Slice(result, func(a, b int) bool {
+		if result[a].CreatedAt.Equal(result[b].CreatedAt) {
+			return result[a].ID > result[b].ID
+		}
+		return result[a].CreatedAt.After(result[b].CreatedAt)
+	})
+	return result
+}
+
+func (f *fakeSampleJobStore) ListSampleJobsPage(limit, offset int) ([]model.SampleJob, error) {
+	if f.listErr != nil {
+		return nil, f.listErr
+	}
+	sorted := f.sortedJobsDesc()
+	if offset >= len(sorted) {
+		return []model.SampleJob{}, nil
+	}
+	end := min(offset+limit, len(sorted))
+	return sorted[offset:end], nil
+}
+
+func (f *fakeSampleJobStore) CountSampleJobs() (int, error) {
+	if f.listErr != nil {
+		return 0, f.listErr
+	}
+	return len(f.jobs), nil
+}
+
 func (f *fakeSampleJobStore) GetSampleJob(id string) (model.SampleJob, error) {
 	if f.getErr != nil {
 		return model.SampleJob{}, f.getErr
@@ -246,7 +281,7 @@ var _ = Describe("SampleJobsService", func() {
 	Describe("Error responses include Goa ServiceError structure", func() {
 		It("List returns ServiceError with proper fields on store failure", func() {
 			store.listErr = errors.New("database connection failed")
-			_, err := sampleJobs.List(ctx)
+			_, err := sampleJobs.List(ctx, &gensamplejobs.ListPayload{Limit: 50, Offset: 0})
 			Expect(err).To(HaveOccurred())
 
 			// Verify it's a Goa ServiceError with proper structure
@@ -337,10 +372,11 @@ var _ = Describe("SampleJobsService", func() {
 		})
 
 		It("reports identical completed/failed/pending counts from List and Show for a mixed-status job", func() {
-			list, err := sampleJobs.List(ctx)
+			listResult, err := sampleJobs.List(ctx, &gensamplejobs.ListPayload{Limit: 50, Offset: 0})
 			Expect(err).NotTo(HaveOccurred())
-			Expect(list).To(HaveLen(1))
-			listJob := list[0]
+			Expect(listResult.Jobs).To(HaveLen(1))
+			Expect(listResult.Total).To(Equal(1))
+			listJob := listResult.Jobs[0]
 
 			detail, err := sampleJobs.Show(ctx, &gensamplejobs.ShowPayload{ID: "job-parity"})
 			Expect(err).NotTo(HaveOccurred())
@@ -367,11 +403,12 @@ var _ = Describe("SampleJobsService", func() {
 			disabledSvc = api.NewSampleJobsService(nil, discovery)
 		})
 
-		It("List returns an empty slice without error", func() {
-			result, err := disabledSvc.List(ctx)
+		It("List returns an empty page without error", func() {
+			result, err := disabledSvc.List(ctx, &gensamplejobs.ListPayload{Limit: 50, Offset: 0})
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result).NotTo(BeNil())
-			Expect(result).To(BeEmpty())
+			Expect(result.Jobs).To(BeEmpty())
+			Expect(result.Total).To(Equal(0))
 		})
 
 		It("Show returns service_unavailable ServiceError", func() {

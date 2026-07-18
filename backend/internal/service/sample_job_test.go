@@ -9,6 +9,7 @@ import (
 	"net"
 	"sort"
 	"syscall"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -118,6 +119,34 @@ func (f *fakeSampleJobStore) ListSampleJobsDesc() ([]model.SampleJob, error) {
 		result = append(result, j)
 	}
 	return result, nil
+}
+
+func (f *fakeSampleJobStore) ListSampleJobsPage(limit, offset int) ([]model.SampleJob, error) {
+	if f.listJobsErr != nil {
+		return nil, f.listJobsErr
+	}
+	result := make([]model.SampleJob, 0, len(f.jobs))
+	for _, j := range f.jobs {
+		result = append(result, j)
+	}
+	sort.Slice(result, func(a, b int) bool {
+		if result[a].CreatedAt.Equal(result[b].CreatedAt) {
+			return result[a].ID > result[b].ID
+		}
+		return result[a].CreatedAt.After(result[b].CreatedAt)
+	})
+	if offset >= len(result) {
+		return []model.SampleJob{}, nil
+	}
+	end := min(offset+limit, len(result))
+	return result[offset:end], nil
+}
+
+func (f *fakeSampleJobStore) CountSampleJobs() (int, error) {
+	if f.listJobsErr != nil {
+		return 0, f.listJobsErr
+	}
+	return len(f.jobs), nil
 }
 
 func (f *fakeSampleJobStore) GetSampleJob(id string) (model.SampleJob, error) {
@@ -1355,19 +1384,56 @@ var _ = Describe("SampleJobService", func() {
 	})
 
 	Describe("List", func() {
-		It("returns all jobs", func() {
+		It("returns the requested page and the total count", func() {
 			store.jobs["job-1"] = model.SampleJob{ID: "job-1"}
 			store.jobs["job-2"] = model.SampleJob{ID: "job-2"}
 
-			result, err := svc.List()
+			result, total, err := svc.List(50, 0)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result).To(HaveLen(2))
+			Expect(total).To(Equal(2))
 		})
 
 		It("returns empty slice when no jobs exist", func() {
-			result, err := svc.List()
+			result, total, err := svc.List(50, 0)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result).To(HaveLen(0))
+			Expect(total).To(Equal(0))
+		})
+
+		It("applies limit and offset while reporting the full total (paging boundaries)", func() {
+			// created_at DESC, id DESC ordering: newer created_at first.
+			base := time.Now().UTC()
+			for i := range 5 {
+				id := fmt.Sprintf("job-%d", i)
+				store.jobs[id] = model.SampleJob{ID: id, CreatedAt: base.Add(time.Duration(i) * time.Second)}
+			}
+
+			// First page of 2 → newest two (job-4, job-3), total 5.
+			page1, total, err := svc.List(2, 0)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(total).To(Equal(5))
+			Expect(page1).To(HaveLen(2))
+			Expect(page1[0].ID).To(Equal("job-4"))
+			Expect(page1[1].ID).To(Equal("job-3"))
+
+			// Second page continues seamlessly.
+			page2, _, err := svc.List(2, 2)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(page2).To(HaveLen(2))
+			Expect(page2[0].ID).To(Equal("job-2"))
+			Expect(page2[1].ID).To(Equal("job-1"))
+
+			// Final partial page returns the remainder without overrun.
+			page3, _, err := svc.List(2, 4)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(page3).To(HaveLen(1))
+			Expect(page3[0].ID).To(Equal("job-0"))
+
+			// Offset past the end yields an empty page (no error).
+			page4, _, err := svc.List(2, 10)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(page4).To(BeEmpty())
 		})
 	})
 

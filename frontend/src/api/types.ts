@@ -349,6 +349,17 @@ export interface SampleJobDetail {
   progress: JobProgress
 }
 
+/**
+ * A page of sample jobs returned by the paginated list endpoint.
+ * `jobs` is the page (newest first, created_at DESC); `total` is the total
+ * number of jobs across all pages, used by the UI to lazily prefetch more.
+ * List entries omit per-item tracebacks (retained on the show endpoint).
+ */
+export interface SampleJobPage {
+  jobs: SampleJob[]
+  total: number
+}
+
 /** Payload for creating a new sample job. Workflow template, VAE, text encoder, and shift come from the study definition. */
 export interface CreateSampleJobPayload {
   training_run_name: string

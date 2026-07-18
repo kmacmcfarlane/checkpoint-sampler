@@ -150,7 +150,7 @@ the id as an opaque string obtained from `TrainingRunResponse.id` and must not a
 
 | Method         | HTTP                                       | Result                | Errors                                                       |
 |----------------|--------------------------------------------|-----------------------|-------------------------------------------------------------|
-| `list`         | `GET /api/v1/sample-jobs`                     | `[]SampleJobResponse` | `internal_error`                                            |
+| `list`         | `GET /api/v1/sample-jobs?limit=&offset=`      | `[]SampleJobSummaryResponse` (+`X-Total-Count`) | `internal_error`                          |
 | `show`         | `GET /api/v1/sample-jobs/{id}`                | `SampleJobDetailResponse` | `not_found`, `internal_error`                           |
 | `create`       | `POST /api/v1/sample-jobs`                    | `SampleJobResponse` (201) | `not_found`, `invalid_payload`, `too_many_items`, `internal_error` |
 | `start`        | `POST /api/v1/sample-jobs/{id}/start`         | `SampleJobResponse`   | `not_found`, `invalid_state`, `service_unavailable`         |
@@ -159,6 +159,7 @@ the id as an opaque string obtained from `TrainingRunResponse.id` and must not a
 | `retry_failed` | `POST /api/v1/sample-jobs/{id}/retry-failed`  | `SampleJobResponse`   | `not_found`, `invalid_state`, `service_unavailable`         |
 | `delete`       | `DELETE /api/v1/sample-jobs/{id}`             | (204)                 | `not_found`, `internal_error`                               |
 
+- `list` is paginated via `limit` (default 50, max 200) and `offset` (default 0), ordered `created_at DESC, id DESC` (stable across pages). The response body is the bare jobs array (backward compatible); the total count across all pages is returned in the `X-Total-Count` header. List entries use `SampleJobSummaryResponse`, which omits the per-item Python `traceback` blobs — those are retained on the `show` endpoint (`SampleJobResponse`). The UI lazily prefetches older pages as the user scrolls.
 - `create` computes total work items; exceeding the configured maximum returns `too_many_items` (422).
 - `delete` accepts `delete_data` (default `false`) to also remove generated sample files from disk.
 

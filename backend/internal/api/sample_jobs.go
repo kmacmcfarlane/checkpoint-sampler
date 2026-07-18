@@ -36,12 +36,19 @@ func NewSampleJobsService(svc *service.SampleJobService, discovery *service.Disc
 	}
 }
 
-// List returns all sample jobs ordered by creation time (newest first).
-func (s *SampleJobsService) List(ctx context.Context) ([]*gensamplejobs.SampleJobResponse, error) {
+// List returns a page of sample jobs ordered by creation time (newest first,
+// created_at DESC with id DESC tiebreak). The total number of jobs across all
+// pages is returned in Total (mapped to the X-Total-Count header) so the UI can
+// lazily prefetch additional pages. List entries omit per-item tracebacks; the
+// full traceback is retained on the show endpoint.
+func (s *SampleJobsService) List(ctx context.Context, p *gensamplejobs.ListPayload) (*gensamplejobs.SampleJobListResponse, error) {
 	if !s.enabled {
-		return []*gensamplejobs.SampleJobResponse{}, nil
+		return &gensamplejobs.SampleJobListResponse{
+			Jobs:  []*gensamplejobs.SampleJobSummaryResponse{},
+			Total: 0,
+		}, nil
 	}
-	jobs, err := s.svc.List()
+	jobs, total, err := s.svc.List(p.Limit, p.Offset)
 	if err != nil {
 		return nil, gensamplejobs.MakeInternalError(fmt.Errorf("listing sample jobs: %w", err))
 	}
@@ -55,16 +62,19 @@ func (s *SampleJobsService) List(ctx context.Context) ([]*gensamplejobs.SampleJo
 		progressByJob = map[string]model.JobListProgress{}
 	}
 
-	result := make([]*gensamplejobs.SampleJobResponse, len(jobs))
+	summaries := make([]*gensamplejobs.SampleJobSummaryResponse, len(jobs))
 	for i, j := range jobs {
 		p, ok := progressByJob[j.ID]
 		failedDetails := p.FailedItemDetails
 		if !ok || failedDetails == nil {
 			failedDetails = []model.FailedItemDetail{}
 		}
-		result[i] = sampleJobToResponse(j, p.ItemCounts, failedDetails)
+		summaries[i] = sampleJobToSummaryResponse(j, p.ItemCounts, failedDetails)
 	}
-	return result, nil
+	return &gensamplejobs.SampleJobListResponse{
+		Jobs:  summaries,
+		Total: total,
+	}, nil
 }
 
 // Show returns a sample job by ID with progress metrics.
@@ -307,6 +317,68 @@ func sampleJobToResponse(j model.SampleJob, counts model.ItemStatusCounts, faile
 		}
 		if d.Traceback != "" {
 			fd.Traceback = &d.Traceback
+		}
+		resp.FailedItemDetails[i] = fd
+	}
+
+	return resp
+}
+
+// sampleJobToSummaryResponse builds the list-view representation of a job. It
+// mirrors sampleJobToResponse but emits SampleJobSummaryResponse, whose failed
+// item details omit the per-item Python traceback so paginated list payloads do
+// not carry unbounded traceback blobs. The full traceback remains available on
+// the show endpoint.
+func sampleJobToSummaryResponse(j model.SampleJob, counts model.ItemStatusCounts, failedDetails []model.FailedItemDetail) *gensamplejobs.SampleJobSummaryResponse {
+	checkpointFilenames := j.CheckpointFilenames
+	if checkpointFilenames == nil {
+		checkpointFilenames = []string{}
+	}
+
+	resp := &gensamplejobs.SampleJobSummaryResponse{
+		ID:                  j.ID,
+		TrainingRunName:     j.TrainingRunName,
+		StudyID:             j.StudyID,
+		StudyName:           j.StudyName,
+		WorkflowName:        j.WorkflowName,
+		CheckpointFilenames: checkpointFilenames,
+		Status:              string(j.Status),
+		TotalItems:          j.TotalItems,
+		CompletedItems:      counts.Completed,
+		FailedItems:         counts.Failed,
+		PendingItems:        counts.Pending,
+		CreatedAt:           j.CreatedAt.UTC().Format(time.RFC3339),
+		UpdatedAt:           j.UpdatedAt.UTC().Format(time.RFC3339),
+	}
+
+	if j.VAE != "" {
+		resp.Vae = &j.VAE
+	}
+	if j.CLIP != "" {
+		resp.Clip = &j.CLIP
+	}
+	if j.Shift != nil {
+		resp.Shift = j.Shift
+	}
+	if j.BaseModel != "" {
+		resp.BaseModel = &j.BaseModel
+	}
+	if j.ErrorMessage != "" {
+		resp.ErrorMessage = &j.ErrorMessage
+	}
+
+	// Populate failed item details WITHOUT the traceback field (stripped from list views).
+	resp.FailedItemDetails = make([]*gensamplejobs.FailedItemSummaryResponse, len(failedDetails))
+	for i, d := range failedDetails {
+		fd := &gensamplejobs.FailedItemSummaryResponse{
+			CheckpointFilename: d.CheckpointFilename,
+			ErrorMessage:       d.ErrorMessage,
+		}
+		if d.ExceptionType != "" {
+			fd.ExceptionType = &d.ExceptionType
+		}
+		if d.NodeType != "" {
+			fd.NodeType = &d.NodeType
 		}
 		resp.FailedItemDetails[i] = fd
 	}
