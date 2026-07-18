@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-179: Generate Samples — default base model from checkpoint ss_ metadata for fresh LoRA runs
+- The Generate Samples base-model selector now defaults, for a *fresh* LoRA run with nothing remembered, to the base model named in the checkpoint's `ss_` training metadata — preferring `ss_sd_model_name`, then `ss_pretrained_model_name_or_path`, then `ss_base_model_version` — matched by basename (case-insensitive, extension-stripped) against `base_model_dir` options. No match or missing metadata leaves it unselected (best-effort, no wrong guess, no error). Frontend-only; reuses the existing checkpoint-metadata fetch (no new API call)
+- Precedence preserved: the remembered-from-samples value and any explicit user choice always win over the metadata default, gated by an `availabilityFetched` flag and a `hasRememberedForAnyStudy` guard; extraction is LoRA-gated so checkpoint (non-LoRA) runs never trigger it
+
 ### S-172: Contributor onramp — CONTRIBUTING.md, SECURITY.md, untrack sandbox config
 - Added `CONTRIBUTING.md` (dev setup, test commands, PR expectations, optional claude-sandbox/ralph agent-workflow section) and `SECURITY.md` (private vulnerability reporting policy scoped to the no-auth local/LAN threat model)
 - `.claude-sandbox/config.yaml` is no longer tracked (it carried personal mount paths and host-access flags); a sanitized `.claude-sandbox/config.yaml.example` is checked in and the real file is now gitignored — copy the example per the config-cascade convention

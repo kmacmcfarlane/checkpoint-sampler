@@ -6560,6 +6560,236 @@ describe('JobLaunchDialog', () => {
       })
     })
 
+    // S-179: For a FRESH LoRA run (no prior samples, nothing remembered), default
+    // the base model from the checkpoint's ss_ training metadata when a
+    // base_model_dir option matches by basename. Never guesses or overrides a
+    // remembered/user selection, and only applies to LoRA runs.
+    describe('base model default from checkpoint ss_ metadata (S-179)', () => {
+      // AC: fresh LoRA run whose ss_ metadata names a present base model ->
+      // that base model is pre-selected.
+      it('pre-selects the base model named by ss_sd_model_name for a fresh LoRA run', async () => {
+        mockGetCheckpointTrainingRuns.mockResolvedValue(allTrainingRunsWithLora)
+        mockListStudies.mockResolvedValue(allStudiesWithLora)
+        mockGetBaseModels.mockResolvedValue({ models: unetModels })
+        // Fresh run: availability reports no samples for any study.
+        mockGetStudyAvailability.mockResolvedValue([])
+        // Checkpoint metadata names a base model present in base_model_dir.
+        mockGetCheckpointMetadata.mockResolvedValue({
+          metadata: { ss_sd_model_name: 'flux1-dev.safetensors' },
+        })
+
+        const wrapper = mount(JobLaunchDialog, {
+          props: { show: true },
+          global: { stubs: { Teleport: true } },
+        })
+        await flushPromises()
+
+        wrapper.findAllComponents(NSelect)[0].vm.$emit('update:value', runLora.id)
+        await flushPromises()
+
+        const baseModelSelect = wrapper.find('[data-testid="base-model-select"]').findComponent(NSelect)
+        expect(baseModelSelect.props('value')).toBe('flux1-dev.safetensors')
+      })
+
+      // AC: metadata match is by basename (case-insensitive, extension-stripped),
+      // so a full path / differing case still resolves.
+      it('matches the ss_ reference by basename ignoring path and case', async () => {
+        mockGetCheckpointTrainingRuns.mockResolvedValue(allTrainingRunsWithLora)
+        mockListStudies.mockResolvedValue(allStudiesWithLora)
+        mockGetBaseModels.mockResolvedValue({ models: unetModels })
+        mockGetStudyAvailability.mockResolvedValue([])
+        // A full path with different casing and no extension in the option list.
+        mockGetCheckpointMetadata.mockResolvedValue({
+          metadata: { ss_sd_model_name: '/models/unet/SD15-Base' },
+        })
+
+        const wrapper = mount(JobLaunchDialog, {
+          props: { show: true },
+          global: { stubs: { Teleport: true } },
+        })
+        await flushPromises()
+
+        wrapper.findAllComponents(NSelect)[0].vm.$emit('update:value', runLora.id)
+        await flushPromises()
+
+        const baseModelSelect = wrapper.find('[data-testid="base-model-select"]').findComponent(NSelect)
+        expect(baseModelSelect.props('value')).toBe('sd15-base.safetensors')
+      })
+
+      // AC: falls back through the preference order when the primary field is absent.
+      it('falls back to ss_pretrained_model_name_or_path then ss_base_model_version', async () => {
+        mockGetCheckpointTrainingRuns.mockResolvedValue(allTrainingRunsWithLora)
+        mockListStudies.mockResolvedValue(allStudiesWithLora)
+        mockGetBaseModels.mockResolvedValue({ models: unetModels })
+        mockGetStudyAvailability.mockResolvedValue([])
+        mockGetCheckpointMetadata.mockResolvedValue({
+          metadata: { ss_pretrained_model_name_or_path: 'flux1-dev.safetensors' },
+        })
+
+        const wrapper = mount(JobLaunchDialog, {
+          props: { show: true },
+          global: { stubs: { Teleport: true } },
+        })
+        await flushPromises()
+
+        wrapper.findAllComponents(NSelect)[0].vm.$emit('update:value', runLora.id)
+        await flushPromises()
+
+        const baseModelSelect = wrapper.find('[data-testid="base-model-select"]').findComponent(NSelect)
+        expect(baseModelSelect.props('value')).toBe('flux1-dev.safetensors')
+      })
+
+      // AC: fresh LoRA run whose metadata names an absent/unparseable base model ->
+      // the select stays empty, no error surfaced.
+      it('leaves the base model empty when the ss_ reference matches no option', async () => {
+        mockGetCheckpointTrainingRuns.mockResolvedValue(allTrainingRunsWithLora)
+        mockListStudies.mockResolvedValue(allStudiesWithLora)
+        mockGetBaseModels.mockResolvedValue({ models: unetModels })
+        mockGetStudyAvailability.mockResolvedValue([])
+        mockGetCheckpointMetadata.mockResolvedValue({
+          metadata: { ss_sd_model_name: 'some-model-not-on-disk.safetensors' },
+        })
+
+        const wrapper = mount(JobLaunchDialog, {
+          props: { show: true },
+          global: { stubs: { Teleport: true } },
+        })
+        await flushPromises()
+
+        wrapper.findAllComponents(NSelect)[0].vm.$emit('update:value', runLora.id)
+        await flushPromises()
+
+        const baseModelSelect = wrapper.find('[data-testid="base-model-select"]').findComponent(NSelect)
+        expect(baseModelSelect.props('value')).toBeNull()
+        expect(wrapper.find('[data-testid="base-models-fetch-error"]').exists()).toBe(false)
+      })
+
+      // AC: metadata is missing / has no ss_ base-model field -> select stays empty.
+      it('leaves the base model empty when the checkpoint has no ss_ base-model metadata', async () => {
+        mockGetCheckpointTrainingRuns.mockResolvedValue(allTrainingRunsWithLora)
+        mockListStudies.mockResolvedValue(allStudiesWithLora)
+        mockGetBaseModels.mockResolvedValue({ models: unetModels })
+        mockGetStudyAvailability.mockResolvedValue([])
+        mockGetCheckpointMetadata.mockResolvedValue({ metadata: {} })
+
+        const wrapper = mount(JobLaunchDialog, {
+          props: { show: true },
+          global: { stubs: { Teleport: true } },
+        })
+        await flushPromises()
+
+        wrapper.findAllComponents(NSelect)[0].vm.$emit('update:value', runLora.id)
+        await flushPromises()
+
+        const baseModelSelect = wrapper.find('[data-testid="base-model-select"]').findComponent(NSelect)
+        expect(baseModelSelect.props('value')).toBeNull()
+      })
+
+      // AC: the metadata default must never override a base model remembered from
+      // prior samples. Here availability names a remembered base model AND the
+      // checkpoint metadata names a different present base model — remembered wins.
+      it('does not override a base model remembered from existing samples', async () => {
+        mockGetCheckpointTrainingRuns.mockResolvedValue(allTrainingRunsWithLora)
+        mockListStudies.mockResolvedValue(allStudiesWithLora)
+        mockGetBaseModels.mockResolvedValue({ models: unetModels })
+        // Existing samples remember 'sd15-base' for the study.
+        mockGetStudyAvailability.mockResolvedValue([
+          {
+            study_id: 'lora-study-1',
+            study_name: 'LoRA Quick Test',
+            has_samples: true,
+            sample_status: 'complete',
+            checkpoints_with_samples: 2,
+            total_checkpoints: 2,
+            base_models: ['sd15-base'],
+          },
+        ])
+        // Metadata would resolve to a DIFFERENT present base model.
+        mockGetCheckpointMetadata.mockResolvedValue({
+          metadata: { ss_sd_model_name: 'flux1-dev.safetensors' },
+        })
+
+        const wrapper = mount(JobLaunchDialog, {
+          props: { show: true },
+          global: { stubs: { Teleport: true } },
+        })
+        await flushPromises()
+
+        wrapper.findAllComponents(NSelect)[0].vm.$emit('update:value', runLora.id)
+        await flushPromises()
+        wrapper.findAllComponents(NSelect)[1].vm.$emit('update:value', 'lora-study-1')
+        await flushPromises()
+
+        const baseModelSelect = wrapper.find('[data-testid="base-model-select"]').findComponent(NSelect)
+        expect(baseModelSelect.props('value')).toBe('sd15-base.safetensors')
+      })
+
+      // AC: the metadata default must never override a user's explicit choice.
+      it('does not override an explicit user base model selection', async () => {
+        mockGetCheckpointTrainingRuns.mockResolvedValue(allTrainingRunsWithLora)
+        mockListStudies.mockResolvedValue(allStudiesWithLora)
+        mockGetBaseModels.mockResolvedValue({ models: unetModels })
+        // Delay availability so the user can choose before the metadata default runs.
+        let resolveAvailability!: () => void
+        mockGetStudyAvailability.mockReturnValue(
+          new Promise((resolve) => {
+            resolveAvailability = () => resolve([])
+          }),
+        )
+        mockGetCheckpointMetadata.mockResolvedValue({
+          metadata: { ss_sd_model_name: 'flux1-dev.safetensors' },
+        })
+
+        const wrapper = mount(JobLaunchDialog, {
+          props: { show: true },
+          global: { stubs: { Teleport: true } },
+        })
+        await flushPromises()
+
+        wrapper.findAllComponents(NSelect)[0].vm.$emit('update:value', runLora.id)
+        await flushPromises()
+
+        // User picks a base model explicitly before availability resolves.
+        const baseModelSelect = wrapper.find('[data-testid="base-model-select"]').findComponent(NSelect)
+        await baseModelSelect.vm.$emit('update:value', 'sd15-base.safetensors')
+        await flushPromises()
+
+        // Now availability resolves; the metadata default must not override the choice.
+        resolveAvailability()
+        await flushPromises()
+
+        expect(baseModelSelect.props('value')).toBe('sd15-base.safetensors')
+      })
+
+      // AC: the metadata lookup runs only for LoRA runs — a checkpoint (non-LoRA)
+      // run must not get a base-model default even when its metadata names a
+      // present base model (the base-model field is LoRA-only and stays absent).
+      it('does not apply the metadata base-model default for non-LoRA runs', async () => {
+        mockGetCheckpointTrainingRuns.mockResolvedValue(allTrainingRunsWithLora)
+        mockListStudies.mockResolvedValue(allStudiesWithLora)
+        mockGetBaseModels.mockResolvedValue({ models: unetModels })
+        mockGetStudyAvailability.mockResolvedValue([])
+        // Even though metadata names a present base model, a checkpoint run must
+        // not surface or default a base model.
+        mockGetCheckpointMetadata.mockResolvedValue({
+          metadata: { ss_sd_model_name: 'flux1-dev.safetensors' },
+        })
+
+        const wrapper = mount(JobLaunchDialog, {
+          props: { show: true },
+          global: { stubs: { Teleport: true } },
+        })
+        await flushPromises()
+
+        // runEmpty is a checkpoint (non-LoRA) run.
+        wrapper.findAllComponents(NSelect)[0].vm.$emit('update:value', runEmpty.id)
+        await flushPromises()
+
+        // The base-model selector is LoRA-only and must not render for a checkpoint run.
+        expect(wrapper.find('[data-testid="base-model-field"]').exists()).toBe(false)
+      })
+    })
+
     // AC: Existing non-LoRA study + checkpoint run combinations are unaffected
     it('does not affect non-LoRA study + checkpoint run combinations', async () => {
       mockCreateSampleJob.mockResolvedValue({ id: 'job-1', status: 'pending' })

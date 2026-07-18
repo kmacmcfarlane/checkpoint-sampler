@@ -20,6 +20,12 @@ Example:
 
 ## Ideas
 
+### Metadata-bearing fresh LoRA E2E fixture
+* status: needs_approval
+* priority: medium
+* source: developer
+Add a fresh (no-samples) LoRA training-run fixture whose checkpoint safetensors carries real `ss_sd_model_name`/`ss_base_model_version` metadata, plus a matching `base_model_dir` entry, so S-179's positive base-model pre-selection path can be covered by a real Playwright E2E. Requires backend fixture-seeder changes.
+
 ### Study-scoped E2E test fixtures
 * status: needs_approval
 * priority: low

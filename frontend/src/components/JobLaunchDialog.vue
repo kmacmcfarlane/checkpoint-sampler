@@ -79,6 +79,20 @@ const selectedBaseModel = ref<string | null>(null)
 const baseModelOptions = ref<string[]>([])
 const loadingBaseModels = ref(false)
 
+// S-179: Base-model reference parsed from the selected LoRA run's checkpoint
+// ss_ training metadata (preferring ss_sd_model_name, then
+// ss_pretrained_model_name_or_path, then ss_base_model_version). Used to
+// default-select the base model for a FRESH LoRA run when nothing was remembered
+// from prior samples. Null when the run is not LoRA, metadata is missing, or no
+// ss_ base-model field is present.
+const metadataBaseModelRef = ref<string | null>(null)
+
+// S-179: True once study availability for the selected run has been fetched. The
+// metadata-based base-model default (applyMetadataBaseModelDefault) only runs
+// after this is set so the remembered-from-samples path (applyRememberedBaseModel)
+// always gets its data first and is never overridden by the metadata guess.
+const availabilityFetched = ref(false)
+
 // S-148: Workflow templates (fetched once, filtered by training run kind)
 const workflows = ref<WorkflowSummary[]>([])
 
@@ -465,12 +479,19 @@ watch(selectedTrainingRunId, (runId) => {
   }
 
   // --- Checkpoint init + per-model-type workflow + metadata (was watcher 1) ---
-  initSelectedTrainingRun(runId)
+  void initSelectedTrainingRun(runId)
 
   // --- Study sample availability fetch (was watcher 2) ---
   resetSelectedAvailability()
+  // S-179: Gate the metadata base-model default until availability is known so
+  // the remembered-from-samples path always wins when it can resolve.
+  availabilityFetched.value = false
   if (runId !== null) {
-    void fetchSelectedRunAvailability(runId)
+    void fetchSelectedRunAvailability(runId).then(() => {
+      availabilityFetched.value = true
+      // Availability is now known: try remembered first, then the metadata default.
+      tryPreselectBaseModel()
+    })
   }
 })
 
@@ -485,6 +506,9 @@ async function initSelectedTrainingRun(runId: string | null): Promise<void> {
 
   // Reset model type for the new run
   currentModelType.value = null
+
+  // S-179: Clear any base-model reference parsed from a previous run's metadata.
+  metadataBaseModelRef.value = null
 
   // S-148: Reset base model selection and fetch base models for LoRA runs
   if (!skipAutoSelection) {
@@ -544,6 +568,14 @@ async function initSelectedTrainingRun(runId: string | null): Promise<void> {
       const firstCheckpoint = run.checkpoints[0]
       try {
         const metadataResult = await apiClient.getCheckpointMetadata(firstCheckpoint.filename)
+        // S-179: For LoRA runs only, remember the trained base-model reference so a
+        // fresh run can default-select it once the base-model options load. The
+        // getCheckpointMetadata call itself is shared with model-type detection
+        // below; only this base-model extraction is LoRA-gated.
+        if (run.kind === 'lora') {
+          metadataBaseModelRef.value = extractLoraBaseModelRef(metadataResult.metadata)
+          tryPreselectBaseModel()
+        }
         const modelType = metadataResult.metadata['ss_base_model_version'] ?? null
         if (modelType) {
           persistence.saveModelTypeForRun(runId, modelType)
@@ -571,7 +603,7 @@ async function initSelectedTrainingRun(runId: string | null): Promise<void> {
 // base model is already selected, so the restore-from-loaded-job path and
 // explicit user choices are preserved.
 watch([selectedStudy, studyAvailability], () => {
-  applyRememberedBaseModel()
+  tryPreselectBaseModel()
 })
 
 // Trigger validation when training run + study are both selected
@@ -1150,6 +1182,82 @@ function applyRememberedBaseModel() {
   }
 }
 
+/**
+ * S-179: Strip any directory prefix and a trailing .safetensors extension from a
+ * base-model reference or dropdown option, returning the bare basename. Handles
+ * both forward and back slashes so paths from either the metadata (which may be a
+ * full path) or the base_model_dir options normalize consistently.
+ */
+function baseNameNoExt(path: string): string {
+  const base = path.split(/[\\/]/).pop() ?? path
+  return base.replace(/\.safetensors$/i, '')
+}
+
+/**
+ * S-179: Extract the base-model reference from a checkpoint's ss_ training
+ * metadata, preferring ss_sd_model_name, then ss_pretrained_model_name_or_path,
+ * then ss_base_model_version. Returns null when none are present or all are blank.
+ */
+function extractLoraBaseModelRef(metadata: Record<string, string>): string | null {
+  const raw =
+    metadata['ss_sd_model_name'] ??
+    metadata['ss_pretrained_model_name_or_path'] ??
+    metadata['ss_base_model_version'] ??
+    ''
+  const trimmed = raw.trim()
+  return trimmed.length > 0 ? trimmed : null
+}
+
+/**
+ * S-179: Best-effort default of the LoRA base model from the checkpoint ss_
+ * training metadata, used only for FRESH runs where no base model was remembered
+ * from prior samples. Matches the parsed reference by basename (case-insensitive,
+ * extension-stripped) against the base_model_dir options.
+ *
+ * Guards (never guesses, never overrides):
+ *  - LoRA runs only (AC: does not fire for checkpoint runs).
+ *  - Never overrides an existing/user/remembered/prefilled selection.
+ *  - Requires the base-model options to be loaded and availability to have been
+ *    fetched, so applyRememberedBaseModel always wins when it can resolve.
+ *  - No ss_ metadata / no matching option -> leaves the dropdown unselected
+ *    without surfacing an error.
+ */
+function applyMetadataBaseModelDefault() {
+  if (!isLoraRun.value) return
+  if (selectedBaseModel.value !== null) return
+  if (!availabilityFetched.value) return
+  if (baseModelOptions.value.length === 0) return
+  const reference = metadataBaseModelRef.value
+  if (reference === null) return
+
+  // Only default from metadata for a GENUINELY fresh run: if ANY study for this
+  // run already remembers a base model from prior samples, defer entirely to the
+  // study-scoped remembered value (applyRememberedBaseModel), which must win once
+  // that study is selected. The metadata default is best-effort and must never
+  // preempt or override a remembered selection.
+  const hasRememberedForAnyStudy = studyAvailability.value.some(
+    a => (a.base_models?.length ?? 0) > 0,
+  )
+  if (hasRememberedForAnyStudy) return
+
+  const target = baseNameNoExt(reference).toLowerCase()
+  const match = baseModelOptions.value.find(opt => baseNameNoExt(opt).toLowerCase() === target)
+  if (match) {
+    selectedBaseModel.value = match
+  }
+}
+
+/**
+ * S-179: Pre-select the LoRA base model, preferring the value remembered from
+ * existing samples (applyRememberedBaseModel) and falling back to the checkpoint
+ * ss_ metadata default for fresh runs. Order matters: remembered wins whenever it
+ * can resolve, so the metadata default only fills an otherwise-empty selection.
+ */
+function tryPreselectBaseModel() {
+  applyRememberedBaseModel()
+  applyMetadataBaseModelDefault()
+}
+
 /** B-143: Fetch available base models from base_model_dir (no ComfyUI dependency). */
 async function fetchBaseModels() {
   loadingBaseModels.value = true
@@ -1157,10 +1265,10 @@ async function fetchBaseModels() {
   try {
     const result = await apiClient.getBaseModels()
     baseModelOptions.value = result.models
-    // B-145: Now that the dropdown options are loaded, attempt to pre-select the
-    // remembered base model for the current run + study (no-op if already set or
-    // unresolved).
-    applyRememberedBaseModel()
+    // B-145 / S-179: Now that the dropdown options are loaded, attempt to
+    // pre-select the base model — remembered from prior samples first, then the
+    // fresh-run metadata default (no-op if already set or unresolved).
+    tryPreselectBaseModel()
   } catch {
     baseModelOptions.value = []
     // S-169: Surface the failure so an empty base-model dropdown is not mistaken
@@ -1222,6 +1330,9 @@ function resetForm() {
   // S-148: Reset LoRA-specific state
   selectedBaseModel.value = null
   baseModelOptions.value = []
+  // S-179: Reset metadata base-model default state
+  metadataBaseModelRef.value = null
+  availabilityFetched.value = false
 }
 
 /**
