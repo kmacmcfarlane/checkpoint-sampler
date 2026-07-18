@@ -7,8 +7,11 @@ import { resetDatabase, closeDrawer } from './helpers'
  * ## What is tested
  *
  * AC: FE: Job item view displays both created_at and updated_at timestamps.
- * AC: BE: Job list query sorts by updated_at DESC instead of created_at DESC
- *         (verified via the list API response; the UI sort follows this).
+ * AC: BE (original, B-133): Job list query sorts by updated_at DESC instead of
+ *         created_at DESC (verified via the list API response; the UI sort
+ *         follows this). NOTE: superseded by S-170, which changed list
+ *         ordering to created_at DESC / id DESC for stable pagination — see
+ *         the "sorted by created_at DESC" test below.
  */
 
 /** Seeds sample jobs directly via the test endpoint. */
@@ -158,14 +161,17 @@ test.describe('job timestamps (B-133)', () => {
     await expect(modal.locator('text=Updated:')).toBeVisible()
   })
 
-  // AC: BE: Job list query sorts by updated_at DESC instead of created_at DESC.
-  // Verified at the API level: two jobs with different updated_at values should be
-  // returned in updated_at DESC order.
-  test('list API returns jobs sorted by updated_at DESC', async ({ request }) => {
-    // AC: BE: Job list query sorts by updated_at DESC instead of created_at DESC.
+  // AC (superseded by S-170): The list API previously sorted by updated_at DESC
+  // (B-133). S-170 changed list ordering to created_at DESC with id DESC as a
+  // stable tiebreak so that limit/offset pagination is stable across page
+  // fetches — updated_at mutates while a job is running, which would otherwise
+  // shift a job between pages and cause duplicate/missing rows at page
+  // boundaries. See backend/internal/store/sample_job.go ListSampleJobsPage.
+  test('list API returns jobs sorted by created_at DESC (S-170)', async ({ request }) => {
     // Seed two jobs: job A was created first but updated more recently,
     // job B was created more recently but not updated since creation.
-    // The list should return job A first (most recently updated).
+    // The list should return job B first (most recently created), even though
+    // job A has the more recent updated_at — sort is by created_at, not updated_at.
     const olderCreated = '2025-01-01T10:00:00Z'
     const newerUpdated = '2025-01-03T12:00:00Z' // A was updated most recently
     const newerCreated = '2025-01-02T08:00:00Z'
@@ -188,15 +194,15 @@ test.describe('job timestamps (B-133)', () => {
       },
     ])
 
-    // Fetch the list and verify sort order (updated_at DESC: job A before job B)
+    // Fetch the list and verify sort order (created_at DESC: job B before job A)
     const listResp = await request.get('/api/v1/sample-jobs')
     expect(listResp.status()).toBe(200)
-    const jobs = await listResp.json() as Array<{ id: string; training_run_name: string; updated_at: string }>
+    const jobs = await listResp.json() as Array<{ id: string; training_run_name: string; created_at: string }>
 
     expect(jobs).toHaveLength(2)
-    // First item should be the one with the more recent updated_at (run-a)
-    expect(jobs[0].training_run_name).toBe('run-a')
-    expect(jobs[1].training_run_name).toBe('run-b')
+    // First item should be the one with the more recent created_at (run-b)
+    expect(jobs[0].training_run_name).toBe('run-b')
+    expect(jobs[1].training_run_name).toBe('run-a')
 
     // Confirm the jobIDs are the ones we seeded (order may differ from API response)
     const returnedIDs = new Set(jobs.map(j => j.id))

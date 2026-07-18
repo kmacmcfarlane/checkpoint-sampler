@@ -111,6 +111,67 @@ func (s *Store) ListSampleJobsDesc() ([]model.SampleJob, error) {
 	return jobs, nil
 }
 
+// ListSampleJobsPage returns a single page of sample jobs ordered by created_at
+// descending (newest first) with id descending as a stable tiebreak. created_at
+// is immutable, so this ordering is stable across pages even as jobs are updated
+// — a property the UI relies on for seamless lazy loading. limit bounds the page
+// size; offset skips that many rows from the start of the ordered set.
+func (s *Store) ListSampleJobsPage(limit, offset int) ([]model.SampleJob, error) {
+	s.logger.WithFields(logrus.Fields{
+		"limit":  limit,
+		"offset": offset,
+	}).Trace("entering ListSampleJobsPage")
+	defer s.logger.Trace("returning from ListSampleJobsPage")
+
+	rows, err := s.db.Query(`SELECT id, training_run_name, study_id, study_name, workflow_name, vae, clip, shift, base_model, checkpoint_filenames, clear_existing, status, total_items, completed_items, error_message, created_at, updated_at
+		FROM sample_jobs ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`, limit, offset)
+	if err != nil {
+		s.logger.WithError(err).Error("failed to query sample jobs page")
+		return nil, fmt.Errorf("querying sample jobs page: %w", err)
+	}
+	defer rows.Close()
+
+	var jobs []model.SampleJob
+	for rows.Next() {
+		var e sampleJobEntity
+		if err := rows.Scan(&e.ID, &e.TrainingRunName, &e.StudyID, &e.StudyName, &e.WorkflowName, &e.VAE, &e.CLIP, &e.Shift, &e.BaseModel, &e.CheckpointFilenames, &e.ClearExisting, &e.Status, &e.TotalItems, &e.CompletedItems, &e.ErrorMessage, &e.CreatedAt, &e.UpdatedAt); err != nil {
+			s.logger.WithError(err).Error("failed to scan sample job row")
+			return nil, fmt.Errorf("scanning sample job row: %w", err)
+		}
+		j, err := sampleJobEntityToModel(e)
+		if err != nil {
+			s.logger.WithError(err).Error("failed to convert entity to model")
+			return nil, err
+		}
+		jobs = append(jobs, j)
+	}
+	if err := rows.Err(); err != nil {
+		s.logger.WithError(err).Error("error iterating sample jobs page")
+		return nil, fmt.Errorf("iterating sample jobs page: %w", err)
+	}
+	s.logger.WithFields(logrus.Fields{
+		"limit":     limit,
+		"offset":    offset,
+		"job_count": len(jobs),
+	}).Debug("listed sample jobs page from database")
+	return jobs, nil
+}
+
+// CountSampleJobs returns the total number of sample jobs. It is used together
+// with ListSampleJobsPage so the UI knows the total across all pages.
+func (s *Store) CountSampleJobs() (int, error) {
+	s.logger.Trace("entering CountSampleJobs")
+	defer s.logger.Trace("returning from CountSampleJobs")
+
+	var count int
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM sample_jobs`).Scan(&count); err != nil {
+		s.logger.WithError(err).Error("failed to count sample jobs")
+		return 0, fmt.Errorf("counting sample jobs: %w", err)
+	}
+	s.logger.WithField("job_count", count).Debug("counted sample jobs in database")
+	return count, nil
+}
+
 // listSampleJobsOrdered is used by ListSampleJobs (ASC order for executor FIFO pickup).
 // direction must be "ASC" or "DESC".
 func (s *Store) listSampleJobsOrdered(direction string) ([]model.SampleJob, error) {

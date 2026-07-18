@@ -105,6 +105,18 @@ const prefillMissingOnly = ref(false)
 const debugMode = ref(false)
 const sampleJobs = ref<SampleJob[]>([])
 const jobsLoading = ref(false)
+/**
+ * S-170 pagination state. The job list is loaded a page at a time and older
+ * pages are prefetched invisibly as the user scrolls. jobsTotal is the total
+ * across all pages (from X-Total-Count); jobsLoadingMore guards concurrent
+ * prefetches. JOBS_PAGE_SIZE is intentionally larger than fits on screen so the
+ * first page fills the viewport with a buffer.
+ */
+const JOBS_PAGE_SIZE = 50
+const jobsTotal = ref(0)
+const jobsLoadingMore = ref(false)
+/** Whether there are more (older) jobs to lazy-load beyond what is loaded. */
+const hasMoreJobs = computed(() => sampleJobs.value.length < jobsTotal.value)
 /** The ID of the job currently being stopped, or null when no stop is in progress. */
 const stoppingJobId = ref<string | null>(null)
 /** AC: S-135: The job ID to scroll to and expand in the JobProgressPanel. Set when navigating from a failed bead. */
@@ -364,7 +376,7 @@ const {
   sampleJobs,
   jobRefreshTrigger,
   trainingRunsRefreshTrigger,
-  onUnknownJob: () => fetchSampleJobs(),
+  onUnknownJob: () => handleUnknownJob(),
 })
 
 // Register job progress and inference progress listeners
@@ -686,16 +698,82 @@ function onPresetDelete(presetId: string) {
   }
 }
 
-/** Fetch all sample jobs. */
+/** Fetch the first page of sample jobs, replacing the accumulated list. */
 async function fetchSampleJobs() {
   jobsLoading.value = true
   try {
-    sampleJobs.value = await apiClient.listSampleJobs()
+    const page = await apiClient.listSampleJobsPage(JOBS_PAGE_SIZE, 0)
+    sampleJobs.value = page.jobs
+    jobsTotal.value = page.total
   } catch (err: unknown) {
     console.warn('Failed to fetch sample jobs:', err)
     sampleJobs.value = []
+    jobsTotal.value = 0
   } finally {
     jobsLoading.value = false
+  }
+}
+
+/**
+ * Prefetch the next page of older jobs and append them, deduping by id.
+ *
+ * Called ahead of the scroll position (see JobProgressPanel's IntersectionObserver
+ * with a large rootMargin) so loading is invisible. The offset is the current
+ * loaded count; because created_at ordering is stable, appending never drops or
+ * reorders already-loaded jobs. Deduping by id absorbs the one-row overlap that
+ * can occur when a brand-new job shifts server offsets while paging.
+ *
+ * Edge case: if a job BELOW the currently loaded window is deleted between two
+ * page fetches, the offset-based seam can skip a single job at the page boundary.
+ * This is rare (deletion is manual) and self-heals on the next full refresh
+ * (Refresh button / panel reopen), so it is accepted rather than tracked with a
+ * server cursor.
+ */
+async function loadMoreJobs() {
+  if (jobsLoadingMore.value || !hasMoreJobs.value) return
+  jobsLoadingMore.value = true
+  try {
+    const page = await apiClient.listSampleJobsPage(JOBS_PAGE_SIZE, sampleJobs.value.length)
+    const existingIds = new Set(sampleJobs.value.map(j => j.id))
+    const newJobs = page.jobs.filter(j => !existingIds.has(j.id))
+    if (newJobs.length > 0) {
+      sampleJobs.value = [...sampleJobs.value, ...newJobs]
+    }
+    jobsTotal.value = page.total
+  } catch (err: unknown) {
+    console.warn('Failed to load more sample jobs:', err)
+  } finally {
+    jobsLoadingMore.value = false
+  }
+}
+
+/**
+ * Handle a WebSocket job_progress event that references a job not yet loaded.
+ *
+ * This fires for brand-new jobs (a job that just started while the user may be
+ * scrolled down through older pages). Rather than resetting to page 1 — which
+ * would discard already-loaded older pages and the user's scroll position — we
+ * fetch the first page and prepend only the genuinely new jobs. New jobs always
+ * have the newest created_at, so prepending keeps the accumulated list in the
+ * same created_at DESC order the server pagination assumes.
+ */
+async function handleUnknownJob() {
+  try {
+    const page = await apiClient.listSampleJobsPage(JOBS_PAGE_SIZE, 0)
+    if (sampleJobs.value.length === 0) {
+      // Nothing loaded yet (panel never opened): treat as an initial load.
+      sampleJobs.value = page.jobs
+      jobsTotal.value = page.total
+      return
+    }
+    const existingIds = new Set(sampleJobs.value.map(j => j.id))
+    const brandNew = page.jobs.filter(j => !existingIds.has(j.id))
+    if (brandNew.length > 0) {
+      sampleJobs.value = [...brandNew, ...sampleJobs.value]
+    }
+    jobsTotal.value = page.total
+  } catch (err: unknown) {
+    console.warn('Failed to refresh sample jobs for new job:', err)
   }
 }
 
@@ -1096,6 +1174,8 @@ async function handleSlideoutValidationRefresh() {
         :job-progress="jobProgress"
         :inference-progress="inferenceProgress"
         :loading="jobsLoading"
+        :loading-more="jobsLoadingMore"
+        :has-more="hasMoreJobs"
         :stopping-job-id="stoppingJobId"
         :scroll-to-job-id="scrollToJobId"
         @stop="stopJob"
@@ -1105,6 +1185,7 @@ async function handleSlideoutValidationRefresh() {
         @validate-regenerate="handleValidationRegenerate"
         @delete="deleteJob"
         @refresh="fetchSampleJobs"
+        @load-more="loadMoreJobs"
         @close="jobProgressPanelOpen = false; scrollToJobId = null"
       />
       <SettingsDialog

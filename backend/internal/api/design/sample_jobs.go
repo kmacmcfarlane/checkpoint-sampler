@@ -8,12 +8,37 @@ var _ = Service("sample_jobs", func() {
 	Description("Sample job orchestration service")
 
 	Method("list", func() {
-		Description("List all sample jobs (newest first)")
-		Result(ArrayOf(SampleJobResponse))
+		Description("List sample jobs (newest first) with limit/offset pagination. " +
+			"Jobs are ordered by created_at DESC with id DESC as a stable tiebreak. " +
+			"The total count of jobs across all pages is returned in the X-Total-Count " +
+			"response header so the UI can lazy-load additional pages. List entries omit " +
+			"the per-item Python traceback blobs (retained on the show endpoint).")
+		Payload(func() {
+			Attribute("limit", Int, "Maximum number of jobs to return in this page", func() {
+				Minimum(1)
+				Maximum(200)
+				Default(50)
+				Example(50)
+			})
+			Attribute("offset", Int, "Number of jobs to skip before this page (0-based)", func() {
+				Minimum(0)
+				Default(0)
+				Example(0)
+			})
+		})
+		Result(SampleJobListResponse)
 		Error("internal_error", ErrorResult, "Internal server error")
 		HTTP(func() {
 			GET("/api/v1/sample-jobs")
-			Response(StatusOK)
+			Param("limit")
+			Param("offset")
+			Response(StatusOK, func() {
+				// The response body is the bare jobs array (backward compatible with
+				// pre-pagination clients); the total count travels in a header so the
+				// body shape does not change.
+				Body("jobs")
+				Header("total:X-Total-Count")
+			})
 			Response("internal_error", StatusInternalServerError)
 		})
 	})
@@ -215,6 +240,68 @@ var SampleJobResponse = Type("SampleJobResponse", func() {
 		Example("2025-01-01T00:00:00Z")
 	})
 	Required("id", "training_run_name", "study_id", "study_name", "workflow_name", "status", "total_items", "completed_items", "failed_items", "pending_items", "checkpoint_filenames", "created_at", "updated_at")
+})
+
+// SampleJobSummaryResponse is the list-view representation of a sample job. It
+// mirrors SampleJobResponse but its failed_item_details omit the full Python
+// traceback blob (FailedItemSummaryResponse), so paginated list responses do not
+// carry unbounded traceback payloads. The full traceback is retained on the show
+// endpoint (SampleJobDetailResponse.job uses SampleJobResponse).
+var SampleJobSummaryResponse = Type("SampleJobSummaryResponse", func() {
+	Description("A sample job summary for list views (omits per-item tracebacks)")
+	Reference(SampleJobResponse)
+	Attribute("id")
+	Attribute("training_run_name")
+	Attribute("study_id")
+	Attribute("study_name")
+	Attribute("workflow_name")
+	Attribute("vae")
+	Attribute("clip")
+	Attribute("shift")
+	Attribute("base_model")
+	Attribute("status")
+	Attribute("total_items")
+	Attribute("completed_items")
+	Attribute("failed_items")
+	Attribute("pending_items")
+	Attribute("failed_item_details", ArrayOf(FailedItemSummaryResponse), "Details of failed checkpoints without tracebacks (populated only when job has failed items)")
+	Attribute("checkpoint_filenames")
+	Attribute("error_message")
+	Attribute("created_at")
+	Attribute("updated_at")
+	Required("id", "training_run_name", "study_id", "study_name", "workflow_name", "status", "total_items", "completed_items", "failed_items", "pending_items", "checkpoint_filenames", "created_at", "updated_at")
+})
+
+// SampleJobListResponse is a page of sample jobs. The jobs array is serialized as
+// the HTTP response body (see Body("jobs") in the list method) while total is
+// returned in the X-Total-Count header for pagination.
+var SampleJobListResponse = Type("SampleJobListResponse", func() {
+	Description("A page of sample jobs with the total count for lazy pagination")
+	Attribute("jobs", ArrayOf(SampleJobSummaryResponse), "The page of sample jobs, newest first (created_at DESC, id DESC)")
+	Attribute("total", Int, "Total number of sample jobs across all pages", func() {
+		Example(1234)
+	})
+	Required("jobs", "total")
+})
+
+// FailedItemSummaryResponse is the list-view representation of a failed checkpoint.
+// It intentionally omits the traceback field carried by FailedItemDetailResponse
+// so that list responses do not embed full Python stack traces.
+var FailedItemSummaryResponse = Type("FailedItemSummaryResponse", func() {
+	Description("Details of a failed checkpoint for list views (omits the full Python traceback)")
+	Attribute("checkpoint_filename", String, "Checkpoint filename that failed", func() {
+		Example("psai4rt-v0.3.0-no-reg-step00004500.safetensors")
+	})
+	Attribute("error_message", String, "Error message describing the failure", func() {
+		Example("[RuntimeError] VAEDecode: sizes must match")
+	})
+	Attribute("exception_type", String, "Python exception type from ComfyUI (e.g. RuntimeError)", func() {
+		Example("RuntimeError")
+	})
+	Attribute("node_type", String, "ComfyUI node type that failed (e.g. VAEDecode)", func() {
+		Example("VAEDecode")
+	})
+	Required("checkpoint_filename", "error_message")
 })
 
 var FailedItemDetailResponse = Type("FailedItemDetailResponse", func() {

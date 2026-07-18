@@ -372,6 +372,65 @@ var _ = Describe("SampleJob Store", func() {
 			})
 		})
 
+		Describe("ListSampleJobsPage / CountSampleJobs (S-170 pagination)", func() {
+			// makeJob builds a minimal valid job with a given id and created_at.
+			makeJob := func(id string, createdAt time.Time) model.SampleJob {
+				return model.SampleJob{
+					ID:              id,
+					TrainingRunName: "test-run",
+					StudyID:         "study-1",
+					StudyName:       "Test Study",
+					WorkflowName:    "flux-dev",
+					Status:          model.SampleJobStatusPending,
+					TotalItems:      1,
+					CompletedItems:  0,
+					CreatedAt:       createdAt,
+					UpdatedAt:       createdAt,
+				}
+			}
+
+			It("orders by created_at DESC with id DESC as a stable tiebreak and paginates", func() {
+				now := time.Now().UTC().Truncate(time.Second)
+				// job-a and job-b share the same created_at → id DESC breaks the tie
+				// (job-b before job-a). job-c is newest and sorts first.
+				Expect(s.CreateSampleJob(makeJob("job-a", now.Add(-1*time.Hour)))).To(Succeed())
+				Expect(s.CreateSampleJob(makeJob("job-b", now.Add(-1*time.Hour)))).To(Succeed())
+				Expect(s.CreateSampleJob(makeJob("job-c", now))).To(Succeed())
+
+				count, err := s.CountSampleJobs()
+				Expect(err).NotTo(HaveOccurred())
+				Expect(count).To(Equal(3))
+
+				// Page 1 (limit 2, offset 0): job-c (newest), then job-b (tiebreak).
+				page1, err := s.ListSampleJobsPage(2, 0)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(page1).To(HaveLen(2))
+				Expect(page1[0].ID).To(Equal("job-c"))
+				Expect(page1[1].ID).To(Equal("job-b"))
+
+				// Page 2 (limit 2, offset 2): remaining job-a only (partial page).
+				page2, err := s.ListSampleJobsPage(2, 2)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(page2).To(HaveLen(1))
+				Expect(page2[0].ID).To(Equal("job-a"))
+
+				// Offset past the end returns an empty page (no error).
+				page3, err := s.ListSampleJobsPage(2, 10)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(page3).To(BeEmpty())
+			})
+
+			It("returns an empty page and zero count when no jobs exist", func() {
+				count, err := s.CountSampleJobs()
+				Expect(err).NotTo(HaveOccurred())
+				Expect(count).To(Equal(0))
+
+				page, err := s.ListSampleJobsPage(50, 0)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(page).To(BeEmpty())
+			})
+		})
+
 		Describe("GetSampleJob", func() {
 			BeforeEach(func() {
 				err := s.CreateSampleJob(sampleJob)

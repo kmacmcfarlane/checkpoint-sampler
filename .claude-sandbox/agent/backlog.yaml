@@ -2009,7 +2009,7 @@ stories:
   - id: S-170
     title: "Paginate GET /api/sample-jobs with invisible lazy loading in the UI; strip tracebacks from list view"
     priority: 55
-    status: todo
+    status: uat
     complexity: medium
     requires: []
     acceptance:

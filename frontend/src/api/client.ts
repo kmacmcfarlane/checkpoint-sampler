@@ -1,4 +1,4 @@
-import type { AffectedRun, ApiError, ApiErrorResponse, AppConfig, BaseModelsResult, CheckpointMetadata, ComfyUIModelType, ComfyUIModels, ComfyUIStatus, CreateSampleJobPayload, CreateStudyPayload, DemoStatus, ForkStudyPayload, HasSamplesResponse, HealthStatus, ImageMetadata, Preset, PresetMapping, SampleJob, SampleJobDetail, Study, StudyAvailability, ScanResult, TrainingRun, UpdateStudyPayload, ValidationResult, WorkflowSummary } from './types'
+import type { AffectedRun, ApiError, ApiErrorResponse, AppConfig, BaseModelsResult, CheckpointMetadata, ComfyUIModelType, ComfyUIModels, ComfyUIStatus, CreateSampleJobPayload, CreateStudyPayload, DemoStatus, ForkStudyPayload, HasSamplesResponse, HealthStatus, ImageMetadata, Preset, PresetMapping, SampleJob, SampleJobDetail, SampleJobPage, Study, StudyAvailability, ScanResult, TrainingRun, UpdateStudyPayload, ValidationResult, WorkflowSummary } from './types'
 
 const DEFAULT_BASE_URL = '/api/v1'
 
@@ -262,9 +262,62 @@ export class ApiClient {
     return this.request<WorkflowSummary[]>('/workflows')
   }
 
-  /** GET /api/v1/sample-jobs — list all sample jobs. */
+  /**
+   * GET /api/v1/sample-jobs — list a page of sample jobs (newest first) together
+   * with the total count across all pages.
+   *
+   * Supports limit/offset pagination so the UI can lazily prefetch older jobs
+   * without loading the entire (unbounded) history at once. The response body is
+   * the page array; the total count is read from the X-Total-Count header. When
+   * the header is absent (older/edge responses), the page length is used as a
+   * fallback total so callers never over-fetch.
+   */
+  async listSampleJobsPage(limit = 50, offset = 0): Promise<SampleJobPage> {
+    const url = `${this.baseUrl}/sample-jobs?limit=${limit}&offset=${offset}`
+    let response: Response
+    try {
+      response = await fetch(url)
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Network error'
+      throw { code: 'NETWORK_ERROR', message } satisfies ApiError
+    }
+    if (!response.ok) {
+      throw await normalizeError(response)
+    }
+    const jobs = (await response.json()) as SampleJob[]
+    const totalHeader = response.headers.get('X-Total-Count')
+    const parsedTotal = totalHeader !== null ? parseInt(totalHeader, 10) : NaN
+    const total = Number.isNaN(parsedTotal) ? jobs.length : parsedTotal
+    return { jobs, total }
+  }
+
+  /**
+   * GET /api/v1/sample-jobs — list ALL sample jobs (newest first).
+   *
+   * Loops {@link listSampleJobsPage} until every job across all pages has been
+   * collected. This is required by consumers that reason over the full job
+   * history rather than the newest page — notably JobLaunchDialog's per-run bead
+   * status (getRunStatus), failed-bead navigation (findMostRecentFailedJobId),
+   * and useSampleAvailability. Using only the first (paginated) page would give a
+   * wrong/empty bead for any run whose newest job falls outside the global
+   * newest-page window once more than one page of jobs exists.
+   *
+   * The number of requests is bounded by ceil(total / 200). A dedicated per-run
+   * aggregate endpoint would avoid pulling full history here (tracked as a
+   * follow-up idea); this loop is the interim, correctness-first implementation.
+   */
   async listSampleJobs(): Promise<SampleJob[]> {
-    return this.request<SampleJob[]>('/sample-jobs')
+    const pageSize = 200 // backend max limit — minimizes the number of requests
+    const all: SampleJob[] = []
+    let offset = 0
+    for (;;) {
+      const { jobs, total } = await this.listSampleJobsPage(pageSize, offset)
+      all.push(...jobs)
+      offset += jobs.length
+      // Stop when a page comes back empty (defensive) or we have the full set.
+      if (jobs.length === 0 || all.length >= total) break
+    }
+    return all
   }
 
   /** GET /api/v1/sample-jobs/{id} — get sample job details with progress metrics. */

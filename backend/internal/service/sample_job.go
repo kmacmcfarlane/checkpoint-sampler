@@ -20,6 +20,11 @@ import (
 type SampleJobStore interface {
 	ListSampleJobs() ([]model.SampleJob, error)
 	ListSampleJobsDesc() ([]model.SampleJob, error)
+	// ListSampleJobsPage returns a single page of jobs ordered created_at DESC,
+	// id DESC (stable across pages) for lazy-loaded UI pagination.
+	ListSampleJobsPage(limit, offset int) ([]model.SampleJob, error)
+	// CountSampleJobs returns the total number of jobs across all pages.
+	CountSampleJobs() (int, error)
 	GetSampleJob(id string) (model.SampleJob, error)
 	HasRunningJob() (bool, error)
 	// CreateSampleJobWithItems inserts the job and all of its items atomically in
@@ -166,21 +171,37 @@ func (s *SampleJobService) clearCheckpointOutputDirs(job model.SampleJob) {
 	}
 }
 
-// List returns all sample jobs ordered by creation time (newest first) for UI display.
-func (s *SampleJobService) List() ([]model.SampleJob, error) {
-	s.logger.Trace("entering List")
+// List returns a page of sample jobs ordered by creation time (newest first,
+// created_at DESC with id DESC tiebreak) for UI display, along with the total
+// number of jobs across all pages so the caller can lazy-load additional pages.
+//
+// limit bounds the page size and offset skips that many jobs from the newest.
+// Both are expected to be pre-validated/defaulted by the transport layer.
+func (s *SampleJobService) List(limit, offset int) ([]model.SampleJob, int, error) {
+	s.logger.WithFields(logrus.Fields{
+		"limit":  limit,
+		"offset": offset,
+	}).Trace("entering List")
 	defer s.logger.Trace("returning from List")
 
-	jobs, err := s.store.ListSampleJobsDesc()
+	jobs, err := s.store.ListSampleJobsPage(limit, offset)
 	if err != nil {
-		s.logger.WithError(err).Error("failed to list sample jobs")
-		return nil, fmt.Errorf("listing sample jobs: %w", err)
+		s.logger.WithError(err).Error("failed to list sample jobs page")
+		return nil, 0, fmt.Errorf("listing sample jobs: %w", err)
 	}
-	s.logger.WithField("job_count", len(jobs)).Debug("sample jobs retrieved from store")
+	total, err := s.store.CountSampleJobs()
+	if err != nil {
+		s.logger.WithError(err).Error("failed to count sample jobs")
+		return nil, 0, fmt.Errorf("counting sample jobs: %w", err)
+	}
+	s.logger.WithFields(logrus.Fields{
+		"job_count": len(jobs),
+		"total":     total,
+	}).Debug("sample jobs page retrieved from store")
 	if jobs == nil {
 		jobs = []model.SampleJob{}
 	}
-	return jobs, nil
+	return jobs, total, nil
 }
 
 // ListProgress returns per-job item progress for every job, keyed by job ID.

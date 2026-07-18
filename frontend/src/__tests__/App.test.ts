@@ -31,6 +31,7 @@ vi.mock('../api/client', () => ({
       ],
     }),
     listSampleJobs: vi.fn().mockResolvedValue([]),
+    listSampleJobsPage: vi.fn().mockResolvedValue({ jobs: [], total: 0 }),
     getPresets: vi.fn().mockResolvedValue([]),
   },
 }))
@@ -40,6 +41,8 @@ import { apiClient } from '../api/client'
 const mockGetTrainingRuns = apiClient.getTrainingRuns as ReturnType<typeof vi.fn>
 const mockScanTrainingRun = apiClient.scanTrainingRun as ReturnType<typeof vi.fn>
 const mockListSampleJobs = apiClient.listSampleJobs as ReturnType<typeof vi.fn>
+// S-170: App.vue loads jobs via the paginated listSampleJobsPage ({ jobs, total }).
+const mockListSampleJobsPage = apiClient.listSampleJobsPage as ReturnType<typeof vi.fn>
 const mockGetPresets = apiClient.getPresets as ReturnType<typeof vi.fn>
 
 const mockTrainingRun: TrainingRun = {
@@ -121,6 +124,8 @@ describe('App', () => {
     mockGetTrainingRuns.mockClear()
     mockScanTrainingRun.mockClear()
     mockListSampleJobs.mockClear()
+    mockListSampleJobsPage.mockClear()
+    mockListSampleJobsPage.mockResolvedValue({ jobs: [], total: 0 })
     mockGetPresets.mockClear()
     vi.stubGlobal('matchMedia', createMatchMediaMock(false))
     mockWebSocketInstances = []
@@ -1422,7 +1427,7 @@ describe('App', () => {
     }
 
     async function mountAndSelectRun(run: TrainingRun, jobs: SampleJob[]) {
-      mockListSampleJobs.mockResolvedValue(jobs)
+      mockListSampleJobsPage.mockResolvedValue({ jobs, total: jobs.length })
       Object.defineProperty(window, 'innerWidth', { value: 1200, configurable: true })
       vi.stubGlobal('matchMedia', createMatchMediaMock(true))
 
@@ -1508,6 +1513,34 @@ describe('App', () => {
       expect(bead.attributes('title')).toBe('complete_with_errors')
       expect(bead.attributes('style')).toContain('rgb(240, 160, 32)')
     })
+
+    // AC3/AC4 (S-170): older pages load seamlessly and accumulate; paging stops
+    // at the boundary once every job is loaded.
+    it('appends the next page of jobs on load-more and stops at the total boundary', async () => {
+      const firstPage = [makeJob('completed', 'empty-run'), makeJob('completed', 'empty-run')]
+      // Distinct ids so dedupe/accumulation is observable.
+      firstPage[0].id = 'job-p1-a'
+      firstPage[1].id = 'job-p1-b'
+      const secondPage = [makeJob('completed', 'empty-run')]
+      secondPage[0].id = 'job-p2-a'
+
+      // Initial fetch (offset 0) returns page 1 of a 3-job total.
+      mockListSampleJobsPage.mockResolvedValueOnce({ jobs: firstPage, total: 3 })
+      const wrapper = await mountAndSelectRun(emptyRun, firstPage)
+
+      const panel = wrapper.findComponent({ name: 'JobProgressPanel' })
+      expect(panel.props('jobs')).toHaveLength(2)
+      expect(panel.props('hasMore')).toBe(true)
+
+      // load-more fetches offset 2 → the final job; total unchanged.
+      mockListSampleJobsPage.mockResolvedValueOnce({ jobs: secondPage, total: 3 })
+      panel.vm.$emit('loadMore')
+      await flushPromises()
+
+      expect(mockListSampleJobsPage).toHaveBeenLastCalledWith(50, 2)
+      expect(panel.props('jobs')).toHaveLength(3)
+      expect(panel.props('hasMore')).toBe(false)
+    })
   })
 
   // S-073: Per-sample inference progress bar reset behavior
@@ -1536,7 +1569,7 @@ describe('App', () => {
      * Returns the wrapper and the mock WebSocket instance.
      */
     async function mountWithRunningJob() {
-      mockListSampleJobs.mockResolvedValue([runningJob])
+      mockListSampleJobsPage.mockResolvedValue({ jobs: [runningJob], total: 1 })
 
       const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
@@ -1670,7 +1703,7 @@ describe('App', () => {
     }
 
     async function mountWithFlipJob() {
-      mockListSampleJobs.mockResolvedValue([runningJob])
+      mockListSampleJobsPage.mockResolvedValue({ jobs: [runningJob], total: 1 })
       const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
 
@@ -1885,7 +1918,7 @@ describe('App', () => {
     }
 
     async function mountWithETAJob() {
-      mockListSampleJobs.mockResolvedValue([runningJob])
+      mockListSampleJobsPage.mockResolvedValue({ jobs: [runningJob], total: 1 })
       const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
 
@@ -2021,7 +2054,7 @@ describe('App', () => {
     }
 
     async function mountWithFirstSampleJob() {
-      mockListSampleJobs.mockResolvedValue([firstSampleJob])
+      mockListSampleJobsPage.mockResolvedValue({ jobs: [firstSampleJob], total: 1 })
       const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
       await flushPromises()
 
