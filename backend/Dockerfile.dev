@@ -2,9 +2,12 @@ FROM golang:1.25-alpine
 
 RUN apk add --no-cache gcc musl-dev make
 
+# goa CLI version is pinned in internal/api/generate.go's go:generate
+# directive (must match goa.design/goa/v3 in go.mod). `go generate` invokes
+# it via `go run`, so no goa binary needs to be pre-installed.
+
 RUN go install github.com/air-verse/air@latest && \
-    go install github.com/onsi/ginkgo/v2/ginkgo@latest && \
-    go install goa.design/goa/v3/cmd/goa@latest
+    go install github.com/onsi/ginkgo/v2/ginkgo@latest
 
 # Make Go module cache and tooling readable by any user
 RUN chmod -R a+rX /go

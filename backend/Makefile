@@ -6,6 +6,10 @@ LDFLAGS = -X github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/buildi
 # Pinned mockery version. Bump deliberately; output is deterministic per version.
 MOCKERY_VERSION = v3.7.1
 
+# goa CLI version is pinned in internal/api/generate.go's go:generate
+# directive (must match goa.design/goa/v3 in go.mod). This is the single
+# source of truth; `go generate` invokes it via `go run`, so no goa binary
+# needs to be pre-installed on PATH.
 gen:
 	go generate ./internal/api/...
 
