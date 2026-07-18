@@ -127,3 +127,9 @@ The `config-with-comfyui.yaml` E2E fixture needs `allowed_origins: [http://front
 * priority: low
 * source: developer
 `cd backend && make gen` fails in a fresh sandbox because the `goa` binary is not on PATH. The target could `go install` the version pinned in `go.mod` (or document the prerequisite) so codegen works out of the box without a manual `go install goa.design/goa/v3/cmd/goa@<version>`.
+
+### Untrack stale gen/demo/ files
+* status: needs_approval
+* priority: low
+* source: developer
+12 files under `backend/internal/api/gen/demo/**` and `gen/http/demo/**` remain git-tracked even though the entire `gen/` directory is gitignored (they pre-date the ignore rule). They currently regenerate byte-identical so there's no correctness risk, but a future demo-design change could surface a confusing diff that looks like it must be committed. A small cleanup story could `git rm --cached` these paths. (Surfaced during B-170.)
