@@ -25,18 +25,18 @@ var _ = Describe("originAllowed (same-host origin policy)", func() {
 		Entry("same host different scheme", "https://example.com", "example.com", nil, true),
 
 		// IP-based same-host access.
-		Entry("same IP host", "http://192.168.1.10:5173", "192.168.1.10:8080", nil, true),
+		Entry("same IP host", "http://198.51.100.10:5173", "198.51.100.10:8080", nil, true),
 
 		// Caddy reverse proxy preserves Host header (hostname matches).
-		Entry("proxied host preserved", "https://checkpoint-sampler.mcfacehead.com", "checkpoint-sampler.mcfacehead.com", nil, true),
+		Entry("proxied host preserved", "https://checkpoint-sampler.example.com", "checkpoint-sampler.example.com", nil, true),
 
 		// Regression (S-151 UAT): Vite dev proxy without changeOrigin preserves the
 		// browser Host, so a LAN-IP dev client (Origin and Host share hostname, only
 		// the WS handshake carries Origin) must upgrade successfully.
-		Entry("dev LAN-IP same host WS upgrade", "http://192.168.1.241:3000", "192.168.1.241:3000", nil, true),
-		Entry("dev LAN-IP proxied to backend port", "http://192.168.1.241:3000", "192.168.1.241:8080", nil, true),
+		Entry("dev LAN-IP same host WS upgrade", "http://198.51.100.241:3000", "198.51.100.241:3000", nil, true),
+		Entry("dev LAN-IP proxied to backend port", "http://198.51.100.241:3000", "198.51.100.241:8080", nil, true),
 		// Regression: a genuine cross-host Origin from the dev LAN client is rejected.
-		Entry("dev LAN-IP cross-host rejected", "http://192.168.1.241:3000", "192.168.1.99:3000", nil, false),
+		Entry("dev LAN-IP cross-host rejected", "http://198.51.100.241:3000", "198.51.100.99:3000", nil, false),
 
 		// Different host: rejected by default.
 		Entry("different host", "http://evil.com", "example.com", nil, false),

@@ -668,13 +668,13 @@ checkpoint_dirs:
   - "` + filepath.Join(tmpDir, "checkpoints") + `"
 sample_dir: "` + sampleDir + `"
 allowed_origins:
-  - https://checkpoint-sampler.mcfacehead.com
+  - https://checkpoint-sampler.example.com
   - app.example.com
 `
 				cfg, err := config.LoadFromString(yamlStr)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(cfg.AllowedOrigins).To(Equal([]string{
-					"https://checkpoint-sampler.mcfacehead.com",
+					"https://checkpoint-sampler.example.com",
 					"app.example.com",
 				}))
 			})
@@ -705,12 +705,12 @@ checkpoint_dirs:
   - "` + filepath.Join(tmpDir, "checkpoints") + `"
 sample_dir: "` + sampleDir + `"
 comfyui:
-  url: "http://192.168.1.100:8188"
+  url: "http://192.0.2.100:8188"
 `
 				cfg, err := config.LoadFromString(yamlStr)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(cfg.ComfyUI).NotTo(BeNil())
-				Expect(cfg.ComfyUI.URL).To(Equal("http://192.168.1.100:8188"))
+				Expect(cfg.ComfyUI.URL).To(Equal("http://192.0.2.100:8188"))
 			})
 
 			It("uses default URL when not specified", func() {

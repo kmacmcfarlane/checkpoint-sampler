@@ -5,6 +5,9 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-164: Scrub personal domains and paths from docs and test fixtures
+- Replaced personal-infrastructure identifiers with documentation-reserved equivalents ahead of public release (no behavior change): `/home/rt/ai/...` example paths in `docs/filesystem.md` and `docs/spike-lora-support.md` → `/path/to/...` placeholders; `checkpoint-sampler.mcfacehead.com` → `example.com` and private `192.168.x` IPs → RFC 5737 doc ranges (`192.0.2.x`, `198.51.100.x`) across the CORS, origin-policy, config, and ComfyUI-WS test fixtures
+
 ### S-167: Vulnerability audit tooling — make audit + pre-push hook + AGENT_FLOW step; catch up current findings
 - Added `make audit` (via `scripts/audit.sh`): runs govulncheck on the backend reachable set plus `npm audit --omit=dev --audit-level=high` on frontend production deps, failing on high-severity findings. Offline runs degrade to a LOUD warning and soft-skip (never a silent green pass) — network errors are distinguished from real findings by `classify_result`, with the `Vulnerability #` marker checked before the network-error patterns so a real govulncheck finding can never be misclassified as offline. govulncheck is pinned via `GOVULNCHECK_VERSION` (v1.6.0); unit tests for the classifier live in `scripts/test-audit.sh`
 - Added `make install-hooks` (sets `core.hooksPath` → `scripts/git-hooks`) and a versioned `scripts/git-hooks/pre-push` that runs `make audit` before every push; both documented in the README's new "Dependency audit and git hooks" section

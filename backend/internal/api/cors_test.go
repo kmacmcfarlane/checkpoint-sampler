@@ -100,14 +100,14 @@ var _ = Describe("CORSMiddleware", func() {
 		var handler http.Handler
 
 		BeforeEach(func() {
-			handler = api.CORSMiddleware([]string{"https://checkpoint-sampler.mcfacehead.com"})(inner)
+			handler = api.CORSMiddleware([]string{"https://checkpoint-sampler.example.com"})(inner)
 		})
 
 		It("allows an Origin matching an allowed_origins entry on a different host", func() {
-			handler.ServeHTTP(recorder, newReq(http.MethodGet, "10.0.0.5:8080", "https://checkpoint-sampler.mcfacehead.com"))
+			handler.ServeHTTP(recorder, newReq(http.MethodGet, "10.0.0.5:8080", "https://checkpoint-sampler.example.com"))
 
 			Expect(recorder.Code).To(Equal(http.StatusOK))
-			Expect(recorder.Header().Get("Access-Control-Allow-Origin")).To(Equal("https://checkpoint-sampler.mcfacehead.com"))
+			Expect(recorder.Header().Get("Access-Control-Allow-Origin")).To(Equal("https://checkpoint-sampler.example.com"))
 		})
 
 		It("rejects an Origin not in allowed_origins and not same-host", func() {

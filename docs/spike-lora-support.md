@@ -47,7 +47,7 @@ lora_dirs:
 base_model_dir: /data/models
 ```
 
-Docker compose / sandbox: mount `/home/rt/ai/models/stable-diffusion` → `/data/models`.
+Docker compose / sandbox: mount `/path/to/models/stable-diffusion` → `/data/models`.
 
 ### 2. Model (`model/training_run.go`)
 

@@ -198,9 +198,9 @@ The `_NNNNN_` suffix (e.g., `_00001_`) is a ComfyUI batch counter. It is **not**
 
 ```yaml
 checkpoint_dirs:
-  - /home/rt/ai/models-training/stable-diffusion/checkpoints
+  - /path/to/models-training/stable-diffusion/checkpoints
 
-sample_dir: /home/rt/ai/outputs/stable-diffusion/comfyui
+sample_dir: /path/to/outputs/stable-diffusion/comfyui
 
 port: 8080
 db_path: ./data/checkpoint-sampler.db
