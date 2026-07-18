@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 
@@ -88,7 +89,7 @@ func parseAndValidate(raw yamlConfig) (*model.Config, error) {
 		raw.IPAddress = "127.0.0.1"
 	}
 	if raw.DBPath == "" {
-		raw.DBPath = "./data/"
+		raw.DBPath = "./data/checkpoint-sampler.db"
 	}
 	wsPingInterval := 30 // default: 30 seconds
 	if raw.WsPingInterval != nil {
@@ -101,6 +102,14 @@ func parseAndValidate(raw yamlConfig) (*model.Config, error) {
 	maxStudyItems := 50000 // default: 50,000 total work items per study/job
 	if raw.MaxStudyItems != nil {
 		maxStudyItems = *raw.MaxStudyItems
+	}
+
+	// Validate db_path: must look like a file path, not a directory.
+	if strings.HasSuffix(raw.DBPath, "/") || strings.HasSuffix(raw.DBPath, string(os.PathSeparator)) {
+		return nil, fmt.Errorf("config: db_path must be a file path")
+	}
+	if info, err := os.Stat(raw.DBPath); err == nil && info.IsDir() {
+		return nil, fmt.Errorf("config: db_path must be a file path")
 	}
 
 	// Validate checkpoint_dirs

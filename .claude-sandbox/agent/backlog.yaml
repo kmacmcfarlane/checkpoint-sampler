@@ -1737,7 +1737,7 @@ stories:
   - id: B-167
     title: "Default db_path './data/' is a directory — SQLite crashes with cryptic 'unable to open database file (14)'"
     priority: 80
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:
