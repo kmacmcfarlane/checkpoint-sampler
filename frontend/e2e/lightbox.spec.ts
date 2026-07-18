@@ -74,7 +74,7 @@ test.describe('image lightbox interaction', () => {
 
     // The image src should point to the API images endpoint
     const src = await fullSizeImage.getAttribute('src')
-    expect(src).toContain('/api/images/')
+    expect(src).toContain('/api/v1/images/')
   })
 
   test('zoom controls are visible and functional in the lightbox', async ({ page }) => {
@@ -307,7 +307,7 @@ test.describe('lightbox keyboard navigation (Shift+Arrow)', () => {
     // Record the initial image src
     const fullSizeImage = lightbox.locator('img[alt="Full-size image"]')
     const initialSrc = await fullSizeImage.getAttribute('src')
-    expect(initialSrc).toContain('/api/images/')
+    expect(initialSrc).toContain('/api/v1/images/')
 
     // Press Shift+ArrowRight to navigate to the next image
     await page.keyboard.press('Shift+ArrowRight')
@@ -315,7 +315,7 @@ test.describe('lightbox keyboard navigation (Shift+Arrow)', () => {
     // The image src should change to a different image
     await expect(fullSizeImage).not.toHaveAttribute('src', initialSrc!)
     const newSrc = await fullSizeImage.getAttribute('src')
-    expect(newSrc).toContain('/api/images/')
+    expect(newSrc).toContain('/api/v1/images/')
     expect(newSrc).not.toBe(initialSrc)
   })
 
@@ -359,7 +359,7 @@ test.describe('lightbox keyboard navigation (Shift+Arrow)', () => {
     // Wait for image to update before reading (avoids async race under CPU contention)
     await expect(fullSizeImage).not.toHaveAttribute('src', firstSrc!)
     const wrappedSrc = await fullSizeImage.getAttribute('src')
-    expect(wrappedSrc).toContain('/api/images/')
+    expect(wrappedSrc).toContain('/api/v1/images/')
     expect(wrappedSrc).not.toBe(firstSrc)
 
     // Press Shift+ArrowRight on the last image — should wrap back to the first image
@@ -414,7 +414,7 @@ test.describe('lightbox Y-axis keyboard navigation (Shift+Up/Down)', () => {
 
     const fullSizeImage = lightbox.locator('img[alt="Full-size image"]')
     const initialSrc = await fullSizeImage.getAttribute('src')
-    expect(initialSrc).toContain('/api/images/')
+    expect(initialSrc).toContain('/api/v1/images/')
 
     // Press Shift+ArrowDown to navigate down one row (same column, next Y value)
     await page.keyboard.press('Shift+ArrowDown')
@@ -422,7 +422,7 @@ test.describe('lightbox Y-axis keyboard navigation (Shift+Up/Down)', () => {
     // The image src should change (moved to next row)
     await expect(fullSizeImage).not.toHaveAttribute('src', initialSrc!)
     const newSrc = await fullSizeImage.getAttribute('src')
-    expect(newSrc).toContain('/api/images/')
+    expect(newSrc).toContain('/api/v1/images/')
     expect(newSrc).not.toBe(initialSrc)
   })
 
@@ -500,7 +500,7 @@ test.describe('lightbox Y-axis keyboard navigation (Shift+Up/Down)', () => {
     await expect(fullSizeImage).not.toHaveAttribute('src', initialSrc!)
     const newSrc = await fullSizeImage.getAttribute('src')
     expect(newSrc).not.toBe(initialSrc)
-    expect(newSrc).toContain('/api/images/')
+    expect(newSrc).toContain('/api/v1/images/')
   })
 })
 

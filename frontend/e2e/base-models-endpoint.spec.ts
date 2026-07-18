@@ -2,7 +2,7 @@ import { test, expect, type APIRequestContext } from '@playwright/test'
 import { resetDatabase } from './helpers'
 
 /**
- * E2E tests for the GET /api/base-models endpoint (B-143).
+ * E2E tests for the GET /api/v1/base-models endpoint (B-143).
  *
  * This endpoint scans base_model_dir (or falls back to checkpoint_dirs[0])
  * for .safetensors files. It does NOT depend on ComfyUI being online.
@@ -10,14 +10,14 @@ import { resetDatabase } from './helpers'
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://frontend:3000'
 
-test.describe('GET /api/base-models (B-143)', () => {
+test.describe('GET /api/v1/base-models (B-143)', () => {
   test.beforeEach(async ({ request }) => {
     await resetDatabase(request)
   })
 
-  // AC: BE: New GET /api/base-models endpoint scans base_model_dir for .safetensors files
+  // AC: BE: New GET /api/v1/base-models endpoint scans base_model_dir for .safetensors files
   test('returns base model .safetensors files from the configured directory', async ({ request }) => {
-    const resp = await request.get(`${BASE_URL}/api/base-models`)
+    const resp = await request.get(`${BASE_URL}/api/v1/base-models`)
     expect(resp.ok()).toBe(true)
     const body = await resp.json()
     expect(body).toHaveProperty('models')
@@ -36,9 +36,9 @@ test.describe('GET /api/base-models (B-143)', () => {
   // of ComfyUI status. Verify by calling the endpoint directly.
   test('returns models independently of ComfyUI status', async ({ request }) => {
     // Check that ComfyUI status endpoint shows the current connection state
-    const statusResp = await request.get(`${BASE_URL}/api/comfyui/status`)
+    const statusResp = await request.get(`${BASE_URL}/api/v1/comfyui/status`)
     // Regardless of ComfyUI status, base-models should still return data
-    const modelsResp = await request.get(`${BASE_URL}/api/base-models`)
+    const modelsResp = await request.get(`${BASE_URL}/api/v1/base-models`)
     expect(modelsResp.ok()).toBe(true)
     const body = await modelsResp.json()
     expect(body.models.length).toBeGreaterThan(0)

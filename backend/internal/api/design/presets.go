@@ -12,7 +12,7 @@ var _ = Service("presets", func() {
 		Result(ArrayOf(PresetResponse))
 		Error("internal_error", ErrorResult, "Internal server error")
 		HTTP(func() {
-			GET("/api/presets")
+			GET("/api/v1/presets")
 			Response(StatusOK)
 			Response("internal_error", StatusInternalServerError)
 		})
@@ -25,7 +25,7 @@ var _ = Service("presets", func() {
 		Error("invalid_payload", ErrorResult, "Invalid preset data")
 		Error("internal_error", ErrorResult, "Internal server error")
 		HTTP(func() {
-			POST("/api/presets")
+			POST("/api/v1/presets")
 			Response(StatusCreated)
 			Response("invalid_payload", StatusBadRequest)
 			Response("internal_error", StatusInternalServerError)
@@ -40,7 +40,7 @@ var _ = Service("presets", func() {
 		Error("invalid_payload", ErrorResult, "Invalid preset data")
 		Error("internal_error", ErrorResult, "Internal server error")
 		HTTP(func() {
-			PUT("/api/presets/{id}")
+			PUT("/api/v1/presets/{id}")
 			Response(StatusOK)
 			Response("not_found", StatusNotFound)
 			Response("invalid_payload", StatusBadRequest)
@@ -59,7 +59,7 @@ var _ = Service("presets", func() {
 		Error("not_found", ErrorResult, "Preset not found")
 		Error("internal_error", ErrorResult, "Internal server error")
 		HTTP(func() {
-			DELETE("/api/presets/{id}")
+			DELETE("/api/v1/presets/{id}")
 			Response(StatusNoContent)
 			Response("not_found", StatusNotFound)
 			Response("internal_error", StatusInternalServerError)

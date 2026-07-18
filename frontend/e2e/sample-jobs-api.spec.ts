@@ -3,7 +3,7 @@ import { resetDatabase, cancelAllJobs } from './helpers'
 
 // AC: SampleJobsService methods return an empty result (or appropriate error)
 //     when no jobs exist
-// AC: No panic occurs when /api/sample-jobs endpoints are called
+// AC: No panic occurs when /api/v1/sample-jobs endpoints are called
 // Note: docker-compose.test.yml uses config-with-comfyui.yaml, so ComfyUI IS
 //       configured in the test environment. These tests verify API behaviour
 //       for empty/invalid requests, not the "no ComfyUI" code path.
@@ -21,16 +21,16 @@ test.describe('sample-jobs API (ComfyUI configured in test environment)', () => 
     await cancelAllJobs(request)
   })
 
-  test('GET /api/sample-jobs returns 200 with empty array', async ({ request }) => {
-    const response = await request.get('/api/sample-jobs')
+  test('GET /api/v1/sample-jobs returns 200 with empty array', async ({ request }) => {
+    const response = await request.get('/api/v1/sample-jobs')
     expect(response.status()).toBe(200)
     const body = await response.json()
     expect(Array.isArray(body)).toBe(true)
     expect(body).toHaveLength(0)
   })
 
-  test('POST /api/sample-jobs returns error (not a panic)', async ({ request }) => {
-    const response = await request.post('/api/sample-jobs', {
+  test('POST /api/v1/sample-jobs returns error (not a panic)', async ({ request }) => {
+    const response = await request.post('/api/v1/sample-jobs', {
       data: {
         training_run_name: 'nonexistent',
         study_id: 'nonexistent',
@@ -45,7 +45,7 @@ test.describe('sample-jobs API (ComfyUI configured in test environment)', () => 
   // succeed (return 204) rather than returning 500 with FK constraint error.
   // Previously, the study_id FK on sample_jobs did not have ON DELETE CASCADE,
   // so the DELETE would fail with "FOREIGN KEY constraint failed (787)".
-  test('DELETE /api/studies/{id} returns 204 when study has associated sample jobs', async ({ request }) => {
+  test('DELETE /api/v1/studies/{id} returns 204 when study has associated sample jobs', async ({ request }) => {
     // Step 1: Create a study via the API
     const studyPayload = {
       name: 'Cascade Test Study',
@@ -62,14 +62,14 @@ test.describe('sample-jobs API (ComfyUI configured in test environment)', () => 
       vaes: ['test-vae.safetensors'],
       text_encoders: ['test-clip.safetensors'],
     }
-    const createStudyResp = await request.post('/api/studies', { data: studyPayload })
+    const createStudyResp = await request.post('/api/v1/studies', { data: studyPayload })
     expect(createStudyResp.status()).toBe(201)
     const study = await createStudyResp.json()
     expect(study.id).toBeTruthy()
 
     // Step 2: Create a sample job referencing this study.
     // S-112: workflow_name/vae/clip come from the study definition, not the job payload
-    const jobResp = await request.post('/api/sample-jobs', {
+    const jobResp = await request.post('/api/v1/sample-jobs', {
       data: {
         training_run_name: 'my-model',
         study_id: study.id,
@@ -79,7 +79,7 @@ test.describe('sample-jobs API (ComfyUI configured in test environment)', () => 
     expect(jobResp.status()).toBe(201)
 
     // Verify the job exists and references our study
-    const jobsResp = await request.get('/api/sample-jobs')
+    const jobsResp = await request.get('/api/v1/sample-jobs')
     expect(jobsResp.status()).toBe(200)
     const jobs = await jobsResp.json()
     expect(jobs.length).toBeGreaterThanOrEqual(1)
@@ -87,11 +87,11 @@ test.describe('sample-jobs API (ComfyUI configured in test environment)', () => 
 
     // Step 3: Delete the study — this previously returned 500 with FK constraint error.
     // With the ON DELETE CASCADE migration, it should return 204.
-    const deleteResp = await request.delete(`/api/studies/${study.id}`)
+    const deleteResp = await request.delete(`/api/v1/studies/${study.id}`)
     expect(deleteResp.status()).toBe(204)
 
     // Step 4: Verify the study is gone
-    const studiesResp = await request.get('/api/studies')
+    const studiesResp = await request.get('/api/v1/studies')
     expect(studiesResp.status()).toBe(200)
     const studies = await studiesResp.json()
     expect(studies.every((s: { id: string }) => s.id !== study.id)).toBe(true)
@@ -100,7 +100,7 @@ test.describe('sample-jobs API (ComfyUI configured in test environment)', () => 
   // B-044 AC2: Verify that cascade deletion actually removes associated sample_jobs,
   // not just that the study delete returns 204. The previous test confirmed the HTTP
   // response code; this test confirms the database-level cascade behavior end-to-end.
-  test('DELETE /api/studies/{id} cascade-deletes associated sample_jobs', async ({ request }) => {
+  test('DELETE /api/v1/studies/{id} cascade-deletes associated sample_jobs', async ({ request }) => {
     // Step 1: Create a study
     const studyPayload = {
       name: 'Cascade Verify Study',
@@ -117,14 +117,14 @@ test.describe('sample-jobs API (ComfyUI configured in test environment)', () => 
       vaes: ['test-vae.safetensors'],
       text_encoders: ['test-clip.safetensors'],
     }
-    const createStudyResp = await request.post('/api/studies', { data: studyPayload })
+    const createStudyResp = await request.post('/api/v1/studies', { data: studyPayload })
     expect(createStudyResp.status()).toBe(201)
     const study = await createStudyResp.json()
     expect(study.id).toBeTruthy()
 
     // Step 2: Create a sample job referencing this study
     // S-112: workflow_name/vae/clip come from the study definition, not the job payload
-    const jobResp = await request.post('/api/sample-jobs', {
+    const jobResp = await request.post('/api/v1/sample-jobs', {
       data: {
         training_run_name: 'my-model',
         study_id: study.id,
@@ -135,18 +135,18 @@ test.describe('sample-jobs API (ComfyUI configured in test environment)', () => 
     expect(job.id).toBeTruthy()
 
     // Step 3: Confirm the job exists in the jobs list
-    const jobsBeforeResp = await request.get('/api/sample-jobs')
+    const jobsBeforeResp = await request.get('/api/v1/sample-jobs')
     expect(jobsBeforeResp.status()).toBe(200)
     const jobsBefore = await jobsBeforeResp.json()
     expect(jobsBefore.some((j: { id: string }) => j.id === job.id)).toBe(true)
 
     // Step 4: Delete the study
-    const deleteResp = await request.delete(`/api/studies/${study.id}`)
+    const deleteResp = await request.delete(`/api/v1/studies/${study.id}`)
     expect(deleteResp.status()).toBe(204)
 
     // Step 5: Verify the sample_jobs referencing this study are actually gone
     // (not just that the delete succeeded). This is the key assertion for B-044 AC2.
-    const jobsAfterResp = await request.get('/api/sample-jobs')
+    const jobsAfterResp = await request.get('/api/v1/sample-jobs')
     expect(jobsAfterResp.status()).toBe(200)
     const jobsAfter = await jobsAfterResp.json()
     expect(jobsAfter.every((j: { id: string }) => j.id !== job.id)).toBe(true)

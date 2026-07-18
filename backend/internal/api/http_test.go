@@ -212,7 +212,7 @@ var _ = Describe("NewHTTPHandler", func() {
 	})
 
 	Describe("Image metadata URL rewrite", func() {
-		It("rewrites /api/images/{path}/metadata to the internal Goa endpoint", func() {
+		It("rewrites /api/v1/images/{path}/metadata to the internal Goa endpoint", func() {
 			// Create a temporary directory for images
 			tmpDir, err := os.MkdirTemp("", "http-test-images-*")
 			Expect(err).NotTo(HaveOccurred())
@@ -264,7 +264,7 @@ var _ = Describe("NewHTTPHandler", func() {
 			defer server.Close()
 
 			// Test that the original URL pattern works
-			resp, err := http.Get(server.URL + "/api/images/checkpoint.safetensors/test.png/metadata")
+			resp, err := http.Get(server.URL + "/api/v1/images/checkpoint.safetensors/test.png/metadata")
 			Expect(err).NotTo(HaveOccurred())
 			defer resp.Body.Close()
 

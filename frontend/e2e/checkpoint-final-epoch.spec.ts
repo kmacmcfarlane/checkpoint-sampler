@@ -25,7 +25,7 @@ test.describe('checkpoint slider surfaces final epoch checkpoint (B-161)', () =>
   test('checkpoint-based discovery assigns the final checkpoint StepNumber 100 from the epochs-N run name', async ({
     request,
   }) => {
-    const response = await request.get('/api/training-runs?source=checkpoints')
+    const response = await request.get('/api/v1/training-runs?source=checkpoints')
     expect(response.ok()).toBeTruthy()
 
     const runs = await response.json()

@@ -27,12 +27,12 @@ const emit = defineEmits<{
 /** Full-resolution URL — used by the lightbox and as fallback when no thumbnail. */
 const imageUrl = computed(() => {
   if (!props.relativePath) return null
-  return `/api/images/${props.relativePath}`
+  return `/api/v1/images/${props.relativePath}`
 })
 
 /** URL used for the grid <img> element. Prefers the thumbnail when available. */
 const gridImageUrl = computed(() => {
-  if (props.thumbnailPath) return `/api/images/${props.thumbnailPath}`
+  if (props.thumbnailPath) return `/api/v1/images/${props.thumbnailPath}`
   return imageUrl.value
 })
 

@@ -12,7 +12,7 @@ import {
  * frontend validation.
  *
  * AC4: The launch dialog disables launch and shows total vs limit when the
- *      computed total exceeds the limit fetched from the backend (/api/config).
+ *      computed total exceeds the limit fetched from the backend (/api/v1/config).
  *
  * Strategy:
  *   - Use the default max_study_items = 50000.
@@ -27,7 +27,7 @@ import {
  *
  * The "my-model" training run has 2 checkpoints. The dialog computes:
  *   totalImages = targetedCheckpointCount (2) × imagesPerCheckpoint (25200) = 50400
- * which exceeds maxStudyItems (50000) from /api/config.
+ * which exceeds maxStudyItems (50000) from /api/v1/config.
  */
 
 const FIXTURE_STUDY_NAME = 'E2E Fixture Study'
@@ -58,7 +58,7 @@ function makeSteps(count: number): number[] {
  * so that study creation itself is not rejected by the service guard.
  */
 async function createOverLimitStudy(request: APIRequestContext): Promise<string> {
-  const resp = await request.post('/api/studies', {
+  const resp = await request.post('/api/v1/studies', {
     data: {
       name: `S-153 Over-Limit Study ${Date.now()}`,
       prompt_prefix: '',
@@ -90,10 +90,10 @@ test.describe('S-153: over-limit launch rejection', () => {
   })
 
   /**
-   * AC3 (smoke): GET /api/config returns max_study_items as a positive integer.
+   * AC3 (smoke): GET /api/v1/config returns max_study_items as a positive integer.
    */
-  test('/api/config returns max_study_items', async ({ request }) => {
-    const resp = await request.get('/api/config')
+  test('/api/v1/config returns max_study_items', async ({ request }) => {
+    const resp = await request.get('/api/v1/config')
     expect(resp.status()).toBe(200)
     const body = await resp.json()
     expect(typeof body.max_study_items).toBe('number')

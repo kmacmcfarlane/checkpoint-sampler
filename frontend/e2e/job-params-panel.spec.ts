@@ -37,7 +37,7 @@ const STUDY_PAYLOAD = {
 
 /** Create a study via the REST API and return its ID. */
 async function createStudyViaAPI(request: APIRequestContext): Promise<string> {
-  const response = await request.post('/api/studies', { data: STUDY_PAYLOAD })
+  const response = await request.post('/api/v1/studies', { data: STUDY_PAYLOAD })
   expect(response.status()).toBe(201)
   const body = await response.json()
   return body.id as string
@@ -46,7 +46,7 @@ async function createStudyViaAPI(request: APIRequestContext): Promise<string> {
 /** Create a sample job via the REST API and return its ID. */
 // S-112: workflow_name/vae/clip come from the study definition, not the job payload
 async function createJobViaAPI(request: APIRequestContext, studyId: string): Promise<string> {
-  const response = await request.post('/api/sample-jobs', {
+  const response = await request.post('/api/v1/sample-jobs', {
     data: {
       training_run_name: 'my-model',
       study_id: studyId,
@@ -230,7 +230,7 @@ test.describe('checkpoint filenames in job params panel (S-123)', () => {
     const studyId = await createStudyViaAPI(request)
     const jobId = await createJobViaAPI(request, studyId)
 
-    const response = await request.get('/api/sample-jobs')
+    const response = await request.get('/api/v1/sample-jobs')
     expect(response.status()).toBe(200)
     const jobs = await response.json() as Array<Record<string, unknown>>
     const job = jobs.find(j => j.id === jobId)

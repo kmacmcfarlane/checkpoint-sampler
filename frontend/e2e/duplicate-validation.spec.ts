@@ -132,11 +132,11 @@ test.describe('duplicate value validation (B-043)', () => {
       resolutions: [{ width: 512, height: 512 }],
     }
 
-    const createResponse = await request.post('/api/studies', { data: payload })
+    const createResponse = await request.post('/api/v1/studies', { data: payload })
     expect(createResponse.status()).toBe(201)
 
     // Try to create another study with the same name -- should fail
-    const duplicateResponse = await request.post('/api/studies', { data: payload })
+    const duplicateResponse = await request.post('/api/v1/studies', { data: payload })
     expect(duplicateResponse.status()).toBe(400)
     const body = await duplicateResponse.json()
     expect(body.message).toContain('already exists')
@@ -155,7 +155,7 @@ test.describe('duplicate value validation (B-043)', () => {
       resolutions: [{ width: 512, height: 512 }],
     }
 
-    const response = await request.post('/api/studies', { data: payload })
+    const response = await request.post('/api/v1/studies', { data: payload })
     expect(response.status()).toBe(400)
     const body = await response.json()
     expect(body.message).toContain('duplicate step value 30')
@@ -174,7 +174,7 @@ test.describe('duplicate value validation (B-043)', () => {
       resolutions: [{ width: 512, height: 512 }],
     }
 
-    const response = await request.post('/api/studies', { data: payload })
+    const response = await request.post('/api/v1/studies', { data: payload })
     expect(response.status()).toBe(400)
     const body = await response.json()
     expect(body.message).toContain('duplicate seed value 42')
@@ -193,7 +193,7 @@ test.describe('duplicate value validation (B-043)', () => {
       resolutions: [{ width: 512, height: 512 }],
     }
 
-    const response = await request.post('/api/studies', { data: payload })
+    const response = await request.post('/api/v1/studies', { data: payload })
     expect(response.status()).toBe(400)
     const body = await response.json()
     expect(body.message).toContain('duplicate CFG value 7')
@@ -216,7 +216,7 @@ test.describe('duplicate value validation (B-043)', () => {
       resolutions: [{ width: 512, height: 512 }],
     }
 
-    const response = await request.post('/api/studies', { data: payload })
+    const response = await request.post('/api/v1/studies', { data: payload })
     expect(response.status()).toBe(400)
     const body = await response.json()
     expect(body.message).toContain('duplicate sampler/scheduler pair')
@@ -239,7 +239,7 @@ test.describe('duplicate value validation (B-043)', () => {
       resolutions: [{ width: 512, height: 512 }],
     }
 
-    const response = await request.post('/api/studies', { data: payload })
+    const response = await request.post('/api/v1/studies', { data: payload })
     expect(response.status()).toBe(400)
     const body = await response.json()
     expect(body.message).toContain('duplicate prompt name')

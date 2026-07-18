@@ -20,7 +20,7 @@ import { resetDatabase } from './helpers'
  * Creates a minimal study via the API and returns its ID.
  */
 async function createStudy(request: APIRequestContext, name: string): Promise<string> {
-  const resp = await request.post('/api/studies', {
+  const resp = await request.post('/api/v1/studies', {
     data: {
       name,
       prompt_prefix: '',
@@ -69,7 +69,7 @@ async function seedPartialSamples(
  * Gets the training run ID for a named run from the API.
  */
 async function getTrainingRunId(request: APIRequestContext, runName: string): Promise<number> {
-  const resp = await request.get('/api/training-runs?source=checkpoints')
+  const resp = await request.get('/api/v1/training-runs?source=checkpoints')
   expect(resp.ok()).toBeTruthy()
   const runs = await resp.json() as Array<{ id: number; name: string }>
   const run = runs.find(r => r.name === runName)
@@ -115,7 +115,7 @@ test.describe('seed-partial-samples endpoint (W-017)', () => {
     const runId = await getTrainingRunId(request, 'my-model')
 
     // Before seeding: availability should report 'none' (no sample dirs exist)
-    const beforeResp = await request.get(`/api/studies/availability?training_run_id=${runId}`)
+    const beforeResp = await request.get(`/api/v1/studies/availability?training_run_id=${runId}`)
     expect(beforeResp.ok()).toBeTruthy()
     const beforeAvailabilities = await beforeResp.json() as Array<{
       study_id: string
@@ -141,7 +141,7 @@ test.describe('seed-partial-samples endpoint (W-017)', () => {
     )
 
     // After seeding 1 of 2 checkpoints: availability must report 'partial'
-    const afterResp = await request.get(`/api/studies/availability?training_run_id=${runId}`)
+    const afterResp = await request.get(`/api/v1/studies/availability?training_run_id=${runId}`)
     expect(afterResp.ok()).toBeTruthy()
     const afterAvailabilities = await afterResp.json() as Array<{
       study_id: string
@@ -271,7 +271,7 @@ test.describe('seed-partial-samples endpoint (W-017)', () => {
       ],
     )
 
-    const resp = await request.get(`/api/studies/availability?training_run_id=${runId}`)
+    const resp = await request.get(`/api/v1/studies/availability?training_run_id=${runId}`)
     expect(resp.ok()).toBeTruthy()
     const availabilities = await resp.json() as Array<{
       study_id: string
@@ -298,7 +298,7 @@ test.describe('seed-partial-samples endpoint (W-017)', () => {
     const createdDirs = await seedPartialSamples(request, 'my-model', studyId, studyName, [])
     expect(createdDirs).toHaveLength(0)
 
-    const resp = await request.get(`/api/studies/availability?training_run_id=${runId}`)
+    const resp = await request.get(`/api/v1/studies/availability?training_run_id=${runId}`)
     expect(resp.ok()).toBeTruthy()
     const availabilities = await resp.json() as Array<{
       study_id: string

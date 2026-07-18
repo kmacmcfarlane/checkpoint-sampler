@@ -76,7 +76,7 @@ test.describe('lightbox slider bidirectional sync (B-068)', () => {
     // Record the initial image src in the lightbox
     const fullSizeImage = lightbox.locator('img[alt="Full-size image"]')
     const initialLightboxSrc = await fullSizeImage.getAttribute('src')
-    expect(initialLightboxSrc).toContain('/api/images/')
+    expect(initialLightboxSrc).toContain('/api/v1/images/')
 
     // Use ArrowRight to move the lightbox slider to the next value
     await page.keyboard.press('ArrowRight')

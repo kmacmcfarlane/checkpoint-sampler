@@ -104,7 +104,7 @@ Nodes that do not need to be controlled by Checkpoint Sampler do not need any an
 
 Copy the annotated JSON file to your `workflow_dir` (default: `./workflows/`). The directory is created automatically on first startup if it does not exist.
 
-Checkpoint Sampler scans the directory at startup and on each API call to the `/api/workflows` endpoint. Subdirectories are not scanned — only `.json` files at the top level of the directory are loaded.
+Checkpoint Sampler scans the directory at startup and on each API call to the `/api/v1/workflows` endpoint. Subdirectories are not scanned — only `.json` files at the top level of the directory are loaded.
 
 ### Step 5: Verify in the UI
 

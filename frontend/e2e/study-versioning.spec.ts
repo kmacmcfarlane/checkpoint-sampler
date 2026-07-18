@@ -32,7 +32,7 @@ test.describe('study immutability + fork (S-085)', () => {
 
   test('newly created study does not have a version field', async ({ request }) => {
     const payload = makeStudyPayload(`No Version Test ${Date.now()}`)
-    const createResp = await request.post('/api/studies', { data: payload })
+    const createResp = await request.post('/api/v1/studies', { data: payload })
     expect(createResp.status()).toBe(201)
 
     const study = await createResp.json()
@@ -43,7 +43,7 @@ test.describe('study immutability + fork (S-085)', () => {
 
   test('fork creates a new study from an existing one', async ({ request }) => {
     const payload = makeStudyPayload(`Fork Source ${Date.now()}`)
-    const createResp = await request.post('/api/studies', { data: payload })
+    const createResp = await request.post('/api/v1/studies', { data: payload })
     expect(createResp.status()).toBe(201)
     const source = await createResp.json()
 
@@ -53,7 +53,7 @@ test.describe('study immutability + fork (S-085)', () => {
       name: `${source.name} - fork`,
       steps: [10, 20],
     }
-    const forkResp = await request.post(`/api/studies/${source.id}/fork`, { data: forkPayload })
+    const forkResp = await request.post(`/api/v1/studies/${source.id}/fork`, { data: forkPayload })
     expect(forkResp.status()).toBe(201)
     const forked = await forkResp.json()
 
@@ -64,36 +64,36 @@ test.describe('study immutability + fork (S-085)', () => {
 
   test('fork returns 404 for non-existent source', async ({ request }) => {
     const payload = makeStudyPayload(`Fork Missing ${Date.now()}`)
-    const forkResp = await request.post('/api/studies/non-existent-id/fork', { data: { ...payload, source_id: 'non-existent-id' } })
+    const forkResp = await request.post('/api/v1/studies/non-existent-id/fork', { data: { ...payload, source_id: 'non-existent-id' } })
     expect(forkResp.status()).toBe(404)
   })
 
   test('has-samples returns false for study without generated samples', async ({ request }) => {
     const payload = makeStudyPayload(`Has Samples Test ${Date.now()}`)
-    const createResp = await request.post('/api/studies', { data: payload })
+    const createResp = await request.post('/api/v1/studies', { data: payload })
     expect(createResp.status()).toBe(201)
     const study = await createResp.json()
 
-    const hasSamplesResp = await request.get(`/api/studies/${study.id}/has-samples`)
+    const hasSamplesResp = await request.get(`/api/v1/studies/${study.id}/has-samples`)
     expect(hasSamplesResp.status()).toBe(200)
     const result = await hasSamplesResp.json()
     expect(result.has_samples).toBe(false)
   })
 
   test('has-samples returns 404 for non-existent study', async ({ request }) => {
-    const resp = await request.get('/api/studies/non-existent-id/has-samples')
+    const resp = await request.get('/api/v1/studies/non-existent-id/has-samples')
     expect(resp.status()).toBe(404)
   })
 
   test('updating a study does not include version in response', async ({ request }) => {
     const studyName = `Update No Version ${Date.now()}`
     const payload = makeStudyPayload(studyName)
-    const createResp = await request.post('/api/studies', { data: payload })
+    const createResp = await request.post('/api/v1/studies', { data: payload })
     expect(createResp.status()).toBe(201)
     const created = await createResp.json()
 
     const updatePayload = { ...payload, id: created.id, steps: [20, 40] }
-    const updateResp = await request.put(`/api/studies/${created.id}`, { data: updatePayload })
+    const updateResp = await request.put(`/api/v1/studies/${created.id}`, { data: updatePayload })
     expect(updateResp.status()).toBe(200)
     const updated = await updateResp.json()
     expect(updated).not.toHaveProperty('version')

@@ -63,26 +63,26 @@ The API is organized into Goa services, each defined in a file under `design/`. 
 
 | Service         | File              | Base path(s)              | Purpose                                                       |
 |-----------------|-------------------|---------------------------|--------------------------------------------------------------|
-| `health`        | health.go         | `/health`, `/api/config`  | Health check and UI-relevant config limits                   |
+| `health`        | health.go         | `/health`, `/api/v1/config`  | Health check and UI-relevant config limits                   |
 | `docs`          | docs.go           | `/docs`                   | Swagger UI assets and OpenAPI 3.0 spec                        |
-| `training_runs` | training_runs.go  | `/api/training-runs`      | Discover, scan, and validate training runs                   |
-| `studies`       | studies.go        | `/api/studies`            | CRUD + fork for studies; sample availability/affected runs   |
-| `sample_jobs`   | sample_jobs.go    | `/api/sample-jobs`        | Sample job orchestration (create/start/stop/resume/retry)    |
-| `presets`       | presets.go        | `/api/presets`            | CRUD for dimension-mapping presets                           |
-| `images`        | images.go         | `/api/images`             | Serve image bytes and image metadata                         |
-| `checkpoints`   | checkpoints.go    | `/api/checkpoints`        | Read safetensors training metadata                           |
-| `base_models`   | base_models.go    | `/api/base-models`        | List available base-model `.safetensors` files               |
-| `comfyui`       | comfyui.go        | `/api/comfyui`            | ComfyUI connection status and model lists                    |
-| `workflows`     | workflows.go      | `/api/workflows`          | List and inspect ComfyUI workflow templates                  |
-| `demo`          | demo.go           | `/api/demo`               | Install/uninstall the demo dataset                           |
-| `ws`            | ws.go             | `/api/ws`                 | WebSocket stream of filesystem + job-progress events         |
+| `training_runs` | training_runs.go  | `/api/v1/training-runs`      | Discover, scan, and validate training runs                   |
+| `studies`       | studies.go        | `/api/v1/studies`            | CRUD + fork for studies; sample availability/affected runs   |
+| `sample_jobs`   | sample_jobs.go    | `/api/v1/sample-jobs`        | Sample job orchestration (create/start/stop/resume/retry)    |
+| `presets`       | presets.go        | `/api/v1/presets`            | CRUD for dimension-mapping presets                           |
+| `images`        | images.go         | `/api/v1/images`             | Serve image bytes and image metadata                         |
+| `checkpoints`   | checkpoints.go    | `/api/v1/checkpoints`        | Read safetensors training metadata                           |
+| `base_models`   | base_models.go    | `/api/v1/base-models`        | List available base-model `.safetensors` files               |
+| `comfyui`       | comfyui.go        | `/api/v1/comfyui`            | ComfyUI connection status and model lists                    |
+| `workflows`     | workflows.go      | `/api/v1/workflows`          | List and inspect ComfyUI workflow templates                  |
+| `demo`          | demo.go           | `/api/v1/demo`               | Install/uninstall the demo dataset                           |
+| `ws`            | ws.go             | `/api/v1/ws`                 | WebSocket stream of filesystem + job-progress events         |
 
 ### 3.1 URL conventions
 
-- Resource collections: plural nouns (e.g. `/api/presets`, `/api/studies`).
-- Individual resources: collection + ID (e.g. `/api/presets/{id}`).
-- Actions: sub-paths where RESTful verbs don't suffice (e.g. `/api/sample-jobs/{id}/start`,
-  `/api/training-runs/{id}/scan`).
+- Resource collections: plural nouns (e.g. `/api/v1/presets`, `/api/v1/studies`).
+- Individual resources: collection + ID (e.g. `/api/v1/presets/{id}`).
+- Actions: sub-paths where RESTful verbs don't suffice (e.g. `/api/v1/sample-jobs/{id}/start`,
+  `/api/v1/training-runs/{id}/scan`).
 - Standard HTTP methods: GET (read), POST (create/action), PUT (update), DELETE (remove).
 
 ## 4) Endpoint reference
@@ -94,7 +94,7 @@ Errors below use the canonical codes from §5. Status codes are the DSL-declared
 | Method   | HTTP                      | Result          | Errors |
 |----------|---------------------------|-----------------|--------|
 | `check`  | `GET /health`             | `HealthResult`  | —      |
-| `config` | `GET /api/config`         | `ConfigResult`  | —      |
+| `config` | `GET /api/v1/config`         | `ConfigResult`  | —      |
 
 `config` exposes UI-relevant limits — currently `max_study_items` (the maximum total work items allowed per
 study/job). Added in S-153.
@@ -110,9 +110,9 @@ study/job). Added in S-153.
 
 | Method     | HTTP                                  | Result                             | Errors                          |
 |------------|---------------------------------------|------------------------------------|---------------------------------|
-| `list`     | `GET /api/training-runs`              | `[]TrainingRunResponse`            | `internal_error`                |
-| `validate` | `POST /api/training-runs/{id}/validate` | `ValidationResultResponse`       | `not_found`, `internal_error`   |
-| `scan`     | `GET /api/training-runs/{id}/scan`   | `ScanResultResponse`               | `not_found`, `internal_error`   |
+| `list`     | `GET /api/v1/training-runs`              | `[]TrainingRunResponse`            | `internal_error`                |
+| `validate` | `POST /api/v1/training-runs/{id}/validate` | `ValidationResultResponse`       | `not_found`, `internal_error`   |
+| `scan`     | `GET /api/v1/training-runs/{id}/scan`   | `ScanResultResponse`               | `not_found`, `internal_error`   |
 
 - `list` accepts `source` (`samples`|`checkpoints`, default `samples`) and `refresh` (default `false`, forces a
   fresh filesystem rescan, bypassing the FSState cache — B-142).
@@ -134,14 +134,14 @@ the id as an opaque string obtained from `TrainingRunResponse.id` and must not a
 
 | Method          | HTTP                                   | Result                          | Errors                                       |
 |-----------------|----------------------------------------|---------------------------------|----------------------------------------------|
-| `list`          | `GET /api/studies`                     | `[]StudyResponse`               | `internal_error`                             |
-| `create`        | `POST /api/studies`                    | `StudyResponse` (201)           | `invalid_payload`, `internal_error`          |
-| `update`        | `PUT /api/studies/{id}`                | `StudyResponse`                 | `not_found`, `invalid_payload`, `internal_error` |
-| `fork`          | `POST /api/studies/{source_id}/fork`   | `StudyResponse` (201)           | `not_found`, `invalid_payload`, `internal_error` |
-| `has_samples`   | `GET /api/studies/{id}/has-samples`    | `HasSamplesResponse`            | `not_found`, `internal_error`                |
-| `delete`        | `DELETE /api/studies/{id}`             | (204)                           | `not_found`, `internal_error`                |
-| `affected_runs` | `GET /api/studies/{id}/affected-runs`  | `[]AffectedRunResponse`         | `not_found`, `internal_error`                |
-| `availability`  | `GET /api/studies/availability`        | `[]StudyAvailabilityResponse`   | `not_found`, `internal_error`                |
+| `list`          | `GET /api/v1/studies`                     | `[]StudyResponse`               | `internal_error`                             |
+| `create`        | `POST /api/v1/studies`                    | `StudyResponse` (201)           | `invalid_payload`, `internal_error`          |
+| `update`        | `PUT /api/v1/studies/{id}`                | `StudyResponse`                 | `not_found`, `invalid_payload`, `internal_error` |
+| `fork`          | `POST /api/v1/studies/{source_id}/fork`   | `StudyResponse` (201)           | `not_found`, `invalid_payload`, `internal_error` |
+| `has_samples`   | `GET /api/v1/studies/{id}/has-samples`    | `HasSamplesResponse`            | `not_found`, `internal_error`                |
+| `delete`        | `DELETE /api/v1/studies/{id}`             | (204)                           | `not_found`, `internal_error`                |
+| `affected_runs` | `GET /api/v1/studies/{id}/affected-runs`  | `[]AffectedRunResponse`         | `not_found`, `internal_error`                |
+| `availability`  | `GET /api/v1/studies/availability`        | `[]StudyAvailabilityResponse`   | `not_found`, `internal_error`                |
 
 - `delete` accepts `delete_data` (default `false`) to also remove the study's sample output directory.
 - `availability` requires the `training_run_id` query param.
@@ -150,14 +150,14 @@ the id as an opaque string obtained from `TrainingRunResponse.id` and must not a
 
 | Method         | HTTP                                       | Result                | Errors                                                       |
 |----------------|--------------------------------------------|-----------------------|-------------------------------------------------------------|
-| `list`         | `GET /api/sample-jobs`                     | `[]SampleJobResponse` | `internal_error`                                            |
-| `show`         | `GET /api/sample-jobs/{id}`                | `SampleJobDetailResponse` | `not_found`, `internal_error`                           |
-| `create`       | `POST /api/sample-jobs`                    | `SampleJobResponse` (201) | `not_found`, `invalid_payload`, `too_many_items`, `internal_error` |
-| `start`        | `POST /api/sample-jobs/{id}/start`         | `SampleJobResponse`   | `not_found`, `invalid_state`, `service_unavailable`         |
-| `stop`         | `POST /api/sample-jobs/{id}/stop`          | `SampleJobResponse`   | `not_found`, `invalid_state`                                |
-| `resume`       | `POST /api/sample-jobs/{id}/resume`        | `SampleJobResponse`   | `not_found`, `invalid_state`, `service_unavailable`         |
-| `retry_failed` | `POST /api/sample-jobs/{id}/retry-failed`  | `SampleJobResponse`   | `not_found`, `invalid_state`, `service_unavailable`         |
-| `delete`       | `DELETE /api/sample-jobs/{id}`             | (204)                 | `not_found`, `internal_error`                               |
+| `list`         | `GET /api/v1/sample-jobs`                     | `[]SampleJobResponse` | `internal_error`                                            |
+| `show`         | `GET /api/v1/sample-jobs/{id}`                | `SampleJobDetailResponse` | `not_found`, `internal_error`                           |
+| `create`       | `POST /api/v1/sample-jobs`                    | `SampleJobResponse` (201) | `not_found`, `invalid_payload`, `too_many_items`, `internal_error` |
+| `start`        | `POST /api/v1/sample-jobs/{id}/start`         | `SampleJobResponse`   | `not_found`, `invalid_state`, `service_unavailable`         |
+| `stop`         | `POST /api/v1/sample-jobs/{id}/stop`          | `SampleJobResponse`   | `not_found`, `invalid_state`                                |
+| `resume`       | `POST /api/v1/sample-jobs/{id}/resume`        | `SampleJobResponse`   | `not_found`, `invalid_state`, `service_unavailable`         |
+| `retry_failed` | `POST /api/v1/sample-jobs/{id}/retry-failed`  | `SampleJobResponse`   | `not_found`, `invalid_state`, `service_unavailable`         |
+| `delete`       | `DELETE /api/v1/sample-jobs/{id}`             | (204)                 | `not_found`, `internal_error`                               |
 
 - `create` computes total work items; exceeding the configured maximum returns `too_many_items` (422).
 - `delete` accepts `delete_data` (default `false`) to also remove generated sample files from disk.
@@ -166,22 +166,22 @@ the id as an opaque string obtained from `TrainingRunResponse.id` and must not a
 
 | Method   | HTTP                       | Result                 | Errors                                     |
 |----------|----------------------------|------------------------|--------------------------------------------|
-| `list`   | `GET /api/presets`         | `[]PresetResponse`     | `internal_error`                           |
-| `create` | `POST /api/presets`        | `PresetResponse` (201) | `invalid_payload`, `internal_error`        |
-| `update` | `PUT /api/presets/{id}`    | `PresetResponse`       | `not_found`, `invalid_payload`, `internal_error` |
-| `delete` | `DELETE /api/presets/{id}` | (204)                  | `not_found`, `internal_error`              |
+| `list`   | `GET /api/v1/presets`         | `[]PresetResponse`     | `internal_error`                           |
+| `create` | `POST /api/v1/presets`        | `PresetResponse` (201) | `invalid_payload`, `internal_error`        |
+| `update` | `PUT /api/v1/presets/{id}`    | `PresetResponse`       | `not_found`, `invalid_payload`, `internal_error` |
+| `delete` | `DELETE /api/v1/presets/{id}` | (204)                  | `not_found`, `internal_error`              |
 
 ### 4.7 images (`images.go`)
 
 | Method     | HTTP                                  | Result                  | Errors                          |
 |------------|---------------------------------------|-------------------------|---------------------------------|
-| `download` | `GET /api/images/{*filepath}`         | image bytes (streamed)  | `not_found`, `invalid_payload`  |
-| `metadata` | `GET /api/_images_metadata/{*filepath}` | `ImageMetadataResponse` | `not_found`, `invalid_payload` |
+| `download` | `GET /api/v1/images/{*filepath}`         | image bytes (streamed)  | `not_found`, `invalid_payload`  |
+| `metadata` | `GET /api/v1/_images_metadata/{*filepath}` | `ImageMetadataResponse` | `not_found`, `invalid_payload` |
 
 - `download` uses `SkipResponseBodyEncodeDecode()` and streams the raw file. The response carries `Content-Type`,
   `Content-Length`, and `Cache-Control` headers (see §9 for content-type detection).
-- `metadata` is registered under `/api/_images_metadata/{*filepath}` and re-routed to the logical
-  `/api/images/{filepath}/metadata` path by a custom handler wrapper (`http.go`) due to chi router limitations.
+- `metadata` is registered under `/api/v1/_images_metadata/{*filepath}` and re-routed to the logical
+  `/api/v1/images/{filepath}/metadata` path by a custom handler wrapper (`http.go`) due to chi router limitations.
   It returns string-valued and numeric-valued metadata maps parsed from a JSON sidecar or PNG `tEXt` chunks.
 - `invalid_payload` is returned when the resolved path escapes the configured sample root (path-traversal
   rejection enforced in the store layer).
@@ -190,7 +190,7 @@ the id as an opaque string obtained from `TrainingRunResponse.id` and must not a
 
 | Method     | HTTP                                        | Result                        | Errors                          |
 |------------|---------------------------------------------|-------------------------------|---------------------------------|
-| `metadata` | `GET /api/checkpoints/{filename}/metadata`  | `CheckpointMetadataResponse`  | `not_found`, `invalid_payload`  |
+| `metadata` | `GET /api/v1/checkpoints/{filename}/metadata`  | `CheckpointMetadataResponse`  | `not_found`, `invalid_payload`  |
 
 Returns the `ss_*` training metadata fields read from a safetensors file header. `invalid_payload` covers a
 rejected filename (path traversal).
@@ -199,7 +199,7 @@ rejected filename (path traversal).
 
 | Method | HTTP                     | Result               | Errors           |
 |--------|--------------------------|----------------------|------------------|
-| `list` | `GET /api/base-models`   | `BaseModelsResult`   | `internal_error` |
+| `list` | `GET /api/v1/base-models`   | `BaseModelsResult`   | `internal_error` |
 
 Lists `.safetensors` base-model filenames from `base_model_dir` (falling back to `checkpoint_dirs[0]`).
 
@@ -207,8 +207,8 @@ Lists `.safetensors` base-model filenames from `base_model_dir` (falling back to
 
 | Method   | HTTP                          | Result                  | Errors                                  |
 |----------|-------------------------------|-------------------------|-----------------------------------------|
-| `status` | `GET /api/comfyui/status`     | `ComfyUIStatusResult`   | —                                       |
-| `models` | `GET /api/comfyui/models`     | `ComfyUIModelsResult`   | `service_unavailable`, `internal_error` |
+| `status` | `GET /api/v1/comfyui/status`     | `ComfyUIStatusResult`   | —                                       |
+| `models` | `GET /api/v1/comfyui/models`     | `ComfyUIModelsResult`   | `service_unavailable`, `internal_error` |
 
 `models` requires the `type` query param (enum: vae, clip, unet, sampler, scheduler). A down/unreachable ComfyUI
 connection returns `service_unavailable` (503) rather than an unmapped 500 (R-016).
@@ -217,22 +217,22 @@ connection returns `service_unavailable` (503) rather than an unmapped 500 (R-01
 
 | Method | HTTP                        | Result                | Errors           |
 |--------|-----------------------------|-----------------------|------------------|
-| `list` | `GET /api/workflows`        | `[]WorkflowSummary`   | `internal_error` |
-| `show` | `GET /api/workflows/{name}` | `WorkflowDetails`     | `not_found`      |
+| `list` | `GET /api/v1/workflows`        | `[]WorkflowSummary`   | `internal_error` |
+| `show` | `GET /api/v1/workflows/{name}` | `WorkflowDetails`     | `not_found`      |
 
 ### 4.12 demo (`demo.go`)
 
 | Method      | HTTP                         | Result                | Errors           |
 |-------------|------------------------------|-----------------------|------------------|
-| `status`    | `GET /api/demo/status`       | `DemoStatusResponse`  | `internal_error` |
-| `install`   | `POST /api/demo/install`     | `DemoStatusResponse`  | `internal_error` |
-| `uninstall` | `DELETE /api/demo`           | `DemoStatusResponse`  | `internal_error` |
+| `status`    | `GET /api/v1/demo/status`       | `DemoStatusResponse`  | `internal_error` |
+| `install`   | `POST /api/v1/demo/install`     | `DemoStatusResponse`  | `internal_error` |
+| `uninstall` | `DELETE /api/v1/demo`           | `DemoStatusResponse`  | `internal_error` |
 
 ### 4.13 ws (`ws.go`)
 
 | Method      | HTTP                | Result                              | Errors |
 |-------------|---------------------|-------------------------------------|--------|
-| `subscribe` | `GET /api/ws`       | streaming `FSEventResponse` (WebSocket) | —  |
+| `subscribe` | `GET /api/v1/ws`       | streaming `FSEventResponse` (WebSocket) | —  |
 
 See §6 for the full WebSocket message protocol.
 
@@ -288,7 +288,7 @@ failure class the frontend must distinguish, and document it here and in `design
 
 ## 6) WebSocket (`ws` service)
 
-**Endpoint**: `GET /api/ws` — `subscribe` method, `StreamingResult(FSEventResponse)`.
+**Endpoint**: `GET /api/v1/ws` — `subscribe` method, `StreamingResult(FSEventResponse)`.
 
 Upgrades the HTTP connection to WebSocket. The backend pushes JSON messages to all connected clients when
 filesystem changes are detected in monitored directories, when a sample job emits progress updates, or when
@@ -296,7 +296,7 @@ ComfyUI reports inference progress.
 
 #### Connection lifecycle
 
-1. Client sends a standard WebSocket upgrade request to `ws://<host>/api/ws` (or `wss://` over TLS).
+1. Client sends a standard WebSocket upgrade request to `ws://<host>/api/v1/ws` (or `wss://` over TLS).
 2. The server immediately sends a `connected` event to trigger the HTTP 101 upgrade handshake before any
    filesystem events occur. This avoids write-timeout races on idle connections — particularly important for LAN
    clients behind nginx.

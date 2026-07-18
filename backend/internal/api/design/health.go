@@ -20,7 +20,7 @@ var _ = Service("health", func() {
 		Description("Expose UI-relevant configuration limits to the frontend")
 		Result(ConfigResult)
 		HTTP(func() {
-			GET("/api/config")
+			GET("/api/v1/config")
 			Response(StatusOK)
 		})
 	})

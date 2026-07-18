@@ -208,7 +208,7 @@ var _ = Describe("Error Logging Integration", func() {
 			handler = api.ErrorLoggingMiddleware(logger)(handler)
 			handler = goahttpmiddleware.RequestID()(handler)
 
-			req := httptest.NewRequest(http.MethodPost, "/api/presets", nil)
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/presets", nil)
 			recorder := httptest.NewRecorder()
 
 			handler.ServeHTTP(recorder, req)
@@ -223,7 +223,7 @@ var _ = Describe("Error Logging Integration", func() {
 					Expect(entry.Data).To(HaveKey("request_id"))
 					Expect(entry.Data["request_id"]).NotTo(BeEmpty())
 					Expect(entry.Data).To(HaveKeyWithValue("method", "POST"))
-					Expect(entry.Data).To(HaveKeyWithValue("path", "/api/presets"))
+					Expect(entry.Data).To(HaveKeyWithValue("path", "/api/v1/presets"))
 					Expect(entry.Data).To(HaveKeyWithValue("status_code", 422))
 					Expect(entry.Data).To(HaveKeyWithValue("error_message", "validation failed"))
 					Expect(entry.Level).To(Equal(logrus.WarnLevel))

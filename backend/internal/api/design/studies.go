@@ -12,7 +12,7 @@ var _ = Service("studies", func() {
 		Result(ArrayOf(StudyResponse))
 		Error("internal_error", ErrorResult, "Internal server error")
 		HTTP(func() {
-			GET("/api/studies")
+			GET("/api/v1/studies")
 			Response(StatusOK)
 			Response("internal_error", StatusInternalServerError)
 		})
@@ -25,7 +25,7 @@ var _ = Service("studies", func() {
 		Error("invalid_payload", ErrorResult, "Invalid study data")
 		Error("internal_error", ErrorResult, "Internal server error")
 		HTTP(func() {
-			POST("/api/studies")
+			POST("/api/v1/studies")
 			Response(StatusCreated)
 			Response("invalid_payload", StatusBadRequest)
 			Response("internal_error", StatusInternalServerError)
@@ -40,7 +40,7 @@ var _ = Service("studies", func() {
 		Error("invalid_payload", ErrorResult, "Invalid study data")
 		Error("internal_error", ErrorResult, "Internal server error")
 		HTTP(func() {
-			PUT("/api/studies/{id}")
+			PUT("/api/v1/studies/{id}")
 			Response(StatusOK)
 			Response("not_found", StatusNotFound)
 			Response("invalid_payload", StatusBadRequest)
@@ -56,7 +56,7 @@ var _ = Service("studies", func() {
 		Error("invalid_payload", ErrorResult, "Invalid study data")
 		Error("internal_error", ErrorResult, "Internal server error")
 		HTTP(func() {
-			POST("/api/studies/{source_id}/fork")
+			POST("/api/v1/studies/{source_id}/fork")
 			Response(StatusCreated)
 			Response("not_found", StatusNotFound)
 			Response("invalid_payload", StatusBadRequest)
@@ -76,7 +76,7 @@ var _ = Service("studies", func() {
 		Error("not_found", ErrorResult, "Study not found")
 		Error("internal_error", ErrorResult, "Internal server error")
 		HTTP(func() {
-			GET("/api/studies/{id}/has-samples")
+			GET("/api/v1/studies/{id}/has-samples")
 			Response(StatusOK)
 			Response("not_found", StatusNotFound)
 			Response("internal_error", StatusInternalServerError)
@@ -97,7 +97,7 @@ var _ = Service("studies", func() {
 		Error("not_found", ErrorResult, "Study not found")
 		Error("internal_error", ErrorResult, "Internal server error")
 		HTTP(func() {
-			DELETE("/api/studies/{id}")
+			DELETE("/api/v1/studies/{id}")
 			Param("delete_data")
 			Response(StatusNoContent)
 			Response("not_found", StatusNotFound)
@@ -117,7 +117,7 @@ var _ = Service("studies", func() {
 		Error("not_found", ErrorResult, "Study not found")
 		Error("internal_error", ErrorResult, "Internal server error")
 		HTTP(func() {
-			GET("/api/studies/{id}/affected-runs")
+			GET("/api/v1/studies/{id}/affected-runs")
 			Response(StatusOK)
 			Response("not_found", StatusNotFound)
 			Response("internal_error", StatusInternalServerError)
@@ -134,7 +134,7 @@ var _ = Service("studies", func() {
 		Error("not_found", ErrorResult, "Training run not found")
 		Error("internal_error", ErrorResult, "Internal server error")
 		HTTP(func() {
-			GET("/api/studies/availability")
+			GET("/api/v1/studies/availability")
 			Param("training_run_id")
 			Response(StatusOK)
 			Response("not_found", StatusNotFound)

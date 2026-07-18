@@ -35,20 +35,20 @@ describe('ApiClient', () => {
 
   describe('request', () => {
     it('makes a GET request to the correct URL', async () => {
-      const client = new ApiClient({ baseUrl: 'http://localhost:8080/api' })
+      const client = new ApiClient({ baseUrl: 'http://localhost:8080/api/v1' })
       mockFetch({ json: () => Promise.resolve({ items: [] }) })
 
       const result = await client.request<{ items: unknown[] }>('/training-runs')
 
       expect(globalThis.fetch).toHaveBeenCalledWith(
-        'http://localhost:8080/api/training-runs',
+        'http://localhost:8080/api/v1/training-runs',
         undefined,
       )
       expect(result).toEqual({ items: [] })
     })
 
     it('passes RequestInit options through to fetch', async () => {
-      const client = new ApiClient({ baseUrl: 'http://localhost:8080/api' })
+      const client = new ApiClient({ baseUrl: 'http://localhost:8080/api/v1' })
       mockFetch({ json: () => Promise.resolve({ id: '1' }) })
 
       const init: RequestInit = {
@@ -59,18 +59,18 @@ describe('ApiClient', () => {
       await client.request('/presets', init)
 
       expect(globalThis.fetch).toHaveBeenCalledWith(
-        'http://localhost:8080/api/presets',
+        'http://localhost:8080/api/v1/presets',
         init,
       )
     })
 
-    it('uses /api as the default base URL', async () => {
+    it('uses /api/v1 as the default base URL', async () => {
       const client = new ApiClient()
       mockFetch({ json: () => Promise.resolve({}) })
 
       await client.request('/training-runs')
 
-      expect(globalThis.fetch).toHaveBeenCalledWith('/api/training-runs', undefined)
+      expect(globalThis.fetch).toHaveBeenCalledWith('/api/v1/training-runs', undefined)
     })
 
     it('throws ApiError with backend error code on non-ok response', async () => {
@@ -280,8 +280,8 @@ describe('ApiClient', () => {
   })
 
   describe('getTrainingRuns', () => {
-    it('fetches training runs from /api/training-runs', async () => {
-      const client = new ApiClient({ baseUrl: 'http://localhost:8080/api' })
+    it('fetches training runs from /api/v1/training-runs', async () => {
+      const client = new ApiClient({ baseUrl: 'http://localhost:8080/api/v1' })
       const runs = [
         { id: 0, name: 'run-alpha', pattern: '^alpha/.+', dimensions: [] },
         {
@@ -296,7 +296,7 @@ describe('ApiClient', () => {
       const result = await client.getTrainingRuns()
 
       expect(globalThis.fetch).toHaveBeenCalledWith(
-        'http://localhost:8080/api/training-runs',
+        'http://localhost:8080/api/v1/training-runs',
         undefined,
       )
       expect(result).toEqual(runs)
@@ -323,8 +323,8 @@ describe('ApiClient', () => {
   })
 
   describe('scanTrainingRun', () => {
-    it('fetches scan results from /api/training-runs/{id}/scan', async () => {
-      const client = new ApiClient({ baseUrl: 'http://localhost:8080/api' })
+    it('fetches scan results from /api/v1/training-runs/{id}/scan', async () => {
+      const client = new ApiClient({ baseUrl: 'http://localhost:8080/api/v1' })
       const scanResult = {
         images: [{ relative_path: 'dir/img.png', dimensions: { seed: '42' } }],
         dimensions: [{ name: 'seed', type: 'int', values: ['42'] }],
@@ -334,7 +334,7 @@ describe('ApiClient', () => {
       const result = await client.scanTrainingRun('run-abc')
 
       expect(globalThis.fetch).toHaveBeenCalledWith(
-        'http://localhost:8080/api/training-runs/run-abc/scan',
+        'http://localhost:8080/api/v1/training-runs/run-abc/scan',
         undefined,
       )
       expect(result).toEqual(scanResult)
@@ -361,8 +361,8 @@ describe('ApiClient', () => {
   })
 
   describe('getPresets', () => {
-    it('fetches presets from /api/presets', async () => {
-      const client = new ApiClient({ baseUrl: 'http://localhost:8080/api' })
+    it('fetches presets from /api/v1/presets', async () => {
+      const client = new ApiClient({ baseUrl: 'http://localhost:8080/api/v1' })
       const presets = [
         { id: 'p1', name: 'Config A', mapping: { combos: [] }, created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-01T00:00:00Z' },
       ]
@@ -371,7 +371,7 @@ describe('ApiClient', () => {
       const result = await client.getPresets()
 
       expect(globalThis.fetch).toHaveBeenCalledWith(
-        'http://localhost:8080/api/presets',
+        'http://localhost:8080/api/v1/presets',
         undefined,
       )
       expect(result).toEqual(presets)
@@ -379,14 +379,14 @@ describe('ApiClient', () => {
   })
 
   describe('getConfig', () => {
-    it('fetches UI config limits from /api/config', async () => {
-      const client = new ApiClient({ baseUrl: 'http://localhost:8080/api' })
+    it('fetches UI config limits from /api/v1/config', async () => {
+      const client = new ApiClient({ baseUrl: 'http://localhost:8080/api/v1' })
       mockFetch({ json: () => Promise.resolve({ max_study_items: 50000 }) })
 
       const result = await client.getConfig()
 
       expect(globalThis.fetch).toHaveBeenCalledWith(
-        'http://localhost:8080/api/config',
+        'http://localhost:8080/api/v1/config',
         undefined,
       )
       expect(result).toEqual({ max_study_items: 50000 })
@@ -394,15 +394,15 @@ describe('ApiClient', () => {
   })
 
   describe('createPreset', () => {
-    it('posts a new preset to /api/presets', async () => {
-      const client = new ApiClient({ baseUrl: 'http://localhost:8080/api' })
+    it('posts a new preset to /api/v1/presets', async () => {
+      const client = new ApiClient({ baseUrl: 'http://localhost:8080/api/v1' })
       const created = { id: 'new', name: 'Test', mapping: { x: 'cfg', combos: [] }, created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-01T00:00:00Z' }
       mockFetch({ json: () => Promise.resolve(created) })
 
       const result = await client.createPreset('Test', { x: 'cfg', combos: [] })
 
       expect(globalThis.fetch).toHaveBeenCalledWith(
-        'http://localhost:8080/api/presets',
+        'http://localhost:8080/api/v1/presets',
         expect.objectContaining({
           method: 'POST',
           body: JSON.stringify({ name: 'Test', mapping: { x: 'cfg', combos: [] } }),
@@ -413,15 +413,15 @@ describe('ApiClient', () => {
   })
 
   describe('updatePreset', () => {
-    it('puts an updated preset to /api/presets/{id}', async () => {
-      const client = new ApiClient({ baseUrl: 'http://localhost:8080/api' })
+    it('puts an updated preset to /api/v1/presets/{id}', async () => {
+      const client = new ApiClient({ baseUrl: 'http://localhost:8080/api/v1' })
       const updated = { id: 'p1', name: 'Renamed', mapping: { combos: ['seed'] }, created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-02T00:00:00Z' }
       mockFetch({ json: () => Promise.resolve(updated) })
 
       const result = await client.updatePreset('p1', 'Renamed', { combos: ['seed'] })
 
       expect(globalThis.fetch).toHaveBeenCalledWith(
-        'http://localhost:8080/api/presets/p1',
+        'http://localhost:8080/api/v1/presets/p1',
         expect.objectContaining({
           method: 'PUT',
           body: JSON.stringify({ name: 'Renamed', mapping: { combos: ['seed'] } }),
@@ -432,14 +432,14 @@ describe('ApiClient', () => {
   })
 
   describe('deletePreset', () => {
-    it('sends DELETE to /api/presets/{id}', async () => {
-      const client = new ApiClient({ baseUrl: 'http://localhost:8080/api' })
+    it('sends DELETE to /api/v1/presets/{id}', async () => {
+      const client = new ApiClient({ baseUrl: 'http://localhost:8080/api/v1' })
       mockFetch({ ok: true, status: 204, json: () => Promise.resolve(undefined) })
 
       await client.deletePreset('p1')
 
       expect(globalThis.fetch).toHaveBeenCalledWith(
-        'http://localhost:8080/api/presets/p1',
+        'http://localhost:8080/api/v1/presets/p1',
         { method: 'DELETE' },
       )
     })
@@ -465,15 +465,15 @@ describe('ApiClient', () => {
   })
 
   describe('getCheckpointMetadata', () => {
-    it('fetches metadata from /api/checkpoints/{filename}/metadata', async () => {
-      const client = new ApiClient({ baseUrl: 'http://localhost:8080/api' })
+    it('fetches metadata from /api/v1/checkpoints/{filename}/metadata', async () => {
+      const client = new ApiClient({ baseUrl: 'http://localhost:8080/api/v1' })
       const metadata = { metadata: { ss_output_name: 'test', ss_total_steps: '9000' } }
       mockFetch({ json: () => Promise.resolve(metadata) })
 
       const result = await client.getCheckpointMetadata('model-step00001000.safetensors')
 
       expect(globalThis.fetch).toHaveBeenCalledWith(
-        'http://localhost:8080/api/checkpoints/model-step00001000.safetensors/metadata',
+        'http://localhost:8080/api/v1/checkpoints/model-step00001000.safetensors/metadata',
         undefined,
       )
       expect(result).toEqual(metadata)
@@ -500,8 +500,8 @@ describe('ApiClient', () => {
   })
 
   describe('getImageMetadata', () => {
-    it('fetches metadata from /api/images/{filepath}/metadata', async () => {
-      const client = new ApiClient({ baseUrl: 'http://localhost:8080/api' })
+    it('fetches metadata from /api/v1/images/{filepath}/metadata', async () => {
+      const client = new ApiClient({ baseUrl: 'http://localhost:8080/api/v1' })
       const metadata = {
         string_metadata: { prompt: '{"nodes": []}', workflow: '{"links": []}' },
         numeric_metadata: { seed: 42, steps: 20, cfg: 7.5 },
@@ -511,7 +511,7 @@ describe('ApiClient', () => {
       const result = await client.getImageMetadata('checkpoint.safetensors/image.png')
 
       expect(globalThis.fetch).toHaveBeenCalledWith(
-        'http://localhost:8080/api/images/checkpoint.safetensors/image.png/metadata',
+        'http://localhost:8080/api/v1/images/checkpoint.safetensors/image.png/metadata',
         undefined,
       )
       expect(result).toEqual(metadata)
@@ -538,8 +538,8 @@ describe('ApiClient', () => {
   })
 
   describe('validateTrainingRun', () => {
-    it('posts to /api/training-runs/{id}/validate without query param when no studyId', async () => {
-      const client = new ApiClient({ baseUrl: 'http://localhost:8080/api' })
+    it('posts to /api/v1/training-runs/{id}/validate without query param when no studyId', async () => {
+      const client = new ApiClient({ baseUrl: 'http://localhost:8080/api/v1' })
       const validationResult = {
         checkpoints: [{ checkpoint: 'model-step00001000.safetensors', expected: 2, verified: 2, missing: 0 }],
         expected_per_checkpoint: 0,
@@ -551,14 +551,14 @@ describe('ApiClient', () => {
       const result = await client.validateTrainingRun('run-abc')
 
       expect(globalThis.fetch).toHaveBeenCalledWith(
-        'http://localhost:8080/api/training-runs/run-abc/validate',
+        'http://localhost:8080/api/v1/training-runs/run-abc/validate',
         { method: 'POST' },
       )
       expect(result).toEqual(validationResult)
     })
 
-    it('posts to /api/training-runs/{id}/validate with study_id query param when studyId provided', async () => {
-      const client = new ApiClient({ baseUrl: 'http://localhost:8080/api' })
+    it('posts to /api/v1/training-runs/{id}/validate with study_id query param when studyId provided', async () => {
+      const client = new ApiClient({ baseUrl: 'http://localhost:8080/api/v1' })
       const validationResult = {
         checkpoints: [{ checkpoint: 'model-step00001000.safetensors', expected: 4, verified: 4, missing: 0 }],
         expected_per_checkpoint: 4,
@@ -570,20 +570,20 @@ describe('ApiClient', () => {
       const result = await client.validateTrainingRun('run-abc', 'study-abc-123')
 
       expect(globalThis.fetch).toHaveBeenCalledWith(
-        'http://localhost:8080/api/training-runs/run-abc/validate?study_id=study-abc-123',
+        'http://localhost:8080/api/v1/training-runs/run-abc/validate?study_id=study-abc-123',
         { method: 'POST' },
       )
       expect(result).toEqual(validationResult)
     })
 
     it('URL-encodes study_id in query param', async () => {
-      const client = new ApiClient({ baseUrl: 'http://localhost:8080/api' })
+      const client = new ApiClient({ baseUrl: 'http://localhost:8080/api/v1' })
       mockFetch({ json: () => Promise.resolve({ checkpoints: [], expected_per_checkpoint: 0, total_expected: 0, total_verified: 0 }) })
 
       await client.validateTrainingRun('run-1', 'study with spaces & special=chars')
 
       expect(globalThis.fetch).toHaveBeenCalledWith(
-        'http://localhost:8080/api/training-runs/run-1/validate?study_id=study+with+spaces+%26+special%3Dchars',
+        'http://localhost:8080/api/v1/training-runs/run-1/validate?study_id=study+with+spaces+%26+special%3Dchars',
         { method: 'POST' },
       )
     })
@@ -591,7 +591,7 @@ describe('ApiClient', () => {
 
   describe('getHealth', () => {
     it('fetches health from /health endpoint', async () => {
-      const client = new ApiClient({ baseUrl: 'http://localhost:8080/api' })
+      const client = new ApiClient({ baseUrl: 'http://localhost:8080/api/v1' })
       mockFetch({ json: () => Promise.resolve({ status: 'ok' }) })
 
       const result = await client.getHealth()
@@ -601,7 +601,7 @@ describe('ApiClient', () => {
     })
 
     it('throws on health check failure', async () => {
-      const client = new ApiClient({ baseUrl: 'http://localhost:8080/api' })
+      const client = new ApiClient({ baseUrl: 'http://localhost:8080/api/v1' })
       mockFetch({
         ok: false,
         status: 503,

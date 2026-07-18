@@ -74,7 +74,7 @@ test.describe('B-049: sample path scoping', () => {
    */
   test('Select Missing button does not appear for new study when no samples are missing', async ({ page, request }) => {
     // Create a study with images_per_checkpoint=1 (1 prompt × 1 step × 1 cfg × 1 pair × 1 seed)
-    const studyResp = await request.post('/api/studies', {
+    const studyResp = await request.post('/api/v1/studies', {
       data: {
         name: `B049 Path Scope Test ${Date.now()}`,
         prompt_prefix: '',
@@ -131,7 +131,7 @@ test.describe('B-049: sample path scoping', () => {
    */
   test('validate API with study_id uses study images_per_checkpoint as expected count', async ({ request }) => {
     // Create a study with a known images_per_checkpoint (3 = 3 prompts × 1 seed × 1 cfg × 1 pair × 1 step)
-    const studyResp = await request.post('/api/studies', {
+    const studyResp = await request.post('/api/v1/studies', {
       data: {
         name: `B049 IPC Test ${Date.now()}`,
         prompt_prefix: '',
@@ -156,7 +156,7 @@ test.describe('B-049: sample path scoping', () => {
     // Get "my-model" training run using checkpoint source (same source the frontend uses
     // for the Generate Samples dialog). B-079: validate with study_id now uses checkpoint
     // discovery, so the ID must come from the same source.
-    const cpRunsResp = await request.get('/api/training-runs?source=checkpoints')
+    const cpRunsResp = await request.get('/api/v1/training-runs?source=checkpoints')
     expect(cpRunsResp.ok()).toBeTruthy()
     const cpRuns = await cpRunsResp.json()
     const myModel = cpRuns.find((r: { name: string }) => r.name === 'my-model')
@@ -164,14 +164,14 @@ test.describe('B-049: sample path scoping', () => {
 
     // For legacy validate (no study_id), use the viewer-discovered ID — the legacy path
     // still uses viewer discovery.
-    const viewerRunsResp = await request.get('/api/training-runs')
+    const viewerRunsResp = await request.get('/api/v1/training-runs')
     expect(viewerRunsResp.ok()).toBeTruthy()
     const viewerRuns = await viewerRunsResp.json()
     const viewerModel = viewerRuns.find((r: { name: string }) => r.name === 'my-model')
     expect(viewerModel).toBeDefined()
 
     // Call validate WITHOUT study_id (legacy heuristic mode uses viewer discovery)
-    const legacyResp = await request.post(`/api/training-runs/${viewerModel.id}/validate`)
+    const legacyResp = await request.post(`/api/v1/training-runs/${viewerModel.id}/validate`)
     expect(legacyResp.ok()).toBeTruthy()
     const legacyResult = await legacyResp.json()
     // Legacy mode uses max-file-count heuristic = 2 (each checkpoint has 2 PNGs)
@@ -179,7 +179,7 @@ test.describe('B-049: sample path scoping', () => {
 
     // Call validate WITH study_id (study-aware mode uses checkpoint discovery)
     const studyResp2 = await request.post(
-      `/api/training-runs/${myModel.id}/validate?study_id=${study.id}`,
+      `/api/v1/training-runs/${myModel.id}/validate?study_id=${study.id}`,
     )
     expect(studyResp2.ok()).toBeTruthy()
     const studyResult = await studyResp2.json()
@@ -205,7 +205,7 @@ test.describe('B-049: sample path scoping', () => {
    */
   test('validate API returns correct structure with study_id for training run with legacy samples', async ({ request }) => {
     // Create a minimal study (1 image per checkpoint)
-    const studyResp = await request.post('/api/studies', {
+    const studyResp = await request.post('/api/v1/studies', {
       data: {
         name: `B049 Structure Test ${Date.now()}`,
         prompt_prefix: '',
@@ -223,7 +223,7 @@ test.describe('B-049: sample path scoping', () => {
 
     // Get my-model training run using checkpoint source (same source the frontend uses).
     // B-079: validate with study_id uses checkpoint discovery for correct path scoping.
-    const runsResp = await request.get('/api/training-runs?source=checkpoints')
+    const runsResp = await request.get('/api/v1/training-runs?source=checkpoints')
     expect(runsResp.ok()).toBeTruthy()
     const runs = await runsResp.json()
     const myModel = runs.find((r: { name: string }) => r.name === 'my-model')
@@ -231,7 +231,7 @@ test.describe('B-049: sample path scoping', () => {
 
     // Call validate with study_id
     const validateResp = await request.post(
-      `/api/training-runs/${myModel.id}/validate?study_id=${study.id}`,
+      `/api/v1/training-runs/${myModel.id}/validate?study_id=${study.id}`,
     )
     expect(validateResp.ok()).toBeTruthy()
 

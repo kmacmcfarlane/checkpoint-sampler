@@ -184,7 +184,7 @@ test.describe('regeneration confirmation dialog (S-093)', () => {
     await expect(confirmDialog).not.toBeVisible()
 
     // No job created
-    const jobsResponse = await request.get('/api/sample-jobs')
+    const jobsResponse = await request.get('/api/v1/sample-jobs')
     expect(jobsResponse.status()).toBe(200)
     const jobs = await jobsResponse.json()
     expect(jobs).toHaveLength(0)
@@ -210,7 +210,7 @@ test.describe('regeneration confirmation dialog (S-093)', () => {
     await expect(dialog).not.toBeVisible({ timeout: 5000 })
 
     // AC3: Job was actually created
-    const jobsResponse = await request.get('/api/sample-jobs')
+    const jobsResponse = await request.get('/api/v1/sample-jobs')
     expect(jobsResponse.status()).toBe(200)
     const jobs = await jobsResponse.json()
     expect(jobs.length).toBeGreaterThan(0)

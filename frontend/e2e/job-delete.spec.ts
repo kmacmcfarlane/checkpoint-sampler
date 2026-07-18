@@ -67,7 +67,7 @@ const STUDY_PAYLOAD = {
 
 /** Create a study via the REST API and return its ID. */
 async function createStudyViaAPI(request: APIRequestContext): Promise<string> {
-  const response = await request.post('/api/studies', { data: STUDY_PAYLOAD })
+  const response = await request.post('/api/v1/studies', { data: STUDY_PAYLOAD })
   expect(response.status()).toBe(201)
   const body = await response.json()
   return body.id as string
@@ -76,7 +76,7 @@ async function createStudyViaAPI(request: APIRequestContext): Promise<string> {
 /** Create a sample job via the REST API and return its ID. */
 // S-112: workflow_name/vae/clip come from the study definition, not the job payload
 async function createJobViaAPI(request: APIRequestContext, studyId: string): Promise<string> {
-  const response = await request.post('/api/sample-jobs', {
+  const response = await request.post('/api/v1/sample-jobs', {
     data: {
       training_run_name: 'my-model',
       study_id: studyId,
@@ -248,7 +248,7 @@ test.describe('job deletion with optional sample data removal (S-097)', () => {
     await expect(confirmDialog).not.toBeVisible()
 
     // Job should still exist in the API
-    const jobsResponse = await request.get('/api/sample-jobs')
+    const jobsResponse = await request.get('/api/v1/sample-jobs')
     expect(jobsResponse.status()).toBe(200)
     const jobsData = await jobsResponse.json()
     const found = jobsData.some((j: { id: string }) => j.id === jobId)
@@ -274,12 +274,12 @@ test.describe('job deletion with optional sample data removal (S-097)', () => {
     // Click "Yes, Delete" — register the waitForResponse BEFORE clicking to avoid a race
     // where the DELETE response arrives before the listener is set up.
     const confirmButton = confirmDialog.locator('[data-testid="confirm-delete-button"]')
-    // B-116: wait for the DELETE API response before checking GET /api/sample-jobs,
+    // B-116: wait for the DELETE API response before checking GET /api/v1/sample-jobs,
     // otherwise the GET can race against the in-flight DELETE and see the job still present.
     await Promise.all([
       page.waitForResponse(
         resp =>
-          resp.url().includes(`/api/sample-jobs/${jobId}`) &&
+          resp.url().includes(`/api/v1/sample-jobs/${jobId}`) &&
           resp.request().method() === 'DELETE' &&
           resp.status() === 204,
       ),
@@ -288,7 +288,7 @@ test.describe('job deletion with optional sample data removal (S-097)', () => {
     await expect(confirmDialog).not.toBeVisible()
 
     // Job should be gone from the API
-    const jobsResponse = await request.get('/api/sample-jobs')
+    const jobsResponse = await request.get('/api/v1/sample-jobs')
     expect(jobsResponse.status()).toBe(200)
     const jobsData = await jobsResponse.json()
     const found = jobsData.some((j: { id: string }) => j.id === jobId)
@@ -321,14 +321,14 @@ test.describe('job deletion with optional sample data removal (S-097)', () => {
     })
     expect(seedResp.status()).toBe(201)
 
-    const runsResp = await request.get('/api/training-runs?source=checkpoints')
+    const runsResp = await request.get('/api/v1/training-runs?source=checkpoints')
     expect(runsResp.ok()).toBeTruthy()
     const runs = await runsResp.json() as Array<{ id: number; name: string }>
     const run = runs.find(r => r.name === 'my-model')
     expect(run).toBeDefined()
 
     // Confirm the seed produced a fully-sampled study (sanity check before delete).
-    const beforeResp = await request.get(`/api/studies/availability?training_run_id=${run!.id}`)
+    const beforeResp = await request.get(`/api/v1/studies/availability?training_run_id=${run!.id}`)
     expect(beforeResp.ok()).toBeTruthy()
     const beforeAvailabilities = await beforeResp.json() as Array<{ study_id: string; sample_status: string }>
     expect(beforeAvailabilities.find(a => a.study_id === studyId)?.sample_status).toBe('complete')
@@ -337,11 +337,11 @@ test.describe('job deletion with optional sample data removal (S-097)', () => {
     const jobId = await createJobViaAPI(request, studyId)
 
     // Delete with delete_data=true.
-    const deleteResp = await request.delete(`/api/sample-jobs/${jobId}?delete_data=true`)
+    const deleteResp = await request.delete(`/api/v1/sample-jobs/${jobId}?delete_data=true`)
     expect(deleteResp.status()).toBe(204)
 
     // AC: the actual output files must be gone — availability must report 'none'.
-    const afterResp = await request.get(`/api/studies/availability?training_run_id=${run!.id}`)
+    const afterResp = await request.get(`/api/v1/studies/availability?training_run_id=${run!.id}`)
     expect(afterResp.ok()).toBeTruthy()
     const afterAvailabilities = await afterResp.json() as Array<{ study_id: string; sample_status: string; has_samples: boolean }>
     const afterStudyAvail = afterAvailabilities.find(a => a.study_id === studyId)
@@ -350,23 +350,23 @@ test.describe('job deletion with optional sample data removal (S-097)', () => {
     expect(afterStudyAvail!.has_samples).toBe(false)
   })
 
-  // AC3+AC4: BE: DELETE /api/sample-jobs/{id}?delete_data=false and delete_data=true both return 204
-  test('BE: DELETE /api/sample-jobs/{id} returns 204 with and without delete_data', async ({ request }) => {
+  // AC3+AC4: BE: DELETE /api/v1/sample-jobs/{id}?delete_data=false and delete_data=true both return 204
+  test('BE: DELETE /api/v1/sample-jobs/{id} returns 204 with and without delete_data', async ({ request }) => {
     // AC: BE: Both deletion paths return 204 No Content
     const studyId = await createStudyViaAPI(request)
 
     // Job 1: delete without data flag
     const jobId1 = await createJobViaAPI(request, studyId)
-    const resp1 = await request.delete(`/api/sample-jobs/${jobId1}`)
+    const resp1 = await request.delete(`/api/v1/sample-jobs/${jobId1}`)
     expect(resp1.status()).toBe(204)
 
     // Job 2: delete with delete_data=true
     const jobId2 = await createJobViaAPI(request, studyId)
-    const resp2 = await request.delete(`/api/sample-jobs/${jobId2}?delete_data=true`)
+    const resp2 = await request.delete(`/api/v1/sample-jobs/${jobId2}?delete_data=true`)
     expect(resp2.status()).toBe(204)
 
     // Both jobs should be gone
-    const jobsResponse = await request.get('/api/sample-jobs')
+    const jobsResponse = await request.get('/api/v1/sample-jobs')
     expect(jobsResponse.status()).toBe(200)
     const jobsData = await jobsResponse.json()
     expect(jobsData.every((j: { id: string }) => j.id !== jobId1 && j.id !== jobId2)).toBe(true)

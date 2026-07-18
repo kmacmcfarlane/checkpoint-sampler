@@ -11,15 +11,15 @@ package server
 
 // StatusDemoPath returns the URL path to the demo service status HTTP endpoint.
 func StatusDemoPath() string {
-	return "/api/demo/status"
+	return "/api/v1/demo/status"
 }
 
 // InstallDemoPath returns the URL path to the demo service install HTTP endpoint.
 func InstallDemoPath() string {
-	return "/api/demo/install"
+	return "/api/v1/demo/install"
 }
 
 // UninstallDemoPath returns the URL path to the demo service uninstall HTTP endpoint.
 func UninstallDemoPath() string {
-	return "/api/demo"
+	return "/api/v1/demo"
 }

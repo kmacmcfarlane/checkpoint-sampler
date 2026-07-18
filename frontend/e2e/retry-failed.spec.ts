@@ -1,7 +1,7 @@
 import { test, expect, type APIRequestContext } from '@playwright/test'
 import { resetDatabase, cancelAllJobs, closeDrawer } from './helpers'
 
-// AC: BE: POST /api/sample-jobs/{id}/retry-failed re-queues only failed items in the same job
+// AC: BE: POST /api/v1/sample-jobs/{id}/retry-failed re-queues only failed items in the same job
 // AC: FE: 'Retry failed' button appears on completed_with_errors jobs in the job progress panel
 
 /**
@@ -54,8 +54,8 @@ test.describe('retry-failed endpoint (S-110)', () => {
     await cancelAllJobs(request)
   })
 
-  // AC: BE: POST /api/sample-jobs/{id}/retry-failed returns 400 for a job not in completed_with_errors state
-  test('POST /api/sample-jobs/{id}/retry-failed returns 400 for non-completed_with_errors job', async ({ request }) => {
+  // AC: BE: POST /api/v1/sample-jobs/{id}/retry-failed returns 400 for a job not in completed_with_errors state
+  test('POST /api/v1/sample-jobs/{id}/retry-failed returns 400 for non-completed_with_errors job', async ({ request }) => {
     // Create a study and job to get a real job ID in a different state
     const studyPayload = {
       name: 'Retry Test Study',
@@ -71,24 +71,24 @@ test.describe('retry-failed endpoint (S-110)', () => {
       vaes: ['test-vae.safetensors'],
       text_encoders: ['test-clip.safetensors'],
     }
-    const studyResp = await request.post('/api/studies', { data: studyPayload })
+    const studyResp = await request.post('/api/v1/studies', { data: studyPayload })
     expect(studyResp.status()).toBe(201)
     const study = await studyResp.json()
 
-    const jobResp = await request.post('/api/sample-jobs', {
+    const jobResp = await request.post('/api/v1/sample-jobs', {
       data: { training_run_name: 'my-model', study_id: study.id },
     })
     expect(jobResp.status()).toBe(201)
     const job = await jobResp.json()
 
     // The job is pending or running — retry-failed should return 400 (invalid_state)
-    const retryResp = await request.post(`/api/sample-jobs/${job.id}/retry-failed`)
+    const retryResp = await request.post(`/api/v1/sample-jobs/${job.id}/retry-failed`)
     expect(retryResp.status()).toBe(400)
   })
 
-  // AC: BE: POST /api/sample-jobs/{id}/retry-failed returns 404 for a non-existent job
-  test('POST /api/sample-jobs/{id}/retry-failed returns 404 for unknown job', async ({ request }) => {
-    const retryResp = await request.post('/api/sample-jobs/nonexistent-id/retry-failed')
+  // AC: BE: POST /api/v1/sample-jobs/{id}/retry-failed returns 404 for a non-existent job
+  test('POST /api/v1/sample-jobs/{id}/retry-failed returns 404 for unknown job', async ({ request }) => {
+    const retryResp = await request.post('/api/v1/sample-jobs/nonexistent-id/retry-failed')
     expect(retryResp.status()).toBe(404)
   })
 

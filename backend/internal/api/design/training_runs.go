@@ -22,7 +22,7 @@ var _ = Service("training_runs", func() {
 		// internal_error: canonical 500 (see errors.go for the shared vocabulary).
 		Error("internal_error", ErrorResult, "Internal server error")
 		HTTP(func() {
-			GET("/api/training-runs")
+			GET("/api/v1/training-runs")
 			Param("source")
 			Param("refresh")
 			Response(StatusOK)
@@ -42,7 +42,7 @@ var _ = Service("training_runs", func() {
 		Error("not_found", ErrorResult, "Training run or study not found")
 		Error("internal_error", ErrorResult, "Internal server error")
 		HTTP(func() {
-			POST("/api/training-runs/{id}/validate")
+			POST("/api/v1/training-runs/{id}/validate")
 			Param("study_id")
 			Param("study_output_dir")
 			Response(StatusOK)
@@ -64,7 +64,7 @@ var _ = Service("training_runs", func() {
 		Error("not_found", ErrorResult, "Training run not found")
 		Error("internal_error", ErrorResult, "Internal server error")
 		HTTP(func() {
-			GET("/api/training-runs/{id}/scan")
+			GET("/api/v1/training-runs/{id}/scan")
 			Param("study_name")
 			Response(StatusOK)
 			Response("not_found", StatusNotFound)

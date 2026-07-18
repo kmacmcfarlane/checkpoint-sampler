@@ -18,9 +18,9 @@ test.describe('training run refresh button (B-142)', () => {
   })
 
   // AC1: Backend accepts ?refresh=true and returns HTTP 200 (end-to-end API smoke test).
-  test('GET /api/training-runs?source=checkpoints&refresh=true returns HTTP 200', async ({ request }) => {
+  test('GET /api/v1/training-runs?source=checkpoints&refresh=true returns HTTP 200', async ({ request }) => {
     // AC1: The backend must accept the refresh query parameter without error.
-    const response = await request.get('/api/training-runs?source=checkpoints&refresh=true')
+    const response = await request.get('/api/v1/training-runs?source=checkpoints&refresh=true')
     expect(response.status()).toBe(200)
 
     const body = await response.json() as unknown[]
@@ -61,13 +61,13 @@ test.describe('training run refresh button (B-142)', () => {
   // executes without error.)
   test('backend forced rescan returns a valid training run list', async ({ request }) => {
     // First call without refresh (cached path).
-    const cachedResponse = await request.get('/api/training-runs?source=checkpoints')
+    const cachedResponse = await request.get('/api/v1/training-runs?source=checkpoints')
     expect(cachedResponse.status()).toBe(200)
     const cachedBody = await cachedResponse.json() as unknown[]
     expect(Array.isArray(cachedBody)).toBe(true)
 
     // Second call with refresh=true (forced rescan path).
-    const refreshResponse = await request.get('/api/training-runs?source=checkpoints&refresh=true')
+    const refreshResponse = await request.get('/api/v1/training-runs?source=checkpoints&refresh=true')
     expect(refreshResponse.status()).toBe(200)
     const refreshBody = await refreshResponse.json() as unknown[]
     expect(Array.isArray(refreshBody)).toBe(true)

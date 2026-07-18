@@ -36,7 +36,7 @@ test.describe('LoRA has_samples detection (B-144)', () => {
     // source=checkpoints returns both checkpoint and LoRA runs (via FSState.CheckpointRuns).
     // Use refresh=true to force a fresh filesystem scan (FSState cache may not have
     // picked up the re-seeded LoRA fixture dirs yet after resetDatabase()).
-    const response = await request.get('/api/training-runs?source=checkpoints&refresh=true')
+    const response = await request.get('/api/v1/training-runs?source=checkpoints&refresh=true')
     expect(response.ok()).toBeTruthy()
 
     const runs = await response.json() as Array<{ name: string; has_samples: boolean; kind: string; checkpoints: Array<{ filename: string; has_samples: boolean }> }>
@@ -68,7 +68,7 @@ test.describe('LoRA has_samples detection (B-144)', () => {
     // The my-model fixture uses the flat legacy layout:
     //   test-fixtures/samples/my-model-step00001000.safetensors/
     //   test-fixtures/samples/my-model-step00002000.safetensors/
-    const response = await request.get('/api/training-runs?source=checkpoints')
+    const response = await request.get('/api/v1/training-runs?source=checkpoints')
     expect(response.ok()).toBeTruthy()
 
     const runs = await response.json() as Array<{ name: string; has_samples: boolean; kind: string }>
@@ -92,7 +92,7 @@ test.describe('LoRA has_samples detection (B-144)', () => {
     // source=checkpoints returns both checkpoint and LoRA runs.
     // Use refresh=true to force a fresh filesystem scan (FSState cache may not have
     // picked up the re-seeded LoRA fixture dirs yet after resetDatabase()).
-    const response = await request.get('/api/training-runs?source=checkpoints&refresh=true')
+    const response = await request.get('/api/v1/training-runs?source=checkpoints&refresh=true')
     expect(response.ok()).toBeTruthy()
 
     const runs = await response.json() as Array<{ name: string; has_samples: boolean }>

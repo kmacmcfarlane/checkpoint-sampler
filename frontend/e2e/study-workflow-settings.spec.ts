@@ -104,7 +104,7 @@ test.describe('study workflow settings (S-112)', () => {
     await expect(dialog).toBeVisible()
 
     // AC: Verify the study was saved with workflow settings via API
-    const studiesResp = await request.get('/api/studies')
+    const studiesResp = await request.get('/api/v1/studies')
     expect(studiesResp.status()).toBe(200)
     const studies = await studiesResp.json() as Array<{
       name: string
@@ -125,7 +125,7 @@ test.describe('study workflow settings (S-112)', () => {
     const studyName = `S112 Reload Test ${Date.now()}`
 
     // Create a study with workflow settings via API
-    const createResp = await request.post('/api/studies', {
+    const createResp = await request.post('/api/v1/studies', {
       data: {
         name: studyName,
         prompt_prefix: '',
@@ -235,7 +235,7 @@ test.describe('study workflow settings (S-112)', () => {
     const studyName = `S112 Submit Test ${Date.now()}`
 
     // Create a study (no workflow settings needed)
-    await request.post('/api/studies', {
+    await request.post('/api/v1/studies', {
       data: {
         name: studyName,
         prompt_prefix: '',

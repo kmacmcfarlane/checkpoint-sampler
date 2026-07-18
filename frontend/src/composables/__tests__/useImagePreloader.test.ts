@@ -58,8 +58,8 @@ describe('useImagePreloader', () => {
     const { preloaded } = useImagePreloader(images, xDim, yDim, sliderDim, combos)
     await flush()
 
-    expect(preloaded.has('/api/images/a.png')).toBe(true)
-    expect(preloaded.has('/api/images/b.png')).toBe(true)
+    expect(preloaded.has('/api/v1/images/a.png')).toBe(true)
+    expect(preloaded.has('/api/v1/images/b.png')).toBe(true)
   })
 
   it('prioritizes slider positions for visible cells', async () => {
@@ -80,9 +80,9 @@ describe('useImagePreloader', () => {
     await flush()
 
     // All should eventually be preloaded
-    expect(preloaded.has('/api/images/vis-cfg3.png')).toBe(true)
-    expect(preloaded.has('/api/images/vis-cfg7.png')).toBe(true)
-    expect(preloaded.has('/api/images/other.png')).toBe(true)
+    expect(preloaded.has('/api/v1/images/vis-cfg3.png')).toBe(true)
+    expect(preloaded.has('/api/v1/images/vis-cfg7.png')).toBe(true)
+    expect(preloaded.has('/api/v1/images/other.png')).toBe(true)
   })
 
   it('records preloaded URLs using Image() constructor', async () => {
@@ -98,7 +98,7 @@ describe('useImagePreloader', () => {
     await flush()
 
     const srcs = imageInstances.map((i) => i.src)
-    expect(srcs).toContain('/api/images/test.png')
+    expect(srcs).toContain('/api/v1/images/test.png')
   })
 
   it('filters images by combo selections before preloading', async () => {
@@ -115,9 +115,9 @@ describe('useImagePreloader', () => {
     await flush()
 
     // 'yes.png' passes combo filter (prompt=a), gets priority preload
-    expect(preloaded.has('/api/images/yes.png')).toBe(true)
+    expect(preloaded.has('/api/v1/images/yes.png')).toBe(true)
     // 'no.png' doesn't pass combo but still gets preloaded as remaining image
-    expect(preloaded.has('/api/images/no.png')).toBe(true)
+    expect(preloaded.has('/api/v1/images/no.png')).toBe(true)
   })
 
   it('restarts preloading when images change', async () => {
@@ -130,13 +130,13 @@ describe('useImagePreloader', () => {
     const { preloaded } = useImagePreloader(images, xDim, yDim, sliderDim, combos)
     await flush()
 
-    expect(preloaded.has('/api/images/first.png')).toBe(true)
+    expect(preloaded.has('/api/v1/images/first.png')).toBe(true)
 
     // Change images - should trigger new preload cycle
     images.value = [makeImage('second.png', {})]
     await flush()
 
-    expect(preloaded.has('/api/images/second.png')).toBe(true)
+    expect(preloaded.has('/api/v1/images/second.png')).toBe(true)
   })
 
   // AC: changing only a combo filter retriggers preload prioritization for newly-visible cells.
@@ -211,7 +211,7 @@ describe('useImagePreloader', () => {
     useImagePreloader(images, xDim, yDim, sliderDim, combos)
     await flush()
 
-    const cycle1Count = imageInstances.filter((i) => i.src === '/api/images/keep.png').length
+    const cycle1Count = imageInstances.filter((i) => i.src === '/api/v1/images/keep.png').length
     expect(cycle1Count).toBe(1)
 
     // Retrigger a new preload cycle. keep.png is still part of the image set.
@@ -221,10 +221,10 @@ describe('useImagePreloader', () => {
     // keep.png was already in the preloaded set from cycle 1; the has(url) guard
     // must skip it — no second Image() created for the same URL (preloaded set
     // is NOT cleared wholesale between cycles).
-    const totalCount = imageInstances.filter((i) => i.src === '/api/images/keep.png').length
+    const totalCount = imageInstances.filter((i) => i.src === '/api/v1/images/keep.png').length
     expect(totalCount).toBe(1)
     // The newly-added image still gets preloaded in the new cycle.
-    expect(imageInstances.some((i) => i.src === '/api/images/new.png')).toBe(true)
+    expect(imageInstances.some((i) => i.src === '/api/v1/images/new.png')).toBe(true)
   })
 
   it('does nothing with empty image list', async () => {
@@ -254,7 +254,7 @@ describe('useImagePreloader', () => {
     await flush()
 
     // Count how many Image() instances were created for this URL
-    const count = imageInstances.filter((i) => i.src === '/api/images/dup.png').length
+    const count = imageInstances.filter((i) => i.src === '/api/v1/images/dup.png').length
     expect(count).toBe(1)
   })
 
@@ -292,11 +292,11 @@ describe('useImagePreloader', () => {
     await flush()
 
     // Image with thumbnail should preload via thumbnail URL
-    expect(preloaded.has('/api/images/thumbs/a.jpg')).toBe(true)
+    expect(preloaded.has('/api/v1/images/thumbs/a.jpg')).toBe(true)
     // Image without thumbnail falls back to full-res
-    expect(preloaded.has('/api/images/b.png')).toBe(true)
+    expect(preloaded.has('/api/v1/images/b.png')).toBe(true)
     // Full-res URL of image with thumbnail should NOT be preloaded
-    expect(preloaded.has('/api/images/a.png')).toBe(false)
+    expect(preloaded.has('/api/v1/images/a.png')).toBe(false)
   })
 
   it('uses thumbnail URLs for slider-position preloading', async () => {
@@ -313,11 +313,11 @@ describe('useImagePreloader', () => {
     const { preloaded } = useImagePreloader(images, xDim, yDim, sliderDim, combos)
     await flush()
 
-    expect(preloaded.has('/api/images/thumbs/vis-cfg3.jpg')).toBe(true)
-    expect(preloaded.has('/api/images/thumbs/vis-cfg7.jpg')).toBe(true)
+    expect(preloaded.has('/api/v1/images/thumbs/vis-cfg3.jpg')).toBe(true)
+    expect(preloaded.has('/api/v1/images/thumbs/vis-cfg7.jpg')).toBe(true)
     // Full-res should not be preloaded
-    expect(preloaded.has('/api/images/vis-cfg3.png')).toBe(false)
-    expect(preloaded.has('/api/images/vis-cfg7.png')).toBe(false)
+    expect(preloaded.has('/api/v1/images/vis-cfg3.png')).toBe(false)
+    expect(preloaded.has('/api/v1/images/vis-cfg7.png')).toBe(false)
   })
 
   it('preloads horizontal neighbors (+/-3 X-axis positions)', async () => {
@@ -342,11 +342,11 @@ describe('useImagePreloader', () => {
 
     // All images should be preloaded via thumbnail URLs (they're horizontal neighbors of each other)
     for (const s of ['1', '2', '3', '4', '5', '6', '7']) {
-      expect(preloaded.has(`/api/images/thumbs/s${s}.jpg`)).toBe(true)
+      expect(preloaded.has(`/api/v1/images/thumbs/s${s}.jpg`)).toBe(true)
     }
     // Full-res should not be preloaded
     for (const s of ['1', '2', '3', '4', '5', '6', '7']) {
-      expect(preloaded.has(`/api/images/s${s}.png`)).toBe(false)
+      expect(preloaded.has(`/api/v1/images/s${s}.png`)).toBe(false)
     }
   })
 })

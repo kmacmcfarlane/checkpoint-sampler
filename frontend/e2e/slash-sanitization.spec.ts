@@ -34,7 +34,7 @@ test.describe('B-088: slash sanitization in training run directory names', () =>
   test('checkpoint API returns training run name with forward slash', async ({ request }) => {
     // AC: source=checkpoints discovers "test-run/my-model" from the
     // test-fixtures/checkpoints/test-run/ subdirectory
-    const response = await request.get('/api/training-runs?source=checkpoints')
+    const response = await request.get('/api/v1/training-runs?source=checkpoints')
     expect(response.ok()).toBeTruthy()
 
     const runs = await response.json()
@@ -56,7 +56,7 @@ test.describe('B-088: slash sanitization in training run directory names', () =>
     //   samples/test-run_my-model/{study_id}/{checkpoint}/
     // Viewer-discovery scans sample_dir and constructs the run name from directories.
     // It will see: test-run_my-model/{study_id}/{checkpoint} → run name includes study_id prefix.
-    const response = await request.get('/api/training-runs')
+    const response = await request.get('/api/v1/training-runs')
     expect(response.ok()).toBeTruthy()
 
     const runs = await response.json()
@@ -84,8 +84,8 @@ test.describe('B-088: slash sanitization in training run directory names', () =>
     request,
   }) => {
     const [cpResponse, sampleResponse] = await Promise.all([
-      request.get('/api/training-runs?source=checkpoints'),
-      request.get('/api/training-runs'),
+      request.get('/api/v1/training-runs?source=checkpoints'),
+      request.get('/api/v1/training-runs'),
     ])
 
     expect(cpResponse.ok()).toBeTruthy()
@@ -121,7 +121,7 @@ test.describe('B-088: slash sanitization in training run directory names', () =>
   }) => {
     // Get training runs from the checkpoint source (same source the frontend uses
     // for the Generate Samples dialog).
-    const runsResponse = await request.get('/api/training-runs?source=checkpoints')
+    const runsResponse = await request.get('/api/v1/training-runs?source=checkpoints')
     expect(runsResponse.ok()).toBeTruthy()
     const runs = await runsResponse.json()
 
@@ -132,7 +132,7 @@ test.describe('B-088: slash sanitization in training run directory names', () =>
     expect(slashRun).toBeDefined()
 
     // Create a minimal study
-    const studyResp = await request.post('/api/studies', {
+    const studyResp = await request.post('/api/v1/studies', {
       data: {
         name: `B088 Slash Test ${Date.now()}`,
         prompt_prefix: '',
@@ -153,7 +153,7 @@ test.describe('B-088: slash sanitization in training run directory names', () =>
     // If it did NOT sanitize, it would try to read from "test-run/my-model/{study_id}/"
     // (two directory levels) instead of "test-run_my-model/{study_id}/" (one level).
     const validateResp = await request.post(
-      `/api/training-runs/${slashRun.id}/validate?study_id=${study.id}`,
+      `/api/v1/training-runs/${slashRun.id}/validate?study_id=${study.id}`,
     )
     expect(validateResp.ok()).toBeTruthy()
 

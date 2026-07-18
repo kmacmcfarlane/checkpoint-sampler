@@ -20,7 +20,7 @@ var _ = Service("images", func() {
 		// invalid_payload: canonical 400 — covers a rejected file path (traversal).
 		Error("invalid_payload", ErrorResult, "Invalid file path (traversal rejected)")
 		HTTP(func() {
-			GET("/api/images/{*filepath}")
+			GET("/api/v1/images/{*filepath}")
 			SkipResponseBodyEncodeDecode()
 			Response(StatusOK, func() {
 				Header("content_type:Content-Type")
@@ -45,10 +45,10 @@ var _ = Service("images", func() {
 		// invalid_payload: canonical 400 — covers a rejected file path (traversal).
 		Error("invalid_payload", ErrorResult, "Invalid file path (traversal rejected)")
 		HTTP(func() {
-			// Note: The actual HTTP path will be /api/images/{filepath}/metadata
+			// Note: The actual HTTP path will be /api/v1/images/{filepath}/metadata
 			// but we register it under a different pattern due to chi router limitations
 			// and use a custom handler wrapper in http.go to route it correctly
-			GET("/api/_images_metadata/{*filepath}")
+			GET("/api/v1/_images_metadata/{*filepath}")
 			Response(StatusOK)
 			Response("not_found", StatusNotFound)
 			Response("invalid_payload", StatusBadRequest)

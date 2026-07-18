@@ -11,7 +11,7 @@ var _ = Service("ws", func() {
 		Description("Subscribe to filesystem change events via WebSocket")
 		StreamingResult(FSEventResponse)
 		HTTP(func() {
-			GET("/api/ws")
+			GET("/api/v1/ws")
 			Response(StatusOK)
 		})
 	})

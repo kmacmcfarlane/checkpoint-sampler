@@ -37,7 +37,7 @@ async function createPresetViaApi(
   name: string,
   mapping: { x?: string; y?: string; slider?: string; combos: string[] },
 ): Promise<string> {
-  const response = await request.post('/api/presets', {
+  const response = await request.post('/api/v1/presets', {
     data: { name, mapping },
   })
   expect(response.ok()).toBeTruthy()
@@ -58,7 +58,7 @@ test.describe('B-047: preset dirty tracking after auto-load', () => {
     // AC: Auto-loaded preset + filter mode change → Update button appears immediately
 
     // Step 1: Discover the training run ID from the API
-    const runsResponse = await request.get('/api/training-runs')
+    const runsResponse = await request.get('/api/v1/training-runs')
     const runs = await runsResponse.json()
     expect(runs.length).toBeGreaterThan(0)
     const trainingRunId = runs[0].id
@@ -118,7 +118,7 @@ test.describe('B-047: preset dirty tracking after auto-load', () => {
   test('switching filter mode from Single to Hide marks preset dirty after auto-load', async ({ page, request }) => {
     // AC: Single→Hide filter mode change after auto-load triggers dirty state
 
-    const runsResponse = await request.get('/api/training-runs')
+    const runsResponse = await request.get('/api/v1/training-runs')
     const runs = await runsResponse.json()
     const trainingRunId = runs[0].id
 
@@ -163,7 +163,7 @@ test.describe('B-047: preset dirty tracking after auto-load', () => {
   test('Update button appears after changing axis role on auto-loaded preset', async ({ page, request }) => {
     // AC: Axis role change after auto-load still triggers dirty state
 
-    const runsResponse = await request.get('/api/training-runs')
+    const runsResponse = await request.get('/api/v1/training-runs')
     const runs = await runsResponse.json()
     const trainingRunId = runs[0].id
 
@@ -207,7 +207,7 @@ test.describe('B-047: preset dirty tracking after auto-load', () => {
   test('Update button does not appear when no changes are made after auto-load', async ({ page, request }) => {
     // AC: Auto-load alone does not create dirty state
 
-    const runsResponse = await request.get('/api/training-runs')
+    const runsResponse = await request.get('/api/v1/training-runs')
     const runs = await runsResponse.json()
     const trainingRunId = runs[0].id
 

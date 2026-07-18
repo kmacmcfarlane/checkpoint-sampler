@@ -67,7 +67,7 @@ describe('WSClient', () => {
 
   function createClient(overrides: Record<string, unknown> = {}) {
     return new WSClient({
-      url: 'ws://test/api/ws',
+      url: 'ws://test/api/v1/ws',
       createWebSocket: createWebSocket as unknown as (url: string) => WebSocket,
       initialDelay: 100,
       maxDelay: 1600,
@@ -82,7 +82,7 @@ describe('WSClient', () => {
       client.connect()
 
       expect(mockInstances).toHaveLength(1)
-      expect(mockInstances[0].url).toBe('ws://test/api/ws')
+      expect(mockInstances[0].url).toBe('ws://test/api/v1/ws')
     })
 
     it('reports connected state after open', () => {

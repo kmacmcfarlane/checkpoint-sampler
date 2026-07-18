@@ -92,13 +92,13 @@ export async function resetDatabase(request: APIRequestContext): Promise<void> {
  * next polling tick.
  */
 export async function cancelAllJobs(request: APIRequestContext): Promise<void> {
-  const listResponse = await request.get('/api/sample-jobs')
+  const listResponse = await request.get('/api/v1/sample-jobs')
   if (listResponse.status() !== 200) return
 
   const jobs = await listResponse.json() as Array<{ id: string; status: string }>
   for (const job of jobs) {
     if (job.status === 'pending' || job.status === 'running') {
-      await request.delete(`/api/sample-jobs/${job.id}`)
+      await request.delete(`/api/v1/sample-jobs/${job.id}`)
     }
   }
 }
@@ -112,12 +112,12 @@ export async function cancelAllJobs(request: APIRequestContext): Promise<void> {
  * subsequent tests.
  */
 export async function uninstallDemo(request: APIRequestContext): Promise<void> {
-  const statusResponse = await request.get('/api/demo/status')
+  const statusResponse = await request.get('/api/v1/demo/status')
   if (statusResponse.status() !== 200) return
 
   const status = await statusResponse.json()
   if (status.installed) {
-    await request.delete('/api/demo')
+    await request.delete('/api/v1/demo')
   }
 }
 
@@ -507,7 +507,7 @@ export async function savePresetViaDialog(page: Page, presetName: string): Promi
   await expect(nameInput).toBeVisible()
   await nameInput.fill(presetName)
 
-  // Confirm save — wait for the POST /api/presets API response to complete before returning.
+  // Confirm save — wait for the POST /api/v1/presets API response to complete before returning.
   // The dialog closes at the START of onConfirmSave() (before the API call), so waiting only
   // for the dialog to close is insufficient: dirty tracking (snapshotAssignments) runs after
   // the API call resolves, causing a race where the Save button remains enabled briefly.
@@ -516,7 +516,7 @@ export async function savePresetViaDialog(page: Page, presetName: string): Promi
   await Promise.all([
     page.waitForResponse(
       resp =>
-        resp.url().includes('/api/presets') &&
+        resp.url().includes('/api/v1/presets') &&
         resp.request().method() === 'POST' &&
         resp.status() === 201,
     ),

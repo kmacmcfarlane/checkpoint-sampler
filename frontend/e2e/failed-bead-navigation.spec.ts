@@ -55,7 +55,7 @@ async function seedJobs(request: APIRequestContext, jobs: Array<{
  * Creates a minimal study via the API and returns its ID.
  */
 async function createStudy(request: APIRequestContext, name: string): Promise<string> {
-  const resp = await request.post('/api/studies', {
+  const resp = await request.post('/api/v1/studies', {
     data: {
       name,
       prompt_prefix: '',

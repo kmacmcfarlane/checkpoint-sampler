@@ -29,14 +29,14 @@ test.describe('LoRA base model remembered from existing samples (B-145)', () => 
   test('availability endpoint reports base_models for the LoRA run/study with existing samples', async ({ request }) => {
     // Locate the test-lora run index. source=checkpoints returns both checkpoint
     // and LoRA runs. refresh=true forces a fresh FS scan after reset.
-    const runsResp = await request.get('/api/training-runs?source=checkpoints&refresh=true')
+    const runsResp = await request.get('/api/v1/training-runs?source=checkpoints&refresh=true')
     expect(runsResp.ok()).toBeTruthy()
     // S-155: address the run by its stable opaque id, not a positional index.
     const runs = await runsResp.json() as Array<{ id: string; name: string }>
     const loraRun = runs.find(r => r.name === 'test-lora')
     expect(loraRun).toBeDefined()
 
-    const availResp = await request.get(`/api/studies/availability?training_run_id=${encodeURIComponent(loraRun!.id)}`)
+    const availResp = await request.get(`/api/v1/studies/availability?training_run_id=${encodeURIComponent(loraRun!.id)}`)
     expect(availResp.ok()).toBeTruthy()
     const availability = await availResp.json() as Array<{
       study_id: string
@@ -56,14 +56,14 @@ test.describe('LoRA base model remembered from existing samples (B-145)', () => 
   // AC: FE — when no prior base model exists, the dropdown remains empty without
   // error. A checkpoint run/study combination must not report any base_models.
   test('availability reports no base_models for a checkpoint run/study (graceful empty)', async ({ request }) => {
-    const runsResp = await request.get('/api/training-runs?source=checkpoints&refresh=true')
+    const runsResp = await request.get('/api/v1/training-runs?source=checkpoints&refresh=true')
     expect(runsResp.ok()).toBeTruthy()
     // S-155: address the run by its stable opaque id, not a positional index.
     const runs = await runsResp.json() as Array<{ id: string; name: string }>
     const checkpointRun = runs.find(r => r.name === 'my-model')
     expect(checkpointRun).toBeDefined()
 
-    const availResp = await request.get(`/api/studies/availability?training_run_id=${encodeURIComponent(checkpointRun!.id)}`)
+    const availResp = await request.get(`/api/v1/studies/availability?training_run_id=${encodeURIComponent(checkpointRun!.id)}`)
     expect(availResp.ok()).toBeTruthy()
     const availability = await availResp.json() as Array<{
       study_name: string

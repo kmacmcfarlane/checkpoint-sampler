@@ -70,7 +70,7 @@ test.describe('test seed-jobs endpoint (S-111)', () => {
   test('AC1+AC2: seed endpoint creates jobs visible via the list API', async ({ request }) => {
     // AC: BE: Test-only seed endpoint creates sample jobs with specified statuses
     // Verify the jobs list is empty after reset
-    const emptyResp = await request.get('/api/sample-jobs')
+    const emptyResp = await request.get('/api/v1/sample-jobs')
     expect(emptyResp.status()).toBe(200)
     const emptyBody = await emptyResp.json()
     expect(emptyBody).toHaveLength(0)
@@ -83,7 +83,7 @@ test.describe('test seed-jobs endpoint (S-111)', () => {
     expect(jobIDs).toHaveLength(2)
 
     // AC1: Verify both jobs appear in the list API
-    const listResp = await request.get('/api/sample-jobs')
+    const listResp = await request.get('/api/v1/sample-jobs')
     expect(listResp.status()).toBe(200)
     const jobs = await listResp.json() as Array<{ id: string; status: string; total_items: number; completed_items: number }>
     expect(jobs).toHaveLength(2)
@@ -189,7 +189,7 @@ test.describe('test seed-jobs endpoint (S-111)', () => {
     expect(jobIDs).toHaveLength(1)
 
     // Show endpoint returns the seeded job
-    const showResp = await request.get(`/api/sample-jobs/${jobIDs[0]}`)
+    const showResp = await request.get(`/api/v1/sample-jobs/${jobIDs[0]}`)
     expect(showResp.status()).toBe(200)
     const job = await showResp.json()
     expect(job.job.id).toBe(jobIDs[0])

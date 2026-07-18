@@ -2029,7 +2029,7 @@ stories:
   - id: S-171
     title: "Move the API under /api/v1 (clean break, no legacy aliases)"
     priority: 60
-    status: todo
+    status: uat
     complexity: medium
     requires: []
     acceptance:

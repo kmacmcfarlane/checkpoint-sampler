@@ -187,6 +187,12 @@ A lightweight script that enumerates `Service(...)`/`Method(...)` from `backend/
 * source: developer
 Add a periodic automated check (small script) comparing Goa design `Enum(...)` values against corresponding frontend TS union literals to catch design/implementation contract drift before code review. This class of drift recurred in B-171 across two independent locations.
 
+### Bulk string-refactor tooling for agents
+* status: needs_approval
+* priority: low
+* source: developer
+Wide mechanical renames (e.g. S-171's ~90 near-identical `/api/` → `/api/v1/` edits) require a Read+Edit round-trip per file due to the "must Read before Edit" guard and the no-`sed` policy. A sanctioned, auditable bulk find/replace helper (with an exclusion pattern, e.g. preserve `/api/test/`) would make wide mechanical renames far cheaper and less error-prone.
+
 ### Sandbox cannot reach host-published Docker ports for host-browser verification
 * status: needs_approval
 * priority: low

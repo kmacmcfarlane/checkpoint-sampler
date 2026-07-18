@@ -53,14 +53,14 @@ test.describe('on-demand dataset validation (S-083)', () => {
   // AC3: API endpoint to trigger validation
   test('validate API returns per-checkpoint completeness counts', async ({ request }) => {
     // First get training runs to find the ID
-    const runsResponse = await request.get('/api/training-runs')
+    const runsResponse = await request.get('/api/v1/training-runs')
     expect(runsResponse.ok()).toBeTruthy()
     const runs = await runsResponse.json()
     const myModel = runs.find((r: { name: string }) => r.name === 'my-model')
     expect(myModel).toBeDefined()
 
     // Call the validate endpoint
-    const validateResponse = await request.post(`/api/training-runs/${myModel.id}/validate`)
+    const validateResponse = await request.post(`/api/v1/training-runs/${myModel.id}/validate`)
     expect(validateResponse.ok()).toBeTruthy()
 
     const result = await validateResponse.json()
@@ -104,7 +104,7 @@ test.describe('on-demand dataset validation (S-083)', () => {
 
   // AC3: Validate endpoint returns 404 for invalid ID
   test('validate API returns 404 for non-existent training run', async ({ request }) => {
-    const response = await request.post('/api/training-runs/999/validate')
+    const response = await request.post('/api/v1/training-runs/999/validate')
     expect(response.status()).toBe(404)
   })
 })

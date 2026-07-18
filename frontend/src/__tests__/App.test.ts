@@ -1210,7 +1210,7 @@ describe('App', () => {
       // Simulate XYGrid image:click
       const xyGrid = wrapper.findComponent({ name: 'XYGrid' })
       xyGrid.vm.$emit('image:click', {
-        imageUrl: '/api/images/test.png',
+        imageUrl: '/api/v1/images/test.png',
         cellKey: 'a|b',
         sliderValues: [],
         currentSliderValue: '',
@@ -1269,7 +1269,7 @@ describe('App', () => {
       // Simulate XYGrid image:click
       const xyGrid = wrapper.findComponent({ name: 'XYGrid' })
       xyGrid.vm.$emit('image:click', {
-        imageUrl: '/api/images/test.png',
+        imageUrl: '/api/v1/images/test.png',
         cellKey: 'a|b',
         sliderValues: [],
         currentSliderValue: '',
@@ -1311,7 +1311,7 @@ describe('App', () => {
       // Auto-collapse via image click
       const xyGrid = wrapper.findComponent({ name: 'XYGrid' })
       xyGrid.vm.$emit('image:click', {
-        imageUrl: '/api/images/test.png',
+        imageUrl: '/api/v1/images/test.png',
         cellKey: 'a|b',
         sliderValues: [],
         currentSliderValue: '',
@@ -2196,13 +2196,13 @@ describe('App', () => {
     /** Build a minimal GridNavItem for testing navigation (for cellDebugInfoMap capture). */
     function makeNavItem(xVal: string, yVal: string, withDebug: boolean) {
       return {
-        imageUrl: `/api/images/${xVal}-${yVal}-cfg3.png`,
+        imageUrl: `/api/v1/images/${xVal}-${yVal}-cfg3.png`,
         cellKey: `${xVal}|${yVal}`,
         sliderValues: ['3', '7'],
         currentSliderValue: '3',
         imagesBySliderValue: {
-          '3': `/api/images/${xVal}-${yVal}-cfg3.png`,
-          '7': `/api/images/${xVal}-${yVal}-cfg7.png`,
+          '3': `/api/v1/images/${xVal}-${yVal}-cfg3.png`,
+          '7': `/api/v1/images/${xVal}-${yVal}-cfg7.png`,
         },
         debugInfo: withDebug
           ? { xValue: xVal, yValue: yVal, sliderValue: '3', comboSelections: {} }
@@ -2307,13 +2307,13 @@ describe('App', () => {
 
       const xyGrid = wrapper.findComponent({ name: 'XYGrid' })
       xyGrid.vm.$emit('image:click', {
-        imageUrl: '/api/images/42-500-cfg3.png',
+        imageUrl: '/api/v1/images/42-500-cfg3.png',
         cellKey: '42|500',
         sliderValues: ['3', '7'],
         currentSliderValue: '3',
         imagesBySliderValue: {
-          '3': '/api/images/42-500-cfg3.png',
-          '7': '/api/images/42-500-cfg7.png',
+          '3': '/api/v1/images/42-500-cfg3.png',
+          '7': '/api/v1/images/42-500-cfg7.png',
         },
         gridImages: [],
         gridIndex: 0,
@@ -2378,28 +2378,28 @@ describe('App', () => {
     async function openLightboxWithSlider(wrapper: ReturnType<typeof mount>) {
       const xyGrid = wrapper.findComponent({ name: 'XYGrid' })
       xyGrid.vm.$emit('image:click', {
-        imageUrl: '/api/images/cell0-val-a.png',
+        imageUrl: '/api/v1/images/cell0-val-a.png',
         cellKey: 'x0|y0',
         sliderValues: ['val-a', 'val-b'],
         currentSliderValue: 'val-a',
         imagesBySliderValue: {
-          'val-a': '/api/images/cell0-val-a.png',
-          'val-b': '/api/images/cell0-val-b.png',
+          'val-a': '/api/v1/images/cell0-val-a.png',
+          'val-b': '/api/v1/images/cell0-val-b.png',
         },
         gridImages: [
           {
-            imageUrl: '/api/images/cell0-val-a.png',
+            imageUrl: '/api/v1/images/cell0-val-a.png',
             cellKey: 'x0|y0',
             sliderValues: ['val-a', 'val-b'],
             currentSliderValue: 'val-a',
-            imagesBySliderValue: { 'val-a': '/api/images/cell0-val-a.png', 'val-b': '/api/images/cell0-val-b.png' },
+            imagesBySliderValue: { 'val-a': '/api/v1/images/cell0-val-a.png', 'val-b': '/api/v1/images/cell0-val-b.png' },
           },
           {
-            imageUrl: '/api/images/cell1-val-a.png',
+            imageUrl: '/api/v1/images/cell1-val-a.png',
             cellKey: 'x1|y0',
             sliderValues: ['val-a', 'val-b'],
             currentSliderValue: 'val-a',
-            imagesBySliderValue: { 'val-a': '/api/images/cell1-val-a.png', 'val-b': '/api/images/cell1-val-b.png' },
+            imagesBySliderValue: { 'val-a': '/api/v1/images/cell1-val-a.png', 'val-b': '/api/v1/images/cell1-val-b.png' },
           },
         ],
         gridIndex: 0,
@@ -2434,13 +2434,13 @@ describe('App', () => {
       await openLightboxWithSlider(wrapper)
 
       const lightbox = wrapper.findComponent({ name: 'ImageLightbox' })
-      expect(lightbox.props('imageUrl')).toBe('/api/images/cell0-val-a.png')
+      expect(lightbox.props('imageUrl')).toBe('/api/v1/images/cell0-val-a.png')
 
       lightbox.vm.$emit('slider-change', 'x0|y0', 'val-b')
       await flushPromises()
 
       // store.focusedImage auto-updates when master slider changes to 'val-b'
-      expect(lightbox.props('imageUrl')).toBe('/api/images/cell0-val-b.png')
+      expect(lightbox.props('imageUrl')).toBe('/api/v1/images/cell0-val-b.png')
     })
 
     // AC2, AC3 (B-068): Shift+Arrow navigation uses the live master slider value
@@ -2460,7 +2460,7 @@ describe('App', () => {
       await flushPromises()
 
       // The lightbox should show the val-b image for cell1 (using live value, not stale snapshot)
-      expect(lightbox.props('imageUrl')).toBe('/api/images/cell1-val-b.png')
+      expect(lightbox.props('imageUrl')).toBe('/api/v1/images/cell1-val-b.png')
       expect(lightbox.props('currentSliderValue')).toBe('val-b')
     })
 
@@ -2486,7 +2486,7 @@ describe('App', () => {
       lightbox.vm.$emit('navigate', 0)
       await flushPromises()
       expect(lightbox.props('currentSliderValue')).toBe('val-b')
-      expect(lightbox.props('imageUrl')).toBe('/api/images/cell0-val-b.png')
+      expect(lightbox.props('imageUrl')).toBe('/api/v1/images/cell0-val-b.png')
     })
   })
 

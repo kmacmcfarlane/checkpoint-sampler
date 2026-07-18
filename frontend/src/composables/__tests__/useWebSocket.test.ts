@@ -87,7 +87,7 @@ describe('useWebSocket', () => {
   function createWSOptions() {
     return {
       wsClientOptions: {
-        url: 'ws://test/api/ws',
+        url: 'ws://test/api/v1/ws',
         createWebSocket: ((url: string) => {
           const ws = new MockWebSocket(url)
           mockInstances.push(ws)
@@ -156,7 +156,7 @@ describe('useWebSocket', () => {
     // Override createWebSocket to simulate immediate connection
     const options = {
       wsClientOptions: {
-        url: 'ws://test/api/ws',
+        url: 'ws://test/api/v1/ws',
         createWebSocket: ((url: string) => {
           const ws = new MockWebSocket(url)
           mockInstances.push(ws)
@@ -327,7 +327,7 @@ function createScopeTestOptions() {
     mockInstances,
     wsOptions: {
       wsClientOptions: {
-        url: 'ws://test/api/ws',
+        url: 'ws://test/api/v1/ws',
         createWebSocket: ((url: string) => {
           const ws = new MockWebSocket(url)
           mockInstances.push(ws)

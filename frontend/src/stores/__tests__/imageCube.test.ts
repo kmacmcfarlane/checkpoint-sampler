@@ -309,7 +309,7 @@ describe('useImageCubeStore', () => {
 
       const bySlider = store.getImagesBySliderValue('500', '7')
       expect(Object.keys(bySlider).sort()).toEqual(['42', '43'])
-      expect(bySlider['42']).toBe('/api/images/run/step=500&cfg=7&seed=42.png')
+      expect(bySlider['42']).toBe('/api/v1/images/run/step=500&cfg=7&seed=42.png')
     })
 
     // AC2: indexing — gridNavItems yields ordered, flattened cells for navigation
@@ -335,7 +335,7 @@ describe('useImageCubeStore', () => {
 
       store.focusCell('500|7')
       expect(store.focusedGridIndex).toBe(0)
-      expect(store.focusedImage).toBe('/api/images/run/step=500&cfg=7&seed=42.png')
+      expect(store.focusedImage).toBe('/api/v1/images/run/step=500&cfg=7&seed=42.png')
 
       store.navigateGrid(1)
       expect(store.focusedCellKey).toBe('1000|7')

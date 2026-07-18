@@ -55,7 +55,7 @@ test.describe('S-157: multi-value study dimensions (AC8)', () => {
   // 2 checkpoints × 2 resolutions × 2 shifts × (1 prompt·step·cfg·pair·seed) = 8.
   test('multi-value resolutions × shifts expand to the full cross-product of work items', async ({ request }) => {
     const studyName = `S157 CrossProduct ${Date.now()}`
-    const createResp = await request.post('/api/studies', {
+    const createResp = await request.post('/api/v1/studies', {
       data: {
         name: studyName,
         prompt_prefix: '',
@@ -81,7 +81,7 @@ test.describe('S-157: multi-value study dimensions (AC8)', () => {
     expect(study.images_per_checkpoint).toBe(4)
 
     // Create a sample job for the "my-model" checkpoint run (2 checkpoints).
-    const jobResp = await request.post('/api/sample-jobs', {
+    const jobResp = await request.post('/api/v1/sample-jobs', {
       data: {
         training_run_name: 'my-model',
         study_id: study.id,
@@ -98,7 +98,7 @@ test.describe('S-157: multi-value study dimensions (AC8)', () => {
   // the cross-product (factor of 1) and must not emit a spurious dimension.
   test('empty shift/vae dimensions do not multiply the cross-product', async ({ request }) => {
     const studyName = `S157 SingleValue ${Date.now()}`
-    const createResp = await request.post('/api/studies', {
+    const createResp = await request.post('/api/v1/studies', {
       data: {
         name: studyName,
         prompt_prefix: '',
@@ -119,7 +119,7 @@ test.describe('S-157: multi-value study dimensions (AC8)', () => {
     // Single-value everything → 1 image per checkpoint (no spurious multiplication).
     expect(study.images_per_checkpoint).toBe(1)
 
-    const jobResp = await request.post('/api/sample-jobs', {
+    const jobResp = await request.post('/api/v1/sample-jobs', {
       data: {
         training_run_name: 'my-model',
         study_id: study.id,

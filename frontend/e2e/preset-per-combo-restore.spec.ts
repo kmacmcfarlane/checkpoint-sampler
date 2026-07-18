@@ -88,7 +88,7 @@ test.describe('B-102: preset per-combo restore on TR change', () => {
     // Testing note: stored preset no longer exists → should be handled gracefully.
     // Inject a combo entry pointing to a non-existent preset ID.
 
-    const runsResponse = await request.get('/api/training-runs')
+    const runsResponse = await request.get('/api/v1/training-runs')
     const runs = await runsResponse.json()
     expect(runs.length).toBeGreaterThan(0)
     const trainingRunId = runs[0].id

@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-171: Move the API under /api/v1 (clean break, no legacy aliases)
+- All HTTP API routes moved from `/api/*` to `/api/v1/*` as a clean compatibility break — no legacy aliases or redirects. Establishes a versioning posture before any external consumers exist (pre-release, bundled frontend is the only consumer). `/health`, `/docs` (Swagger), and the ENABLE_TEST_ENDPOINTS-gated `/api/test/*` endpoints intentionally stay unversioned
+- Spans the full stack: Goa design + regenerated OpenAPI/Swagger, frontend API client base path, WebSocket path (`/api/v1/ws`) and image URLs (`/api/v1/images/*`), the dedicated nginx WS `location` block, E2E specs/fixtures, and docs (`docs/api.md`, PRD API table)
+
 ### S-165: Document the security trust model; default exposure to localhost
 - Documented the trust model in a new README "Security model" section: the app has **no authentication**, so anyone who can reach the port has full read/write/delete access, and a firewall or authenticating reverse proxy is required before exposing beyond localhost
 - Compose published host ports now bind `127.0.0.1` by default via `${HOST_BIND:-127.0.0.1}` in `docker-compose.yml` and `docker-compose.worktree.yml`, making LAN exposure an explicit opt-in (`HOST_BIND=0.0.0.0`) rather than the shipped default; the in-container backend bind stays `0.0.0.0` so port mapping still works. Test/e2e stacks are untouched (container-to-container, no host ports)

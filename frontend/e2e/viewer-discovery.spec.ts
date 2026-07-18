@@ -22,7 +22,7 @@ test.describe('viewer-driven discovery (S-081)', () => {
   // AC1: Scanner discovers viewable content from sample output directories
   // AC2: Training runs derived from directory structure under sample_dir
   test('training runs API returns directory-derived names with has_samples=true', async ({ request }) => {
-    const response = await request.get('/api/training-runs')
+    const response = await request.get('/api/v1/training-runs')
     expect(response.ok()).toBeTruthy()
 
     const runs = await response.json()
@@ -74,14 +74,14 @@ test.describe('viewer-driven discovery (S-081)', () => {
   // AC1: has_samples query parameter is no longer needed (API compatibility)
   test('training runs API works without has_samples query parameter', async ({ request }) => {
     // The API should return all runs without any filter parameter
-    const response = await request.get('/api/training-runs')
+    const response = await request.get('/api/v1/training-runs')
     expect(response.ok()).toBeTruthy()
 
     const runs = await response.json()
     expect(runs.length).toBeGreaterThan(0)
 
     // Even with has_samples=true (old API compat), results should be the same
-    const filteredResponse = await request.get('/api/training-runs?has_samples=true')
+    const filteredResponse = await request.get('/api/v1/training-runs?has_samples=true')
     expect(filteredResponse.ok()).toBeTruthy()
 
     const filteredRuns = await filteredResponse.json()
@@ -92,7 +92,7 @@ test.describe('viewer-driven discovery (S-081)', () => {
   // UAT rework: source=checkpoints returns checkpoint-file-based training runs
   // (used by the Generate Samples dialog to avoid 404s when creating sample jobs)
   test('source=checkpoints returns checkpoint-based training runs', async ({ request }) => {
-    const response = await request.get('/api/training-runs?source=checkpoints')
+    const response = await request.get('/api/v1/training-runs?source=checkpoints')
     expect(response.ok()).toBeTruthy()
 
     const runs = await response.json()
@@ -111,8 +111,8 @@ test.describe('viewer-driven discovery (S-081)', () => {
 
   // UAT rework: default source (samples) and explicit source=checkpoints can return different sets
   test('source parameter routes to different discovery backends', async ({ request }) => {
-    const samplesResponse = await request.get('/api/training-runs')
-    const checkpointsResponse = await request.get('/api/training-runs?source=checkpoints')
+    const samplesResponse = await request.get('/api/v1/training-runs')
+    const checkpointsResponse = await request.get('/api/v1/training-runs?source=checkpoints')
 
     expect(samplesResponse.ok()).toBeTruthy()
     expect(checkpointsResponse.ok()).toBeTruthy()

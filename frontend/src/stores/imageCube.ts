@@ -386,7 +386,7 @@ export const useImageCubeStore = defineStore('imageCube', () => {
       if (imgXVal !== xVal || imgYVal !== yVal) continue
       const sliderVal = img.dimensions[sliderDimName]
       if (sliderVal !== undefined && !(sliderVal in result)) {
-        result[sliderVal] = `/api/images/${img.relative_path}`
+        result[sliderVal] = `/api/v1/images/${img.relative_path}`
       }
     }
     return result
@@ -410,7 +410,7 @@ export const useImageCubeStore = defineStore('imageCube', () => {
         : filteredImages.value
       for (const img of flat) {
         items.push({
-          imageUrl: `/api/images/${img.relative_path}`,
+          imageUrl: `/api/v1/images/${img.relative_path}`,
           cellKey: '|',
           sliderValues: sliderVals,
           currentSliderValue: getCellSliderValue(undefined, undefined),
@@ -423,7 +423,7 @@ export const useImageCubeStore = defineStore('imageCube', () => {
           const img = getImage(xVal, yVal)
           if (!img) continue
           items.push({
-            imageUrl: `/api/images/${img.relative_path}`,
+            imageUrl: `/api/v1/images/${img.relative_path}`,
             cellKey: cellKey(xVal, yVal),
             sliderValues: sliderVals,
             currentSliderValue: getCellSliderValue(xVal, yVal),
@@ -436,7 +436,7 @@ export const useImageCubeStore = defineStore('imageCube', () => {
         const img = getImage(xVal, undefined)
         if (!img) continue
         items.push({
-          imageUrl: `/api/images/${img.relative_path}`,
+          imageUrl: `/api/v1/images/${img.relative_path}`,
           cellKey: cellKey(xVal, undefined),
           sliderValues: sliderVals,
           currentSliderValue: getCellSliderValue(xVal, undefined),
@@ -448,7 +448,7 @@ export const useImageCubeStore = defineStore('imageCube', () => {
         const img = getImage(undefined, yVal)
         if (!img) continue
         items.push({
-          imageUrl: `/api/images/${img.relative_path}`,
+          imageUrl: `/api/v1/images/${img.relative_path}`,
           cellKey: cellKey(undefined, yVal),
           sliderValues: sliderVals,
           currentSliderValue: getCellSliderValue(undefined, yVal),

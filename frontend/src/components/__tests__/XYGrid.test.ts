@@ -299,7 +299,7 @@ describe('XYGrid', () => {
       // Cell at seed=42, step=500 should show cfg=7
       const imgs = wrapper.findAll('img')
       const srcs = imgs.map((i) => i.attributes('src'))
-      expect(srcs).toContain('/api/images/a/seed=42&step=500&cfg=7.png')
+      expect(srcs).toContain('/api/v1/images/a/seed=42&step=500&cfg=7.png')
     })
 
     it('renders SliderBar per cell when slider dimension is assigned', () => {
@@ -823,7 +823,7 @@ describe('XYGrid', () => {
 
       // Trigger a click on the first ImageCell to retrieve the gridImages payload
       const imageCells = wrapper.findAllComponents(ImageCell)
-      imageCells[0].vm.$emit('click', '/api/images/a/seed=42&step=500&cfg=3.png')
+      imageCells[0].vm.$emit('click', '/api/v1/images/a/seed=42&step=500&cfg=3.png')
       await wrapper.vm.$nextTick()
 
       const emitted = wrapper.emitted('image:click')
@@ -846,7 +846,7 @@ describe('XYGrid', () => {
       const wrapper = mountGrid({ debugMode: false })
 
       const imageCells = wrapper.findAllComponents(ImageCell)
-      imageCells[0].vm.$emit('click', '/api/images/a/seed=42&step=500&cfg=3.png')
+      imageCells[0].vm.$emit('click', '/api/v1/images/a/seed=42&step=500&cfg=3.png')
       await wrapper.vm.$nextTick()
 
       const emitted = wrapper.emitted('image:click')
@@ -871,7 +871,7 @@ describe('XYGrid', () => {
       })
 
       const imageCells = wrapper.findAllComponents(ImageCell)
-      imageCells[0].vm.$emit('click', '/api/images/a/seed=42&cfg=3.png')
+      imageCells[0].vm.$emit('click', '/api/v1/images/a/seed=42&cfg=3.png')
       await wrapper.vm.$nextTick()
 
       const emitted = wrapper.emitted('image:click')
@@ -900,7 +900,7 @@ describe('XYGrid', () => {
       })
 
       const imageCells = wrapper.findAllComponents(ImageCell)
-      imageCells[0].vm.$emit('click', '/api/images/a/step=500&cfg=3.png')
+      imageCells[0].vm.$emit('click', '/api/v1/images/a/step=500&cfg=3.png')
       await wrapper.vm.$nextTick()
 
       const emitted = wrapper.emitted('image:click')
@@ -930,7 +930,7 @@ describe('XYGrid', () => {
 
       const imageCells = wrapper.findAllComponents(ImageCell)
       expect(imageCells.length).toBeGreaterThan(0)
-      imageCells[0].vm.$emit('click', '/api/images/a/img1.png')
+      imageCells[0].vm.$emit('click', '/api/v1/images/a/img1.png')
       await wrapper.vm.$nextTick()
 
       const emitted = wrapper.emitted('image:click')
@@ -971,7 +971,7 @@ describe('XYGrid', () => {
 
       const imageCells = wrapper.findAllComponents(ImageCell)
       expect(imageCells.length).toBeGreaterThan(0)
-      imageCells[0].vm.$emit('click', '/api/images/a/seed=42&step=500&cfg=3.png')
+      imageCells[0].vm.$emit('click', '/api/v1/images/a/seed=42&step=500&cfg=3.png')
       await wrapper.vm.$nextTick()
 
       const emitted = wrapper.emitted('image:click')
@@ -979,8 +979,8 @@ describe('XYGrid', () => {
       const payload = emitted![0][0] as ImageClickContext
 
       // imagesBySliderValue must point to full-resolution PNGs, not JPEG thumbnails
-      expect(payload.imagesBySliderValue['3']).toBe('/api/images/a/seed=42&step=500&cfg=3.png')
-      expect(payload.imagesBySliderValue['7']).toBe('/api/images/a/seed=42&step=500&cfg=7.png')
+      expect(payload.imagesBySliderValue['3']).toBe('/api/v1/images/a/seed=42&step=500&cfg=3.png')
+      expect(payload.imagesBySliderValue['7']).toBe('/api/v1/images/a/seed=42&step=500&cfg=7.png')
       // Must NOT contain JPEG thumbnail paths
       expect(payload.imagesBySliderValue['3']).not.toContain('.jpg')
       expect(payload.imagesBySliderValue['7']).not.toContain('.jpg')
@@ -1006,7 +1006,7 @@ describe('XYGrid', () => {
       })
 
       const imageCells = wrapper.findAllComponents(ImageCell)
-      imageCells[0].vm.$emit('click', '/api/images/a/seed=42&step=500&cfg=3.png')
+      imageCells[0].vm.$emit('click', '/api/v1/images/a/seed=42&step=500&cfg=3.png')
       await wrapper.vm.$nextTick()
 
       const emitted = wrapper.emitted('image:click')
@@ -1036,7 +1036,7 @@ describe('XYGrid', () => {
       const imageCells = wrapper.findAllComponents(ImageCell)
       expect(imageCells.length).toBeGreaterThan(0)
       // ImageCell emits 'click' with the imageUrl; XYGrid handles it via onImageClick
-      imageCells[0].vm.$emit('click', '/api/images/a/seed=42&step=500&cfg=3.png')
+      imageCells[0].vm.$emit('click', '/api/v1/images/a/seed=42&step=500&cfg=3.png')
       await wrapper.vm.$nextTick()
 
       // Assert: image:click was emitted
@@ -1068,12 +1068,12 @@ describe('XYGrid', () => {
       // Both cfg=3 and cfg=7 images exist for seed=42, step=500
       expect(payload.imagesBySliderValue).toHaveProperty('3')
       expect(payload.imagesBySliderValue).toHaveProperty('7')
-      expect(payload.imagesBySliderValue['3']).toBe('/api/images/a/seed=42&step=500&cfg=3.png')
-      expect(payload.imagesBySliderValue['7']).toBe('/api/images/a/seed=42&step=500&cfg=7.png')
+      expect(payload.imagesBySliderValue['3']).toBe('/api/v1/images/a/seed=42&step=500&cfg=3.png')
+      expect(payload.imagesBySliderValue['7']).toBe('/api/v1/images/a/seed=42&step=500&cfg=7.png')
 
       // imageUrl: the clicked image's full URL
       expect(payload).toHaveProperty('imageUrl')
-      expect(payload.imageUrl).toBe('/api/images/a/seed=42&step=500&cfg=3.png')
+      expect(payload.imageUrl).toBe('/api/v1/images/a/seed=42&step=500&cfg=3.png')
 
       // gridImages: ordered list of all visible grid cells with images
       expect(payload).toHaveProperty('gridImages')
@@ -1096,7 +1096,7 @@ describe('XYGrid', () => {
 
       const imageCells = wrapper.findAllComponents(ImageCell)
       expect(imageCells.length).toBeGreaterThan(0)
-      imageCells[0].vm.$emit('click', '/api/images/a/seed=42&step=500&cfg=3.png')
+      imageCells[0].vm.$emit('click', '/api/v1/images/a/seed=42&step=500&cfg=3.png')
       await wrapper.vm.$nextTick()
 
       const emitted = wrapper.emitted('image:click')

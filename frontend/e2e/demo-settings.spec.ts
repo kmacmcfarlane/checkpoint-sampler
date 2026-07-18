@@ -20,7 +20,7 @@ test.beforeEach(async ({ request }) => {
   // Ensure the demo dataset is installed before each test
   // (the database reset clears the preset but the demo directory persists;
   // re-install ensures a clean, consistent state)
-  await request.post('/api/demo/install')
+  await request.post('/api/v1/demo/install')
 })
 
 // Uninstall the demo dataset after each test to prevent filesystem artifacts
@@ -133,26 +133,26 @@ test.describe('demo settings dialog (S-078)', () => {
   })
 
   test('demo API endpoints respond correctly', async ({ request }) => {
-    // GET /api/demo/status should return installed status
-    const statusResponse = await request.get('/api/demo/status')
+    // GET /api/v1/demo/status should return installed status
+    const statusResponse = await request.get('/api/v1/demo/status')
     expect(statusResponse.status()).toBe(200)
     const status = await statusResponse.json()
     expect(status.installed).toBe(true)
 
-    // DELETE /api/demo should uninstall
-    const deleteResponse = await request.delete('/api/demo')
+    // DELETE /api/v1/demo should uninstall
+    const deleteResponse = await request.delete('/api/v1/demo')
     expect(deleteResponse.status()).toBe(200)
     const deleteResult = await deleteResponse.json()
     expect(deleteResult.installed).toBe(false)
 
-    // GET /api/demo/status should now return not installed
-    const statusAfterDelete = await request.get('/api/demo/status')
+    // GET /api/v1/demo/status should now return not installed
+    const statusAfterDelete = await request.get('/api/v1/demo/status')
     expect(statusAfterDelete.status()).toBe(200)
     const statusResult = await statusAfterDelete.json()
     expect(statusResult.installed).toBe(false)
 
-    // POST /api/demo/install should reinstall
-    const installResponse = await request.post('/api/demo/install')
+    // POST /api/v1/demo/install should reinstall
+    const installResponse = await request.post('/api/v1/demo/install')
     expect(installResponse.status()).toBe(200)
     const installResult = await installResponse.json()
     expect(installResult.installed).toBe(true)

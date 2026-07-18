@@ -22,7 +22,7 @@ import { resetDatabase, selectTrainingRun, selectNaiveOptionByLabel, uninstallDe
 test.beforeEach(async ({ request }) => {
   await resetDatabase(request)
   // Ensure the demo dataset is installed (creates study-scoped directories)
-  await request.post('/api/demo/install')
+  await request.post('/api/v1/demo/install')
 })
 
 // Uninstall the demo dataset after each test to prevent filesystem artifacts
@@ -40,7 +40,7 @@ test.afterEach(async ({ request }) => {
 async function waitForDemoRunInAPI(request: APIRequestContext): Promise<void> {
   await expect.poll(
     async () => {
-      const resp = await request.get('/api/training-runs')
+      const resp = await request.get('/api/v1/training-runs')
       if (!resp.ok()) return undefined
       const runs = await resp.json()
       return runs.find((r: { training_run_dir?: string }) => r.training_run_dir === 'demo-model')
@@ -77,7 +77,7 @@ test.describe('study-scoped watcher paths (B-042)', () => {
     // R-013: Poll until the demo run appears in the snapshot.
     await waitForDemoRunInAPI(request)
 
-    const response = await request.get('/api/training-runs')
+    const response = await request.get('/api/v1/training-runs')
     expect(response.ok()).toBeTruthy()
 
     const runs = await response.json()
@@ -95,7 +95,7 @@ test.describe('study-scoped watcher paths (B-042)', () => {
 
   // S-078 UAT rework: Verify demo images render (not broken/404)
   // The scanner must include the study name prefix ("demo-study/") in relative
-  // paths so that /api/images/{relPath} resolves to the correct file.
+  // paths so that /api/v1/images/{relPath} resolves to the correct file.
   test('demo images render in the grid without broken paths (S-078 UAT)', async ({ page, request }) => {
     // R-013: Wait for FSState snapshot to include the demo run before navigating.
     await waitForDemoRunInAPI(request)
@@ -139,14 +139,14 @@ test.describe('study-scoped watcher paths (B-042)', () => {
     await waitForDemoRunInAPI(request)
 
     // List training runs to find the demo run ID
-    const runsResponse = await request.get('/api/training-runs')
+    const runsResponse = await request.get('/api/v1/training-runs')
     expect(runsResponse.ok()).toBeTruthy()
     const runs = await runsResponse.json()
     const demoRun = runs.find((r: { training_run_dir: string }) => r.training_run_dir === 'demo-model')
     expect(demoRun).toBeDefined()
 
-    // Scan the demo run via GET /api/training-runs/{id}/scan
-    const scanResponse = await request.get(`/api/training-runs/${demoRun.id}/scan`)
+    // Scan the demo run via GET /api/v1/training-runs/{id}/scan
+    const scanResponse = await request.get(`/api/v1/training-runs/${demoRun.id}/scan`)
     expect(scanResponse.ok()).toBeTruthy()
     const scanResult = await scanResponse.json()
 
@@ -157,7 +157,7 @@ test.describe('study-scoped watcher paths (B-042)', () => {
     expect(firstImage.relative_path).toContain('demo-model/')
 
     // Fetch the image via API and verify it returns 200 (not 404)
-    const imageResponse = await request.get(`/api/images/${firstImage.relative_path}`)
+    const imageResponse = await request.get(`/api/v1/images/${firstImage.relative_path}`)
     expect(imageResponse.status()).toBe(200)
 
     // Verify the response is a PNG image

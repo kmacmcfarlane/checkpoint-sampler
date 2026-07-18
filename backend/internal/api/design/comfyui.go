@@ -11,7 +11,7 @@ var _ = Service("comfyui", func() {
 		Description("Check ComfyUI connection status")
 		Result(ComfyUIStatusResult)
 		HTTP(func() {
-			GET("/api/comfyui/status")
+			GET("/api/v1/comfyui/status")
 			Response(StatusOK)
 		})
 	})
@@ -32,7 +32,7 @@ var _ = Service("comfyui", func() {
 		Error("service_unavailable", ErrorResult, "ComfyUI service unavailable")
 		Error("internal_error", ErrorResult, "Internal server error")
 		HTTP(func() {
-			GET("/api/comfyui/models")
+			GET("/api/v1/comfyui/models")
 			Param("type")
 			Response(StatusOK)
 			Response("service_unavailable", StatusServiceUnavailable)

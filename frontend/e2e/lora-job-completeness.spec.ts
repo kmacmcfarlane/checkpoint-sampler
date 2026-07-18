@@ -42,7 +42,7 @@ async function ensureDataAndOpenDialog(page: Page, request: APIRequestContext): 
   const baseUrl = process.env.PLAYWRIGHT_BASE_URL || 'http://frontend:3000'
 
   await expect(async () => {
-    const resp = await request.get(`${baseUrl}/api/training-runs?source=checkpoints`)
+    const resp = await request.get(`${baseUrl}/api/v1/training-runs?source=checkpoints`)
     const data = await resp.json()
     expect(data.length).toBeGreaterThan(0)
   }).toPass({ timeout: 15000, intervals: [500, 1000, 2000] })
@@ -103,7 +103,7 @@ async function pollJobStatus(
   const deadline = Date.now() + timeout
 
   while (Date.now() < deadline) {
-    const resp = await request.get('/api/sample-jobs')
+    const resp = await request.get('/api/v1/sample-jobs')
     if (resp.status() === 200) {
       const jobs = await resp.json() as SampleJobApiResponse[]
       if (predicate(jobs)) return jobs

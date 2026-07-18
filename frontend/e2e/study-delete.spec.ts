@@ -29,7 +29,7 @@ import {
 
 /** Create a minimal study via the REST API and return its ID. */
 async function createStudyViaAPI(request: APIRequestContext, name: string): Promise<string> {
-  const response = await request.post('/api/studies', {
+  const response = await request.post('/api/v1/studies', {
     data: {
       name,
       prompt_prefix: '',
@@ -147,7 +147,7 @@ test.describe('study deletion with optional sample data removal (S-095)', () => 
     await expect(confirmDialog).not.toBeVisible()
 
     // Study should still exist in the API
-    const studiesResponse = await request.get('/api/studies')
+    const studiesResponse = await request.get('/api/v1/studies')
     expect(studiesResponse.status()).toBe(200)
     const studiesData = await studiesResponse.json()
     const found = studiesData.some((s: { name: string }) => s.name === studyName)
@@ -174,7 +174,7 @@ test.describe('study deletion with optional sample data removal (S-095)', () => 
     await expect(confirmDialog).not.toBeVisible()
 
     // Study should be gone from the API
-    const studiesResponse = await request.get('/api/studies')
+    const studiesResponse = await request.get('/api/v1/studies')
     expect(studiesResponse.status()).toBe(200)
     const studiesData = await studiesResponse.json()
     const found = studiesData.some((s: { name: string }) => s.name === studyName)

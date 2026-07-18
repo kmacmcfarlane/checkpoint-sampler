@@ -33,7 +33,7 @@ const VALID_FS_EVENT_TYPES: Set<string> = new Set<string>([
 ])
 
 /**
- * WebSocket client that connects to the backend /api/ws endpoint and
+ * WebSocket client that connects to the backend /api/v1/ws endpoint and
  * dispatches filesystem change events to registered listeners.
  *
  * Features:
@@ -248,5 +248,5 @@ function isValidInferenceProgressEvent(data: unknown): data is InferenceProgress
 
 function buildDefaultWSUrl(): string {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  return `${protocol}//${window.location.host}/api/ws`
+  return `${protocol}//${window.location.host}/api/v1/ws`
 }

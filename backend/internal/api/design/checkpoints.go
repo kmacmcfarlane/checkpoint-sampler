@@ -20,7 +20,7 @@ var _ = Service("checkpoints", func() {
 		// invalid_payload: canonical 400 — covers a rejected filename (path traversal).
 		Error("invalid_payload", ErrorResult, "Invalid filename (path traversal rejected)")
 		HTTP(func() {
-			GET("/api/checkpoints/{filename}/metadata")
+			GET("/api/v1/checkpoints/{filename}/metadata")
 			Response(StatusOK)
 			Response("not_found", StatusNotFound)
 			Response("invalid_payload", StatusBadRequest)

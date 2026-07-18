@@ -13,7 +13,7 @@ var _ = Service("base_models", func() {
 		// internal_error: canonical 500 (see errors.go for the shared vocabulary).
 		Error("internal_error", ErrorResult, "Internal server error")
 		HTTP(func() {
-			GET("/api/base-models")
+			GET("/api/v1/base-models")
 			Response(StatusOK)
 			Response("internal_error", StatusInternalServerError)
 		})

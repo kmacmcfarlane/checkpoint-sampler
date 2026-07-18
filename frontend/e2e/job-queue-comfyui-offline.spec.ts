@@ -55,7 +55,7 @@ test.describe('Queue sample jobs when ComfyUI is offline (S-161)', () => {
       vaes: ['test-vae.safetensors'],
       text_encoders: ['test-clip.safetensors'],
     }
-    const createStudyResp = await request.post('/api/studies', { data: studyPayload })
+    const createStudyResp = await request.post('/api/v1/studies', { data: studyPayload })
     expect(createStudyResp.status()).toBe(201)
     const study = await createStudyResp.json()
 
@@ -64,7 +64,7 @@ test.describe('Queue sample jobs when ComfyUI is offline (S-161)', () => {
 
     try {
       // Step 3: creating a job must still succeed — no eager path-match rejection.
-      const jobResp = await request.post('/api/sample-jobs', {
+      const jobResp = await request.post('/api/v1/sample-jobs', {
         data: {
           training_run_name: 'my-model',
           study_id: study.id,
@@ -81,7 +81,7 @@ test.describe('Queue sample jobs when ComfyUI is offline (S-161)', () => {
       // pending/running with all items still pending.
       await new Promise(resolve => setTimeout(resolve, 3000))
 
-      const getJobResp = await request.get(`/api/sample-jobs/${job.id}`)
+      const getJobResp = await request.get(`/api/v1/sample-jobs/${job.id}`)
       expect(getJobResp.status()).toBe(200)
       const jobAfterWait = (await getJobResp.json()).job
       expect(['pending', 'running']).toContain(jobAfterWait.status)
@@ -93,7 +93,7 @@ test.describe('Queue sample jobs when ComfyUI is offline (S-161)', () => {
       await setComfyUIDown(request, false)
 
       await expect(async () => {
-        const resp = await request.get(`/api/sample-jobs/${job.id}`)
+        const resp = await request.get(`/api/v1/sample-jobs/${job.id}`)
         const j = (await resp.json()).job
         expect(j.status).toBe('completed')
         expect(j.completed_items).toBeGreaterThan(0)

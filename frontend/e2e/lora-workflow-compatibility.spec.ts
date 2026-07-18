@@ -23,7 +23,7 @@ async function ensureDataAndOpenDialog(page: Page, request: APIRequestContext): 
 
   // Poll API until training runs are available (FSState scan after resetDatabase)
   await expect(async () => {
-    const resp = await request.get(`${baseUrl}/api/training-runs?source=checkpoints`)
+    const resp = await request.get(`${baseUrl}/api/v1/training-runs?source=checkpoints`)
     const data = await resp.json()
     expect(data.length).toBeGreaterThan(0)
   }).toPass({ timeout: 15000, intervals: [500, 1000, 2000] })

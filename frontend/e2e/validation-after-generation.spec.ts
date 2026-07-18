@@ -68,7 +68,7 @@ async function pollJobStatus(
   const deadline = Date.now() + timeout
 
   while (Date.now() < deadline) {
-    const resp = await request.get('/api/sample-jobs')
+    const resp = await request.get('/api/v1/sample-jobs')
     if (resp.status() === 200) {
       const jobs = await resp.json() as Array<{ id: string; training_run_name: string; status: string }>
       if (predicate(jobs)) return jobs
@@ -167,14 +167,14 @@ test.describe('B-079: validation status after generation', () => {
     expect(completedJobs).not.toBeNull()
 
     // Get the study ID from the API
-    const studiesResp = await request.get('/api/studies')
+    const studiesResp = await request.get('/api/v1/studies')
     expect(studiesResp.ok()).toBeTruthy()
     const studies = await studiesResp.json()
     const study = studies.find((s: { name: string }) => s.name === studyName)
     expect(study).toBeDefined()
 
     // Get my-model ID from checkpoint source (same source the dialog uses)
-    const cpRunsResp = await request.get('/api/training-runs?source=checkpoints')
+    const cpRunsResp = await request.get('/api/v1/training-runs?source=checkpoints')
     expect(cpRunsResp.ok()).toBeTruthy()
     const cpRuns = await cpRunsResp.json()
     const myModel = cpRuns.find((r: { name: string }) => r.name === 'my-model')
@@ -184,7 +184,7 @@ test.describe('B-079: validation status after generation', () => {
     // Before fix: returned not_found or 0 actual (wrong path)
     // After fix: uses checkpoint discovery + correct scoped path
     const validateResp = await request.post(
-      `/api/training-runs/${myModel.id}/validate?study_id=${study.id}`,
+      `/api/v1/training-runs/${myModel.id}/validate?study_id=${study.id}`,
     )
     expect(validateResp.ok()).toBeTruthy()
     const validateResult = await validateResp.json()
@@ -236,7 +236,7 @@ test.describe('B-079: validation status after generation', () => {
     const studyName = `B079 API Test ${Date.now()}`
 
     // Create a study with workflow settings (S-112: workflow/vae/clip now live in study)
-    const studyResp = await request.post('/api/studies', {
+    const studyResp = await request.post('/api/v1/studies', {
       data: {
         name: studyName,
         prompt_prefix: '',
@@ -258,7 +258,7 @@ test.describe('B-079: validation status after generation', () => {
     expect(study.images_per_checkpoint).toBe(1)
 
     // Get training run IDs from checkpoint source
-    const cpRunsResp = await request.get('/api/training-runs?source=checkpoints')
+    const cpRunsResp = await request.get('/api/v1/training-runs?source=checkpoints')
     expect(cpRunsResp.ok()).toBeTruthy()
     const cpRuns = await cpRunsResp.json()
     const myModel = cpRuns.find((r: { name: string }) => r.name === 'my-model')
@@ -266,7 +266,7 @@ test.describe('B-079: validation status after generation', () => {
 
     // AC1: Validate BEFORE generation — must return 0 actual (not an error)
     const beforeResp = await request.post(
-      `/api/training-runs/${myModel.id}/validate?study_id=${study.id}`,
+      `/api/v1/training-runs/${myModel.id}/validate?study_id=${study.id}`,
     )
     expect(beforeResp.ok()).toBeTruthy()
     const beforeResult = await beforeResp.json()
@@ -276,7 +276,7 @@ test.describe('B-079: validation status after generation', () => {
 
     // Create and run a sample job via the API
     // S-112: workflow/vae/clip now come from the study, not the job payload
-    const jobResp = await request.post('/api/sample-jobs', {
+    const jobResp = await request.post('/api/v1/sample-jobs', {
       data: {
         training_run_name: 'my-model',
         study_id: study.id,
@@ -302,7 +302,7 @@ test.describe('B-079: validation status after generation', () => {
     // AC1: Validate AFTER generation — must return > 0 total_actual and correct structure
     // Before the fix, this would return 0 actual due to wrong path (double-nested study dir)
     const afterResp = await request.post(
-      `/api/training-runs/${myModel.id}/validate?study_id=${study.id}`,
+      `/api/v1/training-runs/${myModel.id}/validate?study_id=${study.id}`,
     )
     expect(afterResp.ok()).toBeTruthy()
     const afterResult = await afterResp.json()

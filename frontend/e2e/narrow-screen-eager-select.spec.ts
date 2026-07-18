@@ -28,7 +28,7 @@ test.describe('narrow screen eager auto-select', () => {
     // immediately after app load when a saved training run exists.
 
     // Step 1: Discover the training run ID from the API
-    const response = await request.get('/api/training-runs')
+    const response = await request.get('/api/v1/training-runs')
     expect(response.ok()).toBeTruthy()
     const runs = await response.json()
     expect(runs.length).toBeGreaterThan(0)
@@ -92,7 +92,7 @@ test.describe('narrow screen eager auto-select', () => {
     // training run when opened.
 
     // Step 1: Discover the training run ID from the API
-    const response = await request.get('/api/training-runs')
+    const response = await request.get('/api/v1/training-runs')
     const runs = await response.json()
     const trainingRunId = runs[0].id
     const trainingRunName = runs[0].name
@@ -135,7 +135,7 @@ test.describe('narrow screen eager auto-select', () => {
     // without ever saving a preset, then reloads on a narrow screen.
 
     // Step 1: Discover the training run ID from the API
-    const response = await request.get('/api/training-runs')
+    const response = await request.get('/api/v1/training-runs')
     expect(response.ok()).toBeTruthy()
     const runs = await response.json()
     expect(runs.length).toBeGreaterThan(0)
@@ -168,7 +168,7 @@ test.describe('narrow screen eager auto-select', () => {
     // standalone key so the next page load can eagerly restore it.
 
     // Step 1: Discover the training run name from the API
-    const response = await request.get('/api/training-runs')
+    const response = await request.get('/api/v1/training-runs')
     const runs = await response.json()
     const trainingRunName = runs[0].name
     const trainingRunId = runs[0].id
@@ -203,7 +203,7 @@ test.describe('narrow screen eager auto-select', () => {
     // the drawer's TrainingRunSelector still shows the correct run.
 
     // Step 1: Discover the training run from the API
-    const response = await request.get('/api/training-runs')
+    const response = await request.get('/api/v1/training-runs')
     const runs = await response.json()
     const trainingRunId = runs[0].id
     const trainingRunName = runs[0].name

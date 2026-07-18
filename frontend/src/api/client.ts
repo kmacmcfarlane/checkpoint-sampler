@@ -1,6 +1,6 @@
 import type { AffectedRun, ApiError, ApiErrorResponse, AppConfig, BaseModelsResult, CheckpointMetadata, ComfyUIModelType, ComfyUIModels, ComfyUIStatus, CreateSampleJobPayload, CreateStudyPayload, DemoStatus, ForkStudyPayload, HasSamplesResponse, HealthStatus, ImageMetadata, Preset, PresetMapping, SampleJob, SampleJobDetail, Study, StudyAvailability, ScanResult, TrainingRun, UpdateStudyPayload, ValidationResult, WorkflowSummary } from './types'
 
-const DEFAULT_BASE_URL = '/api'
+const DEFAULT_BASE_URL = '/api/v1'
 
 /** Options for creating an ApiClient. */
 export interface ApiClientOptions {
@@ -74,13 +74,13 @@ export class ApiClient {
     return (await response.json()) as T
   }
 
-  /** GET /api/training-runs — list auto-discovered training runs (viewer: sample-directory-based). */
+  /** GET /api/v1/training-runs — list auto-discovered training runs (viewer: sample-directory-based). */
   async getTrainingRuns(): Promise<TrainingRun[]> {
     return this.request<TrainingRun[]>('/training-runs')
   }
 
   /**
-   * GET /api/training-runs?source=checkpoints — list checkpoint-file-based training runs (for Generate Samples).
+   * GET /api/v1/training-runs?source=checkpoints — list checkpoint-file-based training runs (for Generate Samples).
    * B-142: When `refresh` is true, appends `&refresh=true` to force the backend to
    * rescan checkpoint/LoRA directories from disk (bypassing the FSState cache) so
    * files newly added on NFS mounts appear without a container restart.
@@ -90,13 +90,13 @@ export class ApiClient {
     return this.request<TrainingRun[]>(`/training-runs${query}`)
   }
 
-  /** GET /api/training-runs/{id}/scan — scan directories and return image metadata. id is a stable opaque string. */
+  /** GET /api/v1/training-runs/{id}/scan — scan directories and return image metadata. id is a stable opaque string. */
   async scanTrainingRun(id: string, studyOutputDir?: string): Promise<ScanResult> {
     const params = studyOutputDir ? `?study_name=${encodeURIComponent(studyOutputDir)}` : ''
     return this.request<ScanResult>(`/training-runs/${encodeURIComponent(id)}/scan${params}`)
   }
 
-  /** POST /api/training-runs/{id}/validate — validate sample set completeness. id is a stable opaque string. */
+  /** POST /api/v1/training-runs/{id}/validate — validate sample set completeness. id is a stable opaque string. */
   async validateTrainingRun(id: string, studyId?: string, studyOutputDir?: string): Promise<ValidationResult> {
     const params = new URLSearchParams()
     if (studyId) params.set('study_id', studyId)
@@ -107,12 +107,12 @@ export class ApiClient {
     })
   }
 
-  /** GET /api/presets — list all saved presets. */
+  /** GET /api/v1/presets — list all saved presets. */
   async getPresets(): Promise<Preset[]> {
     return this.request<Preset[]>('/presets')
   }
 
-  /** POST /api/presets — create a new preset. */
+  /** POST /api/v1/presets — create a new preset. */
   async createPreset(name: string, mapping: PresetMapping): Promise<Preset> {
     return this.request<Preset>('/presets', {
       method: 'POST',
@@ -121,7 +121,7 @@ export class ApiClient {
     })
   }
 
-  /** PUT /api/presets/{id} — update an existing preset. */
+  /** PUT /api/v1/presets/{id} — update an existing preset. */
   async updatePreset(id: string, name: string, mapping: PresetMapping): Promise<Preset> {
     return this.request<Preset>(`/presets/${id}`, {
       method: 'PUT',
@@ -130,17 +130,17 @@ export class ApiClient {
     })
   }
 
-  /** GET /api/checkpoints/{filename}/metadata — get checkpoint training metadata. */
+  /** GET /api/v1/checkpoints/{filename}/metadata — get checkpoint training metadata. */
   async getCheckpointMetadata(filename: string): Promise<CheckpointMetadata> {
     return this.request<CheckpointMetadata>(`/checkpoints/${encodeURIComponent(filename)}/metadata`)
   }
 
-  /** GET /api/images/{filepath}/metadata — get PNG embedded metadata. */
+  /** GET /api/v1/images/{filepath}/metadata — get PNG embedded metadata. */
   async getImageMetadata(filepath: string): Promise<ImageMetadata> {
     return this.request<ImageMetadata>(`/images/${filepath}/metadata`)
   }
 
-  /** DELETE /api/presets/{id} — delete a preset. */
+  /** DELETE /api/v1/presets/{id} — delete a preset. */
   async deletePreset(id: string): Promise<void> {
     const url = `${this.baseUrl}/presets/${id}`
     let response: Response
@@ -157,8 +157,8 @@ export class ApiClient {
 
   /** GET /health — check backend health. */
   async getHealth(): Promise<HealthStatus> {
-    // Health endpoint is at /health, not under /api
-    const baseOrigin = this.baseUrl.replace(/\/api$/, '')
+    // Health endpoint is at /health, not under /api/v1
+    const baseOrigin = this.baseUrl.replace(/\/api\/v1$/, '')
     const url = `${baseOrigin}/health`
     let response: Response
     try {
@@ -173,32 +173,32 @@ export class ApiClient {
     return (await response.json()) as HealthStatus
   }
 
-  /** GET /api/config — fetch UI-relevant configuration limits (e.g. max_study_items). */
+  /** GET /api/v1/config — fetch UI-relevant configuration limits (e.g. max_study_items). */
   async getConfig(): Promise<AppConfig> {
     return this.request<AppConfig>('/config')
   }
 
-  /** GET /api/base-models — list available base models from base_model_dir. */
+  /** GET /api/v1/base-models — list available base models from base_model_dir. */
   async getBaseModels(): Promise<BaseModelsResult> {
     return this.request<BaseModelsResult>('/base-models')
   }
 
-  /** GET /api/comfyui/status — check ComfyUI connection status. */
+  /** GET /api/v1/comfyui/status — check ComfyUI connection status. */
   async getComfyUIStatus(): Promise<ComfyUIStatus> {
     return this.request<ComfyUIStatus>('/comfyui/status')
   }
 
-  /** GET /api/comfyui/models — get available models by type. */
+  /** GET /api/v1/comfyui/models — get available models by type. */
   async getComfyUIModels(type: ComfyUIModelType): Promise<ComfyUIModels> {
     return this.request<ComfyUIModels>(`/comfyui/models?type=${type}`)
   }
 
-  /** GET /api/studies — list all studies. */
+  /** GET /api/v1/studies — list all studies. */
   async listStudies(): Promise<Study[]> {
     return this.request<Study[]>('/studies')
   }
 
-  /** POST /api/studies — create a new study. */
+  /** POST /api/v1/studies — create a new study. */
   async createStudy(payload: CreateStudyPayload): Promise<Study> {
     return this.request<Study>('/studies', {
       method: 'POST',
@@ -207,7 +207,7 @@ export class ApiClient {
     })
   }
 
-  /** PUT /api/studies/{id} — update an existing study. */
+  /** PUT /api/v1/studies/{id} — update an existing study. */
   async updateStudy(payload: UpdateStudyPayload): Promise<Study> {
     return this.request<Study>(`/studies/${payload.id}`, {
       method: 'PUT',
@@ -216,7 +216,7 @@ export class ApiClient {
     })
   }
 
-  /** POST /api/studies/{source_id}/fork — fork a study. */
+  /** POST /api/v1/studies/{source_id}/fork — fork a study. */
   async forkStudy(payload: ForkStudyPayload): Promise<Study> {
     return this.request<Study>(`/studies/${payload.source_id}/fork`, {
       method: 'POST',
@@ -225,22 +225,22 @@ export class ApiClient {
     })
   }
 
-  /** GET /api/studies/{id}/has-samples — check if a study has generated samples. */
+  /** GET /api/v1/studies/{id}/has-samples — check if a study has generated samples. */
   async studyHasSamples(id: string): Promise<HasSamplesResponse> {
     return this.request<HasSamplesResponse>(`/studies/${id}/has-samples`)
   }
 
-  /** GET /api/studies/{id}/affected-runs — get training runs with samples for this study. */
+  /** GET /api/v1/studies/{id}/affected-runs — get training runs with samples for this study. */
   async getAffectedRuns(studyId: string): Promise<AffectedRun[]> {
     return this.request<AffectedRun[]>(`/studies/${studyId}/affected-runs`)
   }
 
-  /** GET /api/studies/availability?training_run_id={id} — get per-study sample availability for a training run. id is a stable opaque string. */
+  /** GET /api/v1/studies/availability?training_run_id={id} — get per-study sample availability for a training run. id is a stable opaque string. */
   async getStudyAvailability(trainingRunId: string): Promise<StudyAvailability[]> {
     return this.request<StudyAvailability[]>(`/studies/availability?training_run_id=${encodeURIComponent(trainingRunId)}`)
   }
 
-  /** DELETE /api/studies/{id}?delete_data={bool} — delete a study.
+  /** DELETE /api/v1/studies/{id}?delete_data={bool} — delete a study.
    *  When deleteData is true, also removes the study's sample output directory from disk. */
   async deleteStudy(id: string, deleteData: boolean = false): Promise<void> {
     const query = deleteData ? '?delete_data=true' : ''
@@ -257,22 +257,22 @@ export class ApiClient {
     }
   }
 
-  /** GET /api/workflows — list all workflow templates. */
+  /** GET /api/v1/workflows — list all workflow templates. */
   async listWorkflows(): Promise<WorkflowSummary[]> {
     return this.request<WorkflowSummary[]>('/workflows')
   }
 
-  /** GET /api/sample-jobs — list all sample jobs. */
+  /** GET /api/v1/sample-jobs — list all sample jobs. */
   async listSampleJobs(): Promise<SampleJob[]> {
     return this.request<SampleJob[]>('/sample-jobs')
   }
 
-  /** GET /api/sample-jobs/{id} — get sample job details with progress metrics. */
+  /** GET /api/v1/sample-jobs/{id} — get sample job details with progress metrics. */
   async getSampleJob(id: string): Promise<SampleJobDetail> {
     return this.request<SampleJobDetail>(`/sample-jobs/${id}`)
   }
 
-  /** POST /api/sample-jobs — create and start a new sample job. */
+  /** POST /api/v1/sample-jobs — create and start a new sample job. */
   async createSampleJob(payload: CreateSampleJobPayload): Promise<SampleJob> {
     return this.request<SampleJob>('/sample-jobs', {
       method: 'POST',
@@ -281,40 +281,40 @@ export class ApiClient {
     })
   }
 
-  /** POST /api/sample-jobs/{id}/stop — stop a running sample job. */
+  /** POST /api/v1/sample-jobs/{id}/stop — stop a running sample job. */
   async stopSampleJob(id: string): Promise<SampleJob> {
     return this.request<SampleJob>(`/sample-jobs/${id}/stop`, {
       method: 'POST',
     })
   }
 
-  /** POST /api/sample-jobs/{id}/resume — resume a stopped sample job. */
+  /** POST /api/v1/sample-jobs/{id}/resume — resume a stopped sample job. */
   async resumeSampleJob(id: string): Promise<SampleJob> {
     return this.request<SampleJob>(`/sample-jobs/${id}/resume`, {
       method: 'POST',
     })
   }
 
-  /** POST /api/sample-jobs/{id}/retry-failed — retry only failed/skipped items in a completed_with_errors job. */
+  /** POST /api/v1/sample-jobs/{id}/retry-failed — retry only failed/skipped items in a completed_with_errors job. */
   async retryFailedSampleJob(id: string): Promise<SampleJob> {
     return this.request<SampleJob>(`/sample-jobs/${id}/retry-failed`, {
       method: 'POST',
     })
   }
 
-  /** GET /api/demo/status — check whether the demo dataset is installed. */
+  /** GET /api/v1/demo/status — check whether the demo dataset is installed. */
   async getDemoStatus(): Promise<DemoStatus> {
     return this.request<DemoStatus>('/demo/status')
   }
 
-  /** POST /api/demo/install — install the demo dataset and seed the demo preset. */
+  /** POST /api/v1/demo/install — install the demo dataset and seed the demo preset. */
   async installDemo(): Promise<DemoStatus> {
     return this.request<DemoStatus>('/demo/install', {
       method: 'POST',
     })
   }
 
-  /** DELETE /api/demo — remove the demo dataset and demo preset. */
+  /** DELETE /api/v1/demo — remove the demo dataset and demo preset. */
   async uninstallDemo(): Promise<DemoStatus> {
     const url = `${this.baseUrl}/demo`
     let response: Response
@@ -330,7 +330,7 @@ export class ApiClient {
     return (await response.json()) as DemoStatus
   }
 
-  /** DELETE /api/sample-jobs/{id}?delete_data={bool} — delete a sample job.
+  /** DELETE /api/v1/sample-jobs/{id}?delete_data={bool} — delete a sample job.
    *  When deleteData is true, also removes the generated sample files from disk. */
   async deleteSampleJob(id: string, deleteData: boolean = false): Promise<void> {
     const query = deleteData ? '?delete_data=true' : ''

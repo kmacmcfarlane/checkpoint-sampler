@@ -82,14 +82,14 @@ test.describe('S-084: sample count preview and missing-sample generation', () =>
   // AC3: Validate API returns total_expected, total_actual, total_missing fields
   test('validate API returns total_expected, total_actual, total_missing fields', async ({ request }) => {
     // Get training runs to find the ID for "my-model"
-    const runsResponse = await request.get('/api/training-runs')
+    const runsResponse = await request.get('/api/v1/training-runs')
     expect(runsResponse.ok()).toBeTruthy()
     const runs = await runsResponse.json()
     const myModel = runs.find((r: { name: string }) => r.name === 'my-model')
     expect(myModel).toBeDefined()
 
     // Call the validate endpoint
-    const validateResponse = await request.post(`/api/training-runs/${myModel.id}/validate`)
+    const validateResponse = await request.post(`/api/v1/training-runs/${myModel.id}/validate`)
     expect(validateResponse.ok()).toBeTruthy()
 
     const result = await validateResponse.json()
@@ -201,7 +201,7 @@ test.describe('S-084: sample count preview and missing-sample generation', () =>
   // AC4: API accepts missing_only parameter in create-sample-job payload
   test('create-sample-job API accepts missing_only parameter', async ({ request }) => {
     // First create a study to use in the payload
-    const createStudyResponse = await request.post('/api/studies', {
+    const createStudyResponse = await request.post('/api/v1/studies', {
       data: {
         name: `E2E Missing Only Test ${Date.now()}`,
         prompt_prefix: '',
@@ -221,7 +221,7 @@ test.describe('S-084: sample count preview and missing-sample generation', () =>
     const study = await createStudyResponse.json()
 
     // Get training runs to find the name for "my-model"
-    const runsResponse = await request.get('/api/training-runs?source=checkpoints')
+    const runsResponse = await request.get('/api/v1/training-runs?source=checkpoints')
     expect(runsResponse.ok()).toBeTruthy()
     const runs = await runsResponse.json()
     const myModel = runs.find((r: { name: string }) => r.name === 'my-model')
@@ -229,7 +229,7 @@ test.describe('S-084: sample count preview and missing-sample generation', () =>
 
     // Create a sample job with missing_only=true
     // S-112: workflow_name/vae/clip come from the study definition, not the job payload
-    const createJobResponse = await request.post('/api/sample-jobs', {
+    const createJobResponse = await request.post('/api/v1/sample-jobs', {
       data: {
         training_run_name: myModel.name,
         study_id: study.id,

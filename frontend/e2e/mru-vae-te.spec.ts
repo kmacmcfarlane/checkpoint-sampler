@@ -117,7 +117,7 @@ test.describe('MRU VAE and text encoder (S-113)', () => {
     const studyName = `S113 PreFill Test ${Date.now()}`
 
     // Create a study via API with specific VAE/TE values
-    const createResp = await request.post('/api/studies', {
+    const createResp = await request.post('/api/v1/studies', {
       data: {
         name: studyName,
         prompt_prefix: '',

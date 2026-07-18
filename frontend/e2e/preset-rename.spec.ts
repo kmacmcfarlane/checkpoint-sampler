@@ -11,7 +11,7 @@ import {
  * Story S-104: Rename preset inline
  *
  * The PresetSelector's Rename button opens a modal dialog pre-filled with the
- * current preset name. Confirming calls PUT /api/presets/{id} with the new
+ * current preset name. Confirming calls PUT /api/v1/presets/{id} with the new
  * name and the existing mapping. The NSelect dropdown reflects the updated
  * name immediately without a page reload.
  *
@@ -125,13 +125,13 @@ test.describe('sidebar PresetSelector rename flow', () => {
     await renameInput.clear()
     await renameInput.fill(newName)
 
-    // AC2: Confirm rename — wait for the PUT /api/presets/{id} API call
+    // AC2: Confirm rename — wait for the PUT /api/v1/presets/{id} API call
     const confirmButton = renameDialog.locator('[data-testid="preset-rename-dialog-confirm"]')
     await expect(confirmButton).toBeEnabled()
     await Promise.all([
       page.waitForResponse(
         (resp) =>
-          resp.url().includes('/api/presets/') &&
+          resp.url().includes('/api/v1/presets/') &&
           resp.request().method() === 'PUT' &&
           resp.status() === 200,
       ),

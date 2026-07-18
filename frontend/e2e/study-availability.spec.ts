@@ -53,7 +53,7 @@ test.describe('study availability and selector (S-086)', () => {
   // AC5: Availability API returns flat availability with has_samples boolean per study
   test('availability API returns study availability with has_samples boolean', async ({ request }) => {
     // Create a study so the availability response has at least one entry
-    const studyResp = await request.post('/api/studies', {
+    const studyResp = await request.post('/api/v1/studies', {
       data: {
         name: `Avail Test ${Date.now()}`,
         prompt_prefix: '',
@@ -70,14 +70,14 @@ test.describe('study availability and selector (S-086)', () => {
     const study = await studyResp.json()
 
     // Get training runs to find a valid training_run_id
-    const runsResp = await request.get('/api/training-runs')
+    const runsResp = await request.get('/api/v1/training-runs')
     expect(runsResp.ok()).toBeTruthy()
     const runs = await runsResp.json()
     expect(runs.length).toBeGreaterThan(0)
     const runId = runs[0].id
 
     // AC5: Call the availability endpoint
-    const availResp = await request.get(`/api/studies/availability?training_run_id=${runId}`)
+    const availResp = await request.get(`/api/v1/studies/availability?training_run_id=${runId}`)
     expect(availResp.ok()).toBeTruthy()
 
     const availabilities = await availResp.json()
@@ -112,7 +112,7 @@ test.describe('study availability and selector (S-086)', () => {
   test('availability API returns sample_status for every study in the response', async ({ request }) => {
     // Create two studies to verify sample_status is present on all entries
     const ts = Date.now()
-    const study1Resp = await request.post('/api/studies', {
+    const study1Resp = await request.post('/api/v1/studies', {
       data: {
         name: `Status Check A ${ts}`,
         prompt_prefix: '',
@@ -127,7 +127,7 @@ test.describe('study availability and selector (S-086)', () => {
     })
     expect(study1Resp.ok()).toBeTruthy()
 
-    const study2Resp = await request.post('/api/studies', {
+    const study2Resp = await request.post('/api/v1/studies', {
       data: {
         name: `Status Check B ${ts}`,
         prompt_prefix: '',
@@ -142,13 +142,13 @@ test.describe('study availability and selector (S-086)', () => {
     })
     expect(study2Resp.ok()).toBeTruthy()
 
-    const runsResp = await request.get('/api/training-runs')
+    const runsResp = await request.get('/api/v1/training-runs')
     expect(runsResp.ok()).toBeTruthy()
     const runs = await runsResp.json()
     expect(runs.length).toBeGreaterThan(0)
     const runId = runs[0].id
 
-    const availResp = await request.get(`/api/studies/availability?training_run_id=${runId}`)
+    const availResp = await request.get(`/api/v1/studies/availability?training_run_id=${runId}`)
     expect(availResp.ok()).toBeTruthy()
 
     const availabilities = await availResp.json() as Array<{ study_id: string; sample_status: string }>
@@ -163,7 +163,7 @@ test.describe('study availability and selector (S-086)', () => {
 
   // Availability API returns 404 for invalid training_run_id
   test('availability API returns 404 for non-existent training run', async ({ request }) => {
-    const resp = await request.get('/api/studies/availability?training_run_id=9999')
+    const resp = await request.get('/api/v1/studies/availability?training_run_id=9999')
     expect(resp.status()).toBe(404)
   })
 
@@ -173,7 +173,7 @@ test.describe('study availability and selector (S-086)', () => {
   test('checkpoint picker is hidden until study is selected in Generate Samples dialog', async ({ page, request }) => {
     const ts = Date.now()
     // Create 2 studies so the dialog does NOT auto-select one
-    const study1Resp = await request.post('/api/studies', {
+    const study1Resp = await request.post('/api/v1/studies', {
       data: {
         name: `Gate Test A ${ts}`,
         prompt_prefix: '',
@@ -189,7 +189,7 @@ test.describe('study availability and selector (S-086)', () => {
     expect(study1Resp.ok()).toBeTruthy()
     const study1 = await study1Resp.json()
 
-    await request.post('/api/studies', {
+    await request.post('/api/v1/studies', {
       data: {
         name: `Gate Test B ${ts}`,
         prompt_prefix: '',
@@ -230,7 +230,7 @@ test.describe('study availability and selector (S-086)', () => {
   // This test verifies the study select renders options with the study name visible.
   test('study select shows available studies in Generate Samples dialog', async ({ page, request }) => {
     const studyName = `Bead Check ${Date.now()}`
-    const studyResp = await request.post('/api/studies', {
+    const studyResp = await request.post('/api/v1/studies', {
       data: {
         name: studyName,
         prompt_prefix: '',

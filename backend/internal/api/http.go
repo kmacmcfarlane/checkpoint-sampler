@@ -326,18 +326,18 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 	return handler
 }
 
-// imageMetadataRewriteMiddleware rewrites /api/images/{path}/metadata requests
-// to /api/_images_metadata/{path} to work around chi router's wildcard limitation.
+// imageMetadataRewriteMiddleware rewrites /api/v1/images/{path}/metadata requests
+// to /api/v1/_images_metadata/{path} to work around chi router's wildcard limitation.
 // This allows the frontend to use the natural URL pattern while routing to the
 // Goa-generated handler which uses an internal path structure.
 func imageMetadataRewriteMiddleware(next http.Handler) http.Handler {
 	const metadataSuffix = "/metadata"
-	const imagePrefix = "/api/images/"
-	const rewritePrefix = "/api/_images_metadata/"
+	const imagePrefix = "/api/v1/images/"
+	const rewritePrefix = "/api/v1/_images_metadata/"
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, imagePrefix) && strings.HasSuffix(r.URL.Path, metadataSuffix) {
-			// Extract the filepath between /api/images/ and /metadata
+			// Extract the filepath between /api/v1/images/ and /metadata
 			filepath := r.URL.Path[len(imagePrefix) : len(r.URL.Path)-len(metadataSuffix)]
 			if filepath != "" {
 				// Clone the request and rewrite the path
@@ -363,8 +363,8 @@ type logrusAdapter struct {
 // quietPaths are URL prefixes for heartbeat/polling endpoints that generate
 // high-frequency log noise. These are logged at trace level instead of info.
 var quietPaths = []string{
-	"/api/comfyui/status",
-	"/api/health",
+	"/api/v1/comfyui/status",
+	"/api/v1/health",
 }
 
 func (a *logrusAdapter) Log(keyvals ...interface{}) error {

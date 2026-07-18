@@ -20,7 +20,7 @@ const mockGetImageMetadata = apiClient.getImageMetadata as ReturnType<typeof vi.
 
 describe('ImageLightbox', () => {
   const defaultProps = {
-    imageUrl: '/api/images/dir/image.png',
+    imageUrl: '/api/v1/images/dir/image.png',
     cellKey: null,
     sliderValues: [],
     currentSliderValue: '',
@@ -44,7 +44,7 @@ describe('ImageLightbox', () => {
     expect(wrapper.find('[aria-label="Image lightbox"]').exists()).toBe(true)
     const img = wrapper.find('.lightbox-image')
     expect(img.exists()).toBe(true)
-    expect(img.attributes('src')).toBe('/api/images/dir/image.png')
+    expect(img.attributes('src')).toBe('/api/v1/images/dir/image.png')
   })
 
   it('emits close when clicking the backdrop directly', async () => {
@@ -267,7 +267,7 @@ describe('ImageLightbox', () => {
     expect(styleBefore).not.toContain('scale(1)')
 
     // Change image URL
-    await wrapper.setProps({ imageUrl: '/api/images/other/image.png' })
+    await wrapper.setProps({ imageUrl: '/api/v1/images/other/image.png' })
     await flushPromises()
 
     const imgAfter = wrapper.find('.lightbox-image')
@@ -459,7 +459,7 @@ describe('ImageLightbox', () => {
     expect(mockGetImageMetadata).toHaveBeenCalledTimes(1)
     expect(mockGetImageMetadata).toHaveBeenCalledWith('dir/image.png')
 
-    await wrapper.setProps({ imageUrl: '/api/images/other/dir/pic.png' })
+    await wrapper.setProps({ imageUrl: '/api/v1/images/other/dir/pic.png' })
     await flushPromises()
 
     expect(mockGetImageMetadata).toHaveBeenCalledTimes(2)
@@ -593,14 +593,14 @@ describe('ImageLightbox', () => {
 
     it('does not close when mousedown originates outside the backdrop (e.g. slider drag)', async () => {
       const sliderProps = {
-        imageUrl: '/api/images/seed=42&step=500&cfg=3.png',
+        imageUrl: '/api/v1/images/seed=42&step=500&cfg=3.png',
         cellKey: '42|500',
         sliderValues: ['3', '7', '15'],
         currentSliderValue: '7',
         imagesBySliderValue: {
-          '3': '/api/images/seed=42&step=500&cfg=3.png',
-          '7': '/api/images/seed=42&step=500&cfg=7.png',
-          '15': '/api/images/seed=42&step=500&cfg=15.png',
+          '3': '/api/v1/images/seed=42&step=500&cfg=3.png',
+          '7': '/api/v1/images/seed=42&step=500&cfg=7.png',
+          '15': '/api/v1/images/seed=42&step=500&cfg=15.png',
         },
         sliderDimensionName: 'cfg',
         gridImages: [],
@@ -671,14 +671,14 @@ describe('ImageLightbox', () => {
 
   describe('slider navigation', () => {
     const sliderProps = {
-      imageUrl: '/api/images/seed=42&step=500&cfg=3.png',
+      imageUrl: '/api/v1/images/seed=42&step=500&cfg=3.png',
       cellKey: '42|500',
       sliderValues: ['3', '7', '15'],
       currentSliderValue: '7',
       imagesBySliderValue: {
-        '3': '/api/images/seed=42&step=500&cfg=3.png',
-        '7': '/api/images/seed=42&step=500&cfg=7.png',
-        '15': '/api/images/seed=42&step=500&cfg=15.png',
+        '3': '/api/v1/images/seed=42&step=500&cfg=3.png',
+        '7': '/api/v1/images/seed=42&step=500&cfg=7.png',
+        '15': '/api/v1/images/seed=42&step=500&cfg=15.png',
       },
       sliderDimensionName: 'cfg',
       gridImages: [],
@@ -794,8 +794,8 @@ describe('ImageLightbox', () => {
 
       // Current value is '7' (index 1), so adjacent are '3' (index 0) and '15' (index 2)
       const createdImages = imageSpy.mock.results.map((r) => (r.value as { src: string }).src)
-      expect(createdImages).toContain('/api/images/seed=42&step=500&cfg=3.png')
-      expect(createdImages).toContain('/api/images/seed=42&step=500&cfg=15.png')
+      expect(createdImages).toContain('/api/v1/images/seed=42&step=500&cfg=3.png')
+      expect(createdImages).toContain('/api/v1/images/seed=42&step=500&cfg=15.png')
 
       imageSpy.mockRestore()
     })
@@ -882,14 +882,14 @@ describe('ImageLightbox', () => {
     it('advances sequentially on rapid ArrowRight presses without prop updates (non-uniform intervals)', async () => {
       // Non-uniform checkpoint values: intervals are 1000, 2500 — different spacings.
       const nonUniformProps = {
-        imageUrl: '/api/images/ckpt=1000.png',
+        imageUrl: '/api/v1/images/ckpt=1000.png',
         cellKey: '42|500',
         sliderValues: ['1000', '2000', '4500'],
         currentSliderValue: '1000',
         imagesBySliderValue: {
-          '1000': '/api/images/ckpt=1000.png',
-          '2000': '/api/images/ckpt=2000.png',
-          '4500': '/api/images/ckpt=4500.png',
+          '1000': '/api/v1/images/ckpt=1000.png',
+          '2000': '/api/v1/images/ckpt=2000.png',
+          '4500': '/api/v1/images/ckpt=4500.png',
         },
         sliderDimensionName: 'checkpoint',
         gridImages: [],
@@ -921,14 +921,14 @@ describe('ImageLightbox', () => {
 
     it('advances sequentially on rapid ArrowLeft presses without prop updates', async () => {
       const nonUniformProps = {
-        imageUrl: '/api/images/ckpt=4500.png',
+        imageUrl: '/api/v1/images/ckpt=4500.png',
         cellKey: '42|500',
         sliderValues: ['1000', '2000', '4500'],
         currentSliderValue: '4500',
         imagesBySliderValue: {
-          '1000': '/api/images/ckpt=1000.png',
-          '2000': '/api/images/ckpt=2000.png',
-          '4500': '/api/images/ckpt=4500.png',
+          '1000': '/api/v1/images/ckpt=1000.png',
+          '2000': '/api/v1/images/ckpt=2000.png',
+          '4500': '/api/v1/images/ckpt=4500.png',
         },
         sliderDimensionName: 'checkpoint',
         gridImages: [],
@@ -1001,21 +1001,21 @@ describe('ImageLightbox', () => {
   describe('grid navigation', () => {
     const gridImages = [
       {
-        imageUrl: '/api/images/a.png',
+        imageUrl: '/api/v1/images/a.png',
         cellKey: '42|500',
         sliderValues: [],
         currentSliderValue: '',
         imagesBySliderValue: {},
       },
       {
-        imageUrl: '/api/images/b.png',
+        imageUrl: '/api/v1/images/b.png',
         cellKey: '123|500',
         sliderValues: [],
         currentSliderValue: '',
         imagesBySliderValue: {},
       },
       {
-        imageUrl: '/api/images/c.png',
+        imageUrl: '/api/v1/images/c.png',
         cellKey: '42|1000',
         sliderValues: [],
         currentSliderValue: '',
@@ -1025,7 +1025,7 @@ describe('ImageLightbox', () => {
 
     const navProps = {
       ...defaultProps,
-      imageUrl: '/api/images/b.png',
+      imageUrl: '/api/v1/images/b.png',
       gridImages,
       gridIndex: 1,
       gridColumnCount: 0,
@@ -1138,14 +1138,14 @@ describe('ImageLightbox', () => {
     it('Shift+ArrowLeft does not also emit slider-change', async () => {
       // Even if slider is present, Shift+Arrow should only navigate grid, not also change slider
       const sliderAndNavProps = {
-        imageUrl: '/api/images/b.png',
+        imageUrl: '/api/v1/images/b.png',
         cellKey: '123|500',
         sliderValues: ['3', '7', '15'],
         currentSliderValue: '7',
         imagesBySliderValue: {
-          '3': '/api/images/b-cfg3.png',
-          '7': '/api/images/b-cfg7.png',
-          '15': '/api/images/b-cfg15.png',
+          '3': '/api/v1/images/b-cfg3.png',
+          '7': '/api/v1/images/b-cfg7.png',
+          '15': '/api/v1/images/b-cfg15.png',
         },
         sliderDimensionName: 'cfg',
         gridImages,
@@ -1173,10 +1173,10 @@ describe('ImageLightbox', () => {
     // index 0: (x=a, y=row1), index 1: (x=b, y=row1)
     // index 2: (x=a, y=row2), index 3: (x=b, y=row2)
     const gridImages2x2 = [
-      { imageUrl: '/api/images/a-r1.png', cellKey: 'a|row1', sliderValues: [], currentSliderValue: '', imagesBySliderValue: {} },
-      { imageUrl: '/api/images/b-r1.png', cellKey: 'b|row1', sliderValues: [], currentSliderValue: '', imagesBySliderValue: {} },
-      { imageUrl: '/api/images/a-r2.png', cellKey: 'a|row2', sliderValues: [], currentSliderValue: '', imagesBySliderValue: {} },
-      { imageUrl: '/api/images/b-r2.png', cellKey: 'b|row2', sliderValues: [], currentSliderValue: '', imagesBySliderValue: {} },
+      { imageUrl: '/api/v1/images/a-r1.png', cellKey: 'a|row1', sliderValues: [], currentSliderValue: '', imagesBySliderValue: {} },
+      { imageUrl: '/api/v1/images/b-r1.png', cellKey: 'b|row1', sliderValues: [], currentSliderValue: '', imagesBySliderValue: {} },
+      { imageUrl: '/api/v1/images/a-r2.png', cellKey: 'a|row2', sliderValues: [], currentSliderValue: '', imagesBySliderValue: {} },
+      { imageUrl: '/api/v1/images/b-r2.png', cellKey: 'b|row2', sliderValues: [], currentSliderValue: '', imagesBySliderValue: {} },
     ]
 
     // AC: Shift+Down navigates to the image below in the Y axis
@@ -1358,7 +1358,7 @@ describe('ImageLightbox', () => {
     // AC: Test with different Y dimensions (3 rows, 3 columns = 9 items)
     it('navigates correctly in a 3x3 grid', async () => {
       const grid3x3 = Array.from({ length: 9 }, (_, i) => ({
-        imageUrl: `/api/images/img${i}.png`,
+        imageUrl: `/api/v1/images/img${i}.png`,
         cellKey: `x${i % 3}|y${Math.floor(i / 3)}`,
         sliderValues: [] as string[],
         currentSliderValue: '',
@@ -1382,14 +1382,14 @@ describe('ImageLightbox', () => {
     it('Shift+ArrowDown does not also emit slider-change', async () => {
       const sliderAndNavProps = {
         ...defaultProps,
-        imageUrl: '/api/images/a-r1.png',
+        imageUrl: '/api/v1/images/a-r1.png',
         cellKey: 'a|row1',
         sliderValues: ['3', '7', '15'],
         currentSliderValue: '7',
         imagesBySliderValue: {
-          '3': '/api/images/a-r1-cfg3.png',
-          '7': '/api/images/a-r1-cfg7.png',
-          '15': '/api/images/a-r1-cfg15.png',
+          '3': '/api/v1/images/a-r1-cfg3.png',
+          '7': '/api/v1/images/a-r1-cfg7.png',
+          '15': '/api/v1/images/a-r1-cfg15.png',
         },
         sliderDimensionName: 'cfg',
         gridImages: gridImages2x2,
@@ -1416,14 +1416,14 @@ describe('ImageLightbox', () => {
     it('passes sliderDimensionName as label to SliderBar', async () => {
       const wrapper = mount(ImageLightbox, {
         props: {
-          imageUrl: '/api/images/seed=42&step=500&cfg=7.png',
+          imageUrl: '/api/v1/images/seed=42&step=500&cfg=7.png',
           cellKey: '42|500',
           sliderValues: ['3', '7', '15'],
           currentSliderValue: '7',
           imagesBySliderValue: {
-            '3': '/api/images/seed=42&step=500&cfg=3.png',
-            '7': '/api/images/seed=42&step=500&cfg=7.png',
-            '15': '/api/images/seed=42&step=500&cfg=15.png',
+            '3': '/api/v1/images/seed=42&step=500&cfg=3.png',
+            '7': '/api/v1/images/seed=42&step=500&cfg=7.png',
+            '15': '/api/v1/images/seed=42&step=500&cfg=15.png',
           },
           sliderDimensionName: 'cfg',
           gridImages: [],
@@ -1443,14 +1443,14 @@ describe('ImageLightbox', () => {
     it('passes checkpoint as slider label when sliderDimensionName is checkpoint', async () => {
       const wrapper = mount(ImageLightbox, {
         props: {
-          imageUrl: '/api/images/checkpoint=v1&seed=42.png',
+          imageUrl: '/api/v1/images/checkpoint=v1&seed=42.png',
           cellKey: '42|',
           sliderValues: ['v1', 'v2', 'v3'],
           currentSliderValue: 'v2',
           imagesBySliderValue: {
-            v1: '/api/images/checkpoint=v1&seed=42.png',
-            v2: '/api/images/checkpoint=v2&seed=42.png',
-            v3: '/api/images/checkpoint=v3&seed=42.png',
+            v1: '/api/v1/images/checkpoint=v1&seed=42.png',
+            v2: '/api/v1/images/checkpoint=v2&seed=42.png',
+            v3: '/api/v1/images/checkpoint=v3&seed=42.png',
           },
           sliderDimensionName: 'checkpoint',
           gridImages: [],
@@ -1470,14 +1470,14 @@ describe('ImageLightbox', () => {
     it('falls back to "Slider" label when sliderDimensionName is empty string', async () => {
       const wrapper = mount(ImageLightbox, {
         props: {
-          imageUrl: '/api/images/seed=42&step=500&cfg=7.png',
+          imageUrl: '/api/v1/images/seed=42&step=500&cfg=7.png',
           cellKey: '42|500',
           sliderValues: ['3', '7', '15'],
           currentSliderValue: '7',
           imagesBySliderValue: {
-            '3': '/api/images/seed=42&step=500&cfg=3.png',
-            '7': '/api/images/seed=42&step=500&cfg=7.png',
-            '15': '/api/images/seed=42&step=500&cfg=15.png',
+            '3': '/api/v1/images/seed=42&step=500&cfg=3.png',
+            '7': '/api/v1/images/seed=42&step=500&cfg=7.png',
+            '15': '/api/v1/images/seed=42&step=500&cfg=15.png',
           },
           sliderDimensionName: '',
           gridImages: [],
@@ -1755,7 +1755,7 @@ describe('ImageLightbox', () => {
   describe('grid position indicator', () => {
     const makeGridImages = (count: number) =>
       Array.from({ length: count }, (_, i) => ({
-        imageUrl: `/api/images/img${i}.png`,
+        imageUrl: `/api/v1/images/img${i}.png`,
         cellKey: `key${i}`,
         sliderValues: [],
         currentSliderValue: '',

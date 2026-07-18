@@ -189,7 +189,7 @@ test.describe('job timestamps (B-133)', () => {
     ])
 
     // Fetch the list and verify sort order (updated_at DESC: job A before job B)
-    const listResp = await request.get('/api/sample-jobs')
+    const listResp = await request.get('/api/v1/sample-jobs')
     expect(listResp.status()).toBe(200)
     const jobs = await listResp.json() as Array<{ id: string; training_run_name: string; updated_at: string }>
 

@@ -363,14 +363,14 @@ describe('MasterSlider', () => {
       // Mount ImageLightbox with a slider so its arrow key handler fires
       const lightboxWrapper = mount(ImageLightbox, {
         props: {
-          imageUrl: '/api/images/dir/image.png',
+          imageUrl: '/api/v1/images/dir/image.png',
           cellKey: 'x|y',
           sliderValues: ['3', '7', '15'],
           currentSliderValue: '7',
           imagesBySliderValue: {
-            '3': '/api/images/dir/a.png',
-            '7': '/api/images/dir/b.png',
-            '15': '/api/images/dir/c.png',
+            '3': '/api/v1/images/dir/a.png',
+            '7': '/api/v1/images/dir/b.png',
+            '15': '/api/v1/images/dir/c.png',
           },
           sliderDimensionName: 'cfg',
           gridImages: [],

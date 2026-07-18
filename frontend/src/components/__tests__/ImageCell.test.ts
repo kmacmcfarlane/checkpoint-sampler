@@ -19,7 +19,7 @@ describe('ImageCell', () => {
 
     const img = wrapper.find('img')
     expect(img.exists()).toBe(true)
-    expect(img.attributes('src')).toBe('/api/images/dir/index=0&seed=42.png')
+    expect(img.attributes('src')).toBe('/api/v1/images/dir/index=0&seed=42.png')
     expect(img.attributes('alt')).toBe('dir/index=0&seed=42.png')
   })
 
@@ -33,7 +33,7 @@ describe('ImageCell', () => {
     const img = wrapper.find('img')
     expect(img.exists()).toBe(true)
     // Grid img element should use the thumbnail URL
-    expect(img.attributes('src')).toBe('/api/images/dir/thumbnails/image.jpg')
+    expect(img.attributes('src')).toBe('/api/v1/images/dir/thumbnails/image.jpg')
     // Alt still reflects the original relative path
     expect(img.attributes('alt')).toBe('dir/image.png')
   })
@@ -46,7 +46,7 @@ describe('ImageCell', () => {
     })
 
     const img = wrapper.find('img')
-    expect(img.attributes('data-full-src')).toBe('/api/images/dir/image.png')
+    expect(img.attributes('data-full-src')).toBe('/api/v1/images/dir/image.png')
   })
 
   // AC: Falls back to full-res URL when no thumbnail
@@ -54,7 +54,7 @@ describe('ImageCell', () => {
     const wrapper = mountCell({ relativePath: 'dir/image.png' })
 
     const img = wrapper.find('img')
-    expect(img.attributes('src')).toBe('/api/images/dir/image.png')
+    expect(img.attributes('src')).toBe('/api/v1/images/dir/image.png')
   })
 
   // AC: Lightbox click event still emits the full-resolution URL
@@ -70,7 +70,7 @@ describe('ImageCell', () => {
     expect(emitted).toBeDefined()
     expect(emitted).toHaveLength(1)
     // Click event must carry the full-resolution URL for the lightbox
-    expect(emitted![0]).toEqual(['/api/images/dir/image.png'])
+    expect(emitted![0]).toEqual(['/api/v1/images/dir/image.png'])
   })
 
   it('renders placeholder when relativePath is null', () => {
@@ -252,7 +252,7 @@ describe('ImageCell', () => {
       const emitted = wrapper.emitted('click')
       expect(emitted).toBeDefined()
       expect(emitted).toHaveLength(1)
-      expect(emitted![0]).toEqual(['/api/images/dir/image.png'])
+      expect(emitted![0]).toEqual(['/api/v1/images/dir/image.png'])
     })
 
     it('has position:relative on image-cell for overlay positioning', () => {

@@ -69,7 +69,7 @@ async function seedJobs(request: APIRequestContext, jobs: Array<{
  * Creates a minimal study via the API and returns its ID.
  */
 async function createStudy(request: APIRequestContext, name: string): Promise<string> {
-  const resp = await request.post('/api/studies', {
+  const resp = await request.post('/api/v1/studies', {
     data: {
       name,
       prompt_prefix: '',
@@ -113,7 +113,7 @@ async function seedPartialSamples(
  * Gets the training run ID for "my-model" from the API.
  */
 async function getMyModelRunId(request: APIRequestContext): Promise<number> {
-  const resp = await request.get('/api/training-runs?source=checkpoints')
+  const resp = await request.get('/api/v1/training-runs?source=checkpoints')
   expect(resp.ok()).toBeTruthy()
   const runs = await resp.json() as Array<{ id: number; name: string }>
   const run = runs.find(r => r.name === 'my-model')
@@ -455,7 +455,7 @@ test.describe('Generate Samples dual beads (S-116)', () => {
     // the reset). If this assertion fails, the DB was not cleanly reset — the test
     // failure points directly at the isolation layer, not at the UI.
     // AC: No residual job state from prior tests leaks into this test
-    const jobsResp = await request.get('/api/sample-jobs')
+    const jobsResp = await request.get('/api/v1/sample-jobs')
     expect(jobsResp.ok()).toBeTruthy()
     const jobs = await jobsResp.json() as Array<unknown>
     expect(jobs).toHaveLength(0)
@@ -599,7 +599,7 @@ test.describe('Generate Samples dual beads (S-116)', () => {
     }])
 
     // The jobs API must return study_id and status fields
-    const resp = await request.get('/api/sample-jobs')
+    const resp = await request.get('/api/v1/sample-jobs')
     expect(resp.ok()).toBeTruthy()
     const jobs = await resp.json() as Array<{ study_id: string; status: string; training_run_name: string }>
 

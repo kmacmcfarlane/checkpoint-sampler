@@ -136,7 +136,7 @@ var _ = Describe("Server integration", func() {
 
 	Describe("GET /api/training-runs", func() {
 		It("returns 200 with training runs list", func() {
-			resp, err := client.Get(server.URL + "/api/training-runs")
+			resp, err := client.Get(server.URL + "/api/v1/training-runs")
 			Expect(err).NotTo(HaveOccurred())
 			defer resp.Body.Close()
 
@@ -155,7 +155,7 @@ var _ = Describe("Server integration", func() {
 		})
 
 		It("echoes the Origin for a same-host request", func() {
-			req, err := http.NewRequest(http.MethodGet, server.URL+"/api/training-runs", nil)
+			req, err := http.NewRequest(http.MethodGet, server.URL+"/api/v1/training-runs", nil)
 			Expect(err).NotTo(HaveOccurred())
 			req.Header.Set("Origin", server.URL)
 
@@ -175,7 +175,7 @@ var _ = Describe("Server integration", func() {
 
 			// S-155: training-run ids are stable opaque strings. Resolve the id
 			// from the list endpoint instead of assuming a positional index.
-			listResp, err := client.Get(server.URL + "/api/training-runs")
+			listResp, err := client.Get(server.URL + "/api/v1/training-runs")
 			Expect(err).NotTo(HaveOccurred())
 			listBody, err := io.ReadAll(listResp.Body)
 			Expect(err).NotTo(HaveOccurred())
@@ -186,7 +186,7 @@ var _ = Describe("Server integration", func() {
 			runID, ok := runs[0]["id"].(string)
 			Expect(ok).To(BeTrue(), "training run id should be a string")
 
-			resp, err := client.Get(server.URL + "/api/training-runs/" + runID + "/scan")
+			resp, err := client.Get(server.URL + "/api/v1/training-runs/" + runID + "/scan")
 			Expect(err).NotTo(HaveOccurred())
 			defer resp.Body.Close()
 
@@ -203,7 +203,7 @@ var _ = Describe("Server integration", func() {
 		})
 
 		It("returns 404 for invalid training run ID", func() {
-			resp, err := client.Get(server.URL + "/api/training-runs/99/scan")
+			resp, err := client.Get(server.URL + "/api/v1/training-runs/99/scan")
 			Expect(err).NotTo(HaveOccurred())
 			defer resp.Body.Close()
 

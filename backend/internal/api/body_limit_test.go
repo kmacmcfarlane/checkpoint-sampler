@@ -173,12 +173,12 @@ var _ = Describe("RequestBodyLimitMiddleware", func() {
 		})
 
 		It("returns 413 with JSON error body for oversized POST to a Goa endpoint", func() {
-			// POST to /api/presets with body larger than the 1 MB limit.
+			// POST to /api/v1/presets with body larger than the 1 MB limit.
 			// Go's http.NewRequest sets Content-Length from strings.Reader, so the
 			// middleware Content-Length fast-path fires and returns 413 before Goa
 			// ever sees the request body.
 			body := strings.Repeat("x", 1024*1024+1)
-			req, err := http.NewRequest(http.MethodPost, server.URL+"/api/presets", strings.NewReader(body))
+			req, err := http.NewRequest(http.MethodPost, server.URL+"/api/v1/presets", strings.NewReader(body))
 			Expect(err).NotTo(HaveOccurred())
 			req.Header.Set("Content-Type", "application/json")
 

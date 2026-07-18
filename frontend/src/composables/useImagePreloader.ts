@@ -29,7 +29,7 @@ export function useImagePreloader(
   let abortController: AbortController | null = null
 
   function imageUrl(relativePath: string): string {
-    return `/api/images/${relativePath}`
+    return `/api/v1/images/${relativePath}`
   }
 
   /** Return the preferred preload URL for an image: thumbnail when available, full-res otherwise. */

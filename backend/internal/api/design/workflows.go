@@ -12,7 +12,7 @@ var _ = Service("workflows", func() {
 		Result(ArrayOf(WorkflowSummary))
 		Error("internal_error", ErrorResult, "Internal server error")
 		HTTP(func() {
-			GET("/api/workflows")
+			GET("/api/v1/workflows")
 			Response(StatusOK)
 			Response("internal_error", StatusInternalServerError)
 		})
@@ -27,7 +27,7 @@ var _ = Service("workflows", func() {
 		Result(WorkflowDetails)
 		Error("not_found", ErrorResult, "Workflow not found")
 		HTTP(func() {
-			GET("/api/workflows/{name}")
+			GET("/api/v1/workflows/{name}")
 			Response(StatusOK)
 			Response("not_found", StatusNotFound)
 		})

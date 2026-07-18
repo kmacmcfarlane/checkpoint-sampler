@@ -12,7 +12,7 @@ var _ = Service("demo", func() {
 		Result(DemoStatusResponse)
 		Error("internal_error", ErrorResult, "Internal server error")
 		HTTP(func() {
-			GET("/api/demo/status")
+			GET("/api/v1/demo/status")
 			Response(StatusOK)
 			Response("internal_error", StatusInternalServerError)
 		})
@@ -23,7 +23,7 @@ var _ = Service("demo", func() {
 		Result(DemoStatusResponse)
 		Error("internal_error", ErrorResult, "Internal server error")
 		HTTP(func() {
-			POST("/api/demo/install")
+			POST("/api/v1/demo/install")
 			Response(StatusOK)
 			Response("internal_error", StatusInternalServerError)
 		})
@@ -34,7 +34,7 @@ var _ = Service("demo", func() {
 		Result(DemoStatusResponse)
 		Error("internal_error", ErrorResult, "Internal server error")
 		HTTP(func() {
-			DELETE("/api/demo")
+			DELETE("/api/v1/demo")
 			Response(StatusOK)
 			Response("internal_error", StatusInternalServerError)
 		})

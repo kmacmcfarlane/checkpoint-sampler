@@ -19,7 +19,7 @@ test.describe('training run with no checkpoint sample dirs (B-135)', () => {
   test('shows no-samples message instead of error when scan returns empty results', async ({ page }) => {
     // Intercept the scan API to return empty results (simulating a training run
     // with no checkpoint sample directories).
-    await page.route('**/api/training-runs/*/scan', async (route) => {
+    await page.route('**/api/v1/training-runs/*/scan', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -44,7 +44,7 @@ test.describe('training run with no checkpoint sample dirs (B-135)', () => {
   // AC: Grid displays empty state (no error) — verify no error class shown
   test('does not show scan error when scan returns empty results', async ({ page }) => {
     // Intercept scan API to return empty results
-    await page.route('**/api/training-runs/*/scan', async (route) => {
+    await page.route('**/api/v1/training-runs/*/scan', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',

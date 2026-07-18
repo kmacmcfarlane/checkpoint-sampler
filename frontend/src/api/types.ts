@@ -164,7 +164,7 @@ export interface FSEventMessage {
   path: string
 }
 
-/** Base models list response from /api/base-models. */
+/** Base models list response from /api/v1/base-models. */
 export interface BaseModelsResult {
   models: string[]
 }

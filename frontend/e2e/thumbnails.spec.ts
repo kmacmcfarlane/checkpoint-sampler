@@ -60,7 +60,7 @@ async function pollJobStatus(
   const deadline = Date.now() + timeout
 
   while (Date.now() < deadline) {
-    const resp = await request.get('/api/sample-jobs')
+    const resp = await request.get('/api/v1/sample-jobs')
     if (resp.status() === 200) {
       const jobs = await resp.json() as SampleJobApiResponse[]
       if (predicate(jobs)) return jobs
@@ -132,7 +132,7 @@ async function createAndRunJobToCompletion(page: Page, request: APIRequestContex
   await expect(dialog).not.toBeVisible({ timeout: 5000 })
 
   // Retrieve the created job ID
-  const initialJobs = await request.get('/api/sample-jobs')
+  const initialJobs = await request.get('/api/v1/sample-jobs')
   expect(initialJobs.status()).toBe(200)
   const jobs = await initialJobs.json() as SampleJobApiResponse[]
   expect(jobs.length).toBeGreaterThan(0)
@@ -181,14 +181,14 @@ test.describe('thumbnail support — scan API contract', () => {
   // AC: Scan API response includes thumbnail_path field for every image
   test('scan response includes thumbnail_path field for each image', async ({ request }) => {
     // Discover training runs first to get a run ID
-    const runsResponse = await request.get('/api/training-runs?source=samples')
+    const runsResponse = await request.get('/api/v1/training-runs?source=samples')
     expect(runsResponse.status()).toBe(200)
     const runs = await runsResponse.json() as Array<{ id: number; name: string }>
     const run = runs.find((r) => r.name === 'my-model')
     expect(run).toBeDefined()
 
     // Scan the training run
-    const scanResponse = await request.get(`/api/training-runs/${run!.id}/scan`)
+    const scanResponse = await request.get(`/api/v1/training-runs/${run!.id}/scan`)
     expect(scanResponse.status()).toBe(200)
     const body = await scanResponse.json() as { images: Array<{ relative_path: string; dimensions: Record<string, string>; thumbnail_path: string }> }
 
@@ -202,13 +202,13 @@ test.describe('thumbnail support — scan API contract', () => {
 
   // AC: When thumbnails are not generated (fixture), thumbnail_path is empty string
   test('thumbnail_path is empty string in fixture data (thumbnails not enabled)', async ({ request }) => {
-    const runsResponse = await request.get('/api/training-runs?source=samples')
+    const runsResponse = await request.get('/api/v1/training-runs?source=samples')
     expect(runsResponse.status()).toBe(200)
     const runs = await runsResponse.json() as Array<{ id: number; name: string }>
     const run = runs.find((r) => r.name === 'my-model')
     expect(run).toBeDefined()
 
-    const scanResponse = await request.get(`/api/training-runs/${run!.id}/scan`)
+    const scanResponse = await request.get(`/api/v1/training-runs/${run!.id}/scan`)
     expect(scanResponse.status()).toBe(200)
     const body = await scanResponse.json() as { images: Array<{ thumbnail_path: string }> }
 
@@ -228,20 +228,20 @@ test.describe('thumbnail support — grid fallback (no thumbnails)', () => {
   test('grid image src points to full-res URL when no thumbnail is available', async ({ page }) => {
     await setupGridWithImages(page)
 
-    // With no thumbnails in the fixture, all grid images should use the full-res /api/images/ path
+    // With no thumbnails in the fixture, all grid images should use the full-res /api/v1/images/ path
     const firstGridImage = page.locator('.xy-grid [role="gridcell"] img').first()
     await expect(firstGridImage).toBeVisible()
 
     const src = await firstGridImage.getAttribute('src')
     expect(src).toBeTruthy()
     // Must point to the images API endpoint
-    expect(src).toContain('/api/images/')
+    expect(src).toContain('/api/v1/images/')
     // data-full-src is undefined when there's no thumbnail (both src and full-src are the same)
     const dataSrc = await firstGridImage.getAttribute('data-full-src')
     // When no thumbnail, data-full-src should be absent (or equal to src)
     if (dataSrc !== null) {
       // If present, it must also point to the same full-res path
-      expect(dataSrc).toContain('/api/images/')
+      expect(dataSrc).toContain('/api/v1/images/')
     }
   })
 })
@@ -259,7 +259,7 @@ test.describe('thumbnail support — lightbox always uses full-res (AC6)', () =>
     // Intercept scan to inject a thumbnail path, simulating enabled thumbnails
     // This verifies that even when a grid image shows a thumbnail, clicking opens
     // the full-res image in the lightbox.
-    await page.route('/api/training-runs/*/scan', async (route) => {
+    await page.route('/api/v1/training-runs/*/scan', async (route) => {
       const response = await route.fetch()
       const body = await response.json() as { images: Array<{ relative_path: string; thumbnail_path: string; dimensions: Record<string, string> }>; dimensions: unknown[] }
       // Inject a fake thumbnail_path for all images
@@ -285,12 +285,12 @@ test.describe('thumbnail support — lightbox always uses full-res (AC6)', () =>
 
     // Verify grid image uses thumbnail URL (contains "thumbnails/")
     const firstGridSrc = await gridImages.first().getAttribute('src')
-    expect(firstGridSrc).toContain('/api/images/')
+    expect(firstGridSrc).toContain('/api/v1/images/')
     expect(firstGridSrc).toContain('thumbnails/')
 
     // Verify data-full-src points to the original (non-thumbnail) full-res URL
     const dataFullSrc = await gridImages.first().getAttribute('data-full-src')
-    expect(dataFullSrc).toContain('/api/images/')
+    expect(dataFullSrc).toContain('/api/v1/images/')
     expect(dataFullSrc).not.toContain('thumbnails/')
 
     // Close the drawer, then click the grid image to open the lightbox
@@ -308,7 +308,7 @@ test.describe('thumbnail support — lightbox always uses full-res (AC6)', () =>
     await expect(lightboxImage).toBeVisible()
 
     const lightboxSrc = await lightboxImage.getAttribute('src')
-    expect(lightboxSrc).toContain('/api/images/')
+    expect(lightboxSrc).toContain('/api/v1/images/')
     // The lightbox must NOT show the thumbnail URL
     expect(lightboxSrc).not.toContain('thumbnails/')
   })
@@ -330,7 +330,7 @@ test.describe('thumbnail support — lightbox always uses full-res (AC6)', () =>
     await expect(lightboxImage).toBeVisible()
 
     const lightboxSrc = await lightboxImage.getAttribute('src')
-    expect(lightboxSrc).toContain('/api/images/')
+    expect(lightboxSrc).toContain('/api/v1/images/')
     // No thumbnails in fixture — should NOT contain "thumbnails/"
     expect(lightboxSrc).not.toContain('thumbnails/')
   })
@@ -363,7 +363,7 @@ test.describe('thumbnail generation — end-to-end (AC1, AC5)', () => {
     // Discover all viewer training runs and find the one scoped to this study.
     // Generated images are saved under {sampleDir}/{training_run}/{study_name}/{checkpoint}/.
     // The viewer discovery returns these as a run whose name contains the study_name.
-    const runsResponse = await request.get('/api/training-runs?source=samples')
+    const runsResponse = await request.get('/api/v1/training-runs?source=samples')
     expect(runsResponse.status()).toBe(200)
     const runs = await runsResponse.json() as Array<{ id: number; name: string }>
     // Find a run whose name contains the study_name — this is the study-scoped training run
@@ -371,7 +371,7 @@ test.describe('thumbnail generation — end-to-end (AC1, AC5)', () => {
     expect(studyScopedRun).toBeDefined()
 
     // Scan the study-scoped training run — generated images should have thumbnail_path set
-    const scanResponse = await request.get(`/api/training-runs/${studyScopedRun!.id}/scan`)
+    const scanResponse = await request.get(`/api/v1/training-runs/${studyScopedRun!.id}/scan`)
     expect(scanResponse.status()).toBe(200)
     const body = await scanResponse.json() as {
       images: Array<{ relative_path: string; thumbnail_path: string; dimensions: Record<string, string> }>
@@ -402,7 +402,7 @@ test.describe('thumbnail generation — end-to-end (AC1, AC5)', () => {
     // Find the study-scoped training run (contains the study_name).
     // Generated images live under {sampleDir}/{trainingRunName}/{studyName}/{checkpoint}/,
     // so the viewer returns a run whose name contains the studyName.
-    const runsResponse = await request.get('/api/training-runs?source=samples')
+    const runsResponse = await request.get('/api/v1/training-runs?source=samples')
     expect(runsResponse.status()).toBe(200)
     const runs = await runsResponse.json() as Array<{ id: number; name: string; training_run_dir?: string; study_label?: string }>
     const studyScopedRun = runs.find(r => r.name.includes(completedJob.study_name))
@@ -439,11 +439,11 @@ test.describe('thumbnail generation — end-to-end (AC1, AC5)', () => {
       const src = await gridImages.nth(i).getAttribute('src')
       if (src && src.includes('thumbnails/')) {
         foundThumbnailSrc = true
-        // Thumbnail src must still go through the /api/images/ endpoint
-        expect(src).toContain('/api/images/')
+        // Thumbnail src must still go through the /api/v1/images/ endpoint
+        expect(src).toContain('/api/v1/images/')
         // The data-full-src must point to the full-res PNG (not thumbnails/)
         const dataFullSrc = await gridImages.nth(i).getAttribute('data-full-src')
-        expect(dataFullSrc).toContain('/api/images/')
+        expect(dataFullSrc).toContain('/api/v1/images/')
         expect(dataFullSrc).not.toContain('thumbnails/')
         break
       }

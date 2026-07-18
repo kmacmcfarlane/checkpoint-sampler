@@ -25,7 +25,7 @@ async function ensureDataAndOpenDialog(page: Page, request: APIRequestContext): 
 
   // Poll API until training runs are available (FSState scan after resetDatabase)
   await expect(async () => {
-    const resp = await request.get(`${baseUrl}/api/training-runs?source=checkpoints`)
+    const resp = await request.get(`${baseUrl}/api/v1/training-runs?source=checkpoints`)
     const data = await resp.json()
     expect(data.length).toBeGreaterThan(0)
   }).toPass({ timeout: 15000, intervals: [500, 1000, 2000] })
@@ -72,7 +72,7 @@ test.describe('Job launch error display (B-141)', () => {
   // AC: FE: Job launch dialog shows an error message when job creation fails
   test('shows error alert when job creation fails due to invalid study config', async ({ page, request }) => {
     // Create a study with a non-existent workflow template to trigger a backend error
-    const studyResp = await request.post('/api/studies', {
+    const studyResp = await request.post('/api/v1/studies', {
       data: {
         name: 'Bad Workflow Study',
         prompt_prefix: '',

@@ -116,7 +116,7 @@ async function pollJobStatus(
   const deadline = Date.now() + timeout
 
   while (Date.now() < deadline) {
-    const resp = await request.get('/api/sample-jobs')
+    const resp = await request.get('/api/v1/sample-jobs')
     if (resp.status() === 200) {
       const jobs = await resp.json() as SampleJobApiResponse[]
       if (predicate(jobs)) return jobs

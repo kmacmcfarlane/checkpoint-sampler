@@ -12,7 +12,7 @@ var _ = Service("sample_jobs", func() {
 		Result(ArrayOf(SampleJobResponse))
 		Error("internal_error", ErrorResult, "Internal server error")
 		HTTP(func() {
-			GET("/api/sample-jobs")
+			GET("/api/v1/sample-jobs")
 			Response(StatusOK)
 			Response("internal_error", StatusInternalServerError)
 		})
@@ -30,7 +30,7 @@ var _ = Service("sample_jobs", func() {
 		Error("not_found", ErrorResult, "Sample job not found")
 		Error("internal_error", ErrorResult, "Internal server error")
 		HTTP(func() {
-			GET("/api/sample-jobs/{id}")
+			GET("/api/v1/sample-jobs/{id}")
 			Response(StatusOK)
 			Response("not_found", StatusNotFound)
 			Response("internal_error", StatusInternalServerError)
@@ -46,7 +46,7 @@ var _ = Service("sample_jobs", func() {
 		Error("too_many_items", ErrorResult, "Computed total work items exceeds the configured maximum")
 		Error("internal_error", ErrorResult, "Internal server error")
 		HTTP(func() {
-			POST("/api/sample-jobs")
+			POST("/api/v1/sample-jobs")
 			Response(StatusCreated)
 			Response("not_found", StatusNotFound)
 			Response("invalid_payload", StatusBadRequest)
@@ -68,7 +68,7 @@ var _ = Service("sample_jobs", func() {
 		Error("invalid_state", ErrorResult, "Cannot start job in current state")
 		Error("service_unavailable", ErrorResult, "ComfyUI service unavailable")
 		HTTP(func() {
-			POST("/api/sample-jobs/{id}/start")
+			POST("/api/v1/sample-jobs/{id}/start")
 			Response(StatusOK)
 			Response("not_found", StatusNotFound)
 			Response("invalid_state", StatusBadRequest)
@@ -88,7 +88,7 @@ var _ = Service("sample_jobs", func() {
 		Error("not_found", ErrorResult, "Sample job not found")
 		Error("invalid_state", ErrorResult, "Cannot stop job in current state")
 		HTTP(func() {
-			POST("/api/sample-jobs/{id}/stop")
+			POST("/api/v1/sample-jobs/{id}/stop")
 			Response(StatusOK)
 			Response("not_found", StatusNotFound)
 			Response("invalid_state", StatusBadRequest)
@@ -108,7 +108,7 @@ var _ = Service("sample_jobs", func() {
 		Error("invalid_state", ErrorResult, "Cannot resume job in current state")
 		Error("service_unavailable", ErrorResult, "ComfyUI service unavailable")
 		HTTP(func() {
-			POST("/api/sample-jobs/{id}/resume")
+			POST("/api/v1/sample-jobs/{id}/resume")
 			Response(StatusOK)
 			Response("not_found", StatusNotFound)
 			Response("invalid_state", StatusBadRequest)
@@ -129,7 +129,7 @@ var _ = Service("sample_jobs", func() {
 		Error("invalid_state", ErrorResult, "Cannot retry job in current state")
 		Error("service_unavailable", ErrorResult, "ComfyUI service unavailable")
 		HTTP(func() {
-			POST("/api/sample-jobs/{id}/retry-failed")
+			POST("/api/v1/sample-jobs/{id}/retry-failed")
 			Response(StatusOK)
 			Response("not_found", StatusNotFound)
 			Response("invalid_state", StatusBadRequest)
@@ -151,7 +151,7 @@ var _ = Service("sample_jobs", func() {
 		Error("not_found", ErrorResult, "Sample job not found")
 		Error("internal_error", ErrorResult, "Internal server error")
 		HTTP(func() {
-			DELETE("/api/sample-jobs/{id}")
+			DELETE("/api/v1/sample-jobs/{id}")
 			Param("delete_data")
 			Response(StatusNoContent)
 			Response("not_found", StatusNotFound)

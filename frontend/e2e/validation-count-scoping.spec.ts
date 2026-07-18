@@ -38,7 +38,7 @@ test.describe('B-078: validation count scoping', () => {
    */
   test('validation scopes to training_run/study_id path — legacy samples are not counted for new-layout validation', async ({ request }) => {
     // AC4: Create a study with known images_per_checkpoint
-    const studyResp = await request.post('/api/studies', {
+    const studyResp = await request.post('/api/v1/studies', {
       data: {
         name: `B078 Scoping Test ${Date.now()}`,
         prompt_prefix: '',
@@ -59,7 +59,7 @@ test.describe('B-078: validation count scoping', () => {
     // Get the "my-model" training run using checkpoint source (same source the frontend
     // uses for the Generate Samples dialog). B-079: validate with study_id uses
     // checkpoint discovery, so the ID must come from the same source.
-    const runsResp = await request.get('/api/training-runs?source=checkpoints')
+    const runsResp = await request.get('/api/v1/training-runs?source=checkpoints')
     expect(runsResp.ok()).toBeTruthy()
     const runs = await runsResp.json()
     const myModel = runs.find((r: { name: string }) => r.name === 'my-model')
@@ -69,7 +69,7 @@ test.describe('B-078: validation count scoping', () => {
     // No samples exist at that path, so total_actual must be 0.
     // Legacy samples at root level MUST NOT be counted.
     const validateResp = await request.post(
-      `/api/training-runs/${myModel.id}/validate?study_id=${study.id}`,
+      `/api/v1/training-runs/${myModel.id}/validate?study_id=${study.id}`,
     )
     expect(validateResp.ok()).toBeTruthy()
     const result = await validateResp.json()
@@ -99,11 +99,11 @@ test.describe('B-078: validation count scoping', () => {
    */
   test('demo samples are not counted when validating non-demo training runs', async ({ request }) => {
     // Install demo dataset (creates demo-model/demo-study/ structure)
-    const installResp = await request.post('/api/demo/install')
+    const installResp = await request.post('/api/v1/demo/install')
     expect(installResp.ok()).toBeTruthy()
 
     // Create a study for testing
-    const studyResp = await request.post('/api/studies', {
+    const studyResp = await request.post('/api/v1/studies', {
       data: {
         name: `B078 Demo Isolation Test ${Date.now()}`,
         prompt_prefix: '',
@@ -122,7 +122,7 @@ test.describe('B-078: validation count scoping', () => {
     // Get the "my-model" training run using checkpoint source (same source the frontend
     // uses for the Generate Samples dialog). B-079: validate with study_id uses
     // checkpoint discovery, so the ID must come from the same source.
-    const cpRunsResp = await request.get('/api/training-runs?source=checkpoints')
+    const cpRunsResp = await request.get('/api/v1/training-runs?source=checkpoints')
     expect(cpRunsResp.ok()).toBeTruthy()
     const cpRuns = await cpRunsResp.json()
     const myModel = cpRuns.find((r: { name: string }) => r.name === 'my-model')
@@ -131,7 +131,7 @@ test.describe('B-078: validation count scoping', () => {
     // Validate "my-model" with study_id
     // The demo has samples at demo-model/demo-study/{cp}/ which must NOT be counted
     const validateResp = await request.post(
-      `/api/training-runs/${myModel.id}/validate?study_id=${study.id}`,
+      `/api/v1/training-runs/${myModel.id}/validate?study_id=${study.id}`,
     )
     expect(validateResp.ok()).toBeTruthy()
     const result = await validateResp.json()
@@ -147,7 +147,7 @@ test.describe('B-078: validation count scoping', () => {
     // Poll until the demo run appears in the viewer list to account for this async refresh.
     await expect.poll(
       async () => {
-        const viewerRunsResp = await request.get('/api/training-runs')
+        const viewerRunsResp = await request.get('/api/v1/training-runs')
         if (!viewerRunsResp.ok()) return undefined
         const viewerRuns = await viewerRunsResp.json()
         return viewerRuns.find((r: { name: string }) => r.name === 'demo-model/demo-study/demo-model')
@@ -164,7 +164,7 @@ test.describe('B-078: validation count scoping', () => {
    */
   test('validate API scopes results to specific study_id — two different studies return independent counts', async ({ request }) => {
     // Create study A and study B
-    const studyAResp = await request.post('/api/studies', {
+    const studyAResp = await request.post('/api/v1/studies', {
       data: {
         name: `B078 Study A ${Date.now()}`,
         prompt_prefix: '',
@@ -180,7 +180,7 @@ test.describe('B-078: validation count scoping', () => {
     expect(studyAResp.ok()).toBeTruthy()
     const studyA = await studyAResp.json()
 
-    const studyBResp = await request.post('/api/studies', {
+    const studyBResp = await request.post('/api/v1/studies', {
       data: {
         name: `B078 Study B ${Date.now()}`,
         prompt_prefix: '',
@@ -207,7 +207,7 @@ test.describe('B-078: validation count scoping', () => {
 
     // Get my-model training run using checkpoint source (same source the frontend uses).
     // B-079: validate with study_id uses checkpoint discovery for correct path scoping.
-    const runsResp = await request.get('/api/training-runs?source=checkpoints')
+    const runsResp = await request.get('/api/v1/training-runs?source=checkpoints')
     expect(runsResp.ok()).toBeTruthy()
     const runs = await runsResp.json()
     const myModel = runs.find((r: { name: string }) => r.name === 'my-model')
@@ -215,14 +215,14 @@ test.describe('B-078: validation count scoping', () => {
 
     // Validate with study A
     const resultAResp = await request.post(
-      `/api/training-runs/${myModel.id}/validate?study_id=${studyA.id}`,
+      `/api/v1/training-runs/${myModel.id}/validate?study_id=${studyA.id}`,
     )
     expect(resultAResp.ok()).toBeTruthy()
     const resultA = await resultAResp.json()
 
     // Validate with study B
     const resultBResp = await request.post(
-      `/api/training-runs/${myModel.id}/validate?study_id=${studyB.id}`,
+      `/api/v1/training-runs/${myModel.id}/validate?study_id=${studyB.id}`,
     )
     expect(resultBResp.ok()).toBeTruthy()
     const resultB = await resultBResp.json()
@@ -251,14 +251,14 @@ test.describe('B-078: validation count scoping', () => {
    * the heuristic (max file count) should still detect them correctly.
    */
   test('legacy validate without study_id still detects root-level samples correctly', async ({ request }) => {
-    const runsResp = await request.get('/api/training-runs')
+    const runsResp = await request.get('/api/v1/training-runs')
     expect(runsResp.ok()).toBeTruthy()
     const runs = await runsResp.json()
     const myModel = runs.find((r: { name: string }) => r.name === 'my-model')
     expect(myModel).toBeDefined()
 
     // AC4: Legacy validation (no study_id) uses max-file-count heuristic
-    const validateResp = await request.post(`/api/training-runs/${myModel.id}/validate`)
+    const validateResp = await request.post(`/api/v1/training-runs/${myModel.id}/validate`)
     expect(validateResp.ok()).toBeTruthy()
     const result = await validateResp.json()
 

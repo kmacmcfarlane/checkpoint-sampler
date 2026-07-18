@@ -114,7 +114,7 @@ const ZOOM_STEP = 0.25
 
 /** Extract the relative image filepath from the full image URL. */
 function extractFilepath(imageUrl: string): string | null {
-  const prefix = '/api/images/'
+  const prefix = '/api/v1/images/'
   const idx = imageUrl.indexOf(prefix)
   if (idx < 0) return null
   return imageUrl.substring(idx + prefix.length)

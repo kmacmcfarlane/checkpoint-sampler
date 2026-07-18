@@ -56,7 +56,7 @@ test.describe('study name filename character validation (B-050)', () => {
     for (const [description, char] of disallowedChars) {
       test(`rejects study name containing ${description} (${char})`, async ({ request }) => {
         const name = `Bad${char}Name`
-        const resp = await request.post('/api/studies', { data: makeStudyPayload(name) })
+        const resp = await request.post('/api/v1/studies', { data: makeStudyPayload(name) })
         expect(resp.status()).toBe(400)
         const body = await resp.json()
         // AC 2: error message must mention disallowed characters
@@ -66,7 +66,7 @@ test.describe('study name filename character validation (B-050)', () => {
 
     test('error message lists the specific disallowed characters', async ({ request }) => {
       // AC 2: the error message enumerates the specific disallowed chars
-      const resp = await request.post('/api/studies', { data: makeStudyPayload('Study(bad)Name') })
+      const resp = await request.post('/api/v1/studies', { data: makeStudyPayload('Study(bad)Name') })
       expect(resp.status()).toBe(400)
       const body = await resp.json()
       // The error should mention the disallowed characters string
@@ -76,19 +76,19 @@ test.describe('study name filename character validation (B-050)', () => {
     })
 
     test('accepts a valid study name without disallowed characters', async ({ request }) => {
-      const resp = await request.post('/api/studies', { data: makeStudyPayload(`Valid Study Name ${Date.now()}`) })
+      const resp = await request.post('/api/v1/studies', { data: makeStudyPayload(`Valid Study Name ${Date.now()}`) })
       expect(resp.status()).toBe(201)
     })
 
     test('accepts study name with hyphens, underscores, and spaces', async ({ request }) => {
       const name = `My-Study_Config v2 ${Date.now()}`
-      const resp = await request.post('/api/studies', { data: makeStudyPayload(name) })
+      const resp = await request.post('/api/v1/studies', { data: makeStudyPayload(name) })
       expect(resp.status()).toBe(201)
     })
 
     test('fork endpoint also rejects disallowed characters in fork name', async ({ request }) => {
       // Create a valid source study first
-      const sourceResp = await request.post('/api/studies', { data: makeStudyPayload(`Fork Source ${Date.now()}`) })
+      const sourceResp = await request.post('/api/v1/studies', { data: makeStudyPayload(`Fork Source ${Date.now()}`) })
       expect(sourceResp.status()).toBe(201)
       const source = await sourceResp.json()
 
@@ -97,7 +97,7 @@ test.describe('study name filename character validation (B-050)', () => {
         ...makeStudyPayload(`${source.name} (copy)`),
         source_id: source.id,
       }
-      const forkResp = await request.post(`/api/studies/${source.id}/fork`, { data: forkPayload })
+      const forkResp = await request.post(`/api/v1/studies/${source.id}/fork`, { data: forkPayload })
       expect(forkResp.status()).toBe(400)
       const body = await forkResp.json()
       expect(body.message).toContain('disallowed')
@@ -105,7 +105,7 @@ test.describe('study name filename character validation (B-050)', () => {
 
     test('fork endpoint accepts a valid fork name', async ({ request }) => {
       // Create a valid source study first
-      const sourceResp = await request.post('/api/studies', { data: makeStudyPayload(`Fork Source Valid ${Date.now()}`) })
+      const sourceResp = await request.post('/api/v1/studies', { data: makeStudyPayload(`Fork Source Valid ${Date.now()}`) })
       expect(sourceResp.status()).toBe(201)
       const source = await sourceResp.json()
 
@@ -114,7 +114,7 @@ test.describe('study name filename character validation (B-050)', () => {
         ...makeStudyPayload(`${source.name} - copy`),
         source_id: source.id,
       }
-      const forkResp = await request.post(`/api/studies/${source.id}/fork`, { data: forkPayload })
+      const forkResp = await request.post(`/api/v1/studies/${source.id}/fork`, { data: forkPayload })
       expect(forkResp.status()).toBe(201)
     })
   })

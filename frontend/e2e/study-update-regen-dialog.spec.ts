@@ -54,7 +54,7 @@ async function seedPartialSamples(
 }
 
 async function createStudy(request: APIRequestContext, name: string): Promise<string> {
-  const resp = await request.post('/api/studies', {
+  const resp = await request.post('/api/v1/studies', {
     data: {
       name,
       prompt_prefix: '',
@@ -118,14 +118,14 @@ test.describe('study update regen dialog (B-115)', () => {
   // AC5 (BE): Endpoint supports querying affected runs for a study
   test('AC5: affected-runs endpoint returns training runs with samples for the study', async ({ request }) => {
     // First, get the list of studies to find the fixture study ID
-    const studiesResponse = await request.get('/api/studies')
+    const studiesResponse = await request.get('/api/v1/studies')
     expect(studiesResponse.status()).toBe(200)
     const studies = await studiesResponse.json()
     const fixtureStudy = studies.find((s: { name: string }) => s.name === 'E2E Fixture Study')
     expect(fixtureStudy).toBeTruthy()
 
     // AC5: Call the affected-runs endpoint
-    const affectedResponse = await request.get(`/api/studies/${fixtureStudy.id}/affected-runs`)
+    const affectedResponse = await request.get(`/api/v1/studies/${fixtureStudy.id}/affected-runs`)
     expect(affectedResponse.status()).toBe(200)
     const affectedRuns = await affectedResponse.json()
 
@@ -146,7 +146,7 @@ test.describe('study update regen dialog (B-115)', () => {
 
   // AC5 (BE): Endpoint returns not_found for nonexistent study
   test('AC5: affected-runs endpoint returns 404 for nonexistent study', async ({ request }) => {
-    const response = await request.get('/api/studies/nonexistent-id/affected-runs')
+    const response = await request.get('/api/v1/studies/nonexistent-id/affected-runs')
     expect(response.status()).toBe(404)
   })
 
@@ -162,7 +162,7 @@ test.describe('study update regen dialog (B-115)', () => {
       'my-model-step00001000.safetensors',
     ])
 
-    const affectedResponse = await request.get(`/api/studies/${studyId}/affected-runs`)
+    const affectedResponse = await request.get(`/api/v1/studies/${studyId}/affected-runs`)
     expect(affectedResponse.status()).toBe(200)
     const affectedRuns = await affectedResponse.json() as Array<{
       training_run_name: string
@@ -293,7 +293,7 @@ test.describe('study update regen dialog (B-115)', () => {
     await expect(jobPanel).toBeVisible({ timeout: 10000 })
 
     // Verify a regeneration job was created
-    const jobsResp = await request.get('/api/sample-jobs')
+    const jobsResp = await request.get('/api/v1/sample-jobs')
     expect(jobsResp.ok()).toBeTruthy()
     const jobs = await jobsResp.json() as Array<{ study_id: string; clear_existing: boolean }>
     const studyJobs = jobs.filter(j => j.study_id === studyId)
@@ -335,7 +335,7 @@ test.describe('study update regen dialog (B-115)', () => {
     await expect(immutabilityDialog).not.toBeVisible({ timeout: 5000 })
 
     // AC4: No sample jobs should have been created
-    const jobsResp = await request.get('/api/sample-jobs')
+    const jobsResp = await request.get('/api/v1/sample-jobs')
     expect(jobsResp.ok()).toBeTruthy()
     const jobs = await jobsResp.json() as Array<{ study_id: string }>
     const studyJobs = jobs.filter(j => j.study_id === studyId)

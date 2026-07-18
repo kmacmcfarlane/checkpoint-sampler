@@ -17,8 +17,8 @@ interface TrainingRunListItem {
 
 test.describe('stable training-run identifiers (S-155)', () => {
   // AC1: training-run ids are opaque strings, not positional indices.
-  test('GET /api/training-runs returns opaque string ids', async ({ request }) => {
-    const response = await request.get('/api/training-runs')
+  test('GET /api/v1/training-runs returns opaque string ids', async ({ request }) => {
+    const response = await request.get('/api/v1/training-runs')
     expect(response.ok()).toBeTruthy()
 
     const runs = (await response.json()) as TrainingRunListItem[]
@@ -41,7 +41,7 @@ test.describe('stable training-run identifiers (S-155)', () => {
   // discovery. The id is recomputed from the run's stable identity, so even if
   // discovery order changes the held id still resolves to the originally listed run.
   test('held id scans the same run after a refresh re-runs discovery', async ({ request }) => {
-    const listResponse = await request.get('/api/training-runs')
+    const listResponse = await request.get('/api/v1/training-runs')
     expect(listResponse.ok()).toBeTruthy()
     const runs = (await listResponse.json()) as TrainingRunListItem[]
     expect(runs.length).toBeGreaterThan(0)
@@ -50,7 +50,7 @@ test.describe('stable training-run identifiers (S-155)', () => {
     const held = runs[0]
 
     // Trigger a refresh (forces a fresh filesystem rescan on the backend).
-    const refreshResponse = await request.get('/api/training-runs?refresh=true')
+    const refreshResponse = await request.get('/api/v1/training-runs?refresh=true')
     expect(refreshResponse.ok()).toBeTruthy()
     const refreshedRuns = (await refreshResponse.json()) as TrainingRunListItem[]
 
@@ -61,7 +61,7 @@ test.describe('stable training-run identifiers (S-155)', () => {
 
     // Scanning by the held id must succeed and address that run (not a 404 or a
     // different run shifted into the old positional slot).
-    const scanResponse = await request.get(`/api/training-runs/${encodeURIComponent(held.id)}/scan`)
+    const scanResponse = await request.get(`/api/v1/training-runs/${encodeURIComponent(held.id)}/scan`)
     expect(scanResponse.status()).toBe(200)
     const scanResult = await scanResponse.json()
     expect(scanResult).toHaveProperty('images')
@@ -72,7 +72,7 @@ test.describe('stable training-run identifiers (S-155)', () => {
   // addressing whatever run currently occupies that slot.
   test('an unknown id returns not_found from scan', async ({ request }) => {
     // A syntactically valid but unmatched opaque id.
-    const response = await request.get('/api/training-runs/bm9uZXhpc3RlbnQ/scan')
+    const response = await request.get('/api/v1/training-runs/bm9uZXhpc3RlbnQ/scan')
     expect(response.status()).toBe(404)
   })
 })

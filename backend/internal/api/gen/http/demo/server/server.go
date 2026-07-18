@@ -53,9 +53,9 @@ func New(
 ) *Server {
 	return &Server{
 		Mounts: []*MountPoint{
-			{"Status", "GET", "/api/demo/status"},
-			{"Install", "POST", "/api/demo/install"},
-			{"Uninstall", "DELETE", "/api/demo"},
+			{"Status", "GET", "/api/v1/demo/status"},
+			{"Install", "POST", "/api/v1/demo/install"},
+			{"Uninstall", "DELETE", "/api/v1/demo"},
 		},
 		Status:    NewStatusHandler(e.Status, mux, decoder, encoder, errhandler, formatter),
 		Install:   NewInstallHandler(e.Install, mux, decoder, encoder, errhandler, formatter),
@@ -97,7 +97,7 @@ func MountStatusHandler(mux goahttp.Muxer, h http.Handler) {
 			h.ServeHTTP(w, r)
 		}
 	}
-	mux.Handle("GET", "/api/demo/status", f)
+	mux.Handle("GET", "/api/v1/demo/status", f)
 }
 
 // NewStatusHandler creates a HTTP handler which loads the HTTP request and
@@ -143,7 +143,7 @@ func MountInstallHandler(mux goahttp.Muxer, h http.Handler) {
 			h.ServeHTTP(w, r)
 		}
 	}
-	mux.Handle("POST", "/api/demo/install", f)
+	mux.Handle("POST", "/api/v1/demo/install", f)
 }
 
 // NewInstallHandler creates a HTTP handler which loads the HTTP request and
@@ -189,7 +189,7 @@ func MountUninstallHandler(mux goahttp.Muxer, h http.Handler) {
 			h.ServeHTTP(w, r)
 		}
 	}
-	mux.Handle("DELETE", "/api/demo", f)
+	mux.Handle("DELETE", "/api/v1/demo", f)
 }
 
 // NewUninstallHandler creates a HTTP handler which loads the HTTP request and

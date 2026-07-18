@@ -102,7 +102,7 @@ async function pollJobStatus(
   const deadline = Date.now() + timeout
 
   while (Date.now() < deadline) {
-    const resp = await request.get('/api/sample-jobs')
+    const resp = await request.get('/api/v1/sample-jobs')
     if (resp.status() === 200) {
       const jobs = await resp.json() as SampleJobApiResponse[]
       if (predicate(jobs)) return jobs
@@ -506,7 +506,7 @@ test.describe('sample generation flow (with ComfyUI mock)', () => {
     await expect(dialog).not.toBeVisible({ timeout: 5000 })
 
     // AC3: Wait for job to transition from pending → running (auto-start, B-029 fix)
-    const jobsInitial = await request.get('/api/sample-jobs')
+    const jobsInitial = await request.get('/api/v1/sample-jobs')
     expect(jobsInitial.status()).toBe(200)
     const initialJobs = await jobsInitial.json() as SampleJobApiResponse[]
     expect(initialJobs.length).toBeGreaterThan(0)

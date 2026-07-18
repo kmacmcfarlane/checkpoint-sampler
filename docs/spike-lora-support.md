@@ -172,7 +172,7 @@ Must handle the extra directory level for LoRA output paths. Detection: if a non
 - `TrainingRunResponse`: add `kind` field
 - `StudyPayload` / `StudyResponse`: add `lora_strength_pairs` field
 - `SampleJobCreatePayload`: add `base_model` field
-- New endpoint or extend existing: `GET /api/base-models` — list available base models from `base_model_dir`
+- New endpoint or extend existing: `GET /api/v1/base-models` — list available base models from `base_model_dir`
 - `ComfyUIDiscoveryResponse`: add LoRA model type to available models
 
 ### 14. Goa DSL / Config API
