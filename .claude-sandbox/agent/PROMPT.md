@@ -23,8 +23,10 @@ This returns the selected story with a `queue` field. Dispatch based on the queu
 - `testing` → invoke qa-expert subagent
 - `review` → invoke code-reviewer subagent
 - `in_progress` → invoke fullstack-developer subagent (if story has no branch yet, create one)
-- `uat_feedback` → set in_progress, create new branch from main, invoke fullstack-developer subagent (review_feedback is already set)
-- `todo` → set status to in_progress, invoke fullstack-developer subagent
+- `uat_feedback` → set in_progress, create new branch from main, then **immediately send `🔄 uat_feedback → in_progress` (9.2)**, then invoke fullstack-developer subagent (review_feedback is already set)
+- `todo` → set status to in_progress, then **immediately send `🚀 todo → in_progress` (9.2)**, then invoke fullstack-developer subagent
+
+**Pickup notification (MANDATORY):** Whenever you move a story INTO `in_progress` (from `todo` or `uat_feedback`), send the pickup notification as an atomic part of the status write — *before* dispatching the subagent. This is the most-frequently-missed notification precisely because the transition happens here in dispatch, not in the "Status management" section below. A story that enters `in_progress` without a pickup notification is an incomplete step.
 
 Exit code 2 means no eligible work — send discord notification (`💤 [project] No eligible stories — backlog is empty or fully blocked.`), touch `.ralph/stop` and exit.
 
@@ -200,16 +202,17 @@ This helps downstream agents orient faster. If the fullstack engineer's response
 
 ## Status management
 
-After each subagent completes, update backlog via `backlog.py`:
-- Fullstack engineer success → `backlog.py set <id> status review` + `backlog.py clear <id> review_feedback`
-- Code reviewer approved → `backlog.py set <id> status testing`
-- Code reviewer rejected → `backlog.py set <id> status in_progress` + `echo "<feedback>" | backlog.py set-text <id> review_feedback`
-- QA expert approved → `backlog.py set <id> status uat`, then process sweep findings (see below)
-- QA expert rejected → `backlog.py set <id> status in_progress` + `echo "<feedback>" | backlog.py set-text <id> review_feedback`, then process sweep findings (see below)
+After each subagent completes, update backlog via `backlog.py`. **Each status change is a two-step atomic action: write the status, then IMMEDIATELY send the matching Discord notification via `mcp__discord__send_discord_notification` (format/emoji per AGENT_FLOW.md 9.2) before dispatching the next subagent or doing anything else. Do not batch notifications or defer them to the end of the iteration.**
+
+- Fullstack engineer success → `backlog.py set <id> status review` + `backlog.py clear <id> review_feedback` → send `📤 in_progress → review` (9.2)
+- Code reviewer approved → `backlog.py set <id> status testing` → send `✅ review → testing` (9.2)
+- Code reviewer rejected → `backlog.py set <id> status in_progress` + `echo "<feedback>" | backlog.py set-text <id> review_feedback` → send `🔄 review → in_progress` (9.2)
+- QA expert approved → `backlog.py set <id> status uat` → send `🎉 testing → uat` (9.2), then process sweep findings (see below)
+- QA expert rejected → `backlog.py set <id> status in_progress` + `echo "<feedback>" | backlog.py set-text <id> review_feedback` → send `🔄 testing → in_progress` (9.2), then process sweep findings (see below)
 
 Note: Agents never set `status: done`. The user manually moves stories from `uat` to `done` after acceptance.
 
-**Discord notifications (MANDATORY):** After every status change above, send a discord notification via `mcp__discord__send_discord_notification` using the message format and emojis defined in AGENT_FLOW.md section 9.2. Also send notifications when: no eligible work remains (section 9.3), and after committing/merging to main (section 9.3). Notifications are best-effort — if the tool fails, continue normally.
+**Notification discipline (MANDATORY):** A status write without its paired notification is an incomplete action. The final `📦 Committed and merged` notification is NOT a substitute for the intermediate ones — the user relies on the `🚀`/`📤`/`✅`/`🎉` transitions to follow progress in real time, and these are exactly the ones most often dropped during a long single-iteration run. Also notify when no eligible work remains (section 9.3) and after committing/merging to main (section 9.3). Notifications are best-effort — if the tool call itself fails, continue normally.
 
 ### Processing QA sweep findings
 
