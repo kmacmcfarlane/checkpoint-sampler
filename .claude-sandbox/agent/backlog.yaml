@@ -1874,7 +1874,7 @@ stories:
   - id: S-163
     title: "ComfyUI connection documentation and container networking (example URL, extra_hosts)"
     priority: 65
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:

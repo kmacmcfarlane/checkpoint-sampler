@@ -205,6 +205,29 @@ The `port` key in `config.yaml` (default `8080`) is the **container-internal** p
 
 For the checkpoint and sample directory layout (naming conventions, suffix stripping, per-run/study hierarchy), see [docs/filesystem.md](docs/filesystem.md).
 
+## Connecting to ComfyUI
+
+Checkpoint Sampler does not generate images itself — it submits parameterized workflows to a **running ComfyUI instance you control** and does not bundle or manage ComfyUI. Without a reachable ComfyUI, the app still runs (browsing checkpoints, viewing prior results) but sample job launch is disabled.
+
+To enable the inference pipeline, uncomment the `comfyui:` block in `config.yaml`:
+
+```yaml
+comfyui:
+  url: http://host.docker.internal:8188
+  workflow_dir: ./workflows
+  # reconnect_interval: 10
+```
+
+**Getting the URL right (Docker networking):** the backend runs inside a container, so `url` is resolved from the container's network namespace, not your host machine.
+
+- `http://localhost:8188` only resolves correctly if ComfyUI **and** the backend both run outside Docker on the same host. Uncommented as-is inside the shipped Docker Compose stack, it points at the backend container itself, not ComfyUI — you'll get a permanent "ComfyUI (offline)" status pill with no obvious cause.
+- If ComfyUI runs on the same machine as Docker, use `http://host.docker.internal:8188`. `docker-compose.yml` adds the required `extra_hosts: host.docker.internal:host-gateway` entry so this resolves on both Docker Desktop and Docker Engine 20.10+ on Linux.
+- If ComfyUI runs on a different machine on your LAN, use that machine's IP address, e.g. `http://192.168.1.50:8188`.
+
+**Shared checkpoint files:** ComfyUI must see the *same* checkpoint (and LoRA) files that Checkpoint Sampler scans, at whatever paths ComfyUI's own configuration expects. If your ComfyUI installation stores models elsewhere, point it at the shared directories using ComfyUI's `extra_model_paths.yaml` (see the [ComfyUI documentation](https://github.com/comfyanonymous/ComfyUI) for its `extra_model_paths.yaml.example`) so both applications resolve checkpoint filenames to the same underlying files.
+
+**Offline behavior:** the header shows a "ComfyUI (offline)" pill whenever the backend's WebSocket connection to ComfyUI is down. This is not fatal — you can still create and queue sample jobs while offline; they wait until the backend reconnects (retried every `reconnect_interval` seconds, default 10) and then resume automatically, including recovery of any items that finished on the ComfyUI side while disconnected.
+
 ## Testing
 
 Backend tests use Ginkgo/Gomega and run inside the dev container (Go is not required on the host):

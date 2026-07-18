@@ -5,6 +5,11 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-163: ComfyUI connection documentation and container networking (extra_hosts)
+- Added a "Connecting to ComfyUI" section to the README: ComfyUI is a separate service the user runs, how to enable the `comfyui:` config block, the Docker-networking trap where `localhost:8188` resolves to the backend container itself (use `host.docker.internal` for a same-machine ComfyUI or a LAN IP for a remote one), the need for ComfyUI to see the same checkpoint files via its `extra_model_paths.yaml`, and offline behavior (the "ComfyUI (offline)" pill; jobs queue while disconnected and resume automatically on reconnect per S-161)
+- `docker-compose.yml` backend service now sets `extra_hosts: host.docker.internal:host-gateway` so `config.yaml`'s `comfyui.url` can reach a host ComfyUI instance (Docker Desktop and Docker Engine 20.10+ on Linux); the dev overlay inherits it, and the test/e2e stacks are untouched since they use an in-stack `comfyui-mock`
+- `config.yaml.example` `comfyui:` guidance expanded and its example URL changed from `http://localhost:8188` to `http://host.docker.internal:8188` so an uncomment-and-run gives a working default under Docker Compose
+
 ### S-162: README overhaul for public release — real intro, prerequisites, quick-start order, config/ports tables, E2E section
 - Rewrote the README intro to describe the actual product (browse checkpoints/LoRAs, launch parameterized ComfyUI sample jobs, compare outputs in an XY grid) with a feature list and a placeholder for a real XY-grid screenshot (image tag commented out until captured; follow-up idea filed)
 - Added a Prerequisites section (Docker + Compose v2, make, git; Go 1.25/Node 22 only for non-Docker dev commands) and reordered Quick start so the two `cp` config/env steps precede `make up` (aligned with the B-169 `check-config` guard)

@@ -77,7 +77,18 @@ db_path: ./data/checkpoint-sampler.db
 # ComfyUI connection settings for inference pipeline (optional).
 # If omitted, inference pipeline features are disabled in the UI.
 # The URL must include the scheme (http:// or https://).
+#
+# IMPORTANT: the backend runs inside a Docker container, so "url" is resolved
+# from the container's network namespace, not your host machine. localhost
+# (or 127.0.0.1) here resolves to the backend container itself, NOT to a
+# ComfyUI instance running on your host machine — you will get a permanent
+# "ComfyUI (offline)" status pill. If ComfyUI runs on the same machine as
+# Docker, use host.docker.internal (docker-compose.yml already adds the
+# extra_hosts entry needed for this to resolve on Linux Docker Engine
+# 20.10+ and Docker Desktop). If ComfyUI runs on another machine, use its
+# LAN IP address instead. localhost:8188 only works if you run the backend
+# directly on the host (outside Docker).
 # comfyui:
-#   url: http://localhost:8188
+#   url: http://host.docker.internal:8188
 #   workflow_dir: ./workflows
 #   reconnect_interval: 10  # Seconds between WebSocket reconnect attempts (default: 10)

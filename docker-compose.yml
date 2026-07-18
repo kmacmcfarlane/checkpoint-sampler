@@ -17,6 +17,12 @@ services:
     environment:
       - CONFIG_PATH=/app/config.yaml
       - LOG_LEVEL=info
+    extra_hosts:
+      # Lets the backend container resolve host.docker.internal to the Docker
+      # host, so config.yaml's comfyui.url can reach a ComfyUI instance running
+      # on your machine (outside Docker). Supported on Docker Desktop and on
+      # Docker Engine 20.10+ on Linux.
+      - "host.docker.internal:host-gateway"
 
   frontend:
     build: ./frontend
