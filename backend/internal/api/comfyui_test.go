@@ -215,6 +215,7 @@ var _ = Describe("ComfyUIService", func() {
 				Entry("vae", "vae", service.ComfyUIModelTypeVAE),
 				Entry("clip", "clip", service.ComfyUIModelTypeCLIP),
 				Entry("unet", "unet", service.ComfyUIModelTypeUNET),
+				Entry("lora", "lora", service.ComfyUIModelTypeLoRA),
 				Entry("sampler", "sampler", service.ComfyUIModelTypeSampler),
 				Entry("scheduler", "scheduler", service.ComfyUIModelTypeScheduler),
 			)

@@ -180,3 +180,9 @@ A lightweight script that enumerates `Service(...)`/`Method(...)` from `backend/
 * priority: low
 * source: developer
 `make test-e2e SPEC=<file>` still runs the full sharded suite rather than the single spec; only `make test-e2e-serial SPEC=` honors the filter. Developer guidance ("run targeted specs with `make test-e2e SPEC=`") should point at `test-e2e-serial`, or `test-e2e` should respect `SPEC`.
+
+### Contract-drift lint check for Goa Enum vs frontend TS union
+* status: needs_approval
+* priority: low
+* source: developer
+Add a periodic automated check (small script) comparing Goa design `Enum(...)` values against corresponding frontend TS union literals to catch design/implementation contract drift before code review. This class of drift recurred in B-171 across two independent locations.

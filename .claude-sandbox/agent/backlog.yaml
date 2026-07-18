@@ -1718,7 +1718,7 @@ stories:
   - id: B-166
     title: "Transient ComfyUI connection error at submit permanently fails items instead of re-queueing"
     priority: 70
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:
@@ -1810,7 +1810,7 @@ stories:
     title: "Frontend/backend contract drift: WS completeness type claims fields never sent; 'lora' in ComfyUIModelType guarantees
       a 400"
     priority: 50
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:

@@ -5,6 +5,7 @@ import type {
   JobProgressMessage,
   InferenceProgressMessage,
   CurrentSampleParams,
+  WSCheckpointCompletenessInfo,
 } from '../api/types'
 
 /**
@@ -19,7 +20,7 @@ export interface JobProgressEntry {
   current_checkpoint?: string
   current_checkpoint_progress?: number
   current_checkpoint_total?: number
-  checkpoint_completeness?: Array<{ checkpoint: string; expected: number; verified: number; missing: number }>
+  checkpoint_completeness?: WSCheckpointCompletenessInfo[]
   sample_eta_seconds?: number
   job_eta_seconds?: number
   current_sample_params?: CurrentSampleParams

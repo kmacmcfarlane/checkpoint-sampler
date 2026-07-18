@@ -19,8 +19,8 @@ var _ = Service("comfyui", func() {
 	Method("models", func() {
 		Description("Get available models by type")
 		Payload(func() {
-			Attribute("type", String, "Model type (vae, clip, unet, sampler, scheduler)", func() {
-				Enum("vae", "clip", "unet", "sampler", "scheduler")
+			Attribute("type", String, "Model type (vae, clip, unet, lora, sampler, scheduler)", func() {
+				Enum("vae", "clip", "unet", "lora", "sampler", "scheduler")
 			})
 			Required("type")
 		})

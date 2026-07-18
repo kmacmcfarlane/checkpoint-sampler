@@ -1,21 +1,19 @@
 <script setup lang="ts">
 import { computed, ref, toRef, watch, nextTick } from 'vue'
 import { NModal, NButton, NTag, NProgress, NSpace, NEmpty, NSpin } from 'naive-ui'
-import type { SampleJob, SampleJobStatus, CurrentSampleParams, ValidationResult } from '../api/types'
+import type {
+  SampleJob,
+  SampleJobStatus,
+  CurrentSampleParams,
+  ValidationResult,
+  WSCheckpointCompletenessInfo,
+} from '../api/types'
 import { apiClient } from '../api/client'
 import ConfirmDeleteDialog from './ConfirmDeleteDialog.vue'
 import ValidationResultsDialog from './ValidationResultsDialog.vue'
 import { useJobEtaCountdowns } from '../composables/useCountdown'
 import { useJobRuntimes } from '../composables/useJobRuntime'
 import { formatElapsedDuration } from '../lib/durationFormat'
-
-/** Completeness verification result for a single checkpoint. */
-interface CompletenessEntry {
-  checkpoint: string
-  expected: number
-  verified: number
-  missing: number
-}
 
 /** Per-sample inference progress from ComfyUI node-level events. */
 interface InferenceProgress {
@@ -32,7 +30,7 @@ const props = defineProps<{
     current_checkpoint?: string
     current_checkpoint_progress?: number
     current_checkpoint_total?: number
-    checkpoint_completeness?: CompletenessEntry[]
+    checkpoint_completeness?: WSCheckpointCompletenessInfo[]
     /** Estimated seconds remaining for the current sample. */
     sample_eta_seconds?: number
     /** Estimated seconds remaining for the entire job. */
@@ -382,7 +380,7 @@ function hasCheckpointProgress(jobId: string): boolean {
 }
 
 /** Get completeness entries for a job, sorted by checkpoint name. */
-function getCompletenessEntries(jobId: string): CompletenessEntry[] {
+function getCompletenessEntries(jobId: string): WSCheckpointCompletenessInfo[] {
   const progress = getJobProgress(jobId)
   if (!progress?.checkpoint_completeness || progress.checkpoint_completeness.length === 0) {
     return []
@@ -391,7 +389,7 @@ function getCompletenessEntries(jobId: string): CompletenessEntry[] {
 }
 
 /** Format a completeness entry for display, e.g. '24/24 verified' or '23/24 -- 1 missing'. */
-function formatCompleteness(entry: CompletenessEntry): string {
+function formatCompleteness(entry: WSCheckpointCompletenessInfo): string {
   if (entry.missing === 0) {
     return `${entry.verified}/${entry.expected} verified`
   }

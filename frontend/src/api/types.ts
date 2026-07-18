@@ -482,6 +482,20 @@ export interface InferenceProgressMessage {
   sample_eta_seconds?: number
 }
 
+/**
+ * Per-checkpoint completeness verification result carried on WebSocket
+ * job_progress events. Unlike {@link CheckpointCompletenessInfo} (the HTTP
+ * validation result), the WS serializer only ever populates these four
+ * fields (see backend/internal/api/ws.go) — it never sends `extra` or
+ * `invalid_params`.
+ */
+export interface WSCheckpointCompletenessInfo {
+  checkpoint: string
+  expected: number
+  verified: number
+  missing: number
+}
+
 /** WebSocket job progress event. */
 export interface JobProgressMessage {
   type: 'job_progress'
@@ -496,7 +510,7 @@ export interface JobProgressMessage {
   current_checkpoint?: string
   current_checkpoint_progress?: number
   current_checkpoint_total?: number
-  checkpoint_completeness?: CheckpointCompletenessInfo[]
+  checkpoint_completeness?: WSCheckpointCompletenessInfo[]
   failed_item_details?: FailedItemDetail[]
   /** Estimated seconds remaining for the current sample (0 if unavailable). */
   sample_eta_seconds?: number

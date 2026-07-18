@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-171: Frontend/backend contract drift — WS completeness type + 'lora' ComfyUIModelType
+- `GET /api/comfyui/models` Goa enum now includes `lora`, matching the already-supported service layer (`ComfyUIModelTypeLoRA` → `LoraLoader`/`lora_name`) and the frontend `ComfyUIModelType` union — `?type=lora` no longer 400s before reaching working backend code
+- WS `job_progress` payload gets its own truthful FE type `WSCheckpointCompletenessInfo` (4 fields: checkpoint/expected/verified/missing), distinct from the richer HTTP `CheckpointCompletenessInfo` (which keeps `extra`/`invalid_params`). Ad-hoc private 4-field shapes in `JobProgressPanel.vue` and `useJobProgress.ts` removed in favor of the shared type
+
 ### B-166: Transient ComfyUI connection error at submit permanently failed items instead of re-queueing
 - The job executor's `SubmitPrompt` error path now mirrors the S-161 path-resolution branch: a connection error (`isConnectionError`) leaves the item pending, marks the connection dead, and clears active state so the reconnect ticker/orphan-recovery re-selects it — instead of calling `failItem`. A ComfyUI restart between the connectivity check and submit no longer turns a transient outage into a `completed_with_errors` job requiring manual retry. Genuine (non-connection) submit rejections still fail only the affected item
 
