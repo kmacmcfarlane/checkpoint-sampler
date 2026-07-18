@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-169: Fresh-clone `make up` created config.yaml as a directory and crash-looped — added guard and fixed Quick start order
+- `make up` and `make up-dev` now depend on a `check-config` preflight guard that fails fast (before `docker compose up`) when `config.yaml` or `.env` is missing — or when `config.yaml` is a stray directory Docker left behind from bind-mounting a nonexistent source. The error names the exact `cp config.yaml.example config.yaml` / `cp .env.example .env` command to run
+- README Quick start now lists the two `cp` steps before `make up`, so a fresh clone never triggers the directory-creation crash loop
+
 ### B-168: SAMPLE_DIR mounted read-only in prod compose — sample generation, thumbnails, and demo install all fail
 - The flagship `make up` path mounted `${SAMPLE_DIR}:/data/samples:ro`, but the sample executor, thumbnailer, and first-run demo installer all write there — so under `make up` a new user got a blank app (demo install failed as a Warn-level log only). The prod `docker-compose.yml` sample mount is now `:rw`, matching the dev stack; checkpoint/model/lora mounts remain read-only security boundaries
 - Corrected stale "mounted read-only" claims for `sample_dir` in README.md, CLAUDE.md, and .env.example — the app writes generated samples, thumbnails, and demo data there

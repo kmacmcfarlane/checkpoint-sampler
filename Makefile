@@ -1,4 +1,4 @@
-.PHONY: claude claude-resume claude-dangerous ralph ralph-resume ralph-auto ralph-auto-resume capture-runtime-context up down logs up-dev down-dev logs-dev gen test-frontend test-frontend-watch test-backend test-backend-watch lint-nginx up-test down-test build-playwright test-e2e test-e2e-serial test-e2e-live test-e2e-live-run test-e2e-live-down test-e2e-logs down-e2e check-e2e-panics e2e-sweep lint-e2e-helpers lint-disallowed-chars logs-snapshot check-tools
+.PHONY: claude claude-resume claude-dangerous ralph ralph-resume ralph-auto ralph-auto-resume capture-runtime-context check-config up down logs up-dev down-dev logs-dev gen test-frontend test-frontend-watch test-backend test-backend-watch lint-nginx up-test down-test build-playwright test-e2e test-e2e-serial test-e2e-live test-e2e-live-run test-e2e-live-down test-e2e-logs down-e2e check-e2e-panics e2e-sweep lint-e2e-helpers lint-disallowed-chars logs-snapshot check-tools
 
 # Derive story-scoped compose project names when STORY_ID is set (worktree isolation).
 # In the main checkout (no STORY_ID), project names are unchanged for backward compatibility.
@@ -72,7 +72,23 @@ capture-runtime-context:
 gen:
 	$(COMPOSE_DEV) run --rm -w /app/backend backend make gen
 
-up:
+# Preflight guard: docker compose bind-mounts ./config.yaml. On a fresh clone,
+# if config.yaml is missing, Docker silently creates it as a directory, which
+# crash-loops the backend and breaks the later `cp config.yaml.example config.yaml`
+# step with "cannot overwrite directory". Fail fast, before compose runs.
+check-config:
+	@ok=1; \
+	if [ ! -e config.yaml ] || [ -d config.yaml ]; then \
+		echo "error: config.yaml is missing (or is a directory left behind by Docker). Run: cp config.yaml.example config.yaml"; \
+		ok=0; \
+	fi; \
+	if [ ! -e .env ] || [ -d .env ]; then \
+		echo "error: .env is missing (or is a directory). Run: cp .env.example .env"; \
+		ok=0; \
+	fi; \
+	[ "$$ok" = "1" ]
+
+up: check-config
 	docker compose up -d --build
 
 down:
@@ -81,7 +97,7 @@ down:
 logs:
 	docker compose logs -f
 
-up-dev:
+up-dev: check-config
 	$(COMPOSE_DEV) up -d --build
 
 down-dev:
