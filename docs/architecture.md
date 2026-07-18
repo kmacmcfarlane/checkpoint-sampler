@@ -121,7 +121,7 @@ Top-level keys (defaults and validation reflect `config.go`):
 | `sample_dir` | string | yes | — | Must be an existing directory; holds generated images. |
 | `port` | int | no | `8080` | Must be 1–65535. |
 | `ip_address` | string | no | `127.0.0.1` | Must be a valid IP address. |
-| `db_path` | string | no | `./data/` | Path passed directly to the SQLite opener (see database.md §1.3). |
+| `db_path` | string | no | `./data/checkpoint-sampler.db` | Must be a file path, not a directory (rejected if it ends in `/` or names an existing directory); parent directory is auto-created. Passed directly to the SQLite opener (see database.md §1.3). |
 | `ws_ping_interval` | int (seconds) | no | `30` | Must be `>= 0`; `0` disables server-side WebSocket pings. |
 | `max_request_size_mb` | int (MB) | no | `200` | Must be `> 0`; caps HTTP request body size. |
 | `max_study_items` | int | no | `50000` | Must be `> 0`; caps total work items per study/job. |

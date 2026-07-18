@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-167: Default db_path `./data/` was a directory — SQLite crashed with cryptic "unable to open database file (14)"
+- The `db_path` default (used when a user omits the documented-as-optional key) now resolves to the file path `./data/checkpoint-sampler.db` instead of the directory `./data/`, so a fresh start no longer fatal-crashes at pragma verification. The parent directory is auto-created (pre-existing `store.OpenDB` behavior)
+- Config validation now rejects a `db_path` that ends with a trailing slash or names an existing directory, failing fast at startup with the clear message `config: db_path must be a file path`
+
 ### B-164: Delete job with data removed no files — `RemoveJobSampleDir` used stale path layout
 - `Delete(deleteData=true)` reported success while removing nothing: `RemoveJobSampleDir` targeted `{sampleDir}/{study}/{checkpoint}`, a layout that stopped existing after the run-name/base-model restructuring. It now resolves the deletion root through the same `fileformat.StudyOutputDir` helper the executor writes with, so delete-with-data removes the actual output files for both checkpoint (`{run}/{study}/{checkpoint}`) and LoRA (`{run}/{study}/{baseModel}/{checkpoint}`) layouts (same root-cause family as B-163)
 - The remover interface was widened to take the training run name and base model, and a separator-bounded path-containment guard rejects any target that resolves outside `sample_dir` (e.g. a `..` study name)

@@ -42,8 +42,9 @@ pragma is verified after open.
 
 Configured via `db_path` in `config.yaml`. The value is passed directly to
 `store.OpenDB` as the SQLite database file path; the parent directory is created
-if missing. The default value is `./data/`. Persisted across container restarts
-via a Docker volume mount.
+if missing. The default value is `./data/checkpoint-sampler.db`. Config validation
+rejects a `db_path` that is a directory or ends with a trailing slash. Persisted
+across container restarts via a Docker volume mount.
 
 ## 2) Migration strategy
 

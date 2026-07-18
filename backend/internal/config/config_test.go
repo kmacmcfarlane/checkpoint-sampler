@@ -106,7 +106,7 @@ sample_dir: "` + sampleDir + `"
 `
 				cfg, err := config.LoadFromString(yamlStr)
 				Expect(err).NotTo(HaveOccurred())
-				Expect(cfg.DBPath).To(Equal("./data/"))
+				Expect(cfg.DBPath).To(Equal("./data/checkpoint-sampler.db"))
 			})
 		})
 	})
@@ -150,7 +150,25 @@ sample_dir: "` + sampleDir + `"
 				"checkpoint_dirs:\n  - \""+os.TempDir()+"\"\nsample_dir: \""+os.TempDir()+"\"\nip_address: not-an-ip",
 				"invalid ip_address",
 			),
+			Entry("trailing-slash db_path",
+				"checkpoint_dirs:\n  - \""+os.TempDir()+"\"\nsample_dir: \""+os.TempDir()+"\"\ndb_path: \"./data/\"",
+				"db_path must be a file path",
+			),
 		)
+	})
+
+	Describe("db_path validation with existing directory", func() {
+		It("rejects a db_path that is an existing directory", func() {
+			yamlStr := `
+checkpoint_dirs:
+  - "` + filepath.Join(tmpDir, "checkpoints") + `"
+sample_dir: "` + sampleDir + `"
+db_path: "` + filepath.Join(tmpDir, "checkpoints") + `"
+`
+			_, err := config.LoadFromString(yamlStr)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("db_path must be a file path"))
+		})
 	})
 
 	Describe("LoadFromPath", func() {
