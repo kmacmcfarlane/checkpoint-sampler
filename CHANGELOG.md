@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-168: SAMPLE_DIR mounted read-only in prod compose — sample generation, thumbnails, and demo install all fail
+- The flagship `make up` path mounted `${SAMPLE_DIR}:/data/samples:ro`, but the sample executor, thumbnailer, and first-run demo installer all write there — so under `make up` a new user got a blank app (demo install failed as a Warn-level log only). The prod `docker-compose.yml` sample mount is now `:rw`, matching the dev stack; checkpoint/model/lora mounts remain read-only security boundaries
+- Corrected stale "mounted read-only" claims for `sample_dir` in README.md, CLAUDE.md, and .env.example — the app writes generated samples, thumbnails, and demo data there
+
 ### B-163: Missing-only sample jobs regenerated everything — creation check used stale output path layout
 - The missing-only creation filter probed `{sampleDir}/{study}/{checkpoint}/{file}`, but the executor writes to `{sampleDir}/{sanitizedRun}/{study}[/{baseModel}]/{checkpoint}/{file}` (via `fileformat.StudyOutputDir`). The probe never matched on-disk files, so `missing_only` jobs silently regenerated every sample. Creation now resolves expected paths through the same `fileformat.StudyOutputDir` helper the executor uses, so existing samples are detected (including sanitized run names and the LoRA base-model directory level)
 - LoRA strength encoding (`strength_model`/`strength_clip`) in output filenames is now keyed on a new `FilenameDimensions.LoRA` flag (derived from `job.BaseModel` / the job's LoRA kind) instead of the per-item `LoraModelPath`, which S-161 leaves empty at creation time. Creation-time and executor-written filenames now agree, so missing-only LoRA jobs correctly skip existing samples

@@ -53,7 +53,7 @@ Frontend never talks to providers. Frontend talks only to backend API.
 ## 5) Data persistence
 - **SQLite** via `modernc.org/sqlite` (pure Go, no CGO). WAL mode, 5s busy timeout, foreign keys ON.
 - **YAML configuration** at `config.yaml` (override via `CONFIG_PATH` env var). Defines checkpoint directories, sample directory, port, and db path.
-- **Filesystem**: checkpoint directories (`.safetensors` files) and sample directory (images) mounted read-only. Images served through the backend API.
+- **Filesystem**: checkpoint directories (`.safetensors` files) mounted read-only; sample directory (images) mounted read-write — the app writes generated samples, thumbnails, and demo data there. Images served through the backend API.
 - Schema details in /docs/database.md. Full config schema in .claude-sandbox/agent/PRD.md section 4. Filesystem layout in /docs/filesystem.md.
 
 ## 6) Tooling ecosystem

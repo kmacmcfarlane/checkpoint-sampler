@@ -167,7 +167,7 @@ Both files are gitignored.
 | Variable | Default | Description |
 |---|---|---|
 | `CHECKPOINT_DIR` | `.dataset-placeholder/` | Host path to checkpoint directory (mounted read-only into backend) |
-| `SAMPLE_DIR` | `.dataset-placeholder/` | Host path to sample image directory (mounted read-only into backend) |
+| `SAMPLE_DIR` | `.dataset-placeholder/` | Host path to sample image directory (mounted read-write into backend; the app writes generated samples, thumbnails, and demo data here) |
 | `PORT` | `8080` | Backend server port (set in `config.yaml`) |
 
 ## Testing

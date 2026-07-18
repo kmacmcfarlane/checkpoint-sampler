@@ -11,7 +11,7 @@ services:
       - ./config.yaml:/app/config.yaml:ro
       - ./workflows:/app/workflows:ro
       - ${CHECKPOINT_DIR:-./.dataset-placeholder}:/data/checkpoints:ro
-      - ${SAMPLE_DIR:-./.dataset-placeholder}:/data/samples:ro
+      - ${SAMPLE_DIR:-./.dataset-placeholder}:/data/samples:rw
       - ${MODEL_DIR:-./.dataset-placeholder}:/data/models:ro
       - ${LORA_DIR:-./.dataset-placeholder}:/data/loras:ro
     environment:

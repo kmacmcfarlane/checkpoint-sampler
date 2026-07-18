@@ -1755,7 +1755,7 @@ stories:
   - id: B-168
     title: "SAMPLE_DIR mounted read-only in prod compose — sample generation, thumbnails, and demo install all fail"
     priority: 85
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:
