@@ -1700,3 +1700,578 @@ stories:
         read-side fallback to the old path is needed, or whether stale manifests are acceptable — do not leave this ambiguous."
       - "Completeness results are memoised in e.checkpointCompleteness keyed by checkpoint; verify a wrong cached entry cannot
         survive within a single job run."
+  - id: B-163
+    title: "Missing-only sample jobs regenerate everything — creation check uses stale output path layout"
+    priority: 85
+    status: todo
+    complexity: medium
+    requires: []
+    acceptance:
+      - "BE: Missing-only filtering resolves expected output paths via fileformat.StudyOutputDir (training-run + study + base-model
+        levels) so existing samples on disk are detected"
+      - "BE: Creation-time LoRA output filenames include strength_model/strength_clip consistently with executor-written filenames
+        (condition keyed on job.BaseModel or strength fields, not resolved LoraModelPath)"
+      - "BE: Unit tests cover missing-only detection for both checkpoint and LoRA jobs with pre-existing samples laid out
+        in the executor's directory structure"
+    notes: |
+      Found in 2026-07 public-release code review (report: .claude-sandbox/reports/code-review-2026-07/05-go-backend.md).
+      The creation check builds {sampleDir}/{study}/{checkpoint}/{file} but the executor writes to
+      fileformat.StudyOutputDir = {sanitizedRun}/{study}[/{baseModel}] — FileExists never matches, so
+      missing_only jobs silently regenerate every sample. Secondary S-161 regression: filename generation
+      keys LoRA strength params on item.LoraModelPath which is now empty at creation time.
+      Key files: backend/internal/service/sample_job.go:384,1218, backend/internal/service/job_executor_conn.go:583, backend/internal/fileformat/pathsanitize.go.
+    testing:
+      - "Seed a temp sample dir with files at the exact executor layout (sanitized run name, base-model level for LoRA) and
+        assert missing-only creates zero items for them"
+  - id: B-164
+    title: "Delete job with data removes no files — RemoveJobSampleDir uses stale path layout"
+    priority: 80
+    status: todo
+    complexity: medium
+    requires: []
+    acceptance:
+      - "BE: RemoveJobSampleDir resolves the deletion root via fileformat.StudyOutputDir so delete-with-data removes the actual
+        output files for checkpoint and LoRA jobs"
+      - "BE: Unit tests assert files are removed for both layouts and that deletion stays contained within the sample dir"
+    notes: |
+      Found in 2026-07 code review (05-go-backend.md). RemoveJobSampleDir deletes {sampleDir}/{studyName}/{checkpoint},
+      which no longer exists after the run-name/base-model restructuring — Delete(deleteData=true) returns success
+      while removing nothing. Same root cause family as B-163.
+      Key files: backend/internal/store/filesystem.go:317-318, backend/internal/service/sample_job.go:966.
+    testing:
+      - "Cover the LoRA (base-model level) layout explicitly; assert path-containment guards still hold after the fix"
+  - id: B-165
+    title: "POST /sample-jobs/{id}/start marks job running but executor never adopts it"
+    priority: 75
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "BE: service Start calls executor.RequestResume(id) after the status write (mirroring Resume) so a started job is
+        always adopted without racing the poll tick"
+      - "BE: Unit test covers Start leading to executor adoption"
+    notes: |
+      Found in 2026-07 code review (05-go-backend.md). Start transitions pending->running in the DB but the
+      executor poll loop only auto-starts pending jobs and ignores running ones; if the API write wins the 1s
+      race the job sits running forever until a server restart. Note: the frontend currently never calls this
+      endpoint (dead surface) — fixing the backend keeps the designed contract honest.
+      Key files: backend/internal/service/sample_job.go:527-599,911, backend/internal/service/job_executor_lifecycle.go:322-335.
+    testing:
+      - "Race-sensitive: test should not rely on the 1s poll tick; assert RequestResume is invoked synchronously"
+  - id: B-166
+    title: "Transient ComfyUI connection error at submit permanently fails items instead of re-queueing"
+    priority: 70
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "BE: In the SubmitPrompt isConnectionError branch, the executor clears active state and leaves the item pending (mirroring
+        the path-resolution branch) instead of calling failItem"
+      - "BE: Job resumes automatically when ComfyUI reconnects; no completed_with_errors from a pure connection blip"
+      - "BE: Unit test simulates a connection error at submit and asserts the item remains pending"
+    notes: |
+      Found in 2026-07 code review (05-go-backend.md). Inconsistent with the S-161 offline-queueing design:
+      the resolution branch at lines 470-485 leaves items pending on connection errors, but the submit branch
+      at 543-554 fails them permanently. ComfyUI restarting between the connectivity check and submit turns a
+      transient outage into a manual-retry situation.
+      Key files: backend/internal/service/job_executor_lifecycle.go:470-485,543-554.
+    testing:
+      - "Distinguish connection errors from genuine submit rejections — the latter must still fail the item"
+  - id: B-167
+    title: "Default db_path './data/' is a directory — SQLite crashes with cryptic 'unable to open database file (14)'"
+    priority: 80
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "BE: Default db_path resolves to a file path (e.g. ./data/checkpoint-sampler.db), with parent directory auto-created"
+      - "BE: Config validation rejects a directory or trailing-slash db_path with a clear 'config: db_path must be a file
+        path' error"
+      - "DOC: config.yaml.example and docs/architecture.md reflect the new default"
+    notes: |
+      Found in 2026-07 code review (08-config-first-run.md). A user who omits db_path (documented as
+      optional-with-default) gets a fatal startup crash at pragma verification with an errno that points
+      nowhere near the config.
+      Key files: backend/internal/config/config.go:90-91, backend/internal/store/db.go:22-28.
+    testing:
+      - "Cover: omitted db_path, explicit trailing-slash value, and existing-directory value"
+  - id: B-168
+    title: "SAMPLE_DIR mounted read-only in prod compose — sample generation, thumbnails, and demo install all fail"
+    priority: 85
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "OPS: docker-compose.yml mounts SAMPLE_DIR read-write (matching the dev stack)"
+      - "DOC: README and config.yaml.example wording corrected — sample_dir is written to by the app; 'mounted read-only'
+        claims removed (CLAUDE.md too)"
+      - "OPS: First-run demo dataset auto-install succeeds under 'make up'"
+    notes: |
+      Found independently by four review agents in 2026-07 code review (01, 02, 08, 10 reports).
+      The flagship 'make up' path mounts {SAMPLE_DIR}:/data/samples:ro while the executor, thumbnailer,
+      and demo installer (main.go:186-192) all write there. Demo failure is a Warn-level log only, so a
+      new user just sees a blank app.
+      Key files: docker-compose.yml:14, docker-compose.dev.yml:15, backend/cmd/server/main.go:131-137,186-192.
+    testing:
+      - "Manual/E2E verification of the prod compose path, not just dev: make up with a fresh SAMPLE_DIR must produce the
+        demo dataset"
+  - id: B-169
+    title: "Fresh-clone 'make up' creates config.yaml as a directory and crash-loops — add guard and fix Quick start order"
+    priority: 85
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "OPS: 'make up' and 'make up-dev' fail fast with a clear message ('run: cp config.yaml.example config.yaml' / '.env.example')
+        when config.yaml or .env is missing, before compose runs"
+      - "DOC: README Quick start lists the two cp steps before 'make up'"
+    notes: |
+      Found in 2026-07 code review (01-getting-started.md, confirmed by 10-build-distribution.md).
+      docker compose bind-mounts ./config.yaml; on a fresh clone Docker silently creates a directory with
+      that name, the backend crash-loops, and the later documented cp fails with 'cannot overwrite directory'.
+      Key files: Makefile (up/up-dev targets), docker-compose.yml:11, README.md:14-28.
+    testing:
+      - "Test the guard from a state where config.yaml exists but .env doesn't, and vice versa"
+  - id: B-170
+    title: "goa CLI not installed or pinned — 'make gen' fails on a fresh machine; Dockerfiles use @latest"
+    priority: 75
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "BE: make gen / go:generate invokes the goa CLI via 'go run goa.design/goa/v3/cmd/goa@v3.25.3' (or equivalent pinned
+        mechanism matching the mockery pattern) and works on a clean clone with only Go installed"
+      - "OPS: backend/Dockerfile and Dockerfile.dev pin the same goa version as go.mod instead of @latest"
+    notes: |
+      Found in 2026-07 code review (10-build-distribution.md). Verified: fresh 'make gen' exits 2 with
+      'exec: goa: executable file not found in $PATH'; unpinned @latest in Docker builds can silently
+      change generated code when goa releases.
+      Key files: backend/Makefile:9, backend/internal/api/generate.go:3, backend/Dockerfile:3, backend/Dockerfile.dev:7.
+    testing:
+      - "Verify on a PATH without a goa binary; confirm generated output is identical before/after the pinning change"
+  - id: B-171
+    title: "Frontend/backend contract drift: WS completeness type claims fields never sent; 'lora' in ComfyUIModelType guarantees
+      a 400"
+    priority: 50
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "FE: CheckpointCompletenessInfo split into HTTP and WS variants (or extra/invalid_params made optional) so the WS
+        payload type is truthful; ad-hoc private 4-field shapes in JobProgressPanel.vue and useJobProgress.ts removed in favor
+        of the shared type"
+      - "FE+BE: ComfyUIModelType and the Goa Enum for GET /api/comfyui/models agree — either remove 'lora' from the TS union
+        or add it to the design enum"
+      - "FE: vue-tsc clean after the change"
+    notes: |
+      Found in 2026-07 code review (07-api-design.md). The WS job_progress serializer only emits
+      checkpoint/expected/verified/missing; consumers already dodge the lying shared type with private shapes.
+      getComfyUIModels('lora') is currently unexercised but is a latent trap for LoRA features.
+      Key files: frontend/src/api/types.ts:184,388-397, backend/internal/api/design/ws.go:21-28, backend/internal/api/design/comfyui.go:24, backend/internal/api/ws.go:188-194.
+    testing:
+      - "If 'lora' is added to the design enum instead, verify the backend model listing actually supports it end-to-end"
+  - id: B-172
+    title: "failItem re-reads cleared activeJobID — item failures silently drop and deterministic errors can retry forever"
+    priority: 45
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "BE: jobID is captured at the event-handling site and passed through to failItem (as the completion path already does)"
+      - "BE: Unit test — failure arriving after activeJobID is cleared still marks the item failed"
+    notes: |
+      Found in 2026-07 code review (05-go-backend.md). If the disconnect handler or RequestStop clears
+      activeJobID between event capture and failItem's read, ListSampleJobItems("") returns nothing, the
+      failure drops, the item stays running until orphan-reset re-runs it — an infinite retry loop for a
+      deterministic execution error.
+      Key files: backend/internal/service/job_executor_progress.go:29-31.
+    testing:
+      - "Simulate the interleaving explicitly (clear active state between event receipt and failItem)"
+  - id: S-162
+    title: "README overhaul for public release: real intro, prerequisites, quick-start order, config table, E2E section"
+    priority: 75
+    status: todo
+    complexity: medium
+    requires: [B-169]
+    acceptance:
+      - "DOC: Intro describes the product in 2-4 sentences (browse training checkpoints/LoRAs, launch parameterized ComfyUI
+        sample jobs, compare outputs in an XY grid) plus a short feature list and a screenshot"
+      - "DOC: Prerequisites list Docker + Compose v2, make, git; note Go 1.25/Node 22 are only needed for non-Docker developer
+        commands"
+      - "DOC: Quick start is self-sufficient in order — cp config/env steps before 'make up' (aligned with B-169 guard)"
+      - "DOC: Env-var table includes MODEL_DIR and LORA_DIR; bogus PORT row removed; user-facing ports (UI 3001, API/Swagger
+        8081) stated explicitly with note that config 'port' is container-internal"
+      - "DOC: E2E section corrected — 'make test-e2e' (parallel, SHARDS=N) and 'make test-e2e-serial' (SPEC=); nonexistent
+        test-e2e-parallel removed; watch targets note they require 'make up-dev'"
+      - "DOC: Configuration section links docs/filesystem.md for checkpoint/sample directory layout and mentions lora_dirs,
+        base_model_dir, and the comfyui: block"
+      - "DOC: All mcfacehead.com / private-LAN references removed from README; malformed project-structure tree entry at README:96
+        fixed"
+    notes: |
+      From 2026-07 code review (01-getting-started.md, 02-docs-completeness.md). The README currently reads as
+      scaffolding-template boilerplate and its happy path breaks on a fresh clone. B-169 lands the Makefile guard
+      and cp ordering; this story does the full editorial pass. Also correct CLAUDE.md's stale '12 shards' claim to 4.
+      Key files: README.md, CLAUDE.md, docs/filesystem.md.
+    testing:
+      - "Docs-only story; verify every command quoted in the README against the Makefiles as part of acceptance"
+  - id: S-163
+    title: "ComfyUI connection documentation and container networking (example URL, extra_hosts)"
+    priority: 65
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "DOC: README gains a 'Connecting to ComfyUI' section — a running ComfyUI is required for generation, how to enable
+        the comfyui: config block, and that ComfyUI must see the same checkpoint files (extra_model_paths.yaml pointer)"
+      - "OPS: docker-compose.yml adds extra_hosts host.docker.internal:host-gateway; config.yaml.example URL guidance recommends
+        host.docker.internal or a LAN IP, noting localhost:8188 only works outside Docker"
+      - "DOC: Offline behavior documented (ComfyUI offline pill, jobs queue until reconnect per S-161)"
+    notes: |
+      From 2026-07 code review (01-getting-started.md, 08-config-first-run.md). The example URL localhost:8188
+      resolves to the backend container itself; a Docker user who uncomments it gets a perpetual
+      'ComfyUI (offline)' pill with no hint anywhere in the repo.
+      Key files: config.yaml.example:81-87, docker-compose.yml, README.md, backend/internal/config/config.go:257.
+    testing:
+      - "Verify extra_hosts works on Linux Docker Engine (host-gateway), not just Docker Desktop"
+  - id: S-164
+    title: "Scrub personal domains and paths from docs and test fixtures"
+    priority: 60
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "DOC: docs/filesystem.md and docs/spike-lora-support.md example configs use neutral /path/to placeholders instead
+        of /home/rt/ai/..."
+      - "BE: Test fixtures use example.com / documentation IPs instead of checkpoint-sampler.mcfacehead.com and 192.168.x
+        (cors_test.go, origin_test.go, config_test.go, comfyui_ws_test.go)"
+    notes: |
+      From 2026-07 code review (03-open-source-readiness.md). No secrets involved — purely personal-infrastructure
+      leakage into a soon-public repo. README references are handled by S-162.
+      Key files: docs/filesystem.md:201-203, docs/spike-lora-support.md:50, backend/internal/api/cors_test.go:103-110, backend/internal/api/origin_test.go:31, backend/internal/config/config_test.go:653-659, backend/internal/store/comfyui_ws_test.go.
+    testing:
+      - "Behavior-neutral fixture swap — full backend suite must stay green; grep the tree for mcfacehead and /home/rt afterwards"
+  - id: S-165
+    title: "Document the security trust model; default exposure to localhost"
+    priority: 60
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "DOC: README 'Security model' section states there is no authentication, the app trusts everyone who can reach the
+        port, and recommends a firewall or authenticating reverse proxy before exposing beyond localhost"
+      - "OPS: compose port mappings bind 127.0.0.1 by default (e.g. 127.0.0.1:3001:3000) with a documented override for LAN
+        exposure"
+      - "DOC: config.yaml.example ip_address comments explain binding implications inside vs outside Docker (container must
+        bind 0.0.0.0; exposure is controlled at the compose port mapping)"
+    notes: |
+      From 2026-07 security review (04-security.md). Every endpoint — including destructive deletes and job
+      triggering — is unauthenticated; the shipped example binds 0.0.0.0 and nothing warns the user. Binding the
+      published compose ports to 127.0.0.1 keeps the in-container 0.0.0.0 bind working while making LAN exposure
+      an explicit choice.
+      Key files: docker-compose.yml, config.yaml.example:26, README.md, backend/cmd/server/main.go:293.
+    testing:
+      - "Verify the default stack still works end-to-end from the host browser after the 127.0.0.1 mapping change"
+  - id: S-166
+    title: "Frontend coverage tooling + imageCube store unit tests"
+    priority: 65
+    status: todo
+    complexity: medium
+    requires: []
+    acceptance:
+      - "FE: @vitest/coverage-v8 added as devDependency with a test:coverage script; coverage runs clean locally"
+      - "FE: Dedicated unit tests for stores/imageCube.ts covering dimension/axis mapping, filter application, image-cube
+        indexing, and edge cases (empty cube, single-value dimensions)"
+    notes: |
+      From 2026-07 test review (09-tests.md). Frontend coverage is currently unmeasurable (missing dep), and the
+      584-line imageCube Pinia store — the data backbone of the XY grid — has no direct tests; regressions surface
+      only as vague component-test failures.
+      Key files: frontend/package.json, frontend/src/stores/imageCube.ts.
+    testing:
+      - "Focus tests on observable store behavior, not internals; capture a baseline coverage number in the change summary"
+  - id: S-167
+    title: "Vulnerability audit tooling: make audit + pre-push hook + agent-flow step; catch up current findings"
+    priority: 65
+    status: todo
+    complexity: medium
+    requires: []
+    acceptance:
+      - "OPS: 'make audit' runs govulncheck on the backend and 'npm audit --omit=dev' on the frontend, failing on high-severity
+        findings"
+      - "OPS: A pre-push git hook runs 'make audit' (installed via a documented, versioned mechanism such as a scripts/install-hooks
+        target or core.hooksPath; hook installation mentioned in README/CONTRIBUTING)"
+      - "DOC: AGENT_FLOW.md adds a proactive audit step to the pipeline so agents run 'make audit' as part of their verification
+        gate"
+      - "FE: lodash-es and postcss bumped to patched versions; npm audit (prod) clean"
+      - "BE: Go toolchain bumped to the latest patch release; govulncheck reachable-set clear or exceptions documented"
+    notes: |
+      From 2026-07 security review (04-security.md). Current findings: lodash-es (2 high — _.template code
+      injection, prototype pollution), postcss <8.5.10 (moderate XSS), ~24 Go stdlib advisories against go1.25.6
+      including HTTP/2 CONTINUATION (GO-2026-4918) and TLS key-update deadlock (GO-2026-4870) in the server path.
+      Key files: Makefile, frontend/package.json, backend/go.mod, .claude-sandbox/agent/AGENT_FLOW.md.
+    testing:
+      - "govulncheck needs network access to the vuln DB — make the audit target degrade with a clear message when offline
+        rather than passing silently"
+  - id: S-168
+    title: "CI, tags, releases, and version surfacing — interactive planning session"
+    priority: 50
+    status: todo
+    complexity: high
+    requires: []
+    ticket_mode: interactive
+    acceptance:
+      - "OPS: CI approach decided with the user and implemented (test + build workflows for backend and frontend at minimum)"
+      - "OPS: Tagging/semver and release process decided and documented; initial version tagged"
+      - "BE+FE: App version surfaced (Version var alongside buildinfo.CommitSHA; visible in UI and/or a /version endpoint)"
+      - "OPS: Decision recorded on publishing container images (e.g. GHCR) so users can run without building"
+    notes: |
+      From 2026-07 build/distribution review (10-build-distribution.md). Repo currently has no .github/, no tags,
+      no semver, no release artifacts; only buildinfo.CommitSHA exists via ldflags. User explicitly wants to sort
+      out the choices together — do not make these decisions autonomously.
+      Key files: backend/Makefile:3-4, backend/Dockerfile:10-11, CHANGELOG.md.
+    testing:
+      - "Whatever CI lands must run the same make targets developers use locally, not bespoke commands"
+  - id: S-169
+    title: "Toast layer for API errors: job controls and launch-dialog fetches must surface failures"
+    priority: 55
+    status: todo
+    complexity: medium
+    requires: []
+    acceptance:
+      - "FE: Global message/toast provider (Naive UI useMessage or equivalent) wired at app level"
+      - "FE: stopJob/resumeJob/retryFailedJob/deleteJob failures show a user-visible toast instead of console.warn only"
+      - "FE: JobLaunchDialog initial fetches (training runs/jobs/workflows, base models, studies) show an inline error state
+        with a retry affordance instead of silently rendering empty lists"
+      - "FE: Component tests cover the failure paths"
+    notes: |
+      From 2026-07 frontend review (06-frontend-quality.md). No toast layer exists anywhere today; failed job
+      control clicks appear ignored, and a transient backend error makes the launch dialog indistinguishable
+      from 'no training runs exist'.
+      Key files: frontend/src/App.vue:753-787, frontend/src/components/JobLaunchDialog.vue:1061-1064,1124-1125,1149-1151.
+    testing:
+      - "Naive UI message API needs the provider in test mounts; remember Teleport stubs per project test practices"
+  - id: S-170
+    title: "Paginate GET /api/sample-jobs with invisible lazy loading in the UI; strip tracebacks from list view"
+    priority: 55
+    status: todo
+    complexity: medium
+    requires: []
+    acceptance:
+      - "BE: sample_jobs list endpoint supports limit/offset (Goa design + store query) with stable ordering (created_at DESC,
+        id tiebreak)"
+      - "BE: List responses omit failed_item_details/traceback blobs (retained on the show endpoint)"
+      - "FE: Job list lazy-loads pages ahead of the scroll position so loading is invisible to the user (fetch more than fits
+        on screen; no manual 'load more' button)"
+      - "FE+E2E: Tests cover paging boundaries and that older jobs load seamlessly on scroll"
+    notes: |
+      From 2026-07 API review (07-api-design.md). Jobs accumulate forever (deletion is manual) and each list
+      entry currently embeds full Python tracebacks — payload grows unboundedly. User explicitly wants
+      prefetch-ahead lazy loading rather than visible pagination.
+      Key files: backend/internal/api/design/sample_jobs.go:10-19,206,234, backend/internal/store/sample_job.go, frontend job list components.
+    testing:
+      - "Regression-check the WS-driven live updates against a paginated list (new jobs arriving while scrolled down)"
+  - id: S-171
+    title: "Move the API under /api/v1 (clean break, no legacy aliases)"
+    priority: 60
+    status: todo
+    complexity: medium
+    requires: []
+    acceptance:
+      - "BE: All Goa routes served under /api/v1/...; no legacy /api/* aliases or redirects"
+      - "FE: API client base path and WebSocket path updated"
+      - "OPS: nginx proxy config and E2E fixtures updated"
+      - "DOC: docs/api.md and the served OpenAPI/Swagger reflect the v1 prefix"
+    notes: |
+      From 2026-07 API review (07-api-design.md). Pre-release with the bundled frontend as the only consumer —
+      user approved a clean compatibility break. Establishes a versioning posture before any external consumers exist.
+      Key files: backend/internal/api/design/api.go, frontend/src/api/client.ts, frontend nginx.conf, frontend/e2e/.
+    testing:
+      - "Grep for hardcoded '/api/' strings across frontend, E2E helpers, and nginx config — the WS endpoint and image URLs
+        are easy to miss"
+  - id: S-172
+    title: "Contributor onramp: CONTRIBUTING.md, SECURITY.md, untrack .claude-sandbox/config.yaml with checked-in example"
+    priority: 55
+    status: todo
+    complexity: medium
+    requires: []
+    acceptance:
+      - "DOC: CONTRIBUTING.md covers dev setup, test commands, and PR expectations, with a subsection on optionally using
+        the claude-sandbox/ralph agent workflow"
+      - "DOC: SECURITY.md with a vulnerability reporting policy"
+      - "OPS: .claude-sandbox/config.yaml untracked and gitignored; sanitized .claude-sandbox/config.yaml.example checked
+        in for contributors to copy"
+      - "DOC: README references CONTRIBUTING.md; agent-workflow marketing moved out of the product intro into the contributing
+        context"
+      - "OPS: frontend/package.json gains license field GPL-3.0-only"
+    notes: |
+      From 2026-07 open-source-readiness review (03-open-source-readiness.md). The tracked sandbox config carries
+      personal mount paths (/mnt/lucy, /home/rt) and host-access flags; .gitignore currently un-ignores it
+      explicitly. User wants the agent tooling kept public as a contributor feature, not hidden.
+      Key files: .claude-sandbox/config.yaml, .gitignore, README.md, frontend/package.json.
+    testing:
+      - "After untracking, verify claude-sandbox still boots from the example-derived local config; prompt the user to update
+        their local copy per the config-cascade convention"
+  - id: S-173
+    title: "Fail fast on unreadable configured directories; helpful empty state when no training runs found"
+    priority: 45
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "BE: Startup validation attempts os.ReadDir on each configured checkpoint/sample/lora/base-model dir and fails with
+        a clear 'config: directory not readable' error instead of passing os.Stat and warning into an empty UI"
+      - "FE: TrainingRunSelector empty state names the configured checkpoint directories and hints at config/layout docs instead
+        of the generic 'No Data'"
+      - "BE+FE: Tests cover the unreadable-dir startup error and the empty-state rendering"
+    notes: |
+      From 2026-07 config/first-run review (08-config-first-run.md). Root-owned Docker-created host dirs pass
+      the current os.Stat check; FSState.Populate then fails Warn-only and the app looks healthy but permanently
+      empty. The empty state is the last line of defense for misconfigured newcomers.
+      Key files: backend/internal/config/config.go:114-121, backend/cmd/server/main.go:150-152, frontend/src/components/TrainingRunSelector.vue:347.
+    testing:
+      - "The mode-000 dir test case must Skip when running as root (matches existing filesystem_test.go pattern)"
+  - id: S-174
+    title: "User-facing usage guide and troubleshooting doc"
+    priority: 45
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "DOC: docs/usage.md walks through the demo dataset, the study -> sample job -> XY grid workflow, and enabling ComfyUI
+        generation"
+      - "DOC: Troubleshooting/FAQ section covers common failure modes: ComfyUI offline pill, empty training-run list, models
+        not visible to ComfyUI, proxy/allowed_origins issues"
+      - "DOC: README links the guide"
+    notes: |
+      From 2026-07 docs review (02-docs-completeness.md). docs/ui.md is developer-facing component architecture;
+      nothing today explains how to actually use the viewer or why inference features might be disabled.
+      Key files: docs/usage.md (new), README.md, docs/workflows.md (source material), config.yaml.example comments.
+    testing:
+      - "Docs-only; validate each documented step against a running dev stack while writing"
+  - id: S-175
+    title: "Keyboard accessibility: XYGrid header filtering and ImageCell lightbox activation"
+    priority: 45
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "FE: XYGrid row/column headers are keyboard-operable — button semantics or tabindex=0 + role=button with Enter/Space
+        activation"
+      - "FE: ImageCell is always focusable when non-empty (not only when slider dims exist) and Enter/Space opens the lightbox"
+      - "FE: Component tests cover keyboard activation for both"
+    notes: |
+      From 2026-07 frontend review (06-frontend-quality.md). Header-click filtering and lightbox opening are
+      currently mouse-only; arrow-key navigation already exists in ImageCell so this completes the loop.
+      Key files: frontend/src/components/XYGrid.vue:284-296,314-326, frontend/src/components/ImageCell.vue:66-79.
+    testing:
+      - "Check focus outline visibility on the dark grid background while touching these elements"
+  - id: S-176
+    title: "Production compose hardening: restart policies, non-root containers, healthchecks"
+    priority: 45
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "OPS: Both services get restart: unless-stopped in docker-compose.yml"
+      - "OPS: Backend image runs as a non-root USER; frontend uses an unprivileged nginx configuration (or documented rationale
+        if not feasible)"
+      - "OPS: Healthchecks added to the prod compose file (test stack already has them to borrow from)"
+    notes: |
+      From 2026-07 build review (10-build-distribution.md). A backend crash or host reboot currently leaves the
+      app down, and both containers run as root. Watch file-permission interactions with the rw SAMPLE_DIR mount
+      from B-168 when dropping root.
+      Key files: docker-compose.yml, backend/Dockerfile, frontend/Dockerfile, docker-compose.test.yml (healthcheck reference).
+    testing:
+      - "Verify non-root backend can still write SAMPLE_DIR/db volume on a fresh host dir (UID mapping)"
+  - id: R-021
+    title: "Split oversized frontend components: StudyEditor, JobProgressPanel, residual App.vue"
+    priority: 20
+    status: todo
+    complexity: high
+    requires: []
+    acceptance:
+      - "FE: StudyEditor.vue (1808 lines) decomposed into focused subcomponents/composables with behavior unchanged"
+      - "FE: JobProgressPanel.vue (1252 lines) decomposed likewise"
+      - "FE: Remaining fetch orchestration in App.vue extracted following the existing useJobProgress pattern"
+      - "FE: All existing component tests pass; extracted composables get direct unit tests"
+    notes: |
+      From 2026-07 frontend review (06-frontend-quality.md). R-019 already extracted sample-availability and
+      job-progress logic from JobLaunchDialog/App.vue — this continues that work for the remaining hot spots.
+      Low priority by user decision; behavior-preserving refactor only, no drive-by feature changes.
+      Key files: frontend/src/components/StudyEditor.vue, frontend/src/components/JobProgressPanel.vue, frontend/src/App.vue.
+    testing:
+      - "Refactor safety net: run the full E2E suite, not just unit tests — these components anchor the main user flows"
+  - id: R-022
+    title: "Low-risk cleanup batch: progress-aggregation dedup, swallowed errors, URL encoding, memory pruning, dead code"
+    priority: 20
+    status: todo
+    complexity: medium
+    requires: []
+    acceptance:
+      - "BE: Checkpoint progress aggregation consolidated into one shared helper used by GetProgress, broadcastJobProgress,
+        and ListJobsProgress (currently three drifting copies)"
+      - "BE: GetItemCounts errors in api/sample_jobs.go logged at warn instead of silently reporting zero counts"
+      - "FE: client.ts encodes filepath segments in getImageMetadata and image URLs (filenames with #, ?, % currently break)"
+      - "FE: jobProgress map entries pruned on terminal job status; image preloader aborts its controller on scope dispose"
+      - "FE: Dead ComboFilter.vue component and its test deleted"
+    notes: |
+      From 2026-07 reviews (05-go-backend.md, 06-frontend-quality.md). Each item is small and independent; batched
+      to avoid five micro-tickets. The aggregation triplication has already produced one real drift bug (B-162 class).
+      Key files: backend/internal/service/sample_job.go:1062-1154, backend/internal/service/job_executor_progress.go:371-459, backend/internal/store/sample_job.go:617-705, backend/internal/api/sample_jobs.go:173,190,210, frontend/src/api/client.ts:140, frontend/src/composables/useJobProgress.ts:96,182, frontend/src/composables/useImagePreloader.ts:209-218, frontend/src/components/ComboFilter.vue.
+    testing:
+      - "For the aggregation dedup, assert all three call sites produce identical output for a fixture job before/after"
+  - id: W-031
+    title: "Replace fixed-timeout waits in E2E helpers/specs and backend concurrency tests with deterministic synchronization"
+    priority: 35
+    status: todo
+    complexity: medium
+    requires: []
+    acceptance:
+      - "E2E: waitForTimeout sites in shared frontend/e2e/helpers.ts replaced with expect.poll / locator auto-waits on the
+        actual awaited state"
+      - "E2E: Remaining spec-level fixed waits replaced (lightbox-slider-sync, job-delete, sample-generation), except documented
+        hold-position negative checks per TEST_PRACTICES 6.10"
+      - "BE: 30ms time.Sleep synchronization in comfyui_client_test.go replaced with channel-based coordination"
+      - "E2E: Full suite green after the changes"
+    notes: |
+      From 2026-07 test review (09-tests.md). ~40 waitForTimeout sites total; the ones in helpers.ts multiply
+      across all 83 specs and are the classic CI flake source — worth fixing before contributors run CI.
+      Key files: frontend/e2e/helpers.ts:163,174,193,229,261,580, frontend/e2e/lightbox-slider-sync.spec.ts:83-230, frontend/e2e/job-delete.spec.ts:116, frontend/e2e/sample-generation.spec.ts:424, backend/internal/store/comfyui_client_test.go:399,423.
+    testing:
+      - "Run the E2E suite at least twice (and the backend tests with -race) to check for newly exposed timing sensitivity"
+  - id: W-032
+    title: "Backend coverage: testable server wiring (cmd/server 6.4%) and model package behavior tests (57.7%)"
+    priority: 25
+    status: todo
+    complexity: medium
+    requires: []
+    acceptance:
+      - "BE: cmd/server wiring extracted into a testable buildServer(cfg) (or equivalent) with tests asserting component composition
+        and graceful-shutdown behavior"
+      - "BE: model package behavior methods covered with DescribeTable tests (path/dimension helpers and any method with branching
+        logic)"
+      - "BE: Coverage measurably improved for both packages and reported in the change summary"
+    notes: |
+      From 2026-07 test review (09-tests.md). Bootstrap wiring changes currently compile fine and only fail at
+      container start / E2E; model helpers are shared by service and store interfaces so silent semantic changes
+      hit both layers.
+      Key files: backend/cmd/server/main.go, backend/internal/model/.
+    testing:
+      - "Shutdown-behavior tests must avoid real network listeners where possible (use net.Listen on :0 or injected listeners)"
+  - id: M-004
+    title: "Doc drift: database.md migrations 27/28, filesystem.md manifest location post-B-162, CLAUDE.md shard count"
+    priority: 40
+    status: todo
+    complexity: low
+    requires: []
+    acceptance:
+      - "DOC: database.md sample_job_items schema includes migration-28 columns (vae, text_encoder, shift) and the migration-27
+        CHECK status constraints on both tables; header updated from 'through version 26' to 28"
+      - "DOC: filesystem.md places manifest.json inside the base-model directory for LoRA jobs (per B-162) and labels the
+        root-level checkpoint-to-sample mapping subsection as legacy layout"
+      - "DOC: CLAUDE.md test-e2e shard default corrected from 12 to 4"
+    notes: |
+      From 2026-07 docs review (02-docs-completeness.md). The M-001..M-003 docs refresh predates migrations 27/28
+      and the B-162 manifest move; this catches the reference docs back up to the implementation.
+      Key files: docs/database.md:6,197,214-249, docs/filesystem.md:80-84,125-135,170-177, CLAUDE.md, backend/internal/store/migrations.go:391,419,468-470.
+    testing:
+      - "Docs-only; verify each schema claim against migrations.go rather than the previous doc text"
