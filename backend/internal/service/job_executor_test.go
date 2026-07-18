@@ -1346,7 +1346,10 @@ var _ = Describe("JobExecutor", func() {
 			Expect(filename).To(HaveSuffix(".png"))
 		})
 
-		// AC: BE: Output filenames include strength_model and strength_clip in query encoding for LoRA runs
+		// AC: BE: Output filenames include strength_model and strength_clip in query encoding for LoRA runs.
+		// B-163: strength encoding is keyed on the LoRA dimension (FilenameDimensions.LoRA,
+		// derived from job.BaseModel), NOT the per-item LoraModelPath which is empty at
+		// creation time (S-161).
 		It("includes strength_model and strength_clip for LoRA items", func() {
 			item := model.SampleJobItem{
 				PromptName:    "test-prompt",
@@ -1355,12 +1358,11 @@ var _ = Describe("JobExecutor", func() {
 				SamplerName:   "euler",
 				Scheduler:     "normal",
 				Seed:          12345,
-				LoraModelPath: "loras/my_lora.safetensors",
 				StrengthModel: 0.80,
 				StrengthClip:  0.75,
 			}
 
-			filename := executor.generateOutputFilename(item, FilenameDimensions{})
+			filename := executor.generateOutputFilename(item, FilenameDimensions{LoRA: true})
 			Expect(filename).To(ContainSubstring("strength_model=0.80"))
 			Expect(filename).To(ContainSubstring("strength_clip=0.75"))
 			Expect(filename).To(HaveSuffix(".png"))
@@ -3801,8 +3803,12 @@ var _ = Describe("JobExecutor", func() {
 			// Images actually land at {run}/{study}/{base_model}/{checkpoint}/ —
 			// the training run name is sanitized (slashes → underscores) and the
 			// base model directory uses the basename without extension.
-			file1 := executor.generateOutputFilename(items[0], FilenameDimensions{})
-			file2 := executor.generateOutputFilename(items[1], FilenameDimensions{})
+			// B-163: LoRA output filenames include strength params (keyed on the
+			// LoRA dimension, derived from job.BaseModel), so the fixtures must be
+			// generated with FilenameDimensions{LoRA: true} to match what the
+			// executor writes and what the completeness check now expects.
+			file1 := executor.generateOutputFilename(items[0], FilenameDimensions{LoRA: true})
+			file2 := executor.generateOutputFilename(items[1], FilenameDimensions{LoRA: true})
 			checkpointDir := "/test/samples/qwen_training_bidi-v0.3/TestStudy/qwen_bidi_v0.3/000010.safetensors"
 			mockFSRead.dirs[checkpointDir] = true
 			mockFSRead.files[checkpointDir] = []string{file1, file2}
