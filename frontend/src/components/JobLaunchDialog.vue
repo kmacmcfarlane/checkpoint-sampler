@@ -510,7 +510,11 @@ async function initSelectedTrainingRun(runId: string | null): Promise<void> {
     const failedCps = failedCheckpointMap.value
     if (failedCps.size > 0) {
       selectedCheckpoints.value = new Set(failedCps.keys())
-    } else if (selectedRunHasSamples.value) {
+    } else {
+      // S-178: Default to selecting ALL checkpoints — both for runs that already
+      // have samples (regenerate) and for fresh runs with no samples yet (generate).
+      // The validationResult watcher refines this for regenerate flows (incomplete
+      // checkpoints only); fresh flows keep the all-selected default.
       selectedCheckpoints.value = new Set(run.checkpoints.map(c => c.filename))
     }
 
@@ -849,18 +853,42 @@ const selectedStudyDetail = computed(() =>
   studies.value.find(p => p.id === selectedStudy.value)
 )
 
-// Effective checkpoints to use: when picker is shown, always use explicit selection
+// S-178: Checkpoint filenames the picker lists as individually selectable, sourced
+// from the validation result (one entry per checkpoint). Empty when validation has
+// not returned per-checkpoint data yet.
+const pickableCheckpointFilenames = computed((): string[] =>
+  validationResult.value ? validationResult.value.checkpoints.map(c => c.checkpoint) : []
+)
+
+// Effective checkpoints to send on the create payload.
+// - Regenerate flow (run has samples): always the explicit selection.
+// - Fresh flow (no samples yet, S-178): the selected subset, but omitted entirely
+//   when every pickable checkpoint is selected (empty/omitted = all → preserves the
+//   prior generate-all behavior).
 const effectiveCheckpointFilenames = computed((): string[] | undefined => {
-  if (!selectedRunHasSamples.value) return undefined
-  return Array.from(selectedCheckpoints.value)
+  if (selectedRunHasSamples.value) {
+    return Array.from(selectedCheckpoints.value)
+  }
+  const pickable = pickableCheckpointFilenames.value
+  if (pickable.length === 0) return undefined
+  const selectedPickable = pickable.filter(f => selectedCheckpoints.value.has(f))
+  if (selectedPickable.length === pickable.length) return undefined
+  return selectedPickable
 })
 
 // How many checkpoints will be targeted
 const targetedCheckpointCount = computed(() => {
-  if (!selectedRunHasSamples.value) {
-    return selectedTrainingRun.value?.checkpoint_count ?? 0
+  // Regenerate flow: the explicit selection size (unchanged behavior).
+  if (selectedRunHasSamples.value) {
+    return selectedCheckpoints.value.size
   }
-  return selectedCheckpoints.value.size
+  // Fresh flow (S-178): honor the selection when the picker lists selectable
+  // checkpoints; otherwise fall back to the run's full checkpoint count.
+  const pickable = pickableCheckpointFilenames.value
+  if (pickable.length > 0) {
+    return pickable.filter(f => selectedCheckpoints.value.has(f)).length
+  }
+  return selectedTrainingRun.value?.checkpoint_count ?? 0
 })
 
 const totalCheckpoints = computed(() => selectedTrainingRun.value?.checkpoint_count ?? 0)
@@ -906,10 +934,10 @@ const missingCheckpointFilenames = computed((): string[] => {
     .map(c => c.checkpoint)
 })
 
-// Validation: when checkpoint picker is shown, at least one must be selected
+// Validation: when the picker lists selectable checkpoints (fresh or regenerate
+// flow, S-178), at least one must be selected.
 const checkpointValidationError = computed((): string | null => {
-  if (!selectedRunHasSamples.value) return null
-  if (selectedRunCheckpoints.value.length === 0) return null
+  if (pickableCheckpointFilenames.value.length === 0) return null
   if (selectedCheckpoints.value.size === 0) return 'Select at least one checkpoint to generate'
   return null
 })
@@ -1379,9 +1407,12 @@ async function doSubmit() {
       } else {
         payload.clear_existing = clearExisting.value
       }
-      if (effectiveCheckpointFilenames.value && effectiveCheckpointFilenames.value.length > 0) {
-        payload.checkpoint_filenames = effectiveCheckpointFilenames.value
-      }
+    }
+    // S-178: Include the explicit checkpoint selection for both fresh and regenerate
+    // flows. effectiveCheckpointFilenames omits the list for fresh runs when every
+    // pickable checkpoint is selected (empty/omitted = all checkpoints).
+    if (effectiveCheckpointFilenames.value && effectiveCheckpointFilenames.value.length > 0) {
+      payload.checkpoint_filenames = effectiveCheckpointFilenames.value
     }
 
     await apiClient.createSampleJob(payload)
@@ -1575,7 +1606,7 @@ async function doSubmit() {
       >
         <div class="field-header">
           <label>{{ selectedRunHasSamples ? 'Checkpoint Validation Status' : 'Checkpoint Status' }}</label>
-          <div v-if="selectedRunHasSamples && validationResult" class="checkpoint-controls">
+          <div v-if="validationResult && validationResult.checkpoints.length > 0" class="checkpoint-controls">
             <NButton
               v-if="hasMissingSamples"
               size="tiny"
@@ -1616,8 +1647,8 @@ async function doSubmit() {
             </span>
           </p>
         </div>
-        <p v-if="selectedRunHasSamples && validationResult" class="field-hint">
-          {{ selectedCheckpoints.size === 0 ? 'No checkpoints selected' : `${selectedCheckpoints.size} of ${selectedRunCheckpoints.length} selected` }}
+        <p v-if="validationResult && validationResult.checkpoints.length > 0" class="field-hint">
+          {{ selectedCheckpoints.size === 0 ? 'No checkpoints selected' : `${selectedCheckpoints.size} of ${validationResult.checkpoints.length} selected` }}
         </p>
         <p v-if="checkpointValidationError" class="field-error" data-testid="checkpoint-validation-error">
           {{ checkpointValidationError }}
@@ -1631,8 +1662,9 @@ async function doSubmit() {
             :class="{ 'checkpoint-row--warning': cp.missing > 0 }"
             :data-testid="`checkpoint-row-${cp.checkpoint}`"
           >
+            <!-- S-178: per-checkpoint multi-select for both fresh (generate) and
+                 regenerate flows. -->
             <NCheckbox
-              v-if="selectedRunHasSamples"
               :checked="selectedCheckpoints.has(cp.checkpoint)"
               @update:checked="toggleCheckpoint(cp.checkpoint)"
             >
@@ -1662,20 +1694,6 @@ async function doSubmit() {
                 {{ failedCheckpointMap.get(cp.checkpoint) }} — click to view job
               </NTooltip>
             </NCheckbox>
-            <!-- Display-only row for runs without samples -->
-            <template v-else>
-              <span
-                class="validation-status-icon"
-                :style="{ color: cp.missing === 0 ? '#18a058' : undefined }"
-                :class="{ 'validation-status-icon--warning': cp.missing > 0 }"
-              >
-                {{ cp.missing === 0 ? '\u2713' : '\u26A0' }}
-              </span>
-              <span class="checkpoint-filename">{{ cp.checkpoint }}</span>
-              <span class="validation-checkpoint-counts">
-                {{ cp.verified }}/{{ cp.expected }}
-              </span>
-            </template>
           </div>
         </div>
         <NCheckbox
@@ -1707,6 +1725,9 @@ async function doSubmit() {
         <p><strong>Checkpoints:</strong> {{ totalCheckpoints }}</p>
         <p v-if="selectedRunHasSamples">
           <strong>Checkpoints to regenerate:</strong> {{ targetedCheckpointCount === totalCheckpoints ? 'All' : targetedCheckpointCount }}
+        </p>
+        <p v-else-if="validationResult && validationResult.checkpoints.length > 0" data-testid="checkpoints-to-generate">
+          <strong>Checkpoints to generate:</strong> {{ targetedCheckpointCount === totalCheckpoints ? 'All' : targetedCheckpointCount }}
         </p>
         <p><strong>Images per checkpoint:</strong> {{ imagesPerCheckpoint }}</p>
         <p class="total-images"><strong>Total images:</strong> {{ totalImages }}</p>

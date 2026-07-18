@@ -2270,7 +2270,7 @@ stories:
   - id: S-178
     title: "Generate Samples: enable checkpoint multi-select for fresh runs (no samples yet)"
     type: story
-    status: todo
+    status: uat
     priority: 60
     complexity: medium
     requires: []

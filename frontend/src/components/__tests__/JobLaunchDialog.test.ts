@@ -1862,6 +1862,165 @@ describe('JobLaunchDialog', () => {
     })
   })
 
+  // S-178: Enable per-checkpoint multi-select for FRESH runs (no samples yet) so the
+  // user can generate for all or a subset of checkpoints. Regenerate-only controls
+  // (clear existing / missing only) must stay hidden for fresh runs.
+  describe('fresh-run checkpoint multi-select (S-178)', () => {
+    // Fresh run: default availability is empty (beforeEach) so selectedRunHasSamples=false.
+    async function selectFreshRunAndStudy(studyId = 'preset-2') {
+      mockValidateTrainingRun.mockResolvedValue(validationForRunEmpty)
+      const wrapper = mount(JobLaunchDialog, {
+        props: { show: true },
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+      // run-1 (runEmpty) is visible by default (showAllRuns defaults to true)
+      wrapper.find('[data-testid="training-run-select"]').findComponent(NSelect).vm.$emit('update:value', 'run-1')
+      await flushPromises()
+      wrapper.find('[data-testid="study-select"]').findComponent(NSelect).vm.$emit('update:value', studyId)
+      await flushPromises()
+      return wrapper
+    }
+
+    // AC: fresh run shows a per-checkpoint checkbox multi-select with Select All /
+    // Deselect All; Select Missing is hidden (every checkpoint is missing → identical
+    // to Select All). Regenerate-only controls stay unavailable.
+    it('renders per-checkpoint checkboxes with Select All/Deselect All and hides Select Missing + regenerate controls', async () => {
+      const wrapper = await selectFreshRunAndStudy()
+
+      // Per-checkpoint checkboxes are rendered (one per validation checkpoint).
+      const chk1 = wrapper.find('[data-testid="checkpoint-row-checkpoint1.safetensors"]').findComponent(NCheckbox)
+      const chk2 = wrapper.find('[data-testid="checkpoint-row-checkpoint2.safetensors"]').findComponent(NCheckbox)
+      expect(chk1.exists()).toBe(true)
+      expect(chk2.exists()).toBe(true)
+
+      // Bulk controls present; Select Missing hidden for fresh runs.
+      expect(wrapper.find('[data-testid="select-all-checkpoints"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="deselect-all-checkpoints"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="select-missing-checkpoints"]').exists()).toBe(false)
+
+      // Regenerate-only controls remain unavailable for fresh runs.
+      expect(wrapper.find('[data-testid="clear-existing-checkbox"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="missing-only-checkbox"]').exists()).toBe(false)
+    })
+
+    // AC: all checkpoints are selected by default for a fresh run.
+    it('selects all checkpoints by default for a fresh run', async () => {
+      const wrapper = await selectFreshRunAndStudy()
+
+      const chk1 = wrapper.find('[data-testid="checkpoint-row-checkpoint1.safetensors"]').findComponent(NCheckbox)
+      const chk2 = wrapper.find('[data-testid="checkpoint-row-checkpoint2.safetensors"]').findComponent(NCheckbox)
+      expect(chk1.props('checked')).toBe(true)
+      expect(chk2.props('checked')).toBe(true)
+    })
+
+    // AC: created job's checkpoint_filenames contains exactly the selected checkpoints.
+    it('sends only the selected checkpoints in the create payload and updates the total count', async () => {
+      mockCreateSampleJob.mockResolvedValue({
+        id: 'fresh-subset',
+        training_run_name: 'qwen/psai4rt-v0.3.0',
+        study_id: 'preset-2', study_name: 'Full Test',
+        workflow_name: 'qwen-image.json',
+        status: 'pending',
+        total_items: 48,
+        completed_items: 0,
+        failed_items: 0,
+        pending_items: 48,
+        created_at: '2025-01-01T00:00:00Z',
+        updated_at: '2025-01-01T00:00:00Z',
+      })
+      const wrapper = await selectFreshRunAndStudy()
+
+      // Two checkpoints selected by default → 2 × 48 images.
+      expect(wrapper.find('[data-testid="job-summary"]').text()).toContain('Total images: 96')
+
+      // Deselect checkpoint2 → only checkpoint1 remains selected.
+      wrapper.find('[data-testid="checkpoint-row-checkpoint2.safetensors"]').findComponent(NCheckbox).vm.$emit('update:checked', false)
+      await nextTick()
+
+      // Total count reflects the subset (1 × 48).
+      expect(wrapper.find('[data-testid="job-summary"]').text()).toContain('Total images: 48')
+
+      const buttons = wrapper.findAllComponents(NButton)
+      const submitButton = buttons.find(b => b.text() === 'Generate Samples')
+      await submitButton!.trigger('click')
+      await flushPromises()
+
+      const call = mockCreateSampleJob.mock.calls[0][0]
+      expect(call.checkpoint_filenames).toEqual(['checkpoint1.safetensors'])
+      // Fresh runs never carry the regenerate-only flags.
+      expect(call.clear_existing).toBeUndefined()
+      expect(call.missing_only).toBeUndefined()
+    })
+
+    // AC: generating for ALL checkpoints still works as before (checkpoint_filenames omitted).
+    it('omits checkpoint_filenames when all checkpoints are selected (unchanged generate-all behavior)', async () => {
+      mockCreateSampleJob.mockResolvedValue({
+        id: 'fresh-all',
+        training_run_name: 'qwen/psai4rt-v0.3.0',
+        study_id: 'preset-2', study_name: 'Full Test',
+        workflow_name: 'qwen-image.json',
+        status: 'pending',
+        total_items: 96,
+        completed_items: 0,
+        failed_items: 0,
+        pending_items: 96,
+        created_at: '2025-01-01T00:00:00Z',
+        updated_at: '2025-01-01T00:00:00Z',
+      })
+      const wrapper = await selectFreshRunAndStudy()
+
+      // All checkpoints selected by default — submit without changing selection.
+      const buttons = wrapper.findAllComponents(NButton)
+      const submitButton = buttons.find(b => b.text() === 'Generate Samples')
+      await submitButton!.trigger('click')
+      await flushPromises()
+
+      const call = mockCreateSampleJob.mock.calls[0][0]
+      expect(call.checkpoint_filenames).toBeUndefined()
+      expect(call).toEqual({
+        training_run_name: 'qwen/psai4rt-v0.3.0',
+        study_id: 'preset-2',
+      })
+    })
+
+    // AC: submit is blocked with a clear message when zero checkpoints are selected.
+    it('blocks submit with a validation message when all checkpoints are deselected', async () => {
+      const wrapper = await selectFreshRunAndStudy()
+
+      wrapper.find('[data-testid="deselect-all-checkpoints"]').trigger('click')
+      await nextTick()
+
+      const errorEl = wrapper.find('[data-testid="checkpoint-validation-error"]')
+      expect(errorEl.exists()).toBe(true)
+      expect(errorEl.text()).toBe('Select at least one checkpoint to generate')
+
+      const buttons = wrapper.findAllComponents(NButton)
+      const submitButton = buttons.find(b => b.text() === 'Generate Samples')
+      expect(submitButton!.props('disabled')).toBe(true)
+    })
+
+    // AC: max_study_items limit check reflects the current selection.
+    it('reacts to the max_study_items limit based on the checkpoint subset', async () => {
+      // limit = 50: all-selected total (2 × 48 = 96) exceeds; subset (1 × 48 = 48) fits.
+      mockGetConfig.mockResolvedValue({ max_study_items: 50 })
+      const wrapper = await selectFreshRunAndStudy()
+
+      // All selected → over limit.
+      expect(wrapper.find('[data-testid="item-limit-error"]').exists()).toBe(true)
+      let buttons = wrapper.findAllComponents(NButton)
+      expect(buttons.find(b => b.text() === 'Generate Samples')!.props('disabled')).toBe(true)
+
+      // Deselect one checkpoint → subset fits under the limit.
+      wrapper.find('[data-testid="checkpoint-row-checkpoint2.safetensors"]').findComponent(NCheckbox).vm.$emit('update:checked', false)
+      await nextTick()
+
+      expect(wrapper.find('[data-testid="item-limit-error"]').exists()).toBe(false)
+      buttons = wrapper.findAllComponents(NButton)
+      expect(buttons.find(b => b.text() === 'Generate Samples')!.props('disabled')).toBe(false)
+    })
+  })
+
   // S-129: Complete checkpoints not auto-checked in validation selector
   describe('checkpoint default selection based on completion status (S-129)', () => {
     beforeEach(() => {

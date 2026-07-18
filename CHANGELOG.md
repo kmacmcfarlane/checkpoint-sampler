@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-178: Generate Samples — enable checkpoint multi-select for fresh runs (no samples yet)
+- The Generate Samples dialog now renders the per-checkpoint checkbox multi-select for fresh runs (no samples yet), not just for regenerate flows — the user can generate for all or a subset of checkpoints. Select All / Deselect All are available; "Select Missing" is hidden for fresh runs (every checkpoint is missing, so it would equal Select All), and the regenerate-only controls (clear existing / missing only) stay unavailable
+- All checkpoints are selected by default for a fresh run; the total-images count and the `max_study_items` limit check now reflect the current subset. Frontend-only — the created job's `checkpoint_filenames` carries exactly the selected checkpoints, and is omitted when all are selected (empty/omitted = all, preserving the prior generate-all behavior). Submit is blocked with a clear message when zero checkpoints are selected
+
 ### S-171: Move the API under /api/v1 (clean break, no legacy aliases)
 - All HTTP API routes moved from `/api/*` to `/api/v1/*` as a clean compatibility break — no legacy aliases or redirects. Establishes a versioning posture before any external consumers exist (pre-release, bundled frontend is the only consumer). `/health`, `/docs` (Swagger), and the ENABLE_TEST_ENDPOINTS-gated `/api/test/*` endpoints intentionally stay unversioned
 - Spans the full stack: Goa design + regenerated OpenAPI/Swagger, frontend API client base path, WebSocket path (`/api/v1/ws`) and image URLs (`/api/v1/images/*`), the dedicated nginx WS `location` block, E2E specs/fixtures, and docs (`docs/api.md`, PRD API table)
