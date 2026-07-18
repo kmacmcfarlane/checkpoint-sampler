@@ -1,11 +1,12 @@
 FROM golang:1.25-alpine AS builder
 
-RUN go install goa.design/goa/v3/cmd/goa@latest
-
 WORKDIR /build
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
+# goa CLI version is pinned in internal/api/generate.go's go:generate
+# directive (must match goa.design/goa/v3 in go.mod). `go generate` invokes
+# it via `go run`, so no goa binary needs to be pre-installed.
 RUN go generate ./internal/api/...
 ARG COMMIT_SHA=unknown
 RUN go build -ldflags "-X github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/buildinfo.CommitSHA=${COMMIT_SHA}" -o server ./cmd/server

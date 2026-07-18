@@ -5,6 +5,10 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-170: goa CLI not installed or pinned — `make gen` failed on a fresh machine; Dockerfiles used @latest
+- `internal/api/generate.go`'s `go:generate` directive now invokes goa via `go run goa.design/goa/v3/cmd/goa@v3.25.3` (mirroring the mockery pin), so codegen works on a clean clone with only Go installed — no pre-installed `goa` binary needed. This directive is the single source of truth for the goa CLI version (must match `goa.design/goa/v3` in go.mod)
+- `backend/Dockerfile` and `Dockerfile.dev` no longer `go install goa@latest`; they run `go generate`, which resolves the pinned version, preventing silent codegen drift from upstream goa releases
+
 ### B-165: `POST /sample-jobs/{id}/start` marked a job running but the executor never adopted it
 - `Start` now calls `executor.RequestResume(id)` immediately after the status write (mirroring `Resume`), so a started job is adopted synchronously instead of relying on the 1s poll tick — which only auto-starts `pending` jobs and would otherwise leave a `running` job stuck until a server restart if the API write won the race
 

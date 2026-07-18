@@ -1792,7 +1792,7 @@ stories:
   - id: B-170
     title: "goa CLI not installed or pinned — 'make gen' fails on a fresh machine; Dockerfiles use @latest"
     priority: 75
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:
