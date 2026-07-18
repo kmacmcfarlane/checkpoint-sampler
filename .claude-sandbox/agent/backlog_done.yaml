@@ -2969,7 +2969,6 @@ stories:
 
   - id: B-046
     title: ComfyUI execution errors not displayed in job viewer
-    type: bug
     status: done
     priority: 75
     complexity: medium
@@ -2999,7 +2998,6 @@ stories:
       - "Edge case: multiple errors in one job, errors on different checkpoints"
   - id: B-047
     title: Update button missing after changing selector type on preset load
-    type: bug
     status: done
     priority: 50
     complexity: low
@@ -3023,7 +3021,6 @@ stories:
       - "Test with various dimension types (None, X, Y, Single, Multi, Hide)"
   - id: B-048
     title: Audit and fix all E2E test failures + add E2E gate to UAT transition
-    type: bug
     status: done
     priority: 92
     complexity: high
@@ -3045,7 +3042,6 @@ stories:
       - "Verify the process gate is documented clearly enough that agents will follow it"
   - id: B-049
     title: "Sample path scoping: Has Samples and validation must strictly scope to study dir"
-    type: bug
     status: done
     priority: 90
     complexity: medium
@@ -3072,7 +3068,6 @@ stories:
       - "Verify Generate Missing Samples vs Generate Samples distinction based on sample count"
   - id: B-050
     title: Study name filename validation (no problematic directory characters)
-    type: bug
     status: done
     priority: 70
     complexity: low
@@ -3096,7 +3091,6 @@ stories:
       - "Verify existing studies with problematic names are handled gracefully"
   - id: B-051
     title: Job bead color precedence (green/blue/yellow/red)
-    type: bug
     status: done
     priority: 25
     complexity: low
@@ -3118,7 +3112,6 @@ stories:
       - "Test precedence: a mix of completed and failed jobs should show yellow or red, not green"
   - id: B-052
     title: "Sample Jobs Dialog cosmetic fixes: progress flip-flop, verified label, checkpoint tooltip"
-    type: bug
     status: done
     priority: 20
     complexity: low
@@ -3231,7 +3224,6 @@ stories:
       Related idea: agent/ideas/devops.md "E2E full-suite test isolation".
   - id: B-058
     title: "45 pre-existing E2E test failures across 10 spec files"
-    type: bug
     status: done
     priority: 60
     complexity: medium
@@ -3390,7 +3382,6 @@ stories:
       - "command: make test-frontend"
   - id: S-088
     title: Study dropdown status beads in Generate Samples dialog
-    type: feature
     status: done
     priority: 45
     complexity: low
@@ -3414,7 +3405,6 @@ stories:
       - "Verify beads update when training run selection changes"
   - id: S-089
     title: Unified dimension selector (X/Y/Slider, Single, Multi, Hide)
-    type: feature
     status: done
     priority: 45
     complexity: medium
@@ -3441,7 +3431,6 @@ stories:
       - "Test the single-value-dimension auto-hide default"
   - id: S-090
     title: Lightbox shift+up/down for Y-axis grid navigation
-    type: feature
     status: done
     priority: 25
     complexity: low
@@ -3461,7 +3450,6 @@ stories:
       - "Test with grids of different Y dimensions"
   - id: S-091
     title: Move Light/Dark and Debug mode to Settings dialog
-    type: feature
     status: done
     priority: 25
     complexity: low
@@ -3482,7 +3470,6 @@ stories:
       - "Verify they are removed from their previous locations"
   - id: S-092
     title: "Visual polish: remove heading, play/pause icon, refresh icons"
-    type: feature
     status: done
     priority: 20
     complexity: low
@@ -3508,7 +3495,6 @@ stories:
       - "Verify refresh buttons trigger actual data reload"
   - id: S-094
     title: Standard delete confirmation dialog component
-    type: feature
     status: done
     priority: 30
     complexity: low
@@ -3529,7 +3515,6 @@ stories:
       - "Test checkbox state is passed through to confirm callback"
   - id: S-095
     title: Delete study with option to keep or delete sample data
-    type: feature
     status: done
     priority: 25
     complexity: low
@@ -3554,7 +3539,6 @@ stories:
       - "Test delete of study with no sample data (should work gracefully)"
   - id: S-097
     title: Delete jobs with option to keep or delete sample data
-    type: feature
     status: done
     priority: 25
     complexity: low
@@ -3577,7 +3561,6 @@ stories:
       - "Test delete of a job that is currently in-progress (should be prevented or warned)"
   - id: S-099
     title: View job parameters on card title click
-    type: feature
     status: done
     priority: 20
     complexity: low
@@ -3596,7 +3579,6 @@ stories:
       - "Test that all parameters are displayed accurately"
   - id: S-100
     title: Debug mode params overlay in lightbox
-    type: feature
     status: done
     priority: 20
     complexity: low
@@ -3634,7 +3616,6 @@ stories:
       Key files: frontend/src/components/SliderControls.vue (or equivalent slider component).
   - id: B-079
     title: "Checkpoint validation status missing after generation (persists across refresh)"
-    type: bug
     status: done
     priority: 65
     complexity: medium
@@ -3690,7 +3671,6 @@ stories:
       Log evidence: level=error msg="failed to update sample job item in database" component=store error="SQL logic error: no such column: negative_prompt (1)"
   - id: B-080
     title: "Job executor race condition: sql no rows during concurrent cancel/completion"
-    type: bug
     priority: 60
     status: done
     complexity: low
@@ -3867,7 +3847,6 @@ stories:
       Key files: frontend/src/components/JobProgressPanel.vue.
   - id: B-081
     title: "E2E: regen-confirmation.spec.ts 4 tests timing out in Generate Samples dialog"
-    type: bug
     status: done
     priority: 70
     complexity: medium
@@ -3885,7 +3864,6 @@ stories:
       Discovered during B-078 QA cycle — pre-existing/unrelated to B-078 changes.
   - id: B-082
     title: "E2E: sample-count-preview.spec.ts 2 tests timing out in Generate Samples dialog"
-    type: bug
     status: done
     priority: 70
     complexity: medium
@@ -3922,7 +3900,6 @@ stories:
       to find a file named .json. 18 error-level log entries observed during E2E test runs.
   - id: B-086
     title: "E2E: S-116 activity bead not visible for running job in Generate Samples dialog"
-    type: bug
     status: done
     priority: 70
     complexity: low
@@ -3938,7 +3915,6 @@ stories:
       The test expects a blue activity bead (data-testid="run-bead-activity") on the training run option when a job is running. May be a race condition between job creation and WebSocket/polling update propagating bead status.
   - id: S-112
     title: "Move workflow template, VAE, text encoder, shift into study definition"
-    type: enhancement
     status: done
     priority: 65
     complexity: high
@@ -3980,7 +3956,6 @@ stories:
       Source: qa.
   - id: S-113
     title: "MRU defaults for workflow/VAE/text encoder selections (local storage)"
-    type: enhancement
     status: done
     priority: 45
     complexity: low
@@ -4001,7 +3976,6 @@ stories:
       - "Test that MRU does not interfere with pre-fill from regenerate buttons"
   - id: S-115
     title: "Generate Samples dialog — smart checkbox defaults"
-    type: enhancement
     status: done
     priority: 45
     complexity: low
@@ -4019,7 +3993,6 @@ stories:
       - "Test that manual checkbox changes are respected and not overridden during the session"
   - id: S-093
     title: Confirmation dialog for regenerating a valid sample set
-    type: feature
     status: done
     priority: 25
     complexity: low
@@ -4040,7 +4013,6 @@ stories:
       - "Test cancel and confirm paths"
   - id: S-096
     title: Delete dimension mapping preset
-    type: feature
     status: done
     priority: 25
     complexity: low
@@ -4079,7 +4051,6 @@ stories:
       Key files: frontend/src/components/ConfirmDeleteDialog.vue.
   - id: S-117
     title: "Validation results dialog with regenerate flow (job list + slideout)"
-    type: enhancement
     status: done
     priority: 25
     complexity: medium
@@ -4103,7 +4074,6 @@ stories:
       - "Verify pre-filled params match the job's training run, study, and generation settings"
   - id: S-101
     title: Study editor validation field highlighting
-    type: feature
     status: done
     priority: 15
     complexity: low
@@ -4141,7 +4111,6 @@ stories:
       Source: developer.
   - id: B-088
     title: "Sanitize training run directory names (replace slashes with underscores)"
-    type: bug
     status: done
     priority: 85
     complexity: low
@@ -4302,7 +4271,6 @@ stories:
       2. S-089 unified selector hides axis options already held by another dimension (mutual exclusion). Instead, selecting an already-assigned axis role should swap — the old holder gets the new dimension's previous role.
   - id: B-078
     title: "Two-dropdown sample set selector + study.ID path fixes"
-    type: bug
     status: done
     priority: 90
     complexity: high
@@ -4324,7 +4292,6 @@ stories:
       - "Verify that the 36/1 and 8/1 count bugs from the report are resolved"
   - id: S-114
     title: "Pre-generate JPEG thumbnails for sample images"
-    type: enhancement
     status: done
     priority: 50
     complexity: medium
@@ -4371,7 +4338,6 @@ stories:
       backend/internal/service/websocket.go (if params need to be added to progress events).
   - id: S-098
     title: ETA per sample and per job (moving average)
-    type: feature
     status: done
     priority: 25
     complexity: medium
@@ -4955,7 +4921,6 @@ stories:
       Error: `element(s) not found — Locator: getByText('Sample Set', { exact: true })`.
   - id: B-099
     title: Duplicate validate button in main controls slideout
-    type: bug
     status: done
     priority: 70
     complexity: low
@@ -4972,7 +4937,6 @@ stories:
       - "Verify only one validate button is present and it opens the dialog."
   - id: B-100
     title: Lightbox displays JPEGs instead of full-quality PNGs
-    type: bug
     status: done
     priority: 70
     complexity: low
@@ -4989,7 +4953,6 @@ stories:
       - "Verify lightbox image URLs point to PNG files and image quality matches the original."
   - id: B-102
     title: Dimension mapping preset not auto-selected from localStorage on TR change
-    type: bug
     status: done
     priority: 50
     complexity: low
@@ -5008,7 +4971,6 @@ stories:
       - "Edge case: stored preset no longer exists."
   - id: B-104
     title: "Generate Samples validation shows 'workflow not found: .json' for all checkpoints"
-    type: bug
     status: done
     priority: 70
     complexity: medium
@@ -5028,7 +4990,6 @@ stories:
       - "Check the validation endpoint's workflow resolution logic."
   - id: B-105
     title: Side panel TR selector doesn't show new sample set after generation
-    type: bug
     status: done
     priority: 50
     complexity: low
@@ -5048,7 +5009,6 @@ stories:
       - "The new sample set should appear without clicking refresh."
   - id: B-108
     title: "E2E parallel suite fails with ENOTFOUND/ECONNREFUSED in resetDatabase across all shards"
-    type: bug
     status: done
     priority: 60
     complexity: medium
@@ -5085,7 +5045,6 @@ stories:
       - "Verify indicator handles edge cases (first/last cell in grid)"
   - id: B-101
     title: App load/refresh doesn't restore TR, study, or preset from localStorage
-    type: bug
     status: done
     priority: 85
     complexity: medium
@@ -5107,7 +5066,6 @@ stories:
       - "Verify state persists across page refresh. Edge case: localStorage has stale data for a deleted training run."
   - id: B-106
     title: "Manage Study: Regenerate (update in place) doesn't launch a job"
-    type: bug
     status: done
     priority: 70
     complexity: medium
@@ -5127,7 +5085,6 @@ stories:
       - "Verify existing sample data is cleared before regeneration starts."
   - id: B-109
     title: "generate-samples-beads.spec.ts 'AC no beads' flaky — activity bead visible after resetDatabase"
-    type: bug
     status: done
     priority: 50
     complexity: low
@@ -5145,7 +5102,6 @@ stories:
       state in the frontend after DB reset.
   - id: B-110
     title: "E2E beads test spuriously finds activity bead on empty training run"
-    type: bug
     priority: 50
     status: done
     complexity: low
@@ -5212,7 +5168,6 @@ stories:
       Source: developer.
   - id: S-116
     title: "Training run and study status beads in Generate Samples"
-    type: enhancement
     status: done
     priority: 50
     complexity: high
@@ -5246,7 +5201,6 @@ stories:
       - "Investigate whether existing API data suffices or new endpoints are needed"
   - id: S-129
     title: Complete checkpoints not auto-checked in Generate Samples validation selector
-    type: enhancement
     status: done
     priority: 30
     complexity: low
@@ -5266,7 +5220,6 @@ stories:
       - "Edge cases: all complete, all incomplete."
   - id: S-130
     title: Move X slider to bottom of viewport
-    type: enhancement
     status: done
     priority: 30
     complexity: low
@@ -5283,7 +5236,6 @@ stories:
       - "Verify slider position at various viewport sizes. Test visibility toggle when dimension mapping is added/removed."
   - id: S-131
     title: Add Y slider on right side of viewport
-    type: enhancement
     status: done
     priority: 30
     complexity: low
@@ -5300,7 +5252,6 @@ stories:
         Test interaction between X and Y sliders when both visible."
   - id: R-008
     title: "Treat orphaned running items as resumable in processNextItem"
-    type: refactor
     status: done
     priority: 100
     complexity: medium
@@ -5327,7 +5278,6 @@ stories:
       - "Unit test: verify genuinely in-flight items (activeItemID set) are not affected"
   - id: B-113
     title: "e2e_sweep.sh integer comparison error and summary.txt not reliably written"
-    type: bug
     priority: 50
     status: done
     complexity: low
@@ -5345,7 +5295,6 @@ stories:
       detection regex produces a non-integer. Source: QA sweep during B-098.
   - id: B-103
     title: "Stop job shows no activity and stop+restart fails (invalid_state)"
-    type: bug
     status: done
     priority: 70
     complexity: medium
@@ -5363,7 +5312,6 @@ stories:
       - "The invalid_state error suggests the job state isn't being updated correctly on stop."
   - id: B-116
     title: "job-delete.spec.ts AC3 flaky — delete confirmation races with API check"
-    type: bug
     status: done
     priority: 50
     complexity: low
@@ -5380,7 +5328,6 @@ stories:
       Source: QA E2E run during B-114 verification.
   - id: B-118
     title: "E2E: job-delete spec fails to find delete button by data-testid"
-    type: bug
     status: done
     priority: 65
     complexity: low
@@ -5397,7 +5344,6 @@ stories:
       Source: QA E2E sweep during B-115.
   - id: B-120
     title: "E2E: Multiple specs fail with Naive UI select popup timeout"
-    type: bug
     status: done
     priority: 60
     complexity: low
@@ -5414,7 +5360,6 @@ stories:
       seeded/loaded in time. Source: QA E2E sweep during B-115.
   - id: B-121
     title: "E2E: lightbox Y-axis keyboard navigation tests fail intermittently"
-    type: bug
     status: done
     priority: 65
     complexity: low
@@ -5429,7 +5374,6 @@ stories:
       sliders rework. Source: QA E2E sweep during B-115.
   - id: B-122
     title: "E2E: /api/test/reset fails with UNIQUE constraint on schema_migrations during parallel shard runs"
-    type: bug
     status: done
     priority: 60
     complexity: medium
@@ -5448,7 +5392,6 @@ stories:
       - "command: make test-e2e"
   - id: B-123
     title: "E2E: /data/samples directory path missing for scan requests during E2E tests"
-    type: bug
     status: done
     priority: 50
     complexity: low
@@ -5464,7 +5407,6 @@ stories:
       - "command: make test-e2e"
   - id: B-124
     title: "E2E: preset-per-combo-restore stale preset entry not cleaned from localStorage on TR selection"
-    type: bug
     status: done
     priority: 60
     complexity: low
@@ -5484,7 +5426,6 @@ stories:
       - "command: make test-e2e-serial SPEC=preset-per-combo-restore.spec.ts"
   - id: S-132
     title: "X/Y axis sliders rework — bottom/right positioning, dimension mappings, lightbox sync"
-    type: feature
     status: done
     priority: 75
     complexity: high
@@ -5524,7 +5465,6 @@ stories:
       - "Animation controls render correctly in new top position without regression"
   - id: R-009
     title: "Pinia state management refactor — useImageCubeStore"
-    type: refactor
     status: done
     priority: 75
     complexity: high
@@ -5554,7 +5494,6 @@ stories:
       - "vue-tsc --noEmit passes with no errors"
   - id: B-114
     title: "Clear-existing samples should be a job param applied at job start, not queue time"
-    type: bug
     status: done
     priority: 70
     complexity: medium
@@ -5576,7 +5515,6 @@ stories:
       - "Verify Generate Samples dialog queues jobs with the same clear-existing param behavior."
   - id: B-125
     title: "Generate Samples button label always says 'Regenerate' even with no samples"
-    type: bug
     status: done
     priority: 50
     complexity: low
@@ -5594,7 +5532,6 @@ stories:
       - "Test with both empty samplesets and samplesets with existing generated images"
   - id: B-126
     title: "Study Manager: VAE/TE not autopopulated on workflow auto-select + Shift not restored from preset"
-    type: bug
     status: done
     priority: 50
     complexity: medium
@@ -5616,7 +5553,6 @@ stories:
       - "Test preset save/restore cycle includes shift value"
   - id: B-127
     title: "Red problem bead shows 'incomplete' instead of 'failed' for failed jobs (S-116 regression)"
-    type: bug
     status: done
     priority: 65
     complexity: medium
@@ -5630,7 +5566,6 @@ stories:
       - "command: make test-e2e-serial SPEC=generate-samples-beads.spec.ts"
   - id: B-128
     title: "filters-slideout-layout.spec.ts flaky — checkpoint filter and zoom control intermittently not visible"
-    type: bug
     status: done
     priority: 55
     complexity: low
@@ -5642,7 +5577,6 @@ stories:
       - "command: make test-e2e-serial SPEC=filters-slideout-layout.spec.ts"
   - id: B-129
     title: "drawer-auto-collapse.spec.ts column header click times out on narrow screen test"
-    type: bug
     status: done
     priority: 55
     complexity: low
@@ -5654,7 +5588,6 @@ stories:
       - "command: make test-e2e-serial SPEC=drawer-auto-collapse.spec.ts"
   - id: B-130
     title: "duplicate-validation.spec.ts Manage Studies dialog does not close after saving"
-    type: bug
     status: done
     priority: 60
     complexity: low
@@ -5666,7 +5599,6 @@ stories:
       - "command: make test-e2e-serial SPEC=duplicate-validation.spec.ts"
   - id: B-131
     title: "Clear-existing deletes ALL samples in study, not just selected checkpoints"
-    type: bug
     status: done
     priority: 85
     complexity: medium
@@ -5686,7 +5618,6 @@ stories:
       - "Check no samples from unselected checkpoints are affected"
   - id: S-133
     title: "Alternating row striping on training run selectors"
-    type: enhancement
     status: done
     priority: 30
     complexity: low
@@ -5705,7 +5636,6 @@ stories:
       - "Check that striping works correctly with the multi-line wrap from B-098"
   - id: W-023
     title: "Worktree-based agent workflow — backlog locking, story claims, worktree lifecycle"
-    type: workflow
     status: done
     priority: 80
     complexity: high
@@ -5762,7 +5692,6 @@ stories:
       - "Path resolution: run backlog.py from worktree CWD, verify it reads/writes main checkout backlog"
   - id: W-024
     title: "Worktree isolation — Docker compose scoping, merge conflict handling, orchestrator update"
-    type: workflow
     status: done
     priority: 70
     complexity: high
@@ -5822,7 +5751,6 @@ stories:
       - "Merge death recovery: kill process during merge, verify next cycle detects and retries"
   - id: B-098
     title: Training run selector truncates long names (needs multi-line wrap)
-    type: bug
     status: done
     priority: 70
     complexity: low
@@ -5841,7 +5769,6 @@ stories:
       - "Test with realistic long training run names. Verify both the selected value display and the dropdown options."
   - id: B-107
     title: "Manage Study: Checkpoint Status disappears after regenerate attempt"
-    type: bug
     status: done
     priority: 70
     complexity: medium
@@ -5861,7 +5788,6 @@ stories:
       - "Test both successful and failed regeneration paths."
   - id: B-115
     title: "Regenerate confirmation dialog missing on study update"
-    type: bug
     status: done
     priority: 90
     complexity: medium
@@ -5885,7 +5811,6 @@ stories:
       - "Test 'Yes' path: verify jobs queued with clear-existing param per B-114 behavior."
   - id: B-133
     title: "Job updated_at not touched on status transitions; list sorts by created not updated"
-    type: bug
     status: done
     priority: 30
     complexity: low
@@ -5907,7 +5832,6 @@ stories:
       - "Check FE displays both timestamps"
   - id: B-134
     title: "Parallel E2E shard startup DNS failures causing cascading test failures"
-    type: bug
     status: done
     priority: 65
     complexity: medium
@@ -5925,7 +5849,6 @@ stories:
       - "Run make test-e2e 3 times consecutively and verify pass rate"
   - id: B-132
     title: "Validation passes with extra samples; no per-sample param verification"
-    type: bug
     status: done
     priority: 50
     complexity: medium
@@ -5947,7 +5870,6 @@ stories:
       - "Verify validation passes only when count matches AND all params match"
   - id: B-135
     title: "Training run with no checkpoint sample dirs causes grid error"
-    type: bug
     status: done
     priority: 70
     complexity: low
@@ -5967,7 +5889,6 @@ stories:
       - "Verify no error propagates to the API response"
   - id: S-134
     title: "Validation dialog: display detailed per-checkpoint report"
-    type: enhancement
     status: done
     priority: 50
     complexity: medium
@@ -5990,7 +5911,6 @@ stories:
       - "Verify the dialog handles empty reports (no checkpoints) gracefully"
   - id: S-136
     title: "Generate Samples minor UI tweaks (whitespace + validation message)"
-    type: enhancement
     status: done
     priority: 30
     complexity: low
@@ -6008,7 +5928,6 @@ stories:
       - "Ensure the validation message appears when no checkpoints are selected and disappears when at least one is selected"
   - id: S-137
     title: "Validation dialog: add refresh button"
-    type: enhancement
     status: done
     priority: 35
     complexity: low
@@ -6027,7 +5946,6 @@ stories:
       - "Test that loading state displays during the API call"
   - id: W-025
     title: "Workflow: enforce no pre-existing E2E failures — block or file bugs"
-    type: workflow
     status: done
     priority: 50
     complexity: medium
@@ -6050,7 +5968,6 @@ stories:
       - "Verify no workflow docs reference tolerating or skipping known E2E failures"
   - id: W-026
     title: "Fix pre-existing TS errors and enforce zero-error TypeScript gate in agent pipeline"
-    type: workflow
     status: done
     priority: 50
     complexity: medium
@@ -6074,7 +5991,6 @@ stories:
       - "Review agent definition files to confirm the TS gate is documented in all three agent roles"
   - id: R-011
     title: "Serialize /api/test/reset endpoint for parallel E2E safety"
-    type: refactor
     status: done
     priority: 50
     complexity: medium
@@ -6094,7 +6010,6 @@ stories:
       - "Check serialization doesn't introduce deadlocks or excessive wait times under normal shard counts"
   - id: S-138
     title: "WebSocket heartbeat/ping-pong mechanism"
-    type: story
     status: done
     priority: 30
     complexity: low
@@ -6114,7 +6029,6 @@ stories:
       - "Test that a connection behind a proxy with a short read timeout stays alive across the ping interval"
   - id: S-135
     title: "Failed checkpoint indicator click navigates to failed job in Job List"
-    type: enhancement
     status: done
     priority: 30
     complexity: medium
@@ -6134,7 +6048,6 @@ stories:
       - "Edge case: verify behavior when the failed job has been cleared from the list"
   - id: R-012
     title: "XYGrid: read grid derivations from store instead of recomputing from props"
-    type: refactor
     status: done
     priority: 40
     complexity: medium
@@ -6156,7 +6069,6 @@ stories:
       - "Check that removing the duplicated computation doesn't break edge cases like empty filter sets"
   - id: B-136
     title: "Colored beads not displayed when Training Run / Study selectors are closed"
-    type: bug
     status: done
     priority: 30
     complexity: low
@@ -6174,7 +6086,6 @@ stories:
       - "Verify beads render correctly with various states (pending, complete, failed) in both open and closed selector positions"
   - id: R-010
     title: "Reconcile StudyHasSamples path to match actual sample directory structure"
-    type: refactor
     status: done
     priority: 50
     complexity: medium
@@ -6196,7 +6107,6 @@ stories:
         all training run directories"
   - id: B-137
     title: "Scheduler and sampler dropdowns empty in Study Editor"
-    type: bug
     status: done
     priority: 70
     complexity: low
@@ -6271,7 +6181,6 @@ stories:
       - "command: make test-e2e"
   - id: B-140
     title: "Job launch dialog allows LoRA runs with non-LoRA workflows"
-    type: bug
     priority: 50
     complexity: medium
     status: done
@@ -6551,7 +6460,6 @@ stories:
       This blocks S-140 and all subsequent LoRA stories. Must be resolved before pipeline can resume.
   - id: B-141
     title: "LoRA job creation and retry silently proceed with unresolvable model paths"
-    type: bug
     status: done
     priority: 80
     complexity: medium
@@ -6647,7 +6555,6 @@ stories:
     status: done
     priority: 65
     complexity: medium
-    type: bug
     requires: []
     notes: |
       For a LoRA training run that already has samples generated on disk, the
@@ -6685,7 +6592,6 @@ stories:
     status: done
     priority: 50
     complexity: medium
-    type: bug
     requires: []
     notes: |
       In Generate Samples, selecting a training-run + study combination does not

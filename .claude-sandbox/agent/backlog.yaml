@@ -109,7 +109,6 @@ stories:
       Duplicate of B-040 which already replaced 0-byte safetensors fixtures with valid 10-byte minimal headers (8-byte LE length prefix + empty JSON object). All 4 fixture files already contain valid headers. No code changes needed.
   - id: B-083
     title: "E2E: sample-count-preview.spec.ts 2 tests timing out after B-078 per-study validation scoping"
-    type: bug
     status: closed
     priority: 70
     complexity: medium
@@ -189,7 +188,6 @@ stories:
       Closed as not reproducible. Tests pass reliably across 3 consecutive runs. The flakiness was likely caused by the same timing issues fixed by B-089 (savePresetViaDialog race condition) and B-091 (preset dirty tracking timing).
   - id: B-117
     title: "E2E: study-versioning spec returns HTTP 400 on PUT /api/studies"
-    type: bug
     status: closed
     priority: 65
     complexity: low
@@ -211,7 +209,6 @@ stories:
       make test-e2e SPEC=study-versioning.spec.ts runs confirm the spec passes reliably (339/0/0 each).
   - id: B-119
     title: "E2E: debug-mode spec fails to find images in xy-grid for lightbox tests"
-    type: bug
     status: closed
     priority: 65
     complexity: low
@@ -249,7 +246,6 @@ stories:
     priority: 90
     status: uat
     complexity: low
-    type: bug
     requires: []
     notes: |
       backend/internal/store/db.go OpenDB() configures WAL + busy_timeout via DSN but
@@ -284,7 +280,6 @@ stories:
     priority: 85
     status: uat
     complexity: medium
-    type: bug
     requires: ["B-146"]
     notes: |
       backend/internal/service/sample_job.go creates the job row, then loops inserting
@@ -317,7 +312,6 @@ stories:
     priority: 75
     status: uat
     complexity: medium
-    type: bug
     requires: ["B-147"]
     notes: |
       backend/internal/service/job_executor.go (~line 1725) updates the stored
@@ -347,7 +341,6 @@ stories:
     priority: 70
     status: uat
     complexity: medium
-    type: bug
     requires: ["B-148"]
     notes: |
       backend/internal/api/sample_jobs.go:50 calls svc.GetProgress(j.ID) per job in
@@ -380,7 +373,6 @@ stories:
     priority: 80
     status: uat
     complexity: medium
-    type: bug
     requires: []
     notes: |
       backend/internal/store/comfyui_ws.go readLoop (~line 230) calls conn.ReadMessage()
@@ -415,7 +407,6 @@ stories:
     priority: 65
     status: uat
     complexity: low
-    type: bug
     requires: []
     notes: |
       backend/internal/store/comfyui_client.go sets http.Client{Timeout: 10s} which
@@ -444,7 +435,6 @@ stories:
     priority: 60
     status: uat
     complexity: high
-    type: bug
     requires: ["B-150"]
     notes: |
       backend/internal/service/job_executor.go (~lines 262-368): on reconnect,
@@ -480,7 +470,6 @@ stories:
     priority: 75
     status: uat
     complexity: medium
-    type: bug
     requires: []
     notes: |
       backend/internal/service/watcher.go: WatchTrainingRun calls notifier.Add(dir) for
@@ -511,7 +500,6 @@ stories:
     priority: 65
     status: uat
     complexity: low
-    type: bug
     requires: []
     notes: |
       frontend/src/composables/useWebSocket.ts registers onConnectionChange/onEvent
@@ -541,7 +529,6 @@ stories:
     priority: 60
     status: uat
     complexity: medium
-    type: bug
     requires: []
     notes: |
       frontend/src/composables/useImagePreloader.ts (~line 210): the watch over
@@ -575,7 +562,6 @@ stories:
     priority: 55
     status: uat
     complexity: low
-    type: bug
     requires: []
     notes: |
       backend/internal/service/checkpoint_metadata.go:150 caps the safetensors header
@@ -605,7 +591,6 @@ stories:
     priority: 45
     status: uat
     complexity: low
-    type: bug
     requires: []
     notes: |
       backend/cmd/server/main.go (~line 305): srv.Shutdown runs in a goroutine while
@@ -633,7 +618,6 @@ stories:
     priority: 20
     status: uat
     complexity: low
-    type: bug
     requires: []
     notes: |
       frontend/src/api/client.ts (~line 25): normalizeError appends the raw non-JSON
@@ -656,7 +640,6 @@ stories:
     priority: 70
     status: uat
     complexity: low
-    type: story
     requires: []
     notes: |
       No request body limit exists anywhere: cmd/server/main.go sets only Read/Write
@@ -687,7 +670,6 @@ stories:
     priority: 65
     status: uat
     complexity: medium
-    type: story
     requires: ["S-150"]
     notes: |
       backend/internal/api/http.go:131 sets CheckOrigin to always-true and :298 applies
@@ -725,7 +707,6 @@ stories:
     priority: 45
     status: uat
     complexity: low
-    type: story
     requires: ["S-151"]
     notes: |
       backend/internal/api/ws.go creates a 64-event buffered channel + goroutine per
@@ -749,7 +730,6 @@ stories:
     priority: 70
     status: uat
     complexity: medium
-    type: story
     requires: []
     notes: |
       Nothing bounds the Cartesian product (prompts x steps x cfgs x sampler/scheduler
@@ -796,7 +776,6 @@ stories:
     priority: 50
     status: uat
     complexity: low
-    type: story
     requires: ["S-153"]
     notes: |
       Three latent (currently non-exploitable) weaknesses from the security review:
@@ -828,7 +807,6 @@ stories:
     priority: 25
     status: uat
     complexity: medium
-    type: story
     requires: []
     notes: |
       design/training_runs.go uses a zero-based positional index as the resource id;
@@ -856,7 +834,6 @@ stories:
     priority: 40
     status: uat
     complexity: low
-    type: story
     requires: ["B-149"]
     notes: |
       migrations.go: sample_jobs.status and sample_job_items.status are bare TEXT —
@@ -883,7 +860,6 @@ stories:
     priority: 60
     status: uat
     complexity: low
-    type: refactor
     requires: []
     notes: |
       backend/internal/service/comfyui_models.go:25,104 types its consumer-defined
@@ -907,7 +883,6 @@ stories:
     priority: 55
     status: uat
     complexity: medium
-    type: refactor
     requires: ["B-149", "B-152"]
     notes: |
       Two related violations of DEVELOPMENT_PRACTICES 3.2:
@@ -945,7 +920,6 @@ stories:
     priority: 50
     status: uat
     complexity: medium
-    type: refactor
     requires: ["R-015"]
     notes: |
       Inconsistent error declarations in backend/internal/api/design: comfyui.go
@@ -976,7 +950,6 @@ stories:
     priority: 45
     status: uat
     complexity: medium
-    type: refactor
     requires: ["R-015"]
     notes: |
       backend/internal/api/images_service.go:44-110 performs path-traversal validation,
@@ -1003,7 +976,6 @@ stories:
     priority: 35
     status: uat
     complexity: medium
-    type: refactor
     requires: ["B-148", "B-152", "R-015"]
     notes: |
       backend/internal/service/job_executor.go is a god-file owning executor lifecycle,
@@ -1029,7 +1001,6 @@ stories:
     priority: 30
     status: uat
     complexity: high
-    type: refactor
     requires: ["S-153", "B-154"]
     notes: |
       JobLaunchDialog.vue (2,130 lines) has four separate watch(selectedTrainingRunId)
@@ -1059,7 +1030,6 @@ stories:
     priority: 15
     status: uat
     complexity: low
-    type: refactor
     requires: []
     notes: |
       1. XYGrid.vue (~line 269) calls getImage(xVal, yVal) 2-4x per cell in the
@@ -1082,7 +1052,6 @@ stories:
     priority: 45
     status: uat
     complexity: low
-    type: workflow
     requires: ["B-153"]
     notes: |
       service/watcher_test.go:319,330,341 and api/ws_test.go:257 assert ABSENCE of an
@@ -1108,7 +1077,6 @@ stories:
     priority: 40
     status: uat
     complexity: medium
-    type: workflow
     requires: ["B-149", "S-152"]
     notes: |
       TEST_PRACTICES 2.1 mandates mockery-generated mocks but no .mockery.yaml exists
@@ -1136,7 +1104,6 @@ stories:
     priority: 38
     status: uat
     complexity: high
-    type: workflow
     requires: ["W-028", "R-018"]
     notes: |
       Completes the full mockery migration: migrate the service-layer tests (the
@@ -1159,7 +1126,6 @@ stories:
     priority: 55
     status: uat
     complexity: medium
-    type: workflow
     requires: []
     notes: |
       The highest-blast-radius code in the repo has 0% coverage:
@@ -1189,7 +1155,6 @@ stories:
     priority: 40
     status: uat
     complexity: medium
-    type: maintenance
     requires: ["B-149", "S-150", "S-151", "S-153"]
     notes: |
       Verified drift: architecture.md 2.3 and database.md say TOML config (code uses
@@ -1224,7 +1189,6 @@ stories:
     priority: 38
     status: uat
     complexity: medium
-    type: maintenance
     requires: ["R-016", "S-153"]
     notes: |
       Verified drift: docs/api.md lists 4 of ~14 actual service groups (missing
@@ -1251,7 +1215,6 @@ stories:
     priority: 36
     status: uat
     complexity: medium
-    type: maintenance
     requires: ["S-151", "S-153"]
     notes: |
       Completes the docs refresh: audit docs/filesystem.md (LoRA study/base-model
@@ -1273,7 +1236,6 @@ stories:
         workflows.md table"
       - "Spot-check output-path examples against a real e2e artifact tree (.e2e/ samples) or the path-construction unit tests"
   - id: B-159
-    type: bug
     title: "job_executor logs \"sql: no rows in result set\" when parent job row is missing"
     status: uat
     priority: 70
@@ -1385,7 +1347,6 @@ stories:
   - id: B-160
     title: "Generate Samples dialog validation shows 0/720 — study-scoped validation guesses sample dir instead of using the
       shared output-dir resolver"
-    type: bug
     status: uat
     priority: 70
     complexity: medium
@@ -1445,7 +1406,6 @@ stories:
         unchanged."
   - id: S-159
     title: "Display total runtime for jobs in the job list (live-ticking while running, final total when terminal)"
-    type: feature
     status: uat
     priority: 45
     complexity: low
@@ -1480,7 +1440,6 @@ stories:
         one hour to exercise the h:mm:ss format. No backend/E2E work — pure Vitest component/composable coverage."
   - id: S-160
     title: "XY grid: tooltip on prompt-dimension headers showing the full prompt text on hover"
-    type: feature
     status: uat
     priority: 30
     complexity: low
@@ -1527,7 +1486,6 @@ stories:
   - id: B-161
     title: "Checkpoint slider omits the final epoch (100) — assignFinalCheckpointStep only recognizes 'steps-N' in the run
       name, not 'epochs-N'"
-    type: bug
     status: uat
     priority: 65
     complexity: low
@@ -1629,7 +1587,6 @@ stories:
   - id: B-162
     title: "Job progress Completeness section reports 0/N missing for LoRA jobs — completeness check and manifest write omit
       the base_model directory level"
-    type: bug
     status: uat
     priority: 50
     complexity: low
