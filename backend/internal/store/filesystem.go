@@ -312,25 +312,54 @@ func NewJobSampleDirRemover(fs *FileSystem, sampleDir string) *JobSampleDirRemov
 	return &JobSampleDirRemover{fs: fs, sampleDir: sampleDir}
 }
 
-// RemoveJobSampleDir removes sampleDir/studyName/checkpointFilename/ for the given
-// study and checkpoint, which removes the generated sample images for that checkpoint.
-func (r *JobSampleDirRemover) RemoveJobSampleDir(studyName string, checkpointFilename string) error {
-	target := filepath.Join(r.sampleDir, studyName, checkpointFilename)
+// RemoveJobSampleDir removes the per-checkpoint output directory for the given
+// job, which holds the generated sample images for that checkpoint.
+//
+// B-164: the deletion root is resolved via fileformat.StudyOutputDir so it
+// matches the on-disk layout the job executor actually writes into:
+//
+//	checkpoint jobs: {sampleDir}/{sanitizedRunName}/{studyName}/{checkpoint}
+//	LoRA jobs:       {sampleDir}/{sanitizedRunName}/{studyName}/{baseModelName}/{checkpoint}
+//
+// Previously this joined {sampleDir}/{studyName}/{checkpoint}, a layout that no
+// longer exists after the run-name/base-model restructuring, so delete-with-data
+// removed nothing while reporting success (same root-cause family as B-163).
+//
+// The checkpoint filename is reduced with filepath.Base (B-115) and the final
+// target is guarded against escaping the sample directory (path containment) so
+// a traversal component in any input cannot delete data outside sampleDir.
+func (r *JobSampleDirRemover) RemoveJobSampleDir(trainingRunName string, studyName string, baseModel string, checkpointFilename string) error {
+	studyOutputDir := fileformat.StudyOutputDir(trainingRunName, studyName, baseModel)
+	target := filepath.Join(r.sampleDir, studyOutputDir, filepath.Base(checkpointFilename))
 	r.fs.logger.WithFields(logrus.Fields{
+		"training_run_name":   trainingRunName,
 		"study_name":          studyName,
+		"base_model":          baseModel,
 		"checkpoint_filename": checkpointFilename,
 		"target":              target,
 	}).Trace("entering RemoveJobSampleDir")
 	defer r.fs.logger.Trace("returning from RemoveJobSampleDir")
 
-	if err := os.RemoveAll(target); err != nil {
+	// Path containment: never delete outside the sample directory even if an
+	// input component contains a traversal sequence (e.g. a '..' study name).
+	cleanTarget := filepath.Clean(target)
+	cleanSampleDir := filepath.Clean(r.sampleDir)
+	if cleanTarget != cleanSampleDir && !strings.HasPrefix(cleanTarget, cleanSampleDir+string(filepath.Separator)) {
 		r.fs.logger.WithFields(logrus.Fields{
-			"target": target,
+			"target":     cleanTarget,
+			"sample_dir": cleanSampleDir,
+		}).Error("refusing to remove job sample directory outside sample dir")
+		return fmt.Errorf("path traversal detected: %s", cleanTarget)
+	}
+
+	if err := os.RemoveAll(cleanTarget); err != nil {
+		r.fs.logger.WithFields(logrus.Fields{
+			"target": cleanTarget,
 			"error":  err.Error(),
 		}).Error("failed to remove job sample directory")
-		return fmt.Errorf("removing job sample directory %s: %w", target, err)
+		return fmt.Errorf("removing job sample directory %s: %w", cleanTarget, err)
 	}
-	r.fs.logger.WithField("target", target).Info("job sample directory removed")
+	r.fs.logger.WithField("target", cleanTarget).Info("job sample directory removed")
 	return nil
 }
 

@@ -1683,7 +1683,7 @@ stories:
   - id: B-164
     title: "Delete job with data removes no files — RemoveJobSampleDir uses stale path layout"
     priority: 80
-    status: todo
+    status: uat
     complexity: medium
     requires: []
     acceptance:

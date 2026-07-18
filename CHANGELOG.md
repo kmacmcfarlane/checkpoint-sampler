@@ -5,6 +5,11 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-164: Delete job with data removed no files — `RemoveJobSampleDir` used stale path layout
+- `Delete(deleteData=true)` reported success while removing nothing: `RemoveJobSampleDir` targeted `{sampleDir}/{study}/{checkpoint}`, a layout that stopped existing after the run-name/base-model restructuring. It now resolves the deletion root through the same `fileformat.StudyOutputDir` helper the executor writes with, so delete-with-data removes the actual output files for both checkpoint (`{run}/{study}/{checkpoint}`) and LoRA (`{run}/{study}/{baseModel}/{checkpoint}`) layouts (same root-cause family as B-163)
+- The remover interface was widened to take the training run name and base model, and a separator-bounded path-containment guard rejects any target that resolves outside `sample_dir` (e.g. a `..` study name)
+- Testing: backend unit coverage for both layouts, slash-bearing run-name sanitization, and traversal rejection; a new `job-delete.spec.ts` E2E asserts delete-with-data actually drops sample availability to `none` on disk (previously only the 204 status was checked)
+
 ### B-169: Fresh-clone `make up` created config.yaml as a directory and crash-looped — added guard and fixed Quick start order
 - `make up` and `make up-dev` now depend on a `check-config` preflight guard that fails fast (before `docker compose up`) when `config.yaml` or `.env` is missing — or when `config.yaml` is a stray directory Docker left behind from bind-mounting a nonexistent source. The error names the exact `cp config.yaml.example config.yaml` / `cp .env.example .env` command to run
 - README Quick start now lists the two `cp` steps before `make up`, so a fresh clone never triggers the directory-creation crash loop

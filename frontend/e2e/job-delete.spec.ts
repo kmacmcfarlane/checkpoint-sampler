@@ -295,6 +295,61 @@ test.describe('job deletion with optional sample data removal (S-097)', () => {
     expect(found).toBe(false)
   })
 
+  // B-164: BE: delete_data=true must remove the actual on-disk output files, not just
+  // return 204. This seeds real files via /api/test/seed-partial-samples (checkpoint
+  // layout: {sampleDir}/{run}/{study}/{checkpoint}/), creates a real job for the same
+  // training run/study/checkpoints, deletes with delete_data=true, and asserts via the
+  // availability API that sample_status drops back to 'none' — i.e. the files are gone.
+  test('B-164: DELETE with delete_data=true removes the actual sample files on disk', async ({ request }) => {
+    // AC: BE: RemoveJobSampleDir resolves the deletion root via fileformat.StudyOutputDir
+    // so delete-with-data removes the actual output files (checkpoint layout)
+    const studyName = STUDY_PAYLOAD.name
+    const studyId = await createStudyViaAPI(request)
+
+    // Seed real files on disk for both checkpoints in the "my-model" training run,
+    // matching the layout the real job executor writes into.
+    const seedResp = await request.post('/api/test/seed-partial-samples', {
+      data: {
+        training_run_name: 'my-model',
+        study_id: studyId,
+        study_name: studyName,
+        checkpoint_filenames: [
+          'my-model-step00001000.safetensors',
+          'my-model-step00002000.safetensors',
+        ],
+      },
+    })
+    expect(seedResp.status()).toBe(201)
+
+    const runsResp = await request.get('/api/training-runs?source=checkpoints')
+    expect(runsResp.ok()).toBeTruthy()
+    const runs = await runsResp.json() as Array<{ id: number; name: string }>
+    const run = runs.find(r => r.name === 'my-model')
+    expect(run).toBeDefined()
+
+    // Confirm the seed produced a fully-sampled study (sanity check before delete).
+    const beforeResp = await request.get(`/api/studies/availability?training_run_id=${run!.id}`)
+    expect(beforeResp.ok()).toBeTruthy()
+    const beforeAvailabilities = await beforeResp.json() as Array<{ study_id: string; sample_status: string }>
+    expect(beforeAvailabilities.find(a => a.study_id === studyId)?.sample_status).toBe('complete')
+
+    // Create a real job for the same training run/study (items cover both checkpoints).
+    const jobId = await createJobViaAPI(request, studyId)
+
+    // Delete with delete_data=true.
+    const deleteResp = await request.delete(`/api/sample-jobs/${jobId}?delete_data=true`)
+    expect(deleteResp.status()).toBe(204)
+
+    // AC: the actual output files must be gone — availability must report 'none'.
+    const afterResp = await request.get(`/api/studies/availability?training_run_id=${run!.id}`)
+    expect(afterResp.ok()).toBeTruthy()
+    const afterAvailabilities = await afterResp.json() as Array<{ study_id: string; sample_status: string; has_samples: boolean }>
+    const afterStudyAvail = afterAvailabilities.find(a => a.study_id === studyId)
+    expect(afterStudyAvail).toBeDefined()
+    expect(afterStudyAvail!.sample_status).toBe('none')
+    expect(afterStudyAvail!.has_samples).toBe(false)
+  })
+
   // AC3+AC4: BE: DELETE /api/sample-jobs/{id}?delete_data=false and delete_data=true both return 204
   test('BE: DELETE /api/sample-jobs/{id} returns 204 with and without delete_data', async ({ request }) => {
     // AC: BE: Both deletion paths return 204 No Content
