@@ -2124,7 +2124,7 @@ stories:
   - id: S-176
     title: "Production compose hardening: restart policies, non-root containers, healthchecks"
     priority: 45
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:

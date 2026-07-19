@@ -5,7 +5,14 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-FROM nginx:alpine
+# Unprivileged nginx image (S-176): pre-configured so the master process
+# itself (not just workers) can run as a non-root UID — regular nginx:alpine
+# runs its master process as root to bind privileged ports and write
+# root-owned pid/cache paths. This variant relocates those paths so an
+# arbitrary non-root UID (set via docker-compose.yml's default USER below)
+# can run the whole process tree. We only ever bind port 3000 (unprivileged),
+# so this is a drop-in swap with no config changes required.
+FROM nginxinc/nginx-unprivileged:alpine
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 # Validate nginx config syntax and required WebSocket headers

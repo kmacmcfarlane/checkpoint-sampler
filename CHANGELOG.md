@@ -5,6 +5,13 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-176: Production compose hardening — restart policies, non-root containers, healthchecks
+- Both prod services now set `restart: unless-stopped`, so a backend crash or host reboot no longer leaves the app down until manually restarted
+- Backend image runs as non-root `appuser` (UID/GID 1000), overridable via new `PUID`/`PGID` env vars. The `1000:1000` default matches the common first-user UID on single-user Linux hosts; users whose `SAMPLE_DIR` is owned by a different UID set `PUID`/`PGID` in `.env` to avoid `EACCES` on writes. Documented in `.env.example` and the README "Security model" section
+- Frontend swapped from `nginx:alpine` to `nginxinc/nginx-unprivileged:alpine` so the entire nginx process tree runs non-root, not just the workers. No `nginx.conf` change needed — the app only ever binds the unprivileged port 3000
+- Healthchecks added to both prod services, borrowing the pattern already proven in `docker-compose.test.yml`. The backend check relies on alpine's busybox `wget` rather than installing the wget package. Frontend `depends_on` deliberately left as a plain dependency rather than `condition: service_healthy`: gating on health would interact badly with S-173's fail-fast startup, where a backend that exits before binding `/health` would crash-loop under `restart: unless-stopped` and leave the frontend permanently unstarted with no UI to diagnose the misconfiguration
+- Backward compatible — existing `.env` files that predate this story fall through to the defaults unchanged
+
 ### S-175: Keyboard accessibility — XYGrid header filtering and ImageCell lightbox activation
 - XY grid column and row headers are now keyboard-operable: `tabindex="0"` plus an `onHeaderKeydown` handler that activates the same solo/unsolo filtering on Enter/Space that a mouse click triggers. The existing `role="columnheader"`/`role="rowheader"` were deliberately kept rather than switched to `role="button"` — ARIA does not allow combining them, and the header roles are what assistive tech uses to announce position within the surrounding `role="grid"` structure
 - `ImageCell` is now focusable whenever it has an image (`relativePath` set), not only when slider dimensions exist, and gains `role="button"`. Enter/Space opens the lightbox via the same path as a click. Previously a cell with no slider dims was unreachable by keyboard, so the lightbox was mouse-only

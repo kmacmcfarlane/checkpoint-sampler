@@ -4,11 +4,23 @@ services:
       context: ./backend
       args:
         COMMIT_SHA: ${COMMIT_SHA:-unknown}
+    restart: unless-stopped
+    # Runs as non-root by default (image bakes in UID/GID 1000). Override
+    # PUID/PGID in .env if SAMPLE_DIR or the db volume are owned by a
+    # different host user, to avoid EACCES on writes (see README "Security
+    # model" / "Configuration").
+    user: "${PUID:-1000}:${PGID:-1000}"
     # Bound to 127.0.0.1 by default: there is no authentication, so the app
     # trusts anyone who can reach the port (see README "Security model").
     # Set HOST_BIND=0.0.0.0 (in .env) to expose on your LAN deliberately.
     ports:
       - "${HOST_BIND:-127.0.0.1}:8081:8080"
+    healthcheck:
+      test: ["CMD", "sh", "-c", "wget -qO- http://127.0.0.1:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
     volumes:
       - backend_data:/app/data
       - ./config.yaml:/app/config.yaml:ro
@@ -29,9 +41,16 @@ services:
 
   frontend:
     build: ./frontend
+    restart: unless-stopped
     # See backend ports comment above: 127.0.0.1 by default, override via HOST_BIND.
     ports:
       - "${HOST_BIND:-127.0.0.1}:3001:3000"
+    healthcheck:
+      test: ["CMD", "sh", "-c", "wget -qO- http://127.0.0.1:3000 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
     depends_on:
       - backend
 

@@ -214,6 +214,8 @@ The application uses two gitignored config files, both copied from tracked examp
 | `SAMPLE_DIR` | `./.dataset-placeholder` | Host path to the sample image directory (mounted read-write at `/data/samples`; the app writes generated samples, thumbnails, and demo data here) |
 | `MODEL_DIR` | `./.dataset-placeholder` | Host path to the base model directory (mounted read-only at `/data/models`) |
 | `LORA_DIR` | `./.dataset-placeholder` | Host path to the LoRA directory (mounted read-only at `/data/loras`) |
+| `PUID` | `1000` | UID the backend container runs as (non-root). Set to match your host user's UID (`id -u`) if `SAMPLE_DIR` is owned by a different user |
+| `PGID` | `1000` | GID the backend container runs as (non-root). Set to match your host user's GID (`id -g`) if `SAMPLE_DIR` is owned by a different group |
 
 ### Ports
 
@@ -236,6 +238,7 @@ Checkpoint Sampler has **no authentication**. Every API endpoint — including d
 - **LAN exposure is an explicit, opt-in choice**: set `HOST_BIND=0.0.0.0` in `.env` to publish the ports on all interfaces. Do this only if you understand the risk — anyone on your network segment will have full read/write/delete access to your checkpoints, samples, and job queue.
 - **Before exposing beyond localhost** (LAN, VPN, or the public internet), put a firewall rule or an authenticating reverse proxy (e.g. Caddy, nginx with `auth_request`, Tailscale, or a VPN) in front of the app. Checkpoint Sampler itself will not stop unauthenticated requests.
 - This applies regardless of how the backend is run (Docker Compose or directly on the host) — see the `ip_address` comment in `config.yaml.example` for the container-vs-host binding distinction.
+- **Both containers run as non-root** by default (backend UID/GID `1000:1000`, overridable via `PUID`/`PGID` in `.env`; frontend uses an unprivileged nginx image). Both also have `restart: unless-stopped` and container healthchecks, so a crash or host reboot brings the app back automatically. If the backend fails to write to `SAMPLE_DIR` or the database (`EACCES` in `docker compose logs backend`), set `PUID`/`PGID` in `.env` to match the owner of your `SAMPLE_DIR` (run `id -u` / `id -g` on the host) and `make down && make up`.
 
 For the checkpoint and sample directory layout (naming conventions, suffix stripping, per-run/study hierarchy), see [docs/filesystem.md](docs/filesystem.md).
 
