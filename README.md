@@ -45,6 +45,11 @@ make up
 
 Then open the UI at [http://localhost:3001](http://localhost:3001).
 
+For a walkthrough of the demo dataset, the Study → Sample Job → XY grid workflow, and
+troubleshooting common issues (ComfyUI offline, empty training-run list, models not
+visible to ComfyUI, proxy/`allowed_origins` problems), see the
+[Usage Guide](docs/usage.md).
+
 To stop:
 
 ```bash
@@ -157,7 +162,7 @@ The frontend isolates all backend communication through `src/api/` modules. UI c
 
 Data flows: **Browser &rarr; Frontend (Vue) &rarr; Backend API (Goa) &rarr; Service &rarr; Store**
 
-For full details see [docs/architecture.md](docs/architecture.md), [docs/database.md](docs/database.md), and [docs/api.md](docs/api.md).
+For full details see [docs/architecture.md](docs/architecture.md), [docs/database.md](docs/database.md), and [docs/api.md](docs/api.md). For a task-oriented usage walkthrough, see [docs/usage.md](docs/usage.md).
 
 ## Workflow templates
 

@@ -5,6 +5,12 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-174: User-facing usage guide and troubleshooting doc
+- Added `docs/usage.md` — the first user-facing (as opposed to developer-facing) documentation. Walks a new user through restoring the demo dataset from Settings, the Study → Sample Job → XY grid workflow, and enabling ComfyUI generation via `comfyui.url` / `workflow_dir` / `reconnect_interval`. Existing `docs/ui.md` covers component architecture and never explained how to actually operate the viewer or why inference features might appear disabled
+- Troubleshooting/FAQ section covers the `ComfyUI (offline)` pill (jobs queue and resume automatically once reconnected), an empty training-run list, models not visible to ComfyUI (filename matching / `extra_model_paths.yaml`), and proxy `allowed_origins` mismatches (hostname-only matching, scheme and port ignored), plus stuck jobs and where output lands
+- `README.md` links the guide from Quick start and from the Architecture doc cross-links
+- Docs-only; every command, config key, API path, and UI label was verified against source and against a running dev stack rather than inferred
+
 ### S-173: Fail fast on unreadable configured directories; helpful empty state when no training runs found
 - Startup config validation now attempts `os.ReadDir` (not just `os.Stat`) on every configured `checkpoint_dirs`, `lora_dirs`, `base_model_dir`, and `sample_dir` entry, failing with `config: directory not readable: <label> <dir>: <err>`. Previously a root-owned Docker-created host mount passed the `os.Stat` check, `FSState.Populate` then failed Warn-only, and the app looked healthy but was permanently empty. Optional dirs are still only validated when actually configured, so omitting `lora_dirs`/`base_model_dir` does not break startup
 - `GET /api/v1/config` now returns `checkpoint_dirs` (added to the Goa `ConfigResult` type) so the frontend can name the configured directories; `NewHealthService` gains a checkpoint-dirs parameter

@@ -2089,7 +2089,7 @@ stories:
   - id: S-174
     title: "User-facing usage guide and troubleshooting doc"
     priority: 45
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:
@@ -2367,3 +2367,25 @@ stories:
       - "Confirm a run that already has samples still pre-selects the remembered base model (metadata default does not override
         it)"
       - "Confirm the getCheckpointMetadata call is not made for non-LoRA runs"
+  - id: B-173
+    title: "Investigate 404s on deprecated unversioned /api/* paths seen in dev backend logs"
+    type: bug
+    status: todo
+    priority: 30
+    complexity: low
+    requires: []
+    notes: |
+      Filed from the S-174 QA runtime error sweep. QA's own assessment is that this is most likely
+      noise from a stale browser tab on the developer's machine (requests originated from LAN IP
+      192.168.1.95), not a live code path — it pre-existed the S-174 session. Filed for confirmation
+      only; may well close as no-change.
+
+      Log evidence:
+        level=warning msg="HTTP client error" error_message="404 page not found" method=GET path=/api/ws status_code=404
+      Same for /api/comfyui/status, /api/settings, /api/demo — all pre-/api/v1 unversioned paths that
+      no longer exist in the current backend.
+    acceptance:
+      - "Confirm no current frontend code path issues requests to unversioned /api/* paths (only /api/v1/*)"
+      - "If a stale client is the cause, close with no code change; if a real code path is found issuing old paths, fix it"
+    testing:
+      - "command: make test-e2e"
