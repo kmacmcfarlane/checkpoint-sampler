@@ -51,6 +51,8 @@ export interface HealthStatus {
 export interface AppConfig {
   /** Maximum total work items allowed per study/job. */
   max_study_items: number
+  /** Configured checkpoint directories, used to name paths in empty states. */
+  checkpoint_dirs: string[]
 }
 
 /** A checkpoint file within a training run. */

@@ -5,6 +5,12 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-173: Fail fast on unreadable configured directories; helpful empty state when no training runs found
+- Startup config validation now attempts `os.ReadDir` (not just `os.Stat`) on every configured `checkpoint_dirs`, `lora_dirs`, `base_model_dir`, and `sample_dir` entry, failing with `config: directory not readable: <label> <dir>: <err>`. Previously a root-owned Docker-created host mount passed the `os.Stat` check, `FSState.Populate` then failed Warn-only, and the app looked healthy but was permanently empty. Optional dirs are still only validated when actually configured, so omitting `lora_dirs`/`base_model_dir` does not break startup
+- `GET /api/v1/config` now returns `checkpoint_dirs` (added to the Goa `ConfigResult` type) so the frontend can name the configured directories; `NewHealthService` gains a checkpoint-dirs parameter
+- `TrainingRunSelector` renders a standalone `NEmpty` block naming the configured checkpoint directories and pointing at `config.yaml` / `docs/filesystem.md`, replacing the generic "No Data". The block is standalone rather than the `NSelect` `empty` slot because that slot only renders when the dropdown is opened — which a disabled/empty selector never is, hiding the message exactly when it is most needed. Falls back to a generic message if the config fetch fails
+- Tests: backend chmod-0000 cases for `checkpoint_dirs` and `sample_dir` (skipped when running as root), frontend unit coverage for the named-dirs / fallback / hidden-when-runs-exist paths, plus a new `training-run-empty-state` E2E spec
+
 ### S-177: Grid view header — show training-run name and study label (stacked, ellipsis, tooltip)
 - The grid-view header now shows a two-line label to the right of the Filters button identifying the selected run: run name on top, study label below (modest type). Each line truncates with a CSS ellipsis (max-width 220px) and an `NTooltip` on hover reveals the full run name + study label
 - The label uses the same visibility guard as the Filters button (`selectedTrainingRun && !scanning && !scanError && dimensions.length > 0`), and renders only the name line when `study_label` is empty (legacy/checkpoint-source runs)

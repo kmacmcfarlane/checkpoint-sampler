@@ -381,7 +381,10 @@ describe('ApiClient', () => {
   describe('getConfig', () => {
     it('fetches UI config limits from /api/v1/config', async () => {
       const client = new ApiClient({ baseUrl: 'http://localhost:8080/api/v1' })
-      mockFetch({ json: () => Promise.resolve({ max_study_items: 50000 }) })
+      mockFetch({
+        json: () =>
+          Promise.resolve({ max_study_items: 50000, checkpoint_dirs: ['/data/checkpoints'] }),
+      })
 
       const result = await client.getConfig()
 
@@ -389,7 +392,7 @@ describe('ApiClient', () => {
         'http://localhost:8080/api/v1/config',
         undefined,
       )
-      expect(result).toEqual({ max_study_items: 50000 })
+      expect(result).toEqual({ max_study_items: 50000, checkpoint_dirs: ['/data/checkpoints'] })
     })
   })
 

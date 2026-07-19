@@ -120,12 +120,8 @@ func parseAndValidate(raw yamlConfig) (*model.Config, error) {
 		if dir == "" {
 			return nil, fmt.Errorf("config: checkpoint_dirs[%d] is empty", i)
 		}
-		info, err := os.Stat(dir)
-		if err != nil {
-			return nil, fmt.Errorf("config: checkpoint_dirs[%d] %q does not exist: %w", i, dir, err)
-		}
-		if !info.IsDir() {
-			return nil, fmt.Errorf("config: checkpoint_dirs[%d] %q is not a directory", i, dir)
+		if err := validateReadableDir(fmt.Sprintf("checkpoint_dirs[%d]", i), dir); err != nil {
+			return nil, err
 		}
 	}
 
@@ -134,23 +130,15 @@ func parseAndValidate(raw yamlConfig) (*model.Config, error) {
 		if dir == "" {
 			return nil, fmt.Errorf("config: lora_dirs[%d] is empty", i)
 		}
-		info, err := os.Stat(dir)
-		if err != nil {
-			return nil, fmt.Errorf("config: lora_dirs[%d] %q does not exist: %w", i, dir, err)
-		}
-		if !info.IsDir() {
-			return nil, fmt.Errorf("config: lora_dirs[%d] %q is not a directory", i, dir)
+		if err := validateReadableDir(fmt.Sprintf("lora_dirs[%d]", i), dir); err != nil {
+			return nil, err
 		}
 	}
 
 	// Validate base_model_dir (optional, but must be a valid directory if specified)
 	if raw.BaseModelDir != "" {
-		info, err := os.Stat(raw.BaseModelDir)
-		if err != nil {
-			return nil, fmt.Errorf("config: base_model_dir %q does not exist: %w", raw.BaseModelDir, err)
-		}
-		if !info.IsDir() {
-			return nil, fmt.Errorf("config: base_model_dir %q is not a directory", raw.BaseModelDir)
+		if err := validateReadableDir("base_model_dir", raw.BaseModelDir); err != nil {
+			return nil, err
 		}
 	}
 
@@ -158,12 +146,8 @@ func parseAndValidate(raw yamlConfig) (*model.Config, error) {
 	if raw.SampleDir == "" {
 		return nil, fmt.Errorf("config: sample_dir is required")
 	}
-	info, err := os.Stat(raw.SampleDir)
-	if err != nil {
-		return nil, fmt.Errorf("config: sample_dir %q does not exist: %w", raw.SampleDir, err)
-	}
-	if !info.IsDir() {
-		return nil, fmt.Errorf("config: sample_dir %q is not a directory", raw.SampleDir)
+	if err := validateReadableDir("sample_dir", raw.SampleDir); err != nil {
+		return nil, err
 	}
 
 	// Validate port
@@ -194,6 +178,7 @@ func parseAndValidate(raw yamlConfig) (*model.Config, error) {
 	// Parse and validate ComfyUI config if present
 	var comfyUI *model.ComfyUIConfig
 	if raw.ComfyUI != nil {
+		var err error
 		comfyUI, err = parseComfyUIConfig(raw.ComfyUI)
 		if err != nil {
 			return nil, err
@@ -203,6 +188,7 @@ func parseAndValidate(raw yamlConfig) (*model.Config, error) {
 	// Parse and validate thumbnail config if present
 	var thumbnails *model.ThumbnailConfig
 	if raw.Thumbnails != nil {
+		var err error
 		thumbnails, err = parseThumbnailConfig(raw.Thumbnails)
 		if err != nil {
 			return nil, err
@@ -224,6 +210,27 @@ func parseAndValidate(raw yamlConfig) (*model.Config, error) {
 		MaxStudyItems:    maxStudyItems,
 		AllowedOrigins:   raw.AllowedOrigins,
 	}, nil
+}
+
+// validateReadableDir checks that dir exists, is a directory, and is actually
+// readable via os.ReadDir. os.Stat alone is insufficient: a directory can
+// exist and report as a directory (e.g. a root-owned Docker-created host
+// mount) while still being unreadable by the process user, in which case
+// downstream filesystem discovery silently produces an empty result instead
+// of a startup failure. label identifies the config field in error messages
+// (e.g. "checkpoint_dirs[0]" or "sample_dir").
+func validateReadableDir(label, dir string) error {
+	info, err := os.Stat(dir)
+	if err != nil {
+		return fmt.Errorf("config: %s %q does not exist: %w", label, dir, err)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("config: %s %q is not a directory", label, dir)
+	}
+	if _, err := os.ReadDir(dir); err != nil {
+		return fmt.Errorf("config: directory not readable: %s %q: %w", label, dir, err)
+	}
+	return nil
 }
 
 // parseThumbnailConfig parses and validates the thumbnail configuration section.

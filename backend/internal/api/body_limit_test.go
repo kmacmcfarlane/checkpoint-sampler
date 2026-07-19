@@ -53,7 +53,7 @@ func newBodyLimitTestHandler(limitMB int) http.Handler {
 	baseModelSvc := service.NewBaseModelService(newFakeCheckpointFS(), "", []string{"/checkpoints"}, logger)
 
 	return api.NewHTTPHandler(api.HTTPHandlerConfig{
-		HealthEndpoints:      genhealth.NewEndpoints(api.NewHealthService(50000)),
+		HealthEndpoints:      genhealth.NewEndpoints(api.NewHealthService(50000, []string{"/data/checkpoints"})),
 		DocsEndpoints:        gendocs.NewEndpoints(api.NewDocsService([]byte(`{}`))),
 		TrainingRunEndpoints: gentrainingruns.NewEndpoints(api.NewTrainingRunsService(viewerDiscoverySvc, discoverySvc, scannerSvc, nil, nil, nil)),
 		PresetsEndpoints:     genpresets.NewEndpoints(api.NewPresetsService(presetSvc)),

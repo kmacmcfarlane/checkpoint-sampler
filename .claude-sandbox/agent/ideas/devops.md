@@ -151,3 +151,9 @@ Now that `@vitest/coverage-v8` tooling exists (S-166), consider adding per-file 
 * priority: low
 * source: developer
 `make up` guards against a missing `config.yaml`/`.env`, but there is no equivalent check that `.claude-sandbox/config.yaml` exists before `make claude`/`make ralph`. A small guard prompting contributors to copy the new `.claude-sandbox/config.yaml.example` would smooth first-run onboarding (relevant now that the real config is gitignored per S-172).
+
+### `make test-e2e SPEC=...` silently ignores SPEC and runs the full suite
+* status: needs_approval
+* priority: high
+* source: developer
+The `test-e2e` target (`Makefile:154`) is `./scripts/e2e/e2e_parallel.sh $(or $(SHARDS),4)` — it accepts no `SPEC` variable, so any `SPEC=` passed on the command line is silently dropped and the full 4-shard regression runs instead. During S-173 this caused an accidental full-suite run (which then failed broadly with `getaddrinfo ENOTFOUND frontend`, likely resource contention from 4 concurrent shards in the sandbox). The correct targeted command is `make test-e2e-serial SPEC=<file>`. Two fixes worth considering: (a) correct the `fullstack-developer` agent definition (and any other subagent docs) to reference `test-e2e-serial` for targeted runs, and (b) make the `test-e2e` target fail loudly if an unexpected `SPEC=` is supplied, rather than ignoring it. (Surfaced during S-173.)

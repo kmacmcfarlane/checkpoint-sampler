@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { nextTick, ref } from 'vue'
-import { NSelect, NCheckbox } from 'naive-ui'
+import { NSelect, NCheckbox, NEmpty } from 'naive-ui'
 import TrainingRunSelector from '../TrainingRunSelector.vue'
 import type { TrainingRun } from '../../api/types'
 import { GENERATE_INPUTS_STORAGE_KEY } from '../../composables/useGenerateInputsPersistence'
@@ -10,12 +10,14 @@ import { GENERATE_INPUTS_STORAGE_KEY } from '../../composables/useGenerateInputs
 vi.mock('../../api/client', () => ({
   apiClient: {
     getTrainingRuns: vi.fn(),
+    getConfig: vi.fn(),
   },
 }))
 
 import { apiClient } from '../../api/client'
 
 const mockGetTrainingRuns = apiClient.getTrainingRuns as ReturnType<typeof vi.fn>
+const mockGetConfig = apiClient.getConfig as ReturnType<typeof vi.fn>
 
 const sampleRuns: TrainingRun[] = [
   {
@@ -109,6 +111,7 @@ function selectGroup(wrapper: ReturnType<typeof mount>, groupKey: string) {
 describe('TrainingRunSelector', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockGetConfig.mockResolvedValue({ max_study_items: 50000, checkpoint_dirs: ['/data/checkpoints'] })
   })
 
   it('renders label "Training Run" and NSelect component', async () => {
@@ -902,6 +905,53 @@ describe('TrainingRunSelector', () => {
       for (const option of options) {
         expect(option._kind).toBe('checkpoint')
       }
+    })
+  })
+
+  // S-173: helpful empty state naming the configured checkpoint directories
+  describe('empty state (S-173)', () => {
+    it('renders the NSelect empty slot with the configured checkpoint dirs when no runs are found', async () => {
+      mockGetTrainingRuns.mockResolvedValue([])
+      mockGetConfig.mockResolvedValue({
+        max_study_items: 50000,
+        checkpoint_dirs: ['/data/checkpoints', '/data/more-checkpoints'],
+      })
+      const wrapper = mount(TrainingRunSelector, {
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const empty = wrapper.findComponent(NEmpty)
+      expect(empty.exists()).toBe(true)
+      const description = empty.props('description') as string
+      expect(description).toContain('/data/checkpoints')
+      expect(description).toContain('/data/more-checkpoints')
+      expect(description).not.toBe('No Data')
+    })
+
+    it('falls back to a generic message when checkpoint_dirs cannot be fetched', async () => {
+      mockGetTrainingRuns.mockResolvedValue([])
+      mockGetConfig.mockRejectedValue({ code: 'NETWORK_ERROR', message: 'Failed to fetch' })
+      const wrapper = mount(TrainingRunSelector, {
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const empty = wrapper.findComponent(NEmpty)
+      expect(empty.exists()).toBe(true)
+      const description = empty.props('description') as string
+      expect(description).toContain('No training runs found')
+    })
+
+    it('does not render the empty state when training runs are present', async () => {
+      mockGetTrainingRuns.mockResolvedValue(sampleRuns)
+      const wrapper = mount(TrainingRunSelector, {
+        global: { stubs: { Teleport: true } },
+      })
+      await flushPromises()
+
+      const empty = wrapper.findComponent(NEmpty)
+      expect(empty.exists()).toBe(false)
     })
   })
 })

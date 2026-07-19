@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, h, cloneVNode } from 'vue'
-import { NSelect, NCheckbox, NButton } from 'naive-ui'
+import { NSelect, NCheckbox, NButton, NEmpty } from 'naive-ui'
 import type { SelectRenderLabel, SelectRenderTag, SelectRenderOption } from 'naive-ui'
 import type { TrainingRun } from '../api/types'
 import { apiClient } from '../api/client'
@@ -23,6 +23,13 @@ const selectedStudyOutputDir = ref<string | null>(null)
 const loading = ref(false)
 const error = ref<string | null>(null)
 const attemptedAutoSelect = ref(false)
+
+/**
+ * S-173: Configured checkpoint directories, fetched from /api/v1/config so the
+ * empty state can name the exact paths the backend is scanning instead of a
+ * generic "No Data" message.
+ */
+const checkpointDirs = ref<string[]>([])
 
 const persistence = useGenerateInputsPersistence()
 const { saveLastStudy, getLastStudy } = useLastTrainingRun()
@@ -255,7 +262,37 @@ async function refreshTrainingRuns() {
   }
 }
 
-onMounted(fetchTrainingRuns)
+/**
+ * S-173: Fetch the configured checkpoint directories so the empty state can
+ * name them. Best-effort — if this fails, the empty state falls back to a
+ * generic message rather than blocking the training run list.
+ */
+async function fetchCheckpointDirs() {
+  try {
+    const config = await apiClient.getConfig()
+    checkpointDirs.value = config.checkpoint_dirs ?? []
+  } catch {
+    checkpointDirs.value = []
+  }
+}
+
+/**
+ * S-173: Empty-state description naming the configured checkpoint directories
+ * and hinting at the config/layout docs, shown instead of NSelect's generic
+ * "No Data" message when no training runs are found.
+ */
+const emptyStateDescription = computed(() => {
+  if (checkpointDirs.value.length === 0) {
+    return 'No training runs found. Check that your configured checkpoint directories contain the expected files — see docs/filesystem.md for the expected layout.'
+  }
+  const dirList = checkpointDirs.value.join(', ')
+  return `No training runs found in the configured checkpoint director${checkpointDirs.value.length === 1 ? 'y' : 'ies'}: ${dirList}. Check config.yaml and docs/filesystem.md for the expected layout.`
+})
+
+onMounted(() => {
+  fetchTrainingRuns()
+  fetchCheckpointDirs()
+})
 
 /**
  * AC1-2 (B-105): Automatically refresh the training run list when a sample generation
@@ -373,6 +410,19 @@ function onHasSamplesFilterChange(value: boolean) {
     </NButton>
     <p v-if="error" class="error" role="alert">{{ error }}</p>
   </div>
+  <!--
+    S-173: Helpful empty state shown when discovery finds zero training runs.
+    NSelect's built-in "No Data" empty state only appears inside the (disabled,
+    unopenable) dropdown, so it is effectively invisible. This standalone block
+    names the exact configured checkpoint directories and hints at the docs so
+    a misconfigured newcomer isn't left staring at a permanently-empty selector.
+  -->
+  <NEmpty
+    v-if="!loading && !error && trainingRuns.length === 0"
+    data-testid="training-run-empty-state"
+    :description="emptyStateDescription"
+    class="training-run-empty-state"
+  />
   <!-- Study dropdown (hidden when group has exactly 1 run with no study label) -->
   <div v-if="showStudySelect" class="study-selector">
     <label for="study-select">Study</label>
@@ -415,6 +465,10 @@ function onHasSamplesFilterChange(value: boolean) {
   color: var(--error-color);
   font-size: 0.875rem;
   margin: 0;
+}
+
+.training-run-empty-state {
+  margin-top: 0.5rem;
 }
 
 .study-selector {

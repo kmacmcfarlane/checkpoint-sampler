@@ -96,8 +96,9 @@ Errors below use the canonical codes from §5. Status codes are the DSL-declared
 | `check`  | `GET /health`             | `HealthResult`  | —      |
 | `config` | `GET /api/v1/config`         | `ConfigResult`  | —      |
 
-`config` exposes UI-relevant limits — currently `max_study_items` (the maximum total work items allowed per
-study/job). Added in S-153.
+`config` exposes UI-relevant limits — `max_study_items` (the maximum total work items allowed per
+study/job, added in S-153) and `checkpoint_dirs` (the configured checkpoint directories, added in S-173 so
+the training run selector's empty state can name the exact paths being scanned).
 
 ### 4.2 docs (`docs.go`)
 

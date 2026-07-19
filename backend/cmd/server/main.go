@@ -166,7 +166,7 @@ func run() error {
 	// fsState.Stop() is called explicitly in performShutdown (before HTTP drain).
 
 	// Create service implementations
-	healthSvc := api.NewHealthService(cfg.MaxStudyItems)
+	healthSvc := api.NewHealthService(cfg.MaxStudyItems, cfg.CheckpointDirs)
 	docsSvc := api.NewDocsService(spec)
 	validationSvc := service.NewValidationService(fs, cfg.SampleDir, logger)
 	trainingRunsSvc := api.NewTrainingRunsService(viewerDiscovery, discovery, scanner, validationSvc, watcher, st)

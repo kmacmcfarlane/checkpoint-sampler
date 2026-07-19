@@ -2070,8 +2070,8 @@ stories:
   - id: S-173
     title: "Fail fast on unreadable configured directories; helpful empty state when no training runs found"
     priority: 45
-    status: todo
-    complexity: low
+    status: uat
+    complexity: medium
     requires: []
     acceptance:
       - "BE: Startup validation attempts os.ReadDir on each configured checkpoint/sample/lora/base-model dir and fails with

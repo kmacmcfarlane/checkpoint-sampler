@@ -38,5 +38,8 @@ var ConfigResult = Type("ConfigResult", func() {
 	Attribute("max_study_items", Int, "Maximum total work items allowed per study/job", func() {
 		Example(50000)
 	})
-	Required("max_study_items")
+	Attribute("checkpoint_dirs", ArrayOf(String), "Configured checkpoint directories, surfaced so the UI can point newcomers at the exact paths when no training runs are found", func() {
+		Example([]string{"/data/checkpoints"})
+	})
+	Required("max_study_items", "checkpoint_dirs")
 })

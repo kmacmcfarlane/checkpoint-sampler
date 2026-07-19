@@ -252,6 +252,53 @@ sample_dir: "` + filePath + `"
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("not a directory"))
 		})
+
+		// S-173: os.Stat alone cannot detect an unreadable directory (e.g. a
+		// root-owned Docker-created host mount that exists and reports as a
+		// directory but denies read access to the running process). These
+		// cases must Skip when running as root, since root bypasses the
+		// directory permission bits entirely (matches filesystem_test.go).
+		Context("when a configured directory exists but is not readable", func() {
+			It("rejects an unreadable checkpoint_dir with a clear error", func() {
+				unreadableDir := filepath.Join(tmpDir, "unreadable-checkpoints")
+				Expect(os.MkdirAll(unreadableDir, 0755)).To(Succeed())
+				Expect(os.Chmod(unreadableDir, 0000)).To(Succeed())
+				defer os.Chmod(unreadableDir, 0755) // restore so AfterEach cleanup can remove it
+
+				if os.Getuid() == 0 {
+					Skip("running as root; permission denial cannot be tested")
+				}
+
+				yamlStr := `
+checkpoint_dirs:
+  - "` + unreadableDir + `"
+sample_dir: "` + sampleDir + `"
+`
+				_, err := config.LoadFromString(yamlStr)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("directory not readable"))
+			})
+
+			It("rejects an unreadable sample_dir with a clear error", func() {
+				unreadableDir := filepath.Join(tmpDir, "unreadable-samples")
+				Expect(os.MkdirAll(unreadableDir, 0755)).To(Succeed())
+				Expect(os.Chmod(unreadableDir, 0000)).To(Succeed())
+				defer os.Chmod(unreadableDir, 0755) // restore so AfterEach cleanup can remove it
+
+				if os.Getuid() == 0 {
+					Skip("running as root; permission denial cannot be tested")
+				}
+
+				yamlStr := `
+checkpoint_dirs:
+  - "` + filepath.Join(tmpDir, "checkpoints") + `"
+sample_dir: "` + unreadableDir + `"
+`
+				_, err := config.LoadFromString(yamlStr)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("directory not readable"))
+			})
+		})
 	})
 
 	Describe("Thumbnail configuration", func() {
