@@ -157,3 +157,15 @@ Now that `@vitest/coverage-v8` tooling exists (S-166), consider adding per-file 
 * priority: high
 * source: developer
 The `test-e2e` target (`Makefile:154`) is `./scripts/e2e/e2e_parallel.sh $(or $(SHARDS),4)` — it accepts no `SPEC` variable, so any `SPEC=` passed on the command line is silently dropped and the full 4-shard regression runs instead. During S-173 this caused an accidental full-suite run (which then failed broadly with `getaddrinfo ENOTFOUND frontend`, likely resource contention from 4 concurrent shards in the sandbox). The correct targeted command is `make test-e2e-serial SPEC=<file>`. Two fixes worth considering: (a) correct the `fullstack-developer` agent definition (and any other subagent docs) to reference `test-e2e-serial` for targeted runs, and (b) make the `test-e2e` target fail loudly if an unexpected `SPEC=` is supplied, rather than ignoring it. (Surfaced during S-173.)
+
+### Lint the `frontend/e2e/` directory
+* status: needs_approval
+* priority: low
+* source: developer
+`frontend/e2e/` is currently excluded by an ESLint ignore pattern, so E2E specs get no lint coverage at all — `npx eslint e2e/*.spec.ts` returns only "File ignored" warnings. Enabling it would catch unused imports and dead locals in test code (W-031 observed several). This is also a prerequisite for the "lint gate banning bare `page.waitForTimeout`" testing idea, which cannot fire while the directory is ignored.
+
+### Type-check `frontend/e2e/` in CI
+* status: needs_approval
+* priority: low
+* source: developer
+The root `frontend/tsconfig.json` does not cover `e2e/`, so type errors in E2E specs only surface at Playwright runtime rather than at build time. A dedicated `tsconfig.e2e.json` wired into the build/CI would catch them earlier. Noted during W-031, where pre-existing TS errors in `sample-generation.spec.ts` (window type casts, unused vars) were invisible to `vue-tsc --noEmit`.

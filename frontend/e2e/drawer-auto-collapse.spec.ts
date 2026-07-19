@@ -32,7 +32,8 @@ async function closeDrawer(page: Page): Promise<void> {
   if (await closeBtn.isVisible()) {
     await closeBtn.click()
     await expect(page.locator('.n-drawer')).not.toBeVisible({ timeout: 3000 })
-    await page.waitForTimeout(300) // wait for mask animation per TEST_PRACTICES.md 6.9
+    // Wait for the mask to detach rather than sleeping (TEST_PRACTICES.md 6.9).
+    await expect(page.locator('.n-drawer-mask:visible')).toHaveCount(0, { timeout: 5000 })
   }
 }
 

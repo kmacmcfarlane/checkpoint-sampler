@@ -80,9 +80,10 @@ test.describe('lightbox slider bidirectional sync (B-068)', () => {
 
     // Use ArrowRight to move the lightbox slider to the next value
     await page.keyboard.press('ArrowRight')
-    await page.waitForTimeout(200)
 
-    // The lightbox image should change (different slider value)
+    // The lightbox image should change (different slider value). Poll the src
+    // attribute until it differs instead of sleeping for a fixed interval.
+    await expect(fullSizeImage).not.toHaveAttribute('src', initialLightboxSrc!)
     const newLightboxSrc = await fullSizeImage.getAttribute('src')
     expect(newLightboxSrc).not.toBe(initialLightboxSrc)
 
@@ -110,7 +111,8 @@ test.describe('lightbox slider bidirectional sync (B-068)', () => {
     const fullSizeImage = lightbox.locator('img[alt="Full-size image"]')
     const initialLightboxSrc = await fullSizeImage.getAttribute('src')
     await page.keyboard.press('ArrowRight')
-    await page.waitForTimeout(200)
+    // Wait for the slider move to actually land (src changes) before closing.
+    await expect(fullSizeImage).not.toHaveAttribute('src', initialLightboxSrc!)
 
     // Close the lightbox
     await page.keyboard.press('Escape')
@@ -146,14 +148,14 @@ test.describe('lightbox slider bidirectional sync (B-068)', () => {
     // Step 1: Move the slider to the second value using ArrowRight
     const initialSrc = await fullSizeImage.getAttribute('src')
     await page.keyboard.press('ArrowRight')
-    await page.waitForTimeout(200)
+    await expect(fullSizeImage).not.toHaveAttribute('src', initialSrc!)
 
     const afterSliderSrc = await fullSizeImage.getAttribute('src')
     expect(afterSliderSrc).not.toBe(initialSrc)
 
     // Step 2: Navigate to the second grid image using Shift+ArrowRight
     await page.keyboard.press('Shift+ArrowRight')
-    await page.waitForTimeout(200)
+    await expect(fullSizeImage).not.toHaveAttribute('src', afterSliderSrc!)
 
     const afterNavSrc = await fullSizeImage.getAttribute('src')
     // The image should be a different cell entirely (different checkpoint)
@@ -185,9 +187,9 @@ test.describe('lightbox slider bidirectional sync (B-068)', () => {
 
     const fullSizeImage = lightbox.locator('img[alt="Full-size image"]')
 
-    // Move slider to portrait
+    // Move slider to portrait — poll the src until it reflects the new value.
     await page.keyboard.press('ArrowRight')
-    await page.waitForTimeout(200)
+    await expect(fullSizeImage).toHaveAttribute('src', /portrait/)
 
     // Verify the lightbox shows portrait
     const portraitSrcCell1 = await fullSizeImage.getAttribute('src')
@@ -195,7 +197,7 @@ test.describe('lightbox slider bidirectional sync (B-068)', () => {
 
     // Navigate to the second grid cell (step-2000, should still show portrait)
     await page.keyboard.press('Shift+ArrowRight')
-    await page.waitForTimeout(200)
+    await expect(fullSizeImage).not.toHaveAttribute('src', portraitSrcCell1!)
 
     const portraitSrcCell2 = await fullSizeImage.getAttribute('src')
     // Should still be portrait (not reverted to landscape)
@@ -217,17 +219,18 @@ test.describe('lightbox slider bidirectional sync (B-068)', () => {
 
     // Move slider to second value (portrait)
     await page.keyboard.press('ArrowRight')
-    await page.waitForTimeout(200)
+    await expect(fullSizeImage).toHaveAttribute('src', /portrait/)
+    const srcAtCell1 = await fullSizeImage.getAttribute('src')
 
     // Navigate right (to second cell)
     await page.keyboard.press('Shift+ArrowRight')
-    await page.waitForTimeout(200)
+    await expect(fullSizeImage).not.toHaveAttribute('src', srcAtCell1!)
     const srcAtCell2 = await fullSizeImage.getAttribute('src')
     expect(srcAtCell2).toContain('portrait')
 
     // Navigate right again (wraps back to first cell)
     await page.keyboard.press('Shift+ArrowRight')
-    await page.waitForTimeout(200)
+    await expect(fullSizeImage).not.toHaveAttribute('src', srcAtCell2!)
     const srcBackAtCell1 = await fullSizeImage.getAttribute('src')
 
     // First cell should show portrait, not have reverted to landscape

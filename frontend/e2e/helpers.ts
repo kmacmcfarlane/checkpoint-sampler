@@ -159,8 +159,10 @@ export async function selectTrainingRun(page: Page, runName: string): Promise<vo
     const popupVisible = await expect(popupMenu).toBeVisible({ timeout: 4000 }).then(() => true).catch(() => false)
     if (!popupVisible) {
       // First click was swallowed — dismiss any partial state and retry the open step.
+      // Wait for the popup to be fully gone (detached) rather than a fixed delay,
+      // so the retry click cannot land mid-teardown.
       await page.keyboard.press('Escape')
-      await page.waitForTimeout(300)
+      await expect(popupMenu).toHaveCount(0, { timeout: 5000 })
       await selectTrigger.click()
       try {
         await expect(popupMenu).toBeVisible({ timeout: 4000 })
@@ -171,7 +173,7 @@ export async function selectTrainingRun(page: Page, runName: string): Promise<vo
           )
         }
         await page.keyboard.press('Escape')
-        await page.waitForTimeout(300)
+        await expect(popupMenu).toHaveCount(0, { timeout: 5000 })
         continue // try the whole open→select flow again
       }
     }
@@ -189,8 +191,9 @@ export async function selectTrainingRun(page: Page, runName: string): Promise<vo
         )
       }
       // Popup dismissed before we could click — dismiss stale state and retry.
+      // Wait for the popup to be detached so the next attempt starts from a clean slate.
       await page.keyboard.press('Escape').catch(() => undefined)
-      await page.waitForTimeout(500)
+      await expect(popupMenu).toHaveCount(0, { timeout: 5000 })
     }
   }
 }
@@ -225,8 +228,10 @@ async function clickSelectAndWaitForPopup(
           `clickSelectAndWaitForPopup(${label}): popup did not appear after ${MAX_RETRIES} click attempts`,
         )
       }
+      // Wait for any partially-open popup to be fully dismissed before retrying,
+      // rather than guessing at an animation duration.
       await page.keyboard.press('Escape')
-      await page.waitForTimeout(300)
+      await expect(popupMenu).toHaveCount(0, { timeout: 5000 })
     }
   }
   // Unreachable but TypeScript requires a return
@@ -258,7 +263,10 @@ export async function closeDrawer(page: Page): Promise<void> {
     await drawerCloseButton.click()
     // Wait for the drawer to close (close button disappears)
     await expect(drawerCloseButton).not.toBeVisible()
-    await page.waitForTimeout(300)
+    // Wait for the mask to be detached rather than sleeping for the animation.
+    // Naive UI unmounts .n-drawer-mask once the leave transition finishes; until
+    // then it still intercepts pointer events on elements underneath (B-111/B-112).
+    await expect(page.locator('.n-drawer-mask:visible')).toHaveCount(0, { timeout: 5000 })
   }
 }
 
@@ -577,7 +585,11 @@ export async function closeFiltersDrawer(page: Page): Promise<void> {
     const lastClose = closeButtons.last()
     if (await lastClose.isVisible()) {
       await lastClose.click()
-      await page.waitForTimeout(300)
+      // Wait for the filters drawer body to disappear and its mask to detach,
+      // rather than sleeping for the leave animation. openFiltersDrawer calls
+      // dismissOverlays first, so the filters mask is the only mask in play here.
+      await expect(page.locator('[data-testid="filters-drawer-content"]')).not.toBeVisible({ timeout: 5000 })
+      await expect(page.locator('.n-drawer-mask:visible')).toHaveCount(0, { timeout: 5000 })
     }
   }
 }

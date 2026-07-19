@@ -420,9 +420,9 @@ test.describe('sample generation flow (with ComfyUI mock)', () => {
     )
     expect(jobs).not.toBeNull()
 
-    // Wait a bit for WebSocket events to propagate through the backend to the frontend
-    await page.waitForTimeout(3000)
-
+    // No fixed wait for WebSocket propagation is needed: the pollJobStatus call
+    // below is the actual synchronization point — the job only reaches a terminal
+    // state after the executor has processed the ComfyUI progress events.
     // Verify inference_progress events were received via the app's WebSocket connection.
     // The backend forwards ComfyUI "progress" events as "inference_progress" WS messages
     // to all connected frontend clients (AC1, AC2 of S-073).

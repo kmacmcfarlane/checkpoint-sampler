@@ -2179,7 +2179,7 @@ stories:
   - id: W-031
     title: "Replace fixed-timeout waits in E2E helpers/specs and backend concurrency tests with deterministic synchronization"
     priority: 35
-    status: todo
+    status: uat
     complexity: medium
     requires: []
     acceptance:

@@ -127,3 +127,21 @@ If the job_executor `sql: no rows in result set` finding (see B-159) is confirme
 * priority: low
 * source: qa
 B-162 revealed that `comfyui-mock` served no `object_info/LoraLoader`, so no LoRA job could run to completion in E2E — the LoRA path was effectively untested end-to-end. QA fixed it by adding a `LoraLoader` handler seeded from a new `LORA_FILENAMES` env var set in `docker-compose.test.yml`. That leaves the mock's checkpoint/LoRA filename lists hardcoded in compose, free to drift from the actual `test-fixtures/` directory contents. A follow-up could have the mock enumerate `test-fixtures/` at container start so the two cannot diverge.
+
+### Lint gate banning bare `page.waitForTimeout` in E2E specs
+* status: needs_approval
+* priority: medium
+* source: developer
+W-031 dropped `frontend/e2e/helpers.ts` to zero `waitForTimeout` calls, but 35 remain across other specs and nothing prevents the count from creeping back. TEST_PRACTICES 6.10 now mandates an inline `TEST_PRACTICES 6.10` comment on every legitimate hold-position exception, which makes the rule mechanically checkable: a `no-restricted-syntax` ESLint rule (or a CI grep gate) could reject any `page.waitForTimeout` lacking that adjacent comment. Depends on the "lint the frontend/e2e/ directory" devops idea — `e2e/` is currently eslint-ignored, so no rule can fire there today. Raised independently by both the developer and the reviewer during W-031.
+
+### Convert the remaining ~34 spec-level fixed waits to deterministic waits
+* status: needs_approval
+* priority: medium
+* source: developer
+W-031 scoped its work to `helpers.ts` plus three named specs, leaving 35 `waitForTimeout` sites (34 after excluding the one documented 6.10 hold-position exception in `slider-playback.spec.ts`). The "poll the actual awaited state" pattern proven in W-031 applies mechanically to most of them. They cluster into recognizable categories: ~10 popup/dialog close-animation waits (`sample-generation.spec.ts` ×4, `mru-vae-te.spec.ts` ×3, `study-mru-autofill.spec.ts` ×2), retry backoffs in the `validation-*` specs, and genuine key-hold durations in `slider-keyboard-autorepeat.spec.ts` (several of which may be legitimate 6.10 exceptions). The popup-animation cluster is the best first target — it can reuse the mask/menu-detach assertion pattern directly. Worth a dedicated story rather than expanding W-031's diff. Raised by the developer, reviewer, and QA independently.
+
+### Migrate `seed-partial-samples.spec.ts` to the shared `closeDrawer()` helper
+* status: needs_approval
+* priority: low
+* source: reviewer
+`frontend/e2e/seed-partial-samples.spec.ts:195-202` hand-rolls the exact drawer-close pattern that W-031 superseded (click → `not.toBeVisible()` → `waitForTimeout(300)`). It is now the one site that directly contradicts the rewritten TEST_PRACTICES 6.9, which tells contributors to prefer the shared helpers. Small, mechanical fix: replace with `closeDrawer(page)` from `helpers.ts`. Out of W-031's AC scope; flagged by the reviewer and confirmed still present by QA.

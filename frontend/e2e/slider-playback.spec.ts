@@ -205,9 +205,11 @@ test.describe('slider and playback controls', () => {
     const valueAfterStop = await valueDisplay.textContent()
     expect(valueAfterStop?.trim()).toBe('portrait')
 
-    // Wait briefly and verify the value does not change (playback is stopped)
-    // Use a small timeout poll to verify the value is stable
-    await page.waitForTimeout(600) // 600ms > 250ms interval to verify no advance
+    // Intentional fixed wait (documented exception, TEST_PRACTICES 6.10):
+    // hold-position negative check — there is no state transition to await, so
+    // real time must pass before asserting the value did NOT advance.
+    // 600ms > the 250ms playback interval.
+    await page.waitForTimeout(600)
     const valueAfterWait = await valueDisplay.textContent()
     expect(valueAfterWait?.trim()).toBe('portrait')
   })

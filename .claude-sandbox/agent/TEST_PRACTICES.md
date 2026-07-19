@@ -484,10 +484,24 @@ Never use Naive UI internal CSS classes (e.g., `.n-dynamic-tags__add`, `.n-selec
 Set an explicit `timeout` in `playwright.config.ts` (e.g., `timeout: 15000`) so the value is visible and intentional. Do not rely on Playwright's default timeout.
 
 ### 6.9 NDrawer mask interaction
-NDrawer renders a mask overlay that intercepts pointer events on elements behind it. In E2E tests, always close or collapse the drawer before clicking on grid cells or other elements underneath it. Add a brief `page.waitForTimeout(300)` after closing to allow the mask animation to complete.
+NDrawer renders a mask overlay that intercepts pointer events on elements behind it. In E2E tests, always close or collapse the drawer before clicking on grid cells or other elements underneath it.
+
+Do **not** sleep for the mask animation. Naive UI unmounts `.n-drawer-mask` once the leave transition finishes, so wait on that deterministic state instead (W-031):
+
+```ts
+await expect(page.locator('.n-drawer-mask:visible')).toHaveCount(0, { timeout: 5000 })
+```
+
+The shared `closeDrawer()` / `closeFiltersDrawer()` helpers in `frontend/e2e/helpers.ts` already do this — prefer them over hand-rolled drawer teardown.
 
 ### 6.10 Playback test timing
-For timing-sensitive E2E assertions (e.g., slider playback advancement), set playback speed to the minimum value and use generous timeouts (e.g., `{ timeout: 5000 }` for a 0.25s speed gives a 20x safety margin). Avoid `page.waitForTimeout()` except for hold-position verification where you need to assert the slider has NOT moved.
+For timing-sensitive E2E assertions (e.g., slider playback advancement), set playback speed to the minimum value and use generous timeouts (e.g., `{ timeout: 5000 }` for a 0.25s speed gives a 20x safety margin). Avoid `page.waitForTimeout()` except for hold-position verification where you need to assert the slider has NOT moved. A hold-position check is the one legitimate use of a fixed wait: there is no state transition to await, so you must let real time pass and then assert nothing changed. Mark every such site with an inline comment referencing this section, e.g.:
+
+```ts
+// Intentional fixed wait (documented exception, TEST_PRACTICES 6.10):
+// hold-position negative check — 600ms > the 250ms playback interval.
+await page.waitForTimeout(600)
+```
 
 ## 7) Accessibility testing
 

@@ -104,20 +104,25 @@ async function waitForDeleteButton(page: import('@playwright/test').Page, jobId:
   const deleteButton = page.locator(`[data-testid="job-${jobId}-delete"]`)
   const refreshButton = page.locator('[role="dialog"][aria-modal="true"]').filter({ hasText: 'Sample Jobs' }).locator('button').filter({ hasText: 'Refresh' })
 
-  // Poll: click Refresh up to 10 times (with 3s intervals) until Delete appears
-  for (let attempt = 0; attempt < 10; attempt++) {
-    if (await deleteButton.isVisible()) {
-      return deleteButton
-    }
-    // Click Refresh to re-fetch job data from the API
-    if (await refreshButton.isVisible()) {
-      await refreshButton.click()
-    }
-    await page.waitForTimeout(3000)
-  }
+  // Poll on the actual awaited state (Delete button visible), clicking Refresh
+  // between polls to re-fetch job data from the API. expect.poll retries on its
+  // own schedule and stops as soon as the condition holds — no fixed sleeps.
+  await expect
+    .poll(
+      async () => {
+        if (await deleteButton.isVisible()) {
+          return true
+        }
+        if (await refreshButton.isVisible()) {
+          await refreshButton.click()
+        }
+        return false
+      },
+      { timeout: 30000, intervals: [250, 500, 1000, 2000] },
+    )
+    .toBe(true)
 
-  // Final check — fail with a clear assertion error if still not visible
-  await expect(deleteButton).toBeVisible({ timeout: 3000 })
+  await expect(deleteButton).toBeVisible()
   return deleteButton
 }
 

@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -382,7 +383,13 @@ var _ = Describe("ComfyUIHTTPClient timeout behaviour", func() {
 	Describe("caller context cancellation", func() {
 		It("aborts DownloadImage promptly when the caller cancels the context", func() {
 			// Stub that never finishes — it blocks until the request context is done.
+			// `received` is closed as soon as the handler is entered, which is the
+			// precise point at which the request is in-flight. Cancelling on that
+			// signal (rather than after a fixed sleep) makes the test deterministic.
+			received := make(chan struct{})
+			var once sync.Once
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				once.Do(func() { close(received) })
 				<-r.Context().Done()
 				// Respond after cancellation so the server goroutine can exit cleanly.
 				w.WriteHeader(http.StatusOK)
@@ -394,9 +401,9 @@ var _ = Describe("ComfyUIHTTPClient timeout behaviour", func() {
 
 			cancelCtx, cancel := context.WithCancel(ctx)
 
-			// Cancel after a short delay so the request is in-flight.
+			// Cancel once the server has actually received the request.
 			go func() {
-				time.Sleep(30 * time.Millisecond)
+				<-received
 				cancel()
 			}()
 
@@ -410,7 +417,12 @@ var _ = Describe("ComfyUIHTTPClient timeout behaviour", func() {
 		})
 
 		It("aborts a control-plane call promptly when the caller cancels the context", func() {
+			// `received` is closed when the handler is entered — the deterministic
+			// signal that the control-plane request is in-flight.
+			received := make(chan struct{})
+			var once sync.Once
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				once.Do(func() { close(received) })
 				<-r.Context().Done()
 				w.WriteHeader(http.StatusOK)
 			}))
@@ -420,7 +432,7 @@ var _ = Describe("ComfyUIHTTPClient timeout behaviour", func() {
 
 			cancelCtx, cancel := context.WithCancel(ctx)
 			go func() {
-				time.Sleep(30 * time.Millisecond)
+				<-received
 				cancel()
 			}()
 
