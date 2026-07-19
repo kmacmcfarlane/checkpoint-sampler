@@ -198,3 +198,15 @@ Wide mechanical renames (e.g. S-171's ~90 near-identical `/api/` → `/api/v1/` 
 * priority: low
 * source: developer
 Agents dispatched inside the claude-sandbox cannot `curl`/fetch a `docker compose`-published host port to confirm host-browser reachability (connection refused despite `docker port` confirming the correct binding), because the sandbox container's network namespace doesn't route loopback back to the host Docker daemon's published ports. This is fine for `make test-e2e` (container-to-container), but any story asking to "verify from the host browser" cannot be closed out by the agent alone. Suggest AGENT_FLOW.md / story-writing guidance phrase such acceptance criteria as "verify via `docker port` + internal container logs" or flag them as human UAT steps rather than implying a literal host browser round-trip.
+
+### Triage pass for low-confidence "noise" bug reports before full dispatch
+* status: needs_approval
+* priority: low
+* source: developer
+When QA files a bug it already suspects is environmental noise (as with B-173, where the ticket notes themselves said "may well close as no-change"), the ticket still consumes a full todo → in_progress → review cycle. A lightweight convention — e.g. a `suspected_noise: true` field, or a `triage` status — would let the orchestrator run a single cheap confirmation pass instead of a full developer + reviewer dispatch on a ticket that is likely to close with no code change.
+
+### Verify each reported path/symptom individually when closing an investigation ticket
+* status: needs_approval
+* priority: low
+* source: reviewer
+B-173 listed four 404 paths; three matched pre-S-171 routes exactly, but the fourth (`/api/settings`) never existed anywhere in repo history — it was a paraphrase in the sweep report, not a captured path. The developer's writeup treated all four as a block and didn't reconcile the outlier. Guidance for investigation tickets should require each cited symptom be checked individually against history, with any that don't map called out explicitly — a symptom that doesn't match anything is exactly the one most likely to indicate a second, unrelated cause.

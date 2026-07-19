@@ -2370,7 +2370,7 @@ stories:
   - id: B-173
     title: "Investigate 404s on deprecated unversioned /api/* paths seen in dev backend logs"
     type: bug
-    status: todo
+    status: uat
     priority: 30
     complexity: low
     requires: []

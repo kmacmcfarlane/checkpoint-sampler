@@ -5,6 +5,13 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-173: Investigate 404s on deprecated unversioned `/api/*` paths seen in dev backend logs
+- **Investigation only — no code change.** Confirmed no current code path issues requests to unversioned `/api/*` paths. `ApiClient` (`frontend/src/api/client.ts`) defaults to `/api/v1` and is only overridden in its own tests; `buildDefaultWSUrl()` hardcodes `/api/v1/ws`; no `VITE_*`/`API_BASE` env var or build-time substitution can redirect the base URL
+- Both the `vite.config.ts` dev proxy and the `nginx.conf` `location /api/` block use non-rewriting `proxy_pass` (no URI segment after the upstream), so neither can strip `/v1` from an outbound `/api/v1/*` request. No `docker-compose`/Makefile healthcheck targets an unversioned path
+- Commit `674a882` (S-171) moved every route to `/api/v1` as a clean break with no aliases. Route text at `674a882^` matches the reported `/api/ws`, `/api/comfyui/status`, and `/api/demo` exactly — consistent with a browser tab holding a pre-S-171 JS bundle in memory on the LAN client (192.168.1.95)
+- Noted: the fourth reported path `/api/settings` never existed in this repo's history (`git log --all -S` finds zero hits); the pre-S-171 equivalent was `/api/config`. Likely a human-readable label in the sweep report rather than a literal captured path
+- The `/api/test/*` paths in `frontend/e2e/*` are a distinct, `ENABLE_TEST_ENDPOINTS`-gated surface mounted only in the test compose stacks — unrelated to the reported 404s
+
 ### S-174: User-facing usage guide and troubleshooting doc
 - Added `docs/usage.md` — the first user-facing (as opposed to developer-facing) documentation. Walks a new user through restoring the demo dataset from Settings, the Study → Sample Job → XY grid workflow, and enabling ComfyUI generation via `comfyui.url` / `workflow_dir` / `reconnect_interval`. Existing `docs/ui.md` covers component architecture and never explained how to actually operate the viewer or why inference features might appear disabled
 - Troubleshooting/FAQ section covers the `ComfyUI (offline)` pill (jobs queue and resume automatically once reconnected), an empty training-run list, models not visible to ComfyUI (filename matching / `extra_model_paths.yaml`), and proxy `allowed_origins` mismatches (hostname-only matching, scheme and port ignored), plus stuck jobs and where output lands
