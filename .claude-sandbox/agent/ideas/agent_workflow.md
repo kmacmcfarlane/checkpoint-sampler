@@ -210,3 +210,9 @@ When QA files a bug it already suspects is environmental noise (as with B-173, w
 * priority: low
 * source: reviewer
 B-173 listed four 404 paths; three matched pre-S-171 routes exactly, but the fourth (`/api/settings`) never existed anywhere in repo history — it was a paraphrase in the sweep report, not a captured path. The developer's writeup treated all four as a block and didn't reconcile the outlier. Guidance for investigation tickets should require each cited symptom be checked individually against history, with any that don't map called out explicitly — a symptom that doesn't match anything is exactly the one most likely to indicate a second, unrelated cause.
+
+### Grooming should CHANGELOG-check acceptance criteria before filing
+* status: needs_approval
+* priority: very-low
+* source: developer
+M-004's AC3 (correct CLAUDE.md `test-e2e` shard default from 12 to 4) was already fixed by a prior story — CHANGELOG.md recorded the fix, but the ticket still listed it as open work. The developer had to verify and then explain the no-op. A quick CHANGELOG/grep confirmation step during ticket grooming would keep already-resolved AC items out of dispatched tickets, avoiding a round-trip where a developer, reviewer, and QA agent each independently confirm that nothing needs doing.
