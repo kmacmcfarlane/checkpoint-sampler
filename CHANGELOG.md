@@ -5,6 +5,11 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-177: Grid view header — show training-run name and study label (stacked, ellipsis, tooltip)
+- The grid-view header now shows a two-line label to the right of the Filters button identifying the selected run: run name on top, study label below (modest type). Each line truncates with a CSS ellipsis (max-width 220px) and an `NTooltip` on hover reveals the full run name + study label
+- The label uses the same visibility guard as the Filters button (`selectedTrainingRun && !scanning && !scanError && dimensions.length > 0`), and renders only the name line when `study_label` is empty (legacy/checkpoint-source runs)
+- Displays `training_run_dir || name` — for study-grouped runs `name` is a composite backend id (`model/study/model`), so the clean directory name is preferred, matching the existing validation-dialog title pattern. Frontend-only
+
 ### S-179: Generate Samples — default base model from checkpoint ss_ metadata for fresh LoRA runs
 - The Generate Samples base-model selector now defaults, for a *fresh* LoRA run with nothing remembered, to the base model named in the checkpoint's `ss_` training metadata — preferring `ss_sd_model_name`, then `ss_pretrained_model_name_or_path`, then `ss_base_model_version` — matched by basename (case-insensitive, extension-stripped) against `base_model_dir` options. No match or missing metadata leaves it unselected (best-effort, no wrong guess, no error). Frontend-only; reuses the existing checkpoint-metadata fetch (no new API call)
 - Precedence preserved: the remembered-from-samples value and any explicit user choice always win over the metadata default, gated by an `availabilityFetched` flag and a `hasRememberedForAnyStudy` guard; extraction is LoRA-gated so checkpoint (non-LoRA) runs never trigger it

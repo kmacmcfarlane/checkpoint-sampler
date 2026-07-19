@@ -35,6 +35,14 @@ test.describe('training run selection and XY grid display', () => {
 
     // The app scans the run (briefly shows "Scanning...") then renders the Dimensions panel
     await expect(page.getByText('Dimensions')).toBeVisible()
+
+    // S-177: the header run label appears to the right of the Filters button, showing
+    // the selected run's name. This fixture run has no study_label, so only the
+    // run-name line should render (no empty second line).
+    const runLabel = page.locator('[data-testid="run-label"]')
+    await expect(runLabel).toBeVisible()
+    await expect(runLabel.locator('.run-label__name')).toHaveText('my-model')
+    await expect(runLabel.locator('.run-label__study')).not.toBeVisible()
   })
 
   test('XY grid renders with dimension axis labels after assigning axes', async ({ page }) => {
@@ -74,6 +82,36 @@ test.describe('training run selection and XY grid display', () => {
     // study_label matches a seeded Study record, which is required for the prompt-text
     // lookup map (App.vue activeStudyPromptTextMap) to be populated (S-160).
     await selectStudy(page, 'E2E Fixture Study')
+    await expect(page.getByText('Dimensions')).toBeVisible()
+
+    // S-177: the header run label shows the run name (top) and study label (below)
+    // stacked when a study-grouped run is selected. Hovering reveals the full text
+    // in a tooltip (defends against ellipsis truncation for long names).
+    const runLabel = page.locator('[data-testid="run-label"]')
+    await expect(runLabel).toBeVisible()
+    await expect(runLabel.locator('.run-label__name')).toHaveText('my-model')
+    await expect(runLabel.locator('.run-label__study')).toHaveText('E2E Fixture Study')
+
+    // Close the sidebar drawer first -- its mask intercepts pointer events (hover) on
+    // the header, including the run label (B-128-style actionability blocker).
+    await closeDrawer(page)
+    await dismissOverlays(page)
+
+    const runLabelBox = await runLabel.boundingBox()
+    if (!runLabelBox) throw new Error('run label has no bounding box')
+    await page.mouse.move(runLabelBox.x + 1, runLabelBox.y + 1)
+    await page.mouse.move(
+      runLabelBox.x + runLabelBox.width / 2,
+      runLabelBox.y + runLabelBox.height / 2,
+      { steps: 5 },
+    )
+    // Naive UI's tooltip popup class is dynamic/scoped, so match on the rendered
+    // text content ("<run name> — <study label>") instead of a CSS class.
+    await expect(page.getByText('my-model — E2E Fixture Study')).toBeVisible()
+
+    // Reopen the controls drawer -- it was closed above to unblock the header
+    // hover check, but the axis-assignment controls below live inside it.
+    await page.getByRole('button', { name: 'Toggle controls drawer' }).click()
     await expect(page.getByText('Dimensions')).toBeVisible()
 
     // Assign checkpoint → X axis, prompt_name → Y axis (prompt dimension on rows).

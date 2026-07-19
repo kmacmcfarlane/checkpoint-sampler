@@ -2235,7 +2235,7 @@ stories:
   - id: S-177
     title: "Grid view header: show training-run name and study label (stacked, ellipsis, tooltip)"
     type: story
-    status: todo
+    status: uat
     priority: 50
     complexity: low
     requires: []

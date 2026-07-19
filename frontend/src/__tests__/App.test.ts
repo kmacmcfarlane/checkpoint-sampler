@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
-import { NButton, NTag } from 'naive-ui'
+import { NButton, NTag, NTooltip } from 'naive-ui'
 import App from '../App.vue'
 import TrainingRunSelector from '../components/TrainingRunSelector.vue'
 import type { TrainingRun, SampleJob, Preset } from '../api/types'
@@ -481,6 +481,98 @@ describe('App', () => {
 
       const filtersBtn = wrapper.find('[data-testid="filters-button"]')
       expect(filtersBtn.attributes('aria-label')).toBe('Toggle filters drawer')
+    })
+  })
+
+  describe('Header run label (S-177)', () => {
+    // AC: label appears to the right of the Filters button showing run name (top)
+    // and study label (below); hidden when no run selected; ellipsis + tooltip.
+    const mockRunWithStudy: TrainingRun = {
+      // S-177 bugfix: for study-grouped runs, `name` is a composite id
+      // (e.g. "my-model/E2E Fixture Study/my-model") built by the backend;
+      // `training_run_dir` holds the clean checkpoint-directory name that
+      // should actually be displayed. This fixture intentionally sets
+      // `name` to a composite value to catch regressions where the label
+      // renders the raw `name` instead of `training_run_dir`.
+      id: 'run-2',
+      name: 'this-is-a-very-long-training-run-name-that-should-truncate/study-alpha/this-is-a-very-long-training-run-name-that-should-truncate',
+      training_run_dir: 'this-is-a-very-long-training-run-name-that-should-truncate',
+      kind: 'checkpoint',
+      checkpoint_count: 1,
+      has_samples: true,
+      checkpoints: [
+        { filename: 'model.safetensors', step_number: 1000, has_samples: true },
+      ],
+      study_label: 'study-alpha',
+    }
+
+    it('AC: run label is hidden when no training run is selected', async () => {
+      const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="run-label"]').exists()).toBe(false)
+    })
+
+    it('AC: renders run-name and study-label lines when study_label is present', async () => {
+      const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
+      await flushPromises()
+
+      const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
+      selector.vm.$emit('select', mockRunWithStudy)
+      await flushPromises()
+
+      const label = wrapper.find('[data-testid="run-label"]')
+      expect(label.exists()).toBe(true)
+      expect(label.find('.run-label__name').text()).toBe(mockRunWithStudy.training_run_dir)
+      expect(label.find('.run-label__study').exists()).toBe(true)
+      expect(label.find('.run-label__study').text()).toBe('study-alpha')
+    })
+
+    it('AC: renders only the run-name line when study_label is empty (legacy run)', async () => {
+      const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
+      await flushPromises()
+
+      const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
+      selector.vm.$emit('select', mockTrainingRun)
+      await flushPromises()
+
+      const label = wrapper.find('[data-testid="run-label"]')
+      expect(label.exists()).toBe(true)
+      expect(label.find('.run-label__name').text()).toBe(mockTrainingRun.name)
+      expect(label.find('.run-label__study').exists()).toBe(false)
+    })
+
+    it('AC: run label is hidden when selected run has zero dimensions (same guard as Filters button)', async () => {
+      // Mirrors the Filters-button-hidden empty-state case: when a run is selected
+      // but the scan yields no dimensions, both the Filters button and the run
+      // label must be hidden (identical guard: dimensions.length > 0).
+      mockScanTrainingRun.mockResolvedValueOnce({ images: [], dimensions: [] })
+
+      const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
+      await flushPromises()
+
+      const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
+      selector.vm.$emit('select', mockTrainingRun)
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="filters-button"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="run-label"]').exists()).toBe(false)
+    })
+
+    it('AC: tooltip content includes full run name and study label', async () => {
+      const wrapper = mount(App, { global: { plugins: [createPinia()], stubs: { Teleport: true } } })
+      await flushPromises()
+
+      const selector = wrapper.findComponent({ name: 'TrainingRunSelector' })
+      selector.vm.$emit('select', mockRunWithStudy)
+      await flushPromises()
+
+      const tooltip = wrapper.findAllComponents(NTooltip).find(
+        (t) => t.find('[data-testid="run-label"]').exists(),
+      )
+      expect(tooltip).toBeDefined()
+      expect(tooltip!.text()).toContain(mockRunWithStudy.training_run_dir)
+      expect(tooltip!.text()).toContain('study-alpha')
     })
   })
 

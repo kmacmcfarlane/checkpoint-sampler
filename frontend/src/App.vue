@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import { NConfigProvider, NMessageProvider, NButton, NTag } from 'naive-ui'
+import { NConfigProvider, NMessageProvider, NButton, NTag, NTooltip } from 'naive-ui'
 import type { TrainingRun, DimensionRole, FilterMode, UnifiedDimensionMode, Preset, SampleJob, Study } from './api/types'
 import { apiClient } from './api/client'
 import { useJobProgress } from './composables/useJobProgress'
@@ -889,6 +889,18 @@ const showProminentGenerateButton = computed(() => {
   return selectedTrainingRun.value && !selectedTrainingRun.value.has_samples
 })
 
+/**
+ * S-177: display name for the header run label. For study-grouped runs,
+ * `name` is a composite id (e.g. "my-model/E2E Fixture Study/my-model") —
+ * `training_run_dir` holds the clean checkpoint-directory name. Mirrors the
+ * pattern already used for the validation dialog title (see :title above).
+ */
+const runLabelName = computed(() => {
+  const run = selectedTrainingRun.value
+  if (!run) return ''
+  return run.training_run_dir || run.name
+})
+
 /** AC1–AC5 (B-051): Bead status and color for the Jobs nav button. */
 const buttonBeadStatus = computed((): BeadStatus | null => {
   if (!selectedTrainingRun.value) return null
@@ -961,6 +973,23 @@ async function handleSlideoutValidationRefresh() {
             data-testid="filters-button"
             @click="toggleFiltersDrawer"
           >Filters</NButton>
+          <NTooltip
+            v-if="selectedTrainingRun && !scanning && !scanError && dimensions.length > 0"
+            trigger="hover"
+          >
+            <template #trigger>
+              <div class="run-label" data-testid="run-label">
+                <div class="run-label__name">{{ runLabelName }}</div>
+                <div
+                  v-if="selectedTrainingRun.study_label"
+                  class="run-label__study"
+                >{{ selectedTrainingRun.study_label }}</div>
+              </div>
+            </template>
+            {{ selectedTrainingRun.study_label
+              ? `${runLabelName} — ${selectedTrainingRun.study_label}`
+              : runLabelName }}
+          </NTooltip>
           <AnimationControls
             v-if="sliderDimension"
             :values="sliderDimension.values"
@@ -1315,6 +1344,29 @@ async function handleSlideoutValidationRefresh() {
   align-items: center;
   gap: 0.5rem;
   flex-wrap: wrap;
+}
+
+.run-label {
+  min-width: 0;
+  max-width: 220px;
+  overflow: hidden;
+}
+
+.run-label__name {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.run-label__study {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Compact zoom control wrapper in header */
