@@ -5,6 +5,13 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### M-004: Doc drift — database.md migrations 27/28, filesystem.md manifest location
+- `docs/database.md` header advanced from "through version 26" to 28. Added the migration-27 `CHECK (status IN ...)` constraints to both `sample_jobs` and `sample_job_items` (v27 rebuilds both tables), and the migration-28 `vae`/`text_encoder`/`shift` columns to `sample_job_items` — the per-item dimension overrides the job executor resolves from the study's multi-value lists
+- `docs/filesystem.md` corrected to place `manifest.json` inside the base-model directory for LoRA jobs. `StudyOutputDir` appends a base-model path segment only when `baseModel != ""`, so checkpoint jobs write the manifest at the study level and LoRA jobs one level deeper. The doc previously claimed the study level unconditionally, which put the manifest above the directory it actually describes (corrected by B-162 in code; this catches the doc up)
+- The root-level "Checkpoint-to-sample mapping" section is now labeled `(legacy layout)` with a pointer to the current per-training-run hierarchy, so the exact-filename-match rule is no longer read as describing current behavior
+- AC3 (CLAUDE.md `test-e2e` shard default 12→4) needed no change — both `CLAUDE.md` and `Makefile` already read 4, fixed by an earlier story. Verified rather than assumed
+- Docs-only; every schema and path claim was verified against `backend/internal/store/migrations.go` and `backend/internal/fileformat/pathsanitize.go` rather than carried forward from the prior doc text
+
 ### S-176: Production compose hardening — restart policies, non-root containers, healthchecks
 - Both prod services now set `restart: unless-stopped`, so a backend crash or host reboot no longer leaves the app down until manually restarted
 - Backend image runs as non-root `appuser` (UID/GID 1000), overridable via new `PUID`/`PGID` env vars. The `1000:1000` default matches the common first-user UID on single-user Linux hosts; users whose `SAMPLE_DIR` is owned by a different UID set `PUID`/`PGID` in `.env` to avoid `EACCES` on writes. Documented in `.env.example` and the README "Security model" section

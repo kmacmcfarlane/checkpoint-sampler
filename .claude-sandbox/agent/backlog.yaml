@@ -2217,7 +2217,7 @@ stories:
   - id: M-004
     title: "Doc drift: database.md migrations 27/28, filesystem.md manifest location post-B-162, CLAUDE.md shard count"
     priority: 40
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:

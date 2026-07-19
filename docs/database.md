@@ -3,7 +3,7 @@
 > Source of truth: this document is reconciled against
 > `backend/internal/store/migrations.go` (the authoritative migration list) and
 > `backend/internal/store/db.go` (driver, pragmas, migration runner). Each table
-> below reflects the **final** schema after all migrations through version 26 are
+> below reflects the **final** schema after all migrations through version 28 are
 > applied, accounting for table recreations and `ALTER TABLE` add/drop columns.
 
 ## 1) Overview
@@ -195,7 +195,9 @@ CREATE TABLE sample_jobs (
     vae                   TEXT,                             -- nullable
     clip                  TEXT,                             -- nullable
     shift                 REAL,                             -- nullable
-    status                TEXT NOT NULL,
+    status                TEXT NOT NULL
+        CHECK (status IN ('pending','running','stopped','completed',
+                           'completed_with_errors','failed')),  -- CHECK added v27 (table rebuild)
     total_items           INTEGER NOT NULL,
     completed_items       INTEGER NOT NULL DEFAULT 0,
     error_message         TEXT,                             -- nullable
@@ -226,7 +228,8 @@ CREATE TABLE sample_job_items (
     sampler_name         TEXT NOT NULL,
     scheduler            TEXT NOT NULL,
     seed                 INTEGER NOT NULL,
-    status               TEXT NOT NULL,
+    status               TEXT NOT NULL
+        CHECK (status IN ('pending','running','completed','failed','skipped')),  -- CHECK added v27 (table rebuild)
     comfyui_prompt_id    TEXT,                              -- nullable
     output_path          TEXT,                              -- nullable
     error_message        TEXT,                              -- nullable
@@ -240,6 +243,11 @@ CREATE TABLE sample_job_items (
     lora_model_path      TEXT NOT NULL DEFAULT '',          -- ComfyUI-relative LoRA path (added v23)
     strength_model       REAL NOT NULL DEFAULT 1.0,         -- LoRA model strength (added v24)
     strength_clip        REAL NOT NULL DEFAULT 1.0,         -- LoRA clip strength (added v25)
+    -- S-157 per-item dimension overrides (added v28); resolved by the job
+    -- executor from the study's multi-value vaes/text_encoders/shifts lists.
+    vae                  TEXT NOT NULL DEFAULT '',          -- added v28
+    text_encoder         TEXT NOT NULL DEFAULT '',          -- added v28
+    shift                REAL,                              -- nullable (added v28)
     FOREIGN KEY (job_id) REFERENCES sample_jobs(id) ON DELETE CASCADE
 );
 

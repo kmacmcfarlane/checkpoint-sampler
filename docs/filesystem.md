@@ -77,10 +77,15 @@ New jobs output into a hierarchy scoped by training run and study. This scopes s
 
 The directory level uses the study's **display name** (`study.Name`), not the study's database UUID. Like training run names, study names are not slash-sanitized here — they are expected to be a single path segment.
 
-A manifest file is written at the study level (above any base-model directory) to capture the full job configuration:
+A manifest file is written to capture the full job configuration. It lands in
+the same directory that contains the checkpoint image subdirectories: the
+study directory for checkpoint jobs, or the base-model directory for LoRA jobs
+(B-162 — the manifest was previously always written at the study level, which
+put it above the base-model directory it actually described):
 
 ```
-{sample_dir}/{sanitized_training_run_name}/{study_name}/manifest.json
+{sample_dir}/{sanitized_training_run_name}/{study_name}/manifest.json                    ← checkpoint jobs
+{sample_dir}/{sanitized_training_run_name}/{study_name}/{base_model_name}/manifest.json  ← LoRA jobs
 ```
 
 #### Per-image companion files
@@ -125,8 +130,8 @@ sample_dir: ~/ai/outputs/stable-diffusion/comfyui/
 sample_dir: ~/ai/outputs/stable-diffusion/comfyui/
 └── flux_my-flux-lora/                    ← sanitized from "flux/my-flux-lora"
     └── My Study/
-        ├── manifest.json                 ← study level, above the base-model dir
         └── flux1-dev/                     ← base_model_name (extension stripped)
+            ├── manifest.json              ← job manifest (inside the base-model dir, per B-162)
             └── my-flux-lora-step00001000.safetensors/
                 ├── prompt_name=forest_portals&seed=420&cfg=1&_00001_.png
                 ├── prompt_name=forest_portals&seed=420&cfg=1&_00001_.json
@@ -167,14 +172,16 @@ sample_dir: ~/ai/outputs/stable-diffusion/comfyui/
     └── ...
 ```
 
-### Checkpoint-to-sample mapping
+### Checkpoint-to-sample mapping (legacy layout)
 
-The mapping between checkpoint files and sample directories uses **exact filename matching**:
+This describes the root-level legacy layout above, where checkpoint-to-sample
+mapping uses **exact filename matching** directly under `sample_dir` (no
+training-run/study scoping):
 
 - Checkpoint file: `qwen/psai4rt-v0.3.0-no-reg-step00004500.safetensors`
 - Expected sample directory: `<sample_dir>/psai4rt-v0.3.0-no-reg-step00004500.safetensors/`
 
-Note: Only the checkpoint filename (not the relative path within checkpoint_dirs) is used for matching against sample_dir. The sample directory name includes the `.safetensors` extension.
+Note: Only the checkpoint filename (not the relative path within checkpoint_dirs) is used for matching against sample_dir. The sample directory name includes the `.safetensors` extension. Current-layout (per-training-run) samples are matched by scanning the `{sample_dir}/{sanitized_training_run_name}/{study_name}/` hierarchy described above, not by this root-level rule.
 
 ### Image filename encoding
 
