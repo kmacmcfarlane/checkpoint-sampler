@@ -5,6 +5,13 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### S-175: Keyboard accessibility — XYGrid header filtering and ImageCell lightbox activation
+- XY grid column and row headers are now keyboard-operable: `tabindex="0"` plus an `onHeaderKeydown` handler that activates the same solo/unsolo filtering on Enter/Space that a mouse click triggers. The existing `role="columnheader"`/`role="rowheader"` were deliberately kept rather than switched to `role="button"` — ARIA does not allow combining them, and the header roles are what assistive tech uses to announce position within the surrounding `role="grid"` structure
+- `ImageCell` is now focusable whenever it has an image (`relativePath` set), not only when slider dimensions exist, and gains `role="button"`. Enter/Space opens the lightbox via the same path as a click. Previously a cell with no slider dims was unreachable by keyboard, so the lightbox was mouse-only
+- The Enter/Space branch in `onKeydown` runs before the slider guard but is safe for empty cells (`onClick` already null-guards on the image URL) and does not interfere with the pre-existing arrow-key slider stepping — covered by a dedicated non-interference test
+- Added `:focus-visible` outline styling (2px accent-color, -2px offset) for both header classes so focus stays visible against the dark grid background
+- Tests: component coverage for focusability, `role`, Enter/Space activation, empty-cell no-op, and unrelated-key no-op in both `ImageCell` and `XYGrid`, plus a new `keyboard-accessibility` E2E spec asserting real outcomes (grid narrows on header solo; lightbox becomes visible) rather than just event emission
+
 ### B-173: Investigate 404s on deprecated unversioned `/api/*` paths seen in dev backend logs
 - **Investigation only — no code change.** Confirmed no current code path issues requests to unversioned `/api/*` paths. `ApiClient` (`frontend/src/api/client.ts`) defaults to `/api/v1` and is only overridden in its own tests; `buildDefaultWSUrl()` hardcodes `/api/v1/ws`; no `VITE_*`/`API_BASE` env var or build-time substitution can redirect the base URL
 - Both the `vite.config.ts` dev proxy and the `nginx.conf` `location /api/` block use non-rewriting `proxy_pass` (no URI segment after the upstream), so neither can strip `/v1` from an outbound `/api/v1/*` request. No `docker-compose`/Makefile healthcheck targets an unversioned path

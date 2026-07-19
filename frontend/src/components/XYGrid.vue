@@ -51,6 +51,14 @@ function onHeaderClick(dimensionName: string, value: string) {
   emit('header:click', dimensionName, value)
 }
 
+/** Activate a header via keyboard (Enter/Space) the same way a click would. */
+function onHeaderKeydown(event: KeyboardEvent, dimensionName: string, value: string) {
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault()
+    onHeaderClick(dimensionName, value)
+  }
+}
+
 /** Lookup map built from the promptTextMap prop (name → full prompt text). */
 const promptTextLookup = computed(() => new Map(Object.entries(props.promptTextMap)))
 
@@ -285,8 +293,10 @@ const flatGridStyle = computed(() => ({
               class="xy-grid__col-header"
               data-testid="xy-grid-col-header"
               role="columnheader"
+              tabindex="0"
               :style="{ gridRow: 1, gridColumn: colIndex(idx) }"
               @click="onHeaderClick(xDimension!.name, xVal)"
+              @keydown="onHeaderKeydown($event, xDimension!.name, xVal)"
             >
               {{ xVal }}
             </div>
@@ -316,8 +326,10 @@ const flatGridStyle = computed(() => ({
                 class="xy-grid__row-header"
                 data-testid="xy-grid-row-header"
                 role="rowheader"
+                tabindex="0"
                 :style="{ gridRow: rowIndex(yIdx), gridColumn: 1 }"
                 @click="onHeaderClick(yDimension!.name, yVal)"
+                @keydown="onHeaderKeydown($event, yDimension!.name, yVal)"
               >
                 {{ yVal }}
               </div>
@@ -487,6 +499,11 @@ const flatGridStyle = computed(() => ({
   background-color: var(--accent-bg);
 }
 
+.xy-grid__col-header:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: -2px;
+}
+
 .xy-grid__row-header {
   min-width: 60px;
   display: flex;
@@ -503,6 +520,11 @@ const flatGridStyle = computed(() => ({
 
 .xy-grid__row-header:hover {
   background-color: var(--accent-bg);
+}
+
+.xy-grid__row-header:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: -2px;
 }
 
 .xy-grid__cell {

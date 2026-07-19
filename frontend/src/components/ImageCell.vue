@@ -43,6 +43,12 @@ function onClick() {
 }
 
 function onKeydown(event: KeyboardEvent) {
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault()
+    onClick()
+    return
+  }
+
   const values = props.sliderValues
   if (!values || values.length === 0) return
 
@@ -66,7 +72,8 @@ function onKeydown(event: KeyboardEvent) {
   <div
     class="image-cell"
     :class="{ 'image-cell--empty': !relativePath }"
-    :tabindex="sliderValues && sliderValues.length > 0 ? 0 : undefined"
+    :role="relativePath ? 'button' : undefined"
+    :tabindex="relativePath ? 0 : undefined"
     @click="onClick"
     @keydown="onKeydown"
   >

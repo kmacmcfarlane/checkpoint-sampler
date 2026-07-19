@@ -2107,7 +2107,7 @@ stories:
   - id: S-175
     title: "Keyboard accessibility: XYGrid header filtering and ImageCell lightbox activation"
     priority: 45
-    status: todo
+    status: uat
     complexity: low
     requires: []
     acceptance:

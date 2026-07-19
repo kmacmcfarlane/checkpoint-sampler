@@ -108,9 +108,22 @@ describe('ImageCell', () => {
       expect(wrapper.find('.image-cell').attributes('tabindex')).toBe('0')
     })
 
-    it('does not have tabindex when no sliderValues', () => {
+    // AC: ImageCell is always focusable when non-empty (not only when slider dims exist)
+    it('has tabindex when relativePath is set, even without sliderValues', () => {
       const wrapper = mountCell({ relativePath: 'path/to/image.png' })
+      expect(wrapper.find('.image-cell').attributes('tabindex')).toBe('0')
+    })
+
+    // AC: role=button so assistive tech announces the cell as activatable
+    it('has role=button when relativePath is set', () => {
+      const wrapper = mountCell({ relativePath: 'path/to/image.png' })
+      expect(wrapper.find('.image-cell').attributes('role')).toBe('button')
+    })
+
+    it('does not have tabindex or role when relativePath is null (empty cell)', () => {
+      const wrapper = mountCell({ relativePath: null })
       expect(wrapper.find('.image-cell').attributes('tabindex')).toBeUndefined()
+      expect(wrapper.find('.image-cell').attributes('role')).toBeUndefined()
     })
 
     it('emits slider:change with next value on ArrowRight', async () => {
@@ -214,6 +227,47 @@ describe('ImageCell', () => {
       await wrapper.find('.image-cell').trigger('keydown', { key: 'ArrowRight' })
 
       expect(wrapper.emitted('slider:change')).toBeUndefined()
+    })
+
+    // AC: Enter/Space opens the lightbox (emits click) for a non-empty cell
+    it('emits click on Enter key', async () => {
+      const wrapper = mountCell({ relativePath: 'dir/image.png' })
+      await wrapper.find('.image-cell').trigger('keydown', { key: 'Enter' })
+
+      const emitted = wrapper.emitted('click')
+      expect(emitted).toBeDefined()
+      expect(emitted![0]).toEqual(['/api/v1/images/dir/image.png'])
+    })
+
+    it('emits click on Space key', async () => {
+      const wrapper = mountCell({ relativePath: 'dir/image.png' })
+      await wrapper.find('.image-cell').trigger('keydown', { key: ' ' })
+
+      const emitted = wrapper.emitted('click')
+      expect(emitted).toBeDefined()
+      expect(emitted![0]).toEqual(['/api/v1/images/dir/image.png'])
+    })
+
+    it('does not emit click on Enter when cell is empty (no relativePath)', async () => {
+      const wrapper = mountCell({ relativePath: null })
+      await wrapper.find('.image-cell').trigger('keydown', { key: 'Enter' })
+
+      expect(wrapper.emitted('click')).toBeUndefined()
+    })
+
+    it('Enter still steers through slider values on subsequent arrow keys (no interference)', async () => {
+      const wrapper = mountCell({
+        relativePath: 'dir/image.png',
+        sliderValues: sampleValues,
+        currentSliderValue: '500',
+      })
+      await wrapper.find('.image-cell').trigger('keydown', { key: 'Enter' })
+      expect(wrapper.emitted('click')).toBeDefined()
+
+      await wrapper.find('.image-cell').trigger('keydown', { key: 'ArrowRight' })
+      const sliderEmitted = wrapper.emitted('slider:change')
+      expect(sliderEmitted).toBeDefined()
+      expect(sliderEmitted![0]).toEqual(['1000'])
     })
   })
 

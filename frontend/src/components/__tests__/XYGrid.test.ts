@@ -397,6 +397,76 @@ describe('XYGrid', () => {
       expect(headers.length).toBeGreaterThan(0)
       expect(headers[0].classes()).toContain('xy-grid__row-header')
     })
+
+    // AC: XYGrid row/column headers are keyboard-operable
+    it('column headers are focusable (tabindex=0)', () => {
+      const wrapper = mountGrid()
+      const headers = wrapper.findAll('.xy-grid__col-header')
+      for (const header of headers) {
+        expect(header.attributes('tabindex')).toBe('0')
+      }
+    })
+
+    it('row headers are focusable (tabindex=0)', () => {
+      const wrapper = mountGrid()
+      const headers = wrapper.findAll('.xy-grid__row-header')
+      for (const header of headers) {
+        expect(header.attributes('tabindex')).toBe('0')
+      }
+    })
+
+    it('emits header:click when a column header receives Enter key', async () => {
+      const wrapper = mountGrid()
+      const headers = wrapper.findAll('.xy-grid__col-header')
+
+      await headers[0].trigger('keydown', { key: 'Enter' })
+
+      const emitted = wrapper.emitted('header:click')
+      expect(emitted).toBeDefined()
+      expect(emitted![0]).toEqual(['seed', '42'])
+    })
+
+    it('emits header:click when a column header receives Space key', async () => {
+      const wrapper = mountGrid()
+      const headers = wrapper.findAll('.xy-grid__col-header')
+
+      await headers[1].trigger('keydown', { key: ' ' })
+
+      const emitted = wrapper.emitted('header:click')
+      expect(emitted).toBeDefined()
+      expect(emitted![0]).toEqual(['seed', '123'])
+    })
+
+    it('emits header:click when a row header receives Enter key', async () => {
+      const wrapper = mountGrid()
+      const headers = wrapper.findAll('.xy-grid__row-header')
+
+      await headers[1].trigger('keydown', { key: 'Enter' })
+
+      const emitted = wrapper.emitted('header:click')
+      expect(emitted).toBeDefined()
+      expect(emitted![0]).toEqual(['step', '1000'])
+    })
+
+    it('emits header:click when a row header receives Space key', async () => {
+      const wrapper = mountGrid()
+      const headers = wrapper.findAll('.xy-grid__row-header')
+
+      await headers[0].trigger('keydown', { key: ' ' })
+
+      const emitted = wrapper.emitted('header:click')
+      expect(emitted).toBeDefined()
+      expect(emitted![0]).toEqual(['step', '500'])
+    })
+
+    it('does not emit header:click for unrelated keys', async () => {
+      const wrapper = mountGrid()
+      const headers = wrapper.findAll('.xy-grid__col-header')
+
+      await headers[0].trigger('keydown', { key: 'ArrowRight' })
+
+      expect(wrapper.emitted('header:click')).toBeUndefined()
+    })
   })
 
   describe('cell size control via zoom', () => {
