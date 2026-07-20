@@ -27,6 +27,7 @@ import (
 	genworkflows "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/workflows"
 	genws "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/ws"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/config"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/store"
 	"github.com/sirupsen/logrus"
@@ -38,15 +39,15 @@ func main() {
 	}
 }
 
-func run() error {
-	// Initialize logger
+// newLogger builds the application logger, deriving its level from the given
+// LOG_LEVEL value. An empty value defaults to info; an unparseable value logs a
+// warning and also falls back to info.
+func newLogger(logLevelStr string) *logrus.Logger {
 	logger := logrus.New()
 	logger.SetFormatter(&logrus.TextFormatter{
 		FullTimestamp: true,
 	})
 
-	// Parse and set log level from environment variable (default: info)
-	logLevelStr := os.Getenv("LOG_LEVEL")
 	if logLevelStr == "" {
 		logLevelStr = "info"
 	}
@@ -61,6 +62,33 @@ func run() error {
 	logger.SetLevel(logLevel)
 
 	logger.WithField("log_level", logLevel.String()).Info("logger initialized")
+	return logger
+}
+
+// serverComponents is the fully wired application: an HTTP server, the
+// background workers that must be stopped before the HTTP server drains, and
+// the resources (DB, filesystem notifiers) that must be released afterwards.
+type serverComponents struct {
+	srv     *http.Server
+	workers []Stoppable
+	closers []func()
+	addr    string
+}
+
+// close releases all registered resources in reverse registration order. It is
+// nil-safe and idempotent, so callers may defer it unconditionally.
+func (c *serverComponents) close() {
+	if c == nil {
+		return
+	}
+	for i := len(c.closers) - 1; i >= 0; i-- {
+		c.closers[i]()
+	}
+	c.closers = nil
+}
+
+func run() error {
+	logger := newLogger(os.Getenv("LOG_LEVEL"))
 
 	// Load configuration
 	cfg, err := config.Load()
@@ -69,24 +97,78 @@ func run() error {
 	}
 	logger.WithField("config_path", os.Getenv("CONFIG_PATH")).Info("configuration loaded")
 
-	// Open database and run migrations
-	db, err := store.OpenDB(cfg.DBPath)
-	if err != nil {
-		return fmt.Errorf("opening database: %w", err)
-	}
-	logger.WithField("db_path", cfg.DBPath).Info("database opened")
-	st, err := store.New(db, logger)
-	if err != nil {
-		return fmt.Errorf("initializing store: %w", err)
-	}
-	defer st.Close()
-
 	// Read the generated OpenAPI spec
 	specPath := openAPISpecPath()
 	spec, err := os.ReadFile(specPath)
 	if err != nil {
 		return fmt.Errorf("reading openapi spec at %s: %w", specPath, err)
 	}
+
+	comps, err := buildServer(cfg, spec, logger)
+	if err != nil {
+		return err
+	}
+	// Deferred resource release runs only after serve() has drained HTTP and
+	// stopped the background workers, guaranteeing the DB is not closed while
+	// requests or workers are still active.
+	defer comps.close()
+
+	ln, err := net.Listen("tcp", comps.addr)
+	if err != nil {
+		return fmt.Errorf("listening on %s: %w", comps.addr, err)
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	return serve(ctx, comps, ln, logger)
+}
+
+// serve runs the HTTP server on the given listener until ctx is cancelled, then
+// performs a graceful shutdown (workers first, then HTTP drain) and returns once
+// shutdown is complete.
+func serve(ctx context.Context, comps *serverComponents, ln net.Listener, logger *logrus.Logger) error {
+	// shutdownDone is closed once performShutdown returns so that serve() does
+	// not return until shutdown is complete.
+	shutdownDone := make(chan struct{})
+	go func() {
+		defer close(shutdownDone)
+		performShutdown(ctx, comps.srv, comps.workers, 10*time.Second, logger)
+	}()
+
+	logger.WithField("address", ln.Addr().String()).Info("starting server")
+	if err := comps.srv.Serve(ln); err != nil && err != http.ErrServerClosed {
+		return fmt.Errorf("server error: %w", err)
+	}
+
+	<-shutdownDone
+	return nil
+}
+
+// buildServer wires every store, service, API and transport component together
+// and returns the resulting HTTP server plus its lifecycle hooks. It performs no
+// network listening and no signal handling, so it is safe to call from tests.
+func buildServer(cfg *model.Config, spec []byte, logger *logrus.Logger) (_ *serverComponents, err error) {
+	comps := &serverComponents{}
+	// Release anything already registered if wiring fails partway through, so a
+	// failed build never leaks an open DB handle or fsnotify watcher.
+	defer func() {
+		if err != nil {
+			comps.close()
+		}
+	}()
+
+	// Open database and run migrations
+	db, err := store.OpenDB(cfg.DBPath)
+	if err != nil {
+		return nil, fmt.Errorf("opening database: %w", err)
+	}
+	logger.WithField("db_path", cfg.DBPath).Info("database opened")
+	st, err := store.New(db, logger)
+	if err != nil {
+		return nil, fmt.Errorf("initializing store: %w", err)
+	}
+	comps.closers = append(comps.closers, func() { _ = st.Close() })
 
 	// Create filesystem, discovery, and scanner services
 	fs := store.NewFileSystem(logger)
@@ -101,9 +183,9 @@ func run() error {
 	hub := service.NewHub(logger)
 	notifier, err := service.NewFSNotifier()
 	if err != nil {
-		return fmt.Errorf("creating filesystem notifier: %w", err)
+		return nil, fmt.Errorf("creating filesystem notifier: %w", err)
 	}
-	defer notifier.Close()
+	comps.closers = append(comps.closers, func() { _ = notifier.Close() })
 	watcher := service.NewWatcher(notifier, hub, cfg.SampleDir, logger)
 	// watcher.Stop() is called explicitly in performShutdown (before HTTP drain).
 
@@ -123,7 +205,7 @@ func run() error {
 		// Create workflow loader and ensure workflow directory exists
 		workflowLoader = service.NewWorkflowLoader(cfg.ComfyUI.WorkflowDir, logger)
 		if err := workflowLoader.EnsureWorkflowDir(); err != nil {
-			return fmt.Errorf("ensuring workflow directory: %w", err)
+			return nil, fmt.Errorf("ensuring workflow directory: %w", err)
 		}
 		workflowsSvc = api.NewWorkflowService(workflowLoader)
 
@@ -156,9 +238,9 @@ func run() error {
 	// (new/removed directories) and triggers snapshot refreshes with debouncing.
 	fsStateNotifier, err := service.NewFSNotifier()
 	if err != nil {
-		return fmt.Errorf("creating FSState filesystem notifier: %w", err)
+		return nil, fmt.Errorf("creating FSState filesystem notifier: %w", err)
 	}
-	defer fsStateNotifier.Close()
+	comps.closers = append(comps.closers, func() { _ = fsStateNotifier.Close() })
 
 	watchDirs := append([]string{cfg.SampleDir}, cfg.CheckpointDirs...)
 	watchDirs = append(watchDirs, cfg.LoraDirs...)
@@ -311,29 +393,10 @@ func run() error {
 		workers = append([]Stoppable{jobExecutor}, workers...)
 	}
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-
-	// shutdownDone is closed once performShutdown returns so that run() does not
-	// return (and fire its deferred DB/notifier closes) until shutdown is complete.
-	shutdownDone := make(chan struct{})
-	go func() {
-		defer close(shutdownDone)
-		performShutdown(ctx, srv, workers, 10*time.Second, logger)
-	}()
-
-	logger.WithField("address", addr).Info("starting server")
-	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		return fmt.Errorf("server error: %w", err)
-	}
-
-	// Block until shutdown goroutine has finished draining HTTP and stopping
-	// background workers.  The deferred st.Close / notifier.Close calls below
-	// only run after this, guaranteeing the DB is not closed while requests or
-	// workers are still active.
-	<-shutdownDone
-
-	return nil
+	comps.srv = srv
+	comps.addr = addr
+	comps.workers = workers
+	return comps, nil
 }
 
 // openAPISpecPath returns the path to the generated OpenAPI 3.0 spec.

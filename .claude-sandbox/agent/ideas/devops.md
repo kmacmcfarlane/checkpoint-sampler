@@ -169,3 +169,9 @@ The `test-e2e` target (`Makefile:154`) is `./scripts/e2e/e2e_parallel.sh $(or $(
 * priority: low
 * source: developer
 The root `frontend/tsconfig.json` does not cover `e2e/`, so type errors in E2E specs only surface at Playwright runtime rather than at build time. A dedicated `tsconfig.e2e.json` wired into the build/CI would catch them earlier. Noted during W-031, where pre-existing TS errors in `sample-generation.spec.ts` (window type casts, unused vars) were invisible to `vue-tsc --noEmit`.
+
+### Per-package coverage floors in `make test`
+* status: needs_approval
+* priority: low
+* source: developer
+After W-032, `backend/internal/model` sits at 100% and `backend/cmd/server` at 71.1%. A lightweight `go tool cover` threshold check on selected packages, wired into `make test`, would prevent silent coverage regressions on packages that were deliberately raised. Needs a decision on which packages get floors and at what values (a blanket repo-wide floor would be noisy), so it is cross-story coordination rather than something W-032 could land in scope.

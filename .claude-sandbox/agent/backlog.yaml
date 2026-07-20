@@ -2198,7 +2198,7 @@ stories:
   - id: W-032
     title: "Backend coverage: testable server wiring (cmd/server 6.4%) and model package behavior tests (57.7%)"
     priority: 25
-    status: todo
+    status: uat
     complexity: medium
     requires: []
     acceptance:
@@ -2389,3 +2389,33 @@ stories:
       - "If a stale client is the cause, close with no code change; if a real code path is found issuing old paths, fix it"
     testing:
       - "command: make test-e2e"
+  - id: B-174
+    title: "Latent shutdown race: serve() error path returns without waiting on shutdownDone, allowing worker Stop() concurrent
+      with DB close"
+    status: todo
+    priority: 40
+    complexity: low
+    requires: []
+    acceptance:
+      - "BE: serve() waits on shutdownDone on ALL return paths, not just the ErrServerClosed path"
+      - "BE: A test covers the non-ErrServerClosed error path and asserts workers are stopped before comps.close() releases
+        the store"
+    notes: |
+      Found by code-reviewer during W-032 (pre-existing, NOT a regression from that story — the
+      same hole existed byte-for-byte before the buildServer/serve extraction).
+
+      In backend/cmd/server/main.go serve(), the non-http.ErrServerClosed error path returns
+      without draining <-shutdownDone, leaving the performShutdown goroutine blocked. run()'s
+      deferred stop() then cancels the context and wakes it, so performShutdown calls w.Stop()
+      on the workers concurrently with run()'s `defer comps.close()` closing the DB — a potential
+      use-after-close on the store.
+
+      Did not manifest in W-032's full E2E run (427/427 green, no DB-closed errors in any shard
+      log), because the error path only fires when Serve() fails for a reason other than a normal
+      shutdown. Low frequency, but the failure mode is a use-after-close on the store.
+
+      The W-032 refactor makes the fix easy: capture shutdownDone and wait on it in the error
+      path too.
+    testing:
+      - "Reproducing requires forcing Serve() to fail with a non-ErrServerClosed error; the existing W-032 spec for that path
+        is the natural place to extend"

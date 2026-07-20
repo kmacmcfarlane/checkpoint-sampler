@@ -216,3 +216,9 @@ B-173 listed four 404 paths; three matched pre-S-171 routes exactly, but the fou
 * priority: very-low
 * source: developer
 M-004's AC3 (correct CLAUDE.md `test-e2e` shard default from 12 to 4) was already fixed by a prior story — CHANGELOG.md recorded the fix, but the ticket still listed it as open work. The developer had to verify and then explain the no-op. A quick CHANGELOG/grep confirmation step during ticket grooming would keep already-resolved AC items out of dispatched tickets, avoiding a round-trip where a developer, reviewer, and QA agent each independently confirm that nothing needs doing.
+
+### Coverage-delta reporting for coverage-focused stories
+* status: needs_approval
+* priority: very-low
+* source: developer
+Coverage stories (W-032) require the developer to manually capture before/after numbers, which means measuring the "before" from a clean checkout of `main`. This is error-prone once the branch has diverged, and in W-032 the `cmd/server` baseline turned out not to be independently reproducible at all — `internal/api/gen` is gitignored, so a scratch worktree on `main` needs a full Goa codegen run before it will even build. Both the reviewer and QA ended up accepting the ticket-sourced 6.4% figure on trust. A helper that runs codegen in a scratch worktree and diffs coverage against `main` would make this mechanical and verifiable.
