@@ -128,20 +128,35 @@ func run() error {
 // performs a graceful shutdown (workers first, then HTTP drain) and returns once
 // shutdown is complete.
 func serve(ctx context.Context, comps *serverComponents, ln net.Listener, logger *logrus.Logger) error {
+	// shutdownCtx is derived from ctx so that serve() can trigger shutdown
+	// itself (via triggerShutdown) as well as respond to the caller's signal
+	// context. Without this, a genuine Serve() error would leave
+	// performShutdown blocked on <-signalCtx.Done() until an external signal
+	// arrived, hanging the process instead of failing fast.
+	shutdownCtx, triggerShutdown := context.WithCancel(ctx)
+	defer triggerShutdown()
+
 	// shutdownDone is closed once performShutdown returns so that serve() does
 	// not return until shutdown is complete.
 	shutdownDone := make(chan struct{})
 	go func() {
 		defer close(shutdownDone)
-		performShutdown(ctx, comps.srv, comps.workers, 10*time.Second, logger)
+		performShutdown(shutdownCtx, comps.srv, comps.workers, 10*time.Second, logger)
 	}()
 
 	logger.WithField("address", ln.Addr().String()).Info("starting server")
-	if err := comps.srv.Serve(ln); err != nil && err != http.ErrServerClosed {
-		return fmt.Errorf("server error: %w", err)
-	}
+	serveErr := comps.srv.Serve(ln)
 
+	// Trigger shutdown promptly on a genuine Serve error (not only on an
+	// external signal), then wait for the shutdown goroutine to finish on
+	// every return path so that workers are always stopped before the
+	// caller's deferred comps.close() releases the DB and other resources.
+	triggerShutdown()
 	<-shutdownDone
+
+	if serveErr != nil && serveErr != http.ErrServerClosed {
+		return fmt.Errorf("server error: %w", serveErr)
+	}
 	return nil
 }
 

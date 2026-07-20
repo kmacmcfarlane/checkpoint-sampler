@@ -5,6 +5,11 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-174: Shutdown race in serve()'s error path
+- `serve()` in `backend/cmd/server/main.go` now waits on `shutdownDone` on every return path, not just the `ErrServerClosed` one. Previously a non-`ErrServerClosed` `Serve()` error returned immediately, leaving `performShutdown` blocked; `run()`'s deferred `stop()` then woke it to call `w.Stop()` on the workers concurrently with `run()`'s `defer comps.close()` closing the DB — a use-after-close on the store. Pre-existing, surfaced during the W-032 review
+- Waiting alone would have traded the race for a hang: `performShutdown` blocks on the signal context, so a genuine serve failure would stall until an operator sent SIGTERM instead of failing fast. `serve()` therefore derives its own cancellable context and triggers shutdown itself once `Serve()` returns, preserving fail-fast behavior
+- The regression test drives a real non-`ErrServerClosed` failure and never cancels the context itself, so it fails (hangs) if either half of the fix is reverted
+
 ### W-032: Testable server wiring and model package behavior coverage
 - The ~300-line `run()` in `backend/cmd/server/main.go` split into four units: `newLogger` (LOG_LEVEL parsing, no longer reading env directly), `buildServer` (all store/service/API/transport wiring, with no network binding and no signal handling), `serve` (takes an injected `net.Listener`), and `run()` as glue only. Bootstrap wiring previously had no unit-test seam at all — mistakes compiled fine and only surfaced at container start or in E2E
 - Resource cleanup moved from scattered `defer st.Close()` / `defer notifier.Close()` calls to an ordered `closers` list on `serverComponents`, released in reverse acquisition order by `close()`. A deferred error handler in `buildServer` releases already-registered resources when wiring fails partway through, preserving the unwind behavior the old mid-`run()` defers provided. `close()` is nil-safe and idempotent

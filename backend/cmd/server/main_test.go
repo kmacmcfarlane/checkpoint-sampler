@@ -294,22 +294,37 @@ var _ = Describe("serve", func() {
 		Eventually(done, 5*time.Second).Should(Receive(BeNil()))
 	})
 
-	It("returns an error when the server fails for a non-ErrServerClosed reason", func() {
+	// AC: serve() waits on shutdownDone on ALL return paths, not just the
+	// ErrServerClosed path; workers are stopped before shutdown completes even
+	// when Serve fails for a non-ErrServerClosed reason. serve() must trigger
+	// its own shutdown in this case rather than waiting for an external
+	// signal, so it does not hang the process on a genuine Serve error.
+	It("returns an error when the server fails for a non-ErrServerClosed reason, but still waits for workers to stop", func() {
+		var seq []string
+		worker := newFakeWorker("worker", &seq)
 		comps := &serverComponents{
 			srv:     &http.Server{Handler: http.NewServeMux()},
-			workers: nil,
+			workers: []Stoppable{worker},
 		}
 
 		// Closing the listener up front makes Serve fail immediately with
 		// something other than http.ErrServerClosed.
 		Expect(ln.Close()).To(Succeed())
 
+		// A context that is never cancelled by the test proves serve() drives
+		// its own shutdown on a Serve error, rather than depending on an
+		// external signal to unblock performShutdown.
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		err := serve(ctx, comps, ln, logger)
-		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("server error"))
+		done := make(chan error, 1)
+		go func() { done <- serve(ctx, comps, ln, logger) }()
+
+		By("returning promptly on its own once Serve fails, without waiting for the context to be cancelled")
+		Eventually(done, 5*time.Second).Should(Receive(MatchError(ContainSubstring("server error"))))
+
+		By("having stopped the worker by the time the error is returned")
+		Expect(worker.wasStopped()).To(BeTrue())
 	})
 })
 

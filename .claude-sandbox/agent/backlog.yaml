@@ -2392,7 +2392,7 @@ stories:
   - id: B-174
     title: "Latent shutdown race: serve() error path returns without waiting on shutdownDone, allowing worker Stop() concurrent
       with DB close"
-    status: todo
+    status: uat
     priority: 40
     complexity: low
     requires: []
