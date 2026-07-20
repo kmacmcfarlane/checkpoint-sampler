@@ -163,3 +163,15 @@ Decomposition stories like R-021 carry one risk class the current gates cannot s
 * priority: low
 * source: reviewer
 `frontend/e2e/seed-partial-samples.spec.ts:195-202` hand-rolls the exact drawer-close pattern that W-031 superseded (click → `not.toBeVisible()` → `waitForTimeout(300)`). It is now the one site that directly contradicts the rewritten TEST_PRACTICES 6.9, which tells contributors to prefer the shared helpers. Small, mechanical fix: replace with `closeDrawer(page)` from `helpers.ts`. Out of W-031's AC scope; flagged by the reviewer and confirmed still present by QA.
+
+### Mount a real Goa muxer in middleware specs to assert routing outcome, not middleware output
+* status: needs_approval
+* priority: medium
+* source: reviewer
+R-022's `imageMetadataRewriteMiddleware` regression was that chi routes on `URL.RawPath` when non-empty, so a stale `RawPath` left the rewritten request unable to match the metadata route. The new `image_metadata_rewrite_test.go` specs assert the middleware's *local output* (`Path`/`RawPath` as seen by `next`) but never that the route actually matches — which is the property that regressed. The reviewer had to write a throwaway integration test through a real `goahttp.NewMuxer()` to verify the fix, then discard it. A shared test helper that mounts a real muxer would let middleware specs assert "route matched + var decoded correctly" directly, and would have caught this class at unit level rather than only in E2E.
+
+### Seed an E2E fixture with a URL-hostile filename
+* status: needs_approval
+* priority: low
+* source: developer
+R-022 fixed percent-encoding for filenames containing `#`, `?`, and `%`, but no fixture generates such a filename — `GenerateOutputFilenameWithDims` only emits `=` and `&`. So the E2E proof covers `=`/`&` only, and the `#`/`?`/`%` paths are verified at unit level (encode, rewrite middleware, round-trip) but never end-to-end through a real file on disk. Both the developer and the code reviewer independently flagged this as unverified. Seeding one fixture image with such a name would convert several unit-level assertions into real regression protection. Requires a fixture-seeding change in the E2E test backend, so it is cross-story rather than in-scope for R-022.
