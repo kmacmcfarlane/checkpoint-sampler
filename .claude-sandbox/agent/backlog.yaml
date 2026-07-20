@@ -2421,7 +2421,7 @@ stories:
         is the natural place to extend"
   - id: B-175
     title: "useStudyOptions/useLazyLoadObserver lack direct unit tests; fallback-on-empty-list branch uncovered"
-    status: todo
+    status: uat
     priority: 60
     complexity: low
     requires: []

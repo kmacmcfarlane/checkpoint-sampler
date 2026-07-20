@@ -5,6 +5,12 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-175: Direct unit coverage for useStudyOptions and useLazyLoadObserver
+- Two of the eight modules R-021 extracted shipped with no direct tests and were referenced by no test file. The genuinely uncovered branch was the fallback-on-empty-list ternary in `useStudyOptions.ts` — inverting it would leave the sampler and scheduler dropdowns silently empty while passing every existing gate, because the only spec touching that path asserts `'euler'` appears and cannot distinguish ComfyUI's list from the static fallback
+- 20 new tests across `useStudyOptions.test.ts` and `useLazyLoadObserver.test.ts`: sampler/scheduler fallback on both a thrown error and an empty `models` array (plus the positive path confirming a non-empty ComfyUI list is used as-is), VAE/CLIP degrade-to-empty, and `workflowOptions` filtering non-`valid` `validation_state`
+- `useLazyLoadObserver` had zero coverage of its observer path because `IntersectionObserver` is a jsdom no-op. A stub injected via `vi.stubGlobal` covers the active watch, disconnect on deactivation and unmount, reconnect creating a fresh instance, and the `hasMore`/`isLoading` guard — no production change was needed, since the constructor resolves against the global at call time
+- Verified non-vacuous by mutation: inverting the fallback ternary at `useStudyOptions.ts:168/179` fails 4 of the new tests. Test-only story, no production source touched; frontend 2040/2040, E2E 429/429
+
 ### R-021: Split oversized frontend components
 - The three components anchoring the main user flows decomposed with behavior unchanged: `StudyEditor.vue` 1808 → 1088 lines, `JobProgressPanel.vue` 1352 → 403, `App.vue` 1463 → 1337. Extracted seven composables (`useSampleJobs`, `useValidationDialog`, `useStudyForm`, `useStudyOptions`, `useStudyValidation`, `studyMru`, `useLazyLoadObserver`), a pure `lib/jobFormat` module, and two presentational components (`JobProgressItem`, `StudyImmutabilityDialog`), continuing the pattern R-019 established
 - No existing test file was modified — the pre-existing StudyEditor (201), JobProgressPanel (139), and App (110) suites pass untouched, which is the primary evidence the refactor preserves behavior. 131 new unit tests cover the extracted modules directly
