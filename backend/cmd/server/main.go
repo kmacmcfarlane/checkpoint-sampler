@@ -326,11 +326,13 @@ func buildServer(cfg *model.Config, spec []byte, logger *logrus.Logger) (_ *serv
 		// jobExecutor.Stop() is called explicitly in performShutdown (before HTTP drain).
 
 		sampleJobsSvc = api.NewSampleJobsService(sampleJobSvc, discovery)
+		sampleJobsSvc.SetLogger(logger)
 		sampleJobsSvc.SetFSState(fsState)
 	} else {
 		// Create a disabled service when ComfyUI is not configured
 		// dirRemover is nil since there are no jobs to clear
 		sampleJobsSvc = api.NewSampleJobsService(nil, discovery)
+		sampleJobsSvc.SetLogger(logger)
 		sampleJobsSvc.SetFSState(fsState)
 	}
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { ref, nextTick } from 'vue'
+import { ref, nextTick, effectScope } from 'vue'
 import { useImagePreloader } from '../useImagePreloader'
 import type { ScanImage, ScanDimension } from '../../api/types'
 
@@ -348,5 +348,48 @@ describe('useImagePreloader', () => {
     for (const s of ['1', '2', '3', '4', '5', '6', '7']) {
       expect(preloaded.has(`/api/v1/images/s${s}.png`)).toBe(false)
     }
+  })
+})
+
+// AC: image preloader aborts its controller on scope dispose (R-022)
+describe('useImagePreloader scope disposal', () => {
+  it('stops preloading further images once the owning scope is disposed', async () => {
+    // Enough images that the preload loop cannot finish in one microtask.
+    const images = ref<ScanImage[]>(
+      Array.from({ length: 60 }, (_, i) => makeImage(`img-${i}.png`, { seed: String(i) })),
+    )
+    const xDim = ref<ScanDimension | null>(null)
+    const yDim = ref<ScanDimension | null>(null)
+    const sliderDim = ref<ScanDimension | null>(null)
+    const combos = ref<Record<string, Set<string>>>({})
+
+    const scope = effectScope()
+    const result = scope.run(() => useImagePreloader(images, xDim, yDim, sliderDim, combos))!
+
+    // Let a little preloading happen, then tear the scope down mid-flight.
+    await nextTick()
+    scope.stop()
+    const createdAtDispose = imageInstances.length
+
+    await flush()
+
+    // The abort stops the loop, so no meaningful number of new Image() objects
+    // are created after disposal.
+    expect(imageInstances.length).toBeLessThan(images.value.length)
+    expect(imageInstances.length - createdAtDispose).toBeLessThanOrEqual(1)
+    expect(result.preloaded.size).toBeLessThan(images.value.length)
+  })
+
+  it('encodes awkward filenames in preload URLs', async () => {
+    const images = ref<ScanImage[]>([makeImage('ckpt #1/100%.png', { seed: '1' })])
+    const xDim = ref<ScanDimension | null>(null)
+    const yDim = ref<ScanDimension | null>(null)
+    const sliderDim = ref<ScanDimension | null>(null)
+    const combos = ref<Record<string, Set<string>>>({})
+
+    const { preloaded } = useImagePreloader(images, xDim, yDim, sliderDim, combos)
+    await flush()
+
+    expect(preloaded.has('/api/v1/images/ckpt%20%231/100%25.png')).toBe(true)
   })
 })

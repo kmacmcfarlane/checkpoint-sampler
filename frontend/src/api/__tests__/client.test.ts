@@ -520,6 +520,19 @@ describe('ApiClient', () => {
       expect(result).toEqual(metadata)
     })
 
+    // AC: client.ts encodes filepath segments in getImageMetadata
+    it('percent-encodes filepath segments containing #, ? and %', async () => {
+      const client = new ApiClient({ baseUrl: 'http://localhost:8080/api/v1' })
+      mockFetch({ json: () => Promise.resolve({ string_metadata: {}, numeric_metadata: {} }) })
+
+      await client.getImageMetadata('ckpt #1/100% done?.png')
+
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        'http://localhost:8080/api/v1/images/ckpt%20%231/100%25%20done%3F.png/metadata',
+        undefined,
+      )
+    })
+
     it('throws on image metadata fetch failure', async () => {
       const client = new ApiClient()
       mockFetch({

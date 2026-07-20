@@ -284,3 +284,69 @@ describe('useJobProgress.handleJobProgress', () => {
     })
   })
 })
+
+// ---------------------------------------------------------------------------
+// Map pruning (R-022)
+// ---------------------------------------------------------------------------
+
+describe('useJobProgress map pruning', () => {
+  // AC: jobProgress map entries pruned on terminal job status
+
+  it('drops live-tracking fields from jobProgress when a job goes terminal', () => {
+    const h = setup([makeJob({ id: 'job-1', status: 'running' })])
+    h.composable.handleJobProgress(
+      makeJobProgressMsg({
+        status: 'running',
+        current_checkpoint: 'ckpt-a',
+        current_checkpoint_progress: 3,
+        current_checkpoint_total: 5,
+        sample_eta_seconds: 12,
+        job_eta_seconds: 90,
+        current_sample_params: { prompt: 'a very long prompt' } as never,
+      }),
+    )
+    expect(h.composable.jobProgress['job-1'].current_sample_params).toBeDefined()
+
+    h.composable.handleJobProgress(
+      makeJobProgressMsg({ status: 'completed', checkpoints_completed: 2 }),
+    )
+
+    const entry = h.composable.jobProgress['job-1']
+    expect(entry.current_sample_params).toBeUndefined()
+    expect(entry.sample_eta_seconds).toBeUndefined()
+    expect(entry.job_eta_seconds).toBeUndefined()
+    expect(entry.current_checkpoint).toBeUndefined()
+  })
+
+  it('retains the completion summary so finished jobs still render progress', () => {
+    const h = setup([makeJob({ id: 'job-1', status: 'running' })])
+    h.composable.handleJobProgress(
+      makeJobProgressMsg({
+        status: 'completed',
+        checkpoints_completed: 2,
+        total_checkpoints: 2,
+        checkpoint_completeness: [{ checkpoint_filename: 'ckpt-a', complete: true }] as never,
+      }),
+    )
+    const entry = h.composable.jobProgress['job-1']
+    expect(entry.checkpoints_completed).toBe(2)
+    expect(entry.total_checkpoints).toBe(2)
+    expect(entry.checkpoint_completeness).toHaveLength(1)
+  })
+
+  it('prunes entries for jobs no longer present in the job list', () => {
+    const h = setup([makeJob({ id: 'job-1', status: 'running' })])
+    // Seed state for a job that later disappears from the list (deleted/paged out).
+    h.composable.jobProgress['stale-job'] = { checkpoints_completed: 1, total_checkpoints: 1 }
+    h.composable.inferenceProgress['stale-job'] = { current_value: 1, max_value: 2 }
+    h.composable.prevCheckpointProgress['stale-job'] = 3
+
+    h.composable.handleJobProgress(makeJobProgressMsg({ status: 'completed' }))
+
+    expect(h.composable.jobProgress['stale-job']).toBeUndefined()
+    expect(h.composable.inferenceProgress['stale-job']).toBeUndefined()
+    expect(h.composable.prevCheckpointProgress['stale-job']).toBeUndefined()
+    // The still-live job keeps its (pruned) entry.
+    expect(h.composable.jobProgress['job-1']).toBeDefined()
+  })
+})

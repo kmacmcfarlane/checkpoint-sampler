@@ -26,7 +26,6 @@ The single-file components under `frontend/src/components/` and their responsibi
 | `PresetSelector.vue` | Sample/dimension preset picker with create/update/delete; emits `load`/`save`/`delete`. |
 | `DimensionPanel.vue` | Per-dimension unified-mode selector (x / y / slider / single / multi / hide). |
 | `DimensionFilter.vue` | Single dimension's filter UI (multi checkboxes or single dropdown) with solo/unsolo. |
-| `ComboFilter.vue` | Combined multi-value checkbox filter with select-all / select-none. |
 | `MasterSlider.vue` | Full-width sticky slider with Play button and loop/speed controls for the slider dimension. |
 | `SliderBar.vue` | Thin slider track (`NSlider`) used inside grid cells / compact contexts. |
 | `AnimationControls.vue` | Playback loop + speed controls used by the master slider. |

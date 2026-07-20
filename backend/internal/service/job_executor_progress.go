@@ -374,94 +374,30 @@ func (e *JobExecutor) broadcastJobProgress(jobID string) {
 	// S-157: swept dimensions control filename encoding; compute once per broadcast.
 	fnDims := e.filenameDimsForJob(job)
 
-	// Compute on-the-fly item counts by status and collect failed item details
-	type errorDetailInfo struct {
-		exceptionType string
-		nodeType      string
-		traceback     string
-	}
-	type cpStats struct {
-		total     int
-		completed int
-		failed    int
-		errors    map[string]errorDetailInfo
-	}
-	var completed, failed, pending int
-	checkpointStatsMap := make(map[string]*cpStats)
+	// Aggregate via the shared helper (R-022) so the broadcast, GetProgress, and
+	// the store's list path can never drift apart.
+	agg := model.AggregateItemProgress(items)
+	progress := agg.Progress
 
-	for _, item := range items {
-		stats, ok := checkpointStatsMap[item.CheckpointFilename]
-		if !ok {
-			stats = &cpStats{errors: make(map[string]errorDetailInfo)}
-			checkpointStatsMap[item.CheckpointFilename] = stats
+	completed := progress.ItemCounts.Completed
+	failed := progress.ItemCounts.Failed
+	pending := progress.ItemCounts.Pending
+	checkpointsCompleted := progress.CheckpointsCompleted
+	totalCheckpoints := progress.TotalCheckpoints
+	currentCheckpoint := progress.CurrentCheckpoint
+	currentCheckpointProgress := progress.CurrentCheckpointProgress
+	currentCheckpointTotal := progress.CurrentCheckpointTotal
+	failedItemDetails := progress.FailedItemDetails
+
+	// AC: After each checkpoint's samples are generated, validate completeness.
+	for _, checkpoint := range agg.CompletedCheckpoints {
+		e.mu.Lock()
+		_, alreadyChecked := e.checkpointCompleteness[checkpoint]
+		e.mu.Unlock()
+
+		if !alreadyChecked {
+			e.verifyCheckpointCompleteness(jobID, studyOutputDir, checkpoint, items, fnDims)
 		}
-		stats.total++
-		switch item.Status {
-		case model.SampleJobItemStatusCompleted:
-			completed++
-			stats.completed++
-		case model.SampleJobItemStatusFailed, model.SampleJobItemStatusSkipped:
-			failed++
-			stats.failed++
-			if item.ErrorMessage != "" {
-				stats.errors[item.ErrorMessage] = errorDetailInfo{
-					exceptionType: item.ExceptionType,
-					nodeType:      item.NodeType,
-					traceback:     item.Traceback,
-				}
-			}
-		case model.SampleJobItemStatusPending:
-			pending++
-		}
-	}
-
-	// Count fully completed checkpoints, find current, and run completeness checks
-	checkpointsCompleted := 0
-	totalCheckpoints := len(checkpointStatsMap)
-	var currentCheckpoint string
-	var currentCheckpointProgress, currentCheckpointTotal int
-
-	// Build failed item details for the progress broadcast
-	var failedItemDetails []model.FailedItemDetail
-
-	for checkpoint, stats := range checkpointStatsMap {
-		if stats.completed+stats.failed == stats.total && stats.failed == 0 {
-			checkpointsCompleted++
-
-			// AC: After each checkpoint's samples are generated, validate completeness
-			e.mu.Lock()
-			_, alreadyChecked := e.checkpointCompleteness[checkpoint]
-			e.mu.Unlock()
-
-			if !alreadyChecked {
-				e.verifyCheckpointCompleteness(jobID, studyOutputDir, checkpoint, items, fnDims)
-			}
-		} else if currentCheckpoint == "" && stats.completed+stats.failed < stats.total {
-			currentCheckpoint = checkpoint
-			currentCheckpointProgress = stats.completed
-			currentCheckpointTotal = stats.total
-		}
-
-		if stats.failed > 0 {
-			for errMsg, detail := range stats.errors {
-				failedItemDetails = append(failedItemDetails, model.FailedItemDetail{
-					CheckpointFilename: checkpoint,
-					ErrorMessage:       errMsg,
-					ExceptionType:      detail.exceptionType,
-					NodeType:           detail.nodeType,
-					Traceback:          detail.traceback,
-				})
-			}
-			if len(stats.errors) == 0 {
-				failedItemDetails = append(failedItemDetails, model.FailedItemDetail{
-					CheckpointFilename: checkpoint,
-					ErrorMessage:       "unknown error",
-				})
-			}
-		}
-	}
-	if failedItemDetails == nil {
-		failedItemDetails = []model.FailedItemDetail{}
 	}
 
 	// Collect completeness info for the broadcast

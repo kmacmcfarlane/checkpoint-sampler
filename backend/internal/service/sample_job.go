@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/url"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"time"
 
@@ -1053,17 +1052,7 @@ func (s *SampleJobService) GetItemCounts(id string) (model.ItemStatusCounts, err
 		return model.ItemStatusCounts{}, fmt.Errorf("listing sample job items: %w", err)
 	}
 
-	var counts model.ItemStatusCounts
-	for _, item := range items {
-		switch item.Status {
-		case model.SampleJobItemStatusCompleted:
-			counts.Completed++
-		case model.SampleJobItemStatusFailed, model.SampleJobItemStatusSkipped:
-			counts.Failed++
-		case model.SampleJobItemStatusPending:
-			counts.Pending++
-		}
-	}
+	counts := model.AggregateItemProgress(items).Progress.ItemCounts
 
 	s.logger.WithFields(logrus.Fields{
 		"sample_job_id": id,
@@ -1107,126 +1096,20 @@ func (s *SampleJobService) GetProgress(id string) (model.JobProgress, error) {
 		"item_count":    len(items),
 	}).Debug("fetched sample job items from store")
 
-	// Group items by checkpoint and count by status
-	type errorDetail struct {
-		exceptionType string
-		nodeType      string
-		traceback     string
-	}
-	type checkpointStats struct {
-		total     int
-		completed int
-		failed    int
-		// Track unique error messages per checkpoint with their structured details
-		errors map[string]errorDetail
-	}
-	checkpointProgress := make(map[string]*checkpointStats)
-
-	// Compute on-the-fly item status counts
-	var itemCounts model.ItemStatusCounts
-
-	for _, item := range items {
-		stats, ok := checkpointProgress[item.CheckpointFilename]
-		if !ok {
-			stats = &checkpointStats{errors: make(map[string]errorDetail)}
-			checkpointProgress[item.CheckpointFilename] = stats
-		}
-		stats.total++
-		switch item.Status {
-		case model.SampleJobItemStatusCompleted:
-			stats.completed++
-			itemCounts.Completed++
-		case model.SampleJobItemStatusFailed, model.SampleJobItemStatusSkipped:
-			stats.failed++
-			itemCounts.Failed++
-			if item.ErrorMessage != "" {
-				stats.errors[item.ErrorMessage] = errorDetail{
-					exceptionType: item.ExceptionType,
-					nodeType:      item.NodeType,
-					traceback:     item.Traceback,
-				}
-			}
-		case model.SampleJobItemStatusPending:
-			itemCounts.Pending++
-		}
-	}
-
-	// Count fully completed checkpoints and build failed item details
-	checkpointsCompleted := 0
-	totalCheckpoints := len(checkpointProgress)
-	var currentCheckpoint string
-	currentCheckpointProgress := 0
-	currentCheckpointTotal := 0
-
-	// Sort checkpoint filenames for deterministic iteration order
-	checkpointNames := make([]string, 0, len(checkpointProgress))
-	for checkpoint := range checkpointProgress {
-		checkpointNames = append(checkpointNames, checkpoint)
-	}
-	sort.Strings(checkpointNames)
-
-	var failedItemDetails []model.FailedItemDetail
-
-	for _, checkpoint := range checkpointNames {
-		stats := checkpointProgress[checkpoint]
-		allDone := stats.completed+stats.failed == stats.total
-		if allDone && stats.failed == 0 {
-			checkpointsCompleted++
-		} else if currentCheckpoint == "" && !allDone {
-			// First incomplete checkpoint becomes the "current" one
-			currentCheckpoint = checkpoint
-			currentCheckpointProgress = stats.completed
-			currentCheckpointTotal = stats.total
-		}
-
-		// A checkpoint is considered failed if ANY of its items have status=failed
-		if stats.failed > 0 {
-			// Collect unique error messages for this checkpoint with structured details
-			for errMsg, detail := range stats.errors {
-				failedItemDetails = append(failedItemDetails, model.FailedItemDetail{
-					CheckpointFilename: checkpoint,
-					ErrorMessage:       errMsg,
-					ExceptionType:      detail.exceptionType,
-					NodeType:           detail.nodeType,
-					Traceback:          detail.traceback,
-				})
-			}
-			// If there are failed items but no error messages recorded, still include the checkpoint
-			if len(stats.errors) == 0 {
-				failedItemDetails = append(failedItemDetails, model.FailedItemDetail{
-					CheckpointFilename: checkpoint,
-					ErrorMessage:       "unknown error",
-				})
-			}
-		}
-	}
-
-	// Ensure empty slice rather than nil for consistent API responses
-	if failedItemDetails == nil {
-		failedItemDetails = []model.FailedItemDetail{}
-	}
+	// Aggregate via the shared helper so this path, the executor's progress
+	// broadcast, and the store's list path can never drift apart.
+	progress := model.AggregateItemProgress(items).Progress
 
 	// Estimated completion time: not implemented in this story
-	var estimatedCompletion *time.Time
-
-	progress := model.JobProgress{
-		CheckpointsCompleted:      checkpointsCompleted,
-		TotalCheckpoints:          totalCheckpoints,
-		CurrentCheckpoint:         currentCheckpoint,
-		CurrentCheckpointProgress: currentCheckpointProgress,
-		CurrentCheckpointTotal:    currentCheckpointTotal,
-		EstimatedCompletionTime:   estimatedCompletion,
-		ItemCounts:                itemCounts,
-		FailedItemDetails:         failedItemDetails,
-	}
+	progress.EstimatedCompletionTime = nil
 
 	s.logger.WithFields(logrus.Fields{
 		"sample_job_id":         id,
-		"checkpoints_completed": checkpointsCompleted,
-		"total_checkpoints":     totalCheckpoints,
-		"completed_items":       itemCounts.Completed,
-		"failed_items":          itemCounts.Failed,
-		"pending_items":         itemCounts.Pending,
+		"checkpoints_completed": progress.CheckpointsCompleted,
+		"total_checkpoints":     progress.TotalCheckpoints,
+		"completed_items":       progress.ItemCounts.Completed,
+		"failed_items":          progress.ItemCounts.Failed,
+		"pending_items":         progress.ItemCounts.Pending,
 	}).Debug("computed job progress")
 
 	return progress, nil

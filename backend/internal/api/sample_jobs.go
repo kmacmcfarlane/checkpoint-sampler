@@ -9,6 +9,7 @@ import (
 	gensamplejobs "github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/api/gen/sample_jobs"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
+	"github.com/sirupsen/logrus"
 )
 
 // SampleJobsService implements the generated sample_jobs service interface.
@@ -17,12 +18,18 @@ type SampleJobsService struct {
 	discovery *service.DiscoveryService
 	enabled   bool
 	fsState   *service.FSState
+	logger    *logrus.Entry
 }
 
 // SetFSState configures the service to serve training run lists from the
 // in-memory FSState snapshot instead of re-scanning the filesystem on each request.
 func (s *SampleJobsService) SetFSState(state *service.FSState) {
 	s.fsState = state
+}
+
+// SetLogger overrides the default logger with the application's configured one.
+func (s *SampleJobsService) SetLogger(logger *logrus.Logger) {
+	s.logger = logrus.NewEntry(logger)
 }
 
 // NewSampleJobsService returns a new SampleJobsService.
@@ -33,7 +40,27 @@ func NewSampleJobsService(svc *service.SampleJobService, discovery *service.Disc
 		svc:       svc,
 		discovery: discovery,
 		enabled:   svc != nil,
+		logger:    logrus.NewEntry(logrus.StandardLogger()),
 	}
+}
+
+// itemCounts fetches on-the-fly item status counts for a job.
+//
+// A failure here is not fatal to the surrounding request — the job state
+// transition already succeeded and the counts are a display-only detail — so we
+// degrade to zero counts. R-022: the error was previously discarded entirely,
+// which made zero counts indistinguishable from a store failure. Log at WARN so
+// the degradation is visible without failing the request.
+func (s *SampleJobsService) itemCounts(id string) model.ItemStatusCounts {
+	counts, err := s.svc.GetItemCounts(id)
+	if err != nil {
+		s.logger.WithFields(logrus.Fields{
+			"sample_job_id": id,
+			"error":         err.Error(),
+		}).Warn("failed to compute item counts; reporting zero counts")
+		return model.ItemStatusCounts{}
+	}
+	return counts
 }
 
 // List returns a page of sample jobs ordered by creation time (newest first,
@@ -180,7 +207,7 @@ func (s *SampleJobsService) Start(ctx context.Context, p *gensamplejobs.StartPay
 		// Check if error is about invalid state
 		return nil, gensamplejobs.MakeInvalidState(err)
 	}
-	counts, _ := s.svc.GetItemCounts(p.ID)
+	counts := s.itemCounts(p.ID)
 	return sampleJobToResponse(job, counts, []model.FailedItemDetail{}), nil
 }
 
@@ -197,7 +224,7 @@ func (s *SampleJobsService) Stop(ctx context.Context, p *gensamplejobs.StopPaylo
 		// Check if error is about invalid state
 		return nil, gensamplejobs.MakeInvalidState(err)
 	}
-	counts, _ := s.svc.GetItemCounts(p.ID)
+	counts := s.itemCounts(p.ID)
 	return sampleJobToResponse(job, counts, []model.FailedItemDetail{}), nil
 }
 
@@ -217,7 +244,7 @@ func (s *SampleJobsService) Resume(ctx context.Context, p *gensamplejobs.ResumeP
 		// Check if error is about invalid state
 		return nil, gensamplejobs.MakeInvalidState(err)
 	}
-	counts, _ := s.svc.GetItemCounts(p.ID)
+	counts := s.itemCounts(p.ID)
 	return sampleJobToResponse(job, counts, []model.FailedItemDetail{}), nil
 }
 
@@ -236,7 +263,7 @@ func (s *SampleJobsService) RetryFailed(ctx context.Context, p *gensamplejobs.Re
 		}
 		return nil, gensamplejobs.MakeInvalidState(err)
 	}
-	counts, _ := s.svc.GetItemCounts(p.ID)
+	counts := s.itemCounts(p.ID)
 	return sampleJobToResponse(job, counts, []model.FailedItemDetail{}), nil
 }
 

@@ -19,8 +19,22 @@ describe('ImageCell', () => {
 
     const img = wrapper.find('img')
     expect(img.exists()).toBe(true)
-    expect(img.attributes('src')).toBe('/api/v1/images/dir/index=0&seed=42.png')
+    expect(img.attributes('src')).toBe('/api/v1/images/dir/index%3D0%26seed%3D42.png')
     expect(img.attributes('alt')).toBe('dir/index=0&seed=42.png')
+  })
+
+  // AC: image URLs encode filepath segments (filenames with #, ?, % currently break)
+  it('percent-encodes filenames containing #, ? and % in both src and click payload', async () => {
+    const wrapper = mountCell({ relativePath: 'dir/100% done#1?.png' })
+
+    expect(wrapper.find('img').attributes('src')).toBe(
+      '/api/v1/images/dir/100%25%20done%231%3F.png',
+    )
+
+    await wrapper.find('img').trigger('click')
+    expect(wrapper.emitted('click')?.[0]).toEqual([
+      '/api/v1/images/dir/100%25%20done%231%3F.png',
+    ])
   })
 
   // AC: Grid view serves thumbnails instead of full-res images when available

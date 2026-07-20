@@ -98,6 +98,44 @@ export function useJobProgress(options: UseJobProgressOptions): UseJobProgress {
   const inferenceProgress = reactive<Record<string, InferenceProgressEntry>>({})
   const prevCheckpointProgress = reactive<Record<string, number>>({})
 
+  /**
+   * Prune a finished job's progress entry down to its completion summary.
+   *
+   * R-022: entries were previously retained in full forever, so a long-lived
+   * session accumulated live-tracking state (ETAs and current_sample_params,
+   * which carries the full prompt text) for every job that ever ran. Those
+   * fields are meaningless once a job is terminal — nothing is running — so we
+   * drop them. The checkpoint counts and completeness summary are kept because
+   * JobProgressItem still renders them for finished jobs.
+   */
+  function pruneTerminalJobProgress(jobId: string): void {
+    const entry = jobProgress[jobId]
+    if (!entry) return
+    jobProgress[jobId] = {
+      checkpoints_completed: entry.checkpoints_completed,
+      total_checkpoints: entry.total_checkpoints,
+      checkpoint_completeness: entry.checkpoint_completeness,
+    }
+  }
+
+  /**
+   * Drop map entries for jobs that are no longer in the list (deleted, or paged
+   * out). Without this the three maps grow unboundedly over a session, since
+   * nothing else ever removes a key.
+   */
+  function pruneOrphanedEntries(): void {
+    const liveIds = new Set(sampleJobs.value.map((j) => j.id))
+    for (const id of Object.keys(jobProgress)) {
+      if (!liveIds.has(id)) delete jobProgress[id]
+    }
+    for (const id of Object.keys(inferenceProgress)) {
+      if (!liveIds.has(id)) delete inferenceProgress[id]
+    }
+    for (const id of Object.keys(prevCheckpointProgress)) {
+      if (!liveIds.has(id)) delete prevCheckpointProgress[id]
+    }
+  }
+
   function handleInferenceProgress(message: InferenceProgressMessage): void {
     // Find which job this prompt belongs to by matching against running jobs.
     // Since there is only one active prompt at a time, we apply inference progress
@@ -202,6 +240,8 @@ export function useJobProgress(options: UseJobProgressOptions): UseJobProgress {
       if (TERMINAL_STATUSES.has(message.status) && !TERMINAL_STATUSES.has(previousStatus)) {
         delete inferenceProgress[message.job_id]
         delete prevCheckpointProgress[message.job_id]
+        pruneTerminalJobProgress(message.job_id)
+        pruneOrphanedEntries()
         trainingRunsRefreshTrigger.value++
       }
     } else {

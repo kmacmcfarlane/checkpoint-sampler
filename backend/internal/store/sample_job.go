@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"sort"
 	"time"
 
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
@@ -690,16 +689,10 @@ func (s *Store) ListJobsProgress() (map[string]model.JobListProgress, error) {
 	}
 	defer failedRows.Close()
 
-	// Accumulate per-job, per-checkpoint unique error messages with their details,
-	// mirroring the grouping logic in service.GetProgress.
-	type errorDetail struct {
-		exceptionType string
-		nodeType      string
-		traceback     string
-	}
-	// jobID -> checkpoint -> errMsg -> detail. An empty-string errMsg key signals
-	// the checkpoint had a failed item with no recorded message.
-	failed := make(map[string]map[string]map[string]errorDetail)
+	// Accumulate per-job, per-checkpoint unique error messages with their details.
+	// jobID -> checkpoint -> errMsg -> detail. A checkpoint with an empty inner map
+	// had failed items but no recorded message.
+	failed := make(map[string]map[string]map[string]model.CheckpointErrorDetail)
 
 	for failedRows.Next() {
 		var jobID, checkpoint string
@@ -710,19 +703,19 @@ func (s *Store) ListJobsProgress() (map[string]model.JobListProgress, error) {
 		}
 		byCheckpoint, ok := failed[jobID]
 		if !ok {
-			byCheckpoint = make(map[string]map[string]errorDetail)
+			byCheckpoint = make(map[string]map[string]model.CheckpointErrorDetail)
 			failed[jobID] = byCheckpoint
 		}
 		byMsg, ok := byCheckpoint[checkpoint]
 		if !ok {
-			byMsg = make(map[string]errorDetail)
+			byMsg = make(map[string]model.CheckpointErrorDetail)
 			byCheckpoint[checkpoint] = byMsg
 		}
 		if errMsg.String != "" {
-			byMsg[errMsg.String] = errorDetail{
-				exceptionType: exceptionType.String,
-				nodeType:      nodeType.String,
-				traceback:     traceback.String,
+			byMsg[errMsg.String] = model.CheckpointErrorDetail{
+				ExceptionType: exceptionType.String,
+				NodeType:      nodeType.String,
+				Traceback:     traceback.String,
 			}
 		}
 	}
@@ -731,39 +724,11 @@ func (s *Store) ListJobsProgress() (map[string]model.JobListProgress, error) {
 		return nil, fmt.Errorf("iterating failed sample job item rows: %w", err)
 	}
 
-	// Build FailedItemDetails per job, iterating checkpoints in sorted order to
-	// match GetProgress's deterministic ordering.
+	// Build FailedItemDetails per job using the shared helper (R-022), which owns
+	// the sorted ordering and the "unknown error" fallback.
 	for jobID, byCheckpoint := range failed {
-		checkpointNames := make([]string, 0, len(byCheckpoint))
-		for checkpoint := range byCheckpoint {
-			checkpointNames = append(checkpointNames, checkpoint)
-		}
-		sort.Strings(checkpointNames)
-
-		var details []model.FailedItemDetail
-		for _, checkpoint := range checkpointNames {
-			byMsg := byCheckpoint[checkpoint]
-			if len(byMsg) == 0 {
-				// Failed items existed but none carried an error message.
-				details = append(details, model.FailedItemDetail{
-					CheckpointFilename: checkpoint,
-					ErrorMessage:       "unknown error",
-				})
-				continue
-			}
-			for errMsg, detail := range byMsg {
-				details = append(details, model.FailedItemDetail{
-					CheckpointFilename: checkpoint,
-					ErrorMessage:       errMsg,
-					ExceptionType:      detail.exceptionType,
-					NodeType:           detail.nodeType,
-					Traceback:          detail.traceback,
-				})
-			}
-		}
-
 		p := result[jobID]
-		p.FailedItemDetails = details
+		p.FailedItemDetails = model.BuildFailedItemDetails(byCheckpoint)
 		result[jobID] = p
 	}
 

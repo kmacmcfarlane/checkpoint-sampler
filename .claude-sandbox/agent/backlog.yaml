@@ -2160,7 +2160,7 @@ stories:
   - id: R-022
     title: "Low-risk cleanup batch: progress-aggregation dedup, swallowed errors, URL encoding, memory pruning, dead code"
     priority: 20
-    status: todo
+    status: uat
     complexity: medium
     requires: []
     acceptance:

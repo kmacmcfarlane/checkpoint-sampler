@@ -1,5 +1,6 @@
-import { watch, type Ref } from 'vue'
+import { onScopeDispose, watch, type Ref } from 'vue'
 import type { ScanImage, ScanDimension } from '../api/types'
+import { imageUrl } from '../api/urls'
 
 /**
  * Composable that preloads images in the background so slider navigation feels instant.
@@ -27,10 +28,6 @@ export function useImagePreloader(
 
   /** Active abort controller for cancelling in-flight preloads on reset. */
   let abortController: AbortController | null = null
-
-  function imageUrl(relativePath: string): string {
-    return `/api/v1/images/${relativePath}`
-  }
 
   /** Return the preferred preload URL for an image: thumbnail when available, full-res otherwise. */
   function thumbnailOrFullUrl(img: ScanImage): string {
@@ -254,6 +251,16 @@ export function useImagePreloader(
     },
     { immediate: true },
   )
+
+  // Abort any in-flight preload cycle when the owning scope (component) is torn
+  // down. Without this, preloadBatch keeps creating Image() objects after the
+  // consumer is gone, wasting bandwidth and retaining the closure (R-022).
+  // failSilently: the composable is also exercised standalone (outside any
+  // component/effect scope) in unit tests, where there is nothing to dispose.
+  onScopeDispose(() => {
+    abortController?.abort()
+    abortController = null
+  }, true)
 
   return {
     /** Exposed for testing: the set of preloaded URLs. */

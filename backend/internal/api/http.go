@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -336,13 +337,27 @@ func imageMetadataRewriteMiddleware(next http.Handler) http.Handler {
 	const rewritePrefix = "/api/v1/_images_metadata/"
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, imagePrefix) && strings.HasSuffix(r.URL.Path, metadataSuffix) {
+		// R-022: match on the ESCAPED path and rewrite Path and RawPath together.
+		// The frontend percent-encodes filepath segments (filenames may contain
+		// '#', '?', '%', '=' or '&'), which makes net/http populate RawPath. chi
+		// routes on RawPath whenever it is non-empty, so rewriting only Path left
+		// a stale RawPath behind and the rewritten request failed to match the
+		// metadata route at all.
+		escaped := r.URL.EscapedPath()
+		if strings.HasPrefix(escaped, imagePrefix) && strings.HasSuffix(escaped, metadataSuffix) {
 			// Extract the filepath between /api/v1/images/ and /metadata
-			filepath := r.URL.Path[len(imagePrefix) : len(r.URL.Path)-len(metadataSuffix)]
-			if filepath != "" {
+			escapedFilepath := escaped[len(imagePrefix) : len(escaped)-len(metadataSuffix)]
+			if escapedFilepath != "" {
+				decodedFilepath, err := url.PathUnescape(escapedFilepath)
+				if err != nil {
+					// Malformed escape sequence: fall back to the literal value so
+					// the request still routes (the handler reports not-found).
+					decodedFilepath = escapedFilepath
+				}
 				// Clone the request and rewrite the path
 				r2 := r.Clone(r.Context())
-				r2.URL.Path = rewritePrefix + filepath
+				r2.URL.Path = rewritePrefix + decodedFilepath
+				r2.URL.RawPath = rewritePrefix + escapedFilepath
 				r2.RequestURI = r2.URL.RequestURI()
 				next.ServeHTTP(w, r2)
 				return

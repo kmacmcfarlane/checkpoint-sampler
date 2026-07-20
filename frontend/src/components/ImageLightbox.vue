@@ -2,6 +2,7 @@
 import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
 import { NButton } from 'naive-ui'
 import { apiClient } from '../api/client'
+import { filepathFromImageUrl } from '../api/urls'
 import SliderBar from './SliderBar.vue'
 import MasterSlider from './MasterSlider.vue'
 import DebugOverlay from './DebugOverlay.vue'
@@ -112,16 +113,10 @@ const MAX_SCALE = 20
 const ZOOM_FACTOR = 1.1
 const ZOOM_STEP = 0.25
 
-/** Extract the relative image filepath from the full image URL. */
-function extractFilepath(imageUrl: string): string | null {
-  const prefix = '/api/v1/images/'
-  const idx = imageUrl.indexOf(prefix)
-  if (idx < 0) return null
-  return imageUrl.substring(idx + prefix.length)
-}
-
 async function fetchMetadata() {
-  const filepath = extractFilepath(props.imageUrl)
+  // The URL carries a percent-encoded path; decode it back to the raw filepath
+  // so getImageMetadata can apply its own encoding without double-escaping.
+  const filepath = filepathFromImageUrl(props.imageUrl)
   if (!filepath) return
 
   metadataLoading.value = true

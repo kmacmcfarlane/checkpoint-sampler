@@ -1,5 +1,7 @@
 import type { AffectedRun, ApiError, ApiErrorResponse, AppConfig, BaseModelsResult, CheckpointMetadata, ComfyUIModelType, ComfyUIModels, ComfyUIStatus, CreateSampleJobPayload, CreateStudyPayload, DemoStatus, ForkStudyPayload, HasSamplesResponse, HealthStatus, ImageMetadata, Preset, PresetMapping, SampleJob, SampleJobDetail, SampleJobPage, Study, StudyAvailability, ScanResult, TrainingRun, UpdateStudyPayload, ValidationResult, WorkflowSummary } from './types'
 
+import { encodeFilepath } from './urls'
+
 const DEFAULT_BASE_URL = '/api/v1'
 
 /** Options for creating an ApiClient. */
@@ -137,7 +139,7 @@ export class ApiClient {
 
   /** GET /api/v1/images/{filepath}/metadata — get PNG embedded metadata. */
   async getImageMetadata(filepath: string): Promise<ImageMetadata> {
-    return this.request<ImageMetadata>(`/images/${filepath}/metadata`)
+    return this.request<ImageMetadata>(`/images/${encodeFilepath(filepath)}/metadata`)
   }
 
   /** DELETE /api/v1/presets/{id} — delete a preset. */
