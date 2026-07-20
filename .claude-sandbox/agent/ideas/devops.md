@@ -20,6 +20,12 @@ Example:
 
 ## Ideas
 
+### Include `e2e/` in typecheck and lint scope
+* status: needs_approval
+* priority: medium
+* source: qa
+`frontend/tsconfig.json` includes only `src/**`, and eslint reports e2e files as "ignored by a matching ignore pattern" — so the ~88 Playwright specs receive neither `vue-tsc` nor eslint. Type errors in E2E code surface only as runtime failures partway through a suite run, which is the most expensive place to find them. Add a `tsconfig.e2e.json` (or extend `include`) and drop e2e from the eslint ignore list. Found during R-021 QA while authoring a new spec.
+
 ### Generate TypeScript API types from Goa design for E2E tests
 * status: needs_approval
 * priority: low

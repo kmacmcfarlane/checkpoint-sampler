@@ -140,6 +140,24 @@ W-031 dropped `frontend/e2e/helpers.ts` to zero `waitForTimeout` calls, but 35 r
 * source: developer
 W-031 scoped its work to `helpers.ts` plus three named specs, leaving 35 `waitForTimeout` sites (34 after excluding the one documented 6.10 hold-position exception in `slider-playback.spec.ts`). The "poll the actual awaited state" pattern proven in W-031 applies mechanically to most of them. They cluster into recognizable categories: ~10 popup/dialog close-animation waits (`sample-generation.spec.ts` ×4, `mru-vae-te.spec.ts` ×3, `study-mru-autofill.spec.ts` ×2), retry backoffs in the `validation-*` specs, and genuine key-hold durations in `slider-keyboard-autorepeat.spec.ts` (several of which may be legitimate 6.10 exceptions). The popup-animation cluster is the best first target — it can reuse the mask/menu-detach assertion pattern directly. Worth a dedicated story rather than expanding W-031's diff. Raised by the developer, reviewer, and QA independently.
 
+### Adopt mutation checks for tests added under behavior-preserving refactor stories
+* status: needs_approval
+* priority: medium
+* source: qa
+Tests written *after* a fix is already in place are the ones most at risk of passing under both the correct and the broken behavior, guarding nothing. R-021 produced two independent demonstrations: the developer confirmed their `computedTotalImages` regression test failed against the buggy predicate before trusting it, and QA deliberately renamed `.job-header` to confirm the new scoped-style spec failed (`Expected "flex", Received "block"`). In both cases the mutation check is what converted a green test into evidence. Proposal: make "show the test failing against the old behavior" an expected step in TEST_PRACTICES.md for any test added to pin a reviewer-identified behavior or to cover a refactor's moved construct.
+
+### Package the normalized style-block diff as `scripts/verify-style-move.sh`
+* status: needs_approval
+* priority: medium
+* source: reviewer
+Scoped-CSS loss during component extraction is silent and invisible to vitest, vue-tsc, and usually E2E. During R-021 the reviewer reduced this "highest-risk area" from a judgment call to a two-second exact check by stripping comments/whitespace, sorting declarations, and diffing the old ref against the concatenation of the new parent plus extracted children. Worth packaging as a script, since more component-split stories are queued and each one carries the same risk. Complements the computed-style E2E assertions QA added — the script proves the rules moved intact, the spec proves they still apply.
+
+### Component-level visual regression for extracted presentational components
+* status: needs_approval
+* priority: low
+* source: developer
+Decomposition stories like R-021 carry one risk class the current gates cannot see: CSS that stops applying when markup crosses a component boundary. Type checking, linting, and 2019 unit tests all passed on a diff whose highest-risk change (scoped-style relocation) was verified only by reading. Snapshot or screenshot coverage on a few representative presentational components would make future decomposition work materially safer to review, and would pay off across the remaining oversized-component backlog rather than just one story.
+
 ### Migrate `seed-partial-samples.spec.ts` to the shared `closeDrawer()` helper
 * status: needs_approval
 * priority: low

@@ -217,6 +217,24 @@ B-173 listed four 404 paths; three matched pre-S-171 routes exactly, but the fou
 * source: developer
 M-004's AC3 (correct CLAUDE.md `test-e2e` shard default from 12 to 4) was already fixed by a prior story — CHANGELOG.md recorded the fix, but the ticket still listed it as open work. The developer had to verify and then explain the no-op. A quick CHANGELOG/grep confirmation step during ticket grooming would keep already-resolved AC items out of dispatched tickets, avoiding a round-trip where a developer, reviewer, and QA agent each independently confirm that nothing needs doing.
 
+### Require original bodies side-by-side when a refactor collapses N sites into a shared helper
+* status: needs_approval
+* priority: medium
+* source: reviewer
+When a refactor replaces N duplicated inline expressions with one shared helper, the diff makes them look interchangeable because the *replacement* is uniform — the divergence lives in the deleted originals, which no side-by-side diff view surfaces. R-021 is a clean example: three prompt filters were collapsed into `isValidPrompt`, two genuinely used the trim predicate and one used truthiness, and only pulling all three originals together revealed it. The defect passed type checking and 28 green tests. Proposed convention: require the developer's Change Summary to paste all N original bodies adjacent to each other with an explicit character-level equivalence claim.
+
+### Have code review verify AC clauses individually, not just "tests pass"
+* status: needs_approval
+* priority: medium
+* source: qa
+R-021's AC4 had two clauses — "all existing component tests pass" AND "extracted composables get direct unit tests." The second went unverified through two review passes because a green suite was read as satisfying the whole criterion; two of eight extracted modules in fact shipped with no direct tests (filed as B-175). A per-clause checklist, rather than a holistic "does this look done" judgment, would catch measurable AC misses of this kind.
+
+### Scoped-style relocation check when markup moves between components
+* status: needs_approval
+* priority: low
+* source: developer
+When markup moves from a parent SFC to a new child component during decomposition, `scoped` CSS silently stops applying — the selectors stay in the parent, the elements leave. Neither `vue-tsc` nor `vitest` catches this; it surfaces only as unstyled markup at runtime. R-021 relocated ~35 scoped style rules from `JobProgressPanel.vue` into `JobProgressItem.vue` and 2 into `StudyImmutabilityDialog.vue`, verified by inspection alone. A code-reviewer checklist item — or a lint rule flagging scoped selectors with no matching element in the same SFC — would close a gap that the existing gates structurally cannot cover.
+
 ### Coverage-delta reporting for coverage-focused stories
 * status: needs_approval
 * priority: very-low

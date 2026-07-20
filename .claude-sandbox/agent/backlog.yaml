@@ -2142,7 +2142,7 @@ stories:
   - id: R-021
     title: "Split oversized frontend components: StudyEditor, JobProgressPanel, residual App.vue"
     priority: 20
-    status: todo
+    status: uat
     complexity: high
     requires: []
     acceptance:
@@ -2419,3 +2419,32 @@ stories:
     testing:
       - "Reproducing requires forcing Serve() to fail with a non-ErrServerClosed error; the existing W-032 spec for that path
         is the natural place to extend"
+  - id: B-175
+    title: "useStudyOptions/useLazyLoadObserver lack direct unit tests; fallback-on-empty-list branch uncovered"
+    status: todo
+    priority: 60
+    complexity: low
+    requires: []
+    acceptance:
+      - "FE: Direct unit tests exist for useStudyOptions, covering sampler/scheduler fallback on thrown error AND on empty
+        models array"
+      - "FE: Direct unit tests exist for useLazyLoadObserver covering the active watch, observer disconnect/reconnect, and
+        the hasMore/isLoading guard, using an injected IntersectionObserver stub"
+      - "FE: Tests assert workflowOptions filters out non-valid validation_state"
+    notes: |
+      Filed from R-021 QA sweep. R-021 AC4 required direct unit tests for extracted composables; 2 of 8
+      extracted modules (useStudyOptions.ts, useLazyLoadObserver.ts) shipped with none and are not
+      referenced in any test. QA did not reject because the behavior-preservation risk was independently
+      disproven by diffing both modules against pre-refactor source (logic identical) plus indirect
+      coverage (StudyEditor.test.ts:2040,3254-3269; pagination E2E for the observer path).
+
+      Genuinely uncovered branch: the fallback-on-empty-list ternary at useStudyOptions.ts:168,179
+      (result.models.length > 0 ? result.models : FALLBACK_*). Nothing exercises it —
+      study-sampler-scheduler-options.spec.ts:67 asserts 'euler' appears but cannot distinguish
+      ComfyUI's list from the static fallback. Inverting that ternary would leave dropdowns silently
+      empty while passing every existing gate.
+
+      useLazyLoadObserver has zero unit coverage of its observer path by design (IntersectionObserver
+      is a jsdom no-op) — needs an injected stub.
+    testing:
+      - "command: make test-frontend"

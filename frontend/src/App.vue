@@ -4,6 +4,8 @@ import { NConfigProvider, NMessageProvider, NButton, NTag, NTooltip } from 'naiv
 import type { TrainingRun, DimensionRole, FilterMode, UnifiedDimensionMode, Preset, SampleJob, Study } from './api/types'
 import { apiClient } from './api/client'
 import { useJobProgress } from './composables/useJobProgress'
+import { useSampleJobs } from './composables/useSampleJobs'
+import { useValidationDialog } from './composables/useValidationDialog'
 import { useDimensionMapping } from './composables/useDimensionMapping'
 import { useImagePreloader } from './composables/useImagePreloader'
 import { useWebSocket } from './composables/useWebSocket'
@@ -33,7 +35,6 @@ import SettingsDialog from './components/SettingsDialog.vue'
 import ValidationResultsDialog from './components/ValidationResultsDialog.vue'
 import ToastRegistrar from './components/ToastRegistrar.vue'
 import { useToast } from './composables/useToast'
-import type { ValidationResult } from './api/types'
 
 const { theme, isDark, toggle: toggleTheme } = useTheme()
 const toast = useToast()
@@ -103,22 +104,27 @@ const prefillJob = ref<SampleJob | null>(null)
 const prefillMissingOnly = ref(false)
 /** AC5: Debug mode is session-only (ref, not persisted to localStorage). */
 const debugMode = ref(false)
-const sampleJobs = ref<SampleJob[]>([])
-const jobsLoading = ref(false)
 /**
- * S-170 pagination state. The job list is loaded a page at a time and older
- * pages are prefetched invisibly as the user scrolls. jobsTotal is the total
- * across all pages (from X-Total-Count); jobsLoadingMore guards concurrent
- * prefetches. JOBS_PAGE_SIZE is intentionally larger than fits on screen so the
- * first page fills the viewport with a buffer.
+ * S-170 paginated job list plus the job lifecycle actions (extracted to a tested
+ * composable: R-021). Owns sampleJobs / loading / pagination state and encodes
+ * the prefetch-dedupe and prepend-new-jobs invariants.
  */
-const JOBS_PAGE_SIZE = 50
-const jobsTotal = ref(0)
-const jobsLoadingMore = ref(false)
-/** Whether there are more (older) jobs to lazy-load beyond what is loaded. */
-const hasMoreJobs = computed(() => sampleJobs.value.length < jobsTotal.value)
-/** The ID of the job currently being stopped, or null when no stop is in progress. */
-const stoppingJobId = ref<string | null>(null)
+const {
+  sampleJobs,
+  jobsLoading,
+  jobsLoadingMore,
+  hasMoreJobs,
+  stoppingJobId,
+  fetchSampleJobs,
+  loadMoreJobs,
+  handleUnknownJob,
+  stopJob,
+  resumeJob,
+  retryFailedJob,
+  deleteJob,
+} = useSampleJobs({
+  onActionError: (message: string) => toast.error(message),
+})
 /** AC: S-135: The job ID to scroll to and expand in the JobProgressPanel. Set when navigating from a failed bead. */
 const scrollToJobId = ref<string | null>(null)
 
@@ -698,85 +704,6 @@ function onPresetDelete(presetId: string) {
   }
 }
 
-/** Fetch the first page of sample jobs, replacing the accumulated list. */
-async function fetchSampleJobs() {
-  jobsLoading.value = true
-  try {
-    const page = await apiClient.listSampleJobsPage(JOBS_PAGE_SIZE, 0)
-    sampleJobs.value = page.jobs
-    jobsTotal.value = page.total
-  } catch (err: unknown) {
-    console.warn('Failed to fetch sample jobs:', err)
-    sampleJobs.value = []
-    jobsTotal.value = 0
-  } finally {
-    jobsLoading.value = false
-  }
-}
-
-/**
- * Prefetch the next page of older jobs and append them, deduping by id.
- *
- * Called ahead of the scroll position (see JobProgressPanel's IntersectionObserver
- * with a large rootMargin) so loading is invisible. The offset is the current
- * loaded count; because created_at ordering is stable, appending never drops or
- * reorders already-loaded jobs. Deduping by id absorbs the one-row overlap that
- * can occur when a brand-new job shifts server offsets while paging.
- *
- * Edge case: if a job BELOW the currently loaded window is deleted between two
- * page fetches, the offset-based seam can skip a single job at the page boundary.
- * This is rare (deletion is manual) and self-heals on the next full refresh
- * (Refresh button / panel reopen), so it is accepted rather than tracked with a
- * server cursor.
- */
-async function loadMoreJobs() {
-  if (jobsLoadingMore.value || !hasMoreJobs.value) return
-  jobsLoadingMore.value = true
-  try {
-    const page = await apiClient.listSampleJobsPage(JOBS_PAGE_SIZE, sampleJobs.value.length)
-    const existingIds = new Set(sampleJobs.value.map(j => j.id))
-    const newJobs = page.jobs.filter(j => !existingIds.has(j.id))
-    if (newJobs.length > 0) {
-      sampleJobs.value = [...sampleJobs.value, ...newJobs]
-    }
-    jobsTotal.value = page.total
-  } catch (err: unknown) {
-    console.warn('Failed to load more sample jobs:', err)
-  } finally {
-    jobsLoadingMore.value = false
-  }
-}
-
-/**
- * Handle a WebSocket job_progress event that references a job not yet loaded.
- *
- * This fires for brand-new jobs (a job that just started while the user may be
- * scrolled down through older pages). Rather than resetting to page 1 — which
- * would discard already-loaded older pages and the user's scroll position — we
- * fetch the first page and prepend only the genuinely new jobs. New jobs always
- * have the newest created_at, so prepending keeps the accumulated list in the
- * same created_at DESC order the server pagination assumes.
- */
-async function handleUnknownJob() {
-  try {
-    const page = await apiClient.listSampleJobsPage(JOBS_PAGE_SIZE, 0)
-    if (sampleJobs.value.length === 0) {
-      // Nothing loaded yet (panel never opened): treat as an initial load.
-      sampleJobs.value = page.jobs
-      jobsTotal.value = page.total
-      return
-    }
-    const existingIds = new Set(sampleJobs.value.map(j => j.id))
-    const brandNew = page.jobs.filter(j => !existingIds.has(j.id))
-    if (brandNew.length > 0) {
-      sampleJobs.value = [...brandNew, ...sampleJobs.value]
-    }
-    jobsTotal.value = page.total
-  } catch (err: unknown) {
-    console.warn('Failed to refresh sample jobs for new job:', err)
-  }
-}
-
 /** Open the job launch dialog. */
 function openJobLaunchDialog() {
   prefillJob.value = null
@@ -825,53 +752,6 @@ function onJobCreated() {
   jobProgressPanelOpen.value = true
 }
 
-/** Stop a sample job. */
-async function stopJob(jobId: string) {
-  stoppingJobId.value = jobId
-  try {
-    await apiClient.stopSampleJob(jobId)
-    await fetchSampleJobs()
-  } catch (err: unknown) {
-    console.warn('Failed to stop sample job:', err)
-    toast.error('Failed to stop sample job. Please try again.')
-  } finally {
-    stoppingJobId.value = null
-  }
-}
-
-/** Resume a sample job. */
-async function resumeJob(jobId: string) {
-  try {
-    await apiClient.resumeSampleJob(jobId)
-    await fetchSampleJobs()
-  } catch (err: unknown) {
-    console.warn('Failed to resume sample job:', err)
-    toast.error('Failed to resume sample job. Please try again.')
-  }
-}
-
-/** Retry failed items in a completed_with_errors job. */
-async function retryFailedJob(jobId: string) {
-  try {
-    await apiClient.retryFailedSampleJob(jobId)
-    await fetchSampleJobs()
-  } catch (err: unknown) {
-    console.warn('Failed to retry failed job items:', err)
-    toast.error('Failed to retry failed job items. Please try again.')
-  }
-}
-
-/** Delete a sample job, optionally removing its sample data from disk. */
-async function deleteJob(jobId: string, deleteData: boolean) {
-  try {
-    await apiClient.deleteSampleJob(jobId, deleteData)
-    await fetchSampleJobs()
-  } catch (err: unknown) {
-    console.warn('Failed to delete sample job:', err)
-    toast.error('Failed to delete sample job. Please try again.')
-  }
-}
-
 /** Toggle the job progress panel. */
 function toggleJobProgressPanel() {
   jobProgressPanelOpen.value = !jobProgressPanelOpen.value
@@ -913,31 +793,25 @@ const buttonBeadColor = computed((): string | null => {
   return BEAD_COLORS[status]
 })
 
-/** State for the slideout-level validation dialog (no job context). */
-const slideoutValidationDialogShow = ref(false)
-const slideoutValidationResult = ref<ValidationResult | null>(null)
-const slideoutValidationError = ref<string | null>(null)
-const slideoutValidationLoading = ref(false)
+/**
+ * State for the slideout-level validation dialog (no job context).
+ * Extracted to the shared useValidationDialog composable (R-021).
+ */
+const {
+  show: slideoutValidationDialogShow,
+  result: slideoutValidationResult,
+  error: slideoutValidationError,
+  loading: slideoutValidationLoading,
+  run: runSlideoutValidation,
+} = useValidationDialog()
 
 /** Open the validation dialog from the controls slideout for the selected training run. */
 async function handleSlideoutValidate() {
   if (!selectedTrainingRun.value) return
-  slideoutValidationResult.value = null
-  slideoutValidationError.value = null
-  slideoutValidationLoading.value = true
-  slideoutValidationDialogShow.value = true
-
-  try {
-    const result = await apiClient.validateTrainingRun(selectedTrainingRun.value.id, undefined, selectedStudyOutputDir.value || undefined)
-    slideoutValidationResult.value = result
-  } catch (err: unknown) {
-    const message = err && typeof err === 'object' && 'message' in err
-      ? String((err as { message: string }).message)
-      : 'Validation failed'
-    slideoutValidationError.value = message
-  } finally {
-    slideoutValidationLoading.value = false
-  }
+  const run = selectedTrainingRun.value
+  await runSlideoutValidation(() =>
+    apiClient.validateTrainingRun(run.id, undefined, selectedStudyOutputDir.value || undefined),
+  )
 }
 
 /** Re-run validation for the slideout dialog without closing it. */
