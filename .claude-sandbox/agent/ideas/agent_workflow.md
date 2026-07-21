@@ -223,6 +223,12 @@ M-004's AC3 (correct CLAUDE.md `test-e2e` shard default from 12 to 4) was alread
 * source: reviewer
 When a refactor replaces N duplicated inline expressions with one shared helper, the diff makes them look interchangeable because the *replacement* is uniform — the divergence lives in the deleted originals, which no side-by-side diff view surfaces. R-021 is a clean example: three prompt filters were collapsed into `isValidPrompt`, two genuinely used the trim predicate and one used truthiness, and only pulling all three originals together revealed it. The defect passed type checking and 28 green tests. Proposed convention: require the developer's Change Summary to paste all N original bodies adjacent to each other with an explicit character-level equivalence claim.
 
+### `next-work` should filter out `ticket_mode: interactive` stories
+* status: needs_approval
+* priority: high
+* source: orchestrator
+AGENT_FLOW.md 1.2 states Ralph skips `ticket_mode: interactive` stories entirely, but `backlog.py next-work` does not implement that filter — this cycle it returned S-168 (interactive) as the selected story, and the orchestrator had to detect and skip it by reading AGENT_FLOW manually. That only works if the orchestrator happens to check `ticket_mode`; an orchestrator that trusts `next-work` would dispatch a developer against a story the user explicitly reserved for a joint session. The same gap applies to `query --check-requires`, which also returned it as eligible. Proposed fix: exclude `interactive` from `next-work` selection (and add a `--include-interactive` escape hatch for interactive sessions), so the documented rule is enforced by the tool rather than by orchestrator diligence.
+
 ### Have code review verify AC clauses individually, not just "tests pass"
 * status: needs_approval
 * priority: medium

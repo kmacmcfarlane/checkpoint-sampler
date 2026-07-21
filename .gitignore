@@ -84,3 +84,4 @@ config.yaml
 .claude-sandbox/ralph/
 !.claude-sandbox/config.yaml.example
 !.claude-sandbox/Dockerfile
+!.claude-sandbox/config.yaml
