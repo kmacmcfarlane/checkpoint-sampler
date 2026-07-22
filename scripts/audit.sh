@@ -9,7 +9,7 @@
 #
 # Both tools need network access to their vulnerability databases. When the
 # database is unreachable (offline), the audit degrades to a LOUD WARNING and a
-# soft-skip (exit 0) instead of silently passing green. This keeps the pre-push
+# soft-skip (exit 0) instead of silently passing green. This keeps the pre-commit
 # hook usable offline while making the skip clearly visible.
 #
 # Usage:
@@ -61,7 +61,7 @@ warn_offline() {
 	echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
 	echo "!! AUDIT WARNING: $1 could not reach its vulnerability DB."
 	echo "!! The audit was SKIPPED (offline). This is NOT a clean pass."
-	echo "!! Re-run 'make audit' with network access before pushing."
+	echo "!! Re-run 'make audit' with network access before committing."
 	echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
 	echo ""
 }

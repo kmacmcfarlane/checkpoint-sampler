@@ -111,10 +111,10 @@ make audit
 ```
 
 Install the versioned git hooks once so the audit runs automatically before
-every `git push`:
+every commit:
 
 ```bash
-make install-hooks   # sets core.hooksPath -> scripts/git-hooks (pre-push runs `make audit`)
+make install-hooks   # sets core.hooksPath -> scripts/git-hooks (pre-commit runs `make audit`)
 ```
 
 ## Project structure

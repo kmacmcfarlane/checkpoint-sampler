@@ -234,11 +234,11 @@ check-tools:
 audit:
 	GOVULNCHECK_VERSION=$(GOVULNCHECK_VERSION) ./scripts/audit.sh
 
-# Install the versioned git hooks (pre-push runs `make audit`) by pointing
+# Install the versioned git hooks (pre-commit runs `make audit`) by pointing
 # core.hooksPath at scripts/git-hooks. Single documented, idempotent command.
 install-hooks:
 	git config core.hooksPath scripts/git-hooks
-	@echo "Installed git hooks: core.hooksPath -> scripts/git-hooks (pre-push runs 'make audit')"
+	@echo "Installed git hooks: core.hooksPath -> scripts/git-hooks (pre-commit runs 'make audit')"
 
 # Scan source files for string literals that contain characters in the disallowed
 # study-name set (defined in backend/internal/service/study.go).  Run this after
