@@ -2450,7 +2450,7 @@ stories:
       - "command: make test-frontend"
   - id: S-180
     title: Gate dependency audit at commit time instead of push time
-    status: todo
+    status: blocked
     priority: 65
     complexity: low
     requires: []
@@ -2476,3 +2476,68 @@ stories:
         when clean."
       - "Confirm the offline path (vuln DB unreachable) does NOT block the commit and still prints the loud warning."
       - "Confirm the pre-push hook no longer exists and `make install-hooks` is idempotent."
+    blocked_reason: "S-180 implementation is complete and verified: all four acceptance criteria pass (pre-commit hook replaces
+      pre-push, runs 'make audit', fails commits on high-severity findings; make install-hooks idempotent with updated echo;
+      offline soft-skip preserved per test-audit.sh 7/7; Makefile/README/audit.sh wording updated). Code review APPROVED.
+      However, the mandatory E2E gate (TEST_PRACTICES 5.5.1: zero failures required for uat) cannot pass: the full suite shows
+      5 failures (424/429). QA confirmed NONE are caused by S-180 (the branch has zero app-code diff vs main — this is an
+      OPS/docs/hooks-only change). The failures are pre-existing/unrelated app + infra bugs now tracked as B-176 (slash-sanitization
+      viewer-discovery, deterministic), B-177 (thumbnail AC5 select stability, deterministic), and B-178 (inotify 'no space
+      left on device' watch exhaustion under 4-shard E2E, causing flaky discovery). Fixing them is out of scope for an OPS-only
+      story (would violate minimal-diff). Unblock S-180 once B-176/B-177/B-178 are resolved so the E2E suite is green, or
+      waive the E2E gate for this OPS-only change to merge it directly."
+  - id: B-176
+    title: "Slash-sanitized training run not discovered by viewer-discovery when nested under study directory"
+    priority: 60
+    status: todo
+    complexity: medium
+    requires: []
+    acceptance:
+      - "viewer-discovery (source=samples, no query param) returns a run whose name includes the sanitized directory `test-run_my-model`
+        after fixture seeding, consistently across repeated runs"
+      - "investigate whether FSState watch-registration failures (e.g. inotify exhaustion) can silently drop directories from
+        discovery, and add a fallback/retry or surface the failure"
+    testing:
+      - "command: make test-e2e-serial SPEC=slash-sanitization.spec.ts"
+    notes: |
+      Discovered during S-180 QA E2E gate run. Deterministic failure, reproduced 2/2 in isolated serial runs (not just parallel-load flakiness).
+      Failing test: frontend/e2e/slash-sanitization.spec.ts > "viewer-discovery finds samples at sanitized directory path" (line ~54/70).
+      Error: expect(hasSlashRun).toBe(true) received false — runs.some(r => r.name.includes('test-run_my-model')) is false even though the fixture seeder creates {sampleDir}/test-run_my-model/{studyName}/{checkpointFilename}/.
+      Root cause hypothesis: viewer-discovery (FSState/watcher scan of sample_dir) may not surface training runs whose path has an extra study-name segment before the checkpoint directory, OR the discovery races with fixture seeding/FSState watch registration. May correlate with inotify "no space left on device" errors (see B-178) — a failed FSState.Add() on this directory could silently omit it from discovery.
+  - id: B-177
+    title: "Thumbnail grid AC5 E2E test flakes on 'Mode for checkpoint' select — element not stable/not visible"
+    priority: 60
+    status: todo
+    complexity: medium
+    requires: []
+    acceptance:
+      - "the AC5 grid-thumbnail-URL test reliably opens the checkpoint dimension-mode select and completes within the default
+        test timeout across repeated runs"
+      - "investigate whether the grid re-renders/repositions the select trigger after thumbnails finish loading; add a wait-for-stable-layout
+        step or a data-testid based selector if the Naive UI aria-label selector is fragile during re-render"
+    testing:
+      - "command: make test-e2e-serial SPEC=thumbnails.spec.ts"
+    notes: |
+      Discovered during S-180 QA E2E gate run. Deterministic failure, reproduced 2/2 in isolated serial runs.
+      Failing test: frontend/e2e/thumbnails.spec.ts > "grid uses thumbnail URLs for generated images (AC5)" (line ~396/425).
+      Error: Test timeout 90000ms exceeded. locator.click waiting for locator('[aria-label="Mode for checkpoint"]') — element is not stable / not visible (helpers.ts:221).
+      Root cause hypothesis: the dimension-mode NSelect for "checkpoint" is intermittently obstructed or still animating/relayouting (grid re-render after thumbnail load) when the helper clicks, so Playwright actionability checks fail until the test timeout.
+  - id: B-178
+    title: "Backend logs 'no space left on device' (inotify watch exhaustion) during E2E runs, causing flaky discovery failures"
+    priority: 65
+    status: todo
+    complexity: medium
+    requires: []
+    acceptance:
+      - "backend does not emit 'no space left on device' FSState/watcher errors during a standard 4-shard E2E run"
+      - "if inotify limits are the cause, either raise fs.inotify.max_user_instances/max_user_watches via E2E docker-compose
+        sysctls, or make FSState degrade gracefully (log once, fall back to polling) instead of silently dropping watched
+        directories"
+      - "E2E full-suite run (4 shards) passes with zero failures across repeated runs (no parallel-load flakiness)"
+    testing:
+      - "command: make test-e2e"
+      - "command: make e2e-sweep"
+    notes: |
+      Discovered during S-180 QA E2E gate run (runtime error sweep: 61 inotify-related findings across shard-1 and shard-2 backend.log).
+      Log evidence: level=error msg="failed to watch directory for FSState" component=fsstate dir=/data/checkpoints error="no space left on device" (and 60 similar for samples/checkpoints/loras dirs).
+      Root cause hypothesis: ENOSPC from fsnotify.Watcher.Add() is the classic inotify max_user_instances/max_user_watches exhaustion (host max_user_instances=128 observed), not real disk space. Under 4 parallel E2E shards the number of watched directories exceeds the container/host inotify allowance. Likely explains the intermittent load-dependent E2E failures: thumbnails.spec.ts:317 (AC6), training-run-grid.spec.ts:77, slash-sanitization.spec.ts:83 — all failed once under full 4-shard load but passed on serial re-run. May also be the underlying cause of B-176.
