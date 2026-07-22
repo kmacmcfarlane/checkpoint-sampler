@@ -181,3 +181,9 @@ The root `frontend/tsconfig.json` does not cover `e2e/`, so type errors in E2E s
 * priority: low
 * source: developer
 After W-032, `backend/internal/model` sits at 100% and `backend/cmd/server` at 71.1%. A lightweight `go tool cover` threshold check on selected packages, wired into `make test`, would prevent silent coverage regressions on packages that were deliberately raised. Needs a decision on which packages get floors and at what values (a blanket repo-wide floor would be noisy), so it is cross-story coordination rather than something W-032 could land in scope.
+
+### Investigate host-level inotify instance/watch exhaustion on the E2E host
+* status: needs_approval
+* priority: medium
+* source: qa
+During B-178 QA, all 4 E2E shards fully exhausted inotify watches (`total_watches=0`, `degraded=true`) from process start in BOTH full runs — meaning the host is at/near its effective inotify capacity even under normal 4-shard load, not just extreme stress. B-178's graceful degradation is now doing real work on every E2E run rather than only under rare stress. Investigate raising `fs.inotify.max_user_instances` / `fs.inotify.max_user_watches` on the CI/dev host (e.g. via `/etc/sysctl.d`) to restore true inotify-driven live updates under parallel load. (Surfaced during B-178 QA.)

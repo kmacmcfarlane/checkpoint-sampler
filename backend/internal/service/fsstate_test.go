@@ -3,8 +3,10 @@ package service_test
 import (
 	"fmt"
 	"io"
+	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
@@ -14,6 +16,7 @@ import (
 
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/service"
+	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/testutil"
 )
 
 // fakeDiscoverer implements service.FSStateDiscoverer.
@@ -49,7 +52,10 @@ type fakeFSStateNotifier struct {
 	errors  chan error
 	added   []string
 	removed []string
-	mu      sync.Mutex
+	// addErr, when non-nil, is returned by every Add call to simulate watch
+	// registration failures (e.g. inotify ENOSPC exhaustion).
+	addErr error
+	mu     sync.Mutex
 }
 
 func newFakeFSStateNotifier() *fakeFSStateNotifier {
@@ -62,6 +68,9 @@ func newFakeFSStateNotifier() *fakeFSStateNotifier {
 func (f *fakeFSStateNotifier) Add(name string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.addErr != nil {
+		return f.addErr
+	}
 	f.added = append(f.added, name)
 	return nil
 }
@@ -385,6 +394,102 @@ var _ = Describe("FSState", func() {
 			Eventually(func() []string {
 				return notifier.removedPaths()
 			}, 2*time.Second, 50*time.Millisecond).Should(ContainElement("/samples/renamed-model"))
+		})
+	})
+
+	Describe("inotify watch-limit degradation (B-178)", func() {
+		// countInotifyWarnings returns how many warn-level entries mention the
+		// inotify watch-limit fallback message.
+		countInotifyWarnings := func(logCap *testutil.LogCapture) int {
+			n := 0
+			for _, msg := range logCap.MessagesAtLevel(logrus.WarnLevel) {
+				if strings.Contains(msg, "inotify watch limit") {
+					n++
+				}
+			}
+			return n
+		}
+
+		It("logs the fallback warning exactly once and does not spam per directory on ENOSPC", func() {
+			logCap := testutil.NewLogCapture()
+			state := service.NewFSState(cpDisc, viewerDisc, logCap.Logger)
+			// Walk returns several subdirectories per top-level dir so many Add
+			// calls occur; every one fails with ENOSPC.
+			state.SetWalkDirFunc(func(root string) ([]string, error) {
+				return []string{root + "/a", root + "/b", root + "/c"}, nil
+			})
+			Expect(state.Populate()).To(Succeed())
+
+			notifier := newFakeFSStateNotifier()
+			notifier.addErr = syscall.ENOSPC
+			state.StartWatching(notifier, []string{"/samples", "/checkpoints"})
+			defer state.Stop()
+
+			// Despite 8 failing Add calls, only a single warning is emitted.
+			Expect(countInotifyWarnings(logCap)).To(Equal(1))
+			// No per-directory error-level entries for the watch failures.
+			for _, msg := range logCap.MessagesAtLevel(logrus.ErrorLevel) {
+				Expect(msg).NotTo(ContainSubstring("failed to watch"))
+			}
+			Expect(state.Degraded()).To(BeTrue())
+		})
+
+		It("falls back to periodic polling for refreshes when degraded", func() {
+			logCap := testutil.NewLogCapture()
+			state := service.NewFSState(cpDisc, viewerDisc, logCap.Logger)
+			state.SetWalkDirFunc(func(root string) ([]string, error) { return nil, nil })
+			state.SetPollInterval(30 * time.Millisecond)
+			Expect(state.Populate()).To(Succeed())
+			Expect(cpDisc.callCount.Load()).To(Equal(int32(1)))
+
+			notifier := newFakeFSStateNotifier()
+			notifier.addErr = syscall.ENOSPC
+			state.StartWatching(notifier, []string{"/samples"})
+			defer state.Stop()
+
+			// Polling should re-run discovery without any inotify event.
+			Eventually(func() int32 {
+				return cpDisc.callCount.Load()
+			}, 2*time.Second, 30*time.Millisecond).Should(BeNumerically(">=", int32(2)))
+		})
+
+		It("does not poll when watches register successfully", func() {
+			state := service.NewFSState(cpDisc, viewerDisc, logger)
+			state.SetWalkDirFunc(func(root string) ([]string, error) { return nil, nil })
+			state.SetPollInterval(30 * time.Millisecond)
+			Expect(state.Populate()).To(Succeed())
+
+			notifier := newFakeFSStateNotifier()
+			state.StartWatching(notifier, []string{"/samples"})
+			defer state.Stop()
+
+			Expect(state.Degraded()).To(BeFalse())
+			// No spurious refreshes from the poll ticker on the happy path.
+			Consistently(func() int32 {
+				return cpDisc.callCount.Load()
+			}, 200*time.Millisecond, 30*time.Millisecond).Should(Equal(int32(1)))
+		})
+
+		It("still logs non-ENOSPC watch failures at error level per directory", func() {
+			logCap := testutil.NewLogCapture()
+			state := service.NewFSState(cpDisc, viewerDisc, logCap.Logger)
+			state.SetWalkDirFunc(func(root string) ([]string, error) { return nil, nil })
+			Expect(state.Populate()).To(Succeed())
+
+			notifier := newFakeFSStateNotifier()
+			notifier.addErr = fmt.Errorf("permission denied")
+			state.StartWatching(notifier, []string{"/samples", "/checkpoints"})
+			defer state.Stop()
+
+			errMsgs := 0
+			for _, msg := range logCap.MessagesAtLevel(logrus.ErrorLevel) {
+				if strings.Contains(msg, "failed to watch directory for FSState") {
+					errMsgs++
+				}
+			}
+			Expect(errMsgs).To(Equal(2))
+			Expect(state.Degraded()).To(BeFalse())
+			Expect(countInotifyWarnings(logCap)).To(Equal(0))
 		})
 	})
 })

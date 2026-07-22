@@ -155,6 +155,41 @@ async function createAndRunJobToCompletion(page: Page, request: APIRequestContex
 // ---------------------------------------------------------------------------
 
 /**
+ * Poll GET /api/v1/training-runs?source=samples until a run matching the
+ * predicate appears, or until the timeout is reached.
+ *
+ * B-178: FSState normally discovers newly-created study directories almost
+ * immediately via fsnotify. But under heavy parallel E2E load the host's
+ * inotify watch limit can be exhausted (ENOSPC), in which case FSState
+ * gracefully degrades to a periodic polling fallback (default 15s interval)
+ * instead of failing outright. A single immediate GET right after job
+ * completion can race that fallback and miss the newly-created run. Polling
+ * here (with a timeout comfortably longer than the fallback interval)
+ * tolerates that eventual consistency without weakening the assertion that
+ * the run does eventually appear.
+ */
+async function pollForTrainingRun(
+  request: APIRequestContext,
+  predicate: (run: { id: number; name: string; training_run_dir?: string; study_label?: string }) => boolean,
+  options: { timeout?: number; interval?: number } = {},
+): Promise<{ id: number; name: string; training_run_dir?: string; study_label?: string } | undefined> {
+  const timeout = options.timeout ?? 20000
+  const interval = options.interval ?? 1000
+  const deadline = Date.now() + timeout
+
+  while (Date.now() < deadline) {
+    const resp = await request.get('/api/v1/training-runs?source=samples')
+    if (resp.status() === 200) {
+      const runs = await resp.json() as Array<{ id: number; name: string; training_run_dir?: string; study_label?: string }>
+      const match = runs.find(predicate)
+      if (match) return match
+    }
+    await new Promise(r => setTimeout(r, interval))
+  }
+  return undefined
+}
+
+/**
  * Sets up the grid with checkpoint → X, prompt_name → Y, waits for images,
  * then closes the drawer.
  */
@@ -337,8 +372,10 @@ test.describe('thumbnail support — lightbox always uses full-res (AC6)', () =>
 })
 
 test.describe('thumbnail generation — end-to-end (AC1, AC5)', () => {
-  // Allow 90s per test: setup + job completion (2 items × ~15s) + scan + grid verification
-  test.setTimeout(90000)
+  // Allow 120s per test: setup + job completion (2 items × ~15s) + polling for
+  // training-run discovery (up to 20s under FSState's degraded-polling fallback,
+  // see pollForTrainingRun / B-178) + scan + grid verification
+  test.setTimeout(120000)
 
   test.beforeEach(async ({ page, request }) => {
     await resetDatabase(request)
@@ -363,11 +400,9 @@ test.describe('thumbnail generation — end-to-end (AC1, AC5)', () => {
     // Discover all viewer training runs and find the one scoped to this study.
     // Generated images are saved under {sampleDir}/{training_run}/{study_name}/{checkpoint}/.
     // The viewer discovery returns these as a run whose name contains the study_name.
-    const runsResponse = await request.get('/api/v1/training-runs?source=samples')
-    expect(runsResponse.status()).toBe(200)
-    const runs = await runsResponse.json() as Array<{ id: number; name: string }>
-    // Find a run whose name contains the study_name — this is the study-scoped training run
-    const studyScopedRun = runs.find(r => r.name.includes(completedJob.study_name))
+    // Poll (see pollForTrainingRun) rather than a single GET, since FSState may
+    // be in the degraded polling-fallback mode under heavy parallel load (B-178).
+    const studyScopedRun = await pollForTrainingRun(request, r => r.name.includes(completedJob.study_name))
     expect(studyScopedRun).toBeDefined()
 
     // Scan the study-scoped training run — generated images should have thumbnail_path set
@@ -402,10 +437,9 @@ test.describe('thumbnail generation — end-to-end (AC1, AC5)', () => {
     // Find the study-scoped training run (contains the study_name).
     // Generated images live under {sampleDir}/{trainingRunName}/{studyName}/{checkpoint}/,
     // so the viewer returns a run whose name contains the studyName.
-    const runsResponse = await request.get('/api/v1/training-runs?source=samples')
-    expect(runsResponse.status()).toBe(200)
-    const runs = await runsResponse.json() as Array<{ id: number; name: string; training_run_dir?: string; study_label?: string }>
-    const studyScopedRun = runs.find(r => r.name.includes(completedJob.study_name))
+    // Poll (see pollForTrainingRun) rather than a single GET, since FSState may
+    // be in the degraded polling-fallback mode under heavy parallel load (B-178).
+    const studyScopedRun = await pollForTrainingRun(request, r => r.name.includes(completedJob.study_name))
     expect(studyScopedRun).toBeDefined()
 
     // The TrainingRunSelector UI groups runs by training_run_dir in the first dropdown,

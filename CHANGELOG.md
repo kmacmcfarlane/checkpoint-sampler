@@ -5,6 +5,12 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-178: Backend logs 'no space left on device' (inotify watch exhaustion) during E2E runs
+- Root cause was inotify `max_user_watches` exhaustion (ENOSPC from `inotify_add_watch`), not real disk space — under 4 parallel E2E shards the backend containers share the host UID's inotify budget, so `FSState`/`Watcher` watch registration failed and directories were silently dropped, producing 60+ error lines and flaky discovery
+- `FSState` and `Watcher` now detect ENOSPC via `errors.Is(err, syscall.ENOSPC)`, log a single actionable warning (not per-directory error spam), and mark themselves degraded; `FSState` falls back to periodic polling (15s) so live discovery still propagates without inotify
+- `fs.inotify.*` sysctls cannot be set via docker-compose (host-global, rejected by Docker outside `--privileged`), so in-process graceful degradation was chosen over raising limits in the E2E stack
+- E2E hardened: `thumbnails.spec.ts` now polls for run discovery instead of a single snapshot, tolerating the degraded-mode polling latency. Full 4-shard suite 429/429 with all shards fully degraded; sweep clean
+
 ### R-022: Low-risk cleanup batch — aggregation dedup, swallowed errors, URL encoding, memory pruning, dead code
 - Checkpoint progress aggregation existed as three drifting copies across service, executor, and store. Consolidated into `model.AggregateItemProgress`/`BuildFailedItemDetails` with deterministic sorted output, which also fixed two latent nondeterminism bugs the duplication had hidden: `broadcastJobProgress` picked `currentCheckpoint` by map iteration order, and the store path emitted per-checkpoint error messages in map order
 - Percent-encoding image filepaths (so filenames containing `#`, `?`, `%` stop breaking) exposed a latent routing bug rather than being the one-line client change it looked like. Encoding made `net/http` populate `URL.RawPath` for the first time on image requests; chi routes on `RawPath` whenever it is non-empty, and `imageMetadataRewriteMiddleware` rewrote only `Path`, so the rewritten request never matched the metadata route. Fixed by matching on `EscapedPath()` and rewriting `Path`/`RawPath` in lockstep — verified through a real `goahttp.NewMuxer()` including the `%2523` double-encode trap and the empty-`RawPath` case

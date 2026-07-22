@@ -208,3 +208,9 @@ The PRD section 4 `comfyui:` block documents `host:`/`port:` and a top-level `wo
 * priority: medium
 * source: developer
 S-162's README public-release pass references `docs/images/xy-grid.png` via a TODO placeholder, but no such image exists yet — the link will render broken on GitHub. A real screenshot (and a `docs/images/` directory) is needed for the public-release intro to look complete. Requires running the app with sample data and capturing the XY grid; out of scope for a docs-only editorial pass. (Surfaced during S-162.)
+
+### Add polling fallback to Watcher (live-update) under full inotify exhaustion
+* status: needs_approval
+* priority: medium
+* source: qa
+Per the B-178 developer/reviewer note: `Watcher` (drives live WebSocket image add/remove events for the active viewing session) only logs once on ENOSPC but, unlike `FSState`, has no polling fallback. No E2E spec flaked on this in either B-178 full run, but under sustained full inotify degradation a user actively viewing a training run while new images are written could miss live updates until they navigate/refresh. Follow-up: add an analogous polling fallback to `Watcher`, or explicitly document this as an accepted limitation. (Surfaced during B-178 QA.)
