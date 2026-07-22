@@ -2448,3 +2448,31 @@ stories:
       is a jsdom no-op) — needs an injected stub.
     testing:
       - "command: make test-frontend"
+  - id: S-180
+    title: Gate dependency audit at commit time instead of push time
+    status: todo
+    priority: 65
+    complexity: low
+    requires: []
+    notes: >
+      Ralph-loop agents commit freely and only push/merge later, so the current
+      pre-push audit hook does not stop an agent from finishing a story with
+      unresolved govulncheck / npm-audit findings — vulnerabilities can reach main.
+      Move `make audit` from pre-push to a pre-commit hook so no commit can land
+      while high-severity vulnerabilities are present. Full audit runs per commit
+      (accepted tradeoff); the existing offline soft-skip keeps it usable without
+      network access.
+    acceptance:
+      - "OPS: Replace scripts/git-hooks/pre-push with scripts/git-hooks/pre-commit that runs `make audit` and fails the commit
+        on high-severity findings."
+      - "OPS: `make install-hooks` installs the pre-commit hook (still via core.hooksPath=scripts/git-hooks); update its echo
+        message accordingly."
+      - "OPS: Offline soft-skip behavior is preserved — a commit is NOT blocked when the vuln DB is unreachable; the loud
+        offline warning is still shown."
+      - "DOC: Update the Makefile install-hooks comment and any docs referencing the hook (CLAUDE.md, AGENT_FLOW.md) from
+        'pre-push runs make audit' to 'pre-commit runs make audit'."
+    testing:
+      - "Verify the pre-commit hook fails a commit when govulncheck reports a high-severity finding, and allows the commit
+        when clean."
+      - "Confirm the offline path (vuln DB unreachable) does NOT block the commit and still prints the loud warning."
+      - "Confirm the pre-push hook no longer exists and `make install-hooks` is idempotent."
