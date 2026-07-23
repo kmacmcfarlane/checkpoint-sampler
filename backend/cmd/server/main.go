@@ -382,6 +382,7 @@ func buildServer(cfg *model.Config, spec []byte, logger *logrus.Logger) (_ *serv
 		BackgroundPauser:     bgPauser,
 		SampleDirCleaner:     sampleDirCleaner,
 		FixtureSeeder:        fixtureSeeder,
+		SnapshotRefresher:    fsState,
 		JobSeeder:            st,
 		PartialSampleSeeder:  partialSampleSeeder,
 		MaxRequestSizeMB:     cfg.MaxRequestSizeMB,

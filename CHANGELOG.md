@@ -5,6 +5,11 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-176: Slash-sanitized training run not discovered by viewer-discovery when nested under study directory
+- Root cause was a stale-snapshot race, not a discovery-path bug: viewer-discovery serves runs from the in-memory `FSState` snapshot, which is only refreshed asynchronously (debounced fsnotify, or the 15s polling fallback from B-178). E2E tests hit the discovery endpoint immediately after `DELETE /api/test/reset` returns, so the snapshot still reflected pre-seed state and freshly seeded runs (e.g. the slash-sanitized `test-run_my-model`) were missing
+- The test-reset endpoint now synchronously repopulates the `FSState` snapshot after cleanup + fixture seeding (new optional `SnapshotRefresher` interface, satisfied by `*service.FSState.Populate`), making discovery deterministic on the next request regardless of inotify watch state. Only active when `ENABLE_TEST_ENDPOINTS=true`
+- Added a service-level test proving the nested slash-sanitized layout (`test-run_my-model/{study}/{checkpoint}/`) discovers as `test-run_my-model/E2E Slash Fixture Study/my-model`, confirming the discovery logic itself was always correct. Full E2E 429/429, sweep clean
+
 ### B-178: Backend logs 'no space left on device' (inotify watch exhaustion) during E2E runs
 - Root cause was inotify `max_user_watches` exhaustion (ENOSPC from `inotify_add_watch`), not real disk space — under 4 parallel E2E shards the backend containers share the host UID's inotify budget, so `FSState`/`Watcher` watch registration failed and directories were silently dropped, producing 60+ error lines and flaky discovery
 - `FSState` and `Watcher` now detect ENOSPC via `errors.Is(err, syscall.ENOSPC)`, log a single actionable warning (not per-directory error spam), and mark themselves degraded; `FSState` falls back to periodic polling (15s) so live discovery still propagates without inotify

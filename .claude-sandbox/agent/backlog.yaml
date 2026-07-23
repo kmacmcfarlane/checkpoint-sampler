@@ -2489,7 +2489,7 @@ stories:
   - id: B-176
     title: "Slash-sanitized training run not discovered by viewer-discovery when nested under study directory"
     priority: 60
-    status: todo
+    status: uat
     complexity: medium
     requires: []
     acceptance:
