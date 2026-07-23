@@ -15,6 +15,7 @@ import {
   selectNaiveOption,
   selectNaiveMultiOption,
   confirmRegenDialogIfVisible,
+  waitForGridImagesLoaded,
 } from './helpers'
 
 /**
@@ -452,6 +453,14 @@ test.describe('thumbnail generation — end-to-end (AC1, AC5)', () => {
     await selectTrainingRun(page, trainingRunDir)
     await selectStudy(page, studyLabel)
     await expect(page.getByText('Dimensions')).toBeVisible()
+
+    // Wait for any images already rendered in the default grid view to finish
+    // loading before touching the dimension-mode select. Grid images reserve no
+    // height until loaded, so their arrival reflows the layout and repositions
+    // the "Mode for checkpoint" select trigger — the source of the AC5 flake
+    // where the click hung on Playwright's stability check until the test
+    // timeout (B-177). Letting the layout settle first keeps the trigger stable.
+    await waitForGridImagesLoaded(page)
 
     // Set up the grid: checkpoint has 2 values (1000, 2000) → put it on X Axis.
     // The generated study has only 1 prompt so there's no Y-Axis dimension to select.

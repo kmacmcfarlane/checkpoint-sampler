@@ -5,6 +5,11 @@ Older entries are condensed to titles only — see git history for full details.
 
 ## Unreleased
 
+### B-177: Thumbnail grid AC5 E2E test flakes on 'Mode for checkpoint' select
+- Root cause was a silently no-op layout-settle wait: `waitForGridImagesLoaded()` queried `.xy-grid img`, but at the AC5 call site (right after `selectStudy`, before any axis is assigned) `hasNoAxes === true`, so XYGrid renders the `.xy-grid-flat` branch whose images are not under `.xy-grid`. The empty match hit the `imgs.length === 0 → return true` early-out on the first poll, so the wait resolved immediately and the "Mode for checkpoint" select click still raced the flat-grid image reflow — hanging on Playwright's actionability check until the 90s test timeout
+- Fixed by querying `.image-cell img` (the shared `ImageCell` wrapper rendered in BOTH XYGrid branches), so the wait genuinely blocks until flat-grid images finish loading and the layout settles before the select click. `clickSelectAndWaitForPopup` also gained bounded `scrollIntoViewIfNeeded`/`click` timeouts so a transient instability falls through to its retry loop instead of blocking for the full test timeout
+- Test/helper-only change (no application source). Verified with 10x consecutive serial runs of `thumbnails.spec.ts` (7/7 each) plus a full-suite run: 429/429, sweep clean
+
 ### B-176: Slash-sanitized training run not discovered by viewer-discovery when nested under study directory
 - Root cause was a stale-snapshot race, not a discovery-path bug: viewer-discovery serves runs from the in-memory `FSState` snapshot, which is only refreshed asynchronously (debounced fsnotify, or the 15s polling fallback from B-178). E2E tests hit the discovery endpoint immediately after `DELETE /api/test/reset` returns, so the snapshot still reflected pre-seed state and freshly seeded runs (e.g. the slash-sanitized `test-run_my-model`) were missing
 - The test-reset endpoint now synchronously repopulates the `FSState` snapshot after cleanup + fixture seeding (new optional `SnapshotRefresher` interface, satisfied by `*service.FSState.Populate`), making discovery deterministic on the next request regardless of inotify watch state. Only active when `ENABLE_TEST_ENDPOINTS=true`

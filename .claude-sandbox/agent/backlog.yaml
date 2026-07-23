@@ -2507,7 +2507,7 @@ stories:
   - id: B-177
     title: "Thumbnail grid AC5 E2E test flakes on 'Mode for checkpoint' select — element not stable/not visible"
     priority: 60
-    status: todo
+    status: uat
     complexity: medium
     requires: []
     acceptance:
