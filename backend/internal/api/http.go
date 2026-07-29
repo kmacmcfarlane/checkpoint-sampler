@@ -90,6 +90,13 @@ type HTTPHandlerConfig struct {
 	// SeedFixtures() to restore known-good state for E2E tests.
 	FixtureSeeder FixtureSeeder
 
+	// SnapshotRefresher is an optional dependency for synchronously
+	// repopulating the in-memory FSState snapshot after a test reset seeds
+	// fixture directories. When non-nil and ENABLE_TEST_ENDPOINTS=true, the
+	// reset endpoint refreshes the snapshot so discovery endpoints reflect the
+	// seeded state immediately (B-176).
+	SnapshotRefresher SnapshotRefresher
+
 	// JobSeeder is an optional dependency for creating sample jobs with
 	// specified statuses for E2E testing. When non-nil and
 	// ENABLE_TEST_ENDPOINTS=true, POST /api/test/seed-jobs is mounted.
@@ -197,7 +204,7 @@ func NewHTTPHandler(cfg HTTPHandlerConfig) http.Handler {
 
 	// Mount test-only endpoints (no-op unless ENABLE_TEST_ENDPOINTS=true)
 	if cfg.DBResetter != nil {
-		MountTestResetEndpoint(mux, cfg.DBResetter, cfg.BackgroundPauser, cfg.SampleDirCleaner, cfg.FixtureSeeder, cfg.Logger)
+		MountTestResetEndpoint(mux, cfg.DBResetter, cfg.BackgroundPauser, cfg.SampleDirCleaner, cfg.FixtureSeeder, cfg.SnapshotRefresher, cfg.Logger)
 	}
 	if cfg.JobSeeder != nil {
 		MountTestSeedJobsEndpoint(mux, cfg.JobSeeder, cfg.Logger)

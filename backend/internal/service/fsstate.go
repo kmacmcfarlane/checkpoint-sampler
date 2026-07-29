@@ -4,12 +4,18 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
 	"github.com/sirupsen/logrus"
 )
+
+// defaultPollInterval is how often the polling fallback re-runs discovery when
+// inotify watch registration has been degraded (see StartWatching). It is only
+// active in the degraded state, so it imposes no cost on the happy path.
+const defaultPollInterval = 15 * time.Second
 
 // WalkDirFunc lists immediate subdirectories of a directory.
 // Replaceable for testing.
@@ -69,6 +75,17 @@ type FSState struct {
 	done   chan struct{}
 	// stopOnce ensures Stop() is idempotent and safe to call multiple times.
 	stopOnce sync.Once
+
+	// pollInterval controls the polling-fallback cadence used when inotify
+	// watch registration is degraded (ENOSPC / watch-limit exhaustion).
+	pollInterval time.Duration
+	// degraded is set when a watch could not be registered because the inotify
+	// watch limit was reached. In that state the watchLoop periodically
+	// re-runs discovery so live updates still propagate without inotify.
+	degraded atomic.Bool
+	// enospcOnce guards the single actionable warning emitted when the inotify
+	// watch limit is first hit, so failures do not spam the log per directory.
+	enospcOnce sync.Once
 }
 
 // NewFSState creates a new FSState instance. Call Populate() to fill it and
@@ -86,12 +103,24 @@ func NewFSState(
 		isDir:               OSIsDir,
 		walkDirs:            OSWalkDirs,
 		notify:              make(chan struct{}, 1),
+		pollInterval:        defaultPollInterval,
 	}
 }
 
 // SetDebounce overrides the debounce duration (for testing).
 func (s *FSState) SetDebounce(d time.Duration) {
 	s.debounce = d
+}
+
+// SetPollInterval overrides the polling-fallback cadence (for testing).
+func (s *FSState) SetPollInterval(d time.Duration) {
+	s.pollInterval = d
+}
+
+// Degraded reports whether FSState has fallen back to polling because the
+// inotify watch limit was reached during watch registration.
+func (s *FSState) Degraded() bool {
+	return s.degraded.Load()
 }
 
 // SetIsDirFunc overrides the directory detection function (for testing).
@@ -186,14 +215,8 @@ func (s *FSState) StartWatching(notifier WatcherNotifier, dirs []string) {
 
 	watchCount := 0
 	for _, dir := range dirs {
-		if err := notifier.Add(dir); err != nil {
-			s.logger.WithFields(logrus.Fields{
-				"dir":   dir,
-				"error": err.Error(),
-			}).Error("failed to watch directory for FSState")
-		} else {
+		if s.tryAddWatch(notifier, dir) {
 			watchCount++
-			s.logger.WithField("dir", dir).Debug("FSState watching directory")
 		}
 
 		// Recursively walk existing subdirectories and add them to the
@@ -207,14 +230,8 @@ func (s *FSState) StartWatching(notifier WatcherNotifier, dirs []string) {
 			continue
 		}
 		for _, sub := range subdirs {
-			if err := notifier.Add(sub); err != nil {
-				s.logger.WithFields(logrus.Fields{
-					"dir":   sub,
-					"error": err.Error(),
-				}).Error("failed to watch subdirectory for FSState")
-			} else {
+			if s.tryAddWatch(notifier, sub) {
 				watchCount++
-				s.logger.WithField("dir", sub).Debug("FSState watching subdirectory")
 			}
 		}
 	}
@@ -223,7 +240,45 @@ func (s *FSState) StartWatching(notifier WatcherNotifier, dirs []string) {
 	s.logger.WithFields(logrus.Fields{
 		"top_level_dirs": len(dirs),
 		"total_watches":  watchCount,
+		"degraded":       s.degraded.Load(),
 	}).Info("FSState watching started")
+}
+
+// tryAddWatch registers dir with the notifier. It returns true only when the
+// watch was successfully registered.
+//
+// Under load (e.g. many parallel E2E backends sharing one host's inotify
+// budget) inotify_add_watch can fail with ENOSPC once fs.inotify.max_user_watches
+// is exhausted. That is NOT a real disk-space problem. Rather than logging an
+// error per directory (which floods the log with dozens of identical lines) and
+// silently dropping live updates, we:
+//   - record the degraded state (which enables the polling fallback in
+//     watchLoop so the snapshot still refreshes), and
+//   - emit a single actionable warning via enospcOnce.
+//
+// Non-ENOSPC failures remain per-directory errors: they are unexpected and not
+// subject to the same fan-out.
+func (s *FSState) tryAddWatch(notifier WatcherNotifier, dir string) bool {
+	err := notifier.Add(dir)
+	if err == nil {
+		s.logger.WithField("dir", dir).Debug("FSState watching directory")
+		return true
+	}
+	if isInotifyExhaustion(err) {
+		s.degraded.Store(true)
+		s.enospcOnce.Do(func() {
+			s.logger.WithFields(logrus.Fields{
+				"poll_interval": s.pollInterval.String(),
+				"hint":          "raise fs.inotify.max_user_watches / fs.inotify.max_user_instances",
+			}).Warn("FSState hit inotify watch limit (ENOSPC); falling back to periodic polling for live updates")
+		})
+		return false
+	}
+	s.logger.WithFields(logrus.Fields{
+		"dir":   dir,
+		"error": err.Error(),
+	}).Error("failed to watch directory for FSState")
+	return false
 }
 
 // Stop stops the background watching loop. It is safe to call multiple times.
@@ -242,6 +297,13 @@ func (s *FSState) watchLoop(notifier WatcherNotifier) {
 
 	var debounceTimer *time.Timer
 
+	// Polling fallback: while inotify watch registration is degraded (ENOSPC),
+	// re-run discovery on each tick so live updates still propagate without
+	// relying on inotify events. The ticker always runs, but only triggers a
+	// refresh when degraded, so the happy path pays no discovery cost.
+	pollTicker := time.NewTicker(s.pollInterval)
+	defer pollTicker.Stop()
+
 	for {
 		select {
 		case <-s.done:
@@ -249,6 +311,12 @@ func (s *FSState) watchLoop(notifier WatcherNotifier) {
 				debounceTimer.Stop()
 			}
 			return
+
+		case <-pollTicker.C:
+			if s.degraded.Load() {
+				s.logger.Trace("FSState polling fallback tick, scheduling refresh")
+				s.requestRefresh()
+			}
 
 		case ev, ok := <-notifier.Events():
 			if !ok {
@@ -265,25 +333,13 @@ func (s *FSState) watchLoop(notifier WatcherNotifier) {
 				// any subdirectories that may already exist inside it) so
 				// that future events within it are captured by inotify.
 				if ev.Op.Has(fsnotify.Create) && s.isDir(ev.Name) {
-					if err := notifier.Add(ev.Name); err != nil {
-						s.logger.WithFields(logrus.Fields{
-							"dir":   ev.Name,
-							"error": err.Error(),
-						}).Error("failed to add watch for new directory in FSState")
-					} else {
-						s.logger.WithField("dir", ev.Name).Debug("FSState dynamically watching new directory")
-					}
+					s.tryAddWatch(notifier, ev.Name)
 					// Also walk its subdirectories in case the directory
 					// was created with nested content (e.g. by mv or cp -r).
 					subdirs, walkErr := s.walkDirs(ev.Name)
 					if walkErr == nil {
 						for _, sub := range subdirs {
-							if addErr := notifier.Add(sub); addErr != nil {
-								s.logger.WithFields(logrus.Fields{
-									"dir":   sub,
-									"error": addErr.Error(),
-								}).Error("failed to add watch for new subdirectory in FSState")
-							}
+							s.tryAddWatch(notifier, sub)
 						}
 					}
 				}

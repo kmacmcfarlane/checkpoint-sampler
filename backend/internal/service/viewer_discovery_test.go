@@ -444,6 +444,33 @@ var _ = Describe("ViewerDiscoveryService", func() {
 				// StudyNameForRun returns "demo-model/demo-study" for validation scoping
 				Expect(service.StudyNameForRun(runs[0].Name)).To(Equal("demo-model/demo-study"))
 			})
+
+			// B-176: the slash-sanitized fixture seeds
+			// {sampleDir}/test-run_my-model/{study}/{checkpoint}/. Verify a run
+			// whose name includes the sanitized directory "test-run_my-model" is
+			// surfaced from this nested-study layout (the exact scenario the
+			// slash-sanitization.spec.ts E2E asserts). This proves the discovery
+			// logic itself is correct — the E2E flake was a stale-snapshot race
+			// on the reset endpoint, not a discovery-path bug.
+			It("surfaces a run for the slash-sanitized fixture layout", func() {
+				fs.subdirs["/samples"] = []string{"test-run_my-model"}
+				fs.subdirs["/samples/test-run_my-model"] = []string{"E2E Slash Fixture Study"}
+				fs.subdirs["/samples/test-run_my-model/E2E Slash Fixture Study"] = []string{
+					"my-model-step00001000.safetensors",
+					"my-model-step00002000.safetensors",
+				}
+				svc = service.NewViewerDiscoveryService(fs, "/samples", logger)
+
+				runs, err := svc.DiscoverViewable()
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(runs).To(HaveLen(1))
+				Expect(runs[0].Name).To(ContainSubstring("test-run_my-model"))
+				Expect(runs[0].Name).To(Equal("test-run_my-model/E2E Slash Fixture Study/my-model"))
+				Expect(runs[0].Checkpoints).To(HaveLen(2))
+				// The raw slash name must NOT appear as a discovered run.
+				Expect(runs[0].Name).NotTo(ContainSubstring("test-run/my-model"))
+			})
 		})
 
 		// S-147: LoRA layout: {training_run}/{study}/{base_model_name}/{checkpoint.safetensors}/

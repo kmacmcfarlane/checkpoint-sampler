@@ -67,12 +67,39 @@ func (f *fakeSampleDirCleaner) CleanStudyDirs() error {
 
 // fakeFixtureSeeder is a test double for the FixtureSeeder interface.
 type fakeFixtureSeeder struct {
-	called bool
-	err    error
+	called    bool
+	seedOrder int
+	// callCounter, when set, records the relative order in which SeedFixtures
+	// ran so tests can assert seeding happens before the snapshot refresh.
+	callCounter *int
+	err         error
 }
 
 func (f *fakeFixtureSeeder) SeedFixtures() error {
 	f.called = true
+	if f.callCounter != nil {
+		*f.callCounter++
+		f.seedOrder = *f.callCounter
+	}
+	return f.err
+}
+
+// fakeSnapshotRefresher is a test double for the SnapshotRefresher interface.
+// It records when Populate was called relative to a shared counter so tests can
+// assert ordering (refresh must run after seeding).
+type fakeSnapshotRefresher struct {
+	called        bool
+	populateOrder int
+	callCounter   *int
+	err           error
+}
+
+func (f *fakeSnapshotRefresher) Populate() error {
+	f.called = true
+	if f.callCounter != nil {
+		*f.callCounter++
+		f.populateOrder = *f.callCounter
+	}
 	return f.err
 }
 
@@ -96,7 +123,7 @@ var _ = Describe("MountTestResetEndpoint", func() {
 		})
 
 		It("does not mount the endpoint", func() {
-			api.MountTestResetEndpoint(mux, resetter, nil, nil, nil, logger)
+			api.MountTestResetEndpoint(mux, resetter, nil, nil, nil, nil, logger)
 
 			server := httptest.NewServer(mux)
 			defer server.Close()
@@ -124,7 +151,7 @@ var _ = Describe("MountTestResetEndpoint", func() {
 		})
 
 		It("mounts the endpoint and calls ResetDB on DELETE", func() {
-			api.MountTestResetEndpoint(mux, resetter, nil, nil, nil, logger)
+			api.MountTestResetEndpoint(mux, resetter, nil, nil, nil, nil, logger)
 
 			server := httptest.NewServer(mux)
 			defer server.Close()
@@ -146,7 +173,7 @@ var _ = Describe("MountTestResetEndpoint", func() {
 
 		It("returns 500 when ResetDB fails", func() {
 			resetter.err = fmt.Errorf("db error")
-			api.MountTestResetEndpoint(mux, resetter, nil, nil, nil, logger)
+			api.MountTestResetEndpoint(mux, resetter, nil, nil, nil, nil, logger)
 
 			server := httptest.NewServer(mux)
 			defer server.Close()
@@ -165,7 +192,7 @@ var _ = Describe("MountTestResetEndpoint", func() {
 		// executor to prevent SQL errors during table recreation.
 		It("pauses and resumes the background pauser during reset", func() {
 			pauser := newFakePauser()
-			api.MountTestResetEndpoint(mux, resetter, pauser, nil, nil, logger)
+			api.MountTestResetEndpoint(mux, resetter, pauser, nil, nil, nil, logger)
 
 			server := httptest.NewServer(mux)
 			defer server.Close()
@@ -187,7 +214,7 @@ var _ = Describe("MountTestResetEndpoint", func() {
 		It("resumes the pauser even when ResetDB fails", func() {
 			resetter.err = fmt.Errorf("db error")
 			pauser := newFakePauser()
-			api.MountTestResetEndpoint(mux, resetter, pauser, nil, nil, logger)
+			api.MountTestResetEndpoint(mux, resetter, pauser, nil, nil, nil, logger)
 
 			server := httptest.NewServer(mux)
 			defer server.Close()
@@ -206,7 +233,7 @@ var _ = Describe("MountTestResetEndpoint", func() {
 		})
 
 		It("works without a pauser (nil pauser)", func() {
-			api.MountTestResetEndpoint(mux, resetter, nil, nil, nil, logger)
+			api.MountTestResetEndpoint(mux, resetter, nil, nil, nil, nil, logger)
 
 			server := httptest.NewServer(mux)
 			defer server.Close()
@@ -224,7 +251,7 @@ var _ = Describe("MountTestResetEndpoint", func() {
 
 		It("calls CleanStudyDirs when a sample dir cleaner is provided", func() {
 			cleaner := &fakeSampleDirCleaner{}
-			api.MountTestResetEndpoint(mux, resetter, nil, cleaner, nil, logger)
+			api.MountTestResetEndpoint(mux, resetter, nil, cleaner, nil, nil, logger)
 
 			server := httptest.NewServer(mux)
 			defer server.Close()
@@ -243,7 +270,7 @@ var _ = Describe("MountTestResetEndpoint", func() {
 
 		It("returns 500 when CleanStudyDirs fails", func() {
 			cleaner := &fakeSampleDirCleaner{err: fmt.Errorf("cleanup error")}
-			api.MountTestResetEndpoint(mux, resetter, nil, cleaner, nil, logger)
+			api.MountTestResetEndpoint(mux, resetter, nil, cleaner, nil, nil, logger)
 
 			server := httptest.NewServer(mux)
 			defer server.Close()
@@ -259,7 +286,7 @@ var _ = Describe("MountTestResetEndpoint", func() {
 		})
 
 		It("works without a sample dir cleaner (nil cleaner)", func() {
-			api.MountTestResetEndpoint(mux, resetter, nil, nil, nil, logger)
+			api.MountTestResetEndpoint(mux, resetter, nil, nil, nil, nil, logger)
 
 			server := httptest.NewServer(mux)
 			defer server.Close()
@@ -278,7 +305,7 @@ var _ = Describe("MountTestResetEndpoint", func() {
 		It("does not call CleanStudyDirs when ResetDB fails", func() {
 			resetter.err = fmt.Errorf("db error")
 			cleaner := &fakeSampleDirCleaner{}
-			api.MountTestResetEndpoint(mux, resetter, nil, cleaner, nil, logger)
+			api.MountTestResetEndpoint(mux, resetter, nil, cleaner, nil, nil, logger)
 
 			server := httptest.NewServer(mux)
 			defer server.Close()
@@ -298,7 +325,7 @@ var _ = Describe("MountTestResetEndpoint", func() {
 		It("calls SeedFixtures after CleanStudyDirs when a fixture seeder is provided", func() {
 			cleaner := &fakeSampleDirCleaner{}
 			seeder := &fakeFixtureSeeder{}
-			api.MountTestResetEndpoint(mux, resetter, nil, cleaner, seeder, logger)
+			api.MountTestResetEndpoint(mux, resetter, nil, cleaner, seeder, nil, logger)
 
 			server := httptest.NewServer(mux)
 			defer server.Close()
@@ -318,7 +345,7 @@ var _ = Describe("MountTestResetEndpoint", func() {
 
 		It("returns 500 when SeedFixtures fails", func() {
 			seeder := &fakeFixtureSeeder{err: fmt.Errorf("seed error")}
-			api.MountTestResetEndpoint(mux, resetter, nil, nil, seeder, logger)
+			api.MountTestResetEndpoint(mux, resetter, nil, nil, seeder, nil, logger)
 
 			server := httptest.NewServer(mux)
 			defer server.Close()
@@ -334,7 +361,7 @@ var _ = Describe("MountTestResetEndpoint", func() {
 		})
 
 		It("works without a fixture seeder (nil seeder)", func() {
-			api.MountTestResetEndpoint(mux, resetter, nil, nil, nil, logger)
+			api.MountTestResetEndpoint(mux, resetter, nil, nil, nil, nil, logger)
 
 			server := httptest.NewServer(mux)
 			defer server.Close()
@@ -350,9 +377,91 @@ var _ = Describe("MountTestResetEndpoint", func() {
 			Expect(resetter.called).To(BeTrue())
 		})
 
+		// B-176 AC1: after seeding, the FSState snapshot must be repopulated
+		// synchronously so viewer-discovery reflects the just-seeded runs on the
+		// very next request. Verify the refresher is invoked, and that it runs
+		// AFTER seeding (so it observes the seeded directories on disk).
+		It("refreshes the FSState snapshot after seeding when a refresher is provided", func() {
+			counter := 0
+			seeder := &fakeFixtureSeeder{callCounter: &counter}
+			refresher := &fakeSnapshotRefresher{callCounter: &counter}
+			api.MountTestResetEndpoint(mux, resetter, nil, nil, seeder, refresher, logger)
+
+			server := httptest.NewServer(mux)
+			defer server.Close()
+
+			req, err := http.NewRequest(http.MethodDelete, server.URL+"/api/test/reset", nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			resp, err := http.DefaultClient.Do(req)
+			Expect(err).NotTo(HaveOccurred())
+			defer resp.Body.Close()
+
+			Expect(resp.StatusCode).To(Equal(http.StatusOK))
+			Expect(seeder.called).To(BeTrue())
+			Expect(refresher.called).To(BeTrue())
+			// The refresh must run after seeding so the snapshot captures the
+			// freshly seeded directories.
+			Expect(seeder.seedOrder).To(BeNumerically("<", refresher.populateOrder))
+		})
+
+		It("returns 500 when the snapshot refresh fails", func() {
+			refresher := &fakeSnapshotRefresher{err: fmt.Errorf("refresh error")}
+			api.MountTestResetEndpoint(mux, resetter, nil, nil, nil, refresher, logger)
+
+			server := httptest.NewServer(mux)
+			defer server.Close()
+
+			req, err := http.NewRequest(http.MethodDelete, server.URL+"/api/test/reset", nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			resp, err := http.DefaultClient.Do(req)
+			Expect(err).NotTo(HaveOccurred())
+			defer resp.Body.Close()
+
+			Expect(resp.StatusCode).To(Equal(http.StatusInternalServerError))
+		})
+
+		It("works without a snapshot refresher (nil refresher)", func() {
+			seeder := &fakeFixtureSeeder{}
+			api.MountTestResetEndpoint(mux, resetter, nil, nil, seeder, nil, logger)
+
+			server := httptest.NewServer(mux)
+			defer server.Close()
+
+			req, err := http.NewRequest(http.MethodDelete, server.URL+"/api/test/reset", nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			resp, err := http.DefaultClient.Do(req)
+			Expect(err).NotTo(HaveOccurred())
+			defer resp.Body.Close()
+
+			Expect(resp.StatusCode).To(Equal(http.StatusOK))
+			Expect(seeder.called).To(BeTrue())
+		})
+
+		It("does not refresh the snapshot when ResetDB fails", func() {
+			resetter.err = fmt.Errorf("db error")
+			refresher := &fakeSnapshotRefresher{}
+			api.MountTestResetEndpoint(mux, resetter, nil, nil, nil, refresher, logger)
+
+			server := httptest.NewServer(mux)
+			defer server.Close()
+
+			req, err := http.NewRequest(http.MethodDelete, server.URL+"/api/test/reset", nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			resp, err := http.DefaultClient.Do(req)
+			Expect(err).NotTo(HaveOccurred())
+			defer resp.Body.Close()
+
+			Expect(resp.StatusCode).To(Equal(http.StatusInternalServerError))
+			Expect(refresher.called).To(BeFalse())
+		})
+
 		// AC: The /api/test/reset endpoint completes successfully under parallel load
 		It("serializes concurrent reset requests", func() {
-			api.MountTestResetEndpoint(mux, resetter, nil, nil, nil, logger)
+			api.MountTestResetEndpoint(mux, resetter, nil, nil, nil, nil, logger)
 
 			server := httptest.NewServer(mux)
 			defer server.Close()
@@ -390,7 +499,7 @@ var _ = Describe("MountTestResetEndpoint", func() {
 		})
 
 		It("does not mount the endpoint", func() {
-			api.MountTestResetEndpoint(mux, resetter, nil, nil, nil, logger)
+			api.MountTestResetEndpoint(mux, resetter, nil, nil, nil, nil, logger)
 
 			server := httptest.NewServer(mux)
 			defer server.Close()

@@ -38,6 +38,22 @@ type FixtureSeeder interface {
 	SeedFixtures() error
 }
 
+// SnapshotRefresher is an optional interface for synchronously repopulating an
+// in-memory filesystem-state snapshot (FSState) after the reset endpoint has
+// mutated the sample directory (cleanup + fixture seeding).
+//
+// B-176: viewer-discovery serves training runs from the FSState snapshot, which
+// is otherwise only refreshed asynchronously via debounced fsnotify events (or a
+// 15s polling fallback when inotify watch registration is degraded — see B-178).
+// E2E tests hit the discovery endpoint immediately after reset returns, so
+// without a synchronous refresh the snapshot still reflects the pre-seed state
+// and freshly seeded runs (e.g. the slash-sanitized "test-run_my-model" run) are
+// missing. Repopulating here makes discovery deterministic regardless of the
+// inotify watch state. *service.FSState satisfies this via its Populate method.
+type SnapshotRefresher interface {
+	Populate() error
+}
+
 // MountTestResetEndpoint conditionally registers DELETE /api/test/reset on the
 // given mux. The endpoint is only mounted when the ENABLE_TEST_ENDPOINTS
 // environment variable is set to "true". It drops all tables and reruns
@@ -52,9 +68,13 @@ type FixtureSeeder interface {
 // If a FixtureSeeder is provided, deterministic fixture data is seeded after
 // cleanup to ensure E2E tests start with known-good state.
 //
+// If a SnapshotRefresher is provided, the in-memory FSState snapshot is
+// repopulated after seeding so discovery endpoints reflect the seeded state
+// immediately (B-176).
+//
 // This is intended exclusively for E2E test isolation -- it must never be
 // enabled in production.
-func MountTestResetEndpoint(mux interface{ Handle(string, string, http.HandlerFunc) }, resetter DBResetter, pauser BackgroundPauser, cleaner SampleDirCleaner, seeder FixtureSeeder, logger *logrus.Logger) {
+func MountTestResetEndpoint(mux interface{ Handle(string, string, http.HandlerFunc) }, resetter DBResetter, pauser BackgroundPauser, cleaner SampleDirCleaner, seeder FixtureSeeder, refresher SnapshotRefresher, logger *logrus.Logger) {
 	if os.Getenv("ENABLE_TEST_ENDPOINTS") != "true" {
 		return
 	}
@@ -101,6 +121,21 @@ func MountTestResetEndpoint(mux interface{ Handle(string, string, http.HandlerFu
 			if err := seeder.SeedFixtures(); err != nil {
 				logger.WithError(err).Error("fixture seeding failed")
 				http.Error(w, "fixture seeding failed", http.StatusInternalServerError)
+				return
+			}
+		}
+
+		// Synchronously repopulate the in-memory filesystem-state snapshot so
+		// that discovery endpoints (viewer-discovery / source=samples) reflect
+		// the just-seeded sample directories on the very next request, rather
+		// than waiting for a debounced fsnotify event or the degraded-mode
+		// polling fallback (B-176). Without this, E2E tests that call an
+		// immediately-following discovery request observe stale state and miss
+		// freshly seeded runs.
+		if refresher != nil {
+			if err := refresher.Populate(); err != nil {
+				logger.WithError(err).Error("FSState snapshot refresh failed after reset")
+				http.Error(w, "snapshot refresh failed", http.StatusInternalServerError)
 				return
 			}
 		}

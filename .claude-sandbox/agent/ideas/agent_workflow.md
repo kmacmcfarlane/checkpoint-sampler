@@ -246,3 +246,15 @@ When markup moves from a parent SFC to a new child component during decompositio
 * priority: very-low
 * source: developer
 Coverage stories (W-032) require the developer to manually capture before/after numbers, which means measuring the "before" from a clean checkout of `main`. This is error-prone once the branch has diverged, and in W-032 the `cmd/server` baseline turned out not to be independently reproducible at all — `internal/api/gen` is gitignored, so a scratch worktree on `main` needs a full Goa codegen run before it will even build. Both the reviewer and QA ended up accepting the ticket-sourced 6.4% figure on trust. A helper that runs codegen in a scratch worktree and diffs coverage against `main` would make this mechanical and verifiable.
+
+### Audit E2E helpers for unbounded actionability waits
+* status: needs_approval
+* priority: low
+* source: developer
+Other Playwright helpers may still call `.click()` / `.fill()` without explicit timeouts, which silently convert transient flakes into full-test-timeout hangs that are hard to diagnose. A one-time sweep to enforce bounded timeouts on interaction calls inside retry loops would reduce future flake-investigation cost.
+
+### Guard against silent no-op waits in E2E helpers
+* status: needs_approval
+* priority: low
+* source: developer
+B-177's root cause was a `waitForFunction` predicate that returned `true` on an empty selector match, silently disabling the wait exactly where it was needed. A lightweight review/lint checklist item for E2E helpers — "empty-match early-outs in stability predicates must be justified/verified against the actual render branch" — would catch this class of regression before it reaches QA.

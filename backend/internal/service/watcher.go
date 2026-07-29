@@ -1,15 +1,27 @@
 package service
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/kmacmcfarlane/checkpoint-sampler/backend/internal/model"
 	"github.com/sirupsen/logrus"
 )
+
+// isInotifyExhaustion reports whether err is an inotify watch-limit exhaustion
+// (ENOSPC from inotify_add_watch). Under heavy parallel load (e.g. many E2E
+// backends sharing one host's inotify budget) fs.inotify.max_user_watches can
+// be exhausted, causing fsnotify.Watcher.Add to return ENOSPC. Despite the
+// "no space left on device" text this is NOT a real disk-space condition and
+// must be handled gracefully rather than treated as a fatal watch failure.
+func isInotifyExhaustion(err error) bool {
+	return errors.Is(err, syscall.ENOSPC)
+}
 
 // WatcherEventSink receives filesystem events from the watcher.
 type WatcherEventSink interface {
@@ -76,6 +88,28 @@ type Watcher struct {
 	// notifier. It is used to remove every active watch on a run switch so
 	// inotify descriptors do not leak across switches.
 	watched map[string]struct{}
+
+	// enospcOnce guards the single actionable warning emitted when the inotify
+	// watch limit is first hit, so failures do not spam the log per directory.
+	enospcOnce sync.Once
+}
+
+// logWatchErr logs a failed watch registration. Inotify watch-limit exhaustion
+// (ENOSPC) is logged once at warn level with actionable guidance to avoid
+// flooding the log with one error per directory; any other error is logged at
+// error level as before.
+func (w *Watcher) logWatchErr(dir string, err error) {
+	if isInotifyExhaustion(err) {
+		w.enospcOnce.Do(func() {
+			w.logger.WithField("hint", "raise fs.inotify.max_user_watches / fs.inotify.max_user_instances").
+				Warn("watcher hit inotify watch limit (ENOSPC); some live updates may be missed until the limit is raised")
+		})
+		return
+	}
+	w.logger.WithFields(logrus.Fields{
+		"dir":   dir,
+		"error": err.Error(),
+	}).Error("failed to watch directory")
 }
 
 // NewWatcher creates a new Watcher.
@@ -182,10 +216,7 @@ func (w *Watcher) WatchTrainingRun(run model.TrainingRun) error {
 
 	for _, dir := range dirs {
 		if err := w.addWatch(dir); err != nil {
-			w.logger.WithFields(logrus.Fields{
-				"dir":   dir,
-				"error": err.Error(),
-			}).Error("failed to watch directory")
+			w.logWatchErr(dir, err)
 		} else {
 			w.logger.WithField("dir", dir).Debug("watching directory")
 		}
@@ -285,10 +316,7 @@ func (w *Watcher) handleEvent(ev fsnotify.Event) {
 			w.logger.WithField("directory_path", relPath).Info("directory added")
 			// Watch the new directory for images
 			if err := w.addWatch(ev.Name); err != nil {
-				w.logger.WithFields(logrus.Fields{
-					"directory": ev.Name,
-					"error":     err.Error(),
-				}).Error("failed to add watch for new directory")
+				w.logWatchErr(ev.Name, err)
 			}
 		}
 	case ev.Op.Has(fsnotify.Remove) || ev.Op.Has(fsnotify.Rename):

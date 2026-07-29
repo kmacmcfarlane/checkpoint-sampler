@@ -2489,7 +2489,7 @@ stories:
   - id: B-176
     title: "Slash-sanitized training run not discovered by viewer-discovery when nested under study directory"
     priority: 60
-    status: todo
+    status: uat
     complexity: medium
     requires: []
     acceptance:
@@ -2507,7 +2507,7 @@ stories:
   - id: B-177
     title: "Thumbnail grid AC5 E2E test flakes on 'Mode for checkpoint' select — element not stable/not visible"
     priority: 60
-    status: todo
+    status: uat
     complexity: medium
     requires: []
     acceptance:
@@ -2525,7 +2525,7 @@ stories:
   - id: B-178
     title: "Backend logs 'no space left on device' (inotify watch exhaustion) during E2E runs, causing flaky discovery failures"
     priority: 65
-    status: todo
+    status: uat
     complexity: medium
     requires: []
     acceptance:

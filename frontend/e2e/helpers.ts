@@ -218,8 +218,19 @@ async function clickSelectAndWaitForPopup(
   const popupMenu = page.locator('.n-base-select-menu:visible')
   const MAX_RETRIES = 3
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-    await selectTrigger.click()
     try {
+      // Scroll the trigger into view and click with an explicit, bounded timeout.
+      //
+      // Without a timeout, Playwright's actionability wait on click() blocks up
+      // to the entire test timeout when the trigger is transiently unstable —
+      // e.g. the XYGrid re-renders/relayouts after thumbnails finish loading,
+      // shifting the drawer's "Mode for <dim>" select trigger while the click's
+      // stability check is running. That hang defeats this retry loop and
+      // surfaces as "element is not stable / not visible" only at the 90s test
+      // timeout (B-177). Bounding the click lets a failed attempt fall through
+      // to the retry below, which re-clicks once the layout has settled.
+      await selectTrigger.scrollIntoViewIfNeeded({ timeout: 5000 })
+      await selectTrigger.click({ timeout: 5000 })
       await expect(popupMenu).toBeVisible({ timeout: 3000 })
       return popupMenu
     } catch {
@@ -230,7 +241,7 @@ async function clickSelectAndWaitForPopup(
       }
       // Wait for any partially-open popup to be fully dismissed before retrying,
       // rather than guessing at an animation duration.
-      await page.keyboard.press('Escape')
+      await page.keyboard.press('Escape').catch(() => undefined)
       await expect(popupMenu).toHaveCount(0, { timeout: 5000 })
     }
   }
@@ -548,6 +559,42 @@ export async function selectNaiveOptionByLabel(page: Page, selectAriaLabel: stri
   const popupMenu = await clickSelectAndWaitForPopup(page, select, selectAriaLabel)
   await popupMenu.getByText(optionText, { exact: true }).click()
   await expect(popupMenu).not.toBeVisible()
+}
+
+/**
+ * Waits until every currently-rendered grid image in the main content area has
+ * finished loading (img.complete && naturalWidth > 0).
+ *
+ * Grid images have no intrinsic reserved height until they load, so while they
+ * are still fetching the main content — and, on wide screens where the sidebar
+ * runs beside the grid, the surrounding layout — keeps reflowing. That reflow
+ * repositions the drawer's "Mode for <dim>" select trigger and makes it fail
+ * Playwright's actionability stability check (B-177). Calling this before
+ * interacting with the dimension-mode selects lets the layout settle first.
+ *
+ * Tolerates the case where no grid images are present yet (returns immediately).
+ */
+export async function waitForGridImagesLoaded(page: Page, timeout = 15000): Promise<void> {
+  await page
+    .waitForFunction(
+      () => {
+        // Every rendered grid image is wrapped by ImageCell's `.image-cell`
+        // element, which is present in BOTH XYGrid render branches: the
+        // axis-assigned `.xy-grid-container` grid AND the no-axis
+        // `.xy-grid-flat` grid. A `.xy-grid img` selector would miss the flat
+        // branch (exact class-token matching), silently turning this wait into
+        // a no-op exactly at the AC5 call site — right after selectStudy, when
+        // no axis is assigned and the flat grid is showing.
+        const imgs = Array.from(
+          document.querySelectorAll<HTMLImageElement>('.image-cell img'),
+        )
+        // No images rendered yet: nothing to stabilize on this pass.
+        if (imgs.length === 0) return true
+        return imgs.every((img) => img.complete && img.naturalWidth > 0)
+      },
+      { timeout },
+    )
+    .catch(() => undefined)
 }
 
 /**
