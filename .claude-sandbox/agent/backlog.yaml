@@ -2450,7 +2450,7 @@ stories:
       - "command: make test-frontend"
   - id: S-180
     title: Gate dependency audit at commit time instead of push time
-    status: blocked
+    status: uat
     priority: 65
     complexity: low
     requires: []
@@ -2476,16 +2476,6 @@ stories:
         when clean."
       - "Confirm the offline path (vuln DB unreachable) does NOT block the commit and still prints the loud warning."
       - "Confirm the pre-push hook no longer exists and `make install-hooks` is idempotent."
-    blocked_reason: "S-180 implementation is complete and verified: all four acceptance criteria pass (pre-commit hook replaces
-      pre-push, runs 'make audit', fails commits on high-severity findings; make install-hooks idempotent with updated echo;
-      offline soft-skip preserved per test-audit.sh 7/7; Makefile/README/audit.sh wording updated). Code review APPROVED.
-      However, the mandatory E2E gate (TEST_PRACTICES 5.5.1: zero failures required for uat) cannot pass: the full suite shows
-      5 failures (424/429). QA confirmed NONE are caused by S-180 (the branch has zero app-code diff vs main — this is an
-      OPS/docs/hooks-only change). The failures are pre-existing/unrelated app + infra bugs now tracked as B-176 (slash-sanitization
-      viewer-discovery, deterministic), B-177 (thumbnail AC5 select stability, deterministic), and B-178 (inotify 'no space
-      left on device' watch exhaustion under 4-shard E2E, causing flaky discovery). Fixing them is out of scope for an OPS-only
-      story (would violate minimal-diff). Unblock S-180 once B-176/B-177/B-178 are resolved so the E2E suite is green, or
-      waive the E2E gate for this OPS-only change to merge it directly."
   - id: B-176
     title: "Slash-sanitized training run not discovered by viewer-discovery when nested under study directory"
     priority: 60

@@ -88,10 +88,16 @@ test.describe('test seed-jobs endpoint (S-111)', () => {
     const jobs = await listResp.json() as Array<{ id: string; status: string; total_items: number; completed_items: number }>
     expect(jobs).toHaveLength(2)
 
-    // Check that job statuses match what we requested
+    // Check that job statuses match what we requested.
+    // Note: the background job executor auto-starts the oldest pending job on a
+    // 1s ticker (by design — no explicit Start API call is required). This is a
+    // real race between the executor and this list request, so the seeded
+    // "pending" job may have already transitioned to "running" by the time we
+    // read it back. Accept either status; what matters is that the job was
+    // created with the requested item counts and is visible via the list API.
     const pendingJob = jobs.find(j => j.id === jobIDs[0])
     expect(pendingJob).toBeDefined()
-    expect(pendingJob?.status).toBe('pending')
+    expect(['pending', 'running']).toContain(pendingJob?.status)
     expect(pendingJob?.total_items).toBe(5)
     expect(pendingJob?.completed_items).toBe(0)
 
